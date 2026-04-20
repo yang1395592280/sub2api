@@ -2,7 +2,7 @@
 #
 # Sub2API Installation Script
 # Sub2API 安装脚本
-# Usage: curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/yang1395592280/sub2api/main/deploy/install.sh | sudo bash
 #
 
 set -e
@@ -16,7 +16,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Configuration
-GITHUB_REPO="Wei-Shaw/sub2api"
+GITHUB_REPO="${GITHUB_REPO:-yang1395592280/sub2api}"
 INSTALL_DIR="/opt/sub2api"
 SERVICE_NAME="sub2api"
 SERVICE_USER="sub2api"
@@ -310,6 +310,52 @@ print_error() {
     echo -e "${RED}[$(msg 'error')]${NC} $1"
 }
 
+detect_sha256_command() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        echo "sha256sum"
+        return 0
+    fi
+    if command -v shasum >/dev/null 2>&1; then
+        echo "shasum -a 256"
+        return 0
+    fi
+    return 1
+}
+
+sha256_file() {
+    local file="$1"
+    local hash_command
+    hash_command=$(detect_sha256_command) || return 1
+
+    if [ "$hash_command" = "sha256sum" ]; then
+        sha256sum "$file" | awk '{print $1}'
+    else
+        shasum -a 256 "$file" | awk '{print $1}'
+    fi
+}
+
+archive_name_for_version() {
+    local version="$1"
+    local os="$2"
+    local arch="$3"
+    local version_num=${version#v}
+    echo "sub2api_${version_num}_${os}_${arch}.tar.gz"
+}
+
+download_url_for_version() {
+    local version="$1"
+    local os="$2"
+    local arch="$3"
+    local archive_name
+    archive_name=$(archive_name_for_version "$version" "$os" "$arch")
+    echo "https://github.com/${GITHUB_REPO}/releases/download/${version}/${archive_name}"
+}
+
+checksum_url_for_version() {
+    local version="$1"
+    echo "https://github.com/${GITHUB_REPO}/releases/download/${version}/checksums.txt"
+}
+
 # Check if running interactively (can access terminal)
 # When piped (curl | bash), stdin is not a terminal, but /dev/tty may still be available
 is_interactive() {
@@ -434,11 +480,9 @@ detect_platform() {
         linux)
             OS="linux"
             ;;
-        darwin)
-            OS="darwin"
-            ;;
         *)
             print_error "$(msg 'unsupported_os'): $OS"
+            print_error "This installer currently supports Linux servers with systemd only."
             exit 1
             ;;
     esac
@@ -456,6 +500,10 @@ check_dependencies() {
 
     if ! command -v tar &> /dev/null; then
         missing+=("tar")
+    fi
+
+    if ! detect_sha256_command >/dev/null 2>&1; then
+        missing+=("sha256sum/shasum")
     fi
 
     if [ ${#missing[@]} -gt 0 ]; then
@@ -552,10 +600,12 @@ get_current_version() {
 
 # Download and extract
 download_and_extract() {
-    local version_num=${LATEST_VERSION#v}
-    local archive_name="sub2api_${version_num}_${OS}_${ARCH}.tar.gz"
-    local download_url="https://github.com/${GITHUB_REPO}/releases/download/${LATEST_VERSION}/${archive_name}"
-    local checksum_url="https://github.com/${GITHUB_REPO}/releases/download/${LATEST_VERSION}/checksums.txt"
+    local archive_name
+    archive_name=$(archive_name_for_version "$LATEST_VERSION" "$OS" "$ARCH")
+    local download_url
+    download_url=$(download_url_for_version "$LATEST_VERSION" "$OS" "$ARCH")
+    local checksum_url
+    checksum_url=$(checksum_url_for_version "$LATEST_VERSION")
 
     print_info "$(msg 'downloading') ${archive_name}..."
 
@@ -564,16 +614,21 @@ download_and_extract() {
     trap "rm -rf $TEMP_DIR" EXIT
 
     # Download archive
-    if ! curl -sL "$download_url" -o "$TEMP_DIR/$archive_name"; then
+    if ! curl -fsSL "$download_url" -o "$TEMP_DIR/$archive_name"; then
         print_error "$(msg 'download_failed')"
         exit 1
     fi
 
     # Download and verify checksum
     print_info "$(msg 'verifying_checksum')"
-    if curl -sL "$checksum_url" -o "$TEMP_DIR/checksums.txt" 2>/dev/null; then
+    if curl -fsSL "$checksum_url" -o "$TEMP_DIR/checksums.txt" 2>/dev/null; then
         local expected_checksum=$(grep "$archive_name" "$TEMP_DIR/checksums.txt" | awk '{print $1}')
-        local actual_checksum=$(sha256sum "$TEMP_DIR/$archive_name" | awk '{print $1}')
+        if [ -z "$expected_checksum" ]; then
+            print_error "$(msg 'checksum_not_found')"
+            exit 1
+        fi
+        local actual_checksum
+        actual_checksum=$(sha256_file "$TEMP_DIR/$archive_name")
 
         if [ "$expected_checksum" != "$actual_checksum" ]; then
             print_error "$(msg 'checksum_failed')"
@@ -583,7 +638,8 @@ download_and_extract() {
         fi
         print_success "$(msg 'checksum_verified')"
     else
-        print_warning "$(msg 'checksum_not_found')"
+        print_error "$(msg 'checksum_not_found')"
+        exit 1
     fi
 
     # Extract
@@ -1166,4 +1222,6 @@ main() {
     fi
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi
