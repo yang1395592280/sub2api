@@ -1584,6 +1584,59 @@
                 </div>
               </div>
             </div>
+
+            <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
+              <div class="mb-4">
+                <label class="font-medium text-gray-900 dark:text-white">
+                  {{ t('admin.settings.checkin.title') }}
+                </label>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.checkin.description') }}
+                </p>
+              </div>
+
+              <div class="flex items-center justify-between">
+                <label class="mb-0 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.checkin.enabled') }}
+                </label>
+                <Toggle v-model="form.checkin_enabled" />
+              </div>
+
+              <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.checkin.minReward') }}
+                  </label>
+                  <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                    <input
+                      v-model.number="form.checkin_min_reward"
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      class="input pl-7"
+                      :disabled="!form.checkin_enabled"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.checkin.maxReward') }}
+                  </label>
+                  <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                    <input
+                      v-model.number="form.checkin_max_reward"
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      class="input pl-7"
+                      :disabled="!form.checkin_enabled"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         </div><!-- /Tab: Users -->
@@ -2974,6 +3027,9 @@ const form = reactive<SettingsForm>({
   default_balance: 0,
   default_concurrency: 1,
   default_subscriptions: [],
+  checkin_enabled: false,
+  checkin_min_reward: 0.002,
+  checkin_max_reward: 0.02,
   site_name: 'Sub2API',
   site_logo: '',
   site_subtitle: 'Subscription to API Conversion Platform',
@@ -3571,6 +3627,9 @@ async function saveSettings() {
       default_balance: form.default_balance,
       default_concurrency: form.default_concurrency,
       default_subscriptions: normalizedDefaultSubscriptions,
+      checkin_enabled: form.checkin_enabled,
+      checkin_min_reward: Number(form.checkin_min_reward) || 0,
+      checkin_max_reward: Number(form.checkin_max_reward) || 0,
       site_name: form.site_name,
       site_logo: form.site_logo,
       site_subtitle: form.site_subtitle,

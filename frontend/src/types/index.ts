@@ -118,6 +118,9 @@ export interface PublicSettings {
   home_content: string
   hide_ccs_import_button: boolean
   payment_enabled: boolean
+  checkin_enabled: boolean
+  checkin_min_reward: number
+  checkin_max_reward: number
   table_default_page_size: number
   table_page_size_options: number[]
   custom_menu_items: CustomMenuItem[]

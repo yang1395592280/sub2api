@@ -11,17 +11,27 @@ import (
 
 // UserHandler handles user-related requests
 type UserHandler struct {
-	userService  *service.UserService
-	emailService *service.EmailService
-	emailCache   service.EmailCache
+	userService      *service.UserService
+	checkinService   *service.CheckinService
+	emailService     *service.EmailService
+	turnstileService *service.TurnstileService
+	emailCache       service.EmailCache
 }
 
 // NewUserHandler creates a new UserHandler
-func NewUserHandler(userService *service.UserService, emailService *service.EmailService, emailCache service.EmailCache) *UserHandler {
+func NewUserHandler(
+	userService *service.UserService,
+	checkinService *service.CheckinService,
+	emailService *service.EmailService,
+	turnstileService *service.TurnstileService,
+	emailCache service.EmailCache,
+) *UserHandler {
 	return &UserHandler{
-		userService:  userService,
-		emailService: emailService,
-		emailCache:   emailCache,
+		userService:      userService,
+		checkinService:   checkinService,
+		emailService:     emailService,
+		turnstileService: turnstileService,
+		emailCache:       emailCache,
 	}
 }
 

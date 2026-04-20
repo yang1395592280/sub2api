@@ -45,6 +45,9 @@ func RegisterUserRoutes(
 				totp.POST("/enable", h.Totp.Enable)
 				totp.POST("/disable", h.Totp.Disable)
 			}
+
+			user.GET("/checkin", h.User.GetCheckinStatus)
+			user.POST("/checkin", h.User.DoCheckin)
 		}
 
 		// API Key管理

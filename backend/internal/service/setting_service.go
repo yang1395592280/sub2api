@@ -182,6 +182,9 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingPaymentEnabled,
 		SettingKeyOIDCConnectEnabled,
 		SettingKeyOIDCConnectProviderName,
+		SettingKeyCheckinEnabled,
+		SettingKeyCheckinMinReward,
+		SettingKeyCheckinMaxReward,
 		SettingKeyBalanceLowNotifyEnabled,
 		SettingKeyBalanceLowNotifyThreshold,
 		SettingKeyBalanceLowNotifyRechargeURL,
@@ -228,6 +231,14 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 	if v, err := strconv.ParseFloat(settings[SettingKeyBalanceLowNotifyThreshold], 64); err == nil && v >= 0 {
 		balanceLowNotifyThreshold = v
 	}
+	checkinMinReward := defaultCheckinMinReward
+	if v, err := strconv.ParseFloat(settings[SettingKeyCheckinMinReward], 64); err == nil && v >= 0 {
+		checkinMinReward = v
+	}
+	checkinMaxReward := defaultCheckinMaxReward
+	if v, err := strconv.ParseFloat(settings[SettingKeyCheckinMaxReward], 64); err == nil && v >= checkinMinReward {
+		checkinMaxReward = v
+	}
 
 	return &PublicSettings{
 		RegistrationEnabled:              settings[SettingKeyRegistrationEnabled] == "true",
@@ -258,6 +269,9 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		PaymentEnabled:                   settings[SettingPaymentEnabled] == "true",
 		OIDCOAuthEnabled:                 oidcEnabled,
 		OIDCOAuthProviderName:            oidcProviderName,
+		CheckinEnabled:                   settings[SettingKeyCheckinEnabled] == "true",
+		CheckinMinReward:                 checkinMinReward,
+		CheckinMaxReward:                 checkinMaxReward,
 		BalanceLowNotifyEnabled:          settings[SettingKeyBalanceLowNotifyEnabled] == "true",
 		AccountQuotaNotifyEnabled:        settings[SettingKeyAccountQuotaNotifyEnabled] == "true",
 		BalanceLowNotifyThreshold:        balanceLowNotifyThreshold,
@@ -315,6 +329,9 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		OIDCOAuthEnabled                 bool            `json:"oidc_oauth_enabled"`
 		OIDCOAuthProviderName            string          `json:"oidc_oauth_provider_name"`
 		Version                          string          `json:"version,omitempty"`
+		CheckinEnabled                   bool            `json:"checkin_enabled"`
+		CheckinMinReward                 float64         `json:"checkin_min_reward"`
+		CheckinMaxReward                 float64         `json:"checkin_max_reward"`
 		BalanceLowNotifyEnabled          bool            `json:"balance_low_notify_enabled"`
 		AccountQuotaNotifyEnabled        bool            `json:"account_quota_notify_enabled"`
 		BalanceLowNotifyThreshold        float64         `json:"balance_low_notify_threshold"`
@@ -349,6 +366,9 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		OIDCOAuthEnabled:                 settings.OIDCOAuthEnabled,
 		OIDCOAuthProviderName:            settings.OIDCOAuthProviderName,
 		Version:                          s.version,
+		CheckinEnabled:                   settings.CheckinEnabled,
+		CheckinMinReward:                 settings.CheckinMinReward,
+		CheckinMaxReward:                 settings.CheckinMaxReward,
 		BalanceLowNotifyEnabled:          settings.BalanceLowNotifyEnabled,
 		AccountQuotaNotifyEnabled:        settings.AccountQuotaNotifyEnabled,
 		BalanceLowNotifyThreshold:        settings.BalanceLowNotifyThreshold,
@@ -592,6 +612,9 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 		return fmt.Errorf("marshal default subscriptions: %w", err)
 	}
 	updates[SettingKeyDefaultSubscriptions] = string(defaultSubsJSON)
+	updates[SettingKeyCheckinEnabled] = strconv.FormatBool(settings.CheckinEnabled)
+	updates[SettingKeyCheckinMinReward] = strconv.FormatFloat(settings.CheckinMinReward, 'f', 8, 64)
+	updates[SettingKeyCheckinMaxReward] = strconv.FormatFloat(settings.CheckinMaxReward, 'f', 8, 64)
 
 	// Model fallback configuration
 	updates[SettingKeyEnableModelFallback] = strconv.FormatBool(settings.EnableModelFallback)
@@ -950,6 +973,9 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyDefaultConcurrency:               strconv.Itoa(s.cfg.Default.UserConcurrency),
 		SettingKeyDefaultBalance:                   strconv.FormatFloat(s.cfg.Default.UserBalance, 'f', 8, 64),
 		SettingKeyDefaultSubscriptions:             "[]",
+		SettingKeyCheckinEnabled:                   "false",
+		SettingKeyCheckinMinReward:                 strconv.FormatFloat(defaultCheckinMinReward, 'f', 8, 64),
+		SettingKeyCheckinMaxReward:                 strconv.FormatFloat(defaultCheckinMaxReward, 'f', 8, 64),
 		SettingKeySMTPPort:                         "587",
 		SettingKeySMTPUseTLS:                       "false",
 		// Model fallback defaults
@@ -1037,6 +1063,15 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		result.DefaultBalance = balance
 	} else {
 		result.DefaultBalance = s.cfg.Default.UserBalance
+	}
+	result.CheckinEnabled = settings[SettingKeyCheckinEnabled] == "true"
+	result.CheckinMinReward = defaultCheckinMinReward
+	if v, err := strconv.ParseFloat(settings[SettingKeyCheckinMinReward], 64); err == nil && v >= 0 {
+		result.CheckinMinReward = v
+	}
+	result.CheckinMaxReward = result.CheckinMinReward
+	if v, err := strconv.ParseFloat(settings[SettingKeyCheckinMaxReward], 64); err == nil && v >= result.CheckinMinReward {
+		result.CheckinMaxReward = v
 	}
 	result.DefaultSubscriptions = parseDefaultSubscriptions(settings[SettingKeyDefaultSubscriptions])
 

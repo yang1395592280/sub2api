@@ -156,6 +156,9 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		DefaultConcurrency:                   settings.DefaultConcurrency,
 		DefaultBalance:                       settings.DefaultBalance,
 		DefaultSubscriptions:                 defaultSubscriptions,
+		CheckinEnabled:                       settings.CheckinEnabled,
+		CheckinMinReward:                     settings.CheckinMinReward,
+		CheckinMaxReward:                     settings.CheckinMaxReward,
 		EnableModelFallback:                  settings.EnableModelFallback,
 		FallbackModelAnthropic:               settings.FallbackModelAnthropic,
 		FallbackModelOpenAI:                  settings.FallbackModelOpenAI,
@@ -279,6 +282,9 @@ type UpdateSettingsRequest struct {
 	DefaultConcurrency   int                              `json:"default_concurrency"`
 	DefaultBalance       float64                          `json:"default_balance"`
 	DefaultSubscriptions []dto.DefaultSubscriptionSetting `json:"default_subscriptions"`
+	CheckinEnabled       bool                             `json:"checkin_enabled"`
+	CheckinMinReward     float64                          `json:"checkin_min_reward"`
+	CheckinMaxReward     float64                          `json:"checkin_max_reward"`
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -364,6 +370,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	}
 	if req.DefaultBalance < 0 {
 		req.DefaultBalance = 0
+	}
+	if req.CheckinMinReward < 0 {
+		req.CheckinMinReward = 0
+	}
+	if req.CheckinMaxReward < req.CheckinMinReward {
+		req.CheckinMaxReward = req.CheckinMinReward
 	}
 	// 通用表格配置：兼容旧客户端未传字段时保留当前值。
 	if req.TableDefaultPageSize <= 0 {
@@ -844,6 +856,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		DefaultConcurrency:               req.DefaultConcurrency,
 		DefaultBalance:                   req.DefaultBalance,
 		DefaultSubscriptions:             defaultSubscriptions,
+		CheckinEnabled:                   req.CheckinEnabled,
+		CheckinMinReward:                 req.CheckinMinReward,
+		CheckinMaxReward:                 req.CheckinMaxReward,
 		EnableModelFallback:              req.EnableModelFallback,
 		FallbackModelAnthropic:           req.FallbackModelAnthropic,
 		FallbackModelOpenAI:              req.FallbackModelOpenAI,
@@ -1057,6 +1072,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		DefaultConcurrency:                   updatedSettings.DefaultConcurrency,
 		DefaultBalance:                       updatedSettings.DefaultBalance,
 		DefaultSubscriptions:                 updatedDefaultSubscriptions,
+		CheckinEnabled:                       updatedSettings.CheckinEnabled,
+		CheckinMinReward:                     updatedSettings.CheckinMinReward,
+		CheckinMaxReward:                     updatedSettings.CheckinMaxReward,
 		EnableModelFallback:                  updatedSettings.EnableModelFallback,
 		FallbackModelAnthropic:               updatedSettings.FallbackModelAnthropic,
 		FallbackModelOpenAI:                  updatedSettings.FallbackModelOpenAI,

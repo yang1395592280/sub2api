@@ -544,7 +544,9 @@ export default {
     viewUsage: '查看使用记录',
     checkDetailedLogs: '查看详细的使用日志',
     redeemCode: '兑换码',
-    addBalanceWithCode: '使用兑换码充值'
+    addBalanceWithCode: '使用兑换码充值',
+    dailyCheckin: '每日签到',
+    claimDailyReward: '领取今日随机奖励'
   },
 
   // Groups (shared)
@@ -912,6 +914,34 @@ export default {
       sendCode: '发送验证码',
       codeSent: '验证码已发送到您的邮箱',
       sendCodeFailed: '发送验证码失败'
+    },
+    checkin: {
+      title: '每日签到',
+      description: '每天可签到一次，随机获得 {min} 到 {max} 的余额奖励。',
+      action: '立即签到',
+      checkedToday: '今日已签到',
+      submitting: '签到中...',
+      success: '签到成功，获得 {reward}',
+      loadFailed: '加载签到状态失败',
+      submitFailed: '签到失败',
+      totalCheckins: '累计签到',
+      monthReward: '本月获得',
+      totalReward: '累计获得',
+      securityTitle: '安全验证',
+      securityDescription: '请完成人机验证后提交今日签到。',
+      loading: '正在加载签到记录...',
+      ruleOne: '每日仅可签到一次。',
+      ruleTwo: '签到奖励会直接增加到账户余额。',
+      ruleThree: '奖励金额由管理员配置的区间随机生成。',
+      weekdays: {
+        mon: '一',
+        tue: '二',
+        wed: '三',
+        thu: '四',
+        fri: '五',
+        sat: '六',
+        sun: '日'
+      }
     },
     balanceNotify: {
       title: '余额不足提醒',
@@ -4561,6 +4591,13 @@ export default {
         defaultSubscriptionsDuplicate: '默认订阅存在重复分组：{groupId}。每个分组只能出现一次。',
         subscriptionGroup: '订阅分组',
         subscriptionValidityDays: '有效期（天）'
+      },
+      checkin: {
+        title: '签到设置',
+        description: '允许用户每日签到并获得随机余额奖励。',
+        enabled: '启用签到功能',
+        minReward: '最小奖励',
+        maxReward: '最大奖励'
       },
       claudeCode: {
         title: 'Claude Code 设置',

@@ -152,6 +152,9 @@ const (
 	SettingKeyDefaultConcurrency   = "default_concurrency"   // 新用户默认并发量
 	SettingKeyDefaultBalance       = "default_balance"       // 新用户默认余额
 	SettingKeyDefaultSubscriptions = "default_subscriptions" // 新用户默认订阅列表（JSON）
+	SettingKeyCheckinEnabled       = "checkin_enabled"       // 是否启用签到功能
+	SettingKeyCheckinMinReward     = "checkin_min_reward"    // 签到最小奖励（USD）
+	SettingKeyCheckinMaxReward     = "checkin_max_reward"    // 签到最大奖励（USD）
 
 	// 管理员 API Key
 	SettingKeyAdminAPIKey = "admin_api_key" // 全局管理员 API Key（用于外部系统集成）

@@ -74,6 +74,9 @@ type SystemSettings struct {
 	DefaultConcurrency   int
 	DefaultBalance       float64
 	DefaultSubscriptions []DefaultSubscriptionSetting
+	CheckinEnabled       bool
+	CheckinMinReward     float64
+	CheckinMaxReward     float64
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -157,6 +160,10 @@ type PublicSettings struct {
 	OIDCOAuthEnabled      bool
 	OIDCOAuthProviderName string
 	Version               string
+
+	CheckinEnabled   bool
+	CheckinMinReward float64
+	CheckinMaxReward float64
 
 	BalanceLowNotifyEnabled     bool
 	AccountQuotaNotifyEnabled   bool

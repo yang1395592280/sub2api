@@ -92,6 +92,9 @@ type SystemSettings struct {
 	DefaultConcurrency   int                          `json:"default_concurrency"`
 	DefaultBalance       float64                      `json:"default_balance"`
 	DefaultSubscriptions []DefaultSubscriptionSetting `json:"default_subscriptions"`
+	CheckinEnabled       bool                         `json:"checkin_enabled"`
+	CheckinMinReward     float64                      `json:"checkin_min_reward"`
+	CheckinMaxReward     float64                      `json:"checkin_max_reward"`
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -195,6 +198,9 @@ type PublicSettings struct {
 	BackendModeEnabled               bool             `json:"backend_mode_enabled"`
 	PaymentEnabled                   bool             `json:"payment_enabled"`
 	Version                          string           `json:"version"`
+	CheckinEnabled                   bool             `json:"checkin_enabled"`
+	CheckinMinReward                 float64          `json:"checkin_min_reward"`
+	CheckinMaxReward                 float64          `json:"checkin_max_reward"`
 	BalanceLowNotifyEnabled          bool             `json:"balance_low_notify_enabled"`
 	AccountQuotaNotifyEnabled        bool             `json:"account_quota_notify_enabled"`
 	BalanceLowNotifyThreshold        float64          `json:"balance_low_notify_threshold"`

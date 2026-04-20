@@ -545,7 +545,9 @@ export default {
     viewUsage: 'View Usage',
     checkDetailedLogs: 'Check detailed usage logs',
     redeemCode: 'Redeem Code',
-    addBalanceWithCode: 'Add balance with a code'
+    addBalanceWithCode: 'Add balance with a code',
+    dailyCheckin: 'Daily Check-in',
+    claimDailyReward: "Claim today's random reward"
   },
 
   // Groups (shared)
@@ -908,6 +910,34 @@ export default {
       sendCode: 'Send Code',
       codeSent: 'Verification code sent to your email',
       sendCodeFailed: 'Failed to send verification code'
+    },
+    checkin: {
+      title: 'Daily Check-in',
+      description: 'Check in once per day to receive a random balance reward between {min} and {max}.',
+      action: 'Check In Now',
+      checkedToday: 'Checked In Today',
+      submitting: 'Checking in...',
+      success: 'Check-in successful, earned {reward}',
+      loadFailed: 'Failed to load check-in status',
+      submitFailed: 'Check-in failed',
+      totalCheckins: 'Total Check-ins',
+      monthReward: 'This Month',
+      totalReward: 'Total Reward',
+      securityTitle: 'Security Check',
+      securityDescription: 'Complete the verification before submitting today\'s check-in.',
+      loading: 'Loading check-in records...',
+      ruleOne: 'You can only check in once per day.',
+      ruleTwo: 'Rewards are added directly to your account balance.',
+      ruleThree: 'The reward amount is randomly generated within the configured range.',
+      weekdays: {
+        mon: 'Mon',
+        tue: 'Tue',
+        wed: 'Wed',
+        thu: 'Thu',
+        fri: 'Fri',
+        sat: 'Sat',
+        sun: 'Sun'
+      }
     },
     balanceNotify: {
       title: 'Balance Low Notification',
@@ -4397,6 +4427,13 @@ export default {
           'Duplicate subscription group: {groupId}. Each group can only appear once.',
         subscriptionGroup: 'Subscription Group',
         subscriptionValidityDays: 'Validity (days)'
+      },
+      checkin: {
+        title: 'Check-in Settings',
+        description: 'Allow users to check in daily and receive a random balance reward.',
+        enabled: 'Enable Check-in',
+        minReward: 'Minimum Reward',
+        maxReward: 'Maximum Reward'
       },
       claudeCode: {
         title: 'Claude Code Settings',
