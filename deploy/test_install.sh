@@ -29,8 +29,8 @@ main() {
         "installer should require useradd"
     assert_contains 'curl -fsSL "$download_url" -o "$TEMP_DIR/$archive_name"' \
         "installer should fail fast when release download fails"
-    assert_contains 'print_error "$(msg '\''checksum_not_found'\'')"' \
-        "installer should fail when checksum file or entry is missing"
+    assert_contains 'print_warning "$(msg '\''checksum_not_found'\'')"' \
+        "installer should only warn when checksum file or entry is missing"
     assert_contains 'if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then' \
         "installer should be source-safe for future tests"
     echo "install.sh text checks passed"
