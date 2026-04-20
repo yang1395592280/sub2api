@@ -353,7 +353,7 @@ For production servers using systemd.
 ### One-Line Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/yang1395592280/sub2api/main/deploy/install.sh | sudo bash
 ```
 
 ### Manual Installation

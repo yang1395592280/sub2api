@@ -506,6 +506,14 @@ check_dependencies() {
         missing+=("sha256sum/shasum")
     fi
 
+    if ! command -v systemctl &> /dev/null; then
+        missing+=("systemctl")
+    fi
+
+    if ! command -v useradd &> /dev/null; then
+        missing+=("useradd")
+    fi
+
     if [ ${#missing[@]} -gt 0 ]; then
         print_error "$(msg 'missing_deps'): ${missing[*]}"
         print_info "$(msg 'install_deps_first')"
