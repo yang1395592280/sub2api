@@ -56,6 +56,7 @@ type CheckinRepository interface {
 	CreateAndCredit(ctx context.Context, record *CheckinRecord) (*CheckinRecord, error)
 	ListByUserAndDateRange(ctx context.Context, userID int64, startDate, endDate string) ([]CheckinRecord, error)
 	GetUserTotals(ctx context.Context, userID int64) (int64, float64, error)
+	ListAdminRecords(ctx context.Context, page, pageSize int, search, date, sortBy, sortOrder string) ([]AdminCheckinRecord, int64, error)
 }
 
 type CheckinService struct {
@@ -83,7 +84,7 @@ func NewCheckinService(
 }
 
 func (s *CheckinService) Checkin(ctx context.Context, userID int64, userTZ string) (*CheckinRecord, error) {
-	enabled, minReward, maxReward := s.loadSettings(ctx)
+	enabled, minReward, maxReward, distribution := s.loadSettings(ctx)
 	if !enabled {
 		return nil, ErrCheckinDisabled
 	}
@@ -100,7 +101,7 @@ func (s *CheckinService) Checkin(ctx context.Context, userID int64, userTZ strin
 	record, err := s.repo.CreateAndCredit(ctx, &CheckinRecord{
 		UserID:       userID,
 		CheckinDate:  today,
-		RewardAmount: s.randomReward(minReward, maxReward),
+		RewardAmount: s.randomReward(minReward, maxReward, distribution),
 		UserTimezone: userTZ,
 	})
 	if err != nil {
@@ -112,7 +113,7 @@ func (s *CheckinService) Checkin(ctx context.Context, userID int64, userTZ strin
 }
 
 func (s *CheckinService) GetStatus(ctx context.Context, userID int64, month, userTZ string) (*CheckinStatus, error) {
-	enabled, minReward, maxReward := s.loadSettings(ctx)
+	enabled, minReward, maxReward, _ := s.loadSettings(ctx)
 	status := &CheckinStatus{
 		Enabled:   enabled,
 		MinReward: minReward,
@@ -157,14 +158,15 @@ func (s *CheckinService) GetStatus(ctx context.Context, userID int64, month, use
 	return status, nil
 }
 
-func (s *CheckinService) loadSettings(ctx context.Context) (bool, float64, float64) {
+func (s *CheckinService) loadSettings(ctx context.Context) (bool, float64, float64, []CheckinDistributionBucket) {
 	enabled := s.readBoolSetting(ctx, SettingKeyCheckinEnabled, false)
 	minReward := s.readFloatSetting(ctx, SettingKeyCheckinMinReward, defaultCheckinMinReward)
 	maxReward := s.readFloatSetting(ctx, SettingKeyCheckinMaxReward, defaultCheckinMaxReward)
 	if maxReward < minReward {
 		maxReward = minReward
 	}
-	return enabled, minReward, maxReward
+	distribution := s.readDistributionSetting(ctx)
+	return enabled, minReward, maxReward, distribution
 }
 
 func (s *CheckinService) readBoolSetting(ctx context.Context, key string, fallback bool) bool {
@@ -187,14 +189,78 @@ func (s *CheckinService) readFloatSetting(ctx context.Context, key string, fallb
 	return parsed
 }
 
-func (s *CheckinService) randomReward(minReward, maxReward float64) float64 {
+func (s *CheckinService) readDistributionSetting(ctx context.Context) []CheckinDistributionBucket {
+	if !s.readBoolSetting(ctx, SettingKeyCheckinDistributionEnabled, false) {
+		return nil
+	}
+
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyCheckinDistributionConfig)
+	if err != nil {
+		return nil
+	}
+	buckets, err := ParseCheckinDistributionConfig(raw)
+	if err != nil {
+		return nil
+	}
+	return buckets
+}
+
+func (s *CheckinService) randomReward(minReward, maxReward float64, distribution []CheckinDistributionBucket) float64 {
 	if maxReward <= minReward {
 		return roundTo8(minReward)
 	}
 	s.randMu.Lock()
+	defer s.randMu.Unlock()
+
+	if len(distribution) > 0 {
+		bucket := pickDistributionBucket(distribution, s.randSource.Float64())
+		value := rewardFromDistribution(minReward, maxReward, bucket, s.randSource.Float64())
+		return roundTo8(value)
+	}
+
 	value := minReward + s.randSource.Float64()*(maxReward-minReward)
-	s.randMu.Unlock()
 	return roundTo8(value)
+}
+
+func pickDistributionBucket(buckets []CheckinDistributionBucket, roll float64) CheckinDistributionBucket {
+	if len(buckets) == 0 {
+		return CheckinDistributionBucket{StartPercent: 0, EndPercent: 100, Weight: 1}
+	}
+
+	totalWeight := 0
+	for _, bucket := range buckets {
+		totalWeight += bucket.Weight
+	}
+	if totalWeight <= 0 {
+		return buckets[0]
+	}
+
+	target := roll * float64(totalWeight)
+	current := 0.0
+	for _, bucket := range buckets {
+		current += float64(bucket.Weight)
+		if target < current {
+			return bucket
+		}
+	}
+
+	return buckets[len(buckets)-1]
+}
+
+func rewardFromDistribution(minReward, maxReward float64, bucket CheckinDistributionBucket, roll float64) float64 {
+	span := maxReward - minReward
+	start := minReward + span*(bucket.StartPercent/100.0)
+	end := minReward + span*(bucket.EndPercent/100.0)
+	if end < start {
+		end = start
+	}
+	if roll <= 0 {
+		return roundTo8(start)
+	}
+	if roll >= 1 {
+		return roundTo8(end)
+	}
+	return roundTo8(start + (end-start)*roll)
 }
 
 func resolveMonthDateRange(month, userTZ string) (string, string) {

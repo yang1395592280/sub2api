@@ -29,6 +29,9 @@ func RegisterAdminRoutes(
 		// 账号管理
 		registerAccountRoutes(admin, h)
 
+		// 签到记录
+		registerCheckinRoutes(admin, h)
+
 		// 公告管理
 		registerAnnouncementRoutes(admin, h)
 
@@ -88,6 +91,14 @@ func RegisterAdminRoutes(
 
 		// 渠道管理
 		registerChannelRoutes(admin, h)
+	}
+}
+
+func registerCheckinRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	checkins := admin.Group("/checkins")
+	{
+		checkins.GET("", h.Admin.Checkin.List)
+		checkins.GET("/users/:userId/summary", h.Admin.Checkin.GetUserSummary)
 	}
 }
 

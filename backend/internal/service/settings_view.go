@@ -71,12 +71,14 @@ type SystemSettings struct {
 	CustomMenuItems             string // JSON array of custom menu items
 	CustomEndpoints             string // JSON array of custom endpoints
 
-	DefaultConcurrency   int
-	DefaultBalance       float64
-	DefaultSubscriptions []DefaultSubscriptionSetting
-	CheckinEnabled       bool
-	CheckinMinReward     float64
-	CheckinMaxReward     float64
+	DefaultConcurrency         int
+	DefaultBalance             float64
+	DefaultSubscriptions       []DefaultSubscriptionSetting
+	CheckinEnabled             bool
+	CheckinMinReward           float64
+	CheckinMaxReward           float64
+	CheckinDistributionEnabled bool
+	CheckinDistributionConfig  string
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -161,9 +163,10 @@ type PublicSettings struct {
 	OIDCOAuthProviderName string
 	Version               string
 
-	CheckinEnabled   bool
-	CheckinMinReward float64
-	CheckinMaxReward float64
+	CheckinEnabled             bool
+	CheckinMinReward           float64
+	CheckinMaxReward           float64
+	CheckinDistributionEnabled bool
 
 	BalanceLowNotifyEnabled     bool
 	AccountQuotaNotifyEnabled   bool

@@ -15,6 +15,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -561,7 +562,7 @@ func (r *accountRepository) ListWithFilters(ctx context.Context, params paginati
 	accountsQuery := q.
 		Offset(params.Offset()).
 		Limit(params.Limit())
-	for _, order := range accountListOrder(params) {
+	for _, order := range accountListOrder(params, status) {
 		accountsQuery = accountsQuery.Order(order)
 	}
 
@@ -577,7 +578,7 @@ func (r *accountRepository) ListWithFilters(ctx context.Context, params paginati
 	return outAccounts, paginationResultFromTotal(int64(total), params), nil
 }
 
-func accountListOrder(params pagination.PaginationParams) []func(*entsql.Selector) {
+func accountListOrder(params pagination.PaginationParams, status string) []func(*entsql.Selector) {
 	sortBy := strings.ToLower(strings.TrimSpace(params.SortBy))
 	sortOrder := params.NormalizedSortOrder(pagination.SortOrderAsc)
 
@@ -610,6 +611,9 @@ func accountListOrder(params pagination.PaginationParams) []func(*entsql.Selecto
 	case "created_at":
 		field = dbaccount.FieldCreatedAt
 		defaultOrder = false
+	case "recover_at":
+		defaultOrder = false
+		return recoverAtOrder(status, sortOrder)
 	}
 
 	if sortOrder == pagination.SortOrderDesc {
@@ -619,6 +623,34 @@ func accountListOrder(params pagination.PaginationParams) []func(*entsql.Selecto
 		return []func(*entsql.Selector){dbent.Asc(dbaccount.FieldName), dbent.Asc(dbaccount.FieldID)}
 	}
 	return []func(*entsql.Selector){dbent.Asc(field), dbent.Asc(dbaccount.FieldID)}
+}
+
+func recoverAtOrder(status string, sortOrder string) []func(*entsql.Selector) {
+	column := ""
+	switch status {
+	case "rate_limited":
+		column = dbaccount.FieldRateLimitResetAt
+	case "temp_unschedulable":
+		column = "temp_unschedulable_until"
+	default:
+		column = dbaccount.FieldRateLimitResetAt
+	}
+
+	dir := "ASC"
+	if sortOrder == pagination.SortOrderDesc {
+		dir = "DESC"
+	}
+
+	return []func(*entsql.Selector){
+		func(s *entsql.Selector) {
+			s.OrderExpr(entsql.Expr(fmt.Sprintf("%s %s NULLS LAST", s.C(column), dir)))
+			if sortOrder == pagination.SortOrderDesc {
+				s.OrderExpr(entsql.Expr(fmt.Sprintf("%s DESC", s.C(dbaccount.FieldID))))
+				return
+			}
+			s.OrderExpr(entsql.Expr(fmt.Sprintf("%s ASC", s.C(dbaccount.FieldID))))
+		},
+	}
 }
 
 func (r *accountRepository) ListByGroup(ctx context.Context, groupID int64) ([]service.Account, error) {

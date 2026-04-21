@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -141,6 +142,72 @@ func (r *checkinRepository) GetUserTotals(ctx context.Context, userID int64) (in
 	return totalCount, parsedReward, nil
 }
 
+func (r *checkinRepository) ListAdminRecords(ctx context.Context, page, pageSize int, search, date, sortBy, sortOrder string) ([]service.AdminCheckinRecord, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+
+	whereParts := []string{"1=1"}
+	args := make([]any, 0)
+	argIndex := 1
+
+	search = strings.TrimSpace(search)
+	if search != "" {
+		whereParts = append(whereParts, fmt.Sprintf("(u.email ILIKE $%d OR u.username ILIKE $%d)", argIndex, argIndex))
+		args = append(args, "%"+search+"%")
+		argIndex++
+	}
+
+	date = strings.TrimSpace(date)
+	if date != "" {
+		whereParts = append(whereParts, fmt.Sprintf("c.checkin_date = $%d", argIndex))
+		args = append(args, date)
+		argIndex++
+	}
+
+	whereClause := strings.Join(whereParts, " AND ")
+
+	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM checkin_records c JOIN users u ON u.id = c.user_id WHERE %s`, whereClause)
+	var total int64
+	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	orderClause := adminCheckinOrderBy(sortBy, sortOrder)
+	args = append(args, pageSize, (page-1)*pageSize)
+	dataQuery := fmt.Sprintf(`
+		SELECT c.id, c.user_id, u.email, u.username, c.checkin_date, c.reward_amount, c.user_timezone, c.created_at
+		FROM checkin_records c
+		JOIN users u ON u.id = c.user_id
+		WHERE %s
+		ORDER BY %s
+		LIMIT $%d OFFSET $%d
+	`, whereClause, orderClause, argIndex, argIndex+1)
+
+	rows, err := r.db.QueryContext(ctx, dataQuery, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	items := make([]service.AdminCheckinRecord, 0)
+	for rows.Next() {
+		record, err := scanAdminCheckinRecord(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		items = append(items, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	return items, total, nil
+}
+
 type checkinScanner interface {
 	Scan(dest ...any) error
 }
@@ -166,10 +233,53 @@ func scanCheckinRecord(scanner checkinScanner) (service.CheckinRecord, error) {
 	return record, nil
 }
 
+func scanAdminCheckinRecord(scanner checkinScanner) (service.AdminCheckinRecord, error) {
+	var record service.AdminCheckinRecord
+	var reward string
+	err := scanner.Scan(
+		&record.ID,
+		&record.UserID,
+		&record.UserEmail,
+		&record.UserName,
+		&record.CheckinDate,
+		&reward,
+		&record.UserTimezone,
+		&record.CreatedAt,
+	)
+	if err != nil {
+		return service.AdminCheckinRecord{}, err
+	}
+	record.RewardAmount, err = strconv.ParseFloat(reward, 64)
+	if err != nil {
+		return service.AdminCheckinRecord{}, err
+	}
+	return record, nil
+}
+
 func isCheckinUniqueViolation(err error) bool {
 	var pgErr *pq.Error
 	if errors.As(err, &pgErr) {
 		return pgErr.Code == "23505"
 	}
 	return false
+}
+
+func adminCheckinOrderBy(sortBy, sortOrder string) string {
+	field := "c.created_at"
+	switch strings.ToLower(strings.TrimSpace(sortBy)) {
+	case "reward_amount":
+		field = "c.reward_amount"
+	case "checkin_date":
+		field = "c.checkin_date"
+	case "user_email":
+		field = "u.email"
+	case "created_at", "":
+		field = "c.created_at"
+	}
+
+	order := "DESC"
+	if strings.EqualFold(strings.TrimSpace(sortOrder), "asc") {
+		order = "ASC"
+	}
+	return fmt.Sprintf("%s %s, c.id %s", field, order, order)
 }

@@ -159,6 +159,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		CheckinEnabled:                       settings.CheckinEnabled,
 		CheckinMinReward:                     settings.CheckinMinReward,
 		CheckinMaxReward:                     settings.CheckinMaxReward,
+		CheckinDistributionEnabled:           settings.CheckinDistributionEnabled,
+		CheckinDistributionConfig:            settings.CheckinDistributionConfig,
 		EnableModelFallback:                  settings.EnableModelFallback,
 		FallbackModelAnthropic:               settings.FallbackModelAnthropic,
 		FallbackModelOpenAI:                  settings.FallbackModelOpenAI,
@@ -279,12 +281,14 @@ type UpdateSettingsRequest struct {
 	CustomEndpoints             *[]dto.CustomEndpoint `json:"custom_endpoints"`
 
 	// 默认配置
-	DefaultConcurrency   int                              `json:"default_concurrency"`
-	DefaultBalance       float64                          `json:"default_balance"`
-	DefaultSubscriptions []dto.DefaultSubscriptionSetting `json:"default_subscriptions"`
-	CheckinEnabled       bool                             `json:"checkin_enabled"`
-	CheckinMinReward     float64                          `json:"checkin_min_reward"`
-	CheckinMaxReward     float64                          `json:"checkin_max_reward"`
+	DefaultConcurrency         int                              `json:"default_concurrency"`
+	DefaultBalance             float64                          `json:"default_balance"`
+	DefaultSubscriptions       []dto.DefaultSubscriptionSetting `json:"default_subscriptions"`
+	CheckinEnabled             bool                             `json:"checkin_enabled"`
+	CheckinMinReward           float64                          `json:"checkin_min_reward"`
+	CheckinMaxReward           float64                          `json:"checkin_max_reward"`
+	CheckinDistributionEnabled bool                             `json:"checkin_distribution_enabled"`
+	CheckinDistributionConfig  string                           `json:"checkin_distribution_config"`
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -376,6 +380,16 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	}
 	if req.CheckinMaxReward < req.CheckinMinReward {
 		req.CheckinMaxReward = req.CheckinMinReward
+	}
+	req.CheckinDistributionConfig = strings.TrimSpace(req.CheckinDistributionConfig)
+	if req.CheckinDistributionConfig == "" {
+		req.CheckinDistributionConfig = "[]"
+	}
+	if req.CheckinDistributionEnabled || req.CheckinDistributionConfig != "[]" {
+		if _, err := service.ParseCheckinDistributionConfig(req.CheckinDistributionConfig); err != nil {
+			response.BadRequest(c, err.Error())
+			return
+		}
 	}
 	// 通用表格配置：兼容旧客户端未传字段时保留当前值。
 	if req.TableDefaultPageSize <= 0 {
@@ -859,6 +873,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		CheckinEnabled:                   req.CheckinEnabled,
 		CheckinMinReward:                 req.CheckinMinReward,
 		CheckinMaxReward:                 req.CheckinMaxReward,
+		CheckinDistributionEnabled:       req.CheckinDistributionEnabled,
+		CheckinDistributionConfig:        req.CheckinDistributionConfig,
 		EnableModelFallback:              req.EnableModelFallback,
 		FallbackModelAnthropic:           req.FallbackModelAnthropic,
 		FallbackModelOpenAI:              req.FallbackModelOpenAI,
@@ -1075,6 +1091,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		CheckinEnabled:                       updatedSettings.CheckinEnabled,
 		CheckinMinReward:                     updatedSettings.CheckinMinReward,
 		CheckinMaxReward:                     updatedSettings.CheckinMaxReward,
+		CheckinDistributionEnabled:           updatedSettings.CheckinDistributionEnabled,
+		CheckinDistributionConfig:            updatedSettings.CheckinDistributionConfig,
 		EnableModelFallback:                  updatedSettings.EnableModelFallback,
 		FallbackModelAnthropic:               updatedSettings.FallbackModelAnthropic,
 		FallbackModelOpenAI:                  updatedSettings.FallbackModelOpenAI,

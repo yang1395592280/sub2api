@@ -149,12 +149,14 @@ const (
 	SettingKeyCustomEndpoints             = "custom_endpoints"              // 自定义端点列表（JSON 数组）
 
 	// 默认配置
-	SettingKeyDefaultConcurrency   = "default_concurrency"   // 新用户默认并发量
-	SettingKeyDefaultBalance       = "default_balance"       // 新用户默认余额
-	SettingKeyDefaultSubscriptions = "default_subscriptions" // 新用户默认订阅列表（JSON）
-	SettingKeyCheckinEnabled       = "checkin_enabled"       // 是否启用签到功能
-	SettingKeyCheckinMinReward     = "checkin_min_reward"    // 签到最小奖励（USD）
-	SettingKeyCheckinMaxReward     = "checkin_max_reward"    // 签到最大奖励（USD）
+	SettingKeyDefaultConcurrency         = "default_concurrency"          // 新用户默认并发量
+	SettingKeyDefaultBalance             = "default_balance"              // 新用户默认余额
+	SettingKeyDefaultSubscriptions       = "default_subscriptions"        // 新用户默认订阅列表（JSON）
+	SettingKeyCheckinEnabled             = "checkin_enabled"              // 是否启用签到功能
+	SettingKeyCheckinMinReward           = "checkin_min_reward"           // 签到最小奖励（USD）
+	SettingKeyCheckinMaxReward           = "checkin_max_reward"           // 签到最大奖励（USD）
+	SettingKeyCheckinDistributionEnabled = "checkin_distribution_enabled" // 是否启用分档权重分布
+	SettingKeyCheckinDistributionConfig  = "checkin_distribution_config"  // 签到分档权重配置（JSON）
 
 	// 管理员 API Key
 	SettingKeyAdminAPIKey = "admin_api_key" // 全局管理员 API Key（用于外部系统集成）

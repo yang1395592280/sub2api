@@ -185,6 +185,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyCheckinEnabled,
 		SettingKeyCheckinMinReward,
 		SettingKeyCheckinMaxReward,
+		SettingKeyCheckinDistributionEnabled,
 		SettingKeyBalanceLowNotifyEnabled,
 		SettingKeyBalanceLowNotifyThreshold,
 		SettingKeyBalanceLowNotifyRechargeURL,
@@ -332,6 +333,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		CheckinEnabled                   bool            `json:"checkin_enabled"`
 		CheckinMinReward                 float64         `json:"checkin_min_reward"`
 		CheckinMaxReward                 float64         `json:"checkin_max_reward"`
+		CheckinDistributionEnabled       bool            `json:"checkin_distribution_enabled"`
 		BalanceLowNotifyEnabled          bool            `json:"balance_low_notify_enabled"`
 		AccountQuotaNotifyEnabled        bool            `json:"account_quota_notify_enabled"`
 		BalanceLowNotifyThreshold        float64         `json:"balance_low_notify_threshold"`
@@ -369,6 +371,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		CheckinEnabled:                   settings.CheckinEnabled,
 		CheckinMinReward:                 settings.CheckinMinReward,
 		CheckinMaxReward:                 settings.CheckinMaxReward,
+		CheckinDistributionEnabled:       settings.CheckinDistributionEnabled,
 		BalanceLowNotifyEnabled:          settings.BalanceLowNotifyEnabled,
 		AccountQuotaNotifyEnabled:        settings.AccountQuotaNotifyEnabled,
 		BalanceLowNotifyThreshold:        settings.BalanceLowNotifyThreshold,
@@ -615,6 +618,8 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 	updates[SettingKeyCheckinEnabled] = strconv.FormatBool(settings.CheckinEnabled)
 	updates[SettingKeyCheckinMinReward] = strconv.FormatFloat(settings.CheckinMinReward, 'f', 8, 64)
 	updates[SettingKeyCheckinMaxReward] = strconv.FormatFloat(settings.CheckinMaxReward, 'f', 8, 64)
+	updates[SettingKeyCheckinDistributionEnabled] = strconv.FormatBool(settings.CheckinDistributionEnabled)
+	updates[SettingKeyCheckinDistributionConfig] = settings.CheckinDistributionConfig
 
 	// Model fallback configuration
 	updates[SettingKeyEnableModelFallback] = strconv.FormatBool(settings.EnableModelFallback)
@@ -976,6 +981,8 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyCheckinEnabled:                   "false",
 		SettingKeyCheckinMinReward:                 strconv.FormatFloat(defaultCheckinMinReward, 'f', 8, 64),
 		SettingKeyCheckinMaxReward:                 strconv.FormatFloat(defaultCheckinMaxReward, 'f', 8, 64),
+		SettingKeyCheckinDistributionEnabled:       "false",
+		SettingKeyCheckinDistributionConfig:        "[]",
 		SettingKeySMTPPort:                         "587",
 		SettingKeySMTPUseTLS:                       "false",
 		// Model fallback defaults
@@ -1073,6 +1080,8 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	if v, err := strconv.ParseFloat(settings[SettingKeyCheckinMaxReward], 64); err == nil && v >= result.CheckinMinReward {
 		result.CheckinMaxReward = v
 	}
+	result.CheckinDistributionEnabled = settings[SettingKeyCheckinDistributionEnabled] == "true"
+	result.CheckinDistributionConfig = settings[SettingKeyCheckinDistributionConfig]
 	result.DefaultSubscriptions = parseDefaultSubscriptions(settings[SettingKeyDefaultSubscriptions])
 
 	// 敏感信息直接返回，方便测试连接时使用

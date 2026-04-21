@@ -1636,6 +1636,38 @@
                   </div>
                 </div>
               </div>
+
+              <div class="mt-4 flex items-center justify-between">
+                <label class="mb-0 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.checkin.distributionEnabled') }}
+                </label>
+                <Toggle v-model="form.checkin_distribution_enabled" :disabled="!form.checkin_enabled" />
+              </div>
+
+              <div class="mt-4">
+                <div class="mb-2 flex items-center justify-between gap-3">
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.checkin.distributionConfig') }}
+                  </label>
+                  <button
+                    type="button"
+                    class="btn btn-secondary px-2 py-1 text-xs"
+                    :disabled="!form.checkin_enabled"
+                    @click="applyDefaultCheckinDistribution"
+                  >
+                    {{ t('admin.settings.checkin.distributionPreset') }}
+                  </button>
+                </div>
+                <textarea
+                  v-model="form.checkin_distribution_config"
+                  rows="6"
+                  class="input min-h-[156px] font-mono text-xs leading-6"
+                  :disabled="!form.checkin_enabled"
+                ></textarea>
+                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.checkin.distributionConfigHint') }}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -2941,6 +2973,26 @@ const registrationEmailSuffixWhitelistTags = ref<string[]>([])
 const registrationEmailSuffixWhitelistDraft = ref('')
 const tablePageSizeOptionsInput = ref('10, 20, 50, 100')
 
+type CheckinDistributionBucketInput = {
+  start_percent: number
+  end_percent: number
+  weight: number
+}
+
+const CHECKIN_DISTRIBUTION_EPSILON = 0.000001
+const DEFAULT_CHECKIN_DISTRIBUTION_BUCKETS: CheckinDistributionBucketInput[] = [
+  { start_percent: 0, end_percent: 25, weight: 50 },
+  { start_percent: 25, end_percent: 50, weight: 30 },
+  { start_percent: 50, end_percent: 75, weight: 15 },
+  { start_percent: 75, end_percent: 90, weight: 4 },
+  { start_percent: 90, end_percent: 100, weight: 1 }
+]
+const DEFAULT_CHECKIN_DISTRIBUTION_CONFIG = JSON.stringify(
+  DEFAULT_CHECKIN_DISTRIBUTION_BUCKETS,
+  null,
+  2
+)
+
 // Admin API Key 状态
 const adminApiKeyLoading = ref(true)
 const adminApiKeyExists = ref(false)
@@ -3030,6 +3082,8 @@ const form = reactive<SettingsForm>({
   checkin_enabled: false,
   checkin_min_reward: 0.002,
   checkin_max_reward: 0.02,
+  checkin_distribution_enabled: false,
+  checkin_distribution_config: DEFAULT_CHECKIN_DISTRIBUTION_CONFIG,
   site_name: 'Sub2API',
   site_logo: '',
   site_subtitle: 'Subscription to API Conversion Platform',
@@ -3118,6 +3172,63 @@ const form = reactive<SettingsForm>({
   account_quota_notify_enabled: false,
   account_quota_notify_emails: [] as NotifyEmailEntry[]
 })
+
+function applyDefaultCheckinDistribution() {
+  form.checkin_distribution_config = DEFAULT_CHECKIN_DISTRIBUTION_CONFIG
+}
+
+function normalizeCheckinDistributionConfigInput(raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed || trimmed === '[]') {
+    return ''
+  }
+
+  const parsed = JSON.parse(trimmed) as unknown
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error('invalid_checkin_distribution')
+  }
+
+  let expectedStart = 0
+  const normalized = parsed.map((item) => {
+    const bucket = item as Partial<CheckinDistributionBucketInput>
+    const start = Number(bucket.start_percent)
+    const end = Number(bucket.end_percent)
+    const weight = Number(bucket.weight)
+
+    if (
+      !Number.isFinite(start) ||
+      !Number.isFinite(end) ||
+      !Number.isInteger(weight) ||
+      weight <= 0 ||
+      start < 0 ||
+      end > 100 ||
+      start >= end ||
+      Math.abs(start - expectedStart) > CHECKIN_DISTRIBUTION_EPSILON
+    ) {
+      throw new Error('invalid_checkin_distribution')
+    }
+
+    expectedStart = end
+    return {
+      start_percent: start,
+      end_percent: end,
+      weight
+    }
+  })
+
+  if (Math.abs(expectedStart - 100) > CHECKIN_DISTRIBUTION_EPSILON) {
+    throw new Error('invalid_checkin_distribution')
+  }
+
+  return JSON.stringify(normalized, null, 2)
+}
+
+function normalizeLoadedCheckinDistributionConfig() {
+  const trimmed = String(form.checkin_distribution_config || '').trim()
+  if (!trimmed || trimmed === '[]') {
+    form.checkin_distribution_config = DEFAULT_CHECKIN_DISTRIBUTION_CONFIG
+  }
+}
 
 // Proxies for web search emulation ProxySelector
 const webSearchProxies = ref<Proxy[]>([])
@@ -3484,6 +3595,7 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value
       }
     }
+    normalizeLoadedCheckinDistributionConfig()
     form.backend_mode_enabled = settings.backend_mode_enabled
     form.default_subscriptions = Array.isArray(settings.default_subscriptions)
       ? settings.default_subscriptions
@@ -3600,6 +3712,21 @@ async function saveSettings() {
       return
     }
 
+    let normalizedCheckinDistributionConfig = ''
+    try {
+      normalizedCheckinDistributionConfig = normalizeCheckinDistributionConfigInput(
+        form.checkin_distribution_config
+      )
+    } catch {
+      appStore.showError(t('admin.settings.checkin.distributionConfigInvalid'))
+      return
+    }
+    if (form.checkin_enabled && form.checkin_distribution_enabled && !normalizedCheckinDistributionConfig) {
+      appStore.showError(t('admin.settings.checkin.distributionConfigRequired'))
+      return
+    }
+    form.checkin_distribution_config = normalizedCheckinDistributionConfig || '[]'
+
     // Validate URL fields — novalidate disables browser-native checks, so we validate here
     const isValidHttpUrl = (url: string): boolean => {
       if (!url) return true
@@ -3630,6 +3757,8 @@ async function saveSettings() {
       checkin_enabled: form.checkin_enabled,
       checkin_min_reward: Number(form.checkin_min_reward) || 0,
       checkin_max_reward: Number(form.checkin_max_reward) || 0,
+      checkin_distribution_enabled: form.checkin_enabled && form.checkin_distribution_enabled,
+      checkin_distribution_config: form.checkin_distribution_config,
       site_name: form.site_name,
       site_logo: form.site_logo,
       site_subtitle: form.site_subtitle,

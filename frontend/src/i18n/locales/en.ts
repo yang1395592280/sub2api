@@ -343,6 +343,7 @@ export default {
     channels: 'Channels',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
+    checkins: 'Check-ins',
     proxies: 'Proxies',
     redeemCodes: 'Redeem Codes',
     ops: 'Ops',
@@ -2178,6 +2179,7 @@ export default {
         billingRateMultiplier: 'Billing Rate',
         weight: 'Weight',
         status: 'Status',
+        recoverAt: 'Auto Resume',
         schedulable: 'Schedulable',
         todayStats: 'Today Stats',
         groups: 'Groups',
@@ -2356,6 +2358,7 @@ export default {
       recoverStateHint: 'Used to recover error, rate-limit, and temporary unschedulable runtime state.',
       recoverStateSuccess: 'Account state recovered successfully',
       recoverStateFailed: 'Failed to recover account state',
+      recoverAtNone: 'Not set',
       resetStatus: 'Reset Status',
       statusReset: 'Account status reset successfully',
       failedToResetStatus: 'Failed to reset account status',
@@ -3432,6 +3435,22 @@ export default {
       failedToLoadUsages: 'Failed to load usage records'
     },
 
+    checkins: {
+      title: 'Check-in Records',
+      description: 'See who checked in, when they checked in, and how much reward they received.',
+      searchPlaceholder: 'Search email or username...',
+      date: 'Date',
+      noRecords: 'No check-in records yet',
+      failedToLoad: 'Failed to load check-in records',
+      columns: {
+        user: 'User',
+        checkinDate: 'Check-in Date',
+        rewardAmount: 'Reward',
+        timezone: 'Timezone',
+        createdAt: 'Checked In At'
+      }
+    },
+
     // Usage Records
     usage: {
       title: 'Usage Records',
@@ -4433,7 +4452,13 @@ export default {
         description: 'Allow users to check in daily and receive a random balance reward.',
         enabled: 'Enable Check-in',
         minReward: 'Minimum Reward',
-        maxReward: 'Maximum Reward'
+        maxReward: 'Maximum Reward',
+        distributionEnabled: 'Enable weighted tiers',
+        distributionConfig: 'Tier configuration',
+        distributionConfigHint: 'Use JSON to define percentage ranges and weights so smaller rewards can have higher probability.',
+        distributionPreset: 'Use recommended 5 tiers',
+        distributionConfigInvalid: 'The check-in tier configuration is invalid. Please verify the JSON and contiguous ranges.',
+        distributionConfigRequired: 'A valid check-in tier configuration is required when weighted tiers are enabled.'
       },
       claudeCode: {
         title: 'Claude Code Settings',

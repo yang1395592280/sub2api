@@ -343,6 +343,7 @@ export default {
     channels: '渠道管理',
     subscriptions: '订阅管理',
     accounts: '账号管理',
+    checkins: '签到记录',
     proxies: 'IP管理',
     redeemCodes: '兑换码',
     ops: '运维监控',
@@ -2218,6 +2219,7 @@ export default {
         billingRateMultiplier: '账号倍率',
         weight: '权重',
         status: '状态',
+        recoverAt: '自动恢复',
         schedulable: '调度',
         todayStats: '今日统计',
         groups: '分组',
@@ -2504,6 +2506,7 @@ export default {
       recoverStateHint: '用于恢复错误、限流和临时不可调度等可恢复状态。',
       recoverStateSuccess: '账号状态已恢复',
       recoverStateFailed: '恢复账号状态失败',
+      recoverAtNone: '未设置',
       resetStatus: '重置状态',
       statusReset: '账号状态已重置',
       failedToResetStatus: '重置账号状态失败',
@@ -3590,6 +3593,22 @@ export default {
       failedToLoadUsages: '加载使用记录失败'
     },
 
+    checkins: {
+      title: '签到记录',
+      description: '查看谁在什么时候签到，以及每次领取的奖励金额。',
+      searchPlaceholder: '搜索邮箱或用户名...',
+      date: '日期',
+      noRecords: '暂无签到记录',
+      failedToLoad: '加载签到记录失败',
+      columns: {
+        user: '用户',
+        checkinDate: '签到日期',
+        rewardAmount: '领取金额',
+        timezone: '时区',
+        createdAt: '签到时间'
+      }
+    },
+
     // Usage Records
     usage: {
       title: '使用记录',
@@ -4597,7 +4616,13 @@ export default {
         description: '允许用户每日签到并获得随机余额奖励。',
         enabled: '启用签到功能',
         minReward: '最小奖励',
-        maxReward: '最大奖励'
+        maxReward: '最大奖励',
+        distributionEnabled: '启用分档权重',
+        distributionConfig: '分档配置',
+        distributionConfigHint: '使用 JSON 定义分档区间和权重，奖励越小的区间可以设置更高权重。',
+        distributionPreset: '填入推荐五档',
+        distributionConfigInvalid: '签到分档配置格式不正确，请检查 JSON 和区间衔接关系。',
+        distributionConfigRequired: '启用分档权重时，请填写有效的签到分档配置。'
       },
       claudeCode: {
         title: 'Claude Code 设置',

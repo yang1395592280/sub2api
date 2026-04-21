@@ -89,12 +89,14 @@ type SystemSettings struct {
 	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
 
-	DefaultConcurrency   int                          `json:"default_concurrency"`
-	DefaultBalance       float64                      `json:"default_balance"`
-	DefaultSubscriptions []DefaultSubscriptionSetting `json:"default_subscriptions"`
-	CheckinEnabled       bool                         `json:"checkin_enabled"`
-	CheckinMinReward     float64                      `json:"checkin_min_reward"`
-	CheckinMaxReward     float64                      `json:"checkin_max_reward"`
+	DefaultConcurrency         int                          `json:"default_concurrency"`
+	DefaultBalance             float64                      `json:"default_balance"`
+	DefaultSubscriptions       []DefaultSubscriptionSetting `json:"default_subscriptions"`
+	CheckinEnabled             bool                         `json:"checkin_enabled"`
+	CheckinMinReward           float64                      `json:"checkin_min_reward"`
+	CheckinMaxReward           float64                      `json:"checkin_max_reward"`
+	CheckinDistributionEnabled bool                         `json:"checkin_distribution_enabled"`
+	CheckinDistributionConfig  string                       `json:"checkin_distribution_config"`
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -201,6 +203,7 @@ type PublicSettings struct {
 	CheckinEnabled                   bool             `json:"checkin_enabled"`
 	CheckinMinReward                 float64          `json:"checkin_min_reward"`
 	CheckinMaxReward                 float64          `json:"checkin_max_reward"`
+	CheckinDistributionEnabled       bool             `json:"checkin_distribution_enabled"`
 	BalanceLowNotifyEnabled          bool             `json:"balance_low_notify_enabled"`
 	AccountQuotaNotifyEnabled        bool             `json:"account_quota_notify_enabled"`
 	BalanceLowNotifyThreshold        float64          `json:"balance_low_notify_threshold"`

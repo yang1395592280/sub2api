@@ -204,6 +204,19 @@
               <AccountStatusIndicator :account="row" @show-temp-unsched="handleShowTempUnsched" />
             </div>
           </template>
+          <template #cell-recover_at="{ row }">
+            <div class="flex min-w-[150px] flex-col">
+              <span v-if="getAccountRecoverAt(row)" class="text-sm text-gray-900 dark:text-white">
+                {{ formatDateTime(getAccountRecoverAt(row)) }}
+              </span>
+              <span v-if="getAccountRecoverAt(row)" class="text-xs text-gray-500 dark:text-gray-400">
+                {{ formatRelativeTime(getAccountRecoverAt(row)) }}
+              </span>
+              <span v-else class="text-sm text-gray-400 dark:text-dark-500">
+                {{ t('admin.accounts.recoverAtNone') }}
+              </span>
+            </div>
+          </template>
           <template #cell-schedulable="{ row }">
             <button @click="handleToggleSchedulable(row)" :disabled="togglingSchedulable === row.id" class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800" :class="[row.schedulable ? 'bg-primary-500 hover:bg-primary-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']" :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')">
               <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="[row.schedulable ? 'translate-x-4' : 'translate-x-0']" />
@@ -417,6 +430,7 @@ type AccountSortState = {
 const ACCOUNT_SORTABLE_KEYS = new Set([
   'name',
   'status',
+  'recover_at',
   'schedulable',
   'priority',
   'rate_multiplier',
@@ -950,6 +964,7 @@ const allColumns = computed(() => {
     { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false },
     { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
     { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
+    { key: 'recover_at', label: t('admin.accounts.columns.recoverAt'), sortable: isRecoverSortAvailable.value },
     { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },
     { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false }
   ]
@@ -1392,6 +1407,23 @@ const handleTempUnschedReset = async (updated: Account) => {
   tempUnschedAcc.value = null
   patchAccountInList(updated)
   enterAutoRefreshSilentWindow()
+}
+const isRecoverSortAvailable = computed(() =>
+  params.status === 'rate_limited' || params.status === 'temp_unschedulable'
+)
+const getAccountRecoverAt = (account: Account) => {
+  if (params.status === 'temp_unschedulable') {
+    return account.temp_unschedulable_until
+  }
+  if (params.status === 'rate_limited') {
+    return account.rate_limit_reset_at
+  }
+
+  const tempUnsched = account.temp_unschedulable_until
+  if (tempUnsched && new Date(tempUnsched).getTime() > Date.now()) {
+    return tempUnsched
+  }
+  return account.rate_limit_reset_at
 }
 const formatExpiresAt = (value: number | null) => {
   if (!value) return '-'
