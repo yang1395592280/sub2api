@@ -15,14 +15,17 @@ import (
 type adminCheckinRepoStub struct {
 	items     []service.AdminCheckinRecord
 	total     int64
+	analytics *service.AdminCheckinAnalytics
 	lastQuery struct {
 		page      int
 		pageSize  int
 		search    string
 		date      string
+		timezone  string
 		sortBy    string
 		sortOrder string
 	}
+	lastAnalyticsFilter service.AdminCheckinAnalyticsFilter
 }
 
 func (s *adminCheckinRepoStub) HasCheckedInOnDate(_ context.Context, _ int64, _ string) (bool, error) {
@@ -41,14 +44,44 @@ func (s *adminCheckinRepoStub) GetUserTotals(_ context.Context, _ int64) (int64,
 	panic("unexpected GetUserTotals call")
 }
 
-func (s *adminCheckinRepoStub) ListAdminRecords(_ context.Context, page, pageSize int, search, date, sortBy, sortOrder string) ([]service.AdminCheckinRecord, int64, error) {
+func (s *adminCheckinRepoStub) ListAdminRecords(_ context.Context, page, pageSize int, search, date, timezone, sortBy, sortOrder string) ([]service.AdminCheckinRecord, int64, error) {
 	s.lastQuery.page = page
 	s.lastQuery.pageSize = pageSize
 	s.lastQuery.search = search
 	s.lastQuery.date = date
+	s.lastQuery.timezone = timezone
 	s.lastQuery.sortBy = sortBy
 	s.lastQuery.sortOrder = sortOrder
 	return s.items, s.total, nil
+}
+
+func (s *adminCheckinRepoStub) GetAdminOverview(_ context.Context, filter service.AdminCheckinAnalyticsFilter) (service.AdminCheckinOverview, error) {
+	s.lastAnalyticsFilter = filter
+	if s.analytics == nil {
+		return service.AdminCheckinOverview{}, nil
+	}
+	return s.analytics.Overview, nil
+}
+
+func (s *adminCheckinRepoStub) GetAdminTrend(_ context.Context, _ service.AdminCheckinAnalyticsFilter) ([]service.AdminCheckinTrendPoint, error) {
+	if s.analytics == nil {
+		return nil, nil
+	}
+	return s.analytics.Trend, nil
+}
+
+func (s *adminCheckinRepoStub) GetAdminRewardDistribution(_ context.Context, _ service.AdminCheckinAnalyticsFilter) ([]service.AdminCheckinRewardBucket, error) {
+	if s.analytics == nil {
+		return nil, nil
+	}
+	return s.analytics.RewardDistribution, nil
+}
+
+func (s *adminCheckinRepoStub) GetAdminTopUsers(_ context.Context, _ service.AdminCheckinAnalyticsFilter) ([]service.AdminCheckinTopUser, error) {
+	if s.analytics == nil {
+		return nil, nil
+	}
+	return s.analytics.TopUsers, nil
 }
 
 func TestAdminCheckinHandlerListPassesFiltersAndReturnsData(t *testing.T) {
@@ -65,7 +98,7 @@ func TestAdminCheckinHandlerListPassesFiltersAndReturnsData(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
-	c.Request = httptest.NewRequest(http.MethodGet, "/admin/checkins?page=1&page_size=20&search=alice&date=2026-04-21&sort_by=reward_amount&sort_order=asc", nil)
+	c.Request = httptest.NewRequest(http.MethodGet, "/admin/checkins?page=1&page_size=20&search=alice&date=2026-04-21&timezone=Asia%2FShanghai&sort_by=reward_amount&sort_order=asc", nil)
 
 	handler.List(c)
 
@@ -73,6 +106,7 @@ func TestAdminCheckinHandlerListPassesFiltersAndReturnsData(t *testing.T) {
 	require.Equal(t, 20, repo.lastQuery.pageSize)
 	require.Equal(t, "alice", repo.lastQuery.search)
 	require.Equal(t, "2026-04-21", repo.lastQuery.date)
+	require.Equal(t, "Asia/Shanghai", repo.lastQuery.timezone)
 	require.Equal(t, "reward_amount", repo.lastQuery.sortBy)
 	require.Equal(t, "asc", repo.lastQuery.sortOrder)
 
@@ -88,4 +122,32 @@ func TestAdminCheckinHandlerListPassesFiltersAndReturnsData(t *testing.T) {
 	require.Equal(t, int64(1), resp.Data.Total)
 	require.Len(t, resp.Data.Items, 1)
 	require.Equal(t, "alice@example.com", resp.Data.Items[0].UserEmail)
+}
+
+func TestAdminCheckinHandlerAnalyticsPassesFiltersAndReturnsData(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &adminCheckinRepoStub{
+		analytics: &service.AdminCheckinAnalytics{
+			Overview: service.AdminCheckinOverview{TotalCheckins: 9, TodayCheckins: 2},
+			Trend: []service.AdminCheckinTrendPoint{
+				{Date: "2026-04-20", CheckinCount: 4, RewardAmount: 0.08},
+			},
+		},
+	}
+	checkinService := service.NewCheckinService(repo, nil, nil, nil)
+	handler := NewCheckinHandler(checkinService)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/admin/checkins/analytics?start_date=2026-04-01&end_date=2026-04-21&search=alice&timezone=Asia%2FShanghai&top_limit=5", nil)
+
+	handler.Analytics(c)
+
+	require.Equal(t, "2026-04-01", repo.lastAnalyticsFilter.StartDate)
+	require.Equal(t, "2026-04-21", repo.lastAnalyticsFilter.EndDate)
+	require.Equal(t, "alice", repo.lastAnalyticsFilter.Search)
+	require.Equal(t, "Asia/Shanghai", repo.lastAnalyticsFilter.Timezone)
+	require.Equal(t, 5, repo.lastAnalyticsFilter.TopLimit)
+	require.Equal(t, http.StatusOK, rec.Code)
 }

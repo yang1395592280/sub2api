@@ -98,6 +98,7 @@ func registerCheckinRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	checkins := admin.Group("/checkins")
 	{
 		checkins.GET("", h.Admin.Checkin.List)
+		checkins.GET("/analytics", h.Admin.Checkin.Analytics)
 		checkins.GET("/users/:userId/summary", h.Admin.Checkin.GetUserSummary)
 	}
 }

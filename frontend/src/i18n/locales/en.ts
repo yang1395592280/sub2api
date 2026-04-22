@@ -344,6 +344,7 @@ export default {
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
     checkins: 'Check-ins',
+    checkinAnalytics: 'Check-in Analytics',
     proxies: 'Proxies',
     redeemCodes: 'Redeem Codes',
     ops: 'Ops',
@@ -3446,6 +3447,46 @@ export default {
         user: 'User',
         checkinDate: 'Check-in Date',
         rewardAmount: 'Reward',
+        timezone: 'Timezone',
+        createdAt: 'Checked In At'
+      }
+    },
+
+    checkinAnalytics: {
+      title: 'Check-in Analytics',
+      description: 'View check-in activity and reward issuance through trend, distribution, and ranking charts.',
+      empty: 'No check-in analytics data for the current filters',
+      failedToLoad: 'Failed to load check-in analytics',
+      filters: {
+        last7Days: 'Last 7 Days',
+        last30Days: 'Last 30 Days',
+        thisMonth: 'This Month',
+        custom: 'Custom',
+        searchPlaceholder: 'Search email or username...',
+        timezonePlaceholder: 'Enter timezone, e.g. Asia/Shanghai',
+        startDate: 'Start Date',
+        endDate: 'End Date',
+        clearLinkage: 'Clear Linkage',
+        currentView: 'Current View'
+      },
+      cards: {
+        totalCheckins: 'Total Check-ins',
+        totalRewardAmount: 'Total Rewards',
+        todayCheckins: 'Today Check-ins',
+        avgRewardAmount: 'Average Reward'
+      },
+      charts: {
+        trend: 'Check-in Trend',
+        rewardDistribution: 'Reward Distribution',
+        topUsers: 'Top Check-in Users',
+        checkinCount: 'Check-in Count',
+        rewardAmount: 'Reward Amount'
+      },
+      table: {
+        title: 'Check-in Details',
+        user: 'User',
+        checkinDate: 'Check-in Date',
+        rewardAmount: 'Reward Amount',
         timezone: 'Timezone',
         createdAt: 'Checked In At'
       }

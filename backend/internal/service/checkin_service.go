@@ -56,7 +56,11 @@ type CheckinRepository interface {
 	CreateAndCredit(ctx context.Context, record *CheckinRecord) (*CheckinRecord, error)
 	ListByUserAndDateRange(ctx context.Context, userID int64, startDate, endDate string) ([]CheckinRecord, error)
 	GetUserTotals(ctx context.Context, userID int64) (int64, float64, error)
-	ListAdminRecords(ctx context.Context, page, pageSize int, search, date, sortBy, sortOrder string) ([]AdminCheckinRecord, int64, error)
+	ListAdminRecords(ctx context.Context, page, pageSize int, search, date, timezone, sortBy, sortOrder string) ([]AdminCheckinRecord, int64, error)
+	GetAdminOverview(ctx context.Context, filter AdminCheckinAnalyticsFilter) (AdminCheckinOverview, error)
+	GetAdminTrend(ctx context.Context, filter AdminCheckinAnalyticsFilter) ([]AdminCheckinTrendPoint, error)
+	GetAdminRewardDistribution(ctx context.Context, filter AdminCheckinAnalyticsFilter) ([]AdminCheckinRewardBucket, error)
+	GetAdminTopUsers(ctx context.Context, filter AdminCheckinAnalyticsFilter) ([]AdminCheckinTopUser, error)
 }
 
 type CheckinService struct {

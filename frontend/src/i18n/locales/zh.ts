@@ -344,6 +344,7 @@ export default {
     subscriptions: '订阅管理',
     accounts: '账号管理',
     checkins: '签到记录',
+    checkinAnalytics: '签到分析',
     proxies: 'IP管理',
     redeemCodes: '兑换码',
     ops: '运维监控',
@@ -3604,6 +3605,46 @@ export default {
         user: '用户',
         checkinDate: '签到日期',
         rewardAmount: '领取金额',
+        timezone: '时区',
+        createdAt: '签到时间'
+      }
+    },
+
+    checkinAnalytics: {
+      title: '签到分析',
+      description: '通过趋势、分布和排行视角查看签到活跃度与奖励发放情况。',
+      empty: '当前筛选范围内暂无签到分析数据',
+      failedToLoad: '加载签到分析失败',
+      filters: {
+        last7Days: '近 7 天',
+        last30Days: '近 30 天',
+        thisMonth: '本月',
+        custom: '自定义',
+        searchPlaceholder: '搜索邮箱或用户名...',
+        timezonePlaceholder: '输入时区，如 Asia/Shanghai',
+        startDate: '开始日期',
+        endDate: '结束日期',
+        clearLinkage: '清除联动',
+        currentView: '当前查看'
+      },
+      cards: {
+        totalCheckins: '累计签到次数',
+        totalRewardAmount: '累计发放奖励',
+        todayCheckins: '今日签到人数',
+        avgRewardAmount: '人均奖励'
+      },
+      charts: {
+        trend: '签到趋势',
+        rewardDistribution: '奖励分布',
+        topUsers: 'Top 签到用户',
+        checkinCount: '签到次数',
+        rewardAmount: '奖励总额'
+      },
+      table: {
+        title: '签到明细',
+        user: '用户',
+        checkinDate: '签到日期',
+        rewardAmount: '奖励金额',
         timezone: '时区',
         createdAt: '签到时间'
       }

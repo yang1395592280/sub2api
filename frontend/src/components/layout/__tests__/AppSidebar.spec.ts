@@ -30,3 +30,10 @@ describe('AppSidebar header styles', () => {
     expect(sidebarBrandBlockMatch?.[0]).not.toContain('overflow: hidden;')
   })
 })
+
+describe('AppSidebar admin checkin analytics navigation', () => {
+  it('contains the admin checkin analytics route entry', () => {
+    expect(componentSource).toContain("/admin/checkin-analytics")
+    expect(componentSource).toContain("t('nav.checkinAnalytics')")
+  })
+})

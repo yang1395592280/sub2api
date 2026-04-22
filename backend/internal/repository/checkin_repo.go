@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -142,7 +143,7 @@ func (r *checkinRepository) GetUserTotals(ctx context.Context, userID int64) (in
 	return totalCount, parsedReward, nil
 }
 
-func (r *checkinRepository) ListAdminRecords(ctx context.Context, page, pageSize int, search, date, sortBy, sortOrder string) ([]service.AdminCheckinRecord, int64, error) {
+func (r *checkinRepository) ListAdminRecords(ctx context.Context, page, pageSize int, search, date, timezone, sortBy, sortOrder string) ([]service.AdminCheckinRecord, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -165,6 +166,13 @@ func (r *checkinRepository) ListAdminRecords(ctx context.Context, page, pageSize
 	if date != "" {
 		whereParts = append(whereParts, fmt.Sprintf("c.checkin_date = $%d", argIndex))
 		args = append(args, date)
+		argIndex++
+	}
+
+	timezone = strings.TrimSpace(timezone)
+	if timezone != "" {
+		whereParts = append(whereParts, fmt.Sprintf("c.user_timezone = $%d", argIndex))
+		args = append(args, timezone)
 		argIndex++
 	}
 
@@ -206,6 +214,205 @@ func (r *checkinRepository) ListAdminRecords(ctx context.Context, page, pageSize
 	}
 
 	return items, total, nil
+}
+
+func (r *checkinRepository) GetAdminOverview(ctx context.Context, filter service.AdminCheckinAnalyticsFilter) (service.AdminCheckinOverview, error) {
+	whereClause, args := buildAdminCheckinAnalyticsWhere(filter)
+
+	query := fmt.Sprintf(`
+		SELECT
+			COUNT(*),
+			COALESCE(SUM(c.reward_amount), 0),
+			COUNT(*) FILTER (WHERE c.checkin_date = CURRENT_DATE::text),
+			COALESCE(AVG(c.reward_amount), 0)
+		FROM checkin_records c
+		JOIN users u ON u.id = c.user_id
+		WHERE %s
+	`, whereClause)
+
+	var overview service.AdminCheckinOverview
+	var totalReward string
+	var avgReward string
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(
+		&overview.TotalCheckins,
+		&totalReward,
+		&overview.TodayCheckins,
+		&avgReward,
+	)
+	if err != nil {
+		return service.AdminCheckinOverview{}, err
+	}
+
+	overview.TotalRewardAmount, err = strconv.ParseFloat(totalReward, 64)
+	if err != nil {
+		return service.AdminCheckinOverview{}, err
+	}
+	overview.AvgRewardAmount, err = strconv.ParseFloat(avgReward, 64)
+	if err != nil {
+		return service.AdminCheckinOverview{}, err
+	}
+	return overview, nil
+}
+
+func (r *checkinRepository) GetAdminTrend(ctx context.Context, filter service.AdminCheckinAnalyticsFilter) ([]service.AdminCheckinTrendPoint, error) {
+	whereClause, args := buildAdminCheckinAnalyticsWhere(filter)
+
+	rows, err := r.db.QueryContext(ctx, fmt.Sprintf(`
+		SELECT c.checkin_date, COUNT(*), COALESCE(SUM(c.reward_amount), 0)
+		FROM checkin_records c
+		JOIN users u ON u.id = c.user_id
+		WHERE %s
+		GROUP BY c.checkin_date
+		ORDER BY c.checkin_date ASC
+	`, whereClause), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	points := make([]service.AdminCheckinTrendPoint, 0)
+	for rows.Next() {
+		var point service.AdminCheckinTrendPoint
+		var reward string
+		if err := rows.Scan(&point.Date, &point.CheckinCount, &reward); err != nil {
+			return nil, err
+		}
+		point.RewardAmount, err = strconv.ParseFloat(reward, 64)
+		if err != nil {
+			return nil, err
+		}
+		points = append(points, point)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return points, nil
+}
+
+func (r *checkinRepository) GetAdminRewardDistribution(ctx context.Context, filter service.AdminCheckinAnalyticsFilter) ([]service.AdminCheckinRewardBucket, error) {
+	whereClause, args := buildAdminCheckinAnalyticsWhere(filter)
+
+	rows, err := r.db.QueryContext(ctx, fmt.Sprintf(`
+		SELECT c.reward_amount
+		FROM checkin_records c
+		JOIN users u ON u.id = c.user_id
+		WHERE %s
+		ORDER BY c.reward_amount ASC
+	`, whereClause), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	rewards := make([]float64, 0)
+	for rows.Next() {
+		var reward string
+		if err := rows.Scan(&reward); err != nil {
+			return nil, err
+		}
+		value, err := strconv.ParseFloat(reward, 64)
+		if err != nil {
+			return nil, err
+		}
+		rewards = append(rewards, value)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(rewards) == 0 {
+		return []service.AdminCheckinRewardBucket{}, nil
+	}
+
+	minReward := rewards[0]
+	maxReward := rewards[len(rewards)-1]
+	if len(rewards) == 1 || maxReward <= minReward {
+		return []service.AdminCheckinRewardBucket{
+			{
+				Label:        formatRewardBucketLabel(minReward, maxReward),
+				Count:        int64(len(rewards)),
+				RewardAmount: sumFloat64s(rewards),
+			},
+		}, nil
+	}
+
+	const bucketCount = 5
+	width := (maxReward - minReward) / bucketCount
+	buckets := make([]service.AdminCheckinRewardBucket, bucketCount)
+	for index := 0; index < bucketCount; index++ {
+		start := minReward + float64(index)*width
+		end := start + width
+		if index == bucketCount-1 {
+			end = maxReward
+		}
+		buckets[index].Label = formatRewardBucketLabel(start, end)
+	}
+
+	for _, reward := range rewards {
+		bucketIndex := int(math.Floor((reward - minReward) / width))
+		if bucketIndex < 0 {
+			bucketIndex = 0
+		}
+		if bucketIndex >= bucketCount {
+			bucketIndex = bucketCount - 1
+		}
+		buckets[bucketIndex].Count++
+		buckets[bucketIndex].RewardAmount += reward
+	}
+
+	result := make([]service.AdminCheckinRewardBucket, 0, bucketCount)
+	for _, bucket := range buckets {
+		if bucket.Count == 0 {
+			continue
+		}
+		result = append(result, bucket)
+	}
+	return result, nil
+}
+
+func (r *checkinRepository) GetAdminTopUsers(ctx context.Context, filter service.AdminCheckinAnalyticsFilter) ([]service.AdminCheckinTopUser, error) {
+	whereClause, args := buildAdminCheckinAnalyticsWhere(filter)
+	limit := filter.TopLimit
+	if limit <= 0 {
+		limit = 10
+	}
+	args = append(args, limit)
+
+	rows, err := r.db.QueryContext(ctx, fmt.Sprintf(`
+		SELECT
+			u.id,
+			u.email,
+			u.username,
+			COUNT(*),
+			COALESCE(SUM(c.reward_amount), 0)
+		FROM checkin_records c
+		JOIN users u ON u.id = c.user_id
+		WHERE %s
+		GROUP BY u.id, u.email, u.username
+		ORDER BY COUNT(*) DESC, COALESCE(SUM(c.reward_amount), 0) DESC, u.id ASC
+		LIMIT $%d
+	`, whereClause, len(args)), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	users := make([]service.AdminCheckinTopUser, 0, limit)
+	for rows.Next() {
+		var item service.AdminCheckinTopUser
+		var reward string
+		if err := rows.Scan(&item.UserID, &item.UserEmail, &item.UserName, &item.CheckinCount, &reward); err != nil {
+			return nil, err
+		}
+		item.RewardAmount, err = strconv.ParseFloat(reward, 64)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return users, nil
 }
 
 type checkinScanner interface {
@@ -282,4 +489,48 @@ func adminCheckinOrderBy(sortBy, sortOrder string) string {
 		order = "ASC"
 	}
 	return fmt.Sprintf("%s %s, c.id %s", field, order, order)
+}
+
+func buildAdminCheckinAnalyticsWhere(filter service.AdminCheckinAnalyticsFilter) (string, []any) {
+	whereParts := []string{"1=1"}
+	args := make([]any, 0, 4)
+	argIndex := 1
+
+	if filter.StartDate != "" {
+		whereParts = append(whereParts, fmt.Sprintf("c.checkin_date >= $%d", argIndex))
+		args = append(args, filter.StartDate)
+		argIndex++
+	}
+	if filter.EndDate != "" {
+		whereParts = append(whereParts, fmt.Sprintf("c.checkin_date <= $%d", argIndex))
+		args = append(args, filter.EndDate)
+		argIndex++
+	}
+
+	search := strings.TrimSpace(filter.Search)
+	if search != "" {
+		whereParts = append(whereParts, fmt.Sprintf("(u.email ILIKE $%d OR u.username ILIKE $%d)", argIndex, argIndex))
+		args = append(args, "%"+search+"%")
+		argIndex++
+	}
+
+	timezone := strings.TrimSpace(filter.Timezone)
+	if timezone != "" {
+		whereParts = append(whereParts, fmt.Sprintf("c.user_timezone = $%d", argIndex))
+		args = append(args, timezone)
+	}
+
+	return strings.Join(whereParts, " AND "), args
+}
+
+func formatRewardBucketLabel(start, end float64) string {
+	return fmt.Sprintf("%.6f - %.6f", start, end)
+}
+
+func sumFloat64s(values []float64) float64 {
+	total := 0.0
+	for _, value := range values {
+		total += value
+	}
+	return total
 }

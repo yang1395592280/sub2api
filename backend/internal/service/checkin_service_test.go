@@ -59,6 +59,14 @@ type checkinRepoStub struct {
 	adminRecords     []AdminCheckinRecord
 	adminTotal       int64
 	adminErr         error
+	adminOverview           AdminCheckinOverview
+	adminOverviewErr        error
+	adminTrend              []AdminCheckinTrendPoint
+	adminTrendErr           error
+	adminRewardDistribution []AdminCheckinRewardBucket
+	adminRewardErr          error
+	adminTopUsers           []AdminCheckinTopUser
+	adminTopUsersErr        error
 }
 
 func (s *checkinRepoStub) HasCheckedInOnDate(_ context.Context, userID int64, date string) (bool, error) {
@@ -96,11 +104,39 @@ func (s *checkinRepoStub) GetUserTotals(_ context.Context, userID int64) (int64,
 	return s.totalCount, s.totalReward, nil
 }
 
-func (s *checkinRepoStub) ListAdminRecords(_ context.Context, page, pageSize int, search, date, sortBy, sortOrder string) ([]AdminCheckinRecord, int64, error) {
+func (s *checkinRepoStub) ListAdminRecords(_ context.Context, page, pageSize int, search, date, timezone, sortBy, sortOrder string) ([]AdminCheckinRecord, int64, error) {
 	if s.adminErr != nil {
 		return nil, 0, s.adminErr
 	}
 	return s.adminRecords, s.adminTotal, nil
+}
+
+func (s *checkinRepoStub) GetAdminOverview(_ context.Context, _ AdminCheckinAnalyticsFilter) (AdminCheckinOverview, error) {
+	if s.adminOverviewErr != nil {
+		return AdminCheckinOverview{}, s.adminOverviewErr
+	}
+	return s.adminOverview, nil
+}
+
+func (s *checkinRepoStub) GetAdminTrend(_ context.Context, _ AdminCheckinAnalyticsFilter) ([]AdminCheckinTrendPoint, error) {
+	if s.adminTrendErr != nil {
+		return nil, s.adminTrendErr
+	}
+	return s.adminTrend, nil
+}
+
+func (s *checkinRepoStub) GetAdminRewardDistribution(_ context.Context, _ AdminCheckinAnalyticsFilter) ([]AdminCheckinRewardBucket, error) {
+	if s.adminRewardErr != nil {
+		return nil, s.adminRewardErr
+	}
+	return s.adminRewardDistribution, nil
+}
+
+func (s *checkinRepoStub) GetAdminTopUsers(_ context.Context, _ AdminCheckinAnalyticsFilter) ([]AdminCheckinTopUser, error) {
+	if s.adminTopUsersErr != nil {
+		return nil, s.adminTopUsersErr
+	}
+	return s.adminTopUsers, nil
 }
 
 func newCheckinSettings(enabled bool, minReward, maxReward string) *checkinSettingRepoStub {
@@ -191,6 +227,44 @@ func TestCheckinServiceGetStatusAggregatesMonthlyRecordsAndTotals(t *testing.T) 
 	require.Equal(t, 0.010, status.Stats.Records[0].RewardAmount)
 }
 
+func TestCheckinServiceGetAdminAnalyticsBuildsResponseFromRepositoryData(t *testing.T) {
+	t.Parallel()
+
+	repo := &checkinRepoStub{
+		adminOverview: AdminCheckinOverview{
+			TotalCheckins:     12,
+			TotalRewardAmount: 0.42,
+			TodayCheckins:     3,
+			AvgRewardAmount:   0.035,
+		},
+		adminTrend: []AdminCheckinTrendPoint{
+			{Date: "2026-04-20", CheckinCount: 4, RewardAmount: 0.12},
+			{Date: "2026-04-21", CheckinCount: 8, RewardAmount: 0.30},
+		},
+		adminRewardDistribution: []AdminCheckinRewardBucket{
+			{Label: "0.002 - 0.005", Count: 5, RewardAmount: 0.02},
+		},
+		adminTopUsers: []AdminCheckinTopUser{
+			{UserID: 7, UserEmail: "alice@example.com", UserName: "alice", CheckinCount: 6, RewardAmount: 0.19},
+		},
+	}
+
+	svc := NewCheckinService(repo, nil, nil, nil)
+	resp, err := svc.GetAdminAnalytics(context.Background(), AdminCheckinAnalyticsFilter{
+		StartDate: "2026-04-01",
+		EndDate:   "2026-04-21",
+		Search:    "alice",
+		Timezone:  "Asia/Shanghai",
+		TopLimit:  5,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(12), resp.Overview.TotalCheckins)
+	require.Len(t, resp.Trend, 2)
+	require.Len(t, resp.RewardDistribution, 1)
+	require.Len(t, resp.TopUsers, 1)
+}
+
 func TestPickDistributionBucketUsesWeightPriority(t *testing.T) {
 	t.Parallel()
 
@@ -273,7 +347,7 @@ func TestCheckinServiceListAdminRecordsReturnsPaginatedResults(t *testing.T) {
 	}
 	svc := NewCheckinService(repo, newCheckinSettings(true, "10", "100"), nil, nil)
 
-	items, total, err := svc.ListAdminRecords(context.Background(), 1, 20, "alice", "2026-04-21", "created_at", "desc")
+	items, total, err := svc.ListAdminRecords(context.Background(), 1, 20, "alice", "2026-04-21", "", "created_at", "desc")
 
 	require.NoError(t, err)
 	require.Equal(t, int64(1), total)

@@ -1,0 +1,99 @@
+<h2>签到记录图表化方向</h2>
+<p class="subtitle">先确定这个页面的主视角。下面三种都基于你现在的列表页升级，不是完全重做后台信息架构。</p>
+
+<div class="section">
+  <div class="cards">
+    <div class="card" data-choice="trend" onclick="toggleSelect(this)">
+      <div class="card-image">
+        <div class="mockup">
+          <div class="mockup-header">方案 A: 趋势看板</div>
+          <div class="mockup-body">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;">
+              <div class="placeholder" style="height:56px;">累计签到</div>
+              <div class="placeholder" style="height:56px;">今日签到</div>
+              <div class="placeholder" style="height:56px;">平均奖励</div>
+              <div class="placeholder" style="height:56px;">活跃用户</div>
+            </div>
+            <div class="placeholder" style="height:120px;margin-bottom:8px;">近 30 天签到趋势折线图</div>
+            <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:8px;">
+              <div class="placeholder" style="height:82px;">Top 用户排行</div>
+              <div class="placeholder" style="height:82px;">奖励分布柱状图</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <h3>A. 趋势看板</h3>
+        <p>优先回答“最近签到是不是在增长、哪几天异常、奖励发放是否平稳”。适合管理员快速扫一眼整体状态。</p>
+      </div>
+    </div>
+
+    <div class="card" data-choice="distribution" onclick="toggleSelect(this)">
+      <div class="card-image">
+        <div class="mockup">
+          <div class="mockup-header">方案 B: 分布分析</div>
+          <div class="mockup-body">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+              <div class="placeholder" style="height:118px;">奖励金额分档柱状图</div>
+              <div class="placeholder" style="height:118px;">时区分布环形图</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+              <div class="placeholder" style="height:64px;">最高奖励档</div>
+              <div class="placeholder" style="height:64px;">峰值签到时段</div>
+              <div class="placeholder" style="height:64px;">重复签到用户</div>
+            </div>
+            <div class="placeholder" style="height:82px;">按日期 / 用户筛选后的明细表</div>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <h3>B. 分布分析</h3>
+        <p>优先回答“奖励都发到哪里去了、哪些时区和金额段最集中”。适合关心配置效果和奖励分布是否合理。</p>
+      </div>
+    </div>
+
+    <div class="card" data-choice="hybrid" onclick="toggleSelect(this)">
+      <div class="card-image">
+        <div class="mockup">
+          <div class="mockup-header">方案 C: 混合总览</div>
+          <div class="mockup-body">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;">
+              <div class="placeholder" style="height:60px;">累计签到</div>
+              <div class="placeholder" style="height:60px;">近 7 天趋势</div>
+              <div class="placeholder" style="height:60px;">平均奖励</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1.2fr 0.8fr;gap:8px;margin-bottom:8px;">
+              <div class="placeholder" style="height:110px;">签到趋势面积图</div>
+              <div class="placeholder" style="height:110px;">奖励分布小图</div>
+            </div>
+            <div class="placeholder" style="height:90px;">可排序列表，作为钻取入口</div>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <h3>C. 混合总览</h3>
+        <p>先给运营一个全局摘要，再保留列表做钻取。信息最均衡，也最容易在现有页面上渐进升级。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>我目前更推荐</h4>
+      <ul>
+        <li><strong>方案 C</strong>。因为它最贴合你当前“列表升级成图表”的诉求，改造成本和可读性比较平衡。</li>
+        <li>如果你更想做运营看板，选 <strong>方案 A</strong>。</li>
+        <li>如果你更想观察奖励配置效果，选 <strong>方案 B</strong>。</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>注意</h4>
+      <ul>
+        <li>现在后端只有分页明细接口，三种方案都需要补一个聚合统计接口。</li>
+        <li>如果不想改后端，只能做很浅层的前端本页聚合，效果会比较弱。</li>
+      </ul>
+    </div>
+  </div>
+</div>
