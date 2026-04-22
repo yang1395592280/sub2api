@@ -13,27 +13,52 @@ import (
 )
 
 const (
-	defaultCheckinMinReward = 0.002
-	defaultCheckinMaxReward = 0.020
+	defaultCheckinMinReward             = 0.002
+	defaultCheckinMaxReward             = 0.020
+	defaultCheckinLuckyBonusSuccessRate = 50.0
 )
 
 var (
-	ErrCheckinDisabled     = infraerrors.Forbidden("CHECKIN_DISABLED", "check-in feature is disabled")
-	ErrCheckinAlreadyToday = infraerrors.Conflict("CHECKIN_ALREADY_TODAY", "already checked in today")
+	ErrCheckinDisabled                  = infraerrors.Forbidden("CHECKIN_DISABLED", "check-in feature is disabled")
+	ErrCheckinAlreadyToday              = infraerrors.Conflict("CHECKIN_ALREADY_TODAY", "already checked in today")
+	ErrCheckinLuckyBonusDisabled        = infraerrors.Forbidden("CHECKIN_LUCKY_BONUS_DISABLED", "check-in lucky bonus is disabled")
+	ErrCheckinLuckyBonusRequiresCheckin = infraerrors.Conflict("CHECKIN_LUCKY_BONUS_REQUIRES_CHECKIN", "check in today before using the lucky bonus")
+	ErrCheckinLuckyBonusAlreadyPlayed   = infraerrors.Conflict("CHECKIN_LUCKY_BONUS_ALREADY_PLAYED", "lucky bonus already played today")
+)
+
+const (
+	CheckinBonusStatusNone = "none"
+	CheckinBonusStatusWin  = "win"
+	CheckinBonusStatusLose = "lose"
 )
 
 type CheckinRecord struct {
-	ID           int64
-	UserID       int64
-	CheckinDate  string
-	RewardAmount float64
-	UserTimezone string
-	CreatedAt    time.Time
+	ID               int64
+	UserID           int64
+	CheckinDate      string
+	RewardAmount     float64
+	BaseRewardAmount float64
+	BonusStatus      string
+	BonusDeltaAmount float64
+	UserTimezone     string
+	CreatedAt        time.Time
+	BonusPlayedAt    *time.Time
 }
 
 type CheckinRecordSummary struct {
-	CheckinDate  string  `json:"checkin_date"`
-	RewardAmount float64 `json:"reward_amount"`
+	CheckinDate      string  `json:"checkin_date"`
+	RewardAmount     float64 `json:"reward_amount"`
+	BaseRewardAmount float64 `json:"base_reward_amount"`
+	BonusStatus      string  `json:"bonus_status"`
+	BonusDeltaAmount float64 `json:"bonus_delta_amount"`
+}
+
+type CheckinTodayRecord struct {
+	CheckinDate      string  `json:"checkin_date"`
+	RewardAmount     float64 `json:"reward_amount"`
+	BaseRewardAmount float64 `json:"base_reward_amount"`
+	BonusStatus      string  `json:"bonus_status"`
+	BonusDeltaAmount float64 `json:"bonus_delta_amount"`
 }
 
 type CheckinStats struct {
@@ -45,16 +70,22 @@ type CheckinStats struct {
 }
 
 type CheckinStatus struct {
-	Enabled   bool         `json:"enabled"`
-	MinReward float64      `json:"min_reward"`
-	MaxReward float64      `json:"max_reward"`
-	Stats     CheckinStats `json:"stats"`
+	Enabled          bool                `json:"enabled"`
+	MinReward        float64             `json:"min_reward"`
+	MaxReward        float64             `json:"max_reward"`
+	BonusEnabled     bool                `json:"bonus_enabled"`
+	BonusAvailable   bool                `json:"bonus_available"`
+	BonusSuccessRate float64             `json:"bonus_success_rate"`
+	TodayRecord      *CheckinTodayRecord `json:"today_record,omitempty"`
+	Stats            CheckinStats        `json:"stats"`
 }
 
 type CheckinRepository interface {
 	HasCheckedInOnDate(ctx context.Context, userID int64, date string) (bool, error)
 	CreateAndCredit(ctx context.Context, record *CheckinRecord) (*CheckinRecord, error)
 	ListByUserAndDateRange(ctx context.Context, userID int64, startDate, endDate string) ([]CheckinRecord, error)
+	GetByUserAndDate(ctx context.Context, userID int64, date string) (*CheckinRecord, error)
+	ApplyBonusOutcome(ctx context.Context, userID int64, date, outcome string, delta float64) (*CheckinRecord, error)
 	GetUserTotals(ctx context.Context, userID int64) (int64, float64, error)
 	ListAdminRecords(ctx context.Context, page, pageSize int, search, date, timezone, sortBy, sortOrder string) ([]AdminCheckinRecord, int64, error)
 	GetAdminOverview(ctx context.Context, filter AdminCheckinAnalyticsFilter) (AdminCheckinOverview, error)
@@ -70,6 +101,15 @@ type CheckinService struct {
 	billingCache         BillingCache
 	randSource           *rand.Rand
 	randMu               sync.Mutex
+}
+
+type checkinSettings struct {
+	Enabled               bool
+	MinReward             float64
+	MaxReward             float64
+	Distribution          []CheckinDistributionBucket
+	LuckyBonusEnabled     bool
+	LuckyBonusSuccessRate float64
 }
 
 func NewCheckinService(
@@ -88,8 +128,8 @@ func NewCheckinService(
 }
 
 func (s *CheckinService) Checkin(ctx context.Context, userID int64, userTZ string) (*CheckinRecord, error) {
-	enabled, minReward, maxReward, distribution := s.loadSettings(ctx)
-	if !enabled {
+	settings := s.loadSettings(ctx)
+	if !settings.Enabled {
 		return nil, ErrCheckinDisabled
 	}
 
@@ -102,31 +142,37 @@ func (s *CheckinService) Checkin(ctx context.Context, userID int64, userTZ strin
 		return nil, ErrCheckinAlreadyToday
 	}
 
+	rewardAmount := s.randomReward(settings.MinReward, settings.MaxReward, settings.Distribution)
 	record, err := s.repo.CreateAndCredit(ctx, &CheckinRecord{
-		UserID:       userID,
-		CheckinDate:  today,
-		RewardAmount: s.randomReward(minReward, maxReward, distribution),
-		UserTimezone: userTZ,
+		UserID:           userID,
+		CheckinDate:      today,
+		RewardAmount:     rewardAmount,
+		BaseRewardAmount: rewardAmount,
+		BonusStatus:      CheckinBonusStatusNone,
+		UserTimezone:     userTZ,
 	})
 	if err != nil {
 		return nil, err
 	}
+	record.BaseRewardAmount = record.RewardAmount
 
 	s.invalidateCaches(ctx, userID)
 	return record, nil
 }
 
 func (s *CheckinService) GetStatus(ctx context.Context, userID int64, month, userTZ string) (*CheckinStatus, error) {
-	enabled, minReward, maxReward, _ := s.loadSettings(ctx)
+	settings := s.loadSettings(ctx)
 	status := &CheckinStatus{
-		Enabled:   enabled,
-		MinReward: minReward,
-		MaxReward: maxReward,
+		Enabled:          settings.Enabled,
+		MinReward:        settings.MinReward,
+		MaxReward:        settings.MaxReward,
+		BonusEnabled:     settings.LuckyBonusEnabled,
+		BonusSuccessRate: settings.LuckyBonusSuccessRate,
 		Stats: CheckinStats{
 			Records: []CheckinRecordSummary{},
 		},
 	}
-	if !enabled {
+	if !settings.Enabled {
 		return status, nil
 	}
 
@@ -139,7 +185,8 @@ func (s *CheckinService) GetStatus(ctx context.Context, userID int64, month, use
 	if err != nil {
 		return nil, err
 	}
-	checkedToday, err := s.repo.HasCheckedInOnDate(ctx, userID, timezoneutil.NowInUserLocation(userTZ).Format("2006-01-02"))
+	today := timezoneutil.NowInUserLocation(userTZ).Format("2006-01-02")
+	checkedToday, err := s.repo.HasCheckedInOnDate(ctx, userID, today)
 	if err != nil {
 		return nil, err
 	}
@@ -147,9 +194,23 @@ func (s *CheckinService) GetStatus(ctx context.Context, userID int64, month, use
 	summaries := make([]CheckinRecordSummary, 0, len(records))
 	for _, record := range records {
 		summaries = append(summaries, CheckinRecordSummary{
-			CheckinDate:  record.CheckinDate,
-			RewardAmount: record.RewardAmount,
+			CheckinDate:      record.CheckinDate,
+			RewardAmount:     record.RewardAmount,
+			BaseRewardAmount: normalizeBaseReward(record),
+			BonusStatus:      normalizeBonusStatus(record.BonusStatus),
+			BonusDeltaAmount: record.BonusDeltaAmount,
 		})
+	}
+
+	if checkedToday {
+		todayRecord, err := s.repo.GetByUserAndDate(ctx, userID, today)
+		if err != nil {
+			return nil, err
+		}
+		status.TodayRecord = toTodayRecord(todayRecord)
+		if todayRecord != nil && normalizeBonusStatus(todayRecord.BonusStatus) == CheckinBonusStatusNone {
+			status.BonusAvailable = settings.LuckyBonusEnabled
+		}
 	}
 
 	status.Stats = CheckinStats{
@@ -162,15 +223,55 @@ func (s *CheckinService) GetStatus(ctx context.Context, userID int64, month, use
 	return status, nil
 }
 
-func (s *CheckinService) loadSettings(ctx context.Context) (bool, float64, float64, []CheckinDistributionBucket) {
-	enabled := s.readBoolSetting(ctx, SettingKeyCheckinEnabled, false)
-	minReward := s.readFloatSetting(ctx, SettingKeyCheckinMinReward, defaultCheckinMinReward)
-	maxReward := s.readFloatSetting(ctx, SettingKeyCheckinMaxReward, defaultCheckinMaxReward)
-	if maxReward < minReward {
-		maxReward = minReward
+func (s *CheckinService) PlayLuckyBonus(ctx context.Context, userID int64, userTZ string) (*CheckinRecord, error) {
+	settings := s.loadSettings(ctx)
+	if !settings.Enabled || !settings.LuckyBonusEnabled {
+		return nil, ErrCheckinLuckyBonusDisabled
 	}
-	distribution := s.readDistributionSetting(ctx)
-	return enabled, minReward, maxReward, distribution
+
+	today := timezoneutil.NowInUserLocation(userTZ).Format("2006-01-02")
+	record, err := s.repo.GetByUserAndDate(ctx, userID, today)
+	if err != nil {
+		return nil, err
+	}
+	if record == nil {
+		return nil, ErrCheckinLuckyBonusRequiresCheckin
+	}
+	if normalizeBonusStatus(record.BonusStatus) != CheckinBonusStatusNone {
+		return nil, ErrCheckinLuckyBonusAlreadyPlayed
+	}
+
+	baseReward := normalizeBaseReward(*record)
+	finalReward := roundTo8(baseReward * -0.5)
+	outcome := CheckinBonusStatusLose
+	if s.rollLuckyBonus(settings.LuckyBonusSuccessRate) {
+		finalReward = roundTo8(baseReward * 2)
+		outcome = CheckinBonusStatusWin
+	}
+	delta := roundTo8(finalReward - record.RewardAmount)
+
+	updatedRecord, err := s.repo.ApplyBonusOutcome(ctx, userID, today, outcome, delta)
+	if err != nil {
+		return nil, err
+	}
+
+	s.invalidateCaches(ctx, userID)
+	return updatedRecord, nil
+}
+
+func (s *CheckinService) loadSettings(ctx context.Context) checkinSettings {
+	settings := checkinSettings{
+		Enabled:               s.readBoolSetting(ctx, SettingKeyCheckinEnabled, false),
+		MinReward:             s.readFloatSetting(ctx, SettingKeyCheckinMinReward, defaultCheckinMinReward),
+		MaxReward:             s.readFloatSetting(ctx, SettingKeyCheckinMaxReward, defaultCheckinMaxReward),
+		Distribution:          s.readDistributionSetting(ctx),
+		LuckyBonusEnabled:     s.readBoolSetting(ctx, SettingKeyCheckinLuckyBonusEnabled, false),
+		LuckyBonusSuccessRate: s.readRangedFloatSetting(ctx, SettingKeyCheckinLuckyBonusSuccessRate, defaultCheckinLuckyBonusSuccessRate, 0, 100),
+	}
+	if settings.MaxReward < settings.MinReward {
+		settings.MaxReward = settings.MinReward
+	}
+	return settings
 }
 
 func (s *CheckinService) readBoolSetting(ctx context.Context, key string, fallback bool) bool {
@@ -191,6 +292,14 @@ func (s *CheckinService) readFloatSetting(ctx context.Context, key string, fallb
 		return fallback
 	}
 	return parsed
+}
+
+func (s *CheckinService) readRangedFloatSetting(ctx context.Context, key string, fallback, minValue, maxValue float64) float64 {
+	value := s.readFloatSetting(ctx, key, fallback)
+	if value < minValue || value > maxValue {
+		return fallback
+	}
+	return value
 }
 
 func (s *CheckinService) readDistributionSetting(ctx context.Context) []CheckinDistributionBucket {
@@ -224,6 +333,19 @@ func (s *CheckinService) randomReward(minReward, maxReward float64, distribution
 
 	value := minReward + s.randSource.Float64()*(maxReward-minReward)
 	return roundTo8(value)
+}
+
+func (s *CheckinService) rollLuckyBonus(successRate float64) bool {
+	if successRate <= 0 {
+		return false
+	}
+	if successRate >= 100 {
+		return true
+	}
+
+	s.randMu.Lock()
+	defer s.randMu.Unlock()
+	return s.randSource.Float64()*100 < successRate
 }
 
 func pickDistributionBucket(buckets []CheckinDistributionBucket, roll float64) CheckinDistributionBucket {
@@ -282,6 +404,35 @@ func resolveMonthDateRange(month, userTZ string) (string, string) {
 
 func roundTo8(value float64) float64 {
 	return math.Round(value*1e8) / 1e8
+}
+
+func normalizeBaseReward(record CheckinRecord) float64 {
+	if record.BaseRewardAmount > 0 {
+		return record.BaseRewardAmount
+	}
+	return record.RewardAmount
+}
+
+func normalizeBonusStatus(status string) string {
+	switch status {
+	case CheckinBonusStatusWin, CheckinBonusStatusLose:
+		return status
+	default:
+		return CheckinBonusStatusNone
+	}
+}
+
+func toTodayRecord(record *CheckinRecord) *CheckinTodayRecord {
+	if record == nil {
+		return nil
+	}
+	return &CheckinTodayRecord{
+		CheckinDate:      record.CheckinDate,
+		RewardAmount:     record.RewardAmount,
+		BaseRewardAmount: normalizeBaseReward(*record),
+		BonusStatus:      normalizeBonusStatus(record.BonusStatus),
+		BonusDeltaAmount: record.BonusDeltaAmount,
+	}
 }
 
 func (s *CheckinService) invalidateCaches(ctx context.Context, userID int64) {

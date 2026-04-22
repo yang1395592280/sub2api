@@ -48,6 +48,7 @@ func RegisterUserRoutes(
 
 			user.GET("/checkin", h.User.GetCheckinStatus)
 			user.POST("/checkin", h.User.DoCheckin)
+			user.POST("/checkin/lucky-bonus", h.User.PlayCheckinLuckyBonus)
 		}
 
 		// API Key管理

@@ -40,6 +40,14 @@ func (s *adminCheckinRepoStub) ListByUserAndDateRange(_ context.Context, _ int64
 	panic("unexpected ListByUserAndDateRange call")
 }
 
+func (s *adminCheckinRepoStub) GetByUserAndDate(_ context.Context, _ int64, _ string) (*service.CheckinRecord, error) {
+	panic("unexpected GetByUserAndDate call")
+}
+
+func (s *adminCheckinRepoStub) ApplyBonusOutcome(_ context.Context, _ int64, _, _ string, _ float64) (*service.CheckinRecord, error) {
+	panic("unexpected ApplyBonusOutcome call")
+}
+
 func (s *adminCheckinRepoStub) GetUserTotals(_ context.Context, _ int64) (int64, float64, error) {
 	panic("unexpected GetUserTotals call")
 }

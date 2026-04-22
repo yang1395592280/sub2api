@@ -18,7 +18,8 @@ export {
   checkinAPI,
   type CheckinStatus,
   type CheckinResponse,
-  type CheckinRecordSummary
+  type CheckinRecordSummary,
+  type CheckinTodayRecord
 } from './checkin'
 export { paymentAPI } from './payment'
 export { userGroupsAPI } from './groups'

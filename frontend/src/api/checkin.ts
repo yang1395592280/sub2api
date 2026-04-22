@@ -3,6 +3,17 @@ import { apiClient } from './client'
 export interface CheckinRecordSummary {
   checkin_date: string
   reward_amount: number
+  base_reward_amount: number
+  bonus_status: string
+  bonus_delta_amount: number
+}
+
+export interface CheckinTodayRecord {
+  checkin_date: string
+  reward_amount: number
+  base_reward_amount: number
+  bonus_status: string
+  bonus_delta_amount: number
 }
 
 export interface CheckinStats {
@@ -17,12 +28,19 @@ export interface CheckinStatus {
   enabled: boolean
   min_reward: number
   max_reward: number
+  bonus_enabled: boolean
+  bonus_available: boolean
+  bonus_success_rate: number
+  today_record: CheckinTodayRecord | null
   stats: CheckinStats
 }
 
 export interface CheckinResponse {
   checkin_date: string
   reward_amount: number
+  base_reward_amount?: number
+  bonus_status?: string
+  bonus_delta_amount?: number
 }
 
 const getBrowserTimezone = (): string => {
@@ -48,9 +66,17 @@ export async function doCheckin(turnstileToken?: string): Promise<CheckinRespons
   return data
 }
 
+export async function playBonus(): Promise<CheckinResponse> {
+  const { data } = await apiClient.post<CheckinResponse>('/user/checkin/lucky-bonus', {
+    timezone: getBrowserTimezone()
+  })
+  return data
+}
+
 export const checkinAPI = {
   getStatus,
-  doCheckin
+  doCheckin,
+  playBonus
 }
 
 export default checkinAPI

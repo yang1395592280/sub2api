@@ -186,6 +186,8 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyCheckinMinReward,
 		SettingKeyCheckinMaxReward,
 		SettingKeyCheckinDistributionEnabled,
+		SettingKeyCheckinLuckyBonusEnabled,
+		SettingKeyCheckinLuckyBonusSuccessRate,
 		SettingKeyBalanceLowNotifyEnabled,
 		SettingKeyBalanceLowNotifyThreshold,
 		SettingKeyBalanceLowNotifyRechargeURL,
@@ -240,6 +242,10 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 	if v, err := strconv.ParseFloat(settings[SettingKeyCheckinMaxReward], 64); err == nil && v >= checkinMinReward {
 		checkinMaxReward = v
 	}
+	checkinLuckyBonusSuccessRate := defaultCheckinLuckyBonusSuccessRate
+	if v, err := strconv.ParseFloat(settings[SettingKeyCheckinLuckyBonusSuccessRate], 64); err == nil && v >= 0 && v <= 100 {
+		checkinLuckyBonusSuccessRate = v
+	}
 
 	return &PublicSettings{
 		RegistrationEnabled:              settings[SettingKeyRegistrationEnabled] == "true",
@@ -273,6 +279,8 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		CheckinEnabled:                   settings[SettingKeyCheckinEnabled] == "true",
 		CheckinMinReward:                 checkinMinReward,
 		CheckinMaxReward:                 checkinMaxReward,
+		CheckinLuckyBonusEnabled:         settings[SettingKeyCheckinLuckyBonusEnabled] == "true",
+		CheckinLuckyBonusSuccessRate:     checkinLuckyBonusSuccessRate,
 		BalanceLowNotifyEnabled:          settings[SettingKeyBalanceLowNotifyEnabled] == "true",
 		AccountQuotaNotifyEnabled:        settings[SettingKeyAccountQuotaNotifyEnabled] == "true",
 		BalanceLowNotifyThreshold:        balanceLowNotifyThreshold,
@@ -334,6 +342,8 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		CheckinMinReward                 float64         `json:"checkin_min_reward"`
 		CheckinMaxReward                 float64         `json:"checkin_max_reward"`
 		CheckinDistributionEnabled       bool            `json:"checkin_distribution_enabled"`
+		CheckinLuckyBonusEnabled         bool            `json:"checkin_lucky_bonus_enabled"`
+		CheckinLuckyBonusSuccessRate     float64         `json:"checkin_lucky_bonus_success_rate"`
 		BalanceLowNotifyEnabled          bool            `json:"balance_low_notify_enabled"`
 		AccountQuotaNotifyEnabled        bool            `json:"account_quota_notify_enabled"`
 		BalanceLowNotifyThreshold        float64         `json:"balance_low_notify_threshold"`
@@ -372,6 +382,8 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		CheckinMinReward:                 settings.CheckinMinReward,
 		CheckinMaxReward:                 settings.CheckinMaxReward,
 		CheckinDistributionEnabled:       settings.CheckinDistributionEnabled,
+		CheckinLuckyBonusEnabled:         settings.CheckinLuckyBonusEnabled,
+		CheckinLuckyBonusSuccessRate:     settings.CheckinLuckyBonusSuccessRate,
 		BalanceLowNotifyEnabled:          settings.BalanceLowNotifyEnabled,
 		AccountQuotaNotifyEnabled:        settings.AccountQuotaNotifyEnabled,
 		BalanceLowNotifyThreshold:        settings.BalanceLowNotifyThreshold,
@@ -514,6 +526,12 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 		normalizedWhitelist = []string{}
 	}
 	settings.RegistrationEmailSuffixWhitelist = normalizedWhitelist
+	if settings.CheckinLuckyBonusSuccessRate < 0 {
+		settings.CheckinLuckyBonusSuccessRate = 0
+	}
+	if settings.CheckinLuckyBonusSuccessRate > 100 {
+		settings.CheckinLuckyBonusSuccessRate = 100
+	}
 
 	updates := make(map[string]string)
 
@@ -620,6 +638,8 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 	updates[SettingKeyCheckinMaxReward] = strconv.FormatFloat(settings.CheckinMaxReward, 'f', 8, 64)
 	updates[SettingKeyCheckinDistributionEnabled] = strconv.FormatBool(settings.CheckinDistributionEnabled)
 	updates[SettingKeyCheckinDistributionConfig] = settings.CheckinDistributionConfig
+	updates[SettingKeyCheckinLuckyBonusEnabled] = strconv.FormatBool(settings.CheckinLuckyBonusEnabled)
+	updates[SettingKeyCheckinLuckyBonusSuccessRate] = strconv.FormatFloat(settings.CheckinLuckyBonusSuccessRate, 'f', 8, 64)
 
 	// Model fallback configuration
 	updates[SettingKeyEnableModelFallback] = strconv.FormatBool(settings.EnableModelFallback)
@@ -983,6 +1003,8 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyCheckinMaxReward:                 strconv.FormatFloat(defaultCheckinMaxReward, 'f', 8, 64),
 		SettingKeyCheckinDistributionEnabled:       "false",
 		SettingKeyCheckinDistributionConfig:        "[]",
+		SettingKeyCheckinLuckyBonusEnabled:         "false",
+		SettingKeyCheckinLuckyBonusSuccessRate:     strconv.FormatFloat(defaultCheckinLuckyBonusSuccessRate, 'f', 8, 64),
 		SettingKeySMTPPort:                         "587",
 		SettingKeySMTPUseTLS:                       "false",
 		// Model fallback defaults
@@ -1082,6 +1104,11 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	}
 	result.CheckinDistributionEnabled = settings[SettingKeyCheckinDistributionEnabled] == "true"
 	result.CheckinDistributionConfig = settings[SettingKeyCheckinDistributionConfig]
+	result.CheckinLuckyBonusEnabled = settings[SettingKeyCheckinLuckyBonusEnabled] == "true"
+	result.CheckinLuckyBonusSuccessRate = defaultCheckinLuckyBonusSuccessRate
+	if v, err := strconv.ParseFloat(settings[SettingKeyCheckinLuckyBonusSuccessRate], 64); err == nil && v >= 0 && v <= 100 {
+		result.CheckinLuckyBonusSuccessRate = v
+	}
 	result.DefaultSubscriptions = parseDefaultSubscriptions(settings[SettingKeyDefaultSubscriptions])
 
 	// 敏感信息直接返回，方便测试连接时使用

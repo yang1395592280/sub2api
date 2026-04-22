@@ -34,6 +34,8 @@ export interface SystemSettings {
   checkin_max_reward: number
   checkin_distribution_enabled: boolean
   checkin_distribution_config: string
+  checkin_lucky_bonus_enabled: boolean
+  checkin_lucky_bonus_success_rate: number
   // OEM settings
   site_name: string
   site_logo: string
@@ -168,6 +170,8 @@ export interface UpdateSettingsRequest {
   checkin_max_reward?: number
   checkin_distribution_enabled?: boolean
   checkin_distribution_config?: string
+  checkin_lucky_bonus_enabled?: boolean
+  checkin_lucky_bonus_success_rate?: number
   site_name?: string
   site_logo?: string
   site_subtitle?: string

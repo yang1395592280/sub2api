@@ -42,6 +42,12 @@ func (r *checkinRepository) CreateAndCredit(ctx context.Context, record *service
 	if record == nil {
 		return nil, errors.New("checkin record is required")
 	}
+	if record.BaseRewardAmount <= 0 {
+		record.BaseRewardAmount = record.RewardAmount
+	}
+	if strings.TrimSpace(record.BonusStatus) == "" {
+		record.BonusStatus = service.CheckinBonusStatusNone
+	}
 
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -52,12 +58,17 @@ func (r *checkinRepository) CreateAndCredit(ctx context.Context, record *service
 	var createdAt time.Time
 	err = tx.QueryRowContext(
 		ctx,
-		`INSERT INTO checkin_records (user_id, checkin_date, reward_amount, user_timezone)
-		 VALUES ($1, $2, $3, $4)
+		`INSERT INTO checkin_records (
+			user_id, checkin_date, reward_amount, base_reward_amount, bonus_status, bonus_delta_amount, user_timezone
+		)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
 		 RETURNING id, created_at`,
 		record.UserID,
 		record.CheckinDate,
 		record.RewardAmount,
+		record.BaseRewardAmount,
+		record.BonusStatus,
+		record.BonusDeltaAmount,
 		record.UserTimezone,
 	).Scan(&record.ID, &createdAt)
 	if err != nil {
@@ -96,7 +107,7 @@ func (r *checkinRepository) CreateAndCredit(ctx context.Context, record *service
 func (r *checkinRepository) ListByUserAndDateRange(ctx context.Context, userID int64, startDate, endDate string) ([]service.CheckinRecord, error) {
 	rows, err := r.db.QueryContext(
 		ctx,
-		`SELECT id, user_id, checkin_date, reward_amount, user_timezone, created_at
+		`SELECT id, user_id, checkin_date, reward_amount, base_reward_amount, bonus_status, bonus_delta_amount, user_timezone, created_at, bonus_played_at
 		 FROM checkin_records
 		 WHERE user_id = $1 AND checkin_date >= $2 AND checkin_date <= $3
 		 ORDER BY checkin_date DESC`,
@@ -121,6 +132,85 @@ func (r *checkinRepository) ListByUserAndDateRange(ctx context.Context, userID i
 		return nil, err
 	}
 	return records, nil
+}
+
+func (r *checkinRepository) GetByUserAndDate(ctx context.Context, userID int64, date string) (*service.CheckinRecord, error) {
+	row := r.db.QueryRowContext(
+		ctx,
+		`SELECT id, user_id, checkin_date, reward_amount, base_reward_amount, bonus_status, bonus_delta_amount, user_timezone, created_at, bonus_played_at
+		 FROM checkin_records
+		 WHERE user_id = $1 AND checkin_date = $2
+		 LIMIT 1`,
+		userID,
+		date,
+	)
+
+	record, err := scanCheckinRecord(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &record, nil
+}
+
+func (r *checkinRepository) ApplyBonusOutcome(ctx context.Context, userID int64, date, outcome string, delta float64) (*service.CheckinRecord, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	row := tx.QueryRowContext(
+		ctx,
+		`UPDATE checkin_records
+		 SET reward_amount = reward_amount + $1,
+		     bonus_status = $2,
+		     bonus_delta_amount = $1,
+		     bonus_played_at = NOW()
+		 WHERE user_id = $3
+		   AND checkin_date = $4
+		   AND bonus_status = $5
+		 RETURNING id, user_id, checkin_date, reward_amount, base_reward_amount, bonus_status, bonus_delta_amount, user_timezone, created_at, bonus_played_at`,
+		delta,
+		outcome,
+		userID,
+		date,
+		service.CheckinBonusStatusNone,
+	)
+
+	record, err := scanCheckinRecord(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, service.ErrCheckinLuckyBonusAlreadyPlayed
+		}
+		return nil, err
+	}
+
+	result, err := tx.ExecContext(
+		ctx,
+		`UPDATE users
+		 SET balance = balance + $1, updated_at = NOW()
+		 WHERE id = $2 AND deleted_at IS NULL`,
+		delta,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if affected == 0 {
+		return nil, service.ErrUserNotFound
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit tx: %w", err)
+	}
+	return &record, nil
 }
 
 func (r *checkinRepository) GetUserTotals(ctx context.Context, userID int64) (int64, float64, error) {
@@ -422,13 +512,20 @@ type checkinScanner interface {
 func scanCheckinRecord(scanner checkinScanner) (service.CheckinRecord, error) {
 	var record service.CheckinRecord
 	var reward string
+	var baseReward string
+	var bonusDelta string
+	var bonusPlayedAt sql.NullTime
 	err := scanner.Scan(
 		&record.ID,
 		&record.UserID,
 		&record.CheckinDate,
 		&reward,
+		&baseReward,
+		&record.BonusStatus,
+		&bonusDelta,
 		&record.UserTimezone,
 		&record.CreatedAt,
+		&bonusPlayedAt,
 	)
 	if err != nil {
 		return service.CheckinRecord{}, err
@@ -436,6 +533,17 @@ func scanCheckinRecord(scanner checkinScanner) (service.CheckinRecord, error) {
 	record.RewardAmount, err = strconv.ParseFloat(reward, 64)
 	if err != nil {
 		return service.CheckinRecord{}, err
+	}
+	record.BaseRewardAmount, err = strconv.ParseFloat(baseReward, 64)
+	if err != nil {
+		return service.CheckinRecord{}, err
+	}
+	record.BonusDeltaAmount, err = strconv.ParseFloat(bonusDelta, 64)
+	if err != nil {
+		return service.CheckinRecord{}, err
+	}
+	if bonusPlayedAt.Valid {
+		record.BonusPlayedAt = &bonusPlayedAt.Time
 	}
 	return record, nil
 }

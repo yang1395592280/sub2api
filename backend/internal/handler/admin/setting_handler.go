@@ -161,6 +161,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		CheckinMaxReward:                     settings.CheckinMaxReward,
 		CheckinDistributionEnabled:           settings.CheckinDistributionEnabled,
 		CheckinDistributionConfig:            settings.CheckinDistributionConfig,
+		CheckinLuckyBonusEnabled:             settings.CheckinLuckyBonusEnabled,
+		CheckinLuckyBonusSuccessRate:         settings.CheckinLuckyBonusSuccessRate,
 		EnableModelFallback:                  settings.EnableModelFallback,
 		FallbackModelAnthropic:               settings.FallbackModelAnthropic,
 		FallbackModelOpenAI:                  settings.FallbackModelOpenAI,
@@ -281,14 +283,16 @@ type UpdateSettingsRequest struct {
 	CustomEndpoints             *[]dto.CustomEndpoint `json:"custom_endpoints"`
 
 	// 默认配置
-	DefaultConcurrency         int                              `json:"default_concurrency"`
-	DefaultBalance             float64                          `json:"default_balance"`
-	DefaultSubscriptions       []dto.DefaultSubscriptionSetting `json:"default_subscriptions"`
-	CheckinEnabled             bool                             `json:"checkin_enabled"`
-	CheckinMinReward           float64                          `json:"checkin_min_reward"`
-	CheckinMaxReward           float64                          `json:"checkin_max_reward"`
-	CheckinDistributionEnabled bool                             `json:"checkin_distribution_enabled"`
-	CheckinDistributionConfig  string                           `json:"checkin_distribution_config"`
+	DefaultConcurrency           int                              `json:"default_concurrency"`
+	DefaultBalance               float64                          `json:"default_balance"`
+	DefaultSubscriptions         []dto.DefaultSubscriptionSetting `json:"default_subscriptions"`
+	CheckinEnabled               bool                             `json:"checkin_enabled"`
+	CheckinMinReward             float64                          `json:"checkin_min_reward"`
+	CheckinMaxReward             float64                          `json:"checkin_max_reward"`
+	CheckinDistributionEnabled   bool                             `json:"checkin_distribution_enabled"`
+	CheckinDistributionConfig    string                           `json:"checkin_distribution_config"`
+	CheckinLuckyBonusEnabled     bool                             `json:"checkin_lucky_bonus_enabled"`
+	CheckinLuckyBonusSuccessRate float64                          `json:"checkin_lucky_bonus_success_rate"`
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -380,6 +384,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	}
 	if req.CheckinMaxReward < req.CheckinMinReward {
 		req.CheckinMaxReward = req.CheckinMinReward
+	}
+	if req.CheckinLuckyBonusSuccessRate < 0 {
+		req.CheckinLuckyBonusSuccessRate = 0
+	}
+	if req.CheckinLuckyBonusSuccessRate > 100 {
+		req.CheckinLuckyBonusSuccessRate = 100
 	}
 	req.CheckinDistributionConfig = strings.TrimSpace(req.CheckinDistributionConfig)
 	if req.CheckinDistributionConfig == "" {
@@ -875,6 +885,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		CheckinMaxReward:                 req.CheckinMaxReward,
 		CheckinDistributionEnabled:       req.CheckinDistributionEnabled,
 		CheckinDistributionConfig:        req.CheckinDistributionConfig,
+		CheckinLuckyBonusEnabled:         req.CheckinLuckyBonusEnabled,
+		CheckinLuckyBonusSuccessRate:     req.CheckinLuckyBonusSuccessRate,
 		EnableModelFallback:              req.EnableModelFallback,
 		FallbackModelAnthropic:           req.FallbackModelAnthropic,
 		FallbackModelOpenAI:              req.FallbackModelOpenAI,
@@ -1093,6 +1105,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		CheckinMaxReward:                     updatedSettings.CheckinMaxReward,
 		CheckinDistributionEnabled:           updatedSettings.CheckinDistributionEnabled,
 		CheckinDistributionConfig:            updatedSettings.CheckinDistributionConfig,
+		CheckinLuckyBonusEnabled:             updatedSettings.CheckinLuckyBonusEnabled,
+		CheckinLuckyBonusSuccessRate:         updatedSettings.CheckinLuckyBonusSuccessRate,
 		EnableModelFallback:                  updatedSettings.EnableModelFallback,
 		FallbackModelAnthropic:               updatedSettings.FallbackModelAnthropic,
 		FallbackModelOpenAI:                  updatedSettings.FallbackModelOpenAI,

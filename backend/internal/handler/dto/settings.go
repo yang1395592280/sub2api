@@ -89,14 +89,16 @@ type SystemSettings struct {
 	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
 
-	DefaultConcurrency         int                          `json:"default_concurrency"`
-	DefaultBalance             float64                      `json:"default_balance"`
-	DefaultSubscriptions       []DefaultSubscriptionSetting `json:"default_subscriptions"`
-	CheckinEnabled             bool                         `json:"checkin_enabled"`
-	CheckinMinReward           float64                      `json:"checkin_min_reward"`
-	CheckinMaxReward           float64                      `json:"checkin_max_reward"`
-	CheckinDistributionEnabled bool                         `json:"checkin_distribution_enabled"`
-	CheckinDistributionConfig  string                       `json:"checkin_distribution_config"`
+	DefaultConcurrency           int                          `json:"default_concurrency"`
+	DefaultBalance               float64                      `json:"default_balance"`
+	DefaultSubscriptions         []DefaultSubscriptionSetting `json:"default_subscriptions"`
+	CheckinEnabled               bool                         `json:"checkin_enabled"`
+	CheckinMinReward             float64                      `json:"checkin_min_reward"`
+	CheckinMaxReward             float64                      `json:"checkin_max_reward"`
+	CheckinDistributionEnabled   bool                         `json:"checkin_distribution_enabled"`
+	CheckinDistributionConfig    string                       `json:"checkin_distribution_config"`
+	CheckinLuckyBonusEnabled     bool                         `json:"checkin_lucky_bonus_enabled"`
+	CheckinLuckyBonusSuccessRate float64                      `json:"checkin_lucky_bonus_success_rate"`
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`

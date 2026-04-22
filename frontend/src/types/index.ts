@@ -121,6 +121,8 @@ export interface PublicSettings {
   checkin_enabled: boolean
   checkin_min_reward: number
   checkin_max_reward: number
+  checkin_lucky_bonus_enabled: boolean
+  checkin_lucky_bonus_success_rate: number
   table_default_page_size: number
   table_page_size_options: number[]
   custom_menu_items: CustomMenuItem[]

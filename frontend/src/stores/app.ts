@@ -343,6 +343,8 @@ export const useAppStore = defineStore('app', () => {
         checkin_enabled: false,
         checkin_min_reward: 0,
         checkin_max_reward: 0,
+        checkin_lucky_bonus_enabled: false,
+        checkin_lucky_bonus_success_rate: 50,
         balance_low_notify_enabled: false,
         account_quota_notify_enabled: false,
         balance_low_notify_threshold: 0,

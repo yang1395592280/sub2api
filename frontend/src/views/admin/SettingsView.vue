@@ -1644,6 +1644,34 @@
                 <Toggle v-model="form.checkin_distribution_enabled" :disabled="!form.checkin_enabled" />
               </div>
 
+              <div class="mt-4 flex items-center justify-between">
+                <label class="mb-0 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.checkin.luckyBonusEnabled') }}
+                </label>
+                <Toggle v-model="form.checkin_lucky_bonus_enabled" :disabled="!form.checkin_enabled" />
+              </div>
+
+              <div class="mt-4 max-w-xs">
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.checkin.luckyBonusSuccessRate') }}
+                </label>
+                <div class="relative">
+                  <input
+                    v-model.number="form.checkin_lucky_bonus_success_rate"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    class="input pr-9"
+                    :disabled="!form.checkin_enabled || !form.checkin_lucky_bonus_enabled"
+                  />
+                  <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">%</span>
+                </div>
+                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.checkin.luckyBonusSuccessRateHint') }}
+                </p>
+              </div>
+
               <div class="mt-4">
                 <div class="mb-2 flex items-center justify-between gap-3">
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -3084,6 +3112,8 @@ const form = reactive<SettingsForm>({
   checkin_max_reward: 0.02,
   checkin_distribution_enabled: false,
   checkin_distribution_config: DEFAULT_CHECKIN_DISTRIBUTION_CONFIG,
+  checkin_lucky_bonus_enabled: false,
+  checkin_lucky_bonus_success_rate: 50,
   site_name: 'Sub2API',
   site_logo: '',
   site_subtitle: 'Subscription to API Conversion Platform',
@@ -3759,6 +3789,11 @@ async function saveSettings() {
       checkin_max_reward: Number(form.checkin_max_reward) || 0,
       checkin_distribution_enabled: form.checkin_enabled && form.checkin_distribution_enabled,
       checkin_distribution_config: form.checkin_distribution_config,
+      checkin_lucky_bonus_enabled: form.checkin_enabled && form.checkin_lucky_bonus_enabled,
+      checkin_lucky_bonus_success_rate: Math.min(
+        100,
+        Math.max(0, Number(form.checkin_lucky_bonus_success_rate) || 0)
+      ),
       site_name: form.site_name,
       site_logo: form.site_logo,
       site_subtitle: form.site_subtitle,
