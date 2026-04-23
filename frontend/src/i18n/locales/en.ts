@@ -3665,15 +3665,34 @@ export default {
       probabilitiesTitle: 'Probability settings',
       oddsTitle: 'Odds settings',
       rulesMarkdown: 'Rules markdown',
+      settingsLoadFailedTitle: 'Failed to load settings',
       loadFailed: 'Failed to load size-bet admin data',
       saveSuccess: 'Size-bet settings saved',
       saveFailed: 'Failed to save size-bet settings',
       invalidAllowedStakes: 'Enter at least one valid stake and separate multiple values with commas',
+      refundAction: 'Refund',
+      refundConfirmTitle: 'Confirm refund',
+      refundConfirmMessage: 'Refund round {round}?',
+      refundSuccess: 'Refund completed for {count} bets',
+      refundFailed: 'Refund failed',
+      filters: {
+        roundId: 'Round',
+        userId: 'User ID',
+        status: 'Bet Status',
+        entryType: 'Entry Type'
+      },
+      validation: {
+        roundDuration: 'Round duration must be greater than 0',
+        betCloseOffset: 'Bet close offset must be between 0 and the round duration',
+        odds: 'Odds must be greater than 0'
+      },
       columns: {
         round: 'Round',
         status: 'Status',
         result: 'Result',
         schedule: 'Schedule',
+        serverSeedHash: 'Seed Hash',
+        serverSeed: 'Server Seed',
         probabilities: 'Probability',
         odds: 'Odds',
         user: 'User',
@@ -3685,7 +3704,8 @@ export default {
         entryType: 'Entry Type',
         delta: 'Delta',
         balanceWindow: 'Balance Change',
-        reason: 'Reason'
+        reason: 'Reason',
+        actions: 'Actions'
       },
       status: {
         open: 'Open',

@@ -3823,15 +3823,34 @@ export default {
       probabilitiesTitle: '概率配置',
       oddsTitle: '赔率配置',
       rulesMarkdown: '规则文案（Markdown）',
+      settingsLoadFailedTitle: '配置加载失败',
       loadFailed: '加载竞猜后台数据失败',
       saveSuccess: '竞猜配置已保存',
       saveFailed: '保存竞猜配置失败',
       invalidAllowedStakes: '请输入至少一个有效筹码，多个值请用英文逗号分隔',
+      refundAction: '退款',
+      refundConfirmTitle: '确认退款',
+      refundConfirmMessage: '确认对第 {round} 期执行退款吗？',
+      refundSuccess: '退款完成，处理 {count} 条下注',
+      refundFailed: '退款失败',
+      filters: {
+        roundId: '期号',
+        userId: '用户 ID',
+        status: '下注状态',
+        entryType: '流水类型'
+      },
+      validation: {
+        roundDuration: '每局时长必须大于 0',
+        betCloseOffset: '封盘时间必须在 0 到每局时长之间',
+        odds: '赔率必须大于 0'
+      },
       columns: {
         round: '期号',
         status: '状态',
         result: '结果',
         schedule: '时间窗口',
+        serverSeedHash: '种子哈希',
+        serverSeed: '服务端种子',
         probabilities: '概率',
         odds: '赔率',
         user: '用户',
@@ -3843,7 +3862,8 @@ export default {
         entryType: '流水类型',
         delta: '变动金额',
         balanceWindow: '余额变化',
-        reason: '原因'
+        reason: '原因',
+        actions: '操作'
       },
       status: {
         open: '进行中',
