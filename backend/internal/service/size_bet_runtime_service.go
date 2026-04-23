@@ -72,6 +72,15 @@ func (s *SizeBetRuntimeService) runOnce() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	settings, err := s.gameService.adminService.GetSettings(ctx)
+	if err != nil {
+		log.Printf("[SizeBetRuntime] load settings failed: %v", err)
+		return
+	}
+	if !settings.Enabled {
+		return
+	}
+
 	if _, err := s.gameService.EnsureCurrentRound(ctx, now); err != nil {
 		log.Printf("[SizeBetRuntime] ensure current round failed: %v", err)
 	}

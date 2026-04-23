@@ -28,6 +28,56 @@ type SizeBetHandler struct {
 	gameService     sizeBetAdminGameService
 }
 
+type sizeBetAdminRoundResponse struct {
+	ID              int64   `json:"id"`
+	RoundNo         int64   `json:"round_no"`
+	Status          string  `json:"status"`
+	StartsAt        string  `json:"starts_at"`
+	BetClosesAt     string  `json:"bet_closes_at"`
+	SettlesAt       string  `json:"settles_at"`
+	ProbSmall       float64 `json:"prob_small"`
+	ProbMid         float64 `json:"prob_mid"`
+	ProbBig         float64 `json:"prob_big"`
+	OddsSmall       float64 `json:"odds_small"`
+	OddsMid         float64 `json:"odds_mid"`
+	OddsBig         float64 `json:"odds_big"`
+	AllowedStakes   []int   `json:"allowed_stakes"`
+	ResultNumber    *int    `json:"result_number,omitempty"`
+	ResultDirection string  `json:"result_direction,omitempty"`
+	ServerSeedHash  string  `json:"server_seed_hash,omitempty"`
+	ServerSeed      *string `json:"server_seed,omitempty"`
+}
+
+type sizeBetAdminBetResponse struct {
+	ID              int64   `json:"id"`
+	RoundID         int64   `json:"round_id"`
+	RoundNo         int64   `json:"round_no"`
+	UserID          int64   `json:"user_id"`
+	Username        string  `json:"username"`
+	Direction       string  `json:"direction"`
+	StakeAmount     float64 `json:"stake_amount"`
+	PayoutAmount    float64 `json:"payout_amount"`
+	NetResultAmount float64 `json:"net_result_amount"`
+	Status          string  `json:"status"`
+	PlacedAt        string  `json:"placed_at,omitempty"`
+	SettledAt       *string `json:"settled_at,omitempty"`
+}
+
+type sizeBetAdminLedgerResponse struct {
+	ID            int64   `json:"id"`
+	UserID        int64   `json:"user_id"`
+	RoundID       *int64  `json:"round_id,omitempty"`
+	BetID         *int64  `json:"bet_id,omitempty"`
+	EntryType     string  `json:"entry_type"`
+	Direction     string  `json:"direction,omitempty"`
+	StakeAmount   float64 `json:"stake_amount"`
+	DeltaAmount   float64 `json:"delta_amount"`
+	BalanceBefore float64 `json:"balance_before"`
+	BalanceAfter  float64 `json:"balance_after"`
+	Reason        string  `json:"reason,omitempty"`
+	CreatedAt     string  `json:"created_at,omitempty"`
+}
+
 func NewSizeBetHandler(settingsService *service.SizeBetAdminService, gameService *service.SizeBetService) *SizeBetHandler {
 	return &SizeBetHandler{
 		settingsService: settingsService,
@@ -67,41 +117,57 @@ func (h *SizeBetHandler) ListRounds(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	writePaginated(c, items, paginationResult)
+	writePaginated(c, toSizeBetAdminRoundResponses(items), paginationResult)
 }
 
 func (h *SizeBetHandler) ListBets(c *gin.Context) {
+	roundID, ok := parseOptionalInt64Query(c, "round_id")
+	if !ok {
+		return
+	}
+	userID, ok := parseOptionalInt64Query(c, "user_id")
+	if !ok {
+		return
+	}
 	page, pageSize := response.ParsePagination(c)
 	items, paginationResult, err := h.gameService.ListBets(c.Request.Context(), pagination.PaginationParams{
 		Page:     page,
 		PageSize: pageSize,
 	}, service.SizeBetAdminBetFilter{
-		RoundID: parseOptionalInt64Query(c, "round_id"),
-		UserID:  parseOptionalInt64Query(c, "user_id"),
+		RoundID: roundID,
+		UserID:  userID,
 		Status:  c.Query("status"),
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	writePaginated(c, items, paginationResult)
+	writePaginated(c, toSizeBetAdminBetResponses(items), paginationResult)
 }
 
 func (h *SizeBetHandler) ListLedger(c *gin.Context) {
+	roundID, ok := parseOptionalInt64Query(c, "round_id")
+	if !ok {
+		return
+	}
+	userID, ok := parseOptionalInt64Query(c, "user_id")
+	if !ok {
+		return
+	}
 	page, pageSize := response.ParsePagination(c)
 	items, paginationResult, err := h.gameService.ListLedger(c.Request.Context(), pagination.PaginationParams{
 		Page:     page,
 		PageSize: pageSize,
 	}, service.SizeBetAdminLedgerFilter{
-		RoundID:   parseOptionalInt64Query(c, "round_id"),
-		UserID:    parseOptionalInt64Query(c, "user_id"),
+		RoundID:   roundID,
+		UserID:    userID,
 		EntryType: c.Query("entry_type"),
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	writePaginated(c, items, paginationResult)
+	writePaginated(c, toSizeBetAdminLedgerResponses(items), paginationResult)
 }
 
 func (h *SizeBetHandler) RefundRound(c *gin.Context) {
@@ -118,6 +184,14 @@ func (h *SizeBetHandler) RefundRound(c *gin.Context) {
 }
 
 func writePaginated(c *gin.Context, items any, paginationResult *pagination.PaginationResult) {
+	if paginationResult == nil {
+		paginationResult = &pagination.PaginationResult{
+			Total:    0,
+			Page:     1,
+			PageSize: 20,
+			Pages:    1,
+		}
+	}
 	response.PaginatedWithResult(c, items, &response.PaginationResult{
 		Total:    paginationResult.Total,
 		Page:     paginationResult.Page,
@@ -126,14 +200,113 @@ func writePaginated(c *gin.Context, items any, paginationResult *pagination.Pagi
 	})
 }
 
-func parseOptionalInt64Query(c *gin.Context, key string) *int64 {
+func parseOptionalInt64Query(c *gin.Context, key string) (*int64, bool) {
 	raw := c.Query(key)
 	if raw == "" {
-		return nil
+		return nil, true
 	}
 	parsed, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
+		response.BadRequest(c, "Invalid "+key)
+		return nil, false
+	}
+	return &parsed, true
+}
+
+func toSizeBetAdminRoundResponses(rounds []service.SizeBetRound) []sizeBetAdminRoundResponse {
+	items := make([]sizeBetAdminRoundResponse, 0, len(rounds))
+	for i := range rounds {
+		if item := toSizeBetAdminRoundResponse(&rounds[i]); item != nil {
+			items = append(items, *item)
+		}
+	}
+	return items
+}
+
+func toSizeBetAdminRoundResponse(round *service.SizeBetRound) *sizeBetAdminRoundResponse {
+	if round == nil {
 		return nil
 	}
-	return &parsed
+	resp := &sizeBetAdminRoundResponse{
+		ID:             round.ID,
+		RoundNo:        round.RoundNo,
+		Status:         string(round.Status),
+		StartsAt:       formatAdminTime(round.StartsAt),
+		BetClosesAt:    formatAdminTime(round.BetClosesAt),
+		SettlesAt:      formatAdminTime(round.SettlesAt),
+		ProbSmall:      round.ProbSmall,
+		ProbMid:        round.ProbMid,
+		ProbBig:        round.ProbBig,
+		OddsSmall:      round.OddsSmall,
+		OddsMid:        round.OddsMid,
+		OddsBig:        round.OddsBig,
+		AllowedStakes:  append([]int(nil), round.AllowedStakes...),
+		ResultNumber:   round.ResultNumber,
+		ServerSeedHash: round.ServerSeedHash,
+	}
+	if round.ResultDirection != "" {
+		resp.ResultDirection = string(round.ResultDirection)
+	}
+	if round.Status == service.SizeBetRoundStatusSettled && round.ResultNumber != nil && round.ServerSeed != "" {
+		serverSeed := round.ServerSeed
+		resp.ServerSeed = &serverSeed
+	}
+	return resp
+}
+
+func toSizeBetAdminBetResponses(bets []service.SizeBetAdminBet) []sizeBetAdminBetResponse {
+	items := make([]sizeBetAdminBetResponse, 0, len(bets))
+	for i := range bets {
+		items = append(items, sizeBetAdminBetResponse{
+			ID:              bets[i].ID,
+			RoundID:         bets[i].RoundID,
+			RoundNo:         bets[i].RoundNo,
+			UserID:          bets[i].UserID,
+			Username:        bets[i].Username,
+			Direction:       string(bets[i].Direction),
+			StakeAmount:     bets[i].StakeAmount,
+			PayoutAmount:    bets[i].PayoutAmount,
+			NetResultAmount: bets[i].NetResultAmount,
+			Status:          string(bets[i].Status),
+			PlacedAt:        formatAdminTime(bets[i].PlacedAt),
+			SettledAt:       formatAdminOptionalTime(bets[i].SettledAt),
+		})
+	}
+	return items
+}
+
+func toSizeBetAdminLedgerResponses(entries []service.SizeBetLedgerEntry) []sizeBetAdminLedgerResponse {
+	items := make([]sizeBetAdminLedgerResponse, 0, len(entries))
+	for i := range entries {
+		items = append(items, sizeBetAdminLedgerResponse{
+			ID:            entries[i].ID,
+			UserID:        entries[i].UserID,
+			RoundID:       entries[i].RoundID,
+			BetID:         entries[i].BetID,
+			EntryType:     entries[i].EntryType,
+			Direction:     entries[i].Direction,
+			StakeAmount:   entries[i].StakeAmount,
+			DeltaAmount:   entries[i].DeltaAmount,
+			BalanceBefore: entries[i].BalanceBefore,
+			BalanceAfter:  entries[i].BalanceAfter,
+			Reason:        entries[i].Reason,
+			CreatedAt:     formatAdminTime(entries[i].CreatedAt),
+		})
+	}
+	return items
+}
+
+func formatAdminOptionalTime(t *time.Time) *string {
+	if t == nil {
+		return nil
+	}
+	formatted := formatAdminTime(*t)
+	return &formatted
+}
+
+func formatAdminTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
 }

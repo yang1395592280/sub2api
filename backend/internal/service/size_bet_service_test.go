@@ -224,6 +224,21 @@ func TestSizeBetServiceEnsureCurrentRoundReturnsLookupError(t *testing.T) {
 	require.Nil(t, repo.createdRound)
 }
 
+func TestSizeBetServiceEnsureCurrentRoundDisabledDoesNotCreateRound(t *testing.T) {
+	repo := newSizeBetRepoStub()
+	svc := NewSizeBetService(repo, &sizeBetSettingRepoStub{
+		values: map[string]string{
+			SettingKeySizeBetEnabled: "false",
+		},
+	}, nil, nil)
+
+	round, err := svc.EnsureCurrentRound(context.Background(), time.Now())
+
+	require.NoError(t, err)
+	require.Nil(t, round)
+	require.Equal(t, 0, repo.createRoundCalls)
+}
+
 func TestSizeBetServiceSettleRoundRejectsInvalidResultPayload(t *testing.T) {
 	testCases := []struct {
 		name   string

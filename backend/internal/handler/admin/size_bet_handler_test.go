@@ -145,3 +145,90 @@ func TestAdminSizeBetHandlerRefundRoundReturnsSummary(t *testing.T) {
 	data := resp.Data.(map[string]any)
 	require.Equal(t, float64(2), data["refunded_count"])
 }
+
+func TestAdminSizeBetHandlerListRoundsDoesNotLeakOpenRoundSeed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	settingsSvc := &sizeBetSettingsServiceStub{}
+	gameSvc := &sizeBetAdminGameServiceStub{
+		rounds: []service.SizeBetRound{
+			{
+				ID:             1001,
+				GameKey:        service.SizeBetGameKey,
+				RoundNo:        1001,
+				Status:         service.SizeBetRoundStatusOpen,
+				ServerSeedHash: "hash-1",
+				ServerSeed:     "super-secret-seed",
+			},
+		},
+		roundsPagination: &pagination.PaginationResult{Total: 1, Page: 1, PageSize: 20, Pages: 1},
+	}
+	h := &SizeBetHandler{settingsService: settingsSvc, gameService: gameSvc}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/games/size-bet/rounds", nil)
+
+	h.ListRounds(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	resp := decodeAdminEnvelope(t, w)
+	data := resp.Data.(map[string]any)
+	items := data["items"].([]any)
+	require.Len(t, items, 1)
+	item := items[0].(map[string]any)
+	require.Contains(t, item, "round_no")
+	require.NotContains(t, item, "GameKey")
+	require.NotContains(t, item, "server_seed")
+}
+
+func TestAdminSizeBetHandlerListLedgerUsesDTOWithoutGameKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	settingsSvc := &sizeBetSettingsServiceStub{}
+	gameSvc := &sizeBetAdminGameServiceStub{
+		ledger: []service.SizeBetLedgerEntry{
+			{
+				ID:          1,
+				UserID:      9,
+				GameKey:     service.SizeBetGameKey,
+				EntryType:   "bet_debit",
+				StakeAmount: 5,
+			},
+		},
+		ledgerPagination: &pagination.PaginationResult{Total: 1, Page: 1, PageSize: 20, Pages: 1},
+	}
+	h := &SizeBetHandler{settingsService: settingsSvc, gameService: gameSvc}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/games/size-bet/ledger", nil)
+
+	h.ListLedger(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	resp := decodeAdminEnvelope(t, w)
+	data := resp.Data.(map[string]any)
+	items := data["items"].([]any)
+	require.Len(t, items, 1)
+	item := items[0].(map[string]any)
+	require.Contains(t, item, "entry_type")
+	require.NotContains(t, item, "game_key")
+	require.NotContains(t, item, "GameKey")
+}
+
+func TestAdminSizeBetHandlerListBetsRejectsInvalidUserIDFilter(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	settingsSvc := &sizeBetSettingsServiceStub{}
+	gameSvc := &sizeBetAdminGameServiceStub{}
+	h := &SizeBetHandler{settingsService: settingsSvc, gameService: gameSvc}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/games/size-bet/bets?user_id=oops", nil)
+
+	h.ListBets(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}

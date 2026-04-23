@@ -25,6 +25,58 @@ type SizeBetHandler struct {
 	service sizeBetService
 }
 
+type sizeBetCurrentRoundResponse struct {
+	ID                  int64   `json:"id"`
+	RoundNo             int64   `json:"round_no"`
+	Status              string  `json:"status"`
+	StartsAt            string  `json:"starts_at"`
+	BetClosesAt         string  `json:"bet_closes_at"`
+	SettlesAt           string  `json:"settles_at"`
+	ProbSmall           float64 `json:"prob_small"`
+	ProbMid             float64 `json:"prob_mid"`
+	ProbBig             float64 `json:"prob_big"`
+	OddsSmall           float64 `json:"odds_small"`
+	OddsMid             float64 `json:"odds_mid"`
+	OddsBig             float64 `json:"odds_big"`
+	AllowedStakes       []int   `json:"allowed_stakes"`
+	ServerSeedHash      string  `json:"server_seed_hash"`
+	CountdownSeconds    int     `json:"countdown_seconds"`
+	BetCountdownSeconds int     `json:"bet_countdown_seconds"`
+}
+
+type sizeBetResponse struct {
+	ID              int64   `json:"id"`
+	RoundID         int64   `json:"round_id"`
+	Direction       string  `json:"direction"`
+	StakeAmount     float64 `json:"stake_amount"`
+	PayoutAmount    float64 `json:"payout_amount"`
+	NetResultAmount float64 `json:"net_result_amount"`
+	Status          string  `json:"status"`
+	PlacedAt        string  `json:"placed_at,omitempty"`
+	SettledAt       *string `json:"settled_at,omitempty"`
+}
+
+type sizeBetRoundSummaryResponse struct {
+	ID              int64   `json:"id"`
+	RoundNo         int64   `json:"round_no"`
+	Status          string  `json:"status"`
+	StartsAt        string  `json:"starts_at"`
+	SettlesAt       string  `json:"settles_at"`
+	ResultNumber    *int    `json:"result_number,omitempty"`
+	ResultDirection string  `json:"result_direction,omitempty"`
+	ServerSeedHash  string  `json:"server_seed_hash,omitempty"`
+	ServerSeed      *string `json:"server_seed,omitempty"`
+}
+
+type sizeBetCurrentRoundViewResponse struct {
+	Enabled       bool                         `json:"enabled"`
+	Phase         string                       `json:"phase"`
+	ServerTime    string                       `json:"server_time"`
+	Round         *sizeBetCurrentRoundResponse `json:"round,omitempty"`
+	MyBet         *sizeBetResponse             `json:"my_bet,omitempty"`
+	PreviousRound *sizeBetRoundSummaryResponse `json:"previous_round,omitempty"`
+}
+
 type PlaceBetRequest struct {
 	RoundID        int64                    `json:"round_id" binding:"required"`
 	Direction      service.SizeBetDirection `json:"direction" binding:"required"`
@@ -47,7 +99,7 @@ func (h *SizeBetHandler) GetCurrent(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, result)
+	response.Success(c, toSizeBetCurrentRoundViewResponse(result))
 }
 
 func (h *SizeBetHandler) PlaceBet(c *gin.Context) {
@@ -72,7 +124,7 @@ func (h *SizeBetHandler) PlaceBet(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, bet)
+	response.Success(c, toSizeBetResponse(bet))
 }
 
 func (h *SizeBetHandler) GetHistory(c *gin.Context) {
@@ -110,7 +162,7 @@ func (h *SizeBetHandler) ListRecentRounds(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, items)
+	response.Success(c, toSizeBetRoundSummaryResponses(items))
 }
 
 func (h *SizeBetHandler) GetLeaderboard(c *gin.Context) {
@@ -120,6 +172,105 @@ func (h *SizeBetHandler) GetLeaderboard(c *gin.Context) {
 		return
 	}
 	response.Success(c, result)
+}
+
+func toSizeBetCurrentRoundViewResponse(view *service.SizeBetCurrentRoundView) *sizeBetCurrentRoundViewResponse {
+	if view == nil {
+		return nil
+	}
+	return &sizeBetCurrentRoundViewResponse{
+		Enabled:       view.Enabled,
+		Phase:         string(view.Phase),
+		ServerTime:    formatTime(view.ServerTime),
+		Round:         toSizeBetCurrentRoundResponse(view.Round),
+		MyBet:         toSizeBetResponse(view.MyBet),
+		PreviousRound: toSizeBetRoundSummaryResponse(view.PreviousRound),
+	}
+}
+
+func toSizeBetCurrentRoundResponse(round *service.SizeBetCurrentRound) *sizeBetCurrentRoundResponse {
+	if round == nil {
+		return nil
+	}
+	return &sizeBetCurrentRoundResponse{
+		ID:                  round.ID,
+		RoundNo:             round.RoundNo,
+		Status:              string(round.Status),
+		StartsAt:            formatTime(round.StartsAt),
+		BetClosesAt:         formatTime(round.BetClosesAt),
+		SettlesAt:           formatTime(round.SettlesAt),
+		ProbSmall:           round.ProbSmall,
+		ProbMid:             round.ProbMid,
+		ProbBig:             round.ProbBig,
+		OddsSmall:           round.OddsSmall,
+		OddsMid:             round.OddsMid,
+		OddsBig:             round.OddsBig,
+		AllowedStakes:       append([]int(nil), round.AllowedStakes...),
+		ServerSeedHash:      round.ServerSeedHash,
+		CountdownSeconds:    round.CountdownSeconds,
+		BetCountdownSeconds: round.BetCountdownSeconds,
+	}
+}
+
+func toSizeBetResponse(bet *service.SizeBet) *sizeBetResponse {
+	if bet == nil {
+		return nil
+	}
+	resp := &sizeBetResponse{
+		ID:              bet.ID,
+		RoundID:         bet.RoundID,
+		Direction:       string(bet.Direction),
+		StakeAmount:     bet.StakeAmount,
+		PayoutAmount:    bet.PayoutAmount,
+		NetResultAmount: bet.NetResultAmount,
+		Status:          string(bet.Status),
+		PlacedAt:        formatTime(bet.PlacedAt),
+	}
+	if bet.SettledAt != nil {
+		settledAt := formatTime(*bet.SettledAt)
+		resp.SettledAt = &settledAt
+	}
+	return resp
+}
+
+func toSizeBetRoundSummaryResponses(rounds []service.SizeBetRound) []sizeBetRoundSummaryResponse {
+	items := make([]sizeBetRoundSummaryResponse, 0, len(rounds))
+	for i := range rounds {
+		if item := toSizeBetRoundSummaryResponse(&rounds[i]); item != nil {
+			items = append(items, *item)
+		}
+	}
+	return items
+}
+
+func toSizeBetRoundSummaryResponse(round *service.SizeBetRound) *sizeBetRoundSummaryResponse {
+	if round == nil {
+		return nil
+	}
+	resp := &sizeBetRoundSummaryResponse{
+		ID:             round.ID,
+		RoundNo:        round.RoundNo,
+		Status:         string(round.Status),
+		StartsAt:       formatTime(round.StartsAt),
+		SettlesAt:      formatTime(round.SettlesAt),
+		ResultNumber:   round.ResultNumber,
+		ServerSeedHash: round.ServerSeedHash,
+	}
+	if round.ResultDirection != "" {
+		resp.ResultDirection = string(round.ResultDirection)
+	}
+	if round.Status == service.SizeBetRoundStatusSettled && round.ResultNumber != nil && round.ServerSeed != "" {
+		serverSeed := round.ServerSeed
+		resp.ServerSeed = &serverSeed
+	}
+	return resp
+}
+
+func formatTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
 }
 
 func (h *SizeBetHandler) GetRules(c *gin.Context) {

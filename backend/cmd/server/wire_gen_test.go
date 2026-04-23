@@ -47,6 +47,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 	idempotencyCleanupSvc := service.NewIdempotencyCleanupService(nil, cfg)
 	schedulerSnapshotSvc := service.NewSchedulerSnapshotService(nil, nil, nil, nil, cfg)
 	opsSystemLogSinkSvc := service.NewOpsSystemLogSink(nil)
+	sizeBetRuntimeSvc := service.NewSizeBetRuntimeService(nil, time.Second)
 
 	cleanup := provideCleanup(
 		nil, // entClient
@@ -61,6 +62,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		tokenRefreshSvc,
 		accountExpirySvc,
 		subscriptionExpirySvc,
+		sizeBetRuntimeSvc,
 		&service.UsageCleanupService{},
 		idempotencyCleanupSvc,
 		pricingSvc,

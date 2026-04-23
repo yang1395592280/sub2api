@@ -37,7 +37,7 @@ upsert_source AS (
 	JOIN game_rounds gr ON gr.id = gb.round_id
 	WHERE gr.game_key = 'size_bet'
 		AND gb.user_id IN (SELECT user_id FROM affected_users)
-		AND gb.status IN ('won', 'lost', 'refunded')
+		AND gb.status IN ('won', 'lost')
 	GROUP BY gb.user_id
 	UNION ALL
 	SELECT
@@ -51,7 +51,7 @@ upsert_source AS (
 	JOIN game_rounds gr ON gr.id = gb.round_id
 	WHERE gr.game_key = 'size_bet'
 		AND gb.user_id IN (SELECT user_id FROM affected_users)
-		AND gb.status IN ('won', 'lost', 'refunded')
+		AND gb.status IN ('won', 'lost')
 	GROUP BY gb.user_id, date_trunc('week', gr.starts_at AT TIME ZONE 'UTC')
 )
 INSERT INTO game_rank_snapshots (
@@ -242,7 +242,7 @@ func (r *sizeBetRepository) ListLeaderboard(ctx context.Context, scopeType, scop
 			grs.updated_at
 		FROM game_rank_snapshots grs
 		LEFT JOIN users u ON u.id = grs.user_id
-		WHERE grs.scope_type = $1 AND grs.scope_key = $2
+		WHERE grs.scope_type = $1 AND grs.scope_key = $2 AND grs.bet_count > 0
 		ORDER BY grs.net_profit DESC, grs.win_count DESC, grs.bet_count ASC, grs.user_id ASC
 		LIMIT $3
 	`, scopeType, scopeKey, limit)

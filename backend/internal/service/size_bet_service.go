@@ -238,16 +238,20 @@ func (s *SizeBetService) SettleRound(ctx context.Context, input SettleRoundInput
 }
 
 func (s *SizeBetService) EnsureCurrentRound(ctx context.Context, now time.Time) (*SizeBetRound, error) {
+	settings, err := s.adminService.GetSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !settings.Enabled {
+		return nil, nil
+	}
+
 	current, err := s.repo.GetRoundByTime(ctx, now)
 	if err != nil {
 		return nil, err
 	}
 	if current != nil {
 		return current, nil
-	}
-	settings, err := s.adminService.GetSettings(ctx)
-	if err != nil {
-		return nil, err
 	}
 	return s.repo.CreateRound(ctx, BuildNextRound(now, settings))
 }
@@ -256,6 +260,23 @@ func (s *SizeBetService) GetCurrentRoundView(ctx context.Context, userID int64, 
 	settings, err := s.adminService.GetSettings(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	recentRounds, err := s.repo.ListRecentRounds(ctx, 1)
+	if err != nil {
+		return nil, err
+	}
+
+	view := &SizeBetCurrentRoundView{
+		Enabled:    settings.Enabled,
+		Phase:      SizeBetPhaseMaintenance,
+		ServerTime: now,
+	}
+	if len(recentRounds) > 0 {
+		view.PreviousRound = &recentRounds[0]
+	}
+	if !settings.Enabled {
+		return view, nil
 	}
 
 	current, err := s.EnsureCurrentRound(ctx, now)
@@ -271,22 +292,10 @@ func (s *SizeBetService) GetCurrentRoundView(ctx context.Context, userID int64, 
 		}
 	}
 
-	recentRounds, err := s.repo.ListRecentRounds(ctx, 1)
-	if err != nil {
-		return nil, err
-	}
-
-	view := &SizeBetCurrentRoundView{
-		Enabled:    settings.Enabled,
-		Phase:      sizeBetPhaseForRound(settings.Enabled, current, now),
-		ServerTime: now,
-		MyBet:      myBet,
-	}
+	view.Phase = sizeBetPhaseForRound(settings.Enabled, current, now)
+	view.MyBet = myBet
 	if current != nil {
 		view.Round = current.ToCurrentView(now)
-	}
-	if len(recentRounds) > 0 {
-		view.PreviousRound = &recentRounds[0]
 	}
 	return view, nil
 }

@@ -207,6 +207,35 @@ func TestSizeBetServiceGetCurrentRoundViewReturnsCurrentPhaseAndPreviousRound(t 
 	require.Equal(t, 20, view.Round.BetCountdownSeconds)
 }
 
+func TestSizeBetServiceGetCurrentRoundViewDisabledReturnsMaintenanceWithoutMutation(t *testing.T) {
+	now := time.Date(2026, 4, 23, 12, 0, 10, 0, time.UTC)
+	repo := &sizeBetQueryRepoStub{
+		latestRounds: []SizeBetRound{
+			{
+				ID:              10,
+				RoundNo:         1000,
+				Status:          SizeBetRoundStatusSettled,
+				ResultNumber:    sizeBetIntPtr(6),
+				ResultDirection: SizeBetDirectionMid,
+				ServerSeedHash:  "hash-0",
+				ServerSeed:      "seed-0",
+			},
+		},
+	}
+	svc := NewSizeBetService(repo, &sizeBetRuntimeSettingRepoStub{values: map[string]string{
+		SettingKeySizeBetEnabled: "false",
+	}}, nil, nil)
+
+	view, err := svc.GetCurrentRoundView(context.Background(), 9, now)
+
+	require.NoError(t, err)
+	require.False(t, view.Enabled)
+	require.Equal(t, SizeBetPhaseMaintenance, view.Phase)
+	require.Nil(t, view.Round)
+	require.NotNil(t, view.PreviousRound)
+	require.Zero(t, repo.createRoundCalls)
+}
+
 func TestSizeBetServiceRefundRoundRejectsSettledResultRound(t *testing.T) {
 	repo := &sizeBetQueryRepoStub{
 		currentRound: &SizeBetRound{
@@ -261,6 +290,35 @@ func TestSizeBetRuntimeServiceRunOnceEnsuresCurrentRoundAndSettlesDueRounds(t *t
 	require.Equal(t, SizeBetGameKey, repo.lastCreatedRound.GameKey)
 }
 
+func TestSizeBetRuntimeServiceRunOnceDisabledSkipsMutation(t *testing.T) {
+	now := time.Date(2026, 4, 23, 12, 1, 0, 0, time.UTC)
+	repo := &sizeBetQueryRepoStub{
+		roundsDue: []SizeBetRound{
+			{
+				ID:             10,
+				RoundNo:        1000,
+				Status:         SizeBetRoundStatusOpen,
+				StartsAt:       now.Add(-1 * time.Minute),
+				BetClosesAt:    now.Add(-10 * time.Second),
+				SettlesAt:      now.Add(-1 * time.Second),
+				ServerSeedHash: "hash-10",
+				ServerSeed:     "seed-10",
+			},
+		},
+	}
+	service := NewSizeBetService(repo, &sizeBetRuntimeSettingRepoStub{values: map[string]string{
+		SettingKeySizeBetEnabled: "false",
+	}}, nil, nil)
+	service.now = func() time.Time { return now }
+	runtime := NewSizeBetRuntimeService(service, time.Second)
+
+	runtime.runOnce()
+
+	require.Zero(t, repo.applySettlementCalls)
+	require.Zero(t, repo.createRoundCalls)
+	require.Zero(t, repo.refreshCalls)
+}
+
 func TestSizeBetRuntimeServiceRunOnceToleratesEnsureRoundFailure(t *testing.T) {
 	repo := &sizeBetQueryRepoStub{getRoundByTimeErr: errors.New("boom")}
 	service := NewSizeBetService(repo, &sizeBetRuntimeSettingRepoStub{values: map[string]string{}}, nil, nil)
@@ -269,4 +327,41 @@ func TestSizeBetRuntimeServiceRunOnceToleratesEnsureRoundFailure(t *testing.T) {
 	require.NotPanics(t, func() {
 		runtime.runOnce()
 	})
+}
+
+func TestSizeBetRuntimeServiceStopStopsBackgroundWorker(t *testing.T) {
+	now := time.Date(2026, 4, 23, 12, 1, 0, 0, time.UTC)
+	repo := &sizeBetQueryRepoStub{
+		roundsDue: []SizeBetRound{
+			{
+				ID:             10,
+				RoundNo:        1000,
+				Status:         SizeBetRoundStatusOpen,
+				StartsAt:       now.Add(-1 * time.Minute),
+				BetClosesAt:    now.Add(-10 * time.Second),
+				SettlesAt:      now.Add(-1 * time.Second),
+				ProbSmall:      45,
+				ProbMid:        10,
+				ProbBig:        45,
+				OddsSmall:      2,
+				OddsMid:        10,
+				OddsBig:        2,
+				AllowedStakes:  []int{2, 5, 10},
+				ServerSeedHash: "hash-10",
+				ServerSeed:     "seed-10",
+			},
+		},
+	}
+	service := NewSizeBetService(repo, &sizeBetRuntimeSettingRepoStub{values: map[string]string{}}, nil, nil)
+	service.now = func() time.Time { return now }
+	runtime := NewSizeBetRuntimeService(service, 10*time.Millisecond)
+
+	runtime.Start()
+	time.Sleep(35 * time.Millisecond)
+	runtime.Stop()
+
+	callsAfterStop := repo.applySettlementCalls
+	time.Sleep(30 * time.Millisecond)
+
+	require.Equal(t, callsAfterStop, repo.applySettlementCalls)
 }
