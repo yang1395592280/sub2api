@@ -36,6 +36,7 @@ func ProvideAdminHandlers(
 	scheduledTestHandler *admin.ScheduledTestHandler,
 	channelHandler *admin.ChannelHandler,
 	paymentHandler *admin.PaymentHandler,
+	sizeBetHandler *admin.SizeBetHandler,
 ) *AdminHandlers {
 	return &AdminHandlers{
 		Dashboard:             dashboardHandler,
@@ -65,6 +66,7 @@ func ProvideAdminHandlers(
 		ScheduledTest:         scheduledTestHandler,
 		Channel:               channelHandler,
 		Payment:               paymentHandler,
+		SizeBet:               sizeBetHandler,
 	}
 }
 
@@ -94,6 +96,8 @@ func ProvideHandlers(
 	totpHandler *TotpHandler,
 	paymentHandler *PaymentHandler,
 	paymentWebhookHandler *PaymentWebhookHandler,
+	sizeBetHandler *SizeBetHandler,
+	_ *service.SizeBetRuntimeService,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
@@ -112,6 +116,7 @@ func ProvideHandlers(
 		Totp:           totpHandler,
 		Payment:        paymentHandler,
 		PaymentWebhook: paymentWebhookHandler,
+		SizeBet:        sizeBetHandler,
 	}
 }
 
@@ -131,6 +136,7 @@ var ProviderSet = wire.NewSet(
 	ProvideSettingHandler,
 	NewPaymentHandler,
 	NewPaymentWebhookHandler,
+	NewSizeBetHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,
@@ -160,6 +166,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewScheduledTestHandler,
 	admin.NewChannelHandler,
 	admin.NewPaymentHandler,
+	admin.NewSizeBetHandler,
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,

@@ -5,9 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/lib/pq"
 )
@@ -131,6 +134,380 @@ func (r *sizeBetRepository) CreateBetAndDebit(ctx context.Context, bet *service.
 		}
 	}
 	return tx.Commit()
+}
+
+func (r *sizeBetRepository) GetBetByRoundAndUser(ctx context.Context, roundID, userID int64) (*service.SizeBet, error) {
+	bet, err := scanSizeBet(r.db.QueryRowContext(ctx, `
+		SELECT id, round_id, user_id, direction, stake_amount, payout_amount,
+		       net_result_amount, status, idempotency_key, placed_at, settled_at
+		FROM game_bets
+		WHERE round_id = $1 AND user_id = $2
+		ORDER BY id DESC
+		LIMIT 1
+	`, roundID, userID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return bet, err
+}
+
+func (r *sizeBetRepository) ListRecentRounds(ctx context.Context, limit int) ([]service.SizeBetRound, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT `+sizeBetRoundColumns+`
+		FROM game_rounds
+		WHERE game_key = $1 AND status = $2
+		ORDER BY starts_at DESC
+		LIMIT $3
+	`, service.SizeBetGameKey, service.SizeBetRoundStatusSettled, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanSizeBetRounds(rows)
+}
+
+func (r *sizeBetRepository) ListUserHistory(ctx context.Context, userID int64, params pagination.PaginationParams) ([]service.SizeBetUserHistoryItem, *pagination.PaginationResult, error) {
+	var total int64
+	if err := r.db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM game_bets gb
+		JOIN game_rounds gr ON gr.id = gb.round_id
+		WHERE gr.game_key = $1 AND gb.user_id = $2
+	`, service.SizeBetGameKey, userID).Scan(&total); err != nil {
+		return nil, nil, err
+	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT
+			gb.id, gb.round_id, gr.round_no, gb.direction, gb.stake_amount, gb.payout_amount,
+			gb.net_result_amount, gb.status, gb.idempotency_key, gb.placed_at, gb.settled_at,
+			gr.result_number, gr.result_direction, gr.starts_at, gr.settles_at
+		FROM game_bets gb
+		JOIN game_rounds gr ON gr.id = gb.round_id
+		WHERE gr.game_key = $1 AND gb.user_id = $2
+		ORDER BY gb.placed_at DESC
+		LIMIT $3 OFFSET $4
+	`, service.SizeBetGameKey, userID, params.Limit(), params.Offset())
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	items := make([]service.SizeBetUserHistoryItem, 0)
+	for rows.Next() {
+		var item service.SizeBetUserHistoryItem
+		var settledAt sql.NullTime
+		var resultNumber sql.NullInt64
+		var resultDirection sql.NullString
+		if err := rows.Scan(
+			&item.BetID, &item.RoundID, &item.RoundNo, &item.Direction, &item.StakeAmount, &item.PayoutAmount,
+			&item.NetResultAmount, &item.Status, &item.IdempotencyKey, &item.PlacedAt, &settledAt,
+			&resultNumber, &resultDirection, &item.RoundStartsAt, &item.RoundSettlesAt,
+		); err != nil {
+			return nil, nil, err
+		}
+		if settledAt.Valid {
+			item.SettledAt = &settledAt.Time
+		}
+		if resultNumber.Valid {
+			v := int(resultNumber.Int64)
+			item.ResultNumber = &v
+		}
+		if resultDirection.Valid {
+			item.ResultDirection = service.SizeBetDirection(resultDirection.String)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	return items, buildSizeBetPaginationResult(total, params), nil
+}
+
+func (r *sizeBetRepository) ListLeaderboard(ctx context.Context, scopeType, scopeKey string, limit int) ([]service.SizeBetLeaderboardEntry, time.Time, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT
+			grs.user_id,
+			COALESCE(NULLIF(u.username, ''), ''),
+			grs.net_profit,
+			grs.win_count,
+			grs.bet_count,
+			grs.updated_at
+		FROM game_rank_snapshots grs
+		LEFT JOIN users u ON u.id = grs.user_id
+		WHERE grs.scope_type = $1 AND grs.scope_key = $2
+		ORDER BY grs.net_profit DESC, grs.win_count DESC, grs.bet_count ASC, grs.user_id ASC
+		LIMIT $3
+	`, scopeType, scopeKey, limit)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	defer rows.Close()
+
+	items := make([]service.SizeBetLeaderboardEntry, 0)
+	var refreshedAt time.Time
+	for rows.Next() {
+		var item service.SizeBetLeaderboardEntry
+		if err := rows.Scan(&item.UserID, &item.Username, &item.NetProfit, &item.WinCount, &item.BetCount, &refreshedAt); err != nil {
+			return nil, time.Time{}, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, time.Time{}, err
+	}
+	return items, refreshedAt, nil
+}
+
+func (r *sizeBetRepository) ListAdminRounds(ctx context.Context, params pagination.PaginationParams) ([]service.SizeBetRound, *pagination.PaginationResult, error) {
+	var total int64
+	if err := r.db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM game_rounds
+		WHERE game_key = $1
+	`, service.SizeBetGameKey).Scan(&total); err != nil {
+		return nil, nil, err
+	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT `+sizeBetRoundColumns+`
+		FROM game_rounds
+		WHERE game_key = $1
+		ORDER BY starts_at DESC
+		LIMIT $2 OFFSET $3
+	`, service.SizeBetGameKey, params.Limit(), params.Offset())
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	items, err := scanSizeBetRounds(rows)
+	if err != nil {
+		return nil, nil, err
+	}
+	return items, buildSizeBetPaginationResult(total, params), nil
+}
+
+func (r *sizeBetRepository) ListAdminBets(ctx context.Context, params pagination.PaginationParams, filter service.SizeBetAdminBetFilter) ([]service.SizeBetAdminBet, *pagination.PaginationResult, error) {
+	where, args := buildSizeBetBetFilters(filter)
+
+	var total int64
+	countQuery := `SELECT COUNT(*) FROM game_bets gb JOIN game_rounds gr ON gr.id = gb.round_id WHERE ` + where
+	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, nil, err
+	}
+
+	args = append(args, params.Limit(), params.Offset())
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT
+			gb.id, gb.round_id, gr.round_no, gb.user_id,
+			COALESCE(NULLIF(u.username, ''), ''),
+			gb.direction, gb.stake_amount, gb.payout_amount, gb.net_result_amount,
+			gb.status, gb.idempotency_key, gb.placed_at, gb.settled_at
+		FROM game_bets gb
+		JOIN game_rounds gr ON gr.id = gb.round_id
+		LEFT JOIN users u ON u.id = gb.user_id
+		WHERE `+where+`
+		ORDER BY gb.placed_at DESC
+		LIMIT $`+fmt.Sprint(len(args)-1)+` OFFSET $`+fmt.Sprint(len(args)),
+		args...,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	items := make([]service.SizeBetAdminBet, 0)
+	for rows.Next() {
+		var item service.SizeBetAdminBet
+		var settledAt sql.NullTime
+		if err := rows.Scan(
+			&item.ID, &item.RoundID, &item.RoundNo, &item.UserID, &item.Username,
+			&item.Direction, &item.StakeAmount, &item.PayoutAmount, &item.NetResultAmount,
+			&item.Status, &item.IdempotencyKey, &item.PlacedAt, &settledAt,
+		); err != nil {
+			return nil, nil, err
+		}
+		if settledAt.Valid {
+			item.SettledAt = &settledAt.Time
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	return items, buildSizeBetPaginationResult(total, params), nil
+}
+
+func (r *sizeBetRepository) ListAdminLedger(ctx context.Context, params pagination.PaginationParams, filter service.SizeBetAdminLedgerFilter) ([]service.SizeBetLedgerEntry, *pagination.PaginationResult, error) {
+	where, args := buildSizeBetLedgerFilters(filter)
+
+	var total int64
+	countQuery := `SELECT COUNT(*) FROM game_wallet_ledger gl WHERE ` + where
+	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, nil, err
+	}
+
+	args = append(args, params.Limit(), params.Offset())
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT
+			id, user_id, game_key, round_id, bet_id, entry_type, direction,
+			stake_amount, delta_amount, balance_before, balance_after, reason, created_at
+		FROM game_wallet_ledger gl
+		WHERE `+where+`
+		ORDER BY created_at DESC
+		LIMIT $`+fmt.Sprint(len(args)-1)+` OFFSET $`+fmt.Sprint(len(args)),
+		args...,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	items := make([]service.SizeBetLedgerEntry, 0)
+	for rows.Next() {
+		var item service.SizeBetLedgerEntry
+		if err := rows.Scan(
+			&item.ID, &item.UserID, &item.GameKey, &item.RoundID, &item.BetID, &item.EntryType,
+			&item.Direction, &item.StakeAmount, &item.DeltaAmount, &item.BalanceBefore,
+			&item.BalanceAfter, &item.Reason, &item.CreatedAt,
+		); err != nil {
+			return nil, nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	return items, buildSizeBetPaginationResult(total, params), nil
+}
+
+func (r *sizeBetRepository) RefundRound(ctx context.Context, roundID int64, refundedAt time.Time) ([]service.SizeBet, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var status string
+	var resultNumber sql.NullInt64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT status, result_number
+		FROM game_rounds
+		WHERE id = $1 AND game_key = $2
+		FOR UPDATE
+	`, roundID, service.SizeBetGameKey).Scan(&status, &resultNumber); errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrSizeBetRoundNotFound
+	} else if err != nil {
+		return nil, err
+	}
+	if status == string(service.SizeBetRoundStatusSettled) && resultNumber.Valid {
+		return nil, service.ErrSizeBetRoundAlreadySettled
+	}
+
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id, round_id, user_id, direction, stake_amount, payout_amount,
+		       net_result_amount, status, idempotency_key, placed_at, settled_at
+		FROM game_bets
+		WHERE round_id = $1 AND status = $2
+		ORDER BY id ASC
+		FOR UPDATE
+	`, roundID, service.SizeBetStatusPlaced)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	refunded := make([]service.SizeBet, 0)
+	for rows.Next() {
+		bet, scanErr := scanSizeBet(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		before, after, creditErr := creditUserBalance(ctx, tx, bet.UserID, bet.StakeAmount)
+		if creditErr != nil {
+			return nil, creditErr
+		}
+		res, updateErr := tx.ExecContext(ctx, `
+			UPDATE game_bets
+			SET payout_amount = $1, net_result_amount = 0, status = $2, settled_at = $3
+			WHERE id = $4 AND status = $5
+		`, bet.StakeAmount, service.SizeBetStatusRefunded, refundedAt, bet.ID, service.SizeBetStatusPlaced)
+		if updateErr != nil {
+			return nil, updateErr
+		}
+		affected, affectedErr := res.RowsAffected()
+		if affectedErr != nil {
+			return nil, affectedErr
+		}
+		if affected != 1 {
+			return nil, service.ErrSizeBetSettlementConflict
+		}
+
+		entry := &service.SizeBetLedgerEntry{
+			UserID:        bet.UserID,
+			GameKey:       service.SizeBetGameKey,
+			RoundID:       int64Ptr(roundID),
+			BetID:         int64Ptr(bet.ID),
+			EntryType:     "bet_refund",
+			Direction:     string(bet.Direction),
+			StakeAmount:   bet.StakeAmount,
+			DeltaAmount:   bet.StakeAmount,
+			BalanceBefore: before,
+			BalanceAfter:  after,
+			Reason:        "size bet refunded",
+		}
+		if insertErr := insertLedger(ctx, tx, entry); insertErr != nil {
+			return nil, insertErr
+		}
+
+		bet.PayoutAmount = bet.StakeAmount
+		bet.NetResultAmount = 0
+		bet.Status = service.SizeBetStatusRefunded
+		bet.SettledAt = &refundedAt
+		refunded = append(refunded, *bet)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE game_rounds
+		SET status = $2, result_number = NULL, result_direction = '', updated_at = NOW()
+		WHERE id = $1 AND game_key = $3
+	`, roundID, service.SizeBetRoundStatusSettled, service.SizeBetGameKey); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return refunded, nil
+}
+
+func (r *sizeBetRepository) ListRoundsDueForSettlement(ctx context.Context, now time.Time, limit int) ([]service.SizeBetRound, error) {
+	if limit <= 0 {
+		limit = 8
+	}
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT `+sizeBetRoundColumns+`
+		FROM game_rounds
+		WHERE game_key = $1 AND status = $2 AND settles_at <= $3
+		ORDER BY settles_at ASC
+		LIMIT $4
+	`, service.SizeBetGameKey, service.SizeBetRoundStatusOpen, now, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanSizeBetRounds(rows)
 }
 
 func (r *sizeBetRepository) LoadRoundBetsForSettlement(ctx context.Context, roundID int64) ([]service.SizeBet, error) {
@@ -316,6 +693,18 @@ func scanSizeBet(rows interface{ Scan(dest ...any) error }) (*service.SizeBet, e
 	return &bet, nil
 }
 
+func scanSizeBetRounds(rows *sql.Rows) ([]service.SizeBetRound, error) {
+	items := make([]service.SizeBetRound, 0)
+	for rows.Next() {
+		round, err := scanSizeBetRound(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, *round)
+	}
+	return items, rows.Err()
+}
+
 type sizeBetBetRowsQuerier interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
@@ -425,4 +814,66 @@ func insertLedger(ctx context.Context, tx *sql.Tx, entry *service.SizeBetLedgerE
 
 func int64Ptr(v int64) *int64 {
 	return &v
+}
+
+func buildSizeBetPaginationResult(total int64, params pagination.PaginationParams) *pagination.PaginationResult {
+	page := params.Page
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := params.Limit()
+	pages := 1
+	if total > 0 {
+		pages = int((total + int64(pageSize) - 1) / int64(pageSize))
+	}
+	return &pagination.PaginationResult{
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+		Pages:    pages,
+	}
+}
+
+func buildSizeBetBetFilters(filter service.SizeBetAdminBetFilter) (string, []any) {
+	clauses := []string{"gr.game_key = $1"}
+	args := []any{service.SizeBetGameKey}
+	next := 2
+
+	if filter.RoundID != nil {
+		clauses = append(clauses, fmt.Sprintf("gb.round_id = $%d", next))
+		args = append(args, *filter.RoundID)
+		next++
+	}
+	if filter.UserID != nil {
+		clauses = append(clauses, fmt.Sprintf("gb.user_id = $%d", next))
+		args = append(args, *filter.UserID)
+		next++
+	}
+	if filter.Status != "" {
+		clauses = append(clauses, fmt.Sprintf("gb.status = $%d", next))
+		args = append(args, filter.Status)
+	}
+	return strings.Join(clauses, " AND "), args
+}
+
+func buildSizeBetLedgerFilters(filter service.SizeBetAdminLedgerFilter) (string, []any) {
+	clauses := []string{"gl.game_key = $1"}
+	args := []any{service.SizeBetGameKey}
+	next := 2
+
+	if filter.RoundID != nil {
+		clauses = append(clauses, fmt.Sprintf("gl.round_id = $%d", next))
+		args = append(args, *filter.RoundID)
+		next++
+	}
+	if filter.UserID != nil {
+		clauses = append(clauses, fmt.Sprintf("gl.user_id = $%d", next))
+		args = append(args, *filter.UserID)
+		next++
+	}
+	if filter.EntryType != "" {
+		clauses = append(clauses, fmt.Sprintf("gl.entry_type = $%d", next))
+		args = append(args, filter.EntryType)
+	}
+	return strings.Join(clauses, " AND "), args
 }

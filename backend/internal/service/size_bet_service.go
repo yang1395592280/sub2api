@@ -9,6 +9,7 @@ import (
 	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 )
 
 const (
@@ -133,6 +134,15 @@ type SizeBetRepository interface {
 	CreateBetAndDebit(ctx context.Context, bet *SizeBet, entry *SizeBetLedgerEntry) error
 	ApplySettlement(ctx context.Context, input SettleRoundInput) ([]SizeBet, error)
 	RefreshLeaderboardSnapshots(ctx context.Context, settledRoundID int64) error
+	GetBetByRoundAndUser(ctx context.Context, roundID, userID int64) (*SizeBet, error)
+	ListRecentRounds(ctx context.Context, limit int) ([]SizeBetRound, error)
+	ListUserHistory(ctx context.Context, userID int64, params pagination.PaginationParams) ([]SizeBetUserHistoryItem, *pagination.PaginationResult, error)
+	ListLeaderboard(ctx context.Context, scopeType, scopeKey string, limit int) ([]SizeBetLeaderboardEntry, time.Time, error)
+	ListAdminRounds(ctx context.Context, params pagination.PaginationParams) ([]SizeBetRound, *pagination.PaginationResult, error)
+	ListAdminBets(ctx context.Context, params pagination.PaginationParams, filter SizeBetAdminBetFilter) ([]SizeBetAdminBet, *pagination.PaginationResult, error)
+	ListAdminLedger(ctx context.Context, params pagination.PaginationParams, filter SizeBetAdminLedgerFilter) ([]SizeBetLedgerEntry, *pagination.PaginationResult, error)
+	RefundRound(ctx context.Context, roundID int64, refundedAt time.Time) ([]SizeBet, error)
+	ListRoundsDueForSettlement(ctx context.Context, now time.Time, limit int) ([]SizeBetRound, error)
 }
 
 type SizeBetService struct {
@@ -162,14 +172,21 @@ func (s *SizeBetService) PlaceBet(ctx context.Context, req PlaceSizeBetRequest) 
 	if !req.Direction.IsValid() {
 		return nil, ErrSizeBetInvalidDirection
 	}
-	round, settings, err := s.loadBettableRound(ctx, req.RoundID)
+	settings, err := s.adminService.GetSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !settings.Enabled {
+		return nil, ErrSizeBetClosed
+	}
+	round, snapshot, err := s.loadBettableRound(ctx, req.RoundID)
 	if err != nil {
 		return nil, err
 	}
 	if s.now().After(round.BetClosesAt) {
 		return nil, ErrSizeBetClosed
 	}
-	if !settings.IsStakeAllowed(req.StakeAmount) {
+	if !snapshot.IsStakeAllowed(req.StakeAmount) {
 		return nil, ErrSizeBetInvalidStake
 	}
 
@@ -233,6 +250,171 @@ func (s *SizeBetService) EnsureCurrentRound(ctx context.Context, now time.Time) 
 		return nil, err
 	}
 	return s.repo.CreateRound(ctx, BuildNextRound(now, settings))
+}
+
+func (s *SizeBetService) GetCurrentRoundView(ctx context.Context, userID int64, now time.Time) (*SizeBetCurrentRoundView, error) {
+	settings, err := s.adminService.GetSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	current, err := s.EnsureCurrentRound(ctx, now)
+	if err != nil {
+		return nil, err
+	}
+
+	var myBet *SizeBet
+	if current != nil {
+		myBet, err = s.repo.GetBetByRoundAndUser(ctx, current.ID, userID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	recentRounds, err := s.repo.ListRecentRounds(ctx, 1)
+	if err != nil {
+		return nil, err
+	}
+
+	view := &SizeBetCurrentRoundView{
+		Enabled:    settings.Enabled,
+		Phase:      sizeBetPhaseForRound(settings.Enabled, current, now),
+		ServerTime: now,
+		MyBet:      myBet,
+	}
+	if current != nil {
+		view.Round = current.ToCurrentView(now)
+	}
+	if len(recentRounds) > 0 {
+		view.PreviousRound = &recentRounds[0]
+	}
+	return view, nil
+}
+
+func (s *SizeBetService) GetHistory(ctx context.Context, userID int64, params pagination.PaginationParams) ([]SizeBetUserHistoryItem, *pagination.PaginationResult, error) {
+	return s.repo.ListUserHistory(ctx, userID, normalizeSizeBetPagination(params))
+}
+
+func (s *SizeBetService) ListRecentRounds(ctx context.Context, limit int) ([]SizeBetRound, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	return s.repo.ListRecentRounds(ctx, limit)
+}
+
+func (s *SizeBetService) GetLeaderboard(ctx context.Context, scope string, now time.Time) (*SizeBetLeaderboardView, error) {
+	normalizedScope := normalizeSizeBetLeaderboardScope(scope)
+	scopeKey := sizeBetLeaderboardScopeKey(normalizedScope, now)
+	items, refreshedAt, err := s.repo.ListLeaderboard(ctx, normalizedScope, scopeKey, 20)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range items {
+		items[i].Rank = i + 1
+		items[i].Username = maskSizeBetUsername(items[i].Username, items[i].UserID)
+		if items[i].BetCount > 0 {
+			items[i].HitRate = float64(items[i].WinCount) / float64(items[i].BetCount)
+		}
+	}
+
+	view := &SizeBetLeaderboardView{
+		Scope:    normalizedScope,
+		ScopeKey: scopeKey,
+		Items:    items,
+	}
+	if !refreshedAt.IsZero() {
+		view.RefreshedAt = &refreshedAt
+	}
+	return view, nil
+}
+
+func (s *SizeBetService) GetRules(ctx context.Context, now time.Time) (*SizeBetRulesView, error) {
+	settings, err := s.adminService.GetSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	current, err := s.repo.GetRoundByTime(ctx, now)
+	if err != nil {
+		return nil, err
+	}
+	if current != nil {
+		settings.AllowedStakes = append([]int(nil), current.AllowedStakes...)
+		settings.ProbSmall = current.ProbSmall
+		settings.ProbMid = current.ProbMid
+		settings.ProbBig = current.ProbBig
+		settings.OddsSmall = current.OddsSmall
+		settings.OddsMid = current.OddsMid
+		settings.OddsBig = current.OddsBig
+		settings.RoundDurationSeconds = int(current.SettlesAt.Sub(current.StartsAt).Seconds())
+		settings.BetCloseOffsetSeconds = int(current.BetClosesAt.Sub(current.StartsAt).Seconds())
+	}
+
+	return &SizeBetRulesView{
+		Enabled:               settings.Enabled,
+		RoundDurationSeconds:  settings.RoundDurationSeconds,
+		BetCloseOffsetSeconds: settings.BetCloseOffsetSeconds,
+		AllowedStakes:         append([]int(nil), settings.AllowedStakes...),
+		Probabilities: SizeBetProbabilityConfig{
+			Small: settings.ProbSmall,
+			Mid:   settings.ProbMid,
+			Big:   settings.ProbBig,
+		},
+		Odds: SizeBetOddsConfig{
+			Small: settings.OddsSmall,
+			Mid:   settings.OddsMid,
+			Big:   settings.OddsBig,
+		},
+		RulesMarkdown: settings.RulesMarkdown,
+	}, nil
+}
+
+func (s *SizeBetService) ListRounds(ctx context.Context, params pagination.PaginationParams) ([]SizeBetRound, *pagination.PaginationResult, error) {
+	return s.repo.ListAdminRounds(ctx, normalizeSizeBetPagination(params))
+}
+
+func (s *SizeBetService) ListBets(ctx context.Context, params pagination.PaginationParams, filter SizeBetAdminBetFilter) ([]SizeBetAdminBet, *pagination.PaginationResult, error) {
+	return s.repo.ListAdminBets(ctx, normalizeSizeBetPagination(params), filter)
+}
+
+func (s *SizeBetService) ListLedger(ctx context.Context, params pagination.PaginationParams, filter SizeBetAdminLedgerFilter) ([]SizeBetLedgerEntry, *pagination.PaginationResult, error) {
+	return s.repo.ListAdminLedger(ctx, normalizeSizeBetPagination(params), filter)
+}
+
+func (s *SizeBetService) RefundRound(ctx context.Context, roundID int64, refundedAt time.Time) (*SizeBetRefundResult, error) {
+	round, err := s.repo.GetRoundByID(ctx, roundID)
+	if err != nil {
+		return nil, err
+	}
+	if round == nil {
+		return nil, ErrSizeBetRoundNotFound
+	}
+	if round.Status == SizeBetRoundStatusSettled && round.ResultNumber != nil {
+		return nil, ErrSizeBetRoundAlreadySettled
+	}
+	if refundedAt.IsZero() {
+		refundedAt = s.now()
+	}
+
+	refundedBets, err := s.repo.RefundRound(ctx, roundID, refundedAt)
+	if err != nil {
+		return nil, err
+	}
+	for _, userID := range uniqueSizeBetUserIDs(refundedBets) {
+		s.invalidateCaches(ctx, userID)
+	}
+	if err := s.repo.RefreshLeaderboardSnapshots(ctx, roundID); err != nil {
+		return nil, err
+	}
+	return &SizeBetRefundResult{
+		RoundID:       roundID,
+		RefundedCount: len(refundedBets),
+		RefundedAt:    refundedAt,
+	}, nil
 }
 
 func (s *SizeBetService) loadBettableRound(ctx context.Context, roundID int64) (*SizeBetRound, *SizeBetSettings, error) {
@@ -383,7 +565,95 @@ func BuildNextRound(now time.Time, settings *SizeBetSettings) *SizeBetRound {
 		OddsBig:        settings.OddsBig,
 		AllowedStakes:  append([]int(nil), settings.AllowedStakes...),
 		ServerSeedHash: hex.EncodeToString(hash[:]),
+		ServerSeed:     seed,
 	}
+}
+
+func (r *SizeBetRound) ToCurrentView(now time.Time) *SizeBetCurrentRound {
+	if r == nil {
+		return nil
+	}
+	return &SizeBetCurrentRound{
+		ID:                  r.ID,
+		RoundNo:             r.RoundNo,
+		Status:              r.Status,
+		StartsAt:            r.StartsAt,
+		BetClosesAt:         r.BetClosesAt,
+		SettlesAt:           r.SettlesAt,
+		ProbSmall:           r.ProbSmall,
+		ProbMid:             r.ProbMid,
+		ProbBig:             r.ProbBig,
+		OddsSmall:           r.OddsSmall,
+		OddsMid:             r.OddsMid,
+		OddsBig:             r.OddsBig,
+		AllowedStakes:       append([]int(nil), r.AllowedStakes...),
+		ServerSeedHash:      r.ServerSeedHash,
+		CountdownSeconds:    maxSizeBetSeconds(int(r.SettlesAt.Sub(now).Seconds())),
+		BetCountdownSeconds: maxSizeBetSeconds(int(r.BetClosesAt.Sub(now).Seconds())),
+	}
+}
+
+func sizeBetPhaseForRound(enabled bool, round *SizeBetRound, now time.Time) SizeBetPhase {
+	if !enabled || round == nil {
+		return SizeBetPhaseMaintenance
+	}
+	if now.Before(round.BetClosesAt) || now.Equal(round.BetClosesAt) {
+		return SizeBetPhaseBetting
+	}
+	return SizeBetPhaseClosed
+}
+
+func normalizeSizeBetPagination(params pagination.PaginationParams) pagination.PaginationParams {
+	if params.Page <= 0 {
+		params.Page = 1
+	}
+	if params.PageSize <= 0 {
+		params.PageSize = 20
+	}
+	params.SortOrder = params.NormalizedSortOrder(pagination.SortOrderDesc)
+	return params
+}
+
+func normalizeSizeBetLeaderboardScope(scope string) string {
+	switch scope {
+	case "weekly":
+		return "weekly"
+	default:
+		return "all"
+	}
+}
+
+func sizeBetLeaderboardScopeKey(scope string, now time.Time) string {
+	if scope != "weekly" {
+		return "all"
+	}
+	utc := now.UTC()
+	weekday := int(utc.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	start := time.Date(utc.Year(), utc.Month(), utc.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -(weekday - 1))
+	return start.Format("2006-01-02")
+}
+
+func maskSizeBetUsername(username string, userID int64) string {
+	if username == "" {
+		return fmt.Sprintf("user-%d", userID)
+	}
+	if len(username) <= 2 {
+		return username
+	}
+	if len(username) == 3 {
+		return username[:1] + "*" + username[2:]
+	}
+	return username[:1] + "**" + username[len(username)-1:]
+}
+
+func maxSizeBetSeconds(v int) int {
+	if v < 0 {
+		return 0
+	}
+	return v
 }
 
 func NewBetDebitLedger(round *SizeBetRound, bet *SizeBet) *SizeBetLedgerEntry {

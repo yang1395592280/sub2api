@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/stretchr/testify/require"
 )
 
@@ -110,6 +111,42 @@ func (s *sizeBetRepoStub) ApplySettlement(_ context.Context, input SettleRoundIn
 func (s *sizeBetRepoStub) RefreshLeaderboardSnapshots(context.Context, int64) error {
 	s.refreshLeaderboardCalls++
 	return s.refreshLeaderboardErr
+}
+
+func (s *sizeBetRepoStub) GetBetByRoundAndUser(context.Context, int64, int64) (*SizeBet, error) {
+	return nil, nil
+}
+
+func (s *sizeBetRepoStub) ListRecentRounds(context.Context, int) ([]SizeBetRound, error) {
+	return nil, nil
+}
+
+func (s *sizeBetRepoStub) ListUserHistory(context.Context, int64, pagination.PaginationParams) ([]SizeBetUserHistoryItem, *pagination.PaginationResult, error) {
+	return nil, nil, nil
+}
+
+func (s *sizeBetRepoStub) ListLeaderboard(context.Context, string, string, int) ([]SizeBetLeaderboardEntry, time.Time, error) {
+	return nil, time.Time{}, nil
+}
+
+func (s *sizeBetRepoStub) ListAdminRounds(context.Context, pagination.PaginationParams) ([]SizeBetRound, *pagination.PaginationResult, error) {
+	return nil, nil, nil
+}
+
+func (s *sizeBetRepoStub) ListAdminBets(context.Context, pagination.PaginationParams, SizeBetAdminBetFilter) ([]SizeBetAdminBet, *pagination.PaginationResult, error) {
+	return nil, nil, nil
+}
+
+func (s *sizeBetRepoStub) ListAdminLedger(context.Context, pagination.PaginationParams, SizeBetAdminLedgerFilter) ([]SizeBetLedgerEntry, *pagination.PaginationResult, error) {
+	return nil, nil, nil
+}
+
+func (s *sizeBetRepoStub) RefundRound(context.Context, int64, time.Time) ([]SizeBet, error) {
+	return nil, nil
+}
+
+func (s *sizeBetRepoStub) ListRoundsDueForSettlement(context.Context, time.Time, int) ([]SizeBetRound, error) {
+	return nil, nil
 }
 
 func mustOpenRound() *SizeBetRound {

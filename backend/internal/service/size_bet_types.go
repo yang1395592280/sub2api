@@ -1,5 +1,7 @@
 package service
 
+import "time"
+
 const (
 	defaultSizeBetEnabled               = true
 	defaultSizeBetRoundDurationSeconds  = 60
@@ -49,6 +51,121 @@ type SizeBetSettings struct {
 	OddsMid               float64 `json:"odds_mid"`
 	OddsBig               float64 `json:"odds_big"`
 	RulesMarkdown         string  `json:"rules_markdown"`
+}
+
+type SizeBetPhase string
+
+const (
+	SizeBetPhaseBetting     SizeBetPhase = "betting"
+	SizeBetPhaseClosed      SizeBetPhase = "closed"
+	SizeBetPhaseMaintenance SizeBetPhase = "maintenance"
+)
+
+type SizeBetCurrentRound struct {
+	ID                  int64              `json:"id"`
+	RoundNo             int64              `json:"round_no"`
+	Status              SizeBetRoundStatus `json:"status"`
+	StartsAt            time.Time          `json:"starts_at"`
+	BetClosesAt         time.Time          `json:"bet_closes_at"`
+	SettlesAt           time.Time          `json:"settles_at"`
+	ProbSmall           float64            `json:"prob_small"`
+	ProbMid             float64            `json:"prob_mid"`
+	ProbBig             float64            `json:"prob_big"`
+	OddsSmall           float64            `json:"odds_small"`
+	OddsMid             float64            `json:"odds_mid"`
+	OddsBig             float64            `json:"odds_big"`
+	AllowedStakes       []int              `json:"allowed_stakes"`
+	ServerSeedHash      string             `json:"server_seed_hash"`
+	CountdownSeconds    int                `json:"countdown_seconds"`
+	BetCountdownSeconds int                `json:"bet_countdown_seconds"`
+}
+
+type SizeBetCurrentRoundView struct {
+	Enabled       bool                 `json:"enabled"`
+	Phase         SizeBetPhase         `json:"phase"`
+	ServerTime    time.Time            `json:"server_time"`
+	Round         *SizeBetCurrentRound `json:"round,omitempty"`
+	MyBet         *SizeBet             `json:"my_bet,omitempty"`
+	PreviousRound *SizeBetRound        `json:"previous_round,omitempty"`
+}
+
+type SizeBetUserHistoryItem struct {
+	BetID           int64            `json:"bet_id"`
+	RoundID         int64            `json:"round_id"`
+	RoundNo         int64            `json:"round_no"`
+	Direction       SizeBetDirection `json:"direction"`
+	StakeAmount     float64          `json:"stake_amount"`
+	PayoutAmount    float64          `json:"payout_amount"`
+	NetResultAmount float64          `json:"net_result_amount"`
+	Status          SizeBetStatus    `json:"status"`
+	IdempotencyKey  string           `json:"idempotency_key"`
+	PlacedAt        time.Time        `json:"placed_at"`
+	SettledAt       *time.Time       `json:"settled_at,omitempty"`
+	ResultNumber    *int             `json:"result_number,omitempty"`
+	ResultDirection SizeBetDirection `json:"result_direction,omitempty"`
+	RoundStartsAt   time.Time        `json:"round_starts_at"`
+	RoundSettlesAt  time.Time        `json:"round_settles_at"`
+}
+
+type SizeBetLeaderboardEntry struct {
+	Rank      int     `json:"rank"`
+	UserID    int64   `json:"user_id"`
+	Username  string  `json:"username"`
+	NetProfit float64 `json:"net_profit"`
+	WinCount  int64   `json:"win_count"`
+	BetCount  int64   `json:"bet_count"`
+	HitRate   float64 `json:"hit_rate"`
+}
+
+type SizeBetLeaderboardView struct {
+	Scope       string                    `json:"scope"`
+	ScopeKey    string                    `json:"scope_key"`
+	RefreshedAt *time.Time                `json:"refreshed_at,omitempty"`
+	Items       []SizeBetLeaderboardEntry `json:"items"`
+}
+
+type SizeBetRulesView struct {
+	Enabled               bool                     `json:"enabled"`
+	RoundDurationSeconds  int                      `json:"round_duration_seconds"`
+	BetCloseOffsetSeconds int                      `json:"bet_close_offset_seconds"`
+	AllowedStakes         []int                    `json:"allowed_stakes"`
+	Probabilities         SizeBetProbabilityConfig `json:"probabilities"`
+	Odds                  SizeBetOddsConfig        `json:"odds"`
+	RulesMarkdown         string                   `json:"rules_markdown"`
+}
+
+type SizeBetAdminBet struct {
+	ID              int64            `json:"id"`
+	RoundID         int64            `json:"round_id"`
+	RoundNo         int64            `json:"round_no"`
+	UserID          int64            `json:"user_id"`
+	Username        string           `json:"username"`
+	Direction       SizeBetDirection `json:"direction"`
+	StakeAmount     float64          `json:"stake_amount"`
+	PayoutAmount    float64          `json:"payout_amount"`
+	NetResultAmount float64          `json:"net_result_amount"`
+	Status          SizeBetStatus    `json:"status"`
+	IdempotencyKey  string           `json:"idempotency_key"`
+	PlacedAt        time.Time        `json:"placed_at"`
+	SettledAt       *time.Time       `json:"settled_at,omitempty"`
+}
+
+type SizeBetAdminBetFilter struct {
+	RoundID *int64 `json:"round_id,omitempty"`
+	UserID  *int64 `json:"user_id,omitempty"`
+	Status  string `json:"status,omitempty"`
+}
+
+type SizeBetAdminLedgerFilter struct {
+	RoundID   *int64 `json:"round_id,omitempty"`
+	UserID    *int64 `json:"user_id,omitempty"`
+	EntryType string `json:"entry_type,omitempty"`
+}
+
+type SizeBetRefundResult struct {
+	RoundID       int64     `json:"round_id"`
+	RefundedCount int       `json:"refunded_count"`
+	RefundedAt    time.Time `json:"refunded_at"`
 }
 
 func defaultSizeBetAllowedStakes() []int {

@@ -103,5 +103,15 @@ func RegisterUserRoutes(
 			subscriptions.GET("/progress", h.Subscription.GetProgress)
 			subscriptions.GET("/summary", h.Subscription.GetSummary)
 		}
+
+		game := authenticated.Group("/game/size-bet")
+		{
+			game.GET("/current", h.SizeBet.GetCurrent)
+			game.POST("/bet", h.SizeBet.PlaceBet)
+			game.GET("/history", h.SizeBet.GetHistory)
+			game.GET("/rounds", h.SizeBet.ListRecentRounds)
+			game.GET("/leaderboard", h.SizeBet.GetLeaderboard)
+			game.GET("/rules", h.SizeBet.GetRules)
+		}
 	}
 }

@@ -91,6 +91,21 @@ func RegisterAdminRoutes(
 
 		// 渠道管理
 		registerChannelRoutes(admin, h)
+
+		// 竞猜游戏
+		registerSizeBetRoutes(admin, h)
+	}
+}
+
+func registerSizeBetRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	games := admin.Group("/games/size-bet")
+	{
+		games.GET("/settings", h.Admin.SizeBet.GetSettings)
+		games.PUT("/settings", h.Admin.SizeBet.UpdateSettings)
+		games.GET("/rounds", h.Admin.SizeBet.ListRounds)
+		games.GET("/bets", h.Admin.SizeBet.ListBets)
+		games.GET("/ledger", h.Admin.SizeBet.ListLedger)
+		games.POST("/rounds/:id/refund", h.Admin.SizeBet.RefundRound)
 	}
 }
 

@@ -381,10 +381,10 @@ func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupReposit
 	return svc
 }
 
-type sizeBetRuntimePlaceholder struct{}
-
-func ProvideSizeBetRuntimeService(*SizeBetService) *sizeBetRuntimePlaceholder {
-	return &sizeBetRuntimePlaceholder{}
+func ProvideSizeBetRuntimeService(gameService *SizeBetService) *SizeBetRuntimeService {
+	svc := NewSizeBetRuntimeService(gameService, time.Second)
+	svc.Start()
+	return svc
 }
 
 // ProviderSet is the Wire provider set for all services
