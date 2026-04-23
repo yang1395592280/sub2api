@@ -9,6 +9,7 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/lib/pq"
 )
 
 type sizeBetRepository struct {
@@ -116,7 +117,7 @@ func (r *sizeBetRepository) CreateBetAndDebit(ctx context.Context, bet *service.
 		return err
 	}
 	if err := insertBet(ctx, tx, bet); err != nil {
-		return err
+		return translateSizeBetWriteError(err)
 	}
 	if entry != nil {
 		entry.BetID = int64Ptr(bet.ID)
@@ -160,13 +161,7 @@ func (r *sizeBetRepository) ApplySettlement(ctx context.Context, input service.S
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx, `
-		UPDATE game_rounds
-		SET status = $2, result_number = $3, result_direction = $4,
-		    server_seed = CASE WHEN $5 = '' THEN server_seed ELSE $5 END,
-		    updated_at = NOW()
-		WHERE id = $1 AND game_key = $6
-	`, input.RoundID, service.SizeBetRoundStatusSettled, input.ResultNumber, input.ResultDirection, input.ServerSeed, service.SizeBetGameKey); err != nil {
+	if err := claimSizeBetRoundForSettlement(ctx, tx, input); err != nil {
 		return err
 	}
 
@@ -179,12 +174,20 @@ func (r *sizeBetRepository) ApplySettlement(ctx context.Context, input service.S
 			status = service.SizeBetStatusWon
 		}
 		net := payout - bet.StakeAmount
-		if _, err := tx.ExecContext(ctx, `
+		res, err := tx.ExecContext(ctx, `
 			UPDATE game_bets
 			SET payout_amount = $1, net_result_amount = $2, status = $3, settled_at = $4
 			WHERE id = $5 AND status = $6
-		`, payout, net, status, input.SettledAt, bet.ID, service.SizeBetStatusPlaced); err != nil {
+		`, payout, net, status, input.SettledAt, bet.ID, service.SizeBetStatusPlaced)
+		if err != nil {
 			return err
+		}
+		affected, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if affected != 1 {
+			return service.ErrSizeBetSettlementConflict
 		}
 		if payout <= 0 {
 			continue
@@ -206,6 +209,43 @@ func (r *sizeBetRepository) ApplySettlement(ctx context.Context, input service.S
 		}
 	}
 	return tx.Commit()
+}
+
+func claimSizeBetRoundForSettlement(ctx context.Context, tx *sql.Tx, input service.SettleRoundInput) error {
+	res, err := tx.ExecContext(ctx, `
+		UPDATE game_rounds
+		SET status = $2, result_number = $3, result_direction = $4,
+		    server_seed = CASE WHEN $5 = '' THEN server_seed ELSE $5 END,
+		    updated_at = NOW()
+		WHERE id = $1 AND game_key = $6 AND status = $7
+	`, input.RoundID, service.SizeBetRoundStatusSettled, input.ResultNumber, input.ResultDirection, input.ServerSeed, service.SizeBetGameKey, service.SizeBetRoundStatusOpen)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 1 {
+		return nil
+	}
+
+	var status string
+	err = tx.QueryRowContext(ctx, `
+		SELECT status
+		FROM game_rounds
+		WHERE id = $1 AND game_key = $2
+	`, input.RoundID, service.SizeBetGameKey).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return service.ErrSizeBetRoundNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if status == string(service.SizeBetRoundStatusSettled) {
+		return service.ErrSizeBetRoundAlreadySettled
+	}
+	return service.ErrSizeBetSettlementConflict
 }
 
 func (r *sizeBetRepository) RefreshLeaderboardSnapshots(ctx context.Context, settledRoundID int64) error {
@@ -312,6 +352,22 @@ func insertBet(ctx context.Context, tx *sql.Tx, bet *service.SizeBet) error {
 		RETURNING id, placed_at
 	`, bet.RoundID, bet.UserID, bet.Direction, bet.StakeAmount, bet.PayoutAmount,
 		bet.NetResultAmount, bet.Status, bet.IdempotencyKey).Scan(&bet.ID, &bet.PlacedAt)
+}
+
+func translateSizeBetWriteError(err error) error {
+	var pqErr *pq.Error
+	if !errors.As(err, &pqErr) {
+		return err
+	}
+	if pqErr.Code != "23505" {
+		return err
+	}
+	switch pqErr.Constraint {
+	case "idx_game_bets_round_user", "idx_game_bets_idempotency_key":
+		return service.ErrSizeBetDuplicateBet
+	default:
+		return err
+	}
 }
 
 func insertLedger(ctx context.Context, tx *sql.Tx, entry *service.SizeBetLedgerEntry) error {

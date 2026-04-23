@@ -28,12 +28,25 @@ const (
 )
 
 var (
-	ErrSizeBetRoundNotFound    = infraerrors.NotFound("SIZE_BET_ROUND_NOT_FOUND", "size bet round not found")
-	ErrSizeBetClosed           = infraerrors.Conflict("SIZE_BET_CLOSED", "size bet round is closed")
+	ErrSizeBetRoundNotFound       = infraerrors.NotFound("SIZE_BET_ROUND_NOT_FOUND", "size bet round not found")
+	ErrSizeBetRoundAlreadySettled = infraerrors.Conflict(
+		"SIZE_BET_ROUND_ALREADY_SETTLED",
+		"size bet round already settled",
+	)
+	ErrSizeBetClosed             = infraerrors.Conflict("SIZE_BET_CLOSED", "size bet round is closed")
+	ErrSizeBetDuplicateBet       = infraerrors.Conflict("SIZE_BET_DUPLICATE_BET", "size bet already exists for this round or idempotency key")
+	ErrSizeBetSettlementConflict = infraerrors.Conflict(
+		"SIZE_BET_SETTLEMENT_CONFLICT",
+		"size bet settlement state changed",
+	)
 	ErrSizeBetInvalidStake     = infraerrors.BadRequest("SIZE_BET_INVALID_STAKE", "stake amount is not allowed")
 	ErrSizeBetInvalidDirection = infraerrors.BadRequest(
 		"SIZE_BET_INVALID_DIRECTION",
 		"size bet direction is invalid",
+	)
+	ErrSizeBetInvalidResult = infraerrors.BadRequest(
+		"SIZE_BET_INVALID_RESULT",
+		"result number and direction are inconsistent",
 	)
 )
 
@@ -177,8 +190,8 @@ func (s *SizeBetService) PlaceBet(ctx context.Context, req PlaceSizeBetRequest) 
 }
 
 func (s *SizeBetService) SettleRound(ctx context.Context, input SettleRoundInput) error {
-	if !input.ResultDirection.IsValid() {
-		return ErrSizeBetInvalidDirection
+	if err := input.Validate(); err != nil {
+		return err
 	}
 	round, err := s.repo.GetRoundByID(ctx, input.RoundID)
 	if err != nil {
@@ -186,6 +199,9 @@ func (s *SizeBetService) SettleRound(ctx context.Context, input SettleRoundInput
 	}
 	if round == nil {
 		return ErrSizeBetRoundNotFound
+	}
+	if round.Status == SizeBetRoundStatusSettled {
+		return ErrSizeBetRoundAlreadySettled
 	}
 	input = input.withDefaults(round, s.now)
 
@@ -207,7 +223,10 @@ func (s *SizeBetService) SettleRound(ctx context.Context, input SettleRoundInput
 
 func (s *SizeBetService) EnsureCurrentRound(ctx context.Context, now time.Time) (*SizeBetRound, error) {
 	current, err := s.repo.GetRoundByTime(ctx, now)
-	if err == nil && current != nil {
+	if err != nil {
+		return nil, err
+	}
+	if current != nil {
 		return current, nil
 	}
 	settings, err := s.adminService.GetSettings(ctx)
@@ -288,6 +307,17 @@ func (in SettleRoundInput) withDefaults(round *SizeBetRound, now func() time.Tim
 	return in
 }
 
+func (in SettleRoundInput) Validate() error {
+	if !in.ResultDirection.IsValid() {
+		return ErrSizeBetInvalidDirection
+	}
+	expected, ok := SizeBetDirectionForNumber(in.ResultNumber)
+	if !ok || expected != in.ResultDirection {
+		return ErrSizeBetInvalidResult
+	}
+	return nil
+}
+
 func (in SettleRoundInput) OddsFor(direction SizeBetDirection) float64 {
 	switch direction {
 	case SizeBetDirectionSmall:
@@ -296,6 +326,19 @@ func (in SettleRoundInput) OddsFor(direction SizeBetDirection) float64 {
 		return in.OddsMid
 	default:
 		return in.OddsBig
+	}
+}
+
+func SizeBetDirectionForNumber(number int) (SizeBetDirection, bool) {
+	switch {
+	case number >= 1 && number <= 5:
+		return SizeBetDirectionSmall, true
+	case number == 6:
+		return SizeBetDirectionMid, true
+	case number >= 7 && number <= 11:
+		return SizeBetDirectionBig, true
+	default:
+		return "", false
 	}
 }
 
