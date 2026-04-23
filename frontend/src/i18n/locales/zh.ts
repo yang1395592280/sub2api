@@ -379,6 +379,11 @@ export default {
       closed: '封盘中',
       maintenance: '维护中'
     },
+    loadError: {
+      badge: '加载失败',
+      title: '活动加载失败',
+      description: '当前无法获取活动数据，请检查网络后重试。'
+    },
     dealer: {
       title: '庄家台',
       roundLabel: '第 {round} 期',

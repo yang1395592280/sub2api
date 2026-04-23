@@ -379,6 +379,11 @@ export default {
       closed: 'Closed',
       maintenance: 'Maintenance'
     },
+    loadError: {
+      badge: 'Load Failed',
+      title: 'Failed to load game',
+      description: 'Unable to fetch the latest game data right now. Please check your connection and try again.'
+    },
     dealer: {
       title: 'Dealer Desk',
       roundLabel: 'Round {round}',
