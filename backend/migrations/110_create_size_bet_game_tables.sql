@@ -27,7 +27,8 @@ CREATE INDEX IF NOT EXISTS idx_game_rounds_game_key_starts_at ON game_rounds(gam
 CREATE TABLE IF NOT EXISTS game_bets (
     id BIGSERIAL PRIMARY KEY,
     round_id BIGINT NOT NULL REFERENCES game_rounds(id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    -- Intentionally no FK to users: the app hard-deletes users and audit history must survive.
+    user_id BIGINT NOT NULL,
     direction VARCHAR(10) NOT NULL,
     stake_amount DECIMAL(20,8) NOT NULL,
     payout_amount DECIMAL(20,8) NOT NULL DEFAULT 0,
@@ -45,7 +46,8 @@ CREATE INDEX IF NOT EXISTS idx_game_bets_round_id ON game_bets(round_id);
 
 CREATE TABLE IF NOT EXISTS game_wallet_ledger (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    -- Intentionally no FK to users: the app hard-deletes users and audit history must survive.
+    user_id BIGINT NOT NULL,
     game_key VARCHAR(64) NOT NULL,
     round_id BIGINT REFERENCES game_rounds(id) ON DELETE SET NULL,
     bet_id BIGINT REFERENCES game_bets(id) ON DELETE SET NULL,
@@ -68,7 +70,8 @@ CREATE TABLE IF NOT EXISTS game_rank_snapshots (
     id BIGSERIAL PRIMARY KEY,
     scope_type VARCHAR(32) NOT NULL,
     scope_key VARCHAR(64) NOT NULL,
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    -- Intentionally no FK to users: the app hard-deletes users and audit history must survive.
+    user_id BIGINT NOT NULL,
     net_profit DECIMAL(20,8) NOT NULL DEFAULT 0,
     win_count BIGINT NOT NULL DEFAULT 0,
     bet_count BIGINT NOT NULL DEFAULT 0,

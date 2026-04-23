@@ -32,6 +32,10 @@ var (
 		"SIZE_BET_INVALID_ODDS",
 		"odds must be greater than 0",
 	)
+	ErrSizeBetRulesMarkdownRequired = infraerrors.BadRequest(
+		"SIZE_BET_RULES_MARKDOWN_REQUIRED",
+		"rules markdown is required",
+	)
 )
 
 type SizeBetAdminService struct {
@@ -104,7 +108,7 @@ func parseSizeBetSettings(values map[string]string) *SizeBetSettings {
 		}
 	}
 
-	betCloseOffset := settings.BetCloseOffsetSeconds
+	betCloseOffset := defaultSizeBetCloseOffsetForRoundDuration(roundDuration)
 	if raw := strings.TrimSpace(values[SettingKeySizeBetBetCloseOffsetSeconds]); raw != "" {
 		if parsed, err := strconv.Atoi(raw); err == nil && parsed >= 0 && parsed < roundDuration {
 			betCloseOffset = parsed
@@ -151,6 +155,9 @@ func validateSizeBetSettings(req UpdateSizeBetSettingsRequest) error {
 	}
 	if !isValidSizeBetOdds(req.Odds) {
 		return ErrSizeBetInvalidOdds
+	}
+	if strings.TrimSpace(req.RulesMarkdown) == "" {
+		return ErrSizeBetRulesMarkdownRequired
 	}
 	return nil
 }
@@ -219,6 +226,16 @@ func isValidSizeBetProbabilities(cfg SizeBetProbabilityConfig) bool {
 
 func isValidSizeBetOdds(cfg SizeBetOddsConfig) bool {
 	return cfg.Small > 0 && cfg.Mid > 0 && cfg.Big > 0
+}
+
+func defaultSizeBetCloseOffsetForRoundDuration(roundDuration int) int {
+	if roundDuration <= 1 {
+		return 0
+	}
+	if defaultSizeBetBetCloseOffsetSeconds >= roundDuration {
+		return roundDuration - 1
+	}
+	return defaultSizeBetBetCloseOffsetSeconds
 }
 
 func mustJSON(v any) string {
