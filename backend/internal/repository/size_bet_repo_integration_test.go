@@ -106,6 +106,70 @@ func TestSizeBetRepositoryCreateBetAndDebit_MapsDuplicateConflictAndRollsBackDeb
 	require.Equal(t, 1, ledgerCount)
 }
 
+func TestSizeBetRepositoryCreateBetAndDebit_RejectsNonBettableRoundWithoutSideEffects(t *testing.T) {
+	testCases := []struct {
+		name      string
+		round     sizeBetRoundInsertInput
+		wantError error
+	}{
+		{
+			name: "settled round rejected",
+			round: sizeBetRoundInsertInput{
+				status: service.SizeBetRoundStatusSettled,
+			},
+			wantError: service.ErrSizeBetClosed,
+		},
+		{
+			name: "past close time rejected",
+			round: sizeBetRoundInsertInput{
+				status:      service.SizeBetRoundStatusOpen,
+				betClosesAt: time.Now().UTC().Add(-time.Minute),
+				settlesAt:   time.Now().UTC().Add(time.Minute),
+			},
+			wantError: service.ErrSizeBetClosed,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			client := testEntClient(t)
+			repo := NewSizeBetRepository(client, integrationDB).(*sizeBetRepository)
+
+			user := mustCreateUser(t, client, &service.User{
+				Email:        fmt.Sprintf("size-bet-closed-%d@example.com", time.Now().UnixNano()),
+				PasswordHash: "hash",
+				Balance:      20,
+			})
+			round := mustInsertSizeBetRound(t, ctx, tc.round)
+
+			bet := &service.SizeBet{
+				RoundID:        round.ID,
+				UserID:         user.ID,
+				Direction:      service.SizeBetDirectionSmall,
+				StakeAmount:    5,
+				Status:         service.SizeBetStatusPlaced,
+				IdempotencyKey: "bet-" + uuid.NewString(),
+			}
+
+			err := repo.CreateBetAndDebit(ctx, bet, service.NewBetDebitLedger(round, bet))
+			require.ErrorIs(t, err, tc.wantError)
+
+			var balance float64
+			require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT balance FROM users WHERE id = $1`, user.ID).Scan(&balance))
+			require.InDelta(t, 20, balance, 0.000001)
+
+			var betCount int
+			require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM game_bets WHERE user_id = $1 AND round_id = $2`, user.ID, round.ID).Scan(&betCount))
+			require.Zero(t, betCount)
+
+			var ledgerCount int
+			require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM game_wallet_ledger WHERE user_id = $1 AND round_id = $2`, user.ID, round.ID).Scan(&ledgerCount))
+			require.Zero(t, ledgerCount)
+		})
+	}
+}
+
 func TestSizeBetRepositoryApplySettlement_RejectsDuplicateSettleWithoutDoubleCredit(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
@@ -125,11 +189,6 @@ func TestSizeBetRepositoryApplySettlement_RejectsDuplicateSettleWithoutDoubleCre
 		status:      service.SizeBetStatusPlaced,
 	})
 
-	bets, err := repo.LoadRoundBetsForSettlement(ctx, round.ID)
-	require.NoError(t, err)
-	require.Len(t, bets, 1)
-	require.Equal(t, betID, bets[0].ID)
-
 	input := service.SettleRoundInput{
 		RoundID:         round.ID,
 		ResultNumber:    6,
@@ -139,9 +198,12 @@ func TestSizeBetRepositoryApplySettlement_RejectsDuplicateSettleWithoutDoubleCre
 		ServerSeed:      "server-seed-" + uuid.NewString(),
 	}
 
-	require.NoError(t, repo.ApplySettlement(ctx, input, bets))
+	bets, err := repo.ApplySettlement(ctx, input)
+	require.NoError(t, err)
+	require.Len(t, bets, 1)
+	require.Equal(t, betID, bets[0].ID)
 
-	err = repo.ApplySettlement(ctx, input, bets)
+	_, err = repo.ApplySettlement(ctx, input)
 	require.ErrorIs(t, err, service.ErrSizeBetRoundAlreadySettled)
 
 	var balance float64
@@ -182,7 +244,10 @@ func TestSizeBetRepositoryApplySettlement_RejectsDuplicateSettleWithoutDoubleCre
 }
 
 type sizeBetRoundInsertInput struct {
-	status service.SizeBetRoundStatus
+	status      service.SizeBetRoundStatus
+	startsAt    time.Time
+	betClosesAt time.Time
+	settlesAt   time.Time
 }
 
 func mustInsertSizeBetRound(t *testing.T, ctx context.Context, input sizeBetRoundInsertInput) *service.SizeBetRound {
@@ -196,13 +261,26 @@ func mustInsertSizeBetRound(t *testing.T, ctx context.Context, input sizeBetRoun
 	allowedStakes, err := json.Marshal([]int{2, 5, 10, 20})
 	require.NoError(t, err)
 
+	startsAt := input.startsAt
+	if startsAt.IsZero() {
+		startsAt = now.Add(-30 * time.Second)
+	}
+	betClosesAt := input.betClosesAt
+	if betClosesAt.IsZero() {
+		betClosesAt = now.Add(30 * time.Second)
+	}
+	settlesAt := input.settlesAt
+	if settlesAt.IsZero() {
+		settlesAt = now.Add(60 * time.Second)
+	}
+
 	round := &service.SizeBetRound{
 		GameKey:        service.SizeBetGameKey,
 		RoundNo:        now.UnixNano(),
 		Status:         input.status,
-		StartsAt:       now.Add(-30 * time.Second),
-		BetClosesAt:    now.Add(30 * time.Second),
-		SettlesAt:      now.Add(60 * time.Second),
+		StartsAt:       startsAt,
+		BetClosesAt:    betClosesAt,
+		SettlesAt:      settlesAt,
 		ProbSmall:      45,
 		ProbMid:        10,
 		ProbBig:        45,

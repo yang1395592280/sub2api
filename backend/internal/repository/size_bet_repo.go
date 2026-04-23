@@ -112,6 +112,9 @@ func (r *sizeBetRepository) CreateBetAndDebit(ctx context.Context, bet *service.
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := ensureRoundBettableForWrite(ctx, tx, bet.RoundID); err != nil {
+		return err
+	}
 	before, after, err := debitUserBalance(ctx, tx, bet.UserID, bet.StakeAmount)
 	if err != nil {
 		return err
@@ -131,38 +134,23 @@ func (r *sizeBetRepository) CreateBetAndDebit(ctx context.Context, bet *service.
 }
 
 func (r *sizeBetRepository) LoadRoundBetsForSettlement(ctx context.Context, roundID int64) ([]service.SizeBet, error) {
-	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, round_id, user_id, direction, stake_amount, payout_amount,
-		       net_result_amount, status, idempotency_key, placed_at, settled_at
-		FROM game_bets
-		WHERE round_id = $1 AND status = $2
-		ORDER BY id ASC
-	`, roundID, service.SizeBetStatusPlaced)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var bets []service.SizeBet
-	for rows.Next() {
-		bet, err := scanSizeBet(rows)
-		if err != nil {
-			return nil, err
-		}
-		bets = append(bets, *bet)
-	}
-	return bets, rows.Err()
+	return loadRoundBetsForSettlementQuerier(ctx, r.db, roundID)
 }
 
-func (r *sizeBetRepository) ApplySettlement(ctx context.Context, input service.SettleRoundInput, bets []service.SizeBet) error {
+func (r *sizeBetRepository) ApplySettlement(ctx context.Context, input service.SettleRoundInput) ([]service.SizeBet, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() { _ = tx.Rollback() }()
 
 	if err := claimSizeBetRoundForSettlement(ctx, tx, input); err != nil {
-		return err
+		return nil, err
+	}
+
+	bets, err := loadRoundBetsForSettlementQuerier(ctx, tx, input.RoundID)
+	if err != nil {
+		return nil, err
 	}
 
 	round := &service.SizeBetRound{ID: input.RoundID, GameKey: service.SizeBetGameKey}
@@ -180,21 +168,21 @@ func (r *sizeBetRepository) ApplySettlement(ctx context.Context, input service.S
 			WHERE id = $5 AND status = $6
 		`, payout, net, status, input.SettledAt, bet.ID, service.SizeBetStatusPlaced)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		affected, err := res.RowsAffected()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if affected != 1 {
-			return service.ErrSizeBetSettlementConflict
+			return nil, service.ErrSizeBetSettlementConflict
 		}
 		if payout <= 0 {
 			continue
 		}
 		before, after, err := creditUserBalance(ctx, tx, bet.UserID, payout)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		settledBet := bet
 		settledBet.PayoutAmount = payout
@@ -205,10 +193,13 @@ func (r *sizeBetRepository) ApplySettlement(ctx context.Context, input service.S
 		entry.BalanceBefore = before
 		entry.BalanceAfter = after
 		if err := insertLedger(ctx, tx, entry); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return bets, nil
 }
 
 func claimSizeBetRoundForSettlement(ctx context.Context, tx *sql.Tx, input service.SettleRoundInput) error {
@@ -246,6 +237,28 @@ func claimSizeBetRoundForSettlement(ctx context.Context, tx *sql.Tx, input servi
 		return service.ErrSizeBetRoundAlreadySettled
 	}
 	return service.ErrSizeBetSettlementConflict
+}
+
+func ensureRoundBettableForWrite(ctx context.Context, tx *sql.Tx, roundID int64) error {
+	var status string
+	var betClosesAt time.Time
+	var dbNow time.Time
+	err := tx.QueryRowContext(ctx, `
+		SELECT status, bet_closes_at, NOW()
+		FROM game_rounds
+		WHERE id = $1 AND game_key = $2
+		FOR UPDATE
+	`, roundID, service.SizeBetGameKey).Scan(&status, &betClosesAt, &dbNow)
+	if errors.Is(err, sql.ErrNoRows) {
+		return service.ErrSizeBetRoundNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if status != string(service.SizeBetRoundStatusOpen) || dbNow.After(betClosesAt) {
+		return service.ErrSizeBetClosed
+	}
+	return nil
 }
 
 func (r *sizeBetRepository) RefreshLeaderboardSnapshots(ctx context.Context, settledRoundID int64) error {
@@ -301,6 +314,34 @@ func scanSizeBet(rows interface{ Scan(dest ...any) error }) (*service.SizeBet, e
 		bet.SettledAt = &settledAt.Time
 	}
 	return &bet, nil
+}
+
+type sizeBetBetRowsQuerier interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
+func loadRoundBetsForSettlementQuerier(ctx context.Context, querier sizeBetBetRowsQuerier, roundID int64) ([]service.SizeBet, error) {
+	rows, err := querier.QueryContext(ctx, `
+		SELECT id, round_id, user_id, direction, stake_amount, payout_amount,
+		       net_result_amount, status, idempotency_key, placed_at, settled_at
+		FROM game_bets
+		WHERE round_id = $1 AND status = $2
+		ORDER BY id ASC
+	`, roundID, service.SizeBetStatusPlaced)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var bets []service.SizeBet
+	for rows.Next() {
+		bet, err := scanSizeBet(rows)
+		if err != nil {
+			return nil, err
+		}
+		bets = append(bets, *bet)
+	}
+	return bets, rows.Err()
 }
 
 func debitUserBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (float64, float64, error) {

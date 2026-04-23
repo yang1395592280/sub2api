@@ -10,24 +10,25 @@ import (
 )
 
 type sizeBetRepoStub struct {
-	currentRound          *SizeBetRound
-	createdRound          *SizeBetRound
-	bets                  []SizeBet
-	ledgerEntries         []SizeBetLedgerEntry
-	userBalance           float64
-	settlementRuns        []SettleRoundInput
-	getRoundByIDCalls     int
-	getRoundByTimeCalls   int
-	getRoundByIDErr       error
-	getRoundByTimeErr     error
-	createRoundErr        error
-	createBetErr          error
-	loadRoundBetsErr      error
-	applySettlementErr    error
-	refreshLeaderboardErr error
-	createRoundCalls      int
-	loadRoundBetsCalls    int
-	applySettlementCalls  int
+	currentRound            *SizeBetRound
+	createdRound            *SizeBetRound
+	bets                    []SizeBet
+	ledgerEntries           []SizeBetLedgerEntry
+	userBalance             float64
+	settlementRuns          []SettleRoundInput
+	getRoundByIDCalls       int
+	getRoundByTimeCalls     int
+	getRoundByIDErr         error
+	getRoundByTimeErr       error
+	createRoundErr          error
+	createBetErr            error
+	loadRoundBetsErr        error
+	applySettlementErr      error
+	refreshLeaderboardErr   error
+	createRoundCalls        int
+	refreshLeaderboardCalls int
+	loadRoundBetsCalls      int
+	applySettlementCalls    int
 }
 
 func newSizeBetRepoStub() *sizeBetRepoStub {
@@ -81,11 +82,12 @@ func (s *sizeBetRepoStub) LoadRoundBetsForSettlement(context.Context, int64) ([]
 	return append([]SizeBet(nil), s.bets...), nil
 }
 
-func (s *sizeBetRepoStub) ApplySettlement(_ context.Context, input SettleRoundInput, bets []SizeBet) error {
+func (s *sizeBetRepoStub) ApplySettlement(_ context.Context, input SettleRoundInput) ([]SizeBet, error) {
 	s.applySettlementCalls++
 	if s.applySettlementErr != nil {
-		return s.applySettlementErr
+		return nil, s.applySettlementErr
 	}
+	bets := append([]SizeBet(nil), s.bets...)
 	s.settlementRuns = append(s.settlementRuns, input)
 	for _, bet := range bets {
 		if bet.Direction != input.ResultDirection {
@@ -94,10 +96,19 @@ func (s *sizeBetRepoStub) ApplySettlement(_ context.Context, input SettleRoundIn
 		entry := NewBetPayoutLedger(&SizeBetRound{ID: input.RoundID}, &bet, input.OddsFor(bet.Direction))
 		s.ledgerEntries = append(s.ledgerEntries, *entry)
 	}
-	return nil
+	if s.currentRound != nil {
+		s.currentRound.Status = SizeBetRoundStatusSettled
+		s.currentRound.ResultNumber = sizeBetIntPtr(input.ResultNumber)
+		s.currentRound.ResultDirection = input.ResultDirection
+		if input.ServerSeed != "" {
+			s.currentRound.ServerSeed = input.ServerSeed
+		}
+	}
+	return bets, nil
 }
 
 func (s *sizeBetRepoStub) RefreshLeaderboardSnapshots(context.Context, int64) error {
+	s.refreshLeaderboardCalls++
 	return s.refreshLeaderboardErr
 }
 
@@ -160,6 +171,7 @@ func TestSizeBetServiceSettleRoundCreditsWinningBets(t *testing.T) {
 	require.Len(t, repo.ledgerEntries, 1)
 	require.Equal(t, "bet_payout", repo.ledgerEntries[0].EntryType)
 	require.InDelta(t, 20, repo.ledgerEntries[0].DeltaAmount, 0.001)
+	require.Equal(t, 1, repo.refreshLeaderboardCalls)
 }
 
 func TestSizeBetServiceEnsureCurrentRoundReturnsLookupError(t *testing.T) {
@@ -203,6 +215,7 @@ func TestSizeBetServiceSettleRoundRejectsInvalidResultPayload(t *testing.T) {
 			require.Zero(t, repo.getRoundByIDCalls)
 			require.Zero(t, repo.loadRoundBetsCalls)
 			require.Zero(t, repo.applySettlementCalls)
+			require.Zero(t, repo.refreshLeaderboardCalls)
 			require.Empty(t, repo.settlementRuns)
 		})
 	}
@@ -224,4 +237,60 @@ func TestSizeBetServiceSettleRoundRejectsAlreadySettledRound(t *testing.T) {
 	require.ErrorIs(t, err, ErrSizeBetRoundAlreadySettled)
 	require.Zero(t, repo.loadRoundBetsCalls)
 	require.Zero(t, repo.applySettlementCalls)
+	require.Zero(t, repo.refreshLeaderboardCalls)
+}
+
+func TestSizeBetServiceSettleRoundAllowsRefreshRetryForMatchingSettledOutcome(t *testing.T) {
+	repo := newSizeBetRepoStub()
+	repo.currentRound = mustOpenRound()
+	repo.bets = []SizeBet{
+		{ID: 1, UserID: 7, Direction: SizeBetDirectionMid, StakeAmount: 2, Status: SizeBetStatusPlaced},
+	}
+	repo.refreshLeaderboardErr = errors.New("refresh failed")
+	svc := NewSizeBetService(repo, &sizeBetSettingRepoStub{values: map[string]string{}}, nil, nil)
+
+	input := SettleRoundInput{
+		RoundID:         repo.currentRound.ID,
+		ResultNumber:    6,
+		ResultDirection: SizeBetDirectionMid,
+		OddsMid:         10,
+		ServerSeed:      "server-seed-1",
+	}
+
+	err := svc.SettleRound(context.Background(), input)
+	require.ErrorIs(t, err, repo.refreshLeaderboardErr)
+	require.Equal(t, 1, repo.applySettlementCalls)
+	require.Equal(t, 1, repo.refreshLeaderboardCalls)
+	require.Len(t, repo.ledgerEntries, 1)
+
+	repo.refreshLeaderboardErr = nil
+	err = svc.SettleRound(context.Background(), input)
+	require.NoError(t, err)
+	require.Equal(t, 1, repo.applySettlementCalls)
+	require.Equal(t, 2, repo.refreshLeaderboardCalls)
+	require.Len(t, repo.ledgerEntries, 1)
+}
+
+func TestSizeBetServiceSettleRoundRejectsRefreshRetryWithMismatchedSettledOutcome(t *testing.T) {
+	repo := newSizeBetRepoStub()
+	round := mustOpenRound()
+	round.Status = SizeBetRoundStatusSettled
+	round.ResultNumber = sizeBetIntPtr(6)
+	round.ResultDirection = SizeBetDirectionMid
+	repo.currentRound = round
+	svc := NewSizeBetService(repo, &sizeBetSettingRepoStub{values: map[string]string{}}, nil, nil)
+
+	err := svc.SettleRound(context.Background(), SettleRoundInput{
+		RoundID:         round.ID,
+		ResultNumber:    7,
+		ResultDirection: SizeBetDirectionBig,
+	})
+
+	require.ErrorIs(t, err, ErrSizeBetSettlementConflict)
+	require.Zero(t, repo.applySettlementCalls)
+	require.Zero(t, repo.refreshLeaderboardCalls)
+}
+
+func sizeBetIntPtr(v int) *int {
+	return &v
 }

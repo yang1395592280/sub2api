@@ -131,8 +131,7 @@ type SizeBetRepository interface {
 	GetRoundByTime(ctx context.Context, now time.Time) (*SizeBetRound, error)
 	CreateRound(ctx context.Context, round *SizeBetRound) (*SizeBetRound, error)
 	CreateBetAndDebit(ctx context.Context, bet *SizeBet, entry *SizeBetLedgerEntry) error
-	LoadRoundBetsForSettlement(ctx context.Context, roundID int64) ([]SizeBet, error)
-	ApplySettlement(ctx context.Context, input SettleRoundInput, bets []SizeBet) error
+	ApplySettlement(ctx context.Context, input SettleRoundInput) ([]SizeBet, error)
 	RefreshLeaderboardSnapshots(ctx context.Context, settledRoundID int64) error
 }
 
@@ -201,24 +200,24 @@ func (s *SizeBetService) SettleRound(ctx context.Context, input SettleRoundInput
 		return ErrSizeBetRoundNotFound
 	}
 	if round.Status == SizeBetRoundStatusSettled {
-		return ErrSizeBetRoundAlreadySettled
+		if round.ResultNumber == nil {
+			return ErrSizeBetRoundAlreadySettled
+		}
+		if !round.MatchesSettlement(input) {
+			return ErrSizeBetSettlementConflict
+		}
+		return s.repo.RefreshLeaderboardSnapshots(ctx, input.RoundID)
 	}
 	input = input.withDefaults(round, s.now)
 
-	bets, err := s.repo.LoadRoundBetsForSettlement(ctx, input.RoundID)
+	bets, err := s.repo.ApplySettlement(ctx, input)
 	if err != nil {
-		return err
-	}
-	if err := s.repo.ApplySettlement(ctx, input, bets); err != nil {
-		return err
-	}
-	if err := s.repo.RefreshLeaderboardSnapshots(ctx, input.RoundID); err != nil {
 		return err
 	}
 	for _, userID := range uniqueSizeBetUserIDs(bets) {
 		s.invalidateCaches(ctx, userID)
 	}
-	return nil
+	return s.repo.RefreshLeaderboardSnapshots(ctx, input.RoundID)
 }
 
 func (s *SizeBetService) EnsureCurrentRound(ctx context.Context, now time.Time) (*SizeBetRound, error) {
@@ -287,6 +286,19 @@ func (r *SizeBetRound) SnapshotSettings() *SizeBetSettings {
 		OddsMid:       r.OddsMid,
 		OddsBig:       r.OddsBig,
 	}
+}
+
+func (r *SizeBetRound) MatchesSettlement(input SettleRoundInput) bool {
+	if r == nil || r.ResultNumber == nil {
+		return false
+	}
+	if *r.ResultNumber != input.ResultNumber || r.ResultDirection != input.ResultDirection {
+		return false
+	}
+	if input.ServerSeed != "" && r.ServerSeed != "" && r.ServerSeed != input.ServerSeed {
+		return false
+	}
+	return true
 }
 
 func (in SettleRoundInput) withDefaults(round *SizeBetRound, now func() time.Time) SettleRoundInput {
