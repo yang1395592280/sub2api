@@ -3640,6 +3640,68 @@ export default {
       }
     },
 
+    sizeBet: {
+      title: 'Size Bet Admin',
+      description: 'Manage size-bet settings and review rounds, bets, and ledger audit data',
+      tabs: {
+        settings: 'Settings',
+        rounds: 'Rounds',
+        bets: 'Bets',
+        ledger: 'Ledger'
+      },
+      tabDescriptions: {
+        rounds: 'Review per-round probability, odds, and result snapshots',
+        bets: 'Audit player bets, settlements, and net outcomes',
+        ledger: 'Check debit, payout, and refund balance movements'
+      },
+      probabilitySummary: 'Current probability: Small {small}% / Mid {mid}% / Big {big}%',
+      oddsSummary: 'Current odds: Small {small}x / Mid {mid}x / Big {big}x',
+      enabled: 'Enable game',
+      enabledHint: 'When disabled, the player page will switch to maintenance mode',
+      roundDuration: 'Round duration (seconds)',
+      betCloseOffset: 'Bet close offset (seconds)',
+      allowedStakes: 'Allowed stakes',
+      allowedStakesPlaceholder: 'Example: 2, 5, 10, 20',
+      probabilitiesTitle: 'Probability settings',
+      oddsTitle: 'Odds settings',
+      rulesMarkdown: 'Rules markdown',
+      loadFailed: 'Failed to load size-bet admin data',
+      saveSuccess: 'Size-bet settings saved',
+      saveFailed: 'Failed to save size-bet settings',
+      invalidAllowedStakes: 'Enter at least one valid stake and separate multiple values with commas',
+      columns: {
+        round: 'Round',
+        status: 'Status',
+        result: 'Result',
+        schedule: 'Schedule',
+        probabilities: 'Probability',
+        odds: 'Odds',
+        user: 'User',
+        direction: 'Direction',
+        stake: 'Stake',
+        payout: 'Payout',
+        net: 'Net',
+        createdAt: 'Created At',
+        entryType: 'Entry Type',
+        delta: 'Delta',
+        balanceWindow: 'Balance Change',
+        reason: 'Reason'
+      },
+      status: {
+        open: 'Open',
+        settled: 'Settled',
+        placed: 'Placed',
+        won: 'Won',
+        lost: 'Lost',
+        refunded: 'Refunded'
+      },
+      entryType: {
+        bet_debit: 'Bet Debit',
+        bet_payout: 'Bet Payout',
+        bet_refund: 'Bet Refund'
+      }
+    },
+
     // Ops Monitoring
     ops: {
       title: 'Ops Monitoring',

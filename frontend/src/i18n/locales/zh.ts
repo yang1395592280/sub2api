@@ -3798,6 +3798,68 @@ export default {
       }
     },
 
+    sizeBet: {
+      title: '竞猜后台',
+      description: '管理大小中竞猜配置，并查看回合、下注与账变审计记录',
+      tabs: {
+        settings: '配置',
+        rounds: '回合',
+        bets: '下注',
+        ledger: '账变'
+      },
+      tabDescriptions: {
+        rounds: '查看每期概率、赔率与开奖结果快照',
+        bets: '审计玩家下注、结算与盈亏结果',
+        ledger: '核对下注扣款、派奖与退款流水'
+      },
+      probabilitySummary: '当前概率：小 {small}% / 中 {mid}% / 大 {big}%',
+      oddsSummary: '当前赔率：小 {small}x / 中 {mid}x / 大 {big}x',
+      enabled: '启用活动',
+      enabledHint: '关闭后前台将进入维护状态，不再接受下注',
+      roundDuration: '每局时长（秒）',
+      betCloseOffset: '封盘时间（秒）',
+      allowedStakes: '允许筹码',
+      allowedStakesPlaceholder: '例如：2, 5, 10, 20',
+      probabilitiesTitle: '概率配置',
+      oddsTitle: '赔率配置',
+      rulesMarkdown: '规则文案（Markdown）',
+      loadFailed: '加载竞猜后台数据失败',
+      saveSuccess: '竞猜配置已保存',
+      saveFailed: '保存竞猜配置失败',
+      invalidAllowedStakes: '请输入至少一个有效筹码，多个值请用英文逗号分隔',
+      columns: {
+        round: '期号',
+        status: '状态',
+        result: '结果',
+        schedule: '时间窗口',
+        probabilities: '概率',
+        odds: '赔率',
+        user: '用户',
+        direction: '方向',
+        stake: '下注额',
+        payout: '派奖',
+        net: '净结果',
+        createdAt: '时间',
+        entryType: '流水类型',
+        delta: '变动金额',
+        balanceWindow: '余额变化',
+        reason: '原因'
+      },
+      status: {
+        open: '进行中',
+        settled: '已结算',
+        placed: '已下注',
+        won: '已中奖',
+        lost: '未中奖',
+        refunded: '已退款'
+      },
+      entryType: {
+        bet_debit: '下注扣款',
+        bet_payout: '派奖入账',
+        bet_refund: '退款返还'
+      }
+    },
+
     // Ops Monitoring
     ops: {
       title: '运维监控',

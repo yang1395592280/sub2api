@@ -478,6 +478,18 @@ const routes: RouteRecordRaw[] = [
       descriptionKey: 'admin.usage.description'
     }
   },
+  {
+    path: '/admin/games/size-bet',
+    name: 'AdminSizeBet',
+    component: () => import('@/views/admin/SizeBetAdminView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Size Bet Admin',
+      titleKey: 'admin.sizeBet.title',
+      descriptionKey: 'admin.sizeBet.description'
+    }
+  },
 
 
   // ==================== Payment Admin Routes ====================
