@@ -34,6 +34,30 @@ export interface SizeBetBet {
   settled_at?: string | null
 }
 
+export interface SizeBetHistoryItem {
+  bet_id: number
+  round_no: number
+  direction: SizeBetDirection
+  selection: string
+  result_number?: number | null
+  result_direction?: SizeBetDirection | '' | null
+  stake_amount: number
+  payout_amount: number
+  net_result_amount: number
+  balance_after?: number | null
+  status: SizeBetStatus
+  placed_at: string
+  settled_at?: string | null
+}
+
+export interface SizeBetHistoryView {
+  items: SizeBetHistoryItem[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
 export interface SizeBetRoundSummary {
   id: number
   round_no: number

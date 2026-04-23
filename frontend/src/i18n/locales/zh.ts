@@ -370,13 +370,13 @@ export default {
   sizeBet: {
     nav: '大小中竞猜',
     title: '大小中竞猜',
-    heroSubtitle: '封盘前完成选择，等待系统随机开奖',
+    heroSubtitle: '在截止前完成选择，等待系统随机开奖',
     countdownLabel: '本局开奖倒计时',
-    betClosesIn: '封盘倒计时',
+    betClosesIn: '参与倒计时',
     seedTitle: '种子承诺',
     phase: {
-      betting: '下注中',
-      closed: '封盘中',
+      betting: '参与中',
+      closed: '等待开奖',
       maintenance: '维护中'
     },
     loadError: {
@@ -385,30 +385,30 @@ export default {
       description: '当前无法获取活动数据，请检查网络后重试。'
     },
     dealer: {
-      title: '庄家台',
+      title: '系统开奖区',
       roundLabel: '第 {round} 期',
       probability: '概率：小 {small}% / 中 {mid}% / 大 {big}%',
       odds: '赔率：小 {small}x / 中 {mid}x / 大 {big}x',
-      duration: '每局 {seconds} 秒，前 {close} 秒可下注'
+      duration: '每局 {seconds} 秒，前 {close} 秒可参与'
     },
     player: {
-      title: '玩家台',
+      title: '我的选择',
       currentSelection: '当前选择',
-      pending: '待下注',
-      myBet: '已下注 {direction} / {stake}',
+      pending: '待参与',
+      myBet: '已参与 {direction} / {stake}',
       chooseDirection: '选择方向',
-      chooseStake: '选择筹码',
-      submit: '确认下注',
+      chooseStake: '选择参与额度',
+      submit: '确认参与',
       submitting: '提交中...',
-      openHint: '现在还在下注窗口内',
-      closedHint: '当前已封盘，等待开奖',
-      placedHint: '本局已下注，等待结算',
-      selectDirection: '请选择下注方向',
-      selectStake: '请选择下注金额',
-      placedSuccess: '下注成功'
+      openHint: '当前还在参与时间内',
+      closedHint: '当前已截止，等待开奖',
+      placedHint: '本局已参与，等待结果',
+      selectDirection: '请选择参与方向',
+      selectStake: '请选择参与额度',
+      placedSuccess: '参与成功'
     },
     rules: {
-      title: '活动规则'
+      title: '活动说明'
     },
     previousRound: {
       title: '上期开奖结果',
@@ -416,9 +416,43 @@ export default {
       result: '第 {round} 期 {number} 点 / {direction}',
       reveal: '服务端种子：{seed}'
     },
+    history: {
+      title: '我的竞猜记录',
+      subtitle: '查看最近记录与开奖结果',
+      toggleMore: '展开更多',
+      toggleLess: '收起记录',
+      empty: '暂无参与记录',
+      roundLabel: '第 {round} 期',
+      selection: '我的选择：{direction}',
+      result: '开奖结果：{number} / {direction}',
+      pendingResult: '开奖结果待同步',
+      status: {
+        placed: '待结算',
+        won: '已获得奖励',
+        lost: '未获得奖励',
+        refunded: '已退回'
+      }
+    },
+    resultModal: {
+      title: '结果通知',
+      close: '知道了',
+      roundLabel: '第 {round} 期',
+      result: '本期结果：{number} / {direction}',
+      selection: '你的选择：{direction} / {stake}',
+      summary: {
+        won: '本次获得奖励 {amount}',
+        lost: '本次结果 {amount}',
+        refunded: '本次已退回 {amount}'
+      },
+      message: {
+        won: '系统已完成本局结算，你获得了奖励。',
+        lost: '系统已完成本局结算，本次未获得奖励。',
+        refunded: '本局已退回参与额度，请留意后续开放时间。'
+      }
+    },
     maintenance: {
       title: '活动暂未开启',
-      description: '管理员已关闭该活动，开启后这里会自动恢复倒计时与下注面板。'
+      description: '管理员已关闭该活动，开启后这里会自动恢复倒计时与参与面板。'
     },
     directions: {
       small: '小',

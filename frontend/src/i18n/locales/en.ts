@@ -370,13 +370,13 @@ export default {
   sizeBet: {
     nav: 'Size Bet',
     title: 'Size Bet',
-    heroSubtitle: 'Lock in your choice before the window closes and wait for the draw',
+    heroSubtitle: 'Make your choice before the deadline and wait for the draw',
     countdownLabel: 'Round Countdown',
-    betClosesIn: 'Bet Closes In',
+    betClosesIn: 'Entry Closes In',
     seedTitle: 'Seed Commitment',
     phase: {
-      betting: 'Betting',
-      closed: 'Closed',
+      betting: 'Open for Entry',
+      closed: 'Waiting for Result',
       maintenance: 'Maintenance'
     },
     loadError: {
@@ -385,30 +385,30 @@ export default {
       description: 'Unable to fetch the latest game data right now. Please check your connection and try again.'
     },
     dealer: {
-      title: 'Dealer Desk',
+      title: 'Draw Panel',
       roundLabel: 'Round {round}',
       probability: 'Probability: Small {small}% / Mid {mid}% / Big {big}%',
       odds: 'Odds: Small {small}x / Mid {mid}x / Big {big}x',
-      duration: '{seconds}s per round, betting stays open for the first {close}s'
+      duration: '{seconds}s per round, entry stays open for the first {close}s'
     },
     player: {
-      title: 'Player Desk',
+      title: 'My Selection',
       currentSelection: 'Current Selection',
-      pending: 'Waiting for a bet',
-      myBet: 'Bet placed {direction} / {stake}',
+      pending: 'No entry yet',
+      myBet: 'Entered {direction} / {stake}',
       chooseDirection: 'Choose Direction',
-      chooseStake: 'Choose Stake',
-      submit: 'Place Bet',
+      chooseStake: 'Choose Amount',
+      submit: 'Confirm Entry',
       submitting: 'Submitting...',
-      openHint: 'The betting window is still open',
-      closedHint: 'Betting is closed, waiting for settlement',
-      placedHint: 'You already placed a bet this round',
+      openHint: 'The entry window is still open',
+      closedHint: 'Entry has closed, waiting for the result',
+      placedHint: 'You already joined this round',
       selectDirection: 'Please choose a direction',
-      selectStake: 'Please choose a stake amount',
-      placedSuccess: 'Bet placed successfully'
+      selectStake: 'Please choose an amount',
+      placedSuccess: 'Entry confirmed'
     },
     rules: {
-      title: 'Game Rules'
+      title: 'Activity Rules'
     },
     previousRound: {
       title: 'Previous Result',
@@ -416,9 +416,43 @@ export default {
       result: 'Round {round} {number} / {direction}',
       reveal: 'Server seed: {seed}'
     },
+    history: {
+      title: 'My Activity History',
+      subtitle: 'Review recent entries and their results',
+      toggleMore: 'Show More',
+      toggleLess: 'Show Less',
+      empty: 'No recent activity yet',
+      roundLabel: 'Round {round}',
+      selection: 'My selection: {direction}',
+      result: 'Draw result: {number} / {direction}',
+      pendingResult: 'Result pending',
+      status: {
+        placed: 'Pending settlement',
+        won: 'Reward granted',
+        lost: 'No reward',
+        refunded: 'Refunded'
+      }
+    },
+    resultModal: {
+      title: 'Result Update',
+      close: 'Got it',
+      roundLabel: 'Round {round}',
+      result: 'Result: {number} / {direction}',
+      selection: 'Your selection: {direction} / {stake}',
+      summary: {
+        won: 'Reward received {amount}',
+        lost: 'Round result {amount}',
+        refunded: 'Amount returned {amount}'
+      },
+      message: {
+        won: 'Settlement is complete and this round awarded you a reward.',
+        lost: 'Settlement is complete and this round did not award a reward.',
+        refunded: 'This round was refunded and your amount has been returned.'
+      }
+    },
     maintenance: {
       title: 'Game unavailable',
-      description: 'The activity is currently disabled. Countdown and betting will return automatically after it is enabled.'
+      description: 'The activity is currently disabled. Countdown and entry controls will return automatically after it is enabled.'
     },
     directions: {
       small: 'Small',
