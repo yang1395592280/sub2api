@@ -2,14 +2,18 @@ package service
 
 import (
 	"context"
+	stdsql "database/sql"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
+	entsql "entgo.io/ent/dialect/sql"
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
@@ -29,10 +33,10 @@ type AdminService interface {
 	UpdateUserBalance(ctx context.Context, userID int64, balance float64, operation string, notes string) (*User, error)
 	GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int, sortBy, sortOrder string) ([]APIKey, int64, error)
 	GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error)
-	// GetUserBalanceHistory returns paginated balance/concurrency change records for a user.
-	// codeType is optional - pass empty string to return all types.
+	// GetUserBalanceHistory returns a unified, paginated user activity timeline for admin review.
+	// codeType is optional - pass empty string to return all supported activity types.
 	// Also returns totalRecharged (sum of all positive balance top-ups).
-	GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]RedeemCode, int64, float64, error)
+	GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]UserActivityTimelineItem, int64, float64, error)
 
 	// Group management
 	ListGroups(ctx context.Context, page, pageSize int, platform, status, search string, isExclusive *bool, sortBy, sortOrder string) ([]Group, int64, error)
@@ -100,6 +104,18 @@ type AdminService interface {
 	BatchDeleteRedeemCodes(ctx context.Context, ids []int64) (int64, error)
 	ExpireRedeemCode(ctx context.Context, id int64) (*RedeemCode, error)
 	ResetAccountQuota(ctx context.Context, id int64) error
+}
+
+type UserActivityTimelineItem struct {
+	ID               string         `json:"id"`
+	Type             string         `json:"type"`
+	Summary          string         `json:"summary"`
+	Value            float64        `json:"value"`
+	Notes            string         `json:"notes,omitempty"`
+	BalanceAfter     *float64       `json:"balance_after,omitempty"`
+	ConcurrencyAfter *int           `json:"concurrency_after,omitempty"`
+	CreatedAt        time.Time      `json:"created_at"`
+	Details          map[string]any `json:"details,omitempty"`
 }
 
 // CreateUserInput represents input for creating a new user via admin operations.
@@ -429,6 +445,8 @@ type adminServiceImpl struct {
 	proxyRepo            ProxyRepository
 	apiKeyRepo           APIKeyRepository
 	redeemCodeRepo       RedeemCodeRepository
+	checkinRepo          CheckinRepository
+	sizeBetRepo          SizeBetRepository
 	userGroupRateRepo    UserGroupRateRepository
 	billingCacheService  *BillingCacheService
 	proxyProber          ProxyExitInfoProber
@@ -783,18 +801,511 @@ func (s *adminServiceImpl) GetUserUsageStats(ctx context.Context, userID int64, 
 }
 
 // GetUserBalanceHistory returns paginated balance/concurrency change records for a user.
-func (s *adminServiceImpl) GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]RedeemCode, int64, float64, error) {
-	params := pagination.PaginationParams{Page: page, PageSize: pageSize}
-	codes, result, err := s.redeemCodeRepo.ListByUserPaginated(ctx, userID, params, codeType)
+func (s *adminServiceImpl) GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]UserActivityTimelineItem, int64, float64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+
+	redeemItems, err := s.loadRedeemTimelineItems(ctx, userID)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	// Aggregate total recharged amount (only once, regardless of type filter)
+	checkinItems, err := s.loadCheckinTimelineItems(ctx, userID)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	gameItems, err := s.loadGameTimelineItems(ctx, userID)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	merged := mergeUserActivityTimelineItems(redeemItems, checkinItems, gameItems)
+	filtered := filterUserActivityTimelineItems(merged, codeType)
+
 	totalRecharged, err := s.redeemCodeRepo.SumPositiveBalanceByUser(ctx, userID)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	return codes, result.Total, totalRecharged, nil
+
+	return paginateUserActivityTimelineItems(filtered, page, pageSize), int64(len(filtered)), totalRecharged, nil
+}
+
+func (s *adminServiceImpl) loadRedeemTimelineItems(ctx context.Context, userID int64) ([]UserActivityTimelineItem, error) {
+	if s.redeemCodeRepo == nil {
+		return []UserActivityTimelineItem{}, nil
+	}
+
+	const batchSize = 200
+
+	items := make([]UserActivityTimelineItem, 0)
+	for page := 1; ; page++ {
+		params := pagination.PaginationParams{Page: page, PageSize: batchSize}
+		codes, result, err := s.redeemCodeRepo.ListByUserPaginated(ctx, userID, params, "")
+		if err != nil {
+			return nil, err
+		}
+		if len(codes) == 0 {
+			break
+		}
+		for i := range codes {
+			items = append(items, buildRedeemTimelineItem(&codes[i]))
+		}
+		if result == nil || int64(params.Offset()+len(codes)) >= result.Total {
+			break
+		}
+	}
+
+	return items, nil
+}
+
+func (s *adminServiceImpl) loadCheckinTimelineItems(ctx context.Context, userID int64) ([]UserActivityTimelineItem, error) {
+	records, err := s.listUserCheckinRecords(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]UserActivityTimelineItem, 0, len(records)*2)
+	for i := range records {
+		items = append(items, buildCheckinRewardTimelineItem(&records[i]))
+		if bonusItem := buildCheckinBonusTimelineItem(&records[i]); bonusItem != nil {
+			items = append(items, *bonusItem)
+		}
+	}
+
+	return items, nil
+}
+
+func (s *adminServiceImpl) loadGameTimelineItems(ctx context.Context, userID int64) ([]UserActivityTimelineItem, error) {
+	historyItems, err := s.listUserSizeBetHistory(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]UserActivityTimelineItem, 0, len(historyItems))
+	for i := range historyItems {
+		items = append(items, buildGameTimelineItem(&historyItems[i]))
+	}
+
+	return items, nil
+}
+
+func (s *adminServiceImpl) listUserCheckinRecords(ctx context.Context, userID int64) ([]CheckinRecord, error) {
+	if s.checkinRepo != nil {
+		return s.checkinRepo.ListByUserAndDateRange(ctx, userID, "0001-01-01", "9999-12-31")
+	}
+
+	db, err := s.adminSQLDB()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(
+		ctx,
+		`SELECT id, user_id, checkin_date, reward_amount, base_reward_amount, bonus_status, bonus_delta_amount, user_timezone, created_at, bonus_played_at
+		 FROM checkin_records
+		 WHERE user_id = $1
+		 ORDER BY COALESCE(bonus_played_at, created_at) DESC, id DESC`,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	records := make([]CheckinRecord, 0)
+	for rows.Next() {
+		var record CheckinRecord
+		var reward string
+		var baseReward string
+		var bonusDelta string
+		var bonusPlayedAt stdsql.NullTime
+
+		if err := rows.Scan(
+			&record.ID,
+			&record.UserID,
+			&record.CheckinDate,
+			&reward,
+			&baseReward,
+			&record.BonusStatus,
+			&bonusDelta,
+			&record.UserTimezone,
+			&record.CreatedAt,
+			&bonusPlayedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		record.RewardAmount, err = strconv.ParseFloat(reward, 64)
+		if err != nil {
+			return nil, err
+		}
+		record.BaseRewardAmount, err = strconv.ParseFloat(baseReward, 64)
+		if err != nil {
+			return nil, err
+		}
+		record.BonusDeltaAmount, err = strconv.ParseFloat(bonusDelta, 64)
+		if err != nil {
+			return nil, err
+		}
+		if bonusPlayedAt.Valid {
+			record.BonusPlayedAt = &bonusPlayedAt.Time
+		}
+
+		records = append(records, record)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func (s *adminServiceImpl) listUserSizeBetHistory(ctx context.Context, userID int64) ([]SizeBetUserHistoryItem, error) {
+	if s.sizeBetRepo != nil {
+		const batchSize = 200
+
+		items := make([]SizeBetUserHistoryItem, 0)
+		for page := 1; ; page++ {
+			params := pagination.PaginationParams{Page: page, PageSize: batchSize}
+			historyItems, result, err := s.sizeBetRepo.ListUserHistory(ctx, userID, params)
+			if err != nil {
+				return nil, err
+			}
+			if len(historyItems) == 0 {
+				break
+			}
+			items = append(items, historyItems...)
+			if result == nil || int64(params.Offset()+len(historyItems)) >= result.Total {
+				break
+			}
+		}
+
+		return items, nil
+	}
+
+	db, err := s.adminSQLDB()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(
+		ctx,
+		`SELECT
+			gb.id, gb.round_id, gr.round_no, gb.direction,
+			gr.result_number, gr.result_direction,
+			gb.stake_amount, gb.payout_amount, gb.net_result_amount, gb.status,
+			gl.balance_after, gb.placed_at, gb.settled_at
+		FROM game_bets gb
+		JOIN game_rounds gr ON gr.id = gb.round_id
+		LEFT JOIN LATERAL (
+			SELECT balance_after
+			FROM game_wallet_ledger gl
+			WHERE gl.bet_id = gb.id
+				AND gl.entry_type IN ('bet_payout', 'bet_refund', 'bet_debit')
+			ORDER BY gl.created_at DESC, gl.id DESC
+			LIMIT 1
+		) gl ON TRUE
+		WHERE gr.game_key = $1 AND gb.user_id = $2
+		ORDER BY COALESCE(gb.settled_at, gb.placed_at) DESC, gb.id DESC`,
+		SizeBetGameKey,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]SizeBetUserHistoryItem, 0)
+	for rows.Next() {
+		var item SizeBetUserHistoryItem
+		var balanceAfter stdsql.NullFloat64
+		var settledAt stdsql.NullTime
+		var resultNumber stdsql.NullInt64
+		var resultDirection stdsql.NullString
+
+		if err := rows.Scan(
+			&item.BetID,
+			&item.RoundID,
+			&item.RoundNo,
+			&item.Direction,
+			&resultNumber,
+			&resultDirection,
+			&item.StakeAmount,
+			&item.PayoutAmount,
+			&item.NetResultAmount,
+			&item.Status,
+			&balanceAfter,
+			&item.PlacedAt,
+			&settledAt,
+		); err != nil {
+			return nil, err
+		}
+
+		if balanceAfter.Valid {
+			value := balanceAfter.Float64
+			item.BalanceAfter = &value
+		}
+		if settledAt.Valid {
+			item.SettledAt = &settledAt.Time
+		}
+		if resultNumber.Valid {
+			value := int(resultNumber.Int64)
+			item.ResultNumber = &value
+		}
+		if resultDirection.Valid {
+			item.ResultDirection = SizeBetDirection(resultDirection.String)
+		}
+
+		items = append(items, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return items, nil
+}
+
+func buildRedeemTimelineItem(code *RedeemCode) UserActivityTimelineItem {
+	createdAt := code.CreatedAt
+	if code.UsedAt != nil {
+		createdAt = *code.UsedAt
+	}
+
+	details := make(map[string]any)
+	if code.Code != "" {
+		details["code"] = code.Code
+	}
+	if code.Status != "" {
+		details["status"] = code.Status
+	}
+	if code.ValidityDays > 0 {
+		details["validity_days"] = code.ValidityDays
+	}
+	if code.GroupID != nil {
+		details["group_id"] = *code.GroupID
+	}
+	if code.Group != nil {
+		details["group_name"] = code.Group.Name
+	}
+
+	item := UserActivityTimelineItem{
+		ID:        fmt.Sprintf("redeem-%d", code.ID),
+		Type:      code.Type,
+		Summary:   summarizeRedeemTimelineItem(code),
+		Value:     code.Value,
+		Notes:     code.Notes,
+		CreatedAt: createdAt,
+	}
+	if len(details) > 0 {
+		item.Details = details
+	}
+
+	return item
+}
+
+func buildCheckinRewardTimelineItem(record *CheckinRecord) UserActivityTimelineItem {
+	baseReward := normalizeBaseReward(*record)
+	return UserActivityTimelineItem{
+		ID:        fmt.Sprintf("checkin-%d", record.ID),
+		Type:      "checkin_reward",
+		Summary:   "Daily check-in reward",
+		Value:     baseReward,
+		CreatedAt: record.CreatedAt,
+		Details: map[string]any{
+			"checkin_date":  record.CheckinDate,
+			"user_timezone": record.UserTimezone,
+		},
+	}
+}
+
+func buildCheckinBonusTimelineItem(record *CheckinRecord) *UserActivityTimelineItem {
+	if record.BonusPlayedAt == nil {
+		return nil
+	}
+
+	status := normalizeBonusStatus(record.BonusStatus)
+	if status == CheckinBonusStatusNone && record.BonusDeltaAmount == 0 {
+		return nil
+	}
+
+	baseReward := normalizeBaseReward(*record)
+	return &UserActivityTimelineItem{
+		ID:        fmt.Sprintf("checkin-bonus-%d", record.ID),
+		Type:      "checkin_bonus",
+		Summary:   summarizeCheckinBonusTimelineItem(record),
+		Value:     record.BonusDeltaAmount,
+		CreatedAt: *record.BonusPlayedAt,
+		Details: map[string]any{
+			"checkin_date":       record.CheckinDate,
+			"bonus_status":       status,
+			"base_reward_amount": baseReward,
+			"reward_amount":      record.RewardAmount,
+		},
+	}
+}
+
+func buildGameTimelineItem(item *SizeBetUserHistoryItem) UserActivityTimelineItem {
+	createdAt := item.PlacedAt
+	if item.SettledAt != nil {
+		createdAt = *item.SettledAt
+	}
+
+	details := map[string]any{
+		"round_id":      item.RoundID,
+		"round_no":      item.RoundNo,
+		"direction":     item.Direction,
+		"stake_amount":  item.StakeAmount,
+		"payout_amount": item.PayoutAmount,
+		"status":        item.Status,
+	}
+	if item.ResultNumber != nil {
+		details["result_number"] = *item.ResultNumber
+	}
+	if item.ResultDirection != "" {
+		details["result_direction"] = item.ResultDirection
+	}
+
+	return UserActivityTimelineItem{
+		ID:           fmt.Sprintf("game-%d", item.BetID),
+		Type:         "game_net",
+		Summary:      fmt.Sprintf("Size Bet #%d", item.RoundNo),
+		Value:        item.NetResultAmount,
+		BalanceAfter: item.BalanceAfter,
+		CreatedAt:    createdAt,
+		Details:      details,
+	}
+}
+
+func summarizeRedeemTimelineItem(code *RedeemCode) string {
+	switch code.Type {
+	case RedeemTypeBalance:
+		return "Balance redeem"
+	case AdjustmentTypeAdminBalance:
+		if code.Value >= 0 {
+			return "Admin balance adjustment"
+		}
+		return "Admin balance deduction"
+	case RedeemTypeConcurrency:
+		return "Concurrency redeem"
+	case AdjustmentTypeAdminConcurrency:
+		if code.Value >= 0 {
+			return "Admin concurrency adjustment"
+		}
+		return "Admin concurrency reduction"
+	case RedeemTypeSubscription:
+		if code.Group != nil && code.Group.Name != "" {
+			return fmt.Sprintf("Subscription assigned to %s", code.Group.Name)
+		}
+		return "Subscription assigned"
+	default:
+		return "User activity"
+	}
+}
+
+func summarizeCheckinBonusTimelineItem(record *CheckinRecord) string {
+	switch normalizeBonusStatus(record.BonusStatus) {
+	case CheckinBonusStatusWin:
+		return "Check-in lucky bonus won"
+	case CheckinBonusStatusLose:
+		return "Check-in lucky bonus lost"
+	default:
+		return "Check-in bonus settled"
+	}
+}
+
+func mergeUserActivityTimelineItems(groups ...[]UserActivityTimelineItem) []UserActivityTimelineItem {
+	total := 0
+	for _, group := range groups {
+		total += len(group)
+	}
+
+	merged := make([]UserActivityTimelineItem, 0, total)
+	for _, group := range groups {
+		merged = append(merged, group...)
+	}
+
+	sort.SliceStable(merged, func(i, j int) bool {
+		if merged[i].CreatedAt.Equal(merged[j].CreatedAt) {
+			return merged[i].ID > merged[j].ID
+		}
+		return merged[i].CreatedAt.After(merged[j].CreatedAt)
+	})
+
+	return merged
+}
+
+func filterUserActivityTimelineItems(items []UserActivityTimelineItem, filter string) []UserActivityTimelineItem {
+	filter = strings.TrimSpace(filter)
+	if filter == "" {
+		return items
+	}
+
+	filtered := make([]UserActivityTimelineItem, 0, len(items))
+	for _, item := range items {
+		if matchesUserActivityTimelineType(item.Type, filter) {
+			filtered = append(filtered, item)
+		}
+	}
+
+	return filtered
+}
+
+func matchesUserActivityTimelineType(itemType, filter string) bool {
+	switch filter {
+	case "balance":
+		return itemType == RedeemTypeBalance || itemType == AdjustmentTypeAdminBalance
+	case "admin_balance":
+		return itemType == AdjustmentTypeAdminBalance
+	case "checkin":
+		return itemType == "checkin_reward" || itemType == "checkin_bonus"
+	case "game":
+		return itemType == "game_net"
+	case "concurrency":
+		return itemType == RedeemTypeConcurrency || itemType == AdjustmentTypeAdminConcurrency
+	case "admin_concurrency":
+		return itemType == AdjustmentTypeAdminConcurrency
+	default:
+		return itemType == filter
+	}
+}
+
+func paginateUserActivityTimelineItems(items []UserActivityTimelineItem, page, pageSize int) []UserActivityTimelineItem {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+
+	start := (page - 1) * pageSize
+	if start >= len(items) {
+		return []UserActivityTimelineItem{}
+	}
+
+	end := start + pageSize
+	if end > len(items) {
+		end = len(items)
+	}
+
+	return append([]UserActivityTimelineItem(nil), items[start:end]...)
+}
+
+func (s *adminServiceImpl) adminSQLDB() (*stdsql.DB, error) {
+	if s.entClient == nil {
+		return nil, errors.New("nil ent client")
+	}
+
+	drv, ok := s.entClient.Driver().(*entsql.Driver)
+	if !ok {
+		return nil, errors.New("ent driver does not expose *sql.DB")
+	}
+
+	return drv.DB(), nil
 }
 
 // Group management implementations

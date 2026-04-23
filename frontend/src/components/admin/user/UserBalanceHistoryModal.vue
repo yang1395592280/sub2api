@@ -105,9 +105,15 @@
               >
                 <Icon :name="getIconName(item)" size="sm" :class="getIconColor(item)" />
               </div>
-              <div>
+              <div class="min-w-0">
                 <p class="text-sm font-medium text-gray-900 dark:text-white">
                   {{ getItemTitle(item) }}
+                </p>
+                <p
+                  v-if="item.summary"
+                  class="mt-0.5 text-xs text-gray-500 dark:text-dark-400"
+                >
+                  {{ item.summary }}
                 </p>
                 <!-- Notes (admin adjustment reason) -->
                 <p
@@ -117,8 +123,47 @@
                 >
                   {{ item.notes.length > 60 ? item.notes.substring(0, 55) + '...' : item.notes }}
                 </p>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <span
+                    v-if="item.balance_after !== null && item.balance_after !== undefined"
+                    class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600 dark:bg-dark-700 dark:text-dark-300"
+                  >
+                    {{ t('admin.users.balanceAfter') }}: ${{ Number(item.balance_after).toFixed(2) }}
+                  </span>
+                  <span
+                    v-if="item.concurrency_after !== null && item.concurrency_after !== undefined"
+                    class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600 dark:bg-dark-700 dark:text-dark-300"
+                  >
+                    {{ t('admin.users.concurrencyAfter') }}: {{ item.concurrency_after }}
+                  </span>
+                </div>
+                <button
+                  v-if="canExpand(item)"
+                  :data-testid="`timeline-expand-${item.id}`"
+                  class="mt-2 text-xs font-medium text-primary-600 transition-colors hover:text-primary-500 dark:text-primary-400"
+                  @click="toggleExpanded(item.id)"
+                >
+                  {{ isExpanded(item.id) ? t('admin.users.collapseDetails') : t('admin.users.expandDetails') }}
+                </button>
+                <div
+                  v-if="canExpand(item) && isExpanded(item.id)"
+                  class="mt-2 grid gap-1 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-700/70 dark:text-dark-300"
+                >
+                  <p v-if="item.details?.round_no !== undefined">
+                    {{ t('admin.users.gameRoundNo') }}: #{{ item.details.round_no }}
+                  </p>
+                  <p v-if="item.details?.stake_amount !== undefined">
+                    {{ t('admin.users.gameStakeAmount') }}: ${{ Number(item.details.stake_amount).toFixed(2) }}
+                  </p>
+                  <p v-if="item.details?.payout_amount !== undefined">
+                    {{ t('admin.users.gamePayoutAmount') }}: ${{ Number(item.details.payout_amount).toFixed(2) }}
+                  </p>
+                  <p v-if="item.details?.result_number !== undefined || item.details?.result_direction">
+                    {{ t('admin.users.gameResult') }}: {{ formatGameResult(item) }}
+                  </p>
+                </div>
                 <p class="mt-0.5 text-xs text-gray-400 dark:text-dark-500">
-                  {{ formatDateTime(item.used_at || item.created_at) }}
+                  {{ formatDateTime(item.created_at) }}
                 </p>
               </div>
             </div>
@@ -128,16 +173,9 @@
                 {{ formatValue(item) }}
               </p>
               <p
-                v-if="isAdminType(item.type)"
                 class="text-xs text-gray-400 dark:text-dark-500"
               >
-                {{ t('redeem.adminAdjustment') }}
-              </p>
-              <p
-                v-else
-                class="font-mono text-xs text-gray-400 dark:text-dark-500"
-              >
-                {{ item.code.slice(0, 8) }}...
+                {{ getTypeLabel(item.type) }}
               </p>
             </div>
           </div>
@@ -189,6 +227,7 @@ const total = ref(0)
 const totalRecharged = ref(0)
 const pageSize = 15
 const typeFilter = ref('')
+const expandedIds = ref<Record<string, boolean>>({})
 
 const totalPages = computed(() => Math.ceil(total.value / pageSize) || 1)
 
@@ -196,19 +235,22 @@ const totalPages = computed(() => Math.ceil(total.value / pageSize) || 1)
 const typeOptions = computed(() => [
   { value: '', label: t('admin.users.allTypes') },
   { value: 'balance', label: t('admin.users.typeBalance') },
-  { value: 'admin_balance', label: t('admin.users.typeAdminBalance') },
+  { value: 'checkin', label: t('admin.users.typeCheckin') },
+  { value: 'game', label: t('admin.users.typeGame') },
   { value: 'concurrency', label: t('admin.users.typeConcurrency') },
-  { value: 'admin_concurrency', label: t('admin.users.typeAdminConcurrency') },
   { value: 'subscription', label: t('admin.users.typeSubscription') }
 ])
 
 // Watch modal open
-watch(() => props.show, (v) => {
+watch(() => [props.show, props.user?.id], ([v]) => {
   if (v && props.user) {
     typeFilter.value = ''
+    expandedIds.value = {}
     loadHistory(1)
+  } else if (!v) {
+    expandedIds.value = {}
   }
-})
+}, { immediate: true })
 
 const loadHistory = async (page: number) => {
   if (!props.user) return
@@ -231,25 +273,36 @@ const loadHistory = async (page: number) => {
   }
 }
 
-// Helper: check if admin type
-const isAdminType = (type: string) => type === 'admin_balance' || type === 'admin_concurrency'
+const toggleExpanded = (id: string) => {
+  expandedIds.value = {
+    ...expandedIds.value,
+    [id]: !expandedIds.value[id]
+  }
+}
 
-// Helper: check if balance type (includes admin_balance)
+const isExpanded = (id: string) => !!expandedIds.value[id]
+
 const isBalanceType = (type: string) => type === 'balance' || type === 'admin_balance'
+const isCheckinType = (type: string) => type === 'checkin_reward' || type === 'checkin_bonus'
+const isGameType = (type: string) => type === 'game_net'
+const isConcurrencyType = (type: string) => type === 'concurrency' || type === 'admin_concurrency'
+const isCurrencyType = (type: string) => isBalanceType(type) || isCheckinType(type) || isGameType(type)
 
-// Helper: check if subscription type
 const isSubscriptionType = (type: string) => type === 'subscription'
+const canExpand = (item: BalanceHistoryItem) => isGameType(item.type) && !!item.details
 
 // Icon name based on type
 const getIconName = (item: BalanceHistoryItem) => {
   if (isBalanceType(item.type)) return 'dollar'
-  if (isSubscriptionType(item.type)) return 'badge'
-  return 'bolt' // concurrency
+  if (isCheckinType(item.type)) return 'gift'
+  if (isGameType(item.type)) return 'badge'
+  if (isSubscriptionType(item.type)) return 'calendar'
+  return 'bolt'
 }
 
 // Icon background color
 const getIconBg = (item: BalanceHistoryItem) => {
-  if (isBalanceType(item.type)) {
+  if (isCurrencyType(item.type)) {
     return item.value >= 0
       ? 'bg-emerald-100 dark:bg-emerald-900/30'
       : 'bg-red-100 dark:bg-red-900/30'
@@ -262,7 +315,7 @@ const getIconBg = (item: BalanceHistoryItem) => {
 
 // Icon text color
 const getIconColor = (item: BalanceHistoryItem) => {
-  if (isBalanceType(item.type)) {
+  if (isCurrencyType(item.type)) {
     return item.value >= 0
       ? 'text-emerald-600 dark:text-emerald-400'
       : 'text-red-600 dark:text-red-400'
@@ -275,7 +328,7 @@ const getIconColor = (item: BalanceHistoryItem) => {
 
 // Value text color
 const getValueColor = (item: BalanceHistoryItem) => {
-  if (isBalanceType(item.type)) {
+  if (isCurrencyType(item.type)) {
     return item.value >= 0
       ? 'text-emerald-600 dark:text-emerald-400'
       : 'text-red-600 dark:text-red-400'
@@ -286,37 +339,57 @@ const getValueColor = (item: BalanceHistoryItem) => {
     : 'text-orange-600 dark:text-orange-400'
 }
 
-// Item title
-const getItemTitle = (item: BalanceHistoryItem) => {
-  switch (item.type) {
+const getTypeLabel = (type: string) => {
+  switch (type) {
     case 'balance':
-      return t('redeem.balanceAddedRedeem')
+      return t('admin.users.typeBalance')
     case 'admin_balance':
-      return item.value >= 0 ? t('redeem.balanceAddedAdmin') : t('redeem.balanceDeductedAdmin')
+      return t('admin.users.typeAdminBalance')
+    case 'checkin_reward':
+      return t('admin.users.typeCheckin')
+    case 'checkin_bonus':
+      return t('admin.users.typeCheckinBonus')
+    case 'game_net':
+      return t('admin.users.typeGame')
     case 'concurrency':
-      return t('redeem.concurrencyAddedRedeem')
+      return t('admin.users.typeConcurrency')
     case 'admin_concurrency':
-      return item.value >= 0 ? t('redeem.concurrencyAddedAdmin') : t('redeem.concurrencyReducedAdmin')
+      return t('admin.users.typeAdminConcurrency')
     case 'subscription':
-      return t('redeem.subscriptionAssigned')
+      return t('admin.users.typeSubscription')
     default:
       return t('common.unknown')
   }
 }
 
-// Format display value
+const getItemTitle = (item: BalanceHistoryItem) => getTypeLabel(item.type)
+
 const formatValue = (item: BalanceHistoryItem) => {
-  if (isBalanceType(item.type)) {
+  if (isCurrencyType(item.type)) {
     const sign = item.value >= 0 ? '+' : ''
     return `${sign}$${item.value.toFixed(2)}`
   }
   if (isSubscriptionType(item.type)) {
-    const days = item.validity_days || Math.round(item.value)
-    const groupName = item.group?.name || ''
+    const days = Number(item.details?.validity_days ?? Math.round(item.value))
+    const groupName = String(item.details?.group_name ?? '')
     return groupName ? `${days}d - ${groupName}` : `${days}d`
   }
-  // concurrency types
   const sign = item.value >= 0 ? '+' : ''
   return `${sign}${item.value}`
+}
+
+const formatGameResult = (item: BalanceHistoryItem) => {
+  const resultNumber = item.details?.result_number
+  const resultDirection = item.details?.result_direction
+  if (resultNumber !== undefined && resultDirection) {
+    return `${resultNumber} / ${resultDirection}`
+  }
+  if (resultNumber !== undefined) {
+    return String(resultNumber)
+  }
+  if (resultDirection) {
+    return String(resultDirection)
+  }
+  return '-'
 }
 </script>

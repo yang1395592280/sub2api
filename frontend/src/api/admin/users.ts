@@ -183,22 +183,18 @@ export async function getUserUsageStats(
 }
 
 /**
- * Balance history item returned from the API
+ * Unified admin user activity timeline item returned from the API
  */
 export interface BalanceHistoryItem {
-  id: number
-  code: string
+  id: string
   type: string
+  summary: string
   value: number
-  status: string
-  used_by: number | null
-  used_at: string | null
+  notes?: string
+  balance_after?: number | null
+  concurrency_after?: number | null
   created_at: string
-  group_id: number | null
-  validity_days: number
-  notes: string
-  user?: { id: number; email: string } | null
-  group?: { id: number; name: string } | null
+  details?: Record<string, any>
 }
 
 // Balance history response extends pagination with total_recharged summary
@@ -207,12 +203,12 @@ export interface BalanceHistoryResponse extends PaginatedResponse<BalanceHistory
 }
 
 /**
- * Get user's balance/concurrency change history
+ * Get user's unified activity timeline
  * @param id - User ID
  * @param page - Page number
  * @param pageSize - Items per page
- * @param type - Optional type filter (balance, admin_balance, concurrency, admin_concurrency, subscription)
- * @returns Paginated balance history with total_recharged
+ * @param type - Optional category/type filter (balance, checkin, game, concurrency, ...)
+ * @returns Paginated activity timeline with total_recharged
  */
 export async function getUserBalanceHistory(
   id: number,

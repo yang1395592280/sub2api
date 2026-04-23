@@ -17,6 +17,7 @@ type stubAdminService struct {
 	proxies              []service.Proxy
 	proxyCounts          []service.ProxyWithAccountCount
 	redeems              []service.RedeemCode
+	timelineItems        []service.UserActivityTimelineItem
 	createdAccounts      []*service.CreateAccountInput
 	createdProxies       []*service.CreateProxyInput
 	updatedProxyIDs      []int64
@@ -123,6 +124,15 @@ func newStubAdminService() *stubAdminService {
 		proxies:     []service.Proxy{proxy},
 		proxyCounts: []service.ProxyWithAccountCount{{Proxy: proxy, AccountCount: 1}},
 		redeems:     []service.RedeemCode{redeem},
+		timelineItems: []service.UserActivityTimelineItem{
+			{
+				ID:        "redeem-5",
+				Type:      service.RedeemTypeBalance,
+				Summary:   "Balance redeem",
+				Value:     10,
+				CreatedAt: now,
+			},
+		},
 	}
 }
 
@@ -458,8 +468,8 @@ func (s *stubAdminService) ExpireRedeemCode(ctx context.Context, id int64) (*ser
 	return &code, nil
 }
 
-func (s *stubAdminService) GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]service.RedeemCode, int64, float64, error) {
-	return s.redeems, int64(len(s.redeems)), 100.0, nil
+func (s *stubAdminService) GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]service.UserActivityTimelineItem, int64, float64, error) {
+	return s.timelineItems, int64(len(s.timelineItems)), 100.0, nil
 }
 
 func (s *stubAdminService) UpdateGroupSortOrders(ctx context.Context, updates []service.GroupSortOrderUpdate) error {
