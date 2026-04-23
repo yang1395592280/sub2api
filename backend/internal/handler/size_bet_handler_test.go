@@ -97,6 +97,7 @@ func TestSizeBetHandlerGetHistoryIncludesNetAndSettlementDetails(t *testing.T) {
 
 	placedAt := time.Date(2026, 4, 23, 12, 0, 0, 0, time.UTC)
 	settledAt := time.Date(2026, 4, 23, 12, 1, 0, 0, time.UTC)
+	balanceAfter := 123.5
 	svc := &sizeBetServiceStub{
 		historyItems: []service.SizeBetUserHistoryItem{
 			{
@@ -109,6 +110,7 @@ func TestSizeBetHandlerGetHistoryIncludesNetAndSettlementDetails(t *testing.T) {
 				PayoutAmount:    20,
 				NetResultAmount: 10,
 				Status:          service.SizeBetStatusWon,
+				BalanceAfter:    &balanceAfter,
 				PlacedAt:        placedAt,
 				SettledAt:       &settledAt,
 			},
@@ -130,12 +132,13 @@ func TestSizeBetHandlerGetHistoryIncludesNetAndSettlementDetails(t *testing.T) {
 	h.GetHistory(c)
 
 	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), "\"direction\":\"big\"")
 	require.Contains(t, w.Body.String(), "\"selection\":\"big\"")
 	require.Contains(t, w.Body.String(), "\"net_result_amount\":10")
 	require.Contains(t, w.Body.String(), "\"result_number\":9")
 	require.Contains(t, w.Body.String(), "\"result_direction\":\"big\"")
+	require.Contains(t, w.Body.String(), "\"balance_after\":123.5")
 	require.Contains(t, w.Body.String(), "\"settled_at\":\"2026-04-23T12:01:00Z\"")
-	require.NotContains(t, w.Body.String(), "\"direction\":")
 	require.NotContains(t, w.Body.String(), "\"round_id\":")
 	require.NotContains(t, w.Body.String(), "\"idempotency_key\":")
 }

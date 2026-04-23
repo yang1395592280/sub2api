@@ -69,17 +69,19 @@ type sizeBetRoundSummaryResponse struct {
 }
 
 type sizeBetUserHistoryResponse struct {
-	BetID           int64   `json:"bet_id"`
-	RoundNo         int64   `json:"round_no"`
-	Selection       string  `json:"selection"`
-	ResultNumber    *int    `json:"result_number,omitempty"`
-	ResultDirection string  `json:"result_direction,omitempty"`
-	StakeAmount     float64 `json:"stake_amount"`
-	PayoutAmount    float64 `json:"payout_amount"`
-	NetResultAmount float64 `json:"net_result_amount"`
-	Status          string  `json:"status"`
-	PlacedAt        string  `json:"placed_at"`
-	SettledAt       *string `json:"settled_at,omitempty"`
+	BetID           int64    `json:"bet_id"`
+	RoundNo         int64    `json:"round_no"`
+	Direction       string   `json:"direction"`
+	Selection       string   `json:"selection"`
+	ResultNumber    *int     `json:"result_number,omitempty"`
+	ResultDirection string   `json:"result_direction,omitempty"`
+	StakeAmount     float64  `json:"stake_amount"`
+	PayoutAmount    float64  `json:"payout_amount"`
+	NetResultAmount float64  `json:"net_result_amount"`
+	BalanceAfter    *float64 `json:"balance_after,omitempty"`
+	Status          string   `json:"status"`
+	PlacedAt        string   `json:"placed_at"`
+	SettledAt       *string  `json:"settled_at,omitempty"`
 }
 
 type sizeBetCurrentRoundViewResponse struct {
@@ -296,11 +298,13 @@ func toSizeBetUserHistoryResponse(item service.SizeBetUserHistoryItem) sizeBetUs
 	resp := sizeBetUserHistoryResponse{
 		BetID:           item.BetID,
 		RoundNo:         item.RoundNo,
+		Direction:       string(item.Direction),
 		Selection:       string(item.Direction),
 		ResultNumber:    item.ResultNumber,
 		StakeAmount:     item.StakeAmount,
 		PayoutAmount:    item.PayoutAmount,
 		NetResultAmount: item.NetResultAmount,
+		BalanceAfter:    item.BalanceAfter,
 		Status:          string(item.Status),
 		PlacedAt:        formatTime(item.PlacedAt),
 	}
