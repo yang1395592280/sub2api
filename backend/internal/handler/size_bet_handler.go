@@ -68,6 +68,20 @@ type sizeBetRoundSummaryResponse struct {
 	ServerSeed      *string `json:"server_seed,omitempty"`
 }
 
+type sizeBetUserHistoryResponse struct {
+	BetID           int64   `json:"bet_id"`
+	RoundNo         int64   `json:"round_no"`
+	Selection       string  `json:"selection"`
+	ResultNumber    *int    `json:"result_number,omitempty"`
+	ResultDirection string  `json:"result_direction,omitempty"`
+	StakeAmount     float64 `json:"stake_amount"`
+	PayoutAmount    float64 `json:"payout_amount"`
+	NetResultAmount float64 `json:"net_result_amount"`
+	Status          string  `json:"status"`
+	PlacedAt        string  `json:"placed_at"`
+	SettledAt       *string `json:"settled_at,omitempty"`
+}
+
 type sizeBetCurrentRoundViewResponse struct {
 	Enabled       bool                         `json:"enabled"`
 	Phase         string                       `json:"phase"`
@@ -142,12 +156,16 @@ func (h *SizeBetHandler) GetHistory(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.PaginatedWithResult(c, items, &response.PaginationResult{
-		Total:    paginationResult.Total,
-		Page:     paginationResult.Page,
-		PageSize: paginationResult.PageSize,
-		Pages:    paginationResult.Pages,
-	})
+	var respPagination *response.PaginationResult
+	if paginationResult != nil {
+		respPagination = &response.PaginationResult{
+			Total:    paginationResult.Total,
+			Page:     paginationResult.Page,
+			PageSize: paginationResult.PageSize,
+			Pages:    paginationResult.Pages,
+		}
+	}
+	response.PaginatedWithResult(c, toSizeBetUserHistoryResponses(items), respPagination)
 }
 
 func (h *SizeBetHandler) ListRecentRounds(c *gin.Context) {
@@ -262,6 +280,36 @@ func toSizeBetRoundSummaryResponse(round *service.SizeBetRound) *sizeBetRoundSum
 	if round.Status == service.SizeBetRoundStatusSettled && round.ResultNumber != nil && round.ServerSeed != "" {
 		serverSeed := round.ServerSeed
 		resp.ServerSeed = &serverSeed
+	}
+	return resp
+}
+
+func toSizeBetUserHistoryResponses(items []service.SizeBetUserHistoryItem) []sizeBetUserHistoryResponse {
+	respItems := make([]sizeBetUserHistoryResponse, 0, len(items))
+	for i := range items {
+		respItems = append(respItems, toSizeBetUserHistoryResponse(items[i]))
+	}
+	return respItems
+}
+
+func toSizeBetUserHistoryResponse(item service.SizeBetUserHistoryItem) sizeBetUserHistoryResponse {
+	resp := sizeBetUserHistoryResponse{
+		BetID:           item.BetID,
+		RoundNo:         item.RoundNo,
+		Selection:       string(item.Direction),
+		ResultNumber:    item.ResultNumber,
+		StakeAmount:     item.StakeAmount,
+		PayoutAmount:    item.PayoutAmount,
+		NetResultAmount: item.NetResultAmount,
+		Status:          string(item.Status),
+		PlacedAt:        formatTime(item.PlacedAt),
+	}
+	if item.ResultDirection != "" {
+		resp.ResultDirection = string(item.ResultDirection)
+	}
+	if item.SettledAt != nil {
+		settledAt := formatTime(*item.SettledAt)
+		resp.SettledAt = &settledAt
 	}
 	return resp
 }

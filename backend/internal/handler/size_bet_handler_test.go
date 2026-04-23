@@ -92,6 +92,54 @@ func intPtr(v int) *int {
 	return &v
 }
 
+func TestSizeBetHandlerGetHistoryIncludesNetAndSettlementDetails(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	placedAt := time.Date(2026, 4, 23, 12, 0, 0, 0, time.UTC)
+	settledAt := time.Date(2026, 4, 23, 12, 1, 0, 0, time.UTC)
+	svc := &sizeBetServiceStub{
+		historyItems: []service.SizeBetUserHistoryItem{
+			{
+				BetID:           7,
+				RoundNo:         1002,
+				Direction:       service.SizeBetDirectionBig,
+				ResultNumber:    intPtr(9),
+				ResultDirection: service.SizeBetDirectionBig,
+				StakeAmount:     10,
+				PayoutAmount:    20,
+				NetResultAmount: 10,
+				Status:          service.SizeBetStatusWon,
+				PlacedAt:        placedAt,
+				SettledAt:       &settledAt,
+			},
+		},
+		historyPagination: &pagination.PaginationResult{
+			Total:    1,
+			Page:     1,
+			PageSize: 20,
+			Pages:    1,
+		},
+	}
+	h := &SizeBetHandler{service: svc}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 9})
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/game/size-bet/history", nil)
+
+	h.GetHistory(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), "\"selection\":\"big\"")
+	require.Contains(t, w.Body.String(), "\"net_result_amount\":10")
+	require.Contains(t, w.Body.String(), "\"result_number\":9")
+	require.Contains(t, w.Body.String(), "\"result_direction\":\"big\"")
+	require.Contains(t, w.Body.String(), "\"settled_at\":\"2026-04-23T12:01:00Z\"")
+	require.NotContains(t, w.Body.String(), "\"direction\":")
+	require.NotContains(t, w.Body.String(), "\"round_id\":")
+	require.NotContains(t, w.Body.String(), "\"idempotency_key\":")
+}
+
 func TestSizeBetHandlerPlaceBetReturnsConflictAfterClose(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

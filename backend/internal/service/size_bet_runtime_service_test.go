@@ -19,6 +19,12 @@ type sizeBetQueryRepoStub struct {
 
 	refundBets []SizeBet
 
+	historyItems       []SizeBetUserHistoryItem
+	historyPagination  *pagination.PaginationResult
+	historyErr         error
+	historyUserID      int64
+	historyPaginationQ pagination.PaginationParams
+
 	applySettlementCalls int
 	createRoundCalls     int
 	refreshCalls         int
@@ -83,8 +89,13 @@ func (s *sizeBetQueryRepoStub) ListRecentRounds(context.Context, int) ([]SizeBet
 	return append([]SizeBetRound(nil), s.latestRounds...), nil
 }
 
-func (s *sizeBetQueryRepoStub) ListUserHistory(context.Context, int64, pagination.PaginationParams) ([]SizeBetUserHistoryItem, *pagination.PaginationResult, error) {
-	return nil, nil, nil
+func (s *sizeBetQueryRepoStub) ListUserHistory(_ context.Context, userID int64, params pagination.PaginationParams) ([]SizeBetUserHistoryItem, *pagination.PaginationResult, error) {
+	s.historyUserID = userID
+	s.historyPaginationQ = params
+	if s.historyErr != nil {
+		return nil, nil, s.historyErr
+	}
+	return append([]SizeBetUserHistoryItem(nil), s.historyItems...), s.historyPagination, nil
 }
 
 func (s *sizeBetQueryRepoStub) ListLeaderboard(context.Context, string, string, int) ([]SizeBetLeaderboardEntry, time.Time, error) {
@@ -234,6 +245,54 @@ func TestSizeBetServiceGetCurrentRoundViewDisabledReturnsMaintenanceWithoutMutat
 	require.Nil(t, view.Round)
 	require.NotNil(t, view.PreviousRound)
 	require.Zero(t, repo.createRoundCalls)
+}
+
+func TestSizeBetServiceGetHistory(t *testing.T) {
+	placedAt := time.Date(2026, 4, 23, 12, 0, 0, 0, time.UTC)
+	settledAt := time.Date(2026, 4, 23, 12, 1, 0, 0, time.UTC)
+	balanceAfter := 100.0
+	repo := &sizeBetQueryRepoStub{
+		historyItems: []SizeBetUserHistoryItem{
+			{
+				BetID:           7,
+				RoundID:         11,
+				RoundNo:         1002,
+				Direction:       SizeBetDirectionBig,
+				ResultNumber:    sizeBetIntPtr(9),
+				ResultDirection: SizeBetDirectionBig,
+				StakeAmount:     10,
+				PayoutAmount:    20,
+				NetResultAmount: 10,
+				Status:          SizeBetStatusWon,
+				BalanceAfter:    &balanceAfter,
+				PlacedAt:        placedAt,
+				SettledAt:       &settledAt,
+			},
+		},
+		historyPagination: &pagination.PaginationResult{
+			Total:    1,
+			Page:     1,
+			PageSize: 20,
+			Pages:    1,
+		},
+	}
+	svc := NewSizeBetService(repo, &sizeBetRuntimeSettingRepoStub{values: map[string]string{}}, nil, nil)
+
+	items, pageResult, err := svc.GetHistory(context.Background(), 9, pagination.PaginationParams{})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(9), repo.historyUserID)
+	require.Equal(t, 1, repo.historyPaginationQ.Page)
+	require.Equal(t, 20, repo.historyPaginationQ.PageSize)
+	require.Equal(t, pagination.SortOrderDesc, repo.historyPaginationQ.SortOrder)
+	require.Len(t, items, 1)
+	require.Equal(t, int64(7), items[0].BetID)
+	require.Equal(t, SizeBetDirectionBig, items[0].ResultDirection)
+	require.NotNil(t, items[0].ResultNumber)
+	require.Equal(t, 9, *items[0].ResultNumber)
+	require.NotNil(t, items[0].BalanceAfter)
+	require.Equal(t, balanceAfter, *items[0].BalanceAfter)
+	require.Equal(t, repo.historyPagination, pageResult)
 }
 
 func TestSizeBetServiceRefundRoundRejectsSettledResultRound(t *testing.T) {

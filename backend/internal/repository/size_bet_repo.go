@@ -183,13 +183,22 @@ func (r *sizeBetRepository) ListUserHistory(ctx context.Context, userID int64, p
 
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT
-			gb.id, gb.round_id, gr.round_no, gb.direction, gb.stake_amount, gb.payout_amount,
-			gb.net_result_amount, gb.status, gb.idempotency_key, gb.placed_at, gb.settled_at,
-			gr.result_number, gr.result_direction, gr.starts_at, gr.settles_at
+			gb.id, gb.round_id, gr.round_no, gb.direction,
+			gr.result_number, gr.result_direction,
+			gb.stake_amount, gb.payout_amount, gb.net_result_amount, gb.status,
+			gl.balance_after, gb.placed_at, gb.settled_at
 		FROM game_bets gb
 		JOIN game_rounds gr ON gr.id = gb.round_id
+		LEFT JOIN LATERAL (
+			SELECT balance_after
+			FROM game_wallet_ledger gl
+			WHERE gl.bet_id = gb.id
+				AND gl.entry_type IN ('bet_payout', 'bet_refund', 'bet_debit')
+			ORDER BY gl.created_at DESC, gl.id DESC
+			LIMIT 1
+		) gl ON TRUE
 		WHERE gr.game_key = $1 AND gb.user_id = $2
-		ORDER BY gb.placed_at DESC
+		ORDER BY COALESCE(gb.settled_at, gb.placed_at) DESC, gb.id DESC
 		LIMIT $3 OFFSET $4
 	`, service.SizeBetGameKey, userID, params.Limit(), params.Offset())
 	if err != nil {
@@ -200,15 +209,21 @@ func (r *sizeBetRepository) ListUserHistory(ctx context.Context, userID int64, p
 	items := make([]service.SizeBetUserHistoryItem, 0)
 	for rows.Next() {
 		var item service.SizeBetUserHistoryItem
+		var balanceAfter sql.NullFloat64
 		var settledAt sql.NullTime
 		var resultNumber sql.NullInt64
 		var resultDirection sql.NullString
 		if err := rows.Scan(
-			&item.BetID, &item.RoundID, &item.RoundNo, &item.Direction, &item.StakeAmount, &item.PayoutAmount,
-			&item.NetResultAmount, &item.Status, &item.IdempotencyKey, &item.PlacedAt, &settledAt,
-			&resultNumber, &resultDirection, &item.RoundStartsAt, &item.RoundSettlesAt,
+			&item.BetID, &item.RoundID, &item.RoundNo, &item.Direction,
+			&resultNumber, &resultDirection,
+			&item.StakeAmount, &item.PayoutAmount, &item.NetResultAmount, &item.Status,
+			&balanceAfter, &item.PlacedAt, &settledAt,
 		); err != nil {
 			return nil, nil, err
+		}
+		if balanceAfter.Valid {
+			v := balanceAfter.Float64
+			item.BalanceAfter = &v
 		}
 		if settledAt.Valid {
 			item.SettledAt = &settledAt.Time

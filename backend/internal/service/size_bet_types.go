@@ -94,17 +94,15 @@ type SizeBetUserHistoryItem struct {
 	RoundID         int64            `json:"round_id"`
 	RoundNo         int64            `json:"round_no"`
 	Direction       SizeBetDirection `json:"direction"`
+	ResultNumber    *int             `json:"result_number,omitempty"`
+	ResultDirection SizeBetDirection `json:"result_direction,omitempty"`
 	StakeAmount     float64          `json:"stake_amount"`
 	PayoutAmount    float64          `json:"payout_amount"`
 	NetResultAmount float64          `json:"net_result_amount"`
 	Status          SizeBetStatus    `json:"status"`
-	IdempotencyKey  string           `json:"idempotency_key"`
+	BalanceAfter    *float64         `json:"balance_after,omitempty"`
 	PlacedAt        time.Time        `json:"placed_at"`
 	SettledAt       *time.Time       `json:"settled_at,omitempty"`
-	ResultNumber    *int             `json:"result_number,omitempty"`
-	ResultDirection SizeBetDirection `json:"result_direction,omitempty"`
-	RoundStartsAt   time.Time        `json:"round_starts_at"`
-	RoundSettlesAt  time.Time        `json:"round_settles_at"`
 }
 
 type SizeBetLeaderboardEntry struct {
