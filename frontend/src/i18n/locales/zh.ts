@@ -367,6 +367,61 @@ export default {
     paymentPlans: '订阅套餐'
   },
 
+  sizeBet: {
+    nav: '大小中竞猜',
+    title: '大小中竞猜',
+    heroSubtitle: '封盘前完成选择，等待系统随机开奖',
+    countdownLabel: '本局开奖倒计时',
+    betClosesIn: '封盘倒计时',
+    seedTitle: '种子承诺',
+    phase: {
+      betting: '下注中',
+      closed: '封盘中',
+      maintenance: '维护中'
+    },
+    dealer: {
+      title: '庄家台',
+      roundLabel: '第 {round} 期',
+      probability: '概率：小 {small}% / 中 {mid}% / 大 {big}%',
+      odds: '赔率：小 {small}x / 中 {mid}x / 大 {big}x',
+      duration: '每局 {seconds} 秒，前 {close} 秒可下注'
+    },
+    player: {
+      title: '玩家台',
+      currentSelection: '当前选择',
+      pending: '待下注',
+      myBet: '已下注 {direction} / {stake}',
+      chooseDirection: '选择方向',
+      chooseStake: '选择筹码',
+      submit: '确认下注',
+      submitting: '提交中...',
+      openHint: '现在还在下注窗口内',
+      closedHint: '当前已封盘，等待开奖',
+      placedHint: '本局已下注，等待结算',
+      selectDirection: '请选择下注方向',
+      selectStake: '请选择下注金额',
+      placedSuccess: '下注成功'
+    },
+    rules: {
+      title: '活动规则'
+    },
+    previousRound: {
+      title: '上期开奖结果',
+      empty: '暂无最近开奖',
+      result: '第 {round} 期 {number} 点 / {direction}',
+      reveal: '服务端种子：{seed}'
+    },
+    maintenance: {
+      title: '活动暂未开启',
+      description: '管理员已关闭该活动，开启后这里会自动恢复倒计时与下注面板。'
+    },
+    directions: {
+      small: '小',
+      mid: '中',
+      big: '大'
+    }
+  },
+
   // Auth
   auth: {
     welcomeBack: '欢迎回来',

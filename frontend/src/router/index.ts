@@ -163,6 +163,17 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/game/size-bet',
+    name: 'SizeBetGame',
+    component: () => import('@/views/user/SizeBetGameView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Size Bet',
+      titleKey: 'sizeBet.title'
+    }
+  },
+  {
     path: '/redeem',
     name: 'Redeem',
     component: () => import('@/views/user/RedeemView.vue'),

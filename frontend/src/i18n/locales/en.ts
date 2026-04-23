@@ -367,6 +367,61 @@ export default {
     paymentPlans: 'Plans'
   },
 
+  sizeBet: {
+    nav: 'Size Bet',
+    title: 'Size Bet',
+    heroSubtitle: 'Lock in your choice before the window closes and wait for the draw',
+    countdownLabel: 'Round Countdown',
+    betClosesIn: 'Bet Closes In',
+    seedTitle: 'Seed Commitment',
+    phase: {
+      betting: 'Betting',
+      closed: 'Closed',
+      maintenance: 'Maintenance'
+    },
+    dealer: {
+      title: 'Dealer Desk',
+      roundLabel: 'Round {round}',
+      probability: 'Probability: Small {small}% / Mid {mid}% / Big {big}%',
+      odds: 'Odds: Small {small}x / Mid {mid}x / Big {big}x',
+      duration: '{seconds}s per round, betting stays open for the first {close}s'
+    },
+    player: {
+      title: 'Player Desk',
+      currentSelection: 'Current Selection',
+      pending: 'Waiting for a bet',
+      myBet: 'Bet placed {direction} / {stake}',
+      chooseDirection: 'Choose Direction',
+      chooseStake: 'Choose Stake',
+      submit: 'Place Bet',
+      submitting: 'Submitting...',
+      openHint: 'The betting window is still open',
+      closedHint: 'Betting is closed, waiting for settlement',
+      placedHint: 'You already placed a bet this round',
+      selectDirection: 'Please choose a direction',
+      selectStake: 'Please choose a stake amount',
+      placedSuccess: 'Bet placed successfully'
+    },
+    rules: {
+      title: 'Game Rules'
+    },
+    previousRound: {
+      title: 'Previous Result',
+      empty: 'No recent result yet',
+      result: 'Round {round} {number} / {direction}',
+      reveal: 'Server seed: {seed}'
+    },
+    maintenance: {
+      title: 'Game unavailable',
+      description: 'The activity is currently disabled. Countdown and betting will return automatically after it is enabled.'
+    },
+    directions: {
+      small: 'Small',
+      mid: 'Mid',
+      big: 'Big'
+    }
+  },
+
   // Auth
   auth: {
     welcomeBack: 'Welcome Back',

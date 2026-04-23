@@ -264,6 +264,24 @@ const ChartIcon = {
     )
 }
 
+const DiceIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M6.75 4.5h10.5A2.25 2.25 0 0119.5 6.75v10.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 17.25V6.75A2.25 2.25 0 016.75 4.5z'
+        }),
+        h('circle', { cx: '8.25', cy: '8.25', r: '0.8', fill: 'currentColor', stroke: 'none' }),
+        h('circle', { cx: '12', cy: '12', r: '0.8', fill: 'currentColor', stroke: 'none' }),
+        h('circle', { cx: '15.75', cy: '15.75', r: '0.8', fill: 'currentColor', stroke: 'none' }),
+      ]
+    )
+}
+
 const GiftIcon = {
   render: () =>
     h(
@@ -570,6 +588,7 @@ const userNavItems = computed((): NavItem[] => {
     { path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
+    { path: '/game/size-bet', label: t('sizeBet.nav'), icon: DiceIcon },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     ...(appStore.cachedPublicSettings?.payment_enabled
       ? [
@@ -608,6 +627,7 @@ const personalNavItems = computed((): NavItem[] => {
   const items: NavItem[] = [
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
+    { path: '/game/size-bet', label: t('sizeBet.nav'), icon: DiceIcon },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     ...(appStore.cachedPublicSettings?.payment_enabled
       ? [
