@@ -149,16 +149,23 @@ const (
 	SettingKeyCustomEndpoints             = "custom_endpoints"              // 自定义端点列表（JSON 数组）
 
 	// 默认配置
-	SettingKeyDefaultConcurrency           = "default_concurrency"              // 新用户默认并发量
-	SettingKeyDefaultBalance               = "default_balance"                  // 新用户默认余额
-	SettingKeyDefaultSubscriptions         = "default_subscriptions"            // 新用户默认订阅列表（JSON）
-	SettingKeyCheckinEnabled               = "checkin_enabled"                  // 是否启用签到功能
-	SettingKeyCheckinMinReward             = "checkin_min_reward"               // 签到最小奖励（USD）
-	SettingKeyCheckinMaxReward             = "checkin_max_reward"               // 签到最大奖励（USD）
-	SettingKeyCheckinDistributionEnabled   = "checkin_distribution_enabled"     // 是否启用分档权重分布
-	SettingKeyCheckinDistributionConfig    = "checkin_distribution_config"      // 签到分档权重配置（JSON）
-	SettingKeyCheckinLuckyBonusEnabled     = "checkin_lucky_bonus_enabled"      // 是否启用签到后的奖励翻倍玩法
-	SettingKeyCheckinLuckyBonusSuccessRate = "checkin_lucky_bonus_success_rate" // 签到奖励翻倍玩法的成功概率（0-100）
+	SettingKeyDefaultConcurrency           = "default_concurrency"               // 新用户默认并发量
+	SettingKeyDefaultBalance               = "default_balance"                   // 新用户默认余额
+	SettingKeyDefaultSubscriptions         = "default_subscriptions"             // 新用户默认订阅列表（JSON）
+	SettingKeyCheckinEnabled               = "checkin_enabled"                   // 是否启用签到功能
+	SettingKeyCheckinMinReward             = "checkin_min_reward"                // 签到最小奖励（USD）
+	SettingKeyCheckinMaxReward             = "checkin_max_reward"                // 签到最大奖励（USD）
+	SettingKeyCheckinDistributionEnabled   = "checkin_distribution_enabled"      // 是否启用分档权重分布
+	SettingKeyCheckinDistributionConfig    = "checkin_distribution_config"       // 签到分档权重配置（JSON）
+	SettingKeyCheckinLuckyBonusEnabled     = "checkin_lucky_bonus_enabled"       // 是否启用签到后的奖励翻倍玩法
+	SettingKeyCheckinLuckyBonusSuccessRate = "checkin_lucky_bonus_success_rate"  // 签到奖励翻倍玩法的成功概率（0-100）
+	SettingKeySizeBetEnabled               = "size_bet_enabled"                  // 大小中竞猜总开关
+	SettingKeySizeBetRoundDurationSeconds  = "size_bet_round_duration_seconds"   // 大小中竞猜每局时长（秒）
+	SettingKeySizeBetBetCloseOffsetSeconds = "size_bet_bet_close_offset_seconds" // 大小中竞猜封盘秒数偏移
+	SettingKeySizeBetAllowedStakes         = "size_bet_allowed_stakes"           // 大小中竞猜可下注额度（JSON 数组）
+	SettingKeySizeBetProbabilities         = "size_bet_probabilities"            // 大小中竞猜概率配置（JSON）
+	SettingKeySizeBetOdds                  = "size_bet_odds"                     // 大小中竞猜赔率配置（JSON）
+	SettingKeySizeBetRulesMarkdown         = "size_bet_rules_markdown"           // 大小中竞猜规则 Markdown
 
 	// 管理员 API Key
 	SettingKeyAdminAPIKey = "admin_api_key" // 全局管理员 API Key（用于外部系统集成）

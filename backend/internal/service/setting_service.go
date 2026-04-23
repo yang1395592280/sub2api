@@ -1005,6 +1005,13 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyCheckinDistributionConfig:        "[]",
 		SettingKeyCheckinLuckyBonusEnabled:         "false",
 		SettingKeyCheckinLuckyBonusSuccessRate:     strconv.FormatFloat(defaultCheckinLuckyBonusSuccessRate, 'f', 8, 64),
+		SettingKeySizeBetEnabled:                   strconv.FormatBool(defaultSizeBetEnabled),
+		SettingKeySizeBetRoundDurationSeconds:      strconv.Itoa(defaultSizeBetRoundDurationSeconds),
+		SettingKeySizeBetBetCloseOffsetSeconds:     strconv.Itoa(defaultSizeBetBetCloseOffsetSeconds),
+		SettingKeySizeBetAllowedStakes:             mustJSON(defaultSizeBetAllowedStakes()),
+		SettingKeySizeBetProbabilities:             mustJSON(defaultSizeBetProbabilities()),
+		SettingKeySizeBetOdds:                      mustJSON(defaultSizeBetOdds()),
+		SettingKeySizeBetRulesMarkdown:             defaultSizeBetRulesMarkdown,
 		SettingKeySMTPPort:                         "587",
 		SettingKeySMTPUseTLS:                       "false",
 		// Model fallback defaults
