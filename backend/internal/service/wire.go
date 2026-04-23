@@ -381,6 +381,12 @@ func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupReposit
 	return svc
 }
 
+type sizeBetRuntimePlaceholder struct{}
+
+func ProvideSizeBetRuntimeService(*SizeBetService) *sizeBetRuntimePlaceholder {
+	return &sizeBetRuntimePlaceholder{}
+}
+
 // ProviderSet is the Wire provider set for all services
 var ProviderSet = wire.NewSet(
 	// Core services
@@ -421,6 +427,9 @@ var ProviderSet = wire.NewSet(
 	NewAccountUsageService,
 	NewAccountTestService,
 	ProvideSettingService,
+	NewSizeBetAdminService,
+	NewSizeBetService,
+	ProvideSizeBetRuntimeService,
 	NewDataManagementService,
 	ProvideBackupService,
 	ProvideOpsSystemLogSink,
