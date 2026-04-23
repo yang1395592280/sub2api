@@ -109,7 +109,7 @@ type AdminService interface {
 type UserActivityTimelineItem struct {
 	ID               string         `json:"id"`
 	Type             string         `json:"type"`
-	Summary          string         `json:"summary"`
+	Summary          string         `json:"summary,omitempty"`
 	Value            float64        `json:"value"`
 	Notes            string         `json:"notes,omitempty"`
 	BalanceAfter     *float64       `json:"balance_after,omitempty"`
@@ -463,6 +463,18 @@ type userGroupRateBatchReader interface {
 	GetByUserIDs(ctx context.Context, userIDs []int64) (map[int64]map[int64]float64, error)
 }
 
+type adminCheckinTimelineReader interface {
+	ListTimelineItemsByUser(ctx context.Context, userID int64, params pagination.PaginationParams, filter string) ([]UserActivityTimelineItem, *pagination.PaginationResult, error)
+}
+
+type userActivityTimelineQueryPlan struct {
+	redeemAll     bool
+	redeemTypes   []string
+	includeCheckin bool
+	checkinFilter string
+	includeGame   bool
+}
+
 // NewAdminService creates a new AdminService
 func NewAdminService(
 	userRepo UserRepository,
@@ -471,6 +483,8 @@ func NewAdminService(
 	proxyRepo ProxyRepository,
 	apiKeyRepo APIKeyRepository,
 	redeemCodeRepo RedeemCodeRepository,
+	checkinRepo CheckinRepository,
+	sizeBetRepo SizeBetRepository,
 	userGroupRateRepo UserGroupRateRepository,
 	billingCacheService *BillingCacheService,
 	proxyProber ProxyExitInfoProber,
@@ -489,6 +503,8 @@ func NewAdminService(
 		proxyRepo:            proxyRepo,
 		apiKeyRepo:           apiKeyRepo,
 		redeemCodeRepo:       redeemCodeRepo,
+		checkinRepo:          checkinRepo,
+		sizeBetRepo:          sizeBetRepo,
 		userGroupRateRepo:    userGroupRateRepo,
 		billingCacheService:  billingCacheService,
 		proxyProber:          proxyProber,
@@ -809,56 +825,144 @@ func (s *adminServiceImpl) GetUserBalanceHistory(ctx context.Context, userID int
 		pageSize = 20
 	}
 
-	redeemItems, err := s.loadRedeemTimelineItems(ctx, userID)
+	fetchLimit := page * pageSize
+	plan := buildUserActivityTimelineQueryPlan(codeType)
+
+	groups := make([][]UserActivityTimelineItem, 0, 4)
+	var total int64
+
+	redeemItems, redeemTotal, err := s.loadRedeemTimelineItemsPage(ctx, userID, fetchLimit, plan)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	checkinItems, err := s.loadCheckinTimelineItems(ctx, userID)
-	if err != nil {
-		return nil, 0, 0, err
+	if len(redeemItems) > 0 {
+		groups = append(groups, redeemItems)
 	}
-	gameItems, err := s.loadGameTimelineItems(ctx, userID)
-	if err != nil {
-		return nil, 0, 0, err
+	total += redeemTotal
+
+	if plan.includeCheckin {
+		checkinItems, checkinTotal, err := s.loadCheckinTimelineItemsPage(ctx, userID, fetchLimit, plan.checkinFilter)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		if len(checkinItems) > 0 {
+			groups = append(groups, checkinItems)
+		}
+		total += checkinTotal
 	}
 
-	merged := mergeUserActivityTimelineItems(redeemItems, checkinItems, gameItems)
-	filtered := filterUserActivityTimelineItems(merged, codeType)
-
-	totalRecharged, err := s.redeemCodeRepo.SumPositiveBalanceByUser(ctx, userID)
-	if err != nil {
-		return nil, 0, 0, err
+	if plan.includeGame {
+		gameItems, gameTotal, err := s.loadGameTimelineItemsPage(ctx, userID, fetchLimit)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		if len(gameItems) > 0 {
+			groups = append(groups, gameItems)
+		}
+		total += gameTotal
 	}
 
-	return paginateUserActivityTimelineItems(filtered, page, pageSize), int64(len(filtered)), totalRecharged, nil
+	var totalRecharged float64
+	if s.redeemCodeRepo != nil {
+		totalRecharged, err = s.redeemCodeRepo.SumPositiveBalanceByUser(ctx, userID)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+	}
+
+	merged := mergeUserActivityTimelineItems(groups...)
+	return paginateUserActivityTimelineItems(merged, page, pageSize), total, totalRecharged, nil
 }
 
-func (s *adminServiceImpl) loadRedeemTimelineItems(ctx context.Context, userID int64) ([]UserActivityTimelineItem, error) {
+func buildUserActivityTimelineQueryPlan(filter string) userActivityTimelineQueryPlan {
+	filter = strings.TrimSpace(filter)
+	switch filter {
+	case "":
+		return userActivityTimelineQueryPlan{
+			redeemAll:      true,
+			includeCheckin: true,
+			includeGame:    true,
+		}
+	case "balance":
+		return userActivityTimelineQueryPlan{redeemTypes: []string{RedeemTypeBalance, AdjustmentTypeAdminBalance}}
+	case AdjustmentTypeAdminBalance, AdjustmentTypeAdminConcurrency, RedeemTypeSubscription:
+		return userActivityTimelineQueryPlan{redeemTypes: []string{filter}}
+	case "concurrency":
+		return userActivityTimelineQueryPlan{redeemTypes: []string{RedeemTypeConcurrency, AdjustmentTypeAdminConcurrency}}
+	case "checkin", "checkin_reward", "checkin_bonus":
+		return userActivityTimelineQueryPlan{
+			includeCheckin: true,
+			checkinFilter:  filter,
+		}
+	case "game", "game_net":
+		return userActivityTimelineQueryPlan{includeGame: true}
+	default:
+		return userActivityTimelineQueryPlan{}
+	}
+}
+
+func (s *adminServiceImpl) loadRedeemTimelineItemsPage(ctx context.Context, userID int64, limit int, plan userActivityTimelineQueryPlan) ([]UserActivityTimelineItem, int64, error) {
 	if s.redeemCodeRepo == nil {
-		return []UserActivityTimelineItem{}, nil
+		return []UserActivityTimelineItem{}, 0, nil
+	}
+	if !plan.redeemAll && len(plan.redeemTypes) == 0 {
+		return []UserActivityTimelineItem{}, 0, nil
 	}
 
-	const batchSize = 200
+	params := pagination.PaginationParams{Page: 1, PageSize: limit}
+	if plan.redeemAll {
+		return s.queryRedeemTimelineItems(ctx, userID, params, "")
+	}
+	if len(plan.redeemTypes) == 1 {
+		return s.queryRedeemTimelineItems(ctx, userID, params, plan.redeemTypes[0])
+	}
 
-	items := make([]UserActivityTimelineItem, 0)
-	for page := 1; ; page++ {
-		params := pagination.PaginationParams{Page: page, PageSize: batchSize}
-		codes, result, err := s.redeemCodeRepo.ListByUserPaginated(ctx, userID, params, "")
+	groups := make([][]UserActivityTimelineItem, 0, len(plan.redeemTypes))
+	var total int64
+	for _, redeemType := range plan.redeemTypes {
+		items, sourceTotal, err := s.queryRedeemTimelineItems(ctx, userID, params, redeemType)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
-		if len(codes) == 0 {
-			break
+		if len(items) > 0 {
+			groups = append(groups, items)
 		}
-		for i := range codes {
-			items = append(items, buildRedeemTimelineItem(&codes[i]))
-		}
-		if result == nil || int64(params.Offset()+len(codes)) >= result.Total {
-			break
-		}
+		total += sourceTotal
 	}
 
-	return items, nil
+	return mergeUserActivityTimelineItems(groups...), total, nil
+}
+
+func (s *adminServiceImpl) queryRedeemTimelineItems(ctx context.Context, userID int64, params pagination.PaginationParams, codeType string) ([]UserActivityTimelineItem, int64, error) {
+	codes, result, err := s.redeemCodeRepo.ListByUserPaginated(ctx, userID, params, codeType)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	items := make([]UserActivityTimelineItem, 0, len(codes))
+	for i := range codes {
+		items = append(items, buildRedeemTimelineItem(&codes[i]))
+	}
+
+	return items, timelineSourceTotal(result, len(items)), nil
+}
+
+func (s *adminServiceImpl) loadCheckinTimelineItemsPage(ctx context.Context, userID int64, limit int, filter string) ([]UserActivityTimelineItem, int64, error) {
+	params := pagination.PaginationParams{Page: 1, PageSize: limit}
+	if reader, ok := s.checkinRepo.(adminCheckinTimelineReader); ok {
+		items, result, err := reader.ListTimelineItemsByUser(ctx, userID, params, filter)
+		if err != nil {
+			return nil, 0, err
+		}
+		return items, timelineSourceTotal(result, len(items)), nil
+	}
+
+	items, err := s.loadCheckinTimelineItems(ctx, userID)
+	if err != nil {
+		return nil, 0, err
+	}
+	filtered := filterUserActivityTimelineItems(items, filter)
+	return paginateUserActivityTimelineItems(filtered, 1, limit), int64(len(filtered)), nil
 }
 
 func (s *adminServiceImpl) loadCheckinTimelineItems(ctx context.Context, userID int64) ([]UserActivityTimelineItem, error) {
@@ -875,7 +979,24 @@ func (s *adminServiceImpl) loadCheckinTimelineItems(ctx context.Context, userID 
 		}
 	}
 
-	return items, nil
+	return mergeUserActivityTimelineItems(items), nil
+}
+
+func (s *adminServiceImpl) loadGameTimelineItemsPage(ctx context.Context, userID int64, limit int) ([]UserActivityTimelineItem, int64, error) {
+	params := pagination.PaginationParams{Page: 1, PageSize: limit}
+	if s.sizeBetRepo != nil {
+		historyItems, result, err := s.sizeBetRepo.ListUserHistory(ctx, userID, params)
+		if err != nil {
+			return nil, 0, err
+		}
+		return buildGameTimelineItems(historyItems), timelineSourceTotal(result, len(historyItems)), nil
+	}
+
+	items, err := s.loadGameTimelineItems(ctx, userID)
+	if err != nil {
+		return nil, 0, err
+	}
+	return paginateUserActivityTimelineItems(items, 1, limit), int64(len(items)), nil
 }
 
 func (s *adminServiceImpl) loadGameTimelineItems(ctx context.Context, userID int64) ([]UserActivityTimelineItem, error) {
@@ -884,12 +1005,22 @@ func (s *adminServiceImpl) loadGameTimelineItems(ctx context.Context, userID int
 		return nil, err
 	}
 
+	return buildGameTimelineItems(historyItems), nil
+}
+
+func buildGameTimelineItems(historyItems []SizeBetUserHistoryItem) []UserActivityTimelineItem {
 	items := make([]UserActivityTimelineItem, 0, len(historyItems))
 	for i := range historyItems {
 		items = append(items, buildGameTimelineItem(&historyItems[i]))
 	}
+	return items
+}
 
-	return items, nil
+func timelineSourceTotal(result *pagination.PaginationResult, itemCount int) int64 {
+	if result == nil {
+		return int64(itemCount)
+	}
+	return result.Total
 }
 
 func (s *adminServiceImpl) listUserCheckinRecords(ctx context.Context, userID int64) ([]CheckinRecord, error) {
@@ -1096,7 +1227,6 @@ func buildRedeemTimelineItem(code *RedeemCode) UserActivityTimelineItem {
 	item := UserActivityTimelineItem{
 		ID:        fmt.Sprintf("redeem-%d", code.ID),
 		Type:      code.Type,
-		Summary:   summarizeRedeemTimelineItem(code),
 		Value:     code.Value,
 		Notes:     code.Notes,
 		CreatedAt: createdAt,
@@ -1113,7 +1243,6 @@ func buildCheckinRewardTimelineItem(record *CheckinRecord) UserActivityTimelineI
 	return UserActivityTimelineItem{
 		ID:        fmt.Sprintf("checkin-%d", record.ID),
 		Type:      "checkin_reward",
-		Summary:   "Daily check-in reward",
 		Value:     baseReward,
 		CreatedAt: record.CreatedAt,
 		Details: map[string]any{
@@ -1137,7 +1266,6 @@ func buildCheckinBonusTimelineItem(record *CheckinRecord) *UserActivityTimelineI
 	return &UserActivityTimelineItem{
 		ID:        fmt.Sprintf("checkin-bonus-%d", record.ID),
 		Type:      "checkin_bonus",
-		Summary:   summarizeCheckinBonusTimelineItem(record),
 		Value:     record.BonusDeltaAmount,
 		CreatedAt: *record.BonusPlayedAt,
 		Details: map[string]any{
@@ -1173,48 +1301,10 @@ func buildGameTimelineItem(item *SizeBetUserHistoryItem) UserActivityTimelineIte
 	return UserActivityTimelineItem{
 		ID:           fmt.Sprintf("game-%d", item.BetID),
 		Type:         "game_net",
-		Summary:      fmt.Sprintf("Size Bet #%d", item.RoundNo),
 		Value:        item.NetResultAmount,
 		BalanceAfter: item.BalanceAfter,
 		CreatedAt:    createdAt,
 		Details:      details,
-	}
-}
-
-func summarizeRedeemTimelineItem(code *RedeemCode) string {
-	switch code.Type {
-	case RedeemTypeBalance:
-		return "Balance redeem"
-	case AdjustmentTypeAdminBalance:
-		if code.Value >= 0 {
-			return "Admin balance adjustment"
-		}
-		return "Admin balance deduction"
-	case RedeemTypeConcurrency:
-		return "Concurrency redeem"
-	case AdjustmentTypeAdminConcurrency:
-		if code.Value >= 0 {
-			return "Admin concurrency adjustment"
-		}
-		return "Admin concurrency reduction"
-	case RedeemTypeSubscription:
-		if code.Group != nil && code.Group.Name != "" {
-			return fmt.Sprintf("Subscription assigned to %s", code.Group.Name)
-		}
-		return "Subscription assigned"
-	default:
-		return "User activity"
-	}
-}
-
-func summarizeCheckinBonusTimelineItem(record *CheckinRecord) string {
-	switch normalizeBonusStatus(record.BonusStatus) {
-	case CheckinBonusStatusWin:
-		return "Check-in lucky bonus won"
-	case CheckinBonusStatusLose:
-		return "Check-in lucky bonus lost"
-	default:
-		return "Check-in bonus settled"
 	}
 }
 
@@ -1231,12 +1321,51 @@ func mergeUserActivityTimelineItems(groups ...[]UserActivityTimelineItem) []User
 
 	sort.SliceStable(merged, func(i, j int) bool {
 		if merged[i].CreatedAt.Equal(merged[j].CreatedAt) {
+			leftTypeOrder := userActivityTimelineTypeOrder(merged[i].Type)
+			rightTypeOrder := userActivityTimelineTypeOrder(merged[j].Type)
+			if leftTypeOrder != rightTypeOrder {
+				return leftTypeOrder < rightTypeOrder
+			}
+			leftNumericID := userActivityTimelineNumericID(merged[i].ID)
+			rightNumericID := userActivityTimelineNumericID(merged[j].ID)
+			if leftNumericID != rightNumericID {
+				return leftNumericID > rightNumericID
+			}
 			return merged[i].ID > merged[j].ID
 		}
 		return merged[i].CreatedAt.After(merged[j].CreatedAt)
 	})
 
 	return merged
+}
+
+func userActivityTimelineTypeOrder(itemType string) int {
+	switch itemType {
+	case "game_net":
+		return 0
+	case "checkin_bonus":
+		return 1
+	case "checkin_reward":
+		return 2
+	case AdjustmentTypeAdminBalance, AdjustmentTypeAdminConcurrency:
+		return 3
+	case RedeemTypeBalance, RedeemTypeConcurrency, RedeemTypeSubscription:
+		return 4
+	default:
+		return 5
+	}
+}
+
+func userActivityTimelineNumericID(itemID string) int64 {
+	lastDash := strings.LastIndex(itemID, "-")
+	if lastDash < 0 || lastDash == len(itemID)-1 {
+		return 0
+	}
+	parsed, err := strconv.ParseInt(itemID[lastDash+1:], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return parsed
 }
 
 func filterUserActivityTimelineItems(items []UserActivityTimelineItem, filter string) []UserActivityTimelineItem {

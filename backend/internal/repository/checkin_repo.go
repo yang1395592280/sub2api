@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/lib/pq"
 )
 
@@ -132,6 +133,128 @@ func (r *checkinRepository) ListByUserAndDateRange(ctx context.Context, userID i
 		return nil, err
 	}
 	return records, nil
+}
+
+func (r *checkinRepository) ListTimelineItemsByUser(ctx context.Context, userID int64, params pagination.PaginationParams, filter string) ([]service.UserActivityTimelineItem, *pagination.PaginationResult, error) {
+	args := []any{userID, service.CheckinBonusStatusNone}
+	whereClause := "1=1"
+	if strings.TrimSpace(filter) == "checkin_reward" || strings.TrimSpace(filter) == "checkin_bonus" {
+		args = append(args, strings.TrimSpace(filter))
+		whereClause = fmt.Sprintf("event_type = $%d", len(args))
+	}
+
+	queryPrefix := `
+		WITH timeline AS (
+			SELECT
+				c.id AS source_id,
+				'checkin_reward'::text AS event_type,
+				c.created_at AS event_at,
+				c.reward_amount::text AS value,
+				c.checkin_date,
+				COALESCE(c.user_timezone, '') AS user_timezone,
+				COALESCE(c.bonus_status, '') AS bonus_status,
+				c.base_reward_amount::text AS base_reward_amount,
+				c.reward_amount::text AS reward_amount,
+				0 AS event_order
+			FROM checkin_records c
+			WHERE c.user_id = $1
+			UNION ALL
+			SELECT
+				c.id AS source_id,
+				'checkin_bonus'::text AS event_type,
+				c.bonus_played_at AS event_at,
+				c.bonus_delta_amount::text AS value,
+				c.checkin_date,
+				COALESCE(c.user_timezone, '') AS user_timezone,
+				COALESCE(c.bonus_status, '') AS bonus_status,
+				c.base_reward_amount::text AS base_reward_amount,
+				c.reward_amount::text AS reward_amount,
+				1 AS event_order
+			FROM checkin_records c
+			WHERE c.user_id = $1
+				AND c.bonus_played_at IS NOT NULL
+				AND (COALESCE(c.bonus_status, '') <> $2 OR c.bonus_delta_amount <> 0)
+		)
+	`
+
+	countQuery := queryPrefix + fmt.Sprintf(`SELECT COUNT(*) FROM timeline WHERE %s`, whereClause)
+	var total int64
+	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, nil, err
+	}
+
+	dataArgs := append(append([]any(nil), args...), params.Limit(), params.Offset())
+	rows, err := r.db.QueryContext(ctx, queryPrefix+fmt.Sprintf(`
+		SELECT source_id, event_type, event_at, value, checkin_date, user_timezone, bonus_status, base_reward_amount, reward_amount
+		FROM timeline
+		WHERE %s
+		ORDER BY event_at DESC, source_id DESC, event_order ASC
+		LIMIT $%d OFFSET $%d
+	`, whereClause, len(dataArgs)-1, len(dataArgs)), dataArgs...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	items := make([]service.UserActivityTimelineItem, 0)
+	for rows.Next() {
+		var (
+			sourceID         int64
+			eventType        string
+			eventAt          time.Time
+			valueRaw         string
+			checkinDate      string
+			userTimezone     string
+			bonusStatus      string
+			baseRewardRaw    string
+			rewardAmountRaw  string
+		)
+		if err := rows.Scan(&sourceID, &eventType, &eventAt, &valueRaw, &checkinDate, &userTimezone, &bonusStatus, &baseRewardRaw, &rewardAmountRaw); err != nil {
+			return nil, nil, err
+		}
+
+		value, err := strconv.ParseFloat(valueRaw, 64)
+		if err != nil {
+			return nil, nil, err
+		}
+		item := service.UserActivityTimelineItem{
+			Type:      eventType,
+			Value:     value,
+			CreatedAt: eventAt,
+			Details: map[string]any{
+				"checkin_date":  checkinDate,
+				"user_timezone": userTimezone,
+			},
+		}
+
+		switch eventType {
+		case "checkin_reward":
+			item.ID = fmt.Sprintf("checkin-%d", sourceID)
+		case "checkin_bonus":
+			baseRewardAmount, err := strconv.ParseFloat(baseRewardRaw, 64)
+			if err != nil {
+				return nil, nil, err
+			}
+			rewardAmount, err := strconv.ParseFloat(rewardAmountRaw, 64)
+			if err != nil {
+				return nil, nil, err
+			}
+			if strings.TrimSpace(bonusStatus) == "" {
+				bonusStatus = service.CheckinBonusStatusNone
+			}
+			item.ID = fmt.Sprintf("checkin-bonus-%d", sourceID)
+			item.Details["bonus_status"] = bonusStatus
+			item.Details["base_reward_amount"] = baseRewardAmount
+			item.Details["reward_amount"] = rewardAmount
+		}
+
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	return items, paginationResultFromTotal(total, params), nil
 }
 
 func (r *checkinRepository) GetByUserAndDate(ctx context.Context, userID int64, date string) (*service.CheckinRecord, error) {

@@ -24,6 +24,7 @@ type sizeBetQueryRepoStub struct {
 	historyErr         error
 	historyUserID      int64
 	historyPaginationQ pagination.PaginationParams
+	historyCalls       int
 
 	applySettlementCalls int
 	createRoundCalls     int
@@ -92,10 +93,30 @@ func (s *sizeBetQueryRepoStub) ListRecentRounds(context.Context, int) ([]SizeBet
 func (s *sizeBetQueryRepoStub) ListUserHistory(_ context.Context, userID int64, params pagination.PaginationParams) ([]SizeBetUserHistoryItem, *pagination.PaginationResult, error) {
 	s.historyUserID = userID
 	s.historyPaginationQ = params
+	s.historyCalls++
 	if s.historyErr != nil {
 		return nil, nil, s.historyErr
 	}
-	return append([]SizeBetUserHistoryItem(nil), s.historyItems...), s.historyPagination, nil
+
+	start := params.Offset()
+	if start > len(s.historyItems) {
+		start = len(s.historyItems)
+	}
+	end := start + params.Limit()
+	if end > len(s.historyItems) {
+		end = len(s.historyItems)
+	}
+
+	result := s.historyPagination
+	if result == nil {
+		result = &pagination.PaginationResult{
+			Total:    int64(len(s.historyItems)),
+			Page:     params.Page,
+			PageSize: params.PageSize,
+		}
+	}
+
+	return append([]SizeBetUserHistoryItem(nil), s.historyItems[start:end]...), result, nil
 }
 
 func (s *sizeBetQueryRepoStub) ListLeaderboard(context.Context, string, string, int) ([]SizeBetLeaderboardEntry, time.Time, error) {

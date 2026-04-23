@@ -126,6 +126,12 @@
             <button v-if="recentHistory.length > visibleHistory.length" type="button" class="btn btn-secondary btn-sm" @click="showAllHistory = !showAllHistory">{{ t(showAllHistory ? 'sizeBet.history.toggleLess' : 'sizeBet.history.toggleMore') }}</button>
           </div>
           <div class="space-y-3 px-6 py-6">
+            <div v-if="historyRefreshError" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <p>{{ historyRefreshError }}</p>
+                <button type="button" class="btn btn-secondary btn-sm" data-test="history-retry" @click="retryHistory">{{ t('sizeBet.history.refreshRetry') }}</button>
+              </div>
+            </div>
             <p v-if="!recentHistory.length" class="text-sm text-slate-500 dark:text-slate-400">{{ t('sizeBet.history.empty') }}</p>
             <div v-for="item in visibleHistory" :key="item.bet_id" class="rounded-2xl bg-slate-50/90 p-4 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
               <div class="flex flex-wrap items-start justify-between gap-3">
@@ -133,7 +139,7 @@
                   <p class="text-sm font-semibold text-slate-900 dark:text-white">{{ t('sizeBet.history.roundLabel', { round: item.round_no }) }}</p>
                   <p class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">{{ historyStatusLabel(item.status) }}</p>
                 </div>
-                <p class="text-sm font-semibold" :class="historyAmountClass(item)">{{ formatSigned(item.net_result_amount) }}</p>
+                <p class="text-sm font-semibold" :class="historyAmountClass(item)">{{ historyAmountLabel(item) }}</p>
               </div>
               <div class="mt-3 grid gap-2 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-2">
                 <p>{{ t('sizeBet.history.selection', { direction: directionLabel(item.direction) }) }}</p>
@@ -173,17 +179,21 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 import type { SizeBetCurrentRoundView, SizeBetDirection, SizeBetHistoryItem, SizeBetPhase, SizeBetRulesView, SizeBetStatus } from '@/types/sizeBet'
 type LoadState = 'loading' | 'ready' | 'error'
+type HistoryRefreshMode = 'background' | 'manual'
 const TICK_MS = 1000
 const HISTORY_PAGE_SIZE = 10
 const VISIBLE_HISTORY_COUNT = 5
 const MAINTENANCE_POLL_MS = 15000
 const ROUND_SYNC_MS = 3000
 const RESUME_SYNC_MS = 1000
+const LAST_SEEN_SETTLED_BET_KEY = 'size-bet:last-seen-settled-bet'
 marked.setOptions({ breaks: true, gfm: true })
 const { t } = useI18n()
 const appStore = useAppStore()
+const authStore = useAuthStore()
 const loadState = ref<LoadState>('loading')
 const loadErrorMessage = ref('')
 const submitting = ref(false)
@@ -198,10 +208,12 @@ const clientNowMs = ref(Date.now())
 const lastRoundId = ref<number | null>(null)
 const lastAutoSyncAt = ref(0)
 const lastSeenSettledBetId = ref<number | null>(null)
+const historyRefreshError = ref('')
 const recentHistory = ref<SizeBetHistoryItem[]>([])
 const resultModal = ref<SizeBetHistoryItem | null>(null)
 let tickTimer: number | null = null
 let syncInFlight = false
+let historySyncInFlight = false
 const currentRound = computed(() => currentView.value?.round ?? null)
 const currentBet = computed(() => currentView.value?.my_bet ?? null)
 const previousRound = computed(() => currentView.value?.previous_round ?? null)
@@ -237,6 +249,7 @@ function directionLabel(direction: SizeBetDirection) { return t(`sizeBet.directi
 function historyStatusLabel(status: SizeBetStatus) { return t(`sizeBet.history.status.${status}`) }
 function formatAmount(value: number) { return Number.isInteger(value) ? `${value}` : value.toFixed(2).replace(/\.?0+$/, '') }
 function formatSigned(value: number) { return `${value >= 0 ? '+' : '-'}${formatAmount(Math.abs(value))}` }
+function historyAmountLabel(item: SizeBetHistoryItem) { return item.status === 'placed' ? t('sizeBet.history.pendingAmount') : formatSigned(item.net_result_amount) }
 function historyAmountClass(item: SizeBetHistoryItem) { return item.status === 'won' ? 'text-emerald-600 dark:text-emerald-300' : item.status === 'lost' ? 'text-rose-600 dark:text-rose-300' : 'text-slate-600 dark:text-slate-300' }
 function historyResultLabel(item: SizeBetHistoryItem) { return item.result_number == null || !item.result_direction ? t('sizeBet.history.pendingResult') : t('sizeBet.history.result', { number: item.result_number, direction: directionLabel(item.result_direction) }) }
 function resultDetailLabel(item: SizeBetHistoryItem) { return item.result_number == null || !item.result_direction ? t('sizeBet.history.pendingResult') : t('sizeBet.resultModal.result', { number: item.result_number, direction: directionLabel(item.result_direction) }) }
@@ -247,6 +260,27 @@ function resultMessage(item: SizeBetHistoryItem) { return t(`sizeBet.resultModal
 function parseMs(value?: string | null) { const parsed = value ? Date.parse(value) : Number.NaN; return Number.isNaN(parsed) ? null : parsed }
 function secondsUntil(target?: string | null, fallback = 0) { const targetMs = parseMs(target); return targetMs == null ? Math.max(0, fallback) : Math.max(0, Math.ceil((targetMs - estimatedServerNowMs.value) / 1000)) }
 function syncClock(serverTime: string) { const now = Date.now(); syncedServerMs.value = parseMs(serverTime) ?? now; syncedClientMs.value = now; clientNowMs.value = now }
+function lastSeenSettledBetStorageKey() { return `${LAST_SEEN_SETTLED_BET_KEY}:${authStore.user?.id ?? 'guest'}` }
+function restoreLastSeenSettledBetId() {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.sessionStorage.getItem(lastSeenSettledBetStorageKey())
+    const parsed = raw == null ? Number.NaN : Number.parseInt(raw, 10)
+    return Number.isFinite(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+function persistLastSeenSettledBetId(betId: number | null) {
+  if (typeof window === 'undefined') return
+  try {
+    const key = lastSeenSettledBetStorageKey()
+    if (betId == null) window.sessionStorage.removeItem(key)
+    else window.sessionStorage.setItem(key, `${betId}`)
+  } catch {
+    // 忽略存储不可用场景，避免影响主流程
+  }
+}
 function syncSelection(view: SizeBetCurrentRoundView | null) {
   const nextRoundId = view?.round?.id ?? null
   const stakes = view?.round?.allowed_stakes ?? rules.value?.allowed_stakes ?? []
@@ -269,6 +303,7 @@ function maybeOpenResultModal(items: SizeBetHistoryItem[]) {
   const latest = items[0]
   if (!latest || latest.status === 'placed' || latest.bet_id === lastSeenSettledBetId.value) return
   lastSeenSettledBetId.value = latest.bet_id
+  persistLastSeenSettledBetId(latest.bet_id)
   resultModal.value = latest
 }
 async function refreshRules(silent = true) {
@@ -279,13 +314,25 @@ async function refreshRules(silent = true) {
     if (!silent) throw error
   }
 }
-async function loadHistory(silent = true) {
+async function loadHistory(mode: HistoryRefreshMode = 'background') {
+  if (historySyncInFlight) return
+  historySyncInFlight = true
   try {
     const response = await sizeBetAPI.getHistory(1, HISTORY_PAGE_SIZE)
     recentHistory.value = response.items
+    historyRefreshError.value = ''
     maybeOpenResultModal(response.items)
   } catch (error: any) {
-    if (!silent) throw error
+    const hadHistoryRefreshError = !!historyRefreshError.value
+    const fallbackMessage = t('sizeBet.history.refreshFailed')
+    historyRefreshError.value = fallbackMessage
+    if (mode === 'manual') {
+      appStore.showError(error?.message || fallbackMessage)
+    } else if (!hadHistoryRefreshError) {
+      appStore.showWarning(fallbackMessage)
+    }
+  } finally {
+    historySyncInFlight = false
   }
 }
 async function syncCurrent(silent = true) {
@@ -300,7 +347,7 @@ async function syncCurrent(silent = true) {
     syncSelection(nextView)
     loadState.value = 'ready'
     loadErrorMessage.value = ''
-    await loadHistory(true)
+    await loadHistory()
     if (recovered) void refreshRules(true)
   } catch (error: any) {
     if (!silent) appStore.showError(error?.message || t('common.error'))
@@ -320,7 +367,7 @@ async function loadPage() {
     syncSelection(view)
     lastAutoSyncAt.value = Date.now()
     loadState.value = 'ready'
-    await loadHistory(true)
+    await loadHistory()
   } catch (error: any) {
     currentView.value = null
     lastRoundId.value = null
@@ -347,6 +394,9 @@ function buildIdempotencyKey() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
   return `size-bet-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
+function retryHistory() {
+  void loadHistory('manual')
+}
 async function submitBet() {
   if (!selectedDirection.value) return appStore.showError(t('sizeBet.player.selectDirection'))
   if (selectedStake.value == null || !currentRound.value) return appStore.showError(t('sizeBet.player.selectStake'))
@@ -355,7 +405,7 @@ async function submitBet() {
     const bet = await sizeBetAPI.placeBet({ round_id: currentRound.value.id, direction: selectedDirection.value, stake_amount: selectedStake.value, idempotency_key: buildIdempotencyKey() })
     if (currentView.value) currentView.value.my_bet = bet
     syncSelection(currentView.value)
-    await loadHistory(true)
+    await loadHistory()
     appStore.showSuccess(t('sizeBet.player.placedSuccess'))
   } catch (error: any) {
     appStore.showError(error?.message || t('common.error'))
@@ -364,6 +414,7 @@ async function submitBet() {
   }
 }
 onMounted(() => {
+  lastSeenSettledBetId.value = restoreLastSeenSettledBetId()
   void loadPage()
   tickTimer = window.setInterval(tick, TICK_MS)
   document.addEventListener('visibilitychange', handleVisibilityChange)

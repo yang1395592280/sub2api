@@ -2,13 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import SizeBetGameView from '../SizeBetGameView.vue'
-const { getCurrent, getRules, getHistory, placeBet, showError, showSuccess } = vi.hoisted(() => ({
+const { getCurrent, getRules, getHistory, placeBet, showError, showSuccess, showWarning } = vi.hoisted(() => ({
   getCurrent: vi.fn(),
   getRules: vi.fn(),
   getHistory: vi.fn(),
   placeBet: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
+  showWarning: vi.fn(),
 }))
 vi.mock('@/api', () => ({
   sizeBetAPI: {
@@ -22,6 +23,12 @@ vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
     showError,
     showSuccess,
+    showWarning,
+  }),
+}))
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({
+    user: { id: 42 },
   }),
 }))
 vi.mock('@/i18n', () => ({
@@ -32,7 +39,7 @@ const messages: Record<string, string | ((params?: Record<string, unknown>) => s
   'common.balance': '余额',
   'common.confirm': '确认',
   'common.retry': '重试',
-  'sizeBet.title': '大小中竞猜',
+  'sizeBet.title': '大小中参与',
   'sizeBet.heroSubtitle': '在截止前完成选择，等待系统随机开奖',
   'sizeBet.seedTitle': '种子承诺',
   'sizeBet.phase.betting': '参与中',
@@ -70,8 +77,10 @@ const messages: Record<string, string | ((params?: Record<string, unknown>) => s
   'sizeBet.previousRound.reveal': ({ seed }: Record<string, unknown> = {}) => `服务端种子：${seed}`,
   'sizeBet.previousRound.result': ({ round, number, direction }: Record<string, unknown> = {}) =>
     `第 ${round} 期 ${number} / ${direction}`,
-  'sizeBet.history.title': '我的竞猜记录',
+  'sizeBet.history.title': '我的参与记录',
   'sizeBet.history.subtitle': '查看最近记录与开奖结果',
+  'sizeBet.history.refreshFailed': '最新记录暂未同步，请稍后重试',
+  'sizeBet.history.refreshRetry': '重试同步',
   'sizeBet.history.toggleMore': '展开更多',
   'sizeBet.history.toggleLess': '收起记录',
   'sizeBet.history.empty': '暂无参与记录',
@@ -83,6 +92,7 @@ const messages: Record<string, string | ((params?: Record<string, unknown>) => s
   'sizeBet.history.status.won': '已获得奖励',
   'sizeBet.history.status.lost': '未获得奖励',
   'sizeBet.history.status.refunded': '已退回',
+  'sizeBet.history.pendingAmount': '待开奖',
   'sizeBet.resultModal.title': '结果通知',
   'sizeBet.resultModal.close': '知道了',
   'sizeBet.resultModal.roundLabel': ({ round }: Record<string, unknown> = {}) => `第 ${round} 期`,
@@ -168,6 +178,24 @@ function mountView() {
     },
   })
 }
+function buildHistoryItem(overrides: Record<string, any> = {}) {
+  return {
+    bet_id: 1,
+    round_no: 1001,
+    direction: 'big',
+    selection: 'big',
+    result_number: 9,
+    result_direction: 'big',
+    stake_amount: 10,
+    payout_amount: 20,
+    net_result_amount: 10,
+    balance_after: 110,
+    status: 'won',
+    placed_at: '2026-04-23T12:00:10Z',
+    settled_at: '2026-04-23T12:00:55Z',
+    ...overrides,
+  }
+}
 function mockRules() {
   getRules.mockResolvedValue({
     enabled: true,
@@ -197,6 +225,8 @@ describe('SizeBetGameView', () => {
     placeBet.mockReset()
     showError.mockReset()
     showSuccess.mockReset()
+    showWarning.mockReset()
+    sessionStorage.clear()
   })
   afterEach(() => {
     vi.useRealTimers()
@@ -343,23 +373,7 @@ describe('SizeBetGameView', () => {
     )
     mockRules()
     mockHistory({
-      items: [
-        {
-          bet_id: 1,
-          round_no: 1001,
-          direction: 'big',
-          selection: 'big',
-          result_number: 9,
-          result_direction: 'big',
-          stake_amount: 10,
-          payout_amount: 20,
-          net_result_amount: 10,
-          balance_after: 110,
-          status: 'won',
-          placed_at: '2026-04-23T12:00:10Z',
-          settled_at: '2026-04-23T12:00:55Z',
-        },
-      ],
+      items: [buildHistoryItem()],
       total: 1,
       pages: 1,
     })
@@ -367,10 +381,65 @@ describe('SizeBetGameView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('我的竞猜记录')
+    expect(wrapper.text()).toContain('我的参与记录')
     expect(wrapper.text()).toContain('已获得奖励')
     expect(wrapper.text()).toContain('+10')
     expect(wrapper.text()).toContain('结果通知')
     expect(wrapper.text()).toContain('本次获得奖励 +10')
+  })
+
+  it('does not replay the latest settled result modal after remount when it was already seen', async () => {
+    getCurrent.mockResolvedValue(
+      buildCurrentView({
+        phase: 'closed',
+        server_time: '2026-04-23T12:00:55Z',
+      })
+    )
+    mockRules()
+    mockHistory({
+      items: [buildHistoryItem()],
+      total: 1,
+      pages: 1,
+    })
+
+    const firstWrapper = mountView()
+    await flushPromises()
+    expect(firstWrapper.find('[data-test="result-modal"]').exists()).toBe(true)
+
+    firstWrapper.unmount()
+
+    const secondWrapper = mountView()
+    await flushPromises()
+    expect(secondWrapper.find('[data-test="result-modal"]').exists()).toBe(false)
+  })
+
+  it('surfaces history refresh failure with retry affordance instead of swallowing it silently', async () => {
+    getCurrent.mockResolvedValue(buildCurrentView())
+    mockRules()
+    getHistory
+      .mockRejectedValueOnce(new Error('history fetch failed'))
+      .mockResolvedValueOnce({
+        items: [buildHistoryItem({ status: 'placed', net_result_amount: 0, payout_amount: 0, result_number: null, result_direction: null, settled_at: null })],
+        total: 1,
+        page: 1,
+        page_size: 10,
+        pages: 1,
+      })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(showWarning).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('最新记录暂未同步，请稍后重试')
+    const retryButton = wrapper.find('[data-test="history-retry"]')
+    expect(retryButton.exists()).toBe(true)
+
+    await retryButton.trigger('click')
+    await flushPromises()
+
+    expect(getHistory).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).not.toContain('最新记录暂未同步，请稍后重试')
+    expect(wrapper.text()).toContain('待开奖')
+    expect(wrapper.text()).not.toContain('+0')
   })
 })

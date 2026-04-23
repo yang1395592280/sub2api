@@ -20,7 +20,6 @@ func TestUserHandlerGetBalanceHistoryReturnsUnifiedTimeline(t *testing.T) {
 		{
 			ID:        "game-1",
 			Type:      "game_net",
-			Summary:   "Size Bet #1001",
 			Value:     10,
 			CreatedAt: time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC),
 			Details: map[string]any{
@@ -32,7 +31,6 @@ func TestUserHandlerGetBalanceHistoryReturnsUnifiedTimeline(t *testing.T) {
 		{
 			ID:        "checkin-2",
 			Type:      "checkin_reward",
-			Summary:   "Daily check-in reward",
 			Value:     0.02,
 			CreatedAt: time.Date(2026, 4, 23, 9, 0, 0, 0, time.UTC),
 		},
@@ -53,7 +51,6 @@ func TestUserHandlerGetBalanceHistoryReturnsUnifiedTimeline(t *testing.T) {
 			Items []struct {
 				ID      string         `json:"id"`
 				Type    string         `json:"type"`
-				Summary string         `json:"summary"`
 				Details map[string]any `json:"details"`
 			} `json:"items"`
 			Total          int64   `json:"total"`
@@ -68,4 +65,22 @@ func TestUserHandlerGetBalanceHistoryReturnsUnifiedTimeline(t *testing.T) {
 	require.EqualValues(t, 1001, payload.Data.Items[0].Details["round_no"])
 	require.Equal(t, int64(2), payload.Data.Total)
 	require.Equal(t, 100.0, payload.Data.TotalRecharged)
+}
+
+func TestUserHandlerGetBalanceHistoryPassesTypeFilter(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	adminSvc := newStubAdminService()
+	router := gin.New()
+	router.GET("/api/v1/admin/users/:id/balance-history", NewUserHandler(adminSvc, nil).GetBalanceHistory)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/users/7/balance-history?page=2&page_size=15&type=game", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(7), adminSvc.lastTimelineQuery.userID)
+	require.Equal(t, 2, adminSvc.lastTimelineQuery.page)
+	require.Equal(t, 15, adminSvc.lastTimelineQuery.pageSize)
+	require.Equal(t, "game", adminSvc.lastTimelineQuery.codeType)
 }

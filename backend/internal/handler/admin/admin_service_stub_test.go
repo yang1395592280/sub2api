@@ -59,6 +59,13 @@ type stubAdminService struct {
 		sortOrder string
 		calls     int
 	}
+	lastTimelineQuery struct {
+		userID   int64
+		page     int
+		pageSize int
+		codeType string
+		calls    int
+	}
 	mu sync.Mutex
 }
 
@@ -469,6 +476,11 @@ func (s *stubAdminService) ExpireRedeemCode(ctx context.Context, id int64) (*ser
 }
 
 func (s *stubAdminService) GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]service.UserActivityTimelineItem, int64, float64, error) {
+	s.lastTimelineQuery.userID = userID
+	s.lastTimelineQuery.page = page
+	s.lastTimelineQuery.pageSize = pageSize
+	s.lastTimelineQuery.codeType = codeType
+	s.lastTimelineQuery.calls++
 	return s.timelineItems, int64(len(s.timelineItems)), 100.0, nil
 }
 

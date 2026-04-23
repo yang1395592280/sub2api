@@ -285,7 +285,6 @@ const isExpanded = (id: string) => !!expandedIds.value[id]
 const isBalanceType = (type: string) => type === 'balance' || type === 'admin_balance'
 const isCheckinType = (type: string) => type === 'checkin_reward' || type === 'checkin_bonus'
 const isGameType = (type: string) => type === 'game_net'
-const isConcurrencyType = (type: string) => type === 'concurrency' || type === 'admin_concurrency'
 const isCurrencyType = (type: string) => isBalanceType(type) || isCheckinType(type) || isGameType(type)
 
 const isSubscriptionType = (type: string) => type === 'subscription'

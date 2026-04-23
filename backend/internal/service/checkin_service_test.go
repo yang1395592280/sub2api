@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/stretchr/testify/require"
 )
@@ -75,6 +76,11 @@ type checkinRepoStub struct {
 	adminRewardErr          error
 	adminTopUsers           []AdminCheckinTopUser
 	adminTopUsersErr        error
+	timelineItems           []UserActivityTimelineItem
+	timelinePagination      *pagination.PaginationResult
+	timelineErr             error
+	timelineFilter          string
+	timelineCallParams      []pagination.PaginationParams
 }
 
 func (s *checkinRepoStub) HasCheckedInOnDate(_ context.Context, userID int64, date string) (bool, error) {
@@ -168,6 +174,37 @@ func (s *checkinRepoStub) GetAdminTopUsers(_ context.Context, _ AdminCheckinAnal
 		return nil, s.adminTopUsersErr
 	}
 	return s.adminTopUsers, nil
+}
+
+func (s *checkinRepoStub) ListTimelineItemsByUser(_ context.Context, userID int64, params pagination.PaginationParams, filter string) ([]UserActivityTimelineItem, *pagination.PaginationResult, error) {
+	s.lastCreateUserID = userID
+	s.timelineFilter = filter
+	s.timelineCallParams = append(s.timelineCallParams, params)
+	if s.timelineErr != nil {
+		return nil, nil, s.timelineErr
+	}
+
+	items := append([]UserActivityTimelineItem(nil), s.timelineItems...)
+	if len(items) == 0 && len(s.records) > 0 {
+		items = make([]UserActivityTimelineItem, 0, len(s.records)*2)
+		for i := range s.records {
+			items = append(items, buildCheckinRewardTimelineItem(&s.records[i]))
+			if bonusItem := buildCheckinBonusTimelineItem(&s.records[i]); bonusItem != nil {
+				items = append(items, *bonusItem)
+			}
+		}
+		items = mergeUserActivityTimelineItems(items)
+	}
+	items = filterUserActivityTimelineItems(items, filter)
+	result := s.timelinePagination
+	if result == nil {
+		result = &pagination.PaginationResult{
+			Total:    int64(len(items)),
+			Page:     params.Page,
+			PageSize: params.PageSize,
+		}
+	}
+	return paginateUserActivityTimelineItems(items, params.Page, params.PageSize), result, nil
 }
 
 func newCheckinSettings(enabled bool, minReward, maxReward string) *checkinSettingRepoStub {
