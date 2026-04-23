@@ -1629,8 +1629,8 @@ export default {
       failedToWithdraw: 'Failed to withdraw',
       useDepositWithdrawButtons: 'Please use deposit/withdraw buttons to adjust balance',
       // Balance History
-      balanceHistory: 'Recharge History',
-      balanceHistoryTip: 'Click to open recharge history',
+      balanceHistory: 'Activity History',
+      balanceHistoryTip: 'Click to open activity history',
       balanceHistoryTitle: 'User Activity Timeline',
       noBalanceHistory: 'No activity found for this user',
       allTypes: 'All Types',

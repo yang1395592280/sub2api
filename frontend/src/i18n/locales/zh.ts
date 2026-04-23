@@ -1688,8 +1688,8 @@ export default {
       failedToWithdraw: '退款失败',
       useDepositWithdrawButtons: '请使用充值/退款按钮调整余额',
       // 余额变动记录
-      balanceHistory: '充值记录',
-      balanceHistoryTip: '点击查看充值记录',
+      balanceHistory: '活动记录',
+      balanceHistoryTip: '点击查看活动记录',
       balanceHistoryTitle: '用户活动时间线',
       noBalanceHistory: '暂无活动记录',
       allTypes: '全部类型',
@@ -3811,7 +3811,7 @@ export default {
       billingModeImage: '按次(图片)',
       allBillingModes: '全部计费模式',
       ipAddress: 'IP',
-      clickToViewBalance: '点击查看充值记录',
+      clickToViewBalance: '点击查看活动记录',
       failedToLoadUser: '加载用户信息失败',
       cleanup: {
         button: '清理',
