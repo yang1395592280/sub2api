@@ -429,6 +429,7 @@ export default {
       result: '开奖结果：{number} / {direction}',
       pendingResult: '开奖结果待同步',
       pendingAmount: '待开奖',
+      refundedAmount: '已退回 {amount}',
       status: {
         placed: '待结算',
         won: '已获得奖励',

@@ -429,6 +429,7 @@ export default {
       result: 'Draw result: {number} / {direction}',
       pendingResult: 'Result pending',
       pendingAmount: 'Pending result',
+      refundedAmount: 'Amount returned {amount}',
       status: {
         placed: 'Pending settlement',
         won: 'Reward granted',

@@ -249,7 +249,11 @@ function directionLabel(direction: SizeBetDirection) { return t(`sizeBet.directi
 function historyStatusLabel(status: SizeBetStatus) { return t(`sizeBet.history.status.${status}`) }
 function formatAmount(value: number) { return Number.isInteger(value) ? `${value}` : value.toFixed(2).replace(/\.?0+$/, '') }
 function formatSigned(value: number) { return `${value >= 0 ? '+' : '-'}${formatAmount(Math.abs(value))}` }
-function historyAmountLabel(item: SizeBetHistoryItem) { return item.status === 'placed' ? t('sizeBet.history.pendingAmount') : formatSigned(item.net_result_amount) }
+function historyAmountLabel(item: SizeBetHistoryItem) {
+  if (item.status === 'placed') return t('sizeBet.history.pendingAmount')
+  if (item.status === 'refunded') return t('sizeBet.history.refundedAmount', { amount: formatAmount(item.stake_amount) })
+  return formatSigned(item.net_result_amount)
+}
 function historyAmountClass(item: SizeBetHistoryItem) { return item.status === 'won' ? 'text-emerald-600 dark:text-emerald-300' : item.status === 'lost' ? 'text-rose-600 dark:text-rose-300' : 'text-slate-600 dark:text-slate-300' }
 function historyResultLabel(item: SizeBetHistoryItem) { return item.result_number == null || !item.result_direction ? t('sizeBet.history.pendingResult') : t('sizeBet.history.result', { number: item.result_number, direction: directionLabel(item.result_direction) }) }
 function resultDetailLabel(item: SizeBetHistoryItem) { return item.result_number == null || !item.result_direction ? t('sizeBet.history.pendingResult') : t('sizeBet.resultModal.result', { number: item.result_number, direction: directionLabel(item.result_direction) }) }

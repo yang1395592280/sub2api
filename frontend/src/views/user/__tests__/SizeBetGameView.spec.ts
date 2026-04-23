@@ -93,6 +93,7 @@ const messages: Record<string, string | ((params?: Record<string, unknown>) => s
   'sizeBet.history.status.lost': '未获得奖励',
   'sizeBet.history.status.refunded': '已退回',
   'sizeBet.history.pendingAmount': '待开奖',
+  'sizeBet.history.refundedAmount': ({ amount }: Record<string, unknown> = {}) => `已退回 ${amount}`,
   'sizeBet.resultModal.title': '结果通知',
   'sizeBet.resultModal.close': '知道了',
   'sizeBet.resultModal.roundLabel': ({ round }: Record<string, unknown> = {}) => `第 ${round} 期`,
@@ -440,6 +441,30 @@ describe('SizeBetGameView', () => {
     expect(getHistory).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).not.toContain('最新记录暂未同步，请稍后重试')
     expect(wrapper.text()).toContain('待开奖')
+    expect(wrapper.text()).not.toContain('+0')
+  })
+
+  it('renders refunded history rows with a returned-amount label instead of +0', async () => {
+    getCurrent.mockResolvedValue(buildCurrentView())
+    mockRules()
+    mockHistory({
+      items: [buildHistoryItem({
+        status: 'refunded',
+        net_result_amount: 0,
+        payout_amount: 0,
+        result_number: null,
+        result_direction: null,
+        stake_amount: 10,
+        settled_at: '2026-04-23T12:00:55Z',
+      })],
+      total: 1,
+      pages: 1,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('已退回 10')
     expect(wrapper.text()).not.toContain('+0')
   })
 })
