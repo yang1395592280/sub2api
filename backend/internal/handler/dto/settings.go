@@ -195,6 +195,7 @@ type PublicSettings struct {
 	TablePageSizeOptions             []int            `json:"table_page_size_options"`
 	CustomMenuItems                  []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints                  []CustomEndpoint `json:"custom_endpoints"`
+	SizeBetEnabled                   bool             `json:"size_bet_enabled"`
 	LinuxDoOAuthEnabled              bool             `json:"linuxdo_oauth_enabled"`
 	OIDCOAuthEnabled                 bool             `json:"oidc_oauth_enabled"`
 	OIDCOAuthProviderName            string           `json:"oidc_oauth_provider_name"`

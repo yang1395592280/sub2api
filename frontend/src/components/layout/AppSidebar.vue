@@ -584,12 +584,13 @@ const ChevronDownIcon = {
 
 // User navigation items (for regular users)
 const userNavItems = computed((): NavItem[] => {
+  const sizeBetVisible = appStore.cachedPublicSettings?.size_bet_enabled !== false
   const items: NavItem[] = [
     { path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
-    { path: '/game/size-bet', label: t('sizeBet.nav'), icon: DiceIcon },
-    { path: '/game/size-bet/stats', label: t('sizeBet.statsNav'), icon: ChartIcon, hideInSimpleMode: true },
+    ...(sizeBetVisible ? [{ path: '/game/size-bet', label: t('sizeBet.nav'), icon: DiceIcon }] : []),
+    ...(sizeBetVisible ? [{ path: '/game/size-bet/stats', label: t('sizeBet.statsNav'), icon: ChartIcon, hideInSimpleMode: true }] : []),
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     ...(appStore.cachedPublicSettings?.payment_enabled
       ? [
@@ -626,11 +627,12 @@ const userNavItems = computed((): NavItem[] => {
 
 // Personal navigation items (for admin's "My Account" section, without Dashboard)
 const personalNavItems = computed((): NavItem[] => {
+  const sizeBetVisible = appStore.cachedPublicSettings?.size_bet_enabled !== false
   const items: NavItem[] = [
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
-    { path: '/game/size-bet', label: t('sizeBet.nav'), icon: DiceIcon },
-    { path: '/game/size-bet/stats', label: t('sizeBet.statsNav'), icon: ChartIcon, hideInSimpleMode: true },
+    ...(sizeBetVisible ? [{ path: '/game/size-bet', label: t('sizeBet.nav'), icon: DiceIcon }] : []),
+    ...(sizeBetVisible ? [{ path: '/game/size-bet/stats', label: t('sizeBet.statsNav'), icon: ChartIcon, hideInSimpleMode: true }] : []),
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     ...(appStore.cachedPublicSettings?.payment_enabled
       ? [

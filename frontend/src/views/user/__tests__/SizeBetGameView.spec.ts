@@ -348,7 +348,24 @@ describe('SizeBetGameView', () => {
     expect(wrapper.text()).toContain('重试')
     expect(wrapper.text()).not.toContain('活动暂未开启')
   })
-  it('recovers from maintenance mode after a later successful poll', async () => {
+  it('keeps the main game content visible when the activity is disabled', async () => {
+    getCurrent.mockResolvedValue(
+      buildCurrentView({
+        enabled: false,
+        phase: 'maintenance',
+        round: null,
+      })
+    )
+    mockRules()
+    mockHistory()
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('我的选择')
+    expect(wrapper.text()).not.toContain('活动暂未开启')
+  })
+  it('keeps the page visible and recovers after a later successful poll', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-04-23T12:00:10Z'))
     getCurrent
@@ -373,13 +390,13 @@ describe('SizeBetGameView', () => {
     mockHistory()
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.text()).toContain('活动暂未开启')
+    expect(wrapper.text()).toContain('我的选择')
+    expect(wrapper.text()).not.toContain('活动暂未开启')
     await vi.advanceTimersByTimeAsync(15000)
     await nextTick()
     await flushPromises()
     expect(getCurrent).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('1003')
-    expect(wrapper.text()).not.toContain('活动暂未开启')
   })
   it('shows a result modal and recent records after settlement', async () => {
     getCurrent.mockResolvedValueOnce(

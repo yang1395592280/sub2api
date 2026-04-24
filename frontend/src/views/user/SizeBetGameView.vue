@@ -47,9 +47,6 @@
       <section v-else-if="loadState === 'error'" class="card px-6 py-12">
         <EmptyState :title="t('sizeBet.loadError.title')" :description="loadErrorMessage || t('sizeBet.loadError.description')" :action-text="t('common.retry')" @action="loadPage" />
       </section>
-      <section v-else-if="!currentView?.enabled" class="card px-6 py-12">
-        <EmptyState :title="t('sizeBet.maintenance.title')" :description="t('sizeBet.maintenance.description')" />
-      </section>
       <div v-else class="space-y-6">
         <section v-if="resultNotice" class="card overflow-hidden">
           <div class="border-b border-slate-200/80 px-6 py-5 dark:border-white/10">

@@ -127,6 +127,7 @@ export interface PublicSettings {
   table_page_size_options: number[]
   custom_menu_items: CustomMenuItem[]
   custom_endpoints: CustomEndpoint[]
+  size_bet_enabled?: boolean
   linuxdo_oauth_enabled: boolean
   oidc_oauth_enabled: boolean
   oidc_oauth_provider_name: string

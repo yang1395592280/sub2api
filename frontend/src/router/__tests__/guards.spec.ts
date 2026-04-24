@@ -52,6 +52,7 @@ interface MockAuthState {
   isAdmin: boolean
   isSimpleMode: boolean
   backendModeEnabled: boolean
+  sizeBetEnabled?: boolean
 }
 
 /**
@@ -92,6 +93,10 @@ function simulateGuard(
 
   // 需要管理员但不是管理员
   if (requiresAdmin && !authState.isAdmin) {
+    return '/dashboard'
+  }
+
+  if (toPath === '/game/size-bet/stats' && authState.sizeBetEnabled === false) {
     return '/dashboard'
   }
 
@@ -136,6 +141,7 @@ describe('路由守卫逻辑', () => {
       isAdmin: false,
       isSimpleMode: false,
       backendModeEnabled: false,
+      sizeBetEnabled: true,
     }
 
     it('访问需要认证的页面重定向到 /login', () => {
@@ -167,6 +173,7 @@ describe('路由守卫逻辑', () => {
       isAdmin: false,
       isSimpleMode: false,
       backendModeEnabled: false,
+      sizeBetEnabled: true,
     }
 
     it('访问 /login 重定向到 /dashboard', () => {
@@ -193,6 +200,14 @@ describe('路由守卫逻辑', () => {
       const redirect = simulateGuard('/admin/users', { requiresAdmin: true }, authState)
       expect(redirect).toBe('/dashboard')
     })
+
+    it('活动关闭时访问 /game/size-bet/stats 重定向到 /dashboard', () => {
+      const redirect = simulateGuard('/game/size-bet/stats', {}, {
+        ...authState,
+        sizeBetEnabled: false,
+      })
+      expect(redirect).toBe('/dashboard')
+    })
   })
 
   // --- 已认证管理员 ---
@@ -203,6 +218,7 @@ describe('路由守卫逻辑', () => {
       isAdmin: true,
       isSimpleMode: false,
       backendModeEnabled: false,
+      sizeBetEnabled: true,
     }
 
     it('访问 /login 重定向到 /admin/dashboard', () => {
@@ -230,6 +246,7 @@ describe('路由守卫逻辑', () => {
         isAdmin: false,
         isSimpleMode: true,
         backendModeEnabled: false,
+        sizeBetEnabled: true,
       }
       const redirect = simulateGuard('/subscriptions', {}, authState)
       expect(redirect).toBe('/dashboard')
@@ -241,6 +258,7 @@ describe('路由守卫逻辑', () => {
         isAdmin: false,
         isSimpleMode: true,
         backendModeEnabled: false,
+        sizeBetEnabled: true,
       }
       const redirect = simulateGuard('/redeem', {}, authState)
       expect(redirect).toBe('/dashboard')
@@ -252,6 +270,7 @@ describe('路由守卫逻辑', () => {
         isAdmin: true,
         isSimpleMode: true,
         backendModeEnabled: false,
+        sizeBetEnabled: true,
       }
       const redirect = simulateGuard('/admin/groups', { requiresAdmin: true }, authState)
       expect(redirect).toBe('/admin/dashboard')
@@ -263,6 +282,7 @@ describe('路由守卫逻辑', () => {
         isAdmin: true,
         isSimpleMode: true,
         backendModeEnabled: false,
+        sizeBetEnabled: true,
       }
       const redirect = simulateGuard(
         '/admin/subscriptions',

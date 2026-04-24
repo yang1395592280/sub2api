@@ -680,6 +680,11 @@ router.beforeEach((to, _from, next) => {
     }
   }
 
+  if (to.path === '/game/size-bet/stats' && appStore.cachedPublicSettings?.size_bet_enabled === false) {
+    next('/dashboard')
+    return
+  }
+
   // 简易模式下限制访问某些页面
   if (authStore.isSimpleMode) {
     const restrictedPaths = [
