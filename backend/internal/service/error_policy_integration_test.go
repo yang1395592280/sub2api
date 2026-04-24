@@ -260,10 +260,10 @@ func TestRetryLoop_ErrorPolicy_TempUnschedulable(t *testing.T) {
 		require.Equal(t, 1, upstream.calls, "should not retry")
 	})
 
-	t.Run("503_body_no_match_continues_default_retry", func(t *testing.T) {
+	t.Run("full_miss_continues_default_retry", func(t *testing.T) {
 		saveAndSetBaseURLs(t)
 
-		upstream := &epFixedUpstream{statusCode: 503, body: `random`}
+		upstream := &epFixedUpstream{statusCode: 500, body: `random`}
 		repo := &epAccountRepo{}
 		rlSvc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 		svc := &AntigravityGatewayService{rateLimitService: rlSvc}

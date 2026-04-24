@@ -2439,8 +2439,8 @@ export default {
       tempUnschedulable: {
         title: 'Temp Unschedulable',
         statusTitle: 'Temp Unschedulable Status',
-        hint: 'Disable accounts temporarily when error code and keyword both match.',
-        notice: 'Rules are evaluated in order and require both error code and keyword match.',
+        hint: 'Disable accounts temporarily when either the error code or a keyword matches.',
+        notice: 'Rules are evaluated in order, and either the error code or a keyword match is enough.',
         addRule: 'Add Rule',
         ruleOrder: 'Rule Order',
         ruleIndex: 'Rule #{index}',

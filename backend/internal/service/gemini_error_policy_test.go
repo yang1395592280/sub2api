@@ -145,6 +145,48 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 			expected:   ErrorPolicyNone,
 		},
 		{
+			name: "gemini_apikey_temp_unschedulable_error_code_only_hit",
+			account: &Account{
+				ID:       106,
+				Type:     AccountTypeAPIKey,
+				Platform: PlatformGemini,
+				Credentials: map[string]any{
+					"temp_unschedulable_enabled": true,
+					"temp_unschedulable_rules": []any{
+						map[string]any{
+							"error_code":       float64(503),
+							"keywords":         []any{"overloaded"},
+							"duration_minutes": float64(10),
+						},
+					},
+				},
+			},
+			statusCode: 503,
+			body:       []byte(`random msg`),
+			expected:   ErrorPolicyTempUnscheduled,
+		},
+		{
+			name: "gemini_apikey_temp_unschedulable_keyword_only_hit",
+			account: &Account{
+				ID:       107,
+				Type:     AccountTypeAPIKey,
+				Platform: PlatformGemini,
+				Credentials: map[string]any{
+					"temp_unschedulable_enabled": true,
+					"temp_unschedulable_rules": []any{
+						map[string]any{
+							"error_code":       float64(503),
+							"keywords":         []any{"overloaded"},
+							"duration_minutes": float64(10),
+						},
+					},
+				},
+			},
+			statusCode: 500,
+			body:       []byte(`overloaded service`),
+			expected:   ErrorPolicyTempUnscheduled,
+		},
+		{
 			name: "gemini_custom_codes_override_temp_unschedulable",
 			account: &Account{
 				ID:       104,

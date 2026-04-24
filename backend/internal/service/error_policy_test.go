@@ -134,7 +134,49 @@ func TestCheckErrorPolicy(t *testing.T) {
 			expected:   ErrorPolicyTempUnscheduled,
 		},
 		{
-			name: "temp_unschedulable_body_miss_returns_none",
+			name: "temp_unschedulable_error_code_only_hit_returns_temp_unscheduled",
+			account: &Account{
+				ID:       16,
+				Type:     AccountTypeOAuth,
+				Platform: PlatformAntigravity,
+				Credentials: map[string]any{
+					"temp_unschedulable_enabled": true,
+					"temp_unschedulable_rules": []any{
+						map[string]any{
+							"error_code":       float64(503),
+							"keywords":         []any{"overloaded"},
+							"duration_minutes": float64(10),
+						},
+					},
+				},
+			},
+			statusCode: 503,
+			body:       []byte(`random msg`),
+			expected:   ErrorPolicyTempUnscheduled,
+		},
+		{
+			name: "temp_unschedulable_keyword_only_hit_returns_temp_unscheduled",
+			account: &Account{
+				ID:       17,
+				Type:     AccountTypeOAuth,
+				Platform: PlatformAntigravity,
+				Credentials: map[string]any{
+					"temp_unschedulable_enabled": true,
+					"temp_unschedulable_rules": []any{
+						map[string]any{
+							"error_code":       float64(503),
+							"keywords":         []any{"overloaded"},
+							"duration_minutes": float64(10),
+						},
+					},
+				},
+			},
+			statusCode: 500,
+			body:       []byte(`overloaded service`),
+			expected:   ErrorPolicyTempUnscheduled,
+		},
+		{
+			name: "temp_unschedulable_full_miss_returns_none",
 			account: &Account{
 				ID:       5,
 				Type:     AccountTypeOAuth,
@@ -151,7 +193,7 @@ func TestCheckErrorPolicy(t *testing.T) {
 					},
 				},
 			},
-			statusCode: 503,
+			statusCode: 500,
 			body:       []byte(`random msg`),
 			expected:   ErrorPolicyNone,
 		},

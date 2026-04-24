@@ -1396,22 +1396,23 @@ func (s *RateLimitService) tryTempUnschedulable(ctx context.Context, account *Ac
 	if len(rules) == 0 {
 		return false
 	}
-	if statusCode <= 0 || len(responseBody) == 0 {
-		return false
-	}
 
-	body := responseBody
-	if len(body) > tempUnschedBodyMaxBytes {
-		body = body[:tempUnschedBodyMaxBytes]
+	bodyLower := ""
+	if len(responseBody) > 0 {
+		body := responseBody
+		if len(body) > tempUnschedBodyMaxBytes {
+			body = body[:tempUnschedBodyMaxBytes]
+		}
+		bodyLower = strings.ToLower(string(body))
 	}
-	bodyLower := strings.ToLower(string(body))
 
 	for idx, rule := range rules {
-		if rule.ErrorCode != statusCode || len(rule.Keywords) == 0 {
-			continue
+		statusMatched := rule.ErrorCode == statusCode
+		matchedKeyword := ""
+		if bodyLower != "" && len(rule.Keywords) > 0 {
+			matchedKeyword = matchTempUnschedKeyword(bodyLower, rule.Keywords)
 		}
-		matchedKeyword := matchTempUnschedKeyword(bodyLower, rule.Keywords)
-		if matchedKeyword == "" {
+		if !statusMatched && matchedKeyword == "" {
 			continue
 		}
 
