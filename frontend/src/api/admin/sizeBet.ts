@@ -7,6 +7,8 @@ type SizeBetSettingsPayload = {
   round_duration_seconds: number
   bet_close_offset_seconds: number
   allowed_stakes: number[]
+  custom_stake_min: number
+  custom_stake_max: number
   probabilities: {
     small: number
     mid: number
@@ -25,6 +27,8 @@ type RawSizeBetSettingsResponse = {
   round_duration_seconds: number
   bet_close_offset_seconds: number
   allowed_stakes: number[]
+  custom_stake_min?: number
+  custom_stake_max?: number
   prob_small?: number
   prob_mid?: number
   prob_big?: number
@@ -92,6 +96,25 @@ export interface SizeBetRefundResult {
   refunded_at: string
 }
 
+export interface SizeBetStatsOverview {
+  date: string
+  participant_count: number
+  total_stake: number
+  total_payout: number
+  total_user_net: number
+  house_net: number
+}
+
+export interface SizeBetStatsUserItem {
+  user_id: number
+  username: string
+  total_stake: number
+  won_count: number
+  lost_count: number
+  refunded_count: number
+  net_result: number
+}
+
 export type SizeBetAdminSettings = SizeBetSettingsPayload
 export type UpdateSizeBetSettingsRequest = SizeBetSettingsPayload
 
@@ -101,6 +124,8 @@ function normalizeSettings(data: RawSizeBetSettingsResponse): SizeBetAdminSettin
     round_duration_seconds: data.round_duration_seconds,
     bet_close_offset_seconds: data.bet_close_offset_seconds,
     allowed_stakes: [...(data.allowed_stakes ?? [])],
+    custom_stake_min: data.custom_stake_min ?? 1,
+    custom_stake_max: data.custom_stake_max ?? 9999,
     probabilities: data.probabilities ?? {
       small: data.prob_small ?? 0,
       mid: data.prob_mid ?? 0,
@@ -159,13 +184,29 @@ export async function refundRound(roundID: number): Promise<SizeBetRefundResult>
   return data
 }
 
+export async function getStatsOverview(date: string): Promise<SizeBetStatsOverview> {
+  const { data } = await apiClient.get<SizeBetStatsOverview>('/admin/games/size-bet/stats/overview', {
+    params: { date }
+  })
+  return data
+}
+
+export async function listStatsUsers(page = 1, pageSize = 20, date = ''): Promise<BasePaginationResponse<SizeBetStatsUserItem>> {
+  const { data } = await apiClient.get<BasePaginationResponse<SizeBetStatsUserItem>>('/admin/games/size-bet/stats/users', {
+    params: { page, page_size: pageSize, date }
+  })
+  return data
+}
+
 const sizeBetAdminAPI = {
   getSettings,
   updateSettings,
   listRounds,
   listBets,
   listLedger,
-  refundRound
+  refundRound,
+  getStatsOverview,
+  listStatsUsers
 }
 
 export default sizeBetAdminAPI

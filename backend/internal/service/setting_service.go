@@ -1009,6 +1009,8 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeySizeBetRoundDurationSeconds:      strconv.Itoa(defaultSizeBetRoundDurationSeconds),
 		SettingKeySizeBetBetCloseOffsetSeconds:     strconv.Itoa(defaultSizeBetBetCloseOffsetSeconds),
 		SettingKeySizeBetAllowedStakes:             mustJSON(defaultSizeBetAllowedStakes()),
+		SettingKeySizeBetCustomStakeMin:            strconv.Itoa(defaultSizeBetCustomStakeMin),
+		SettingKeySizeBetCustomStakeMax:            strconv.Itoa(defaultSizeBetCustomStakeMax),
 		SettingKeySizeBetProbabilities:             mustJSON(defaultSizeBetProbabilities()),
 		SettingKeySizeBetOdds:                      mustJSON(defaultSizeBetOdds()),
 		SettingKeySizeBetRulesMarkdown:             defaultSizeBetRulesMarkdown,

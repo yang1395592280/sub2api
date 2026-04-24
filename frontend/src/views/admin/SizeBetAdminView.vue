@@ -44,6 +44,10 @@
                   <div><label class="input-label">{{ t('admin.sizeBet.roundDuration') }}</label><input data-test="settings-round-duration" v-model.number="form.round_duration_seconds" type="number" min="1" class="input" /></div>
                   <div><label class="input-label">{{ t('admin.sizeBet.betCloseOffset') }}</label><input data-test="settings-bet-close-offset" v-model.number="form.bet_close_offset_seconds" type="number" min="0" class="input" /></div>
                 </div>
+                <div class="grid gap-4 sm:grid-cols-2">
+                  <div><label class="input-label">{{ t('admin.sizeBet.customStakeMin') }}</label><input data-test="settings-custom-stake-min" v-model.number="form.custom_stake_min" type="number" min="1" class="input" /></div>
+                  <div><label class="input-label">{{ t('admin.sizeBet.customStakeMax') }}</label><input data-test="settings-custom-stake-max" v-model.number="form.custom_stake_max" type="number" min="1" class="input" /></div>
+                </div>
                 <div><label class="input-label">{{ t('admin.sizeBet.allowedStakes') }}</label><input data-test="settings-allowed-stakes" v-model="allowedStakesText" type="text" class="input" :placeholder="t('admin.sizeBet.allowedStakesPlaceholder')" /></div>
               </div>
 
@@ -79,6 +83,10 @@
               <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t(`admin.sizeBet.tabs.${activeTab}`) }}</h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t(`admin.sizeBet.tabDescriptions.${activeTab}`) }}</p>
             </div>
+            <div v-if="activeTab === 'stats'" class="flex flex-wrap items-end gap-3">
+              <div><label class="input-label">{{ t('admin.sizeBet.filters.date') }}</label><input v-model="statsDate" type="date" class="input w-44" /></div>
+              <button type="button" class="btn btn-primary" :disabled="statsUsersState.loading" @click="loadActiveTab(true)">{{ t('common.apply') }}</button>
+            </div>
             <div v-if="activeTab !== 'rounds'" class="flex flex-wrap items-end gap-3">
               <template v-if="activeTab === 'bets'">
                 <div><label class="input-label">{{ t('admin.sizeBet.filters.roundId') }}</label><input data-test="filter-round-id" v-model="betFilters.round_id" type="text" inputmode="numeric" class="input w-28" /></div>
@@ -94,6 +102,13 @@
               <button type="button" class="btn btn-secondary" :disabled="currentTable.loading" @click="resetFilters">{{ t('common.reset') }}</button>
             </div>
             <button v-else type="button" class="btn btn-secondary" :disabled="roundsState.loading" @click="loadActiveTab(true)">{{ t('common.refresh') }}</button>
+          </div>
+
+          <div v-if="activeTab === 'stats'" class="grid gap-4 md:grid-cols-4">
+            <div class="rounded-2xl bg-gray-50 p-4 ring-1 ring-gray-100 dark:bg-dark-800 dark:ring-dark-700"><div class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.sizeBet.stats.participantCount') }}</div><div class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ statsOverview?.participant_count ?? 0 }}</div></div>
+            <div class="rounded-2xl bg-gray-50 p-4 ring-1 ring-gray-100 dark:bg-dark-800 dark:ring-dark-700"><div class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.sizeBet.stats.totalStake') }}</div><div class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ formatAmount(statsOverview?.total_stake ?? 0) }}</div></div>
+            <div class="rounded-2xl bg-gray-50 p-4 ring-1 ring-gray-100 dark:bg-dark-800 dark:ring-dark-700"><div class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.sizeBet.stats.totalUserNet') }}</div><div class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ formatAmount(statsOverview?.total_user_net ?? 0) }}</div></div>
+            <div class="rounded-2xl bg-gray-50 p-4 ring-1 ring-gray-100 dark:bg-dark-800 dark:ring-dark-700"><div class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.sizeBet.stats.houseNet') }}</div><div class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ formatAmount(statsOverview?.house_net ?? 0) }}</div></div>
           </div>
 
           <DataTable :columns="currentColumns" :data="currentTable.items" :loading="currentTable.loading">
@@ -115,7 +130,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as sizeBetAdminAPI from '@/api/admin/sizeBet'
-import type { SizeBetAdminBet, SizeBetAdminLedgerEntry, SizeBetAdminRound, SizeBetAdminSettings } from '@/api/admin/sizeBet'
+import type { SizeBetAdminBet, SizeBetAdminLedgerEntry, SizeBetAdminRound, SizeBetAdminSettings, SizeBetStatsOverview, SizeBetStatsUserItem } from '@/api/admin/sizeBet'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import type { Column } from '@/components/common/types'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -129,7 +144,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime } from '@/utils/format'
 
-type AuditTab = 'settings' | 'rounds' | 'bets' | 'ledger'
+type AuditTab = 'settings' | 'rounds' | 'bets' | 'ledger' | 'stats'
 type LoadState = 'loading' | 'ready' | 'error'
 type PaginationState = { page: number; page_size: number; total: number; pages: number }
 type TableState<T> = { items: T[]; loading: boolean; loaded: boolean; pagination: PaginationState }
@@ -139,7 +154,7 @@ type LedgerFilters = { round_id: string; user_id: string; entry_type: string }
 const pageSize = getPersistedPageSize()
 const { t } = useI18n()
 const appStore = useAppStore()
-const tabs: AuditTab[] = ['settings', 'rounds', 'bets', 'ledger']
+const tabs: AuditTab[] = ['settings', 'rounds', 'bets', 'ledger', 'stats']
 const activeTab = ref<AuditTab>('settings')
 const settingsStatus = ref<LoadState>('loading')
 const settingsErrorMessage = ref('')
@@ -148,27 +163,31 @@ const validationError = ref('')
 const allowedStakesText = ref('')
 const refundDialogOpen = ref(false)
 const refundTarget = ref<SizeBetAdminRound | null>(null)
-const form = reactive<SizeBetAdminSettings>({ enabled: true, round_duration_seconds: 60, bet_close_offset_seconds: 50, allowed_stakes: [2, 5, 10, 20], probabilities: { small: 45, mid: 10, big: 45 }, odds: { small: 2, mid: 10, big: 2 }, rules_markdown: '' })
+const form = reactive<SizeBetAdminSettings>({ enabled: true, round_duration_seconds: 60, bet_close_offset_seconds: 50, allowed_stakes: [2, 5, 10, 20], custom_stake_min: 1, custom_stake_max: 9999, probabilities: { small: 45, mid: 10, big: 45 }, odds: { small: 2, mid: 10, big: 2 }, rules_markdown: '' })
 const roundsState = reactive<TableState<SizeBetAdminRound>>(newTableState())
 const betsState = reactive<TableState<SizeBetAdminBet>>(newTableState())
 const ledgerState = reactive<TableState<SizeBetAdminLedgerEntry>>(newTableState())
+const statsUsersState = reactive<TableState<SizeBetStatsUserItem>>(newTableState())
+const statsOverview = ref<SizeBetStatsOverview | null>(null)
+const statsDate = ref(new Date().toISOString().slice(0, 10))
 const betFilters = reactive<BetFilters>({ round_id: '', user_id: '', status: '' })
 const ledgerFilters = reactive<LedgerFilters>({ round_id: '', user_id: '', entry_type: '' })
 
 const settingsReady = computed(() => settingsStatus.value === 'ready')
-const currentTable = computed(() => activeTab.value === 'rounds' ? roundsState : activeTab.value === 'bets' ? betsState : ledgerState)
+const currentTable = computed(() => activeTab.value === 'rounds' ? roundsState : activeTab.value === 'bets' ? betsState : activeTab.value === 'ledger' ? ledgerState : statsUsersState)
 const betStatusOptions = computed(() => [{ value: '', label: t('common.all') }, { value: 'placed', label: t('admin.sizeBet.status.placed') }, { value: 'won', label: t('admin.sizeBet.status.won') }, { value: 'lost', label: t('admin.sizeBet.status.lost') }, { value: 'refunded', label: t('admin.sizeBet.status.refunded') }])
 const ledgerEntryTypeOptions = computed(() => [{ value: '', label: t('common.all') }, { value: 'bet_debit', label: t('admin.sizeBet.entryType.bet_debit') }, { value: 'bet_payout', label: t('admin.sizeBet.entryType.bet_payout') }, { value: 'bet_refund', label: t('admin.sizeBet.entryType.bet_refund') }])
 const roundColumns = computed<Column[]>(() => [{ key: 'round_no', label: t('admin.sizeBet.columns.round') }, { key: 'status', label: t('admin.sizeBet.columns.status'), formatter: (value) => statusLabel(String(value)) }, { key: 'result_number', label: t('admin.sizeBet.columns.result'), formatter: (_, row) => row.result_number == null || !row.result_direction ? '-' : `${row.result_number} / ${directionLabel(String(row.result_direction))}` }, { key: 'server_seed_hash', label: t('admin.sizeBet.columns.serverSeedHash') }, { key: 'server_seed', label: t('admin.sizeBet.columns.serverSeed') }, { key: 'starts_at', label: t('admin.sizeBet.columns.schedule'), formatter: (_, row) => `${formatDateTime(row.starts_at)} -> ${formatDateTime(row.settles_at)}` }, { key: 'actions', label: t('admin.sizeBet.columns.actions') }])
 const betColumns = computed<Column[]>(() => [{ key: 'round_no', label: t('admin.sizeBet.columns.round') }, { key: 'username', label: t('admin.sizeBet.columns.user'), formatter: (_, row) => `${row.username} (#${row.user_id})` }, { key: 'direction', label: t('admin.sizeBet.columns.direction'), formatter: (value) => directionLabel(String(value)) }, { key: 'stake_amount', label: t('admin.sizeBet.columns.stake'), formatter: (value) => formatAmount(Number(value)) }, { key: 'payout_amount', label: t('admin.sizeBet.columns.payout'), formatter: (value) => formatAmount(Number(value)) }, { key: 'net_result_amount', label: t('admin.sizeBet.columns.net'), formatter: (value) => formatAmount(Number(value)) }, { key: 'status', label: t('admin.sizeBet.columns.status'), formatter: (value) => statusLabel(String(value)) }, { key: 'placed_at', label: t('admin.sizeBet.columns.createdAt'), formatter: (value) => formatDateTime(value) }])
 const ledgerColumns = computed<Column[]>(() => [{ key: 'user_id', label: t('admin.sizeBet.columns.user'), formatter: (value) => `#${value}` }, { key: 'entry_type', label: t('admin.sizeBet.columns.entryType'), formatter: (value) => entryTypeLabel(String(value)) }, { key: 'direction', label: t('admin.sizeBet.columns.direction'), formatter: (value) => value ? directionLabel(String(value)) : '-' }, { key: 'stake_amount', label: t('admin.sizeBet.columns.stake'), formatter: (value) => formatAmount(Number(value)) }, { key: 'delta_amount', label: t('admin.sizeBet.columns.delta'), formatter: (value) => formatAmount(Number(value)) }, { key: 'balance_before', label: t('admin.sizeBet.columns.balanceWindow'), formatter: (_, row) => `${formatAmount(row.balance_before)} -> ${formatAmount(row.balance_after)}` }, { key: 'reason', label: t('admin.sizeBet.columns.reason'), formatter: (value) => value || '-' }, { key: 'created_at', label: t('admin.sizeBet.columns.createdAt'), formatter: (value) => formatDateTime(value) }])
-const currentColumns = computed(() => activeTab.value === 'rounds' ? roundColumns.value : activeTab.value === 'bets' ? betColumns.value : ledgerColumns.value)
+const statsColumns = computed<Column[]>(() => [{ key: 'username', label: t('admin.sizeBet.columns.user') }, { key: 'total_stake', label: t('admin.sizeBet.stats.totalStake'), formatter: (value) => formatAmount(Number(value)) }, { key: 'won_count', label: t('admin.sizeBet.stats.wonCount') }, { key: 'lost_count', label: t('admin.sizeBet.stats.lostCount') }, { key: 'refunded_count', label: t('admin.sizeBet.stats.refundedCount') }, { key: 'net_result', label: t('admin.sizeBet.stats.totalUserNet'), formatter: (value) => formatAmount(Number(value)) }])
+const currentColumns = computed(() => activeTab.value === 'rounds' ? roundColumns.value : activeTab.value === 'bets' ? betColumns.value : activeTab.value === 'ledger' ? ledgerColumns.value : statsColumns.value)
 
 onMounted(() => { void loadSettings() })
 watch(activeTab, (tab) => { if (tab !== 'settings') void loadActiveTab() })
 
 function newTableState<T>(): TableState<T> { return { items: [], loading: false, loaded: false, pagination: { page: 1, page_size: pageSize, total: 0, pages: 1 } } }
-function applySettings(settings: SizeBetAdminSettings) { Object.assign(form, { enabled: settings.enabled, round_duration_seconds: settings.round_duration_seconds, bet_close_offset_seconds: settings.bet_close_offset_seconds, allowed_stakes: [...settings.allowed_stakes], probabilities: { ...settings.probabilities }, odds: { ...settings.odds }, rules_markdown: settings.rules_markdown }); allowedStakesText.value = settings.allowed_stakes.join(', '); validationError.value = '' }
+function applySettings(settings: SizeBetAdminSettings) { Object.assign(form, { enabled: settings.enabled, round_duration_seconds: settings.round_duration_seconds, bet_close_offset_seconds: settings.bet_close_offset_seconds, allowed_stakes: [...settings.allowed_stakes], custom_stake_min: settings.custom_stake_min, custom_stake_max: settings.custom_stake_max, probabilities: { ...settings.probabilities }, odds: { ...settings.odds }, rules_markdown: settings.rules_markdown }); allowedStakesText.value = settings.allowed_stakes.join(', '); validationError.value = '' }
 function parsePositiveInt(value: string) { const trimmed = value.trim(); if (!trimmed) return undefined; const parsed = Number(trimmed); return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined }
 function parseAllowedStakes() { return Array.from(new Set(allowedStakesText.value.split(',').map(item => Number(item.trim())).filter(item => Number.isInteger(item) && item > 0))) }
 function formatAmount(value: number) { return Number.isInteger(value) ? String(value) : value.toFixed(2) }
@@ -177,7 +196,7 @@ function statusLabel(value: string) { const key = `admin.sizeBet.status.${value}
 function entryTypeLabel(value: string) { const key = `admin.sizeBet.entryType.${value}`; const translated = t(key); return translated === key ? value : translated }
 function isRoundRefundable(round: SizeBetAdminRound) { return round.status !== 'settled' || round.result_number == null }
 function currentQueryFilters() { return activeTab.value === 'bets' ? { round_id: parsePositiveInt(betFilters.round_id), user_id: parsePositiveInt(betFilters.user_id), status: betFilters.status || undefined } : { round_id: parsePositiveInt(ledgerFilters.round_id), user_id: parsePositiveInt(ledgerFilters.user_id), entry_type: ledgerFilters.entry_type || undefined } }
-function validateForm() { if (form.round_duration_seconds <= 0) return t('admin.sizeBet.validation.roundDuration'); if (form.bet_close_offset_seconds < 0 || form.bet_close_offset_seconds >= form.round_duration_seconds) return t('admin.sizeBet.validation.betCloseOffset'); if (!parseAllowedStakes().length) return t('admin.sizeBet.invalidAllowedStakes'); if (form.odds.small <= 0 || form.odds.mid <= 0 || form.odds.big <= 0) return t('admin.sizeBet.validation.odds'); return '' }
+function validateForm() { if (form.round_duration_seconds <= 0) return t('admin.sizeBet.validation.roundDuration'); if (form.bet_close_offset_seconds < 0 || form.bet_close_offset_seconds >= form.round_duration_seconds) return t('admin.sizeBet.validation.betCloseOffset'); if (!parseAllowedStakes().length) return t('admin.sizeBet.invalidAllowedStakes'); if (form.custom_stake_min <= 0 || form.custom_stake_max < form.custom_stake_min) return t('admin.sizeBet.validation.customStakeRange'); if (form.odds.small <= 0 || form.odds.mid <= 0 || form.odds.big <= 0) return t('admin.sizeBet.validation.odds'); return '' }
 
 async function loadSettings() {
   settingsStatus.value = 'loading'
@@ -212,9 +231,18 @@ async function loadActiveTab(force = false) {
   if (activeTab.value === 'settings' || state.loading || (!force && state.loaded)) return
   state.loading = true
   try {
-    const response = activeTab.value === 'rounds' ? await sizeBetAdminAPI.listRounds(state.pagination.page, state.pagination.page_size) : activeTab.value === 'bets' ? await sizeBetAdminAPI.listBets(state.pagination.page, state.pagination.page_size, currentQueryFilters()) : await sizeBetAdminAPI.listLedger(state.pagination.page, state.pagination.page_size, currentQueryFilters())
+    const response = activeTab.value === 'rounds'
+      ? await sizeBetAdminAPI.listRounds(state.pagination.page, state.pagination.page_size)
+      : activeTab.value === 'bets'
+        ? await sizeBetAdminAPI.listBets(state.pagination.page, state.pagination.page_size, currentQueryFilters())
+        : activeTab.value === 'ledger'
+          ? await sizeBetAdminAPI.listLedger(state.pagination.page, state.pagination.page_size, currentQueryFilters())
+          : await sizeBetAdminAPI.listStatsUsers(state.pagination.page, state.pagination.page_size, statsDate.value)
     state.items = response.items
     Object.assign(state.pagination, { total: response.total, pages: response.pages, page: response.page, page_size: response.page_size })
+    if (activeTab.value === 'stats') {
+      statsOverview.value = await sizeBetAdminAPI.getStatsOverview(statsDate.value)
+    }
     state.loaded = true
   } catch (error: any) {
     appStore.showError(error?.message || t('admin.sizeBet.loadFailed'))

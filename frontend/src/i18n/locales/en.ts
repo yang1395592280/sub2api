@@ -377,7 +377,13 @@ export default {
     phase: {
       betting: 'Open for Entry',
       closed: 'Waiting for Result',
+      preparing: 'Preparing',
       maintenance: 'Maintenance'
+    },
+    countdownHint: {
+      betting: '{seconds}s until entry closes',
+      closed: 'This round is closed. Waiting for the draw result.',
+      preparing: 'Preparing the next round'
     },
     loadError: {
       badge: 'Load Failed',
@@ -398,6 +404,8 @@ export default {
       myBet: 'Entered {direction} / {stake}',
       chooseDirection: 'Choose Direction',
       chooseStake: 'Choose Amount',
+      customStake: 'Custom Amount',
+      customStakeHint: 'Enter an integer amount between {min} and {max}',
       submit: 'Confirm Entry',
       submitting: 'Submitting...',
       openHint: 'The entry window is still open',
@@ -415,6 +423,16 @@ export default {
       empty: 'No recent result yet',
       result: 'Round {round} {number} / {direction}',
       reveal: 'Server seed: {seed}'
+    },
+    rounds: {
+      title: 'Draw Results',
+      empty: 'No round results yet',
+      roundLabel: 'Round {round}',
+      result: 'Result: {number} / {direction}'
+    },
+    resultNotice: {
+      title: 'Latest Result',
+      subtitle: 'The most recent settlement result will stay here.'
     },
     history: {
       title: 'My Activity History',
@@ -3696,12 +3714,14 @@ export default {
         settings: 'Settings',
         rounds: 'Rounds',
         bets: 'Bets',
-        ledger: 'Ledger'
+        ledger: 'Ledger',
+        stats: 'Stats'
       },
       tabDescriptions: {
         rounds: 'Review per-round probability, odds, and result snapshots',
         bets: 'Audit player bets, settlements, and net outcomes',
-        ledger: 'Check debit, payout, and refund balance movements'
+        ledger: 'Check debit, payout, and refund balance movements',
+        stats: 'Review daily user and house profit statistics'
       },
       probabilitySummary: 'Current probability: Small {small}% / Mid {mid}% / Big {big}%',
       oddsSummary: 'Current odds: Small {small}x / Mid {mid}x / Big {big}x',
@@ -3710,6 +3730,8 @@ export default {
       roundDuration: 'Round duration (seconds)',
       betCloseOffset: 'Bet close offset (seconds)',
       allowedStakes: 'Allowed stakes',
+      customStakeMin: 'Custom stake minimum',
+      customStakeMax: 'Custom stake maximum',
       allowedStakesPlaceholder: 'Example: 2, 5, 10, 20',
       probabilitiesTitle: 'Probability settings',
       oddsTitle: 'Odds settings',
@@ -3725,14 +3747,25 @@ export default {
       refundSuccess: 'Refund completed for {count} bets',
       refundFailed: 'Refund failed',
       filters: {
+        date: 'Date',
         roundId: 'Round',
         userId: 'User ID',
         status: 'Bet Status',
         entryType: 'Entry Type'
       },
+      stats: {
+        participantCount: 'Participants',
+        totalStake: 'Total Stake',
+        totalUserNet: 'User Net',
+        houseNet: 'House Net',
+        wonCount: 'Wins',
+        lostCount: 'Losses',
+        refundedCount: 'Refunds'
+      },
       validation: {
         roundDuration: 'Round duration must be greater than 0',
         betCloseOffset: 'Bet close offset must be between 0 and the round duration',
+        customStakeRange: 'Custom stake range is invalid',
         odds: 'Odds must be greater than 0'
       },
       columns: {

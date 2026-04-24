@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"context"
+
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -9,6 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type userActivityTimelineService interface {
+	GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]service.UserActivityTimelineItem, int64, float64, error)
+}
+
 // UserHandler handles user-related requests
 type UserHandler struct {
 	userService      *service.UserService
@@ -16,6 +22,7 @@ type UserHandler struct {
 	emailService     *service.EmailService
 	turnstileService *service.TurnstileService
 	emailCache       service.EmailCache
+	activityService  userActivityTimelineService
 }
 
 // NewUserHandler creates a new UserHandler
@@ -25,6 +32,7 @@ func NewUserHandler(
 	emailService *service.EmailService,
 	turnstileService *service.TurnstileService,
 	emailCache service.EmailCache,
+	activityService userActivityTimelineService,
 ) *UserHandler {
 	return &UserHandler{
 		userService:      userService,
@@ -32,6 +40,7 @@ func NewUserHandler(
 		emailService:     emailService,
 		turnstileService: turnstileService,
 		emailCache:       emailCache,
+		activityService:  activityService,
 	}
 }
 
@@ -259,4 +268,39 @@ func (h *UserHandler) ToggleNotifyEmail(c *gin.Context) {
 	}
 
 	response.Success(c, dto.UserFromService(updatedUser))
+}
+
+// GetBalanceHistory handles getting current user's unified activity timeline.
+// GET /api/v1/user/balance-history
+func (h *UserHandler) GetBalanceHistory(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	if h.activityService == nil {
+		response.InternalError(c, "User activity timeline service not configured")
+		return
+	}
+
+	page, pageSize := response.ParsePagination(c)
+	codeType := c.Query("type")
+	items, total, totalRecharged, err := h.activityService.GetUserBalanceHistory(c.Request.Context(), subject.UserID, page, pageSize, codeType)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	pages := int((total + int64(pageSize) - 1) / int64(pageSize))
+	if pages < 1 {
+		pages = 1
+	}
+	response.Success(c, gin.H{
+		"items":           items,
+		"total":           total,
+		"page":            page,
+		"page_size":       pageSize,
+		"pages":           pages,
+		"total_recharged": totalRecharged,
+	})
 }

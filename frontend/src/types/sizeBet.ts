@@ -1,5 +1,5 @@
 export type SizeBetDirection = 'small' | 'mid' | 'big'
-export type SizeBetPhase = 'betting' | 'closed' | 'maintenance'
+export type SizeBetPhase = 'betting' | 'closed' | 'preparing' | 'maintenance'
 export type SizeBetRoundStatus = 'open' | 'settled'
 export type SizeBetStatus = 'placed' | 'won' | 'lost' | 'refunded'
 
@@ -70,6 +70,14 @@ export interface SizeBetRoundSummary {
   server_seed?: string | null
 }
 
+export interface SizeBetRoundsView {
+  items: SizeBetRoundSummary[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
 export interface SizeBetCurrentRoundView {
   enabled: boolean
   phase: SizeBetPhase
@@ -84,6 +92,8 @@ export interface SizeBetRulesView {
   round_duration_seconds: number
   bet_close_offset_seconds: number
   allowed_stakes: number[]
+  custom_stake_min: number
+  custom_stake_max: number
   probabilities: {
     small: number
     mid: number

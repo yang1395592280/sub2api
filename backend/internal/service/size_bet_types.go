@@ -6,6 +6,9 @@ const (
 	defaultSizeBetEnabled               = true
 	defaultSizeBetRoundDurationSeconds  = 60
 	defaultSizeBetBetCloseOffsetSeconds = 50
+	defaultSizeBetPreparationSeconds    = 10
+	defaultSizeBetCustomStakeMin        = 1
+	defaultSizeBetCustomStakeMax        = 9999
 )
 
 const defaultSizeBetRulesMarkdown = `## 大小中竞猜规则
@@ -34,6 +37,8 @@ type UpdateSizeBetSettingsRequest struct {
 	RoundDurationSeconds  int                      `json:"round_duration_seconds"`
 	BetCloseOffsetSeconds int                      `json:"bet_close_offset_seconds"`
 	AllowedStakes         []int                    `json:"allowed_stakes"`
+	CustomStakeMin        int                      `json:"custom_stake_min"`
+	CustomStakeMax        int                      `json:"custom_stake_max"`
 	Probabilities         SizeBetProbabilityConfig `json:"probabilities"`
 	Odds                  SizeBetOddsConfig        `json:"odds"`
 	RulesMarkdown         string                   `json:"rules_markdown"`
@@ -44,6 +49,8 @@ type SizeBetSettings struct {
 	RoundDurationSeconds  int     `json:"round_duration_seconds"`
 	BetCloseOffsetSeconds int     `json:"bet_close_offset_seconds"`
 	AllowedStakes         []int   `json:"allowed_stakes"`
+	CustomStakeMin        int     `json:"custom_stake_min"`
+	CustomStakeMax        int     `json:"custom_stake_max"`
 	ProbSmall             float64 `json:"prob_small"`
 	ProbMid               float64 `json:"prob_mid"`
 	ProbBig               float64 `json:"prob_big"`
@@ -58,6 +65,7 @@ type SizeBetPhase string
 const (
 	SizeBetPhaseBetting     SizeBetPhase = "betting"
 	SizeBetPhaseClosed      SizeBetPhase = "closed"
+	SizeBetPhasePreparing   SizeBetPhase = "preparing"
 	SizeBetPhaseMaintenance SizeBetPhase = "maintenance"
 )
 
@@ -127,6 +135,8 @@ type SizeBetRulesView struct {
 	RoundDurationSeconds  int                      `json:"round_duration_seconds"`
 	BetCloseOffsetSeconds int                      `json:"bet_close_offset_seconds"`
 	AllowedStakes         []int                    `json:"allowed_stakes"`
+	CustomStakeMin        int                      `json:"custom_stake_min"`
+	CustomStakeMax        int                      `json:"custom_stake_max"`
 	Probabilities         SizeBetProbabilityConfig `json:"probabilities"`
 	Odds                  SizeBetOddsConfig        `json:"odds"`
 	RulesMarkdown         string                   `json:"rules_markdown"`
@@ -164,6 +174,25 @@ type SizeBetRefundResult struct {
 	RoundID       int64     `json:"round_id"`
 	RefundedCount int       `json:"refunded_count"`
 	RefundedAt    time.Time `json:"refunded_at"`
+}
+
+type SizeBetStatsOverview struct {
+	Date          string  `json:"date"`
+	ParticipantCount int64 `json:"participant_count"`
+	TotalStake    float64 `json:"total_stake"`
+	TotalPayout   float64 `json:"total_payout"`
+	TotalUserNet  float64 `json:"total_user_net"`
+	HouseNet      float64 `json:"house_net"`
+}
+
+type SizeBetStatsUserItem struct {
+	UserID        int64   `json:"user_id"`
+	Username      string  `json:"username"`
+	TotalStake    float64 `json:"total_stake"`
+	WonCount      int64   `json:"won_count"`
+	LostCount     int64   `json:"lost_count"`
+	RefundedCount int64   `json:"refunded_count"`
+	NetResult     float64 `json:"net_result"`
 }
 
 func defaultSizeBetAllowedStakes() []int {

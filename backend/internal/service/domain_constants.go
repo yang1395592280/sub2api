@@ -163,6 +163,8 @@ const (
 	SettingKeySizeBetRoundDurationSeconds  = "size_bet_round_duration_seconds"   // 大小中竞猜每局时长（秒）
 	SettingKeySizeBetBetCloseOffsetSeconds = "size_bet_bet_close_offset_seconds" // 大小中竞猜封盘秒数偏移
 	SettingKeySizeBetAllowedStakes         = "size_bet_allowed_stakes"           // 大小中竞猜可下注额度（JSON 数组）
+	SettingKeySizeBetCustomStakeMin        = "size_bet_custom_stake_min"         // 大小中竞猜自定义额度最小值
+	SettingKeySizeBetCustomStakeMax        = "size_bet_custom_stake_max"         // 大小中竞猜自定义额度最大值
 	SettingKeySizeBetProbabilities         = "size_bet_probabilities"            // 大小中竞猜概率配置（JSON）
 	SettingKeySizeBetOdds                  = "size_bet_odds"                     // 大小中竞猜赔率配置（JSON）
 	SettingKeySizeBetRulesMarkdown         = "size_bet_rules_markdown"           // 大小中竞猜规则 Markdown

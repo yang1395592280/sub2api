@@ -210,13 +210,21 @@
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI, type BalanceHistoryItem } from '@/api/admin'
+import type { BalanceHistoryResponse } from '@/api/admin/users'
 import { formatDateTime } from '@/utils/format'
-import type { AdminUser } from '@/types'
+import type { User } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 
-const props = defineProps<{ show: boolean; user: AdminUser | null; hideActions?: boolean }>()
+type TimelineModalUser = Pick<User, 'id' | 'email' | 'username' | 'created_at' | 'balance'> & { notes?: string }
+
+const props = defineProps<{
+  show: boolean
+  user: TimelineModalUser | null
+  hideActions?: boolean
+  historyLoader?: (userId: number, page: number, pageSize: number, type?: string) => Promise<BalanceHistoryResponse>
+}>()
 const emit = defineEmits(['close', 'deposit', 'withdraw'])
 const { t } = useI18n()
 
@@ -257,12 +265,8 @@ const loadHistory = async (page: number) => {
   loading.value = true
   currentPage.value = page
   try {
-    const res = await adminAPI.users.getUserBalanceHistory(
-      props.user.id,
-      page,
-      pageSize,
-      typeFilter.value || undefined
-    )
+    const loader = props.historyLoader ?? adminAPI.users.getUserBalanceHistory
+    const res = await loader(props.user.id, page, pageSize, typeFilter.value || undefined)
     history.value = res.items || []
     total.value = res.total || 0
     totalRecharged.value = res.total_recharged || 0

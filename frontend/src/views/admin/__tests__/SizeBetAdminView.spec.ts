@@ -7,6 +7,8 @@ const {
   listRounds,
   listBets,
   listLedger,
+  getStatsOverview,
+  listStatsUsers,
   refundRound,
   showSuccess,
   showError
@@ -16,6 +18,8 @@ const {
   listRounds: vi.fn(),
   listBets: vi.fn(),
   listLedger: vi.fn(),
+  getStatsOverview: vi.fn(),
+  listStatsUsers: vi.fn(),
   refundRound: vi.fn(),
   showSuccess: vi.fn(),
   showError: vi.fn()
@@ -37,6 +41,8 @@ vi.mock('@/api/admin/sizeBet', () => ({
   listRounds,
   listBets,
   listLedger,
+  getStatsOverview,
+  listStatsUsers,
   refundRound,
   default: {
     getSettings,
@@ -44,6 +50,8 @@ vi.mock('@/api/admin/sizeBet', () => ({
     listRounds,
     listBets,
     listLedger,
+    getStatsOverview,
+    listStatsUsers,
     refundRound
   }
 }))
@@ -222,6 +230,8 @@ describe('SizeBetAdminView', () => {
     listRounds.mockReset()
     listBets.mockReset()
     listLedger.mockReset()
+    getStatsOverview.mockReset()
+    listStatsUsers.mockReset()
     refundRound.mockReset()
     showSuccess.mockReset()
     showError.mockReset()
@@ -231,6 +241,15 @@ describe('SizeBetAdminView', () => {
     listRounds.mockResolvedValue(defaultPagination)
     listBets.mockResolvedValue(defaultPagination)
     listLedger.mockResolvedValue(defaultPagination)
+    getStatsOverview.mockResolvedValue({
+      date: '2026-04-24',
+      participant_count: 3,
+      total_stake: 35,
+      total_payout: 20,
+      total_user_net: -15,
+      house_net: 15
+    })
+    listStatsUsers.mockResolvedValue(defaultPagination)
     refundRound.mockResolvedValue({
       round_id: 1,
       refunded_count: 2,
@@ -361,5 +380,33 @@ describe('SizeBetAdminView', () => {
     expect(refundRound).toHaveBeenCalledWith(1)
     expect(listRounds).toHaveBeenCalledTimes(2)
     expect(showSuccess).toHaveBeenCalled()
+  })
+
+  it('loads stats tab overview and user rows', async () => {
+    listStatsUsers.mockResolvedValue({
+      ...defaultPagination,
+      items: [
+        {
+          user_id: 9,
+          username: 'tester',
+          total_stake: 20,
+          won_count: 1,
+          lost_count: 1,
+          refunded_count: 0,
+          net_result: -5
+        }
+      ]
+    })
+
+    const wrapper = await mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-test="tab-stats"]').trigger('click')
+    await flushPromises()
+
+    expect(getStatsOverview).toHaveBeenCalled()
+    expect(listStatsUsers).toHaveBeenCalled()
+    expect(wrapper.text()).toContain('15')
+    expect(wrapper.text()).toContain('tester')
   })
 })

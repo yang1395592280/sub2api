@@ -33,9 +33,10 @@ type sizeBetServiceStub struct {
 	historyUserID     int64
 	historyParams     pagination.PaginationParams
 
-	recentRounds []service.SizeBetRound
-	recentLimit  int
-	recentErr    error
+	roundsItems      []service.SizeBetRound
+	roundsPagination *pagination.PaginationResult
+	roundsErr        error
+	roundsParams     pagination.PaginationParams
 
 	leaderboardScope string
 	leaderboardNow   time.Time
@@ -64,9 +65,9 @@ func (s *sizeBetServiceStub) GetHistory(_ context.Context, userID int64, params 
 	return s.historyItems, s.historyPagination, s.historyErr
 }
 
-func (s *sizeBetServiceStub) ListRecentRounds(_ context.Context, limit int) ([]service.SizeBetRound, error) {
-	s.recentLimit = limit
-	return s.recentRounds, s.recentErr
+func (s *sizeBetServiceStub) ListRounds(_ context.Context, params pagination.PaginationParams) ([]service.SizeBetRound, *pagination.PaginationResult, error) {
+	s.roundsParams = params
+	return s.roundsItems, s.roundsPagination, s.roundsErr
 }
 
 func (s *sizeBetServiceStub) GetLeaderboard(_ context.Context, scope string, now time.Time) (*service.SizeBetLeaderboardView, error) {
@@ -308,7 +309,7 @@ func TestSizeBetHandlerListRecentRoundsUsesDTO(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	svc := &sizeBetServiceStub{
-		recentRounds: []service.SizeBetRound{
+		roundsItems: []service.SizeBetRound{
 			{
 				ID:              10,
 				GameKey:         service.SizeBetGameKey,
@@ -320,19 +321,31 @@ func TestSizeBetHandlerListRecentRoundsUsesDTO(t *testing.T) {
 				ResultDirection: service.SizeBetDirectionMid,
 			},
 		},
+		roundsPagination: &pagination.PaginationResult{
+			Total:    1,
+			Page:     2,
+			PageSize: 5,
+			Pages:    1,
+		},
 	}
 	h := &SizeBetHandler{service: svc}
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/game/size-bet/rounds?limit=5", nil)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/game/size-bet/rounds?page=2&page_size=5", nil)
 
 	h.ListRecentRounds(c)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	resp := decodeEnvelope(t, w)
-	items := resp.Data.([]any)
+	data := resp.Data.(map[string]any)
+	require.Equal(t, float64(1), data["total"])
+	require.Equal(t, float64(2), data["page"])
+	require.Equal(t, float64(5), data["page_size"])
+	items := data["items"].([]any)
 	require.Len(t, items, 1)
+	require.Equal(t, 2, svc.roundsParams.Page)
+	require.Equal(t, 5, svc.roundsParams.PageSize)
 	item := items[0].(map[string]any)
 	require.Contains(t, item, "round_no")
 	require.NotContains(t, item, "GameKey")

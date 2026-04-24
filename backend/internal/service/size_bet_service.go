@@ -143,6 +143,8 @@ type SizeBetRepository interface {
 	ListAdminLedger(ctx context.Context, params pagination.PaginationParams, filter SizeBetAdminLedgerFilter) ([]SizeBetLedgerEntry, *pagination.PaginationResult, error)
 	RefundRound(ctx context.Context, roundID int64, refundedAt time.Time) ([]SizeBet, error)
 	ListRoundsDueForSettlement(ctx context.Context, now time.Time, limit int) ([]SizeBetRound, error)
+	GetStatsOverview(ctx context.Context, date string) (*SizeBetStatsOverview, error)
+	ListStatsUsers(ctx context.Context, date string, params pagination.PaginationParams) ([]SizeBetStatsUserItem, *pagination.PaginationResult, error)
 }
 
 type SizeBetService struct {
@@ -243,6 +245,9 @@ func (s *SizeBetService) EnsureCurrentRound(ctx context.Context, now time.Time) 
 		return nil, err
 	}
 	if !settings.Enabled {
+		return nil, nil
+	}
+	if sizeBetInPreparationWindow(now, settings) {
 		return nil, nil
 	}
 
@@ -368,6 +373,8 @@ func (s *SizeBetService) GetRules(ctx context.Context, now time.Time) (*SizeBetR
 		RoundDurationSeconds:  settings.RoundDurationSeconds,
 		BetCloseOffsetSeconds: settings.BetCloseOffsetSeconds,
 		AllowedStakes:         append([]int(nil), settings.AllowedStakes...),
+		CustomStakeMin:        settings.CustomStakeMin,
+		CustomStakeMax:        settings.CustomStakeMax,
 		Probabilities: SizeBetProbabilityConfig{
 			Small: settings.ProbSmall,
 			Mid:   settings.ProbMid,
@@ -426,6 +433,14 @@ func (s *SizeBetService) RefundRound(ctx context.Context, roundID int64, refunde
 	}, nil
 }
 
+func (s *SizeBetService) GetStatsOverview(ctx context.Context, date string) (*SizeBetStatsOverview, error) {
+	return s.repo.GetStatsOverview(ctx, date)
+}
+
+func (s *SizeBetService) ListStatsUsers(ctx context.Context, date string, params pagination.PaginationParams) ([]SizeBetStatsUserItem, *pagination.PaginationResult, error) {
+	return s.repo.ListStatsUsers(ctx, date, normalizeSizeBetPagination(params))
+}
+
 func (s *SizeBetService) loadBettableRound(ctx context.Context, roundID int64) (*SizeBetRound, *SizeBetSettings, error) {
 	round, err := s.repo.GetRoundByID(ctx, roundID)
 	if err != nil {
@@ -464,7 +479,17 @@ func (s *SizeBetSettings) IsStakeAllowed(amount float64) bool {
 			return true
 		}
 	}
-	return false
+	if amount <= 0 || math.Abs(amount-math.Round(amount)) > 0.0001 {
+		return false
+	}
+	intAmount := int(math.Round(amount))
+	if s.CustomStakeMin > 0 && intAmount < s.CustomStakeMin {
+		return false
+	}
+	if s.CustomStakeMax > 0 && intAmount > s.CustomStakeMax {
+		return false
+	}
+	return true
 }
 
 func (r *SizeBetRound) SnapshotSettings() *SizeBetSettings {
@@ -550,13 +575,14 @@ func BuildNextRound(now time.Time, settings *SizeBetSettings) *SizeBetRound {
 	if sec <= 0 {
 		sec = defaultSizeBetRoundDurationSeconds
 	}
+	cycle := sec + defaultSizeBetPreparationSeconds
 	closeOffset := settings.BetCloseOffsetSeconds
 	if closeOffset < 0 || closeOffset >= sec {
 		closeOffset = defaultSizeBetCloseOffsetForRoundDuration(sec)
 	}
-	startUnix := now.Unix() / int64(sec) * int64(sec)
+	startUnix := now.Unix() / int64(cycle) * int64(cycle)
 	startsAt := time.Unix(startUnix, 0).In(now.Location())
-	roundNo := startUnix / int64(sec)
+	roundNo := startUnix / int64(cycle)
 	seed := fmt.Sprintf("%d:%d", roundNo, now.UnixNano())
 	hash := sha256.Sum256([]byte(seed))
 	return &SizeBetRound{
@@ -603,13 +629,32 @@ func (r *SizeBetRound) ToCurrentView(now time.Time) *SizeBetCurrentRound {
 }
 
 func sizeBetPhaseForRound(enabled bool, round *SizeBetRound, now time.Time) SizeBetPhase {
-	if !enabled || round == nil {
+	if !enabled {
 		return SizeBetPhaseMaintenance
+	}
+	if round == nil {
+		return SizeBetPhasePreparing
 	}
 	if now.Before(round.BetClosesAt) || now.Equal(round.BetClosesAt) {
 		return SizeBetPhaseBetting
 	}
 	return SizeBetPhaseClosed
+}
+
+func sizeBetInPreparationWindow(now time.Time, settings *SizeBetSettings) bool {
+	roundDuration := settings.RoundDurationSeconds
+	if roundDuration <= 0 {
+		roundDuration = defaultSizeBetRoundDurationSeconds
+	}
+	cycleDuration := roundDuration + defaultSizeBetPreparationSeconds
+	if cycleDuration <= 0 {
+		return false
+	}
+	elapsed := int(now.Unix() % int64(cycleDuration))
+	if elapsed < 0 {
+		elapsed += cycleDuration
+	}
+	return elapsed >= roundDuration
 }
 
 func normalizeSizeBetPagination(params pagination.PaginationParams) pagination.PaginationParams {

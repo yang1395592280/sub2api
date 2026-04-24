@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getCurrent, getHistory, getRules, placeBet } from '../sizeBet'
+import { getCurrent, getHistory, getRounds, getRules, placeBet } from '../sizeBet'
 
 const { get, post } = vi.hoisted(() => ({
   get: vi.fn(),
@@ -41,6 +41,8 @@ describe('sizeBet API', () => {
       round_duration_seconds: 60,
       bet_close_offset_seconds: 50,
       allowed_stakes: [2, 5, 10, 20],
+      custom_stake_min: 1,
+      custom_stake_max: 9999,
       probabilities: { small: 45, mid: 10, big: 45 },
       odds: { small: 2, mid: 10, big: 2 },
       rules_markdown: '## 规则',
@@ -64,6 +66,22 @@ describe('sizeBet API', () => {
     await expect(getHistory(2, 5)).resolves.toEqual(payload)
     expect(get).toHaveBeenCalledWith('/game/size-bet/history', {
       params: { page: 2, page_size: 5 },
+    })
+  })
+
+  it('gets round results with the expected paging params', async () => {
+    const payload = {
+      items: [],
+      total: 0,
+      page: 3,
+      page_size: 5,
+      pages: 0,
+    }
+    get.mockResolvedValue({ data: payload })
+
+    await expect(getRounds(3, 5)).resolves.toEqual(payload)
+    expect(get).toHaveBeenCalledWith('/game/size-bet/rounds', {
+      params: { page: 3, page_size: 5 },
     })
   })
 

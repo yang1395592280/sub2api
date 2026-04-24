@@ -56,6 +56,15 @@ type sizeBetAdminGameServiceStub struct {
 	refundErr    error
 	refundRound  int64
 	refundAt     time.Time
+
+	statsOverview *service.SizeBetStatsOverview
+	statsErr      error
+
+	statsUsers           []service.SizeBetStatsUserItem
+	statsUsersPagination *pagination.PaginationResult
+	statsUsersErr        error
+	statsDate            string
+	statsParams          pagination.PaginationParams
 }
 
 func (s *sizeBetAdminGameServiceStub) ListRounds(_ context.Context, params pagination.PaginationParams) ([]service.SizeBetRound, *pagination.PaginationResult, error) {
@@ -79,6 +88,17 @@ func (s *sizeBetAdminGameServiceStub) RefundRound(_ context.Context, roundID int
 	s.refundRound = roundID
 	s.refundAt = refundedAt
 	return s.refundResult, s.refundErr
+}
+
+func (s *sizeBetAdminGameServiceStub) GetStatsOverview(_ context.Context, date string) (*service.SizeBetStatsOverview, error) {
+	s.statsDate = date
+	return s.statsOverview, s.statsErr
+}
+
+func (s *sizeBetAdminGameServiceStub) ListStatsUsers(_ context.Context, date string, params pagination.PaginationParams) ([]service.SizeBetStatsUserItem, *pagination.PaginationResult, error) {
+	s.statsDate = date
+	s.statsParams = params
+	return s.statsUsers, s.statsUsersPagination, s.statsUsersErr
 }
 
 func decodeAdminEnvelope(t *testing.T, w *httptest.ResponseRecorder) response.Response {
@@ -231,4 +251,40 @@ func TestAdminSizeBetHandlerListBetsRejectsInvalidUserIDFilter(t *testing.T) {
 	h.ListBets(c)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestAdminSizeBetHandlerStatsEndpointsReturnData(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	settingsSvc := &sizeBetSettingsServiceStub{}
+	gameSvc := &sizeBetAdminGameServiceStub{
+		statsOverview: &service.SizeBetStatsOverview{
+			Date:             "2026-04-24",
+			ParticipantCount: 3,
+			TotalStake:       30,
+			TotalPayout:      20,
+			TotalUserNet:     -10,
+			HouseNet:         10,
+		},
+		statsUsers: []service.SizeBetStatsUserItem{
+			{UserID: 9, Username: "tester", TotalStake: 20, WonCount: 1, LostCount: 1, RefundedCount: 0, NetResult: -5},
+		},
+		statsUsersPagination: &pagination.PaginationResult{Total: 1, Page: 1, PageSize: 20, Pages: 1},
+	}
+	h := &SizeBetHandler{settingsService: settingsSvc, gameService: gameSvc}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/games/size-bet/stats/overview?date=2026-04-24", nil)
+	h.GetStatsOverview(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	w = httptest.NewRecorder()
+	c, _ = gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/games/size-bet/stats/users?date=2026-04-24&page=1&page_size=20", nil)
+	h.ListStatsUsers(c)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "2026-04-24", gameSvc.statsDate)
+	require.Equal(t, 1, gameSvc.statsParams.Page)
+	require.Equal(t, 20, gameSvc.statsParams.PageSize)
 }

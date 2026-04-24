@@ -14,11 +14,8 @@
                 <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('sizeBet.countdownLabel') }}</p>
                 <p class="text-5xl font-semibold tabular-nums text-slate-950 dark:text-white">{{ roundCountdownDisplay }}</p>
               </div>
-              <div class="rounded-2xl bg-white/80 px-4 py-3 ring-1 ring-slate-200/70 backdrop-blur dark:bg-white/10 dark:ring-white/10">
-                <p class="text-xs uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">{{ t('sizeBet.betClosesIn') }}</p>
-                <p class="mt-1 text-2xl font-semibold tabular-nums text-slate-900 dark:text-white">{{ closeCountdownDisplay }}</p>
-              </div>
             </div>
+            <p class="text-sm font-medium text-slate-600 dark:text-slate-300">{{ countdownStageHint }}</p>
             <div class="space-y-2">
               <div class="flex items-center justify-between gap-4 text-xs font-medium text-slate-500 dark:text-slate-400">
                 <span>{{ t('sizeBet.player.currentSelection') }}</span>
@@ -54,6 +51,23 @@
         <EmptyState :title="t('sizeBet.maintenance.title')" :description="t('sizeBet.maintenance.description')" />
       </section>
       <div v-else class="space-y-6">
+        <section v-if="resultNotice" class="card overflow-hidden">
+          <div class="border-b border-slate-200/80 px-6 py-5 dark:border-white/10">
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white">{{ t('sizeBet.resultNotice.title') }}</h2>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ t('sizeBet.resultNotice.subtitle') }}</p>
+          </div>
+          <div class="space-y-4 px-6 py-6">
+            <div class="rounded-2xl p-4" :class="resultBannerClass(resultNotice)">
+              <p class="text-sm font-medium">{{ t('sizeBet.resultModal.roundLabel', { round: resultNotice.round_no }) }}</p>
+              <p class="mt-2 text-2xl font-semibold" :class="resultAmountClass(resultNotice)">{{ resultSummary(resultNotice) }}</p>
+              <p class="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-200">{{ resultMessage(resultNotice) }}</p>
+            </div>
+            <div class="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
+              <p class="text-sm text-slate-600 dark:text-slate-300">{{ t('sizeBet.resultModal.selection', { direction: directionLabel(resultNotice.direction), stake: formatAmount(resultNotice.stake_amount) }) }}</p>
+              <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">{{ resultDetailLabel(resultNotice) }}</p>
+            </div>
+          </div>
+        </section>
         <div class="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
           <section class="card overflow-hidden">
             <div class="border-b border-slate-200/80 px-6 py-5 dark:border-white/10">
@@ -67,14 +81,37 @@
                   <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">{{ t('sizeBet.dealer.probability', { small: currentRound?.prob_small ?? 0, mid: currentRound?.prob_mid ?? 0, big: currentRound?.prob_big ?? 0 }) }}</p>
                   <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">{{ t('sizeBet.dealer.odds', { small: currentRound?.odds_small ?? 0, mid: currentRound?.odds_mid ?? 0, big: currentRound?.odds_big ?? 0 }) }}</p>
                 </div>
-                <div class="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
-                  <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ t('sizeBet.previousRound.title') }}</h3>
-                  <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">{{ previousRoundSummary }}</p>
-                  <p v-if="previousRound?.server_seed" class="mt-2 break-all text-xs text-slate-500 dark:text-slate-400">{{ t('sizeBet.previousRound.reveal', { seed: previousRound.server_seed }) }}</p>
+              <div class="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
+                <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ t('sizeBet.previousRound.title') }}</h3>
+                <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">{{ previousRoundSummary }}</p>
+                <p v-if="previousRound?.server_seed" class="mt-2 break-all text-xs text-slate-500 dark:text-slate-400">{{ t('sizeBet.previousRound.reveal', { seed: previousRound.server_seed }) }}</p>
+              </div>
+              <div class="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
+                <div class="flex items-center justify-between gap-3">
+                  <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ t('sizeBet.rounds.title') }}</h3>
+                  <div class="flex items-center gap-2">
+                    <button type="button" class="btn btn-secondary btn-sm" :disabled="roundsLoading || roundsPage <= 1" @click="changeRoundsPage(roundsPage - 1)">{{ t('pagination.previous') }}</button>
+                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ roundsPage }} / {{ roundsPages }}</span>
+                    <button type="button" class="btn btn-secondary btn-sm" :disabled="roundsLoading || roundsPage >= roundsPages" @click="changeRoundsPage(roundsPage + 1)">{{ t('pagination.next') }}</button>
+                  </div>
+                </div>
+                <div v-if="roundsLoading" class="mt-3 text-sm text-slate-500 dark:text-slate-400">{{ t('common.loading') }}</div>
+                <div v-else-if="!recentRoundsView.items.length" class="mt-3 text-sm text-slate-500 dark:text-slate-400">{{ t('sizeBet.rounds.empty') }}</div>
+                <div v-else class="mt-3 space-y-2">
+                  <div v-for="item in recentRoundsView.items" :key="item.id" class="rounded-xl bg-white/80 px-3 py-2 text-sm ring-1 ring-slate-200/70 dark:bg-white/5 dark:ring-white/10">
+                    <div class="flex items-center justify-between gap-3">
+                      <span class="font-medium text-slate-900 dark:text-white">{{ t('sizeBet.rounds.roundLabel', { round: item.round_no }) }}</span>
+                      <span class="text-xs text-slate-500 dark:text-slate-400">{{ formatRoundTime(item.settles_at) }}</span>
+                    </div>
+                    <p class="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                      {{ item.result_number != null && item.result_direction ? t('sizeBet.rounds.result', { number: item.result_number, direction: directionLabel(item.result_direction) }) : t('sizeBet.history.pendingResult') }}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div class="rounded-2xl bg-white p-5 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
-                <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ t('sizeBet.rules.title') }}</h3>
+            </div>
+            <div class="rounded-2xl bg-white p-5 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
+              <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ t('sizeBet.rules.title') }}</h3>
                 <div class="markdown-body prose prose-sm mt-4 max-w-none dark:prose-invert" v-html="rulesHtml"></div>
               </div>
             </div>
@@ -107,9 +144,16 @@
               <div class="space-y-3">
                 <p class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sizeBet.player.chooseStake') }}</p>
                 <div class="grid grid-cols-4 gap-3">
-                  <button v-for="stake in allowedStakes" :key="stake" type="button" class="rounded-2xl border px-3 py-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60" :class="selectedStake === stake ? 'border-slate-900 bg-slate-900 text-white dark:border-amber-300 dark:bg-amber-300 dark:text-slate-950' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-white/10 dark:bg-white/5 dark:text-slate-200'" :data-test="`stake-${stake}`" :disabled="controlsLocked" @click="selectedStake = stake">
+                  <button v-for="stake in allowedStakes" :key="stake" type="button" class="rounded-2xl border px-3 py-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60" :class="selectedStake === stake ? 'border-slate-900 bg-slate-900 text-white dark:border-amber-300 dark:bg-amber-300 dark:text-slate-950' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-white/10 dark:bg-white/5 dark:text-slate-200'" :data-test="`stake-${stake}`" :disabled="controlsLocked" @click="selectedStake = stake; customStake = null">
                     {{ stake }}
                   </button>
+                </div>
+                <div class="rounded-2xl border border-dashed border-slate-300 bg-white/70 px-4 py-4 dark:border-white/10 dark:bg-white/5">
+                  <label class="text-xs font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ t('sizeBet.player.customStake') }}</label>
+                  <div class="mt-3 flex flex-wrap items-center gap-3">
+                    <input v-model.number="customStake" :disabled="controlsLocked" data-test="custom-stake" type="number" inputmode="numeric" class="input w-40" :min="customStakeMin" :max="customStakeMax" :placeholder="String(customStakeMin)" @focus="selectedStake = null" />
+                    <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('sizeBet.player.customStakeHint', { min: customStakeMin, max: customStakeMax }) }}</p>
+                  </div>
                 </div>
               </div>
               <button type="button" class="btn btn-primary h-12 w-full justify-center text-base" data-test="bet-submit" :disabled="submitDisabled" @click="submitBet">{{ submitting ? t('sizeBet.player.submitting') : t('sizeBet.player.submit') }}</button>
@@ -150,22 +194,6 @@
         </section>
       </div>
     </div>
-    <BaseDialog :show="!!resultModal" :title="t('sizeBet.resultModal.title')" width="narrow" @close="resultModal = null">
-      <div v-if="resultModal" class="space-y-4">
-        <div class="rounded-2xl p-4" :class="resultBannerClass(resultModal)">
-          <p class="text-sm font-medium">{{ t('sizeBet.resultModal.roundLabel', { round: resultModal.round_no }) }}</p>
-          <p class="mt-2 text-2xl font-semibold" :class="resultAmountClass(resultModal)">{{ resultSummary(resultModal) }}</p>
-          <p class="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-200">{{ resultMessage(resultModal) }}</p>
-        </div>
-        <div class="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
-          <p class="text-sm text-slate-600 dark:text-slate-300">{{ t('sizeBet.resultModal.selection', { direction: directionLabel(resultModal.direction), stake: formatAmount(resultModal.stake_amount) }) }}</p>
-          <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">{{ resultDetailLabel(resultModal) }}</p>
-        </div>
-      </div>
-      <template #footer>
-        <button type="button" class="btn btn-primary" @click="resultModal = null">{{ t('sizeBet.resultModal.close') }}</button>
-      </template>
-    </BaseDialog>
   </AppLayout>
 </template>
 <script setup lang="ts">
@@ -174,13 +202,12 @@ import { marked } from 'marked'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { sizeBetAPI } from '@/api'
-import BaseDialog from '@/components/common/BaseDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
-import type { SizeBetCurrentRoundView, SizeBetDirection, SizeBetHistoryItem, SizeBetPhase, SizeBetRulesView, SizeBetStatus } from '@/types/sizeBet'
+import type { SizeBetCurrentRoundView, SizeBetDirection, SizeBetHistoryItem, SizeBetPhase, SizeBetRoundsView, SizeBetRulesView, SizeBetStatus } from '@/types/sizeBet'
 type LoadState = 'loading' | 'ready' | 'error'
 type HistoryRefreshMode = 'background' | 'manual'
 const TICK_MS = 1000
@@ -201,6 +228,7 @@ const currentView = ref<SizeBetCurrentRoundView | null>(null)
 const rules = ref<SizeBetRulesView | null>(null)
 const selectedDirection = ref<SizeBetDirection | null>(null)
 const selectedStake = ref<number | null>(null)
+const customStake = ref<number | null>(null)
 const showAllHistory = ref(false)
 const syncedServerMs = ref<number | null>(null)
 const syncedClientMs = ref<number | null>(null)
@@ -210,7 +238,10 @@ const lastAutoSyncAt = ref(0)
 const lastSeenSettledBetId = ref<number | null>(null)
 const historyRefreshError = ref('')
 const recentHistory = ref<SizeBetHistoryItem[]>([])
-const resultModal = ref<SizeBetHistoryItem | null>(null)
+const resultNotice = ref<SizeBetHistoryItem | null>(null)
+const roundsPage = ref(1)
+const roundsLoading = ref(false)
+const recentRoundsView = ref<SizeBetRoundsView>({ items: [], total: 0, page: 1, page_size: 5, pages: 1 })
 let tickTimer: number | null = null
 let syncInFlight = false
 let historySyncInFlight = false
@@ -218,18 +249,35 @@ const currentRound = computed(() => currentView.value?.round ?? null)
 const currentBet = computed(() => currentView.value?.my_bet ?? null)
 const previousRound = computed(() => currentView.value?.previous_round ?? null)
 const allowedStakes = computed(() => currentRound.value?.allowed_stakes ?? rules.value?.allowed_stakes ?? [])
+const customStakeMin = computed(() => rules.value?.custom_stake_min ?? 1)
+const customStakeMax = computed(() => rules.value?.custom_stake_max ?? 9999)
 const visibleHistory = computed(() => showAllHistory.value ? recentHistory.value : recentHistory.value.slice(0, VISIBLE_HISTORY_COUNT))
+const roundsPages = computed(() => Math.max(1, recentRoundsView.value.pages || 1))
 const estimatedServerNowMs = computed(() => syncedServerMs.value == null || syncedClientMs.value == null ? clientNowMs.value : syncedServerMs.value + (clientNowMs.value - syncedClientMs.value))
 const closeCountdownSeconds = computed(() => secondsUntil(currentRound.value?.bet_closes_at, currentRound.value?.bet_countdown_seconds ?? 0))
 const roundCountdownSeconds = computed(() => secondsUntil(currentRound.value?.settles_at, currentRound.value?.countdown_seconds ?? 0))
-const phase = computed<SizeBetPhase>(() => !currentView.value?.enabled ? 'maintenance' : !currentRound.value ? currentView.value?.phase ?? 'maintenance' : closeCountdownSeconds.value > 0 ? 'betting' : 'closed')
+const phase = computed<SizeBetPhase>(() => {
+  if (!currentView.value?.enabled) return 'maintenance'
+  if (currentView.value?.phase === 'preparing') return 'preparing'
+  if (!currentRound.value) return currentView.value?.phase ?? 'maintenance'
+  return closeCountdownSeconds.value > 0 ? 'betting' : 'closed'
+})
 const statusBadgeLabel = computed(() => loadState.value === 'loading' ? t('common.loading') : loadState.value === 'error' ? t('sizeBet.loadError.badge') : t(`sizeBet.phase.${phase.value}`))
 const phaseLabel = computed(() => t(`sizeBet.phase.${phase.value}`))
-const roundCountdownDisplay = computed(() => currentRound.value ? roundCountdownSeconds.value : '--')
-const closeCountdownDisplay = computed(() => currentRound.value ? closeCountdownSeconds.value : '--')
+const roundCountdownDisplay = computed(() => phase.value === 'preparing' ? '--' : currentRound.value ? roundCountdownSeconds.value : '--')
+const countdownStageHint = computed(() => {
+  if (phase.value === 'betting') return t('sizeBet.countdownHint.betting', { seconds: closeCountdownSeconds.value })
+  if (phase.value === 'closed') return t('sizeBet.countdownHint.closed')
+  if (phase.value === 'preparing') return t('sizeBet.countdownHint.preparing')
+  return t('sizeBet.maintenance.description')
+})
 const isBettingOpen = computed(() => loadState.value === 'ready' && currentView.value?.enabled === true && !!currentRound.value && closeCountdownSeconds.value > 0)
 const controlsLocked = computed(() => submitting.value || !isBettingOpen.value || !!currentBet.value)
-const submitDisabled = computed(() => controlsLocked.value || !selectedDirection.value || selectedStake.value == null)
+const effectiveStake = computed(() => {
+  if (customStake.value != null && !Number.isNaN(customStake.value) && customStake.value > 0) return customStake.value
+  return selectedStake.value
+})
+const submitDisabled = computed(() => controlsLocked.value || !selectedDirection.value || effectiveStake.value == null)
 const rulesHtml = computed(() => DOMPurify.sanitize((marked.parse(rules.value?.rules_markdown ?? '') as string) || ''))
 const progressWidth = computed(() => {
   const closeOffset = rules.value?.bet_close_offset_seconds ?? 0
@@ -241,13 +289,14 @@ const directionOptions = computed(() => [
   { value: 'mid' as const, label: t('sizeBet.directions.mid'), odd: currentRound.value?.odds_mid ?? rules.value?.odds.mid ?? 0 },
   { value: 'big' as const, label: t('sizeBet.directions.big'), odd: currentRound.value?.odds_big ?? rules.value?.odds.big ?? 0 },
 ])
-const selectionSummary = computed(() => currentBet.value ? t('sizeBet.player.myBet', { direction: directionLabel(currentBet.value.direction), stake: currentBet.value.stake_amount }) : !selectedDirection.value || selectedStake.value == null ? t('sizeBet.player.pending') : `${directionLabel(selectedDirection.value)} / ${selectedStake.value}`)
+const selectionSummary = computed(() => currentBet.value ? t('sizeBet.player.myBet', { direction: directionLabel(currentBet.value.direction), stake: currentBet.value.stake_amount }) : !selectedDirection.value || effectiveStake.value == null ? t('sizeBet.player.pending') : `${directionLabel(selectedDirection.value)} / ${effectiveStake.value}`)
 const statusHint = computed(() => currentBet.value ? t('sizeBet.player.placedHint') : isBettingOpen.value ? t('sizeBet.player.openHint') : t('sizeBet.player.closedHint'))
 const previousRoundSummary = computed(() => !previousRound.value?.result_number || !previousRound.value.result_direction ? t('sizeBet.previousRound.empty') : t('sizeBet.previousRound.result', { round: previousRound.value.round_no, number: previousRound.value.result_number, direction: directionLabel(previousRound.value.result_direction) }))
 
 function directionLabel(direction: SizeBetDirection) { return t(`sizeBet.directions.${direction}`) }
 function historyStatusLabel(status: SizeBetStatus) { return t(`sizeBet.history.status.${status}`) }
 function formatAmount(value: number) { return Number.isInteger(value) ? `${value}` : value.toFixed(2).replace(/\.?0+$/, '') }
+function formatRoundTime(value?: string | null) { return value ? new Date(value).toLocaleTimeString() : '--' }
 function formatSigned(value: number) { return `${value >= 0 ? '+' : '-'}${formatAmount(Math.abs(value))}` }
 function historyAmountLabel(item: SizeBetHistoryItem) {
   if (item.status === 'placed') return t('sizeBet.history.pendingAmount')
@@ -291,9 +340,11 @@ function syncSelection(view: SizeBetCurrentRoundView | null) {
   if (view?.my_bet) {
     selectedDirection.value = view.my_bet.direction
     selectedStake.value = view.my_bet.stake_amount
+    customStake.value = null
   } else if (nextRoundId !== lastRoundId.value) {
     selectedDirection.value = null
     selectedStake.value = stakes[0] ?? null
+    customStake.value = null
   } else if (!stakes.includes(selectedStake.value ?? Number.NaN)) {
     selectedStake.value = stakes[0] ?? null
   }
@@ -304,11 +355,11 @@ function maybeAutoSync(intervalMs: number) {
   void syncCurrent(true).catch(() => undefined)
 }
 function maybeOpenResultModal(items: SizeBetHistoryItem[]) {
-  const latest = items[0]
-  if (!latest || latest.status === 'placed' || latest.bet_id === lastSeenSettledBetId.value) return
+  const latest = items.find((item) => item.status !== 'placed')
+  if (!latest || latest.bet_id === lastSeenSettledBetId.value) return
   lastSeenSettledBetId.value = latest.bet_id
   persistLastSeenSettledBetId(latest.bet_id)
-  resultModal.value = latest
+  resultNotice.value = latest
 }
 async function refreshRules(silent = true) {
   try {
@@ -316,6 +367,16 @@ async function refreshRules(silent = true) {
     syncSelection(currentView.value)
   } catch (error: any) {
     if (!silent) throw error
+  }
+}
+async function loadRounds(page = roundsPage.value) {
+  roundsLoading.value = true
+  try {
+    const response = await sizeBetAPI.getRounds(page, 5)
+    recentRoundsView.value = response
+    roundsPage.value = response.page
+  } finally {
+    roundsLoading.value = false
   }
 }
 async function loadHistory(mode: HistoryRefreshMode = 'background') {
@@ -372,6 +433,7 @@ async function loadPage() {
     lastAutoSyncAt.value = Date.now()
     loadState.value = 'ready'
     await loadHistory()
+    await loadRounds()
   } catch (error: any) {
     currentView.value = null
     lastRoundId.value = null
@@ -379,6 +441,10 @@ async function loadPage() {
     loadErrorMessage.value = error?.message || t('sizeBet.loadError.description')
     appStore.showError(loadErrorMessage.value)
   }
+}
+function changeRoundsPage(page: number) {
+  if (page < 1 || page > roundsPages.value || roundsLoading.value) return
+  void loadRounds(page)
 }
 function handleResumeSync() {
   clientNowMs.value = Date.now()
@@ -403,10 +469,13 @@ function retryHistory() {
 }
 async function submitBet() {
   if (!selectedDirection.value) return appStore.showError(t('sizeBet.player.selectDirection'))
-  if (selectedStake.value == null || !currentRound.value) return appStore.showError(t('sizeBet.player.selectStake'))
+  if (effectiveStake.value == null || !currentRound.value) return appStore.showError(t('sizeBet.player.selectStake'))
+  if (effectiveStake.value < customStakeMin.value || effectiveStake.value > customStakeMax.value) {
+    return appStore.showError(t('sizeBet.player.customStakeHint', { min: customStakeMin.value, max: customStakeMax.value }))
+  }
   submitting.value = true
   try {
-    const bet = await sizeBetAPI.placeBet({ round_id: currentRound.value.id, direction: selectedDirection.value, stake_amount: selectedStake.value, idempotency_key: buildIdempotencyKey() })
+    const bet = await sizeBetAPI.placeBet({ round_id: currentRound.value.id, direction: selectedDirection.value, stake_amount: effectiveStake.value, idempotency_key: buildIdempotencyKey() })
     if (currentView.value) currentView.value.my_bet = bet
     syncSelection(currentView.value)
     await loadHistory()

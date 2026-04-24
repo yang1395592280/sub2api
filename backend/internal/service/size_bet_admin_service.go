@@ -52,6 +52,8 @@ func (s *SizeBetAdminService) GetSettings(ctx context.Context) (*SizeBetSettings
 		SettingKeySizeBetRoundDurationSeconds,
 		SettingKeySizeBetBetCloseOffsetSeconds,
 		SettingKeySizeBetAllowedStakes,
+		SettingKeySizeBetCustomStakeMin,
+		SettingKeySizeBetCustomStakeMax,
 		SettingKeySizeBetProbabilities,
 		SettingKeySizeBetOdds,
 		SettingKeySizeBetRulesMarkdown,
@@ -71,6 +73,8 @@ func (s *SizeBetAdminService) UpdateSettings(ctx context.Context, req UpdateSize
 		SettingKeySizeBetRoundDurationSeconds:  strconv.Itoa(req.RoundDurationSeconds),
 		SettingKeySizeBetBetCloseOffsetSeconds: strconv.Itoa(req.BetCloseOffsetSeconds),
 		SettingKeySizeBetAllowedStakes:         mustJSON(req.AllowedStakes),
+		SettingKeySizeBetCustomStakeMin:        strconv.Itoa(req.CustomStakeMin),
+		SettingKeySizeBetCustomStakeMax:        strconv.Itoa(req.CustomStakeMax),
 		SettingKeySizeBetProbabilities:         mustJSON(req.Probabilities),
 		SettingKeySizeBetOdds:                  mustJSON(req.Odds),
 		SettingKeySizeBetRulesMarkdown:         req.RulesMarkdown,
@@ -86,6 +90,8 @@ func parseSizeBetSettings(values map[string]string) *SizeBetSettings {
 		RoundDurationSeconds:  defaultSizeBetRoundDurationSeconds,
 		BetCloseOffsetSeconds: defaultSizeBetBetCloseOffsetSeconds,
 		AllowedStakes:         defaultSizeBetAllowedStakes(),
+		CustomStakeMin:        defaultSizeBetCustomStakeMin,
+		CustomStakeMax:        defaultSizeBetCustomStakeMax,
 		ProbSmall:             defaultProbabilities.Small,
 		ProbMid:               defaultProbabilities.Mid,
 		ProbBig:               defaultProbabilities.Big,
@@ -118,6 +124,16 @@ func parseSizeBetSettings(values map[string]string) *SizeBetSettings {
 	settings.RoundDurationSeconds = roundDuration
 	settings.BetCloseOffsetSeconds = betCloseOffset
 	settings.AllowedStakes = parseSizeBetAllowedStakes(values[SettingKeySizeBetAllowedStakes])
+	if raw := strings.TrimSpace(values[SettingKeySizeBetCustomStakeMin]); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
+			settings.CustomStakeMin = parsed
+		}
+	}
+	if raw := strings.TrimSpace(values[SettingKeySizeBetCustomStakeMax]); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed >= settings.CustomStakeMin {
+			settings.CustomStakeMax = parsed
+		}
+	}
 
 	probabilities, ok := parseSizeBetProbabilityConfig(values[SettingKeySizeBetProbabilities])
 	if ok {
@@ -148,6 +164,9 @@ func validateSizeBetSettings(req UpdateSizeBetSettingsRequest) error {
 		return ErrSizeBetInvalidBetCloseOffset
 	}
 	if !isValidSizeBetAllowedStakes(req.AllowedStakes) {
+		return ErrSizeBetInvalidAllowedStakes
+	}
+	if req.CustomStakeMin <= 0 || req.CustomStakeMax < req.CustomStakeMin {
 		return ErrSizeBetInvalidAllowedStakes
 	}
 	if !isValidSizeBetProbabilities(req.Probabilities) {

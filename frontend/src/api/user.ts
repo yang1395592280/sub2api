@@ -5,6 +5,8 @@
 
 import { apiClient } from './client'
 import type { User, ChangePasswordRequest, NotifyEmailEntry } from '@/types'
+import type { BalanceHistoryResponse } from './admin/users'
+export type { BalanceHistoryResponse } from './admin/users'
 
 /**
  * Get current user profile
@@ -83,6 +85,17 @@ export async function toggleNotifyEmail(email: string, disabled: boolean): Promi
   return data
 }
 
+export async function getBalanceHistory(
+  page: number = 1,
+  pageSize: number = 15,
+  type?: string
+): Promise<BalanceHistoryResponse> {
+  const params: Record<string, any> = { page, page_size: pageSize }
+  if (type) params.type = type
+  const { data } = await apiClient.get<BalanceHistoryResponse>('/user/balance-history', { params })
+  return data
+}
+
 export const userAPI = {
   getProfile,
   updateProfile,
@@ -90,7 +103,8 @@ export const userAPI = {
   sendNotifyEmailCode,
   verifyNotifyEmail,
   removeNotifyEmail,
-  toggleNotifyEmail
+  toggleNotifyEmail,
+  getBalanceHistory
 }
 
 export default userAPI

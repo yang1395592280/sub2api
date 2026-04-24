@@ -105,6 +105,8 @@ func registerSizeBetRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		games.GET("/rounds", h.Admin.SizeBet.ListRounds)
 		games.GET("/bets", h.Admin.SizeBet.ListBets)
 		games.GET("/ledger", h.Admin.SizeBet.ListLedger)
+		games.GET("/stats/overview", h.Admin.SizeBet.GetStatsOverview)
+		games.GET("/stats/users", h.Admin.SizeBet.ListStatsUsers)
 		games.POST("/rounds/:id/refund", h.Admin.SizeBet.RefundRound)
 	}
 }

@@ -377,7 +377,13 @@ export default {
     phase: {
       betting: '参与中',
       closed: '等待开奖',
+      preparing: '准备中',
       maintenance: '维护中'
+    },
+    countdownHint: {
+      betting: '距离封盘还有 {seconds} 秒',
+      closed: '本局已封盘，等待系统开奖',
+      preparing: '下一局准备中'
     },
     loadError: {
       badge: '加载失败',
@@ -398,6 +404,8 @@ export default {
       myBet: '已参与 {direction} / {stake}',
       chooseDirection: '选择方向',
       chooseStake: '选择参与额度',
+      customStake: '自定义额度',
+      customStakeHint: '可输入 {min} 到 {max} 之间的整数额度',
       submit: '确认参与',
       submitting: '提交中...',
       openHint: '当前还在参与时间内',
@@ -415,6 +423,16 @@ export default {
       empty: '暂无最近开奖',
       result: '第 {round} 期 {number} 点 / {direction}',
       reveal: '服务端种子：{seed}'
+    },
+    rounds: {
+      title: '开奖结果',
+      empty: '暂无开奖记录',
+      roundLabel: '第 {round} 期',
+      result: '结果：{number} / {direction}'
+    },
+    resultNotice: {
+      title: '本局结果',
+      subtitle: '系统会在这里固定展示最近一次结算结果'
     },
     history: {
       title: '我的参与记录',
@@ -3854,12 +3872,14 @@ export default {
         settings: '配置',
         rounds: '回合',
         bets: '下注',
-        ledger: '账变'
+        ledger: '账变',
+        stats: '统计'
       },
       tabDescriptions: {
         rounds: '查看每期概率、赔率与开奖结果快照',
         bets: '审计玩家下注、结算与盈亏结果',
-        ledger: '核对下注扣款、派奖与退款流水'
+        ledger: '核对下注扣款、派奖与退款流水',
+        stats: '按日期查看整体和用户盈亏统计'
       },
       probabilitySummary: '当前概率：小 {small}% / 中 {mid}% / 大 {big}%',
       oddsSummary: '当前赔率：小 {small}x / 中 {mid}x / 大 {big}x',
@@ -3868,6 +3888,8 @@ export default {
       roundDuration: '每局时长（秒）',
       betCloseOffset: '封盘时间（秒）',
       allowedStakes: '允许筹码',
+      customStakeMin: '自定义额度最小值',
+      customStakeMax: '自定义额度最大值',
       allowedStakesPlaceholder: '例如：2, 5, 10, 20',
       probabilitiesTitle: '概率配置',
       oddsTitle: '赔率配置',
@@ -3883,14 +3905,25 @@ export default {
       refundSuccess: '退款完成，处理 {count} 条下注',
       refundFailed: '退款失败',
       filters: {
+        date: '日期',
         roundId: '期号',
         userId: '用户 ID',
         status: '下注状态',
         entryType: '流水类型'
       },
+      stats: {
+        participantCount: '参与人数',
+        totalStake: '总参与额度',
+        totalUserNet: '用户总盈亏',
+        houseNet: '庄家总盈亏',
+        wonCount: '命中次数',
+        lostCount: '未命中次数',
+        refundedCount: '退款次数'
+      },
       validation: {
         roundDuration: '每局时长必须大于 0',
         betCloseOffset: '封盘时间必须在 0 到每局时长之间',
+        customStakeRange: '自定义额度范围不合法',
         odds: '赔率必须大于 0'
       },
       columns: {

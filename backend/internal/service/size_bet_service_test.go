@@ -149,6 +149,14 @@ func (s *sizeBetRepoStub) ListRoundsDueForSettlement(context.Context, time.Time,
 	return nil, nil
 }
 
+func (s *sizeBetRepoStub) GetStatsOverview(context.Context, string) (*SizeBetStatsOverview, error) {
+	return nil, nil
+}
+
+func (s *sizeBetRepoStub) ListStatsUsers(context.Context, string, pagination.PaginationParams) ([]SizeBetStatsUserItem, *pagination.PaginationResult, error) {
+	return nil, nil, nil
+}
+
 func mustOpenRound() *SizeBetRound {
 	now := time.Now()
 	return &SizeBetRound{
@@ -233,6 +241,17 @@ func TestSizeBetServiceEnsureCurrentRoundDisabledDoesNotCreateRound(t *testing.T
 	}, nil, nil)
 
 	round, err := svc.EnsureCurrentRound(context.Background(), time.Now())
+
+	require.NoError(t, err)
+	require.Nil(t, round)
+	require.Equal(t, 0, repo.createRoundCalls)
+}
+
+func TestSizeBetServiceEnsureCurrentRoundPreparationWindowDoesNotCreateRound(t *testing.T) {
+	repo := newSizeBetRepoStub()
+	svc := NewSizeBetService(repo, &sizeBetSettingRepoStub{values: map[string]string{}}, nil, nil)
+
+	round, err := svc.EnsureCurrentRound(context.Background(), time.Unix(65, 0).UTC())
 
 	require.NoError(t, err)
 	require.Nil(t, round)

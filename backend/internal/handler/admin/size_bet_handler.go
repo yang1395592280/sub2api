@@ -21,6 +21,8 @@ type sizeBetAdminGameService interface {
 	ListBets(ctx context.Context, params pagination.PaginationParams, filter service.SizeBetAdminBetFilter) ([]service.SizeBetAdminBet, *pagination.PaginationResult, error)
 	ListLedger(ctx context.Context, params pagination.PaginationParams, filter service.SizeBetAdminLedgerFilter) ([]service.SizeBetLedgerEntry, *pagination.PaginationResult, error)
 	RefundRound(ctx context.Context, roundID int64, refundedAt time.Time) (*service.SizeBetRefundResult, error)
+	GetStatsOverview(ctx context.Context, date string) (*service.SizeBetStatsOverview, error)
+	ListStatsUsers(ctx context.Context, date string, params pagination.PaginationParams) ([]service.SizeBetStatsUserItem, *pagination.PaginationResult, error)
 }
 
 type SizeBetHandler struct {
@@ -181,6 +183,28 @@ func (h *SizeBetHandler) RefundRound(c *gin.Context) {
 		return
 	}
 	response.Success(c, result)
+}
+
+func (h *SizeBetHandler) GetStatsOverview(c *gin.Context) {
+	result, err := h.gameService.GetStatsOverview(c.Request.Context(), c.Query("date"))
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *SizeBetHandler) ListStatsUsers(c *gin.Context) {
+	page, pageSize := response.ParsePagination(c)
+	items, paginationResult, err := h.gameService.ListStatsUsers(c.Request.Context(), c.Query("date"), pagination.PaginationParams{
+		Page:     page,
+		PageSize: pageSize,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	writePaginated(c, items, paginationResult)
 }
 
 func writePaginated(c *gin.Context, items any, paginationResult *pagination.PaginationResult) {

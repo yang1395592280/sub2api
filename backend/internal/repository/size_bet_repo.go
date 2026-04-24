@@ -525,6 +525,99 @@ func (r *sizeBetRepository) ListRoundsDueForSettlement(ctx context.Context, now 
 	return scanSizeBetRounds(rows)
 }
 
+func (r *sizeBetRepository) GetStatsOverview(ctx context.Context, date string) (*service.SizeBetStatsOverview, error) {
+	if strings.TrimSpace(date) == "" {
+		date = time.Now().UTC().Format("2006-01-02")
+	}
+	overview := &service.SizeBetStatsOverview{Date: date}
+	err := r.db.QueryRowContext(ctx, `
+		SELECT
+			COUNT(DISTINCT gb.user_id),
+			COALESCE(SUM(gb.stake_amount), 0),
+			COALESCE(SUM(gb.payout_amount), 0),
+			COALESCE(SUM(gb.net_result_amount), 0)
+		FROM game_bets gb
+		JOIN game_rounds gr ON gr.id = gb.round_id
+		WHERE gr.game_key = $1
+			AND gr.starts_at::date = $2::date
+	`, service.SizeBetGameKey, date).Scan(
+		&overview.ParticipantCount,
+		&overview.TotalStake,
+		&overview.TotalPayout,
+		&overview.TotalUserNet,
+	)
+	if err != nil {
+		return nil, err
+	}
+	overview.HouseNet = -overview.TotalUserNet
+	return overview, nil
+}
+
+func (r *sizeBetRepository) ListStatsUsers(ctx context.Context, date string, params pagination.PaginationParams) ([]service.SizeBetStatsUserItem, *pagination.PaginationResult, error) {
+	if strings.TrimSpace(date) == "" {
+		date = time.Now().UTC().Format("2006-01-02")
+	}
+
+	var total int64
+	if err := r.db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM (
+			SELECT gb.user_id
+			FROM game_bets gb
+			JOIN game_rounds gr ON gr.id = gb.round_id
+			WHERE gr.game_key = $1
+				AND gr.starts_at::date = $2::date
+			GROUP BY gb.user_id
+		) t
+	`, service.SizeBetGameKey, date).Scan(&total); err != nil {
+		return nil, nil, err
+	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT
+			gb.user_id,
+			COALESCE(NULLIF(u.username, ''), u.email, CONCAT('user-', gb.user_id)),
+			COALESCE(SUM(gb.stake_amount), 0),
+			COALESCE(SUM(CASE WHEN gb.status = 'won' THEN 1 ELSE 0 END), 0)::bigint,
+			COALESCE(SUM(CASE WHEN gb.status = 'lost' THEN 1 ELSE 0 END), 0)::bigint,
+			COALESCE(SUM(CASE WHEN gb.status = 'refunded' THEN 1 ELSE 0 END), 0)::bigint,
+			COALESCE(SUM(gb.net_result_amount), 0)
+		FROM game_bets gb
+		JOIN game_rounds gr ON gr.id = gb.round_id
+		LEFT JOIN users u ON u.id = gb.user_id
+		WHERE gr.game_key = $1
+			AND gr.starts_at::date = $2::date
+		GROUP BY gb.user_id, u.username, u.email
+		ORDER BY COALESCE(SUM(gb.net_result_amount), 0) DESC, gb.user_id DESC
+		LIMIT $3 OFFSET $4
+	`, service.SizeBetGameKey, date, params.Limit(), params.Offset())
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	items := make([]service.SizeBetStatsUserItem, 0)
+	for rows.Next() {
+		var item service.SizeBetStatsUserItem
+		if err := rows.Scan(
+			&item.UserID,
+			&item.Username,
+			&item.TotalStake,
+			&item.WonCount,
+			&item.LostCount,
+			&item.RefundedCount,
+			&item.NetResult,
+		); err != nil {
+			return nil, nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	return items, buildSizeBetPaginationResult(total, params), nil
+}
+
 func (r *sizeBetRepository) LoadRoundBetsForSettlement(ctx context.Context, roundID int64) ([]service.SizeBet, error) {
 	return loadRoundBetsForSettlementQuerier(ctx, r.db, roundID)
 }

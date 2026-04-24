@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -16,7 +15,7 @@ type sizeBetService interface {
 	GetCurrentRoundView(ctx context.Context, userID int64, now time.Time) (*service.SizeBetCurrentRoundView, error)
 	PlaceBet(ctx context.Context, req service.PlaceSizeBetRequest) (*service.SizeBet, error)
 	GetHistory(ctx context.Context, userID int64, params pagination.PaginationParams) ([]service.SizeBetUserHistoryItem, *pagination.PaginationResult, error)
-	ListRecentRounds(ctx context.Context, limit int) ([]service.SizeBetRound, error)
+	ListRounds(ctx context.Context, params pagination.PaginationParams) ([]service.SizeBetRound, *pagination.PaginationResult, error)
 	GetLeaderboard(ctx context.Context, scope string, now time.Time) (*service.SizeBetLeaderboardView, error)
 	GetRules(ctx context.Context, now time.Time) (*service.SizeBetRulesView, error)
 }
@@ -171,18 +170,25 @@ func (h *SizeBetHandler) GetHistory(c *gin.Context) {
 }
 
 func (h *SizeBetHandler) ListRecentRounds(c *gin.Context) {
-	limit := 10
-	if raw := c.Query("limit"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			limit = parsed
-		}
-	}
-	items, err := h.service.ListRecentRounds(c.Request.Context(), limit)
+	page, pageSize := response.ParsePagination(c)
+	items, paginationResult, err := h.service.ListRounds(c.Request.Context(), pagination.PaginationParams{
+		Page:     page,
+		PageSize: pageSize,
+	})
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, toSizeBetRoundSummaryResponses(items))
+	var respPagination *response.PaginationResult
+	if paginationResult != nil {
+		respPagination = &response.PaginationResult{
+			Total:    paginationResult.Total,
+			Page:     paginationResult.Page,
+			PageSize: paginationResult.PageSize,
+			Pages:    paginationResult.Pages,
+		}
+	}
+	response.PaginatedWithResult(c, toSizeBetRoundSummaryResponses(items), respPagination)
 }
 
 func (h *SizeBetHandler) GetLeaderboard(c *gin.Context) {

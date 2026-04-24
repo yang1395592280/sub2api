@@ -149,6 +149,14 @@ func (s *sizeBetQueryRepoStub) ListRoundsDueForSettlement(context.Context, time.
 	return append([]SizeBetRound(nil), s.roundsDue...), nil
 }
 
+func (s *sizeBetQueryRepoStub) GetStatsOverview(context.Context, string) (*SizeBetStatsOverview, error) {
+	return nil, nil
+}
+
+func (s *sizeBetQueryRepoStub) ListStatsUsers(context.Context, string, pagination.PaginationParams) ([]SizeBetStatsUserItem, *pagination.PaginationResult, error) {
+	return nil, nil, nil
+}
+
 type sizeBetRuntimeSettingRepoStub struct {
 	values map[string]string
 }
@@ -368,6 +376,25 @@ func TestSizeBetRuntimeServiceRunOnceEnsuresCurrentRoundAndSettlesDueRounds(t *t
 	require.Equal(t, 1, repo.createRoundCalls)
 	require.NotNil(t, repo.lastCreatedRound)
 	require.Equal(t, SizeBetGameKey, repo.lastCreatedRound.GameKey)
+}
+
+func TestSizeBetSmoothedWeightsReducesLongSameDirectionStreak(t *testing.T) {
+	round := &SizeBetRound{
+		ProbSmall: 45,
+		ProbMid:   10,
+		ProbBig:   45,
+	}
+	recentRounds := []SizeBetRound{
+		{ResultDirection: SizeBetDirectionSmall},
+		{ResultDirection: SizeBetDirectionSmall},
+		{ResultDirection: SizeBetDirectionSmall},
+	}
+
+	smallWeight, midWeight, bigWeight := sizeBetSmoothedWeights(round, recentRounds)
+
+	require.Less(t, smallWeight, round.ProbSmall)
+	require.Greater(t, bigWeight, round.ProbBig)
+	require.Greater(t, midWeight, round.ProbMid)
 }
 
 func TestSizeBetRuntimeServiceRunOnceDisabledSkipsMutation(t *testing.T) {
