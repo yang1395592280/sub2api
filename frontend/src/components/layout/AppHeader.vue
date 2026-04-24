@@ -23,6 +23,35 @@
 
       <!-- Right: Announcements + Docs + Language + Subscriptions + Balance + User Dropdown -->
       <div class="flex items-center gap-3">
+        <a
+          :href="qqGroupLink"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="hidden items-center gap-2 rounded-xl border border-primary-200 bg-primary-50 px-3 py-1.5 text-sm font-medium text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100 hover:text-primary-800 dark:border-primary-800/70 dark:bg-primary-900/20 dark:text-primary-300 dark:hover:bg-primary-900/30 md:flex"
+          :title="qqGroupTitle"
+        >
+          <svg
+            class="h-4 w-4 flex-shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M3.75 10.5c0-3.314 3.358-6 7.5-6s7.5 2.686 7.5 6-3.358 6-7.5 6c-.836 0-1.641-.109-2.398-.311L5.25 18.75v-3.145C4.298 14.538 3.75 12.584 3.75 10.5z"
+            />
+          </svg>
+          <span>加QQ群</span>
+          <span class="hidden text-primary-500/90 lg:inline">1006817250</span>
+        </a>
+
         <!-- Announcement Bell -->
         <AnnouncementBell v-if="user" />
 
@@ -256,6 +285,8 @@ const dropdownRef = ref<HTMLElement | null>(null)
 const showBalanceHistoryModal = ref(false)
 const contactInfo = computed(() => appStore.contactInfo)
 const docUrl = computed(() => appStore.docUrl)
+const qqGroupLink = 'https://qm.qq.com/q/73qQYmuU0g'
+const qqGroupTitle = '点击链接加入群聊【llmx公益站】'
 
 // 只在标准模式的管理员下显示新手引导按钮
 const showOnboardingButton = computed(() => {

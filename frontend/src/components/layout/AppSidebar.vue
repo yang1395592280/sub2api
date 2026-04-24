@@ -736,6 +736,33 @@ const adminNavItems = computed((): NavItem[] => {
   return baseItems
 })
 
+const activeSidebarPaths = computed(() => {
+  const paths: string[] = []
+
+  const collect = (items: NavItem[]) => {
+    for (const item of items) {
+      if (item.children?.length) {
+        for (const child of item.children) {
+          paths.push(child.path)
+        }
+        continue
+      }
+      paths.push(item.path)
+    }
+  }
+
+  if (isAdmin.value) {
+    collect(adminNavItems.value)
+    if (!authStore.isSimpleMode) {
+      collect(personalNavItems.value)
+    }
+  } else if (!appStore.backendModeEnabled) {
+    collect(userNavItems.value)
+  }
+
+  return paths
+})
+
 function toggleSidebar() {
   appStore.toggleSidebar()
 }
@@ -771,7 +798,18 @@ function handleMenuItemClick(itemPath: string) {
 }
 
 function isActive(path: string): boolean {
-  return route.path === path || route.path.startsWith(path + '/')
+  if (route.path === path) {
+    return true
+  }
+  if (!route.path.startsWith(path + '/')) {
+    return false
+  }
+
+  return !activeSidebarPaths.value.some(otherPath =>
+    otherPath !== path &&
+    otherPath.length > path.length &&
+    (route.path === otherPath || route.path.startsWith(otherPath + '/'))
+  )
 }
 
 function isGroupActive(item: NavItem): boolean {
