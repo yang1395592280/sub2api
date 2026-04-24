@@ -16,6 +16,8 @@ type sizeBetService interface {
 	PlaceBet(ctx context.Context, req service.PlaceSizeBetRequest) (*service.SizeBet, error)
 	GetHistory(ctx context.Context, userID int64, params pagination.PaginationParams) ([]service.SizeBetUserHistoryItem, *pagination.PaginationResult, error)
 	ListRounds(ctx context.Context, params pagination.PaginationParams) ([]service.SizeBetRound, *pagination.PaginationResult, error)
+	GetStatsOverview(ctx context.Context, date string) (*service.SizeBetStatsOverview, error)
+	ListStatsUsers(ctx context.Context, date string, params pagination.PaginationParams) ([]service.SizeBetStatsUserItem, *pagination.PaginationResult, error)
 	GetLeaderboard(ctx context.Context, scope string, now time.Time) (*service.SizeBetLeaderboardView, error)
 	GetRules(ctx context.Context, now time.Time) (*service.SizeBetRulesView, error)
 }
@@ -90,6 +92,24 @@ type sizeBetCurrentRoundViewResponse struct {
 	Round         *sizeBetCurrentRoundResponse `json:"round,omitempty"`
 	MyBet         *sizeBetResponse             `json:"my_bet,omitempty"`
 	PreviousRound *sizeBetRoundSummaryResponse `json:"previous_round,omitempty"`
+}
+
+type sizeBetStatsOverviewResponse struct {
+	Date             string  `json:"date"`
+	ParticipantCount int64   `json:"participant_count"`
+	TotalStake       float64 `json:"total_stake"`
+	TotalPayout      float64 `json:"total_payout"`
+	TotalUserNet     float64 `json:"total_user_net"`
+	HouseNet         float64 `json:"house_net"`
+}
+
+type sizeBetStatsUserResponse struct {
+	Username      string  `json:"username"`
+	TotalStake    float64 `json:"total_stake"`
+	WonCount      int64   `json:"won_count"`
+	LostCount     int64   `json:"lost_count"`
+	RefundedCount int64   `json:"refunded_count"`
+	NetResult     float64 `json:"net_result"`
 }
 
 type PlaceBetRequest struct {
@@ -189,6 +209,37 @@ func (h *SizeBetHandler) ListRecentRounds(c *gin.Context) {
 		}
 	}
 	response.PaginatedWithResult(c, toSizeBetRoundSummaryResponses(items), respPagination)
+}
+
+func (h *SizeBetHandler) GetStatsOverview(c *gin.Context) {
+	result, err := h.service.GetStatsOverview(c.Request.Context(), c.Query("date"))
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, toSizeBetStatsOverviewResponse(result))
+}
+
+func (h *SizeBetHandler) ListStatsUsers(c *gin.Context) {
+	page, pageSize := response.ParsePagination(c)
+	items, paginationResult, err := h.service.ListStatsUsers(c.Request.Context(), c.Query("date"), pagination.PaginationParams{
+		Page:     page,
+		PageSize: pageSize,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	var respPagination *response.PaginationResult
+	if paginationResult != nil {
+		respPagination = &response.PaginationResult{
+			Total:    paginationResult.Total,
+			Page:     paginationResult.Page,
+			PageSize: paginationResult.PageSize,
+			Pages:    paginationResult.Pages,
+		}
+	}
+	response.PaginatedWithResult(c, toSizeBetStatsUserResponses(items), respPagination)
 }
 
 func (h *SizeBetHandler) GetLeaderboard(c *gin.Context) {
@@ -322,6 +373,35 @@ func toSizeBetUserHistoryResponse(item service.SizeBetUserHistoryItem) sizeBetUs
 		resp.SettledAt = &settledAt
 	}
 	return resp
+}
+
+func toSizeBetStatsOverviewResponse(item *service.SizeBetStatsOverview) *sizeBetStatsOverviewResponse {
+	if item == nil {
+		return nil
+	}
+	return &sizeBetStatsOverviewResponse{
+		Date:             item.Date,
+		ParticipantCount: item.ParticipantCount,
+		TotalStake:       item.TotalStake,
+		TotalPayout:      item.TotalPayout,
+		TotalUserNet:     item.TotalUserNet,
+		HouseNet:         item.HouseNet,
+	}
+}
+
+func toSizeBetStatsUserResponses(items []service.SizeBetStatsUserItem) []sizeBetStatsUserResponse {
+	respItems := make([]sizeBetStatsUserResponse, 0, len(items))
+	for i := range items {
+		respItems = append(respItems, sizeBetStatsUserResponse{
+			Username:      items[i].Username,
+			TotalStake:    items[i].TotalStake,
+			WonCount:      items[i].WonCount,
+			LostCount:     items[i].LostCount,
+			RefundedCount: items[i].RefundedCount,
+			NetResult:     items[i].NetResult,
+		})
+	}
+	return respItems
 }
 
 func formatTime(t time.Time) string {

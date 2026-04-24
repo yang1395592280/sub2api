@@ -35,9 +35,9 @@
               <p class="text-xs uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">{{ t('sizeBet.previousRound.title') }}</p>
               <p class="mt-2 text-sm font-medium text-slate-900 dark:text-white">{{ previousRoundSummary }}</p>
             </div>
-            <div class="rounded-2xl bg-slate-950/90 p-4 text-white shadow-sm dark:bg-slate-900">
-              <p class="text-xs uppercase tracking-[0.22em] text-amber-200/80">{{ t('sizeBet.seedTitle') }}</p>
-              <p class="mt-2 break-all text-sm font-medium text-amber-50">{{ currentRound?.server_seed_hash ?? previousRound?.server_seed_hash ?? '--' }}</p>
+            <div class="rounded-2xl border border-sky-200/70 bg-gradient-to-br from-sky-50 via-white to-indigo-50 p-4 text-slate-900 shadow-sm shadow-sky-100/70 dark:border-sky-400/20 dark:bg-gradient-to-br dark:from-slate-900 dark:via-slate-900 dark:to-sky-950/40 dark:text-white dark:shadow-none">
+              <p class="text-xs uppercase tracking-[0.22em] text-sky-700/75 dark:text-sky-200/80">{{ t('sizeBet.seedTitle') }}</p>
+              <p class="mt-2 break-all text-sm font-medium text-slate-700 dark:text-sky-50">{{ currentRound?.server_seed_hash ?? previousRound?.server_seed_hash ?? '--' }}</p>
             </div>
           </div>
         </div>
@@ -144,7 +144,7 @@
               <div class="space-y-3">
                 <p class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ t('sizeBet.player.chooseStake') }}</p>
                 <div class="grid grid-cols-4 gap-3">
-                  <button v-for="stake in allowedStakes" :key="stake" type="button" class="rounded-2xl border px-3 py-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60" :class="selectedStake === stake ? 'border-slate-900 bg-slate-900 text-white dark:border-amber-300 dark:bg-amber-300 dark:text-slate-950' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-white/10 dark:bg-white/5 dark:text-slate-200'" :data-test="`stake-${stake}`" :disabled="controlsLocked" @click="selectedStake = stake; customStake = null">
+                  <button v-for="stake in allowedStakes" :key="stake" type="button" class="rounded-2xl border px-3 py-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60" :class="selectedStake === stake ? 'border-sky-300 bg-gradient-to-br from-sky-100 via-white to-indigo-100 text-slate-800 shadow-sm shadow-sky-100/80 hover:border-sky-300 dark:border-sky-300/40 dark:from-sky-500/20 dark:via-slate-900 dark:to-indigo-500/20 dark:text-sky-50 dark:shadow-none' : 'border-slate-200 bg-white text-slate-700 hover:border-sky-200 hover:bg-sky-50/60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-sky-400/20 dark:hover:bg-sky-500/10'" :data-test="`stake-${stake}`" :disabled="controlsLocked" @click="selectedStake = stake; customStake = null">
                     {{ stake }}
                   </button>
                 </div>

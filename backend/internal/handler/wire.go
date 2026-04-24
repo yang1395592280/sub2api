@@ -84,6 +84,7 @@ func ProvideSettingHandler(settingService *service.SettingService, buildInfo Bui
 func ProvideHandlers(
 	authHandler *AuthHandler,
 	userHandler *UserHandler,
+	windsurfAccountHandler *WindsurfAccountHandler,
 	apiKeyHandler *APIKeyHandler,
 	usageHandler *UsageHandler,
 	redeemHandler *RedeemHandler,
@@ -102,21 +103,22 @@ func ProvideHandlers(
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
 	return &Handlers{
-		Auth:           authHandler,
-		User:           userHandler,
-		APIKey:         apiKeyHandler,
-		Usage:          usageHandler,
-		Redeem:         redeemHandler,
-		Subscription:   subscriptionHandler,
-		Announcement:   announcementHandler,
-		Admin:          adminHandlers,
-		Gateway:        gatewayHandler,
-		OpenAIGateway:  openaiGatewayHandler,
-		Setting:        settingHandler,
-		Totp:           totpHandler,
-		Payment:        paymentHandler,
-		PaymentWebhook: paymentWebhookHandler,
-		SizeBet:        sizeBetHandler,
+		Auth:            authHandler,
+		User:            userHandler,
+		WindsurfAccount: windsurfAccountHandler,
+		APIKey:          apiKeyHandler,
+		Usage:           usageHandler,
+		Redeem:          redeemHandler,
+		Subscription:    subscriptionHandler,
+		Announcement:    announcementHandler,
+		Admin:           adminHandlers,
+		Gateway:         gatewayHandler,
+		OpenAIGateway:   openaiGatewayHandler,
+		Setting:         settingHandler,
+		Totp:            totpHandler,
+		Payment:         paymentHandler,
+		PaymentWebhook:  paymentWebhookHandler,
+		SizeBet:         sizeBetHandler,
 	}
 }
 
@@ -125,6 +127,7 @@ var ProviderSet = wire.NewSet(
 	// Top-level handlers
 	NewAuthHandler,
 	NewUserHandler,
+	NewWindsurfAccountHandler,
 	NewAPIKeyHandler,
 	NewUsageHandler,
 	NewRedeemHandler,

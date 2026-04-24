@@ -38,21 +38,22 @@ type AdminHandlers struct {
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
-	Auth           *AuthHandler
-	User           *UserHandler
-	APIKey         *APIKeyHandler
-	Usage          *UsageHandler
-	Redeem         *RedeemHandler
-	Subscription   *SubscriptionHandler
-	Announcement   *AnnouncementHandler
-	Admin          *AdminHandlers
-	Gateway        *GatewayHandler
-	OpenAIGateway  *OpenAIGatewayHandler
-	Setting        *SettingHandler
-	Totp           *TotpHandler
-	Payment        *PaymentHandler
-	PaymentWebhook *PaymentWebhookHandler
-	SizeBet        *SizeBetHandler
+	Auth            *AuthHandler
+	User            *UserHandler
+	WindsurfAccount *WindsurfAccountHandler
+	APIKey          *APIKeyHandler
+	Usage           *UsageHandler
+	Redeem          *RedeemHandler
+	Subscription    *SubscriptionHandler
+	Announcement    *AnnouncementHandler
+	Admin           *AdminHandlers
+	Gateway         *GatewayHandler
+	OpenAIGateway   *OpenAIGatewayHandler
+	Setting         *SettingHandler
+	Totp            *TotpHandler
+	Payment         *PaymentHandler
+	PaymentWebhook  *PaymentWebhookHandler
+	SizeBet         *SizeBetHandler
 }
 
 // BuildInfo contains build-time information

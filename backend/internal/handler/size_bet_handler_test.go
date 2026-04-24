@@ -38,6 +38,15 @@ type sizeBetServiceStub struct {
 	roundsErr        error
 	roundsParams     pagination.PaginationParams
 
+	statsOverview *service.SizeBetStatsOverview
+	statsErr      error
+
+	statsUsers           []service.SizeBetStatsUserItem
+	statsUsersPagination *pagination.PaginationResult
+	statsUsersErr        error
+	statsDate            string
+	statsParams          pagination.PaginationParams
+
 	leaderboardScope string
 	leaderboardNow   time.Time
 	leaderboard      *service.SizeBetLeaderboardView
@@ -68,6 +77,17 @@ func (s *sizeBetServiceStub) GetHistory(_ context.Context, userID int64, params 
 func (s *sizeBetServiceStub) ListRounds(_ context.Context, params pagination.PaginationParams) ([]service.SizeBetRound, *pagination.PaginationResult, error) {
 	s.roundsParams = params
 	return s.roundsItems, s.roundsPagination, s.roundsErr
+}
+
+func (s *sizeBetServiceStub) GetStatsOverview(_ context.Context, date string) (*service.SizeBetStatsOverview, error) {
+	s.statsDate = date
+	return s.statsOverview, s.statsErr
+}
+
+func (s *sizeBetServiceStub) ListStatsUsers(_ context.Context, date string, params pagination.PaginationParams) ([]service.SizeBetStatsUserItem, *pagination.PaginationResult, error) {
+	s.statsDate = date
+	s.statsParams = params
+	return s.statsUsers, s.statsUsersPagination, s.statsUsersErr
 }
 
 func (s *sizeBetServiceStub) GetLeaderboard(_ context.Context, scope string, now time.Time) (*service.SizeBetLeaderboardView, error) {
@@ -350,4 +370,60 @@ func TestSizeBetHandlerListRecentRoundsUsesDTO(t *testing.T) {
 	require.Contains(t, item, "round_no")
 	require.NotContains(t, item, "GameKey")
 	require.NotContains(t, item, "RoundNo")
+}
+
+func TestSizeBetHandlerStatsEndpointsUseUserFacingDTO(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	svc := &sizeBetServiceStub{
+		statsOverview: &service.SizeBetStatsOverview{
+			Date:             "2026-04-24",
+			ParticipantCount: 3,
+			TotalStake:       30,
+			TotalPayout:      20,
+			TotalUserNet:     -10,
+			HouseNet:         10,
+		},
+		statsUsers: []service.SizeBetStatsUserItem{
+			{UserID: 9, Username: "tester", TotalStake: 20, WonCount: 1, LostCount: 1, RefundedCount: 0, NetResult: -5},
+		},
+		statsUsersPagination: &pagination.PaginationResult{
+			Total:    1,
+			Page:     2,
+			PageSize: 10,
+			Pages:    1,
+		},
+	}
+	h := &SizeBetHandler{service: svc}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/game/size-bet/stats/overview?date=2026-04-24", nil)
+
+	h.GetStatsOverview(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	resp := decodeEnvelope(t, w)
+	data := resp.Data.(map[string]any)
+	require.Equal(t, "2026-04-24", data["date"])
+	require.Equal(t, float64(3), data["participant_count"])
+
+	w = httptest.NewRecorder()
+	c, _ = gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/game/size-bet/stats/users?date=2026-04-24&page=2&page_size=10", nil)
+
+	h.ListStatsUsers(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "2026-04-24", svc.statsDate)
+	require.Equal(t, 2, svc.statsParams.Page)
+	require.Equal(t, 10, svc.statsParams.PageSize)
+
+	resp = decodeEnvelope(t, w)
+	data = resp.Data.(map[string]any)
+	items := data["items"].([]any)
+	require.Len(t, items, 1)
+	item := items[0].(map[string]any)
+	require.Equal(t, "tester", item["username"])
+	require.NotContains(t, item, "user_id")
 }

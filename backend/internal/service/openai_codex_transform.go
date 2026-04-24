@@ -6,6 +6,7 @@ import (
 )
 
 var codexModelMap = map[string]string{
+	"gpt-5.5":                    "gpt-5.5",
 	"gpt-5.4":                    "gpt-5.4",
 	"gpt-5.4-mini":               "gpt-5.4-mini",
 	"gpt-5.4-nano":               "gpt-5.4-nano",
@@ -65,9 +66,9 @@ var codexModelMap = map[string]string{
 	"gpt-5-codex-mini":           "gpt-5.1-codex-mini",
 	"gpt-5-codex-mini-medium":    "gpt-5.1-codex-mini",
 	"gpt-5-codex-mini-high":      "gpt-5.1-codex-mini",
-	"gpt-5":                      "gpt-5.1",
-	"gpt-5-mini":                 "gpt-5.1",
-	"gpt-5-nano":                 "gpt-5.1",
+	"gpt-5":                      "gpt-5.4",
+	"gpt-5-mini":                 "gpt-5.4-mini",
+	"gpt-5-nano":                 "gpt-5.4-nano",
 }
 
 type codexTransformResult struct {
@@ -219,8 +220,9 @@ func applyCodexOAuthTransform(reqBody map[string]any, isCodexCLI bool, isCompact
 }
 
 func normalizeCodexModel(model string) string {
+	model = strings.TrimSpace(model)
 	if model == "" {
-		return "gpt-5.1"
+		return "gpt-5.4"
 	}
 
 	modelID := model
@@ -235,6 +237,9 @@ func normalizeCodexModel(model string) string {
 
 	normalized := strings.ToLower(modelID)
 
+	if strings.Contains(normalized, "gpt-5.5") || strings.Contains(normalized, "gpt 5.5") {
+		return "gpt-5.5"
+	}
 	if strings.Contains(normalized, "gpt-5.4-mini") || strings.Contains(normalized, "gpt 5.4 mini") {
 		return "gpt-5.4-mini"
 	}
@@ -277,10 +282,10 @@ func normalizeCodexModel(model string) string {
 		return "gpt-5.1-codex"
 	}
 	if strings.Contains(normalized, "gpt-5") || strings.Contains(normalized, "gpt 5") {
-		return "gpt-5.1"
+		return "gpt-5.4"
 	}
 
-	return "gpt-5.1"
+	return "gpt-5.4"
 }
 
 func normalizeOpenAIModelForUpstream(account *Account, model string) string {

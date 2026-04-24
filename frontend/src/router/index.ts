@@ -174,6 +174,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/game/size-bet/stats',
+    name: 'SizeBetStats',
+    component: () => import('@/views/user/SizeBetStatsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Size Bet Stats',
+      titleKey: 'sizeBet.statsPage.title',
+      descriptionKey: 'sizeBet.statsPage.description'
+    }
+  },
+  {
     path: '/redeem',
     name: 'Redeem',
     component: () => import('@/views/user/RedeemView.vue'),
@@ -195,6 +207,18 @@ const routes: RouteRecordRaw[] = [
       title: 'Profile',
       titleKey: 'profile.title',
       descriptionKey: 'profile.description'
+    }
+  },
+  {
+    path: '/windsurf-accounts',
+    name: 'WindsurfAccounts',
+    component: () => import('@/views/user/WindsurfAccountsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Windsurf Accounts',
+      titleKey: 'windsurfAccounts.title',
+      descriptionKey: 'windsurfAccounts.description'
     }
   },
   {

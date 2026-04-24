@@ -14,6 +14,7 @@ FRONTEND_LOG="/tmp/sub2api-frontend.log"
 
 BACKEND_URL="${BACKEND_URL:-http://127.0.0.1:8080/health}"
 FRONTEND_URL="${FRONTEND_URL:-http://127.0.0.1:3000}"
+GO_BUILD_CACHE_DIR="${GO_BUILD_CACHE_DIR:-/tmp/go-build}"
 
 ensure_env_file() {
     if [ ! -f "$ENV_FILE" ]; then
@@ -70,12 +71,14 @@ wait_for_url() {
 start_backend() {
     load_env
     mkdir -p "${DATA_DIR:?DATA_DIR is required}"
+    mkdir -p "${GO_BUILD_CACHE_DIR}"
 
     local go_bin
     go_bin="$(get_go_bin)"
 
     (
         cd "$REPO_ROOT/backend"
+        export GOCACHE="$GO_BUILD_CACHE_DIR"
         "$go_bin" build -o "$BACKEND_BIN" ./cmd/server
     )
 

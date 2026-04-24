@@ -52,6 +52,16 @@ func RegisterUserRoutes(
 			user.POST("/checkin/lucky-bonus", h.User.PlayCheckinLuckyBonus)
 		}
 
+		windsurfAccounts := authenticated.Group("/windsurf-accounts")
+		{
+			windsurfAccounts.GET("", h.WindsurfAccount.List)
+			windsurfAccounts.POST("", h.WindsurfAccount.Create)
+			windsurfAccounts.PUT("/:id", h.WindsurfAccount.UpdateCredentials)
+			windsurfAccounts.PUT("/:id/status", h.WindsurfAccount.UpdateStatus)
+			windsurfAccounts.DELETE("/:id", h.WindsurfAccount.Delete)
+			windsurfAccounts.GET("/:id/password", h.WindsurfAccount.RevealPassword)
+		}
+
 		// API Key管理
 		keys := authenticated.Group("/keys")
 		{
@@ -111,6 +121,8 @@ func RegisterUserRoutes(
 			game.POST("/bet", h.SizeBet.PlaceBet)
 			game.GET("/history", h.SizeBet.GetHistory)
 			game.GET("/rounds", h.SizeBet.ListRecentRounds)
+			game.GET("/stats/overview", h.SizeBet.GetStatsOverview)
+			game.GET("/stats/users", h.SizeBet.ListStatsUsers)
 			game.GET("/leaderboard", h.SizeBet.GetLeaderboard)
 			game.GET("/rules", h.SizeBet.GetRules)
 		}

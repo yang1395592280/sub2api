@@ -37,6 +37,8 @@ func TestSizeBetRoutesAreRegistered(t *testing.T) {
 		"POST /api/v1/game/size-bet/bet":                      {},
 		"GET /api/v1/game/size-bet/history":                   {},
 		"GET /api/v1/game/size-bet/rounds":                    {},
+		"GET /api/v1/game/size-bet/stats/overview":            {},
+		"GET /api/v1/game/size-bet/stats/users":               {},
 		"GET /api/v1/game/size-bet/leaderboard":               {},
 		"GET /api/v1/game/size-bet/rules":                     {},
 		"GET /api/v1/admin/games/size-bet/settings":           {},
@@ -44,6 +46,8 @@ func TestSizeBetRoutesAreRegistered(t *testing.T) {
 		"GET /api/v1/admin/games/size-bet/rounds":             {},
 		"GET /api/v1/admin/games/size-bet/bets":               {},
 		"GET /api/v1/admin/games/size-bet/ledger":             {},
+		"GET /api/v1/admin/games/size-bet/stats/overview":     {},
+		"GET /api/v1/admin/games/size-bet/stats/users":        {},
 		"POST /api/v1/admin/games/size-bet/rounds/:id/refund": {},
 	}
 

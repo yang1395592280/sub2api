@@ -234,6 +234,8 @@ func TestApplyCodexOAuthTransform_EmptyInput(t *testing.T) {
 
 func TestNormalizeCodexModel_Gpt53(t *testing.T) {
 	cases := map[string]string{
+		"gpt-5.5":                   "gpt-5.5",
+		"gpt 5.5":                   "gpt-5.5",
 		"gpt-5.4":                   "gpt-5.4",
 		"gpt-5.4-high":              "gpt-5.4",
 		"gpt-5.4-chat-latest":       "gpt-5.4",
@@ -255,6 +257,11 @@ func TestNormalizeCodexModel_Gpt53(t *testing.T) {
 	for input, expected := range cases {
 		require.Equal(t, expected, normalizeCodexModel(input))
 	}
+}
+
+func TestNormalizeCodexModel_DefaultFallbackPrefersGpt54(t *testing.T) {
+	require.Equal(t, "gpt-5.4", normalizeCodexModel(""))
+	require.Equal(t, "gpt-5.4", normalizeCodexModel("gpt-5"))
 }
 
 func TestApplyCodexOAuthTransform_PreservesBareSparkModel(t *testing.T) {

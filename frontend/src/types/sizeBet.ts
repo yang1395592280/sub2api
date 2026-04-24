@@ -107,6 +107,32 @@ export interface SizeBetRulesView {
   rules_markdown: string
 }
 
+export interface SizeBetStatsOverview {
+  date: string
+  participant_count: number
+  total_stake: number
+  total_payout: number
+  total_user_net: number
+  house_net: number
+}
+
+export interface SizeBetStatsUserItem {
+  username: string
+  total_stake: number
+  won_count: number
+  lost_count: number
+  refunded_count: number
+  net_result: number
+}
+
+export interface SizeBetStatsUsersView {
+  items: SizeBetStatsUserItem[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
 export interface PlaceSizeBetRequest {
   round_id: number
   direction: SizeBetDirection

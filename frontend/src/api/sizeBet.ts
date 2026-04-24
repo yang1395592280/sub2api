@@ -6,6 +6,8 @@ import type {
   SizeBetHistoryView,
   SizeBetRoundsView,
   SizeBetRulesView,
+  SizeBetStatsOverview,
+  SizeBetStatsUsersView,
 } from '@/types/sizeBet'
 
 export async function getCurrent(): Promise<SizeBetCurrentRoundView> {
@@ -32,6 +34,20 @@ export async function getRounds(page = 1, pageSize = 10): Promise<SizeBetRoundsV
   return data
 }
 
+export async function getStatsOverview(date = ''): Promise<SizeBetStatsOverview> {
+  const { data } = await apiClient.get<SizeBetStatsOverview>('/game/size-bet/stats/overview', {
+    params: { date },
+  })
+  return data
+}
+
+export async function listStatsUsers(page = 1, pageSize = 20, date = ''): Promise<SizeBetStatsUsersView> {
+  const { data } = await apiClient.get<SizeBetStatsUsersView>('/game/size-bet/stats/users', {
+    params: { page, page_size: pageSize, date },
+  })
+  return data
+}
+
 export async function placeBet(payload: PlaceSizeBetRequest): Promise<SizeBetBet> {
   const { data } = await apiClient.post<SizeBetBet>('/game/size-bet/bet', payload)
   return data
@@ -42,6 +58,8 @@ export const sizeBetAPI = {
   getRules,
   getHistory,
   getRounds,
+  getStatsOverview,
+  listStatsUsers,
   placeBet,
 }
 

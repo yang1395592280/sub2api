@@ -26,6 +26,7 @@ export { userGroupsAPI } from './groups'
 export { totpAPI } from './totp'
 export { default as announcementsAPI } from './announcements'
 export { sizeBetAPI } from './sizeBet'
+export { windsurfAccountsAPI } from './windsurfAccounts'
 
 // Admin APIs
 export { adminAPI } from './admin'
