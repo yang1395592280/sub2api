@@ -173,25 +173,6 @@
           </div>
         </section>
 
-        <section v-if="embeddedGamePath" class="card overflow-hidden" data-test="embedded-panel">
-          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 px-6 py-5 dark:border-white/10">
-            <div>
-              <h2 class="text-xl font-semibold text-slate-900 dark:text-white">{{ t('gameCenter.embed.title') }}</h2>
-              <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ embeddedGameKey }}</p>
-            </div>
-            <button type="button" class="btn btn-secondary" @click="embeddedGameKey = ''">
-              {{ t('common.close') }}
-            </button>
-          </div>
-          <div class="p-3 sm:p-4">
-            <iframe
-              data-test="embedded-frame"
-              :src="embeddedGamePath"
-              class="h-[70vh] min-h-[460px] w-full rounded-2xl border border-slate-200 dark:border-white/10"
-            />
-          </div>
-        </section>
-
         <section class="card overflow-hidden">
           <div class="border-b border-slate-200/80 px-6 py-5 dark:border-white/10">
             <h2 class="text-xl font-semibold text-slate-900 dark:text-white">{{ t('gameCenter.ledger.title') }}</h2>
@@ -249,7 +230,6 @@ const exchangeLoadingDirection = ref<ExchangeDirection | ''>('')
 const exchangeOpen = ref(false)
 const balanceAmount = ref(1)
 const pointsAmount = ref(100)
-const embeddedGameKey = ref('')
 
 const gameCenterEnabled = computed(() => appStore.gameCenterEnabled)
 const claimBatches = computed(() => overview.value?.claim_batches ?? [])
@@ -266,19 +246,8 @@ const canPointsToBalance = computed(() => {
   return Number(pointsAmount.value) > 0
 })
 
-const embeddedGamePath = computed(() => {
-  if (!embeddedGameKey.value) return ''
-  return resolveGamePath(embeddedGameKey.value) ?? ''
-})
-
 function resolveGamePath(gameKey: string): string | null {
   return GAME_ROUTE_MAP[gameKey] ?? null
-}
-
-function isMobileViewport(): boolean {
-  if (typeof window === 'undefined') return false
-  if (typeof window.matchMedia !== 'function') return false
-  return window.matchMedia('(max-width: 1023px)').matches
 }
 
 function formatPoints(value: number): string {
@@ -368,11 +337,7 @@ async function openQuickStart(gameKey: string): Promise<void> {
     appStore.showError(t('gameCenter.catalog.unsupportedGame'))
     return
   }
-  if (isMobileViewport()) {
-    await router.push(`/game-center/${gameKey}`)
-    return
-  }
-  embeddedGameKey.value = gameKey
+  await router.push(gamePath)
 }
 
 onMounted(() => {

@@ -99,6 +99,7 @@ async function mountView() {
     routes: [
       { path: '/game-center', component: { template: '<div />' } },
       { path: '/game-center/:gameKey', component: { template: '<div />' } },
+      { path: '/game/size-bet', component: { template: '<div />' } },
     ],
   })
   await router.push('/game-center')
@@ -149,18 +150,20 @@ describe('GameCenterView', () => {
     expect(wrapper.text()).toContain('全屏打开')
   })
 
-  it('opens embedded game on desktop quick start', async () => {
+  it('opens real size bet route on desktop quick start', async () => {
     const { wrapper } = await mountView()
     await wrapper.get('[data-test="quick-start-size_bet"]').trigger('click')
     await flushPromises()
-    expect(wrapper.get('[data-test="embedded-frame"]').attributes('src')).toBe('/game/size-bet')
+    expect(wrapper.find('[data-test="embedded-frame"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="embedded-panel"]').exists()).toBe(false)
+    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/game/size-bet')
   })
 
-  it('redirects to game shell on mobile quick start', async () => {
+  it('opens real size bet route on mobile quick start', async () => {
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }))
     const { wrapper, router } = await mountView()
     await wrapper.get('[data-test="quick-start-size_bet"]').trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/game-center/size_bet')
+    expect(router.currentRoute.value.path).toBe('/game/size-bet')
   })
 })

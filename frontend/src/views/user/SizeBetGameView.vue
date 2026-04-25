@@ -1,5 +1,5 @@
 <template>
-  <AppLayout>
+  <component :is="embedded ? 'div' : AppLayout">
     <div class="space-y-6">
       <section class="overflow-hidden rounded-[28px] border border-amber-200/70 bg-gradient-to-br from-amber-50 via-white to-rose-50 p-6 shadow-sm shadow-amber-100/60 dark:border-amber-500/20 dark:from-slate-900 dark:via-slate-900 dark:to-amber-950/30 dark:shadow-none">
         <div class="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -194,7 +194,7 @@
         </section>
       </div>
     </div>
-  </AppLayout>
+  </component>
 </template>
 <script setup lang="ts">
 import DOMPurify from 'dompurify'
@@ -208,6 +208,13 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import type { SizeBetCurrentRoundView, SizeBetDirection, SizeBetHistoryItem, SizeBetPhase, SizeBetRoundsView, SizeBetRulesView, SizeBetStatus } from '@/types/sizeBet'
+
+withDefaults(defineProps<{
+  embedded?: boolean
+}>(), {
+  embedded: false,
+})
+
 type LoadState = 'loading' | 'ready' | 'error'
 type HistoryRefreshMode = 'background' | 'manual'
 const TICK_MS = 1000

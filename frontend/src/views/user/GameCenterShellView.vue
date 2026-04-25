@@ -19,7 +19,7 @@
       </section>
 
       <section v-if="resolvedGamePath" class="overflow-hidden rounded-3xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
-        <iframe :src="resolvedGamePath" class="h-[calc(100vh-16rem)] min-h-[560px] w-full rounded-2xl border border-slate-200 dark:border-white/10" />
+        <component :is="resolvedGameComponent" v-if="resolvedGameComponent" :embedded="true" />
       </section>
 
       <section v-else class="card px-6 py-12">
@@ -38,6 +38,7 @@ import { useRoute, RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import EmptyState from '@/components/common/EmptyState.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import SizeBetGameView from './SizeBetGameView.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -46,7 +47,12 @@ const GAME_ROUTE_MAP: Record<string, string> = {
   size_bet: '/game/size-bet',
 }
 
+const GAME_COMPONENT_MAP: Record<string, unknown> = {
+  size_bet: SizeBetGameView,
+}
+
 const gameKey = computed(() => String(route.params.gameKey || ''))
 const resolvedGamePath = computed(() => GAME_ROUTE_MAP[gameKey.value] ?? '')
+const resolvedGameComponent = computed(() => GAME_COMPONENT_MAP[gameKey.value] ?? null)
 const title = computed(() => `${t('gameCenter.shell.titlePrefix')} ${gameKey.value || '--'}`)
 </script>
