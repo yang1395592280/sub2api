@@ -482,14 +482,36 @@ export default {
       subtitle: '选择你要体验的小游戏',
       noSubtitle: '即开即玩',
       empty: '暂无可用游戏',
-      unsupportedGame: '该游戏暂不支持快速开始'
+      unsupportedGame: '该游戏暂不支持快速开始',
+      gameTop10: '本游戏积分前十用户',
+      totalRemainingPoints: '剩余积分：{points}'
+    },
+    leaderboard: {
+      title: '用户积分排行榜',
+      subtitle: '查看所有用户当前积分，点击自己的积分可查看完整流水',
+      empty: '暂无排行数据',
+      detailTitle: '{user} 的积分记录',
+      detailPlaceholder: '积分记录',
+      detailHint: '点击排行榜中的自己查看积分记录。管理员可查看任意用户。',
+      ownOnly: '普通用户只能查看自己的积分记录'
     },
     embed: {
       title: '快速开始窗口'
     },
     ledger: {
-      title: '最近积分流水',
-      empty: '暂无积分流水'
+      title: '当前用户的积分流水记录',
+      empty: '暂无积分流水',
+      startDate: '开始日期',
+      endDate: '结束日期',
+      types: {
+        daily_claim: '领取积分',
+        exchange_from_balance: '余额兑换积分',
+        exchange_to_balance: '积分兑换余额',
+        admin_adjust: '手动调整',
+        bet_debit: '游戏消耗积分',
+        bet_payout: '游戏赢得积分',
+        bet_refund: '游戏退回积分'
+      }
     },
     shell: {
       titlePrefix: '全屏模式',
@@ -505,6 +527,9 @@ export default {
     statsNav: '竞猜统计',
     title: '猜大小游戏',
     heroSubtitle: '在截止前完成选择，等待系统随机开奖',
+    backToGameCenter: '返回游戏中心',
+    pointsBalance: '剩余积分：{points}',
+    pointsBalanceLabel: '剩余积分',
     countdownLabel: '本局开奖倒计时',
     betClosesIn: '参与倒计时',
     seedTitle: '种子承诺',
@@ -537,16 +562,16 @@ export default {
       pending: '待参与',
       myBet: '已参与 {direction} / {stake}',
       chooseDirection: '选择方向',
-      chooseStake: '选择参与额度',
-      customStake: '自定义额度',
-      customStakeHint: '可输入 {min} 到 {max} 之间的整数额度',
+      chooseStake: '选择参与积分',
+      customStake: '自定义积分',
+      customStakeHint: '可输入 {min} 到 {max} 之间的整数积分',
       submit: '确认参与',
       submitting: '提交中...',
       openHint: '当前还在参与时间内',
       closedHint: '当前已截止，等待开奖',
       placedHint: '本局已参与，等待结果',
       selectDirection: '请选择参与方向',
-      selectStake: '请选择参与额度',
+      selectStake: '请选择参与积分',
       placedSuccess: '参与成功'
     },
     rules: {
@@ -603,7 +628,7 @@ export default {
       message: {
         won: '系统已完成本局结算，你获得了奖励。',
         lost: '系统已完成本局结算，本次未获得奖励。',
-        refunded: '本局已退回参与额度，请留意后续开放时间。'
+        refunded: '本局已退回参与积分，请留意后续开放时间。'
       }
     },
     maintenance: {
@@ -4088,9 +4113,9 @@ export default {
       enabledHint: '关闭后前台将进入维护状态，不再接受下注',
       roundDuration: '每局时长（秒）',
       betCloseOffset: '封盘时间（秒）',
-      allowedStakes: '允许筹码',
-      customStakeMin: '自定义额度最小值',
-      customStakeMax: '自定义额度最大值',
+      allowedStakes: '允许积分',
+      customStakeMin: '自定义积分最小值',
+      customStakeMax: '自定义积分最大值',
       allowedStakesPlaceholder: '例如：2, 5, 10, 20',
       probabilitiesTitle: '概率配置',
       oddsTitle: '赔率配置',
@@ -4099,7 +4124,7 @@ export default {
       loadFailed: '加载竞猜后台数据失败',
       saveSuccess: '竞猜配置已保存',
       saveFailed: '保存竞猜配置失败',
-      invalidAllowedStakes: '请输入至少一个有效筹码，多个值请用英文逗号分隔',
+      invalidAllowedStakes: '请输入至少一个有效积分，多个值请用英文逗号分隔',
       refundAction: '退款',
       refundConfirmTitle: '确认退款',
       refundConfirmMessage: '确认对第 {round} 期执行退款吗？',
@@ -4114,7 +4139,7 @@ export default {
       },
       stats: {
         participantCount: '参与人数',
-        totalStake: '总参与额度',
+        totalStake: '总参与积分',
         totalUserNet: '用户总盈亏',
         houseNet: '系统总盈亏',
         wonCount: '命中次数',
@@ -4124,7 +4149,7 @@ export default {
       validation: {
         roundDuration: '每局时长必须大于 0',
         betCloseOffset: '封盘时间必须在 0 到每局时长之间',
-        customStakeRange: '自定义额度范围不合法',
+        customStakeRange: '自定义积分范围不合法',
         odds: '赔率必须大于 0'
       },
       columns: {
@@ -4138,12 +4163,12 @@ export default {
         odds: '赔率',
         user: '用户',
         direction: '方向',
-        stake: '下注额',
+        stake: '下注积分',
         payout: '派奖',
         net: '净结果',
         createdAt: '时间',
         entryType: '流水类型',
-        delta: '变动金额',
+        delta: '变动积分',
         balanceWindow: '余额变化',
         reason: '原因',
         actions: '操作'
@@ -4209,10 +4234,14 @@ export default {
       },
       operations: {
         userId: '用户 ID',
+        user: '用户',
+        userSearchPlaceholder: '输入邮箱或用户名搜索',
+        selectedUser: '已选择：{user}',
         deltaPoints: '调整积分',
         reason: '原因',
+        reasonPlaceholder: '可不填写',
         submit: '提交调整',
-        validation: '请填写用户 ID、调整积分和原因',
+        validation: '请选择用户并填写调整积分',
         success: '积分调整成功',
         failed: '积分调整失败'
       },
@@ -4221,6 +4250,8 @@ export default {
         ledger: '积分流水',
         claims: '领取记录',
         exchanges: '兑换记录',
+        startDate: '开始日期',
+        endDate: '结束日期',
         empty: '暂无记录'
       },
       loadFailed: '加载游戏中心配置失败',

@@ -48,6 +48,8 @@ func TestSizeBetRoutesAreRegistered(t *testing.T) {
 		"POST /api/v1/game-center/exchange/balance-to-points":    {},
 		"POST /api/v1/game-center/exchange/points-to-balance":    {},
 		"GET /api/v1/game-center/ledger":                         {},
+		"GET /api/v1/game-center/leaderboard":                    {},
+		"GET /api/v1/game-center/users/:id/ledger":               {},
 		"GET /api/v1/game-center/catalog":                        {},
 		"GET /api/v1/admin/game-center/settings":                 {},
 		"PUT /api/v1/admin/game-center/settings":                 {},

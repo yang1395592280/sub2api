@@ -194,8 +194,36 @@
           <div class="grid gap-4 lg:grid-cols-[1fr_auto]">
             <div class="grid gap-3 sm:grid-cols-3">
               <div>
-                <label class="input-label">{{ t('admin.gameCenter.operations.userId') }}</label>
-                <input v-model.number="adjustForm.user_id" data-test="adjust-user-id" type="number" min="1" class="input" />
+                <label class="input-label">{{ t('admin.gameCenter.operations.user') }}</label>
+                <div class="relative">
+                  <input
+                    v-model="adjustUserSearch"
+                    data-test="adjust-user-search"
+                    type="text"
+                    class="input"
+                    :placeholder="t('admin.gameCenter.operations.userSearchPlaceholder')"
+                    @input="handleAdjustUserSearch"
+                    @focus="handleAdjustUserSearch"
+                  />
+                  <div
+                    v-if="adjustUserResults.length"
+                    class="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-dark-700 dark:bg-dark-800"
+                  >
+                    <button
+                      v-for="user in adjustUserResults"
+                      :key="user.id"
+                      type="button"
+                      class="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-dark-700"
+                      @click="selectAdjustUser(user)"
+                    >
+                      <span class="font-medium text-gray-900 dark:text-white">{{ user.username || user.email }}</span>
+                      <span class="ml-2 text-xs text-gray-500">#{{ user.id }} · {{ user.email }}</span>
+                    </button>
+                  </div>
+                </div>
+                <p v-if="selectedAdjustUser" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.gameCenter.operations.selectedUser', { user: formatUserName(selectedAdjustUser) }) }}
+                </p>
               </div>
               <div>
                 <label class="input-label">{{ t('admin.gameCenter.operations.deltaPoints') }}</label>
@@ -203,7 +231,7 @@
               </div>
               <div>
                 <label class="input-label">{{ t('admin.gameCenter.operations.reason') }}</label>
-                <input v-model="adjustForm.reason" data-test="adjust-reason" type="text" class="input" />
+                <input v-model="adjustForm.reason" data-test="adjust-reason" type="text" class="input" :placeholder="t('admin.gameCenter.operations.reasonPlaceholder')" />
               </div>
             </div>
             <div class="flex items-end">
@@ -228,10 +256,18 @@
             </div>
             <div class="flex flex-wrap items-end gap-3">
               <div>
+                <label class="input-label">{{ t('admin.gameCenter.audit.startDate') }}</label>
+                <input v-model="auditStartDate" type="date" class="input w-40" />
+              </div>
+              <div>
+                <label class="input-label">{{ t('admin.gameCenter.audit.endDate') }}</label>
+                <input v-model="auditEndDate" type="date" class="input w-40" />
+              </div>
+              <div>
                 <label class="input-label">{{ t('admin.gameCenter.operations.userId') }}</label>
                 <input v-model.number="auditUserID" type="number" min="1" class="input w-32" />
               </div>
-              <button type="button" class="btn btn-secondary" @click="loadAuditData">{{ t('common.refresh') }}</button>
+              <button type="button" class="btn btn-secondary" @click="refreshAuditData">{{ t('common.refresh') }}</button>
             </div>
           </div>
 
@@ -241,13 +277,14 @@
               <div class="mt-3 space-y-2">
                 <div v-for="item in ledgerItems" :key="`ledger-${item.id}`" class="rounded-lg bg-gray-50 px-3 py-3 text-sm dark:bg-dark-800">
                   <div class="flex items-center justify-between gap-3">
-                    <span class="font-medium text-gray-900 dark:text-white">#{{ item.user_id }} · {{ item.entry_type }}</span>
+                    <span class="font-medium text-gray-900 dark:text-white">{{ recordUserLabel(item) }} · {{ item.entry_type }}</span>
                     <span :class="item.delta_points >= 0 ? 'text-emerald-600' : 'text-rose-600'">{{ formatSigned(item.delta_points) }}</span>
                   </div>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ item.reason || '--' }}</p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ formatDateTime(item.created_at) }} · {{ item.reason || '--' }}</p>
                 </div>
                 <p v-if="!ledgerItems.length" class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.gameCenter.audit.empty') }}</p>
               </div>
+              <Pagination :total="ledgerTotal" :page="ledgerPage" :page-size="auditPageSize" :show-page-size-selector="false" @update:page="changeLedgerPage" @update:pageSize="noopPageSize" />
             </article>
 
             <article class="rounded-xl border border-gray-100 p-4 dark:border-dark-700">
@@ -255,13 +292,14 @@
               <div class="mt-3 space-y-2">
                 <div v-for="item in claimItems" :key="`claim-${item.id}`" class="rounded-lg bg-gray-50 px-3 py-3 text-sm dark:bg-dark-800">
                   <div class="flex items-center justify-between gap-3">
-                    <span class="font-medium text-gray-900 dark:text-white">#{{ item.user_id }} · {{ item.batch_key }}</span>
+                    <span class="font-medium text-gray-900 dark:text-white">{{ recordUserLabel(item) }} · {{ item.batch_key }}</span>
                     <span class="text-emerald-600">+{{ item.points_amount }}</span>
                   </div>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ item.claim_date }}</p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ formatDateTime(item.claimed_at) }} · {{ item.claim_date }}</p>
                 </div>
                 <p v-if="!claimItems.length" class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.gameCenter.audit.empty') }}</p>
               </div>
+              <Pagination :total="claimTotal" :page="claimPage" :page-size="auditPageSize" :show-page-size-selector="false" @update:page="changeClaimPage" @update:pageSize="noopPageSize" />
             </article>
 
             <article class="rounded-xl border border-gray-100 p-4 dark:border-dark-700">
@@ -269,13 +307,14 @@
               <div class="mt-3 space-y-2">
                 <div v-for="item in exchangeItems" :key="`exchange-${item.id}`" class="rounded-lg bg-gray-50 px-3 py-3 text-sm dark:bg-dark-800">
                   <div class="flex items-center justify-between gap-3">
-                    <span class="font-medium text-gray-900 dark:text-white">#{{ item.user_id }} · {{ item.direction }}</span>
+                    <span class="font-medium text-gray-900 dark:text-white">{{ recordUserLabel(item) }} · {{ item.direction }}</span>
                     <span class="text-sky-600">{{ item.rate }}</span>
                   </div>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ item.reason || item.status }}</p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ formatDateTime(item.created_at) }} · {{ item.reason || item.status }}</p>
                 </div>
                 <p v-if="!exchangeItems.length" class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.gameCenter.audit.empty') }}</p>
               </div>
+              <Pagination :total="exchangeTotal" :page="exchangePage" :page-size="auditPageSize" :show-page-size-selector="false" @update:page="changeExchangePage" @update:pageSize="noopPageSize" />
             </article>
           </div>
         </section>
@@ -295,6 +334,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import * as gameCenterAdminAPI from '@/api/admin/gameCenter'
+import { searchUsers, type SimpleUser } from '@/api/admin/usage'
 import type {
   GameCenterAdminSettings,
   GameCenterAdminLedgerItem,
@@ -305,6 +345,7 @@ import type {
   UpdateGameCenterSettingsRequest
 } from '@/api/admin/gameCenter'
 import Toggle from '@/components/common/Toggle.vue'
+import Pagination from '@/components/common/Pagination.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import { useAppStore } from '@/stores/app'
 
@@ -316,6 +357,19 @@ const savingSettings = ref(false)
 const savingCatalogKey = ref('')
 const adjustingPoints = ref(false)
 const auditUserID = ref<number | null>(null)
+const auditPageSize = 10
+const auditStartDate = ref(toDateInput(new Date()))
+const auditEndDate = ref(toDateInput(new Date()))
+const ledgerPage = ref(1)
+const claimPage = ref(1)
+const exchangePage = ref(1)
+const ledgerTotal = ref(0)
+const claimTotal = ref(0)
+const exchangeTotal = ref(0)
+const adjustUserSearch = ref('')
+const adjustUserResults = ref<SimpleUser[]>([])
+const selectedAdjustUser = ref<SimpleUser | null>(null)
+let adjustSearchTimer: number | null = null
 
 const form = reactive<UpdateGameCenterSettingsRequest>(defaultSettings())
 const catalogItems = ref<GameCenterCatalogItem[]>([])
@@ -346,6 +400,13 @@ function defaultSettings(): UpdateGameCenterSettingsRequest {
       min_points_amount: 0
     }
   }
+}
+
+function toDateInput(value: Date): string {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function cloneSettings(source: GameCenterAdminSettings): UpdateGameCenterSettingsRequest {
@@ -430,18 +491,33 @@ async function loadData() {
 
 async function loadAuditData() {
   try {
-    const userID = auditUserID.value && auditUserID.value > 0 ? auditUserID.value : undefined
+    const baseQuery = {
+      user_id: auditUserID.value && auditUserID.value > 0 ? auditUserID.value : undefined,
+      start_date: auditStartDate.value || undefined,
+      end_date: auditEndDate.value || undefined,
+      page_size: auditPageSize
+    }
     const [ledger, claims, exchanges] = await Promise.all([
-      gameCenterAdminAPI.listLedger(userID),
-      gameCenterAdminAPI.listClaims(userID),
-      gameCenterAdminAPI.listExchanges(userID)
+      gameCenterAdminAPI.listLedger({ ...baseQuery, page: ledgerPage.value }),
+      gameCenterAdminAPI.listClaims({ ...baseQuery, page: claimPage.value }),
+      gameCenterAdminAPI.listExchanges({ ...baseQuery, page: exchangePage.value })
     ])
     ledgerItems.value = ledger.items
+    ledgerTotal.value = ledger.total
     claimItems.value = claims.items
+    claimTotal.value = claims.total
     exchangeItems.value = exchanges.items
+    exchangeTotal.value = exchanges.total
   } catch (error: any) {
     appStore.showError(error?.message || t('admin.gameCenter.loadFailed'))
   }
+}
+
+function refreshAuditData() {
+  ledgerPage.value = 1
+  claimPage.value = 1
+  exchangePage.value = 1
+  void loadAuditData()
 }
 
 async function saveSettings() {
@@ -478,7 +554,7 @@ async function saveCatalog(item: GameCenterCatalogItem) {
 }
 
 async function submitAdjustPoints() {
-  if (!adjustForm.user_id || !adjustForm.delta_points || !adjustForm.reason.trim()) {
+  if (!adjustForm.user_id || !adjustForm.delta_points) {
     appStore.showError(t('admin.gameCenter.operations.validation'))
     return
   }
@@ -486,7 +562,7 @@ async function submitAdjustPoints() {
   try {
     await gameCenterAdminAPI.adjustPoints(adjustForm.user_id, {
       delta_points: adjustForm.delta_points,
-      reason: adjustForm.reason.trim()
+      reason: adjustForm.reason.trim() || undefined
     })
     appStore.showSuccess(t('admin.gameCenter.operations.success'))
     adjustForm.delta_points = 0
@@ -502,4 +578,61 @@ async function submitAdjustPoints() {
 function formatSigned(value: number) {
   return value >= 0 ? `+${value}` : `${value}`
 }
+
+function formatDateTime(value: string) {
+  if (!value) return '--'
+  return new Date(value).toLocaleString()
+}
+
+function formatUserName(user: { id: number, email?: string, username?: string }) {
+  return `${user.username || user.email || `#${user.id}`} (#${user.id})`
+}
+
+function recordUserLabel(item: { user_id: number, email?: string, username?: string }) {
+  return item.username || item.email || `#${item.user_id}`
+}
+
+function handleAdjustUserSearch() {
+  const keyword = adjustUserSearch.value.trim()
+  selectedAdjustUser.value = null
+  adjustForm.user_id = 0
+  if (adjustSearchTimer !== null) {
+    window.clearTimeout(adjustSearchTimer)
+  }
+  if (!keyword) {
+    adjustUserResults.value = []
+    return
+  }
+  adjustSearchTimer = window.setTimeout(async () => {
+    try {
+      adjustUserResults.value = await searchUsers(keyword)
+    } catch (error: any) {
+      appStore.showError(error?.message || t('admin.gameCenter.loadFailed'))
+    }
+  }, 220)
+}
+
+function selectAdjustUser(user: SimpleUser) {
+  selectedAdjustUser.value = user
+  adjustForm.user_id = user.id
+  adjustUserSearch.value = `${user.username || user.email} (#${user.id})`
+  adjustUserResults.value = []
+}
+
+function changeLedgerPage(page: number) {
+  ledgerPage.value = page
+  void loadAuditData()
+}
+
+function changeClaimPage(page: number) {
+  claimPage.value = page
+  void loadAuditData()
+}
+
+function changeExchangePage(page: number) {
+  exchangePage.value = page
+  void loadAuditData()
+}
+
+function noopPageSize() {}
 </script>

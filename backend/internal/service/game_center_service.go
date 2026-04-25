@@ -52,11 +52,28 @@ type GameCatalog struct {
 
 type GamePointsLedgerItem struct {
 	ID          int64     `json:"id"`
+	UserID      int64     `json:"user_id,omitempty"`
+	Email       string    `json:"email,omitempty"`
+	Username    string    `json:"username,omitempty"`
 	EntryType   string    `json:"entry_type"`
 	DeltaPoints int64     `json:"delta_points"`
 	PointsAfter int64     `json:"points_after"`
 	Reason      string    `json:"reason"`
 	CreatedAt   time.Time `json:"created_at"`
+}
+
+type GamePointsLedgerFilter struct {
+	UserID    *int64
+	StartTime *time.Time
+	EndTime   *time.Time
+}
+
+type GamePointsLeaderboardItem struct {
+	Rank     int    `json:"rank"`
+	UserID   int64  `json:"user_id"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	Points   int64  `json:"points"`
 }
 
 type GameCenterClaimBatchConfig struct {
@@ -148,6 +165,8 @@ type GameCenterExchangeResult struct {
 type GameCenterAdminLedgerItem struct {
 	ID             int64     `json:"id"`
 	UserID         int64     `json:"user_id"`
+	Email          string    `json:"email"`
+	Username       string    `json:"username"`
 	EntryType      string    `json:"entry_type"`
 	DeltaPoints    int64     `json:"delta_points"`
 	PointsBefore   int64     `json:"points_before"`
@@ -160,6 +179,8 @@ type GameCenterAdminLedgerItem struct {
 type GameCenterClaimRecord struct {
 	ID           int64     `json:"id"`
 	UserID       int64     `json:"user_id"`
+	Email        string    `json:"email"`
+	Username     string    `json:"username"`
 	ClaimDate    string    `json:"claim_date"`
 	BatchKey     string    `json:"batch_key"`
 	PointsAmount int64     `json:"points_amount"`
@@ -169,6 +190,8 @@ type GameCenterClaimRecord struct {
 type GameCenterExchangeRecord struct {
 	ID           int64     `json:"id"`
 	UserID       int64     `json:"user_id"`
+	Email        string    `json:"email"`
+	Username     string    `json:"username"`
 	Direction    string    `json:"direction"`
 	SourceAmount float64   `json:"source_amount"`
 	SourcePoints int64     `json:"source_points"`
@@ -194,10 +217,11 @@ type GameCenterRepository interface {
 	ListCatalogs(ctx context.Context) ([]GameCatalog, error)
 	UpdateCatalog(ctx context.Context, gameKey string, req UpdateGameCatalogRequest) error
 	ListClaimedBatchKeys(ctx context.Context, userID int64, claimDate string) (map[string]struct{}, error)
-	ListLedger(ctx context.Context, userID int64, params pagination.PaginationParams) ([]GamePointsLedgerItem, *pagination.PaginationResult, error)
-	ListAdminLedger(ctx context.Context, params pagination.PaginationParams, userID *int64) ([]GameCenterAdminLedgerItem, *pagination.PaginationResult, error)
-	ListClaimRecords(ctx context.Context, params pagination.PaginationParams, userID *int64) ([]GameCenterClaimRecord, *pagination.PaginationResult, error)
-	ListExchangeRecords(ctx context.Context, params pagination.PaginationParams, userID *int64) ([]GameCenterExchangeRecord, *pagination.PaginationResult, error)
+	ListLedger(ctx context.Context, params pagination.PaginationParams, filter GamePointsLedgerFilter) ([]GamePointsLedgerItem, *pagination.PaginationResult, error)
+	ListPointsLeaderboard(ctx context.Context, params pagination.PaginationParams) ([]GamePointsLeaderboardItem, *pagination.PaginationResult, error)
+	ListAdminLedger(ctx context.Context, params pagination.PaginationParams, filter GamePointsLedgerFilter) ([]GameCenterAdminLedgerItem, *pagination.PaginationResult, error)
+	ListClaimRecords(ctx context.Context, params pagination.PaginationParams, filter GamePointsLedgerFilter) ([]GameCenterClaimRecord, *pagination.PaginationResult, error)
+	ListExchangeRecords(ctx context.Context, params pagination.PaginationParams, filter GamePointsLedgerFilter) ([]GameCenterExchangeRecord, *pagination.PaginationResult, error)
 	AdjustPoints(ctx context.Context, input AdminAdjustPointsInput) error
 }
 
@@ -224,7 +248,7 @@ func (s *GameCenterService) GetOverview(ctx context.Context, userID int64, param
 	if err != nil {
 		return nil, err
 	}
-	ledger, _, err := s.repo.ListLedger(ctx, userID, params)
+	ledger, _, err := s.repo.ListLedger(ctx, params, GamePointsLedgerFilter{UserID: &userID})
 	if err != nil {
 		return nil, err
 	}
@@ -335,29 +359,37 @@ func (s *GameCenterService) UpdateCatalog(ctx context.Context, gameKey string, r
 	return s.repo.UpdateCatalog(ctx, gameKey, req)
 }
 
-func (s *GameCenterService) GetLedger(ctx context.Context, userID int64, params pagination.PaginationParams) ([]GamePointsLedgerItem, *pagination.PaginationResult, error) {
-	return s.repo.ListLedger(ctx, userID, params)
+func (s *GameCenterService) GetLedger(ctx context.Context, userID int64, params pagination.PaginationParams, filter GamePointsLedgerFilter) ([]GamePointsLedgerItem, *pagination.PaginationResult, error) {
+	filter.UserID = &userID
+	return s.repo.ListLedger(ctx, params, filter)
 }
 
-func (s *GameCenterService) GetAdminLedger(ctx context.Context, params pagination.PaginationParams, userID *int64) ([]GameCenterAdminLedgerItem, *pagination.PaginationResult, error) {
-	return s.repo.ListAdminLedger(ctx, params, userID)
+func (s *GameCenterService) GetUserLedger(ctx context.Context, userID int64, params pagination.PaginationParams, filter GamePointsLedgerFilter) ([]GamePointsLedgerItem, *pagination.PaginationResult, error) {
+	filter.UserID = &userID
+	return s.repo.ListLedger(ctx, params, filter)
 }
 
-func (s *GameCenterService) GetClaimRecords(ctx context.Context, params pagination.PaginationParams, userID *int64) ([]GameCenterClaimRecord, *pagination.PaginationResult, error) {
-	return s.repo.ListClaimRecords(ctx, params, userID)
+func (s *GameCenterService) GetPointsLeaderboard(ctx context.Context, params pagination.PaginationParams) ([]GamePointsLeaderboardItem, *pagination.PaginationResult, error) {
+	return s.repo.ListPointsLeaderboard(ctx, params)
 }
 
-func (s *GameCenterService) GetExchangeRecords(ctx context.Context, params pagination.PaginationParams, userID *int64) ([]GameCenterExchangeRecord, *pagination.PaginationResult, error) {
-	return s.repo.ListExchangeRecords(ctx, params, userID)
+func (s *GameCenterService) GetAdminLedger(ctx context.Context, params pagination.PaginationParams, filter GamePointsLedgerFilter) ([]GameCenterAdminLedgerItem, *pagination.PaginationResult, error) {
+	return s.repo.ListAdminLedger(ctx, params, filter)
+}
+
+func (s *GameCenterService) GetClaimRecords(ctx context.Context, params pagination.PaginationParams, filter GamePointsLedgerFilter) ([]GameCenterClaimRecord, *pagination.PaginationResult, error) {
+	return s.repo.ListClaimRecords(ctx, params, filter)
+}
+
+func (s *GameCenterService) GetExchangeRecords(ctx context.Context, params pagination.PaginationParams, filter GamePointsLedgerFilter) ([]GameCenterExchangeRecord, *pagination.PaginationResult, error) {
+	return s.repo.ListExchangeRecords(ctx, params, filter)
 }
 
 func (s *GameCenterService) AdjustPoints(ctx context.Context, input AdminAdjustPointsInput) error {
 	if input.DeltaPoints == 0 {
 		return infraerrors.BadRequest("GAME_CENTER_ADJUST_ZERO", "adjust points delta cannot be zero")
 	}
-	if strings.TrimSpace(input.Reason) == "" {
-		return infraerrors.BadRequest("GAME_CENTER_ADJUST_REASON_REQUIRED", "adjust points reason is required")
-	}
+	input.Reason = strings.TrimSpace(input.Reason)
 	return s.repo.AdjustPoints(ctx, input)
 }
 

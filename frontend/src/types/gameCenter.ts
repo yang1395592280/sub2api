@@ -31,11 +31,22 @@ export interface GameCenterCatalog {
 
 export interface GameCenterLedgerItem {
   id: number
+  user_id?: number
+  email?: string
+  username?: string
   entry_type: string
   delta_points: number
   points_after?: number
   reason?: string
   created_at?: string
+}
+
+export interface GameCenterPointsLeaderboardItem {
+  rank: number
+  user_id: number
+  email: string
+  username: string
+  points: number
 }
 
 export interface GameCenterOverview {

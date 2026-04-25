@@ -1,6 +1,14 @@
 <template>
-  <component :is="embedded ? 'div' : AppLayout">
+  <component :is="props.embedded ? 'div' : AppLayout">
     <div class="space-y-6">
+      <div v-if="showGameCenterBack" class="flex flex-wrap items-center justify-between gap-3">
+        <RouterLink to="/game-center" class="btn btn-secondary">
+          {{ t('sizeBet.backToGameCenter') }}
+        </RouterLink>
+        <div class="rounded-full bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 ring-1 ring-cyan-100 dark:bg-cyan-500/10 dark:text-cyan-200 dark:ring-cyan-500/20">
+          {{ t('sizeBet.pointsBalance', { points: formatAmount(pointsBalance ?? 0) }) }}
+        </div>
+      </div>
       <section class="overflow-hidden rounded-[28px] border border-amber-200/70 bg-gradient-to-br from-amber-50 via-white to-rose-50 p-6 shadow-sm shadow-amber-100/60 dark:border-amber-500/20 dark:from-slate-900 dark:via-slate-900 dark:to-amber-950/30 dark:shadow-none">
         <div class="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <div class="space-y-5">
@@ -38,6 +46,10 @@
             <div class="rounded-2xl border border-sky-200/70 bg-gradient-to-br from-sky-50 via-white to-indigo-50 p-4 text-slate-900 shadow-sm shadow-sky-100/70 dark:border-sky-400/20 dark:bg-gradient-to-br dark:from-slate-900 dark:via-slate-900 dark:to-sky-950/40 dark:text-white dark:shadow-none">
               <p class="text-xs uppercase tracking-[0.22em] text-sky-700/75 dark:text-sky-200/80">{{ t('sizeBet.seedTitle') }}</p>
               <p class="mt-2 break-all text-sm font-medium text-slate-700 dark:text-sky-50">{{ currentRound?.server_seed_hash ?? previousRound?.server_seed_hash ?? '--' }}</p>
+            </div>
+            <div class="rounded-2xl bg-white/85 p-4 ring-1 ring-slate-200/70 backdrop-blur dark:bg-white/10 dark:ring-white/10">
+              <p class="text-xs uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">{{ t('sizeBet.pointsBalanceLabel') }}</p>
+              <p class="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{{ formatAmount(pointsBalance ?? 0) }}</p>
             </div>
           </div>
         </div>
@@ -199,9 +211,10 @@
 <script setup lang="ts">
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { sizeBetAPI } from '@/api'
+import { RouterLink, useRoute } from 'vue-router'
+import { gameCenterAPI, sizeBetAPI } from '@/api'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -209,7 +222,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import type { SizeBetCurrentRoundView, SizeBetDirection, SizeBetHistoryItem, SizeBetPhase, SizeBetRoundsView, SizeBetRulesView, SizeBetStatus } from '@/types/sizeBet'
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   embedded?: boolean
 }>(), {
   embedded: false,
@@ -224,8 +237,10 @@ const MAINTENANCE_POLL_MS = 15000
 const ROUND_SYNC_MS = 3000
 const RESUME_SYNC_MS = 1000
 const LAST_SEEN_SETTLED_BET_KEY = 'size-bet:last-seen-settled-bet'
+const LAST_SELECTION_KEY = 'size-bet:last-selection'
 marked.setOptions({ breaks: true, gfm: true })
 const { t } = useI18n()
+const route = useRoute()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const loadState = ref<LoadState>('loading')
@@ -249,10 +264,12 @@ const resultNotice = ref<SizeBetHistoryItem | null>(null)
 const roundsPage = ref(1)
 const roundsLoading = ref(false)
 const recentRoundsView = ref<SizeBetRoundsView>({ items: [], total: 0, page: 1, page_size: 5, pages: 1 })
+const pointsBalance = ref<number | null>(authStore.user?.points ?? null)
 let tickTimer: number | null = null
 let syncInFlight = false
 let historySyncInFlight = false
 const currentRound = computed(() => currentView.value?.round ?? null)
+const showGameCenterBack = computed(() => !props.embedded && route?.query?.from === 'game-center')
 const currentBet = computed(() => currentView.value?.my_bet ?? null)
 const previousRound = computed(() => currentView.value?.previous_round ?? null)
 const allowedStakes = computed(() => currentRound.value?.allowed_stakes ?? rules.value?.allowed_stakes ?? [])
@@ -321,6 +338,7 @@ function parseMs(value?: string | null) { const parsed = value ? Date.parse(valu
 function secondsUntil(target?: string | null, fallback = 0) { const targetMs = parseMs(target); return targetMs == null ? Math.max(0, fallback) : Math.max(0, Math.ceil((targetMs - estimatedServerNowMs.value) / 1000)) }
 function syncClock(serverTime: string) { const now = Date.now(); syncedServerMs.value = parseMs(serverTime) ?? now; syncedClientMs.value = now; clientNowMs.value = now }
 function lastSeenSettledBetStorageKey() { return `${LAST_SEEN_SETTLED_BET_KEY}:${authStore.user?.id ?? 'guest'}` }
+function lastSelectionStorageKey() { return `${LAST_SELECTION_KEY}:${authStore.user?.id ?? 'guest'}` }
 function restoreLastSeenSettledBetId() {
   if (typeof window === 'undefined') return null
   try {
@@ -341,6 +359,42 @@ function persistLastSeenSettledBetId(betId: number | null) {
     // 忽略存储不可用场景，避免影响主流程
   }
 }
+function restoreLastSelection(stakes: number[]) {
+  if (typeof window === 'undefined') return false
+  try {
+    const raw = window.localStorage.getItem(lastSelectionStorageKey())
+    if (!raw) return false
+    const parsed = JSON.parse(raw) as { direction?: SizeBetDirection, stake?: number, custom_stake?: number | null }
+    if (parsed.direction === 'small' || parsed.direction === 'mid' || parsed.direction === 'big') {
+      selectedDirection.value = parsed.direction
+    }
+    if (typeof parsed.custom_stake === 'number' && parsed.custom_stake >= customStakeMin.value && parsed.custom_stake <= customStakeMax.value) {
+      customStake.value = parsed.custom_stake
+      selectedStake.value = null
+      return true
+    }
+    if (typeof parsed.stake === 'number' && stakes.includes(parsed.stake)) {
+      selectedStake.value = parsed.stake
+      customStake.value = null
+      return true
+    }
+  } catch {
+    return false
+  }
+  return false
+}
+function persistLastSelection() {
+  if (typeof window === 'undefined' || !selectedDirection.value) return
+  try {
+    window.localStorage.setItem(lastSelectionStorageKey(), JSON.stringify({
+      direction: selectedDirection.value,
+      stake: selectedStake.value,
+      custom_stake: customStake.value,
+    }))
+  } catch {
+    // 忽略本地存储不可用，避免影响下注流程
+  }
+}
 function syncSelection(view: SizeBetCurrentRoundView | null) {
   const nextRoundId = view?.round?.id ?? null
   const stakes = view?.round?.allowed_stakes ?? rules.value?.allowed_stakes ?? []
@@ -349,13 +403,24 @@ function syncSelection(view: SizeBetCurrentRoundView | null) {
     selectedStake.value = view.my_bet.stake_amount
     customStake.value = null
   } else if (nextRoundId !== lastRoundId.value) {
-    selectedDirection.value = null
-    selectedStake.value = stakes[0] ?? null
-    customStake.value = null
+    const restored = restoreLastSelection(stakes)
+    if (!restored) {
+      selectedDirection.value = null
+      selectedStake.value = stakes[0] ?? null
+      customStake.value = null
+    }
   } else if (!stakes.includes(selectedStake.value ?? Number.NaN)) {
     selectedStake.value = stakes[0] ?? null
   }
   lastRoundId.value = nextRoundId
+}
+async function refreshPointsBalance() {
+  try {
+    const overview = await gameCenterAPI.getOverview()
+    pointsBalance.value = overview.points
+  } catch {
+    // 积分展示失败不阻塞游戏主流程
+  }
 }
 function maybeAutoSync(intervalMs: number) {
   if (syncInFlight || Date.now() - lastAutoSyncAt.value < intervalMs) return
@@ -441,6 +506,7 @@ async function loadPage() {
     loadState.value = 'ready'
     await loadHistory()
     await loadRounds()
+    void refreshPointsBalance()
   } catch (error: any) {
     currentView.value = null
     lastRoundId.value = null
@@ -486,6 +552,7 @@ async function submitBet() {
     if (currentView.value) currentView.value.my_bet = bet
     syncSelection(currentView.value)
     await loadHistory()
+    void refreshPointsBalance()
     appStore.showSuccess(t('sizeBet.player.placedSuccess'))
   } catch (error: any) {
     appStore.showError(error?.message || t('common.error'))
@@ -500,6 +567,7 @@ onMounted(() => {
   document.addEventListener('visibilitychange', handleVisibilityChange)
   window.addEventListener('focus', handleResumeSync)
 })
+watch([selectedDirection, selectedStake, customStake], persistLastSelection)
 onBeforeUnmount(() => {
   if (tickTimer !== null) window.clearInterval(tickTimer)
   document.removeEventListener('visibilitychange', handleVisibilityChange)

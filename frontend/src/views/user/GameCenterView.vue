@@ -136,6 +136,66 @@
         </section>
 
         <section class="card overflow-hidden">
+          <div class="flex flex-col gap-3 border-b border-slate-200/80 px-6 py-5 dark:border-white/10 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 class="text-xl font-semibold text-slate-900 dark:text-white">{{ t('gameCenter.leaderboard.title') }}</h2>
+              <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ t('gameCenter.leaderboard.subtitle') }}</p>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" :disabled="leaderboardLoading" @click="() => loadPointsLeaderboard()">
+              {{ t('common.refresh') }}
+            </button>
+          </div>
+          <div class="grid gap-4 px-4 py-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <div class="overflow-hidden rounded-2xl border border-slate-200/80 dark:border-white/10">
+              <div class="max-h-96 overflow-auto">
+                <button
+                  v-for="row in pointsLeaderboard.items"
+                  :key="row.user_id"
+                  type="button"
+                  class="grid w-full grid-cols-[3rem_1fr_auto] items-center gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
+                  :disabled="!canOpenLeaderboardDetail(row.user_id)"
+                  @click="openLeaderboardDetail(row)"
+                >
+                  <span class="text-xs font-semibold text-slate-500">#{{ row.rank }}</span>
+                  <span>
+                    <span class="block font-medium text-slate-900 dark:text-white">{{ row.username || row.email }}</span>
+                    <span class="block text-xs text-slate-500 dark:text-slate-400">{{ row.email }}</span>
+                  </span>
+                  <span class="font-semibold text-cyan-700 dark:text-cyan-300">{{ formatPoints(row.points) }}</span>
+                </button>
+                <p v-if="!pointsLeaderboard.items.length" class="px-4 py-6 text-sm text-slate-500 dark:text-slate-400">{{ t('gameCenter.leaderboard.empty') }}</p>
+              </div>
+              <Pagination :total="pointsLeaderboard.total" :page="pointsLeaderboard.page" :page-size="pointsLeaderboard.page_size" :show-page-size-selector="false" @update:page="changeLeaderboardPage" @update:pageSize="noopPageSize" />
+            </div>
+            <div class="rounded-2xl border border-slate-200/80 p-4 dark:border-white/10">
+              <div class="flex items-center justify-between gap-3">
+                <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ leaderboardDetailTitle }}</h3>
+                <button v-if="selectedLeaderboardUserID" type="button" class="btn btn-secondary btn-sm" @click="closeLeaderboardDetail">{{ t('common.close') }}</button>
+              </div>
+              <div class="mt-3 max-h-80 space-y-2 overflow-auto">
+                <div v-for="item in leaderboardLedger.items" :key="item.id" class="rounded-xl bg-slate-50 px-3 py-3 text-sm dark:bg-white/5">
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="font-medium text-slate-900 dark:text-white">{{ ledgerTypeLabel(item.entry_type) }}</span>
+                    <span class="font-semibold" :class="item.delta_points >= 0 ? 'text-emerald-600' : 'text-rose-600'">{{ formatSignedPoints(item.delta_points) }}</span>
+                  </div>
+                  <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ formatDateTime(item.created_at) }} · {{ item.reason || '--' }}</p>
+                </div>
+                <p v-if="!leaderboardLedger.items.length" class="text-sm text-slate-500 dark:text-slate-400">{{ t('gameCenter.leaderboard.detailHint') }}</p>
+              </div>
+              <Pagination
+                v-if="selectedLeaderboardUserID"
+                :total="leaderboardLedger.total"
+                :page="leaderboardLedger.page"
+                :page-size="leaderboardLedger.page_size"
+                :show-page-size-selector="false"
+                @update:page="changeLeaderboardLedgerPage"
+                @update:pageSize="noopPageSize"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section class="card overflow-hidden">
           <div class="border-b border-slate-200/80 px-6 py-5 dark:border-white/10">
             <h2 class="text-xl font-semibold text-slate-900 dark:text-white">{{ t('gameCenter.catalog.title') }}</h2>
             <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ t('gameCenter.catalog.subtitle') }}</p>
@@ -144,24 +204,37 @@
             <article
               v-for="game in catalogs"
               :key="game.game_key"
-              class="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-white/5"
+              class="grid gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-white/5 lg:grid-cols-[1fr_0.9fr]"
             >
-              <div class="space-y-2">
-                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ game.name }}</h3>
-                <p class="text-sm text-slate-500 dark:text-slate-300">{{ game.subtitle || t('gameCenter.catalog.noSubtitle') }}</p>
+              <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ t('gameCenter.catalog.gameTop10') }}</p>
+                <div class="mt-3 max-h-64 space-y-2 overflow-auto">
+                  <div v-for="row in gameLeaderboard(game.game_key)" :key="row.user_id" class="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm dark:bg-white/5">
+                    <span class="truncate text-slate-700 dark:text-slate-200">#{{ row.rank }} {{ row.email || row.username }}</span>
+                    <span class="shrink-0 font-medium text-cyan-700 dark:text-cyan-300">{{ t('gameCenter.catalog.totalRemainingPoints', { points: formatPoints(row.points) }) }}</span>
+                  </div>
+                  <p v-if="!gameLeaderboard(game.game_key).length" class="text-sm text-slate-500 dark:text-slate-400">{{ t('gameCenter.leaderboard.empty') }}</p>
+                </div>
               </div>
-              <div class="mt-4 flex flex-col gap-2 sm:flex-row">
-                <button
-                  type="button"
-                  class="btn btn-primary flex-1 justify-center"
-                  :data-test="`quick-start-${game.game_key}`"
-                  @click="openQuickStart(game.game_key)"
-                >
-                  {{ t('gameCenter.launch.quick') }}
-                </button>
-                <RouterLink class="btn btn-secondary flex-1 justify-center" :to="`/game-center/${game.game_key}`">
-                  {{ t('gameCenter.launch.fullscreen') }}
-                </RouterLink>
+              <div class="flex flex-col justify-between gap-4">
+                <div class="space-y-2">
+                  <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ game.name }}</h3>
+                  <p class="text-sm text-slate-500 dark:text-slate-300">{{ game.subtitle || t('gameCenter.catalog.noSubtitle') }}</p>
+                  <p class="text-sm leading-6 text-slate-500 dark:text-slate-400">{{ game.description }}</p>
+                </div>
+                <div class="flex flex-col gap-2 sm:flex-row lg:flex-col">
+                  <button
+                    type="button"
+                    class="btn btn-primary flex-1 justify-center"
+                    :data-test="`quick-start-${game.game_key}`"
+                    @click="openQuickStart(game.game_key)"
+                  >
+                    {{ t('gameCenter.launch.quick') }}
+                  </button>
+                  <RouterLink class="btn btn-secondary flex-1 justify-center" :to="`/game-center/${game.game_key}`">
+                    {{ t('gameCenter.launch.fullscreen') }}
+                  </RouterLink>
+                </div>
               </div>
             </article>
             <article
@@ -174,25 +247,37 @@
         </section>
 
         <section class="card overflow-hidden">
-          <div class="border-b border-slate-200/80 px-6 py-5 dark:border-white/10">
+          <div class="flex flex-col gap-3 border-b border-slate-200/80 px-6 py-5 dark:border-white/10 md:flex-row md:items-end md:justify-between">
             <h2 class="text-xl font-semibold text-slate-900 dark:text-white">{{ t('gameCenter.ledger.title') }}</h2>
+            <div class="flex flex-wrap items-end gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-500 dark:text-slate-400">{{ t('gameCenter.ledger.startDate') }}</label>
+                <input v-model="ledgerStartDate" type="date" class="input mt-1 w-40" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-500 dark:text-slate-400">{{ t('gameCenter.ledger.endDate') }}</label>
+                <input v-model="ledgerEndDate" type="date" class="input mt-1 w-40" />
+              </div>
+              <button type="button" class="btn btn-secondary" :disabled="ledgerLoading" @click="refreshLedger">{{ t('common.refresh') }}</button>
+            </div>
           </div>
           <div class="space-y-2 px-4 py-4">
             <div
-              v-for="ledger in recentLedger"
+              v-for="ledger in ledgerView.items"
               :key="ledger.id"
               class="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-3 text-sm dark:bg-white/5"
             >
               <div>
-                <p class="font-medium text-slate-900 dark:text-white">{{ ledger.entry_type }}</p>
-                <p class="text-xs text-slate-500 dark:text-slate-400">{{ ledger.reason || '--' }}</p>
+                <p class="font-medium text-slate-900 dark:text-white">{{ ledgerTypeLabel(ledger.entry_type) }}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">{{ formatDateTime(ledger.created_at) }} · {{ ledger.reason || '--' }}</p>
               </div>
               <p class="font-semibold" :class="ledger.delta_points >= 0 ? 'text-emerald-600' : 'text-rose-600'">
                 {{ formatSignedPoints(ledger.delta_points) }}
               </p>
             </div>
-            <p v-if="!recentLedger.length" class="text-sm text-slate-500 dark:text-slate-400">{{ t('gameCenter.ledger.empty') }}</p>
+            <p v-if="!ledgerView.items.length" class="text-sm text-slate-500 dark:text-slate-400">{{ t('gameCenter.ledger.empty') }}</p>
           </div>
+          <Pagination :total="ledgerView.total" :page="ledgerView.page" :page-size="ledgerView.page_size" @update:page="changeLedgerPage" @update:pageSize="changeLedgerPageSize" />
         </section>
       </template>
     </div>
@@ -204,12 +289,16 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { gameCenterAPI } from '@/api/gameCenter'
+import { sizeBetAPI } from '@/api/sizeBet'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import Pagination from '@/components/common/Pagination.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
-import type { GameCenterClaimStatus, GameCenterOverview } from '@/types/gameCenter'
+import type { BasePaginationResponse } from '@/types'
+import type { GameCenterClaimStatus, GameCenterLedgerItem, GameCenterOverview, GameCenterPointsLeaderboardItem } from '@/types/gameCenter'
+import type { SizeBetLeaderboardItem } from '@/types/sizeBet'
 
 type LoadState = 'loading' | 'ready' | 'error'
 type ExchangeDirection = 'balance_to_points' | 'points_to_balance'
@@ -230,11 +319,22 @@ const exchangeLoadingDirection = ref<ExchangeDirection | ''>('')
 const exchangeOpen = ref(false)
 const balanceAmount = ref(1)
 const pointsAmount = ref(100)
+const today = toDateInput(new Date())
+const ledgerStartDate = ref(today)
+const ledgerEndDate = ref(today)
+const ledgerLoading = ref(false)
+const leaderboardLoading = ref(false)
+const selectedLeaderboardUserID = ref<number | null>(null)
+const selectedLeaderboardUserName = ref('')
+const ledgerView = ref<BasePaginationResponse<GameCenterLedgerItem>>({ items: [], total: 0, page: 1, page_size: 10, pages: 1 })
+const pointsLeaderboard = ref<BasePaginationResponse<GameCenterPointsLeaderboardItem>>({ items: [], total: 0, page: 1, page_size: 10, pages: 1 })
+const leaderboardLedger = ref<BasePaginationResponse<GameCenterLedgerItem>>({ items: [], total: 0, page: 1, page_size: 10, pages: 1 })
+const gameLeaderboards = ref<Record<string, SizeBetLeaderboardItem[]>>({})
 
 const gameCenterEnabled = computed(() => appStore.gameCenterEnabled)
 const claimBatches = computed(() => overview.value?.claim_batches ?? [])
 const catalogs = computed(() => overview.value?.catalogs ?? [])
-const recentLedger = computed(() => overview.value?.recent_ledger ?? [])
+const leaderboardDetailTitle = computed(() => selectedLeaderboardUserID.value ? t('gameCenter.leaderboard.detailTitle', { user: selectedLeaderboardUserName.value }) : t('gameCenter.leaderboard.detailPlaceholder'))
 
 const canBalanceToPoints = computed(() => {
   if (!overview.value?.exchange.balance_to_points_enabled) return false
@@ -250,6 +350,13 @@ function resolveGamePath(gameKey: string): string | null {
   return GAME_ROUTE_MAP[gameKey] ?? null
 }
 
+function toDateInput(value: Date): string {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function formatPoints(value: number): string {
   return new Intl.NumberFormat().format(Math.trunc(value))
 }
@@ -259,6 +366,23 @@ function formatSignedPoints(value: number): string {
     return `+${formatPoints(value)}`
   }
   return `-${formatPoints(Math.abs(value))}`
+}
+
+function formatDateTime(value?: string): string {
+  if (!value) return '--'
+  return new Date(value).toLocaleString()
+}
+
+function ledgerTypeLabel(type: string): string {
+  return t(`gameCenter.ledger.types.${type}`)
+}
+
+function gameLeaderboard(gameKey: string): SizeBetLeaderboardItem[] {
+  return (gameLeaderboards.value[gameKey] ?? []).slice(0, 10)
+}
+
+function canOpenLeaderboardDetail(userID: number): boolean {
+  return authStore.user?.role === 'admin' || authStore.user?.id === userID
 }
 
 function claimStatusLabel(status: GameCenterClaimStatus): string {
@@ -283,11 +407,99 @@ async function loadOverview(): Promise<void> {
   try {
     overview.value = await gameCenterAPI.getOverview()
     loadState.value = 'ready'
+    await Promise.all([loadLedger(), loadPointsLeaderboard(), loadGameLeaderboards()])
   } catch (error) {
     loadState.value = 'error'
     appStore.showError(normalizeError(error, 'gameCenter.loadError.description'))
   }
 }
+
+async function loadLedger(page = ledgerView.value.page, pageSize = ledgerView.value.page_size): Promise<void> {
+  ledgerLoading.value = true
+  try {
+    ledgerView.value = await gameCenterAPI.getLedger({
+      page,
+      page_size: pageSize,
+      start_date: ledgerStartDate.value || undefined,
+      end_date: ledgerEndDate.value || undefined,
+    })
+  } catch (error) {
+    appStore.showError(normalizeError(error, 'gameCenter.loadError.description'))
+  } finally {
+    ledgerLoading.value = false
+  }
+}
+
+async function loadPointsLeaderboard(page = pointsLeaderboard.value.page): Promise<void> {
+  leaderboardLoading.value = true
+  try {
+    pointsLeaderboard.value = await gameCenterAPI.getPointsLeaderboard(page, pointsLeaderboard.value.page_size)
+  } catch (error) {
+    appStore.showError(normalizeError(error, 'gameCenter.loadError.description'))
+  } finally {
+    leaderboardLoading.value = false
+  }
+}
+
+async function loadGameLeaderboards(): Promise<void> {
+  if (!catalogs.value.some((item) => item.game_key === 'size_bet')) return
+  try {
+    const view = await sizeBetAPI.getLeaderboard('all')
+    gameLeaderboards.value = {
+      ...gameLeaderboards.value,
+      size_bet: view.items ?? [],
+    }
+  } catch {
+    gameLeaderboards.value = { ...gameLeaderboards.value, size_bet: [] }
+  }
+}
+
+async function loadLeaderboardLedger(userID: number, page = leaderboardLedger.value.page): Promise<void> {
+  try {
+    leaderboardLedger.value = await gameCenterAPI.getUserLedger(userID, { page, page_size: leaderboardLedger.value.page_size })
+  } catch (error) {
+    appStore.showError(normalizeError(error, 'gameCenter.loadError.description'))
+  }
+}
+
+async function openLeaderboardDetail(row: GameCenterPointsLeaderboardItem): Promise<void> {
+  if (!canOpenLeaderboardDetail(row.user_id)) {
+    appStore.showWarning(t('gameCenter.leaderboard.ownOnly'))
+    return
+  }
+  selectedLeaderboardUserID.value = row.user_id
+  selectedLeaderboardUserName.value = row.username || row.email
+  await loadLeaderboardLedger(row.user_id, 1)
+}
+
+function closeLeaderboardDetail(): void {
+  selectedLeaderboardUserID.value = null
+  selectedLeaderboardUserName.value = ''
+  leaderboardLedger.value = { items: [], total: 0, page: 1, page_size: 10, pages: 1 }
+}
+
+function refreshLedger(): void {
+  void loadLedger(1, ledgerView.value.page_size)
+}
+
+function changeLedgerPage(page: number): void {
+  void loadLedger(page, ledgerView.value.page_size)
+}
+
+function changeLedgerPageSize(pageSize: number): void {
+  void loadLedger(1, pageSize)
+}
+
+function changeLeaderboardPage(page: number): void {
+  void loadPointsLeaderboard(page)
+}
+
+function changeLeaderboardLedgerPage(page: number): void {
+  if (!selectedLeaderboardUserID.value) return
+  void loadLeaderboardLedger(selectedLeaderboardUserID.value, page)
+}
+
+function noopPageSize(): void {}
 
 async function handleClaim(batchKey: string): Promise<void> {
   if (!batchKey) return
@@ -337,7 +549,7 @@ async function openQuickStart(gameKey: string): Promise<void> {
     appStore.showError(t('gameCenter.catalog.unsupportedGame'))
     return
   }
-  await router.push(gamePath)
+  await router.push({ path: gamePath, query: { from: 'game-center' } })
 }
 
 onMounted(() => {

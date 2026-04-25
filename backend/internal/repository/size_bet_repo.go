@@ -251,7 +251,9 @@ func (r *sizeBetRepository) ListLeaderboard(ctx context.Context, scopeType, scop
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT
 			grs.user_id,
+			COALESCE(NULLIF(u.email, ''), ''),
 			COALESCE(NULLIF(u.username, ''), ''),
+			COALESCE(u.points, 0),
 			grs.net_profit,
 			grs.win_count,
 			grs.bet_count,
@@ -271,7 +273,7 @@ func (r *sizeBetRepository) ListLeaderboard(ctx context.Context, scopeType, scop
 	var refreshedAt time.Time
 	for rows.Next() {
 		var item service.SizeBetLeaderboardEntry
-		if err := rows.Scan(&item.UserID, &item.Username, &item.NetProfit, &item.WinCount, &item.BetCount, &refreshedAt); err != nil {
+		if err := rows.Scan(&item.UserID, &item.Email, &item.Username, &item.Points, &item.NetProfit, &item.WinCount, &item.BetCount, &refreshedAt); err != nil {
 			return nil, time.Time{}, err
 		}
 		items = append(items, item)

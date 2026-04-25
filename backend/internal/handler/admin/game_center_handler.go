@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -17,9 +18,9 @@ type gameCenterAdminService interface {
 	UpdateAdminSettings(ctx context.Context, req service.GameCenterAdminSettings) error
 	GetCatalog(ctx context.Context) ([]service.GameCatalog, error)
 	UpdateCatalog(ctx context.Context, gameKey string, req service.UpdateGameCatalogRequest) error
-	GetAdminLedger(ctx context.Context, params pagination.PaginationParams, userID *int64) ([]service.GameCenterAdminLedgerItem, *pagination.PaginationResult, error)
-	GetClaimRecords(ctx context.Context, params pagination.PaginationParams, userID *int64) ([]service.GameCenterClaimRecord, *pagination.PaginationResult, error)
-	GetExchangeRecords(ctx context.Context, params pagination.PaginationParams, userID *int64) ([]service.GameCenterExchangeRecord, *pagination.PaginationResult, error)
+	GetAdminLedger(ctx context.Context, params pagination.PaginationParams, filter service.GamePointsLedgerFilter) ([]service.GameCenterAdminLedgerItem, *pagination.PaginationResult, error)
+	GetClaimRecords(ctx context.Context, params pagination.PaginationParams, filter service.GamePointsLedgerFilter) ([]service.GameCenterClaimRecord, *pagination.PaginationResult, error)
+	GetExchangeRecords(ctx context.Context, params pagination.PaginationParams, filter service.GamePointsLedgerFilter) ([]service.GameCenterExchangeRecord, *pagination.PaginationResult, error)
 	AdjustPoints(ctx context.Context, input service.AdminAdjustPointsInput) error
 }
 
@@ -29,7 +30,7 @@ type GameCenterHandler struct {
 
 type adjustPointsRequest struct {
 	DeltaPoints int64  `json:"delta_points" binding:"required"`
-	Reason      string `json:"reason" binding:"required"`
+	Reason      string `json:"reason"`
 }
 
 func NewGameCenterHandler(gameCenterService *service.GameCenterService) *GameCenterHandler {
@@ -82,12 +83,11 @@ func (h *GameCenterHandler) UpdateCatalog(c *gin.Context) {
 
 func (h *GameCenterHandler) ListLedger(c *gin.Context) {
 	page, pageSize := response.ParsePagination(c)
-	userID, err := parseOptionalUserID(c.Query("user_id"))
-	if err != nil {
-		response.BadRequest(c, err.Error())
+	filter, ok := parseAdminGameCenterFilter(c)
+	if !ok {
 		return
 	}
-	items, result, err := h.service.GetAdminLedger(c.Request.Context(), pagination.PaginationParams{Page: page, PageSize: pageSize}, userID)
+	items, result, err := h.service.GetAdminLedger(c.Request.Context(), pagination.PaginationParams{Page: page, PageSize: pageSize}, filter)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -97,12 +97,11 @@ func (h *GameCenterHandler) ListLedger(c *gin.Context) {
 
 func (h *GameCenterHandler) ListClaims(c *gin.Context) {
 	page, pageSize := response.ParsePagination(c)
-	userID, err := parseOptionalUserID(c.Query("user_id"))
-	if err != nil {
-		response.BadRequest(c, err.Error())
+	filter, ok := parseAdminGameCenterFilter(c)
+	if !ok {
 		return
 	}
-	items, result, err := h.service.GetClaimRecords(c.Request.Context(), pagination.PaginationParams{Page: page, PageSize: pageSize}, userID)
+	items, result, err := h.service.GetClaimRecords(c.Request.Context(), pagination.PaginationParams{Page: page, PageSize: pageSize}, filter)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -112,17 +111,34 @@ func (h *GameCenterHandler) ListClaims(c *gin.Context) {
 
 func (h *GameCenterHandler) ListExchanges(c *gin.Context) {
 	page, pageSize := response.ParsePagination(c)
-	userID, err := parseOptionalUserID(c.Query("user_id"))
-	if err != nil {
-		response.BadRequest(c, err.Error())
+	filter, ok := parseAdminGameCenterFilter(c)
+	if !ok {
 		return
 	}
-	items, result, err := h.service.GetExchangeRecords(c.Request.Context(), pagination.PaginationParams{Page: page, PageSize: pageSize}, userID)
+	items, result, err := h.service.GetExchangeRecords(c.Request.Context(), pagination.PaginationParams{Page: page, PageSize: pageSize}, filter)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 	response.PaginatedWithResult(c, items, &response.PaginationResult{Total: result.Total, Page: result.Page, PageSize: result.PageSize, Pages: result.Pages})
+}
+
+func parseAdminGameCenterFilter(c *gin.Context) (service.GamePointsLedgerFilter, bool) {
+	filter := service.GamePointsLedgerFilter{}
+	userID, err := parseOptionalUserID(c.Query("user_id"))
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return filter, false
+	}
+	filter.UserID = userID
+	start, end, err := parseAdminGameCenterTimeRange(c.Query("start_time"), c.Query("end_time"), c.Query("start_date"), c.Query("end_date"))
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return filter, false
+	}
+	filter.StartTime = start
+	filter.EndTime = end
+	return filter, true
 }
 
 func (h *GameCenterHandler) AdjustPoints(c *gin.Context) {
@@ -157,4 +173,42 @@ func parseOptionalUserID(raw string) (*int64, error) {
 		return nil, errors.New("invalid user_id")
 	}
 	return &value, nil
+}
+
+func parseAdminGameCenterTimeRange(startTimeRaw, endTimeRaw, startDateRaw, endDateRaw string) (*time.Time, *time.Time, error) {
+	parseDate := func(raw string, endOfDay bool) (*time.Time, error) {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			return nil, nil
+		}
+		if t, err := time.Parse(time.RFC3339, raw); err == nil {
+			return &t, nil
+		}
+		t, err := time.ParseInLocation("2006-01-02", raw, time.Local)
+		if err != nil {
+			return nil, err
+		}
+		if endOfDay {
+			t = t.AddDate(0, 0, 1)
+		}
+		return &t, nil
+	}
+	start, err := parseDate(firstAdminNonEmpty(startTimeRaw, startDateRaw), false)
+	if err != nil {
+		return nil, nil, err
+	}
+	end, err := parseDate(firstAdminNonEmpty(endTimeRaw, endDateRaw), true)
+	if err != nil {
+		return nil, nil, err
+	}
+	return start, end, nil
+}
+
+func firstAdminNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }

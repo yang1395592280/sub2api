@@ -30,17 +30,17 @@ type gameCenterAdminServiceStub struct {
 	ledgerItems  []service.GameCenterAdminLedgerItem
 	ledgerPage   *pagination.PaginationResult
 	ledgerErr    error
-	ledgerUserID *int64
+	ledgerFilter service.GamePointsLedgerFilter
 
 	claimItems  []service.GameCenterClaimRecord
 	claimPage   *pagination.PaginationResult
 	claimErr    error
-	claimUserID *int64
+	claimFilter service.GamePointsLedgerFilter
 
 	exchangeItems  []service.GameCenterExchangeRecord
 	exchangePage   *pagination.PaginationResult
 	exchangeErr    error
-	exchangeUserID *int64
+	exchangeFilter service.GamePointsLedgerFilter
 
 	adjustInput service.AdminAdjustPointsInput
 	adjustErr   error
@@ -65,18 +65,18 @@ func (s *gameCenterAdminServiceStub) UpdateCatalog(_ context.Context, gameKey st
 	return s.updateCatalogErr
 }
 
-func (s *gameCenterAdminServiceStub) GetAdminLedger(_ context.Context, _ pagination.PaginationParams, userID *int64) ([]service.GameCenterAdminLedgerItem, *pagination.PaginationResult, error) {
-	s.ledgerUserID = userID
+func (s *gameCenterAdminServiceStub) GetAdminLedger(_ context.Context, _ pagination.PaginationParams, filter service.GamePointsLedgerFilter) ([]service.GameCenterAdminLedgerItem, *pagination.PaginationResult, error) {
+	s.ledgerFilter = filter
 	return s.ledgerItems, s.ledgerPage, s.ledgerErr
 }
 
-func (s *gameCenterAdminServiceStub) GetClaimRecords(_ context.Context, _ pagination.PaginationParams, userID *int64) ([]service.GameCenterClaimRecord, *pagination.PaginationResult, error) {
-	s.claimUserID = userID
+func (s *gameCenterAdminServiceStub) GetClaimRecords(_ context.Context, _ pagination.PaginationParams, filter service.GamePointsLedgerFilter) ([]service.GameCenterClaimRecord, *pagination.PaginationResult, error) {
+	s.claimFilter = filter
 	return s.claimItems, s.claimPage, s.claimErr
 }
 
-func (s *gameCenterAdminServiceStub) GetExchangeRecords(_ context.Context, _ pagination.PaginationParams, userID *int64) ([]service.GameCenterExchangeRecord, *pagination.PaginationResult, error) {
-	s.exchangeUserID = userID
+func (s *gameCenterAdminServiceStub) GetExchangeRecords(_ context.Context, _ pagination.PaginationParams, filter service.GamePointsLedgerFilter) ([]service.GameCenterExchangeRecord, *pagination.PaginationResult, error) {
+	s.exchangeFilter = filter
 	return s.exchangeItems, s.exchangePage, s.exchangeErr
 }
 
@@ -172,8 +172,8 @@ func TestGameCenterHandlerListLedgerReturnsPaginatedItems(t *testing.T) {
 	h.ListLedger(c)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	require.NotNil(t, svc.ledgerUserID)
-	require.Equal(t, int64(7), *svc.ledgerUserID)
+	require.NotNil(t, svc.ledgerFilter.UserID)
+	require.Equal(t, int64(7), *svc.ledgerFilter.UserID)
 }
 
 func TestGameCenterHandlerAdjustPointsPersistsPayload(t *testing.T) {
@@ -186,8 +186,7 @@ func TestGameCenterHandlerAdjustPointsPersistsPayload(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Params = gin.Params{{Key: "id", Value: "7"}}
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/game-center/users/7/points/adjust", strings.NewReader(`{
-		"delta_points": 25,
-		"reason": "运营补发"
+		"delta_points": 25
 	}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -196,5 +195,5 @@ func TestGameCenterHandlerAdjustPointsPersistsPayload(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Equal(t, int64(7), svc.adjustInput.UserID)
 	require.Equal(t, int64(25), svc.adjustInput.DeltaPoints)
-	require.Equal(t, "运营补发", svc.adjustInput.Reason)
+	require.Equal(t, "", svc.adjustInput.Reason)
 }

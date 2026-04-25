@@ -10,6 +10,7 @@ const {
   listClaims,
   listExchanges,
   adjustPoints,
+  searchUsers,
   showSuccess,
   showError
 } = vi.hoisted(() => ({
@@ -21,6 +22,7 @@ const {
   listClaims: vi.fn(),
   listExchanges: vi.fn(),
   adjustPoints: vi.fn(),
+  searchUsers: vi.fn(),
   showSuccess: vi.fn(),
   showError: vi.fn()
 }))
@@ -53,6 +55,13 @@ vi.mock('@/api/admin/gameCenter', () => ({
     listClaims,
     listExchanges,
     adjustPoints
+  }
+}))
+
+vi.mock('@/api/admin/usage', () => ({
+  searchUsers,
+  default: {
+    searchUsers
   }
 }))
 
@@ -174,6 +183,7 @@ describe('GameCenterAdminView', () => {
     listClaims.mockReset()
     listExchanges.mockReset()
     adjustPoints.mockReset()
+    searchUsers.mockReset()
     showSuccess.mockReset()
     showError.mockReset()
 
@@ -185,6 +195,7 @@ describe('GameCenterAdminView', () => {
     listClaims.mockResolvedValue(buildPaginated([{ id: 1, user_id: 7, claim_date: '2026-04-25', batch_key: 'night', points_amount: 100, claimed_at: '2026-04-25T20:00:00Z' }]))
     listExchanges.mockResolvedValue(buildPaginated([{ id: 1, user_id: 7, direction: 'balance_to_points', source_amount: 1, source_points: 0, target_amount: 0, target_points: 100, rate: 100, status: 'completed', reason: '兑换', created_at: '2026-04-25T09:00:00Z' }]))
     adjustPoints.mockResolvedValue({ message: 'ok' })
+    searchUsers.mockResolvedValue([{ id: 7, email: 'user@example.com', username: '测试用户' }])
   })
 
   it('loads claim settings, exchange settings and catalog sections', async () => {
@@ -227,7 +238,7 @@ describe('GameCenterAdminView', () => {
     const wrapper = await mountView()
     await flushPromises()
 
-    await wrapper.get('[data-test="adjust-user-id"]').setValue('7')
+    ;(wrapper.vm as any).selectAdjustUser({ id: 7, email: 'user@example.com', username: '测试用户' })
     await wrapper.get('[data-test="adjust-delta"]').setValue('25')
     await wrapper.get('[data-test="adjust-reason"]').setValue('补偿')
     await wrapper.get('[data-test="submit-adjust"]').trigger('click')

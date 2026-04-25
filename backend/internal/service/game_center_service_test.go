@@ -64,6 +64,10 @@ type gameCenterRepoStub struct {
 	ledgerErr                 error
 	lastLedgerUserID          int64
 	lastLedgerParams          pagination.PaginationParams
+	lastLedgerFilter          GamePointsLedgerFilter
+	leaderboardItems          []GamePointsLeaderboardItem
+	leaderboardPagination     *pagination.PaginationResult
+	leaderboardErr            error
 	adminLedgerItems          []GameCenterAdminLedgerItem
 	adminLedgerPagination     *pagination.PaginationResult
 	adminLedgerErr            error
@@ -145,9 +149,12 @@ func (s *gameCenterRepoStub) ListClaimedBatchKeys(_ context.Context, _ int64, _ 
 	return map[string]struct{}{}, nil
 }
 
-func (s *gameCenterRepoStub) ListLedger(_ context.Context, userID int64, params pagination.PaginationParams) ([]GamePointsLedgerItem, *pagination.PaginationResult, error) {
-	s.lastLedgerUserID = userID
+func (s *gameCenterRepoStub) ListLedger(_ context.Context, params pagination.PaginationParams, filter GamePointsLedgerFilter) ([]GamePointsLedgerItem, *pagination.PaginationResult, error) {
+	if filter.UserID != nil {
+		s.lastLedgerUserID = *filter.UserID
+	}
 	s.lastLedgerParams = params
+	s.lastLedgerFilter = filter
 	if s.ledgerErr != nil {
 		return nil, nil, s.ledgerErr
 	}
@@ -157,21 +164,31 @@ func (s *gameCenterRepoStub) ListLedger(_ context.Context, userID int64, params 
 	return s.ledgerItems, &pagination.PaginationResult{Total: int64(len(s.ledgerItems)), Page: params.Page, PageSize: params.PageSize, Pages: 1}, nil
 }
 
-func (s *gameCenterRepoStub) ListAdminLedger(_ context.Context, _ pagination.PaginationParams, _ *int64) ([]GameCenterAdminLedgerItem, *pagination.PaginationResult, error) {
+func (s *gameCenterRepoStub) ListPointsLeaderboard(_ context.Context, params pagination.PaginationParams) ([]GamePointsLeaderboardItem, *pagination.PaginationResult, error) {
+	if s.leaderboardErr != nil {
+		return nil, nil, s.leaderboardErr
+	}
+	if s.leaderboardPagination != nil {
+		return s.leaderboardItems, s.leaderboardPagination, nil
+	}
+	return s.leaderboardItems, &pagination.PaginationResult{Total: int64(len(s.leaderboardItems)), Page: params.Page, PageSize: params.PageSize, Pages: 1}, nil
+}
+
+func (s *gameCenterRepoStub) ListAdminLedger(_ context.Context, _ pagination.PaginationParams, _ GamePointsLedgerFilter) ([]GameCenterAdminLedgerItem, *pagination.PaginationResult, error) {
 	if s.adminLedgerErr != nil {
 		return nil, nil, s.adminLedgerErr
 	}
 	return s.adminLedgerItems, s.adminLedgerPagination, nil
 }
 
-func (s *gameCenterRepoStub) ListClaimRecords(_ context.Context, _ pagination.PaginationParams, _ *int64) ([]GameCenterClaimRecord, *pagination.PaginationResult, error) {
+func (s *gameCenterRepoStub) ListClaimRecords(_ context.Context, _ pagination.PaginationParams, _ GamePointsLedgerFilter) ([]GameCenterClaimRecord, *pagination.PaginationResult, error) {
 	if s.claimRecordsErr != nil {
 		return nil, nil, s.claimRecordsErr
 	}
 	return s.claimRecords, s.claimRecordsPagination, nil
 }
 
-func (s *gameCenterRepoStub) ListExchangeRecords(_ context.Context, _ pagination.PaginationParams, _ *int64) ([]GameCenterExchangeRecord, *pagination.PaginationResult, error) {
+func (s *gameCenterRepoStub) ListExchangeRecords(_ context.Context, _ pagination.PaginationParams, _ GamePointsLedgerFilter) ([]GameCenterExchangeRecord, *pagination.PaginationResult, error) {
 	if s.exchangeRecordsErr != nil {
 		return nil, nil, s.exchangeRecordsErr
 	}
@@ -251,10 +268,13 @@ func TestGameCenterServiceGetOverviewMarksClaimedBatch(t *testing.T) {
 	require.Equal(t, "claimed", result.ClaimBatches[0].Status)
 }
 
-func TestGameCenterServiceAdjustPointsRequiresReason(t *testing.T) {
+func TestGameCenterServiceAdjustPointsAllowsEmptyReason(t *testing.T) {
 	t.Parallel()
 
-	svc := NewGameCenterService(&gameCenterRepoStub{}, &gameCenterSettingRepoStub{})
+	repo := &gameCenterRepoStub{}
+	svc := NewGameCenterService(repo, &gameCenterSettingRepoStub{})
 	err := svc.AdjustPoints(context.Background(), AdminAdjustPointsInput{UserID: 7, DeltaPoints: 10})
-	require.Error(t, err)
+	require.NoError(t, err)
+	require.Equal(t, int64(10), repo.lastAdjustInput.DeltaPoints)
+	require.Equal(t, "", repo.lastAdjustInput.Reason)
 }

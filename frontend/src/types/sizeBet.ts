@@ -133,6 +133,25 @@ export interface SizeBetStatsUsersView {
   pages: number
 }
 
+export interface SizeBetLeaderboardItem {
+  rank: number
+  user_id: number
+  email: string
+  username: string
+  points: number
+  net_profit: number
+  win_count: number
+  bet_count: number
+  hit_rate: number
+}
+
+export interface SizeBetLeaderboardView {
+  scope: string
+  scope_key: string
+  refreshed_at?: string | null
+  items: SizeBetLeaderboardItem[]
+}
+
 export interface PlaceSizeBetRequest {
   round_id: number
   direction: SizeBetDirection

@@ -134,6 +134,8 @@ func RegisterUserRoutes(
 			gameCenter.POST("/exchange/balance-to-points", h.GameCenter.ExchangeBalanceToPoints)
 			gameCenter.POST("/exchange/points-to-balance", h.GameCenter.ExchangePointsToBalance)
 			gameCenter.GET("/ledger", h.GameCenter.GetLedger)
+			gameCenter.GET("/leaderboard", h.GameCenter.GetPointsLeaderboard)
+			gameCenter.GET("/users/:id/ledger", h.GameCenter.GetUserLedger)
 			gameCenter.GET("/catalog", h.GameCenter.GetCatalog)
 		}
 	}

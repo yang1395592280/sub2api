@@ -22,8 +22,8 @@ func TestSizeBetRepositoryListLeaderboardFiltersZeroBetCount(t *testing.T) {
 	updatedAt := time.Date(2026, 4, 23, 12, 0, 0, 0, time.UTC)
 
 	rows := sqlmock.NewRows([]string{
-		"user_id", "username", "net_profit", "win_count", "bet_count", "updated_at",
-	}).AddRow(int64(9), "alice", 12.5, int64(2), int64(3), updatedAt)
+		"user_id", "email", "username", "points", "net_profit", "win_count", "bet_count", "updated_at",
+	}).AddRow(int64(9), "alice@example.com", "alice", int64(8800), 12.5, int64(2), int64(3), updatedAt)
 
 	mock.ExpectQuery("FROM game_rank_snapshots grs.*grs\\.bet_count > 0").
 		WithArgs("all", "all", 20).
@@ -33,6 +33,8 @@ func TestSizeBetRepositoryListLeaderboardFiltersZeroBetCount(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, items, 1)
+	require.Equal(t, "alice@example.com", items[0].Email)
+	require.Equal(t, int64(8800), items[0].Points)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

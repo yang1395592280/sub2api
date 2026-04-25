@@ -116,7 +116,9 @@ type SizeBetUserHistoryItem struct {
 type SizeBetLeaderboardEntry struct {
 	Rank      int     `json:"rank"`
 	UserID    int64   `json:"user_id"`
+	Email     string  `json:"email"`
 	Username  string  `json:"username"`
+	Points    int64   `json:"points"`
 	NetProfit float64 `json:"net_profit"`
 	WinCount  int64   `json:"win_count"`
 	BetCount  int64   `json:"bet_count"`

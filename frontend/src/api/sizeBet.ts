@@ -4,6 +4,7 @@ import type {
   SizeBetBet,
   SizeBetCurrentRoundView,
   SizeBetHistoryView,
+  SizeBetLeaderboardView,
   SizeBetRoundsView,
   SizeBetRulesView,
   SizeBetStatsOverview,
@@ -48,6 +49,13 @@ export async function listStatsUsers(page = 1, pageSize = 20, date = ''): Promis
   return data
 }
 
+export async function getLeaderboard(scope = 'all'): Promise<SizeBetLeaderboardView> {
+  const { data } = await apiClient.get<SizeBetLeaderboardView>('/game/size-bet/leaderboard', {
+    params: { scope },
+  })
+  return data
+}
+
 export async function placeBet(payload: PlaceSizeBetRequest): Promise<SizeBetBet> {
   const { data } = await apiClient.post<SizeBetBet>('/game/size-bet/bet', payload)
   return data
@@ -60,6 +68,7 @@ export const sizeBetAPI = {
   getRounds,
   getStatsOverview,
   listStatsUsers,
+  getLeaderboard,
   placeBet,
 }
 

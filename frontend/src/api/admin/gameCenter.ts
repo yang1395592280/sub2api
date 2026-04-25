@@ -50,6 +50,8 @@ export interface UpdateGameCenterCatalogRequest {
 export interface GameCenterAdminLedgerItem {
   id: number
   user_id: number
+  email: string
+  username: string
   entry_type: string
   delta_points: number
   points_before: number
@@ -62,6 +64,8 @@ export interface GameCenterAdminLedgerItem {
 export interface GameCenterClaimRecord {
   id: number
   user_id: number
+  email: string
+  username: string
   claim_date: string
   batch_key: string
   points_amount: number
@@ -71,6 +75,8 @@ export interface GameCenterClaimRecord {
 export interface GameCenterExchangeRecord {
   id: number
   user_id: number
+  email: string
+  username: string
   direction: 'balance_to_points' | 'points_to_balance'
   source_amount: number
   source_points: number
@@ -84,7 +90,15 @@ export interface GameCenterExchangeRecord {
 
 export interface AdjustGameCenterPointsRequest {
   delta_points: number
-  reason: string
+  reason?: string
+}
+
+export interface GameCenterAuditQuery {
+  user_id?: number
+  start_date?: string
+  end_date?: string
+  page?: number
+  page_size?: number
 }
 
 export async function getSettings(): Promise<GameCenterAdminSettings> {
@@ -107,23 +121,23 @@ export async function updateCatalog(gameKey: string, payload: UpdateGameCenterCa
   return data
 }
 
-export async function listLedger(userID?: number): Promise<BasePaginationResponse<GameCenterAdminLedgerItem>> {
+export async function listLedger(params?: GameCenterAuditQuery): Promise<BasePaginationResponse<GameCenterAdminLedgerItem>> {
   const { data } = await apiClient.get<BasePaginationResponse<GameCenterAdminLedgerItem>>('/admin/game-center/ledger', {
-    params: userID ? { user_id: userID } : undefined
+    params
   })
   return data
 }
 
-export async function listClaims(userID?: number): Promise<BasePaginationResponse<GameCenterClaimRecord>> {
+export async function listClaims(params?: GameCenterAuditQuery): Promise<BasePaginationResponse<GameCenterClaimRecord>> {
   const { data } = await apiClient.get<BasePaginationResponse<GameCenterClaimRecord>>('/admin/game-center/claims', {
-    params: userID ? { user_id: userID } : undefined
+    params
   })
   return data
 }
 
-export async function listExchanges(userID?: number): Promise<BasePaginationResponse<GameCenterExchangeRecord>> {
+export async function listExchanges(params?: GameCenterAuditQuery): Promise<BasePaginationResponse<GameCenterExchangeRecord>> {
   const { data } = await apiClient.get<BasePaginationResponse<GameCenterExchangeRecord>>('/admin/game-center/exchanges', {
-    params: userID ? { user_id: userID } : undefined
+    params
   })
   return data
 }

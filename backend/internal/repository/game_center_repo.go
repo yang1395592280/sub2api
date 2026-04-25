@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strconv"
+	"strings"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -224,18 +226,21 @@ func (r *gameCenterRepository) UpdateCatalog(ctx context.Context, gameKey string
 	return nil
 }
 
-func (r *gameCenterRepository) ListLedger(ctx context.Context, userID int64, params pagination.PaginationParams) ([]service.GamePointsLedgerItem, *pagination.PaginationResult, error) {
+func (r *gameCenterRepository) ListLedger(ctx context.Context, params pagination.PaginationParams, filter service.GamePointsLedgerFilter) ([]service.GamePointsLedgerItem, *pagination.PaginationResult, error) {
+	where, args := buildGamePointsWhere("gl", "created_at", filter)
 	var total int64
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM game_points_ledger WHERE user_id = $1`, userID).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM game_points_ledger gl`+where, args...).Scan(&total); err != nil {
 		return nil, nil, err
 	}
+	args = append(args, params.Limit(), params.Offset())
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, entry_type, delta_points, points_after, reason, created_at
-		FROM game_points_ledger
-		WHERE user_id = $1
-		ORDER BY created_at DESC, id DESC
-		LIMIT $2 OFFSET $3
-	`, userID, params.Limit(), params.Offset())
+		SELECT gl.id, gl.user_id, COALESCE(u.email, ''), COALESCE(NULLIF(u.username, ''), u.email, CONCAT('user-', gl.user_id)),
+		       gl.entry_type, gl.delta_points, gl.points_after, gl.reason, gl.created_at
+		FROM game_points_ledger gl
+		LEFT JOIN users u ON u.id = gl.user_id`+where+`
+		ORDER BY gl.created_at DESC, gl.id DESC
+		LIMIT $`+argPos(len(args)-1)+` OFFSET $`+argPos(len(args))+`
+	`, args...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -244,7 +249,7 @@ func (r *gameCenterRepository) ListLedger(ctx context.Context, userID int64, par
 	items := make([]service.GamePointsLedgerItem, 0)
 	for rows.Next() {
 		var item service.GamePointsLedgerItem
-		if err := rows.Scan(&item.ID, &item.EntryType, &item.DeltaPoints, &item.PointsAfter, &item.Reason, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.UserID, &item.Email, &item.Username, &item.EntryType, &item.DeltaPoints, &item.PointsAfter, &item.Reason, &item.CreatedAt); err != nil {
 			return nil, nil, err
 		}
 		items = append(items, item)
@@ -265,6 +270,42 @@ func (r *gameCenterRepository) ListLedger(ctx context.Context, userID int64, par
 		PageSize: params.PageSize,
 		Pages:    pages,
 	}, nil
+}
+
+func (r *gameCenterRepository) ListPointsLeaderboard(ctx context.Context, params pagination.PaginationParams) ([]service.GamePointsLeaderboardItem, *pagination.PaginationResult, error) {
+	var total int64
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&total); err != nil {
+		return nil, nil, err
+	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT ranked.rank, ranked.id, ranked.email, ranked.username, ranked.points
+		FROM (
+			SELECT
+				ROW_NUMBER() OVER (ORDER BY points DESC, id ASC) AS rank,
+				id,
+				COALESCE(email, '') AS email,
+				COALESCE(NULLIF(username, ''), email, CONCAT('user-', id)) AS username,
+				points
+			FROM users
+		) ranked
+		ORDER BY ranked.rank ASC
+		LIMIT $1 OFFSET $2
+	`, params.Limit(), params.Offset())
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	items := make([]service.GamePointsLeaderboardItem, 0)
+	for rows.Next() {
+		var item service.GamePointsLeaderboardItem
+		if err := rows.Scan(&item.Rank, &item.UserID, &item.Email, &item.Username, &item.Points); err != nil {
+			return nil, nil, err
+		}
+		items = append(items, item)
+	}
+	return items, buildPageResult(total, params), rows.Err()
 }
 
 func (r *gameCenterRepository) ListClaimedBatchKeys(ctx context.Context, userID int64, claimDate string) (map[string]struct{}, error) {
@@ -289,24 +330,21 @@ func (r *gameCenterRepository) ListClaimedBatchKeys(ctx context.Context, userID 
 	return result, rows.Err()
 }
 
-func (r *gameCenterRepository) ListAdminLedger(ctx context.Context, params pagination.PaginationParams, userID *int64) ([]service.GameCenterAdminLedgerItem, *pagination.PaginationResult, error) {
-	queryArgs := []any{}
-	where := ""
-	if userID != nil {
-		where = " WHERE user_id = $1"
-		queryArgs = append(queryArgs, *userID)
-	}
+func (r *gameCenterRepository) ListAdminLedger(ctx context.Context, params pagination.PaginationParams, filter service.GamePointsLedgerFilter) ([]service.GameCenterAdminLedgerItem, *pagination.PaginationResult, error) {
+	where, queryArgs := buildGamePointsWhere("gl", "created_at", filter)
 
 	var total int64
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM game_points_ledger`+where, queryArgs...).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM game_points_ledger gl`+where, queryArgs...).Scan(&total); err != nil {
 		return nil, nil, err
 	}
 
 	queryArgs = append(queryArgs, params.Limit(), params.Offset())
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, user_id, entry_type, delta_points, points_before, points_after, reason, related_game_key, created_at
-		FROM game_points_ledger`+where+`
-		ORDER BY created_at DESC, id DESC
+		SELECT gl.id, gl.user_id, COALESCE(u.email, ''), COALESCE(NULLIF(u.username, ''), u.email, CONCAT('user-', gl.user_id)),
+		       gl.entry_type, gl.delta_points, gl.points_before, gl.points_after, gl.reason, gl.related_game_key, gl.created_at
+		FROM game_points_ledger gl
+		LEFT JOIN users u ON u.id = gl.user_id`+where+`
+		ORDER BY gl.created_at DESC, gl.id DESC
 		LIMIT $`+argPos(len(queryArgs)-1)+` OFFSET $`+argPos(len(queryArgs))+`
 	`, queryArgs...)
 	if err != nil {
@@ -317,7 +355,7 @@ func (r *gameCenterRepository) ListAdminLedger(ctx context.Context, params pagin
 	items := make([]service.GameCenterAdminLedgerItem, 0)
 	for rows.Next() {
 		var item service.GameCenterAdminLedgerItem
-		if err := rows.Scan(&item.ID, &item.UserID, &item.EntryType, &item.DeltaPoints, &item.PointsBefore, &item.PointsAfter, &item.Reason, &item.RelatedGameKey, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.UserID, &item.Email, &item.Username, &item.EntryType, &item.DeltaPoints, &item.PointsBefore, &item.PointsAfter, &item.Reason, &item.RelatedGameKey, &item.CreatedAt); err != nil {
 			return nil, nil, err
 		}
 		items = append(items, item)
@@ -325,22 +363,19 @@ func (r *gameCenterRepository) ListAdminLedger(ctx context.Context, params pagin
 	return items, buildPageResult(total, params), rows.Err()
 }
 
-func (r *gameCenterRepository) ListClaimRecords(ctx context.Context, params pagination.PaginationParams, userID *int64) ([]service.GameCenterClaimRecord, *pagination.PaginationResult, error) {
-	queryArgs := []any{}
-	where := ""
-	if userID != nil {
-		where = " WHERE user_id = $1"
-		queryArgs = append(queryArgs, *userID)
-	}
+func (r *gameCenterRepository) ListClaimRecords(ctx context.Context, params pagination.PaginationParams, filter service.GamePointsLedgerFilter) ([]service.GameCenterClaimRecord, *pagination.PaginationResult, error) {
+	where, queryArgs := buildGamePointsWhere("gpc", "claimed_at", filter)
 	var total int64
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM game_points_claims`+where, queryArgs...).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM game_points_claims gpc`+where, queryArgs...).Scan(&total); err != nil {
 		return nil, nil, err
 	}
 	queryArgs = append(queryArgs, params.Limit(), params.Offset())
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, user_id, claim_date::text, batch_key, points_amount, claimed_at
-		FROM game_points_claims`+where+`
-		ORDER BY claimed_at DESC, id DESC
+		SELECT gpc.id, gpc.user_id, COALESCE(u.email, ''), COALESCE(NULLIF(u.username, ''), u.email, CONCAT('user-', gpc.user_id)),
+		       gpc.claim_date::text, gpc.batch_key, gpc.points_amount, gpc.claimed_at
+		FROM game_points_claims gpc
+		LEFT JOIN users u ON u.id = gpc.user_id`+where+`
+		ORDER BY gpc.claimed_at DESC, gpc.id DESC
 		LIMIT $`+argPos(len(queryArgs)-1)+` OFFSET $`+argPos(len(queryArgs))+`
 	`, queryArgs...)
 	if err != nil {
@@ -351,7 +386,7 @@ func (r *gameCenterRepository) ListClaimRecords(ctx context.Context, params pagi
 	items := make([]service.GameCenterClaimRecord, 0)
 	for rows.Next() {
 		var item service.GameCenterClaimRecord
-		if err := rows.Scan(&item.ID, &item.UserID, &item.ClaimDate, &item.BatchKey, &item.PointsAmount, &item.ClaimedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.UserID, &item.Email, &item.Username, &item.ClaimDate, &item.BatchKey, &item.PointsAmount, &item.ClaimedAt); err != nil {
 			return nil, nil, err
 		}
 		items = append(items, item)
@@ -359,22 +394,19 @@ func (r *gameCenterRepository) ListClaimRecords(ctx context.Context, params pagi
 	return items, buildPageResult(total, params), rows.Err()
 }
 
-func (r *gameCenterRepository) ListExchangeRecords(ctx context.Context, params pagination.PaginationParams, userID *int64) ([]service.GameCenterExchangeRecord, *pagination.PaginationResult, error) {
-	queryArgs := []any{}
-	where := ""
-	if userID != nil {
-		where = " WHERE user_id = $1"
-		queryArgs = append(queryArgs, *userID)
-	}
+func (r *gameCenterRepository) ListExchangeRecords(ctx context.Context, params pagination.PaginationParams, filter service.GamePointsLedgerFilter) ([]service.GameCenterExchangeRecord, *pagination.PaginationResult, error) {
+	where, queryArgs := buildGamePointsWhere("gpe", "created_at", filter)
 	var total int64
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM game_points_exchanges`+where, queryArgs...).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM game_points_exchanges gpe`+where, queryArgs...).Scan(&total); err != nil {
 		return nil, nil, err
 	}
 	queryArgs = append(queryArgs, params.Limit(), params.Offset())
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, user_id, direction, source_amount, source_points, target_amount, target_points, rate, status, reason, created_at
-		FROM game_points_exchanges`+where+`
-		ORDER BY created_at DESC, id DESC
+		SELECT gpe.id, gpe.user_id, COALESCE(u.email, ''), COALESCE(NULLIF(u.username, ''), u.email, CONCAT('user-', gpe.user_id)),
+		       gpe.direction, gpe.source_amount, gpe.source_points, gpe.target_amount, gpe.target_points, gpe.rate, gpe.status, gpe.reason, gpe.created_at
+		FROM game_points_exchanges gpe
+		LEFT JOIN users u ON u.id = gpe.user_id`+where+`
+		ORDER BY gpe.created_at DESC, gpe.id DESC
 		LIMIT $`+argPos(len(queryArgs)-1)+` OFFSET $`+argPos(len(queryArgs))+`
 	`, queryArgs...)
 	if err != nil {
@@ -385,7 +417,7 @@ func (r *gameCenterRepository) ListExchangeRecords(ctx context.Context, params p
 	items := make([]service.GameCenterExchangeRecord, 0)
 	for rows.Next() {
 		var item service.GameCenterExchangeRecord
-		if err := rows.Scan(&item.ID, &item.UserID, &item.Direction, &item.SourceAmount, &item.SourcePoints, &item.TargetAmount, &item.TargetPoints, &item.Rate, &item.Status, &item.Reason, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.UserID, &item.Email, &item.Username, &item.Direction, &item.SourceAmount, &item.SourcePoints, &item.TargetAmount, &item.TargetPoints, &item.Rate, &item.Status, &item.Reason, &item.CreatedAt); err != nil {
 			return nil, nil, err
 		}
 		items = append(items, item)
@@ -451,4 +483,31 @@ func buildPageResult(total int64, params pagination.PaginationParams) *paginatio
 
 func argPos(pos int) string {
 	return strconv.Itoa(pos)
+}
+
+func buildGamePointsWhere(alias, timeColumn string, filter service.GamePointsLedgerFilter) (string, []any) {
+	conditions := make([]string, 0, 3)
+	args := make([]any, 0, 3)
+	column := func(name string) string {
+		if strings.TrimSpace(alias) == "" {
+			return name
+		}
+		return fmt.Sprintf("%s.%s", alias, name)
+	}
+	if filter.UserID != nil && *filter.UserID > 0 {
+		args = append(args, *filter.UserID)
+		conditions = append(conditions, fmt.Sprintf("%s = $%d", column("user_id"), len(args)))
+	}
+	if filter.StartTime != nil {
+		args = append(args, filter.StartTime.UTC())
+		conditions = append(conditions, fmt.Sprintf("%s >= $%d", column(timeColumn), len(args)))
+	}
+	if filter.EndTime != nil {
+		args = append(args, filter.EndTime.UTC())
+		conditions = append(conditions, fmt.Sprintf("%s < $%d", column(timeColumn), len(args)))
+	}
+	if len(conditions) == 0 {
+		return "", args
+	}
+	return " WHERE " + strings.Join(conditions, " AND "), args
 }

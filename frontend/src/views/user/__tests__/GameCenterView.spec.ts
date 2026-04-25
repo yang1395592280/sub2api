@@ -7,6 +7,10 @@ const {
   claimPoints,
   exchangeBalanceToPoints,
   exchangePointsToBalance,
+  getLedger,
+  getPointsLeaderboard,
+  getUserLedger,
+  getLeaderboard,
   showSuccess,
   showError,
 } = vi.hoisted(() => ({
@@ -14,6 +18,10 @@ const {
   claimPoints: vi.fn(),
   exchangeBalanceToPoints: vi.fn(),
   exchangePointsToBalance: vi.fn(),
+  getLedger: vi.fn(),
+  getPointsLeaderboard: vi.fn(),
+  getUserLedger: vi.fn(),
+  getLeaderboard: vi.fn(),
   showSuccess: vi.fn(),
   showError: vi.fn(),
 }))
@@ -24,6 +32,15 @@ vi.mock('@/api/gameCenter', () => ({
     claimPoints,
     exchangeBalanceToPoints,
     exchangePointsToBalance,
+    getLedger,
+    getPointsLeaderboard,
+    getUserLedger,
+  },
+}))
+
+vi.mock('@/api/sizeBet', () => ({
+  sizeBetAPI: {
+    getLeaderboard,
   },
 }))
 
@@ -54,12 +71,19 @@ vi.mock('vue-i18n', async () => {
     'gameCenter.claim.status.claimed': '已领取',
     'gameCenter.launch.quick': '快速开始',
     'gameCenter.launch.fullscreen': '全屏打开',
+    'gameCenter.catalog.gameTop10': '本游戏积分前十用户',
+    'gameCenter.catalog.totalRemainingPoints': '剩余积分：{points}',
+    'gameCenter.leaderboard.empty': '暂无排行数据',
     'gameCenter.embed.title': '快速开始窗口',
   }
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => messages[key] ?? key,
+      t: (key: string, params?: Record<string, unknown>) =>
+        Object.entries(params ?? {}).reduce(
+          (message, [name, value]) => message.replace(`{${name}}`, String(value)),
+          messages[key] ?? key,
+        ),
     }),
   }
 })
@@ -123,6 +147,10 @@ beforeEach(() => {
   claimPoints.mockReset()
   exchangeBalanceToPoints.mockReset()
   exchangePointsToBalance.mockReset()
+  getLedger.mockReset()
+  getPointsLeaderboard.mockReset()
+  getUserLedger.mockReset()
+  getLeaderboard.mockReset()
   showSuccess.mockReset()
   showError.mockReset()
   vi.stubGlobal('localStorage', {
@@ -133,6 +161,26 @@ beforeEach(() => {
   })
   vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }))
   mockOverview()
+  getLedger.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 10, pages: 1 })
+  getPointsLeaderboard.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 10, pages: 1 })
+  getUserLedger.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 1 })
+  getLeaderboard.mockResolvedValue({
+    scope: 'all',
+    scope_key: 'all',
+    items: [
+      {
+        rank: 1,
+        user_id: 9,
+        email: 'alice@example.com',
+        username: 'alice',
+        points: 8800,
+        net_profit: 12.5,
+        win_count: 2,
+        bet_count: 3,
+        hit_rate: 0.67,
+      },
+    ],
+  })
 })
 
 afterEach(() => {
@@ -148,6 +196,13 @@ describe('GameCenterView', () => {
     expect(wrapper.text()).toContain('已领取')
     expect(wrapper.text()).toContain('快速开始')
     expect(wrapper.text()).toContain('全屏打开')
+  })
+
+  it('renders game catalog top users with email and remaining points', async () => {
+    const { wrapper } = await mountView()
+    expect(wrapper.text()).toContain('本游戏积分前十用户')
+    expect(wrapper.text()).toContain('alice@example.com')
+    expect(wrapper.text()).toContain('剩余积分：8,800')
   })
 
   it('opens real size bet route on desktop quick start', async () => {
