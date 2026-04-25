@@ -344,6 +344,7 @@ export default {
     announcements: '公告',
     apiKeys: 'API 密钥',
     usage: '使用记录',
+    gameCenter: '游戏中心',
     redeem: '兑换',
     windsurfAccounts: 'Windsurf 账号',
     profile: '个人资料',
@@ -373,7 +374,8 @@ export default {
     orderManagement: '订单管理',
     paymentDashboard: '支付概览',
     paymentConfig: '支付配置',
-    paymentPlans: '订阅套餐'
+    paymentPlans: '订阅套餐',
+    gameCenterAdmin: '游戏中心管理'
   },
 
   windsurfAccounts: {
@@ -382,10 +384,13 @@ export default {
     searchPlaceholder: '搜索账号...',
     create: '新增账号',
     edit: '编辑账号',
+    editPassword: '修改密码',
     account: '账号',
     password: '密码',
     passwordHint: '默认脱敏展示，点击查看后可复制',
     passwordOptionalHint: '留空表示不修改密码',
+    passwordRequiredHint: '普通用户修改时必须填写新密码',
+    accountReadonlyHint: '普通用户只能修改自己创建账号的密码，账号本身仅管理员可修改',
     status: '状态',
     enabled: '已启用',
     disabled: '未启用',
@@ -425,10 +430,80 @@ export default {
     }
   },
 
+  gameCenter: {
+    hero: {
+      tag: 'GAME CENTER',
+      title: '游戏中心',
+      subtitle: '当前积分'
+    },
+    loadError: {
+      title: '游戏中心加载失败',
+      description: '暂时无法加载游戏中心数据，请稍后重试。'
+    },
+    disabled: {
+      title: '游戏中心暂未开启',
+      description: '管理员已关闭游戏中心入口。'
+    },
+    claim: {
+      title: '每日领取',
+      subtitle: '按批次领取积分奖励',
+      reward: '本批次可领取 {points} 积分',
+      action: '立即领取',
+      claiming: '领取中...',
+      success: '领取成功',
+      failed: '领取失败，请稍后重试',
+      empty: '当前没有可展示的领取批次。',
+      status: {
+        pending: '未到时间',
+        claimable: '可领取',
+        claimed: '已领取'
+      }
+    },
+    exchange: {
+      entry: '积分兑换',
+      title: '积分兑换',
+      subtitle: '支持余额与积分双向兑换',
+      balanceToPoints: '余额兑积分',
+      pointsToBalance: '积分兑余额',
+      rate: '当前汇率：{rate}',
+      amount: '余额数量',
+      points: '积分数量',
+      submit: '提交兑换',
+      submitting: '兑换中...',
+      success: '兑换成功',
+      failed: '兑换失败，请稍后重试'
+    },
+    launch: {
+      quick: '快速开始',
+      fullscreen: '全屏打开'
+    },
+    catalog: {
+      title: '游戏目录',
+      subtitle: '选择你要体验的小游戏',
+      noSubtitle: '即开即玩',
+      empty: '暂无可用游戏',
+      unsupportedGame: '该游戏暂不支持快速开始'
+    },
+    embed: {
+      title: '快速开始窗口'
+    },
+    ledger: {
+      title: '最近积分流水',
+      empty: '暂无积分流水'
+    },
+    shell: {
+      titlePrefix: '全屏模式',
+      back: '返回游戏中心',
+      openRaw: '新标签打开',
+      unsupportedTitle: '暂不支持该游戏',
+      unsupportedDescription: '请返回游戏中心选择其他游戏。'
+    }
+  },
+
   sizeBet: {
-    nav: '大小中参与',
+    nav: '猜大小游戏',
     statsNav: '竞猜统计',
-    title: '大小中参与',
+    title: '猜大小游戏',
     heroSubtitle: '在截止前完成选择，等待系统随机开奖',
     countdownLabel: '本局开奖倒计时',
     betClosesIn: '参与倒计时',
@@ -2537,6 +2612,7 @@ export default {
         oauth: 'OAuth',
         chatgptOauth: 'ChatGPT OAuth',
         responsesApi: 'Responses API',
+        chatCompletionsApi: 'Chat Completions API',
         googleOauth: 'Google OAuth',
         codeAssist: 'Code Assist',
         antigravityOauth: 'Antigravity OAuth',
@@ -2747,6 +2823,10 @@ export default {
       openai: {
         baseUrlHint: '留空使用官方 OpenAI API',
         apiKeyHint: '您的 OpenAI API Key',
+        apiMode: 'API 模式',
+        apiModeHint: '官方 OpenAI 选 Responses API；仅支持 /v1/chat/completions 的兼容上游请选择 Chat Completions API。',
+        apiModeCardHint: 'Responses / Chat Completions 可选',
+        chatCompletionsApi: 'Chat Completions API',
         oauthPassthrough: '自动透传（仅替换认证）',
         oauthPassthroughDesc:
           '开启后，该 OpenAI 账号将自动透传请求与响应，仅替换认证并保留计费/并发/审计及必要安全过滤；如遇兼容性问题可随时关闭回滚。',
@@ -4081,6 +4161,73 @@ export default {
         bet_payout: '派奖入账',
         bet_refund: '退款返还'
       }
+    },
+
+    gameCenter: {
+      title: '游戏中心管理',
+      description: '统一配置每日领取、积分兑换与游戏目录开关。',
+      sections: {
+        claim: '每日领取配置',
+        exchange: '兑换配置',
+        catalog: '游戏目录配置',
+        operations: '手动积分调整',
+        audit: '运营查询'
+      },
+      switches: {
+        gameCenterEnabled: '启用游戏中心',
+        gameCenterEnabledHint: '关闭后用户端隐藏游戏中心入口与页面',
+        claimEnabled: '启用每日领取',
+        claimEnabledHint: '关闭后用户无法在领取时段领取积分'
+      },
+      claim: {
+        batchKey: '批次标识',
+        claimTime: '领取时间',
+        pointsAmount: '积分数量',
+        enabled: '启用'
+      },
+      exchange: {
+        balanceToPoints: '余额兑积分',
+        pointsToBalance: '积分兑余额',
+        rate: '兑换倍率',
+        minAmount: '最小兑换额度'
+      },
+      catalog: {
+        empty: '暂无可配置游戏',
+        sortOrder: '排序',
+        openMode: '打开方式',
+        openGameSettings: '进入游戏配置',
+        supportsEmbed: '站内打开',
+        supportsStandalone: '全屏打开',
+        openModes: {
+          dual: '双模式',
+          embed: '站内模式',
+          standalone: '全屏模式'
+        }
+      },
+      actions: {
+        addBatch: '新增批次'
+      },
+      operations: {
+        userId: '用户 ID',
+        deltaPoints: '调整积分',
+        reason: '原因',
+        submit: '提交调整',
+        validation: '请填写用户 ID、调整积分和原因',
+        success: '积分调整成功',
+        failed: '积分调整失败'
+      },
+      audit: {
+        description: '查看最近积分流水、领取记录和兑换记录',
+        ledger: '积分流水',
+        claims: '领取记录',
+        exchanges: '兑换记录',
+        empty: '暂无记录'
+      },
+      loadFailed: '加载游戏中心配置失败',
+      saveSettingsSuccess: '游戏中心配置已保存',
+      saveSettingsFailed: '保存游戏中心配置失败',
+      saveCatalogSuccess: '目录配置已保存',
+      saveCatalogFailed: '保存目录配置失败'
     },
 
     // Ops Monitoring

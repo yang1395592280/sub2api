@@ -2,10 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import SizeBetStatsView from '../SizeBetStatsView.vue'
 
-const { getStatsOverview, listStatsUsers, showError } = vi.hoisted(() => ({
+const { getStatsOverview, listStatsUsers, showError, appStore } = vi.hoisted(() => ({
   getStatsOverview: vi.fn(),
   listStatsUsers: vi.fn(),
   showError: vi.fn(),
+  appStore: {
+    showError: vi.fn(),
+    cachedPublicSettings: { size_bet_enabled: true },
+  },
 }))
 
 vi.mock('@/api', () => ({
@@ -16,9 +20,7 @@ vi.mock('@/api', () => ({
 }))
 
 vi.mock('@/stores/app', () => ({
-  useAppStore: () => ({
-    showError,
-  }),
+  useAppStore: () => appStore,
 }))
 
 vi.mock('@/i18n', () => ({
@@ -37,6 +39,8 @@ const messages: Record<string, string> = {
   'sizeBet.statsPage.rank': '排名',
   'sizeBet.statsPage.emptyTitle': '暂无统计数据',
   'sizeBet.statsPage.emptyDescription': '还没有统计',
+  'sizeBet.maintenance.title': '活动暂未开启',
+  'sizeBet.maintenance.description': '管理员已关闭该活动',
   'admin.sizeBet.columns.user': '用户',
   'admin.sizeBet.stats.participantCount': '参与人数',
   'admin.sizeBet.stats.totalStake': '总参与额度',
@@ -78,6 +82,8 @@ describe('SizeBetStatsView', () => {
     getStatsOverview.mockReset()
     listStatsUsers.mockReset()
     showError.mockReset()
+    appStore.showError = showError
+    appStore.cachedPublicSettings = { size_bet_enabled: true }
   })
 
   it('loads and renders stats data', async () => {
@@ -126,5 +132,27 @@ describe('SizeBetStatsView', () => {
     expect(wrapper.text()).toContain('3')
     expect(wrapper.get('[data-test="table"]').text()).toContain('alice')
     expect(wrapper.get('[data-test="table"]').text()).toContain('"rank":1')
+  })
+
+  it('shows maintenance empty state instead of loading stats when the activity is disabled', async () => {
+    appStore.cachedPublicSettings = { size_bet_enabled: false }
+
+    const wrapper = mount(SizeBetStatsView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          LoadingSpinner: LoadingSpinnerStub,
+          EmptyState: EmptyStateStub,
+          Pagination: PaginationStub,
+          DataTable: DataTableStub,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(getStatsOverview).not.toHaveBeenCalled()
+    expect(listStatsUsers).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('活动暂未开启')
   })
 })

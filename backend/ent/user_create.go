@@ -113,6 +113,20 @@ func (_c *UserCreate) SetNillableBalance(v *float64) *UserCreate {
 	return _c
 }
 
+// SetPoints sets the "points" field.
+func (_c *UserCreate) SetPoints(v int64) *UserCreate {
+	_c.mutation.SetPoints(v)
+	return _c
+}
+
+// SetNillablePoints sets the "points" field if the given value is not nil.
+func (_c *UserCreate) SetNillablePoints(v *int64) *UserCreate {
+	if v != nil {
+		_c.SetPoints(*v)
+	}
+	return _c
+}
+
 // SetConcurrency sets the "concurrency" field.
 func (_c *UserCreate) SetConcurrency(v int) *UserCreate {
 	_c.mutation.SetConcurrency(v)
@@ -490,6 +504,10 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultBalance
 		_c.mutation.SetBalance(v)
 	}
+	if _, ok := _c.mutation.Points(); !ok {
+		v := user.DefaultPoints
+		_c.mutation.SetPoints(v)
+	}
 	if _, ok := _c.mutation.Concurrency(); !ok {
 		v := user.DefaultConcurrency
 		_c.mutation.SetConcurrency(v)
@@ -563,6 +581,9 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.Balance(); !ok {
 		return &ValidationError{Name: "balance", err: errors.New(`ent: missing required field "User.balance"`)}
+	}
+	if _, ok := _c.mutation.Points(); !ok {
+		return &ValidationError{Name: "points", err: errors.New(`ent: missing required field "User.points"`)}
 	}
 	if _, ok := _c.mutation.Concurrency(); !ok {
 		return &ValidationError{Name: "concurrency", err: errors.New(`ent: missing required field "User.concurrency"`)}
@@ -655,6 +676,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Balance(); ok {
 		_spec.SetField(user.FieldBalance, field.TypeFloat64, value)
 		_node.Balance = value
+	}
+	if value, ok := _c.mutation.Points(); ok {
+		_spec.SetField(user.FieldPoints, field.TypeInt64, value)
+		_node.Points = value
 	}
 	if value, ok := _c.mutation.Concurrency(); ok {
 		_spec.SetField(user.FieldConcurrency, field.TypeInt, value)
@@ -1004,6 +1029,24 @@ func (u *UserUpsert) AddBalance(v float64) *UserUpsert {
 	return u
 }
 
+// SetPoints sets the "points" field.
+func (u *UserUpsert) SetPoints(v int64) *UserUpsert {
+	u.Set(user.FieldPoints, v)
+	return u
+}
+
+// UpdatePoints sets the "points" field to the value that was provided on create.
+func (u *UserUpsert) UpdatePoints() *UserUpsert {
+	u.SetExcluded(user.FieldPoints)
+	return u
+}
+
+// AddPoints adds v to the "points" field.
+func (u *UserUpsert) AddPoints(v int64) *UserUpsert {
+	u.Add(user.FieldPoints, v)
+	return u
+}
+
 // SetConcurrency sets the "concurrency" field.
 func (u *UserUpsert) SetConcurrency(v int) *UserUpsert {
 	u.Set(user.FieldConcurrency, v)
@@ -1324,6 +1367,27 @@ func (u *UserUpsertOne) AddBalance(v float64) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateBalance() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateBalance()
+	})
+}
+
+// SetPoints sets the "points" field.
+func (u *UserUpsertOne) SetPoints(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPoints(v)
+	})
+}
+
+// AddPoints adds v to the "points" field.
+func (u *UserUpsertOne) AddPoints(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddPoints(v)
+	})
+}
+
+// UpdatePoints sets the "points" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdatePoints() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePoints()
 	})
 }
 
@@ -1843,6 +1907,27 @@ func (u *UserUpsertBulk) AddBalance(v float64) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateBalance() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateBalance()
+	})
+}
+
+// SetPoints sets the "points" field.
+func (u *UserUpsertBulk) SetPoints(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPoints(v)
+	})
+}
+
+// AddPoints adds v to the "points" field.
+func (u *UserUpsertBulk) AddPoints(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddPoints(v)
+	})
+}
+
+// UpdatePoints sets the "points" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdatePoints() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePoints()
 	})
 }
 

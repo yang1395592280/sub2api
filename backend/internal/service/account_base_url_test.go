@@ -158,3 +158,101 @@ func TestGetGeminiBaseURL(t *testing.T) {
 		})
 	}
 }
+
+func TestGetOpenAIAPIMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		account  Account
+		expected string
+	}{
+		{
+			name: "non openai apikey falls back to responses",
+			account: Account{
+				Type:     AccountTypeOAuth,
+				Platform: PlatformOpenAI,
+			},
+			expected: OpenAIAPIModeResponses,
+		},
+		{
+			name: "missing api mode defaults to responses",
+			account: Account{
+				Type:        AccountTypeAPIKey,
+				Platform:    PlatformOpenAI,
+				Credentials: map[string]any{},
+			},
+			expected: OpenAIAPIModeResponses,
+		},
+		{
+			name: "chat completions mode is preserved",
+			account: Account{
+				Type:        AccountTypeAPIKey,
+				Platform:    PlatformOpenAI,
+				Credentials: map[string]any{"api_mode": OpenAIAPIModeChatCompletions},
+			},
+			expected: OpenAIAPIModeChatCompletions,
+		},
+		{
+			name: "unknown mode falls back to responses",
+			account: Account{
+				Type:        AccountTypeAPIKey,
+				Platform:    PlatformOpenAI,
+				Credentials: map[string]any{"api_mode": "unknown"},
+			},
+			expected: OpenAIAPIModeResponses,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.account.GetOpenAIAPIMode()
+			if result != tt.expected {
+				t.Errorf("GetOpenAIAPIMode() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestBuildOpenAIEndpointURL(t *testing.T) {
+	tests := []struct {
+		name      string
+		baseURL   string
+		responses string
+		chat      string
+	}{
+		{
+			name:      "plain base url",
+			baseURL:   "https://example.com",
+			responses: "https://example.com/v1/responses",
+			chat:      "https://example.com/v1/chat/completions",
+		},
+		{
+			name:      "v1 base url",
+			baseURL:   "https://example.com/v1",
+			responses: "https://example.com/v1/responses",
+			chat:      "https://example.com/v1/chat/completions",
+		},
+		{
+			name:      "prebuilt endpoints remain unchanged",
+			baseURL:   "https://example.com/v1/chat/completions",
+			responses: "https://example.com/v1/chat/completions/v1/responses",
+			chat:      "https://example.com/v1/chat/completions",
+		},
+		{
+			name:      "responses endpoint remains unchanged",
+			baseURL:   "https://example.com/v1/responses",
+			responses: "https://example.com/v1/responses",
+			chat:      "https://example.com/v1/responses/v1/chat/completions",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := buildOpenAIResponsesURL(tt.baseURL); got != tt.responses {
+				t.Errorf("buildOpenAIResponsesURL() = %q, want %q", got, tt.responses)
+			}
+			if got := buildOpenAIChatCompletionsURL(tt.baseURL); got != tt.chat {
+				t.Errorf("buildOpenAIChatCompletionsURL() = %q, want %q", got, tt.chat)
+			}
+		})
+	}
+}

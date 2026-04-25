@@ -102,7 +102,7 @@ func TestGetUserBalanceHistoryIncludesGameAndCheckinActivity(t *testing.T) {
 	now := time.Date(2026, 4, 23, 12, 0, 0, 0, time.UTC)
 	usedAt := now.Add(-3 * time.Hour)
 	settledAt := now.Add(-30 * time.Minute)
-	balanceAfter := 60.0
+	pointsAfter := int64(60)
 
 	redeemRepo := &adminBalanceHistoryRedeemRepoStub{
 		items: []RedeemCode{
@@ -141,7 +141,7 @@ func TestGetUserBalanceHistoryIncludesGameAndCheckinActivity(t *testing.T) {
 				PayoutAmount:    20,
 				NetResultAmount: 10,
 				Status:          SizeBetStatusWon,
-				BalanceAfter:    &balanceAfter,
+				PointsAfter:     &pointsAfter,
 				PlacedAt:        now.Add(-1 * time.Hour),
 				SettledAt:       &settledAt,
 			},

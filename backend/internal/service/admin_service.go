@@ -468,11 +468,11 @@ type adminCheckinTimelineReader interface {
 }
 
 type userActivityTimelineQueryPlan struct {
-	redeemAll     bool
-	redeemTypes   []string
+	redeemAll      bool
+	redeemTypes    []string
 	includeCheckin bool
-	checkinFilter string
-	includeGame   bool
+	checkinFilter  string
+	includeGame    bool
 }
 
 // NewAdminService creates a new AdminService
@@ -1177,8 +1177,8 @@ func (s *adminServiceImpl) listUserSizeBetHistory(ctx context.Context, userID in
 		}
 
 		if balanceAfter.Valid {
-			value := balanceAfter.Float64
-			item.BalanceAfter = &value
+			value := int64(balanceAfter.Float64)
+			item.PointsAfter = &value
 		}
 		if settledAt.Valid {
 			item.SettledAt = &settledAt.Time
@@ -1298,11 +1298,17 @@ func buildGameTimelineItem(item *SizeBetUserHistoryItem) UserActivityTimelineIte
 		details["result_direction"] = item.ResultDirection
 	}
 
+	var balanceAfter *float64
+	if item.PointsAfter != nil {
+		value := float64(*item.PointsAfter)
+		balanceAfter = &value
+	}
+
 	return UserActivityTimelineItem{
 		ID:           fmt.Sprintf("game-%d", item.BetID),
 		Type:         "game_net",
 		Value:        item.NetResultAmount,
-		BalanceAfter: item.BalanceAfter,
+		BalanceAfter: balanceAfter,
 		CreatedAt:    createdAt,
 		Details:      details,
 	}

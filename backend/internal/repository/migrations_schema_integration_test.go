@@ -24,6 +24,7 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	// users: columns required by repository queries
 	requireColumn(t, tx, "users", "username", "character varying", 100, false)
 	requireColumn(t, tx, "users", "notes", "text", 0, false)
+	requireColumn(t, tx, "users", "points", "bigint", 0, false)
 
 	// accounts: schedulable and rate-limit fields
 	requireColumn(t, tx, "accounts", "notes", "text", 0, true)
@@ -63,6 +64,17 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	var settingsRegclass sql.NullString
 	require.NoError(t, tx.QueryRowContext(context.Background(), "SELECT to_regclass('public.settings')").Scan(&settingsRegclass))
 	require.True(t, settingsRegclass.Valid, "expected settings table to exist")
+
+	for _, table := range []string{
+		"game_points_ledger",
+		"game_points_claims",
+		"game_points_exchanges",
+		"game_catalogs",
+	} {
+		var regclass sql.NullString
+		require.NoError(t, tx.QueryRowContext(context.Background(), "SELECT to_regclass('public."+table+"')").Scan(&regclass))
+		require.True(t, regclass.Valid, "expected %s table to exist", table)
+	}
 
 	// security_secrets table should exist
 	var securitySecretsRegclass sql.NullString

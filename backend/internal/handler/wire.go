@@ -37,6 +37,7 @@ func ProvideAdminHandlers(
 	channelHandler *admin.ChannelHandler,
 	paymentHandler *admin.PaymentHandler,
 	sizeBetHandler *admin.SizeBetHandler,
+	gameCenterHandler *admin.GameCenterHandler,
 ) *AdminHandlers {
 	return &AdminHandlers{
 		Dashboard:             dashboardHandler,
@@ -67,6 +68,7 @@ func ProvideAdminHandlers(
 		Channel:               channelHandler,
 		Payment:               paymentHandler,
 		SizeBet:               sizeBetHandler,
+		GameCenter:            gameCenterHandler,
 	}
 }
 
@@ -78,6 +80,14 @@ func ProvideSystemHandler(updateService *service.UpdateService, lockService *ser
 // ProvideSettingHandler creates SettingHandler with version from BuildInfo
 func ProvideSettingHandler(settingService *service.SettingService, buildInfo BuildInfo) *SettingHandler {
 	return NewSettingHandler(settingService, buildInfo.Version)
+}
+
+func ProvideUserActivityTimelineService(adminService service.AdminService) userActivityTimelineService {
+	return adminService
+}
+
+func ProvideWindsurfAccountHandlerService(svc *service.WindsurfAccountService) windsurfAccountService {
+	return svc
 }
 
 // ProvideHandlers creates the Handlers struct
@@ -98,6 +108,7 @@ func ProvideHandlers(
 	paymentHandler *PaymentHandler,
 	paymentWebhookHandler *PaymentWebhookHandler,
 	sizeBetHandler *SizeBetHandler,
+	gameCenterHandler *GameCenterHandler,
 	_ *service.SizeBetRuntimeService,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
@@ -119,6 +130,7 @@ func ProvideHandlers(
 		Payment:         paymentHandler,
 		PaymentWebhook:  paymentWebhookHandler,
 		SizeBet:         sizeBetHandler,
+		GameCenter:      gameCenterHandler,
 	}
 }
 
@@ -137,9 +149,12 @@ var ProviderSet = wire.NewSet(
 	NewOpenAIGatewayHandler,
 	NewTotpHandler,
 	ProvideSettingHandler,
+	ProvideUserActivityTimelineService,
+	ProvideWindsurfAccountHandlerService,
 	NewPaymentHandler,
 	NewPaymentWebhookHandler,
 	NewSizeBetHandler,
+	NewGameCenterHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,
@@ -170,6 +185,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewChannelHandler,
 	admin.NewPaymentHandler,
 	admin.NewSizeBetHandler,
+	admin.NewGameCenterHandler,
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,

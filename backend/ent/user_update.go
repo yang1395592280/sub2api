@@ -126,6 +126,27 @@ func (_u *UserUpdate) AddBalance(v float64) *UserUpdate {
 	return _u
 }
 
+// SetPoints sets the "points" field.
+func (_u *UserUpdate) SetPoints(v int64) *UserUpdate {
+	_u.mutation.ResetPoints()
+	_u.mutation.SetPoints(v)
+	return _u
+}
+
+// SetNillablePoints sets the "points" field if the given value is not nil.
+func (_u *UserUpdate) SetNillablePoints(v *int64) *UserUpdate {
+	if v != nil {
+		_u.SetPoints(*v)
+	}
+	return _u
+}
+
+// AddPoints adds value to the "points" field.
+func (_u *UserUpdate) AddPoints(v int64) *UserUpdate {
+	_u.mutation.AddPoints(v)
+	return _u
+}
+
 // SetConcurrency sets the "concurrency" field.
 func (_u *UserUpdate) SetConcurrency(v int) *UserUpdate {
 	_u.mutation.ResetConcurrency()
@@ -806,6 +827,12 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedBalance(); ok {
 		_spec.AddField(user.FieldBalance, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.Points(); ok {
+		_spec.SetField(user.FieldPoints, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedPoints(); ok {
+		_spec.AddField(user.FieldPoints, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.Concurrency(); ok {
 		_spec.SetField(user.FieldConcurrency, field.TypeInt, value)
 	}
@@ -1428,6 +1455,27 @@ func (_u *UserUpdateOne) SetNillableBalance(v *float64) *UserUpdateOne {
 // AddBalance adds value to the "balance" field.
 func (_u *UserUpdateOne) AddBalance(v float64) *UserUpdateOne {
 	_u.mutation.AddBalance(v)
+	return _u
+}
+
+// SetPoints sets the "points" field.
+func (_u *UserUpdateOne) SetPoints(v int64) *UserUpdateOne {
+	_u.mutation.ResetPoints()
+	_u.mutation.SetPoints(v)
+	return _u
+}
+
+// SetNillablePoints sets the "points" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillablePoints(v *int64) *UserUpdateOne {
+	if v != nil {
+		_u.SetPoints(*v)
+	}
+	return _u
+}
+
+// AddPoints adds value to the "points" field.
+func (_u *UserUpdateOne) AddPoints(v int64) *UserUpdateOne {
+	_u.mutation.AddPoints(v)
 	return _u
 }
 
@@ -2140,6 +2188,12 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.AddedBalance(); ok {
 		_spec.AddField(user.FieldBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.Points(); ok {
+		_spec.SetField(user.FieldPoints, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedPoints(); ok {
+		_spec.AddField(user.FieldPoints, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Concurrency(); ok {
 		_spec.SetField(user.FieldConcurrency, field.TypeInt, value)

@@ -163,6 +163,28 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/game-center',
+    name: 'GameCenter',
+    component: () => import('@/views/user/GameCenterView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Game Center',
+      titleKey: 'nav.gameCenter'
+    }
+  },
+  {
+    path: '/game-center/:gameKey',
+    name: 'GameCenterShell',
+    component: () => import('@/views/user/GameCenterShellView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Game Center',
+      titleKey: 'nav.gameCenter'
+    }
+  },
+  {
     path: '/game/size-bet',
     name: 'SizeBetGame',
     component: () => import('@/views/user/SizeBetGameView.vue'),
@@ -503,6 +525,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/game-center',
+    name: 'AdminGameCenter',
+    component: () => import('@/views/admin/GameCenterAdminView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Game Center Admin',
+      titleKey: 'admin.gameCenter.title',
+      descriptionKey: 'admin.gameCenter.description'
+    }
+  },
+  {
     path: '/admin/games/size-bet',
     name: 'AdminSizeBet',
     component: () => import('@/views/admin/SizeBetAdminView.vue'),
@@ -678,11 +712,6 @@ router.beforeEach((to, _from, next) => {
       next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
       return
     }
-  }
-
-  if (to.path === '/game/size-bet/stats' && appStore.cachedPublicSettings?.size_bet_enabled === false) {
-    next('/dashboard')
-    return
   }
 
   // 简易模式下限制访问某些页面

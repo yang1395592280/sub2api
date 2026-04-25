@@ -140,6 +140,7 @@
             <template #cell-actions="{ row }">
               <div class="flex items-center gap-1">
                 <button
+                  v-if="canEditAccount(row)"
                   class="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-dark-700 dark:hover:text-slate-200"
                   :title="t('common.edit')"
                   @click="openEditDialog(row)"
@@ -213,16 +214,28 @@
       </template>
     </BaseDialog>
 
-    <BaseDialog :show="showEditDialog" :title="t('windsurfAccounts.edit')" width="normal" @close="closeEditDialog">
+    <BaseDialog :show="showEditDialog" :title="editDialogTitle" width="normal" @close="closeEditDialog">
       <form id="windsurf-edit-form" class="space-y-4" @submit.prevent="submitEdit">
         <div>
           <label class="input-label">{{ t('windsurfAccounts.account') }}</label>
-          <input v-model.trim="editForm.account" type="text" class="input" autocomplete="username" />
+          <input
+            v-model.trim="editForm.account"
+            type="text"
+            class="input"
+            autocomplete="username"
+            :readonly="!authStore.isAdmin"
+            :disabled="!authStore.isAdmin"
+          />
+          <p v-if="!authStore.isAdmin" class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {{ t('windsurfAccounts.accountReadonlyHint') }}
+          </p>
         </div>
         <div>
           <label class="input-label">{{ t('windsurfAccounts.password') }}</label>
           <input v-model="editForm.password" type="password" class="input" autocomplete="new-password" />
-          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ t('windsurfAccounts.passwordOptionalHint') }}</p>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {{ authStore.isAdmin ? t('windsurfAccounts.passwordOptionalHint') : t('windsurfAccounts.passwordRequiredHint') }}
+          </p>
         </div>
       </form>
       <template #footer>
@@ -313,8 +326,13 @@ const columns = computed<Column[]>(() => [
   { key: 'maintained_at', label: t('windsurfAccounts.columns.maintainedAt'), sortable: true },
   { key: 'actions', label: t('windsurfAccounts.columns.actions') },
 ])
+const editDialogTitle = computed(() => (authStore.isAdmin ? t('windsurfAccounts.edit') : t('windsurfAccounts.editPassword')))
 
 function canRevealPassword(row: WindsurfAccountItem) {
+  return authStore.isAdmin || row.maintained_by_id === authStore.user?.id
+}
+
+function canEditAccount(row: WindsurfAccountItem) {
   return authStore.isAdmin || row.maintained_by_id === authStore.user?.id
 }
 
@@ -374,6 +392,7 @@ function closeCreateDialog() {
 }
 
 function openEditDialog(row: WindsurfAccountItem) {
+  if (!canEditAccount(row)) return
   editingId.value = row.id
   editForm.account = row.account
   editForm.password = ''

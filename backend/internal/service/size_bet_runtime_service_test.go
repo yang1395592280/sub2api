@@ -279,7 +279,7 @@ func TestSizeBetServiceGetCurrentRoundViewDisabledReturnsMaintenanceWithoutMutat
 func TestSizeBetServiceGetHistory(t *testing.T) {
 	placedAt := time.Date(2026, 4, 23, 12, 0, 0, 0, time.UTC)
 	settledAt := time.Date(2026, 4, 23, 12, 1, 0, 0, time.UTC)
-	balanceAfter := 100.0
+	pointsAfter := int64(100)
 	repo := &sizeBetQueryRepoStub{
 		historyItems: []SizeBetUserHistoryItem{
 			{
@@ -293,7 +293,7 @@ func TestSizeBetServiceGetHistory(t *testing.T) {
 				PayoutAmount:    20,
 				NetResultAmount: 10,
 				Status:          SizeBetStatusWon,
-				BalanceAfter:    &balanceAfter,
+				PointsAfter:     &pointsAfter,
 				PlacedAt:        placedAt,
 				SettledAt:       &settledAt,
 			},
@@ -319,8 +319,8 @@ func TestSizeBetServiceGetHistory(t *testing.T) {
 	require.Equal(t, SizeBetDirectionBig, items[0].ResultDirection)
 	require.NotNil(t, items[0].ResultNumber)
 	require.Equal(t, 9, *items[0].ResultNumber)
-	require.NotNil(t, items[0].BalanceAfter)
-	require.Equal(t, balanceAfter, *items[0].BalanceAfter)
+	require.NotNil(t, items[0].PointsAfter)
+	require.Equal(t, pointsAfter, *items[0].PointsAfter)
 	require.Equal(t, repo.historyPagination, pageResult)
 }
 

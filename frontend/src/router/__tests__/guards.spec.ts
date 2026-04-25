@@ -96,10 +96,6 @@ function simulateGuard(
     return '/dashboard'
   }
 
-  if (toPath === '/game/size-bet/stats' && authState.sizeBetEnabled === false) {
-    return '/dashboard'
-  }
-
   // 简易模式限制
   if (authState.isSimpleMode) {
     const restrictedPaths = [
@@ -201,12 +197,12 @@ describe('路由守卫逻辑', () => {
       expect(redirect).toBe('/dashboard')
     })
 
-    it('活动关闭时访问 /game/size-bet/stats 重定向到 /dashboard', () => {
+    it('活动关闭时访问 /game/size-bet/stats 仍允许通过', () => {
       const redirect = simulateGuard('/game/size-bet/stats', {}, {
         ...authState,
         sizeBetEnabled: false,
       })
-      expect(redirect).toBe('/dashboard')
+      expect(redirect).toBeNull()
     })
   })
 

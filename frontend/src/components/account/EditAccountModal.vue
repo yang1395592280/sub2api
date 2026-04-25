@@ -46,6 +46,11 @@
           />
           <p class="input-hint">{{ baseUrlHint }}</p>
         </div>
+        <div v-if="account.platform === 'openai'">
+          <label class="input-label">{{ t('admin.accounts.openai.apiMode') }}</label>
+          <Select v-model="openaiApiMode" :options="openaiAPIModeOptions" />
+          <p class="input-hint">{{ t('admin.accounts.openai.apiModeHint') }}</p>
+        </div>
         <div>
           <label class="input-label">{{ t('admin.accounts.apiKey') }}</label>
           <input
@@ -1922,6 +1927,7 @@ interface TempUnschedRuleForm {
 const submitting = ref(false)
 const editBaseUrl = ref('https://api.anthropic.com')
 const editApiKey = ref('')
+const openaiApiMode = ref<'responses' | 'chat_completions'>('responses')
 // Bedrock credentials
 const editBedrockAccessKeyId = ref('')
 const editBedrockSecretAccessKey = ref('')
@@ -2026,6 +2032,10 @@ const openAIWSModeOptions = computed(() => [
   { value: OPENAI_WS_MODE_OFF, label: t('admin.accounts.openai.wsModeOff') },
   { value: OPENAI_WS_MODE_CTX_POOL, label: t('admin.accounts.openai.wsModeCtxPool') },
   { value: OPENAI_WS_MODE_PASSTHROUGH, label: t('admin.accounts.openai.wsModePassthrough') }
+])
+const openaiAPIModeOptions = computed(() => [
+  { value: 'responses', label: t('admin.accounts.types.responsesApi') },
+  { value: 'chat_completions', label: t('admin.accounts.openai.chatCompletionsApi') }
 ])
 const openaiResponsesWebSocketV2Mode = computed({
   get: () => {
@@ -2174,6 +2184,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   const extra = newAccount.extra as Record<string, unknown> | undefined
   mixedScheduling.value = extra?.mixed_scheduling === true
   allowOverages.value = extra?.allow_overages === true
+  openaiApiMode.value = 'responses'
 
   // Load OpenAI passthrough toggle (OpenAI OAuth/API Key)
   openaiPassthroughEnabled.value = false
@@ -2290,6 +2301,9 @@ const syncFormFromAccount = (newAccount: Account | null) => {
           ? 'https://generativelanguage.googleapis.com'
           : 'https://api.anthropic.com'
     editBaseUrl.value = (credentials.base_url as string) || platformDefaultUrl
+    if (newAccount.platform === 'openai') {
+      openaiApiMode.value = credentials.api_mode === 'chat_completions' ? 'chat_completions' : 'responses'
+    }
 
     // Load model mappings and detect mode
     const existingMappings = credentials.model_mapping as Record<string, string> | undefined
@@ -2437,7 +2451,7 @@ watch(
   { immediate: true }
 )
 
-const loadTLSProfiles = async () => {
+async function loadTLSProfiles() {
   try {
     const profiles = await adminAPI.tlsFingerprintProfiles.list()
     tlsFingerprintProfiles.value = profiles.map(p => ({ id: p.id, name: p.name }))
@@ -2886,6 +2900,9 @@ const handleSubmit = async () => {
       const newCredentials: Record<string, unknown> = {
         ...currentCredentials,
         base_url: newBaseUrl
+      }
+      if (props.account.platform === 'openai') {
+        newCredentials.api_mode = openaiApiMode.value
       }
 
       // Handle API key

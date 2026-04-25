@@ -48,6 +48,7 @@ export const useAppStore = defineStore('app', () => {
 
   const hasActiveToasts = computed(() => toasts.value.length > 0)
   const backendModeEnabled = computed(() => cachedPublicSettings.value?.backend_mode_enabled ?? false)
+  const gameCenterEnabled = computed(() => cachedPublicSettings.value?.game_center_enabled ?? true)
 
   const loadingCount = ref<number>(0)
 
@@ -336,6 +337,7 @@ export const useAppStore = defineStore('app', () => {
         custom_menu_items: [],
         custom_endpoints: [],
         size_bet_enabled: true,
+        game_center_enabled: true,
         linuxdo_oauth_enabled: false,
         oidc_oauth_enabled: false,
         oidc_oauth_provider_name: 'OIDC',
@@ -422,6 +424,7 @@ export const useAppStore = defineStore('app', () => {
     // Computed
     hasActiveToasts,
     backendModeEnabled,
+    gameCenterEnabled,
 
     // Actions
     toggleSidebar,

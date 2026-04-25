@@ -21,6 +21,9 @@ type windsurfAccountServiceStub struct {
 	listPagination   *pagination.PaginationResult
 	created          *service.WindsurfAccountListItem
 	updated          *service.WindsurfAccountListItem
+	updateErr        error
+	lastUpdateInput  *service.UpdateWindsurfAccountCredentialsInput
+	lastUpdateID     int64
 	revealedPassword string
 	revealErr        error
 	lastRevealInput  *service.RevealWindsurfAccountPasswordInput
@@ -40,7 +43,12 @@ func (s *windsurfAccountServiceStub) Create(_ context.Context, _ *service.Create
 	return s.created, nil
 }
 
-func (s *windsurfAccountServiceStub) UpdateCredentials(_ context.Context, _ int64, _ *service.UpdateWindsurfAccountCredentialsInput) (*service.WindsurfAccountListItem, error) {
+func (s *windsurfAccountServiceStub) UpdateCredentials(_ context.Context, id int64, input *service.UpdateWindsurfAccountCredentialsInput) (*service.WindsurfAccountListItem, error) {
+	s.lastUpdateID = id
+	s.lastUpdateInput = input
+	if s.updateErr != nil {
+		return nil, s.updateErr
+	}
 	return s.updated, nil
 }
 
@@ -156,6 +164,53 @@ func TestWindsurfAccountHandlerRevealPasswordPassesActorAndRole(t *testing.T) {
 	require.NotNil(t, svc.lastRevealInput)
 	require.Equal(t, int64(7), svc.lastRevealInput.ActorID)
 	require.True(t, svc.lastRevealInput.IsAdmin)
+}
+
+func TestWindsurfAccountHandlerUpdateCredentialsPassesAdminRole(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	svc := &windsurfAccountServiceStub{updated: &service.WindsurfAccountListItem{ID: 5}}
+	h := NewWindsurfAccountHandler(svc)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 11})
+	c.Set(string(middleware2.ContextKeyUserRole), service.RoleAdmin)
+	c.Params = gin.Params{{Key: "id", Value: "5"}}
+	c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/windsurf-accounts/5", strings.NewReader(`{"account":"admin@example.com","password":"secret"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.UpdateCredentials(c)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(5), svc.lastUpdateID)
+	require.NotNil(t, svc.lastUpdateInput)
+	require.Equal(t, int64(11), svc.lastUpdateInput.ActorID)
+	require.True(t, svc.lastUpdateInput.IsAdmin)
+	require.Equal(t, "admin@example.com", svc.lastUpdateInput.Account)
+}
+
+func TestWindsurfAccountHandlerUpdateCredentialsPassesNonAdminRole(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	svc := &windsurfAccountServiceStub{updated: &service.WindsurfAccountListItem{ID: 7}}
+	h := NewWindsurfAccountHandler(svc)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 7})
+	c.Set(string(middleware2.ContextKeyUserRole), "user")
+	c.Params = gin.Params{{Key: "id", Value: "7"}}
+	c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/windsurf-accounts/7", strings.NewReader(`{"account":"owner@example.com","password":"new-secret"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.UpdateCredentials(c)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(7), svc.lastUpdateID)
+	require.NotNil(t, svc.lastUpdateInput)
+	require.Equal(t, int64(7), svc.lastUpdateInput.ActorID)
+	require.False(t, svc.lastUpdateInput.IsAdmin)
 }
 
 func TestWindsurfAccountHandlerDeleteRejectsNonAdmin(t *testing.T) {

@@ -94,6 +94,23 @@ func RegisterAdminRoutes(
 
 		// 竞猜游戏
 		registerSizeBetRoutes(admin, h)
+
+		// 游戏中心
+		registerGameCenterRoutes(admin, h)
+	}
+}
+
+func registerGameCenterRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	gameCenter := admin.Group("/game-center")
+	{
+		gameCenter.GET("/settings", h.Admin.GameCenter.GetSettings)
+		gameCenter.PUT("/settings", h.Admin.GameCenter.UpdateSettings)
+		gameCenter.GET("/catalog", h.Admin.GameCenter.ListCatalog)
+		gameCenter.PUT("/catalog/:gameKey", h.Admin.GameCenter.UpdateCatalog)
+		gameCenter.GET("/ledger", h.Admin.GameCenter.ListLedger)
+		gameCenter.GET("/claims", h.Admin.GameCenter.ListClaims)
+		gameCenter.GET("/exchanges", h.Admin.GameCenter.ListExchanges)
+		gameCenter.POST("/users/:id/points/adjust", h.Admin.GameCenter.AdjustPoints)
 	}
 }
 

@@ -34,6 +34,7 @@ type AdminHandlers struct {
 	Channel               *admin.ChannelHandler
 	Payment               *admin.PaymentHandler
 	SizeBet               *admin.SizeBetHandler
+	GameCenter            *admin.GameCenterHandler
 }
 
 // Handlers contains all HTTP handlers
@@ -54,6 +55,7 @@ type Handlers struct {
 	Payment         *PaymentHandler
 	PaymentWebhook  *PaymentWebhookHandler
 	SizeBet         *SizeBetHandler
+	GameCenter      *GameCenterHandler
 }
 
 // BuildInfo contains build-time information

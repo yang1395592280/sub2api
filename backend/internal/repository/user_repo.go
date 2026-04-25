@@ -62,6 +62,7 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		SetPasswordHash(userIn.PasswordHash).
 		SetRole(userIn.Role).
 		SetBalance(userIn.Balance).
+		SetPoints(userIn.Points).
 		SetConcurrency(userIn.Concurrency).
 		SetStatus(userIn.Status).
 		Save(ctx)
@@ -144,6 +145,7 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 		SetPasswordHash(userIn.PasswordHash).
 		SetRole(userIn.Role).
 		SetBalance(userIn.Balance).
+		SetPoints(userIn.Points).
 		SetConcurrency(userIn.Concurrency).
 		SetStatus(userIn.Status).
 		SetBalanceNotifyEnabled(userIn.BalanceNotifyEnabled).

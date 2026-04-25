@@ -49,6 +49,10 @@ var (
 		"SIZE_BET_INVALID_RESULT",
 		"result number and direction are inconsistent",
 	)
+	ErrSizeBetInsufficientPoints = infraerrors.BadRequest(
+		"SIZE_BET_INSUFFICIENT_POINTS",
+		"insufficient points",
+	)
 )
 
 type SizeBetDirection string

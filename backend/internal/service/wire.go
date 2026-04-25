@@ -387,6 +387,10 @@ func ProvideSizeBetRuntimeService(gameService *SizeBetService) *SizeBetRuntimeSe
 	return svc
 }
 
+func ProvideOAuthRefreshAPI(accountRepo AccountRepository, tokenCache GeminiTokenCache) *OAuthRefreshAPI {
+	return NewOAuthRefreshAPI(accountRepo, tokenCache)
+}
+
 // ProviderSet is the Wire provider set for all services
 var ProviderSet = wire.NewSet(
 	// Core services
@@ -417,7 +421,7 @@ var ProviderSet = wire.NewSet(
 	NewCompositeTokenCacheInvalidator,
 	wire.Bind(new(TokenCacheInvalidator), new(*CompositeTokenCacheInvalidator)),
 	NewAntigravityOAuthService,
-	NewOAuthRefreshAPI,
+	ProvideOAuthRefreshAPI,
 	ProvideGeminiTokenProvider,
 	NewGeminiMessagesCompatService,
 	ProvideAntigravityTokenProvider,
@@ -429,6 +433,7 @@ var ProviderSet = wire.NewSet(
 	NewAccountTestService,
 	ProvideSettingService,
 	NewSizeBetAdminService,
+	NewGameCenterService,
 	NewSizeBetService,
 	ProvideSizeBetRuntimeService,
 	NewDataManagementService,

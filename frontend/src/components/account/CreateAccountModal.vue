@@ -299,7 +299,7 @@
             </div>
             <div>
               <span class="block text-sm font-medium text-gray-900 dark:text-white">API Key</span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.types.responsesApi') }}</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.apiModeCardHint') }}</span>
             </div>
           </button>
         </div>
@@ -864,6 +864,11 @@
             "
           />
           <p class="input-hint">{{ baseUrlHint }}</p>
+        </div>
+        <div v-if="form.platform === 'openai'">
+          <label class="input-label">{{ t('admin.accounts.openai.apiMode') }}</label>
+          <Select v-model="openaiApiMode" :options="openaiAPIModeOptions" />
+          <p class="input-hint">{{ t('admin.accounts.openai.apiModeHint') }}</p>
         </div>
         <div>
           <label class="input-label">{{ t('admin.accounts.apiKeyRequired') }}</label>
@@ -3071,6 +3076,7 @@ const customErrorCodeInput = ref<number | null>(null)
 const interceptWarmupRequests = ref(false)
 const autoPauseOnExpired = ref(true)
 const openaiPassthroughEnabled = ref(false)
+const openaiApiMode = ref<'responses' | 'chat_completions'>('responses')
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const codexCLIOnlyEnabled = ref(false)
@@ -3182,6 +3188,10 @@ const openAIWSModeOptions = computed(() => [
   { value: OPENAI_WS_MODE_OFF, label: t('admin.accounts.openai.wsModeOff') },
   { value: OPENAI_WS_MODE_CTX_POOL, label: t('admin.accounts.openai.wsModeCtxPool') },
   { value: OPENAI_WS_MODE_PASSTHROUGH, label: t('admin.accounts.openai.wsModePassthrough') }
+])
+const openaiAPIModeOptions = computed(() => [
+  { value: 'responses', label: t('admin.accounts.types.responsesApi') },
+  { value: 'chat_completions', label: t('admin.accounts.openai.chatCompletionsApi') }
 ])
 
 const openaiResponsesWebSocketV2Mode = computed({
@@ -3410,6 +3420,7 @@ watch(
     }
     if (newPlatform !== 'openai') {
       openaiPassthroughEnabled.value = false
+      openaiApiMode.value = 'responses'
       openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       codexCLIOnlyEnabled.value = false
@@ -3797,6 +3808,7 @@ const resetForm = () => {
   interceptWarmupRequests.value = false
   autoPauseOnExpired.value = true
   openaiPassthroughEnabled.value = false
+  openaiApiMode.value = 'responses'
   openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
   openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
   codexCLIOnlyEnabled.value = false
@@ -4074,6 +4086,9 @@ const handleSubmit = async () => {
   const credentials: Record<string, unknown> = {
     base_url: apiKeyBaseUrl.value.trim() || defaultBaseUrl,
     api_key: apiKeyValue.value.trim()
+  }
+  if (form.platform === 'openai') {
+    credentials.api_mode = openaiApiMode.value
   }
   if (form.platform === 'gemini') {
     credentials.tier_id = geminiTierAIStudio.value

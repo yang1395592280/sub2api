@@ -584,13 +584,11 @@ const ChevronDownIcon = {
 
 // User navigation items (for regular users)
 const userNavItems = computed((): NavItem[] => {
-  const sizeBetVisible = appStore.cachedPublicSettings?.size_bet_enabled !== false
   const items: NavItem[] = [
     { path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
-    ...(sizeBetVisible ? [{ path: '/game/size-bet', label: t('sizeBet.nav'), icon: DiceIcon }] : []),
-    ...(sizeBetVisible ? [{ path: '/game/size-bet/stats', label: t('sizeBet.statsNav'), icon: ChartIcon, hideInSimpleMode: true }] : []),
+    ...(appStore.gameCenterEnabled ? [{ path: '/game-center', label: t('nav.gameCenter'), icon: DiceIcon }] : []),
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     ...(appStore.cachedPublicSettings?.payment_enabled
       ? [
@@ -627,12 +625,10 @@ const userNavItems = computed((): NavItem[] => {
 
 // Personal navigation items (for admin's "My Account" section, without Dashboard)
 const personalNavItems = computed((): NavItem[] => {
-  const sizeBetVisible = appStore.cachedPublicSettings?.size_bet_enabled !== false
   const items: NavItem[] = [
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
-    ...(sizeBetVisible ? [{ path: '/game/size-bet', label: t('sizeBet.nav'), icon: DiceIcon }] : []),
-    ...(sizeBetVisible ? [{ path: '/game/size-bet/stats', label: t('sizeBet.statsNav'), icon: ChartIcon, hideInSimpleMode: true }] : []),
+    ...(appStore.gameCenterEnabled ? [{ path: '/game-center', label: t('nav.gameCenter'), icon: DiceIcon }] : []),
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     ...(appStore.cachedPublicSettings?.payment_enabled
       ? [
@@ -699,6 +695,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },
     { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: TicketIcon, hideInSimpleMode: true },
     { path: '/admin/promo-codes', label: t('nav.promoCodes'), icon: GiftIcon, hideInSimpleMode: true },
+    { path: '/admin/game-center', label: t('nav.gameCenterAdmin'), icon: DiceIcon, hideInSimpleMode: true },
     { path: '/admin/games/size-bet', label: t('admin.sizeBet.title'), icon: DiceIcon, hideInSimpleMode: true },
     ...(adminSettingsStore.paymentEnabled
       ? [

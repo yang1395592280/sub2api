@@ -44,7 +44,7 @@ export interface SizeBetHistoryItem {
   stake_amount: number
   payout_amount: number
   net_result_amount: number
-  balance_after?: number | null
+  points_after?: number | null
   status: SizeBetStatus
   placed_at: string
   settled_at?: string | null

@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -135,7 +137,10 @@ func (windsurfEncryptorStub) Encrypt(plaintext string) (string, error) {
 }
 
 func (windsurfEncryptorStub) Decrypt(ciphertext string) (string, error) {
-	return ciphertext[len("enc:"):], nil
+	if !strings.HasPrefix(ciphertext, "enc:") {
+		return "", fmt.Errorf("unexpected ciphertext format: %q", ciphertext)
+	}
+	return strings.TrimPrefix(ciphertext, "enc:"), nil
 }
 
 func TestWindsurfAccountServiceCreateDisablesAccountAndTracksMaintainer(t *testing.T) {
@@ -191,6 +196,7 @@ func TestWindsurfAccountServiceUpdateCredentialsResetsEnabledStatus(t *testing.T
 		Account:  "new@example.com",
 		Password: "new-password",
 		ActorID:  8,
+		IsAdmin:  true,
 	})
 
 	require.NoError(t, err)
@@ -201,6 +207,92 @@ func TestWindsurfAccountServiceUpdateCredentialsResetsEnabledStatus(t *testing.T
 	require.Equal(t, int64(8), repo.updated.MaintainedBy)
 	require.WithinDuration(t, time.Now(), repo.updated.MaintainedAt, 2*time.Second)
 	require.Equal(t, "bob", item.MaintainedByName)
+}
+
+func TestWindsurfAccountServiceUpdateCredentialsAllowsMaintainerToChangePasswordOnly(t *testing.T) {
+	now := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
+	repo := &windsurfAccountRepoStub{
+		byID: map[int64]*WindsurfAccount{
+			9: {
+				ID:                9,
+				Account:           "owner@example.com",
+				PasswordEncrypted: "enc:old-password",
+				Enabled:           true,
+				MaintainedBy:      8,
+				MaintainedAt:      now.Add(-time.Hour),
+			},
+		},
+	}
+	userRepo := &windsurfUserRepoStub{
+		users: map[int64]*User{
+			8: {ID: 8, Username: "bob", Email: "bob@example.com"},
+		},
+	}
+	svc := NewWindsurfAccountService(repo, userRepo, windsurfEncryptorStub{})
+
+	item, err := svc.UpdateCredentials(context.Background(), 9, &UpdateWindsurfAccountCredentialsInput{
+		Account:  "should-not-change@example.com",
+		Password: "new-password",
+		ActorID:  8,
+		IsAdmin:  false,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, repo.updated)
+	require.Equal(t, "owner@example.com", repo.updated.Account)
+	require.Equal(t, "enc:new-password", repo.updated.PasswordEncrypted)
+	require.False(t, repo.updated.Enabled)
+	require.Equal(t, int64(8), repo.updated.MaintainedBy)
+	require.Equal(t, "owner@example.com", item.Account)
+}
+
+func TestWindsurfAccountServiceUpdateCredentialsRejectsNonMaintainer(t *testing.T) {
+	repo := &windsurfAccountRepoStub{
+		byID: map[int64]*WindsurfAccount{
+			9: {
+				ID:                9,
+				Account:           "owner@example.com",
+				PasswordEncrypted: "enc:old-password",
+				MaintainedBy:      8,
+			},
+		},
+	}
+	svc := NewWindsurfAccountService(repo, &windsurfUserRepoStub{}, windsurfEncryptorStub{})
+
+	item, err := svc.UpdateCredentials(context.Background(), 9, &UpdateWindsurfAccountCredentialsInput{
+		Account:  "other@example.com",
+		Password: "new-password",
+		ActorID:  7,
+		IsAdmin:  false,
+	})
+
+	require.ErrorIs(t, err, ErrWindsurfAccountUpdateDenied)
+	require.Nil(t, item)
+	require.Nil(t, repo.updated)
+}
+
+func TestWindsurfAccountServiceUpdateCredentialsRequiresPasswordForNonAdmin(t *testing.T) {
+	repo := &windsurfAccountRepoStub{
+		byID: map[int64]*WindsurfAccount{
+			9: {
+				ID:                9,
+				Account:           "owner@example.com",
+				PasswordEncrypted: "enc:old-password",
+				MaintainedBy:      8,
+			},
+		},
+	}
+	svc := NewWindsurfAccountService(repo, &windsurfUserRepoStub{}, windsurfEncryptorStub{})
+
+	item, err := svc.UpdateCredentials(context.Background(), 9, &UpdateWindsurfAccountCredentialsInput{
+		Account: "owner@example.com",
+		ActorID: 8,
+		IsAdmin: false,
+	})
+
+	require.ErrorIs(t, err, ErrWindsurfAccountPasswordRequired)
+	require.Nil(t, item)
+	require.Nil(t, repo.updated)
 }
 
 func TestWindsurfAccountServiceUpdateStatusRequiresAdmin(t *testing.T) {
@@ -269,6 +361,43 @@ func TestWindsurfAccountServiceRevealPasswordAllowsAdmin(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "secret-value", password)
+}
+
+func TestWindsurfAccountServiceRevealPasswordMigratesLegacyPlaintext(t *testing.T) {
+	repo := &windsurfAccountRepoStub{
+		byID: map[int64]*WindsurfAccount{
+			6: {ID: 6, Account: "legacy@example.com", PasswordEncrypted: "legacy-plain-password", MaintainedBy: 9},
+		},
+	}
+	svc := NewWindsurfAccountService(repo, &windsurfUserRepoStub{}, windsurfEncryptorStub{})
+
+	password, err := svc.RevealPassword(context.Background(), 6, &RevealWindsurfAccountPasswordInput{
+		ActorID: 99,
+		IsAdmin: true,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "legacy-plain-password", password)
+	require.NotNil(t, repo.updated)
+	require.Equal(t, "enc:legacy-plain-password", repo.updated.PasswordEncrypted)
+}
+
+func TestWindsurfAccountServiceRevealPasswordReturnsActionableErrorForUnreadableCiphertext(t *testing.T) {
+	repo := &windsurfAccountRepoStub{
+		byID: map[int64]*WindsurfAccount{
+			7: {ID: 7, Account: "broken@example.com", PasswordEncrypted: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", MaintainedBy: 9},
+		},
+	}
+	svc := NewWindsurfAccountService(repo, &windsurfUserRepoStub{}, windsurfEncryptorStub{})
+
+	password, err := svc.RevealPassword(context.Background(), 7, &RevealWindsurfAccountPasswordInput{
+		ActorID: 99,
+		IsAdmin: true,
+	})
+
+	require.ErrorIs(t, err, ErrWindsurfAccountPasswordUnreadable)
+	require.Empty(t, password)
+	require.Nil(t, repo.updated)
 }
 
 func TestWindsurfAccountServiceDeleteRequiresAdmin(t *testing.T) {

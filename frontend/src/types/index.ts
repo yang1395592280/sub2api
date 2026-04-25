@@ -40,6 +40,7 @@ export interface User {
   email: string
   role: 'admin' | 'user' // User role for authorization
   balance: number // User balance for API usage
+  points: number // User game center points
   concurrency: number // Allowed concurrent requests
   status: 'active' | 'disabled' // Account status
   allowed_groups: number[] | null // Allowed group IDs (null = all non-exclusive groups)
@@ -127,6 +128,7 @@ export interface PublicSettings {
   table_page_size_options: number[]
   custom_menu_items: CustomMenuItem[]
   custom_endpoints: CustomEndpoint[]
+  game_center_enabled?: boolean
   size_bet_enabled?: boolean
   linuxdo_oauth_enabled: boolean
   oidc_oauth_enabled: boolean

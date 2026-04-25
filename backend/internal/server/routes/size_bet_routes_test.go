@@ -17,9 +17,11 @@ func TestSizeBetRoutesAreRegistered(t *testing.T) {
 	v1 := router.Group("/api/v1")
 
 	handlers := &handler.Handlers{
-		SizeBet: &handler.SizeBetHandler{},
+		SizeBet:    &handler.SizeBetHandler{},
+		GameCenter: &handler.GameCenterHandler{},
 		Admin: &handler.AdminHandlers{
-			SizeBet: &adminhandler.SizeBetHandler{},
+			SizeBet:    &adminhandler.SizeBetHandler{},
+			GameCenter: &adminhandler.GameCenterHandler{},
 		},
 	}
 
@@ -33,22 +35,36 @@ func TestSizeBetRoutesAreRegistered(t *testing.T) {
 	routes := router.Routes()
 
 	expected := map[string]struct{}{
-		"GET /api/v1/game/size-bet/current":                   {},
-		"POST /api/v1/game/size-bet/bet":                      {},
-		"GET /api/v1/game/size-bet/history":                   {},
-		"GET /api/v1/game/size-bet/rounds":                    {},
-		"GET /api/v1/game/size-bet/stats/overview":            {},
-		"GET /api/v1/game/size-bet/stats/users":               {},
-		"GET /api/v1/game/size-bet/leaderboard":               {},
-		"GET /api/v1/game/size-bet/rules":                     {},
-		"GET /api/v1/admin/games/size-bet/settings":           {},
-		"PUT /api/v1/admin/games/size-bet/settings":           {},
-		"GET /api/v1/admin/games/size-bet/rounds":             {},
-		"GET /api/v1/admin/games/size-bet/bets":               {},
-		"GET /api/v1/admin/games/size-bet/ledger":             {},
-		"GET /api/v1/admin/games/size-bet/stats/overview":     {},
-		"GET /api/v1/admin/games/size-bet/stats/users":        {},
-		"POST /api/v1/admin/games/size-bet/rounds/:id/refund": {},
+		"GET /api/v1/game/size-bet/current":                      {},
+		"POST /api/v1/game/size-bet/bet":                         {},
+		"GET /api/v1/game/size-bet/history":                      {},
+		"GET /api/v1/game/size-bet/rounds":                       {},
+		"GET /api/v1/game/size-bet/stats/overview":               {},
+		"GET /api/v1/game/size-bet/stats/users":                  {},
+		"GET /api/v1/game/size-bet/leaderboard":                  {},
+		"GET /api/v1/game/size-bet/rules":                        {},
+		"GET /api/v1/game-center/overview":                       {},
+		"POST /api/v1/game-center/claims/:batchKey":              {},
+		"POST /api/v1/game-center/exchange/balance-to-points":    {},
+		"POST /api/v1/game-center/exchange/points-to-balance":    {},
+		"GET /api/v1/game-center/ledger":                         {},
+		"GET /api/v1/game-center/catalog":                        {},
+		"GET /api/v1/admin/game-center/settings":                 {},
+		"PUT /api/v1/admin/game-center/settings":                 {},
+		"GET /api/v1/admin/game-center/catalog":                  {},
+		"PUT /api/v1/admin/game-center/catalog/:gameKey":         {},
+		"GET /api/v1/admin/game-center/ledger":                   {},
+		"GET /api/v1/admin/game-center/claims":                   {},
+		"GET /api/v1/admin/game-center/exchanges":                {},
+		"POST /api/v1/admin/game-center/users/:id/points/adjust": {},
+		"GET /api/v1/admin/games/size-bet/settings":              {},
+		"PUT /api/v1/admin/games/size-bet/settings":              {},
+		"GET /api/v1/admin/games/size-bet/rounds":                {},
+		"GET /api/v1/admin/games/size-bet/bets":                  {},
+		"GET /api/v1/admin/games/size-bet/ledger":                {},
+		"GET /api/v1/admin/games/size-bet/stats/overview":        {},
+		"GET /api/v1/admin/games/size-bet/stats/users":           {},
+		"POST /api/v1/admin/games/size-bet/rounds/:id/refund":    {},
 	}
 
 	for _, route := range routes {

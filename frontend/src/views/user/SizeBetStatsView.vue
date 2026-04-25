@@ -27,6 +27,9 @@
       <section v-else-if="loadState === 'error'" class="card px-6 py-12">
         <EmptyState :title="t('sizeBet.loadError.title')" :description="errorMessage || t('sizeBet.loadError.description')" :action-text="t('common.retry')" @action="loadStats(true)" />
       </section>
+      <section v-else-if="!sizeBetEnabled" class="card px-6 py-12">
+        <EmptyState :title="t('sizeBet.maintenance.title')" :description="t('sizeBet.maintenance.description')" />
+      </section>
       <template v-else>
         <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div class="rounded-2xl bg-white p-5 ring-1 ring-slate-200/80 dark:bg-white/5 dark:ring-white/10">
@@ -95,6 +98,7 @@ const statsDate = ref(new Date().toISOString().slice(0, 10))
 const overview = ref<SizeBetStatsOverview | null>(null)
 const items = ref<SizeBetStatsUserItem[]>([])
 const pagination = reactive({ page: 1, page_size: pageSize, total: 0, pages: 1 })
+const sizeBetEnabled = computed(() => appStore.cachedPublicSettings?.size_bet_enabled !== false)
 
 const rankedItems = computed<RankedStatsUserItem[]>(() => items.value.map((item, index) => ({
   ...item,
@@ -112,6 +116,10 @@ const columns = computed<Column[]>(() => [
 ])
 
 onMounted(() => {
+  if (!sizeBetEnabled.value) {
+    loadState.value = 'ready'
+    return
+  }
   void loadStats()
 })
 
@@ -171,6 +179,7 @@ function handlePageSizeChange(nextPageSize: number) {
 }
 
 function applyDateFilter() {
+  if (!sizeBetEnabled.value) return
   pagination.page = 1
   void loadStats(true)
 }

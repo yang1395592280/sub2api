@@ -90,6 +90,11 @@ func Balance(v float64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldBalance, v))
 }
 
+// Points applies equality check predicate on the "points" field. It's identical to PointsEQ.
+func Points(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPoints, v))
+}
+
 // Concurrency applies equality check predicate on the "concurrency" field. It's identical to ConcurrencyEQ.
 func Concurrency(v int) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldConcurrency, v))
@@ -513,6 +518,46 @@ func BalanceLT(v float64) predicate.User {
 // BalanceLTE applies the LTE predicate on the "balance" field.
 func BalanceLTE(v float64) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldBalance, v))
+}
+
+// PointsEQ applies the EQ predicate on the "points" field.
+func PointsEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPoints, v))
+}
+
+// PointsNEQ applies the NEQ predicate on the "points" field.
+func PointsNEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldPoints, v))
+}
+
+// PointsIn applies the In predicate on the "points" field.
+func PointsIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldIn(FieldPoints, vs...))
+}
+
+// PointsNotIn applies the NotIn predicate on the "points" field.
+func PointsNotIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldPoints, vs...))
+}
+
+// PointsGT applies the GT predicate on the "points" field.
+func PointsGT(v int64) predicate.User {
+	return predicate.User(sql.FieldGT(FieldPoints, v))
+}
+
+// PointsGTE applies the GTE predicate on the "points" field.
+func PointsGTE(v int64) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldPoints, v))
+}
+
+// PointsLT applies the LT predicate on the "points" field.
+func PointsLT(v int64) predicate.User {
+	return predicate.User(sql.FieldLT(FieldPoints, v))
+}
+
+// PointsLTE applies the LTE predicate on the "points" field.
+func PointsLTE(v int64) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldPoints, v))
 }
 
 // ConcurrencyEQ applies the EQ predicate on the "concurrency" field.

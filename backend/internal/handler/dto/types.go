@@ -12,6 +12,7 @@ type User struct {
 	Username      string    `json:"username"`
 	Role          string    `json:"role"`
 	Balance       float64   `json:"balance"`
+	Points        int64     `json:"points"`
 	Concurrency   int       `json:"concurrency"`
 	Status        string    `json:"status"`
 	AllowedGroups []int64   `json:"allowed_groups"`

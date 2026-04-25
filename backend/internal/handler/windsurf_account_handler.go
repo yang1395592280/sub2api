@@ -99,6 +99,7 @@ func (h *WindsurfAccountHandler) UpdateCredentials(c *gin.Context) {
 		response.Unauthorized(c, "User not authenticated")
 		return
 	}
+	role, _ := middleware2.GetUserRoleFromContext(c)
 
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
@@ -116,6 +117,7 @@ func (h *WindsurfAccountHandler) UpdateCredentials(c *gin.Context) {
 		Account:  req.Account,
 		Password: req.Password,
 		ActorID:  subject.UserID,
+		IsAdmin:  role == service.RoleAdmin,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -118,7 +119,7 @@ func (r *sizeBetRepository) CreateBetAndDebit(ctx context.Context, bet *service.
 	if err := ensureRoundBettableForWrite(ctx, tx, bet.RoundID); err != nil {
 		return err
 	}
-	before, after, err := debitUserBalance(ctx, tx, bet.UserID, bet.StakeAmount)
+	before, after, err := debitUserPoints(ctx, tx, bet.UserID, bet.StakeAmount)
 	if err != nil {
 		return err
 	}
@@ -186,11 +187,11 @@ func (r *sizeBetRepository) ListUserHistory(ctx context.Context, userID int64, p
 			gb.id, gb.round_id, gr.round_no, gb.direction,
 			gr.result_number, gr.result_direction,
 			gb.stake_amount, gb.payout_amount, gb.net_result_amount, gb.status,
-			gl.balance_after, gb.placed_at, gb.settled_at
+			gl.points_after, gb.placed_at, gb.settled_at
 		FROM game_bets gb
 		JOIN game_rounds gr ON gr.id = gb.round_id
 		LEFT JOIN LATERAL (
-			SELECT balance_after
+			SELECT ROUND(balance_after)::bigint AS points_after
 			FROM game_wallet_ledger gl
 			WHERE gl.bet_id = gb.id
 				AND gl.entry_type IN ('bet_payout', 'bet_refund', 'bet_debit')
@@ -209,7 +210,7 @@ func (r *sizeBetRepository) ListUserHistory(ctx context.Context, userID int64, p
 	items := make([]service.SizeBetUserHistoryItem, 0)
 	for rows.Next() {
 		var item service.SizeBetUserHistoryItem
-		var balanceAfter sql.NullFloat64
+		var pointsAfter sql.NullInt64
 		var settledAt sql.NullTime
 		var resultNumber sql.NullInt64
 		var resultDirection sql.NullString
@@ -217,13 +218,13 @@ func (r *sizeBetRepository) ListUserHistory(ctx context.Context, userID int64, p
 			&item.BetID, &item.RoundID, &item.RoundNo, &item.Direction,
 			&resultNumber, &resultDirection,
 			&item.StakeAmount, &item.PayoutAmount, &item.NetResultAmount, &item.Status,
-			&balanceAfter, &item.PlacedAt, &settledAt,
+			&pointsAfter, &item.PlacedAt, &settledAt,
 		); err != nil {
 			return nil, nil, err
 		}
-		if balanceAfter.Valid {
-			v := balanceAfter.Float64
-			item.BalanceAfter = &v
+		if pointsAfter.Valid {
+			v := pointsAfter.Int64
+			item.PointsAfter = &v
 		}
 		if settledAt.Valid {
 			item.SettledAt = &settledAt.Time
@@ -446,7 +447,7 @@ func (r *sizeBetRepository) RefundRound(ctx context.Context, roundID int64, refu
 		if scanErr != nil {
 			return nil, scanErr
 		}
-		before, after, creditErr := creditUserBalance(ctx, tx, bet.UserID, bet.StakeAmount)
+		before, after, creditErr := creditUserPoints(ctx, tx, bet.UserID, bet.StakeAmount)
 		if creditErr != nil {
 			return nil, creditErr
 		}
@@ -665,7 +666,7 @@ func (r *sizeBetRepository) ApplySettlement(ctx context.Context, input service.S
 		if payout <= 0 {
 			continue
 		}
-		before, after, err := creditUserBalance(ctx, tx, bet.UserID, payout)
+		before, after, err := creditUserPoints(ctx, tx, bet.UserID, payout)
 		if err != nil {
 			return nil, err
 		}
@@ -841,35 +842,37 @@ func loadRoundBetsForSettlementQuerier(ctx context.Context, querier sizeBetBetRo
 	return bets, rows.Err()
 }
 
-func debitUserBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (float64, float64, error) {
-	var before, after float64
+func debitUserPoints(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (float64, float64, error) {
+	pointsAmount := int64(math.Round(amount))
+	var before, after int64
 	err := tx.QueryRowContext(ctx, `
 		UPDATE users
-		SET balance = balance - $1, updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL AND balance >= $1
-		RETURNING balance + $1, balance
-	`, amount, userID).Scan(&before, &after)
+		SET points = points - $1, updated_at = NOW()
+		WHERE id = $2 AND deleted_at IS NULL AND points >= $1
+		RETURNING points + $1, points
+	`, pointsAmount, userID).Scan(&before, &after)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, 0, missingUserOrBalance(ctx, tx, userID)
+		return 0, 0, missingUserOrPoints(ctx, tx, userID)
 	}
-	return before, after, err
+	return float64(before), float64(after), err
 }
 
-func creditUserBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (float64, float64, error) {
-	var before, after float64
+func creditUserPoints(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (float64, float64, error) {
+	pointsAmount := int64(math.Round(amount))
+	var before, after int64
 	err := tx.QueryRowContext(ctx, `
 		UPDATE users
-		SET balance = balance + $1, updated_at = NOW()
+		SET points = points + $1, updated_at = NOW()
 		WHERE id = $2 AND deleted_at IS NULL
-		RETURNING balance - $1, balance
-	`, amount, userID).Scan(&before, &after)
+		RETURNING points - $1, points
+	`, pointsAmount, userID).Scan(&before, &after)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, 0, service.ErrUserNotFound
 	}
-	return before, after, err
+	return float64(before), float64(after), err
 }
 
-func missingUserOrBalance(ctx context.Context, tx *sql.Tx, userID int64) error {
+func missingUserOrPoints(ctx context.Context, tx *sql.Tx, userID int64) error {
 	var exists int
 	err := tx.QueryRowContext(ctx, `SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL`, userID).Scan(&exists)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -878,7 +881,7 @@ func missingUserOrBalance(ctx context.Context, tx *sql.Tx, userID int64) error {
 	if err != nil {
 		return err
 	}
-	return service.ErrInsufficientBalance
+	return service.ErrSizeBetInsufficientPoints
 }
 
 func insertBet(ctx context.Context, tx *sql.Tx, bet *service.SizeBet) error {

@@ -41,6 +41,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributedefinition"
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
+	"github.com/Wei-Shaw/sub2api/ent/windsurfaccount"
 
 	stdsql "database/sql"
 )
@@ -102,6 +103,8 @@ type Client struct {
 	UserAttributeValue *UserAttributeValueClient
 	// UserSubscription is the client for interacting with the UserSubscription builders.
 	UserSubscription *UserSubscriptionClient
+	// WindsurfAccount is the client for interacting with the WindsurfAccount builders.
+	WindsurfAccount *WindsurfAccountClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -139,6 +142,7 @@ func (c *Client) init() {
 	c.UserAttributeDefinition = NewUserAttributeDefinitionClient(c.config)
 	c.UserAttributeValue = NewUserAttributeValueClient(c.config)
 	c.UserSubscription = NewUserSubscriptionClient(c.config)
+	c.WindsurfAccount = NewWindsurfAccountClient(c.config)
 }
 
 type (
@@ -257,6 +261,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		UserAttributeDefinition: NewUserAttributeDefinitionClient(cfg),
 		UserAttributeValue:      NewUserAttributeValueClient(cfg),
 		UserSubscription:        NewUserSubscriptionClient(cfg),
+		WindsurfAccount:         NewWindsurfAccountClient(cfg),
 	}, nil
 }
 
@@ -302,6 +307,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		UserAttributeDefinition: NewUserAttributeDefinitionClient(cfg),
 		UserAttributeValue:      NewUserAttributeValueClient(cfg),
 		UserSubscription:        NewUserSubscriptionClient(cfg),
+		WindsurfAccount:         NewWindsurfAccountClient(cfg),
 	}, nil
 }
 
@@ -337,7 +343,7 @@ func (c *Client) Use(hooks ...Hook) {
 		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
 		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
 		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserSubscription,
+		c.UserSubscription, c.WindsurfAccount,
 	} {
 		n.Use(hooks...)
 	}
@@ -353,7 +359,7 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
 		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
 		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserSubscription,
+		c.UserSubscription, c.WindsurfAccount,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -414,6 +420,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.UserAttributeValue.mutate(ctx, m)
 	case *UserSubscriptionMutation:
 		return c.UserSubscription.mutate(ctx, m)
+	case *WindsurfAccountMutation:
+		return c.WindsurfAccount.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -4625,6 +4633,139 @@ func (c *UserSubscriptionClient) mutate(ctx context.Context, m *UserSubscription
 	}
 }
 
+// WindsurfAccountClient is a client for the WindsurfAccount schema.
+type WindsurfAccountClient struct {
+	config
+}
+
+// NewWindsurfAccountClient returns a client for the WindsurfAccount from the given config.
+func NewWindsurfAccountClient(c config) *WindsurfAccountClient {
+	return &WindsurfAccountClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `windsurfaccount.Hooks(f(g(h())))`.
+func (c *WindsurfAccountClient) Use(hooks ...Hook) {
+	c.hooks.WindsurfAccount = append(c.hooks.WindsurfAccount, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `windsurfaccount.Intercept(f(g(h())))`.
+func (c *WindsurfAccountClient) Intercept(interceptors ...Interceptor) {
+	c.inters.WindsurfAccount = append(c.inters.WindsurfAccount, interceptors...)
+}
+
+// Create returns a builder for creating a WindsurfAccount entity.
+func (c *WindsurfAccountClient) Create() *WindsurfAccountCreate {
+	mutation := newWindsurfAccountMutation(c.config, OpCreate)
+	return &WindsurfAccountCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of WindsurfAccount entities.
+func (c *WindsurfAccountClient) CreateBulk(builders ...*WindsurfAccountCreate) *WindsurfAccountCreateBulk {
+	return &WindsurfAccountCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *WindsurfAccountClient) MapCreateBulk(slice any, setFunc func(*WindsurfAccountCreate, int)) *WindsurfAccountCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &WindsurfAccountCreateBulk{err: fmt.Errorf("calling to WindsurfAccountClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*WindsurfAccountCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &WindsurfAccountCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for WindsurfAccount.
+func (c *WindsurfAccountClient) Update() *WindsurfAccountUpdate {
+	mutation := newWindsurfAccountMutation(c.config, OpUpdate)
+	return &WindsurfAccountUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *WindsurfAccountClient) UpdateOne(_m *WindsurfAccount) *WindsurfAccountUpdateOne {
+	mutation := newWindsurfAccountMutation(c.config, OpUpdateOne, withWindsurfAccount(_m))
+	return &WindsurfAccountUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *WindsurfAccountClient) UpdateOneID(id int64) *WindsurfAccountUpdateOne {
+	mutation := newWindsurfAccountMutation(c.config, OpUpdateOne, withWindsurfAccountID(id))
+	return &WindsurfAccountUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for WindsurfAccount.
+func (c *WindsurfAccountClient) Delete() *WindsurfAccountDelete {
+	mutation := newWindsurfAccountMutation(c.config, OpDelete)
+	return &WindsurfAccountDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *WindsurfAccountClient) DeleteOne(_m *WindsurfAccount) *WindsurfAccountDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *WindsurfAccountClient) DeleteOneID(id int64) *WindsurfAccountDeleteOne {
+	builder := c.Delete().Where(windsurfaccount.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &WindsurfAccountDeleteOne{builder}
+}
+
+// Query returns a query builder for WindsurfAccount.
+func (c *WindsurfAccountClient) Query() *WindsurfAccountQuery {
+	return &WindsurfAccountQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeWindsurfAccount},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a WindsurfAccount entity by its id.
+func (c *WindsurfAccountClient) Get(ctx context.Context, id int64) (*WindsurfAccount, error) {
+	return c.Query().Where(windsurfaccount.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *WindsurfAccountClient) GetX(ctx context.Context, id int64) *WindsurfAccount {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *WindsurfAccountClient) Hooks() []Hook {
+	return c.hooks.WindsurfAccount
+}
+
+// Interceptors returns the client interceptors.
+func (c *WindsurfAccountClient) Interceptors() []Interceptor {
+	return c.inters.WindsurfAccount
+}
+
+func (c *WindsurfAccountClient) mutate(ctx context.Context, m *WindsurfAccountMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&WindsurfAccountCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&WindsurfAccountUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&WindsurfAccountUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&WindsurfAccountDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown WindsurfAccount mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
@@ -4633,7 +4774,7 @@ type (
 		PaymentProviderInstance, PromoCode, PromoCodeUsage, Proxy, RedeemCode,
 		SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
 		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
-		UserAttributeValue, UserSubscription []ent.Hook
+		UserAttributeValue, UserSubscription, WindsurfAccount []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead,
@@ -4641,7 +4782,7 @@ type (
 		PaymentProviderInstance, PromoCode, PromoCodeUsage, Proxy, RedeemCode,
 		SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
 		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
-		UserAttributeValue, UserSubscription []ent.Interceptor
+		UserAttributeValue, UserSubscription, WindsurfAccount []ent.Interceptor
 	}
 )
 

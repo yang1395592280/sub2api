@@ -126,5 +126,15 @@ func RegisterUserRoutes(
 			game.GET("/leaderboard", h.SizeBet.GetLeaderboard)
 			game.GET("/rules", h.SizeBet.GetRules)
 		}
+
+		gameCenter := authenticated.Group("/game-center")
+		{
+			gameCenter.GET("/overview", h.GameCenter.GetOverview)
+			gameCenter.POST("/claims/:batchKey", h.GameCenter.ClaimPoints)
+			gameCenter.POST("/exchange/balance-to-points", h.GameCenter.ExchangeBalanceToPoints)
+			gameCenter.POST("/exchange/points-to-balance", h.GameCenter.ExchangePointsToBalance)
+			gameCenter.GET("/ledger", h.GameCenter.GetLedger)
+			gameCenter.GET("/catalog", h.GameCenter.GetCatalog)
+		}
 	}
 }

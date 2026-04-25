@@ -32,6 +32,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributedefinition"
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
+	"github.com/Wei-Shaw/sub2api/ent/windsurfaccount"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
@@ -1273,44 +1274,48 @@ func init() {
 	userDescBalance := userFields[3].Descriptor()
 	// user.DefaultBalance holds the default value on creation for the balance field.
 	user.DefaultBalance = userDescBalance.Default.(float64)
+	// userDescPoints is the schema descriptor for points field.
+	userDescPoints := userFields[4].Descriptor()
+	// user.DefaultPoints holds the default value on creation for the points field.
+	user.DefaultPoints = userDescPoints.Default.(int64)
 	// userDescConcurrency is the schema descriptor for concurrency field.
-	userDescConcurrency := userFields[4].Descriptor()
+	userDescConcurrency := userFields[5].Descriptor()
 	// user.DefaultConcurrency holds the default value on creation for the concurrency field.
 	user.DefaultConcurrency = userDescConcurrency.Default.(int)
 	// userDescStatus is the schema descriptor for status field.
-	userDescStatus := userFields[5].Descriptor()
+	userDescStatus := userFields[6].Descriptor()
 	// user.DefaultStatus holds the default value on creation for the status field.
 	user.DefaultStatus = userDescStatus.Default.(string)
 	// user.StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	user.StatusValidator = userDescStatus.Validators[0].(func(string) error)
 	// userDescUsername is the schema descriptor for username field.
-	userDescUsername := userFields[6].Descriptor()
+	userDescUsername := userFields[7].Descriptor()
 	// user.DefaultUsername holds the default value on creation for the username field.
 	user.DefaultUsername = userDescUsername.Default.(string)
 	// user.UsernameValidator is a validator for the "username" field. It is called by the builders before save.
 	user.UsernameValidator = userDescUsername.Validators[0].(func(string) error)
 	// userDescNotes is the schema descriptor for notes field.
-	userDescNotes := userFields[7].Descriptor()
+	userDescNotes := userFields[8].Descriptor()
 	// user.DefaultNotes holds the default value on creation for the notes field.
 	user.DefaultNotes = userDescNotes.Default.(string)
 	// userDescTotpEnabled is the schema descriptor for totp_enabled field.
-	userDescTotpEnabled := userFields[9].Descriptor()
+	userDescTotpEnabled := userFields[10].Descriptor()
 	// user.DefaultTotpEnabled holds the default value on creation for the totp_enabled field.
 	user.DefaultTotpEnabled = userDescTotpEnabled.Default.(bool)
 	// userDescBalanceNotifyEnabled is the schema descriptor for balance_notify_enabled field.
-	userDescBalanceNotifyEnabled := userFields[11].Descriptor()
+	userDescBalanceNotifyEnabled := userFields[12].Descriptor()
 	// user.DefaultBalanceNotifyEnabled holds the default value on creation for the balance_notify_enabled field.
 	user.DefaultBalanceNotifyEnabled = userDescBalanceNotifyEnabled.Default.(bool)
 	// userDescBalanceNotifyThresholdType is the schema descriptor for balance_notify_threshold_type field.
-	userDescBalanceNotifyThresholdType := userFields[12].Descriptor()
+	userDescBalanceNotifyThresholdType := userFields[13].Descriptor()
 	// user.DefaultBalanceNotifyThresholdType holds the default value on creation for the balance_notify_threshold_type field.
 	user.DefaultBalanceNotifyThresholdType = userDescBalanceNotifyThresholdType.Default.(string)
 	// userDescBalanceNotifyExtraEmails is the schema descriptor for balance_notify_extra_emails field.
-	userDescBalanceNotifyExtraEmails := userFields[14].Descriptor()
+	userDescBalanceNotifyExtraEmails := userFields[15].Descriptor()
 	// user.DefaultBalanceNotifyExtraEmails holds the default value on creation for the balance_notify_extra_emails field.
 	user.DefaultBalanceNotifyExtraEmails = userDescBalanceNotifyExtraEmails.Default.(string)
 	// userDescTotalRecharged is the schema descriptor for total_recharged field.
-	userDescTotalRecharged := userFields[15].Descriptor()
+	userDescTotalRecharged := userFields[16].Descriptor()
 	// user.DefaultTotalRecharged holds the default value on creation for the total_recharged field.
 	user.DefaultTotalRecharged = userDescTotalRecharged.Default.(float64)
 	userallowedgroupFields := schema.UserAllowedGroup{}.Fields()
@@ -1482,6 +1487,47 @@ func init() {
 	usersubscriptionDescAssignedAt := usersubscriptionFields[12].Descriptor()
 	// usersubscription.DefaultAssignedAt holds the default value on creation for the assigned_at field.
 	usersubscription.DefaultAssignedAt = usersubscriptionDescAssignedAt.Default.(func() time.Time)
+	windsurfaccountMixin := schema.WindsurfAccount{}.Mixin()
+	windsurfaccountMixinFields0 := windsurfaccountMixin[0].Fields()
+	_ = windsurfaccountMixinFields0
+	windsurfaccountFields := schema.WindsurfAccount{}.Fields()
+	_ = windsurfaccountFields
+	// windsurfaccountDescCreatedAt is the schema descriptor for created_at field.
+	windsurfaccountDescCreatedAt := windsurfaccountMixinFields0[0].Descriptor()
+	// windsurfaccount.DefaultCreatedAt holds the default value on creation for the created_at field.
+	windsurfaccount.DefaultCreatedAt = windsurfaccountDescCreatedAt.Default.(func() time.Time)
+	// windsurfaccountDescUpdatedAt is the schema descriptor for updated_at field.
+	windsurfaccountDescUpdatedAt := windsurfaccountMixinFields0[1].Descriptor()
+	// windsurfaccount.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	windsurfaccount.DefaultUpdatedAt = windsurfaccountDescUpdatedAt.Default.(func() time.Time)
+	// windsurfaccount.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	windsurfaccount.UpdateDefaultUpdatedAt = windsurfaccountDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// windsurfaccountDescAccount is the schema descriptor for account field.
+	windsurfaccountDescAccount := windsurfaccountFields[0].Descriptor()
+	// windsurfaccount.AccountValidator is a validator for the "account" field. It is called by the builders before save.
+	windsurfaccount.AccountValidator = func() func(string) error {
+		validators := windsurfaccountDescAccount.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(account string) error {
+			for _, fn := range fns {
+				if err := fn(account); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// windsurfaccountDescPasswordEncrypted is the schema descriptor for password_encrypted field.
+	windsurfaccountDescPasswordEncrypted := windsurfaccountFields[1].Descriptor()
+	// windsurfaccount.PasswordEncryptedValidator is a validator for the "password_encrypted" field. It is called by the builders before save.
+	windsurfaccount.PasswordEncryptedValidator = windsurfaccountDescPasswordEncrypted.Validators[0].(func(string) error)
+	// windsurfaccountDescEnabled is the schema descriptor for enabled field.
+	windsurfaccountDescEnabled := windsurfaccountFields[2].Descriptor()
+	// windsurfaccount.DefaultEnabled holds the default value on creation for the enabled field.
+	windsurfaccount.DefaultEnabled = windsurfaccountDescEnabled.Default.(bool)
 }
 
 const (

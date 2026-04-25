@@ -2,6 +2,17 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 
+vi.hoisted(() => {
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: {
+      getItem: vi.fn(),
+      setItem: vi.fn(),
+      removeItem: vi.fn()
+    },
+    configurable: true
+  })
+})
+
 const { updateAccountMock, checkMixedChannelRiskMock } = vi.hoisted(() => ({
   updateAccountMock: vi.fn(),
   checkMixedChannelRiskMock: vi.fn()
@@ -26,6 +37,13 @@ vi.mock('@/api/admin', () => ({
     accounts: {
       update: updateAccountMock,
       checkMixedChannelRisk: checkMixedChannelRiskMock
+    },
+    settings: {
+      getWebSearchEmulationConfig: vi.fn().mockResolvedValue({ enabled: false, providers: [] }),
+      getSettings: vi.fn().mockResolvedValue({ account_quota_notify_enabled: false })
+    },
+    tlsFingerprintProfiles: {
+      list: vi.fn().mockResolvedValue([])
     }
   }
 }))
@@ -92,6 +110,7 @@ function buildAccount() {
     credentials: {
       api_key: 'sk-test',
       base_url: 'https://api.openai.com',
+      api_mode: 'chat_completions',
       model_mapping: {
         'gpt-5.2': 'gpt-5.2'
       }
@@ -152,6 +171,7 @@ describe('EditAccountModal', () => {
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
 
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.api_mode).toBe('chat_completions')
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toEqual({
       'gpt-5.2': 'gpt-5.2'
     })

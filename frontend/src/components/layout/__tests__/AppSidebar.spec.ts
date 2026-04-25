@@ -16,6 +16,7 @@ const storeMocks = vi.hoisted(() => ({
     sidebarCollapsed: false,
     mobileOpen: true,
     backendModeEnabled: false,
+    gameCenterEnabled: true,
     siteName: 'Test Site',
     siteLogo: '',
     siteVersion: '1.0.0',
@@ -92,6 +93,7 @@ beforeEach(() => {
   storeMocks.appStore.sidebarCollapsed = false
   storeMocks.appStore.mobileOpen = true
   storeMocks.appStore.backendModeEnabled = false
+  storeMocks.appStore.gameCenterEnabled = true
   storeMocks.appStore.cachedPublicSettings = {
     payment_enabled: false,
     custom_menu_items: []
@@ -149,11 +151,12 @@ describe('AppSidebar admin checkin analytics navigation', () => {
   })
 })
 
-describe('AppSidebar size bet admin navigation visibility', () => {
-  it('hides the size bet participation and stats menus when the activity is disabled', async () => {
+describe('AppSidebar size bet user navigation visibility', () => {
+  it('shows game center but hides direct size bet menus when the activity is disabled', async () => {
     storeMocks.authStore.isAdmin = false
     storeMocks.adminSettingsStore.sizeBetEnabled = false
     storeMocks.appStore.cachedPublicSettings = {
+      game_center_enabled: true,
       payment_enabled: false,
       custom_menu_items: [],
       size_bet_enabled: false
@@ -161,14 +164,16 @@ describe('AppSidebar size bet admin navigation visibility', () => {
 
     const wrapper = await mountSidebar()
 
+    expect(wrapper.text()).toContain('nav.gameCenter')
     expect(wrapper.text()).not.toContain('sizeBet.nav')
     expect(wrapper.text()).not.toContain('sizeBet.statsNav')
   })
 
-  it('shows the size bet participation and stats menus when the activity is enabled', async () => {
+  it('still keeps direct size bet menus hidden when the activity is enabled', async () => {
     storeMocks.authStore.isAdmin = false
     storeMocks.adminSettingsStore.sizeBetEnabled = true
     storeMocks.appStore.cachedPublicSettings = {
+      game_center_enabled: true,
       payment_enabled: false,
       custom_menu_items: [],
       size_bet_enabled: true
@@ -176,7 +181,8 @@ describe('AppSidebar size bet admin navigation visibility', () => {
 
     const wrapper = await mountSidebar()
 
-    expect(wrapper.text()).toContain('sizeBet.nav')
-    expect(wrapper.text()).toContain('sizeBet.statsNav')
+    expect(wrapper.text()).toContain('nav.gameCenter')
+    expect(wrapper.text()).not.toContain('sizeBet.nav')
+    expect(wrapper.text()).not.toContain('sizeBet.statsNav')
   })
 })

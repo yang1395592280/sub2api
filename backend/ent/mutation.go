@@ -39,6 +39,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributedefinition"
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
+	"github.com/Wei-Shaw/sub2api/ent/windsurfaccount"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
@@ -77,6 +78,7 @@ const (
 	TypeUserAttributeDefinition = "UserAttributeDefinition"
 	TypeUserAttributeValue      = "UserAttributeValue"
 	TypeUserSubscription        = "UserSubscription"
+	TypeWindsurfAccount         = "WindsurfAccount"
 )
 
 // APIKeyMutation represents an operation that mutates the APIKey nodes in the graph.
@@ -28256,6 +28258,8 @@ type UserMutation struct {
 	role                          *string
 	balance                       *float64
 	addbalance                    *float64
+	points                        *int64
+	addpoints                     *int64
 	concurrency                   *int
 	addconcurrency                *int
 	status                        *string
@@ -28688,6 +28692,62 @@ func (m *UserMutation) AddedBalance() (r float64, exists bool) {
 func (m *UserMutation) ResetBalance() {
 	m.balance = nil
 	m.addbalance = nil
+}
+
+// SetPoints sets the "points" field.
+func (m *UserMutation) SetPoints(i int64) {
+	m.points = &i
+	m.addpoints = nil
+}
+
+// Points returns the value of the "points" field in the mutation.
+func (m *UserMutation) Points() (r int64, exists bool) {
+	v := m.points
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPoints returns the old "points" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldPoints(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPoints is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPoints requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPoints: %w", err)
+	}
+	return oldValue.Points, nil
+}
+
+// AddPoints adds i to the "points" field.
+func (m *UserMutation) AddPoints(i int64) {
+	if m.addpoints != nil {
+		*m.addpoints += i
+	} else {
+		m.addpoints = &i
+	}
+}
+
+// AddedPoints returns the value that was added to the "points" field in this mutation.
+func (m *UserMutation) AddedPoints() (r int64, exists bool) {
+	v := m.addpoints
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetPoints resets all changes to the "points" field.
+func (m *UserMutation) ResetPoints() {
+	m.points = nil
+	m.addpoints = nil
 }
 
 // SetConcurrency sets the "concurrency" field.
@@ -29796,7 +29856,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 19)
+	fields := make([]string, 0, 20)
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -29817,6 +29877,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.balance != nil {
 		fields = append(fields, user.FieldBalance)
+	}
+	if m.points != nil {
+		fields = append(fields, user.FieldPoints)
 	}
 	if m.concurrency != nil {
 		fields = append(fields, user.FieldConcurrency)
@@ -29876,6 +29939,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.Role()
 	case user.FieldBalance:
 		return m.Balance()
+	case user.FieldPoints:
+		return m.Points()
 	case user.FieldConcurrency:
 		return m.Concurrency()
 	case user.FieldStatus:
@@ -29923,6 +29988,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldRole(ctx)
 	case user.FieldBalance:
 		return m.OldBalance(ctx)
+	case user.FieldPoints:
+		return m.OldPoints(ctx)
 	case user.FieldConcurrency:
 		return m.OldConcurrency(ctx)
 	case user.FieldStatus:
@@ -30004,6 +30071,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetBalance(v)
+		return nil
+	case user.FieldPoints:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPoints(v)
 		return nil
 	case user.FieldConcurrency:
 		v, ok := value.(int)
@@ -30100,6 +30174,9 @@ func (m *UserMutation) AddedFields() []string {
 	if m.addbalance != nil {
 		fields = append(fields, user.FieldBalance)
 	}
+	if m.addpoints != nil {
+		fields = append(fields, user.FieldPoints)
+	}
 	if m.addconcurrency != nil {
 		fields = append(fields, user.FieldConcurrency)
 	}
@@ -30119,6 +30196,8 @@ func (m *UserMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case user.FieldBalance:
 		return m.AddedBalance()
+	case user.FieldPoints:
+		return m.AddedPoints()
 	case user.FieldConcurrency:
 		return m.AddedConcurrency()
 	case user.FieldBalanceNotifyThreshold:
@@ -30140,6 +30219,13 @@ func (m *UserMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddBalance(v)
+		return nil
+	case user.FieldPoints:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPoints(v)
 		return nil
 	case user.FieldConcurrency:
 		v, ok := value.(int)
@@ -30236,6 +30322,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldBalance:
 		m.ResetBalance()
+		return nil
+	case user.FieldPoints:
+		m.ResetPoints()
 		return nil
 	case user.FieldConcurrency:
 		m.ResetConcurrency()
@@ -34462,4 +34551,873 @@ func (m *UserSubscriptionMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown UserSubscription edge %s", name)
+}
+
+// WindsurfAccountMutation represents an operation that mutates the WindsurfAccount nodes in the graph.
+type WindsurfAccountMutation struct {
+	config
+	op                   Op
+	typ                  string
+	id                   *int64
+	created_at           *time.Time
+	updated_at           *time.Time
+	account              *string
+	password_encrypted   *string
+	enabled              *bool
+	maintained_by        *int64
+	addmaintained_by     *int64
+	maintained_at        *time.Time
+	status_updated_by    *int64
+	addstatus_updated_by *int64
+	status_updated_at    *time.Time
+	clearedFields        map[string]struct{}
+	done                 bool
+	oldValue             func(context.Context) (*WindsurfAccount, error)
+	predicates           []predicate.WindsurfAccount
+}
+
+var _ ent.Mutation = (*WindsurfAccountMutation)(nil)
+
+// windsurfaccountOption allows management of the mutation configuration using functional options.
+type windsurfaccountOption func(*WindsurfAccountMutation)
+
+// newWindsurfAccountMutation creates new mutation for the WindsurfAccount entity.
+func newWindsurfAccountMutation(c config, op Op, opts ...windsurfaccountOption) *WindsurfAccountMutation {
+	m := &WindsurfAccountMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeWindsurfAccount,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withWindsurfAccountID sets the ID field of the mutation.
+func withWindsurfAccountID(id int64) windsurfaccountOption {
+	return func(m *WindsurfAccountMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *WindsurfAccount
+		)
+		m.oldValue = func(ctx context.Context) (*WindsurfAccount, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().WindsurfAccount.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withWindsurfAccount sets the old WindsurfAccount of the mutation.
+func withWindsurfAccount(node *WindsurfAccount) windsurfaccountOption {
+	return func(m *WindsurfAccountMutation) {
+		m.oldValue = func(context.Context) (*WindsurfAccount, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m WindsurfAccountMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m WindsurfAccountMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *WindsurfAccountMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *WindsurfAccountMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().WindsurfAccount.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *WindsurfAccountMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *WindsurfAccountMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the WindsurfAccount entity.
+// If the WindsurfAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WindsurfAccountMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *WindsurfAccountMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *WindsurfAccountMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *WindsurfAccountMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the WindsurfAccount entity.
+// If the WindsurfAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WindsurfAccountMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *WindsurfAccountMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetAccount sets the "account" field.
+func (m *WindsurfAccountMutation) SetAccount(s string) {
+	m.account = &s
+}
+
+// Account returns the value of the "account" field in the mutation.
+func (m *WindsurfAccountMutation) Account() (r string, exists bool) {
+	v := m.account
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccount returns the old "account" field's value of the WindsurfAccount entity.
+// If the WindsurfAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WindsurfAccountMutation) OldAccount(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccount: %w", err)
+	}
+	return oldValue.Account, nil
+}
+
+// ResetAccount resets all changes to the "account" field.
+func (m *WindsurfAccountMutation) ResetAccount() {
+	m.account = nil
+}
+
+// SetPasswordEncrypted sets the "password_encrypted" field.
+func (m *WindsurfAccountMutation) SetPasswordEncrypted(s string) {
+	m.password_encrypted = &s
+}
+
+// PasswordEncrypted returns the value of the "password_encrypted" field in the mutation.
+func (m *WindsurfAccountMutation) PasswordEncrypted() (r string, exists bool) {
+	v := m.password_encrypted
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPasswordEncrypted returns the old "password_encrypted" field's value of the WindsurfAccount entity.
+// If the WindsurfAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WindsurfAccountMutation) OldPasswordEncrypted(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPasswordEncrypted is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPasswordEncrypted requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPasswordEncrypted: %w", err)
+	}
+	return oldValue.PasswordEncrypted, nil
+}
+
+// ResetPasswordEncrypted resets all changes to the "password_encrypted" field.
+func (m *WindsurfAccountMutation) ResetPasswordEncrypted() {
+	m.password_encrypted = nil
+}
+
+// SetEnabled sets the "enabled" field.
+func (m *WindsurfAccountMutation) SetEnabled(b bool) {
+	m.enabled = &b
+}
+
+// Enabled returns the value of the "enabled" field in the mutation.
+func (m *WindsurfAccountMutation) Enabled() (r bool, exists bool) {
+	v := m.enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEnabled returns the old "enabled" field's value of the WindsurfAccount entity.
+// If the WindsurfAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WindsurfAccountMutation) OldEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEnabled: %w", err)
+	}
+	return oldValue.Enabled, nil
+}
+
+// ResetEnabled resets all changes to the "enabled" field.
+func (m *WindsurfAccountMutation) ResetEnabled() {
+	m.enabled = nil
+}
+
+// SetMaintainedBy sets the "maintained_by" field.
+func (m *WindsurfAccountMutation) SetMaintainedBy(i int64) {
+	m.maintained_by = &i
+	m.addmaintained_by = nil
+}
+
+// MaintainedBy returns the value of the "maintained_by" field in the mutation.
+func (m *WindsurfAccountMutation) MaintainedBy() (r int64, exists bool) {
+	v := m.maintained_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMaintainedBy returns the old "maintained_by" field's value of the WindsurfAccount entity.
+// If the WindsurfAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WindsurfAccountMutation) OldMaintainedBy(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMaintainedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMaintainedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMaintainedBy: %w", err)
+	}
+	return oldValue.MaintainedBy, nil
+}
+
+// AddMaintainedBy adds i to the "maintained_by" field.
+func (m *WindsurfAccountMutation) AddMaintainedBy(i int64) {
+	if m.addmaintained_by != nil {
+		*m.addmaintained_by += i
+	} else {
+		m.addmaintained_by = &i
+	}
+}
+
+// AddedMaintainedBy returns the value that was added to the "maintained_by" field in this mutation.
+func (m *WindsurfAccountMutation) AddedMaintainedBy() (r int64, exists bool) {
+	v := m.addmaintained_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMaintainedBy resets all changes to the "maintained_by" field.
+func (m *WindsurfAccountMutation) ResetMaintainedBy() {
+	m.maintained_by = nil
+	m.addmaintained_by = nil
+}
+
+// SetMaintainedAt sets the "maintained_at" field.
+func (m *WindsurfAccountMutation) SetMaintainedAt(t time.Time) {
+	m.maintained_at = &t
+}
+
+// MaintainedAt returns the value of the "maintained_at" field in the mutation.
+func (m *WindsurfAccountMutation) MaintainedAt() (r time.Time, exists bool) {
+	v := m.maintained_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMaintainedAt returns the old "maintained_at" field's value of the WindsurfAccount entity.
+// If the WindsurfAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WindsurfAccountMutation) OldMaintainedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMaintainedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMaintainedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMaintainedAt: %w", err)
+	}
+	return oldValue.MaintainedAt, nil
+}
+
+// ResetMaintainedAt resets all changes to the "maintained_at" field.
+func (m *WindsurfAccountMutation) ResetMaintainedAt() {
+	m.maintained_at = nil
+}
+
+// SetStatusUpdatedBy sets the "status_updated_by" field.
+func (m *WindsurfAccountMutation) SetStatusUpdatedBy(i int64) {
+	m.status_updated_by = &i
+	m.addstatus_updated_by = nil
+}
+
+// StatusUpdatedBy returns the value of the "status_updated_by" field in the mutation.
+func (m *WindsurfAccountMutation) StatusUpdatedBy() (r int64, exists bool) {
+	v := m.status_updated_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatusUpdatedBy returns the old "status_updated_by" field's value of the WindsurfAccount entity.
+// If the WindsurfAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WindsurfAccountMutation) OldStatusUpdatedBy(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatusUpdatedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatusUpdatedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatusUpdatedBy: %w", err)
+	}
+	return oldValue.StatusUpdatedBy, nil
+}
+
+// AddStatusUpdatedBy adds i to the "status_updated_by" field.
+func (m *WindsurfAccountMutation) AddStatusUpdatedBy(i int64) {
+	if m.addstatus_updated_by != nil {
+		*m.addstatus_updated_by += i
+	} else {
+		m.addstatus_updated_by = &i
+	}
+}
+
+// AddedStatusUpdatedBy returns the value that was added to the "status_updated_by" field in this mutation.
+func (m *WindsurfAccountMutation) AddedStatusUpdatedBy() (r int64, exists bool) {
+	v := m.addstatus_updated_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearStatusUpdatedBy clears the value of the "status_updated_by" field.
+func (m *WindsurfAccountMutation) ClearStatusUpdatedBy() {
+	m.status_updated_by = nil
+	m.addstatus_updated_by = nil
+	m.clearedFields[windsurfaccount.FieldStatusUpdatedBy] = struct{}{}
+}
+
+// StatusUpdatedByCleared returns if the "status_updated_by" field was cleared in this mutation.
+func (m *WindsurfAccountMutation) StatusUpdatedByCleared() bool {
+	_, ok := m.clearedFields[windsurfaccount.FieldStatusUpdatedBy]
+	return ok
+}
+
+// ResetStatusUpdatedBy resets all changes to the "status_updated_by" field.
+func (m *WindsurfAccountMutation) ResetStatusUpdatedBy() {
+	m.status_updated_by = nil
+	m.addstatus_updated_by = nil
+	delete(m.clearedFields, windsurfaccount.FieldStatusUpdatedBy)
+}
+
+// SetStatusUpdatedAt sets the "status_updated_at" field.
+func (m *WindsurfAccountMutation) SetStatusUpdatedAt(t time.Time) {
+	m.status_updated_at = &t
+}
+
+// StatusUpdatedAt returns the value of the "status_updated_at" field in the mutation.
+func (m *WindsurfAccountMutation) StatusUpdatedAt() (r time.Time, exists bool) {
+	v := m.status_updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatusUpdatedAt returns the old "status_updated_at" field's value of the WindsurfAccount entity.
+// If the WindsurfAccount object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WindsurfAccountMutation) OldStatusUpdatedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatusUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatusUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatusUpdatedAt: %w", err)
+	}
+	return oldValue.StatusUpdatedAt, nil
+}
+
+// ClearStatusUpdatedAt clears the value of the "status_updated_at" field.
+func (m *WindsurfAccountMutation) ClearStatusUpdatedAt() {
+	m.status_updated_at = nil
+	m.clearedFields[windsurfaccount.FieldStatusUpdatedAt] = struct{}{}
+}
+
+// StatusUpdatedAtCleared returns if the "status_updated_at" field was cleared in this mutation.
+func (m *WindsurfAccountMutation) StatusUpdatedAtCleared() bool {
+	_, ok := m.clearedFields[windsurfaccount.FieldStatusUpdatedAt]
+	return ok
+}
+
+// ResetStatusUpdatedAt resets all changes to the "status_updated_at" field.
+func (m *WindsurfAccountMutation) ResetStatusUpdatedAt() {
+	m.status_updated_at = nil
+	delete(m.clearedFields, windsurfaccount.FieldStatusUpdatedAt)
+}
+
+// Where appends a list predicates to the WindsurfAccountMutation builder.
+func (m *WindsurfAccountMutation) Where(ps ...predicate.WindsurfAccount) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the WindsurfAccountMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *WindsurfAccountMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.WindsurfAccount, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *WindsurfAccountMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *WindsurfAccountMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (WindsurfAccount).
+func (m *WindsurfAccountMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *WindsurfAccountMutation) Fields() []string {
+	fields := make([]string, 0, 9)
+	if m.created_at != nil {
+		fields = append(fields, windsurfaccount.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, windsurfaccount.FieldUpdatedAt)
+	}
+	if m.account != nil {
+		fields = append(fields, windsurfaccount.FieldAccount)
+	}
+	if m.password_encrypted != nil {
+		fields = append(fields, windsurfaccount.FieldPasswordEncrypted)
+	}
+	if m.enabled != nil {
+		fields = append(fields, windsurfaccount.FieldEnabled)
+	}
+	if m.maintained_by != nil {
+		fields = append(fields, windsurfaccount.FieldMaintainedBy)
+	}
+	if m.maintained_at != nil {
+		fields = append(fields, windsurfaccount.FieldMaintainedAt)
+	}
+	if m.status_updated_by != nil {
+		fields = append(fields, windsurfaccount.FieldStatusUpdatedBy)
+	}
+	if m.status_updated_at != nil {
+		fields = append(fields, windsurfaccount.FieldStatusUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *WindsurfAccountMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case windsurfaccount.FieldCreatedAt:
+		return m.CreatedAt()
+	case windsurfaccount.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case windsurfaccount.FieldAccount:
+		return m.Account()
+	case windsurfaccount.FieldPasswordEncrypted:
+		return m.PasswordEncrypted()
+	case windsurfaccount.FieldEnabled:
+		return m.Enabled()
+	case windsurfaccount.FieldMaintainedBy:
+		return m.MaintainedBy()
+	case windsurfaccount.FieldMaintainedAt:
+		return m.MaintainedAt()
+	case windsurfaccount.FieldStatusUpdatedBy:
+		return m.StatusUpdatedBy()
+	case windsurfaccount.FieldStatusUpdatedAt:
+		return m.StatusUpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *WindsurfAccountMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case windsurfaccount.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case windsurfaccount.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case windsurfaccount.FieldAccount:
+		return m.OldAccount(ctx)
+	case windsurfaccount.FieldPasswordEncrypted:
+		return m.OldPasswordEncrypted(ctx)
+	case windsurfaccount.FieldEnabled:
+		return m.OldEnabled(ctx)
+	case windsurfaccount.FieldMaintainedBy:
+		return m.OldMaintainedBy(ctx)
+	case windsurfaccount.FieldMaintainedAt:
+		return m.OldMaintainedAt(ctx)
+	case windsurfaccount.FieldStatusUpdatedBy:
+		return m.OldStatusUpdatedBy(ctx)
+	case windsurfaccount.FieldStatusUpdatedAt:
+		return m.OldStatusUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown WindsurfAccount field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *WindsurfAccountMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case windsurfaccount.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case windsurfaccount.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case windsurfaccount.FieldAccount:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccount(v)
+		return nil
+	case windsurfaccount.FieldPasswordEncrypted:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPasswordEncrypted(v)
+		return nil
+	case windsurfaccount.FieldEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEnabled(v)
+		return nil
+	case windsurfaccount.FieldMaintainedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMaintainedBy(v)
+		return nil
+	case windsurfaccount.FieldMaintainedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMaintainedAt(v)
+		return nil
+	case windsurfaccount.FieldStatusUpdatedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatusUpdatedBy(v)
+		return nil
+	case windsurfaccount.FieldStatusUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatusUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown WindsurfAccount field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *WindsurfAccountMutation) AddedFields() []string {
+	var fields []string
+	if m.addmaintained_by != nil {
+		fields = append(fields, windsurfaccount.FieldMaintainedBy)
+	}
+	if m.addstatus_updated_by != nil {
+		fields = append(fields, windsurfaccount.FieldStatusUpdatedBy)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *WindsurfAccountMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case windsurfaccount.FieldMaintainedBy:
+		return m.AddedMaintainedBy()
+	case windsurfaccount.FieldStatusUpdatedBy:
+		return m.AddedStatusUpdatedBy()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *WindsurfAccountMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case windsurfaccount.FieldMaintainedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMaintainedBy(v)
+		return nil
+	case windsurfaccount.FieldStatusUpdatedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddStatusUpdatedBy(v)
+		return nil
+	}
+	return fmt.Errorf("unknown WindsurfAccount numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *WindsurfAccountMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(windsurfaccount.FieldStatusUpdatedBy) {
+		fields = append(fields, windsurfaccount.FieldStatusUpdatedBy)
+	}
+	if m.FieldCleared(windsurfaccount.FieldStatusUpdatedAt) {
+		fields = append(fields, windsurfaccount.FieldStatusUpdatedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *WindsurfAccountMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *WindsurfAccountMutation) ClearField(name string) error {
+	switch name {
+	case windsurfaccount.FieldStatusUpdatedBy:
+		m.ClearStatusUpdatedBy()
+		return nil
+	case windsurfaccount.FieldStatusUpdatedAt:
+		m.ClearStatusUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown WindsurfAccount nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *WindsurfAccountMutation) ResetField(name string) error {
+	switch name {
+	case windsurfaccount.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case windsurfaccount.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case windsurfaccount.FieldAccount:
+		m.ResetAccount()
+		return nil
+	case windsurfaccount.FieldPasswordEncrypted:
+		m.ResetPasswordEncrypted()
+		return nil
+	case windsurfaccount.FieldEnabled:
+		m.ResetEnabled()
+		return nil
+	case windsurfaccount.FieldMaintainedBy:
+		m.ResetMaintainedBy()
+		return nil
+	case windsurfaccount.FieldMaintainedAt:
+		m.ResetMaintainedAt()
+		return nil
+	case windsurfaccount.FieldStatusUpdatedBy:
+		m.ResetStatusUpdatedBy()
+		return nil
+	case windsurfaccount.FieldStatusUpdatedAt:
+		m.ResetStatusUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown WindsurfAccount field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *WindsurfAccountMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *WindsurfAccountMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *WindsurfAccountMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *WindsurfAccountMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *WindsurfAccountMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *WindsurfAccountMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *WindsurfAccountMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown WindsurfAccount unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *WindsurfAccountMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown WindsurfAccount edge %s", name)
 }

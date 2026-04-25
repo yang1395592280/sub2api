@@ -38,10 +38,10 @@ vi.mock('@/i18n', () => ({
 }))
 const messages: Record<string, string | ((params?: Record<string, unknown>) => string)> = {
   'common.loading': '加载中...',
-  'common.balance': '余额',
+  'common.balance': '积分',
   'common.confirm': '确认',
   'common.retry': '重试',
-  'sizeBet.title': '大小中参与',
+  'sizeBet.title': '猜大小游戏',
   'sizeBet.heroSubtitle': '在截止前完成选择，等待系统随机开奖',
   'sizeBet.seedTitle': '种子承诺',
   'sizeBet.phase.betting': '参与中',
@@ -202,7 +202,7 @@ function buildHistoryItem(overrides: Record<string, any> = {}) {
     stake_amount: 10,
     payout_amount: 20,
     net_result_amount: 10,
-    balance_after: 110,
+    points_after: 110,
     status: 'won',
     placed_at: '2026-04-23T12:00:10Z',
     settled_at: '2026-04-23T12:00:55Z',
@@ -348,24 +348,7 @@ describe('SizeBetGameView', () => {
     expect(wrapper.text()).toContain('重试')
     expect(wrapper.text()).not.toContain('活动暂未开启')
   })
-  it('keeps the main game content visible when the activity is disabled', async () => {
-    getCurrent.mockResolvedValue(
-      buildCurrentView({
-        enabled: false,
-        phase: 'maintenance',
-        round: null,
-      })
-    )
-    mockRules()
-    mockHistory()
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('我的选择')
-    expect(wrapper.text()).not.toContain('活动暂未开启')
-  })
-  it('keeps the page visible and recovers after a later successful poll', async () => {
+  it('keeps maintenance empty state and recovers after a later successful poll', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-04-23T12:00:10Z'))
     getCurrent
@@ -390,13 +373,13 @@ describe('SizeBetGameView', () => {
     mockHistory()
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.text()).toContain('我的选择')
-    expect(wrapper.text()).not.toContain('活动暂未开启')
+    expect(wrapper.text()).toContain('活动暂未开启')
     await vi.advanceTimersByTimeAsync(15000)
     await nextTick()
     await flushPromises()
     expect(getCurrent).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('1003')
+    expect(wrapper.text()).not.toContain('活动暂未开启')
   })
   it('shows a result modal and recent records after settlement', async () => {
     getCurrent.mockResolvedValueOnce(

@@ -131,7 +131,7 @@ func TestSizeBetHandlerGetHistoryIncludesNetAndSettlementDetails(t *testing.T) {
 				PayoutAmount:    20,
 				NetResultAmount: 10,
 				Status:          service.SizeBetStatusWon,
-				BalanceAfter:    &balanceAfter,
+				PointsAfter:     int64Ptr(int64(balanceAfter)),
 				PlacedAt:        placedAt,
 				SettledAt:       &settledAt,
 			},
@@ -158,7 +158,7 @@ func TestSizeBetHandlerGetHistoryIncludesNetAndSettlementDetails(t *testing.T) {
 	require.Contains(t, w.Body.String(), "\"net_result_amount\":10")
 	require.Contains(t, w.Body.String(), "\"result_number\":9")
 	require.Contains(t, w.Body.String(), "\"result_direction\":\"big\"")
-	require.Contains(t, w.Body.String(), "\"balance_after\":123.5")
+	require.Contains(t, w.Body.String(), "\"points_after\":123")
 	require.Contains(t, w.Body.String(), "\"settled_at\":\"2026-04-23T12:01:00Z\"")
 	require.NotContains(t, w.Body.String(), "\"round_id\":")
 	require.NotContains(t, w.Body.String(), "\"idempotency_key\":")
@@ -426,4 +426,8 @@ func TestSizeBetHandlerStatsEndpointsUseUserFacingDTO(t *testing.T) {
 	item := items[0].(map[string]any)
 	require.Equal(t, "tester", item["username"])
 	require.NotContains(t, item, "user_id")
+}
+
+func int64Ptr(v int64) *int64 {
+	return &v
 }

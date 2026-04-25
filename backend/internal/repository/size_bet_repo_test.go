@@ -50,15 +50,15 @@ func TestSizeBetRepositoryListUserHistoryUsesLatestRelatedLedgerBalance(t *testi
 		"id", "round_id", "round_no", "direction",
 		"result_number", "result_direction",
 		"stake_amount", "payout_amount", "net_result_amount", "status",
-		"balance_after", "placed_at", "settled_at",
+		"points_after", "placed_at", "settled_at",
 	}).AddRow(
 		int64(7), int64(11), int64(1002), "big",
 		int64(9), "big",
 		10.0, 20.0, 10.0, "won",
-		123.5, placedAt, settledAt,
+		int64(123), placedAt, settledAt,
 	)
 
-	mock.ExpectQuery("SELECT.*LEFT JOIN LATERAL \\(.*SELECT balance_after.*FROM game_wallet_ledger gl.*gl.entry_type IN \\('bet_payout', 'bet_refund', 'bet_debit'\\).*ORDER BY gl.created_at DESC, gl.id DESC.*LIMIT 1.*\\) gl ON TRUE.*ORDER BY COALESCE\\(gb.settled_at, gb.placed_at\\) DESC, gb.id DESC").
+	mock.ExpectQuery("SELECT.*LEFT JOIN LATERAL \\(.*SELECT ROUND\\(balance_after\\)::bigint AS points_after.*FROM game_wallet_ledger gl.*gl.entry_type IN \\('bet_payout', 'bet_refund', 'bet_debit'\\).*ORDER BY gl.created_at DESC, gl.id DESC.*LIMIT 1.*\\) gl ON TRUE.*ORDER BY COALESCE\\(gb.settled_at, gb.placed_at\\) DESC, gb.id DESC").
 		WithArgs(service.SizeBetGameKey, int64(9), 20, 0).
 		WillReturnRows(rows)
 
@@ -71,8 +71,8 @@ func TestSizeBetRepositoryListUserHistoryUsesLatestRelatedLedgerBalance(t *testi
 	require.Equal(t, service.SizeBetDirectionBig, items[0].ResultDirection)
 	require.NotNil(t, items[0].ResultNumber)
 	require.Equal(t, 9, *items[0].ResultNumber)
-	require.NotNil(t, items[0].BalanceAfter)
-	require.Equal(t, 123.5, *items[0].BalanceAfter)
+	require.NotNil(t, items[0].PointsAfter)
+	require.Equal(t, int64(123), *items[0].PointsAfter)
 	require.NotNil(t, items[0].SettledAt)
 	require.Equal(t, settledAt, *items[0].SettledAt)
 	require.NotNil(t, pageResult)

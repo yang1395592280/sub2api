@@ -11,9 +11,11 @@ import (
 
 var (
 	ErrWindsurfAccountNotFound           = infraerrors.NotFound("WINDSURF_ACCOUNT_NOT_FOUND", "windsurf account not found")
+	ErrWindsurfAccountUpdateDenied       = infraerrors.Forbidden("WINDSURF_ACCOUNT_UPDATE_DENIED", "only the maintainer or an admin can update the windsurf account")
 	ErrWindsurfAccountStatusAdminOnly    = infraerrors.Forbidden("WINDSURF_ACCOUNT_STATUS_ADMIN_ONLY", "only admin can update windsurf account status")
 	ErrWindsurfAccountDeleteAdminOnly    = infraerrors.Forbidden("WINDSURF_ACCOUNT_DELETE_ADMIN_ONLY", "only admin can delete windsurf account")
 	ErrWindsurfAccountPasswordViewDenied = infraerrors.Forbidden("WINDSURF_ACCOUNT_PASSWORD_VIEW_DENIED", "only the maintainer or an admin can view the windsurf password")
+	ErrWindsurfAccountPasswordUnreadable = infraerrors.Conflict("WINDSURF_ACCOUNT_PASSWORD_UNREADABLE", "windsurf password is unreadable, please re-save the password")
 	ErrWindsurfAccountAccountRequired    = infraerrors.BadRequest("WINDSURF_ACCOUNT_REQUIRED", "windsurf account is required")
 	ErrWindsurfAccountPasswordRequired   = infraerrors.BadRequest("WINDSURF_PASSWORD_REQUIRED", "windsurf password is required")
 )
@@ -68,6 +70,7 @@ type UpdateWindsurfAccountCredentialsInput struct {
 	Account  string
 	Password string
 	ActorID  int64
+	IsAdmin  bool
 }
 
 type UpdateWindsurfAccountStatusInput struct {

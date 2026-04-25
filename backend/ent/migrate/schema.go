@@ -1072,6 +1072,7 @@ var (
 		{Name: "password_hash", Type: field.TypeString, Size: 255},
 		{Name: "role", Type: field.TypeString, Size: 20, Default: "user"},
 		{Name: "balance", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "points", Type: field.TypeInt64, Default: 0},
 		{Name: "concurrency", Type: field.TypeInt, Default: 5},
 		{Name: "status", Type: field.TypeString, Size: 20, Default: "active"},
 		{Name: "username", Type: field.TypeString, Size: 100, Default: ""},
@@ -1094,7 +1095,7 @@ var (
 			{
 				Name:    "user_status",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[9]},
+				Columns: []*schema.Column{UsersColumns[10]},
 			},
 			{
 				Name:    "user_deleted_at",
@@ -1311,6 +1312,37 @@ var (
 			},
 		},
 	}
+	// WindsurfAccountsColumns holds the columns for the "windsurf_accounts" table.
+	WindsurfAccountsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "account", Type: field.TypeString, Unique: true, Size: 255},
+		{Name: "password_encrypted", Type: field.TypeString, SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "enabled", Type: field.TypeBool, Default: false},
+		{Name: "maintained_by", Type: field.TypeInt64},
+		{Name: "maintained_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "status_updated_by", Type: field.TypeInt64, Nullable: true},
+		{Name: "status_updated_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// WindsurfAccountsTable holds the schema information for the "windsurf_accounts" table.
+	WindsurfAccountsTable = &schema.Table{
+		Name:       "windsurf_accounts",
+		Columns:    WindsurfAccountsColumns,
+		PrimaryKey: []*schema.Column{WindsurfAccountsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "windsurfaccount_enabled",
+				Unique:  false,
+				Columns: []*schema.Column{WindsurfAccountsColumns[5]},
+			},
+			{
+				Name:    "windsurfaccount_maintained_at",
+				Unique:  false,
+				Columns: []*schema.Column{WindsurfAccountsColumns[7]},
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		APIKeysTable,
@@ -1339,6 +1371,7 @@ var (
 		UserAttributeDefinitionsTable,
 		UserAttributeValuesTable,
 		UserSubscriptionsTable,
+		WindsurfAccountsTable,
 	}
 )
 
@@ -1444,5 +1477,8 @@ func init() {
 	UserSubscriptionsTable.ForeignKeys[2].RefTable = UsersTable
 	UserSubscriptionsTable.Annotation = &entsql.Annotation{
 		Table: "user_subscriptions",
+	}
+	WindsurfAccountsTable.Annotation = &entsql.Annotation{
+		Table: "windsurf_accounts",
 	}
 }

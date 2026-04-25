@@ -38,9 +38,10 @@ const (
 	// ChatGPT internal API for OAuth accounts
 	chatgptCodexURL = "https://chatgpt.com/backend-api/codex/responses"
 	// OpenAI Platform API for API Key accounts (fallback)
-	openaiPlatformAPIURL   = "https://api.openai.com/v1/responses"
-	openaiStickySessionTTL = time.Hour // 粘性会话TTL
-	codexCLIUserAgent      = "codex_cli_rs/0.104.0"
+	openaiPlatformAPIURL             = "https://api.openai.com/v1/responses"
+	openaiPlatformChatCompletionsURL = "https://api.openai.com/v1/chat/completions"
+	openaiStickySessionTTL           = time.Hour // 粘性会话TTL
+	codexCLIUserAgent                = "codex_cli_rs/0.104.0"
 	// codex_cli_only 拒绝时单个请求头日志长度上限（字符）
 	codexCLIOnlyHeaderValueMaxBytes = 256
 
@@ -4169,6 +4170,21 @@ func buildOpenAIResponsesURL(base string) string {
 		return normalized + "/responses"
 	}
 	return normalized + "/v1/responses"
+}
+
+// buildOpenAIChatCompletionsURL 组装 OpenAI Chat Completions 端点。
+// - base 以 /v1 结尾：追加 /chat/completions
+// - base 已是 /chat/completions：原样返回
+// - 其他情况：追加 /v1/chat/completions
+func buildOpenAIChatCompletionsURL(base string) string {
+	normalized := strings.TrimRight(strings.TrimSpace(base), "/")
+	if strings.HasSuffix(normalized, "/chat/completions") {
+		return normalized
+	}
+	if strings.HasSuffix(normalized, "/v1") {
+		return normalized + "/chat/completions"
+	}
+	return normalized + "/v1/chat/completions"
 }
 
 func trimOpenAIEncryptedReasoningItems(reqBody map[string]any) bool {

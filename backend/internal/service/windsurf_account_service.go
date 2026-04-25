@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
@@ -92,18 +93,27 @@ func (s *WindsurfAccountService) UpdateCredentials(ctx context.Context, id int64
 		return nil, err
 	}
 
-	account := normalizeWindsurfAccountValue(input.Account)
-	if account == "" {
-		return nil, ErrWindsurfAccountAccountRequired
+	if !input.IsAdmin && input.ActorID != record.MaintainedBy {
+		return nil, ErrWindsurfAccountUpdateDenied
 	}
 
-	record.Account = account
-	if strings.TrimSpace(input.Password) != "" {
+	if input.IsAdmin {
+		account := normalizeWindsurfAccountValue(input.Account)
+		if account == "" {
+			return nil, ErrWindsurfAccountAccountRequired
+		}
+		record.Account = account
+	}
+
+	password := strings.TrimSpace(input.Password)
+	if password != "" {
 		encrypted, err := s.encryptor.Encrypt(input.Password)
 		if err != nil {
 			return nil, fmt.Errorf("encrypt windsurf password: %w", err)
 		}
 		record.PasswordEncrypted = encrypted
+	} else if !input.IsAdmin {
+		return nil, ErrWindsurfAccountPasswordRequired
 	}
 
 	now := time.Now()
@@ -155,9 +165,15 @@ func (s *WindsurfAccountService) RevealPassword(ctx context.Context, id int64, i
 		return "", ErrWindsurfAccountPasswordViewDenied
 	}
 
-	password, err := s.encryptor.Decrypt(record.PasswordEncrypted)
+	password, migratedEncrypted, err := s.resolveStoredPassword(record.PasswordEncrypted)
 	if err != nil {
-		return "", fmt.Errorf("decrypt windsurf password: %w", err)
+		return "", err
+	}
+	if migratedEncrypted != "" {
+		record.PasswordEncrypted = migratedEncrypted
+		if err := s.repo.Update(ctx, record); err != nil {
+			return "", fmt.Errorf("migrate legacy windsurf password: %w", err)
+		}
 	}
 	return password, nil
 }
@@ -197,4 +213,31 @@ func (s *WindsurfAccountService) toListItem(ctx context.Context, record *Windsur
 	item.MaintainedByName = user.Username
 	item.MaintainedByEmail = user.Email
 	return item
+}
+
+func (s *WindsurfAccountService) resolveStoredPassword(stored string) (password string, migratedEncrypted string, err error) {
+	password, err = s.encryptor.Decrypt(stored)
+	if err == nil {
+		return password, "", nil
+	}
+	if isLegacyPlaintextWindsurfPassword(stored) {
+		encrypted, encryptErr := s.encryptor.Encrypt(stored)
+		if encryptErr != nil {
+			return "", "", fmt.Errorf("encrypt legacy windsurf password: %w", encryptErr)
+		}
+		return stored, encrypted, nil
+	}
+	return "", "", ErrWindsurfAccountPasswordUnreadable
+}
+
+func isLegacyPlaintextWindsurfPassword(stored string) bool {
+	if strings.TrimSpace(stored) == "" {
+		return false
+	}
+	decoded, err := base64.StdEncoding.DecodeString(stored)
+	if err != nil {
+		return true
+	}
+	const aesGCMMinPayloadBytes = 12 + 16
+	return len(decoded) < aesGCMMinPayloadBytes
 }

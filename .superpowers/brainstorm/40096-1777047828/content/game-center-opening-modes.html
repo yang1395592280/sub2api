@@ -1,0 +1,212 @@
+<h2>游戏中心方向选择</h2>
+<p class="subtitle">这一版聚焦 3 个点：用户大厅入口、个人积分信息展示、打开游戏时的承载方式。请优先看手机体验是否顺手。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. 大厅内嵌模式</div>
+        <div class="mockup-body">
+          <div style="background:linear-gradient(135deg,#083344,#164e63,#0f766e);border-radius:20px;padding:18px;color:#ecfeff;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <div>
+                <div class="label" style="color:#a5f3fc;">PLAYER HUB</div>
+                <div style="font-size:26px;font-weight:700;">游戏中心</div>
+              </div>
+              <div style="background:rgba(255,255,255,.12);padding:10px 12px;border-radius:16px;text-align:right;">
+                <div style="font-size:12px;opacity:.85;">今日积分</div>
+                <div style="font-size:24px;font-weight:700;">100</div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1.1fr .9fr;gap:12px;margin-top:14px;">
+              <div style="background:rgba(255,255,255,.1);border-radius:16px;padding:12px;">
+                <div style="font-size:12px;opacity:.8;">用户信息</div>
+                <div style="margin-top:8px;font-size:15px;font-weight:600;">Jayden</div>
+                <div style="margin-top:6px;font-size:13px;">累计积分 2,460</div>
+                <div style="margin-top:6px;font-size:13px;">下次发放 20:00</div>
+              </div>
+              <div style="background:rgba(255,255,255,.08);border-radius:16px;padding:12px;">
+                <div style="font-size:12px;opacity:.8;">游戏列表</div>
+                <div style="margin-top:8px;background:#fef3c7;color:#78350f;border-radius:12px;padding:8px 10px;font-size:13px;font-weight:600;">猜大小</div>
+                <div style="margin-top:8px;background:rgba(255,255,255,.08);border-radius:12px;padding:8px 10px;font-size:13px;">更多游戏待扩展</div>
+              </div>
+            </div>
+            <div style="margin-top:14px;background:#ffffff;color:#0f172a;border-radius:20px;padding:14px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-weight:700;">猜大小</div>
+                <div style="font-size:12px;color:#0891b2;">内嵌游玩</div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;">
+                <div style="background:#fde68a;border-radius:14px;padding:10px;text-align:center;font-weight:700;">小</div>
+                <div style="background:#e9d5ff;border-radius:14px;padding:10px;text-align:center;font-weight:700;">中</div>
+                <div style="background:#fecaca;border-radius:14px;padding:10px;text-align:center;font-weight:700;">大</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 大厅内直接玩</h3>
+      <p>优点是路径最短，用户点击卡片后直接在游戏中心页内展开游戏。适合手机端一屏完成“看积分 + 选游戏 + 开玩”。</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>优点</h4>
+          <ul>
+            <li>手机端最顺手</li>
+            <li>积分信息始终可见</li>
+            <li>适合轻量小游戏矩阵</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>代价</h4>
+          <ul>
+            <li>复杂游戏会挤压大厅空间</li>
+            <li>后续页面状态管理更复杂</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. 新 Tab / 新页打开</div>
+        <div class="mockup-body">
+          <div style="background:linear-gradient(135deg,#3b0764,#6d28d9,#2563eb);border-radius:20px;padding:18px;color:#f5f3ff;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <div>
+                <div class="label" style="color:#ddd6fe;">GAME LOUNGE</div>
+                <div style="font-size:26px;font-weight:700;">游戏中心</div>
+              </div>
+              <div style="background:rgba(255,255,255,.12);padding:10px 12px;border-radius:16px;">
+                <div style="font-size:12px;opacity:.85;">总积分</div>
+                <div style="font-size:24px;font-weight:700;">2460</div>
+              </div>
+            </div>
+            <div style="margin-top:16px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
+              <div style="background:#ffffff;color:#111827;border-radius:18px;padding:14px;">
+                <div style="font-size:12px;color:#6366f1;font-weight:700;">HOT GAME</div>
+                <div style="margin-top:6px;font-size:20px;font-weight:700;">猜大小</div>
+                <div style="margin-top:8px;font-size:13px;color:#4b5563;">独立沉浸式游戏页</div>
+                <div style="margin-top:12px;background:#111827;color:#fff;border-radius:999px;padding:8px 10px;font-size:12px;text-align:center;">进入游戏</div>
+              </div>
+              <div style="background:rgba(255,255,255,.1);border-radius:18px;padding:14px;">
+                <div style="font-size:12px;opacity:.8;">发放计划</div>
+                <div style="margin-top:8px;font-size:14px;">10:00 +100</div>
+                <div style="margin-top:6px;font-size:14px;">20:00 +100</div>
+              </div>
+            </div>
+            <div style="margin-top:16px;background:#eef2ff;color:#312e81;border-radius:18px;padding:12px;">
+              <div style="font-size:12px;font-weight:700;">切出大厅后</div>
+              <div style="margin-top:8px;height:66px;border-radius:14px;background:linear-gradient(90deg,#1e1b4b,#312e81,#1d4ed8);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;">独立游戏页面 / 新 Tab</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 大厅只做分发，游戏独立打开</h3>
+      <p>大厅负责展示积分、公告、游戏列表；点进游戏后进入完整独立页面。复杂游戏后续扩展最稳，页面边界也最清晰。</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>优点</h4>
+          <ul>
+            <li>扩展多个游戏最稳</li>
+            <li>游戏页可以做得更沉浸</li>
+            <li>后台配置关系更清晰</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>代价</h4>
+          <ul>
+            <li>切页感更强</li>
+            <li>手机上来回返回稍多一步</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C. 双模式共存（推荐）</div>
+        <div class="mockup-body">
+          <div style="background:linear-gradient(135deg,#14532d,#15803d,#0f766e);border-radius:20px;padding:18px;color:#f0fdf4;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <div>
+                <div class="label" style="color:#bbf7d0;">PLAY FLEX</div>
+                <div style="font-size:26px;font-weight:700;">游戏中心</div>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <div style="background:#ecfccb;color:#365314;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:700;">内嵌</div>
+                <div style="background:rgba(255,255,255,.14);border-radius:999px;padding:8px 12px;font-size:12px;">新页</div>
+              </div>
+            </div>
+            <div style="margin-top:16px;background:rgba(255,255,255,.1);border-radius:18px;padding:14px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <div style="font-size:12px;opacity:.85;">当前玩家</div>
+                  <div style="margin-top:6px;font-size:18px;font-weight:700;">Jayden · 2460 积分</div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:12px;opacity:.85;">今日待发</div>
+                  <div style="margin-top:6px;font-size:18px;font-weight:700;">20:00 / +100</div>
+                </div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;">
+              <div style="background:#ffffff;color:#111827;border-radius:18px;padding:14px;">
+                <div style="font-size:18px;font-weight:700;">猜大小</div>
+                <div style="margin-top:8px;font-size:13px;color:#4b5563;">支持“内嵌试玩 / 独立页沉浸”双入口</div>
+                <div style="display:flex;gap:8px;margin-top:12px;">
+                  <div style="flex:1;background:#dcfce7;color:#166534;border-radius:12px;padding:8px;text-align:center;font-size:12px;font-weight:700;">快速开始</div>
+                  <div style="flex:1;background:#dbeafe;color:#1d4ed8;border-radius:12px;padding:8px;text-align:center;font-size:12px;font-weight:700;">全屏打开</div>
+                </div>
+              </div>
+              <div style="background:rgba(255,255,255,.1);border-radius:18px;padding:14px;">
+                <div style="font-size:12px;opacity:.85;">适配策略</div>
+                <div style="margin-top:8px;font-size:13px;">桌面：可内嵌或弹新页</div>
+                <div style="margin-top:6px;font-size:13px;">手机：优先独立页，避免拥挤</div>
+                <div style="margin-top:6px;font-size:13px;">后台：每个游戏可配默认打开方式</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 双模式并存</h3>
+      <p>大厅保留“快速开始”和“全屏打开”两种入口，管理员还能给每个游戏单独配默认打开方式。最符合你现在“先都做出来看看”的需求。</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>优点</h4>
+          <ul>
+            <li>兼顾体验和扩展性</li>
+            <li>方便后续多游戏差异化配置</li>
+            <li>手机端可默认走独立页更美观</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>代价</h4>
+          <ul>
+            <li>实现量最大</li>
+            <li>配置项会比单模式稍多</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">我建议本次实现的主方向</div>
+    <div class="mockup-body">
+      <p><strong>推荐：C 双模式并存</strong>。原因是你的目标本身就包含“先把两种效果都做出来再决定”，而且后面还要继续加新游戏。把“打开方式”抽成游戏配置，后续会省很多重复改动。</p>
+      <p style="margin-top:10px;">如果你想更快上线 MVP，也可以先落地 <strong>B 独立页为主</strong>，同时在游戏中心首页保留一个“内嵌预览位”，这样实现成本会更低。</p>
+    </div>
+  </div>
+</div>

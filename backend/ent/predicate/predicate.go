@@ -83,3 +83,6 @@ type UserAttributeValue func(*sql.Selector)
 
 // UserSubscription is the predicate function for usersubscription builders.
 type UserSubscription func(*sql.Selector)
+
+// WindsurfAccount is the predicate function for windsurfaccount builders.
+type WindsurfAccount func(*sql.Selector)

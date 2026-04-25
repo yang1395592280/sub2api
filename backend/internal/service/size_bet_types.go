@@ -108,7 +108,7 @@ type SizeBetUserHistoryItem struct {
 	PayoutAmount    float64          `json:"payout_amount"`
 	NetResultAmount float64          `json:"net_result_amount"`
 	Status          SizeBetStatus    `json:"status"`
-	BalanceAfter    *float64         `json:"balance_after,omitempty"`
+	PointsAfter     *int64           `json:"points_after,omitempty"`
 	PlacedAt        time.Time        `json:"placed_at"`
 	SettledAt       *time.Time       `json:"settled_at,omitempty"`
 }
@@ -177,12 +177,12 @@ type SizeBetRefundResult struct {
 }
 
 type SizeBetStatsOverview struct {
-	Date          string  `json:"date"`
-	ParticipantCount int64 `json:"participant_count"`
-	TotalStake    float64 `json:"total_stake"`
-	TotalPayout   float64 `json:"total_payout"`
-	TotalUserNet  float64 `json:"total_user_net"`
-	HouseNet      float64 `json:"house_net"`
+	Date             string  `json:"date"`
+	ParticipantCount int64   `json:"participant_count"`
+	TotalStake       float64 `json:"total_stake"`
+	TotalPayout      float64 `json:"total_payout"`
+	TotalUserNet     float64 `json:"total_user_net"`
+	HouseNet         float64 `json:"house_net"`
 }
 
 type SizeBetStatsUserItem struct {

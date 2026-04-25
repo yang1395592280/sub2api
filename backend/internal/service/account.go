@@ -66,6 +66,11 @@ type Account struct {
 	modelMappingCacheRawSig         uint64
 }
 
+const (
+	OpenAIAPIModeResponses       = "responses"
+	OpenAIAPIModeChatCompletions = "chat_completions"
+)
+
 type TempUnschedulableRule struct {
 	ErrorCode       int      `json:"error_code"`
 	Keywords        []string `json:"keywords"`
@@ -895,6 +900,18 @@ func (a *Account) GetOpenAIApiKey() string {
 		return ""
 	}
 	return a.GetCredential("api_key")
+}
+
+func (a *Account) GetOpenAIAPIMode() string {
+	if !a.IsOpenAIApiKey() {
+		return OpenAIAPIModeResponses
+	}
+	switch strings.TrimSpace(a.GetCredential("api_mode")) {
+	case OpenAIAPIModeChatCompletions:
+		return OpenAIAPIModeChatCompletions
+	default:
+		return OpenAIAPIModeResponses
+	}
 }
 
 func (a *Account) GetOpenAIUserAgent() string {

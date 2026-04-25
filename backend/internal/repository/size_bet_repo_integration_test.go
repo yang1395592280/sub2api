@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSizeBetRepositoryCreateBetAndDebit_DebitsBalanceAndCreatesLedger(t *testing.T) {
+func TestSizeBetRepositoryCreateBetAndDebit_DebitsPointsAndCreatesLedger(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
 	repo := NewSizeBetRepository(client, integrationDB).(*sizeBetRepository)
@@ -22,7 +22,7 @@ func TestSizeBetRepositoryCreateBetAndDebit_DebitsBalanceAndCreatesLedger(t *tes
 	user := mustCreateUser(t, client, &service.User{
 		Email:        fmt.Sprintf("size-bet-user-%d@example.com", time.Now().UnixNano()),
 		PasswordHash: "hash",
-		Balance:      20,
+		Points:       20,
 	})
 	round := mustInsertSizeBetRound(t, ctx, sizeBetRoundInsertInput{status: service.SizeBetRoundStatusOpen})
 
@@ -41,9 +41,9 @@ func TestSizeBetRepositoryCreateBetAndDebit_DebitsBalanceAndCreatesLedger(t *tes
 	require.NotZero(t, bet.ID)
 	require.NotZero(t, entry.ID)
 
-	var balance float64
-	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT balance FROM users WHERE id = $1`, user.ID).Scan(&balance))
-	require.InDelta(t, 15, balance, 0.000001)
+	var points int64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT points FROM users WHERE id = $1`, user.ID).Scan(&points))
+	require.Equal(t, int64(15), points)
 
 	var betCount int
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM game_bets WHERE id = $1 AND status = $2`, bet.ID, service.SizeBetStatusPlaced).Scan(&betCount))
@@ -72,7 +72,7 @@ func TestSizeBetRepositoryCreateBetAndDebit_MapsDuplicateConflictAndRollsBackDeb
 	user := mustCreateUser(t, client, &service.User{
 		Email:        fmt.Sprintf("size-bet-dup-%d@example.com", time.Now().UnixNano()),
 		PasswordHash: "hash",
-		Balance:      20,
+		Points:       20,
 	})
 	round := mustInsertSizeBetRound(t, ctx, sizeBetRoundInsertInput{status: service.SizeBetRoundStatusOpen})
 
@@ -97,9 +97,9 @@ func TestSizeBetRepositoryCreateBetAndDebit_MapsDuplicateConflictAndRollsBackDeb
 	err := repo.CreateBetAndDebit(ctx, secondBet, service.NewBetDebitLedger(round, secondBet))
 	require.ErrorIs(t, err, service.ErrSizeBetDuplicateBet)
 
-	var balance float64
-	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT balance FROM users WHERE id = $1`, user.ID).Scan(&balance))
-	require.InDelta(t, 15, balance, 0.000001)
+	var points int64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT points FROM users WHERE id = $1`, user.ID).Scan(&points))
+	require.Equal(t, int64(15), points)
 
 	var ledgerCount int
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM game_wallet_ledger WHERE user_id = $1 AND round_id = $2`, user.ID, round.ID).Scan(&ledgerCount))
@@ -139,7 +139,7 @@ func TestSizeBetRepositoryCreateBetAndDebit_RejectsNonBettableRoundWithoutSideEf
 			user := mustCreateUser(t, client, &service.User{
 				Email:        fmt.Sprintf("size-bet-closed-%d@example.com", time.Now().UnixNano()),
 				PasswordHash: "hash",
-				Balance:      20,
+				Points:       20,
 			})
 			round := mustInsertSizeBetRound(t, ctx, tc.round)
 
@@ -155,9 +155,9 @@ func TestSizeBetRepositoryCreateBetAndDebit_RejectsNonBettableRoundWithoutSideEf
 			err := repo.CreateBetAndDebit(ctx, bet, service.NewBetDebitLedger(round, bet))
 			require.ErrorIs(t, err, tc.wantError)
 
-			var balance float64
-			require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT balance FROM users WHERE id = $1`, user.ID).Scan(&balance))
-			require.InDelta(t, 20, balance, 0.000001)
+			var points int64
+			require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT points FROM users WHERE id = $1`, user.ID).Scan(&points))
+			require.Equal(t, int64(20), points)
 
 			var betCount int
 			require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM game_bets WHERE user_id = $1 AND round_id = $2`, user.ID, round.ID).Scan(&betCount))
@@ -178,7 +178,7 @@ func TestSizeBetRepositoryApplySettlement_RejectsDuplicateSettleWithoutDoubleCre
 	user := mustCreateUser(t, client, &service.User{
 		Email:        fmt.Sprintf("size-bet-settle-%d@example.com", time.Now().UnixNano()),
 		PasswordHash: "hash",
-		Balance:      8,
+		Points:       8,
 	})
 	round := mustInsertSizeBetRound(t, ctx, sizeBetRoundInsertInput{status: service.SizeBetRoundStatusOpen})
 	betID := mustInsertSizeBet(t, ctx, sizeBetInsertInput{
@@ -206,9 +206,9 @@ func TestSizeBetRepositoryApplySettlement_RejectsDuplicateSettleWithoutDoubleCre
 	_, err = repo.ApplySettlement(ctx, input)
 	require.ErrorIs(t, err, service.ErrSizeBetRoundAlreadySettled)
 
-	var balance float64
-	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT balance FROM users WHERE id = $1`, user.ID).Scan(&balance))
-	require.InDelta(t, 28, balance, 0.000001)
+	var points int64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT points FROM users WHERE id = $1`, user.ID).Scan(&points))
+	require.Equal(t, int64(28), points)
 
 	var payoutCount int
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `
