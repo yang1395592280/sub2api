@@ -161,7 +161,7 @@ func TestWindsurfAccountServiceCreateDisablesAccountAndTracksMaintainer(t *testi
 	require.NoError(t, err)
 	require.NotNil(t, repo.created)
 	require.Equal(t, "windsurf@example.com", repo.created.Account)
-	require.Equal(t, "enc:super-secret", repo.created.PasswordEncrypted)
+	require.Equal(t, "aesgcm:enc:super-secret", repo.created.PasswordEncrypted)
 	require.False(t, repo.created.Enabled)
 	require.Equal(t, int64(7), repo.created.MaintainedBy)
 	require.WithinDuration(t, time.Now(), repo.created.MaintainedAt, 2*time.Second)
@@ -202,7 +202,7 @@ func TestWindsurfAccountServiceUpdateCredentialsResetsEnabledStatus(t *testing.T
 	require.NoError(t, err)
 	require.NotNil(t, repo.updated)
 	require.Equal(t, "new@example.com", repo.updated.Account)
-	require.Equal(t, "enc:new-password", repo.updated.PasswordEncrypted)
+	require.Equal(t, "aesgcm:enc:new-password", repo.updated.PasswordEncrypted)
 	require.False(t, repo.updated.Enabled)
 	require.Equal(t, int64(8), repo.updated.MaintainedBy)
 	require.WithinDuration(t, time.Now(), repo.updated.MaintainedAt, 2*time.Second)
@@ -240,7 +240,7 @@ func TestWindsurfAccountServiceUpdateCredentialsAllowsMaintainerToChangePassword
 	require.NoError(t, err)
 	require.NotNil(t, repo.updated)
 	require.Equal(t, "owner@example.com", repo.updated.Account)
-	require.Equal(t, "enc:new-password", repo.updated.PasswordEncrypted)
+	require.Equal(t, "aesgcm:enc:new-password", repo.updated.PasswordEncrypted)
 	require.False(t, repo.updated.Enabled)
 	require.Equal(t, int64(8), repo.updated.MaintainedBy)
 	require.Equal(t, "owner@example.com", item.Account)
@@ -363,6 +363,24 @@ func TestWindsurfAccountServiceRevealPasswordAllowsAdmin(t *testing.T) {
 	require.Equal(t, "secret-value", password)
 }
 
+func TestWindsurfAccountServiceRevealPasswordReadsPrefixedEncryptedPassword(t *testing.T) {
+	repo := &windsurfAccountRepoStub{
+		byID: map[int64]*WindsurfAccount{
+			5: {ID: 5, Account: "windsurf@example.com", PasswordEncrypted: "aesgcm:enc:secret-value", MaintainedBy: 7},
+		},
+	}
+	svc := NewWindsurfAccountService(repo, &windsurfUserRepoStub{}, windsurfEncryptorStub{})
+
+	password, err := svc.RevealPassword(context.Background(), 5, &RevealWindsurfAccountPasswordInput{
+		ActorID: 99,
+		IsAdmin: true,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "secret-value", password)
+	require.Nil(t, repo.updated)
+}
+
 func TestWindsurfAccountServiceRevealPasswordMigratesLegacyPlaintext(t *testing.T) {
 	repo := &windsurfAccountRepoStub{
 		byID: map[int64]*WindsurfAccount{
@@ -379,18 +397,37 @@ func TestWindsurfAccountServiceRevealPasswordMigratesLegacyPlaintext(t *testing.
 	require.NoError(t, err)
 	require.Equal(t, "legacy-plain-password", password)
 	require.NotNil(t, repo.updated)
-	require.Equal(t, "enc:legacy-plain-password", repo.updated.PasswordEncrypted)
+	require.Equal(t, "aesgcm:enc:legacy-plain-password", repo.updated.PasswordEncrypted)
 }
 
-func TestWindsurfAccountServiceRevealPasswordReturnsActionableErrorForUnreadableCiphertext(t *testing.T) {
+func TestWindsurfAccountServiceRevealPasswordMigratesBase64LikeLegacyPlaintext(t *testing.T) {
 	repo := &windsurfAccountRepoStub{
 		byID: map[int64]*WindsurfAccount{
-			7: {ID: 7, Account: "broken@example.com", PasswordEncrypted: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", MaintainedBy: 9},
+			7: {ID: 7, Account: "legacy-base64@example.com", PasswordEncrypted: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", MaintainedBy: 9},
 		},
 	}
 	svc := NewWindsurfAccountService(repo, &windsurfUserRepoStub{}, windsurfEncryptorStub{})
 
 	password, err := svc.RevealPassword(context.Background(), 7, &RevealWindsurfAccountPasswordInput{
+		ActorID: 99,
+		IsAdmin: true,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", password)
+	require.NotNil(t, repo.updated)
+	require.Equal(t, "aesgcm:enc:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", repo.updated.PasswordEncrypted)
+}
+
+func TestWindsurfAccountServiceRevealPasswordReturnsActionableErrorForEmptyStoredPassword(t *testing.T) {
+	repo := &windsurfAccountRepoStub{
+		byID: map[int64]*WindsurfAccount{
+			8: {ID: 8, Account: "broken@example.com", PasswordEncrypted: "", MaintainedBy: 9},
+		},
+	}
+	svc := NewWindsurfAccountService(repo, &windsurfUserRepoStub{}, windsurfEncryptorStub{})
+
+	password, err := svc.RevealPassword(context.Background(), 8, &RevealWindsurfAccountPasswordInput{
 		ActorID: 99,
 		IsAdmin: true,
 	})
