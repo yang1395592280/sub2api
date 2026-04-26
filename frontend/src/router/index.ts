@@ -429,6 +429,16 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/anthropic-auto-inspect-logs',
+    name: 'AdminAnthropicAutoInspectLogs',
+    component: () => import('@/views/admin/AnthropicAutoInspectLogsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Anthropic Auto Inspect',
+    }
+  },
+  {
     path: '/admin/checkins',
     name: 'AdminCheckins',
     component: () => import('@/views/admin/CheckinsView.vue'),

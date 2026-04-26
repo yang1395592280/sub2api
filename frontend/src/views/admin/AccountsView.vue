@@ -65,6 +65,15 @@
 
               <!-- Error Passthrough Rules -->
               <button
+                @click="openAnthropicAutoInspectLogs"
+                class="btn btn-secondary"
+                title="Anthropic 自动巡检日志"
+              >
+                <Icon name="chart" size="md" class="mr-1.5" />
+                <span class="hidden md:inline">Anthropic巡检</span>
+              </button>
+
+              <button
                 @click="showErrorPassthrough = true"
                 class="btn btn-secondary"
                 :title="t('admin.errorPassthrough.title')"
@@ -327,6 +336,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, toRaw, watch } from 'vue'
 import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
@@ -363,6 +373,7 @@ import { formatDateTime, formatRelativeTime } from '@/utils/format'
 import type { Account, AccountPlatform, AccountType, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
 
 const { t } = useI18n()
+const router = useRouter()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 
@@ -412,6 +423,10 @@ const scheduleModelOptions = ref<SelectOption[]>([])
 const togglingSchedulable = ref<number | null>(null)
 const menu = reactive<{show:boolean, acc:Account|null, pos:{top:number, left:number}|null}>({ show: false, acc: null, pos: null })
 const exportingData = ref(false)
+
+const openAnthropicAutoInspectLogs = () => {
+  void router.push('/admin/anthropic-auto-inspect-logs')
+}
 
 // Column settings
 const showColumnDropdown = ref(false)

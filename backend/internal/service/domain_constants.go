@@ -217,6 +217,11 @@ const (
 	// SettingKeyOpsMetricsIntervalSeconds controls the ops metrics collector interval (>=60).
 	SettingKeyOpsMetricsIntervalSeconds = "ops_metrics_interval_seconds"
 
+	// Anthropic auto inspect settings
+	SettingKeyAnthropicAutoInspectEnabled              = "anthropic_auto_inspect_enabled"
+	SettingKeyAnthropicAutoInspectIntervalMinutes      = "anthropic_auto_inspect_interval_minutes"
+	SettingKeyAnthropicAutoInspectErrorCooldownMinutes = "anthropic_auto_inspect_error_cooldown_minutes"
+
 	// SettingKeyOpsAdvancedSettings stores JSON config for ops advanced settings (data retention, aggregation).
 	SettingKeyOpsAdvancedSettings = "ops_advanced_settings"
 

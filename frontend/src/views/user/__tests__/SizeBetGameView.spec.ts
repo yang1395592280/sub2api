@@ -2,17 +2,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import SizeBetGameView from '../SizeBetGameView.vue'
-const { getCurrent, getRules, getHistory, getRounds, placeBet, showError, showSuccess, showWarning } = vi.hoisted(() => ({
+const { getCurrent, getRules, getHistory, getRounds, placeBet, getOverview, showError, showSuccess, showWarning } = vi.hoisted(() => ({
   getCurrent: vi.fn(),
   getRules: vi.fn(),
   getHistory: vi.fn(),
   getRounds: vi.fn(),
   placeBet: vi.fn(),
+  getOverview: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
   showWarning: vi.fn(),
 }))
 vi.mock('@/api', () => ({
+  gameCenterAPI: {
+    getOverview,
+  },
   sizeBetAPI: {
     getCurrent,
     getRules,
@@ -249,10 +253,12 @@ describe('SizeBetGameView', () => {
     getHistory.mockReset()
     getRounds.mockReset()
     placeBet.mockReset()
+    getOverview.mockReset()
     showError.mockReset()
     showSuccess.mockReset()
     showWarning.mockReset()
     sessionStorage.clear()
+    getOverview.mockResolvedValue({ points: 321 })
     mockRounds()
   })
   afterEach(() => {
@@ -413,6 +419,82 @@ describe('SizeBetGameView', () => {
     expect(wrapper.text()).toContain('+10')
     expect(wrapper.text()).toContain('本局结果')
     expect(wrapper.text()).toContain('本次获得奖励 +10')
+  })
+
+  it('refreshes displayed points balance after settlement sync updates user points', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-04-23T12:00:10Z'))
+    getCurrent
+      .mockResolvedValueOnce(
+        buildCurrentView({
+          phase: 'closed',
+          round: {
+            ...buildCurrentView().round,
+            bet_closes_at: '2026-04-23T12:00:09Z',
+            settles_at: '2026-04-23T12:00:10Z',
+            countdown_seconds: 0,
+            bet_countdown_seconds: 0,
+          },
+          my_bet: {
+            id: 1,
+            round_id: 1001,
+            direction: 'big',
+            stake_amount: 10,
+            payout_amount: 0,
+            net_result_amount: 0,
+            status: 'placed',
+            placed_at: '2026-04-23T12:00:10Z',
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        buildCurrentView({
+          phase: 'preparing',
+          round: null,
+          my_bet: null,
+          previous_round: {
+            id: 1001,
+            round_no: 1001,
+            status: 'settled',
+            starts_at: '2026-04-23T12:00:00Z',
+            settles_at: '2026-04-23T12:00:10Z',
+            result_number: 9,
+            result_direction: 'big',
+            server_seed_hash: 'hash-1001',
+            server_seed: 'seed-1001',
+          },
+        })
+      )
+    mockRules()
+    getHistory
+      .mockResolvedValueOnce({
+        items: [buildHistoryItem({ status: 'placed', net_result_amount: 0, payout_amount: 0, result_number: null, result_direction: null, settled_at: null, points_after: 321 })],
+        total: 1,
+        page: 1,
+        page_size: 10,
+        pages: 1,
+      })
+      .mockResolvedValueOnce({
+        items: [buildHistoryItem({ points_after: 654 })],
+        total: 1,
+        page: 1,
+        page_size: 10,
+        pages: 1,
+      })
+    getOverview
+      .mockResolvedValueOnce({ points: 321 })
+      .mockResolvedValueOnce({ points: 654 })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('321')
+
+    await vi.advanceTimersByTimeAsync(4000)
+    await flushPromises()
+
+    expect(getOverview).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('654')
   })
 
   it('does not replay the latest settled result modal after remount when it was already seen', async () => {

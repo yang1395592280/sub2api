@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ type WindsurfAccountService struct {
 }
 
 const windsurfEncryptedPasswordPrefix = "aesgcm:"
+const windsurfLegacyCiphertextMinBytes = 12 + 16
 
 func NewWindsurfAccountService(
 	repo WindsurfAccountRepository,
@@ -237,6 +239,9 @@ func (s *WindsurfAccountService) resolveStoredPassword(stored string) (password 
 		}
 		return password, encrypted, nil
 	}
+	if looksLikeUnreadableLegacyWindsurfCiphertext(stored) {
+		return "", "", ErrWindsurfAccountPasswordUnreadable
+	}
 	encrypted, encryptErr := s.encryptWindsurfPassword(stored)
 	if encryptErr != nil {
 		return "", "", fmt.Errorf("encrypt legacy windsurf password: %w", encryptErr)
@@ -250,4 +255,12 @@ func (s *WindsurfAccountService) encryptWindsurfPassword(password string) (strin
 		return "", err
 	}
 	return windsurfEncryptedPasswordPrefix + encrypted, nil
+}
+
+func looksLikeUnreadableLegacyWindsurfCiphertext(stored string) bool {
+	decoded, err := base64.StdEncoding.DecodeString(stored)
+	if err != nil {
+		return false
+	}
+	return len(decoded) >= windsurfLegacyCiphertextMinBytes
 }

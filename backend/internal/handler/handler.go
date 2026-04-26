@@ -31,6 +31,7 @@ type AdminHandlers struct {
 	TLSFingerprintProfile *admin.TLSFingerprintProfileHandler
 	APIKey                *admin.AdminAPIKeyHandler
 	ScheduledTest         *admin.ScheduledTestHandler
+	AnthropicAutoInspect  *admin.AnthropicAutoInspectHandler
 	Channel               *admin.ChannelHandler
 	Payment               *admin.PaymentHandler
 	SizeBet               *admin.SizeBetHandler

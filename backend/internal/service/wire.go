@@ -202,6 +202,19 @@ func ProvideSchedulerSnapshotService(
 	return svc
 }
 
+func ProvideAnthropicAutoInspectService(
+	accountRepo AccountRepository,
+	accountTestSvc *AccountTestService,
+	repo AnthropicAutoInspectRepository,
+	settingService *SettingService,
+	cfg *config.Config,
+) *AnthropicAutoInspectService {
+	svc := NewAnthropicAutoInspectService(accountRepo, accountTestSvc, repo, cfg)
+	svc.SetSettingsProvider(settingService)
+	svc.Start()
+	return svc
+}
+
 // ProvideRateLimitService creates RateLimitService with optional dependencies.
 func ProvideRateLimitService(
 	accountRepo AccountRepository,

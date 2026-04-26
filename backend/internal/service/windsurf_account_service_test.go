@@ -400,10 +400,10 @@ func TestWindsurfAccountServiceRevealPasswordMigratesLegacyPlaintext(t *testing.
 	require.Equal(t, "aesgcm:enc:legacy-plain-password", repo.updated.PasswordEncrypted)
 }
 
-func TestWindsurfAccountServiceRevealPasswordMigratesBase64LikeLegacyPlaintext(t *testing.T) {
+func TestWindsurfAccountServiceRevealPasswordRejectsOpaqueBase64LikeValue(t *testing.T) {
 	repo := &windsurfAccountRepoStub{
 		byID: map[int64]*WindsurfAccount{
-			7: {ID: 7, Account: "legacy-base64@example.com", PasswordEncrypted: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", MaintainedBy: 9},
+			7: {ID: 7, Account: "legacy-base64@example.com", PasswordEncrypted: "gLIFwekrUh0I4cLLDxJRxk+vm8efpbxhLpcqj7mPqNAZHdz81sVtyw==", MaintainedBy: 9},
 		},
 	}
 	svc := NewWindsurfAccountService(repo, &windsurfUserRepoStub{}, windsurfEncryptorStub{})
@@ -413,10 +413,9 @@ func TestWindsurfAccountServiceRevealPasswordMigratesBase64LikeLegacyPlaintext(t
 		IsAdmin: true,
 	})
 
-	require.NoError(t, err)
-	require.Equal(t, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", password)
-	require.NotNil(t, repo.updated)
-	require.Equal(t, "aesgcm:enc:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", repo.updated.PasswordEncrypted)
+	require.ErrorIs(t, err, ErrWindsurfAccountPasswordUnreadable)
+	require.Empty(t, password)
+	require.Nil(t, repo.updated)
 }
 
 func TestWindsurfAccountServiceRevealPasswordReturnsActionableErrorForEmptyStoredPassword(t *testing.T) {

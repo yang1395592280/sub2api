@@ -648,6 +648,9 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 	updates[SettingKeyCheckinDistributionConfig] = settings.CheckinDistributionConfig
 	updates[SettingKeyCheckinLuckyBonusEnabled] = strconv.FormatBool(settings.CheckinLuckyBonusEnabled)
 	updates[SettingKeyCheckinLuckyBonusSuccessRate] = strconv.FormatFloat(settings.CheckinLuckyBonusSuccessRate, 'f', 8, 64)
+	updates[SettingKeyAnthropicAutoInspectEnabled] = strconv.FormatBool(settings.AnthropicAutoInspectEnabled)
+	updates[SettingKeyAnthropicAutoInspectIntervalMinutes] = strconv.Itoa(settings.AnthropicAutoInspectIntervalMinutes)
+	updates[SettingKeyAnthropicAutoInspectErrorCooldownMinutes] = strconv.Itoa(settings.AnthropicAutoInspectErrorCooldownMinutes)
 
 	// Model fallback configuration
 	updates[SettingKeyEnableModelFallback] = strconv.FormatBool(settings.EnableModelFallback)
@@ -989,42 +992,45 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 
 	// 初始化默认设置
 	defaults := map[string]string{
-		SettingKeyRegistrationEnabled:              "true",
-		SettingKeyEmailVerifyEnabled:               "false",
-		SettingKeyRegistrationEmailSuffixWhitelist: "[]",
-		SettingKeyPromoCodeEnabled:                 "true", // 默认启用优惠码功能
-		SettingKeySiteName:                         "Sub2API",
-		SettingKeySiteLogo:                         "",
-		SettingKeyPurchaseSubscriptionEnabled:      "false",
-		SettingKeyPurchaseSubscriptionURL:          "",
-		SettingKeyTableDefaultPageSize:             "20",
-		SettingKeyTablePageSizeOptions:             "[10,20,50,100]",
-		SettingKeyCustomMenuItems:                  "[]",
-		SettingKeyCustomEndpoints:                  "[]",
-		SettingKeyGameCenterEnabled:                "true",
-		SettingKeyOIDCConnectEnabled:               "false",
-		SettingKeyOIDCConnectProviderName:          "OIDC",
-		SettingKeyDefaultConcurrency:               strconv.Itoa(s.cfg.Default.UserConcurrency),
-		SettingKeyDefaultBalance:                   strconv.FormatFloat(s.cfg.Default.UserBalance, 'f', 8, 64),
-		SettingKeyDefaultSubscriptions:             "[]",
-		SettingKeyCheckinEnabled:                   "false",
-		SettingKeyCheckinMinReward:                 strconv.FormatFloat(defaultCheckinMinReward, 'f', 8, 64),
-		SettingKeyCheckinMaxReward:                 strconv.FormatFloat(defaultCheckinMaxReward, 'f', 8, 64),
-		SettingKeyCheckinDistributionEnabled:       "false",
-		SettingKeyCheckinDistributionConfig:        "[]",
-		SettingKeyCheckinLuckyBonusEnabled:         "false",
-		SettingKeyCheckinLuckyBonusSuccessRate:     strconv.FormatFloat(defaultCheckinLuckyBonusSuccessRate, 'f', 8, 64),
-		SettingKeySizeBetEnabled:                   strconv.FormatBool(defaultSizeBetEnabled),
-		SettingKeySizeBetRoundDurationSeconds:      strconv.Itoa(defaultSizeBetRoundDurationSeconds),
-		SettingKeySizeBetBetCloseOffsetSeconds:     strconv.Itoa(defaultSizeBetBetCloseOffsetSeconds),
-		SettingKeySizeBetAllowedStakes:             mustJSON(defaultSizeBetAllowedStakes()),
-		SettingKeySizeBetCustomStakeMin:            strconv.Itoa(defaultSizeBetCustomStakeMin),
-		SettingKeySizeBetCustomStakeMax:            strconv.Itoa(defaultSizeBetCustomStakeMax),
-		SettingKeySizeBetProbabilities:             mustJSON(defaultSizeBetProbabilities()),
-		SettingKeySizeBetOdds:                      mustJSON(defaultSizeBetOdds()),
-		SettingKeySizeBetRulesMarkdown:             defaultSizeBetRulesMarkdown,
-		SettingKeySMTPPort:                         "587",
-		SettingKeySMTPUseTLS:                       "false",
+		SettingKeyRegistrationEnabled:                      "true",
+		SettingKeyEmailVerifyEnabled:                       "false",
+		SettingKeyRegistrationEmailSuffixWhitelist:         "[]",
+		SettingKeyPromoCodeEnabled:                         "true", // 默认启用优惠码功能
+		SettingKeySiteName:                                 "Sub2API",
+		SettingKeySiteLogo:                                 "",
+		SettingKeyPurchaseSubscriptionEnabled:              "false",
+		SettingKeyPurchaseSubscriptionURL:                  "",
+		SettingKeyTableDefaultPageSize:                     "20",
+		SettingKeyTablePageSizeOptions:                     "[10,20,50,100]",
+		SettingKeyCustomMenuItems:                          "[]",
+		SettingKeyCustomEndpoints:                          "[]",
+		SettingKeyGameCenterEnabled:                        "true",
+		SettingKeyOIDCConnectEnabled:                       "false",
+		SettingKeyOIDCConnectProviderName:                  "OIDC",
+		SettingKeyDefaultConcurrency:                       strconv.Itoa(s.cfg.Default.UserConcurrency),
+		SettingKeyDefaultBalance:                           strconv.FormatFloat(s.cfg.Default.UserBalance, 'f', 8, 64),
+		SettingKeyDefaultSubscriptions:                     "[]",
+		SettingKeyCheckinEnabled:                           "false",
+		SettingKeyCheckinMinReward:                         strconv.FormatFloat(defaultCheckinMinReward, 'f', 8, 64),
+		SettingKeyCheckinMaxReward:                         strconv.FormatFloat(defaultCheckinMaxReward, 'f', 8, 64),
+		SettingKeyCheckinDistributionEnabled:               "false",
+		SettingKeyCheckinDistributionConfig:                "[]",
+		SettingKeyCheckinLuckyBonusEnabled:                 "false",
+		SettingKeyCheckinLuckyBonusSuccessRate:             strconv.FormatFloat(defaultCheckinLuckyBonusSuccessRate, 'f', 8, 64),
+		SettingKeyAnthropicAutoInspectEnabled:              "false",
+		SettingKeyAnthropicAutoInspectIntervalMinutes:      "1",
+		SettingKeyAnthropicAutoInspectErrorCooldownMinutes: "30",
+		SettingKeySizeBetEnabled:                           strconv.FormatBool(defaultSizeBetEnabled),
+		SettingKeySizeBetRoundDurationSeconds:              strconv.Itoa(defaultSizeBetRoundDurationSeconds),
+		SettingKeySizeBetBetCloseOffsetSeconds:             strconv.Itoa(defaultSizeBetBetCloseOffsetSeconds),
+		SettingKeySizeBetAllowedStakes:                     mustJSON(defaultSizeBetAllowedStakes()),
+		SettingKeySizeBetCustomStakeMin:                    strconv.Itoa(defaultSizeBetCustomStakeMin),
+		SettingKeySizeBetCustomStakeMax:                    strconv.Itoa(defaultSizeBetCustomStakeMax),
+		SettingKeySizeBetProbabilities:                     mustJSON(defaultSizeBetProbabilities()),
+		SettingKeySizeBetOdds:                              mustJSON(defaultSizeBetOdds()),
+		SettingKeySizeBetRulesMarkdown:                     defaultSizeBetRulesMarkdown,
+		SettingKeySMTPPort:                                 "587",
+		SettingKeySMTPUseTLS:                               "false",
 		// Model fallback defaults
 		SettingKeyEnableModelFallback:      "false",
 		SettingKeyFallbackModelAnthropic:   "claude-3-5-sonnet-20241022",
@@ -1128,6 +1134,9 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	if v, err := strconv.ParseFloat(settings[SettingKeyCheckinLuckyBonusSuccessRate], 64); err == nil && v >= 0 && v <= 100 {
 		result.CheckinLuckyBonusSuccessRate = v
 	}
+	result.AnthropicAutoInspectEnabled = settings[SettingKeyAnthropicAutoInspectEnabled] == "true"
+	result.AnthropicAutoInspectIntervalMinutes = s.getIntOrDefault(settings, SettingKeyAnthropicAutoInspectIntervalMinutes, 1)
+	result.AnthropicAutoInspectErrorCooldownMinutes = s.getIntOrDefault(settings, SettingKeyAnthropicAutoInspectErrorCooldownMinutes, 30)
 	result.DefaultSubscriptions = parseDefaultSubscriptions(settings[SettingKeyDefaultSubscriptions])
 
 	// 敏感信息直接返回，方便测试连接时使用
@@ -1457,6 +1466,18 @@ func (s *SettingService) getStringOrDefault(settings map[string]string, key, def
 		return value
 	}
 	return defaultValue
+}
+
+func (s *SettingService) getIntOrDefault(settings map[string]string, key string, defaultValue int) int {
+	value, ok := settings[key]
+	if !ok || strings.TrimSpace(value) == "" {
+		return defaultValue
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return defaultValue
+	}
+	return parsed
 }
 
 // IsTurnstileEnabled 检查是否启用 Turnstile 验证

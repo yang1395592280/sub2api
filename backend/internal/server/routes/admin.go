@@ -89,6 +89,9 @@ func RegisterAdminRoutes(
 		// 定时测试计划
 		registerScheduledTestRoutes(admin, h)
 
+		// Anthropic 自动巡检
+		registerAnthropicAutoInspectRoutes(admin, h)
+
 		// 渠道管理
 		registerChannelRoutes(admin, h)
 
@@ -97,6 +100,17 @@ func RegisterAdminRoutes(
 
 		// 游戏中心
 		registerGameCenterRoutes(admin, h)
+	}
+}
+
+func registerAnthropicAutoInspectRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	autoInspect := admin.Group("/anthropic-auto-inspect")
+	{
+		autoInspect.GET("/settings", h.Admin.AnthropicAutoInspect.GetSettings)
+		autoInspect.PUT("/settings", h.Admin.AnthropicAutoInspect.UpdateSettings)
+		autoInspect.POST("/run", h.Admin.AnthropicAutoInspect.RunNow)
+		autoInspect.GET("/logs", h.Admin.AnthropicAutoInspect.ListLogs)
+		autoInspect.GET("/batches", h.Admin.AnthropicAutoInspect.ListBatches)
 	}
 }
 

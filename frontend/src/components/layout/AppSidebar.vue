@@ -689,6 +689,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/channels', label: t('nav.channels', '渠道管理'), icon: ChannelIcon, hideInSimpleMode: true },
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
+    { path: '/admin/anthropic-auto-inspect-logs', label: t('nav.anthropicAutoInspect', 'Anthropic巡检'), icon: ChartIcon },
     { path: '/admin/checkins', label: t('nav.checkins'), icon: GiftIcon },
     { path: '/admin/checkin-analytics', label: t('nav.checkinAnalytics'), icon: ChartIcon },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },

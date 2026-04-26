@@ -373,6 +373,19 @@ function formatDateTime(value?: string): string {
   return new Date(value).toLocaleString()
 }
 
+function normalizeGameLeaderboard(items: SizeBetLeaderboardItem[]): SizeBetLeaderboardItem[] {
+  return [...items]
+    .sort((left, right) =>
+      right.points - left.points
+      || right.net_profit - left.net_profit
+      || right.win_count - left.win_count
+      || left.user_id - right.user_id)
+    .map((item, index) => ({
+      ...item,
+      rank: index + 1,
+    }))
+}
+
 function ledgerTypeLabel(type: string): string {
   return t(`gameCenter.ledger.types.${type}`)
 }
@@ -447,7 +460,7 @@ async function loadGameLeaderboards(): Promise<void> {
     const view = await sizeBetAPI.getLeaderboard('all')
     gameLeaderboards.value = {
       ...gameLeaderboards.value,
-      size_bet: view.items ?? [],
+      size_bet: normalizeGameLeaderboard(view.items ?? []),
     }
   } catch {
     gameLeaderboards.value = { ...gameLeaderboards.value, size_bet: [] }

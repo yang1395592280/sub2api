@@ -205,6 +205,57 @@ describe('GameCenterView', () => {
     expect(wrapper.text()).toContain('剩余积分：8,800')
   })
 
+  it('sorts game catalog top users by points descending before rendering', async () => {
+    getLeaderboard.mockResolvedValue({
+      scope: 'all',
+      scope_key: 'all',
+      items: [
+        {
+          rank: 3,
+          user_id: 3,
+          email: 'low@example.com',
+          username: 'low',
+          points: 100,
+          net_profit: 18,
+          win_count: 3,
+          bet_count: 4,
+          hit_rate: 0.75,
+        },
+        {
+          rank: 1,
+          user_id: 1,
+          email: 'high@example.com',
+          username: 'high',
+          points: 900,
+          net_profit: 10,
+          win_count: 2,
+          bet_count: 5,
+          hit_rate: 0.4,
+        },
+        {
+          rank: 2,
+          user_id: 2,
+          email: 'mid@example.com',
+          username: 'mid',
+          points: 500,
+          net_profit: 12,
+          win_count: 4,
+          bet_count: 6,
+          hit_rate: 0.67,
+        },
+      ],
+    })
+
+    const { wrapper } = await mountView()
+    const text = wrapper.text()
+
+    expect(text).toContain('#1 high@example.com')
+    expect(text).toContain('#2 mid@example.com')
+    expect(text).toContain('#3 low@example.com')
+    expect(text.indexOf('high@example.com')).toBeLessThan(text.indexOf('mid@example.com'))
+    expect(text.indexOf('mid@example.com')).toBeLessThan(text.indexOf('low@example.com'))
+  })
+
   it('opens real size bet route on desktop quick start', async () => {
     const { wrapper } = await mountView()
     await wrapper.get('[data-test="quick-start-size_bet"]').trigger('click')

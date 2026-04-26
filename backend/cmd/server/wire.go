@@ -96,6 +96,7 @@ func provideCleanup(
 	antigravityOAuth *service.AntigravityOAuthService,
 	openAIGateway *service.OpenAIGatewayService,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
+	anthropicAutoInspect *service.AnthropicAutoInspectService,
 	backupSvc *service.BackupService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
 ) func() {
@@ -231,6 +232,12 @@ func provideCleanup(
 			{"ScheduledTestRunnerService", func() error {
 				if scheduledTestRunner != nil {
 					scheduledTestRunner.Stop()
+				}
+				return nil
+			}},
+			{"AnthropicAutoInspectService", func() error {
+				if anthropicAutoInspect != nil {
+					anthropicAutoInspect.Stop()
 				}
 				return nil
 			}},

@@ -418,6 +418,9 @@ async function refreshPointsBalance() {
   try {
     const overview = await gameCenterAPI.getOverview()
     pointsBalance.value = overview.points
+    if (authStore.user) {
+      authStore.user.points = overview.points
+    }
   } catch {
     // 积分展示失败不阻塞游戏主流程
   }
@@ -485,6 +488,7 @@ async function syncCurrent(silent = true) {
     loadState.value = 'ready'
     loadErrorMessage.value = ''
     await loadHistory()
+    await refreshPointsBalance()
     if (recovered) void refreshRules(true)
   } catch (error: any) {
     if (!silent) appStore.showError(error?.message || t('common.error'))
