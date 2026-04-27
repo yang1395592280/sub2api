@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -69,8 +70,10 @@ func (h *AnthropicAutoInspectHandler) ListLogs(c *gin.Context) {
 		Page:     page,
 		PageSize: pageSize,
 	}, service.AnthropicAutoInspectLogFilter{
-		Search: strings.TrimSpace(c.Query("search")),
-		Result: service.AnthropicAutoInspectResult(strings.TrimSpace(c.Query("result"))),
+		Search:      strings.TrimSpace(c.Query("search")),
+		Result:      service.AnthropicAutoInspectResult(strings.TrimSpace(c.Query("result"))),
+		StartedFrom: parseAnthropicAutoInspectTime(c.Query("started_from")),
+		StartedTo:   parseAnthropicAutoInspectTime(c.Query("started_to")),
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -112,4 +115,17 @@ func parseAnthropicAutoInspectPagination(c *gin.Context) (int, int) {
 		}
 	}
 	return page, pageSize
+}
+
+func parseAnthropicAutoInspectTime(raw string) *time.Time {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return nil
+	}
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return nil
+	}
+	utc := parsed.UTC()
+	return &utc
 }

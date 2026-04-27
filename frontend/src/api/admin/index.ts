@@ -30,6 +30,7 @@ import tlsFingerprintProfileAPI from './tlsFingerprintProfile'
 import channelsAPI from './channels'
 import adminPaymentAPI from './payment'
 import sizeBetAPI from './sizeBet'
+import luckyWheelAPI from './luckyWheel'
 
 /**
  * Unified admin API object for convenient access
@@ -61,7 +62,8 @@ export const adminAPI = {
   tlsFingerprintProfiles: tlsFingerprintProfileAPI,
   channels: channelsAPI,
   payment: adminPaymentAPI,
-  sizeBet: sizeBetAPI
+  sizeBet: sizeBetAPI,
+  luckyWheel: luckyWheelAPI
 }
 
 export {
@@ -91,7 +93,8 @@ export {
   tlsFingerprintProfileAPI,
   channelsAPI,
   adminPaymentAPI,
-  sizeBetAPI
+  sizeBetAPI,
+  luckyWheelAPI
 }
 
 export default adminAPI

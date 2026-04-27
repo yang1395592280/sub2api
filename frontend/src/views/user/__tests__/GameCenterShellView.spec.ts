@@ -18,6 +18,13 @@ vi.mock('../SizeBetGameView.vue', () => ({
   },
 }))
 
+vi.mock('../LuckyWheelGameView.vue', () => ({
+  default: {
+    props: ['embedded'],
+    template: '<div data-test="lucky-wheel-embedded">lucky-wheel-embedded-{{ embedded }}</div>',
+  },
+}))
+
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   return {
@@ -65,5 +72,11 @@ describe('GameCenterShellView', () => {
     const wrapper = await mountView('/game-center/size_bet')
     expect(wrapper.find('iframe').exists()).toBe(false)
     expect(wrapper.get('[data-test="size-bet-embedded"]').text()).toContain('true')
+  })
+
+  it('renders the actual lucky wheel component for the new game key', async () => {
+    const wrapper = await mountView('/game-center/lucky_wheel')
+    expect(wrapper.find('iframe').exists()).toBe(false)
+    expect(wrapper.get('[data-test="lucky-wheel-embedded"]').text()).toContain('true')
   })
 })

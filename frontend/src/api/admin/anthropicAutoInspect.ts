@@ -30,6 +30,7 @@ export interface AnthropicAutoInspectBatch {
   id: number
   trigger_source: string
   status: string
+  skip_reason: string
   total_accounts: number
   processed_accounts: number
   success_count: number
@@ -71,6 +72,8 @@ export async function listLogs(params: {
   page_size?: number
   search?: string
   result?: string
+  started_from?: string
+  started_to?: string
 } = {}): Promise<AnthropicAutoInspectListResponse<AnthropicAutoInspectLog>> {
   const { data } = await apiClient.get<AnthropicAutoInspectListResponse<AnthropicAutoInspectLog>>(
     '/admin/anthropic-auto-inspect/logs',

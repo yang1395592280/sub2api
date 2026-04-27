@@ -38,6 +38,7 @@ func ProvideAdminHandlers(
 	channelHandler *admin.ChannelHandler,
 	paymentHandler *admin.PaymentHandler,
 	sizeBetHandler *admin.SizeBetHandler,
+	luckyWheelHandler *admin.LuckyWheelHandler,
 	gameCenterHandler *admin.GameCenterHandler,
 ) *AdminHandlers {
 	return &AdminHandlers{
@@ -70,6 +71,7 @@ func ProvideAdminHandlers(
 		Channel:               channelHandler,
 		Payment:               paymentHandler,
 		SizeBet:               sizeBetHandler,
+		LuckyWheel:            luckyWheelHandler,
 		GameCenter:            gameCenterHandler,
 	}
 }
@@ -110,7 +112,9 @@ func ProvideHandlers(
 	paymentHandler *PaymentHandler,
 	paymentWebhookHandler *PaymentWebhookHandler,
 	sizeBetHandler *SizeBetHandler,
+	luckyWheelHandler *LuckyWheelHandler,
 	gameCenterHandler *GameCenterHandler,
+	_ *service.LuckyWheelService,
 	_ *service.SizeBetRuntimeService,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
@@ -132,6 +136,7 @@ func ProvideHandlers(
 		Payment:         paymentHandler,
 		PaymentWebhook:  paymentWebhookHandler,
 		SizeBet:         sizeBetHandler,
+		LuckyWheel:      luckyWheelHandler,
 		GameCenter:      gameCenterHandler,
 	}
 }
@@ -156,6 +161,7 @@ var ProviderSet = wire.NewSet(
 	NewPaymentHandler,
 	NewPaymentWebhookHandler,
 	NewSizeBetHandler,
+	NewLuckyWheelHandler,
 	NewGameCenterHandler,
 
 	// Admin handlers
@@ -188,6 +194,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewChannelHandler,
 	admin.NewPaymentHandler,
 	admin.NewSizeBetHandler,
+	admin.NewLuckyWheelHandler,
 	admin.NewGameCenterHandler,
 
 	// AdminHandlers and Handlers constructors

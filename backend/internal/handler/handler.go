@@ -35,6 +35,7 @@ type AdminHandlers struct {
 	Channel               *admin.ChannelHandler
 	Payment               *admin.PaymentHandler
 	SizeBet               *admin.SizeBetHandler
+	LuckyWheel            *admin.LuckyWheelHandler
 	GameCenter            *admin.GameCenterHandler
 }
 
@@ -56,6 +57,7 @@ type Handlers struct {
 	Payment         *PaymentHandler
 	PaymentWebhook  *PaymentWebhookHandler
 	SizeBet         *SizeBetHandler
+	LuckyWheel      *LuckyWheelHandler
 	GameCenter      *GameCenterHandler
 }
 

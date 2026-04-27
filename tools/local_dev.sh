@@ -15,6 +15,8 @@ FRONTEND_LOG="/tmp/sub2api-frontend.log"
 BACKEND_URL="${BACKEND_URL:-http://127.0.0.1:8080/health}"
 FRONTEND_URL="${FRONTEND_URL:-http://127.0.0.1:3000}"
 GO_BUILD_CACHE_DIR="${GO_BUILD_CACHE_DIR:-/tmp/go-build}"
+BACKEND_READY_ATTEMPTS="${BACKEND_READY_ATTEMPTS:-300}"
+FRONTEND_READY_ATTEMPTS="${FRONTEND_READY_ATTEMPTS:-40}"
 
 ensure_env_file() {
     if [ ! -f "$ENV_FILE" ]; then
@@ -65,6 +67,16 @@ wait_for_url() {
     done
 
     echo "$label failed to become ready: $url" >&2
+    if [ "$label" = "backend" ] && [ -f "$BACKEND_LOG" ]; then
+        echo "--- backend log tail ---" >&2
+        tail -n 80 "$BACKEND_LOG" >&2 || true
+        echo "--- end backend log tail ---" >&2
+    fi
+    if [ "$label" = "frontend" ] && [ -f "$FRONTEND_LOG" ]; then
+        echo "--- frontend log tail ---" >&2
+        tail -n 80 "$FRONTEND_LOG" >&2 || true
+        echo "--- end frontend log tail ---" >&2
+    fi
     return 1
 }
 
@@ -93,7 +105,7 @@ start_backend() {
         echo $! > "$BACKEND_PID_FILE"
     )
 
-    wait_for_url "$BACKEND_URL" "backend" 180
+    wait_for_url "$BACKEND_URL" "backend" "$BACKEND_READY_ATTEMPTS"
 }
 
 start_frontend() {
@@ -111,7 +123,7 @@ start_frontend() {
         echo $! > "$FRONTEND_PID_FILE"
     )
 
-    wait_for_url "$FRONTEND_URL" "frontend"
+    wait_for_url "$FRONTEND_URL" "frontend" "$FRONTEND_READY_ATTEMPTS"
 }
 
 stop_all() {

@@ -66,4 +66,41 @@ func TestAnthropicAutoInspectRepository_CreateBatchLogAndListLogs(t *testing.T) 
 	require.Equal(t, "demo-account", logs[0].AccountNameSnapshot)
 	require.NotNil(t, logs[0].TempUnschedulableUntil)
 	require.Equal(t, recoverAt, logs[0].TempUnschedulableUntil.UTC())
+
+	filteredLogs, _, err := repo.ListLogs(ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, service.AnthropicAutoInspectLogFilter{
+		Search:      "2026-04-26T12:10:00Z",
+		StartedFrom: anthropicPtrTime(startedAt.Add(-time.Second)),
+		StartedTo:   anthropicPtrTime(startedAt.Add(time.Second)),
+	})
+	require.NoError(t, err)
+	require.Len(t, filteredLogs, 1)
+}
+
+func TestAnthropicAutoInspectRepository_CreateSkippedBatchAndListBatches(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	tx := testTx(t)
+	repo := &anthropicAutoInspectRepository{db: tx}
+
+	now := time.Date(2026, 4, 26, 13, 0, 0, 0, time.UTC)
+	batchID, err := repo.CreateSkippedBatch(ctx, service.CreateAnthropicAutoInspectSkippedBatchInput{
+		TriggerSource: service.AnthropicAutoInspectTriggerSourceScheduler,
+		SkipReason:    "batch_already_running",
+		StartedAt:     now,
+		FinishedAt:    now,
+	})
+	require.NoError(t, err)
+	require.Positive(t, batchID)
+
+	batches, page, err := repo.ListBatches(ctx, pagination.PaginationParams{Page: 1, PageSize: 10})
+	require.NoError(t, err)
+	require.NotNil(t, page)
+	require.NotEmpty(t, batches)
+	require.Equal(t, service.AnthropicAutoInspectBatchStatusSkipped, batches[0].Status)
+	require.Equal(t, "batch_already_running", batches[0].SkipReason)
+}
+
+func anthropicPtrTime(value time.Time) *time.Time {
+	return &value
 }

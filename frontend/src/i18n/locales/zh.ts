@@ -484,7 +484,9 @@ export default {
       empty: '暂无可用游戏',
       unsupportedGame: '该游戏暂不支持快速开始',
       gameTop10: '本游戏积分前十用户',
-      totalRemainingPoints: '剩余积分：{points}'
+      luckyWheelTop10: '今日手气榜前10',
+      totalRemainingPoints: '剩余积分：{points}',
+      todayLuckValue: '今日手气：{points}'
     },
     leaderboard: {
       title: '用户积分排行榜',
@@ -510,7 +512,8 @@ export default {
         admin_adjust: '手动调整',
         bet_debit: '游戏消耗积分',
         bet_payout: '游戏赢得积分',
-        bet_refund: '游戏退回积分'
+        bet_refund: '游戏退回积分',
+        lucky_wheel_spin: '大转盘结算'
       }
     },
     shell: {
@@ -649,6 +652,55 @@ export default {
       mid: '中',
       big: '大'
     }
+  },
+
+  luckyWheel: {
+    badge: 'LUCKY WHEEL',
+    title: '大转盘',
+    heroSubtitle: '转动转盘赢取额度奖励，试试你的运气赢取大奖',
+    backToGameCenter: '返回游戏中心',
+    pointsBalance: '剩余积分：{points}',
+    dailyLimit: '每日上限',
+    usedToday: '今日已转',
+    remainingToday: '剩余次数',
+    panelTitle: '幸运转盘',
+    spinAction: '立即转动',
+    spinning: '转动中...',
+    currentStatus: '参与状态',
+    readyHint: '今天还可转动 {remaining} 次，祝你好运。',
+    limitReached: '今日转盘次数已用完，明天再来试试手气。',
+    minPointsHint: '当前至少需要 {points} 积分，才能覆盖最大惩罚风险。',
+    loadError: {
+      title: '大转盘加载失败',
+      description: '暂时无法加载转盘数据，请稍后重试。'
+    },
+    maintenance: {
+      title: '大转盘暂未开启',
+      description: '管理员已关闭该活动，开启后这里会自动恢复。'
+    },
+    leaderboard: {
+      title: '今日手气榜',
+      subtitle: '按今日净积分变化排序，看看谁是转盘之王',
+      empty: '今天还没有人上榜',
+      meta: '今日已转 {count} 次，最佳结果：{prize}'
+    },
+    prizePool: {
+      title: '奖池一览',
+      subtitle: '奖励、惩罚和谢谢惠顾都支持后台调整',
+      probability: '概率 {value}%'
+    },
+    rulesTitle: '活动规则',
+    history: {
+      title: '最近开奖记录',
+      subtitle: '这里只展示你最近的 10 次转盘结果',
+      empty: '暂时还没有转盘记录',
+      pointsAfter: '结算后积分：{points}'
+    },
+    result: {
+      title: '本次结果',
+      balance: '当前积分：{points}'
+    },
+    spinFailed: '转盘失败，请稍后重试'
   },
 
   // Auth
@@ -4185,6 +4237,54 @@ export default {
         bet_debit: '下注扣款',
         bet_payout: '派奖入账',
         bet_refund: '退款返还'
+      }
+    },
+
+    luckyWheel: {
+      title: '大转盘后台',
+      description: '管理每日转盘次数、奖池概率和开奖记录',
+      tabs: {
+        settings: '配置',
+        spins: '记录'
+      },
+      enabled: '启用活动',
+      enabledHint: '关闭后前台进入维护状态，不再允许用户转动',
+      dailySpinLimit: '每日转动次数',
+      prizesTitle: '奖池配置',
+      addPrize: '新增奖项',
+      prizeLabel: '奖项名称',
+      prizeType: '奖项类型',
+      deltaPoints: '积分变化',
+      probability: '概率 (%)',
+      rulesMarkdown: '规则文案（Markdown）',
+      summary: '当前总概率 {probability}% ，参与门槛至少 {floor} 积分',
+      newPrize: '新奖项',
+      loadFailedTitle: '大转盘配置加载失败',
+      loadFailed: '加载大转盘后台数据失败',
+      saveSuccess: '大转盘配置已保存',
+      saveFailed: '保存大转盘配置失败',
+      prizeTypes: {
+        reward: '奖励',
+        penalty: '惩罚',
+        thanks: '谢谢惠顾'
+      },
+      filters: {
+        userId: '用户 ID',
+        startDate: '开始日期',
+        endDate: '结束日期'
+      },
+      columns: {
+        user: '用户',
+        spinIndex: '日期/次数',
+        prize: '结果',
+        delta: '积分变化',
+        pointsAfter: '结算后积分',
+        createdAt: '时间'
+      },
+      validation: {
+        dailySpinLimit: '每日次数必须在 1 到 20 之间',
+        rulesMarkdown: '请填写规则文案',
+        prizes: '奖池必须同时包含奖励、惩罚和谢谢惠顾，且总概率必须为 100%'
       }
     },
 

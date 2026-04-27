@@ -26,6 +26,7 @@ export { userGroupsAPI } from './groups'
 export { totpAPI } from './totp'
 export { default as announcementsAPI } from './announcements'
 export { sizeBetAPI } from './sizeBet'
+export { luckyWheelAPI } from './luckyWheel'
 export { gameCenterAPI } from './gameCenter'
 export { windsurfAccountsAPI } from './windsurfAccounts'
 

@@ -127,6 +127,14 @@ func RegisterUserRoutes(
 			game.GET("/rules", h.SizeBet.GetRules)
 		}
 
+		luckyWheel := authenticated.Group("/game/lucky-wheel")
+		{
+			luckyWheel.GET("/overview", h.LuckyWheel.GetOverview)
+			luckyWheel.POST("/spin", h.LuckyWheel.Spin)
+			luckyWheel.GET("/history", h.LuckyWheel.GetHistory)
+			luckyWheel.GET("/leaderboard", h.LuckyWheel.GetLeaderboard)
+		}
+
 		gameCenter := authenticated.Group("/game-center")
 		{
 			gameCenter.GET("/overview", h.GameCenter.GetOverview)

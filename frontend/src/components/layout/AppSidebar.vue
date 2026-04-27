@@ -698,6 +698,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/promo-codes', label: t('nav.promoCodes'), icon: GiftIcon, hideInSimpleMode: true },
     { path: '/admin/game-center', label: t('nav.gameCenterAdmin'), icon: DiceIcon, hideInSimpleMode: true },
     { path: '/admin/games/size-bet', label: t('admin.sizeBet.title'), icon: DiceIcon, hideInSimpleMode: true },
+    { path: '/admin/games/lucky-wheel', label: t('admin.luckyWheel.title'), icon: DiceIcon, hideInSimpleMode: true },
     ...(adminSettingsStore.paymentEnabled
       ? [
           {

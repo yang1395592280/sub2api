@@ -15,9 +15,15 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-const anthropicAutoInspectDefaultErrorCooldownMinutes = 30
+const (
+	anthropicAutoInspectDefaultErrorCooldownMinutes = 30
+	anthropicAutoInspectDefaultPerAccountTimeout    = 45 * time.Second
+)
 
-var anthropicAutoInspectResetAtPattern = regexp.MustCompile(`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z`)
+var anthropicAutoInspectResetAtPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z`),
+	regexp.MustCompile(`\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`),
+}
 
 type anthropicAutoInspectAccountRepo interface {
 	ListByPlatform(ctx context.Context, platform string) ([]Account, error)
@@ -50,11 +56,12 @@ type AnthropicAutoInspectService struct {
 	settingsProvider anthropicAutoInspectSettingsProvider
 	cfg              *config.Config
 
-	now       func() time.Time
-	running   atomic.Bool
-	cron      *cron.Cron
-	startOnce sync.Once
-	stopOnce  sync.Once
+	now               func() time.Time
+	perAccountTimeout time.Duration
+	running           atomic.Bool
+	cron              *cron.Cron
+	startOnce         sync.Once
+	stopOnce          sync.Once
 }
 
 func NewAnthropicAutoInspectService(
@@ -64,11 +71,12 @@ func NewAnthropicAutoInspectService(
 	cfg *config.Config,
 ) *AnthropicAutoInspectService {
 	return &AnthropicAutoInspectService{
-		accountRepo: accountRepo,
-		testRunner:  testRunner,
-		repo:        repo,
-		cfg:         cfg,
-		now:         time.Now,
+		accountRepo:       accountRepo,
+		testRunner:        testRunner,
+		repo:              repo,
+		cfg:               cfg,
+		now:               time.Now,
+		perAccountTimeout: anthropicAutoInspectDefaultPerAccountTimeout,
 	}
 }
 
@@ -116,7 +124,32 @@ func (s *AnthropicAutoInspectService) Stop() {
 }
 
 func (s *AnthropicAutoInspectService) RunBatch(ctx context.Context, input AnthropicAutoInspectRunInput) error {
-	if s == nil || !s.running.CompareAndSwap(false, true) {
+	if s == nil {
+		return nil
+	}
+	if input.TriggerSource == AnthropicAutoInspectTriggerSourceScheduler && !s.schedulerEnabled(ctx) {
+		return nil
+	}
+	if !s.running.CompareAndSwap(false, true) {
+		now := s.now()
+		if _, err := s.repo.CreateSkippedBatch(ctx, CreateAnthropicAutoInspectSkippedBatchInput{
+			TriggerSource: input.TriggerSource,
+			SkipReason:    "batch_already_running",
+			StartedAt:     now,
+			FinishedAt:    now,
+		}); err != nil {
+			logger.LegacyPrintf(
+				"service.anthropic_auto_inspect",
+				"[AnthropicAutoInspect] failed to persist skipped batch: source=%s err=%v",
+				input.TriggerSource,
+				err,
+			)
+		}
+		logger.LegacyPrintf(
+			"service.anthropic_auto_inspect",
+			"[AnthropicAutoInspect] skipped run because previous batch still running: source=%s",
+			input.TriggerSource,
+		)
 		return nil
 	}
 	defer s.running.Store(false)
@@ -147,11 +180,19 @@ func (s *AnthropicAutoInspectService) RunBatch(ctx context.Context, input Anthro
 		stats.ProcessedAccounts++
 		if shouldSkipAnthropicAutoInspect(account, s.now()) {
 			stats.SkippedCount++
-			_ = s.repo.CreateLog(ctx, buildSkippedAnthropicAutoInspectLog(batchID, account, s.now()))
+			if err := s.repo.CreateLog(ctx, buildSkippedAnthropicAutoInspectLog(batchID, account, s.now())); err != nil {
+				return s.failBatch(ctx, batchID, stats, err)
+			}
 			continue
 		}
 
-		result, logEntry := s.inspectOne(ctx, batchID, account)
+		result, logEntry, err := s.inspectOne(ctx, batchID, account)
+		if err != nil {
+			return s.failBatch(ctx, batchID, stats, err)
+		}
+		if err := s.repo.CreateLog(ctx, logEntry); err != nil {
+			return s.failBatch(ctx, batchID, stats, err)
+		}
 		switch result {
 		case AnthropicAutoInspectResultSuccess:
 			stats.SuccessCount++
@@ -162,15 +203,34 @@ func (s *AnthropicAutoInspectService) RunBatch(ctx context.Context, input Anthro
 		case AnthropicAutoInspectResultSkipped:
 			stats.SkippedCount++
 		}
-		_ = s.repo.CreateLog(ctx, logEntry)
 	}
 
 	return s.repo.CompleteBatch(ctx, batchID, stats, s.now())
 }
 
-func (s *AnthropicAutoInspectService) inspectOne(ctx context.Context, batchID int64, account Account) (AnthropicAutoInspectResult, AnthropicAutoInspectLog) {
+func (s *AnthropicAutoInspectService) failBatch(ctx context.Context, batchID int64, stats AnthropicAutoInspectBatchStats, cause error) error {
+	if err := s.repo.MarkBatchFailed(ctx, batchID, stats, s.now()); err != nil {
+		logger.LegacyPrintf(
+			"service.anthropic_auto_inspect",
+			"[AnthropicAutoInspect] failed to mark batch=%d failed after error: cause=%v mark_err=%v",
+			batchID,
+			cause,
+			err,
+		)
+	}
+	return cause
+}
+
+func (s *AnthropicAutoInspectService) inspectOne(ctx context.Context, batchID int64, account Account) (AnthropicAutoInspectResult, AnthropicAutoInspectLog, error) {
+	accountCtx := ctx
+	cancel := func() {}
+	if s.perAccountTimeout > 0 {
+		accountCtx, cancel = context.WithTimeout(ctx, s.perAccountTimeout)
+	}
+	defer cancel()
+
 	now := s.now()
-	result, err := s.testRunner.RunTestBackground(ctx, account.ID, "")
+	result, err := s.testRunner.RunTestBackground(accountCtx, account.ID, "")
 	if err != nil {
 		result = &ScheduledTestResult{
 			Status:       "failed",
@@ -214,10 +274,12 @@ func (s *AnthropicAutoInspectService) inspectOne(ctx context.Context, batchID in
 		until := s.cooldownUntil(classification.ResetAt)
 		logEntry.TempUnschedulableUntil = &until
 		logEntry.SchedulableChanged = true
-		_ = s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, classification.Reason)
+		if err := s.accountRepo.SetTempUnschedulable(accountCtx, account.ID, until, classification.Reason); err != nil {
+			return classification.Result, logEntry, err
+		}
 	}
 
-	return classification.Result, logEntry
+	return classification.Result, logEntry, nil
 }
 
 func (s *AnthropicAutoInspectService) cooldownUntil(resetAt *time.Time) time.Time {
@@ -235,6 +297,14 @@ func (s *AnthropicAutoInspectService) errorCooldownMinutes() int {
 		}
 	}
 	return anthropicAutoInspectDefaultErrorCooldownMinutes
+}
+
+func (s *AnthropicAutoInspectService) schedulerEnabled(ctx context.Context) bool {
+	if s.settingsProvider == nil {
+		return false
+	}
+	settings, err := s.settingsProvider.GetAllSettings(ctx)
+	return err == nil && settings != nil && settings.AnthropicAutoInspectEnabled
 }
 
 func (s *AnthropicAutoInspectService) GetSettings(ctx context.Context) (*AnthropicAutoInspectSettings, error) {
@@ -330,15 +400,19 @@ func classifyAnthropicAutoInspect(result *ScheduledTestResult) AnthropicInspectC
 }
 
 func parseAnthropicRateLimitResetAt(text string) (time.Time, bool) {
-	matched := anthropicAutoInspectResetAtPattern.FindString(text)
-	if matched == "" {
-		return time.Time{}, false
+	for _, pattern := range anthropicAutoInspectResetAtPatterns {
+		matched := pattern.FindString(text)
+		if matched == "" {
+			continue
+		}
+		if parsed, err := time.Parse(time.RFC3339, matched); err == nil {
+			return parsed.UTC(), true
+		}
+		if parsed, err := time.ParseInLocation("2006-01-02 15:04:05", matched, time.UTC); err == nil {
+			return parsed.UTC(), true
+		}
 	}
-	parsed, err := time.Parse(time.RFC3339, matched)
-	if err != nil {
-		return time.Time{}, false
-	}
-	return parsed.UTC(), true
+	return time.Time{}, false
 }
 
 func truncateAnthropicAutoInspectReason(text string) string {

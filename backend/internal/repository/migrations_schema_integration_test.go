@@ -70,6 +70,7 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 		"game_points_claims",
 		"game_points_exchanges",
 		"game_catalogs",
+		"game_lucky_wheel_spins",
 	} {
 		var regclass sql.NullString
 		require.NoError(t, tx.QueryRowContext(context.Background(), "SELECT to_regclass('public."+table+"')").Scan(&regclass))

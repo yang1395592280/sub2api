@@ -169,9 +169,9 @@
 
               <div class="mt-3 flex justify-end">
                 <RouterLink
-                  v-if="item.game_key === 'size_bet'"
+                  v-if="catalogSettingsPath(item.game_key)"
                   class="btn btn-secondary btn-sm mr-2"
-                  to="/admin/games/size-bet"
+                  :to="catalogSettingsPath(item.game_key)!"
                 >
                   {{ t('admin.gameCenter.catalog.openGameSettings') }}
                 </RouterLink>
@@ -457,6 +457,12 @@ function normalizeCatalogItem(item: GameCenterCatalogItem): GameCenterCatalogIte
     supports_embed: item.supports_embed !== false,
     supports_standalone: item.supports_standalone !== false
   }
+}
+
+function catalogSettingsPath(gameKey: string): string | null {
+  if (gameKey === 'size_bet') return '/admin/games/size-bet'
+  if (gameKey === 'lucky_wheel') return '/admin/games/lucky-wheel'
+  return null
 }
 
 function addClaimBatch() {

@@ -177,6 +177,10 @@ const (
 	SettingKeySizeBetProbabilities                     = "size_bet_probabilities"                         // 大小中竞猜概率配置（JSON）
 	SettingKeySizeBetOdds                              = "size_bet_odds"                                  // 大小中竞猜赔率配置（JSON）
 	SettingKeySizeBetRulesMarkdown                     = "size_bet_rules_markdown"                        // 大小中竞猜规则 Markdown
+	SettingKeyLuckyWheelEnabled                        = "lucky_wheel_enabled"                            // 大转盘总开关
+	SettingKeyLuckyWheelDailySpinLimit                 = "lucky_wheel_daily_spin_limit"                   // 大转盘每日可转次数
+	SettingKeyLuckyWheelPrizes                         = "lucky_wheel_prizes"                             // 大转盘奖池配置（JSON）
+	SettingKeyLuckyWheelRulesMarkdown                  = "lucky_wheel_rules_markdown"                     // 大转盘规则 Markdown
 
 	// 管理员 API Key
 	SettingKeyAdminAPIKey = "admin_api_key" // 全局管理员 API Key（用于外部系统集成）

@@ -38,21 +38,33 @@ import { useRoute, RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import EmptyState from '@/components/common/EmptyState.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import LuckyWheelGameView from './LuckyWheelGameView.vue'
 import SizeBetGameView from './SizeBetGameView.vue'
 
 const { t } = useI18n()
 const route = useRoute()
 
 const GAME_ROUTE_MAP: Record<string, string> = {
+  lucky_wheel: '/game/lucky-wheel',
   size_bet: '/game/size-bet',
 }
 
 const GAME_COMPONENT_MAP: Record<string, unknown> = {
+  lucky_wheel: LuckyWheelGameView,
   size_bet: SizeBetGameView,
+}
+
+const GAME_TITLE_MAP: Record<string, string> = {
+  lucky_wheel: 'luckyWheel.title',
+  size_bet: 'sizeBet.title',
 }
 
 const gameKey = computed(() => String(route.params.gameKey || ''))
 const resolvedGamePath = computed(() => GAME_ROUTE_MAP[gameKey.value] ?? '')
 const resolvedGameComponent = computed(() => GAME_COMPONENT_MAP[gameKey.value] ?? null)
-const title = computed(() => `${t('gameCenter.shell.titlePrefix')} ${gameKey.value || '--'}`)
+const title = computed(() => {
+  const titleKey = GAME_TITLE_MAP[gameKey.value]
+  const label = titleKey ? t(titleKey) : (gameKey.value || '--')
+  return `${t('gameCenter.shell.titlePrefix')} ${label}`
+})
 </script>

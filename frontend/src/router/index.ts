@@ -185,6 +185,17 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/game/lucky-wheel',
+    name: 'LuckyWheelGame',
+    component: () => import('@/views/user/LuckyWheelGameView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Lucky Wheel',
+      titleKey: 'luckyWheel.title'
+    }
+  },
+  {
     path: '/game/size-bet',
     name: 'SizeBetGame',
     component: () => import('@/views/user/SizeBetGameView.vue'),
@@ -544,6 +555,18 @@ const routes: RouteRecordRaw[] = [
       title: 'Game Center Admin',
       titleKey: 'admin.gameCenter.title',
       descriptionKey: 'admin.gameCenter.description'
+    }
+  },
+  {
+    path: '/admin/games/lucky-wheel',
+    name: 'AdminLuckyWheel',
+    component: () => import('@/views/admin/LuckyWheelAdminView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Lucky Wheel Admin',
+      titleKey: 'admin.luckyWheel.title',
+      descriptionKey: 'admin.luckyWheel.description'
     }
   },
   {

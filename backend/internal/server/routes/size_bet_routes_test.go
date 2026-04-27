@@ -18,9 +18,11 @@ func TestSizeBetRoutesAreRegistered(t *testing.T) {
 
 	handlers := &handler.Handlers{
 		SizeBet:    &handler.SizeBetHandler{},
+		LuckyWheel: &handler.LuckyWheelHandler{},
 		GameCenter: &handler.GameCenterHandler{},
 		Admin: &handler.AdminHandlers{
 			SizeBet:    &adminhandler.SizeBetHandler{},
+			LuckyWheel: &adminhandler.LuckyWheelHandler{},
 			GameCenter: &adminhandler.GameCenterHandler{},
 		},
 	}
@@ -43,6 +45,10 @@ func TestSizeBetRoutesAreRegistered(t *testing.T) {
 		"GET /api/v1/game/size-bet/stats/users":                  {},
 		"GET /api/v1/game/size-bet/leaderboard":                  {},
 		"GET /api/v1/game/size-bet/rules":                        {},
+		"GET /api/v1/game/lucky-wheel/overview":                  {},
+		"POST /api/v1/game/lucky-wheel/spin":                     {},
+		"GET /api/v1/game/lucky-wheel/history":                   {},
+		"GET /api/v1/game/lucky-wheel/leaderboard":               {},
 		"GET /api/v1/game-center/overview":                       {},
 		"POST /api/v1/game-center/claims/:batchKey":              {},
 		"POST /api/v1/game-center/exchange/balance-to-points":    {},
@@ -67,6 +73,9 @@ func TestSizeBetRoutesAreRegistered(t *testing.T) {
 		"GET /api/v1/admin/games/size-bet/stats/overview":        {},
 		"GET /api/v1/admin/games/size-bet/stats/users":           {},
 		"POST /api/v1/admin/games/size-bet/rounds/:id/refund":    {},
+		"GET /api/v1/admin/games/lucky-wheel/settings":           {},
+		"PUT /api/v1/admin/games/lucky-wheel/settings":           {},
+		"GET /api/v1/admin/games/lucky-wheel/spins":              {},
 	}
 
 	for _, route := range routes {

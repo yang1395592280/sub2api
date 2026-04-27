@@ -97,6 +97,7 @@ func RegisterAdminRoutes(
 
 		// 竞猜游戏
 		registerSizeBetRoutes(admin, h)
+		registerLuckyWheelRoutes(admin, h)
 
 		// 游戏中心
 		registerGameCenterRoutes(admin, h)
@@ -139,6 +140,15 @@ func registerSizeBetRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		games.GET("/stats/overview", h.Admin.SizeBet.GetStatsOverview)
 		games.GET("/stats/users", h.Admin.SizeBet.ListStatsUsers)
 		games.POST("/rounds/:id/refund", h.Admin.SizeBet.RefundRound)
+	}
+}
+
+func registerLuckyWheelRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	games := admin.Group("/games/lucky-wheel")
+	{
+		games.GET("/settings", h.Admin.LuckyWheel.GetSettings)
+		games.PUT("/settings", h.Admin.LuckyWheel.UpdateSettings)
+		games.GET("/spins", h.Admin.LuckyWheel.ListSpins)
 	}
 }
 

@@ -3,7 +3,7 @@
     <div class="space-y-6">
       <div class="card p-4">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div class="grid flex-1 grid-cols-1 gap-3 md:grid-cols-4">
+          <div class="grid flex-1 grid-cols-1 gap-3 md:grid-cols-6">
             <label class="form-control">
               <span class="label-text">关键词</span>
               <input v-model="filters.search" type="text" class="input" placeholder="账号名 / 返回内容" />
@@ -17,6 +17,14 @@
                 <option value="error">error</option>
                 <option value="skipped">skipped</option>
               </select>
+            </label>
+            <label class="form-control">
+              <span class="label-text">开始时间</span>
+              <input v-model="filters.started_from" type="datetime-local" class="input" />
+            </label>
+            <label class="form-control">
+              <span class="label-text">结束时间</span>
+              <input v-model="filters.started_to" type="datetime-local" class="input" />
             </label>
             <label class="form-control">
               <span class="label-text">启用巡检</span>
@@ -105,6 +113,9 @@
                 <span>error: {{ batch.error_count }}</span>
                 <span>skipped: {{ batch.skipped_count }}</span>
               </div>
+              <div v-if="batch.skip_reason" class="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                skip_reason: {{ batch.skip_reason }}
+              </div>
               <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
                 {{ formatDateTime(batch.created_at) }}
               </div>
@@ -147,7 +158,9 @@ const filters = reactive({
   page: 1,
   page_size: 20,
   search: '',
-  result: ''
+  result: '',
+  started_from: '',
+  started_to: ''
 })
 const logPagination = reactive({
   total: 0,
@@ -160,7 +173,7 @@ const loadAll = async () => {
   try {
     const [settingsData, logsData, batchesData] = await Promise.all([
       adminAPI.anthropicAutoInspect.getSettings(),
-      adminAPI.anthropicAutoInspect.listLogs(filters),
+      adminAPI.anthropicAutoInspect.listLogs(buildLogQuery()),
       adminAPI.anthropicAutoInspect.listBatches({ page: 1, page_size: 10 })
     ])
     Object.assign(settings, settingsData)
@@ -173,6 +186,22 @@ const loadAll = async () => {
     loading.value = false
   }
 }
+
+const toISODateTime = (value: string) => {
+  if (!value) return ''
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return parsed.toISOString()
+}
+
+const buildLogQuery = () => ({
+  page: filters.page,
+  page_size: filters.page_size,
+  search: filters.search,
+  result: filters.result,
+  started_from: toISODateTime(filters.started_from),
+  started_to: toISODateTime(filters.started_to)
+})
 
 const saveSettings = async () => {
   saving.value = true

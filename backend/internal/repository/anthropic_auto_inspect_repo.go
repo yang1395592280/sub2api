@@ -42,6 +42,25 @@ func (r *anthropicAutoInspectRepository) CreateBatch(ctx context.Context, input 
 	return id, nil
 }
 
+func (r *anthropicAutoInspectRepository) CreateSkippedBatch(ctx context.Context, input service.CreateAnthropicAutoInspectSkippedBatchInput) (int64, error) {
+	var id int64
+	err := r.db.QueryRowContext(ctx, `
+		INSERT INTO anthropic_auto_inspect_batches (
+			trigger_source,
+			status,
+			skip_reason,
+			started_at,
+			finished_at
+		)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id
+	`, input.TriggerSource, service.AnthropicAutoInspectBatchStatusSkipped, input.SkipReason, input.StartedAt, input.FinishedAt).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
 func (r *anthropicAutoInspectRepository) CreateLog(ctx context.Context, log service.AnthropicAutoInspectLog) error {
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO anthropic_auto_inspect_logs (
@@ -150,7 +169,19 @@ func (r *anthropicAutoInspectRepository) ListLogs(
 	}
 	if search := strings.TrimSpace(filter.Search); search != "" {
 		args = append(args, "%"+search+"%")
-		where = append(where, fmt.Sprintf("account_name_snapshot ILIKE $%d", len(args)))
+		where = append(where, fmt.Sprintf(`(
+			account_name_snapshot ILIKE $%d OR
+			response_text ILIKE $%d OR
+			error_message ILIKE $%d
+		)`, len(args), len(args), len(args)))
+	}
+	if filter.StartedFrom != nil {
+		args = append(args, filter.StartedFrom.UTC())
+		where = append(where, fmt.Sprintf("started_at >= $%d", len(args)))
+	}
+	if filter.StartedTo != nil {
+		args = append(args, filter.StartedTo.UTC())
+		where = append(where, fmt.Sprintf("started_at <= $%d", len(args)))
 	}
 
 	countQuery := fmt.Sprintf(`
@@ -239,6 +270,7 @@ func (r *anthropicAutoInspectRepository) ListBatches(ctx context.Context, params
 			id,
 			trigger_source,
 			status,
+			skip_reason,
 			total_accounts,
 			processed_accounts,
 			success_count,
@@ -264,6 +296,7 @@ func (r *anthropicAutoInspectRepository) ListBatches(ctx context.Context, params
 			&batch.ID,
 			&batch.TriggerSource,
 			&batch.Status,
+			&batch.SkipReason,
 			&batch.TotalAccounts,
 			&batch.ProcessedAccounts,
 			&batch.SuccessCount,

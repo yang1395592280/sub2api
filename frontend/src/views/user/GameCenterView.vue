@@ -207,11 +207,11 @@
               class="grid gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-white/5 lg:grid-cols-[1fr_0.9fr]"
             >
               <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
-                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ t('gameCenter.catalog.gameTop10') }}</p>
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ catalogLeaderboardTitle(game.game_key) }}</p>
                 <div class="mt-3 max-h-64 space-y-2 overflow-auto">
                   <div v-for="row in gameLeaderboard(game.game_key)" :key="row.user_id" class="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm dark:bg-white/5">
                     <span class="truncate text-slate-700 dark:text-slate-200">#{{ row.rank }} {{ row.email || row.username }}</span>
-                    <span class="shrink-0 font-medium text-cyan-700 dark:text-cyan-300">{{ t('gameCenter.catalog.totalRemainingPoints', { points: formatPoints(row.points) }) }}</span>
+                    <span class="shrink-0 font-medium" :class="catalogLeaderboardMetricClass(game.game_key, row)">{{ catalogLeaderboardMetricLabel(game.game_key, row) }}</span>
                   </div>
                   <p v-if="!gameLeaderboard(game.game_key).length" class="text-sm text-slate-500 dark:text-slate-400">{{ t('gameCenter.leaderboard.empty') }}</p>
                 </div>
@@ -288,6 +288,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { luckyWheelAPI } from '@/api/luckyWheel'
 import { gameCenterAPI } from '@/api/gameCenter'
 import { sizeBetAPI } from '@/api/sizeBet'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -298,13 +299,23 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import type { BasePaginationResponse } from '@/types'
 import type { GameCenterClaimStatus, GameCenterLedgerItem, GameCenterOverview, GameCenterPointsLeaderboardItem } from '@/types/gameCenter'
+import type { LuckyWheelLeaderboardItem } from '@/types/luckyWheel'
 import type { SizeBetLeaderboardItem } from '@/types/sizeBet'
 
 type LoadState = 'loading' | 'ready' | 'error'
 type ExchangeDirection = 'balance_to_points' | 'points_to_balance'
 
 const GAME_ROUTE_MAP: Record<string, string> = {
+  lucky_wheel: '/game/lucky-wheel',
   size_bet: '/game/size-bet',
+}
+
+type CatalogLeaderboardItem = Pick<SizeBetLeaderboardItem, 'rank' | 'user_id' | 'email' | 'username' | 'points'> & {
+  net_profit?: number
+  win_count?: number
+  net_points?: number
+  spin_count?: number
+  best_prize_label?: string
 }
 
 const router = useRouter()
@@ -329,7 +340,7 @@ const selectedLeaderboardUserName = ref('')
 const ledgerView = ref<BasePaginationResponse<GameCenterLedgerItem>>({ items: [], total: 0, page: 1, page_size: 10, pages: 1 })
 const pointsLeaderboard = ref<BasePaginationResponse<GameCenterPointsLeaderboardItem>>({ items: [], total: 0, page: 1, page_size: 10, pages: 1 })
 const leaderboardLedger = ref<BasePaginationResponse<GameCenterLedgerItem>>({ items: [], total: 0, page: 1, page_size: 10, pages: 1 })
-const gameLeaderboards = ref<Record<string, SizeBetLeaderboardItem[]>>({})
+const gameLeaderboards = ref<Record<string, CatalogLeaderboardItem[]>>({})
 
 const gameCenterEnabled = computed(() => appStore.gameCenterEnabled)
 const claimBatches = computed(() => overview.value?.claim_batches ?? [])
@@ -373,12 +384,25 @@ function formatDateTime(value?: string): string {
   return new Date(value).toLocaleString()
 }
 
-function normalizeGameLeaderboard(items: SizeBetLeaderboardItem[]): SizeBetLeaderboardItem[] {
+function normalizeGameLeaderboard(items: CatalogLeaderboardItem[]): CatalogLeaderboardItem[] {
   return [...items]
     .sort((left, right) =>
       right.points - left.points
-      || right.net_profit - left.net_profit
-      || right.win_count - left.win_count
+      || (right.net_profit ?? 0) - (left.net_profit ?? 0)
+      || (right.win_count ?? 0) - (left.win_count ?? 0)
+      || left.user_id - right.user_id)
+    .map((item, index) => ({
+      ...item,
+      rank: index + 1,
+    }))
+}
+
+function normalizeLuckyWheelLeaderboard(items: LuckyWheelLeaderboardItem[]): CatalogLeaderboardItem[] {
+  return [...items]
+    .sort((left, right) =>
+      right.net_points - left.net_points
+      || right.spin_count - left.spin_count
+      || right.points - left.points
       || left.user_id - right.user_id)
     .map((item, index) => ({
       ...item,
@@ -390,8 +414,29 @@ function ledgerTypeLabel(type: string): string {
   return t(`gameCenter.ledger.types.${type}`)
 }
 
-function gameLeaderboard(gameKey: string): SizeBetLeaderboardItem[] {
+function gameLeaderboard(gameKey: string): CatalogLeaderboardItem[] {
   return (gameLeaderboards.value[gameKey] ?? []).slice(0, 10)
+}
+
+function catalogLeaderboardTitle(gameKey: string): string {
+  if (gameKey === 'lucky_wheel') return t('gameCenter.catalog.luckyWheelTop10')
+  return t('gameCenter.catalog.gameTop10')
+}
+
+function catalogLeaderboardMetricLabel(gameKey: string, row: CatalogLeaderboardItem): string {
+  if (gameKey === 'lucky_wheel') {
+    return t('gameCenter.catalog.todayLuckValue', { points: formatSignedPoints(row.net_points ?? 0) })
+  }
+  return t('gameCenter.catalog.totalRemainingPoints', { points: formatPoints(row.points) })
+}
+
+function catalogLeaderboardMetricClass(gameKey: string, row: CatalogLeaderboardItem): string {
+  if (gameKey === 'lucky_wheel') {
+    return (row.net_points ?? 0) >= 0
+      ? 'text-emerald-700 dark:text-emerald-300'
+      : 'text-rose-700 dark:text-rose-300'
+  }
+  return 'text-cyan-700 dark:text-cyan-300'
 }
 
 function canOpenLeaderboardDetail(userID: number): boolean {
@@ -455,16 +500,22 @@ async function loadPointsLeaderboard(page = pointsLeaderboard.value.page): Promi
 }
 
 async function loadGameLeaderboards(): Promise<void> {
-  if (!catalogs.value.some((item) => item.game_key === 'size_bet')) return
-  try {
-    const view = await sizeBetAPI.getLeaderboard('all')
-    gameLeaderboards.value = {
-      ...gameLeaderboards.value,
-      size_bet: normalizeGameLeaderboard(view.items ?? []),
-    }
-  } catch {
-    gameLeaderboards.value = { ...gameLeaderboards.value, size_bet: [] }
+  const tasks: Promise<void>[] = []
+  if (catalogs.value.some(item => item.game_key === 'size_bet')) {
+    tasks.push(sizeBetAPI.getLeaderboard('all').then(view => {
+      gameLeaderboards.value = { ...gameLeaderboards.value, size_bet: normalizeGameLeaderboard(view.items ?? []) }
+    }).catch(() => {
+      gameLeaderboards.value = { ...gameLeaderboards.value, size_bet: [] }
+    }))
   }
+  if (catalogs.value.some(item => item.game_key === 'lucky_wheel')) {
+    tasks.push(luckyWheelAPI.getLeaderboard().then(view => {
+      gameLeaderboards.value = { ...gameLeaderboards.value, lucky_wheel: normalizeLuckyWheelLeaderboard(view.items as LuckyWheelLeaderboardItem[]) }
+    }).catch(() => {
+      gameLeaderboards.value = { ...gameLeaderboards.value, lucky_wheel: [] }
+    }))
+  }
+  await Promise.all(tasks)
 }
 
 async function loadLeaderboardLedger(userID: number, page = leaderboardLedger.value.page): Promise<void> {
