@@ -42,10 +42,17 @@ export function buildLuckyWheelGradient(prizes: LuckyWheelPrizeConfig[]): string
   return `conic-gradient(from -90deg, ${stops.join(', ')})`
 }
 
-export function computeLuckyWheelRotation(prizes: LuckyWheelPrizeConfig[], prizeKey: string, extraTurns = 6): number {
+export function computeLuckyWheelRotation(prizes: LuckyWheelPrizeConfig[], prizeKey: string, extraTurns = 6, currentRotation = 0): number {
   const segment = buildLuckyWheelSegments(prizes).find(item => item.key === prizeKey)
   if (!segment) return extraTurns * 360
-  return extraTurns * 360 + (360 - segment.center_deg)
+  // Target final rotation must satisfy: finalRotation ≡ -center_deg (mod 360)
+  // i.e. finalRotation = (360 - center_deg) + n*360 where n is chosen so that
+  // the increment from currentRotation is at least extraTurns full rotations.
+  const targetRemainder = (360 - segment.center_deg) % 360
+  const currentRemainder = ((currentRotation % 360) + 360) % 360
+  let increment = targetRemainder - currentRemainder
+  if (increment < 0) increment += 360
+  return extraTurns * 360 + increment
 }
 
 function buildLuckyWheelMarkerLabel(prize: LuckyWheelPrizeConfig): string {

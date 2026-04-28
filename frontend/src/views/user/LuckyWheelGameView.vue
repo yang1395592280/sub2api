@@ -277,15 +277,23 @@ async function handleSpin(): Promise<void> {
   try {
     const result = await luckyWheelAPI.spin()
     latestResult.value = result.record
-    rotation.value += computeLuckyWheelRotation(overview.value.prizes, result.record.prize_key, 7)
+    rotation.value += computeLuckyWheelRotation(overview.value.prizes, result.record.prize_key, 7, rotation.value)
+    // Do NOT update recent_history here — wait until the animation finishes
+    // so the history panel doesn't reveal the result before the wheel stops.
     overview.value = {
       ...overview.value,
       points: result.record.points_after,
       spins_used_today: result.spins_used_today,
       spins_remaining_today: result.spins_remaining_today,
-      recent_history: [result.record, ...overview.value.recent_history].slice(0, 10),
     }
     window.setTimeout(() => {
+      // Now safe to update history and show result modal
+      if (overview.value) {
+        overview.value = {
+          ...overview.value,
+          recent_history: [latestResult.value!, ...overview.value.recent_history].slice(0, 10),
+        }
+      }
       spinning.value = false
       resultOpen.value = true
       void loadOverview(true)
