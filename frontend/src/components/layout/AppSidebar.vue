@@ -217,6 +217,7 @@ const siteName = computed(() => appStore.siteName)
 const siteLogo = computed(() => appStore.siteLogo)
 const siteVersion = computed(() => appStore.siteVersion)
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
+const sidebarPaymentEnabled = computed(() => appStore.cachedPublicSettings?.payment_enabled ?? adminSettingsStore.paymentEnabled)
 
 // SVG Icon Components
 const DashboardIcon = {
@@ -699,7 +700,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/game-center', label: t('nav.gameCenterAdmin'), icon: DiceIcon, hideInSimpleMode: true },
     { path: '/admin/games/size-bet', label: t('admin.sizeBet.title'), icon: DiceIcon, hideInSimpleMode: true },
     { path: '/admin/games/lucky-wheel', label: t('admin.luckyWheel.title'), icon: DiceIcon, hideInSimpleMode: true },
-    ...(adminSettingsStore.paymentEnabled
+    ...(sidebarPaymentEnabled.value
       ? [
           {
             path: '/admin/orders',

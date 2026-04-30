@@ -421,6 +421,9 @@ const restartCountdown = ref(0)
 const isReleaseBuild = computed(() => buildType.value === 'release')
 
 function toggleDropdown() {
+  if (!dropdownOpen.value && isAdmin.value) {
+    void appStore.fetchVersion(false)
+  }
   dropdownOpen.value = !dropdownOpen.value
 }
 
@@ -522,10 +525,6 @@ function handleClickOutside(event: MouseEvent) {
 }
 
 onMounted(() => {
-  if (isAdmin.value) {
-    // Use cached version if available, otherwise fetch
-    appStore.fetchVersion(false)
-  }
   document.addEventListener('click', handleClickOutside)
 })
 
