@@ -218,6 +218,9 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		ContactInfo:                            settings.ContactInfo,
 		DocURL:                                 settings.DocURL,
 		HomeContent:                            settings.HomeContent,
+		JoinGroupEnabled:                       settings.JoinGroupEnabled,
+		JoinGroupURL:                           settings.JoinGroupURL,
+		JoinGroupPopupImage:                    settings.JoinGroupPopupImage,
 		HideCcsImportButton:                    settings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:            settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                settings.PurchaseSubscriptionURL,
@@ -497,6 +500,9 @@ type UpdateSettingsRequest struct {
 	ContactInfo                 string                `json:"contact_info"`
 	DocURL                      string                `json:"doc_url"`
 	HomeContent                 string                `json:"home_content"`
+	JoinGroupEnabled            bool                  `json:"join_group_enabled"`
+	JoinGroupURL                string                `json:"join_group_url"`
+	JoinGroupPopupImage         string                `json:"join_group_popup_image"`
 	HideCcsImportButton         bool                  `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled *bool                 `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL     *string               `json:"purchase_subscription_url"`
@@ -1565,6 +1571,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ContactInfo:                            req.ContactInfo,
 		DocURL:                                 req.DocURL,
 		HomeContent:                            req.HomeContent,
+		JoinGroupEnabled:                       req.JoinGroupEnabled,
+		JoinGroupURL:                           strings.TrimSpace(req.JoinGroupURL),
+		JoinGroupPopupImage:                    strings.TrimSpace(req.JoinGroupPopupImage),
 		HideCcsImportButton:                    req.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:            purchaseEnabled,
 		PurchaseSubscriptionURL:                purchaseURL,
@@ -2002,6 +2011,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ContactInfo:                            updatedSettings.ContactInfo,
 		DocURL:                                 updatedSettings.DocURL,
 		HomeContent:                            updatedSettings.HomeContent,
+		JoinGroupEnabled:                       updatedSettings.JoinGroupEnabled,
+		JoinGroupURL:                           updatedSettings.JoinGroupURL,
+		JoinGroupPopupImage:                    updatedSettings.JoinGroupPopupImage,
 		HideCcsImportButton:                    updatedSettings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:            updatedSettings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                updatedSettings.PurchaseSubscriptionURL,
@@ -2400,6 +2412,15 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.HomeContent != after.HomeContent {
 		changed = append(changed, "home_content")
+	}
+	if before.JoinGroupEnabled != after.JoinGroupEnabled {
+		changed = append(changed, "join_group_enabled")
+	}
+	if before.JoinGroupURL != after.JoinGroupURL {
+		changed = append(changed, "join_group_url")
+	}
+	if before.JoinGroupPopupImage != after.JoinGroupPopupImage {
+		changed = append(changed, "join_group_popup_image")
 	}
 	if before.HideCcsImportButton != after.HideCcsImportButton {
 		changed = append(changed, "hide_ccs_import_button")

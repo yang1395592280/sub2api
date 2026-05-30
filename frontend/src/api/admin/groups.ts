@@ -248,6 +248,31 @@ export interface GroupRPMOverrideEntry {
   rpm_override: number
 }
 
+export interface GroupMemberEntry {
+  id: number
+  username: string
+  email: string
+  notes: string
+  status: string
+}
+
+export interface GroupMembersResponse {
+  group_id: number
+  has_fixed_members: boolean
+  items: GroupMemberEntry[]
+  total: number
+}
+
+export async function getGroupMembers(id: number): Promise<GroupMembersResponse> {
+  const { data } = await apiClient.get<GroupMembersResponse>(`/admin/groups/${id}/members`)
+  return data
+}
+
+export async function removeGroupMember(id: number, userId: number): Promise<{ message: string }> {
+  const { data } = await apiClient.delete<{ message: string }>(`/admin/groups/${id}/members/${userId}`)
+  return data
+}
+
 /**
  * Get RPM overrides for users in a group (subset of rate-multipliers endpoint).
  */
@@ -330,6 +355,8 @@ export const groupsAPI = {
   toggleStatus,
   getStats,
   getGroupApiKeys,
+  getGroupMembers,
+  removeGroupMember,
   getGroupRateMultipliers,
   clearGroupRateMultipliers,
   batchSetGroupRateMultipliers,

@@ -48,6 +48,15 @@
 
         <!-- Nav Actions -->
         <div class="flex items-center gap-3">
+          <JoinGroupEntryButton
+            link-class="inline-flex items-center rounded-full border border-primary-200 bg-white/80 px-3 py-1 text-xs font-medium text-primary-700 shadow-sm backdrop-blur transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-800 dark:border-primary-700/50 dark:bg-dark-900/70 dark:text-primary-300 dark:hover:border-primary-500 dark:hover:bg-dark-800 dark:hover:text-primary-200"
+            :title="qqGroupTitle"
+            dialog-title="加入群聊"
+            action-text="立即跳转"
+          >
+            加入群聊
+          </JoinGroupEntryButton>
+
           <!-- Language Switcher -->
           <LocaleSwitcher />
 
@@ -409,6 +418,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore, useAppStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
+import JoinGroupEntryButton from '@/components/layout/JoinGroupEntryButton.vue'
 import Icon from '@/components/icons/Icon.vue'
 
 const { t } = useI18n()
@@ -434,6 +444,7 @@ const isDark = ref(document.documentElement.classList.contains('dark'))
 
 // GitHub URL
 const githubUrl = 'https://github.com/Wei-Shaw/sub2api'
+const qqGroupTitle = '点击链接加入群聊【Loomex】'
 
 // Auth state
 const isAuthenticated = computed(() => authStore.isAuthenticated)

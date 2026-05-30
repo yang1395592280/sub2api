@@ -845,6 +845,40 @@ func (r *userRepository) RemoveGroupFromAllowedGroups(ctx context.Context, group
 	return int64(affected), nil
 }
 
+func (r *userRepository) ListAllowedUsersByGroupID(ctx context.Context, groupID int64) ([]service.User, error) {
+	var rows []struct {
+		UserID int64 `json:"user_id"`
+	}
+	err := r.client.UserAllowedGroup.Query().
+		Where(userallowedgroup.GroupIDEQ(groupID)).
+		Select(userallowedgroup.FieldUserID).
+		Scan(ctx, &rows)
+	if err != nil {
+		return nil, err
+	}
+	userIDs := make([]int64, 0, len(rows))
+	for i := range rows {
+		userIDs = append(userIDs, rows[i].UserID)
+	}
+	if len(userIDs) == 0 {
+		return []service.User{}, nil
+	}
+
+	users, err := r.client.User.Query().
+		Where(dbuser.IDIn(userIDs...)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]service.User, 0, len(users))
+	for i := range users {
+		result = append(result, *userEntityToService(users[i]))
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
+	return result, nil
+}
+
 // RemoveGroupFromUserAllowedGroups 移除单个用户的指定分组权限
 func (r *userRepository) RemoveGroupFromUserAllowedGroups(ctx context.Context, userID int64, groupID int64) error {
 	client := clientFromContext(ctx, r.client)

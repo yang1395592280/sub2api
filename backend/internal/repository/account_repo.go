@@ -536,7 +536,26 @@ func (r *accountRepository) ListWithFilters(ctx context.Context, params paginati
 		}
 	}
 	if search != "" {
-		q = q.Where(dbaccount.NameContainsFold(search))
+		trimmed := strings.TrimSpace(search)
+		if strings.Contains(trimmed, "@") {
+			needle := strings.ToLower(trimmed)
+			q = q.Where(dbpredicate.Account(func(s *entsql.Selector) {
+				s.Where(entsql.P(func(b *entsql.Builder) {
+					b.WriteString("(").
+						WriteString("LOWER(TRIM(").
+						WriteString(s.C(dbaccount.FieldExtra)).
+						WriteString("->>'email_address')) = ").
+						Arg(needle).
+						WriteString(" OR LOWER(TRIM(").
+						Ident(s.C(dbaccount.FieldName)).
+						WriteString(")) = ").
+						Arg(needle).
+						WriteString(")")
+				}))
+			}))
+		} else {
+			q = q.Where(dbaccount.NameContainsFold(search))
+		}
 	}
 	if groupID == service.AccountListGroupUngrouped {
 		q = q.Where(dbaccount.Not(dbaccount.HasAccountGroups()))

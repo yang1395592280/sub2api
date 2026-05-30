@@ -207,6 +207,9 @@ export interface PublicSettings {
   contact_info: string
   doc_url: string
   home_content: string
+  join_group_enabled: boolean
+  join_group_url: string
+  join_group_popup_image: string
   hide_ccs_import_button: boolean
   payment_enabled: boolean
   risk_control_enabled: boolean

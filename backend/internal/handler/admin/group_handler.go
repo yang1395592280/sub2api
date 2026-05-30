@@ -476,6 +476,77 @@ func (h *GroupHandler) GetGroupRateMultipliers(c *gin.Context) {
 	response.Success(c, entries)
 }
 
+// GetGroupMembers handles getting the full user list for a group.
+// GET /api/v1/admin/groups/:id/members
+func (h *GroupHandler) GetGroupMembers(c *gin.Context) {
+	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+
+	result, err := h.adminService.GetGroupMembers(c.Request.Context(), groupID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	type groupMemberResponse struct {
+		ID       int64  `json:"id"`
+		Username string `json:"username"`
+		Email    string `json:"email"`
+		Notes    string `json:"notes"`
+		Status   string `json:"status"`
+	}
+
+	out := struct {
+		GroupID         int64                 `json:"group_id"`
+		HasFixedMembers bool                  `json:"has_fixed_members"`
+		Items           []groupMemberResponse `json:"items"`
+		Total           int                   `json:"total"`
+	}{
+		GroupID:         result.GroupID,
+		HasFixedMembers: result.HasFixedMembers,
+		Items:           make([]groupMemberResponse, 0, len(result.Members)),
+		Total:           len(result.Members),
+	}
+
+	for i := range result.Members {
+		member := result.Members[i]
+		out.Items = append(out.Items, groupMemberResponse{
+			ID:       member.ID,
+			Username: member.Username,
+			Email:    member.Email,
+			Notes:    member.Notes,
+			Status:   member.Status,
+		})
+	}
+
+	response.Success(c, out)
+}
+
+// RemoveGroupMember handles removing a user from an exclusive standard group.
+// DELETE /api/v1/admin/groups/:id/members/:user_id
+func (h *GroupHandler) RemoveGroupMember(c *gin.Context) {
+	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+	userID, err := strconv.ParseInt(c.Param("user_id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID")
+		return
+	}
+
+	if err := h.adminService.RemoveUserFromExclusiveGroup(c.Request.Context(), groupID, userID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, gin.H{"message": "User removed from group successfully"})
+}
+
 // ClearGroupRateMultipliers handles clearing all rate multipliers for a group
 // DELETE /api/v1/admin/groups/:id/rate-multipliers
 func (h *GroupHandler) ClearGroupRateMultipliers(c *gin.Context) {
