@@ -84,6 +84,11 @@ const BulkEditAccountModalStub = {
   template: '<div data-test="bulk-edit-modal" :data-show="String(show)" :data-target-mode="target?.mode ?? \'\'"></div>'
 }
 
+const BatchAccountTestModalStub = {
+  props: ['show', 'accounts'],
+  template: '<div data-test="batch-test-modal" :data-show="String(show)" :data-account-count="String(accounts?.length ?? 0)"></div>'
+}
+
 describe('admin AccountsView bulk edit scope', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -138,6 +143,7 @@ describe('admin AccountsView bulk edit scope', () => {
           CreateAccountModal: true,
           EditAccountModal: true,
           BulkEditAccountModal: BulkEditAccountModalStub,
+          BatchAccountTestModal: BatchAccountTestModalStub,
           PlatformTypeBadge: true,
           AccountCapacityCell: true,
           AccountStatusIndicator: true,
@@ -203,6 +209,7 @@ describe('admin AccountsView bulk edit scope', () => {
           CreateAccountModal: true,
           EditAccountModal: true,
           BulkEditAccountModal: BulkEditAccountModalStub,
+          BatchAccountTestModal: BatchAccountTestModalStub,
           PlatformTypeBadge: true,
           AccountCapacityCell: true,
           AccountStatusIndicator: true,
@@ -223,5 +230,90 @@ describe('admin AccountsView bulk edit scope', () => {
       label: 'admin.accounts.columns.createdAt',
       sortable: true
     })
+  })
+
+  it('opens batch account test modal with selected accounts', async () => {
+    listAccounts.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          name: 'acc-a',
+          platform: 'anthropic',
+          type: 'oauth',
+          status: 'active',
+          schedulable: true,
+          created_at: '2026-03-07T10:00:00Z',
+          updated_at: '2026-03-07T10:00:00Z'
+        },
+        {
+          id: 2,
+          name: 'acc-b',
+          platform: 'openai',
+          type: 'apikey',
+          status: 'active',
+          schedulable: true,
+          created_at: '2026-03-07T10:00:00Z',
+          updated_at: '2026-03-07T10:00:00Z'
+        }
+      ],
+      total: 2,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+
+    const AccountBulkActionsBarTestStub = {
+      props: ['selectedIds'],
+      emits: ['test-selected'],
+      template: '<button data-test="test-selected" @click="$emit(\'test-selected\')">test selected</button>'
+    }
+
+    const wrapper = mount(AccountsView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: {
+            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+          },
+          DataTable: DataTableStub,
+          Pagination: true,
+          ConfirmDialog: true,
+          AccountTableActions: { template: '<div><slot name="beforeCreate" /><slot name="after" /></div>' },
+          AccountTableFilters: { template: '<div></div>' },
+          AccountBulkActionsBar: AccountBulkActionsBarTestStub,
+          AccountActionMenu: true,
+          ImportDataModal: true,
+          ReAuthAccountModal: true,
+          AccountTestModal: true,
+          AccountStatsModal: true,
+          ScheduledTestsPanel: true,
+          SyncFromCrsModal: true,
+          TempUnschedStatusModal: true,
+          ErrorPassthroughRulesModal: true,
+          TLSFingerprintProfilesModal: true,
+          CreateAccountModal: true,
+          EditAccountModal: true,
+          BulkEditAccountModal: BulkEditAccountModalStub,
+          BatchAccountTestModal: BatchAccountTestModalStub,
+          PlatformTypeBadge: true,
+          AccountCapacityCell: true,
+          AccountStatusIndicator: true,
+          AccountTodayStatsCell: true,
+          AccountGroupsCell: true,
+          AccountUsageCell: true,
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.vm.toggleSel(1)
+    await wrapper.vm.toggleSel(2)
+    await flushPromises()
+    await wrapper.get('[data-test="test-selected"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="batch-test-modal"]').attributes('data-show')).toBe('true')
+    expect(wrapper.get('[data-test="batch-test-modal"]').attributes('data-account-count')).toBe('2')
   })
 })

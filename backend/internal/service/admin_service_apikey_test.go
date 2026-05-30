@@ -77,6 +77,9 @@ func (s *userRepoStubForGroupUpdate) ExistsByEmail(context.Context, string) (boo
 func (s *userRepoStubForGroupUpdate) RemoveGroupFromAllowedGroups(context.Context, int64) (int64, error) {
 	panic("unexpected")
 }
+func (s *userRepoStubForGroupUpdate) ListAllowedUsersByGroupID(context.Context, int64) ([]User, error) {
+	panic("unexpected")
+}
 func (s *userRepoStubForGroupUpdate) UpdateTotpSecret(context.Context, int64, *string) error {
 	panic("unexpected")
 }
@@ -158,6 +161,9 @@ func (s *apiKeyRepoStubForGroupUpdate) SearchAPIKeys(context.Context, int64, str
 	panic("unexpected")
 }
 func (s *apiKeyRepoStubForGroupUpdate) ClearGroupIDByGroupID(context.Context, int64) (int64, error) {
+	panic("unexpected")
+}
+func (s *apiKeyRepoStubForGroupUpdate) ClearGroupIDByUserAndGroup(context.Context, int64, int64) (int64, error) {
 	panic("unexpected")
 }
 func (s *apiKeyRepoStubForGroupUpdate) CountByGroupID(context.Context, int64) (int64, error) {

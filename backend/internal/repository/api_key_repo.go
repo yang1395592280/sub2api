@@ -462,6 +462,15 @@ func (r *apiKeyRepository) ClearGroupIDByGroupID(ctx context.Context, groupID in
 	return int64(n), err
 }
 
+func (r *apiKeyRepository) ClearGroupIDByUserAndGroup(ctx context.Context, userID, groupID int64) (int64, error) {
+	client := clientFromContext(ctx, r.client)
+	n, err := client.APIKey.Update().
+		Where(apikey.UserIDEQ(userID), apikey.GroupIDEQ(groupID), apikey.DeletedAtIsNil()).
+		ClearGroupID().
+		Save(ctx)
+	return int64(n), err
+}
+
 // UpdateGroupIDByUserAndGroup 将用户下绑定 oldGroupID 的所有 Key 迁移到 newGroupID
 func (r *apiKeyRepository) UpdateGroupIDByUserAndGroup(ctx context.Context, userID, oldGroupID, newGroupID int64) (int64, error) {
 	client := clientFromContext(ctx, r.client)

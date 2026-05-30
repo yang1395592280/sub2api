@@ -23,6 +23,25 @@
 
       <!-- Right: Announcements + Docs + Language + Subscriptions + Balance + User Dropdown -->
       <div class="flex items-center gap-3">
+        <JoinGroupEntryButton
+          link-class="inline-flex items-center gap-1.5 rounded-xl border border-primary-200 bg-primary-50 px-2.5 py-1.5 text-sm font-medium text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100 hover:text-primary-800 dark:border-primary-800/70 dark:bg-primary-900/20 dark:text-primary-300 dark:hover:bg-primary-900/30"
+          :title="qqGroupTitle"
+          dialog-title="加入群聊"
+          action-text="立即跳转"
+        >
+          <svg
+            class="h-4 w-4 flex-shrink-0"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M20.205 3.481c-1.155-.807-3.448-1.256-5.096-1.433a5.673 5.673 0 00-.63-.048c-.445 0-.79.126-1.08.334-.266.19-.533.425-.85.704-.194.17-.412.363-.666.58-.255-.217-.473-.41-.667-.58-.317-.279-.584-.514-.85-.704-.29-.208-.634-.334-1.08-.334-.204 0-.415.015-.63.048-1.648.177-3.94.626-5.095 1.433C1.403 4.018.91 4.8.91 5.741c0 1.367.842 2.58 2.386 3.561-.168.46-.256.942-.256 1.441 0 2.308 1.536 4.2 3.93 4.91.251 1.493 1.52 2.647 3.03 2.647.65 0 1.263-.214 1.746-.58.483.366 1.096.58 1.746.58 1.51 0 2.78-1.154 3.03-2.647 2.395-.71 3.93-2.602 3.93-4.91 0-.499-.087-.981-.255-1.441 1.543-.98 2.385-2.194 2.385-3.561 0-.94-.492-1.723-1.472-2.26z"
+            />
+          </svg>
+          <span class="hidden lg:inline">加入群聊</span>
+          <span class="lg:hidden">加群</span>
+        </JoinGroupEntryButton>
+
         <!-- Announcement Bell -->
         <AnnouncementBell v-if="user" />
 
@@ -221,6 +240,7 @@ import { useAdminSettingsStore } from '@/stores/adminSettings'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
+import JoinGroupEntryButton from '@/components/layout/JoinGroupEntryButton.vue'
 import Icon from '@/components/icons/Icon.vue'
 
 const router = useRouter()
@@ -236,6 +256,7 @@ const dropdownOpen = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)
 const contactInfo = computed(() => appStore.contactInfo)
 const docUrl = computed(() => appStore.docUrl)
+const qqGroupTitle = '点击链接加入群聊【Loomex】'
 const avatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
 
 // 只在标准模式的管理员下显示新手引导按钮

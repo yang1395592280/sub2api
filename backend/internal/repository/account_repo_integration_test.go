@@ -455,6 +455,55 @@ func (s *AccountRepoSuite) TestListWithFilters() {
 	}
 }
 
+func (s *AccountRepoSuite) TestListWithFilters_EmailSearchMatchesAccountNameAndEmail() {
+	mustCreateAccount(s.T(), s.client, &service.Account{
+		Name:     "visible-name@example.com",
+		Platform: service.PlatformAnthropic,
+		Type:     service.AccountTypeOAuth,
+		Status:   service.StatusActive,
+		Extra: map[string]any{
+			"email_address": "another@example.com",
+		},
+	})
+	mustCreateAccount(s.T(), s.client, &service.Account{
+		Name:     "plain-name",
+		Platform: service.PlatformOpenAI,
+		Type:     service.AccountTypeAPIKey,
+		Status:   service.StatusActive,
+		Extra: map[string]any{
+			"email_address": "visible-email@example.com",
+		},
+	})
+
+	accounts, _, err := s.repo.ListWithFilters(
+		s.ctx,
+		pagination.PaginationParams{Page: 1, PageSize: 10},
+		"",
+		"",
+		"",
+		"visible-email@example.com",
+		0,
+		"",
+	)
+	s.Require().NoError(err)
+	s.Require().Len(accounts, 1)
+	s.Require().Equal("plain-name", accounts[0].Name)
+
+	accounts, _, err = s.repo.ListWithFilters(
+		s.ctx,
+		pagination.PaginationParams{Page: 1, PageSize: 10},
+		"",
+		"",
+		"",
+		"visible-name@example.com",
+		0,
+		"",
+	)
+	s.Require().NoError(err)
+	s.Require().Len(accounts, 1)
+	s.Require().Equal("visible-name@example.com", accounts[0].Name)
+}
+
 // --- ListByGroup / ListActive / ListByPlatform ---
 
 func (s *AccountRepoSuite) TestListByGroup() {

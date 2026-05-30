@@ -4701,6 +4701,61 @@
                 </p>
               </div>
 
+              <div
+                class="rounded-xl border border-gray-200/80 bg-gray-50/70 p-4 dark:border-dark-700 dark:bg-dark-900/40"
+              >
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">
+                      {{ t("admin.settings.site.joinGroup.enabled") }}
+                    </label>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.site.joinGroup.enabledHint") }}
+                    </p>
+                  </div>
+                  <Toggle
+                    v-model="form.join_group_enabled"
+                    name="join-group-enabled"
+                  />
+                </div>
+
+                <div class="mt-4">
+                  <label
+                    class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ t("admin.settings.site.joinGroup.url") }}
+                  </label>
+                  <input
+                    v-model="form.join_group_url"
+                    name="join-group-url"
+                    type="url"
+                    class="input font-mono text-sm"
+                    :placeholder="t('admin.settings.site.joinGroup.urlPlaceholder')"
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.site.joinGroup.urlHint") }}
+                  </p>
+                </div>
+
+                <div class="mt-4">
+                  <label
+                    class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ t("admin.settings.site.joinGroup.image") }}
+                  </label>
+                  <ImageUpload
+                    v-model="form.join_group_popup_image"
+                    name="join-group-popup-image"
+                    mode="image"
+                    :upload-label="t('admin.settings.site.uploadImage')"
+                    :remove-label="t('admin.settings.site.remove')"
+                    :placeholder="t('admin.settings.site.joinGroup.imagePlaceholder')"
+                    :hint="t('admin.settings.site.joinGroup.imageHint')"
+                    :max-size="500 * 1024"
+                  />
+                </div>
+              </div>
+
               <!-- Site Logo Upload -->
               <div>
                 <label
@@ -7012,6 +7067,9 @@ const form = reactive<SettingsForm>({
   contact_info: "",
   doc_url: "",
   home_content: "",
+  join_group_enabled: false,
+  join_group_url: "",
+  join_group_popup_image: "",
   backend_mode_enabled: false,
   hide_ccs_import_button: false,
   payment_enabled: false,
@@ -8114,6 +8172,8 @@ async function saveSettings() {
     // Optional URL fields: auto-clear invalid values so they don't cause backend 400 errors
     if (!isValidHttpUrl(form.frontend_url)) form.frontend_url = "";
     if (!isValidHttpUrl(form.doc_url)) form.doc_url = "";
+    if (!isValidHttpUrl(form.join_group_url)) form.join_group_url = "";
+    form.join_group_popup_image = form.join_group_popup_image.trim();
     syncWeChatConnectMode();
     const wechatStoredMode = deriveWeChatConnectStoredMode(
       form.wechat_connect_open_enabled,
@@ -8156,6 +8216,9 @@ async function saveSettings() {
       contact_info: form.contact_info,
       doc_url: form.doc_url,
       home_content: form.home_content,
+      join_group_enabled: form.join_group_enabled,
+      join_group_url: form.join_group_url,
+      join_group_popup_image: form.join_group_popup_image,
       backend_mode_enabled: form.backend_mode_enabled,
       hide_ccs_import_button: form.hide_ccs_import_button,
       table_default_page_size: form.table_default_page_size,

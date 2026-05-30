@@ -290,6 +290,13 @@
           <template #cell-actions="{ row }">
             <div class="flex items-center gap-1">
               <button
+                @click="handleViewMembers(row)"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-sky-50 hover:text-sky-600 dark:hover:bg-dark-700 dark:hover:text-sky-400"
+              >
+                <Icon name="users" size="sm" />
+                <span class="text-xs">{{ t("admin.groups.viewMembers") }}</span>
+              </button>
+              <button
                 @click="handleEdit(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
               >
@@ -3026,6 +3033,12 @@
       @success="loadGroups"
     />
 
+    <GroupMembersModal
+      :show="showMembersModal"
+      :group="membersGroup"
+      @close="showMembersModal = false"
+    />
+
     <!-- Group RPM Overrides Modal -->
     <GroupRPMOverridesModal
       :show="showRPMOverridesModal"
@@ -3054,6 +3067,7 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import Select from "@/components/common/Select.vue";
 import PlatformIcon from "@/components/common/PlatformIcon.vue";
 import Icon from "@/components/icons/Icon.vue";
+import GroupMembersModal from "@/components/admin/group/GroupMembersModal.vue";
 import GroupRateMultipliersModal from "@/components/admin/group/GroupRateMultipliersModal.vue";
 import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesModal.vue";
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
@@ -3306,6 +3320,8 @@ const editingGroup = ref<AdminGroup | null>(null);
 const deletingGroup = ref<AdminGroup | null>(null);
 const showRateMultipliersModal = ref(false);
 const rateMultipliersGroup = ref<AdminGroup | null>(null);
+const showMembersModal = ref(false);
+const membersGroup = ref<AdminGroup | null>(null);
 const showRPMOverridesModal = ref(false);
 const rpmOverridesGroup = ref<AdminGroup | null>(null);
 const sortableGroups = ref<AdminGroup[]>([]);
@@ -4191,6 +4207,11 @@ const removeEditMessagesDispatchMapping = (row: MessagesDispatchMappingRow) => {
 const handleRateMultipliers = (group: AdminGroup) => {
   rateMultipliersGroup.value = group;
   showRateMultipliersModal.value = true;
+};
+
+const handleViewMembers = (group: AdminGroup) => {
+  membersGroup.value = group;
+  showMembersModal.value = true;
 };
 
 const handleRPMOverrides = (group: AdminGroup) => {

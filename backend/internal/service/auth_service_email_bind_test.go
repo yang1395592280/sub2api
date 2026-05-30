@@ -831,6 +831,10 @@ func (s *emailBindUserRepoStub) RemoveGroupFromAllowedGroups(context.Context, in
 	return 0, nil
 }
 
+func (s *emailBindUserRepoStub) ListAllowedUsersByGroupID(context.Context, int64) ([]service.User, error) {
+	return nil, nil
+}
+
 func (s *emailBindUserRepoStub) AddGroupToAllowedGroups(context.Context, int64, int64) error {
 	return nil
 }
