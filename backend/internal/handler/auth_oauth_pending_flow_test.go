@@ -2850,6 +2850,10 @@ func (r *oauthPendingFlowUserRepo) RemoveGroupFromAllowedGroups(context.Context,
 	panic("unexpected RemoveGroupFromAllowedGroups call")
 }
 
+func (r *oauthPendingFlowUserRepo) ListAllowedUsersByGroupID(context.Context, int64) ([]service.User, error) {
+	panic("unexpected ListAllowedUsersByGroupID call")
+}
+
 func (r *oauthPendingFlowUserRepo) AddGroupToAllowedGroups(context.Context, int64, int64) error {
 	panic("unexpected AddGroupToAllowedGroups call")
 }

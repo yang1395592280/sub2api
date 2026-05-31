@@ -151,3 +151,20 @@ func TestSettingService_GetPublicSettings_FallsBackToConfigForWeChatOAuthCapabil
 	require.False(t, settings.WeChatOAuthMPEnabled)
 	require.False(t, settings.WeChatOAuthMobileEnabled)
 }
+
+func TestSettingService_GetPublicSettings_ExposesJoinGroupSettings(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{
+			SettingKeyJoinGroupEnabled:    "true",
+			SettingKeyJoinGroupURL:        "https://qm.qq.com/q/example",
+			SettingKeyJoinGroupPopupImage: "data:image/png;base64,QUJD",
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{})
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.True(t, settings.JoinGroupEnabled)
+	require.Equal(t, "https://qm.qq.com/q/example", settings.JoinGroupURL)
+	require.Equal(t, "data:image/png;base64,QUJD", settings.JoinGroupPopupImage)
+}

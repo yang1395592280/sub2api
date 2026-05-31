@@ -36,6 +36,13 @@
         />
       </div>
 
+      <div
+        v-if="status !== 'idle'"
+        class="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300"
+      >
+        {{ t('admin.accounts.bulkTestProgress', { current: progressCurrent, total: accounts.length }) }}
+      </div>
+
       <div class="group relative">
         <div
           ref="terminalRef"
@@ -82,39 +89,59 @@
     </div>
 
     <template #footer>
-      <div class="flex justify-end gap-3">
-        <button
-          @click="handleClose"
-          class="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-dark-600 dark:text-gray-300 dark:hover:bg-dark-500"
-        >
-          {{ t('common.close') }}
-        </button>
-        <button
-          @click="startBatchTest"
-          :disabled="status === 'connecting' || !selectedModelId || accounts.length === 0"
-          :class="[
-            'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all',
-            status === 'connecting' || !selectedModelId || accounts.length === 0
-              ? 'cursor-not-allowed bg-primary-400 text-white'
-              : 'bg-primary-500 text-white hover:bg-primary-600'
-          ]"
-        >
-          <Icon
-            v-if="status === 'connecting'"
-            name="refresh"
-            size="sm"
-            class="animate-spin"
-            :stroke-width="2"
-          />
-          <Icon v-else name="play" size="sm" :stroke-width="2" />
-          <span>
-            {{
-              status === 'connecting'
-                ? t('admin.accounts.testing')
-                : t('admin.accounts.startTest')
-            }}
-          </span>
-        </button>
+      <div class="flex flex-wrap justify-between gap-3">
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-if="successEmails.length > 0"
+            @click="downloadEmails(successEmails, 'success-emails.txt')"
+            data-testid="download-success-emails"
+            class="rounded-lg bg-emerald-100 px-4 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+          >
+            {{ t('admin.accounts.bulkDownloadSuccessEmails') }}
+          </button>
+          <button
+            v-if="failedEmails.length > 0"
+            @click="downloadEmails(failedEmails, 'failed-emails.txt')"
+            data-testid="download-failed-emails"
+            class="rounded-lg bg-rose-100 px-4 py-2 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:hover:bg-rose-900/50"
+          >
+            {{ t('admin.accounts.bulkDownloadFailedEmails') }}
+          </button>
+        </div>
+        <div class="flex justify-end gap-3">
+          <button
+            @click="handleClose"
+            class="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-dark-600 dark:text-gray-300 dark:hover:bg-dark-500"
+          >
+            {{ t('common.close') }}
+          </button>
+          <button
+            @click="startBatchTest"
+            :disabled="status === 'connecting' || !selectedModelId || accounts.length === 0"
+            :class="[
+              'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all',
+              status === 'connecting' || !selectedModelId || accounts.length === 0
+                ? 'cursor-not-allowed bg-primary-400 text-white'
+                : 'bg-primary-500 text-white hover:bg-primary-600'
+            ]"
+          >
+            <Icon
+              v-if="status === 'connecting'"
+              name="refresh"
+              size="sm"
+              class="animate-spin"
+              :stroke-width="2"
+            />
+            <Icon v-else name="play" size="sm" :stroke-width="2" />
+            <span>
+              {{
+                status === 'connecting'
+                  ? t('admin.accounts.testing')
+                  : t('admin.accounts.startTest')
+              }}
+            </span>
+          </button>
+        </div>
       </div>
     </template>
   </BaseDialog>
@@ -154,6 +181,9 @@ const errorMessage = ref('')
 const availableModels = ref<ClaudeModel[]>([])
 const selectedModelId = ref('')
 const loadingModels = ref(false)
+const progressCurrent = ref(0)
+const successEmails = ref<string[]>([])
+const failedEmails = ref<string[]>([])
 
 const addLine = (text: string, className: string = 'text-gray-300') => {
   outputLines.value.push({ text, class: className })
@@ -171,10 +201,23 @@ const resetState = () => {
   status.value = 'idle'
   outputLines.value = []
   errorMessage.value = ''
+  progressCurrent.value = 0
+  successEmails.value = []
+  failedEmails.value = []
 }
 
 const handleClose = () => {
   emit('close')
+}
+
+const extractEmail = (account: Account): string => {
+  const value = account.extra && typeof account.extra.email_address === 'string'
+    ? account.extra.email_address.trim()
+    : ''
+  if (value) return value
+  return typeof account.name === 'string' && account.name.includes('@')
+    ? account.name.trim()
+    : ''
 }
 
 const parseSSEOutput = (body: string) => {
@@ -238,7 +281,8 @@ const startBatchTest = async () => {
   let successCount = 0
   let failedCount = 0
 
-  for (const account of props.accounts) {
+  for (const [index, account] of props.accounts.entries()) {
+    progressCurrent.value = index + 1
     addLine('', 'text-gray-300')
     addLine(`=== ${account.name} (#${account.id}) ===`, 'text-cyan-400')
     addLine(t('admin.accounts.testAccountTypeLabel', { type: account.type }), 'text-gray-400')
@@ -252,7 +296,8 @@ const startBatchTest = async () => {
         },
         body: JSON.stringify({
           model_id: selectedModelId.value,
-          prompt: ''
+          prompt: '',
+          mode: 'default'
         })
       })
 
@@ -261,9 +306,13 @@ const startBatchTest = async () => {
 
       if (!response.ok || result.error) {
         failedCount += 1
+        const email = extractEmail(account)
+        if (email) failedEmails.value.push(email)
         addLine(`ERROR: ${result.error || `HTTP ${response.status}`}`, 'text-red-400')
       } else {
         successCount += 1
+        const email = extractEmail(account)
+        if (email) successEmails.value.push(email)
         if (result.model) {
           addLine(t('admin.accounts.usingModel', { model: result.model }), 'text-green-400')
         }
@@ -271,6 +320,8 @@ const startBatchTest = async () => {
       }
     } catch (error: unknown) {
       failedCount += 1
+      const email = extractEmail(account)
+      if (email) failedEmails.value.push(email)
       const message = error instanceof Error ? error.message : 'Unknown error'
       addLine(`ERROR: ${message}`, 'text-red-400')
     }
@@ -284,6 +335,17 @@ const startBatchTest = async () => {
 
   status.value = failedCount > 0 ? 'error' : 'success'
   errorMessage.value = failedCount > 0 ? t('admin.accounts.bulkTestHasFailures') : ''
+}
+
+const downloadEmails = (emails: string[], filename: string) => {
+  if (emails.length === 0) return
+  const blob = new Blob([emails.join(',')], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 const copyOutput = () => {

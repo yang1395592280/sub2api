@@ -97,6 +97,9 @@ func (s *userHandlerRepoStub) ExistsByEmail(context.Context, string) (bool, erro
 func (s *userHandlerRepoStub) RemoveGroupFromAllowedGroups(context.Context, int64) (int64, error) {
 	return 0, nil
 }
+func (s *userHandlerRepoStub) ListAllowedUsersByGroupID(context.Context, int64) ([]service.User, error) {
+	return nil, nil
+}
 func (s *userHandlerRepoStub) AddGroupToAllowedGroups(context.Context, int64, int64) error {
 	return nil
 }
