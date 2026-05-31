@@ -24,8 +24,8 @@ on:
 # 环境变量：合并 workflow_dispatch 输入和 repository variable
 # tag push 触发时读取 vars.SIMPLE_RELEASE，workflow_dispatch 时使用输入参数
 env:
-  SIMPLE_RELEASE: ${{ github.event.inputs.simple_release == 'true' || vars.SIMPLE_RELEASE == 'true' }}
-  RELEASE_ONLY: ${{ github.event.inputs.release_only == 'true' || vars.RELEASE_ONLY == 'true' }}
+  SIMPLE_RELEASE: ${{ inputs.simple_release || github.event.inputs.simple_release == 'true' || vars.SIMPLE_RELEASE == 'true' }}
+  RELEASE_ONLY: ${{ inputs.release_only || github.event.inputs.release_only == 'true' || vars.RELEASE_ONLY == 'true' }}
 
 permissions:
   contents: write
