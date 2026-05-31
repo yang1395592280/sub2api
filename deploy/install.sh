@@ -37,9 +37,9 @@ SERVICE_NAME="sub2api"
 SERVICE_USER="sub2api"
 CONFIG_DIR="/etc/sub2api"
 
-# Server configuration (will be set by user)
+# Server configuration (defaulted for one-line install)
 SERVER_HOST="0.0.0.0"
-SERVER_PORT="8080"
+SERVER_PORT="8318"
 
 # Language (default: zh = Chinese)
 LANG_CHOICE="zh"
@@ -328,8 +328,8 @@ print_error() {
 # Check if running interactively (can access terminal)
 # When piped (curl | bash), stdin is not a terminal, but /dev/tty may still be available
 is_interactive() {
-    # Check if /dev/tty is available (works even when piped)
-    [ -e /dev/tty ] && [ -r /dev/tty ] && [ -w /dev/tty ]
+    # Treat piped installers (curl | bash) as non-interactive even if /dev/tty exists.
+    [ -t 0 ] && [ -t 1 ] && [ -e /dev/tty ] && [ -r /dev/tty ] && [ -w /dev/tty ]
 }
 
 # Select language
@@ -618,6 +618,14 @@ download_and_extract() {
     fi
 
     print_success "$(msg 'binary_installed') $INSTALL_DIR/sub2api"
+}
+
+# Stop existing service before replacing the binary.
+stop_existing_service_if_present() {
+    if systemctl list-unit-files 2>/dev/null | grep -q '^sub2api\.service'; then
+        print_info "$(msg 'stopping_service')"
+        systemctl stop sub2api 2>/dev/null || true
+    fi
 }
 
 # Create system user
@@ -1061,6 +1069,7 @@ main() {
                     # Fresh install with specific version
                     configure_server
                     LATEST_VERSION=$(validate_version "$target_version")
+                    stop_existing_service_if_present
                     download_and_extract
                     create_user
                     setup_directories
@@ -1075,6 +1084,7 @@ main() {
                 # Fresh install with latest version
                 configure_server
                 get_latest_version
+                stop_existing_service_if_present
                 download_and_extract
                 create_user
                 setup_directories
@@ -1155,6 +1165,7 @@ main() {
         else
             configure_server
             LATEST_VERSION=$(validate_version "$target_version")
+            stop_existing_service_if_present
             download_and_extract
             create_user
             setup_directories
@@ -1169,6 +1180,7 @@ main() {
         # Install latest version
         configure_server
         get_latest_version
+        stop_existing_service_if_present
         download_and_extract
         create_user
         setup_directories
