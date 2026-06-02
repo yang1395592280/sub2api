@@ -122,6 +122,9 @@ func (s *quotaBaseAPIKeyRepoStub) SearchAPIKeys(context.Context, int64, string, 
 func (s *quotaBaseAPIKeyRepoStub) ClearGroupIDByGroupID(context.Context, int64) (int64, error) {
 	panic("unexpected ClearGroupIDByGroupID call")
 }
+func (s *quotaBaseAPIKeyRepoStub) ClearGroupIDByUserAndGroup(context.Context, int64, int64) (int64, error) {
+	panic("unexpected ClearGroupIDByUserAndGroup call")
+}
 func (s *quotaBaseAPIKeyRepoStub) UpdateGroupIDByUserAndGroup(context.Context, int64, int64, int64) (int64, error) {
 	panic("unexpected UpdateGroupIDByUserAndGroup call")
 }

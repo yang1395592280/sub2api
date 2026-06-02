@@ -82,6 +82,11 @@ type UpdateBalanceRequest struct {
 	Notes     string  `json:"notes"`
 }
 
+type BatchAddGroupRequest struct {
+	UserIDs []int64 `json:"user_ids"`
+	GroupID int64   `json:"group_id" binding:"required,gt=0"`
+}
+
 type BindUserAuthIdentityRequest struct {
 	ProviderType    string                              `json:"provider_type"`
 	ProviderKey     string                              `json:"provider_key"`
@@ -120,6 +125,7 @@ func (h *UserHandler) List(c *gin.Context) {
 		Status:     c.Query("status"),
 		Role:       c.Query("role"),
 		Search:     search,
+		EmailList:  parseEmailListFilter(c.Query("email_list")),
 		GroupName:  strings.TrimSpace(c.Query("group_name")),
 		Attributes: parseAttributeFilters(c),
 	}
@@ -183,6 +189,32 @@ func parseAttributeFilters(c *gin.Context) map[int64]string {
 		}
 	}
 
+	return result
+}
+
+func parseEmailListFilter(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	raw = strings.ReplaceAll(raw, "，", ",")
+	parts := strings.Split(raw, ",")
+	result := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		email := strings.TrimSpace(part)
+		if email == "" {
+			continue
+		}
+		key := strings.ToLower(email)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, email)
+		if len(result) >= 100 {
+			break
+		}
+	}
 	return result
 }
 
@@ -324,6 +356,17 @@ func (h *UserHandler) Delete(c *gin.Context) {
 	response.Success(c, gin.H{"message": "User deleted successfully"})
 }
 
+// GetBalanceSummary handles getting the total balance of all non-admin users.
+// GET /api/v1/admin/users/summary
+func (h *UserHandler) GetBalanceSummary(c *gin.Context) {
+	summary, err := h.adminService.GetUserBalanceSummary(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, summary)
+}
+
 // UpdateBalance handles updating user balance
 // POST /api/v1/admin/users/:id/balance
 func (h *UserHandler) UpdateBalance(c *gin.Context) {
@@ -353,6 +396,31 @@ func (h *UserHandler) UpdateBalance(c *gin.Context) {
 		}
 		return dto.UserFromServiceAdmin(user), nil
 	})
+}
+
+// BatchAddGroup handles incrementally granting an exclusive standard group to multiple users.
+// POST /api/v1/admin/users/batch-add-group
+func (h *UserHandler) BatchAddGroup(c *gin.Context) {
+	var req BatchAddGroupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if len(req.UserIDs) == 0 {
+		response.BadRequest(c, "user_ids is required")
+		return
+	}
+	if len(req.UserIDs) > 500 {
+		response.BadRequest(c, "user_ids cannot exceed 500")
+		return
+	}
+
+	result, err := h.adminService.BatchAddUsersToGroup(c.Request.Context(), req.UserIDs, req.GroupID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
 }
 
 // GetUserAPIKeys handles getting user's API keys

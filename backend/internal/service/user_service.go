@@ -68,6 +68,7 @@ type UserListFilters struct {
 	Status     string           // User status filter
 	Role       string           // User role filter
 	Search     string           // Search in email, username
+	EmailList  []string         // Exact-match email filters joined by comma on the admin UI
 	GroupName  string           // Filter by allowed group name (fuzzy match)
 	Attributes map[int64]string // Custom attribute filters: attributeID -> value
 	// IncludeSubscriptions controls whether ListWithFilters should load active subscriptions.

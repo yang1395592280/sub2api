@@ -6,12 +6,14 @@ import UsersView from '../UsersView.vue'
 
 const {
   listUsers,
+  getUserBalanceSummary,
   getAllGroups,
   getBatchUsersUsage,
   listEnabledDefinitions,
   getBatchUserAttributes
 } = vi.hoisted(() => ({
   listUsers: vi.fn(),
+  getUserBalanceSummary: vi.fn(),
   getAllGroups: vi.fn(),
   getBatchUsersUsage: vi.fn(),
   listEnabledDefinitions: vi.fn(),
@@ -22,8 +24,10 @@ vi.mock('@/api/admin', () => ({
   adminAPI: {
     users: {
       list: listUsers,
+      getUserBalanceSummary,
       toggleStatus: vi.fn(),
-      delete: vi.fn()
+      delete: vi.fn(),
+      batchAddGroupToUsers: vi.fn()
     },
     groups: {
       getAll: getAllGroups
@@ -83,6 +87,7 @@ const DataTableStub = {
       <div data-test="columns">{{ columns.map(col => col.key).join(',') }}</div>
       <button data-test="sort-last-used" @click="$emit('sort', 'last_used_at', 'desc')">sort</button>
       <div v-for="row in data" :key="row.id">
+        <slot name="cell-select" :row="row" />
         <slot name="cell-last_used_at" :value="row.last_used_at" :row="row" />
       </div>
     </div>
@@ -94,6 +99,7 @@ describe('admin UsersView', () => {
     localStorage.clear()
 
     listUsers.mockReset()
+    getUserBalanceSummary.mockReset()
     getAllGroups.mockReset()
     getBatchUsersUsage.mockReset()
     listEnabledDefinitions.mockReset()
@@ -105,6 +111,10 @@ describe('admin UsersView', () => {
       page: 1,
       page_size: 20,
       pages: 1
+    })
+    getUserBalanceSummary.mockResolvedValue({
+      total_balance: 66.6,
+      user_count: 1
     })
     getAllGroups.mockResolvedValue([])
     getBatchUsersUsage.mockResolvedValue({ stats: {} })
@@ -135,6 +145,11 @@ describe('admin UsersView', () => {
           UserBalanceModal: true,
           UserBalanceHistoryModal: true,
           GroupReplaceModal: true,
+          UserBulkActionsBar: {
+            props: ['selectedIds'],
+            template: '<div data-test="bulk-actions">{{ selectedIds.length }}</div>'
+          },
+          UserBatchAddGroupModal: true,
           Icon: true,
           Teleport: true
         }
@@ -157,6 +172,102 @@ describe('admin UsersView', () => {
       expect.objectContaining({
         sort_by: 'last_used_at',
         sort_order: 'desc'
+      }),
+      expect.any(Object)
+    )
+  })
+
+  it('loads and displays the non-admin balance summary and shows bulk actions after selecting a user', async () => {
+    const wrapper = mount(UsersView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: {
+            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+          },
+          DataTable: DataTableStub,
+          Pagination: true,
+          ConfirmDialog: true,
+          EmptyState: true,
+          GroupBadge: true,
+          Select: true,
+          UserAttributesConfigModal: true,
+          UserConcurrencyCell: true,
+          UserCreateModal: true,
+          UserEditModal: true,
+          UserApiKeysModal: true,
+          UserAllowedGroupsModal: true,
+          UserBalanceModal: true,
+          UserBalanceHistoryModal: true,
+          GroupReplaceModal: true,
+          UserBulkActionsBar: {
+            props: ['selectedIds'],
+            template: '<div data-test="bulk-actions">{{ selectedIds.length }}</div>'
+          },
+          UserBatchAddGroupModal: true,
+          Icon: true,
+          Teleport: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(getUserBalanceSummary).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('66.6')
+
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="bulk-actions"]').text()).toBe('1')
+  })
+
+  it('passes comma-separated email filters through email_list without replacing fuzzy search', async () => {
+    const wrapper = mount(UsersView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: {
+            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+          },
+          DataTable: DataTableStub,
+          Pagination: true,
+          ConfirmDialog: true,
+          EmptyState: true,
+          GroupBadge: true,
+          Select: true,
+          UserAttributesConfigModal: true,
+          UserConcurrencyCell: true,
+          UserCreateModal: true,
+          UserEditModal: true,
+          UserApiKeysModal: true,
+          UserAllowedGroupsModal: true,
+          UserBalanceModal: true,
+          UserBalanceHistoryModal: true,
+          GroupReplaceModal: true,
+          UserBulkActionsBar: true,
+          UserBatchAddGroupModal: true,
+          Icon: true,
+          Teleport: true
+        }
+      }
+    })
+
+    await flushPromises()
+    listUsers.mockClear()
+
+    const inputs = wrapper.findAll('input[type="text"]')
+    await inputs[0].setValue('fuzzy-keyword')
+    await inputs[1].setValue('a@example.com,b@example.com')
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    await flushPromises()
+
+    expect(listUsers).toHaveBeenLastCalledWith(
+      1,
+      20,
+      expect.objectContaining({
+        search: 'fuzzy-keyword',
+        email_list: 'a@example.com,b@example.com'
       }),
       expect.any(Object)
     )

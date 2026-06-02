@@ -1764,6 +1764,7 @@ export default {
       editUser: 'Edit User',
       deleteUser: 'Delete User',
       searchUsers: 'Search by email, username, notes, or API key...',
+      emailListSearchPlaceholder: 'Filter multiple emails with comma-separated values',
       allRoles: 'All Roles',
       allStatus: 'All Status',
       allGroups: 'All Groups',
@@ -1852,6 +1853,26 @@ export default {
       failedToDelete: 'Failed to delete user',
       failedToToggle: 'Failed to update user status',
       failedToLoadApiKeys: 'Failed to load user API keys',
+      balanceSummary: {
+        label: 'Regular User Balance Total',
+        failed: 'Failed to load user balance summary'
+      },
+      bulkActions: {
+        selected: '{count} users selected',
+        selectCurrentPage: 'Select current page',
+        clear: 'Clear selection',
+        addGroup: 'Add group'
+      },
+      bulkAddGroup: {
+        title: 'Batch Add Group',
+        selectedUsers: 'This will incrementally add group access for {count} selected users without overwriting existing groups.',
+        groupLabel: 'Target group',
+        groupPlaceholder: 'Select an exclusive standard group',
+        groupRequired: 'Please select a group to add',
+        confirm: 'Confirm',
+        success: 'Added "{group}" group access for {count} users',
+        failed: 'Failed to batch add group'
+      },
       emailRequired: 'Please enter email',
       concurrencyMin: 'Concurrency must be at least 1',
       soraStorageQuota: 'Sora Storage Quota',

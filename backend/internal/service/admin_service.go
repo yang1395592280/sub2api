@@ -37,6 +37,8 @@ type AdminService interface {
 	UpdateUser(ctx context.Context, id int64, input *UpdateUserInput) (*User, error)
 	DeleteUser(ctx context.Context, id int64) error
 	UpdateUserBalance(ctx context.Context, userID int64, balance float64, operation string, notes string) (*User, error)
+	GetUserBalanceSummary(ctx context.Context) (*UserBalanceSummary, error)
+	BatchAddUsersToGroup(ctx context.Context, userIDs []int64, groupID int64) (*BatchAddUsersToGroupResult, error)
 	BatchUpdateConcurrency(ctx context.Context, userIDs []int64, value int, mode string) (int, error)
 	GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int, sortBy, sortOrder string) ([]APIKey, int64, error)
 	GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error)
@@ -151,6 +153,16 @@ type UpdateUserInput struct {
 	GroupRates map[int64]*float64
 }
 
+type UserBalanceSummary struct {
+	TotalBalance float64 `json:"total_balance"`
+	UserCount    int64   `json:"user_count"`
+}
+
+type BatchAddUsersToGroupResult struct {
+	GroupID        int64 `json:"group_id"`
+	ProcessedUsers int64 `json:"processed_users"`
+}
+
 type AdminBindAuthIdentityInput struct {
 	ProviderType    string
 	ProviderKey     string
@@ -158,6 +170,10 @@ type AdminBindAuthIdentityInput struct {
 	Issuer          *string
 	Metadata        map[string]any
 	Channel         *AdminBindAuthIdentityChannelInput
+}
+
+type userBalanceSummaryReader interface {
+	SumBalanceByRole(ctx context.Context, role string) (float64, int64, error)
 }
 
 type AdminBindAuthIdentityChannelInput struct {
@@ -682,6 +698,21 @@ func (s *adminServiceImpl) GetUser(ctx context.Context, id int64) (*User, error)
 	return user, nil
 }
 
+func (s *adminServiceImpl) GetUserBalanceSummary(ctx context.Context) (*UserBalanceSummary, error) {
+	reader, ok := s.userRepo.(userBalanceSummaryReader)
+	if !ok {
+		return nil, fmt.Errorf("user repository does not support balance summary")
+	}
+	totalBalance, userCount, err := reader.SumBalanceByRole(ctx, RoleUser)
+	if err != nil {
+		return nil, err
+	}
+	return &UserBalanceSummary{
+		TotalBalance: totalBalance,
+		UserCount:    userCount,
+	}, nil
+}
+
 func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInput) (*User, error) {
 	user := &User{
 		Email:         input.Email,
@@ -871,6 +902,72 @@ func (s *adminServiceImpl) BatchUpdateConcurrency(ctx context.Context, userIDs [
 		}
 	}
 	return affected, nil
+}
+
+func (s *adminServiceImpl) BatchAddUsersToGroup(ctx context.Context, userIDs []int64, groupID int64) (*BatchAddUsersToGroupResult, error) {
+	group, err := s.groupRepo.GetByID(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	if !group.IsActive() {
+		return nil, infraerrors.BadRequest("GROUP_NOT_ACTIVE", "target group is not active")
+	}
+	if !group.IsExclusive {
+		return nil, infraerrors.BadRequest("GROUP_NOT_EXCLUSIVE", "target group must be exclusive")
+	}
+	if group.IsSubscriptionType() {
+		return nil, infraerrors.BadRequest("GROUP_IS_SUBSCRIPTION", "subscription groups are not supported")
+	}
+
+	seen := make(map[int64]struct{}, len(userIDs))
+	cleaned := make([]int64, 0, len(userIDs))
+	for _, userID := range userIDs {
+		if userID <= 0 {
+			continue
+		}
+		if _, exists := seen[userID]; exists {
+			continue
+		}
+		seen[userID] = struct{}{}
+		cleaned = append(cleaned, userID)
+	}
+	if len(cleaned) == 0 {
+		return nil, infraerrors.BadRequest("USER_IDS_REQUIRED", "user_ids is required")
+	}
+
+	opCtx := ctx
+	var tx *dbent.Tx
+	if s.entClient != nil {
+		tx, err = s.entClient.Tx(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("begin transaction: %w", err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		opCtx = dbent.NewTxContext(ctx, tx)
+	}
+
+	for _, userID := range cleaned {
+		if err := s.userRepo.AddGroupToAllowedGroups(opCtx, userID, groupID); err != nil {
+			return nil, fmt.Errorf("add group to user %d: %w", userID, err)
+		}
+	}
+
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("commit transaction: %w", err)
+		}
+	}
+
+	if s.authCacheInvalidator != nil {
+		for _, userID := range cleaned {
+			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
+		}
+	}
+
+	return &BatchAddUsersToGroupResult{
+		GroupID:        groupID,
+		ProcessedUsers: int64(len(cleaned)),
+	}, nil
 }
 
 func (s *adminServiceImpl) UpdateUserBalance(ctx context.Context, userID int64, balance float64, operation string, notes string) (*User, error) {

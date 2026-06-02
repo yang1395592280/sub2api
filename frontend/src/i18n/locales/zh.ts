@@ -1787,6 +1787,7 @@ export default {
       deleteConfirmMessage: "确定要删除用户 '{email}' 吗？此操作无法撤销。",
       searchPlaceholder: '邮箱/用户名/备注/API Key 模糊搜索...',
       searchUsers: '邮箱/用户名/备注/API Key 模糊搜索',
+      emailListSearchPlaceholder: '多个邮箱过滤，使用英文逗号分隔',
       roleFilter: '角色筛选',
       allRoles: '全部角色',
       allStatus: '全部状态',
@@ -1873,6 +1874,26 @@ export default {
       failedToDelete: '删除用户失败',
       failedToToggle: '更新用户状态失败',
       failedToLoadApiKeys: '加载用户 API 密钥失败',
+      balanceSummary: {
+        label: '普通用户余额合计',
+        failed: '加载用户余额合计失败'
+      },
+      bulkActions: {
+        selected: '已选择 {count} 个用户',
+        selectCurrentPage: '选择当前页',
+        clear: '清空选择',
+        addGroup: '添加分组'
+      },
+      bulkAddGroup: {
+        title: '批量添加分组',
+        selectedUsers: '将为 {count} 个已选用户增量添加分组权限，不会覆盖原有分组。',
+        groupLabel: '目标分组',
+        groupPlaceholder: '请选择专属标准分组',
+        groupRequired: '请选择要添加的分组',
+        confirm: '确认添加',
+        success: '已为 {count} 个用户添加「{group}」分组权限',
+        failed: '批量添加分组失败'
+      },
       deleteConfirm: "确定要删除用户 '{email}' 吗？此操作无法撤销。",
       roles: {
         admin: '管理员',

@@ -19,6 +19,9 @@ type userRepoStubForListUsers struct {
 	listWithFiltersParams pagination.PaginationParams
 	lastUsedByUserID      map[int64]*time.Time
 	lastUsedErr           error
+	summaryRole           string
+	summaryBalance        float64
+	summaryUserCount      int64
 }
 
 func (s *userRepoStubForListUsers) ListWithFilters(_ context.Context, params pagination.PaginationParams, _ UserListFilters) ([]User, *pagination.PaginationResult, error) {
@@ -53,6 +56,11 @@ func (s *userRepoStubForListUsers) GetLatestUsedAtByUserID(_ context.Context, us
 		return nil, s.lastUsedErr
 	}
 	return s.lastUsedByUserID[userID], nil
+}
+
+func (s *userRepoStubForListUsers) SumBalanceByRole(_ context.Context, role string) (float64, int64, error) {
+	s.summaryRole = role
+	return s.summaryBalance, s.summaryUserCount, nil
 }
 
 type userGroupRateRepoStubForListUsers struct {
@@ -182,4 +190,118 @@ func TestAdminService_ListUsers_PopulatesLastUsedAt(t *testing.T) {
 	require.Len(t, users, 1)
 	require.NotNil(t, users[0].LastUsedAt)
 	require.WithinDuration(t, lastUsed, *users[0].LastUsedAt, time.Second)
+}
+
+type userRepoStubForBatchAddGroup struct {
+	userRepoStub
+	addCalls []struct {
+		userID  int64
+		groupID int64
+	}
+}
+
+func (s *userRepoStubForBatchAddGroup) AddGroupToAllowedGroups(_ context.Context, userID int64, groupID int64) error {
+	s.addCalls = append(s.addCalls, struct {
+		userID  int64
+		groupID int64
+	}{userID: userID, groupID: groupID})
+	return nil
+}
+
+type authCacheInvalidatorStubForBatchAddGroup struct {
+	userIDs []int64
+}
+
+func (s *authCacheInvalidatorStubForBatchAddGroup) InvalidateAuthCacheByKey(context.Context, string) {}
+func (s *authCacheInvalidatorStubForBatchAddGroup) InvalidateAuthCacheByUserID(_ context.Context, userID int64) {
+	s.userIDs = append(s.userIDs, userID)
+}
+func (s *authCacheInvalidatorStubForBatchAddGroup) InvalidateAuthCacheByGroupID(context.Context, int64) {}
+
+type groupRepoStubForBatchAddGroup struct {
+	group *Group
+}
+
+func (s *groupRepoStubForBatchAddGroup) GetByID(context.Context, int64) (*Group, error) {
+	return s.group, nil
+}
+
+func (s *groupRepoStubForBatchAddGroup) Create(context.Context, *Group) error { panic("unexpected") }
+func (s *groupRepoStubForBatchAddGroup) GetByIDLite(context.Context, int64) (*Group, error) {
+	panic("unexpected")
+}
+func (s *groupRepoStubForBatchAddGroup) Update(context.Context, *Group) error { panic("unexpected") }
+func (s *groupRepoStubForBatchAddGroup) Delete(context.Context, int64) error  { panic("unexpected") }
+func (s *groupRepoStubForBatchAddGroup) DeleteCascade(context.Context, int64) ([]int64, error) {
+	panic("unexpected")
+}
+func (s *groupRepoStubForBatchAddGroup) List(context.Context, pagination.PaginationParams) ([]Group, *pagination.PaginationResult, error) {
+	panic("unexpected")
+}
+func (s *groupRepoStubForBatchAddGroup) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, *bool) ([]Group, *pagination.PaginationResult, error) {
+	panic("unexpected")
+}
+func (s *groupRepoStubForBatchAddGroup) ListActive(context.Context) ([]Group, error) {
+	panic("unexpected")
+}
+func (s *groupRepoStubForBatchAddGroup) ListActiveByPlatform(context.Context, string) ([]Group, error) {
+	panic("unexpected")
+}
+func (s *groupRepoStubForBatchAddGroup) ExistsByName(context.Context, string) (bool, error) {
+	panic("unexpected")
+}
+func (s *groupRepoStubForBatchAddGroup) GetAccountCount(context.Context, int64) (int64, int64, error) {
+	panic("unexpected")
+}
+func (s *groupRepoStubForBatchAddGroup) DeleteAccountGroupsByGroupID(context.Context, int64) (int64, error) {
+	panic("unexpected")
+}
+func (s *groupRepoStubForBatchAddGroup) GetAccountIDsByGroupIDs(context.Context, []int64) ([]int64, error) {
+	panic("unexpected")
+}
+func (s *groupRepoStubForBatchAddGroup) BindAccountsToGroup(context.Context, int64, []int64) error {
+	panic("unexpected")
+}
+func (s *groupRepoStubForBatchAddGroup) UpdateSortOrders(context.Context, []GroupSortOrderUpdate) error {
+	panic("unexpected")
+}
+
+func TestAdminService_GetUserBalanceSummary_UsesRegularUserRoleAggregate(t *testing.T) {
+	userRepo := &userRepoStubForListUsers{
+		summaryBalance:   123.45,
+		summaryUserCount: 3,
+	}
+	svc := &adminServiceImpl{userRepo: userRepo}
+
+	summary, err := svc.GetUserBalanceSummary(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, RoleUser, userRepo.summaryRole)
+	require.Equal(t, 123.45, summary.TotalBalance)
+	require.Equal(t, int64(3), summary.UserCount)
+}
+
+func TestAdminService_BatchAddUsersToGroup_DeduplicatesUsersAndKeepsExistingAccess(t *testing.T) {
+	userRepo := &userRepoStubForBatchAddGroup{}
+	groupRepo := &groupRepoStubForBatchAddGroup{
+		group: &Group{
+			ID:               9,
+			Name:             "vip",
+			Status:           StatusActive,
+			IsExclusive:      true,
+			SubscriptionType: SubscriptionTypeStandard,
+		},
+	}
+	authInvalidator := &authCacheInvalidatorStubForBatchAddGroup{}
+	svc := &adminServiceImpl{
+		userRepo:              userRepo,
+		groupRepo:             groupRepo,
+		authCacheInvalidator:  authInvalidator,
+	}
+
+	result, err := svc.BatchAddUsersToGroup(context.Background(), []int64{7, 7, 8, 0}, 9)
+	require.NoError(t, err)
+	require.Equal(t, int64(9), result.GroupID)
+	require.Equal(t, int64(2), result.ProcessedUsers)
+	require.Len(t, userRepo.addCalls, 2)
+	require.Equal(t, []int64{7, 8}, authInvalidator.userIDs)
 }

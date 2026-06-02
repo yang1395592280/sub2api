@@ -53,6 +53,13 @@ type stubAdminService struct {
 		sortOrder string
 		calls     int
 	}
+	lastUserBalanceSummary *service.UserBalanceSummary
+	lastBatchAddGroup struct {
+		userIDs  []int64
+		groupID  int64
+		calls    int
+		result   *service.BatchAddUsersToGroupResult
+	}
 	lastListProxies struct {
 		protocol  string
 		status    string
@@ -202,6 +209,29 @@ func (s *stubAdminService) GetUserRPMStatus(ctx context.Context, userID int64) (
 	}, nil
 }
 
+func (s *stubAdminService) GetUserBalanceSummary(ctx context.Context) (*service.UserBalanceSummary, error) {
+	if s.lastUserBalanceSummary != nil {
+		return s.lastUserBalanceSummary, nil
+	}
+	return &service.UserBalanceSummary{
+		TotalBalance: 88.5,
+		UserCount:    2,
+	}, nil
+}
+
+func (s *stubAdminService) BatchAddUsersToGroup(ctx context.Context, userIDs []int64, groupID int64) (*service.BatchAddUsersToGroupResult, error) {
+	s.lastBatchAddGroup.calls++
+	s.lastBatchAddGroup.userIDs = append([]int64(nil), userIDs...)
+	s.lastBatchAddGroup.groupID = groupID
+	if s.lastBatchAddGroup.result != nil {
+		return s.lastBatchAddGroup.result, nil
+	}
+	return &service.BatchAddUsersToGroupResult{
+		GroupID:        groupID,
+		ProcessedUsers: int64(len(userIDs)),
+	}, nil
+}
+
 func (s *stubAdminService) BindUserAuthIdentity(ctx context.Context, userID int64, input service.AdminBindAuthIdentityInput) (*service.AdminBoundAuthIdentity, error) {
 	s.boundAuthIdentityFor = userID
 	copied := input
@@ -294,6 +324,10 @@ func (s *stubAdminService) GetGroupRateMultipliers(_ context.Context, _ int64) (
 	return nil, nil
 }
 
+func (s *stubAdminService) GetGroupMembers(_ context.Context, groupID int64) (*service.GroupMembersResult, error) {
+	return &service.GroupMembersResult{}, nil
+}
+
 func (s *stubAdminService) ClearGroupRateMultipliers(_ context.Context, _ int64) error {
 	return nil
 }
@@ -307,6 +341,10 @@ func (s *stubAdminService) ClearGroupRPMOverrides(_ context.Context, _ int64) er
 }
 
 func (s *stubAdminService) BatchSetGroupRPMOverrides(_ context.Context, _ int64, _ []service.GroupRPMOverrideInput) error {
+	return nil
+}
+
+func (s *stubAdminService) RemoveUserFromExclusiveGroup(_ context.Context, _, _ int64) error {
 	return nil
 }
 

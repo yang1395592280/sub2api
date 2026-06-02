@@ -423,6 +423,17 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 			),
 		)
 	}
+	if len(filters.EmailList) > 0 {
+		preds := make([]predicate.User, 0, len(filters.EmailList))
+		for _, email := range filters.EmailList {
+			if trimmed := strings.TrimSpace(email); trimmed != "" {
+				preds = append(preds, dbuser.EmailEqualFold(trimmed))
+			}
+		}
+		if len(preds) > 0 {
+			q = q.Where(dbuser.Or(preds...))
+		}
+	}
 
 	if filters.GroupName != "" {
 		q = q.Where(dbuser.HasAllowedGroupsWith(
@@ -832,6 +843,30 @@ func (r *userRepository) AddGroupToAllowedGroups(ctx context.Context, userID int
 		return nil
 	}
 	return err
+}
+
+func (r *userRepository) SumBalanceByRole(ctx context.Context, role string) (float64, int64, error) {
+	var totalBalance float64
+	var userCount int64
+	rows, err := r.sql.QueryContext(
+		ctx,
+		"SELECT COALESCE(SUM(balance), 0), COUNT(1) FROM users WHERE role = $1 AND deleted_at IS NULL",
+		role,
+	)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return 0, 0, err
+		}
+		return 0, 0, fmt.Errorf("balance summary query returned no rows")
+	}
+	if err := rows.Scan(&totalBalance, &userCount); err != nil {
+		return 0, 0, err
+	}
+	return totalBalance, userCount, nil
 }
 
 func (r *userRepository) RemoveGroupFromAllowedGroups(ctx context.Context, groupID int64) (int64, error) {

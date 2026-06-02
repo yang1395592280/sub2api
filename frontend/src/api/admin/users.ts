@@ -59,6 +59,7 @@ export async function list(
     status?: 'active' | 'disabled'
     role?: 'admin' | 'user'
     search?: string
+    email_list?: string
     group_name?: string         // fuzzy filter by allowed group name
     attributes?: Record<number, string>  // attributeId -> value
     include_subscriptions?: boolean
@@ -76,6 +77,7 @@ export async function list(
     status: filters?.status,
     role: filters?.role,
     search: filters?.search,
+    email_list: filters?.email_list,
     group_name: filters?.group_name,
     include_subscriptions: filters?.include_subscriptions,
     sort_by: filters?.sort_by,
@@ -163,6 +165,35 @@ export async function updateBalance(
     operation,
     notes: notes || ''
   })
+  return data
+}
+
+export interface UserBalanceSummaryResponse {
+  total_balance: number
+  user_count: number
+}
+
+export async function getUserBalanceSummary(): Promise<UserBalanceSummaryResponse> {
+  const { data } = await apiClient.get<UserBalanceSummaryResponse>('/admin/users/summary')
+  return data
+}
+
+export interface BatchAddGroupToUsersResponse {
+  group_id: number
+  processed_users: number
+}
+
+export async function batchAddGroupToUsers(
+  userIds: number[],
+  groupId: number
+): Promise<BatchAddGroupToUsersResponse> {
+  const { data } = await apiClient.post<BatchAddGroupToUsersResponse>(
+    '/admin/users/batch-add-group',
+    {
+      user_ids: userIds,
+      group_id: groupId
+    }
+  )
   return data
 }
 
@@ -376,6 +407,8 @@ export const usersAPI = {
   update,
   delete: deleteUser,
   updateBalance,
+  getUserBalanceSummary,
+  batchAddGroupToUsers,
   updateConcurrency,
   toggleStatus,
   getUserApiKeys,

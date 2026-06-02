@@ -22,6 +22,21 @@
               />
             </div>
 
+            <div class="relative w-full md:w-72">
+              <Icon
+                name="mail"
+                size="md"
+                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              />
+              <input
+                v-model="emailListQuery"
+                type="text"
+                :placeholder="t('admin.users.emailListSearchPlaceholder')"
+                class="input pl-10"
+                @input="handleSearch"
+              />
+            </div>
+
             <!-- Role Filter (visible when enabled) -->
             <div v-if="visibleFilters.has('role')" class="w-full sm:w-32">
               <Select
@@ -114,6 +129,15 @@
 
           <!-- Right: Actions and Settings -->
           <div class="flex flex-wrap items-center justify-end gap-2">
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-right dark:border-emerald-800/60 dark:bg-emerald-900/20">
+              <div class="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                {{ t('admin.users.balanceSummary.label') }}
+              </div>
+              <div class="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+                ${{ balanceSummary.total_balance.toFixed(2) }}
+              </div>
+            </div>
+
             <!-- Mobile: Secondary buttons (icon only) -->
             <div class="flex items-center gap-2 md:contents">
               <!-- Refresh Button -->
@@ -242,6 +266,13 @@
 
       <!-- Users Table -->
       <template #table>
+        <UserBulkActionsBar
+          :selected-ids="selectedUserIds"
+          @clear="clearSelectedUsers"
+          @select-page="selectCurrentPageUsers"
+          @add-group="openBatchAddGroupModal"
+        />
+
         <DataTable
           :columns="columns"
           :data="sortedUsers"
@@ -253,6 +284,25 @@
           :sort-storage-key="USER_SORT_STORAGE_KEY"
           @sort="handleSort"
         >
+          <template #header-select>
+            <input
+              type="checkbox"
+              class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              :checked="allVisibleUsersSelected"
+              @click.stop
+              @change="toggleSelectAllVisible($event)"
+            />
+          </template>
+
+          <template #cell-select="{ row }">
+            <input
+              type="checkbox"
+              :checked="isUserSelected(row.id)"
+              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              @change="toggleSelectedUser(row.id)"
+            />
+          </template>
+
           <template #cell-email="{ value }">
             <div class="flex items-center gap-2">
               <div
@@ -720,8 +770,8 @@
     </Teleport>
 
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.users.deleteUser')" :message="t('admin.users.deleteConfirm', { email: deletingUser?.email })" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
-    <UserCreateModal :show="showCreateModal" @close="showCreateModal = false" @success="loadUsers" />
-    <UserEditModal :show="showEditModal" :user="editingUser" @close="closeEditModal" @success="loadUsers" />
+    <UserCreateModal :show="showCreateModal" @close="showCreateModal = false" @success="refreshUsersAndSummary" />
+    <UserEditModal :show="showEditModal" :user="editingUser" @close="closeEditModal" @success="refreshUsersAndSummary" />
     <UserPlatformQuotaModal
       :show="showPlatformQuotaModal"
       :user="platformQuotaUser"
@@ -730,9 +780,16 @@
     />
     <UserApiKeysModal :show="showApiKeysModal" :user="viewingUser" @close="closeApiKeysModal" />
     <UserAllowedGroupsModal :show="showAllowedGroupsModal" :user="allowedGroupsUser" @close="closeAllowedGroupsModal" @success="loadUsers" />
-    <UserBalanceModal :show="showBalanceModal" :user="balanceUser" :operation="balanceOperation" @close="closeBalanceModal" @success="loadUsers" />
+    <UserBalanceModal :show="showBalanceModal" :user="balanceUser" :operation="balanceOperation" @close="closeBalanceModal" @success="refreshUsersAndSummary" />
     <UserBalanceHistoryModal :show="showBalanceHistoryModal" :user="balanceHistoryUser" @close="closeBalanceHistoryModal" @deposit="handleDepositFromHistory" @withdraw="handleWithdrawFromHistory" />
     <GroupReplaceModal :show="showGroupReplaceModal" :user="groupReplaceUser" :old-group="groupReplaceOldGroup" :all-groups="allGroups" @close="closeGroupReplaceModal" @success="loadUsers" />
+    <UserBatchAddGroupModal
+      :show="showBatchAddGroupModal"
+      :user-ids="selectedUserIds"
+      :groups="allGroups"
+      @close="closeBatchAddGroupModal"
+      @success="handleBatchAddGroupSuccess"
+    />
     <UserAttributesConfigModal :show="showAttributesModal" @close="handleAttributesModalClose" />
   </AppLayout>
 </template>
@@ -742,6 +799,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
+import { useTableSelection } from '@/composables/useTableSelection'
 import { formatDateTime } from '@/utils/format'
 import Icon from '@/components/icons/Icon.vue'
 
@@ -772,6 +830,8 @@ import UserAllowedGroupsModal from '@/components/admin/user/UserAllowedGroupsMod
 import UserBalanceModal from '@/components/admin/user/UserBalanceModal.vue'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
 import GroupReplaceModal from '@/components/admin/user/GroupReplaceModal.vue'
+import UserBulkActionsBar from '@/components/admin/user/UserBulkActionsBar.vue'
+import UserBatchAddGroupModal from '@/components/admin/user/UserBatchAddGroupModal.vue'
 
 const appStore = useAppStore()
 
@@ -823,6 +883,7 @@ const getAttributeValue = (userId: number, attrId: number): string => {
 
 // All possible columns (for column settings)
 const allColumns = computed<Column[]>(() => [
+  { key: 'select', label: '', sortable: false },
   { key: 'email', label: t('admin.users.columns.user'), sortable: true },
   { key: 'id', label: t('admin.users.columns.id'), sortable: true },
   { key: 'username', label: t('admin.users.columns.username'), sortable: true },
@@ -849,7 +910,7 @@ const allColumns = computed<Column[]>(() => [
 
 // Columns that can be toggled (exclude email and actions which are always visible)
 const toggleableColumns = computed(() =>
-  allColumns.value.filter(col => col.key !== 'email' && col.key !== 'actions')
+  allColumns.value.filter(col => !['select', 'email', 'actions'].includes(col.key))
 )
 
 // Hidden columns (stored in Set - columns NOT in this set are visible)
@@ -977,13 +1038,18 @@ const hasVisibleAttributeColumns = computed(() =>
 // Filtered columns based on visibility
 const columns = computed<Column[]>(() =>
   allColumns.value.filter(col =>
-    col.key === 'email' || col.key === 'actions' || !hiddenColumns.has(col.key)
+    col.key === 'select' || col.key === 'email' || col.key === 'actions' || !hiddenColumns.has(col.key)
   )
 )
 
 const users = ref<AdminUser[]>([])
+const balanceSummary = ref({
+  total_balance: 0,
+  user_count: 0
+})
 const loading = ref(false)
 const searchQuery = ref('')
+const emailListQuery = ref('')
 const USER_SORT_STORAGE_KEY = 'admin-users-table-sort'
 const loadInitialSortState = (): { sort_by: string; sort_order: 'asc' | 'desc' } => {
   const fallback = { sort_by: 'created_at', sort_order: 'desc' as 'asc' | 'desc' }
@@ -1229,6 +1295,19 @@ const pagination = reactive({
   pages: 0
 })
 
+const {
+  selectedIds: selectedUserIds,
+  allVisibleSelected: allVisibleUsersSelected,
+  isSelected: isUserSelected,
+  toggle: toggleSelectedUser,
+  clear: clearSelectedUsers,
+  toggleVisible: toggleVisibleUsers,
+  selectVisible: selectCurrentPageUsers
+} = useTableSelection<AdminUser>({
+  rows: users,
+  getId: (user) => user.id
+})
+
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const showDeleteDialog = ref(false)
@@ -1445,6 +1524,7 @@ const balanceOperation = ref<'add' | 'subtract'>('add')
 // Balance History modal state
 const showBalanceHistoryModal = ref(false)
 const balanceHistoryUser = ref<AdminUser | null>(null)
+const showBatchAddGroupModal = ref(false)
 
 // 计算剩余天数
 const getDaysRemaining = (expiresAt: string): number => {
@@ -1460,6 +1540,20 @@ const loadAttributeDefinitions = async () => {
   } catch (e) {
     console.error('Failed to load attribute definitions:', e)
   }
+}
+
+const loadBalanceSummary = async () => {
+  try {
+    balanceSummary.value = await adminAPI.users.getUserBalanceSummary()
+  } catch (error: any) {
+    const message = error.response?.data?.detail || t('admin.users.balanceSummary.failed')
+    appStore.showError(message)
+  }
+}
+
+const refreshUsersAndSummary = () => {
+  loadUsers()
+  void loadBalanceSummary()
 }
 
 // Handle attributes modal close - reload definitions and users
@@ -1491,6 +1585,7 @@ const loadUsers = async () => {
         role: filters.role as any,
         status: filters.status as any,
         search: searchQuery.value || undefined,
+        email_list: emailListQuery.value || undefined,
         group_name: filters.group || undefined,
         attributes: Object.keys(attrFilters).length > 0 ? attrFilters : undefined,
         // 始终请求 subscriptions：列隐藏时仍需用于 UserPlatformQuotaModal 的 active-subscription 警示 banner
@@ -1679,7 +1774,7 @@ const confirmDelete = async () => {
     appStore.showSuccess(t('common.success'))
     showDeleteDialog.value = false
     deletingUser.value = null
-    loadUsers()
+    refreshUsersAndSummary()
   } catch (error: any) {
     appStore.showError(error.response?.data?.detail || t('admin.users.failedToDelete'))
     console.error('Error deleting user:', error)
@@ -1713,6 +1808,25 @@ const closeBalanceHistoryModal = () => {
   balanceHistoryUser.value = null
 }
 
+const openBatchAddGroupModal = async () => {
+  await loadAllGroups()
+  showBatchAddGroupModal.value = true
+}
+
+const closeBatchAddGroupModal = () => {
+  showBatchAddGroupModal.value = false
+}
+
+const handleBatchAddGroupSuccess = () => {
+  clearSelectedUsers()
+  refreshUsersAndSummary()
+}
+
+const toggleSelectAllVisible = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  toggleVisibleUsers(target.checked)
+}
+
 // Handle deposit from balance history modal
 const handleDepositFromHistory = () => {
   if (balanceHistoryUser.value) {
@@ -1737,6 +1851,7 @@ onMounted(async () => {
   loadSavedFilters()
   loadSavedColumns()
   loadUsers()
+  void loadBalanceSummary()
   if (hasVisibleGroupsColumn.value || visibleFilters.has('group')) {
     loadAllGroups()
   }
