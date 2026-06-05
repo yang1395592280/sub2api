@@ -156,18 +156,19 @@ func (r *sizeBetRepository) ApplySettlement(ctx context.Context, input service.S
 
 	for index := range bets {
 		bet := &bets[index]
-		payoutPointsValue := 0.0
+		stakePointsValue := pointsFromFloat(bet.StakeAmount)
+		payoutPointsValue := int64(0)
 		status := service.SizeBetStatusLost
 		if bet.Direction == input.ResultDirection {
-			payoutPointsValue = bet.StakeAmount * input.OddsFor(bet.Direction)
+			payoutPointsValue = pointsFromFloat(bet.StakeAmount * input.OddsFor(bet.Direction))
 			status = service.SizeBetStatusWon
 		}
-		netResultPointsValue := payoutPointsValue - bet.StakeAmount
+		netResultPointsValue := payoutPointsValue - stakePointsValue
 		res, err := tx.ExecContext(ctx, `
 			UPDATE game_bets
 			SET payout_points = $1, net_result_points = $2, status = $3, settled_at = $4
 			WHERE id = $5 AND status = $6
-		`, pointsFromFloat(payoutPointsValue), pointsFromFloat(netResultPointsValue), status, input.SettledAt, bet.ID, service.SizeBetStatusPlaced)
+		`, payoutPointsValue, netResultPointsValue, status, input.SettledAt, bet.ID, service.SizeBetStatusPlaced)
 		if err != nil {
 			return nil, err
 		}
@@ -179,15 +180,16 @@ func (r *sizeBetRepository) ApplySettlement(ctx context.Context, input service.S
 			return nil, service.ErrSizeBetSettlementConflict
 		}
 
-		bet.PayoutAmount = payoutPointsValue
-		bet.NetResultAmount = netResultPointsValue
+		bet.StakeAmount = float64(stakePointsValue)
+		bet.PayoutAmount = float64(payoutPointsValue)
+		bet.NetResultAmount = float64(netResultPointsValue)
 		bet.Status = status
 		bet.SettledAt = &input.SettledAt
 
 		if payoutPointsValue <= 0 {
 			continue
 		}
-		pointsBefore, pointsAfter, err := creditUserPoints(ctx, tx, bet.UserID, payoutPointsValue)
+		pointsBefore, pointsAfter, err := creditUserPoints(ctx, tx, bet.UserID, float64(payoutPointsValue))
 		if err != nil {
 			return nil, err
 		}
@@ -198,8 +200,8 @@ func (r *sizeBetRepository) ApplySettlement(ctx context.Context, input service.S
 			BetID:         int64Ptr(bet.ID),
 			EntryType:     "bet_payout",
 			Direction:     string(bet.Direction),
-			StakeAmount:   bet.StakeAmount,
-			DeltaAmount:   payoutPointsValue,
+			StakeAmount:   float64(stakePointsValue),
+			DeltaAmount:   float64(payoutPointsValue),
 			BalanceBefore: pointsBefore,
 			BalanceAfter:  pointsAfter,
 			Reason:        "size bet payout",
@@ -583,7 +585,9 @@ func (r *sizeBetRepository) RefundRound(ctx context.Context, roundID int64, refu
 			return nil, insertErr
 		}
 
-		bet.PayoutAmount = bet.StakeAmount
+		stakePointsValue := pointsFromFloat(bet.StakeAmount)
+		bet.StakeAmount = float64(stakePointsValue)
+		bet.PayoutAmount = float64(stakePointsValue)
 		bet.NetResultAmount = 0
 		bet.Status = service.SizeBetStatusRefunded
 		bet.SettledAt = &refundedAt
@@ -1013,4 +1017,8 @@ func buildSizeBetLedgerFilters(filter service.SizeBetAdminLedgerFilter) (string,
 		args = append(args, filter.EntryType)
 	}
 	return strings.Join(clauses, " AND "), args
+}
+
+func pointsFromFloat(value float64) int64 {
+	return int64(math.Round(value))
 }

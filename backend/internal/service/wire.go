@@ -448,6 +448,12 @@ func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupReposit
 	return svc
 }
 
+func ProvideSizeBetRuntimeService(gameService *SizeBetService) *SizeBetRuntimeService {
+	svc := NewSizeBetRuntimeService(gameService, time.Second)
+	svc.Start()
+	return svc
+}
+
 // ProvideBillingCacheService wires BillingCacheService with its RPM dependencies.
 func ProvideBillingCacheService(
 	cache BillingCache,
@@ -518,6 +524,12 @@ var ProviderSet = wire.NewSet(
 	NewAccountUsageService,
 	NewAccountTestService,
 	ProvideSettingService,
+	NewSizeBetAdminService,
+	NewLuckyWheelAdminService,
+	NewGameCenterService,
+	NewSizeBetService,
+	NewLuckyWheelService,
+	ProvideSizeBetRuntimeService,
 	NewDataManagementService,
 	ProvideBackupService,
 	ProvideOpsSystemLogSink,

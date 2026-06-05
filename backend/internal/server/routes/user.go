@@ -93,6 +93,26 @@ func RegisterUserRoutes(
 			gameCenter.GET("/ledger", h.GameCenter.GetLedger)
 		}
 
+		sizeBet := authenticated.Group("/game/size-bet")
+		{
+			sizeBet.GET("/current", h.SizeBet.GetCurrent)
+			sizeBet.POST("/bet", h.SizeBet.PlaceBet)
+			sizeBet.GET("/history", h.SizeBet.GetHistory)
+			sizeBet.GET("/rounds", h.SizeBet.ListRecentRounds)
+			sizeBet.GET("/stats/overview", h.SizeBet.GetStatsOverview)
+			sizeBet.GET("/stats/users", h.SizeBet.ListStatsUsers)
+			sizeBet.GET("/leaderboard", h.SizeBet.GetLeaderboard)
+			sizeBet.GET("/rules", h.SizeBet.GetRules)
+		}
+
+		luckyWheel := authenticated.Group("/game/lucky-wheel")
+		{
+			luckyWheel.GET("/overview", h.LuckyWheel.GetOverview)
+			luckyWheel.POST("/spin", h.LuckyWheel.Spin)
+			luckyWheel.GET("/history", h.LuckyWheel.GetHistory)
+			luckyWheel.GET("/leaderboard", h.LuckyWheel.GetLeaderboard)
+		}
+
 		usageLeaderboard := authenticated.Group("/usage-leaderboard")
 		{
 			usageLeaderboard.GET("/overview", gameCenterRoutePlaceholder)
