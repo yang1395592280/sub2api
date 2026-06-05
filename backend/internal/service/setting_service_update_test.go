@@ -1,5 +1,3 @@
-//go:build unit
-
 package service
 
 import (
@@ -302,6 +300,43 @@ func TestSettingService_UpdateSettings_APIKeyACLTrustForwardedIPRefreshesConfig(
 	require.Equal(t, "true", repo.updates[SettingKeyAPIKeyACLTrustForwardedIP])
 	require.True(t, cfg.Security.TrustForwardedIPForAPIKeyACL)
 	require.True(t, cfg.TrustForwardedIPForAPIKeyACL())
+}
+
+func TestSettingService_UpdateSettings_GameCenterOnlyDoesNotPersistLegacyExchangeKeys(t *testing.T) {
+	repo := &settingUpdateRepoStub{}
+	svc := NewSettingService(repo, &config.Config{})
+
+	input := SystemSettings{
+		GameCenterEnabled:        true,
+		CheckinEnabled:           true,
+		CheckinLuckyBonusEnabled: true,
+		LuckyWheelEnabled:        true,
+		SizeBetEnabled:           true,
+	}
+
+	err := svc.UpdateSettings(context.Background(), &input)
+	require.NoError(t, err)
+
+	expectedGameCenterKeys := []string{
+		"game_center_enabled",
+		"checkin_enabled",
+		"checkin_lucky_bonus_enabled",
+		"lucky_wheel_enabled",
+		"size_bet_enabled",
+	}
+	for _, key := range expectedGameCenterKeys {
+		require.Contains(t, repo.updates, key, "missing pure game-center setting key %q; game-center-only settings should be persisted without reusing legacy exchange semantics", key)
+	}
+
+	legacyExchangeKeys := []string{
+		"points_exchange_enabled",
+		"points_to_balance_exchange_enabled",
+		"balance_to_points_exchange_enabled",
+		"game_center_balance_exchange_enabled",
+	}
+	for _, key := range legacyExchangeKeys {
+		require.NotContains(t, repo.updates, key, "game-center-only settings should not persist legacy exchange key %q", key)
+	}
 }
 
 func TestSettingService_ParseSettings_APIKeyACLTrustForwardedIPFallsBackToConfigWhenMissing(t *testing.T) {

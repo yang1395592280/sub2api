@@ -1,9 +1,8 @@
-//go:build unit
-
 package service
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -167,4 +166,31 @@ func TestSettingService_GetPublicSettings_ExposesJoinGroupSettings(t *testing.T)
 	require.True(t, settings.JoinGroupEnabled)
 	require.Equal(t, "https://qm.qq.com/q/example", settings.JoinGroupURL)
 	require.Equal(t, "data:image/png;base64,QUJD", settings.JoinGroupPopupImage)
+}
+
+func TestSettingService_GetPublicSettings_ExposesGameCenterFeatureFlags(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{
+			"game_center_enabled":         "true",
+			"checkin_enabled":             "true",
+			"checkin_lucky_bonus_enabled": "true",
+			"lucky_wheel_enabled":         "true",
+			"size_bet_enabled":            "true",
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{})
+
+	payload, err := svc.GetPublicSettingsForInjection(context.Background())
+	require.NoError(t, err)
+
+	raw, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(raw, &got))
+	require.Equal(t, true, got["game_center_enabled"], "public settings should expose the game center master flag")
+	require.Equal(t, true, got["checkin_enabled"], "public settings should expose the check-in flag")
+	require.Equal(t, true, got["checkin_lucky_bonus_enabled"], "public settings should expose the lucky bonus flag")
+	require.Equal(t, true, got["lucky_wheel_enabled"], "public settings should expose the lucky wheel flag")
+	require.Equal(t, true, got["size_bet_enabled"], "public settings should expose the size bet flag")
 }
