@@ -527,6 +527,7 @@ var ProviderSet = wire.NewSet(
 	NewSizeBetAdminService,
 	NewLuckyWheelAdminService,
 	NewGameCenterService,
+	NewUsageLeaderboardService,
 	NewSizeBetService,
 	NewLuckyWheelService,
 	ProvideSizeBetRuntimeService,

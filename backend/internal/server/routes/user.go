@@ -115,8 +115,8 @@ func RegisterUserRoutes(
 
 		usageLeaderboard := authenticated.Group("/usage-leaderboard")
 		{
-			usageLeaderboard.GET("/overview", gameCenterRoutePlaceholder)
-			usageLeaderboard.GET("/items", gameCenterRoutePlaceholder)
+			usageLeaderboard.GET("/overview", h.UsageLeaderboard.GetOverview)
+			usageLeaderboard.GET("/items", h.UsageLeaderboard.GetItems)
 		}
 
 		// 使用记录

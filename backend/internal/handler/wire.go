@@ -117,6 +117,7 @@ func ProvideHandlers(
 	paymentWebhookHandler *PaymentWebhookHandler,
 	availableChannelHandler *AvailableChannelHandler,
 	gameCenterHandler *GameCenterHandler,
+	usageLeaderboardHandler *UsageLeaderboardHandler,
 	luckyWheelHandler *LuckyWheelHandler,
 	sizeBetHandler *SizeBetHandler,
 	_ *service.IdempotencyCoordinator,
@@ -141,6 +142,7 @@ func ProvideHandlers(
 		PaymentWebhook:   paymentWebhookHandler,
 		AvailableChannel: availableChannelHandler,
 		GameCenter:       gameCenterHandler,
+		UsageLeaderboard: usageLeaderboardHandler,
 		LuckyWheel:       luckyWheelHandler,
 		SizeBet:          sizeBetHandler,
 	}
@@ -166,6 +168,7 @@ var ProviderSet = wire.NewSet(
 	NewPaymentWebhookHandler,
 	NewAvailableChannelHandler,
 	NewGameCenterHandler,
+	NewUsageLeaderboardHandler,
 	NewLuckyWheelHandler,
 	NewSizeBetHandler,
 
