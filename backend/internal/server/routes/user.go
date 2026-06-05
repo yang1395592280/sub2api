@@ -39,9 +39,9 @@ func RegisterUserRoutes(
 			user.POST("/auth-identities/bind/start", h.User.StartIdentityBinding)
 			user.GET("/api-keys/:id/usage/daily", h.Usage.GetMyAPIKeyDailyUsage)
 			user.GET("/platform-quotas", h.User.GetMyPlatformQuotas)
-			user.GET("/checkin", gameCenterRoutePlaceholder)
-			user.POST("/checkin", gameCenterRoutePlaceholder)
-			user.POST("/checkin/lucky-bonus", gameCenterRoutePlaceholder)
+			user.GET("/checkin", h.UserCheckin.GetStatus)
+			user.POST("/checkin", h.UserCheckin.Checkin)
+			user.POST("/checkin/lucky-bonus", h.UserCheckin.PlayLuckyBonus)
 
 			// 通知邮箱管理
 			notifyEmail := user.Group("/notify-email")
@@ -89,8 +89,8 @@ func RegisterUserRoutes(
 
 		gameCenter := authenticated.Group("/game-center")
 		{
-			gameCenter.GET("/overview", gameCenterRoutePlaceholder)
-			gameCenter.GET("/ledger", gameCenterRoutePlaceholder)
+			gameCenter.GET("/overview", h.GameCenter.GetOverview)
+			gameCenter.GET("/ledger", h.GameCenter.GetLedger)
 		}
 
 		usageLeaderboard := authenticated.Group("/usage-leaderboard")

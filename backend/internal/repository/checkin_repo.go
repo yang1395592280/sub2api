@@ -40,8 +40,8 @@ func (r *checkinRepository) CreateAndCredit(ctx context.Context, record *service
 	if record == nil {
 		return nil, errors.New("checkin record is required")
 	}
-	if record.BaseRewardAmount <= 0 {
-		record.BaseRewardAmount = record.RewardAmount
+	if record.BaseRewardPoints <= 0 {
+		record.BaseRewardPoints = record.RewardPoints
 	}
 	if strings.TrimSpace(record.BonusStatus) == "" {
 		record.BonusStatus = service.CheckinBonusStatusNone
@@ -53,10 +53,6 @@ func (r *checkinRepository) CreateAndCredit(ctx context.Context, record *service
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	claimedPoints := pointsFromFloat(record.RewardAmount)
-	basePoints := pointsFromFloat(record.BaseRewardAmount)
-	bonusPointsDelta := pointsFromFloat(record.BonusDeltaAmount)
-
 	var createdAt time.Time
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO checkin_records (
@@ -64,7 +60,7 @@ func (r *checkinRepository) CreateAndCredit(ctx context.Context, record *service
 		)
 		VALUES ($1, $2::date, $3, $4, $5, $6, $7)
 		RETURNING id, created_at
-	`, record.UserID, record.CheckinDate, claimedPoints, basePoints, record.BonusStatus, bonusPointsDelta, record.UserTimezone).Scan(&record.ID, &createdAt)
+	`, record.UserID, record.CheckinDate, record.RewardPoints, record.BaseRewardPoints, record.BonusStatus, record.BonusDeltaPoints, record.UserTimezone).Scan(&record.ID, &createdAt)
 	if err != nil {
 		if isCheckinUniqueViolation(err) {
 			return nil, service.ErrCheckinAlreadyToday
@@ -85,7 +81,7 @@ func (r *checkinRepository) CreateAndCredit(ctx context.Context, record *service
 		}
 		return nil, err
 	}
-	pointsAfter := pointsBefore + claimedPoints
+	pointsAfter := pointsBefore + record.RewardPoints
 
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE users
@@ -99,7 +95,7 @@ func (r *checkinRepository) CreateAndCredit(ctx context.Context, record *service
 		INSERT INTO game_points_ledger (
 			user_id, entry_type, delta_points, points_before, points_after, related_game_key, reason
 		) VALUES ($1, 'checkin_reward', $2, $3, $4, 'checkin', 'daily checkin reward')
-	`, record.UserID, claimedPoints, pointsBefore, pointsAfter); err != nil {
+	`, record.UserID, record.RewardPoints, pointsBefore, pointsAfter); err != nil {
 		return nil, err
 	}
 
@@ -153,14 +149,13 @@ func (r *checkinRepository) GetByUserAndDate(ctx context.Context, userID int64, 
 	return &record, nil
 }
 
-func (r *checkinRepository) ApplyBonusOutcome(ctx context.Context, userID int64, date, outcome string, delta float64) (*service.CheckinRecord, error) {
+func (r *checkinRepository) ApplyBonusOutcome(ctx context.Context, userID int64, date, outcome string, deltaPoints int64) (*service.CheckinRecord, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	bonusPointsDelta := pointsFromFloat(delta)
 	row := tx.QueryRowContext(ctx, `
 		UPDATE checkin_records
 		SET reward_points = reward_points + $1,
@@ -171,7 +166,7 @@ func (r *checkinRepository) ApplyBonusOutcome(ctx context.Context, userID int64,
 		  AND checkin_date = $4::date
 		  AND bonus_status = $5
 		RETURNING id, user_id, checkin_date::text, reward_points, base_reward_points, bonus_status, bonus_delta_points, user_timezone, created_at, bonus_played_at
-	`, bonusPointsDelta, outcome, userID, date, service.CheckinBonusStatusNone)
+	`, deltaPoints, outcome, userID, date, service.CheckinBonusStatusNone)
 
 	record, err := scanCheckinRecord(row)
 	if err != nil {
@@ -193,7 +188,7 @@ func (r *checkinRepository) ApplyBonusOutcome(ctx context.Context, userID int64,
 		}
 		return nil, err
 	}
-	pointsAfter := pointsBefore + bonusPointsDelta
+	pointsAfter := pointsBefore + deltaPoints
 	if pointsAfter < 0 {
 		return nil, service.ErrGameCenterInsufficientPoints
 	}
@@ -208,7 +203,7 @@ func (r *checkinRepository) ApplyBonusOutcome(ctx context.Context, userID int64,
 
 	entryType := "checkin_bonus_lose"
 	reason := "checkin lucky bonus lose"
-	if bonusPointsDelta > 0 {
+	if deltaPoints > 0 {
 		entryType = "checkin_bonus_win"
 		reason = "checkin lucky bonus win"
 	}
@@ -216,7 +211,7 @@ func (r *checkinRepository) ApplyBonusOutcome(ctx context.Context, userID int64,
 		INSERT INTO game_points_ledger (
 			user_id, entry_type, delta_points, points_before, points_after, related_game_key, reason
 		) VALUES ($1, $2, $3, $4, $5, 'checkin', $6)
-	`, userID, entryType, bonusPointsDelta, pointsBefore, pointsAfter, reason); err != nil {
+	`, userID, entryType, deltaPoints, pointsBefore, pointsAfter, reason); err != nil {
 		return nil, err
 	}
 
@@ -226,7 +221,7 @@ func (r *checkinRepository) ApplyBonusOutcome(ctx context.Context, userID int64,
 	return &record, nil
 }
 
-func (r *checkinRepository) GetUserTotals(ctx context.Context, userID int64) (int64, float64, error) {
+func (r *checkinRepository) GetUserTotals(ctx context.Context, userID int64) (int64, int64, error) {
 	var totalCount int64
 	var totalClaimedPoints int64
 	err := r.db.QueryRowContext(ctx, `
@@ -237,7 +232,7 @@ func (r *checkinRepository) GetUserTotals(ctx context.Context, userID int64) (in
 	if err != nil {
 		return 0, 0, err
 	}
-	return totalCount, float64(totalClaimedPoints), nil
+	return totalCount, totalClaimedPoints, nil
 }
 
 func (r *checkinRepository) ListAdminRecords(ctx context.Context, page, pageSize int, search, date, timezone, sortBy, sortOrder string) ([]service.AdminCheckinRecord, int64, error) {
@@ -339,8 +334,8 @@ func (r *checkinRepository) GetAdminOverview(ctx context.Context, filter service
 	if err != nil {
 		return service.AdminCheckinOverview{}, err
 	}
-	overview.TotalRewardAmount = float64(totalRewardPoints)
-	overview.AvgRewardAmount = avgRewardPoints
+	overview.TotalRewardPoints = totalRewardPoints
+	overview.AvgRewardPoints = int64(math.Round(avgRewardPoints))
 	return overview, nil
 }
 
@@ -367,7 +362,7 @@ func (r *checkinRepository) GetAdminTrend(ctx context.Context, filter service.Ad
 		if err := rows.Scan(&point.Date, &point.CheckinCount, &claimedPoints); err != nil {
 			return nil, err
 		}
-		point.RewardAmount = float64(claimedPoints)
+		point.RewardPoints = claimedPoints
 		points = append(points, point)
 	}
 	if err := rows.Err(); err != nil {
@@ -391,13 +386,13 @@ func (r *checkinRepository) GetAdminRewardDistribution(ctx context.Context, filt
 	}
 	defer rows.Close()
 
-	rewardPointsSeries := make([]float64, 0)
+	rewardPointsSeries := make([]int64, 0)
 	for rows.Next() {
 		var claimedPoints int64
 		if err := rows.Scan(&claimedPoints); err != nil {
 			return nil, err
 		}
-		rewardPointsSeries = append(rewardPointsSeries, float64(claimedPoints))
+		rewardPointsSeries = append(rewardPointsSeries, claimedPoints)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -408,18 +403,19 @@ func (r *checkinRepository) GetAdminRewardDistribution(ctx context.Context, filt
 
 	buckets := make(map[string]int64)
 	for _, claimedPoints := range rewardPointsSeries {
-		key := fmt.Sprintf("%d", int64(claimedPoints))
+		key := fmt.Sprintf("%d", claimedPoints)
 		buckets[key]++
 	}
 
 	result := make([]service.AdminCheckinRewardBucket, 0, len(buckets))
 	for label, count := range buckets {
-		value, _ := strconv.ParseFloat(label, 64)
+		value, _ := strconv.ParseInt(label, 10, 64)
 		result = append(result, service.AdminCheckinRewardBucket{
-			Label: label,
-			Min:   value,
-			Max:   value,
-			Count: count,
+			Label:        label,
+			Min:          value,
+			Max:          value,
+			Count:        count,
+			RewardPoints: value * count,
 		})
 	}
 	return result, nil
@@ -454,14 +450,10 @@ func (r *checkinRepository) GetAdminTopUsers(ctx context.Context, filter service
 		if err := rows.Scan(&item.UserID, &item.Email, &item.Username, &item.TotalCheckins, &claimedPoints); err != nil {
 			return nil, err
 		}
-		item.TotalRewardAmount = float64(claimedPoints)
+		item.TotalRewardPoints = claimedPoints
 		items = append(items, item)
 	}
 	return items, rows.Err()
-}
-
-func pointsFromFloat(value float64) int64 {
-	return int64(math.Round(value))
 }
 
 func scanCheckinRecord(row interface{ Scan(dest ...any) error }) (service.CheckinRecord, error) {
@@ -485,9 +477,9 @@ func scanCheckinRecord(row interface{ Scan(dest ...any) error }) (service.Checki
 	if err != nil {
 		return service.CheckinRecord{}, err
 	}
-	record.RewardAmount = float64(claimedPoints)
-	record.BaseRewardAmount = float64(basePoints)
-	record.BonusDeltaAmount = float64(bonusPointsDelta)
+	record.RewardPoints = claimedPoints
+	record.BaseRewardPoints = basePoints
+	record.BonusDeltaPoints = bonusPointsDelta
 	if bonusPlayedAt.Valid {
 		record.BonusPlayedAt = &bonusPlayedAt.Time
 	}
