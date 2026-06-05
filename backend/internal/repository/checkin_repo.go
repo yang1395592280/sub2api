@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/lib/pq"
 )
@@ -489,4 +488,74 @@ func scanCheckinRecord(row interface{ Scan(dest ...any) error }) (service.Checki
 func isCheckinUniqueViolation(err error) bool {
 	var pqErr *pq.Error
 	return errors.As(err, &pqErr) && pqErr.Code == "23505"
+}
+
+func scanAdminCheckinRecord(row interface{ Scan(dest ...any) error }) (service.AdminCheckinRecord, error) {
+	var record service.AdminCheckinRecord
+	err := row.Scan(
+		&record.ID,
+		&record.UserID,
+		&record.Email,
+		&record.Username,
+		&record.CheckinDate,
+		&record.RewardPoints,
+		&record.UserTimezone,
+		&record.CreatedAt,
+	)
+	if err != nil {
+		return service.AdminCheckinRecord{}, err
+	}
+	return record, nil
+}
+
+func adminCheckinOrderBy(sortBy, sortOrder string) string {
+	field := "c.created_at"
+	switch strings.ToLower(strings.TrimSpace(sortBy)) {
+	case "reward_points":
+		field = "c.reward_points"
+	case "checkin_date":
+		field = "c.checkin_date"
+	case "email":
+		field = "u.email"
+	case "username":
+		field = "u.username"
+	case "created_at", "":
+		field = "c.created_at"
+	}
+
+	order := "DESC"
+	if strings.EqualFold(strings.TrimSpace(sortOrder), "asc") {
+		order = "ASC"
+	}
+	return fmt.Sprintf("%s %s, c.id %s", field, order, order)
+}
+
+func buildAdminCheckinAnalyticsWhere(filter service.AdminCheckinAnalyticsFilter) (string, []any) {
+	whereParts := []string{"1=1"}
+	args := make([]any, 0, 4)
+	argIndex := 1
+
+	if startDate := strings.TrimSpace(filter.StartDate); startDate != "" {
+		whereParts = append(whereParts, fmt.Sprintf("c.checkin_date >= $%d::date", argIndex))
+		args = append(args, startDate)
+		argIndex++
+	}
+	if endDate := strings.TrimSpace(filter.EndDate); endDate != "" {
+		whereParts = append(whereParts, fmt.Sprintf("c.checkin_date <= $%d::date", argIndex))
+		args = append(args, endDate)
+		argIndex++
+	}
+
+	if search := strings.TrimSpace(filter.Search); search != "" {
+		whereParts = append(whereParts, fmt.Sprintf("(u.email ILIKE $%d OR u.username ILIKE $%d)", argIndex, argIndex))
+		args = append(args, "%"+search+"%")
+		argIndex++
+	}
+
+	if timezone := strings.TrimSpace(filter.Timezone); timezone != "" {
+		whereParts = append(whereParts, fmt.Sprintf("c.user_timezone = $%d", argIndex))
+		args = append(args, timezone)
+	}
+
+	return strings.Join(whereParts, " AND "), args
 }

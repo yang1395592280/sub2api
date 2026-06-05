@@ -102,8 +102,9 @@ type AdminAdjustPointsInput struct {
 }
 
 var (
-	ErrGameCenterCatalogNotFound    = infraerrors.NotFound("GAME_CENTER_CATALOG_NOT_FOUND", "game catalog not found")
-	ErrGameCenterInsufficientPoints = infraerrors.BadRequest("GAME_CENTER_INSUFFICIENT_POINTS", "insufficient points")
+	ErrGameCenterCatalogNotFound     = infraerrors.NotFound("GAME_CENTER_CATALOG_NOT_FOUND", "game catalog not found")
+	ErrGameCenterInsufficientPoints  = infraerrors.BadRequest("GAME_CENTER_INSUFFICIENT_POINTS", "insufficient points")
+	ErrGameCenterClaimAlreadyClaimed = infraerrors.Conflict("GAME_CENTER_CLAIM_ALREADY_CLAIMED", "claim batch already claimed")
 )
 
 type GameCenterRepository interface {
