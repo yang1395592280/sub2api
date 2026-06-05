@@ -1,12 +1,18 @@
 package routes
 
 import (
+	"net/http"
+
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
+
+func gameCenterRoutePlaceholder(c *gin.Context) {
+	c.AbortWithStatus(http.StatusNotImplemented)
+}
 
 // RegisterUserRoutes 注册用户相关路由（需要认证）
 func RegisterUserRoutes(
@@ -33,6 +39,9 @@ func RegisterUserRoutes(
 			user.POST("/auth-identities/bind/start", h.User.StartIdentityBinding)
 			user.GET("/api-keys/:id/usage/daily", h.Usage.GetMyAPIKeyDailyUsage)
 			user.GET("/platform-quotas", h.User.GetMyPlatformQuotas)
+			user.GET("/checkin", gameCenterRoutePlaceholder)
+			user.POST("/checkin", gameCenterRoutePlaceholder)
+			user.POST("/checkin/lucky-bonus", gameCenterRoutePlaceholder)
 
 			// 通知邮箱管理
 			notifyEmail := user.Group("/notify-email")
@@ -76,6 +85,18 @@ func RegisterUserRoutes(
 		channels := authenticated.Group("/channels")
 		{
 			channels.GET("/available", h.AvailableChannel.List)
+		}
+
+		gameCenter := authenticated.Group("/game-center")
+		{
+			gameCenter.GET("/overview", gameCenterRoutePlaceholder)
+			gameCenter.GET("/ledger", gameCenterRoutePlaceholder)
+		}
+
+		usageLeaderboard := authenticated.Group("/usage-leaderboard")
+		{
+			usageLeaderboard.GET("/overview", gameCenterRoutePlaceholder)
+			usageLeaderboard.GET("/items", gameCenterRoutePlaceholder)
 		}
 
 		// 使用记录

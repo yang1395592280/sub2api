@@ -53,6 +53,9 @@ func RegisterAdminRoutes(
 		// 系统设置
 		registerSettingsRoutes(admin, h)
 
+		// 游戏中心后台入口占位，待后续 handler/service 接入
+		registerGameCenterAdminPlaceholderRoutes(admin)
+
 		// 数据管理
 		registerDataManagementRoutes(admin, h)
 
@@ -98,6 +101,17 @@ func RegisterAdminRoutes(
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
 	}
+}
+
+func registerGameCenterAdminPlaceholderRoutes(admin *gin.RouterGroup) {
+	gameCenter := admin.Group("/game-center")
+	gameCenter.GET("", gameCenterRoutePlaceholder)
+
+	checkins := admin.Group("/checkins")
+	checkins.GET("", gameCenterRoutePlaceholder)
+
+	usageLeaderboard := admin.Group("/usage-leaderboard")
+	usageLeaderboard.GET("", gameCenterRoutePlaceholder)
 }
 
 func registerContentModerationRoutes(admin *gin.RouterGroup, h *handler.Handlers) {

@@ -171,11 +171,16 @@ func TestSettingService_GetPublicSettings_ExposesJoinGroupSettings(t *testing.T)
 func TestSettingService_GetPublicSettings_ExposesGameCenterFeatureFlags(t *testing.T) {
 	repo := &settingPublicRepoStub{
 		values: map[string]string{
-			"game_center_enabled":         "true",
-			"checkin_enabled":             "true",
-			"checkin_lucky_bonus_enabled": "true",
-			"lucky_wheel_enabled":         "true",
-			"size_bet_enabled":            "true",
+			"game_center_enabled":              "true",
+			"checkin_enabled":                  "true",
+			"checkin_min_reward":               "1.25000000",
+			"checkin_max_reward":               "5.50000000",
+			"checkin_distribution_enabled":     "true",
+			"checkin_distribution_config":      `{"tiers":[{"weight":70,"reward":1.25}]}`,
+			"checkin_lucky_bonus_enabled":      "true",
+			"checkin_lucky_bonus_success_rate": "33.30000000",
+			"lucky_wheel_enabled":              "true",
+			"size_bet_enabled":                 "true",
 		},
 	}
 	svc := NewSettingService(repo, &config.Config{})
@@ -190,7 +195,12 @@ func TestSettingService_GetPublicSettings_ExposesGameCenterFeatureFlags(t *testi
 	require.NoError(t, json.Unmarshal(raw, &got))
 	require.Equal(t, true, got["game_center_enabled"], "public settings should expose the game center master flag")
 	require.Equal(t, true, got["checkin_enabled"], "public settings should expose the check-in flag")
+	require.Equal(t, 1.25, got["checkin_min_reward"], "public settings should expose the check-in minimum reward")
+	require.Equal(t, 5.5, got["checkin_max_reward"], "public settings should expose the check-in maximum reward")
+	require.Equal(t, true, got["checkin_distribution_enabled"], "public settings should expose the distribution switch")
+	require.Equal(t, `{"tiers":[{"weight":70,"reward":1.25}]}`, got["checkin_distribution_config"], "public settings should expose the distribution config")
 	require.Equal(t, true, got["checkin_lucky_bonus_enabled"], "public settings should expose the lucky bonus flag")
+	require.Equal(t, 33.3, got["checkin_lucky_bonus_success_rate"], "public settings should expose the lucky bonus success rate")
 	require.Equal(t, true, got["lucky_wheel_enabled"], "public settings should expose the lucky wheel flag")
 	require.Equal(t, true, got["size_bet_enabled"], "public settings should expose the size bet flag")
 }

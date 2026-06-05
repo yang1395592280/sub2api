@@ -727,6 +727,16 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyTablePageSizeOptions,
 		SettingKeyCustomMenuItems,
 		SettingKeyCustomEndpoints,
+		SettingKeyGameCenterEnabled,
+		SettingKeyCheckinEnabled,
+		SettingKeyCheckinMinReward,
+		SettingKeyCheckinMaxReward,
+		SettingKeyCheckinDistributionEnabled,
+		SettingKeyCheckinDistributionConfig,
+		SettingKeyCheckinLuckyBonusEnabled,
+		SettingKeyCheckinLuckyBonusSuccessRate,
+		SettingKeyLuckyWheelEnabled,
+		SettingKeySizeBetEnabled,
 		SettingKeyLinuxDoConnectEnabled,
 		SettingKeyDingTalkConnectEnabled,
 		SettingKeyWeChatConnectEnabled,
@@ -820,6 +830,18 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 	if v, err := strconv.ParseFloat(settings[SettingKeyBalanceLowNotifyThreshold], 64); err == nil && v >= 0 {
 		balanceLowNotifyThreshold = v
 	}
+	var checkinMinReward float64
+	if v, err := strconv.ParseFloat(settings[SettingKeyCheckinMinReward], 64); err == nil {
+		checkinMinReward = v
+	}
+	var checkinMaxReward float64
+	if v, err := strconv.ParseFloat(settings[SettingKeyCheckinMaxReward], 64); err == nil {
+		checkinMaxReward = v
+	}
+	var checkinLuckyBonusSuccessRate float64
+	if v, err := strconv.ParseFloat(settings[SettingKeyCheckinLuckyBonusSuccessRate], 64); err == nil {
+		checkinLuckyBonusSuccessRate = v
+	}
 
 	return &PublicSettings{
 		RegistrationEnabled:              settings[SettingKeyRegistrationEnabled] == "true",
@@ -854,6 +876,16 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		TablePageSizeOptions:             tablePageSizeOptions,
 		CustomMenuItems:                  settings[SettingKeyCustomMenuItems],
 		CustomEndpoints:                  settings[SettingKeyCustomEndpoints],
+		GameCenterEnabled:                settings[SettingKeyGameCenterEnabled] == "true",
+		CheckinEnabled:                   settings[SettingKeyCheckinEnabled] == "true",
+		CheckinMinReward:                 checkinMinReward,
+		CheckinMaxReward:                 checkinMaxReward,
+		CheckinDistributionEnabled:       settings[SettingKeyCheckinDistributionEnabled] == "true",
+		CheckinDistributionConfig:        settings[SettingKeyCheckinDistributionConfig],
+		CheckinLuckyBonusEnabled:         settings[SettingKeyCheckinLuckyBonusEnabled] == "true",
+		CheckinLuckyBonusSuccessRate:     checkinLuckyBonusSuccessRate,
+		LuckyWheelEnabled:                settings[SettingKeyLuckyWheelEnabled] == "true",
+		SizeBetEnabled:                   settings[SettingKeySizeBetEnabled] == "true",
 		LinuxDoOAuthEnabled:              linuxDoEnabled,
 		DingTalkOAuthEnabled:             dingTalkEnabled,
 		WeChatOAuthEnabled:               weChatEnabled,
@@ -1158,6 +1190,16 @@ type PublicSettingsInjectionPayload struct {
 	TablePageSizeOptions             []int                    `json:"table_page_size_options"`
 	CustomMenuItems                  json.RawMessage          `json:"custom_menu_items"`
 	CustomEndpoints                  json.RawMessage          `json:"custom_endpoints"`
+	GameCenterEnabled                bool                     `json:"game_center_enabled"`
+	CheckinEnabled                   bool                     `json:"checkin_enabled"`
+	CheckinMinReward                 float64                  `json:"checkin_min_reward"`
+	CheckinMaxReward                 float64                  `json:"checkin_max_reward"`
+	CheckinDistributionEnabled       bool                     `json:"checkin_distribution_enabled"`
+	CheckinDistributionConfig        string                   `json:"checkin_distribution_config"`
+	CheckinLuckyBonusEnabled         bool                     `json:"checkin_lucky_bonus_enabled"`
+	CheckinLuckyBonusSuccessRate     float64                  `json:"checkin_lucky_bonus_success_rate"`
+	LuckyWheelEnabled                bool                     `json:"lucky_wheel_enabled"`
+	SizeBetEnabled                   bool                     `json:"size_bet_enabled"`
 	LinuxDoOAuthEnabled              bool                     `json:"linuxdo_oauth_enabled"`
 	DingTalkOAuthEnabled             bool                     `json:"dingtalk_oauth_enabled"`
 	WeChatOAuthEnabled               bool                     `json:"wechat_oauth_enabled"`
@@ -1226,6 +1268,16 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		TablePageSizeOptions:             settings.TablePageSizeOptions,
 		CustomMenuItems:                  filterUserVisibleMenuItems(settings.CustomMenuItems),
 		CustomEndpoints:                  safeRawJSONArray(settings.CustomEndpoints),
+		GameCenterEnabled:                settings.GameCenterEnabled,
+		CheckinEnabled:                   settings.CheckinEnabled,
+		CheckinMinReward:                 settings.CheckinMinReward,
+		CheckinMaxReward:                 settings.CheckinMaxReward,
+		CheckinDistributionEnabled:       settings.CheckinDistributionEnabled,
+		CheckinDistributionConfig:        settings.CheckinDistributionConfig,
+		CheckinLuckyBonusEnabled:         settings.CheckinLuckyBonusEnabled,
+		CheckinLuckyBonusSuccessRate:     settings.CheckinLuckyBonusSuccessRate,
+		LuckyWheelEnabled:                settings.LuckyWheelEnabled,
+		SizeBetEnabled:                   settings.SizeBetEnabled,
 		LinuxDoOAuthEnabled:              settings.LinuxDoOAuthEnabled,
 		DingTalkOAuthEnabled:             settings.DingTalkOAuthEnabled,
 		WeChatOAuthEnabled:               settings.WeChatOAuthEnabled,
@@ -1833,6 +1885,11 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	// 默认配置
 	updates[SettingKeyDefaultConcurrency] = strconv.Itoa(settings.DefaultConcurrency)
 	updates[SettingKeyDefaultBalance] = strconv.FormatFloat(settings.DefaultBalance, 'f', 8, 64)
+	updates[SettingKeyGameCenterEnabled] = strconv.FormatBool(settings.GameCenterEnabled)
+	updates[SettingKeyCheckinMinReward] = strconv.FormatFloat(settings.CheckinMinReward, 'f', 8, 64)
+	updates[SettingKeyCheckinMaxReward] = strconv.FormatFloat(settings.CheckinMaxReward, 'f', 8, 64)
+	updates[SettingKeyCheckinDistributionEnabled] = strconv.FormatBool(settings.CheckinDistributionEnabled)
+	updates[SettingKeyCheckinDistributionConfig] = settings.CheckinDistributionConfig
 	settings.AffiliateRebateRate = clampAffiliateRebateRate(settings.AffiliateRebateRate)
 	updates[SettingKeyAffiliateRebateRate] = strconv.FormatFloat(settings.AffiliateRebateRate, 'f', 8, 64)
 	if settings.AffiliateRebateFreezeHours < 0 {
@@ -1859,6 +1916,11 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 		return nil, fmt.Errorf("marshal default subscriptions: %w", err)
 	}
 	updates[SettingKeyDefaultSubscriptions] = string(defaultSubsJSON)
+	updates[SettingKeyCheckinEnabled] = strconv.FormatBool(settings.CheckinEnabled)
+	updates[SettingKeyCheckinLuckyBonusEnabled] = strconv.FormatBool(settings.CheckinLuckyBonusEnabled)
+	updates[SettingKeyCheckinLuckyBonusSuccessRate] = strconv.FormatFloat(settings.CheckinLuckyBonusSuccessRate, 'f', 8, 64)
+	updates[SettingKeyLuckyWheelEnabled] = strconv.FormatBool(settings.LuckyWheelEnabled)
+	updates[SettingKeySizeBetEnabled] = strconv.FormatBool(settings.SizeBetEnabled)
 
 	// Model fallback configuration
 	updates[SettingKeyEnableModelFallback] = strconv.FormatBool(settings.EnableModelFallback)
@@ -2688,6 +2750,16 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeySiteName:                                  "Sub2API",
 		SettingKeySiteLogo:                                  "",
 		SettingKeyPurchaseSubscriptionEnabled:               "false",
+		SettingKeyGameCenterEnabled:                         "false",
+		SettingKeyCheckinEnabled:                            "false",
+		SettingKeyCheckinMinReward:                          "0.00000000",
+		SettingKeyCheckinMaxReward:                          "0.00000000",
+		SettingKeyCheckinDistributionEnabled:                "false",
+		SettingKeyCheckinDistributionConfig:                 "",
+		SettingKeyCheckinLuckyBonusEnabled:                  "false",
+		SettingKeyCheckinLuckyBonusSuccessRate:              "0.00000000",
+		SettingKeyLuckyWheelEnabled:                         "false",
+		SettingKeySizeBetEnabled:                            "false",
 		SettingKeyPurchaseSubscriptionURL:                   "",
 		SettingKeyTableDefaultPageSize:                      "20",
 		SettingKeyTablePageSizeOptions:                      "[10,20,50,100]",
@@ -3253,6 +3325,22 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.GoogleOAuthClientSecretConfigured = result.GoogleOAuthClientSecret != ""
 	result.GoogleOAuthRedirectURL = strings.TrimSpace(googleEffective.RedirectURL)
 	result.GoogleOAuthFrontendRedirectURL = strings.TrimSpace(googleEffective.FrontendRedirectURL)
+	result.GameCenterEnabled = settings[SettingKeyGameCenterEnabled] == "true"
+	result.CheckinEnabled = settings[SettingKeyCheckinEnabled] == "true"
+	if v, err := strconv.ParseFloat(settings[SettingKeyCheckinMinReward], 64); err == nil {
+		result.CheckinMinReward = v
+	}
+	if v, err := strconv.ParseFloat(settings[SettingKeyCheckinMaxReward], 64); err == nil {
+		result.CheckinMaxReward = v
+	}
+	result.CheckinDistributionEnabled = settings[SettingKeyCheckinDistributionEnabled] == "true"
+	result.CheckinDistributionConfig = settings[SettingKeyCheckinDistributionConfig]
+	result.CheckinLuckyBonusEnabled = settings[SettingKeyCheckinLuckyBonusEnabled] == "true"
+	if v, err := strconv.ParseFloat(settings[SettingKeyCheckinLuckyBonusSuccessRate], 64); err == nil {
+		result.CheckinLuckyBonusSuccessRate = v
+	}
+	result.LuckyWheelEnabled = settings[SettingKeyLuckyWheelEnabled] == "true"
+	result.SizeBetEnabled = settings[SettingKeySizeBetEnabled] == "true"
 
 	// WeChat Connect 设置：
 	// - 优先读取 DB 系统设置

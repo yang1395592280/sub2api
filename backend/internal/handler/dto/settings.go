@@ -144,9 +144,19 @@ type SystemSettings struct {
 	TablePageSizeOptions        []int            `json:"table_page_size_options"`
 	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
+	GameCenterEnabled           bool             `json:"game_center_enabled"`
+	CheckinMinReward            float64          `json:"checkin_min_reward"`
+	CheckinMaxReward            float64          `json:"checkin_max_reward"`
+	CheckinDistributionEnabled  bool             `json:"checkin_distribution_enabled"`
+	CheckinDistributionConfig   string           `json:"checkin_distribution_config"`
 
 	DefaultConcurrency           int                          `json:"default_concurrency"`
 	DefaultBalance               float64                      `json:"default_balance"`
+	CheckinEnabled               bool                         `json:"checkin_enabled"`
+	CheckinLuckyBonusEnabled     bool                         `json:"checkin_lucky_bonus_enabled"`
+	CheckinLuckyBonusSuccessRate float64                      `json:"checkin_lucky_bonus_success_rate"`
+	LuckyWheelEnabled            bool                         `json:"lucky_wheel_enabled"`
+	SizeBetEnabled               bool                         `json:"size_bet_enabled"`
 	AffiliateRebateRate          float64                      `json:"affiliate_rebate_rate"`
 	AffiliateRebateFreezeHours   int                          `json:"affiliate_rebate_freeze_hours"`
 	AffiliateRebateDurationDays  int                          `json:"affiliate_rebate_duration_days"`
@@ -295,6 +305,16 @@ type PublicSettings struct {
 	TablePageSizeOptions             []int                    `json:"table_page_size_options"`
 	CustomMenuItems                  []CustomMenuItem         `json:"custom_menu_items"`
 	CustomEndpoints                  []CustomEndpoint         `json:"custom_endpoints"`
+	GameCenterEnabled                bool                     `json:"game_center_enabled"`
+	CheckinEnabled                   bool                     `json:"checkin_enabled"`
+	CheckinMinReward                 float64                  `json:"checkin_min_reward"`
+	CheckinMaxReward                 float64                  `json:"checkin_max_reward"`
+	CheckinDistributionEnabled       bool                     `json:"checkin_distribution_enabled"`
+	CheckinDistributionConfig        string                   `json:"checkin_distribution_config"`
+	CheckinLuckyBonusEnabled         bool                     `json:"checkin_lucky_bonus_enabled"`
+	CheckinLuckyBonusSuccessRate     float64                  `json:"checkin_lucky_bonus_success_rate"`
+	LuckyWheelEnabled                bool                     `json:"lucky_wheel_enabled"`
+	SizeBetEnabled                   bool                     `json:"size_bet_enabled"`
 	DingTalkOAuthEnabled             bool                     `json:"dingtalk_oauth_enabled"`
 	LinuxDoOAuthEnabled              bool                     `json:"linuxdo_oauth_enabled"`
 	WeChatOAuthEnabled               bool                     `json:"wechat_oauth_enabled"`

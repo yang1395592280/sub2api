@@ -2,6 +2,7 @@ package routes
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler"
@@ -37,6 +38,24 @@ func newGameCenterRoutesTestRouter() *gin.Engine {
 	return router
 }
 
+func newAdminGameCenterRoutesTestRouter() *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	v1 := router.Group("/api/v1")
+
+	RegisterAdminRoutes(
+		v1,
+		&handler.Handlers{
+			Admin: &handler.AdminHandlers{},
+		},
+		servermiddleware.AdminAuthMiddleware(func(c *gin.Context) {
+			c.Next()
+		}),
+	)
+
+	return router
+}
+
 func TestUserFacingGameCenterRoutesAreRegistered(t *testing.T) {
 	router := newGameCenterRoutesTestRouter()
 	registered := make(map[string]struct{}, len(router.Routes()))
@@ -62,6 +81,30 @@ func TestUserFacingGameCenterRoutesAreRegistered(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, ok := registered[tt.method+" "+tt.path]
 			require.True(t, ok, "route %s %s should be explicitly registered for the new user-facing game center surface", tt.method, tt.path)
+		})
+	}
+}
+
+func TestAdminGameCenterPlaceholderRoutesReturnNotImplemented(t *testing.T) {
+	router := newAdminGameCenterRoutesTestRouter()
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{name: "admin game center placeholder", path: "/api/v1/admin/game-center"},
+		{name: "admin checkins placeholder", path: "/api/v1/admin/checkins"},
+		{name: "admin usage leaderboard placeholder", path: "/api/v1/admin/usage-leaderboard"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, req)
+
+			require.Equal(t, http.StatusNotImplemented, recorder.Code)
 		})
 	}
 }
