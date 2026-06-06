@@ -101,6 +101,7 @@ describe('BatchAccountTestModal', () => {
   const originalFetch = global.fetch
   const originalCreateElement = document.createElement.bind(document)
   const originalBlob = globalThis.Blob
+  const originalDateNow = Date.now
   const clickMock = vi.fn()
 
   beforeEach(() => {
@@ -148,10 +149,18 @@ describe('BatchAccountTestModal', () => {
   afterEach(() => {
     global.fetch = originalFetch
     ;(globalThis as any).Blob = originalBlob
+    Date.now = originalDateNow
     vi.restoreAllMocks()
   })
 
   it('tests selected accounts one by one and prints each result', async () => {
+    let now = 0
+    Date.now = vi.fn(() => {
+      const current = now
+      now += current === 0 ? 2310 : 4080
+      return current
+    }) as typeof Date.now
+
     const wrapper = mount(BatchAccountTestModal, {
       props: {
         show: false,
@@ -181,6 +190,9 @@ describe('BatchAccountTestModal', () => {
     expect(wrapper.text()).toContain('ok-1')
     expect(wrapper.text()).toContain('=== B (#2) ===')
     expect(wrapper.text()).toContain('ERROR: boom')
+    const elapsedMatches = wrapper.text().match(/Elapsed \d+\.\d{2}s/g) ?? []
+    expect(elapsedMatches.length).toBeGreaterThanOrEqual(2)
+    expect(elapsedMatches).not.toContain('Elapsed 0.00s')
   })
 
   it('shows progress and downloads success/failed emails separately', async () => {
