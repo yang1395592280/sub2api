@@ -176,6 +176,8 @@ func (r *luckyWheelRepository) ListLeaderboard(ctx context.Context, spinDate str
 		if err := rows.Scan(&item.UserID, &item.Email, &item.Username, &item.Points, &item.NetPoints, &item.SpinCount, &item.BestDelta, &item.BestPrizeLabel); err != nil {
 			return nil, err
 		}
+		item.Email = service.MaskEmailForLeaderboard(item.Email)
+		item.Username = service.MaskUsernameForLeaderboard(item.Username, item.UserID)
 		item.Rank = rank
 		rank++
 		items = append(items, item)

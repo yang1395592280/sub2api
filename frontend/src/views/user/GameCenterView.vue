@@ -95,7 +95,7 @@
               <div class="rounded-2xl bg-gray-50 px-4 py-3 dark:bg-dark-800/70">
                 <p class="text-xs text-gray-500 dark:text-dark-400">幸运加奖</p>
                 <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
-                  {{ overview.checkin.bonus_enabled ? `${Math.round(overview.checkin.bonus_success_rate * 100)}% 概率` : '未开启' }}
+                  {{ overview.checkin.bonus_enabled ? `${Math.round(overview.checkin.bonus_success_rate)}% 概率` : '未开启' }}
                 </p>
               </div>
               <div class="rounded-2xl bg-gray-50 px-4 py-3 dark:bg-dark-800/70">

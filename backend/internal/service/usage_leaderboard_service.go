@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"time"
 
@@ -178,8 +179,8 @@ func buildUsageLeaderboardItem(raw UsageLeaderboardRawItem, metric UsageLeaderbo
 	return UsageLeaderboardItem{
 		Rank:          raw.Rank,
 		UserID:        raw.UserID,
-		Username:      maskLeaderboardUsername(raw.Username),
-		Email:         maskEmail(raw.Email),
+		Username:      MaskUsernameForLeaderboard(raw.Username, raw.UserID),
+		Email:         MaskEmailForLeaderboard(raw.Email),
 		Requests:      raw.Requests,
 		Tokens:        raw.Tokens,
 		Value:         value,
@@ -189,11 +190,14 @@ func buildUsageLeaderboardItem(raw UsageLeaderboardRawItem, metric UsageLeaderbo
 }
 
 func maskUsername(username string) string {
-	return maskLeaderboardUsername(username)
+	return MaskUsernameForLeaderboard(username, 0)
 }
 
-func maskLeaderboardUsername(username string) string {
+func MaskUsernameForLeaderboard(username string, userID int64) string {
 	username = strings.TrimSpace(username)
+	if username == "" && userID > 0 {
+		username = "user-" + strconv.FormatInt(userID, 10)
+	}
 	runes := []rune(username)
 	switch len(runes) {
 	case 0:
@@ -207,4 +211,8 @@ func maskLeaderboardUsername(username string) string {
 	default:
 		return string(runes[:1]) + strings.Repeat("*", len(runes)-2) + string(runes[len(runes)-1:])
 	}
+}
+
+func MaskEmailForLeaderboard(email string) string {
+	return maskEmail(email)
 }

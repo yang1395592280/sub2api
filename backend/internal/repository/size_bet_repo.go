@@ -644,6 +644,7 @@ func (r *sizeBetRepository) GetStatsOverview(ctx context.Context, date string) (
 		JOIN game_rounds gr ON gr.id = gb.round_id
 		WHERE gr.game_key = $1
 			AND gr.starts_at::date = $2::date
+			AND gb.status IN ('won', 'lost', 'refunded')
 	`, service.SizeBetGameKey, date).Scan(
 		&overview.ParticipantCount,
 		&overview.TotalStake,
@@ -671,6 +672,7 @@ func (r *sizeBetRepository) ListStatsUsers(ctx context.Context, date string, par
 			JOIN game_rounds gr ON gr.id = gb.round_id
 			WHERE gr.game_key = $1
 				AND gr.starts_at::date = $2::date
+				AND gb.status IN ('won', 'lost', 'refunded')
 			GROUP BY gb.user_id
 		) t
 	`, service.SizeBetGameKey, date).Scan(&total); err != nil {
@@ -691,6 +693,7 @@ func (r *sizeBetRepository) ListStatsUsers(ctx context.Context, date string, par
 		LEFT JOIN users u ON u.id = gb.user_id
 		WHERE gr.game_key = $1
 			AND gr.starts_at::date = $2::date
+			AND gb.status IN ('won', 'lost', 'refunded')
 		GROUP BY gb.user_id, u.username, u.email
 		ORDER BY COALESCE(SUM(gb.net_result_points), 0) DESC, gb.user_id DESC
 		LIMIT $3 OFFSET $4
@@ -714,6 +717,7 @@ func (r *sizeBetRepository) ListStatsUsers(ctx context.Context, date string, par
 		); err != nil {
 			return nil, nil, err
 		}
+		item.Username = service.MaskUsernameForLeaderboard(item.Username, item.UserID)
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
