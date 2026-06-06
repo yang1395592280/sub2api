@@ -259,10 +259,20 @@ const (
 	SettingKeyCustomEndpoints             = "custom_endpoints"              // 自定义端点列表（JSON 数组）
 
 	// 默认配置
-	SettingKeyDefaultConcurrency   = "default_concurrency"    // 新用户默认并发量
-	SettingKeyDefaultBalance       = "default_balance"        // 新用户默认余额
-	SettingKeyDefaultSubscriptions = "default_subscriptions"  // 新用户默认订阅列表（JSON）
-	SettingKeyDefaultUserRPMLimit  = "default_user_rpm_limit" // 新用户默认 RPM 限制（0 = 不限制）
+	SettingKeyDefaultConcurrency           = "default_concurrency"              // 新用户默认并发量
+	SettingKeyDefaultBalance               = "default_balance"                  // 新用户默认余额
+	SettingKeyDefaultSubscriptions         = "default_subscriptions"            // 新用户默认订阅列表（JSON）
+	SettingKeyDefaultUserRPMLimit          = "default_user_rpm_limit"           // 新用户默认 RPM 限制（0 = 不限制）
+	SettingKeyGameCenterEnabled            = "game_center_enabled"              // 游戏中心总开关（纯积分玩法）
+	SettingKeyCheckinEnabled               = "checkin_enabled"                  // 签到功能总开关
+	SettingKeyCheckinMinReward             = "checkin_min_reward"               // 签到最小奖励
+	SettingKeyCheckinMaxReward             = "checkin_max_reward"               // 签到最大奖励
+	SettingKeyCheckinDistributionEnabled   = "checkin_distribution_enabled"     // 是否启用签到奖励分布
+	SettingKeyCheckinDistributionConfig    = "checkin_distribution_config"      // 签到奖励分布配置（JSON）
+	SettingKeyCheckinLuckyBonusEnabled     = "checkin_lucky_bonus_enabled"      // 签到幸运奖励总开关
+	SettingKeyCheckinLuckyBonusSuccessRate = "checkin_lucky_bonus_success_rate" // 签到幸运奖励成功率
+	SettingKeyLuckyWheelEnabled            = "lucky_wheel_enabled"              // 大转盘功能总开关
+	SettingKeySizeBetEnabled               = "size_bet_enabled"                 // 猜大小功能总开关
 
 	// 第三方认证来源默认授予配置
 	SettingKeyAuthSourceDefaultEmailBalance             = "auth_source_default_email_balance"

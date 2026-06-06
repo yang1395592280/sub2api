@@ -253,6 +253,11 @@ const parseSSEOutput = (body: string) => {
   return { responseText, error, model }
 }
 
+const formatElapsedSeconds = (startedAt: number, endedAt: number) => {
+  const seconds = Math.max(0, (endedAt - startedAt) / 1000)
+  return seconds.toFixed(2)
+}
+
 const loadAvailableModels = async () => {
   if (props.accounts.length === 0) return
 
@@ -283,6 +288,7 @@ const startBatchTest = async () => {
 
   for (const [index, account] of props.accounts.entries()) {
     progressCurrent.value = index + 1
+    const startedAt = Date.now()
     addLine('', 'text-gray-300')
     addLine(`=== ${account.name} (#${account.id}) ===`, 'text-cyan-400')
     addLine(t('admin.accounts.testAccountTypeLabel', { type: account.type }), 'text-gray-400')
@@ -303,12 +309,14 @@ const startBatchTest = async () => {
 
       const body = await response.text()
       const result = parseSSEOutput(body)
+      const elapsed = formatElapsedSeconds(startedAt, Date.now())
 
       if (!response.ok || result.error) {
         failedCount += 1
         const email = extractEmail(account)
         if (email) failedEmails.value.push(email)
         addLine(`ERROR: ${result.error || `HTTP ${response.status}`}`, 'text-red-400')
+        addLine(`Elapsed ${elapsed}s`, 'text-gray-500')
       } else {
         successCount += 1
         const email = extractEmail(account)
@@ -317,6 +325,7 @@ const startBatchTest = async () => {
           addLine(t('admin.accounts.usingModel', { model: result.model }), 'text-green-400')
         }
         addLine(result.responseText || t('admin.accounts.testCompleted'), 'text-green-300')
+        addLine(`Elapsed ${elapsed}s`, 'text-gray-500')
       }
     } catch (error: unknown) {
       failedCount += 1
@@ -324,6 +333,7 @@ const startBatchTest = async () => {
       if (email) failedEmails.value.push(email)
       const message = error instanceof Error ? error.message : 'Unknown error'
       addLine(`ERROR: ${message}`, 'text-red-400')
+      addLine(`Elapsed ${formatElapsedSeconds(startedAt, Date.now())}s`, 'text-gray-500')
     }
   }
 

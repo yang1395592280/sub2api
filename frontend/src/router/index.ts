@@ -217,6 +217,78 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/game-center',
+    name: 'GameCenter',
+    component: () => import('@/views/user/GameCenterView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Game Center',
+      titleKey: 'nav.gameCenter'
+    }
+  },
+  {
+    path: '/game-center/:gameKey',
+    name: 'GameCenterShell',
+    redirect: (to) => {
+      const gameKey = String(to.params.gameKey || '').trim().toLowerCase()
+      if (gameKey === 'lucky-wheel') return '/game/lucky-wheel'
+      if (gameKey === 'size-bet') return '/game/size-bet'
+      if (gameKey === 'size-bet-stats') return '/game/size-bet/stats'
+      return '/game-center'
+    },
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Game Center',
+      titleKey: 'nav.gameCenter'
+    }
+  },
+  {
+    path: '/game/lucky-wheel',
+    name: 'LuckyWheelGame',
+    component: () => import('@/views/user/LuckyWheelGameView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Lucky Wheel',
+      titleKey: 'nav.gameCenter'
+    }
+  },
+  {
+    path: '/game/size-bet',
+    name: 'SizeBetGame',
+    component: () => import('@/views/user/SizeBetGameView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Size Bet',
+      titleKey: 'nav.gameCenter'
+    }
+  },
+  {
+    path: '/game/size-bet/stats',
+    name: 'SizeBetStats',
+    component: () => import('@/views/user/SizeBetStatsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Size Bet Stats',
+      titleKey: 'nav.gameCenter'
+    }
+  },
+  {
+    path: '/usage-leaderboard',
+    name: 'UsageLeaderboard',
+    component: () => import('@/views/user/UsageLeaderboardView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Usage Leaderboard',
+      titleKey: 'nav.usageLeaderboard'
+    }
+  },
+  {
     path: '/redeem',
     name: 'Redeem',
     component: () => import('@/views/user/RedeemView.vue'),
@@ -823,6 +895,14 @@ router.beforeEach(async (to, _from, next) => {
       next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
       return
     }
+  }
+
+  if (
+    ['/game-center', '/game/'].some((prefix) => to.path.startsWith(prefix))
+    && appStore.cachedPublicSettings?.game_center_enabled !== true
+  ) {
+    next('/dashboard')
+    return
   }
 
   // 简易模式下限制访问某些页面

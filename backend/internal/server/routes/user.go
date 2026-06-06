@@ -1,12 +1,18 @@
 package routes
 
 import (
+	"net/http"
+
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
+
+func gameCenterRoutePlaceholder(c *gin.Context) {
+	c.AbortWithStatus(http.StatusNotImplemented)
+}
 
 // RegisterUserRoutes 注册用户相关路由（需要认证）
 func RegisterUserRoutes(
@@ -33,6 +39,9 @@ func RegisterUserRoutes(
 			user.POST("/auth-identities/bind/start", h.User.StartIdentityBinding)
 			user.GET("/api-keys/:id/usage/daily", h.Usage.GetMyAPIKeyDailyUsage)
 			user.GET("/platform-quotas", h.User.GetMyPlatformQuotas)
+			user.GET("/checkin", h.UserCheckin.GetStatus)
+			user.POST("/checkin", h.UserCheckin.Checkin)
+			user.POST("/checkin/lucky-bonus", h.UserCheckin.PlayLuckyBonus)
 
 			// 通知邮箱管理
 			notifyEmail := user.Group("/notify-email")
@@ -76,6 +85,38 @@ func RegisterUserRoutes(
 		channels := authenticated.Group("/channels")
 		{
 			channels.GET("/available", h.AvailableChannel.List)
+		}
+
+		gameCenter := authenticated.Group("/game-center")
+		{
+			gameCenter.GET("/overview", h.GameCenter.GetOverview)
+			gameCenter.GET("/ledger", h.GameCenter.GetLedger)
+		}
+
+		sizeBet := authenticated.Group("/game/size-bet")
+		{
+			sizeBet.GET("/current", h.SizeBet.GetCurrent)
+			sizeBet.POST("/bet", h.SizeBet.PlaceBet)
+			sizeBet.GET("/history", h.SizeBet.GetHistory)
+			sizeBet.GET("/rounds", h.SizeBet.ListRecentRounds)
+			sizeBet.GET("/stats/overview", h.SizeBet.GetStatsOverview)
+			sizeBet.GET("/stats/users", h.SizeBet.ListStatsUsers)
+			sizeBet.GET("/leaderboard", h.SizeBet.GetLeaderboard)
+			sizeBet.GET("/rules", h.SizeBet.GetRules)
+		}
+
+		luckyWheel := authenticated.Group("/game/lucky-wheel")
+		{
+			luckyWheel.GET("/overview", h.LuckyWheel.GetOverview)
+			luckyWheel.POST("/spin", h.LuckyWheel.Spin)
+			luckyWheel.GET("/history", h.LuckyWheel.GetHistory)
+			luckyWheel.GET("/leaderboard", h.LuckyWheel.GetLeaderboard)
+		}
+
+		usageLeaderboard := authenticated.Group("/usage-leaderboard")
+		{
+			usageLeaderboard.GET("/overview", h.UsageLeaderboard.GetOverview)
+			usageLeaderboard.GET("/items", h.UsageLeaderboard.GetItems)
 		}
 
 		// 使用记录

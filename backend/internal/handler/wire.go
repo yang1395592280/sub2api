@@ -39,6 +39,8 @@ func ProvideAdminHandlers(
 	contentModerationHandler *admin.ContentModerationHandler,
 	paymentHandler *admin.PaymentHandler,
 	affiliateHandler *admin.AffiliateHandler,
+	luckyWheelHandler *admin.LuckyWheelHandler,
+	sizeBetHandler *admin.SizeBetHandler,
 ) *AdminHandlers {
 	return &AdminHandlers{
 		Dashboard:              dashboardHandler,
@@ -71,6 +73,8 @@ func ProvideAdminHandlers(
 		ContentModeration:      contentModerationHandler,
 		Payment:                paymentHandler,
 		Affiliate:              affiliateHandler,
+		LuckyWheel:             luckyWheelHandler,
+		SizeBet:                sizeBetHandler,
 	}
 }
 
@@ -97,6 +101,7 @@ func ProvideAdminSettingHandler(settingService *service.SettingService, emailSer
 func ProvideHandlers(
 	authHandler *AuthHandler,
 	userHandler *UserHandler,
+	userCheckinHandler *UserCheckinHandler,
 	apiKeyHandler *APIKeyHandler,
 	usageHandler *UsageHandler,
 	redeemHandler *RedeemHandler,
@@ -111,12 +116,17 @@ func ProvideHandlers(
 	paymentHandler *PaymentHandler,
 	paymentWebhookHandler *PaymentWebhookHandler,
 	availableChannelHandler *AvailableChannelHandler,
+	gameCenterHandler *GameCenterHandler,
+	usageLeaderboardHandler *UsageLeaderboardHandler,
+	luckyWheelHandler *LuckyWheelHandler,
+	sizeBetHandler *SizeBetHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
 	return &Handlers{
 		Auth:             authHandler,
 		User:             userHandler,
+		UserCheckin:      userCheckinHandler,
 		APIKey:           apiKeyHandler,
 		Usage:            usageHandler,
 		Redeem:           redeemHandler,
@@ -131,6 +141,10 @@ func ProvideHandlers(
 		Payment:          paymentHandler,
 		PaymentWebhook:   paymentWebhookHandler,
 		AvailableChannel: availableChannelHandler,
+		GameCenter:       gameCenterHandler,
+		UsageLeaderboard: usageLeaderboardHandler,
+		LuckyWheel:       luckyWheelHandler,
+		SizeBet:          sizeBetHandler,
 	}
 }
 
@@ -139,6 +153,7 @@ var ProviderSet = wire.NewSet(
 	// Top-level handlers
 	NewAuthHandler,
 	NewUserHandler,
+	NewUserCheckinHandler,
 	NewAPIKeyHandler,
 	NewUsageHandler,
 	NewRedeemHandler,
@@ -152,6 +167,10 @@ var ProviderSet = wire.NewSet(
 	NewPaymentHandler,
 	NewPaymentWebhookHandler,
 	NewAvailableChannelHandler,
+	NewGameCenterHandler,
+	NewUsageLeaderboardHandler,
+	NewLuckyWheelHandler,
+	NewSizeBetHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,
@@ -184,6 +203,8 @@ var ProviderSet = wire.NewSet(
 	admin.NewContentModerationHandler,
 	admin.NewPaymentHandler,
 	admin.NewAffiliateHandler,
+	admin.NewLuckyWheelHandler,
+	admin.NewSizeBetHandler,
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,

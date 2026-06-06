@@ -147,6 +147,11 @@ type SystemSettings struct {
 
 	DefaultConcurrency           int
 	DefaultBalance               float64
+	GameCenterEnabled            bool
+	CheckinMinReward             float64
+	CheckinMaxReward             float64
+	CheckinDistributionEnabled   bool
+	CheckinDistributionConfig    string
 	RiskControlEnabled           bool
 	AffiliateEnabled             bool
 	AffiliateRebateRate          float64
@@ -155,6 +160,11 @@ type SystemSettings struct {
 	AffiliateRebatePerInviteeCap float64
 	DefaultUserRPMLimit          int
 	DefaultSubscriptions         []DefaultSubscriptionSetting
+	CheckinEnabled               bool
+	CheckinLuckyBonusEnabled     bool
+	CheckinLuckyBonusSuccessRate float64
+	LuckyWheelEnabled            bool
+	SizeBetEnabled               bool
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -267,20 +277,30 @@ type PublicSettings struct {
 	TablePageSizeOptions        []int
 	CustomMenuItems             string // JSON array of custom menu items
 	CustomEndpoints             string // JSON array of custom endpoints
+	GameCenterEnabled           bool
+	CheckinMinReward            float64
+	CheckinMaxReward            float64
+	CheckinDistributionEnabled  bool
+	CheckinDistributionConfig   string
 
-	LinuxDoOAuthEnabled      bool
-	DingTalkOAuthEnabled     bool
-	WeChatOAuthEnabled       bool
-	WeChatOAuthOpenEnabled   bool
-	WeChatOAuthMPEnabled     bool
-	WeChatOAuthMobileEnabled bool
-	BackendModeEnabled       bool
-	PaymentEnabled           bool
-	OIDCOAuthEnabled         bool
-	OIDCOAuthProviderName    string
-	GitHubOAuthEnabled       bool
-	GoogleOAuthEnabled       bool
-	Version                  string
+	LinuxDoOAuthEnabled          bool
+	DingTalkOAuthEnabled         bool
+	WeChatOAuthEnabled           bool
+	WeChatOAuthOpenEnabled       bool
+	WeChatOAuthMPEnabled         bool
+	WeChatOAuthMobileEnabled     bool
+	BackendModeEnabled           bool
+	PaymentEnabled               bool
+	OIDCOAuthEnabled             bool
+	OIDCOAuthProviderName        string
+	GitHubOAuthEnabled           bool
+	GoogleOAuthEnabled           bool
+	Version                      string
+	CheckinEnabled               bool
+	CheckinLuckyBonusEnabled     bool
+	CheckinLuckyBonusSuccessRate float64
+	LuckyWheelEnabled            bool
+	SizeBetEnabled               bool
 
 	BalanceLowNotifyEnabled     bool
 	AccountQuotaNotifyEnabled   bool

@@ -53,6 +53,11 @@ func RegisterAdminRoutes(
 		// 系统设置
 		registerSettingsRoutes(admin, h)
 
+		// 游戏中心后台入口
+		registerLuckyWheelRoutes(admin, h)
+		registerSizeBetRoutes(admin, h)
+		registerGameCenterAdminPlaceholderRoutes(admin)
+
 		// 数据管理
 		registerDataManagementRoutes(admin, h)
 
@@ -97,6 +102,40 @@ func RegisterAdminRoutes(
 
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
+	}
+}
+
+func registerGameCenterAdminPlaceholderRoutes(admin *gin.RouterGroup) {
+	gameCenter := admin.Group("/game-center")
+	gameCenter.GET("", gameCenterRoutePlaceholder)
+
+	checkins := admin.Group("/checkins")
+	checkins.GET("", gameCenterRoutePlaceholder)
+
+	usageLeaderboard := admin.Group("/usage-leaderboard")
+	usageLeaderboard.GET("", gameCenterRoutePlaceholder)
+}
+
+func registerSizeBetRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	games := admin.Group("/games/size-bet")
+	{
+		games.GET("/settings", h.Admin.SizeBet.GetSettings)
+		games.PUT("/settings", h.Admin.SizeBet.UpdateSettings)
+		games.GET("/rounds", h.Admin.SizeBet.ListRounds)
+		games.GET("/bets", h.Admin.SizeBet.ListBets)
+		games.GET("/ledger", h.Admin.SizeBet.ListLedger)
+		games.GET("/stats/overview", h.Admin.SizeBet.GetStatsOverview)
+		games.GET("/stats/users", h.Admin.SizeBet.ListStatsUsers)
+		games.POST("/rounds/:id/refund", h.Admin.SizeBet.RefundRound)
+	}
+}
+
+func registerLuckyWheelRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	games := admin.Group("/games/lucky-wheel")
+	{
+		games.GET("/settings", h.Admin.LuckyWheel.GetSettings)
+		games.PUT("/settings", h.Admin.LuckyWheel.UpdateSettings)
+		games.GET("/spins", h.Admin.LuckyWheel.ListSpins)
 	}
 }
 

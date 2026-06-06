@@ -362,6 +362,16 @@ export const useAppStore = defineStore('app', () => {
         available_channels_enabled: false,
         risk_control_enabled: false,
         affiliate_enabled: false,
+        game_center_enabled: false,
+        checkin_enabled: false,
+        checkin_min_reward: 0,
+        checkin_max_reward: 0,
+        checkin_distribution_enabled: false,
+        checkin_distribution_config: '',
+        checkin_lucky_bonus_enabled: false,
+        checkin_lucky_bonus_success_rate: 0,
+        lucky_wheel_enabled: false,
+        size_bet_enabled: false,
       }
     }
 
