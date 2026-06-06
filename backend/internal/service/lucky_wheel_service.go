@@ -141,6 +141,7 @@ func (s *LuckyWheelService) GetOverview(ctx context.Context, userID int64) (*Luc
 	if err != nil {
 		return nil, err
 	}
+	leaderboard = maskLuckyWheelLeaderboardItems(leaderboard)
 	return &LuckyWheelOverview{
 		Enabled:             settings.Enabled,
 		ServerTime:          s.now(),
@@ -204,7 +205,7 @@ func (s *LuckyWheelService) GetLeaderboard(ctx context.Context) (*LuckyWheelLead
 	}
 	return &LuckyWheelLeaderboardView{
 		Date:  spinDate,
-		Items: items,
+		Items: maskLuckyWheelLeaderboardItems(items),
 	}, nil
 }
 
@@ -261,6 +262,20 @@ func maxLuckyWheelPenaltyAbs(prizes []LuckyWheelPrizeConfig) int64 {
 		}
 	}
 	return required
+}
+
+func maskLuckyWheelLeaderboardItems(items []LuckyWheelLeaderboardItem) []LuckyWheelLeaderboardItem {
+	if len(items) == 0 {
+		return items
+	}
+
+	masked := make([]LuckyWheelLeaderboardItem, len(items))
+	copy(masked, items)
+	for i := range masked {
+		masked[i].Username = MaskUsernameForLeaderboard(masked[i].Username, masked[i].UserID)
+		masked[i].Email = MaskEmailForLeaderboard(masked[i].Email)
+	}
+	return masked
 }
 
 func defaultLuckyWheelRandomPercentage() float64 {

@@ -127,3 +127,29 @@ func TestLuckyWheelServiceSpinRejectsWhenPointsBelowMaxPenalty(t *testing.T) {
 	require.ErrorIs(t, err, ErrLuckyWheelInsufficientPoints)
 	require.Equal(t, int64(0), repo.lastInput.UserID)
 }
+
+func TestLuckyWheelServiceLeaderboardMasksUserIdentity(t *testing.T) {
+	repo := &luckyWheelRepoStub{
+		leaderboard: []LuckyWheelLeaderboardItem{
+			{
+				UserID:         1,
+				Email:          "alpha@example.com",
+				Username:       "张三丰",
+				Points:         100,
+				NetPoints:      80,
+				SpinCount:      5,
+				BestDelta:      30,
+				BestPrizeLabel: "超级大奖 +888",
+			},
+		},
+	}
+	svc := NewLuckyWheelService(repo, &luckyWheelSettingRepoStub{values: map[string]string{}})
+	svc.now = func() time.Time { return time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC) }
+
+	view, err := svc.GetLeaderboard(context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, view.Items, 1)
+	require.Equal(t, "张*丰", view.Items[0].Username)
+	require.Equal(t, "a***@e***.com", view.Items[0].Email)
+}
