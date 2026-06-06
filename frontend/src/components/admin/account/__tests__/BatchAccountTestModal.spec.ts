@@ -112,11 +112,11 @@ describe('BatchAccountTestModal', () => {
     global.fetch = vi.fn()
       .mockResolvedValueOnce({
         ok: true,
-        text: vi.fn().mockResolvedValue('data: {"type":"test_start","model":"gpt-5.4"}\ndata: {"type":"content","text":"ok-1"}\n')
+        text: vi.fn().mockResolvedValue('data: {"type":"test_start","model":"gpt-5.4","connect_duration_ms":1580}\ndata: {"type":"content","text":"ok-1"}\n')
       } as any)
       .mockResolvedValueOnce({
         ok: true,
-        text: vi.fn().mockResolvedValue('data: {"type":"error","error":"boom"}\n')
+        text: vi.fn().mockResolvedValue('data: {"type":"test_start","model":"gpt-5.4","connect_duration_ms":8070}\ndata: {"type":"error","error":"boom"}\n')
       } as any)
 
     clickMock.mockReset()
@@ -179,8 +179,10 @@ describe('BatchAccountTestModal', () => {
     expect((global.fetch as any).mock.calls[1][0]).toBe('/api/v1/admin/accounts/2/test')
     expect(wrapper.text()).toContain('=== A (#1) ===')
     expect(wrapper.text()).toContain('ok-1')
+    expect(wrapper.text()).toContain('连接耗时 1.58s')
     expect(wrapper.text()).toContain('=== B (#2) ===')
     expect(wrapper.text()).toContain('ERROR: boom')
+    expect(wrapper.text()).toContain('连接耗时 8.07s')
   })
 
   it('shows progress and downloads success/failed emails separately', async () => {

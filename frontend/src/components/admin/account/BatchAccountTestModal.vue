@@ -190,6 +190,11 @@ const addLine = (text: string, className: string = 'text-gray-300') => {
   scrollToBottom()
 }
 
+const formatConnectDuration = (durationMs: number) => {
+  const seconds = Math.max(0, durationMs) / 1000
+  return seconds.toFixed(2)
+}
+
 const scrollToBottom = async () => {
   await nextTick()
   if (terminalRef.value) {
@@ -225,6 +230,7 @@ const parseSSEOutput = (body: string) => {
   let responseText = ''
   let error = ''
   let model = ''
+  let connectDurationMs: number | null = null
 
   for (const line of lines) {
     const trimmed = line.trim()
@@ -237,9 +243,15 @@ const parseSSEOutput = (body: string) => {
         text?: string
         error?: string
         model?: string
+        connect_duration_ms?: number
       }
       if (event.type === 'test_start' && event.model) {
         model = event.model
+        if (typeof event.connect_duration_ms === 'number') {
+          connectDurationMs = event.connect_duration_ms
+        }
+      } else if (event.type === 'connect_timing' && typeof event.connect_duration_ms === 'number') {
+        connectDurationMs = event.connect_duration_ms
       } else if (event.type === 'content' && event.text) {
         responseText += event.text
       } else if (event.type === 'error' && event.error) {
@@ -250,7 +262,7 @@ const parseSSEOutput = (body: string) => {
     }
   }
 
-  return { responseText, error, model }
+  return { responseText, error, model, connectDurationMs }
 }
 
 const loadAvailableModels = async () => {
@@ -308,6 +320,9 @@ const startBatchTest = async () => {
         failedCount += 1
         const email = extractEmail(account)
         if (email) failedEmails.value.push(email)
+        if (typeof result.connectDurationMs === 'number') {
+          addLine(`连接耗时 ${formatConnectDuration(result.connectDurationMs)}s`, 'rounded-md bg-amber-300/20 px-2 py-1 font-semibold text-amber-300 ring-1 ring-amber-300/40')
+        }
         addLine(`ERROR: ${result.error || `HTTP ${response.status}`}`, 'text-red-400')
       } else {
         successCount += 1
@@ -315,6 +330,9 @@ const startBatchTest = async () => {
         if (email) successEmails.value.push(email)
         if (result.model) {
           addLine(t('admin.accounts.usingModel', { model: result.model }), 'text-green-400')
+        }
+        if (typeof result.connectDurationMs === 'number') {
+          addLine(`连接耗时 ${formatConnectDuration(result.connectDurationMs)}s`, 'rounded-md bg-amber-300/20 px-2 py-1 font-semibold text-amber-300 ring-1 ring-amber-300/40')
         }
         addLine(result.responseText || t('admin.accounts.testCompleted'), 'text-green-300')
       }

@@ -275,6 +275,7 @@ const loadingModels = ref(false)
 let abortController: AbortController | null = null
 const generatedImages = ref<PreviewImage[]>([])
 const previewImageUrl = ref('')
+const connectDurationSeconds = ref<number | null>(null)
 const prioritizedGeminiModels = ['gemini-3.1-flash-image', 'gemini-2.5-flash-image', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-flash-preview', 'gemini-3-pro-preview', 'gemini-2.0-flash']
 const supportsGeminiImageTest = computed(() => {
   const modelID = selectedModelId.value.toLowerCase()
@@ -359,6 +360,7 @@ const resetState = () => {
   errorMessage.value = ''
   generatedImages.value = []
   previewImageUrl.value = ''
+  connectDurationSeconds.value = null
 }
 
 const handleClose = () => {
@@ -376,6 +378,16 @@ const abortStream = () => {
 const addLine = (text: string, className: string = 'text-gray-300') => {
   outputLines.value.push({ text, class: className })
   scrollToBottom()
+}
+
+const formatConnectDuration = (durationMs: number) => {
+  const seconds = Math.max(0, durationMs) / 1000
+  return seconds.toFixed(2)
+}
+
+const addConnectTimingLine = (durationMs: number) => {
+  connectDurationSeconds.value = durationMs / 1000
+  addLine(`连接耗时 ${formatConnectDuration(durationMs)}s`, 'rounded-md bg-amber-300/20 px-2 py-1 font-semibold text-amber-300 ring-1 ring-amber-300/40')
 }
 
 const scrollToBottom = async () => {
@@ -470,9 +482,13 @@ const handleEvent = (event: {
   error?: string
   image_url?: string
   mime_type?: string
+  connect_duration_ms?: number
 }) => {
   switch (event.type) {
     case 'test_start':
+      if (typeof event.connect_duration_ms === 'number') {
+        addConnectTimingLine(event.connect_duration_ms)
+      }
       addLine(t('admin.accounts.connectedToApi'), 'text-green-400')
       if (event.model) {
         addLine(t('admin.accounts.usingModel', { model: event.model }), 'text-cyan-400')
@@ -501,6 +517,12 @@ const handleEvent = (event: {
           mimeType: event.mime_type
         })
         addLine(t('admin.accounts.imageReceived', { count: generatedImages.value.length }), 'text-purple-300')
+      }
+      break
+
+    case 'connect_timing':
+      if (typeof event.connect_duration_ms === 'number') {
+        addConnectTimingLine(event.connect_duration_ms)
       }
       break
 
