@@ -361,6 +361,7 @@ export default {
     groups: 'Groups',
     channels: 'Channels',
     availableChannels: 'Available Channels',
+    gameCenter: 'Game Center',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
     proxies: 'Proxies',
@@ -387,6 +388,7 @@ export default {
     channelPricing: 'Channel Pricing',
     channelMonitor: 'Channel Monitor',
     channelStatus: 'Channel Status',
+    usageLeaderboard: 'Usage Leaderboard',
     riskControl: 'Risk Control',
   },
 

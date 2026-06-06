@@ -99,6 +99,11 @@ export const FeatureFlags = {
     mode: 'opt-out',
     label: 'Channel Monitor',
   }),
+  gameCenter: defineFlag({
+    key: 'game_center_enabled',
+    mode: 'opt-in',
+    label: 'Game Center',
+  }),
   availableChannels: defineFlag({
     key: 'available_channels_enabled',
     mode: 'opt-in',

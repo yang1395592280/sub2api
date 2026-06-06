@@ -30,3 +30,12 @@ describe('AppSidebar header styles', () => {
     expect(sidebarBrandBlockMatch?.[0]).not.toContain('overflow: hidden;')
   })
 })
+
+describe('AppSidebar user navigation wiring', () => {
+  it('includes Game Center and Usage Leaderboard entries', () => {
+    expect(componentSource).toContain(`path: '/game-center'`)
+    expect(componentSource).toContain(`t('nav.gameCenter')`)
+    expect(componentSource).toContain(`path: '/usage-leaderboard'`)
+    expect(componentSource).toContain(`t('nav.usageLeaderboard')`)
+  })
+})
