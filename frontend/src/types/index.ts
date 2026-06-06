@@ -236,7 +236,48 @@ export interface PublicSettings {
   channel_monitor_default_interval_seconds: number
   available_channels_enabled: boolean
   affiliate_enabled: boolean
+  game_center_enabled: boolean
+  checkin_enabled: boolean
+  checkin_min_reward: number
+  checkin_max_reward: number
+  checkin_distribution_enabled: boolean
+  checkin_distribution_config: string
+  checkin_lucky_bonus_enabled: boolean
+  checkin_lucky_bonus_success_rate: number
+  lucky_wheel_enabled: boolean
+  size_bet_enabled: boolean
 }
+
+export type UsageLeaderboardMetric = 'requests' | 'tokens'
+
+export interface UsageLeaderboardQuery {
+  date?: string
+  metric?: UsageLeaderboardMetric
+}
+
+export interface UsageLeaderboardItem {
+  rank: number
+  user_id: number
+  username: string
+  email: string
+  requests: number
+  tokens: number
+  value: number
+  metric: UsageLeaderboardMetric
+  is_current_user: boolean
+}
+
+export interface UsageLeaderboardOverview {
+  date: string
+  metric: UsageLeaderboardMetric
+  participant_count: number
+  current_user?: UsageLeaderboardItem
+  top_items: UsageLeaderboardItem[]
+}
+
+export * from './gameCenter'
+export * from './luckyWheel'
+export * from './sizeBet'
 
 export interface AuthResponse {
   access_token: string

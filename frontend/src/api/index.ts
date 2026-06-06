@@ -20,6 +20,9 @@ export { userChannelsAPI } from './channels'
 export { totpAPI } from './totp'
 export { default as announcementsAPI } from './announcements'
 export { channelMonitorUserAPI } from './channelMonitor'
+export { gameCenterAPI, luckyWheelAPI, sizeBetAPI } from './gameCenter'
+export { checkinAPI } from './checkin'
+export { usageLeaderboardAPI } from './usageLeaderboard'
 
 // Admin APIs
 export { adminAPI } from './admin'
