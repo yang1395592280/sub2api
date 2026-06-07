@@ -1504,6 +1504,10 @@ export interface UserSpendingRankingResponse {
   total_actual_cost: number
   total_requests: number
   total_tokens: number
+  total: number
+  page: number
+  page_size: number
+  pages: number
   start_date: string
   end_date: string
 }

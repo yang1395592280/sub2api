@@ -574,6 +574,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/user-spending-ranking',
+    name: 'AdminUserSpendingRanking',
+    component: () => import('@/views/admin/UserSpendingRankingView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'User Spending Ranking',
+      titleKey: 'admin.dashboard.spendingRankingTitle',
+      descriptionKey: 'admin.dashboard.spendingRankingDescription'
+    }
+  },
+  {
     path: '/admin/affiliates',
     redirect: '/admin/affiliates/invites'
   },

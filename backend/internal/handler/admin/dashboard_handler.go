@@ -479,31 +479,59 @@ var dashboardUsersRankingCache = newSnapshotCache(5 * time.Minute)
 var dashboardBatchUsersUsageCache = newSnapshotCache(30 * time.Second)
 var dashboardBatchAPIKeysUsageCache = newSnapshotCache(30 * time.Second)
 
-func parseRankingLimit(raw string) int {
-	limit, err := strconv.Atoi(strings.TrimSpace(raw))
-	if err != nil || limit <= 0 {
-		return 12
+func parseRankingPage(raw string) int {
+	page, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || page <= 0 {
+		return 1
 	}
-	if limit > 50 {
-		return 50
+	return page
+}
+
+func parseRankingPageSize(rawPageSize, rawLimit string) int {
+	pageSize, err := strconv.Atoi(strings.TrimSpace(rawPageSize))
+	if err != nil || pageSize <= 0 {
+		pageSize, err = strconv.Atoi(strings.TrimSpace(rawLimit))
+		if err != nil || pageSize <= 0 {
+			return 12
+		}
 	}
-	return limit
+	if pageSize > 100 {
+		return 100
+	}
+	return pageSize
+}
+
+func parseRankingSortBy(raw string) string {
+	return usagestats.NormalizeUserSpendingRankingSort(strings.TrimSpace(raw))
+}
+
+func parseRankingSortOrder(raw string) string {
+	return usagestats.NormalizeUserSpendingRankingOrder(strings.TrimSpace(raw))
 }
 
 // GetUserSpendingRanking handles getting user spending ranking data.
 // GET /api/v1/admin/dashboard/users-ranking
 func (h *DashboardHandler) GetUserSpendingRanking(c *gin.Context) {
 	startTime, endTime := parseTimeRange(c)
-	limit := parseRankingLimit(c.DefaultQuery("limit", "12"))
+	page := parseRankingPage(c.DefaultQuery("page", "1"))
+	pageSize := parseRankingPageSize(c.Query("page_size"), c.Query("limit"))
+	sortBy := parseRankingSortBy(c.DefaultQuery("sort_by", usagestats.RankingSortActualCost))
+	sortOrder := parseRankingSortOrder(c.DefaultQuery("sort_order", usagestats.RankingOrderDesc))
 
 	keyRaw, _ := json.Marshal(struct {
-		Start string `json:"start"`
-		End   string `json:"end"`
-		Limit int    `json:"limit"`
+		Start     string `json:"start"`
+		End       string `json:"end"`
+		Page      int    `json:"page"`
+		PageSize  int    `json:"page_size"`
+		SortBy    string `json:"sort_by"`
+		SortOrder string `json:"sort_order"`
 	}{
-		Start: startTime.UTC().Format(time.RFC3339),
-		End:   endTime.UTC().Format(time.RFC3339),
-		Limit: limit,
+		Start:     startTime.UTC().Format(time.RFC3339),
+		End:       endTime.UTC().Format(time.RFC3339),
+		Page:      page,
+		PageSize:  pageSize,
+		SortBy:    sortBy,
+		SortOrder: sortOrder,
 	})
 	cacheKey := string(keyRaw)
 	if cached, ok := dashboardUsersRankingCache.Get(cacheKey); ok {
@@ -512,7 +540,7 @@ func (h *DashboardHandler) GetUserSpendingRanking(c *gin.Context) {
 		return
 	}
 
-	ranking, err := h.dashboardService.GetUserSpendingRanking(c.Request.Context(), startTime, endTime, limit)
+	ranking, err := h.dashboardService.GetUserSpendingRanking(c.Request.Context(), startTime, endTime, page, pageSize, sortBy, sortOrder)
 	if err != nil {
 		response.Error(c, 500, "Failed to get user spending ranking")
 		return
@@ -523,6 +551,10 @@ func (h *DashboardHandler) GetUserSpendingRanking(c *gin.Context) {
 		"total_actual_cost": ranking.TotalActualCost,
 		"total_requests":    ranking.TotalRequests,
 		"total_tokens":      ranking.TotalTokens,
+		"total":             ranking.Total,
+		"page":              ranking.Page,
+		"page_size":         ranking.PageSize,
+		"pages":             ranking.Pages,
 		"start_date":        startTime.Format("2006-01-02"),
 		"end_date":          endTime.Add(-24 * time.Hour).Format("2006-01-02"),
 	}

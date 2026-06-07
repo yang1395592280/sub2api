@@ -249,21 +249,32 @@
             </div>
           </div>
 
+          <div v-if="rankingLoading && !rankingItems.length" class="card flex items-center justify-center py-16">
+            <LoadingSpinner size="md" />
+          </div>
+          <TopUsersLeaderboard
+            v-else
+            :users="rankingItems"
+            :summary="{
+              total_actual_cost: rankingTotalActualCost,
+              total_requests: rankingTotalRequests,
+              total: rankingTotalCount
+            }"
+            :subtitle="t('admin.dashboard.spendingRankingWindow', { start: startDate, end: endDate })"
+            :empty-text="rankingError ? t('admin.dashboard.failedToLoad') : t('admin.dashboard.noDataAvailable')"
+            :clickable="true"
+            :show-view-all="true"
+            @select="goToUserUsage"
+            @view-all="goToFullRanking"
+          />
+
           <!-- Charts Grid -->
           <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <ModelDistributionChart
               :model-stats="modelStats"
-              :enable-ranking-view="true"
-              :ranking-items="rankingItems"
-              :ranking-total-actual-cost="rankingTotalActualCost"
-              :ranking-total-requests="rankingTotalRequests"
-              :ranking-total-tokens="rankingTotalTokens"
               :loading="chartsLoading"
-              :ranking-loading="rankingLoading"
-              :ranking-error="rankingError"
               :start-date="startDate"
               :end-date="endDate"
-              @ranking-click="goToUserUsage"
             />
             <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
           </div>
@@ -312,6 +323,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Select from '@/components/common/Select.vue'
+import TopUsersLeaderboard from '@/components/admin/payment/TopUsersLeaderboard.vue'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'
 import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 
@@ -354,7 +366,7 @@ const userTrend = ref<UserUsageTrendPoint[]>([])
 const rankingItems = ref<UserSpendingRankingItem[]>([])
 const rankingTotalActualCost = ref(0)
 const rankingTotalRequests = ref(0)
-const rankingTotalTokens = ref(0)
+const rankingTotalCount = ref(0)
 let chartLoadSeq = 0
 let usersTrendLoadSeq = 0
 let rankingLoadSeq = 0
@@ -537,7 +549,10 @@ const formatNumber = (value: number): string => {
   return value.toLocaleString()
 }
 
-const formatCost = (value: number): string => {
+const formatCost = (value: number | undefined): string => {
+  if (value === undefined || value === null) {
+    return '0.0000'
+  }
   if (value >= 1000) {
     return (value / 1000).toFixed(2) + 'K'
   } else if (value >= 1) {
@@ -555,11 +570,21 @@ const formatDuration = (ms: number): string => {
   return `${Math.round(ms)}ms`
 }
 
-const goToUserUsage = (item: UserSpendingRankingItem) => {
+const goToUserUsage = (item: { user_id: number }) => {
   void router.push({
     path: '/admin/usage',
     query: {
       user_id: String(item.user_id),
+      start_date: startDate.value,
+      end_date: endDate.value
+    }
+  })
+}
+
+const goToFullRanking = () => {
+  void router.push({
+    path: '/admin/user-spending-ranking',
+    query: {
       start_date: startDate.value,
       end_date: endDate.value
     }
@@ -654,20 +679,21 @@ const loadUserSpendingRanking = async () => {
     const response = await adminAPI.dashboard.getUserSpendingRanking({
       start_date: startDate.value,
       end_date: endDate.value,
-      limit: rankingLimit
+      page: 1,
+      page_size: rankingLimit
     })
     if (currentSeq !== rankingLoadSeq) return
     rankingItems.value = response.ranking || []
     rankingTotalActualCost.value = response.total_actual_cost || 0
     rankingTotalRequests.value = response.total_requests || 0
-    rankingTotalTokens.value = response.total_tokens || 0
+    rankingTotalCount.value = response.total || 0
   } catch (error) {
     if (currentSeq !== rankingLoadSeq) return
     console.error('Error loading user spending ranking:', error)
     rankingItems.value = []
     rankingTotalActualCost.value = 0
     rankingTotalRequests.value = 0
-    rankingTotalTokens.value = 0
+    rankingTotalCount.value = 0
     rankingError.value = true
   } finally {
     if (currentSeq === rankingLoadSeq) {

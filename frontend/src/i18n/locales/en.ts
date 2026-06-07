@@ -388,6 +388,7 @@ export default {
     channelMonitor: 'Channel Monitor',
     channelStatus: 'Channel Status',
     riskControl: 'Risk Control',
+    userSpendingRanking: 'User Spending Ranking',
   },
 
   // Auth
@@ -1442,6 +1443,14 @@ export default {
       spendShort: 'Spend',
       requestsShort: 'Req',
       tokensShort: 'Tok',
+      viewAllRanking: 'View Full Ranking',
+      spendingRankingDescription: 'Browse the full user spending ranking within a selected time range with pagination and quick drill-down to usage records.',
+      spendingRankingWindow: 'Ranking from {start} to {end}',
+      rankUsers: 'Ranked Users',
+      spendingRankingUserId: 'User ID',
+      sortAsc: 'Ascending',
+      sortDesc: 'Descending',
+      exportRanking: 'Export All',
       failedToLoad: 'Failed to load dashboard statistics'
     },
 

@@ -4,9 +4,14 @@ package usagestats
 import "time"
 
 const (
-	ModelSourceRequested = "requested"
-	ModelSourceUpstream  = "upstream"
-	ModelSourceMapping   = "mapping"
+	ModelSourceRequested  = "requested"
+	ModelSourceUpstream   = "upstream"
+	ModelSourceMapping    = "mapping"
+	RankingSortActualCost = "actual_cost"
+	RankingSortRequests   = "requests"
+	RankingSortTokens     = "tokens"
+	RankingOrderAsc       = "asc"
+	RankingOrderDesc      = "desc"
 )
 
 func IsValidModelSource(source string) bool {
@@ -23,6 +28,24 @@ func NormalizeModelSource(source string) string {
 		return source
 	}
 	return ModelSourceRequested
+}
+
+func NormalizeUserSpendingRankingSort(sortBy string) string {
+	switch sortBy {
+	case RankingSortRequests, RankingSortTokens:
+		return sortBy
+	default:
+		return RankingSortActualCost
+	}
+}
+
+func NormalizeUserSpendingRankingOrder(sortOrder string) string {
+	switch sortOrder {
+	case RankingOrderAsc:
+		return RankingOrderAsc
+	default:
+		return RankingOrderDesc
+	}
 }
 
 // DashboardStats 仪表盘统计
@@ -160,6 +183,10 @@ type UserSpendingRankingResponse struct {
 	TotalActualCost float64                   `json:"total_actual_cost"`
 	TotalRequests   int64                     `json:"total_requests"`
 	TotalTokens     int64                     `json:"total_tokens"`
+	Total           int64                     `json:"total"`
+	Page            int                       `json:"page"`
+	PageSize        int                       `json:"page_size"`
+	Pages           int                       `json:"pages"`
 }
 
 // UserBreakdownItem represents per-user usage breakdown within a dimension (group, model, endpoint).

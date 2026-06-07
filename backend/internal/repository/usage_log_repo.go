@@ -2349,13 +2349,30 @@ func (r *usageLogRepository) GetUserUsageTrend(ctx context.Context, startTime, e
 	return results, nil
 }
 
-// GetUserSpendingRanking returns user spending ranking aggregated within the time range.
-func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTime, endTime time.Time, limit int) (result *UserSpendingRankingResponse, err error) {
-	if limit <= 0 {
-		limit = 12
+func buildUserSpendingRankingOrderClause(sortBy, sortOrder string) string {
+	order := strings.ToUpper(usagestats.NormalizeUserSpendingRankingOrder(sortOrder))
+	switch usagestats.NormalizeUserSpendingRankingSort(sortBy) {
+	case usagestats.RankingSortRequests:
+		return fmt.Sprintf("requests %s, actual_cost DESC, user_id ASC", order)
+	case usagestats.RankingSortTokens:
+		return fmt.Sprintf("tokens %s, actual_cost DESC, user_id ASC", order)
+	default:
+		return fmt.Sprintf("actual_cost %s, tokens DESC, user_id ASC", order)
 	}
+}
 
-	query := `
+// GetUserSpendingRanking returns user spending ranking aggregated within the time range.
+func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTime, endTime time.Time, page, pageSize int, sortBy, sortOrder string) (result *UserSpendingRankingResponse, err error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 12
+	}
+	offset := (page - 1) * pageSize
+	orderClause := buildUserSpendingRankingOrderClause(sortBy, sortOrder)
+
+	query := fmt.Sprintf(`
 		WITH user_spend AS (
 			SELECT
 				u.user_id,
@@ -2375,12 +2392,13 @@ func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTi
 				actual_cost,
 				requests,
 				tokens,
+				COUNT(*) OVER () as total,
 				COALESCE(SUM(actual_cost) OVER (), 0) as total_actual_cost,
 				COALESCE(SUM(requests) OVER (), 0) as total_requests,
 				COALESCE(SUM(tokens) OVER (), 0) as total_tokens
 			FROM user_spend
-			ORDER BY actual_cost DESC, tokens DESC, user_id ASC
-			LIMIT $3
+			ORDER BY %s
+			LIMIT $3 OFFSET $4
 		)
 		SELECT
 			user_id,
@@ -2388,14 +2406,15 @@ func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTi
 			actual_cost,
 			requests,
 			tokens,
+			total,
 			total_actual_cost,
 			total_requests,
 			total_tokens
 		FROM ranked
-		ORDER BY actual_cost DESC, tokens DESC, user_id ASC
-	`
+		ORDER BY %s
+	`, orderClause, orderClause)
 
-	rows, err := r.sql.QueryContext(ctx, query, startTime, endTime, limit)
+	rows, err := r.sql.QueryContext(ctx, query, startTime, endTime, pageSize, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -2407,12 +2426,13 @@ func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTi
 	}()
 
 	ranking := make([]UserSpendingRankingItem, 0)
+	total := int64(0)
 	totalActualCost := 0.0
 	totalRequests := int64(0)
 	totalTokens := int64(0)
 	for rows.Next() {
 		var row UserSpendingRankingItem
-		if err = rows.Scan(&row.UserID, &row.Email, &row.ActualCost, &row.Requests, &row.Tokens, &totalActualCost, &totalRequests, &totalTokens); err != nil {
+		if err = rows.Scan(&row.UserID, &row.Email, &row.ActualCost, &row.Requests, &row.Tokens, &total, &totalActualCost, &totalRequests, &totalTokens); err != nil {
 			return nil, err
 		}
 		ranking = append(ranking, row)
@@ -2420,12 +2440,20 @@ func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTi
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
+	pages := 0
+	if total > 0 {
+		pages = int((total + int64(pageSize) - 1) / int64(pageSize))
+	}
 
 	return &UserSpendingRankingResponse{
 		Ranking:         ranking,
 		TotalActualCost: totalActualCost,
 		TotalRequests:   totalRequests,
 		TotalTokens:     totalTokens,
+		Total:           total,
+		Page:            page,
+		PageSize:        pageSize,
+		Pages:           pages,
 	}, nil
 }
 

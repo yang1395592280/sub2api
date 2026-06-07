@@ -388,6 +388,7 @@ export default {
     channelMonitor: '渠道监控',
     channelStatus: '渠道状态',
     riskControl: '风控中心',
+    userSpendingRanking: '用户消费榜',
   },
 
   // Auth
@@ -1452,6 +1453,14 @@ export default {
       spendShort: '消费',
       requestsShort: '请求',
       tokensShort: 'Token',
+      viewAllRanking: '查看完整榜单',
+      spendingRankingDescription: '按时间范围查看全部用户消费排行，支持分页浏览，并可直接跳转到对应用户的使用记录。',
+      spendingRankingWindow: '{start} 至 {end} 消费排行',
+      rankUsers: '上榜用户',
+      spendingRankingUserId: '用户 ID',
+      sortAsc: '升序',
+      sortDesc: '降序',
+      exportRanking: '导出全部',
       last7Days: '近 7 天',
       noUsageRecords: '暂无使用记录',
       startUsingApi: '开始使用 API 后，使用历史将显示在这里。',

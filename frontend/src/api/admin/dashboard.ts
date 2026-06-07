@@ -238,6 +238,10 @@ export interface UserTrendResponse {
 export interface UserSpendingRankingParams
   extends Pick<TrendParams, 'start_date' | 'end_date'> {
   limit?: number
+  page?: number
+  page_size?: number
+  sort_by?: 'actual_cost' | 'requests' | 'tokens'
+  sort_order?: 'asc' | 'desc'
 }
 
 /**
