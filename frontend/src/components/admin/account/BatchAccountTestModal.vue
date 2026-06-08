@@ -22,18 +22,36 @@
         </div>
       </div>
 
-      <div class="space-y-1.5">
-        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-          {{ t('admin.accounts.selectTestModel') }}
-        </label>
-        <Select
-          v-model="selectedModelId"
-          :options="availableModels"
-          :disabled="loadingModels || status === 'connecting'"
-          value-key="id"
-          label-key="display_name"
-          :placeholder="loadingModels ? t('common.loading') + '...' : t('admin.accounts.selectTestModel')"
-        />
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_9rem]">
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            {{ t('admin.accounts.selectTestModel') }}
+          </label>
+          <Select
+            v-model="selectedModelId"
+            :options="availableModels"
+            :disabled="loadingModels || status === 'connecting'"
+            value-key="id"
+            label-key="display_name"
+            :placeholder="loadingModels ? t('common.loading') + '...' : t('admin.accounts.selectTestModel')"
+          />
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            {{ t('admin.accounts.bulkTestConcurrency') }}
+          </label>
+          <select
+            v-model.number="selectedConcurrency"
+            data-testid="batch-test-concurrency"
+            :disabled="status === 'connecting'"
+            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-gray-600 dark:bg-dark-700 dark:text-white dark:disabled:bg-dark-600"
+          >
+            <option v-for="option in concurrencyOptions" :key="option" :value="option">
+              {{ option }}
+            </option>
+          </select>
+        </div>
       </div>
 
       <div
@@ -184,6 +202,8 @@ const loadingModels = ref(false)
 const progressCurrent = ref(0)
 const successEmails = ref<string[]>([])
 const failedEmails = ref<string[]>([])
+const selectedConcurrency = ref(20)
+const concurrencyOptions = [5, 10, 20, 50]
 
 const addLine = (text: string, className: string = 'text-gray-300') => {
   outputLines.value.push({ text, class: className })
@@ -284,66 +304,90 @@ const loadAvailableModels = async () => {
   }
 }
 
+const testSingleAccount = async (account: Account) => {
+  addLine('', 'text-gray-300')
+  addLine(`=== ${account.name} (#${account.id}) ===`, 'text-cyan-400')
+  addLine(t('admin.accounts.testAccountTypeLabel', { type: account.type }), 'text-gray-400')
+
+  try {
+    const response = await fetch(`/api/v1/admin/accounts/${account.id}/test`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model_id: selectedModelId.value,
+        prompt: '',
+        mode: 'default'
+      })
+    })
+
+    const body = await response.text()
+    const result = parseSSEOutput(body)
+
+    if (!response.ok || result.error) {
+      const email = extractEmail(account)
+      if (email) failedEmails.value.push(email)
+      if (typeof result.connectDurationMs === 'number') {
+        addLine(`连接耗时 ${formatConnectDuration(result.connectDurationMs)}s`, 'rounded-md bg-amber-300/20 px-2 py-1 font-semibold text-amber-300 ring-1 ring-amber-300/40')
+      }
+      addLine(`ERROR: ${result.error || `HTTP ${response.status}`}`, 'text-red-400')
+      return false
+    }
+
+    const email = extractEmail(account)
+    if (email) successEmails.value.push(email)
+    if (result.model) {
+      addLine(t('admin.accounts.usingModel', { model: result.model }), 'text-green-400')
+    }
+    if (typeof result.connectDurationMs === 'number') {
+      addLine(`连接耗时 ${formatConnectDuration(result.connectDurationMs)}s`, 'rounded-md bg-amber-300/20 px-2 py-1 font-semibold text-amber-300 ring-1 ring-amber-300/40')
+    }
+    addLine(result.responseText || t('admin.accounts.testCompleted'), 'text-green-300')
+    return true
+  } catch (error: unknown) {
+    const email = extractEmail(account)
+    if (email) failedEmails.value.push(email)
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    addLine(`ERROR: ${message}`, 'text-red-400')
+    return false
+  } finally {
+    progressCurrent.value += 1
+  }
+}
+
+const runWithConcurrency = async () => {
+  const concurrency = Math.max(1, Math.min(selectedConcurrency.value, props.accounts.length))
+  let nextIndex = 0
+  let successCount = 0
+  let failedCount = 0
+
+  const worker = async () => {
+    while (nextIndex < props.accounts.length) {
+      const account = props.accounts[nextIndex]
+      nextIndex += 1
+      const success = await testSingleAccount(account)
+      if (success) {
+        successCount += 1
+      } else {
+        failedCount += 1
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()))
+  return { successCount, failedCount }
+}
+
 const startBatchTest = async () => {
   if (!selectedModelId.value || props.accounts.length === 0) return
 
   resetState()
   status.value = 'connecting'
+  addLine(t('admin.accounts.bulkTestConcurrencyHint', { count: selectedConcurrency.value }), 'text-blue-300')
 
-  let successCount = 0
-  let failedCount = 0
-
-  for (const [index, account] of props.accounts.entries()) {
-    progressCurrent.value = index + 1
-    addLine('', 'text-gray-300')
-    addLine(`=== ${account.name} (#${account.id}) ===`, 'text-cyan-400')
-    addLine(t('admin.accounts.testAccountTypeLabel', { type: account.type }), 'text-gray-400')
-
-    try {
-      const response = await fetch(`/api/v1/admin/accounts/${account.id}/test`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model_id: selectedModelId.value,
-          prompt: '',
-          mode: 'default'
-        })
-      })
-
-      const body = await response.text()
-      const result = parseSSEOutput(body)
-
-      if (!response.ok || result.error) {
-        failedCount += 1
-        const email = extractEmail(account)
-        if (email) failedEmails.value.push(email)
-        if (typeof result.connectDurationMs === 'number') {
-          addLine(`连接耗时 ${formatConnectDuration(result.connectDurationMs)}s`, 'rounded-md bg-amber-300/20 px-2 py-1 font-semibold text-amber-300 ring-1 ring-amber-300/40')
-        }
-        addLine(`ERROR: ${result.error || `HTTP ${response.status}`}`, 'text-red-400')
-      } else {
-        successCount += 1
-        const email = extractEmail(account)
-        if (email) successEmails.value.push(email)
-        if (result.model) {
-          addLine(t('admin.accounts.usingModel', { model: result.model }), 'text-green-400')
-        }
-        if (typeof result.connectDurationMs === 'number') {
-          addLine(`连接耗时 ${formatConnectDuration(result.connectDurationMs)}s`, 'rounded-md bg-amber-300/20 px-2 py-1 font-semibold text-amber-300 ring-1 ring-amber-300/40')
-        }
-        addLine(result.responseText || t('admin.accounts.testCompleted'), 'text-green-300')
-      }
-    } catch (error: unknown) {
-      failedCount += 1
-      const email = extractEmail(account)
-      if (email) failedEmails.value.push(email)
-      const message = error instanceof Error ? error.message : 'Unknown error'
-      addLine(`ERROR: ${message}`, 'text-red-400')
-    }
-  }
+  const { successCount, failedCount } = await runWithConcurrency()
 
   addLine('', 'text-gray-300')
   addLine(

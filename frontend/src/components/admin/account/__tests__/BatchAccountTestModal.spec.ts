@@ -97,6 +97,21 @@ function buildAccount(id: number, name: string) {
   } as any
 }
 
+function createDeferredResponse(text: string) {
+  let resolve!: (value: any) => void
+  const promise = new Promise<any>((innerResolve) => {
+    resolve = innerResolve
+  })
+
+  return {
+    promise,
+    resolve: () => resolve({
+      ok: true,
+      text: vi.fn().mockResolvedValue(text)
+    })
+  }
+}
+
 describe('BatchAccountTestModal', () => {
   const originalFetch = global.fetch
   const originalCreateElement = document.createElement.bind(document)
@@ -183,6 +198,64 @@ describe('BatchAccountTestModal', () => {
     expect(wrapper.text()).toContain('=== B (#2) ===')
     expect(wrapper.text()).toContain('ERROR: boom')
     expect(wrapper.text()).toContain('连接耗时 8.07s')
+  })
+
+  it('runs account tests with the selected concurrency limit', async () => {
+    const deferredResponses = [
+      createDeferredResponse('data: {"type":"content","text":"ok-1"}\n'),
+      createDeferredResponse('data: {"type":"content","text":"ok-2"}\n'),
+      createDeferredResponse('data: {"type":"content","text":"ok-3"}\n'),
+      createDeferredResponse('data: {"type":"content","text":"ok-4"}\n'),
+      createDeferredResponse('data: {"type":"content","text":"ok-5"}\n'),
+      createDeferredResponse('data: {"type":"content","text":"ok-6"}\n')
+    ]
+    const queuedResponses = [...deferredResponses]
+    global.fetch = vi.fn()
+      .mockImplementation(() => queuedResponses.shift()?.promise)
+
+    const wrapper = mount(BatchAccountTestModal, {
+      props: {
+        show: false,
+        accounts: [
+          buildAccount(1, 'A'),
+          buildAccount(2, 'B'),
+          buildAccount(3, 'C'),
+          buildAccount(4, 'D'),
+          buildAccount(5, 'E'),
+          buildAccount(6, 'F')
+        ]
+      },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          Select: SelectStub,
+          Icon: true
+        }
+      }
+    })
+
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    await wrapper.get('[data-testid="batch-test-concurrency"]').setValue('5')
+    await wrapper.findAll('button').at(-1)?.trigger('click')
+    await flushPromises()
+
+    expect(global.fetch).toHaveBeenCalledTimes(5)
+
+    deferredResponses[0].resolve()
+    await flushPromises()
+
+    expect(global.fetch).toHaveBeenCalledTimes(6)
+
+    deferredResponses[1].resolve()
+    deferredResponses[2].resolve()
+    deferredResponses[3].resolve()
+    deferredResponses[4].resolve()
+    deferredResponses[5].resolve()
+    await flushPromises()
+
+    expect(global.fetch).toHaveBeenCalledTimes(6)
+    expect(wrapper.text()).toContain('ok-6')
   })
 
   it('shows progress and downloads success/failed emails separately', async () => {
