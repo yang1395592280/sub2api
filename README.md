@@ -10,21 +10,21 @@
 
 <a href="https://trendshift.io/repositories/21823" target="_blank"><img src="https://trendshift.io/api/badge/repositories/21823" alt="Wei-Shaw%2Fsub2api | Trendshift" width="250" height="55"/></a>
 
-**AI API Gateway Platform for Subscription Quota Distribution**
+**用于订阅配额分配的AI API网关平台**
 
-English | [中文](README_CN.md) | [日本語](README_JA.md)
+英语 |[中文](README_CN.md) | [日语](README_JA.md)
 
 </div>
 
-> **Sub2API officially uses only the domains `sub2api.org` and `pincc.ai`. Other websites using the Sub2API name may be third-party deployments or services and are not affiliated with this project. Please verify and exercise your own judgment.**
+> **Sub2API 仅正式使用以下域名`sub2api.org`和`pincc.ai`。其他使用 Sub2API 名称的网站可能是第三方部署或服务，与本项目无任何关联。请务必核实并自行判断。**
 
 ---
 
 ## Demo
 
-Try Sub2API online: **[https://demo.sub2api.org/](https://demo.sub2api.org/)**
+在线试用Sub2API：**[https://demo.sub2api.org/](https://demo.sub2api.org/)**
 
-Demo credentials (shared demo environment; **not** created automatically for self-hosted installs):
+演示凭据（共享演示环境；**不会**为自托管安装自动创建）：
 
 | Email | Password |
 |-------|----------|
@@ -32,13 +32,13 @@ Demo credentials (shared demo environment; **not** created automatically for sel
 
 ## Overview
 
-Sub2API is an AI API gateway platform designed to distribute and manage API quotas from AI product subscriptions. Users can access upstream AI services through platform-generated API Keys, while the platform handles authentication, billing, load balancing, and request forwarding.
+Sub2API 是一款 AI API 网关平台，旨在分发并管理来自 AI 产品订阅的 API 配额。用户可通过平台生成的 API 密钥访问上游 AI 服务，而平台则负责身份验证、计费、负载均衡以及请求转发等功能。
 
 ## Features
 
-- **Multi-Account Management** - Support multiple upstream account types (OAuth, API Key)
-- **API Key Distribution** - Generate and manage API Keys for users
-- **Precise Billing** - Token-level usage tracking and cost calculation
+- **多账号管理**- 支持多种上游账号类型（OAuth、API密钥）
+- **API密钥分发**- 为用户生成并管理API密钥
+**- 令牌级使用追踪与费用计算
 - **Smart Scheduling** - Intelligent account selection with sticky sessions
 - **Concurrency Control** - Per-user and per-account concurrency limits
 - **Rate Limiting** - Configurable request and token rate limits
@@ -143,57 +143,57 @@ Community projects that extend or integrate with Sub2API:
 
 ## Tech Stack
 
-| Component | Technology |
+|组件|技术|
 |-----------|------------|
-| Backend | Go 1.25.7, Gin, Ent |
-| Frontend | Vue 3.4+, Vite 5+, TailwindCSS |
-| Database | PostgreSQL 15+ |
-| Cache/Queue | Redis 7+ |
+|后端|Go 1.25.7、Gin、Ent|
+|前端|Vue 3.4+、Vite 5+、TailwindCSS|
+|数据库|PostgreSQL 15+|
+|缓存/队列|Redis 7+|
 
 ---
 
-## Nginx Reverse Proxy Note
+##Nginx 反向代理说明
 
-When using Nginx as a reverse proxy for Sub2API (or CRS) with Codex CLI, add the following to the `http` block in your Nginx configuration:
+http`块中：
 
 ```nginx
 underscores_in_headers on;
 ```
 
-Nginx drops headers containing underscores by default (e.g. `session_id`), which breaks sticky session routing in multi-account setups.
+`session_id`），这会导致在多账号环境中无法正常进行会话保持路由。
 
 ---
 
-## Deployment
+##部署
 
-### Method 1: Script Installation (Recommended)
+###方法一：脚本安装（推荐）
 
-One-click installation script that downloads pre-built binaries from GitHub Releases.
+一键安装脚本，从 GitHub 发布页面下载预编译的二进制文件。
 
-#### Prerequisites
+####先决条件
 
-- Linux server (amd64 or arm64)
-- PostgreSQL 15+ (installed and running)
-- Redis 7+ (installed and running)
-- Root privileges
+-Linux 服务器（amd64 或 arm64）
+-PostgreSQL 15+（已安装并运行）
+-Redis 7+（已安装并运行）
+-Root权限
 
-#### Installation Steps
+####安装步骤
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/yang1395592280/sub2api/custom-main/deploy/install.sh | sudo bash
 ```
 
-The script will:
-1. Detect your system architecture
-2. Download the latest release
-3. Install binary to `/opt/sub2api`
-4. Create systemd service
-5. Configure system user and permissions
+脚本将：
+1.检测您的系统架构
+2.下载最新版本
+3.将二进制文件安装到`/opt/sub2api`
+4.创建systemd服务
+5. 配置系统用户及权限
 
-#### Post-Installation
+####安装后
 
 ```bash
-# 1. Start the service
+# 1. 启动服务
 sudo systemctl start sub2api
 
 # 2. Enable auto-start on boot
