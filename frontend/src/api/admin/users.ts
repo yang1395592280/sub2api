@@ -188,6 +188,10 @@ export interface BatchAddGroupToUsersResponse {
   processed_users: number
 }
 
+export interface BatchAddBalanceToUsersResponse {
+  affected: number
+}
+
 export async function batchAddGroupToUsers(
   userIds: number[],
   groupId: number
@@ -197,6 +201,22 @@ export async function batchAddGroupToUsers(
     {
       user_ids: userIds,
       group_id: groupId
+    }
+  )
+  return data
+}
+
+export async function batchAddBalanceToUsers(
+  userIds: number[],
+  balance: number,
+  notes?: string
+): Promise<BatchAddBalanceToUsersResponse> {
+  const { data } = await apiClient.post<BatchAddBalanceToUsersResponse>(
+    '/admin/users/batch-balance',
+    {
+      user_ids: userIds,
+      balance,
+      notes: notes || ''
     }
   )
   return data
@@ -413,6 +433,7 @@ export const usersAPI = {
   delete: deleteUser,
   updateBalance,
   getUserBalanceSummary,
+  batchAddBalanceToUsers,
   batchAddGroupToUsers,
   updateConcurrency,
   toggleStatus,

@@ -29,6 +29,7 @@ func setupAdminRouter() (*gin.Engine, *stubAdminService) {
 	router.PUT("/api/v1/admin/users/:id", userHandler.Update)
 	router.DELETE("/api/v1/admin/users/:id", userHandler.Delete)
 	router.POST("/api/v1/admin/users/:id/balance", userHandler.UpdateBalance)
+	router.POST("/api/v1/admin/users/batch-balance", userHandler.BatchAddBalance)
 	router.POST("/api/v1/admin/users/batch-add-group", userHandler.BatchAddGroup)
 	router.GET("/api/v1/admin/users/:id/api-keys", userHandler.GetUserAPIKeys)
 	router.GET("/api/v1/admin/users/:id/usage", userHandler.GetUserUsage)
@@ -130,6 +131,12 @@ func TestUserHandlerEndpoints(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/users/batch-balance", bytes.NewBufferString(`{"user_ids":[1,2],"balance":1}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/users/batch-add-group", bytes.NewBufferString(`{"user_ids":[1,2],"group_id":9}`))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(rec, req)
@@ -158,6 +165,21 @@ func TestUserHandlerBatchAddGroupMapsRequest(t *testing.T) {
 	require.Equal(t, 1, adminSvc.lastBatchAddGroup.calls)
 	require.Equal(t, []int64{7, 8, 7}, adminSvc.lastBatchAddGroup.userIDs)
 	require.Equal(t, int64(12), adminSvc.lastBatchAddGroup.groupID)
+}
+
+func TestUserHandlerBatchAddBalanceMapsRequest(t *testing.T) {
+	router, adminSvc := setupAdminRouter()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/users/batch-balance", bytes.NewBufferString(`{"user_ids":[7,8,7],"balance":1.5,"notes":"bonus"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, 1, adminSvc.lastBatchAddBalance.calls)
+	require.Equal(t, []int64{7, 8, 7}, adminSvc.lastBatchAddBalance.userIDs)
+	require.Equal(t, 1.5, adminSvc.lastBatchAddBalance.balance)
+	require.Equal(t, "bonus", adminSvc.lastBatchAddBalance.notes)
 }
 
 func TestUserHandlerBindAuthIdentityMapsRequest(t *testing.T) {

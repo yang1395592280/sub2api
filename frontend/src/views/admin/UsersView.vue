@@ -270,6 +270,7 @@
           :selected-ids="selectedUserIds"
           @clear="clearSelectedUsers"
           @select-page="selectCurrentPageUsers"
+          @add-balance="openBatchAddBalanceModal"
           @add-group="openBatchAddGroupModal"
         />
 
@@ -790,6 +791,12 @@
       @close="closeBatchAddGroupModal"
       @success="handleBatchAddGroupSuccess"
     />
+    <UserBatchBalanceModal
+      :show="showBatchBalanceModal"
+      :user-ids="selectedUserIds"
+      @close="closeBatchBalanceModal"
+      @success="handleBatchAddBalanceSuccess"
+    />
     <UserAttributesConfigModal :show="showAttributesModal" @close="handleAttributesModalClose" />
   </AppLayout>
 </template>
@@ -832,6 +839,7 @@ import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryM
 import GroupReplaceModal from '@/components/admin/user/GroupReplaceModal.vue'
 import UserBulkActionsBar from '@/components/admin/user/UserBulkActionsBar.vue'
 import UserBatchAddGroupModal from '@/components/admin/user/UserBatchAddGroupModal.vue'
+import UserBatchBalanceModal from '@/components/admin/user/UserBatchBalanceModal.vue'
 
 const appStore = useAppStore()
 
@@ -1525,6 +1533,7 @@ const balanceOperation = ref<'add' | 'subtract'>('add')
 const showBalanceHistoryModal = ref(false)
 const balanceHistoryUser = ref<AdminUser | null>(null)
 const showBatchAddGroupModal = ref(false)
+const showBatchBalanceModal = ref(false)
 
 // 计算剩余天数
 const getDaysRemaining = (expiresAt: string): number => {
@@ -1818,6 +1827,19 @@ const closeBatchAddGroupModal = () => {
 }
 
 const handleBatchAddGroupSuccess = () => {
+  clearSelectedUsers()
+  refreshUsersAndSummary()
+}
+
+const openBatchAddBalanceModal = () => {
+  showBatchBalanceModal.value = true
+}
+
+const closeBatchBalanceModal = () => {
+  showBatchBalanceModal.value = false
+}
+
+const handleBatchAddBalanceSuccess = () => {
   clearSelectedUsers()
   refreshUsersAndSummary()
 }

@@ -1897,7 +1897,17 @@ export default {
         selected: '{count} users selected',
         selectCurrentPage: 'Select current page',
         clear: 'Clear selection',
+        addBalance: 'Add balance',
         addGroup: 'Add group'
+      },
+      bulkAddBalance: {
+        title: 'Batch Add Balance',
+        selectedUsers: 'This will add the same balance amount to {count} selected users without changing other fields.',
+        amountLabel: 'Amount to add',
+        notesPlaceholder: 'For example: campaign bonus, manual compensation, bulk top-up',
+        confirm: 'Confirm',
+        success: 'Added {amount} balance to {count} users',
+        failed: 'Failed to batch add balance'
       },
       bulkAddGroup: {
         title: 'Batch Add Group',

@@ -13,13 +13,15 @@ vi.mock('@/api/client', () => ({
 }))
 
 import {
+  batchAddBalanceToUsers,
   batchAddGroupToUsers,
   getUserBalanceSummary,
+  type BatchAddBalanceToUsersResponse,
   type BatchAddGroupToUsersResponse,
   type UserBalanceSummaryResponse,
 } from '@/api/admin/users'
 
-describe('admin users summary and batch group api', () => {
+describe('admin users summary and batch api', () => {
   beforeEach(() => {
     get.mockReset()
     post.mockReset()
@@ -50,6 +52,22 @@ describe('admin users summary and batch group api', () => {
     expect(post).toHaveBeenCalledWith('/admin/users/batch-add-group', {
       user_ids: [7, 8],
       group_id: 9,
+    })
+    expect(result).toEqual(response)
+  })
+
+  it('posts selected user ids and balance to the batch add balance endpoint', async () => {
+    const response: BatchAddBalanceToUsersResponse = {
+      affected: 2,
+    }
+    post.mockResolvedValue({ data: response })
+
+    const result = await batchAddBalanceToUsers([7, 8], 1.5, 'bonus')
+
+    expect(post).toHaveBeenCalledWith('/admin/users/batch-balance', {
+      user_ids: [7, 8],
+      balance: 1.5,
+      notes: 'bonus',
     })
     expect(result).toEqual(response)
   })

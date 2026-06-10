@@ -10,14 +10,16 @@ const {
   getAllGroups,
   getBatchUsersUsage,
   listEnabledDefinitions,
-  getBatchUserAttributes
+  getBatchUserAttributes,
+  batchAddBalanceToUsers
 } = vi.hoisted(() => ({
   listUsers: vi.fn(),
   getUserBalanceSummary: vi.fn(),
   getAllGroups: vi.fn(),
   getBatchUsersUsage: vi.fn(),
   listEnabledDefinitions: vi.fn(),
-  getBatchUserAttributes: vi.fn()
+  getBatchUserAttributes: vi.fn(),
+  batchAddBalanceToUsers: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -27,6 +29,7 @@ vi.mock('@/api/admin', () => ({
       getUserBalanceSummary,
       toggleStatus: vi.fn(),
       delete: vi.fn(),
+      batchAddBalanceToUsers,
       batchAddGroupToUsers: vi.fn()
     },
     groups: {
@@ -104,6 +107,7 @@ describe('admin UsersView', () => {
     getBatchUsersUsage.mockReset()
     listEnabledDefinitions.mockReset()
     getBatchUserAttributes.mockReset()
+    batchAddBalanceToUsers.mockReset()
 
     listUsers.mockResolvedValue({
       items: [createAdminUser()],
@@ -220,6 +224,54 @@ describe('admin UsersView', () => {
     await flushPromises()
 
     expect(wrapper.get('[data-test="bulk-actions"]').text()).toBe('1')
+  })
+
+  it('opens the batch add balance modal from bulk actions after selecting a user', async () => {
+    const wrapper = mount(UsersView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: {
+            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+          },
+          DataTable: DataTableStub,
+          Pagination: true,
+          ConfirmDialog: true,
+          EmptyState: true,
+          GroupBadge: true,
+          Select: true,
+          UserAttributesConfigModal: true,
+          UserConcurrencyCell: true,
+          UserCreateModal: true,
+          UserEditModal: true,
+          UserApiKeysModal: true,
+          UserAllowedGroupsModal: true,
+          UserBalanceModal: true,
+          UserBalanceHistoryModal: true,
+          GroupReplaceModal: true,
+          UserBulkActionsBar: {
+            props: ['selectedIds'],
+            emits: ['addBalance'],
+            template: '<button data-test="open-batch-balance" @click="$emit(\'addBalance\')">{{ selectedIds.length }}</button>'
+          },
+          UserBatchAddGroupModal: true,
+          UserBatchBalanceModal: {
+            props: ['show', 'userIds'],
+            template: '<div data-test="batch-balance-modal">{{ show ? userIds.join(\',\') : \'hidden\' }}</div>'
+          },
+          Icon: true,
+          Teleport: true
+        }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+    await flushPromises()
+    await wrapper.get('[data-test="open-batch-balance"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="batch-balance-modal"]').text()).toBe('42')
   })
 
   it('passes comma-separated email filters through email_list without replacing fuzzy search', async () => {

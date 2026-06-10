@@ -82,6 +82,12 @@ type UpdateBalanceRequest struct {
 	Notes     string  `json:"notes"`
 }
 
+type BatchAddBalanceRequest struct {
+	UserIDs []int64 `json:"user_ids"`
+	Balance float64 `json:"balance" binding:"required,gt=0"`
+	Notes   string  `json:"notes"`
+}
+
 type BatchAddGroupRequest struct {
 	UserIDs []int64 `json:"user_ids"`
 	GroupID int64   `json:"group_id" binding:"required,gt=0"`
@@ -400,6 +406,32 @@ func (h *UserHandler) UpdateBalance(c *gin.Context) {
 			return nil, execErr
 		}
 		return dto.UserFromServiceAdmin(user), nil
+	})
+}
+
+// BatchAddBalance handles batch adding balance to multiple users.
+// POST /api/v1/admin/users/batch-balance
+func (h *UserHandler) BatchAddBalance(c *gin.Context) {
+	var req BatchAddBalanceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if len(req.UserIDs) == 0 {
+		response.BadRequest(c, "user_ids is required")
+		return
+	}
+	if len(req.UserIDs) > 500 {
+		response.BadRequest(c, "user_ids cannot exceed 500")
+		return
+	}
+
+	executeAdminIdempotentJSON(c, "admin.users.balance.batch_add", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		affected, err := h.adminService.BatchAddBalanceToUsers(ctx, req.UserIDs, req.Balance, req.Notes)
+		if err != nil {
+			return nil, err
+		}
+		return gin.H{"affected": affected}, nil
 	})
 }
 

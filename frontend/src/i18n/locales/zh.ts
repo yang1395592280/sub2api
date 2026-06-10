@@ -1918,7 +1918,17 @@ export default {
         selected: '已选择 {count} 个用户',
         selectCurrentPage: '选择当前页',
         clear: '清空选择',
+        addBalance: '批量加余额',
         addGroup: '添加分组'
+      },
+      bulkAddBalance: {
+        title: '批量添加余额',
+        selectedUsers: '将为 {count} 个已选用户统一增加余额，不会影响其他字段。',
+        amountLabel: '增加金额',
+        notesPlaceholder: '例如：活动赠送、人工补偿、批量充值等',
+        confirm: '确认添加',
+        success: '已为 {count} 个用户增加 {amount} 余额',
+        failed: '批量添加余额失败'
       },
       bulkAddGroup: {
         title: '批量添加分组',

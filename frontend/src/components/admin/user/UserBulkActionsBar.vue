@@ -23,6 +23,9 @@
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
+      <button class="btn btn-primary btn-sm" @click="$emit('add-balance')">
+        {{ t('admin.users.bulkActions.addBalance') }}
+      </button>
       <button class="btn btn-primary btn-sm" @click="$emit('add-group')">
         {{ t('admin.users.bulkActions.addGroup') }}
       </button>
@@ -40,6 +43,7 @@ defineProps<{
 defineEmits<{
   (e: 'clear'): void
   (e: 'select-page'): void
+  (e: 'add-balance'): void
   (e: 'add-group'): void
 }>()
 

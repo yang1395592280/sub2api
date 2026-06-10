@@ -38,6 +38,7 @@ type AdminService interface {
 	UpdateUser(ctx context.Context, id int64, input *UpdateUserInput) (*User, error)
 	DeleteUser(ctx context.Context, id int64) error
 	UpdateUserBalance(ctx context.Context, userID int64, balance float64, operation string, notes string) (*User, error)
+	BatchAddBalanceToUsers(ctx context.Context, userIDs []int64, balance float64, notes string) (int, error)
 	GetUserBalanceSummary(ctx context.Context) (*UserBalanceSummary, error)
 	BatchAddUsersToGroup(ctx context.Context, userIDs []int64, groupID int64) (*BatchAddUsersToGroupResult, error)
 	BatchUpdateConcurrency(ctx context.Context, userIDs []int64, value int, mode string) (int, error)
@@ -1016,6 +1017,33 @@ func (s *adminServiceImpl) BatchUpdateConcurrency(ctx context.Context, userIDs [
 		for _, uid := range cleaned {
 			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, uid)
 		}
+	}
+	return affected, nil
+}
+
+func (s *adminServiceImpl) BatchAddBalanceToUsers(ctx context.Context, userIDs []int64, balance float64, notes string) (int, error) {
+	seen := make(map[int64]struct{}, len(userIDs))
+	cleaned := make([]int64, 0, len(userIDs))
+	for _, userID := range userIDs {
+		if userID <= 0 {
+			continue
+		}
+		if _, ok := seen[userID]; ok {
+			continue
+		}
+		seen[userID] = struct{}{}
+		cleaned = append(cleaned, userID)
+	}
+	if len(cleaned) == 0 {
+		return 0, nil
+	}
+
+	affected := 0
+	for _, userID := range cleaned {
+		if _, err := s.UpdateUserBalance(ctx, userID, balance, "add", notes); err != nil {
+			return affected, err
+		}
+		affected++
 	}
 	return affected, nil
 }

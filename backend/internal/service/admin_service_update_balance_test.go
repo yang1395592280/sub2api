@@ -30,6 +30,31 @@ func (s *balanceUserRepoStub) Update(ctx context.Context, user *User) error {
 	return nil
 }
 
+type batchBalanceUserRepoStub struct {
+	*userRepoStub
+	users   map[int64]*User
+	updated []*User
+}
+
+func (s *batchBalanceUserRepoStub) GetByID(ctx context.Context, id int64) (*User, error) {
+	user, ok := s.users[id]
+	if !ok {
+		return nil, ErrUserNotFound
+	}
+	clone := *user
+	return &clone, nil
+}
+
+func (s *batchBalanceUserRepoStub) Update(ctx context.Context, user *User) error {
+	if user == nil {
+		return nil
+	}
+	clone := *user
+	s.updated = append(s.updated, &clone)
+	s.users[user.ID] = &clone
+	return nil
+}
+
 type balanceRedeemRepoStub struct {
 	*redeemRepoStub
 	created []*RedeemCode
@@ -94,4 +119,34 @@ func TestAdminService_UpdateUserBalance_NoChangeNoInvalidate(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, invalidator.userIDs)
 	require.Empty(t, redeemRepo.created)
+}
+
+func TestAdminService_BatchAddBalanceToUsers_DeduplicatesAndRecordsAdjustments(t *testing.T) {
+	repo := &batchBalanceUserRepoStub{
+		userRepoStub: &userRepoStub{},
+		users: map[int64]*User{
+			7: {ID: 7, Balance: 10},
+			8: {ID: 8, Balance: 20},
+		},
+	}
+	redeemRepo := &balanceRedeemRepoStub{redeemRepoStub: &redeemRepoStub{}}
+	invalidator := &authCacheInvalidatorStub{}
+	svc := &adminServiceImpl{
+		userRepo:             repo,
+		redeemCodeRepo:       redeemRepo,
+		authCacheInvalidator: invalidator,
+	}
+
+	affected, err := svc.BatchAddBalanceToUsers(context.Background(), []int64{7, 8, 7, 0, -2}, 5, "bonus")
+	require.NoError(t, err)
+	require.Equal(t, 2, affected)
+	require.Len(t, repo.updated, 2)
+	require.Equal(t, 15.0, repo.users[7].Balance)
+	require.Equal(t, 25.0, repo.users[8].Balance)
+	require.Equal(t, []int64{7, 8}, invalidator.userIDs)
+	require.Len(t, redeemRepo.created, 2)
+	require.Equal(t, 5.0, redeemRepo.created[0].Value)
+	require.Equal(t, "bonus", redeemRepo.created[0].Notes)
+	require.Equal(t, 5.0, redeemRepo.created[1].Value)
+	require.Equal(t, "bonus", redeemRepo.created[1].Notes)
 }

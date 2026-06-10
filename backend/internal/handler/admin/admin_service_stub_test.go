@@ -60,6 +60,13 @@ type stubAdminService struct {
 		calls    int
 		result   *service.BatchAddUsersToGroupResult
 	}
+	lastBatchAddBalance struct {
+		userIDs  []int64
+		balance  float64
+		notes    string
+		calls    int
+		affected int
+	}
 	lastListProxies struct {
 		protocol  string
 		status    string
@@ -188,6 +195,17 @@ func (s *stubAdminService) DeleteUser(ctx context.Context, id int64) error {
 func (s *stubAdminService) UpdateUserBalance(ctx context.Context, userID int64, balance float64, operation string, notes string) (*service.User, error) {
 	user := service.User{ID: userID, Balance: balance, Status: service.StatusActive}
 	return &user, nil
+}
+
+func (s *stubAdminService) BatchAddBalanceToUsers(ctx context.Context, userIDs []int64, balance float64, notes string) (int, error) {
+	s.lastBatchAddBalance.calls++
+	s.lastBatchAddBalance.userIDs = append([]int64(nil), userIDs...)
+	s.lastBatchAddBalance.balance = balance
+	s.lastBatchAddBalance.notes = notes
+	if s.lastBatchAddBalance.affected > 0 {
+		return s.lastBatchAddBalance.affected, nil
+	}
+	return len(userIDs), nil
 }
 
 func (s *stubAdminService) BatchUpdateConcurrency(ctx context.Context, userIDs []int64, value int, mode string) (int, error) {
