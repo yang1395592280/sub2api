@@ -171,6 +171,7 @@ import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type {
   OpenAISchedulerAccount,
+  OpenAISchedulerOverview,
   OpenAISchedulerSettings,
   OpenAISchedulerTier,
 } from '@/api/admin/openaiScheduler'
@@ -187,7 +188,7 @@ const appStore = useAppStore()
 
 const loading = ref(false)
 const accounts = ref<OpenAISchedulerAccount[]>([])
-const overview = ref<Record<string, unknown>>({})
+const overview = ref<OpenAISchedulerOverview | null>(null)
 const search = ref('')
 const tierFilter = ref<OpenAISchedulerTier | ''>('')
 const pagination = reactive({ page: 1, page_size: 20, total: 0 })
@@ -223,27 +224,27 @@ const tierFilters = computed(() => [
 ])
 
 const metrics = computed(() => {
-  const tierCounts = (overview.value.tier_counts || {}) as Partial<Record<OpenAISchedulerTier, number>>
+  const tierCounts = overview.value?.tier_counts || {}
   return [
     {
       key: 'primary',
       label: t('admin.openaiScheduler.tier.primary'),
-      value: tierCounts.primary ?? overview.value.primary_count ?? 0,
+      value: tierCounts.primary ?? overview.value?.primary_count ?? 0,
     },
     {
       key: 'standby',
       label: t('admin.openaiScheduler.tier.standby'),
-      value: tierCounts.standby ?? overview.value.standby_count ?? 0,
+      value: tierCounts.standby ?? overview.value?.standby_count ?? 0,
     },
     {
       key: 'observe',
       label: t('admin.openaiScheduler.tier.observe'),
-      value: tierCounts.observe ?? overview.value.observe_count ?? 0,
+      value: tierCounts.observe ?? overview.value?.observe_count ?? 0,
     },
     {
       key: 'degraded',
       label: t('admin.openaiScheduler.tier.degraded'),
-      value: tierCounts.degraded ?? overview.value.degraded_count ?? 0,
+      value: tierCounts.degraded ?? overview.value?.degraded_count ?? 0,
     },
   ]
 })
