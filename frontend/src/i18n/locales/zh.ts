@@ -414,6 +414,7 @@ export default {
     channelManagement: '渠道管理',
     channelPricing: '渠道定价',
     channelMonitor: '渠道监控',
+    openaiScheduler: 'OpenAI 调度',
     channelStatus: '渠道状态',
     riskControl: '风控中心',
     userSpendingRanking: '用户消费榜',
@@ -2900,6 +2901,40 @@ export default {
         keywordBlock: '关键词拦截',
         error: '异常',
       },
+    },
+
+    openaiScheduler: {
+      title: 'OpenAI 调度',
+      description: '按账号健康分自动分层调度 OpenAI 上游账号',
+      refresh: '刷新',
+      saveSettings: '保存策略',
+      settingsSaved: '策略已保存',
+      loadError: '加载 OpenAI 调度数据失败',
+      settingsLoadError: '加载调度策略失败',
+      actionSuccess: '操作已执行',
+      actionFailed: '操作执行失败',
+      columns: {
+        account: '账号',
+        tier: '分层',
+        health: '健康分',
+        successRate: '成功率',
+        ttft: '首包延迟',
+        priority: '人工优先级',
+        reason: '调度原因',
+        actions: '操作'
+      },
+      tier: {
+        primary: '主力',
+        standby: '备用',
+        observe: '观察',
+        degraded: '降级'
+      },
+      actions: {
+        cooldown: '冷却',
+        clearCooldown: '解除冷却',
+        promoteObserve: '进入观察',
+        runProbe: '立即探测'
+      }
     },
 
     // Channel Monitor

@@ -414,6 +414,7 @@ export default {
     channelManagement: 'Channels',
     channelPricing: 'Channel Pricing',
     channelMonitor: 'Channel Monitor',
+    openaiScheduler: 'OpenAI Scheduler',
     channelStatus: 'Channel Status',
     riskControl: 'Risk Control',
     userSpendingRanking: 'User Spending Ranking',
@@ -2823,6 +2824,40 @@ export default {
         keywordBlock: 'Keyword Blocked',
         error: 'Error',
       },
+    },
+
+    openaiScheduler: {
+      title: 'OpenAI Scheduler',
+      description: 'Route OpenAI upstream accounts by runtime health tiers',
+      refresh: 'Refresh',
+      saveSettings: 'Save Policy',
+      settingsSaved: 'Policy saved',
+      loadError: 'Failed to load OpenAI scheduler data',
+      settingsLoadError: 'Failed to load scheduler policy',
+      actionSuccess: 'Action completed',
+      actionFailed: 'Action failed',
+      columns: {
+        account: 'Account',
+        tier: 'Tier',
+        health: 'Health',
+        successRate: 'Success',
+        ttft: 'TTFT',
+        priority: 'Manual Priority',
+        reason: 'Decision Reason',
+        actions: 'Actions'
+      },
+      tier: {
+        primary: 'Primary',
+        standby: 'Standby',
+        observe: 'Observe',
+        degraded: 'Degraded'
+      },
+      actions: {
+        cooldown: 'Cooldown',
+        clearCooldown: 'Clear Cooldown',
+        promoteObserve: 'Observe',
+        runProbe: 'Probe Now'
+      }
     },
 
     // Channel Monitor
