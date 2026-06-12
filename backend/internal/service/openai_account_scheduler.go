@@ -728,6 +728,7 @@ type openAIAccountCandidateScore struct {
 	errorRate float64
 	ttft      float64
 	hasTTFT   bool
+	health    OpenAIAccountHealthSnapshot
 }
 
 type openAIAccountCandidateHeap []openAIAccountCandidateScore
@@ -810,6 +811,57 @@ func selectTopKOpenAICandidates(candidates []openAIAccountCandidateScore, topK i
 		return isOpenAIAccountCandidateBetter(ranked[i], ranked[j])
 	})
 	return ranked
+}
+
+func openAISchedulerTierRank(tier string) int {
+	switch tier {
+	case OpenAISchedulerTierPrimary:
+		return 0
+	case OpenAISchedulerTierStandby:
+		return 1
+	case OpenAISchedulerTierObserve:
+		return 2
+	case OpenAISchedulerTierDegraded:
+		return 3
+	default:
+		return 1
+	}
+}
+
+func splitOpenAISelectionPools(candidates []openAIAccountCandidateScore) [][]openAIAccountCandidateScore {
+	pools := make([][]openAIAccountCandidateScore, 4)
+	for _, candidate := range candidates {
+		rank := openAISchedulerTierRank(candidate.health.Tier)
+		if rank < 0 || rank >= len(pools) {
+			rank = 1
+		}
+		pools[rank] = append(pools[rank], candidate)
+	}
+	return pools
+}
+
+func (s *defaultOpenAIAccountScheduler) fillOpenAISelectionHealth(pool []openAIAccountCandidateScore, now time.Time) []openAIAccountCandidateScore {
+	if len(pool) == 0 {
+		return nil
+	}
+	filled := make([]openAIAccountCandidateScore, len(pool))
+	copy(filled, pool)
+	for i := range filled {
+		if filled[i].health.AccountID > 0 || filled[i].account == nil {
+			continue
+		}
+		accountID := filled[i].account.ID
+		health := buildOpenAIAccountHealthSnapshot(accountID, openAIAccountHealthRuntime{
+			successEWMA: 1,
+		}, s.healthSettings, now)
+		if s.stats != nil {
+			if snapshot, ok := s.stats.healthSnapshot(accountID, s.healthSettings, now); ok {
+				health = snapshot
+			}
+		}
+		filled[i].health = health
+	}
+	return filled
 }
 
 type openAISelectionRNG struct {
@@ -928,14 +980,21 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 	loadMap map[int64]*AccountLoadInfo,
 ) openAIAccountLoadPlan {
 	allCandidates := make([]openAIAccountCandidateScore, 0, len(filtered))
+	now := time.Now()
 	for _, account := range filtered {
 		loadInfo := loadMap[account.ID]
 		if loadInfo == nil {
 			loadInfo = &AccountLoadInfo{AccountID: account.ID}
 		}
 		errorRate, ttft, hasTTFT := 0.0, 0.0, false
+		health := buildOpenAIAccountHealthSnapshot(account.ID, openAIAccountHealthRuntime{
+			successEWMA: 1,
+		}, s.healthSettings, now)
 		if s.stats != nil {
 			errorRate, ttft, hasTTFT = s.stats.snapshot(account.ID)
+			if snapshot, ok := s.stats.healthSnapshot(account.ID, s.healthSettings, now); ok {
+				health = snapshot
+			}
 		}
 		allCandidates = append(allCandidates, openAIAccountCandidateScore{
 			account:   account,
@@ -943,6 +1002,7 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 			errorRate: errorRate,
 			ttft:      ttft,
 			hasTTFT:   hasTTFT,
+			health:    health,
 		})
 	}
 
@@ -1025,6 +1085,10 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 			weights.Queue*queueFactor +
 			weights.ErrorRate*errorFactor +
 			weights.TTFT*ttftFactor
+		if s.healthSettings.HealthRankingEnabled {
+			healthFactor := clamp01(item.health.HealthScore / 100)
+			item.score = item.score*0.65 + healthFactor*0.35
+		}
 	}
 	plan.candidates = candidates
 
@@ -1044,6 +1108,7 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 	req OpenAIAccountScheduleRequest,
 	plan openAIAccountLoadPlan,
 ) []openAIAccountCandidateScore {
+	now := time.Now()
 	buildSelectionOrder := func(pool []openAIAccountCandidateScore) []openAIAccountCandidateScore {
 		if len(pool) == 0 || plan.topK <= 0 {
 			return nil
@@ -1054,6 +1119,16 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 		}
 		ranked := selectTopKOpenAICandidates(pool, groupTopK)
 		return buildOpenAIWeightedSelectionOrder(ranked, req)
+	}
+	appendTiered := func(dst []openAIAccountCandidateScore, pool []openAIAccountCandidateScore) []openAIAccountCandidateScore {
+		if !s.healthSettings.HealthRankingEnabled {
+			return append(dst, buildSelectionOrder(pool)...)
+		}
+		pool = s.fillOpenAISelectionHealth(pool, now)
+		for _, tierPool := range splitOpenAISelectionPools(pool) {
+			dst = append(dst, buildSelectionOrder(tierPool)...)
+		}
+		return dst
 	}
 
 	if req.RequireCompact {
@@ -1068,15 +1143,28 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 			}
 		}
 		selectionOrder := make([]openAIAccountCandidateScore, 0, len(plan.allCandidates))
-		selectionOrder = append(selectionOrder, buildSelectionOrder(supported)...)
-		selectionOrder = append(selectionOrder, buildSelectionOrder(unknown)...)
+		selectionOrder = appendTiered(selectionOrder, supported)
+		selectionOrder = appendTiered(selectionOrder, unknown)
 		if len(plan.staleSnapshotCompactRetry) > 0 && s.service.schedulerSnapshot != nil {
 			selectionOrder = append(selectionOrder, sortOpenAICompactRetryCandidates(plan.staleSnapshotCompactRetry)...)
 		}
 		return selectionOrder
 	}
 
-	return buildSelectionOrder(plan.candidates)
+	return appendTiered(nil, plan.candidates)
+}
+
+func (s *defaultOpenAIAccountScheduler) seedHealthForTest(accountID int64, health openAIAccountHealthRuntime) {
+	if s == nil {
+		return
+	}
+	if s.stats == nil {
+		s.stats = newOpenAIAccountRuntimeStats()
+	}
+	stat := s.stats.loadOrCreate(accountID)
+	stat.healthMu.Lock()
+	stat.health = health
+	stat.healthMu.Unlock()
 }
 
 func sortOpenAICompactRetryCandidates(pool []openAIAccountCandidateScore) []openAIAccountCandidateScore {
