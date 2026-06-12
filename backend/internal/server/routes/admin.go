@@ -41,6 +41,9 @@ func RegisterAdminRoutes(
 		// OpenAI OAuth
 		registerOpenAIOAuthRoutes(admin, h)
 
+		// OpenAI 调度管理
+		registerOpenAISchedulerRoutes(admin, h)
+
 		// Gemini OAuth
 		registerGeminiOAuthRoutes(admin, h)
 
@@ -367,6 +370,18 @@ func registerOpenAIOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		openai.POST("/refresh-token", h.Admin.OpenAIOAuth.RefreshToken)
 		openai.POST("/accounts/:id/refresh", h.Admin.OpenAIOAuth.RefreshAccountToken)
 		openai.POST("/create-from-oauth", h.Admin.OpenAIOAuth.CreateAccountFromOAuth)
+	}
+}
+
+func registerOpenAISchedulerRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	scheduler := admin.Group("/openai-scheduler")
+	{
+		scheduler.GET("/overview", h.Admin.OpenAIScheduler.GetOverview)
+		scheduler.GET("/accounts", h.Admin.OpenAIScheduler.ListAccounts)
+		scheduler.GET("/accounts/:id", h.Admin.OpenAIScheduler.GetAccount)
+		scheduler.POST("/accounts/:id/actions", h.Admin.OpenAIScheduler.ApplyAction)
+		scheduler.GET("/settings", h.Admin.OpenAIScheduler.GetSettings)
+		scheduler.PUT("/settings", h.Admin.OpenAIScheduler.UpdateSettings)
 	}
 }
 
