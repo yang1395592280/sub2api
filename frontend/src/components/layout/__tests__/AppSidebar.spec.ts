@@ -30,3 +30,10 @@ describe('AppSidebar header styles', () => {
     expect(sidebarBrandBlockMatch?.[0]).not.toContain('overflow: hidden;')
   })
 })
+
+describe('AppSidebar admin navigation', () => {
+  it('contains the OpenAI scheduler entry', () => {
+    expect(componentSource).toContain('/admin/openai-scheduler')
+    expect(componentSource).toContain('nav.openaiScheduler')
+  })
+})
