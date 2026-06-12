@@ -123,3 +123,71 @@ func TestDefaultOpenAIAccountScheduler_ReportResultUpdatesHealth(t *testing.T) {
 	require.NotNil(t, snapshot.LastSelectedAt)
 	require.NotNil(t, snapshot.LastErrorAt)
 }
+
+func TestDefaultOpenAIAccountScheduler_UpdateHealthSettingsClampsValues(t *testing.T) {
+	schedulerAny := newDefaultOpenAIAccountScheduler(&OpenAIGatewayService{}, nil)
+	scheduler, ok := schedulerAny.(*defaultOpenAIAccountScheduler)
+	require.True(t, ok)
+
+	scheduler.UpdateHealthSettings(OpenAISchedulerHealthSettings{
+		HealthRankingEnabled:        true,
+		PrimaryRatio:                2,
+		PrimaryMinCount:             -4,
+		TTFTDegradeMS:               -1,
+		ErrorRateDegradeThreshold:   9,
+		ConsecutiveFailureThreshold: -2,
+		RecoverSuccessThreshold:     -5,
+		Cooldown:                    -time.Second,
+		ObserveProbeRatio:           3,
+	})
+
+	settings := scheduler.SnapshotHealthSettings()
+	defaults := defaultOpenAISchedulerHealthSettings()
+	require.True(t, settings.HealthRankingEnabled)
+	require.Equal(t, defaults.PrimaryRatio, settings.PrimaryRatio)
+	require.Equal(t, defaults.PrimaryMinCount, settings.PrimaryMinCount)
+	require.Equal(t, defaults.TTFTDegradeMS, settings.TTFTDegradeMS)
+	require.Equal(t, defaults.ErrorRateDegradeThreshold, settings.ErrorRateDegradeThreshold)
+	require.Equal(t, defaults.ConsecutiveFailureThreshold, settings.ConsecutiveFailureThreshold)
+	require.Equal(t, defaults.RecoverSuccessThreshold, settings.RecoverSuccessThreshold)
+	require.Equal(t, defaults.Cooldown, settings.Cooldown)
+	require.Equal(t, defaults.ObserveProbeRatio, settings.ObserveProbeRatio)
+}
+
+func TestDefaultOpenAIAccountScheduler_ManualCooldownAndClear(t *testing.T) {
+	schedulerAny := newDefaultOpenAIAccountScheduler(&OpenAIGatewayService{}, nil)
+	scheduler, ok := schedulerAny.(*defaultOpenAIAccountScheduler)
+	require.True(t, ok)
+
+	err := scheduler.ApplyHealthAction(3001, OpenAISchedulerHealthAction{
+		Action:   "cooldown",
+		Reason:   "manual verification",
+		Duration: time.Minute,
+	})
+	require.NoError(t, err)
+
+	snapshot, found := scheduler.SnapshotAccountHealth(context.Background(), 3001)
+	require.True(t, found)
+	require.Equal(t, OpenAISchedulerTierDegraded, snapshot.Tier)
+	require.Equal(t, OpenAISchedulerDegradeManual, snapshot.DegradeReason)
+	require.NotNil(t, snapshot.CooldownUntil)
+
+	err = scheduler.ApplyHealthAction(3001, OpenAISchedulerHealthAction{Action: "clear_cooldown"})
+	require.NoError(t, err)
+
+	snapshot, found = scheduler.SnapshotAccountHealth(context.Background(), 3001)
+	require.True(t, found)
+	require.Equal(t, OpenAISchedulerTierObserve, snapshot.Tier)
+	require.Equal(t, OpenAISchedulerDegradeRecovering, snapshot.DegradeReason)
+	require.Nil(t, snapshot.CooldownUntil)
+}
+
+func TestDefaultOpenAIAccountScheduler_InvalidManualAction(t *testing.T) {
+	schedulerAny := newDefaultOpenAIAccountScheduler(&OpenAIGatewayService{}, nil)
+	scheduler, ok := schedulerAny.(*defaultOpenAIAccountScheduler)
+	require.True(t, ok)
+
+	err := scheduler.ApplyHealthAction(3002, OpenAISchedulerHealthAction{Action: "pin_primary"})
+
+	require.Error(t, err)
+}
