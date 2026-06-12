@@ -3,6 +3,7 @@ package admin
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -67,18 +68,59 @@ func openAISchedulerSettingsFromDTO(dto openAISchedulerSettingsDTO) service.Open
 func (h *OpenAISchedulerHandler) GetOverview(c *gin.Context) {
 	metrics := h.gatewayService.SnapshotOpenAIAccountSchedulerMetrics()
 	settings := h.gatewayService.SnapshotOpenAISchedulerHealthSettings()
+	items, err := h.gatewayService.ListOpenAISchedulerAccountSnapshots(c.Request.Context(), nil)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	tierCounts := openAISchedulerTierCounts(items)
 	response.Success(c, gin.H{
-		"settings": openAISchedulerSettingsToDTO(settings),
-		"metrics":  metrics,
+		"settings":    openAISchedulerSettingsToDTO(settings),
+		"metrics":     metrics,
+		"tier_counts": tierCounts,
 	})
 }
 
 func (h *OpenAISchedulerHandler) ListAccounts(c *gin.Context) {
+	groupID, ok := parseOptionalQueryInt64(c, "group_id")
+	if !ok {
+		return
+	}
+	items, err := h.gatewayService.ListOpenAISchedulerAccountSnapshots(c.Request.Context(), groupID)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	tier := strings.TrimSpace(c.Query("tier"))
+	search := strings.ToLower(strings.TrimSpace(c.Query("search")))
+	filtered := make([]service.OpenAISchedulerAccountSnapshot, 0, len(items))
+	for _, item := range items {
+		if tier != "" && item.Health.Tier != tier {
+			continue
+		}
+		if search != "" && !strings.Contains(strings.ToLower(item.AccountName), search) {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+
+	page := parsePositiveQueryInt(c, "page", 1)
+	pageSize := parsePositiveQueryInt(c, "page_size", 20)
+	start := (page - 1) * pageSize
+	if start > len(filtered) {
+		start = len(filtered)
+	}
+	end := start + pageSize
+	if end > len(filtered) {
+		end = len(filtered)
+	}
+
 	response.Success(c, gin.H{
-		"items":     []any{},
-		"total":     0,
-		"page":      parsePositiveQueryInt(c, "page", 1),
-		"page_size": parsePositiveQueryInt(c, "page_size", 20),
+		"items":     filtered[start:end],
+		"total":     len(filtered),
+		"page":      page,
+		"page_size": pageSize,
 	})
 }
 
@@ -154,4 +196,32 @@ func parsePositiveQueryInt(c *gin.Context, name string, fallback int) int {
 		return fallback
 	}
 	return v
+}
+
+func parseOptionalQueryInt64(c *gin.Context, name string) (*int64, bool) {
+	raw := strings.TrimSpace(c.Query(name))
+	if raw == "" {
+		return nil, true
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value <= 0 {
+		response.Error(c, http.StatusBadRequest, "Invalid "+name)
+		return nil, false
+	}
+	return &value, true
+}
+
+func openAISchedulerTierCounts(items []service.OpenAISchedulerAccountSnapshot) gin.H {
+	counts := gin.H{
+		service.OpenAISchedulerTierPrimary:  0,
+		service.OpenAISchedulerTierStandby:  0,
+		service.OpenAISchedulerTierObserve:  0,
+		service.OpenAISchedulerTierDegraded: 0,
+	}
+	for _, item := range items {
+		if _, ok := counts[item.Health.Tier]; ok {
+			counts[item.Health.Tier] = counts[item.Health.Tier].(int) + 1
+		}
+	}
+	return counts
 }

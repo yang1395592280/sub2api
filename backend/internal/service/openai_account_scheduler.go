@@ -151,6 +151,17 @@ type OpenAIAccountHealthSnapshot struct {
 	DecisionReason    string     `json:"decision_reason"`
 }
 
+type OpenAISchedulerAccountSnapshot struct {
+	AccountID      int64                       `json:"account_id"`
+	AccountName    string                      `json:"account_name"`
+	Platform       string                      `json:"platform"`
+	Type           string                      `json:"type"`
+	Status         string                      `json:"status"`
+	ManualPriority int                         `json:"manual_priority"`
+	Groups         []int64                     `json:"groups"`
+	Health         OpenAIAccountHealthSnapshot `json:"health"`
+}
+
 type OpenAIAccountScheduler interface {
 	Select(ctx context.Context, req OpenAIAccountScheduleRequest) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error)
 	ReportResult(accountID int64, success bool, firstTokenMs *int)
@@ -1688,6 +1699,56 @@ func (s *OpenAIGatewayService) ApplyOpenAISchedulerHealthAction(accountID int64,
 		return fmt.Errorf("openai advanced scheduler is not enabled")
 	}
 	return scheduler.ApplyHealthAction(accountID, action)
+}
+
+func (s *OpenAIGatewayService) ListOpenAISchedulerAccountSnapshots(ctx context.Context, groupID *int64) ([]OpenAISchedulerAccountSnapshot, error) {
+	if s == nil {
+		return nil, nil
+	}
+	if s.schedulerSnapshot == nil && s.accountRepo == nil {
+		return nil, nil
+	}
+
+	accounts, err := s.listSchedulableAccounts(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	settings := s.SnapshotOpenAISchedulerHealthSettings()
+	items := make([]OpenAISchedulerAccountSnapshot, 0, len(accounts))
+	for i := range accounts {
+		acc := accounts[i]
+		if !acc.IsOpenAI() {
+			continue
+		}
+		health, ok := s.SnapshotOpenAIAccountHealth(ctx, acc.ID)
+		if !ok {
+			health = buildOpenAIAccountHealthSnapshot(acc.ID, openAIAccountHealthRuntime{successEWMA: 1}, settings, time.Now())
+		}
+		items = append(items, OpenAISchedulerAccountSnapshot{
+			AccountID:      acc.ID,
+			AccountName:    acc.Name,
+			Platform:       acc.Platform,
+			Type:           acc.Type,
+			Status:         acc.Status,
+			ManualPriority: acc.Priority,
+			Groups:         acc.GroupIDs,
+			Health:         health,
+		})
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		a, b := items[i], items[j]
+		if openAISchedulerTierRank(a.Health.Tier) != openAISchedulerTierRank(b.Health.Tier) {
+			return openAISchedulerTierRank(a.Health.Tier) < openAISchedulerTierRank(b.Health.Tier)
+		}
+		if a.Health.HealthScore != b.Health.HealthScore {
+			return a.Health.HealthScore > b.Health.HealthScore
+		}
+		if a.ManualPriority != b.ManualPriority {
+			return a.ManualPriority < b.ManualPriority
+		}
+		return a.AccountID < b.AccountID
+	})
+	return items, nil
 }
 
 func (s *OpenAIGatewayService) openAIAdvancedSchedulerSettingRepo() SettingRepository {

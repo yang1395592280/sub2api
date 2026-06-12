@@ -52,3 +52,38 @@ func TestOpenAISchedulerHandler_ActionInvalidID(t *testing.T) {
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
+
+func TestOpenAISchedulerHandler_ListAccounts_ResponseShape(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewOpenAISchedulerHandler(&service.OpenAIGatewayService{})
+	router := gin.New()
+	router.GET("/accounts", h.ListAccounts)
+
+	req := httptest.NewRequest(http.MethodGet, "/accounts", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"items"`)
+	require.Contains(t, w.Body.String(), `"page"`)
+	require.Contains(t, w.Body.String(), `"page_size"`)
+	require.Contains(t, w.Body.String(), `"total"`)
+}
+
+func TestOpenAISchedulerHandler_GetOverview_IncludesTierCounts(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewOpenAISchedulerHandler(&service.OpenAIGatewayService{})
+	router := gin.New()
+	router.GET("/overview", h.GetOverview)
+
+	req := httptest.NewRequest(http.MethodGet, "/overview", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"tier_counts"`)
+	require.Contains(t, w.Body.String(), `"primary":0`)
+	require.Contains(t, w.Body.String(), `"standby":0`)
+	require.Contains(t, w.Body.String(), `"observe":0`)
+	require.Contains(t, w.Body.String(), `"degraded":0`)
+}
