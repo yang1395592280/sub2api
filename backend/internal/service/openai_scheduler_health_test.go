@@ -191,3 +191,94 @@ func TestDefaultOpenAIAccountScheduler_InvalidManualAction(t *testing.T) {
 
 	require.Error(t, err)
 }
+
+func TestOpenAIGatewayService_HealthSchedulerDisabledReturnsDefaults(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+
+	settings := svc.SnapshotOpenAISchedulerHealthSettings()
+	snapshot, ok := svc.SnapshotOpenAIAccountHealth(context.Background(), 1)
+
+	require.False(t, settings.HealthRankingEnabled)
+	require.False(t, ok)
+	require.Equal(t, OpenAIAccountHealthSnapshot{}, snapshot)
+}
+
+func TestOpenAISchedulerHealthSettingsRoundTrip(t *testing.T) {
+	repo := &openAISchedulerSettingRepoStub{values: map[string]string{}}
+	svc := &OpenAIGatewayService{
+		rateLimitService: &RateLimitService{
+			settingService: &SettingService{settingRepo: repo},
+		},
+	}
+
+	input := OpenAISchedulerHealthSettings{
+		HealthRankingEnabled:        true,
+		PrimaryRatio:                0.4,
+		PrimaryMinCount:             2,
+		TTFTDegradeMS:               1800,
+		ErrorRateDegradeThreshold:   0.25,
+		ConsecutiveFailureThreshold: 2,
+		RecoverSuccessThreshold:     4,
+		Cooldown:                    3 * time.Minute,
+		ObserveProbeRatio:           0.05,
+	}
+
+	require.NoError(t, svc.SaveOpenAISchedulerHealthSettings(context.Background(), input))
+	got := svc.SnapshotOpenAISchedulerHealthSettings()
+
+	require.True(t, got.HealthRankingEnabled)
+	require.Equal(t, 0.4, got.PrimaryRatio)
+	require.Equal(t, 2, got.PrimaryMinCount)
+	require.Equal(t, 1800, got.TTFTDegradeMS)
+	require.Equal(t, 0.25, got.ErrorRateDegradeThreshold)
+	require.Equal(t, 2, got.ConsecutiveFailureThreshold)
+	require.Equal(t, 4, got.RecoverSuccessThreshold)
+	require.Equal(t, 3*time.Minute, got.Cooldown)
+	require.Equal(t, 0.05, got.ObserveProbeRatio)
+}
+
+type openAISchedulerSettingRepoStub struct {
+	values map[string]string
+}
+
+func (r *openAISchedulerSettingRepoStub) Get(context.Context, string) (*Setting, error) {
+	return nil, ErrSettingNotFound
+}
+
+func (r *openAISchedulerSettingRepoStub) GetValue(_ context.Context, key string) (string, error) {
+	if v, ok := r.values[key]; ok {
+		return v, nil
+	}
+	return "", ErrSettingNotFound
+}
+
+func (r *openAISchedulerSettingRepoStub) Set(_ context.Context, key, value string) error {
+	r.values[key] = value
+	return nil
+}
+
+func (r *openAISchedulerSettingRepoStub) GetMultiple(_ context.Context, keys []string) (map[string]string, error) {
+	out := make(map[string]string, len(keys))
+	for _, key := range keys {
+		if v, ok := r.values[key]; ok {
+			out[key] = v
+		}
+	}
+	return out, nil
+}
+
+func (r *openAISchedulerSettingRepoStub) SetMultiple(_ context.Context, settings map[string]string) error {
+	for key, value := range settings {
+		r.values[key] = value
+	}
+	return nil
+}
+
+func (r *openAISchedulerSettingRepoStub) GetAll(context.Context) (map[string]string, error) {
+	return r.values, nil
+}
+
+func (r *openAISchedulerSettingRepoStub) Delete(_ context.Context, key string) error {
+	delete(r.values, key)
+	return nil
+}

@@ -25,6 +25,18 @@ const (
 )
 
 const (
+	openAISchedulerHealthRankingEnabledKey        = "openai_scheduler_health_ranking_enabled"
+	openAISchedulerPrimaryRatioKey                = "openai_scheduler_primary_ratio"
+	openAISchedulerPrimaryMinCountKey             = "openai_scheduler_primary_min_count"
+	openAISchedulerTTFTDegradeMSKey               = "openai_scheduler_ttft_degrade_ms"
+	openAISchedulerErrorRateDegradeThresholdKey   = "openai_scheduler_error_rate_degrade_threshold"
+	openAISchedulerConsecutiveFailureThresholdKey = "openai_scheduler_consecutive_failure_threshold"
+	openAISchedulerRecoverSuccessThresholdKey     = "openai_scheduler_recover_success_threshold"
+	openAISchedulerCooldownSecondsKey             = "openai_scheduler_cooldown_seconds"
+	openAISchedulerObserveProbeRatioKey           = "openai_scheduler_observe_probe_ratio"
+)
+
+const (
 	OpenAISchedulerTierPrimary  = "primary"
 	OpenAISchedulerTierStandby  = "standby"
 	OpenAISchedulerTierObserve  = "observe"
@@ -52,6 +64,18 @@ type cachedOpenAIAdvancedSchedulerSetting struct {
 
 var openAIAdvancedSchedulerSettingCache atomic.Value // *cachedOpenAIAdvancedSchedulerSetting
 var openAIAdvancedSchedulerSettingSF singleflight.Group
+
+var openAISchedulerHealthSettingKeys = []string{
+	openAISchedulerHealthRankingEnabledKey,
+	openAISchedulerPrimaryRatioKey,
+	openAISchedulerPrimaryMinCountKey,
+	openAISchedulerTTFTDegradeMSKey,
+	openAISchedulerErrorRateDegradeThresholdKey,
+	openAISchedulerConsecutiveFailureThresholdKey,
+	openAISchedulerRecoverSuccessThresholdKey,
+	openAISchedulerCooldownSecondsKey,
+	openAISchedulerObserveProbeRatioKey,
+}
 
 type OpenAIAccountScheduleRequest struct {
 	GroupID                 *int64
@@ -292,6 +316,53 @@ func normalizeOpenAISchedulerHealthSettings(input OpenAISchedulerHealthSettings)
 	}
 	settings.ObserveProbeRatio = clampOpenAISchedulerRatio(input.ObserveProbeRatio, defaults.ObserveProbeRatio)
 	return settings
+}
+
+func parseOpenAISchedulerHealthSettings(values map[string]string) OpenAISchedulerHealthSettings {
+	settings := defaultOpenAISchedulerHealthSettings()
+	if raw := strings.TrimSpace(values[openAISchedulerHealthRankingEnabledKey]); raw != "" {
+		settings.HealthRankingEnabled = strings.EqualFold(raw, "true")
+	}
+	if v, err := strconv.ParseFloat(strings.TrimSpace(values[openAISchedulerPrimaryRatioKey]), 64); err == nil {
+		settings.PrimaryRatio = v
+	}
+	if v, err := strconv.Atoi(strings.TrimSpace(values[openAISchedulerPrimaryMinCountKey])); err == nil {
+		settings.PrimaryMinCount = v
+	}
+	if v, err := strconv.Atoi(strings.TrimSpace(values[openAISchedulerTTFTDegradeMSKey])); err == nil {
+		settings.TTFTDegradeMS = v
+	}
+	if v, err := strconv.ParseFloat(strings.TrimSpace(values[openAISchedulerErrorRateDegradeThresholdKey]), 64); err == nil {
+		settings.ErrorRateDegradeThreshold = v
+	}
+	if v, err := strconv.Atoi(strings.TrimSpace(values[openAISchedulerConsecutiveFailureThresholdKey])); err == nil {
+		settings.ConsecutiveFailureThreshold = v
+	}
+	if v, err := strconv.Atoi(strings.TrimSpace(values[openAISchedulerRecoverSuccessThresholdKey])); err == nil {
+		settings.RecoverSuccessThreshold = v
+	}
+	if v, err := strconv.Atoi(strings.TrimSpace(values[openAISchedulerCooldownSecondsKey])); err == nil {
+		settings.Cooldown = time.Duration(v) * time.Second
+	}
+	if v, err := strconv.ParseFloat(strings.TrimSpace(values[openAISchedulerObserveProbeRatioKey]), 64); err == nil {
+		settings.ObserveProbeRatio = v
+	}
+	return normalizeOpenAISchedulerHealthSettings(settings)
+}
+
+func encodeOpenAISchedulerHealthSettings(settings OpenAISchedulerHealthSettings) map[string]string {
+	settings = normalizeOpenAISchedulerHealthSettings(settings)
+	return map[string]string{
+		openAISchedulerHealthRankingEnabledKey:        strconv.FormatBool(settings.HealthRankingEnabled),
+		openAISchedulerPrimaryRatioKey:                strconv.FormatFloat(settings.PrimaryRatio, 'f', -1, 64),
+		openAISchedulerPrimaryMinCountKey:             strconv.Itoa(settings.PrimaryMinCount),
+		openAISchedulerTTFTDegradeMSKey:               strconv.Itoa(settings.TTFTDegradeMS),
+		openAISchedulerErrorRateDegradeThresholdKey:   strconv.FormatFloat(settings.ErrorRateDegradeThreshold, 'f', -1, 64),
+		openAISchedulerConsecutiveFailureThresholdKey: strconv.Itoa(settings.ConsecutiveFailureThreshold),
+		openAISchedulerRecoverSuccessThresholdKey:     strconv.Itoa(settings.RecoverSuccessThreshold),
+		openAISchedulerCooldownSecondsKey:             strconv.Itoa(int(settings.Cooldown.Seconds())),
+		openAISchedulerObserveProbeRatioKey:           strconv.FormatFloat(settings.ObserveProbeRatio, 'f', -1, 64),
+	}
 }
 
 func buildOpenAIAccountHealthSnapshot(
@@ -1571,6 +1642,52 @@ func (s *defaultOpenAIAccountScheduler) SnapshotAccountHealth(ctx context.Contex
 		return OpenAIAccountHealthSnapshot{}, false
 	}
 	return s.stats.healthSnapshot(accountID, s.SnapshotHealthSettings(), time.Now())
+}
+
+func (s *OpenAIGatewayService) SnapshotOpenAISchedulerHealthSettings() OpenAISchedulerHealthSettings {
+	settings := defaultOpenAISchedulerHealthSettings()
+	if repo := s.openAIAdvancedSchedulerSettingRepo(); repo != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), openAIAdvancedSchedulerSettingDBTimeout)
+		defer cancel()
+		if values, err := repo.GetMultiple(ctx, openAISchedulerHealthSettingKeys); err == nil {
+			settings = parseOpenAISchedulerHealthSettings(values)
+		}
+	}
+	scheduler := s.getOpenAIAccountScheduler(context.Background())
+	if scheduler != nil {
+		scheduler.UpdateHealthSettings(settings)
+	}
+	return settings
+}
+
+func (s *OpenAIGatewayService) SaveOpenAISchedulerHealthSettings(ctx context.Context, settings OpenAISchedulerHealthSettings) error {
+	settings = normalizeOpenAISchedulerHealthSettings(settings)
+	if repo := s.openAIAdvancedSchedulerSettingRepo(); repo != nil {
+		if err := repo.SetMultiple(ctx, encodeOpenAISchedulerHealthSettings(settings)); err != nil {
+			return err
+		}
+	}
+	scheduler := s.getOpenAIAccountScheduler(context.Background())
+	if scheduler != nil {
+		scheduler.UpdateHealthSettings(settings)
+	}
+	return nil
+}
+
+func (s *OpenAIGatewayService) SnapshotOpenAIAccountHealth(ctx context.Context, accountID int64) (OpenAIAccountHealthSnapshot, bool) {
+	scheduler := s.getOpenAIAccountScheduler(ctx)
+	if scheduler == nil {
+		return OpenAIAccountHealthSnapshot{}, false
+	}
+	return scheduler.SnapshotAccountHealth(ctx, accountID)
+}
+
+func (s *OpenAIGatewayService) ApplyOpenAISchedulerHealthAction(accountID int64, action OpenAISchedulerHealthAction) error {
+	scheduler := s.getOpenAIAccountScheduler(context.Background())
+	if scheduler == nil {
+		return fmt.Errorf("openai advanced scheduler is not enabled")
+	}
+	return scheduler.ApplyHealthAction(accountID, action)
 }
 
 func (s *OpenAIGatewayService) openAIAdvancedSchedulerSettingRepo() SettingRepository {
