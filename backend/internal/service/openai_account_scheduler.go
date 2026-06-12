@@ -840,6 +840,8 @@ func splitOpenAISelectionPools(candidates []openAIAccountCandidateScore) [][]ope
 	return pools
 }
 
+// fillOpenAISelectionHealth keeps direct candidate construction paths, including
+// package tests, consistent with the normal load plan path that pre-fills health.
 func (s *defaultOpenAIAccountScheduler) fillOpenAISelectionHealth(pool []openAIAccountCandidateScore, now time.Time) []openAIAccountCandidateScore {
 	if len(pool) == 0 {
 		return nil
@@ -1109,24 +1111,30 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 	plan openAIAccountLoadPlan,
 ) []openAIAccountCandidateScore {
 	now := time.Now()
-	buildSelectionOrder := func(pool []openAIAccountCandidateScore) []openAIAccountCandidateScore {
-		if len(pool) == 0 || plan.topK <= 0 {
+	buildSelectionOrder := func(pool []openAIAccountCandidateScore, limit int) []openAIAccountCandidateScore {
+		if len(pool) == 0 || limit <= 0 {
 			return nil
 		}
-		groupTopK := plan.topK
+		groupTopK := limit
 		if groupTopK > len(pool) {
 			groupTopK = len(pool)
 		}
 		ranked := selectTopKOpenAICandidates(pool, groupTopK)
 		return buildOpenAIWeightedSelectionOrder(ranked, req)
 	}
-	appendTiered := func(dst []openAIAccountCandidateScore, pool []openAIAccountCandidateScore) []openAIAccountCandidateScore {
+	appendTiered := func(dst []openAIAccountCandidateScore, pool []openAIAccountCandidateScore, limit int) []openAIAccountCandidateScore {
+		if limit <= 0 {
+			return dst
+		}
 		if !s.healthSettings.HealthRankingEnabled {
-			return append(dst, buildSelectionOrder(pool)...)
+			return append(dst, buildSelectionOrder(pool, limit)...)
 		}
 		pool = s.fillOpenAISelectionHealth(pool, now)
 		for _, tierPool := range splitOpenAISelectionPools(pool) {
-			dst = append(dst, buildSelectionOrder(tierPool)...)
+			if len(dst) >= limit {
+				break
+			}
+			dst = append(dst, buildSelectionOrder(tierPool, limit-len(dst))...)
 		}
 		return dst
 	}
@@ -1143,15 +1151,19 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 			}
 		}
 		selectionOrder := make([]openAIAccountCandidateScore, 0, len(plan.allCandidates))
-		selectionOrder = appendTiered(selectionOrder, supported)
-		selectionOrder = appendTiered(selectionOrder, unknown)
-		if len(plan.staleSnapshotCompactRetry) > 0 && s.service.schedulerSnapshot != nil {
-			selectionOrder = append(selectionOrder, sortOpenAICompactRetryCandidates(plan.staleSnapshotCompactRetry)...)
+		selectionOrder = appendTiered(selectionOrder, supported, plan.topK)
+		selectionOrder = appendTiered(selectionOrder, unknown, plan.topK)
+		if remaining := plan.topK - len(selectionOrder); remaining > 0 && len(plan.staleSnapshotCompactRetry) > 0 && s.service != nil && s.service.schedulerSnapshot != nil {
+			retryCandidates := sortOpenAICompactRetryCandidates(plan.staleSnapshotCompactRetry)
+			if len(retryCandidates) > remaining {
+				retryCandidates = retryCandidates[:remaining]
+			}
+			selectionOrder = append(selectionOrder, retryCandidates...)
 		}
 		return selectionOrder
 	}
 
-	return appendTiered(nil, plan.candidates)
+	return appendTiered(nil, plan.candidates, plan.topK)
 }
 
 func (s *defaultOpenAIAccountScheduler) seedHealthForTest(accountID int64, health openAIAccountHealthRuntime) {

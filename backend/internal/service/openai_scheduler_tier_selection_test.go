@@ -90,3 +90,135 @@ func TestOpenAISchedulerBuildSelectionOrder_DegradedLast(t *testing.T) {
 	require.Equal(t, healthy.ID, order[0].account.ID)
 	require.Equal(t, degraded.ID, order[1].account.ID)
 }
+
+func TestOpenAISchedulerBuildSelectionOrder_TieredTopKUsesGlobalLimit(t *testing.T) {
+	scheduler := &defaultOpenAIAccountScheduler{
+		stats: newOpenAIAccountRuntimeStats(),
+		healthSettings: OpenAISchedulerHealthSettings{
+			HealthRankingEnabled:        true,
+			TTFTDegradeMS:               1000,
+			ConsecutiveFailureThreshold: 3,
+		},
+	}
+	primary := &Account{ID: 301, Priority: 3}
+	standby := &Account{ID: 302, Priority: 2}
+	observe := &Account{ID: 303, Priority: 1}
+	scheduler.seedHealthForTest(primary.ID, openAIAccountHealthRuntime{
+		successEWMA:        1,
+		consecutiveSuccess: 5,
+	})
+	scheduler.seedHealthForTest(standby.ID, openAIAccountHealthRuntime{
+		successEWMA: 0.7,
+		errorEWMA:   0.3,
+	})
+	scheduler.seedHealthForTest(observe.ID, openAIAccountHealthRuntime{
+		successEWMA: 0.9,
+		ttftEWMA:    2000,
+	})
+
+	plan := openAIAccountLoadPlan{
+		candidates: []openAIAccountCandidateScore{
+			{account: observe, loadInfo: &AccountLoadInfo{AccountID: observe.ID}, score: 100},
+			{account: standby, loadInfo: &AccountLoadInfo{AccountID: standby.ID}, score: 90},
+			{account: primary, loadInfo: &AccountLoadInfo{AccountID: primary.ID}, score: 1},
+		},
+		topK: 1,
+	}
+
+	order := scheduler.buildOpenAISelectionOrder(OpenAIAccountScheduleRequest{SessionHash: "global-top-k"}, plan)
+
+	require.Len(t, order, 1)
+	require.Equal(t, primary.ID, order[0].account.ID)
+}
+
+func TestOpenAISchedulerBuildSelectionOrder_CompactKeepsSupportedBeforeUnknownAndTiered(t *testing.T) {
+	scheduler := &defaultOpenAIAccountScheduler{
+		stats: newOpenAIAccountRuntimeStats(),
+		healthSettings: OpenAISchedulerHealthSettings{
+			HealthRankingEnabled: true,
+		},
+	}
+	supportedPrimary := &Account{ID: 401, Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_supported": true}, Priority: 9}
+	supportedStandby := &Account{ID: 402, Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_supported": true}, Priority: 1}
+	unknownPrimary := &Account{ID: 403, Platform: PlatformOpenAI, Extra: map[string]any{}, Priority: 0}
+	scheduler.seedHealthForTest(supportedPrimary.ID, openAIAccountHealthRuntime{
+		successEWMA:        1,
+		consecutiveSuccess: 5,
+	})
+	scheduler.seedHealthForTest(supportedStandby.ID, openAIAccountHealthRuntime{
+		successEWMA: 0.7,
+		errorEWMA:   0.3,
+	})
+	scheduler.seedHealthForTest(unknownPrimary.ID, openAIAccountHealthRuntime{
+		successEWMA:        1,
+		consecutiveSuccess: 5,
+	})
+
+	plan := openAIAccountLoadPlan{
+		allCandidates: []openAIAccountCandidateScore{
+			{account: supportedStandby, loadInfo: &AccountLoadInfo{AccountID: supportedStandby.ID}, score: 100},
+			{account: unknownPrimary, loadInfo: &AccountLoadInfo{AccountID: unknownPrimary.ID}, score: 95},
+			{account: supportedPrimary, loadInfo: &AccountLoadInfo{AccountID: supportedPrimary.ID}, score: 1},
+		},
+		candidates: []openAIAccountCandidateScore{
+			{account: supportedStandby, loadInfo: &AccountLoadInfo{AccountID: supportedStandby.ID}, score: 100},
+			{account: unknownPrimary, loadInfo: &AccountLoadInfo{AccountID: unknownPrimary.ID}, score: 95},
+			{account: supportedPrimary, loadInfo: &AccountLoadInfo{AccountID: supportedPrimary.ID}, score: 1},
+		},
+		topK: 3,
+	}
+
+	order := scheduler.buildOpenAISelectionOrder(OpenAIAccountScheduleRequest{
+		SessionHash:    "compact-supported-first",
+		RequireCompact: true,
+	}, plan)
+
+	require.Len(t, order, 3)
+	require.Equal(t, supportedPrimary.ID, order[0].account.ID)
+	require.Equal(t, supportedStandby.ID, order[1].account.ID)
+	require.Equal(t, unknownPrimary.ID, order[2].account.ID)
+}
+
+func TestOpenAISchedulerBuildOpenAIAccountLoadPlan_FillsHealthAndMixesScore(t *testing.T) {
+	scheduler := &defaultOpenAIAccountScheduler{
+		stats: newOpenAIAccountRuntimeStats(),
+		healthSettings: OpenAISchedulerHealthSettings{
+			HealthRankingEnabled:        true,
+			ConsecutiveFailureThreshold: 3,
+		},
+	}
+	healthy := &Account{ID: 501, Priority: 1}
+	degraded := &Account{ID: 502, Priority: 1}
+	scheduler.seedHealthForTest(healthy.ID, openAIAccountHealthRuntime{
+		successEWMA:        1,
+		consecutiveSuccess: 5,
+	})
+	scheduler.seedHealthForTest(degraded.ID, openAIAccountHealthRuntime{
+		successEWMA:         0.1,
+		errorEWMA:           0.9,
+		consecutiveFailures: 3,
+		lastDegradeReason:   OpenAISchedulerDegradeTimeout,
+	})
+
+	plan := scheduler.buildOpenAIAccountLoadPlan(OpenAIAccountScheduleRequest{SessionHash: "load-plan-health"}, []*Account{
+		degraded,
+		healthy,
+	}, map[int64]*AccountLoadInfo{
+		healthy.ID:  {AccountID: healthy.ID, LoadRate: 0, WaitingCount: 0},
+		degraded.ID: {AccountID: degraded.ID, LoadRate: 0, WaitingCount: 0},
+	})
+
+	require.Len(t, plan.candidates, 2)
+	scoreByID := make(map[int64]float64, len(plan.candidates))
+	healthByID := make(map[int64]OpenAIAccountHealthSnapshot, len(plan.candidates))
+	for _, candidate := range plan.candidates {
+		scoreByID[candidate.account.ID] = candidate.score
+		healthByID[candidate.account.ID] = candidate.health
+	}
+	require.Equal(t, healthy.ID, healthByID[healthy.ID].AccountID)
+	require.Equal(t, OpenAISchedulerTierPrimary, healthByID[healthy.ID].Tier)
+	require.Equal(t, degraded.ID, healthByID[degraded.ID].AccountID)
+	require.Equal(t, OpenAISchedulerTierDegraded, healthByID[degraded.ID].Tier)
+	require.Greater(t, scoreByID[healthy.ID], scoreByID[degraded.ID])
+	require.Equal(t, healthy.ID, plan.selectionOrder[0].account.ID)
+}
