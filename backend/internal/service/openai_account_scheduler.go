@@ -106,18 +106,19 @@ type OpenAISchedulerHealthSettings struct {
 }
 
 type OpenAIAccountHealthSnapshot struct {
-	AccountID          int64
-	Tier               string
-	Reason             string
-	DecisionReason     string
-	HealthScore        float64
-	SuccessEWMA        float64
-	ErrorEWMA          float64
-	TTFTEWMA           float64
-	ConsecutiveSuccess int
-	ConsecutiveFailure int
-	LastErrorUnixSec   int64
-	CooldownUntil      *time.Time
+	AccountID         int64      `json:"account_id"`
+	HealthScore       float64    `json:"health_score"`
+	Tier              string     `json:"tier"`
+	DegradeReason     string     `json:"degrade_reason"`
+	CooldownUntil     *time.Time `json:"cooldown_until,omitempty"`
+	SuccessRateEWMA   float64    `json:"success_rate_ewma"`
+	ErrorRateEWMA     float64    `json:"error_rate_ewma"`
+	TTFTEWMAMS        float64    `json:"ttft_ewma_ms"`
+	ConsecutiveErrors int        `json:"consecutive_errors"`
+	ConsecutiveOK     int        `json:"consecutive_ok"`
+	LastSelectedAt    *time.Time `json:"last_selected_at,omitempty"`
+	LastErrorAt       *time.Time `json:"last_error_at,omitempty"`
+	DecisionReason    string     `json:"decision_reason"`
 }
 
 type OpenAIAccountScheduler interface {
@@ -179,14 +180,15 @@ type openAIAccountRuntimeStats struct {
 }
 
 type openAIAccountHealthRuntime struct {
-	successEWMA         float64
-	errorEWMA           float64
-	ttftEWMA            float64
-	consecutiveSuccess  int
-	consecutiveFailures int
-	lastErrorUnixSec    int64
-	lastDegradeReason   string
-	cooldownUntilUnix   int64
+	successEWMA          float64
+	errorEWMA            float64
+	ttftEWMA             float64
+	consecutiveFailures  int
+	consecutiveSuccess   int
+	lastDegradeReason    string
+	cooldownUntilUnixSec int64
+	lastSelectedUnixSec  int64
+	lastErrorUnixSec     int64
 }
 
 type openAIAccountRuntimeStat struct {
@@ -248,10 +250,10 @@ func defaultOpenAISchedulerHealthSettings() OpenAISchedulerHealthSettings {
 }
 
 func clampOpenAISchedulerRatio(v float64, fallback float64) float64 {
-	if math.IsNaN(v) || math.IsInf(v, 0) {
-		return clamp01(fallback)
+	if math.IsNaN(v) || math.IsInf(v, 0) || v < 0 || v > 1 {
+		return fallback
 	}
-	return clamp01(v)
+	return v
 }
 
 func buildOpenAIAccountHealthSnapshot(
@@ -285,87 +287,101 @@ func buildOpenAIAccountHealthSnapshot(
 	}
 
 	snapshot := OpenAIAccountHealthSnapshot{
-		AccountID:          accountID,
-		Tier:               OpenAISchedulerTierStandby,
-		HealthScore:        math.Round(score*10) / 10,
-		SuccessEWMA:        successEWMA,
-		ErrorEWMA:          errorEWMA,
-		TTFTEWMA:           ttftEWMA,
-		ConsecutiveSuccess: stat.consecutiveSuccess,
-		ConsecutiveFailure: stat.consecutiveFailures,
-		LastErrorUnixSec:   stat.lastErrorUnixSec,
+		AccountID:         accountID,
+		HealthScore:       math.Round(score*10) / 10,
+		Tier:              OpenAISchedulerTierStandby,
+		SuccessRateEWMA:   successEWMA,
+		ErrorRateEWMA:     errorEWMA,
+		TTFTEWMAMS:        ttftEWMA,
+		ConsecutiveErrors: stat.consecutiveFailures,
+		ConsecutiveOK:     stat.consecutiveSuccess,
+	}
+	if stat.lastSelectedUnixSec > 0 {
+		lastSelectedAt := time.Unix(stat.lastSelectedUnixSec, 0)
+		snapshot.LastSelectedAt = &lastSelectedAt
+	}
+	if stat.lastErrorUnixSec > 0 {
+		lastErrorAt := time.Unix(stat.lastErrorUnixSec, 0)
+		snapshot.LastErrorAt = &lastErrorAt
 	}
 
-	if stat.cooldownUntilUnix > 0 {
-		cooldownUntil := time.Unix(stat.cooldownUntilUnix, 0)
+	if stat.cooldownUntilUnixSec > 0 {
+		cooldownUntil := time.Unix(stat.cooldownUntilUnixSec, 0)
 		if cooldownUntil.After(now) {
 			snapshot.Tier = OpenAISchedulerTierDegraded
-			snapshot.Reason = stat.lastDegradeReason
-			if snapshot.Reason == "" {
-				snapshot.Reason = OpenAISchedulerDegradeManual
+			snapshot.DegradeReason = stat.lastDegradeReason
+			if snapshot.DegradeReason == "" {
+				snapshot.DegradeReason = OpenAISchedulerDegradeManual
 			}
 			snapshot.CooldownUntil = &cooldownUntil
-			snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.Reason)
+			snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.DegradeReason)
 			return snapshot
 		}
 
 		snapshot.Tier = OpenAISchedulerTierObserve
-		snapshot.Reason = OpenAISchedulerDegradeRecovering
-		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.Reason)
+		snapshot.DegradeReason = OpenAISchedulerDegradeRecovering
+		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.DegradeReason)
 		return snapshot
 	}
 
 	if settings.ConsecutiveFailureThreshold > 0 && stat.consecutiveFailures >= settings.ConsecutiveFailureThreshold {
 		snapshot.Tier = OpenAISchedulerTierDegraded
-		snapshot.Reason = stat.lastDegradeReason
-		if snapshot.Reason == "" {
-			snapshot.Reason = OpenAISchedulerDegradeUpstream5xx
+		snapshot.DegradeReason = stat.lastDegradeReason
+		if snapshot.DegradeReason == "" {
+			snapshot.DegradeReason = OpenAISchedulerDegradeUpstream5xx
 		}
-		if settings.Cooldown > 0 {
-			cooldownUntil := now.Add(settings.Cooldown)
-			snapshot.CooldownUntil = &cooldownUntil
-		}
-		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.Reason)
+		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.DegradeReason)
 		return snapshot
 	}
 
 	if settings.ErrorRateDegradeThreshold > 0 && errorEWMA >= settings.ErrorRateDegradeThreshold {
 		snapshot.Tier = OpenAISchedulerTierObserve
-		snapshot.Reason = stat.lastDegradeReason
-		if snapshot.Reason == "" {
-			snapshot.Reason = OpenAISchedulerDegradeRecovering
+		snapshot.DegradeReason = stat.lastDegradeReason
+		if snapshot.DegradeReason == "" {
+			snapshot.DegradeReason = OpenAISchedulerDegradeRecovering
 		}
-		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.Reason)
+		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.DegradeReason)
 		return snapshot
 	}
 
 	if settings.TTFTDegradeMS > 0 && ttftEWMA > float64(settings.TTFTDegradeMS) {
 		snapshot.Tier = OpenAISchedulerTierObserve
-		snapshot.Reason = OpenAISchedulerDegradeHighLatency
-		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.Reason)
+		snapshot.DegradeReason = OpenAISchedulerDegradeHighLatency
+		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.DegradeReason)
 		return snapshot
 	}
 
 	if snapshot.HealthScore >= 90 || (settings.RecoverSuccessThreshold > 0 && stat.consecutiveSuccess >= settings.RecoverSuccessThreshold && snapshot.HealthScore >= 90) {
 		snapshot.Tier = OpenAISchedulerTierPrimary
-		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.Reason)
+		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.DegradeReason)
 		return snapshot
 	}
 
-	snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.Reason)
+	snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.DegradeReason)
 	return snapshot
 }
 
 func openAIHealthDecisionReason(tier string, reason string) string {
 	tier = strings.TrimSpace(tier)
 	reason = strings.TrimSpace(reason)
-	if tier == "" {
-		return reason
+	switch tier {
+	case OpenAISchedulerTierPrimary:
+		return "health score is high and account is eligible for primary routing"
+	case OpenAISchedulerTierStandby:
+		return "account is healthy but below the primary cutoff"
+	case OpenAISchedulerTierObserve:
+		if reason != "" {
+			return "account is being observed after " + reason
+		}
+		return "account is being observed before returning to active routing"
+	case OpenAISchedulerTierDegraded:
+		if reason != "" {
+			return "account is degraded because of " + reason
+		}
+		return "account is degraded"
+	default:
+		return "health state is unknown"
 	}
-	if reason == "" {
-		return tier
-	}
-	return tier + ":" + reason
 }
 
 func (s *openAIAccountRuntimeStats) report(accountID int64, success bool, firstTokenMs *int) {
@@ -405,6 +421,7 @@ func (s *openAIAccountRuntimeStats) report(accountID int64, success bool, firstT
 
 	stat.health.successEWMA = clamp01(alpha*(1-errorSample) + (1-alpha)*stat.health.successEWMA)
 	stat.health.errorEWMA = clamp01(alpha*errorSample + (1-alpha)*stat.health.errorEWMA)
+	stat.health.lastSelectedUnixSec = time.Now().Unix()
 	if firstTokenMs != nil && *firstTokenMs > 0 {
 		ttft := float64(*firstTokenMs)
 		if stat.health.ttftEWMA <= 0 {

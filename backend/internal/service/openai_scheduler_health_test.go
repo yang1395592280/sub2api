@@ -30,15 +30,18 @@ func TestOpenAISchedulerHealthScore_SuccessLowLatencyPrimary(t *testing.T) {
 		ttftEWMA:            420,
 		consecutiveSuccess:  2,
 		consecutiveFailures: 0,
+		lastSelectedUnixSec: now.Add(-2 * time.Minute).Unix(),
 	}, defaultOpenAISchedulerHealthSettings(), now)
 
 	require.Equal(t, int64(101), snapshot.AccountID)
 	require.Equal(t, OpenAISchedulerTierPrimary, snapshot.Tier)
-	require.Equal(t, "", snapshot.Reason)
-	require.Equal(t, "primary", snapshot.DecisionReason)
+	require.Equal(t, "", snapshot.DegradeReason)
+	require.Equal(t, "health score is high and account is eligible for primary routing", snapshot.DecisionReason)
 	require.GreaterOrEqual(t, snapshot.HealthScore, 90.0)
 	require.InDelta(t, 97.3, snapshot.HealthScore, 0.01)
 	require.Nil(t, snapshot.CooldownUntil)
+	require.NotNil(t, snapshot.LastSelectedAt)
+	require.Equal(t, now.Add(-2*time.Minute).Unix(), snapshot.LastSelectedAt.Unix())
 }
 
 func TestOpenAISchedulerHealthScore_HighLatencyObserve(t *testing.T) {
@@ -52,45 +55,50 @@ func TestOpenAISchedulerHealthScore_HighLatencyObserve(t *testing.T) {
 	}, defaultOpenAISchedulerHealthSettings(), now)
 
 	require.Equal(t, OpenAISchedulerTierObserve, snapshot.Tier)
-	require.Equal(t, OpenAISchedulerDegradeHighLatency, snapshot.Reason)
-	require.Equal(t, "observe:high_latency", snapshot.DecisionReason)
+	require.Equal(t, OpenAISchedulerDegradeHighLatency, snapshot.DegradeReason)
+	require.Equal(t, "account is being observed after high_latency", snapshot.DecisionReason)
 	require.Nil(t, snapshot.CooldownUntil)
 }
 
 func TestOpenAISchedulerHealthScore_ConsecutiveFailuresDegraded(t *testing.T) {
 	now := time.Date(2026, 6, 12, 10, 10, 0, 0, time.UTC)
+	cooldownUntil := now.Add(8 * time.Minute)
 	snapshot := buildOpenAIAccountHealthSnapshot(103, openAIAccountHealthRuntime{
-		successEWMA:         0.20,
-		errorEWMA:           0.80,
-		ttftEWMA:            0,
-		consecutiveSuccess:  0,
-		consecutiveFailures: 3,
-		lastDegradeReason:   OpenAISchedulerDegradeTimeout,
+		successEWMA:          0.20,
+		errorEWMA:            0.80,
+		ttftEWMA:             0,
+		consecutiveSuccess:   0,
+		consecutiveFailures:  3,
+		lastDegradeReason:    OpenAISchedulerDegradeTimeout,
+		cooldownUntilUnixSec: cooldownUntil.Unix(),
+		lastErrorUnixSec:     now.Add(-30 * time.Second).Unix(),
 	}, defaultOpenAISchedulerHealthSettings(), now)
 
 	require.Equal(t, OpenAISchedulerTierDegraded, snapshot.Tier)
-	require.Equal(t, OpenAISchedulerDegradeTimeout, snapshot.Reason)
-	require.Equal(t, "degraded:timeout", snapshot.DecisionReason)
+	require.Equal(t, OpenAISchedulerDegradeTimeout, snapshot.DegradeReason)
+	require.Equal(t, "account is degraded because of timeout", snapshot.DecisionReason)
 	require.NotNil(t, snapshot.CooldownUntil)
-	require.True(t, snapshot.CooldownUntil.After(now))
+	require.Equal(t, cooldownUntil.Unix(), snapshot.CooldownUntil.Unix())
+	require.NotNil(t, snapshot.LastErrorAt)
+	require.Equal(t, now.Add(-30*time.Second).Unix(), snapshot.LastErrorAt.Unix())
 }
 
 func TestOpenAISchedulerHealthScore_CooldownExpiredObserve(t *testing.T) {
 	now := time.Date(2026, 6, 12, 10, 20, 0, 0, time.UTC)
 	expired := now.Add(-1 * time.Minute)
 	snapshot := buildOpenAIAccountHealthSnapshot(104, openAIAccountHealthRuntime{
-		successEWMA:         0.88,
-		errorEWMA:           0.12,
-		ttftEWMA:            700,
-		consecutiveSuccess:  2,
-		consecutiveFailures: 0,
-		lastDegradeReason:   OpenAISchedulerDegradeManual,
-		cooldownUntilUnix:   expired.Unix(),
+		successEWMA:          0.88,
+		errorEWMA:            0.12,
+		ttftEWMA:             700,
+		consecutiveSuccess:   2,
+		consecutiveFailures:  0,
+		lastDegradeReason:    OpenAISchedulerDegradeManual,
+		cooldownUntilUnixSec: expired.Unix(),
 	}, defaultOpenAISchedulerHealthSettings(), now)
 
 	require.Equal(t, OpenAISchedulerTierObserve, snapshot.Tier)
-	require.Equal(t, OpenAISchedulerDegradeRecovering, snapshot.Reason)
-	require.Equal(t, "observe:recovering", snapshot.DecisionReason)
+	require.Equal(t, OpenAISchedulerDegradeRecovering, snapshot.DegradeReason)
+	require.Equal(t, "account is being observed after recovering", snapshot.DecisionReason)
 	require.Nil(t, snapshot.CooldownUntil)
 }
 
@@ -99,14 +107,19 @@ func TestDefaultOpenAIAccountScheduler_ReportResultUpdatesHealth(t *testing.T) {
 	scheduler, ok := schedulerAny.(*defaultOpenAIAccountScheduler)
 	require.True(t, ok)
 
+	scheduler.ReportResult(2001, false, nil)
 	ttft := 180
 	scheduler.ReportResult(2001, true, &ttft)
 
 	snapshot, found := scheduler.SnapshotAccountHealth(context.Background(), 2001)
 	require.True(t, found)
 	require.Equal(t, int64(2001), snapshot.AccountID)
-	require.Greater(t, snapshot.SuccessEWMA, 0.0)
+	require.Greater(t, snapshot.SuccessRateEWMA, 0.0)
+	require.Greater(t, snapshot.ErrorRateEWMA, 0.0)
 	require.GreaterOrEqual(t, snapshot.HealthScore, 0.0)
 	require.LessOrEqual(t, snapshot.HealthScore, 100.0)
-	require.InDelta(t, 180.0, snapshot.TTFTEWMA, 0.01)
+	require.Greater(t, snapshot.TTFTEWMAMS, 0.0)
+	require.InDelta(t, 180.0, snapshot.TTFTEWMAMS, 0.01)
+	require.NotNil(t, snapshot.LastSelectedAt)
+	require.NotNil(t, snapshot.LastErrorAt)
 }
