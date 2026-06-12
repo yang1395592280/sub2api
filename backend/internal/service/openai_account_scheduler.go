@@ -25,6 +25,22 @@ const (
 )
 
 const (
+	OpenAISchedulerTierPrimary  = "primary"
+	OpenAISchedulerTierStandby  = "standby"
+	OpenAISchedulerTierObserve  = "observe"
+	OpenAISchedulerTierDegraded = "degraded"
+)
+
+const (
+	OpenAISchedulerDegradeHighLatency = "high_latency"
+	OpenAISchedulerDegradeRateLimited = "rate_limited"
+	OpenAISchedulerDegradeUpstream5xx = "upstream_5xx"
+	OpenAISchedulerDegradeTimeout     = "timeout"
+	OpenAISchedulerDegradeRecovering  = "recovering"
+	OpenAISchedulerDegradeManual      = "manual"
+)
+
+const (
 	openAIAdvancedSchedulerSettingCacheTTL  = 5 * time.Second
 	openAIAdvancedSchedulerSettingDBTimeout = 2 * time.Second
 )
@@ -77,11 +93,39 @@ type OpenAIAccountSchedulerMetricsSnapshot struct {
 	RuntimeStatsAccountCount int
 }
 
+type OpenAISchedulerHealthSettings struct {
+	HealthRankingEnabled        bool
+	PrimaryRatio                float64
+	PrimaryMinCount             int
+	TTFTDegradeMS               int
+	ErrorRateDegradeThreshold   float64
+	ConsecutiveFailureThreshold int
+	RecoverSuccessThreshold     int
+	Cooldown                    time.Duration
+	ObserveProbeRatio           float64
+}
+
+type OpenAIAccountHealthSnapshot struct {
+	AccountID          int64
+	Tier               string
+	Reason             string
+	DecisionReason     string
+	HealthScore        float64
+	SuccessEWMA        float64
+	ErrorEWMA          float64
+	TTFTEWMA           float64
+	ConsecutiveSuccess int
+	ConsecutiveFailure int
+	LastErrorUnixSec   int64
+	CooldownUntil      *time.Time
+}
+
 type OpenAIAccountScheduler interface {
 	Select(ctx context.Context, req OpenAIAccountScheduleRequest) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error)
 	ReportResult(accountID int64, success bool, firstTokenMs *int)
 	ReportSwitch()
 	SnapshotMetrics() OpenAIAccountSchedulerMetricsSnapshot
+	SnapshotAccountHealth(ctx context.Context, accountID int64) (OpenAIAccountHealthSnapshot, bool)
 }
 
 type openAIAccountSchedulerMetrics struct {
@@ -134,9 +178,22 @@ type openAIAccountRuntimeStats struct {
 	accountCount atomic.Int64
 }
 
+type openAIAccountHealthRuntime struct {
+	successEWMA         float64
+	errorEWMA           float64
+	ttftEWMA            float64
+	consecutiveSuccess  int
+	consecutiveFailures int
+	lastErrorUnixSec    int64
+	lastDegradeReason   string
+	cooldownUntilUnix   int64
+}
+
 type openAIAccountRuntimeStat struct {
 	errorRateEWMABits atomic.Uint64
 	ttftEWMABits      atomic.Uint64
+	healthMu          sync.RWMutex
+	health            openAIAccountHealthRuntime
 }
 
 func newOpenAIAccountRuntimeStats() *openAIAccountRuntimeStats {
@@ -176,6 +233,141 @@ func updateEWMAAtomic(target *atomic.Uint64, sample float64, alpha float64) {
 	}
 }
 
+func defaultOpenAISchedulerHealthSettings() OpenAISchedulerHealthSettings {
+	return OpenAISchedulerHealthSettings{
+		HealthRankingEnabled:        false,
+		PrimaryRatio:                0.30,
+		PrimaryMinCount:             1,
+		TTFTDegradeMS:               2500,
+		ErrorRateDegradeThreshold:   0.35,
+		ConsecutiveFailureThreshold: 3,
+		RecoverSuccessThreshold:     5,
+		Cooldown:                    10 * time.Minute,
+		ObserveProbeRatio:           0.0,
+	}
+}
+
+func clampOpenAISchedulerRatio(v float64, fallback float64) float64 {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return clamp01(fallback)
+	}
+	return clamp01(v)
+}
+
+func buildOpenAIAccountHealthSnapshot(
+	accountID int64,
+	stat openAIAccountHealthRuntime,
+	settings OpenAISchedulerHealthSettings,
+	now time.Time,
+) OpenAIAccountHealthSnapshot {
+	if now.IsZero() {
+		now = time.Now()
+	}
+
+	successEWMA := clamp01(stat.successEWMA)
+	errorEWMA := clamp01(stat.errorEWMA)
+	if successEWMA == 0 && errorEWMA == 0 {
+		successEWMA = 1
+	}
+
+	ttftEWMA := stat.ttftEWMA
+	latencyPenalty := 0.0
+	if settings.TTFTDegradeMS > 0 && ttftEWMA > float64(settings.TTFTDegradeMS) {
+		latencyPenalty = clamp01((ttftEWMA - float64(settings.TTFTDegradeMS)) / float64(settings.TTFTDegradeMS))
+	}
+
+	score := 100 - errorEWMA*55 - latencyPenalty*25 - float64(stat.consecutiveFailures)*6
+	if score < 0 {
+		score = 0
+	}
+	if score > 100 {
+		score = 100
+	}
+
+	snapshot := OpenAIAccountHealthSnapshot{
+		AccountID:          accountID,
+		Tier:               OpenAISchedulerTierStandby,
+		HealthScore:        math.Round(score*10) / 10,
+		SuccessEWMA:        successEWMA,
+		ErrorEWMA:          errorEWMA,
+		TTFTEWMA:           ttftEWMA,
+		ConsecutiveSuccess: stat.consecutiveSuccess,
+		ConsecutiveFailure: stat.consecutiveFailures,
+		LastErrorUnixSec:   stat.lastErrorUnixSec,
+	}
+
+	if stat.cooldownUntilUnix > 0 {
+		cooldownUntil := time.Unix(stat.cooldownUntilUnix, 0)
+		if cooldownUntil.After(now) {
+			snapshot.Tier = OpenAISchedulerTierDegraded
+			snapshot.Reason = stat.lastDegradeReason
+			if snapshot.Reason == "" {
+				snapshot.Reason = OpenAISchedulerDegradeManual
+			}
+			snapshot.CooldownUntil = &cooldownUntil
+			snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.Reason)
+			return snapshot
+		}
+
+		snapshot.Tier = OpenAISchedulerTierObserve
+		snapshot.Reason = OpenAISchedulerDegradeRecovering
+		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.Reason)
+		return snapshot
+	}
+
+	if settings.ConsecutiveFailureThreshold > 0 && stat.consecutiveFailures >= settings.ConsecutiveFailureThreshold {
+		snapshot.Tier = OpenAISchedulerTierDegraded
+		snapshot.Reason = stat.lastDegradeReason
+		if snapshot.Reason == "" {
+			snapshot.Reason = OpenAISchedulerDegradeUpstream5xx
+		}
+		if settings.Cooldown > 0 {
+			cooldownUntil := now.Add(settings.Cooldown)
+			snapshot.CooldownUntil = &cooldownUntil
+		}
+		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.Reason)
+		return snapshot
+	}
+
+	if settings.ErrorRateDegradeThreshold > 0 && errorEWMA >= settings.ErrorRateDegradeThreshold {
+		snapshot.Tier = OpenAISchedulerTierObserve
+		snapshot.Reason = stat.lastDegradeReason
+		if snapshot.Reason == "" {
+			snapshot.Reason = OpenAISchedulerDegradeRecovering
+		}
+		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.Reason)
+		return snapshot
+	}
+
+	if settings.TTFTDegradeMS > 0 && ttftEWMA > float64(settings.TTFTDegradeMS) {
+		snapshot.Tier = OpenAISchedulerTierObserve
+		snapshot.Reason = OpenAISchedulerDegradeHighLatency
+		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.Reason)
+		return snapshot
+	}
+
+	if snapshot.HealthScore >= 90 || (settings.RecoverSuccessThreshold > 0 && stat.consecutiveSuccess >= settings.RecoverSuccessThreshold && snapshot.HealthScore >= 90) {
+		snapshot.Tier = OpenAISchedulerTierPrimary
+		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.Reason)
+		return snapshot
+	}
+
+	snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.Reason)
+	return snapshot
+}
+
+func openAIHealthDecisionReason(tier string, reason string) string {
+	tier = strings.TrimSpace(tier)
+	reason = strings.TrimSpace(reason)
+	if tier == "" {
+		return reason
+	}
+	if reason == "" {
+		return tier
+	}
+	return tier + ":" + reason
+}
+
 func (s *openAIAccountRuntimeStats) report(accountID int64, success bool, firstTokenMs *int) {
 	if s == nil || accountID <= 0 {
 		return
@@ -207,6 +399,31 @@ func (s *openAIAccountRuntimeStats) report(accountID int64, success bool, firstT
 			}
 		}
 	}
+
+	stat.healthMu.Lock()
+	defer stat.healthMu.Unlock()
+
+	stat.health.successEWMA = clamp01(alpha*(1-errorSample) + (1-alpha)*stat.health.successEWMA)
+	stat.health.errorEWMA = clamp01(alpha*errorSample + (1-alpha)*stat.health.errorEWMA)
+	if firstTokenMs != nil && *firstTokenMs > 0 {
+		ttft := float64(*firstTokenMs)
+		if stat.health.ttftEWMA <= 0 {
+			stat.health.ttftEWMA = ttft
+		} else {
+			stat.health.ttftEWMA = alpha*ttft + (1-alpha)*stat.health.ttftEWMA
+		}
+	}
+	if success {
+		stat.health.consecutiveSuccess++
+		stat.health.consecutiveFailures = 0
+	} else {
+		stat.health.consecutiveFailures++
+		stat.health.consecutiveSuccess = 0
+		stat.health.lastErrorUnixSec = time.Now().Unix()
+		if stat.health.lastDegradeReason == "" {
+			stat.health.lastDegradeReason = OpenAISchedulerDegradeUpstream5xx
+		}
+	}
 }
 
 func (s *openAIAccountRuntimeStats) snapshot(accountID int64) (errorRate float64, ttft float64, hasTTFT bool) {
@@ -236,10 +453,36 @@ func (s *openAIAccountRuntimeStats) size() int {
 	return int(s.accountCount.Load())
 }
 
+func (s *openAIAccountRuntimeStats) healthSnapshot(
+	accountID int64,
+	settings OpenAISchedulerHealthSettings,
+	now time.Time,
+) (OpenAIAccountHealthSnapshot, bool) {
+	if s == nil || accountID <= 0 {
+		return OpenAIAccountHealthSnapshot{}, false
+	}
+	value, ok := s.accounts.Load(accountID)
+	if !ok {
+		return buildOpenAIAccountHealthSnapshot(accountID, openAIAccountHealthRuntime{
+			successEWMA: 1,
+		}, settings, now), true
+	}
+	stat, _ := value.(*openAIAccountRuntimeStat)
+	if stat == nil {
+		return OpenAIAccountHealthSnapshot{}, false
+	}
+
+	stat.healthMu.RLock()
+	health := stat.health
+	stat.healthMu.RUnlock()
+	return buildOpenAIAccountHealthSnapshot(accountID, health, settings, now), true
+}
+
 type defaultOpenAIAccountScheduler struct {
-	service *OpenAIGatewayService
-	metrics openAIAccountSchedulerMetrics
-	stats   *openAIAccountRuntimeStats
+	service        *OpenAIGatewayService
+	metrics        openAIAccountSchedulerMetrics
+	stats          *openAIAccountRuntimeStats
+	healthSettings OpenAISchedulerHealthSettings
 }
 
 type openAIStickyEscapeConfig struct {
@@ -253,8 +496,9 @@ func newDefaultOpenAIAccountScheduler(service *OpenAIGatewayService, stats *open
 		stats = newOpenAIAccountRuntimeStats()
 	}
 	return &defaultOpenAIAccountScheduler{
-		service: service,
-		stats:   stats,
+		service:        service,
+		stats:          stats,
+		healthSettings: defaultOpenAISchedulerHealthSettings(),
 	}
 }
 
@@ -1098,6 +1342,14 @@ func (s *defaultOpenAIAccountScheduler) SnapshotMetrics() OpenAIAccountScheduler
 		snapshot.LoadSkewAvg = float64(loadSkewTotal) / 1000 / float64(selectTotal)
 	}
 	return snapshot
+}
+
+func (s *defaultOpenAIAccountScheduler) SnapshotAccountHealth(ctx context.Context, accountID int64) (OpenAIAccountHealthSnapshot, bool) {
+	_ = ctx
+	if s == nil || s.stats == nil {
+		return OpenAIAccountHealthSnapshot{}, false
+	}
+	return s.stats.healthSnapshot(accountID, s.healthSettings, time.Now())
 }
 
 func (s *OpenAIGatewayService) openAIAdvancedSchedulerSettingRepo() SettingRepository {
