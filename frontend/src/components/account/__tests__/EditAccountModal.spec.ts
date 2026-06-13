@@ -241,6 +241,17 @@ describe('EditAccountModal', () => {
     })
   })
 
+  it('allows arbitrary positive decimal channel prices', () => {
+    const wrapper = mountModal({
+      ...buildAccount(),
+      channel_price: 0.08
+    })
+
+    const channelPriceInput = wrapper.get('input[type="number"][min="0.000001"]')
+
+    expect(channelPriceInput.attributes('step')).toBe('any')
+  })
+
   it('submits OpenAI compact mode and compact-only model mapping', async () => {
     const account = buildAccount()
     account.extra = {

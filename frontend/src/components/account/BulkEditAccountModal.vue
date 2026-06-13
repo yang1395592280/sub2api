@@ -654,7 +654,7 @@
             id="bulk-edit-channel-price"
             type="number"
             min="0.000001"
-            step="0.001"
+            step="any"
             :disabled="!enableChannelPrice"
             class="input"
             :class="!enableChannelPrice && 'cursor-not-allowed opacity-50'"

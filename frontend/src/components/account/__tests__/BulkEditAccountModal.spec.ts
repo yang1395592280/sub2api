@@ -149,6 +149,14 @@ describe('BulkEditAccountModal', () => {
     })
   })
 
+  it('渠道价格允许任意正小数', () => {
+    const wrapper = mountModal()
+
+    const channelPriceInput = wrapper.get('#bulk-edit-channel-price')
+
+    expect(channelPriceInput.attributes('step')).toBe('any')
+  })
+
   it('OpenAI OAuth 批量编辑应提交 OAuth 专属 WS mode 字段', async () => {
     const wrapper = mountModal({
       selectedPlatforms: ['openai'],

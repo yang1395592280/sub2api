@@ -1320,7 +1320,7 @@
         </div>
         <div>
           <label class="input-label">{{ t('admin.accounts.channelPrice') }}</label>
-          <input v-model.number="form.channel_price" type="number" min="0.000001" step="0.001" class="input" />
+          <input v-model.number="form.channel_price" type="number" min="0.000001" step="any" class="input" />
           <p class="input-hint">{{ t('admin.accounts.channelPriceHint') }}</p>
         </div>
       </div>
