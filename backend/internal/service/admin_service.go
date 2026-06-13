@@ -305,6 +305,7 @@ type CreateAccountInput struct {
 	Concurrency        int
 	Priority           int
 	RateMultiplier     *float64 // 账号计费倍率（>=0，允许 0）
+	ChannelPrice       *float64 // 上游渠道真实价格（>0）
 	LoadFactor         *int
 	GroupIDs           []int64
 	ExpiresAt          *int64
@@ -326,6 +327,7 @@ type UpdateAccountInput struct {
 	Concurrency           *int     // 使用指针区分"未提供"和"设置为0"
 	Priority              *int     // 使用指针区分"未提供"和"设置为0"
 	RateMultiplier        *float64 // 账号计费倍率（>=0，允许 0）
+	ChannelPrice          *float64 // 上游渠道真实价格（>0）
 	LoadFactor            *int
 	Status                string
 	GroupIDs              *[]int64
@@ -343,6 +345,7 @@ type BulkUpdateAccountsInput struct {
 	Concurrency    *int
 	Priority       *int
 	RateMultiplier *float64 // 账号计费倍率（>=0，允许 0）
+	ChannelPrice   *float64 // 上游渠道真实价格（>0）
 	LoadFactor     *int
 	Status         string
 	Schedulable    *bool
@@ -2863,6 +2866,12 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		}
 		account.RateMultiplier = input.RateMultiplier
 	}
+	if input.ChannelPrice != nil {
+		if *input.ChannelPrice <= 0 {
+			return nil, errors.New("channel_price must be > 0")
+		}
+		account.ChannelPrice = input.ChannelPrice
+	}
 	if input.LoadFactor != nil && *input.LoadFactor > 0 {
 		if *input.LoadFactor > 10000 {
 			return nil, errors.New("load_factor must be <= 10000")
@@ -2979,6 +2988,12 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 			return nil, errors.New("rate_multiplier must be >= 0")
 		}
 		account.RateMultiplier = input.RateMultiplier
+	}
+	if input.ChannelPrice != nil {
+		if *input.ChannelPrice <= 0 {
+			return nil, errors.New("channel_price must be > 0")
+		}
+		account.ChannelPrice = input.ChannelPrice
 	}
 	if input.LoadFactor != nil {
 		if *input.LoadFactor <= 0 {
@@ -3106,6 +3121,11 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 			return nil, errors.New("rate_multiplier must be >= 0")
 		}
 	}
+	if input.ChannelPrice != nil {
+		if *input.ChannelPrice <= 0 {
+			return nil, errors.New("channel_price must be > 0")
+		}
+	}
 
 	// Prepare bulk updates for columns and JSONB fields.
 	repoUpdates := AccountBulkUpdate{
@@ -3126,6 +3146,9 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	}
 	if input.RateMultiplier != nil {
 		repoUpdates.RateMultiplier = input.RateMultiplier
+	}
+	if input.ChannelPrice != nil {
+		repoUpdates.ChannelPrice = input.ChannelPrice
 	}
 	if input.LoadFactor != nil {
 		if *input.LoadFactor <= 0 {

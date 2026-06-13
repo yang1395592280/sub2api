@@ -120,6 +120,11 @@ func RateMultiplier(v float64) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldRateMultiplier, v))
 }
 
+// ChannelPrice applies equality check predicate on the "channel_price" field. It's identical to ChannelPriceEQ.
+func ChannelPrice(v float64) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldChannelPrice, v))
+}
+
 // Status applies equality check predicate on the "status" field. It's identical to StatusEQ.
 func Status(v string) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldStatus, v))
@@ -838,6 +843,56 @@ func RateMultiplierLT(v float64) predicate.Account {
 // RateMultiplierLTE applies the LTE predicate on the "rate_multiplier" field.
 func RateMultiplierLTE(v float64) predicate.Account {
 	return predicate.Account(sql.FieldLTE(FieldRateMultiplier, v))
+}
+
+// ChannelPriceEQ applies the EQ predicate on the "channel_price" field.
+func ChannelPriceEQ(v float64) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldChannelPrice, v))
+}
+
+// ChannelPriceNEQ applies the NEQ predicate on the "channel_price" field.
+func ChannelPriceNEQ(v float64) predicate.Account {
+	return predicate.Account(sql.FieldNEQ(FieldChannelPrice, v))
+}
+
+// ChannelPriceIn applies the In predicate on the "channel_price" field.
+func ChannelPriceIn(vs ...float64) predicate.Account {
+	return predicate.Account(sql.FieldIn(FieldChannelPrice, vs...))
+}
+
+// ChannelPriceNotIn applies the NotIn predicate on the "channel_price" field.
+func ChannelPriceNotIn(vs ...float64) predicate.Account {
+	return predicate.Account(sql.FieldNotIn(FieldChannelPrice, vs...))
+}
+
+// ChannelPriceGT applies the GT predicate on the "channel_price" field.
+func ChannelPriceGT(v float64) predicate.Account {
+	return predicate.Account(sql.FieldGT(FieldChannelPrice, v))
+}
+
+// ChannelPriceGTE applies the GTE predicate on the "channel_price" field.
+func ChannelPriceGTE(v float64) predicate.Account {
+	return predicate.Account(sql.FieldGTE(FieldChannelPrice, v))
+}
+
+// ChannelPriceLT applies the LT predicate on the "channel_price" field.
+func ChannelPriceLT(v float64) predicate.Account {
+	return predicate.Account(sql.FieldLT(FieldChannelPrice, v))
+}
+
+// ChannelPriceLTE applies the LTE predicate on the "channel_price" field.
+func ChannelPriceLTE(v float64) predicate.Account {
+	return predicate.Account(sql.FieldLTE(FieldChannelPrice, v))
+}
+
+// ChannelPriceIsNil applies the IsNil predicate on the "channel_price" field.
+func ChannelPriceIsNil() predicate.Account {
+	return predicate.Account(sql.FieldIsNull(FieldChannelPrice))
+}
+
+// ChannelPriceNotNil applies the NotNil predicate on the "channel_price" field.
+func ChannelPriceNotNil() predicate.Account {
+	return predicate.Account(sql.FieldNotNull(FieldChannelPrice))
 }
 
 // StatusEQ applies the EQ predicate on the "status" field.

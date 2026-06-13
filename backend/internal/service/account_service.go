@@ -91,6 +91,7 @@ type AccountBulkUpdate struct {
 	Concurrency    *int
 	Priority       *int
 	RateMultiplier *float64
+	ChannelPrice   *float64
 	LoadFactor     *int
 	Status         *string
 	Schedulable    *bool
@@ -109,6 +110,7 @@ type CreateAccountRequest struct {
 	ProxyID            *int64         `json:"proxy_id"`
 	Concurrency        int            `json:"concurrency"`
 	Priority           int            `json:"priority"`
+	ChannelPrice       *float64       `json:"channel_price"`
 	GroupIDs           []int64        `json:"group_ids"`
 	ExpiresAt          *time.Time     `json:"expires_at"`
 	AutoPauseOnExpired *bool          `json:"auto_pause_on_expired"`
@@ -123,6 +125,7 @@ type UpdateAccountRequest struct {
 	ProxyID            *int64          `json:"proxy_id"`
 	Concurrency        *int            `json:"concurrency"`
 	Priority           *int            `json:"priority"`
+	ChannelPrice       *float64        `json:"channel_price"`
 	Status             *string         `json:"status"`
 	GroupIDs           *[]int64        `json:"group_ids"`
 	ExpiresAt          *time.Time      `json:"expires_at"`

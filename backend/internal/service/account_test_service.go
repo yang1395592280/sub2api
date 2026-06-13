@@ -68,9 +68,14 @@ type AccountTestService struct {
 	geminiTokenProvider       *GeminiTokenProvider
 	claudeTokenProvider       *ClaudeTokenProvider
 	antigravityGatewayService *AntigravityGatewayService
+	openAIScheduleReporter    OpenAIAccountScheduleResultReporter
 	httpUpstream              HTTPUpstream
 	cfg                       *config.Config
 	tlsFPProfileService       *TLSFingerprintProfileService
+}
+
+type OpenAIAccountScheduleResultReporter interface {
+	ReportOpenAIAccountScheduleResult(accountID int64, success bool, firstTokenMs *int)
 }
 
 // NewAccountTestService creates a new AccountTestService
@@ -79,6 +84,7 @@ func NewAccountTestService(
 	geminiTokenProvider *GeminiTokenProvider,
 	claudeTokenProvider *ClaudeTokenProvider,
 	antigravityGatewayService *AntigravityGatewayService,
+	openAIScheduleReporter OpenAIAccountScheduleResultReporter,
 	httpUpstream HTTPUpstream,
 	cfg *config.Config,
 	tlsFPProfileService *TLSFingerprintProfileService,
@@ -88,6 +94,7 @@ func NewAccountTestService(
 		geminiTokenProvider:       geminiTokenProvider,
 		claudeTokenProvider:       claudeTokenProvider,
 		antigravityGatewayService: antigravityGatewayService,
+		openAIScheduleReporter:    openAIScheduleReporter,
 		httpUpstream:              httpUpstream,
 		cfg:                       cfg,
 		tlsFPProfileService:       tlsFPProfileService,
@@ -194,6 +201,24 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	}
 
 	return s.testClaudeAccountConnection(c, account, modelID)
+}
+
+func (s *AccountTestService) reportOpenAIAccountTestResult(accountID int64, success bool) {
+	if s == nil || s.openAIScheduleReporter == nil || accountID <= 0 {
+		return
+	}
+	s.openAIScheduleReporter.ReportOpenAIAccountScheduleResult(accountID, success, nil)
+	if success {
+		return
+	}
+	if applier, ok := s.openAIScheduleReporter.(interface {
+		ApplyOpenAISchedulerHealthAction(accountID int64, action OpenAISchedulerHealthAction) error
+	}); ok {
+		_ = applier.ApplyOpenAISchedulerHealthAction(accountID, OpenAISchedulerHealthAction{
+			Action: "cooldown",
+			Reason: "account test failed",
+		})
+	}
 }
 
 // testClaudeAccountConnection tests an Anthropic Claude account's connection
@@ -499,7 +524,12 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 }
 
 // testOpenAIAccountConnection tests an OpenAI account's connection
-func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account *Account, modelID string, prompt string, mode string) error {
+func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account *Account, modelID string, prompt string, mode string) (err error) {
+	if account != nil {
+		defer func() {
+			s.reportOpenAIAccountTestResult(account.ID, err == nil)
+		}()
+	}
 	ctx := c.Request.Context()
 	mode = normalizeAccountTestMode(mode)
 

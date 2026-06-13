@@ -73,6 +73,24 @@ type openAIAccountTestRepo struct {
 	setErrorMsg        string
 }
 
+type openAIAccountTestScheduleReporter struct {
+	calls []openAIAccountTestScheduleReportCall
+}
+
+type openAIAccountTestScheduleReportCall struct {
+	accountID    int64
+	success      bool
+	firstTokenMs *int
+}
+
+func (r *openAIAccountTestScheduleReporter) ReportOpenAIAccountScheduleResult(accountID int64, success bool, firstTokenMs *int) {
+	r.calls = append(r.calls, openAIAccountTestScheduleReportCall{
+		accountID:    accountID,
+		success:      success,
+		firstTokenMs: firstTokenMs,
+	})
+}
+
 func (r *openAIAccountTestRepo) UpdateExtra(_ context.Context, _ int64, updates map[string]any) error {
 	r.updatedExtra = updates
 	return nil
@@ -160,6 +178,32 @@ func TestAccountTestService_OpenAIStreamEOFBeforeCompletedFails(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, recorder.Body.String(), "response.completed")
 	require.NotContains(t, recorder.Body.String(), `"success":true`)
+}
+
+func TestAccountTestService_OpenAIFailedConnectionReportsSchedulerFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := newTestContext()
+
+	resp := newJSONResponse(http.StatusServiceUnavailable, `{"error":{"message":"Service temporarily unavailable","type":"api_error"}}`)
+
+	reporter := &openAIAccountTestScheduleReporter{}
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{resp}}
+	svc := &AccountTestService{httpUpstream: upstream, openAIScheduleReporter: reporter}
+	account := &Account{
+		ID:          91,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{"api_key": "test-key", "base_url": "https://example.test"},
+	}
+
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+
+	require.Error(t, err)
+	require.Len(t, reporter.calls, 1)
+	require.Equal(t, account.ID, reporter.calls[0].accountID)
+	require.False(t, reporter.calls[0].success)
+	require.Nil(t, reporter.calls[0].firstTokenMs)
 }
 
 func TestAccountTestService_OpenAI429PersistsSnapshotAndRateLimitState(t *testing.T) {

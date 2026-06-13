@@ -195,6 +195,20 @@ func (_c *AccountCreate) SetNillableRateMultiplier(v *float64) *AccountCreate {
 	return _c
 }
 
+// SetChannelPrice sets the "channel_price" field.
+func (_c *AccountCreate) SetChannelPrice(v float64) *AccountCreate {
+	_c.mutation.SetChannelPrice(v)
+	return _c
+}
+
+// SetNillableChannelPrice sets the "channel_price" field if the given value is not nil.
+func (_c *AccountCreate) SetNillableChannelPrice(v *float64) *AccountCreate {
+	if v != nil {
+		_c.SetChannelPrice(*v)
+	}
+	return _c
+}
+
 // SetStatus sets the "status" field.
 func (_c *AccountCreate) SetStatus(v string) *AccountCreate {
 	_c.mutation.SetStatus(v)
@@ -667,6 +681,10 @@ func (_c *AccountCreate) createSpec() (*Account, *sqlgraph.CreateSpec) {
 		_spec.SetField(account.FieldRateMultiplier, field.TypeFloat64, value)
 		_node.RateMultiplier = value
 	}
+	if value, ok := _c.mutation.ChannelPrice(); ok {
+		_spec.SetField(account.FieldChannelPrice, field.TypeFloat64, value)
+		_node.ChannelPrice = &value
+	}
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(account.FieldStatus, field.TypeString, value)
 		_node.Status = value
@@ -1053,6 +1071,30 @@ func (u *AccountUpsert) UpdateRateMultiplier() *AccountUpsert {
 // AddRateMultiplier adds v to the "rate_multiplier" field.
 func (u *AccountUpsert) AddRateMultiplier(v float64) *AccountUpsert {
 	u.Add(account.FieldRateMultiplier, v)
+	return u
+}
+
+// SetChannelPrice sets the "channel_price" field.
+func (u *AccountUpsert) SetChannelPrice(v float64) *AccountUpsert {
+	u.Set(account.FieldChannelPrice, v)
+	return u
+}
+
+// UpdateChannelPrice sets the "channel_price" field to the value that was provided on create.
+func (u *AccountUpsert) UpdateChannelPrice() *AccountUpsert {
+	u.SetExcluded(account.FieldChannelPrice)
+	return u
+}
+
+// AddChannelPrice adds v to the "channel_price" field.
+func (u *AccountUpsert) AddChannelPrice(v float64) *AccountUpsert {
+	u.Add(account.FieldChannelPrice, v)
+	return u
+}
+
+// ClearChannelPrice clears the value of the "channel_price" field.
+func (u *AccountUpsert) ClearChannelPrice() *AccountUpsert {
+	u.SetNull(account.FieldChannelPrice)
 	return u
 }
 
@@ -1598,6 +1640,34 @@ func (u *AccountUpsertOne) AddRateMultiplier(v float64) *AccountUpsertOne {
 func (u *AccountUpsertOne) UpdateRateMultiplier() *AccountUpsertOne {
 	return u.Update(func(s *AccountUpsert) {
 		s.UpdateRateMultiplier()
+	})
+}
+
+// SetChannelPrice sets the "channel_price" field.
+func (u *AccountUpsertOne) SetChannelPrice(v float64) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetChannelPrice(v)
+	})
+}
+
+// AddChannelPrice adds v to the "channel_price" field.
+func (u *AccountUpsertOne) AddChannelPrice(v float64) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.AddChannelPrice(v)
+	})
+}
+
+// UpdateChannelPrice sets the "channel_price" field to the value that was provided on create.
+func (u *AccountUpsertOne) UpdateChannelPrice() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateChannelPrice()
+	})
+}
+
+// ClearChannelPrice clears the value of the "channel_price" field.
+func (u *AccountUpsertOne) ClearChannelPrice() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.ClearChannelPrice()
 	})
 }
 
@@ -2348,6 +2418,34 @@ func (u *AccountUpsertBulk) AddRateMultiplier(v float64) *AccountUpsertBulk {
 func (u *AccountUpsertBulk) UpdateRateMultiplier() *AccountUpsertBulk {
 	return u.Update(func(s *AccountUpsert) {
 		s.UpdateRateMultiplier()
+	})
+}
+
+// SetChannelPrice sets the "channel_price" field.
+func (u *AccountUpsertBulk) SetChannelPrice(v float64) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetChannelPrice(v)
+	})
+}
+
+// AddChannelPrice adds v to the "channel_price" field.
+func (u *AccountUpsertBulk) AddChannelPrice(v float64) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.AddChannelPrice(v)
+	})
+}
+
+// UpdateChannelPrice sets the "channel_price" field to the value that was provided on create.
+func (u *AccountUpsertBulk) UpdateChannelPrice() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateChannelPrice()
+	})
+}
+
+// ClearChannelPrice clears the value of the "channel_price" field.
+func (u *AccountUpsertBulk) ClearChannelPrice() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.ClearChannelPrice()
 	})
 }
 

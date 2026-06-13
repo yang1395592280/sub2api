@@ -268,6 +268,33 @@ func (_u *AccountUpdate) AddRateMultiplier(v float64) *AccountUpdate {
 	return _u
 }
 
+// SetChannelPrice sets the "channel_price" field.
+func (_u *AccountUpdate) SetChannelPrice(v float64) *AccountUpdate {
+	_u.mutation.ResetChannelPrice()
+	_u.mutation.SetChannelPrice(v)
+	return _u
+}
+
+// SetNillableChannelPrice sets the "channel_price" field if the given value is not nil.
+func (_u *AccountUpdate) SetNillableChannelPrice(v *float64) *AccountUpdate {
+	if v != nil {
+		_u.SetChannelPrice(*v)
+	}
+	return _u
+}
+
+// AddChannelPrice adds value to the "channel_price" field.
+func (_u *AccountUpdate) AddChannelPrice(v float64) *AccountUpdate {
+	_u.mutation.AddChannelPrice(v)
+	return _u
+}
+
+// ClearChannelPrice clears the value of the "channel_price" field.
+func (_u *AccountUpdate) ClearChannelPrice() *AccountUpdate {
+	_u.mutation.ClearChannelPrice()
+	return _u
+}
+
 // SetStatus sets the "status" field.
 func (_u *AccountUpdate) SetStatus(v string) *AccountUpdate {
 	_u.mutation.SetStatus(v)
@@ -768,6 +795,15 @@ func (_u *AccountUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedRateMultiplier(); ok {
 		_spec.AddField(account.FieldRateMultiplier, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.ChannelPrice(); ok {
+		_spec.SetField(account.FieldChannelPrice, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedChannelPrice(); ok {
+		_spec.AddField(account.FieldChannelPrice, field.TypeFloat64, value)
+	}
+	if _u.mutation.ChannelPriceCleared() {
+		_spec.ClearField(account.FieldChannelPrice, field.TypeFloat64)
+	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(account.FieldStatus, field.TypeString, value)
 	}
@@ -1228,6 +1264,33 @@ func (_u *AccountUpdateOne) SetNillableRateMultiplier(v *float64) *AccountUpdate
 // AddRateMultiplier adds value to the "rate_multiplier" field.
 func (_u *AccountUpdateOne) AddRateMultiplier(v float64) *AccountUpdateOne {
 	_u.mutation.AddRateMultiplier(v)
+	return _u
+}
+
+// SetChannelPrice sets the "channel_price" field.
+func (_u *AccountUpdateOne) SetChannelPrice(v float64) *AccountUpdateOne {
+	_u.mutation.ResetChannelPrice()
+	_u.mutation.SetChannelPrice(v)
+	return _u
+}
+
+// SetNillableChannelPrice sets the "channel_price" field if the given value is not nil.
+func (_u *AccountUpdateOne) SetNillableChannelPrice(v *float64) *AccountUpdateOne {
+	if v != nil {
+		_u.SetChannelPrice(*v)
+	}
+	return _u
+}
+
+// AddChannelPrice adds value to the "channel_price" field.
+func (_u *AccountUpdateOne) AddChannelPrice(v float64) *AccountUpdateOne {
+	_u.mutation.AddChannelPrice(v)
+	return _u
+}
+
+// ClearChannelPrice clears the value of the "channel_price" field.
+func (_u *AccountUpdateOne) ClearChannelPrice() *AccountUpdateOne {
+	_u.mutation.ClearChannelPrice()
 	return _u
 }
 
@@ -1760,6 +1823,15 @@ func (_u *AccountUpdateOne) sqlSave(ctx context.Context) (_node *Account, err er
 	}
 	if value, ok := _u.mutation.AddedRateMultiplier(); ok {
 		_spec.AddField(account.FieldRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.ChannelPrice(); ok {
+		_spec.SetField(account.FieldChannelPrice, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedChannelPrice(); ok {
+		_spec.AddField(account.FieldChannelPrice, field.TypeFloat64, value)
+	}
+	if _u.mutation.ChannelPriceCleared() {
+		_spec.ClearField(account.FieldChannelPrice, field.TypeFloat64)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(account.FieldStatus, field.TypeString, value)

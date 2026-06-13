@@ -113,6 +113,13 @@ func (Account) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
 			Default(1.0),
 
+		// channel_price: 上游渠道真实价格，仅用于 OpenAI 调度成本权重。
+		// 与 rate_multiplier 的计费语义隔离，避免调度成本影响账单口径。
+		field.Float("channel_price").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "decimal(12,6)"}),
+
 		// status: 账户状态，如 "active", "error", "disabled"
 		field.String("status").
 			MaxLen(20).

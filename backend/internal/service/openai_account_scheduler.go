@@ -158,6 +158,7 @@ type OpenAISchedulerAccountSnapshot struct {
 	Type           string                      `json:"type"`
 	Status         string                      `json:"status"`
 	ManualPriority int                         `json:"manual_priority"`
+	ChannelPrice   *float64                    `json:"channel_price,omitempty"`
 	Groups         []int64                     `json:"groups"`
 	Health         OpenAIAccountHealthSnapshot `json:"health"`
 }
@@ -1159,6 +1160,7 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 	}
 
 	minPriority, maxPriority := candidates[0].account.Priority, candidates[0].account.Priority
+	minPrice, maxPrice := candidates[0].account.EffectiveChannelPrice(), candidates[0].account.EffectiveChannelPrice()
 	maxWaiting := 1
 	loadRateSum := 0.0
 	loadRateSumSquares := 0.0
@@ -1170,6 +1172,13 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 		}
 		if candidate.account.Priority > maxPriority {
 			maxPriority = candidate.account.Priority
+		}
+		price := candidate.account.EffectiveChannelPrice()
+		if price < minPrice {
+			minPrice = price
+		}
+		if price > maxPrice {
+			maxPrice = price
 		}
 		if candidate.loadInfo.WaitingCount > maxWaiting {
 			maxWaiting = candidate.loadInfo.WaitingCount
@@ -1207,12 +1216,17 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 		if item.hasTTFT && hasTTFTSample && maxTTFT > minTTFT {
 			ttftFactor = 1 - clamp01((item.ttft-minTTFT)/(maxTTFT-minTTFT))
 		}
+		priceFactor := 0.5
+		if maxPrice > minPrice {
+			priceFactor = 1 - clamp01((item.account.EffectiveChannelPrice()-minPrice)/(maxPrice-minPrice))
+		}
 
 		item.score = weights.Priority*priorityFactor +
 			weights.Load*loadFactor +
 			weights.Queue*queueFactor +
 			weights.ErrorRate*errorFactor +
-			weights.TTFT*ttftFactor
+			weights.TTFT*ttftFactor +
+			weights.Price*priceFactor
 		if settings.HealthRankingEnabled {
 			healthFactor := clamp01(item.health.HealthScore / 100)
 			item.score = item.score*0.65 + healthFactor*0.35
@@ -1762,6 +1776,7 @@ func (s *OpenAIGatewayService) buildOpenAISchedulerAccountSnapshots(ctx context.
 			Type:           acc.Type,
 			Status:         acc.Status,
 			ManualPriority: acc.Priority,
+			ChannelPrice:   acc.ChannelPrice,
 			Groups:         acc.GroupIDs,
 			Health:         health,
 		})
@@ -2102,6 +2117,7 @@ func (s *OpenAIGatewayService) openAIWSSchedulerWeights() GatewayOpenAIWSSchedul
 			Queue:     s.cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Queue,
 			ErrorRate: s.cfg.Gateway.OpenAIWS.SchedulerScoreWeights.ErrorRate,
 			TTFT:      s.cfg.Gateway.OpenAIWS.SchedulerScoreWeights.TTFT,
+			Price:     s.cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Price,
 		}
 	}
 	return GatewayOpenAIWSSchedulerScoreWeightsView{
@@ -2110,6 +2126,7 @@ func (s *OpenAIGatewayService) openAIWSSchedulerWeights() GatewayOpenAIWSSchedul
 		Queue:     0.7,
 		ErrorRate: 0.8,
 		TTFT:      0.5,
+		Price:     0.6,
 	}
 }
 
@@ -2119,6 +2136,7 @@ type GatewayOpenAIWSSchedulerScoreWeightsView struct {
 	Queue     float64
 	ErrorRate float64
 	TTFT      float64
+	Price     float64
 }
 
 func clamp01(value float64) float64 {

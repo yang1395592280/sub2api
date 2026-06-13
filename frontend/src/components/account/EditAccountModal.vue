@@ -1289,7 +1289,7 @@
         <ProxySelector v-model="form.proxy_id" :proxies="proxies" />
       </div>
 
-      <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div class="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <div>
           <label class="input-label">{{ t('admin.accounts.concurrency') }}</label>
           <input v-model.number="form.concurrency" type="number" min="1" class="input"
@@ -1317,6 +1317,11 @@
           <label class="input-label">{{ t('admin.accounts.billingRateMultiplier') }}</label>
           <input v-model.number="form.rate_multiplier" type="number" min="0" step="0.001" class="input" />
           <p class="input-hint">{{ t('admin.accounts.billingRateMultiplierHint') }}</p>
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.channelPrice') }}</label>
+          <input v-model.number="form.channel_price" type="number" min="0.000001" step="0.001" class="input" />
+          <p class="input-hint">{{ t('admin.accounts.channelPriceHint') }}</p>
         </div>
       </div>
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
@@ -2860,6 +2865,7 @@ const form = reactive({
   load_factor: null as number | null,
   priority: 1,
   rate_multiplier: 1,
+  channel_price: null as number | null,
   status: 'active' as 'active' | 'inactive' | 'error',
   group_ids: [] as number[],
   expires_at: null as number | null
@@ -2927,6 +2933,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   form.load_factor = newAccount.load_factor ?? null
   form.priority = newAccount.priority
   form.rate_multiplier = newAccount.rate_multiplier ?? 1
+  form.channel_price = newAccount.channel_price ?? null
   form.status = (newAccount.status === 'active' || newAccount.status === 'inactive' || newAccount.status === 'error')
     ? newAccount.status
     : 'active'
@@ -3625,6 +3632,13 @@ const ensureAntigravityMixedChannelConfirmed = async (onConfirm: () => Promise<v
 const formatDateTimeLocal = formatDateTimeLocalInput
 const parseDateTimeLocal = parseDateTimeLocalInput
 
+const normalizeChannelPriceInput = (value: unknown): number | undefined | null => {
+  if (value == null || value === '') return undefined
+  const normalized = Number(value)
+  if (!Number.isFinite(normalized) || normalized <= 0) return null
+  return normalized
+}
+
 // Methods
 const handleClose = () => {
   antigravityMixedChannelConfirmed.value = false
@@ -3667,6 +3681,16 @@ const handleSubmit = async () => {
 
   const updatePayload: Record<string, unknown> = { ...form }
   try {
+    const normalizedChannelPrice = normalizeChannelPriceInput(updatePayload.channel_price)
+    if (normalizedChannelPrice === null) {
+      appStore.showError(t('admin.accounts.channelPriceInvalid'))
+      return
+    }
+    if (normalizedChannelPrice === undefined) {
+      delete updatePayload.channel_price
+    } else {
+      updatePayload.channel_price = normalizedChannelPrice
+    }
     // 后端期望 proxy_id: 0 表示清除代理，而不是 null
     if (updatePayload.proxy_id === null) {
       updatePayload.proxy_id = 0

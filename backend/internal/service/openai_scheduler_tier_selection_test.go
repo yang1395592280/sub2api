@@ -222,3 +222,40 @@ func TestOpenAISchedulerBuildOpenAIAccountLoadPlan_FillsHealthAndMixesScore(t *t
 	require.Greater(t, scoreByID[healthy.ID], scoreByID[degraded.ID])
 	require.Equal(t, healthy.ID, plan.selectionOrder[0].account.ID)
 }
+
+func TestOpenAISchedulerBuildOpenAIAccountLoadPlan_PrefersLowerChannelPriceWhenSpeedComparable(t *testing.T) {
+	scheduler := &defaultOpenAIAccountScheduler{
+		stats: newOpenAIAccountRuntimeStats(),
+		healthSettings: OpenAISchedulerHealthSettings{
+			HealthRankingEnabled: true,
+		},
+		service: &OpenAIGatewayService{},
+	}
+	cheapPrice := 0.05
+	expensivePrice := 0.20
+	cheap := &Account{ID: 601, Priority: 1, ChannelPrice: &cheapPrice}
+	expensive := &Account{ID: 602, Priority: 1, ChannelPrice: &expensivePrice}
+	for _, account := range []*Account{cheap, expensive} {
+		scheduler.seedHealthForTest(account.ID, openAIAccountHealthRuntime{
+			successEWMA:        1,
+			consecutiveSuccess: 5,
+			ttftEWMA:           420,
+		})
+	}
+
+	plan := scheduler.buildOpenAIAccountLoadPlan(OpenAIAccountScheduleRequest{SessionHash: "price-aware"}, []*Account{
+		expensive,
+		cheap,
+	}, map[int64]*AccountLoadInfo{
+		cheap.ID:     {AccountID: cheap.ID, LoadRate: 0, WaitingCount: 0},
+		expensive.ID: {AccountID: expensive.ID, LoadRate: 0, WaitingCount: 0},
+	})
+
+	require.Len(t, plan.candidates, 2)
+	scoreByID := make(map[int64]float64, len(plan.candidates))
+	for _, candidate := range plan.candidates {
+		scoreByID[candidate.account.ID] = candidate.score
+	}
+	require.Greater(t, scoreByID[cheap.ID], scoreByID[expensive.ID])
+	require.Equal(t, cheap.ID, plan.selectionOrder[0].account.ID)
+}

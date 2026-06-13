@@ -98,6 +98,9 @@ func (r *accountRepository) Create(ctx context.Context, account *service.Account
 	if account.RateMultiplier != nil {
 		builder.SetRateMultiplier(*account.RateMultiplier)
 	}
+	if account.ChannelPrice != nil {
+		builder.SetChannelPrice(*account.ChannelPrice)
+	}
 	if account.LoadFactor != nil {
 		builder.SetLoadFactor(*account.LoadFactor)
 	}
@@ -338,6 +341,11 @@ func (r *accountRepository) Update(ctx context.Context, account *service.Account
 
 	if account.RateMultiplier != nil {
 		builder.SetRateMultiplier(*account.RateMultiplier)
+	}
+	if account.ChannelPrice != nil {
+		builder.SetChannelPrice(*account.ChannelPrice)
+	} else {
+		builder.ClearChannelPrice()
 	}
 	if account.LoadFactor != nil {
 		builder.SetLoadFactor(*account.LoadFactor)
@@ -624,6 +632,9 @@ func accountListOrder(params pagination.PaginationParams) []func(*entsql.Selecto
 		defaultOrder = false
 	case "rate_multiplier":
 		field = dbaccount.FieldRateMultiplier
+		defaultOrder = false
+	case "channel_price":
+		field = dbaccount.FieldChannelPrice
 		defaultOrder = false
 	case "last_used_at":
 		field = dbaccount.FieldLastUsedAt
@@ -1459,6 +1470,11 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 		args = append(args, *updates.RateMultiplier)
 		idx++
 	}
+	if updates.ChannelPrice != nil {
+		setClauses = append(setClauses, "channel_price = $"+itoa(idx))
+		args = append(args, *updates.ChannelPrice)
+		idx++
+	}
 	if updates.LoadFactor != nil {
 		if *updates.LoadFactor <= 0 {
 			setClauses = append(setClauses, "load_factor = NULL")
@@ -1801,6 +1817,7 @@ func accountEntityToService(m *dbent.Account) *service.Account {
 		Concurrency:             m.Concurrency,
 		Priority:                m.Priority,
 		RateMultiplier:          &rateMultiplier,
+		ChannelPrice:            m.ChannelPrice,
 		LoadFactor:              m.LoadFactor,
 		Status:                  m.Status,
 		ErrorMessage:            derefString(m.ErrorMessage),

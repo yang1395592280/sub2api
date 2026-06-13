@@ -179,6 +179,9 @@
               <template #cell-ttft="{ row }">
                 {{ formatLatency(row.health.ttft_ewma_ms) }}
               </template>
+              <template #cell-channel_price="{ row }">
+                {{ formatChannelPrice(row.channel_price) }}
+              </template>
               <template #cell-select_count="{ row }">
                 {{ accountStat(row.account_id)?.select_count ?? 0 }}
               </template>
@@ -273,6 +276,7 @@ const columns = computed<Column[]>(() => [
   { key: 'health', label: t('admin.openaiScheduler.columns.health'), sortable: false },
   { key: 'success', label: t('admin.openaiScheduler.columns.successRate'), sortable: false },
   { key: 'ttft', label: t('admin.openaiScheduler.columns.ttft'), sortable: false },
+  { key: 'channel_price', label: t('admin.openaiScheduler.columns.channelPrice'), sortable: false },
   { key: 'select_count', label: t('admin.openaiScheduler.columns.selectCount'), sortable: false },
   { key: 'select_ratio', label: t('admin.openaiScheduler.columns.selectRatio'), sortable: false },
   { key: 'last_selected_at', label: t('admin.openaiScheduler.columns.lastSelectedAt'), sortable: false },
@@ -480,6 +484,10 @@ function formatPercent(value: number): string {
 function formatLatency(value: number): string {
   if (!value) return '-'
   return `${Math.round(value)}ms`
+}
+
+function formatChannelPrice(value?: number | null): string {
+  return value != null ? value.toFixed(3) : '-'
 }
 
 function accountStat(accountId: number): OpenAISchedulerAccountDailyStat | undefined {

@@ -35,6 +35,7 @@ export interface OpenAISchedulerAccount {
   type: string
   status: string
   manual_priority: number
+  channel_price?: number | null
   groups: number[]
   health: OpenAIAccountHealth
 }
