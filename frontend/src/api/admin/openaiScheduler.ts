@@ -72,8 +72,10 @@ export interface SchedulerActionRequest {
   duration_seconds?: number
 }
 
-export async function getOverview(): Promise<OpenAISchedulerOverview> {
-  const { data } = await apiClient.get<OpenAISchedulerOverview>('/admin/openai-scheduler/overview')
+export async function getOverview(params: { group_id?: number } = {}): Promise<OpenAISchedulerOverview> {
+  const { data } = await apiClient.get<OpenAISchedulerOverview>('/admin/openai-scheduler/overview', {
+    params,
+  })
   return data
 }
 

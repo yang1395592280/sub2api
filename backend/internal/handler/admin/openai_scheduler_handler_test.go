@@ -87,3 +87,16 @@ func TestOpenAISchedulerHandler_GetOverview_IncludesTierCounts(t *testing.T) {
 	require.Contains(t, w.Body.String(), `"observe":0`)
 	require.Contains(t, w.Body.String(), `"degraded":0`)
 }
+
+func TestOpenAISchedulerHandler_GetOverview_InvalidGroupID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewOpenAISchedulerHandler(&service.OpenAIGatewayService{})
+	router := gin.New()
+	router.GET("/overview", h.GetOverview)
+
+	req := httptest.NewRequest(http.MethodGet, "/overview?group_id=bad", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}

@@ -46,7 +46,7 @@
           </div>
           <div class="space-y-3">
             <label class="block">
-              <span class="input-label">Primary Ratio</span>
+              <span class="input-label">{{ t('admin.openaiScheduler.settings.primaryRatio') }}</span>
               <input
                 v-model.number="settings.primary_ratio"
                 class="input"
@@ -57,7 +57,7 @@
               >
             </label>
             <label class="block">
-              <span class="input-label">TTFT Degrade MS</span>
+              <span class="input-label">{{ t('admin.openaiScheduler.settings.ttftDegradeMs') }}</span>
               <input
                 v-model.number="settings.ttft_degrade_ms"
                 class="input"
@@ -66,7 +66,7 @@
               >
             </label>
             <label class="block">
-              <span class="input-label">Error Rate Threshold</span>
+              <span class="input-label">{{ t('admin.openaiScheduler.settings.errorRateThreshold') }}</span>
               <input
                 v-model.number="settings.error_rate_degrade_threshold"
                 class="input"
@@ -77,7 +77,7 @@
               >
             </label>
             <label class="block">
-              <span class="input-label">Cooldown Seconds</span>
+              <span class="input-label">{{ t('admin.openaiScheduler.settings.cooldownSeconds') }}</span>
               <input
                 v-model.number="settings.cooldown_seconds"
                 class="input"
@@ -91,10 +91,30 @@
         <TablePageLayout>
           <template #filters>
             <div class="flex flex-wrap items-center gap-2">
+              <select
+                v-model.number="selectedGroupId"
+                class="input max-w-xs"
+                :disabled="groupsLoading || openaiGroups.length === 0"
+                @change="handleGroupChange"
+              >
+                <option
+                  v-if="openaiGroups.length === 0"
+                  :value="0"
+                >
+                  {{ groupsLoading ? t('common.loading') : t('admin.openaiScheduler.noGroups') }}
+                </option>
+                <option
+                  v-for="group in openaiGroups"
+                  :key="group.id"
+                  :value="group.id"
+                >
+                  {{ group.name }}
+                </option>
+              </select>
               <input
                 v-model="search"
                 class="input max-w-xs"
-                placeholder="Search account"
+                :placeholder="t('admin.openaiScheduler.searchPlaceholder')"
                 @input="handleSearch"
               >
               <button
@@ -176,17 +196,22 @@ import type {
   OpenAISchedulerTier,
 } from '@/api/admin/openaiScheduler'
 import type { Column } from '@/components/common/types'
+import type { AdminGroup } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import { useAppStore } from '@/stores/app'
+import { extractApiErrorMessage } from '@/utils/apiError'
 
 const { t } = useI18n()
 const appStore = useAppStore()
 
 const loading = ref(false)
+const groupsLoading = ref(false)
+const openaiGroups = ref<AdminGroup[]>([])
+const selectedGroupId = ref(0)
 const accounts = ref<OpenAISchedulerAccount[]>([])
 const overview = ref<OpenAISchedulerOverview | null>(null)
 const search = ref('')
@@ -254,13 +279,21 @@ function assignSettings(next: OpenAISchedulerSettings) {
 }
 
 async function reload() {
+  if (!selectedGroupId.value) {
+    overview.value = null
+    accounts.value = []
+    pagination.total = 0
+    return
+  }
   loading.value = true
   try {
+    const groupID = selectedGroupId.value
     const [overviewRes, accountsRes] = await Promise.all([
-      adminAPI.openaiScheduler.getOverview(),
+      adminAPI.openaiScheduler.getOverview({ group_id: groupID }),
       adminAPI.openaiScheduler.listAccounts({
         page: pagination.page,
         page_size: pagination.page_size,
+        group_id: groupID,
         tier: tierFilter.value,
         search: search.value.trim(),
       }),
@@ -278,6 +311,25 @@ async function reload() {
   }
 }
 
+async function loadGroups() {
+  groupsLoading.value = true
+  try {
+    openaiGroups.value = await adminAPI.groups.getAll('openai')
+    if (!selectedGroupId.value && openaiGroups.value.length > 0) {
+      selectedGroupId.value = openaiGroups.value[0].id
+    }
+  } catch {
+    appStore.showError(t('admin.openaiScheduler.groupsLoadError'))
+  } finally {
+    groupsLoading.value = false
+  }
+}
+
+async function initialize() {
+  await loadGroups()
+  await reload()
+}
+
 async function saveSettings() {
   try {
     const updated = await adminAPI.openaiScheduler.updateSettings({ ...settings })
@@ -288,13 +340,18 @@ async function saveSettings() {
   }
 }
 
+function handleGroupChange() {
+  pagination.page = 1
+  reload()
+}
+
 async function apply(accountId: number, action: 'promote_observe' | 'clear_cooldown') {
   try {
     await adminAPI.openaiScheduler.applyAction(accountId, { action })
     appStore.showSuccess(t('admin.openaiScheduler.actionSuccess'))
     await reload()
-  } catch {
-    appStore.showError(t('admin.openaiScheduler.actionFailed'))
+  } catch (err) {
+    appStore.showError(extractApiErrorMessage(err, t('admin.openaiScheduler.actionFailed')))
   }
 }
 
@@ -339,5 +396,5 @@ function tierClass(tier: OpenAISchedulerTier): string {
   return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
 }
 
-onMounted(reload)
+onMounted(initialize)
 </script>

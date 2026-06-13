@@ -2,8 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import OpenAISchedulerView from '../OpenAISchedulerView.vue'
 
+const appStoreMocks = vi.hoisted(() => ({
+  showError: vi.fn(),
+  showSuccess: vi.fn(),
+}))
+
 vi.mock('@/api/admin', () => ({
   adminAPI: {
+    groups: {
+      getAll: vi.fn().mockResolvedValue([
+        { id: 33, name: 'codex-plus高速渠道', platform: 'openai', status: 'active' },
+      ]),
+    },
     openaiScheduler: {
       getOverview: vi.fn().mockResolvedValue({
         settings: {
@@ -57,10 +67,7 @@ vi.mock('@/api/admin', () => ({
 }))
 
 vi.mock('@/stores/app', () => ({
-  useAppStore: () => ({
-    showError: vi.fn(),
-    showSuccess: vi.fn(),
-  }),
+  useAppStore: () => appStoreMocks,
 }))
 
 vi.mock('vue-i18n', async () => {
@@ -102,5 +109,66 @@ describe('OpenAISchedulerView', () => {
 
     expect(wrapper.text()).toContain('openai-fast')
     expect(wrapper.text()).toContain('primary')
+  })
+
+  it('loads scheduler data for the selected OpenAI group', async () => {
+    const { adminAPI } = await import('@/api/admin')
+
+    mount(OpenAISchedulerView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: {
+            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>',
+          },
+          DataTable: true,
+          Pagination: true,
+          Toggle: true,
+          ConfirmDialog: true,
+          Icon: true,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(adminAPI.groups.getAll).toHaveBeenCalledWith('openai')
+    expect(adminAPI.openaiScheduler.getOverview).toHaveBeenCalledWith({ group_id: 33 })
+    expect(adminAPI.openaiScheduler.listAccounts).toHaveBeenCalledWith(expect.objectContaining({ group_id: 33 }))
+  })
+
+  it('shows backend scheduler action errors', async () => {
+    const { adminAPI } = await import('@/api/admin')
+    vi.mocked(adminAPI.openaiScheduler.applyAction).mockRejectedValueOnce({
+      message: 'openai advanced scheduler is not enabled',
+    })
+
+    const wrapper = mount(OpenAISchedulerView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: {
+            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>',
+          },
+          DataTable: {
+            props: ['data'],
+            template: '<div><div v-for="row in data" :key="row.account_id"><slot name="cell-actions" :row="row" /></div></div>',
+          },
+          Pagination: true,
+          Toggle: true,
+          ConfirmDialog: true,
+          Icon: true,
+        },
+      },
+    })
+
+    await flushPromises()
+    const promoteButton = wrapper.findAll('button').find((button) => button.text() === 'admin.openaiScheduler.actions.promoteObserve')
+    expect(promoteButton).toBeTruthy()
+    await promoteButton!.trigger('click')
+    await flushPromises()
+
+    expect(adminAPI.openaiScheduler.applyAction).toHaveBeenCalledWith(1, { action: 'promote_observe' })
+    expect(appStoreMocks.showError).toHaveBeenCalledWith('openai advanced scheduler is not enabled')
   })
 })

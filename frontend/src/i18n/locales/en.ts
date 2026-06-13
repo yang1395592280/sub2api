@@ -2833,9 +2833,18 @@ export default {
       saveSettings: 'Save Policy',
       settingsSaved: 'Policy saved',
       loadError: 'Failed to load OpenAI scheduler data',
+      groupsLoadError: 'Failed to load OpenAI groups',
       settingsLoadError: 'Failed to load scheduler policy',
       actionSuccess: 'Action completed',
       actionFailed: 'Action failed',
+      searchPlaceholder: 'Search account',
+      noGroups: 'No OpenAI groups',
+      settings: {
+        primaryRatio: 'Primary Ratio',
+        ttftDegradeMs: 'TTFT Degrade Threshold (ms)',
+        errorRateThreshold: 'Error Rate Degrade Threshold',
+        cooldownSeconds: 'Cooldown Seconds'
+      },
       columns: {
         account: 'Account',
         tier: 'Tier',

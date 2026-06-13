@@ -2910,9 +2910,18 @@ export default {
       saveSettings: '保存策略',
       settingsSaved: '策略已保存',
       loadError: '加载 OpenAI 调度数据失败',
+      groupsLoadError: '加载 OpenAI 分组失败',
       settingsLoadError: '加载调度策略失败',
       actionSuccess: '操作已执行',
       actionFailed: '操作执行失败',
+      searchPlaceholder: '搜索账号',
+      noGroups: '暂无 OpenAI 分组',
+      settings: {
+        primaryRatio: '主力比例',
+        ttftDegradeMs: '首包延迟降级阈值（毫秒）',
+        errorRateThreshold: '错误率降级阈值',
+        cooldownSeconds: '冷却时间（秒）'
+      },
       columns: {
         account: '账号',
         tier: '分层',
