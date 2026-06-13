@@ -380,6 +380,8 @@ func registerOpenAISchedulerRoutes(admin *gin.RouterGroup, h *handler.Handlers) 
 		scheduler.GET("/accounts", h.Admin.OpenAIScheduler.ListAccounts)
 		scheduler.GET("/accounts/:id", h.Admin.OpenAIScheduler.GetAccount)
 		scheduler.POST("/accounts/:id/actions", h.Admin.OpenAIScheduler.ApplyAction)
+		scheduler.GET("/stats", h.Admin.OpenAIScheduler.GetDailyStats)
+		scheduler.POST("/stats/recompute", h.Admin.OpenAIScheduler.RecomputeDailyStats)
 		scheduler.GET("/settings", h.Admin.OpenAIScheduler.GetSettings)
 		scheduler.PUT("/settings", h.Admin.OpenAIScheduler.UpdateSettings)
 	}

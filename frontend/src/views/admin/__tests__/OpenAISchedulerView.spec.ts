@@ -60,6 +60,25 @@ vi.mock('@/api/admin', () => ({
         page: 1,
         page_size: 20,
       }),
+      getDailyStats: vi.fn().mockResolvedValue({
+        date: '2026-06-13',
+        group_id: 33,
+        total_selects: 10,
+        accounts: [
+          {
+            account_id: 1,
+            select_count: 10,
+            select_ratio: 1,
+            last_selected_at: '2026-06-13T10:30:00Z',
+          },
+        ],
+      }),
+      recomputeDailyStats: vi.fn().mockResolvedValue({
+        date: '2026-06-13',
+        group_id: 33,
+        total_selects: 10,
+        accounts: [],
+      }),
       updateSettings: vi.fn(),
       applyAction: vi.fn(),
     },
@@ -135,6 +154,7 @@ describe('OpenAISchedulerView', () => {
     expect(adminAPI.groups.getAll).toHaveBeenCalledWith('openai')
     expect(adminAPI.openaiScheduler.getOverview).toHaveBeenCalledWith({ group_id: 33 })
     expect(adminAPI.openaiScheduler.listAccounts).toHaveBeenCalledWith(expect.objectContaining({ group_id: 33 }))
+    expect(adminAPI.openaiScheduler.getDailyStats).toHaveBeenCalledWith(expect.objectContaining({ group_id: 33 }))
   })
 
   it('shows backend scheduler action errors', async () => {

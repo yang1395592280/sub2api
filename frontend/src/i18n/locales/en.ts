@@ -2845,12 +2845,24 @@ export default {
         errorRateThreshold: 'Error Rate Degrade Threshold',
         cooldownSeconds: 'Cooldown Seconds'
       },
+      stats: {
+        date: 'Stats Date',
+        totalSelects: 'Selected Group Calls',
+        activeAccounts: 'Called Accounts',
+        topAccount: 'Top Called Account',
+        recompute: 'Recompute Day',
+        recomputeSuccess: 'Daily stats recomputed',
+        recomputeFailed: 'Failed to recompute daily stats'
+      },
       columns: {
         account: 'Account',
         tier: 'Tier',
         health: 'Health',
         successRate: 'Success',
         ttft: 'TTFT',
+        selectCount: 'Calls',
+        selectRatio: 'Call Share',
+        lastSelectedAt: 'Last Called',
         priority: 'Manual Priority',
         reason: 'Decision Reason',
         actions: 'Actions'

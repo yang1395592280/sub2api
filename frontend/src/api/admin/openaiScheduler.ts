@@ -39,6 +39,20 @@ export interface OpenAISchedulerAccount {
   health: OpenAIAccountHealth
 }
 
+export interface OpenAISchedulerAccountDailyStat {
+  account_id: number
+  select_count: number
+  select_ratio: number
+  last_selected_at?: string | null
+}
+
+export interface OpenAISchedulerDailyStats {
+  date: string
+  group_id: number
+  total_selects: number
+  accounts: OpenAISchedulerAccountDailyStat[]
+}
+
 export interface OpenAISchedulerOverview {
   settings: OpenAISchedulerSettings
   metrics?: Record<string, unknown>
@@ -74,6 +88,20 @@ export interface SchedulerActionRequest {
 
 export async function getOverview(params: { group_id?: number } = {}): Promise<OpenAISchedulerOverview> {
   const { data } = await apiClient.get<OpenAISchedulerOverview>('/admin/openai-scheduler/overview', {
+    params,
+  })
+  return data
+}
+
+export async function getDailyStats(params: { group_id: number; date?: string }): Promise<OpenAISchedulerDailyStats> {
+  const { data } = await apiClient.get<OpenAISchedulerDailyStats>('/admin/openai-scheduler/stats', {
+    params,
+  })
+  return data
+}
+
+export async function recomputeDailyStats(params: { group_id: number; date?: string }): Promise<OpenAISchedulerDailyStats> {
+  const { data } = await apiClient.post<OpenAISchedulerDailyStats>('/admin/openai-scheduler/stats/recompute', null, {
     params,
   })
   return data
@@ -125,6 +153,8 @@ export async function updateSettings(
 
 export const openaiSchedulerAPI = {
   getOverview,
+  getDailyStats,
+  recomputeDailyStats,
   listAccounts,
   getAccount,
   applyAction,

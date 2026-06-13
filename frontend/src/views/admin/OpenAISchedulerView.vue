@@ -11,6 +11,16 @@
           </p>
         </div>
         <div class="flex items-center gap-2">
+          <input
+            v-model="statsDate"
+            class="input w-36"
+            type="date"
+            :aria-label="t('admin.openaiScheduler.stats.date')"
+            @change="reload"
+          >
+          <button class="btn btn-secondary" :disabled="!selectedGroupId || loading" @click="recomputeStats">
+            {{ t('admin.openaiScheduler.stats.recompute') }}
+          </button>
           <button class="btn btn-secondary" @click="reload">
             {{ t('admin.openaiScheduler.refresh') }}
           </button>
@@ -28,6 +38,19 @@
         >
           <div class="text-xs text-gray-500 dark:text-gray-400">{{ metric.label }}</div>
           <div class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
+            {{ metric.value }}
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div
+          v-for="metric in statsMetrics"
+          :key="metric.key"
+          class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
+        >
+          <div class="text-xs text-gray-500 dark:text-gray-400">{{ metric.label }}</div>
+          <div class="mt-1 text-xl font-semibold text-gray-900 dark:text-white">
             {{ metric.value }}
           </div>
         </div>
@@ -156,6 +179,15 @@
               <template #cell-ttft="{ row }">
                 {{ formatLatency(row.health.ttft_ewma_ms) }}
               </template>
+              <template #cell-select_count="{ row }">
+                {{ accountStat(row.account_id)?.select_count ?? 0 }}
+              </template>
+              <template #cell-select_ratio="{ row }">
+                {{ formatPercent(accountStat(row.account_id)?.select_ratio ?? 0) }}
+              </template>
+              <template #cell-last_selected_at="{ row }">
+                {{ formatDateTime(accountStat(row.account_id)?.last_selected_at) }}
+              </template>
               <template #cell-actions="{ row }">
                 <div class="flex justify-end gap-1">
                   <button class="btn btn-xs btn-secondary" @click="apply(row.account_id, 'promote_observe')">
@@ -191,6 +223,8 @@ import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type {
   OpenAISchedulerAccount,
+  OpenAISchedulerAccountDailyStat,
+  OpenAISchedulerDailyStats,
   OpenAISchedulerOverview,
   OpenAISchedulerSettings,
   OpenAISchedulerTier,
@@ -214,6 +248,8 @@ const openaiGroups = ref<AdminGroup[]>([])
 const selectedGroupId = ref(0)
 const accounts = ref<OpenAISchedulerAccount[]>([])
 const overview = ref<OpenAISchedulerOverview | null>(null)
+const dailyStats = ref<OpenAISchedulerDailyStats | null>(null)
+const statsDate = ref(todayDateString())
 const search = ref('')
 const tierFilter = ref<OpenAISchedulerTier | ''>('')
 const pagination = reactive({ page: 1, page_size: 20, total: 0 })
@@ -237,6 +273,9 @@ const columns = computed<Column[]>(() => [
   { key: 'health', label: t('admin.openaiScheduler.columns.health'), sortable: false },
   { key: 'success', label: t('admin.openaiScheduler.columns.successRate'), sortable: false },
   { key: 'ttft', label: t('admin.openaiScheduler.columns.ttft'), sortable: false },
+  { key: 'select_count', label: t('admin.openaiScheduler.columns.selectCount'), sortable: false },
+  { key: 'select_ratio', label: t('admin.openaiScheduler.columns.selectRatio'), sortable: false },
+  { key: 'last_selected_at', label: t('admin.openaiScheduler.columns.lastSelectedAt'), sortable: false },
   { key: 'actions', label: t('admin.openaiScheduler.columns.actions'), sortable: false },
 ])
 
@@ -274,6 +313,38 @@ const metrics = computed(() => {
   ]
 })
 
+const statsByAccount = computed(() => {
+  const result = new Map<number, OpenAISchedulerAccountDailyStat>()
+  for (const item of dailyStats.value?.accounts || []) {
+    result.set(item.account_id, item)
+  }
+  return result
+})
+
+const statsMetrics = computed(() => {
+  const total = dailyStats.value?.total_selects ?? 0
+  const activeAccounts = (dailyStats.value?.accounts || []).filter((item) => item.select_count > 0).length
+  const top = dailyStats.value?.accounts?.[0]
+  const topName = top ? accountName(top.account_id) : '-'
+  return [
+    {
+      key: 'total',
+      label: t('admin.openaiScheduler.stats.totalSelects'),
+      value: total,
+    },
+    {
+      key: 'activeAccounts',
+      label: t('admin.openaiScheduler.stats.activeAccounts'),
+      value: activeAccounts,
+    },
+    {
+      key: 'topAccount',
+      label: t('admin.openaiScheduler.stats.topAccount'),
+      value: top ? `${topName} · ${formatPercent(top.select_ratio)}` : '-',
+    },
+  ]
+})
+
 function assignSettings(next: OpenAISchedulerSettings) {
   Object.assign(settings, next)
 }
@@ -282,13 +353,14 @@ async function reload() {
   if (!selectedGroupId.value) {
     overview.value = null
     accounts.value = []
+    dailyStats.value = null
     pagination.total = 0
     return
   }
   loading.value = true
   try {
     const groupID = selectedGroupId.value
-    const [overviewRes, accountsRes] = await Promise.all([
+    const [overviewRes, accountsRes, statsRes] = await Promise.all([
       adminAPI.openaiScheduler.getOverview({ group_id: groupID }),
       adminAPI.openaiScheduler.listAccounts({
         page: pagination.page,
@@ -297,8 +369,13 @@ async function reload() {
         tier: tierFilter.value,
         search: search.value.trim(),
       }),
+      adminAPI.openaiScheduler.getDailyStats({
+        group_id: groupID,
+        date: statsDate.value,
+      }),
     ])
     overview.value = overviewRes
+    dailyStats.value = statsRes
     if (overviewRes.settings) assignSettings(overviewRes.settings)
     accounts.value = accountsRes.items || []
     pagination.total = accountsRes.total
@@ -306,6 +383,22 @@ async function reload() {
     pagination.page_size = accountsRes.page_size
   } catch {
     appStore.showError(t('admin.openaiScheduler.loadError'))
+  } finally {
+    loading.value = false
+  }
+}
+
+async function recomputeStats() {
+  if (!selectedGroupId.value) return
+  loading.value = true
+  try {
+    dailyStats.value = await adminAPI.openaiScheduler.recomputeDailyStats({
+      group_id: selectedGroupId.value,
+      date: statsDate.value,
+    })
+    appStore.showSuccess(t('admin.openaiScheduler.stats.recomputeSuccess'))
+  } catch (err) {
+    appStore.showError(extractApiErrorMessage(err, t('admin.openaiScheduler.stats.recomputeFailed')))
   } finally {
     loading.value = false
   }
@@ -387,6 +480,29 @@ function formatPercent(value: number): string {
 function formatLatency(value: number): string {
   if (!value) return '-'
   return `${Math.round(value)}ms`
+}
+
+function accountStat(accountId: number): OpenAISchedulerAccountDailyStat | undefined {
+  return statsByAccount.value.get(accountId)
+}
+
+function accountName(accountId: number): string {
+  return accounts.value.find((item) => item.account_id === accountId)?.account_name || `#${accountId}`
+}
+
+function formatDateTime(value?: string | null): string {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return date.toLocaleString()
+}
+
+function todayDateString(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function tierClass(tier: OpenAISchedulerTier): string {

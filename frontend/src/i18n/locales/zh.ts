@@ -2922,12 +2922,24 @@ export default {
         errorRateThreshold: '错误率降级阈值',
         cooldownSeconds: '冷却时间（秒）'
       },
+      stats: {
+        date: '统计日期',
+        totalSelects: '当前分组调用次数',
+        activeAccounts: '被调用账号数',
+        topAccount: '调用最多账号',
+        recompute: '重算当天',
+        recomputeSuccess: '当天统计已重算',
+        recomputeFailed: '重算当天统计失败'
+      },
       columns: {
         account: '账号',
         tier: '分层',
         health: '健康分',
         successRate: '成功率',
         ttft: '首包延迟',
+        selectCount: '调用次数',
+        selectRatio: '调用占比',
+        lastSelectedAt: '最后调用',
         priority: '人工优先级',
         reason: '调度原因',
         actions: '操作'

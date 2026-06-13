@@ -649,6 +649,9 @@ func (s *defaultOpenAIAccountScheduler) Select(
 	defer func() {
 		decision.LatencyMs = time.Since(start).Milliseconds()
 		s.metrics.recordSelect(decision)
+		if s.service != nil && decision.SelectedAccountID > 0 {
+			s.service.recordOpenAISchedulerDailySelection(ctx, req.GroupID, decision.SelectedAccountID, time.Now())
+		}
 	}()
 
 	previousResponseID := strings.TrimSpace(req.PreviousResponseID)

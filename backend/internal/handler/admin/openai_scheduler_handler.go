@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -175,6 +176,48 @@ func (h *OpenAISchedulerHandler) ApplyAction(c *gin.Context) {
 	response.Success(c, gin.H{"success": true})
 }
 
+func (h *OpenAISchedulerHandler) GetDailyStats(c *gin.Context) {
+	groupID, ok := parseOptionalQueryInt64(c, "group_id")
+	if !ok {
+		return
+	}
+	if groupID == nil {
+		response.Error(c, http.StatusBadRequest, "Invalid group_id")
+		return
+	}
+	statDate, ok := parseOptionalQueryDate(c, "date")
+	if !ok {
+		return
+	}
+	stats, err := h.gatewayService.GetOpenAISchedulerDailyStats(c.Request.Context(), statDate, *groupID)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, stats)
+}
+
+func (h *OpenAISchedulerHandler) RecomputeDailyStats(c *gin.Context) {
+	groupID, ok := parseOptionalQueryInt64(c, "group_id")
+	if !ok {
+		return
+	}
+	if groupID == nil {
+		response.Error(c, http.StatusBadRequest, "Invalid group_id")
+		return
+	}
+	statDate, ok := parseOptionalQueryDate(c, "date")
+	if !ok {
+		return
+	}
+	stats, err := h.gatewayService.RecomputeOpenAISchedulerDailyStats(c.Request.Context(), statDate, *groupID)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, stats)
+}
+
 func (h *OpenAISchedulerHandler) GetSettings(c *gin.Context) {
 	response.Success(c, openAISchedulerSettingsToDTO(h.gatewayService.SnapshotOpenAISchedulerHealthSettings()))
 }
@@ -225,6 +268,21 @@ func parseOptionalQueryInt64(c *gin.Context, name string) (*int64, bool) {
 		return nil, false
 	}
 	return &value, true
+}
+
+func parseOptionalQueryDate(c *gin.Context, name string) (time.Time, bool) {
+	loc := timezone.Location()
+	raw := strings.TrimSpace(c.Query(name))
+	if raw == "" {
+		now := time.Now().In(loc)
+		return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc), true
+	}
+	value, err := time.ParseInLocation("2006-01-02", raw, loc)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid "+name)
+		return time.Time{}, false
+	}
+	return value, true
 }
 
 func openAISchedulerTierCounts(items []service.OpenAISchedulerAccountSnapshot) gin.H {
