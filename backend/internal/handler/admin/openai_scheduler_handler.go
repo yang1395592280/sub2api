@@ -68,7 +68,7 @@ func openAISchedulerSettingsFromDTO(dto openAISchedulerSettingsDTO) service.Open
 func (h *OpenAISchedulerHandler) GetOverview(c *gin.Context) {
 	metrics := h.gatewayService.SnapshotOpenAIAccountSchedulerMetrics()
 	settings := h.gatewayService.SnapshotOpenAISchedulerHealthSettings()
-	items, err := h.gatewayService.ListOpenAISchedulerAccountSnapshots(c.Request.Context(), nil)
+	items, err := h.gatewayService.ListAllOpenAISchedulerAccountSnapshots(c.Request.Context())
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -86,7 +86,13 @@ func (h *OpenAISchedulerHandler) ListAccounts(c *gin.Context) {
 	if !ok {
 		return
 	}
-	items, err := h.gatewayService.ListOpenAISchedulerAccountSnapshots(c.Request.Context(), groupID)
+	var items []service.OpenAISchedulerAccountSnapshot
+	var err error
+	if groupID == nil {
+		items, err = h.gatewayService.ListAllOpenAISchedulerAccountSnapshots(c.Request.Context())
+	} else {
+		items, err = h.gatewayService.ListOpenAISchedulerAccountSnapshots(c.Request.Context(), groupID)
+	}
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return

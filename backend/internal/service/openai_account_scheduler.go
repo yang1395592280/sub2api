@@ -1713,6 +1713,24 @@ func (s *OpenAIGatewayService) ListOpenAISchedulerAccountSnapshots(ctx context.C
 	if err != nil {
 		return nil, err
 	}
+	return s.buildOpenAISchedulerAccountSnapshots(ctx, accounts), nil
+}
+
+func (s *OpenAIGatewayService) ListAllOpenAISchedulerAccountSnapshots(ctx context.Context) ([]OpenAISchedulerAccountSnapshot, error) {
+	if s == nil {
+		return nil, nil
+	}
+	if s.accountRepo == nil {
+		return s.ListOpenAISchedulerAccountSnapshots(ctx, nil)
+	}
+	accounts, err := s.accountRepo.ListSchedulableByPlatform(ctx, PlatformOpenAI)
+	if err != nil {
+		return nil, fmt.Errorf("query accounts failed: %w", err)
+	}
+	return s.buildOpenAISchedulerAccountSnapshots(ctx, accounts), nil
+}
+
+func (s *OpenAIGatewayService) buildOpenAISchedulerAccountSnapshots(ctx context.Context, accounts []Account) []OpenAISchedulerAccountSnapshot {
 	settings := s.SnapshotOpenAISchedulerHealthSettings()
 	items := make([]OpenAISchedulerAccountSnapshot, 0, len(accounts))
 	for i := range accounts {
@@ -1748,7 +1766,7 @@ func (s *OpenAIGatewayService) ListOpenAISchedulerAccountSnapshots(ctx context.C
 		}
 		return a.AccountID < b.AccountID
 	})
-	return items, nil
+	return items
 }
 
 func (s *OpenAIGatewayService) openAIAdvancedSchedulerSettingRepo() SettingRepository {

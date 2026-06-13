@@ -237,6 +237,52 @@ func TestOpenAISchedulerHealthSettingsRoundTrip(t *testing.T) {
 	require.Equal(t, 0.05, got.ObserveProbeRatio)
 }
 
+func TestOpenAIGatewayService_ListAllOpenAISchedulerAccountSnapshotsIncludesGroupedAccounts(t *testing.T) {
+	groupID := int64(33)
+	svc := &OpenAIGatewayService{
+		accountRepo: schedulerGroupAwareOpenAIAccountRepo{
+			schedulerTestOpenAIAccountRepo: schedulerTestOpenAIAccountRepo{
+				accounts: []Account{
+					{
+						ID:            11854,
+						Name:          "grouped-openai",
+						Platform:      PlatformOpenAI,
+						Type:          AccountTypeOAuth,
+						Status:        StatusActive,
+						Schedulable:   true,
+						GroupIDs:      []int64{groupID},
+						AccountGroups: []AccountGroup{{GroupID: groupID}},
+					},
+					{
+						ID:          11857,
+						Name:        "ungrouped-openai",
+						Platform:    PlatformOpenAI,
+						Type:        AccountTypeOAuth,
+						Status:      StatusActive,
+						Schedulable: true,
+					},
+				},
+			},
+		},
+	}
+
+	allItems, err := svc.ListAllOpenAISchedulerAccountSnapshots(context.Background())
+	require.NoError(t, err)
+	require.ElementsMatch(t, []int64{11854, 11857}, openAISchedulerSnapshotIDs(allItems))
+
+	runtimeItems, err := svc.ListOpenAISchedulerAccountSnapshots(context.Background(), nil)
+	require.NoError(t, err)
+	require.Equal(t, []int64{11857}, openAISchedulerSnapshotIDs(runtimeItems))
+}
+
+func openAISchedulerSnapshotIDs(items []OpenAISchedulerAccountSnapshot) []int64 {
+	ids := make([]int64, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.AccountID)
+	}
+	return ids
+}
+
 type openAISchedulerSettingRepoStub struct {
 	values map[string]string
 }
