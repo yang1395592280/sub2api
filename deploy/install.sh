@@ -741,7 +741,7 @@ get_public_ip() {
     # Fallback to local IP
     print_warning "$(msg 'public_ip_failed')"
     PUBLIC_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "YOUR_SERVER_IP")
-    return 1
+    return 0
 }
 
 # Start service
