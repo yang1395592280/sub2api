@@ -193,6 +193,7 @@ func TestDefaultOpenAIAccountScheduler_InvalidManualAction(t *testing.T) {
 }
 
 func TestOpenAIGatewayService_HealthSchedulerDisabledReturnsDefaults(t *testing.T) {
+	resetOpenAIAdvancedSchedulerSettingCacheForTest()
 	svc := &OpenAIGatewayService{}
 
 	settings := svc.SnapshotOpenAISchedulerHealthSettings()
@@ -235,6 +236,42 @@ func TestOpenAISchedulerHealthSettingsRoundTrip(t *testing.T) {
 	require.Equal(t, 4, got.RecoverSuccessThreshold)
 	require.Equal(t, 3*time.Minute, got.Cooldown)
 	require.Equal(t, 0.05, got.ObserveProbeRatio)
+}
+
+func TestOpenAISchedulerHealthSettings_EnableHealthRankingTurnsOnAdvancedScheduler(t *testing.T) {
+	resetOpenAIAdvancedSchedulerSettingCacheForTest()
+	repo := &openAISchedulerSettingRepoStub{values: map[string]string{}}
+	svc := &OpenAIGatewayService{
+		rateLimitService: &RateLimitService{
+			settingService: &SettingService{settingRepo: repo},
+		},
+	}
+	require.False(t, svc.isOpenAIAdvancedSchedulerEnabled(context.Background()))
+
+	require.NoError(t, svc.SaveOpenAISchedulerHealthSettings(context.Background(), OpenAISchedulerHealthSettings{
+		HealthRankingEnabled: true,
+	}))
+
+	require.Equal(t, "true", repo.values[openAIAdvancedSchedulerSettingKey])
+	require.True(t, svc.isOpenAIAdvancedSchedulerEnabled(context.Background()))
+	require.NoError(t, svc.ApplyOpenAISchedulerHealthAction(11854, OpenAISchedulerHealthAction{Action: "promote_observe"}))
+}
+
+func TestOpenAISchedulerHealthSettings_LegacyHealthRankingEnablesAdvancedScheduler(t *testing.T) {
+	resetOpenAIAdvancedSchedulerSettingCacheForTest()
+	repo := &openAISchedulerSettingRepoStub{
+		values: map[string]string{
+			openAISchedulerHealthRankingEnabledKey: "true",
+		},
+	}
+	svc := &OpenAIGatewayService{
+		rateLimitService: &RateLimitService{
+			settingService: &SettingService{settingRepo: repo},
+		},
+	}
+
+	require.True(t, svc.isOpenAIAdvancedSchedulerEnabled(context.Background()))
+	require.NoError(t, svc.ApplyOpenAISchedulerHealthAction(11854, OpenAISchedulerHealthAction{Action: "promote_observe"}))
 }
 
 func TestOpenAIGatewayService_ListAllOpenAISchedulerAccountSnapshotsIncludesGroupedAccounts(t *testing.T) {

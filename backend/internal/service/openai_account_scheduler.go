@@ -1674,8 +1674,18 @@ func (s *OpenAIGatewayService) SnapshotOpenAISchedulerHealthSettings() OpenAISch
 func (s *OpenAIGatewayService) SaveOpenAISchedulerHealthSettings(ctx context.Context, settings OpenAISchedulerHealthSettings) error {
 	settings = normalizeOpenAISchedulerHealthSettings(settings)
 	if repo := s.openAIAdvancedSchedulerSettingRepo(); repo != nil {
-		if err := repo.SetMultiple(ctx, encodeOpenAISchedulerHealthSettings(settings)); err != nil {
+		values := encodeOpenAISchedulerHealthSettings(settings)
+		if settings.HealthRankingEnabled {
+			values[openAIAdvancedSchedulerSettingKey] = "true"
+		}
+		if err := repo.SetMultiple(ctx, values); err != nil {
 			return err
+		}
+		if settings.HealthRankingEnabled {
+			openAIAdvancedSchedulerSettingCache.Store(&cachedOpenAIAdvancedSchedulerSetting{
+				enabled:   true,
+				expiresAt: time.Now().Add(openAIAdvancedSchedulerSettingCacheTTL).UnixNano(),
+			})
 		}
 	}
 	scheduler := s.getOpenAIAccountScheduler(context.Background())
@@ -1798,6 +1808,11 @@ func (s *OpenAIGatewayService) isOpenAIAdvancedSchedulerEnabled(ctx context.Cont
 			value, err := repo.GetValue(dbCtx, openAIAdvancedSchedulerSettingKey)
 			if err == nil {
 				enabled = strings.EqualFold(strings.TrimSpace(value), "true")
+			}
+			if !enabled {
+				if value, err := repo.GetValue(dbCtx, openAISchedulerHealthRankingEnabledKey); err == nil {
+					enabled = strings.EqualFold(strings.TrimSpace(value), "true")
+				}
 			}
 		}
 
