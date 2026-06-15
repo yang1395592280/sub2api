@@ -137,7 +137,7 @@ func TestAdminService_BatchAddBalanceToUsers_DeduplicatesAndRecordsAdjustments(t
 		authCacheInvalidator: invalidator,
 	}
 
-	affected, err := svc.BatchAddBalanceToUsers(context.Background(), []int64{7, 8, 7, 0, -2}, 5, "bonus")
+	affected, err := svc.BatchAddBalanceToUsers(context.Background(), []int64{7, 8, 7, 0, -2}, 5, "add", "bonus")
 	require.NoError(t, err)
 	require.Equal(t, 2, affected)
 	require.Len(t, repo.updated, 2)
@@ -149,4 +149,33 @@ func TestAdminService_BatchAddBalanceToUsers_DeduplicatesAndRecordsAdjustments(t
 	require.Equal(t, "bonus", redeemRepo.created[0].Notes)
 	require.Equal(t, 5.0, redeemRepo.created[1].Value)
 	require.Equal(t, "bonus", redeemRepo.created[1].Notes)
+}
+
+func TestAdminService_BatchAddBalanceToUsers_SubtractsAndRecordsAdjustments(t *testing.T) {
+	repo := &batchBalanceUserRepoStub{
+		userRepoStub: &userRepoStub{},
+		users: map[int64]*User{
+			7: {ID: 7, Balance: 10},
+			8: {ID: 8, Balance: 20},
+		},
+	}
+	redeemRepo := &balanceRedeemRepoStub{redeemRepoStub: &redeemRepoStub{}}
+	invalidator := &authCacheInvalidatorStub{}
+	svc := &adminServiceImpl{
+		userRepo:             repo,
+		redeemCodeRepo:       redeemRepo,
+		authCacheInvalidator: invalidator,
+	}
+
+	affected, err := svc.BatchAddBalanceToUsers(context.Background(), []int64{7, 8, 7}, 3, "subtract", "refund")
+	require.NoError(t, err)
+	require.Equal(t, 2, affected)
+	require.Equal(t, 7.0, repo.users[7].Balance)
+	require.Equal(t, 17.0, repo.users[8].Balance)
+	require.Equal(t, []int64{7, 8}, invalidator.userIDs)
+	require.Len(t, redeemRepo.created, 2)
+	require.Equal(t, -3.0, redeemRepo.created[0].Value)
+	require.Equal(t, "refund", redeemRepo.created[0].Notes)
+	require.Equal(t, -3.0, redeemRepo.created[1].Value)
+	require.Equal(t, "refund", redeemRepo.created[1].Notes)
 }

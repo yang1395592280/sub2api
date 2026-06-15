@@ -171,7 +171,7 @@ func TestUserHandlerBatchAddBalanceMapsRequest(t *testing.T) {
 	router, adminSvc := setupAdminRouter()
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/users/batch-balance", bytes.NewBufferString(`{"user_ids":[7,8,7],"balance":1.5,"notes":"bonus"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/users/batch-balance", bytes.NewBufferString(`{"user_ids":[7,8,7],"balance":1.5,"operation":"subtract","notes":"bonus"}`))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(rec, req)
 
@@ -179,6 +179,7 @@ func TestUserHandlerBatchAddBalanceMapsRequest(t *testing.T) {
 	require.Equal(t, 1, adminSvc.lastBatchAddBalance.calls)
 	require.Equal(t, []int64{7, 8, 7}, adminSvc.lastBatchAddBalance.userIDs)
 	require.Equal(t, 1.5, adminSvc.lastBatchAddBalance.balance)
+	require.Equal(t, "subtract", adminSvc.lastBatchAddBalance.operation)
 	require.Equal(t, "bonus", adminSvc.lastBatchAddBalance.notes)
 }
 

@@ -282,6 +282,7 @@
           @clear="clearSelectedUsers"
           @select-page="selectCurrentPageUsers"
           @add-balance="openBatchAddBalanceModal"
+          @subtract-balance="openBatchSubtractBalanceModal"
           @add-group="openBatchAddGroupModal"
         />
 
@@ -805,6 +806,7 @@
     <UserBatchBalanceModal
       :show="showBatchBalanceModal"
       :user-ids="selectedUserIds"
+      :mode="batchBalanceMode"
       @close="closeBatchBalanceModal"
       @success="handleBatchAddBalanceSuccess"
     />
@@ -1575,6 +1577,7 @@ const showBalanceHistoryModal = ref(false)
 const balanceHistoryUser = ref<AdminUser | null>(null)
 const showBatchAddGroupModal = ref(false)
 const showBatchBalanceModal = ref(false)
+const batchBalanceMode = ref<'add' | 'subtract'>('add')
 
 // 计算剩余天数
 const getDaysRemaining = (expiresAt: string): number => {
@@ -1876,6 +1879,12 @@ const handleBatchAddGroupSuccess = () => {
 }
 
 const openBatchAddBalanceModal = () => {
+  batchBalanceMode.value = 'add'
+  showBatchBalanceModal.value = true
+}
+
+const openBatchSubtractBalanceModal = () => {
+  batchBalanceMode.value = 'subtract'
   showBatchBalanceModal.value = true
 }
 

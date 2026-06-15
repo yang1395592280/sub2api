@@ -224,6 +224,23 @@ export async function batchAddBalanceToUsers(
   return data
 }
 
+export async function batchSubtractBalanceFromUsers(
+  userIds: number[],
+  balance: number,
+  notes?: string
+): Promise<BatchAddBalanceToUsersResponse> {
+  const { data } = await apiClient.post<BatchAddBalanceToUsersResponse>(
+    '/admin/users/batch-balance',
+    {
+      user_ids: userIds,
+      balance,
+      operation: 'subtract',
+      notes: notes || ''
+    }
+  )
+  return data
+}
+
 /**
  * Update user concurrency
  * @param id - User ID
@@ -436,6 +453,7 @@ export const usersAPI = {
   updateBalance,
   getUserBalanceSummary,
   batchAddBalanceToUsers,
+  batchSubtractBalanceFromUsers,
   batchAddGroupToUsers,
   updateConcurrency,
   toggleStatus,

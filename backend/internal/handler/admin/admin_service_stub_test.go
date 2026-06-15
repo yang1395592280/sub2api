@@ -54,18 +54,19 @@ type stubAdminService struct {
 		calls     int
 	}
 	lastUserBalanceSummary *service.UserBalanceSummary
-	lastBatchAddGroup struct {
-		userIDs  []int64
-		groupID  int64
-		calls    int
-		result   *service.BatchAddUsersToGroupResult
+	lastBatchAddGroup      struct {
+		userIDs []int64
+		groupID int64
+		calls   int
+		result  *service.BatchAddUsersToGroupResult
 	}
 	lastBatchAddBalance struct {
-		userIDs  []int64
-		balance  float64
-		notes    string
-		calls    int
-		affected int
+		userIDs   []int64
+		balance   float64
+		operation string
+		notes     string
+		calls     int
+		affected  int
 	}
 	lastListProxies struct {
 		protocol  string
@@ -197,10 +198,11 @@ func (s *stubAdminService) UpdateUserBalance(ctx context.Context, userID int64, 
 	return &user, nil
 }
 
-func (s *stubAdminService) BatchAddBalanceToUsers(ctx context.Context, userIDs []int64, balance float64, notes string) (int, error) {
+func (s *stubAdminService) BatchAddBalanceToUsers(ctx context.Context, userIDs []int64, balance float64, operation string, notes string) (int, error) {
 	s.lastBatchAddBalance.calls++
 	s.lastBatchAddBalance.userIDs = append([]int64(nil), userIDs...)
 	s.lastBatchAddBalance.balance = balance
+	s.lastBatchAddBalance.operation = operation
 	s.lastBatchAddBalance.notes = notes
 	if s.lastBatchAddBalance.affected > 0 {
 		return s.lastBatchAddBalance.affected, nil

@@ -14,6 +14,7 @@ vi.mock('@/api/client', () => ({
 
 import {
   batchAddBalanceToUsers,
+  batchSubtractBalanceFromUsers,
   batchAddGroupToUsers,
   getUserBalanceSummary,
   type BatchAddBalanceToUsersResponse,
@@ -68,6 +69,23 @@ describe('admin users summary and batch api', () => {
       user_ids: [7, 8],
       balance: 1.5,
       notes: 'bonus',
+    })
+    expect(result).toEqual(response)
+  })
+
+  it('posts selected user ids and balance to the batch subtract balance endpoint', async () => {
+    const response: BatchAddBalanceToUsersResponse = {
+      affected: 2,
+    }
+    post.mockResolvedValue({ data: response })
+
+    const result = await batchSubtractBalanceFromUsers([7, 8], 1.5, 'refund')
+
+    expect(post).toHaveBeenCalledWith('/admin/users/batch-balance', {
+      user_ids: [7, 8],
+      balance: 1.5,
+      operation: 'subtract',
+      notes: 'refund',
     })
     expect(result).toEqual(response)
   })

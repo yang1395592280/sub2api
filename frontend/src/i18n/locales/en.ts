@@ -1937,6 +1937,7 @@ export default {
         selectCurrentPage: 'Select current page',
         clear: 'Clear selection',
         addBalance: 'Add balance',
+        subtractBalance: 'Subtract balance',
         addGroup: 'Add group'
       },
       bulkAddBalance: {
@@ -1947,6 +1948,15 @@ export default {
         confirm: 'Confirm',
         success: 'Added {amount} balance to {count} users',
         failed: 'Failed to batch add balance'
+      },
+      bulkSubtractBalance: {
+        title: 'Batch Subtract Balance',
+        selectedUsers: 'This will subtract the same balance amount from {count} selected users. Users with insufficient balance will block the deduction.',
+        amountLabel: 'Amount to subtract',
+        notesPlaceholder: 'For example: refund reversal, manual correction, penalty deduction',
+        confirm: 'Confirm',
+        success: 'Subtracted {amount} balance from {count} users',
+        failed: 'Failed to batch subtract balance'
       },
       bulkAddGroup: {
         title: 'Batch Add Group',

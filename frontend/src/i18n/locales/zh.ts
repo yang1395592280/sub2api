@@ -1958,6 +1958,7 @@ export default {
         selectCurrentPage: '选择当前页',
         clear: '清空选择',
         addBalance: '批量加余额',
+        subtractBalance: '批量减余额',
         addGroup: '添加分组'
       },
       bulkAddBalance: {
@@ -1968,6 +1969,15 @@ export default {
         confirm: '确认添加',
         success: '已为 {count} 个用户增加 {amount} 余额',
         failed: '批量添加余额失败'
+      },
+      bulkSubtractBalance: {
+        title: '批量扣减余额',
+        selectedUsers: '将为 {count} 个已选用户统一扣减余额，余额不足的用户会阻止本次扣减。',
+        amountLabel: '扣减金额',
+        notesPlaceholder: '例如：退款扣回、人工冲正、违规扣减等',
+        confirm: '确认扣减',
+        success: '已为 {count} 个用户扣减 {amount} 余额',
+        failed: '批量扣减余额失败'
       },
       bulkAddGroup: {
         title: '批量添加分组',

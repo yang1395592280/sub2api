@@ -1,18 +1,23 @@
 <template>
   <BaseDialog
     :show="show"
-    :title="t('admin.users.bulkAddBalance.title')"
+    :title="t(localePrefix + '.title')"
     width="normal"
     @close="$emit('close')"
   >
     <div class="space-y-4">
-      <div class="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:bg-emerald-900/20 dark:text-emerald-100">
-        {{ t('admin.users.bulkAddBalance.selectedUsers', { count: userIds.length }) }}
+      <div
+        class="rounded-lg px-4 py-3 text-sm"
+        :class="mode === 'subtract'
+          ? 'bg-amber-50 text-amber-900 dark:bg-amber-900/20 dark:text-amber-100'
+          : 'bg-emerald-50 text-emerald-900 dark:bg-emerald-900/20 dark:text-emerald-100'"
+      >
+        {{ t(localePrefix + '.selectedUsers', { count: userIds.length }) }}
       </div>
 
       <div>
         <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-          {{ t('admin.users.bulkAddBalance.amountLabel') }}
+          {{ t(localePrefix + '.amountLabel') }}
         </label>
         <div class="relative">
           <div class="absolute left-3 top-1/2 -translate-y-1/2 font-medium text-gray-500">$</div>
@@ -34,7 +39,7 @@
           v-model="form.notes"
           rows="3"
           class="input"
-          :placeholder="t('admin.users.bulkAddBalance.notesPlaceholder')"
+          :placeholder="t(localePrefix + '.notesPlaceholder')"
         ></textarea>
       </div>
     </div>
@@ -45,7 +50,7 @@
           {{ t('common.cancel') }}
         </button>
         <button class="btn btn-primary" :disabled="submitting" @click="handleSubmit">
-          {{ submitting ? t('common.submitting') : t('admin.users.bulkAddBalance.confirm') }}
+          {{ submitting ? t('common.submitting') : t(localePrefix + '.confirm') }}
         </button>
       </div>
     </template>
@@ -53,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { adminAPI } from '@/api/admin'
@@ -63,6 +68,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 const props = defineProps<{
   show: boolean
   userIds: number[]
+  mode?: 'add' | 'subtract'
 }>()
 
 const emit = defineEmits<{
@@ -74,6 +80,10 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const submitting = ref(false)
+const mode = computed(() => props.mode || 'add')
+const localePrefix = computed(() => mode.value === 'subtract'
+  ? 'admin.users.bulkSubtractBalance'
+  : 'admin.users.bulkAddBalance')
 const form = reactive({
   amount: 0,
   notes: ''
@@ -97,13 +107,12 @@ const handleSubmit = async () => {
 
   submitting.value = true
   try {
-    const result = await adminAPI.users.batchAddBalanceToUsers(
-      props.userIds,
-      form.amount,
-      form.notes
-    )
+    const submitBalance = mode.value === 'subtract'
+      ? adminAPI.users.batchSubtractBalanceFromUsers
+      : adminAPI.users.batchAddBalanceToUsers
+    const result = await submitBalance(props.userIds, form.amount, form.notes)
     appStore.showSuccess(
-      t('admin.users.bulkAddBalance.success', {
+      t(localePrefix.value + '.success', {
         count: result.affected,
         amount: form.amount
       })
@@ -111,7 +120,7 @@ const handleSubmit = async () => {
     emit('success')
     emit('close')
   } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.users.bulkAddBalance.failed'))
+    appStore.showError(error.response?.data?.detail || t(localePrefix.value + '.failed'))
   } finally {
     submitting.value = false
   }
