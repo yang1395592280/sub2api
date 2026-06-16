@@ -15,40 +15,67 @@ vi.mock('@/api/admin', () => ({
       ]),
     },
     openaiHealth: {
+      getOverview: vi.fn(),
+    },
+    openaiScheduler: {
       getOverview: vi.fn().mockResolvedValue({
-        time_window: '6h',
-        window_start: '2026-06-16T03:50:00Z',
-        window_end: '2026-06-16T09:50:00Z',
-        total_monitors: 1,
-        healthy_monitors: 1,
-        degraded_monitors: 0,
-        failed_monitors: 0,
-        average_availability_pct: 93,
-        average_first_token_ms: 1186,
+        settings: {
+          health_ranking_enabled: true,
+          primary_ratio: 0.3,
+          primary_min_count: 1,
+          ttft_degrade_ms: 2500,
+          error_rate_degrade_threshold: 0.35,
+          consecutive_failure_threshold: 3,
+          recover_success_threshold: 5,
+          cooldown_seconds: 600,
+          observe_probe_ratio: 0,
+        },
+        tier_counts: {
+          primary: 1,
+          standby: 0,
+          observe: 0,
+          degraded: 0,
+        },
+      }),
+      listAccounts: vi.fn().mockResolvedValue({
         items: [
           {
-            id: 7,
-            name: 'Kedaya',
-            endpoint: 'https://sub.kedaya.xyz',
-            group_name: 'GPT Plus',
-            primary_model: 'gpt-5.1',
-            enabled: true,
-            latest_status: 'operational',
-            latest_first_token_ms: 1186,
-            latest_ping_latency_ms: 3,
-            last_checked_at: '2026-06-16T09:50:00Z',
-            total_checks: 30,
-            operational_checks: 28,
-            failed_checks: 2,
-            error_checks: 0,
-            availability_pct: 93,
-            avg_first_token_ms: 1186,
-            p95_first_token_ms: 1600,
-            avg_ping_latency_ms: 3,
-            trend: [
-              { status: 'operational', latency_ms: 1100, ping_latency_ms: 3, checked_at: '2026-06-16T09:49:00Z' },
-              { status: 'failed', latency_ms: null, ping_latency_ms: 4, checked_at: '2026-06-16T09:50:00Z' },
-            ],
+            account_id: 7,
+            account_name: 'Kedaya',
+            platform: 'openai',
+            type: 'oauth',
+            status: 'active',
+            manual_priority: 10,
+            channel_price: 0.08,
+            groups: [33],
+            health: {
+              account_id: 7,
+              health_score: 96.4,
+              tier: 'primary',
+              degrade_reason: '',
+              success_rate_ewma: 0.93,
+              error_rate_ewma: 0.07,
+              ttft_ewma_ms: 1186,
+              consecutive_errors: 0,
+              consecutive_ok: 8,
+              decision_reason: 'healthy',
+            },
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 20,
+      }),
+      getDailyStats: vi.fn().mockResolvedValue({
+        date: '2026-06-16',
+        group_id: 33,
+        total_selects: 30,
+        accounts: [
+          {
+            account_id: 7,
+            select_count: 30,
+            select_ratio: 1,
+            last_selected_at: '2026-06-16T09:50:00Z',
           },
         ],
       }),
@@ -75,7 +102,7 @@ describe('OpenAIHealthView', () => {
     vi.clearAllMocks()
   })
 
-  it('loads scheduler summary and OpenAI monitor rows', async () => {
+  it('loads scheduler account health rows instead of channel monitor rows', async () => {
     const { adminAPI } = await import('@/api/admin')
 
     const wrapper = mount(OpenAIHealthView, {
@@ -89,14 +116,14 @@ describe('OpenAIHealthView', () => {
             props: ['data'],
             template: `
               <div>
-                <div v-for="row in data" :key="row.id">
-                  <slot name="cell-name" :row="row" />
-                  <slot name="cell-group_name" :row="row" />
-                  <slot name="cell-primary_status" :row="row" />
-                  <slot name="cell-primary_latency_ms" :row="row" />
-                  <slot name="cell-availability_7d" :row="row" />
-                  <slot name="cell-trend" :row="row" />
-                  <slot name="cell-last_checked_at" :row="row" />
+                <div v-for="row in data" :key="row.account_id">
+                  <slot name="cell-account_name" :row="row" />
+                  <slot name="cell-tier" :row="row" />
+                  <slot name="cell-health_score" :row="row" />
+                  <slot name="cell-success_rate" :row="row" />
+                  <slot name="cell-ttft" :row="row" />
+                  <slot name="cell-select_count" :row="row" />
+                  <slot name="cell-last_selected_at" :row="row" />
                 </div>
               </div>
             `,
@@ -114,10 +141,16 @@ describe('OpenAIHealthView', () => {
     await flushPromises()
 
     expect(adminAPI.groups.getAll).toHaveBeenCalledWith('openai')
-    expect(adminAPI.openaiHealth.getOverview).toHaveBeenCalledWith(expect.objectContaining({ window: '6h' }), expect.any(Object))
+    expect(adminAPI.openaiHealth.getOverview).not.toHaveBeenCalled()
+    expect(adminAPI.openaiScheduler.getOverview).toHaveBeenCalledWith({ group_id: 33 })
+    expect(adminAPI.openaiScheduler.listAccounts).toHaveBeenCalledWith(expect.objectContaining({ group_id: 33 }), expect.any(Object))
+    expect(adminAPI.openaiScheduler.getDailyStats).toHaveBeenCalledWith(expect.objectContaining({ group_id: 33 }))
     expect(wrapper.text()).toContain('Kedaya')
-    expect(wrapper.text()).toContain('https://sub.kedaya.xyz')
+    expect(wrapper.text()).toContain('#7')
+    expect(wrapper.text()).toContain('oauth')
+    expect(wrapper.text()).toContain('96.4')
     expect(wrapper.text()).toContain('93%')
-    expect(wrapper.text()).toContain('1186 ms')
+    expect(wrapper.text()).toContain('1186ms')
+    expect(wrapper.text()).toContain('30')
   })
 })

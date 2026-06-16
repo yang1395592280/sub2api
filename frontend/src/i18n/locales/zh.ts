@@ -2972,38 +2972,33 @@ export default {
 
     openaiHealth: {
       title: 'OpenAI 健康看板',
-      description: '汇总 OpenAI 调度健康、可用率、首 Token 延迟和最近监控趋势',
+      description: '按账号汇总 OpenAI 调度健康、层级、成功率、首 Token 延迟和调度使用情况',
       refresh: '刷新',
       schedulerTab: '调度策略',
-      monitorTab: '监控配置',
-      timeWindow: '时间维度',
-      windowHint: '可用率、均值、P95 和趋势均由后端按当前窗口聚合。',
-      searchPlaceholder: '搜索 API、分组或模型',
+      accountTab: '账号配置',
+      searchPlaceholder: '搜索账号名称',
       allGroups: '全部分组',
       noGroups: '暂无 OpenAI 分组',
       loadError: '加载 OpenAI 健康看板失败',
       monitorHistoryLoadError: '加载监控历史失败',
       overview: {
-        primaryAccounts: '监控总数',
-        healthyMonitors: '健康监控',
-        degradedAccounts: '降级监控',
-        failedMonitors: '异常监控',
-        avgAvailability: '平均可用率',
-        avgTtft: '平均首包延迟',
+        totalAccounts: '账号总数',
+        activeAccounts: '启用账号',
+        avgHealth: '平均健康分',
+        avgTtft: '平均首 Token',
       },
       columns: {
-        name: 'API',
-        group: '分组',
+        account: '账号',
         tier: '调度层',
-        multiplier: '检测数',
-        latestStatus: '最新状态',
-        firstToken: '最新首 Token',
-        availability: '可用率',
-        trend: '曲线',
-        lastChecked: '最近监测'
+        healthScore: '健康分',
+        successRate: '成功率',
+        ttft: '首 Token',
+        channelPrice: '渠道价格',
+        selectCount: '今日调度',
+        lastSelected: '最近调度'
       },
-      emptyTitle: '暂无 OpenAI 监控数据',
-      emptyDescription: '可先在渠道监控中新增 OpenAI 监控，再回到这里查看健康趋势。'
+      emptyTitle: '暂无 OpenAI 账号健康数据',
+      emptyDescription: '请先添加 OpenAI 账号并绑定分组，调度运行后这里会展示账号健康快照。'
     },
 
     // Channel Monitor

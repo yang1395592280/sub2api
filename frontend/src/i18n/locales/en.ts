@@ -2895,38 +2895,33 @@ export default {
 
     openaiHealth: {
       title: 'OpenAI Health',
-      description: 'Summarize OpenAI scheduler health, availability, TTFT and recent monitor trends',
+      description: 'Summarize OpenAI account scheduler health, tier, success rate, TTFT and routing usage',
       refresh: 'Refresh',
       schedulerTab: 'Scheduler Policy',
-      monitorTab: 'Monitor Config',
-      timeWindow: 'Time Window',
-      windowHint: 'Availability, averages, P95 and trend points are aggregated by the backend for the selected window.',
-      searchPlaceholder: 'Search API, group or model',
+      accountTab: 'Account Config',
+      searchPlaceholder: 'Search account name',
       allGroups: 'All Groups',
       noGroups: 'No OpenAI groups',
       loadError: 'Failed to load OpenAI health dashboard',
       monitorHistoryLoadError: 'Failed to load monitor history',
       overview: {
-        primaryAccounts: 'Total Monitors',
-        healthyMonitors: 'Healthy Monitors',
-        degradedAccounts: 'Degraded Monitors',
-        failedMonitors: 'Failed Monitors',
-        avgAvailability: 'Avg Availability',
+        totalAccounts: 'Total Accounts',
+        activeAccounts: 'Active Accounts',
+        avgHealth: 'Avg Health',
         avgTtft: 'Avg TTFT',
       },
       columns: {
-        name: 'API',
-        group: 'Group',
+        account: 'Account',
         tier: 'Tier',
-        multiplier: 'Checks',
-        latestStatus: 'Latest Status',
-        firstToken: 'Latest First Token',
-        availability: 'Availability',
-        trend: 'Trend',
-        lastChecked: 'Last Check'
+        healthScore: 'Health',
+        successRate: 'Success Rate',
+        ttft: 'TTFT',
+        channelPrice: 'Channel Price',
+        selectCount: 'Today Selects',
+        lastSelected: 'Last Selected'
       },
-      emptyTitle: 'No OpenAI monitor data',
-      emptyDescription: 'Create OpenAI monitors in Channel Monitor first, then return here for health trends.'
+      emptyTitle: 'No OpenAI account health data',
+      emptyDescription: 'Add OpenAI accounts and bind groups first. Account health snapshots appear after scheduler activity.'
     },
 
     // Channel Monitor

@@ -25,6 +25,8 @@ export interface OpenAIAccountHealth {
   ttft_ewma_ms: number
   consecutive_errors: number
   consecutive_ok: number
+  last_selected_at?: string | null
+  last_error_at?: string | null
   decision_reason: string
 }
 
