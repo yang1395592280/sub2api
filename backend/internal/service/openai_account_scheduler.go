@@ -1220,13 +1220,25 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 		if maxPrice > minPrice {
 			priceFactor = 1 - clamp01((item.account.EffectiveChannelPrice()-minPrice)/(maxPrice-minPrice))
 		}
+		priceWeight := weights.Price
+		if priceWeight > 0 && hasTTFTSample && item.hasTTFT && minTTFT > 0 {
+			gapMS := item.ttft - minTTFT
+			if gapMS < 0 {
+				gapMS = 0
+			}
+			if s.service.openAISchedulerPriceBoostEnabled(gapMS) {
+				priceWeight *= s.service.openAISchedulerPriceBoostMultiplier()
+			} else {
+				priceWeight = 0
+			}
+		}
 
 		item.score = weights.Priority*priorityFactor +
 			weights.Load*loadFactor +
 			weights.Queue*queueFactor +
 			weights.ErrorRate*errorFactor +
 			weights.TTFT*ttftFactor +
-			weights.Price*priceFactor
+			priceWeight*priceFactor
 		if settings.HealthRankingEnabled {
 			healthFactor := clamp01(item.health.HealthScore / 100)
 			item.score = item.score*0.65 + healthFactor*0.35
@@ -2107,6 +2119,21 @@ func (s *OpenAIGatewayService) openAIStickyEscapeConfig() openAIStickyEscapeConf
 		ttftMs:    15000,
 		errorRate: 0.5,
 	}
+}
+
+func (s *OpenAIGatewayService) openAISchedulerPriceBoostEnabled(speedGapMS float64) bool {
+	threshold := 1000.0
+	if s != nil && s.cfg != nil {
+		threshold = float64(s.cfg.Gateway.OpenAIScheduler.PriceBoostSpeedGapMS)
+	}
+	return threshold > 0 && speedGapMS <= threshold
+}
+
+func (s *OpenAIGatewayService) openAISchedulerPriceBoostMultiplier() float64 {
+	if s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIScheduler.PriceBoostMultiplier > 0 {
+		return s.cfg.Gateway.OpenAIScheduler.PriceBoostMultiplier
+	}
+	return 3.0
 }
 
 func (s *OpenAIGatewayService) openAIWSSchedulerWeights() GatewayOpenAIWSSchedulerScoreWeightsView {

@@ -329,6 +329,10 @@ gateway:
     sticky_escape_ttft_ms: 15000
     # 错误率 EWMA 超过该阈值时跳过 sticky，默认 0.5，仅在明显降级时触发
     sticky_escape_error_rate: 0.5
+    # TTFT 与最快候选差距不超过该阈值（毫秒）时，才明显提高低价账号权重
+    price_boost_speed_gap_ms: 1000
+    # 速度接近时，价格权重放大倍数
+    price_boost_multiplier: 3.0
   # OpenAI HTTP upstream protocol strategy.
   # OpenAI HTTP 上游协议策略（默认 HTTP/2；代理明确不兼容时可临时回退 HTTP/1.1）。
   openai_http2:

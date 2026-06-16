@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -258,4 +259,70 @@ func TestOpenAISchedulerBuildOpenAIAccountLoadPlan_PrefersLowerChannelPriceWhenS
 	}
 	require.Greater(t, scoreByID[cheap.ID], scoreByID[expensive.ID])
 	require.Equal(t, cheap.ID, plan.selectionOrder[0].account.ID)
+}
+
+func TestOpenAISchedulerBuildOpenAIAccountLoadPlan_BoostsPriceOnlyWhenSpeedGapIsSmall(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Priority = 1
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Load = 1
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Queue = 0.7
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.ErrorRate = 0.8
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.TTFT = 0.5
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Price = 0.2
+	cfg.Gateway.OpenAIScheduler.PriceBoostSpeedGapMS = 1000
+	cfg.Gateway.OpenAIScheduler.PriceBoostMultiplier = 4
+	scheduler := &defaultOpenAIAccountScheduler{
+		stats:   newOpenAIAccountRuntimeStats(),
+		service: &OpenAIGatewayService{cfg: cfg},
+	}
+	cheapPrice := 0.05
+	expensivePrice := 0.20
+	cheapSlightlySlower := &Account{ID: 621, Priority: 1, ChannelPrice: &cheapPrice}
+	expensiveFast := &Account{ID: 622, Priority: 1, ChannelPrice: &expensivePrice}
+	scheduler.stats.report(cheapSlightlySlower.ID, true, intPtrForTest(650))
+	scheduler.stats.report(expensiveFast.ID, true, intPtrForTest(350))
+
+	plan := scheduler.buildOpenAIAccountLoadPlan(OpenAIAccountScheduleRequest{SessionHash: "price-aware-small-speed-gap"}, []*Account{
+		cheapSlightlySlower,
+		expensiveFast,
+	}, map[int64]*AccountLoadInfo{
+		cheapSlightlySlower.ID: {AccountID: cheapSlightlySlower.ID, LoadRate: 0, WaitingCount: 0},
+		expensiveFast.ID:       {AccountID: expensiveFast.ID, LoadRate: 0, WaitingCount: 0},
+	})
+
+	require.Len(t, plan.candidates, 2)
+	scoreByID := make(map[int64]float64, len(plan.candidates))
+	for _, candidate := range plan.candidates {
+		scoreByID[candidate.account.ID] = candidate.score
+	}
+	require.Greater(t, scoreByID[cheapSlightlySlower.ID], scoreByID[expensiveFast.ID])
+}
+
+func TestOpenAISchedulerBuildOpenAIAccountLoadPlan_KeepsFasterAccountWhenSpeedGapIsLarge(t *testing.T) {
+	scheduler := &defaultOpenAIAccountScheduler{
+		stats:   newOpenAIAccountRuntimeStats(),
+		service: &OpenAIGatewayService{},
+	}
+	cheapPrice := 0.05
+	expensivePrice := 0.20
+	cheapSlow := &Account{ID: 611, Priority: 1, ChannelPrice: &cheapPrice}
+	expensiveFast := &Account{ID: 612, Priority: 1, ChannelPrice: &expensivePrice}
+	scheduler.stats.report(cheapSlow.ID, true, intPtrForTest(2200))
+	scheduler.stats.report(expensiveFast.ID, true, intPtrForTest(350))
+
+	plan := scheduler.buildOpenAIAccountLoadPlan(OpenAIAccountScheduleRequest{SessionHash: "price-aware-large-speed-gap"}, []*Account{
+		cheapSlow,
+		expensiveFast,
+	}, map[int64]*AccountLoadInfo{
+		cheapSlow.ID:     {AccountID: cheapSlow.ID, LoadRate: 0, WaitingCount: 0},
+		expensiveFast.ID: {AccountID: expensiveFast.ID, LoadRate: 0, WaitingCount: 0},
+	})
+
+	require.Len(t, plan.candidates, 2)
+	scoreByID := make(map[int64]float64, len(plan.candidates))
+	for _, candidate := range plan.candidates {
+		scoreByID[candidate.account.ID] = candidate.score
+	}
+	require.Greater(t, scoreByID[expensiveFast.ID], scoreByID[cheapSlow.ID])
+	require.Equal(t, expensiveFast.ID, plan.selectionOrder[0].account.ID)
 }
