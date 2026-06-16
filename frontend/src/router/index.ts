@@ -467,6 +467,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/openai-health',
+    name: 'AdminOpenAIHealth',
+    component: () => import('@/views/admin/OpenAIHealthView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'OpenAI Health',
+      titleKey: 'admin.openaiHealth.title',
+      descriptionKey: 'admin.openaiHealth.description'
+    }
+  },
+  {
     path: '/monitor',
     name: 'ChannelStatus',
     component: () => import('@/views/user/ChannelStatusView.vue'),

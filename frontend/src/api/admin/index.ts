@@ -33,6 +33,7 @@ import affiliatesAPI from './affiliates'
 import riskControlAPI from './riskControl'
 import adminComplianceAPI from './compliance'
 import openaiSchedulerAPI from './openaiScheduler'
+import openaiHealthAPI from './openaiHealth'
 
 /**
  * Unified admin API object for convenient access
@@ -67,7 +68,8 @@ export const adminAPI = {
   affiliates: affiliatesAPI,
   riskControl: riskControlAPI,
   compliance: adminComplianceAPI,
-  openaiScheduler: openaiSchedulerAPI
+  openaiScheduler: openaiSchedulerAPI,
+  openaiHealth: openaiHealthAPI
 }
 
 export {
@@ -100,7 +102,8 @@ export {
   affiliatesAPI,
   riskControlAPI,
   adminComplianceAPI,
-  openaiSchedulerAPI
+  openaiSchedulerAPI,
+  openaiHealthAPI
 }
 
 export default adminAPI

@@ -543,6 +543,81 @@ func (r *channelMonitorRepository) ComputeAvailabilityForMonitors(ctx context.Co
 	return out, nil
 }
 
+// ComputeWindowStatsForMonitors 按 since 精确统计多个监控主模型在窗口内的健康指标。
+func (r *channelMonitorRepository) ComputeWindowStatsForMonitors(
+	ctx context.Context,
+	ids []int64,
+	primaryModels map[int64]string,
+	since time.Time,
+) (map[int64]*service.ChannelMonitorWindowStats, error) {
+	out := make(map[int64]*service.ChannelMonitorWindowStats, len(ids))
+	pairIDs, pairModels := buildMonitorModelPairs(ids, primaryModels)
+	if len(pairIDs) == 0 {
+		return out, nil
+	}
+	const q = `
+		WITH targets AS (
+		    SELECT unnest($1::bigint[]) AS monitor_id,
+		           unnest($2::text[])   AS model
+		)
+		SELECT h.monitor_id,
+		       COUNT(*)                                                             AS total,
+		       COUNT(*) FILTER (WHERE h.status IN ('operational','degraded'))       AS ok,
+		       COUNT(*) FILTER (WHERE h.status = 'degraded')                        AS degraded,
+		       COUNT(*) FILTER (WHERE h.status = 'failed')                          AS failed,
+		       COUNT(*) FILTER (WHERE h.status = 'error')                           AS error,
+		       AVG(h.latency_ms) FILTER (WHERE h.latency_ms IS NOT NULL)            AS avg_latency_ms,
+		       percentile_cont(0.95) WITHIN GROUP (ORDER BY h.latency_ms)
+		           FILTER (WHERE h.latency_ms IS NOT NULL)                          AS p95_latency_ms,
+		       AVG(h.ping_latency_ms) FILTER (WHERE h.ping_latency_ms IS NOT NULL)  AS avg_ping_latency_ms
+		FROM channel_monitor_histories h
+		JOIN targets t
+		  ON t.monitor_id = h.monitor_id AND t.model = h.model
+		WHERE h.checked_at >= $3
+		GROUP BY h.monitor_id
+	`
+	rows, err := r.db.QueryContext(ctx, q, pq.Array(pairIDs), pq.Array(pairModels), since.UTC())
+	if err != nil {
+		return nil, fmt.Errorf("query window stats batch: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var monitorID int64
+		stat := &service.ChannelMonitorWindowStats{}
+		var avgLatency, p95Latency, avgPing sql.NullFloat64
+		if err := rows.Scan(
+			&monitorID,
+			&stat.TotalChecks,
+			&stat.OperationalChecks,
+			&stat.DegradedChecks,
+			&stat.FailedChecks,
+			&stat.ErrorChecks,
+			&avgLatency,
+			&p95Latency,
+			&avgPing,
+		); err != nil {
+			return nil, fmt.Errorf("scan window stats row: %w", err)
+		}
+		assignNullFloatAsInt(&stat.AvgLatencyMs, avgLatency)
+		assignNullFloatAsInt(&stat.P95LatencyMs, p95Latency)
+		assignNullFloatAsInt(&stat.AvgPingLatencyMs, avgPing)
+		out[monitorID] = stat
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func assignNullFloatAsInt(dst **int, n sql.NullFloat64) {
+	if !n.Valid {
+		return
+	}
+	v := int(n.Float64)
+	*dst = &v
+}
+
 // ---------- 聚合维护 ----------
 
 // UpsertDailyRollupsFor 把 targetDate 当天（[targetDate, targetDate+1d)）的明细

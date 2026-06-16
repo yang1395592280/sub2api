@@ -44,6 +44,9 @@ func RegisterAdminRoutes(
 		// OpenAI 调度管理
 		registerOpenAISchedulerRoutes(admin, h)
 
+		// OpenAI 健康看板
+		registerOpenAIHealthRoutes(admin, h)
+
 		// Gemini OAuth
 		registerGeminiOAuthRoutes(admin, h)
 
@@ -384,6 +387,13 @@ func registerOpenAISchedulerRoutes(admin *gin.RouterGroup, h *handler.Handlers) 
 		scheduler.POST("/stats/recompute", h.Admin.OpenAIScheduler.RecomputeDailyStats)
 		scheduler.GET("/settings", h.Admin.OpenAIScheduler.GetSettings)
 		scheduler.PUT("/settings", h.Admin.OpenAIScheduler.UpdateSettings)
+	}
+}
+
+func registerOpenAIHealthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	health := admin.Group("/openai-health")
+	{
+		health.GET("/overview", h.Admin.OpenAIHealth.GetOverview)
 	}
 }
 

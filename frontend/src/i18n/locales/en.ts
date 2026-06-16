@@ -415,6 +415,7 @@ export default {
     channelPricing: 'Channel Pricing',
     channelMonitor: 'Channel Monitor',
     openaiScheduler: 'OpenAI Scheduler',
+    openaiHealth: 'OpenAI Health',
     channelStatus: 'Channel Status',
     riskControl: 'Risk Control',
     userSpendingRanking: 'User Spending Ranking',
@@ -2890,6 +2891,42 @@ export default {
         promoteObserve: 'Observe',
         runProbe: 'Probe Now'
       }
+    },
+
+    openaiHealth: {
+      title: 'OpenAI Health',
+      description: 'Summarize OpenAI scheduler health, availability, TTFT and recent monitor trends',
+      refresh: 'Refresh',
+      schedulerTab: 'Scheduler Policy',
+      monitorTab: 'Monitor Config',
+      timeWindow: 'Time Window',
+      windowHint: 'Availability, averages, P95 and trend points are aggregated by the backend for the selected window.',
+      searchPlaceholder: 'Search API, group or model',
+      allGroups: 'All Groups',
+      noGroups: 'No OpenAI groups',
+      loadError: 'Failed to load OpenAI health dashboard',
+      monitorHistoryLoadError: 'Failed to load monitor history',
+      overview: {
+        primaryAccounts: 'Total Monitors',
+        healthyMonitors: 'Healthy Monitors',
+        degradedAccounts: 'Degraded Monitors',
+        failedMonitors: 'Failed Monitors',
+        avgAvailability: 'Avg Availability',
+        avgTtft: 'Avg TTFT',
+      },
+      columns: {
+        name: 'API',
+        group: 'Group',
+        tier: 'Tier',
+        multiplier: 'Checks',
+        latestStatus: 'Latest Status',
+        firstToken: 'Latest First Token',
+        availability: 'Availability',
+        trend: 'Trend',
+        lastChecked: 'Last Check'
+      },
+      emptyTitle: 'No OpenAI monitor data',
+      emptyDescription: 'Create OpenAI monitors in Channel Monitor first, then return here for health trends.'
     },
 
     // Channel Monitor

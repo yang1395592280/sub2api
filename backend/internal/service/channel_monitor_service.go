@@ -41,6 +41,8 @@ type ChannelMonitorRepository interface {
 	// ListRecentHistoryForMonitors 批量取多个 monitor 各自主模型（primaryModels[monitorID]）最近 perMonitorLimit 条历史。
 	// 返回的 entry 已按 checked_at DESC 排序（最新在前），不含 message 字段。
 	ListRecentHistoryForMonitors(ctx context.Context, ids []int64, primaryModels map[int64]string, perMonitorLimit int) (map[int64][]*ChannelMonitorHistoryEntry, error)
+	// ComputeWindowStatsForMonitors 按 since 精确统计多个 monitor 主模型窗口内的检测质量。
+	ComputeWindowStatsForMonitors(ctx context.Context, ids []int64, primaryModels map[int64]string, since time.Time) (map[int64]*ChannelMonitorWindowStats, error)
 
 	// ---------- 聚合维护（OpsCleanupService 调用） ----------
 

@@ -730,6 +730,7 @@ const adminNavItems = computed((): NavItem[] => {
         { path: '/admin/channels/pricing', label: t('nav.channelPricing'), icon: PriceTagIcon },
         { path: '/admin/channels/monitor', label: t('nav.channelMonitor'), icon: SignalIcon, featureFlag: flagChannelMonitor },
         { path: '/admin/openai-scheduler', label: t('nav.openaiScheduler'), icon: SignalIcon },
+        { path: '/admin/openai-health', label: t('nav.openaiHealth'), icon: ChartIcon },
       ],
     },
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },

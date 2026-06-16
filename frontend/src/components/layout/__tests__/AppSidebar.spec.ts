@@ -36,4 +36,9 @@ describe('AppSidebar admin navigation', () => {
     expect(componentSource).toContain('/admin/openai-scheduler')
     expect(componentSource).toContain('nav.openaiScheduler')
   })
+
+  it('contains the OpenAI health dashboard entry', () => {
+    expect(componentSource).toContain('/admin/openai-health')
+    expect(componentSource).toContain('nav.openaiHealth')
+  })
 })
