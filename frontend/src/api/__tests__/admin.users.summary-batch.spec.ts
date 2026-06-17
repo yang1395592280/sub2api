@@ -14,10 +14,12 @@ vi.mock('@/api/client', () => ({
 
 import {
   batchAddBalanceToUsers,
+  batchDeleteUsers,
   batchSubtractBalanceFromUsers,
   batchAddGroupToUsers,
   getUserBalanceSummary,
   type BatchAddBalanceToUsersResponse,
+  type BatchDeleteUsersResponse,
   type BatchAddGroupToUsersResponse,
   type UserBalanceSummaryResponse,
 } from '@/api/admin/users'
@@ -86,6 +88,20 @@ describe('admin users summary and batch api', () => {
       balance: 1.5,
       operation: 'subtract',
       notes: 'refund',
+    })
+    expect(result).toEqual(response)
+  })
+
+  it('posts selected user ids to the batch delete endpoint', async () => {
+    const response: BatchDeleteUsersResponse = {
+      deleted: 2,
+    }
+    post.mockResolvedValue({ data: response })
+
+    const result = await batchDeleteUsers([7, 8])
+
+    expect(post).toHaveBeenCalledWith('/admin/users/batch-delete', {
+      user_ids: [7, 8],
     })
     expect(result).toEqual(response)
   })

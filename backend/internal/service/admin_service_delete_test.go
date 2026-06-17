@@ -588,6 +588,17 @@ func TestAdminService_DeleteUser_DeleteError(t *testing.T) {
 	require.Equal(t, []int64{9}, repo.deletedIDs)
 }
 
+func TestAdminService_BatchDeleteUsers_DeduplicatesAndFiltersInvalidIDs(t *testing.T) {
+	repo := &userRepoStub{user: &User{ID: 7, Role: RoleUser}}
+	svc := &adminServiceImpl{userRepo: repo}
+
+	deleted, err := svc.BatchDeleteUsers(context.Background(), []int64{7, 8, 7, 0, -1})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, deleted)
+	require.Equal(t, []int64{7, 8}, repo.deletedIDs)
+}
+
 func TestAdminService_DeleteGroup_Success_WithCacheInvalidation(t *testing.T) {
 	cache := newBillingCacheStub(2)
 	repo := &groupRepoStub{affectedUserIDs: []int64{11, 12}}

@@ -1960,7 +1960,8 @@ export default {
         clear: '清空选择',
         addBalance: '批量加余额',
         subtractBalance: '批量减余额',
-        addGroup: '添加分组'
+        addGroup: '添加分组',
+        delete: '批量删除'
       },
       bulkAddBalance: {
         title: '批量添加余额',
@@ -1989,6 +1990,12 @@ export default {
         confirm: '确认添加',
         success: '已为 {count} 个用户添加「{group}」分组权限',
         failed: '批量添加分组失败'
+      },
+      bulkDelete: {
+        title: '批量删除用户',
+        confirmMessage: '确定要删除选中的 {count} 个用户吗？此操作会同时删除这些用户的 API Key，且无法撤销。',
+        success: '已删除 {count} 个用户',
+        failed: '批量删除用户失败'
       },
       deleteConfirm: "确定要删除用户 '{email}' 吗？此操作无法撤销。",
       roles: {

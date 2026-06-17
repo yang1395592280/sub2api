@@ -1939,7 +1939,8 @@ export default {
         clear: 'Clear selection',
         addBalance: 'Add balance',
         subtractBalance: 'Subtract balance',
-        addGroup: 'Add group'
+        addGroup: 'Add group',
+        delete: 'Batch delete'
       },
       bulkAddBalance: {
         title: 'Batch Add Balance',
@@ -1968,6 +1969,12 @@ export default {
         confirm: 'Confirm',
         success: 'Added "{group}" group access for {count} users',
         failed: 'Failed to batch add group'
+      },
+      bulkDelete: {
+        title: 'Batch Delete Users',
+        confirmMessage: 'Delete {count} selected users? Their API keys will also be deleted. This action cannot be undone.',
+        success: 'Deleted {count} users',
+        failed: 'Failed to batch delete users'
       },
       emailRequired: 'Please enter email',
       concurrencyMin: 'Concurrency must be at least 1',

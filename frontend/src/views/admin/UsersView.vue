@@ -284,6 +284,7 @@
           @add-balance="openBatchAddBalanceModal"
           @subtract-balance="openBatchSubtractBalanceModal"
           @add-group="openBatchAddGroupModal"
+          @delete="openBatchDeleteDialog"
         />
 
         <DataTable
@@ -783,6 +784,14 @@
     </Teleport>
 
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.users.deleteUser')" :message="t('admin.users.deleteConfirm', { email: deletingUser?.email })" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
+    <ConfirmDialog
+      :show="showBatchDeleteDialog"
+      :title="t('admin.users.bulkDelete.title')"
+      :message="t('admin.users.bulkDelete.confirmMessage', { count: selectedUserIds.length })"
+      :danger="true"
+      @confirm="confirmBatchDelete"
+      @cancel="showBatchDeleteDialog = false"
+    />
     <UserCreateModal :show="showCreateModal" @close="showCreateModal = false" @success="refreshUsersAndSummary" />
     <UserEditModal :show="showEditModal" :user="editingUser" @close="closeEditModal" @success="refreshUsersAndSummary" />
     <UserPlatformQuotaModal
@@ -1577,6 +1586,7 @@ const showBalanceHistoryModal = ref(false)
 const balanceHistoryUser = ref<AdminUser | null>(null)
 const showBatchAddGroupModal = ref(false)
 const showBatchBalanceModal = ref(false)
+const showBatchDeleteDialog = ref(false)
 const batchBalanceMode = ref<'add' | 'subtract'>('add')
 
 // 计算剩余天数
@@ -1895,6 +1905,26 @@ const closeBatchBalanceModal = () => {
 const handleBatchAddBalanceSuccess = () => {
   clearSelectedUsers()
   refreshUsersAndSummary()
+}
+
+const openBatchDeleteDialog = () => {
+  if (selectedUserIds.value.length === 0) return
+  showBatchDeleteDialog.value = true
+}
+
+const confirmBatchDelete = async () => {
+  const userIds = [...selectedUserIds.value]
+  if (userIds.length === 0) return
+  try {
+    const result = await adminAPI.users.batchDeleteUsers(userIds)
+    appStore.showSuccess(t('admin.users.bulkDelete.success', { count: result.deleted }))
+    showBatchDeleteDialog.value = false
+    clearSelectedUsers()
+    refreshUsersAndSummary()
+  } catch (error: any) {
+    appStore.showError(error.response?.data?.detail || t('admin.users.bulkDelete.failed'))
+    console.error('Error batch deleting users:', error)
+  }
 }
 
 const toggleSelectAllVisible = (event: Event) => {

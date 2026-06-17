@@ -94,6 +94,10 @@ type BatchAddGroupRequest struct {
 	GroupID int64   `json:"group_id" binding:"required,gt=0"`
 }
 
+type BatchDeleteUsersRequest struct {
+	UserIDs []int64 `json:"user_ids"`
+}
+
 type BindUserAuthIdentityRequest struct {
 	ProviderType    string                              `json:"provider_type"`
 	ProviderKey     string                              `json:"provider_key"`
@@ -372,6 +376,32 @@ func (h *UserHandler) Delete(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"message": "User deleted successfully"})
+}
+
+// BatchDelete handles deleting multiple users.
+// POST /api/v1/admin/users/batch-delete
+func (h *UserHandler) BatchDelete(c *gin.Context) {
+	var req BatchDeleteUsersRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if len(req.UserIDs) == 0 {
+		response.BadRequest(c, "user_ids is required")
+		return
+	}
+	if len(req.UserIDs) > 500 {
+		response.BadRequest(c, "user_ids cannot exceed 500")
+		return
+	}
+
+	deleted, err := h.adminService.BatchDeleteUsers(c.Request.Context(), req.UserIDs)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, gin.H{"deleted": deleted})
 }
 
 // GetBalanceSummary handles getting the total balance of all non-admin users.

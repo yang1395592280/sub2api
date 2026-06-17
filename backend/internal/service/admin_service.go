@@ -37,6 +37,7 @@ type AdminService interface {
 	CreateUser(ctx context.Context, input *CreateUserInput) (*User, error)
 	UpdateUser(ctx context.Context, id int64, input *UpdateUserInput) (*User, error)
 	DeleteUser(ctx context.Context, id int64) error
+	BatchDeleteUsers(ctx context.Context, userIDs []int64) (int, error)
 	UpdateUserBalance(ctx context.Context, userID int64, balance float64, operation string, notes string) (*User, error)
 	BatchAddBalanceToUsers(ctx context.Context, userIDs []int64, balance float64, operation string, notes string) (int, error)
 	GetUserBalanceSummary(ctx context.Context) (*UserBalanceSummary, error)
@@ -947,6 +948,34 @@ func (s *adminServiceImpl) DeleteUser(ctx context.Context, id int64) error {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, id)
 	}
 	return nil
+}
+
+func (s *adminServiceImpl) BatchDeleteUsers(ctx context.Context, userIDs []int64) (int, error) {
+	seen := make(map[int64]struct{}, len(userIDs))
+	cleaned := make([]int64, 0, len(userIDs))
+	for _, userID := range userIDs {
+		if userID <= 0 {
+			continue
+		}
+		if _, ok := seen[userID]; ok {
+			continue
+		}
+		seen[userID] = struct{}{}
+		cleaned = append(cleaned, userID)
+	}
+	if len(cleaned) == 0 {
+		return 0, nil
+	}
+
+	deleted := 0
+	for _, userID := range cleaned {
+		// 复用单删的管理员保护、API Key 清理和鉴权缓存失效逻辑，避免批量路径绕过删除语义。
+		if err := s.DeleteUser(ctx, userID); err != nil {
+			return deleted, err
+		}
+		deleted++
+	}
+	return deleted, nil
 }
 
 func (s *adminServiceImpl) listUserAPIKeysForDeletion(ctx context.Context, userID int64) ([]APIKey, error) {

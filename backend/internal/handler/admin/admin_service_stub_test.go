@@ -68,6 +68,11 @@ type stubAdminService struct {
 		calls     int
 		affected  int
 	}
+	lastBatchDeleteUsers struct {
+		userIDs []int64
+		calls   int
+		deleted int
+	}
 	lastListProxies struct {
 		protocol  string
 		status    string
@@ -191,6 +196,15 @@ func (s *stubAdminService) UpdateUser(ctx context.Context, id int64, input *serv
 
 func (s *stubAdminService) DeleteUser(ctx context.Context, id int64) error {
 	return nil
+}
+
+func (s *stubAdminService) BatchDeleteUsers(ctx context.Context, userIDs []int64) (int, error) {
+	s.lastBatchDeleteUsers.calls++
+	s.lastBatchDeleteUsers.userIDs = append([]int64(nil), userIDs...)
+	if s.lastBatchDeleteUsers.deleted > 0 {
+		return s.lastBatchDeleteUsers.deleted, nil
+	}
+	return len(userIDs), nil
 }
 
 func (s *stubAdminService) UpdateUserBalance(ctx context.Context, userID int64, balance float64, operation string, notes string) (*service.User, error) {

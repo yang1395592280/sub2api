@@ -11,7 +11,8 @@ const {
   getBatchUsersUsage,
   listEnabledDefinitions,
   getBatchUserAttributes,
-  batchAddBalanceToUsers
+  batchAddBalanceToUsers,
+  batchDeleteUsers
 } = vi.hoisted(() => ({
   listUsers: vi.fn(),
   getUserBalanceSummary: vi.fn(),
@@ -19,7 +20,8 @@ const {
   getBatchUsersUsage: vi.fn(),
   listEnabledDefinitions: vi.fn(),
   getBatchUserAttributes: vi.fn(),
-  batchAddBalanceToUsers: vi.fn()
+  batchAddBalanceToUsers: vi.fn(),
+  batchDeleteUsers: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -30,6 +32,7 @@ vi.mock('@/api/admin', () => ({
       toggleStatus: vi.fn(),
       delete: vi.fn(),
       batchAddBalanceToUsers,
+      batchDeleteUsers,
       batchAddGroupToUsers: vi.fn()
     },
     groups: {
@@ -108,6 +111,7 @@ describe('admin UsersView', () => {
     listEnabledDefinitions.mockReset()
     getBatchUserAttributes.mockReset()
     batchAddBalanceToUsers.mockReset()
+    batchDeleteUsers.mockReset()
 
     listUsers.mockResolvedValue({
       items: [createAdminUser()],
@@ -272,6 +276,60 @@ describe('admin UsersView', () => {
     await flushPromises()
 
     expect(wrapper.get('[data-test="batch-balance-modal"]').text()).toBe('42')
+  })
+
+  it('confirms and sends selected user ids to the batch delete endpoint', async () => {
+    batchDeleteUsers.mockResolvedValue({ deleted: 1 })
+
+    const wrapper = mount(UsersView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: {
+            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+          },
+          DataTable: DataTableStub,
+          Pagination: true,
+          ConfirmDialog: {
+            props: ['show', 'message'],
+            emits: ['confirm'],
+            template: '<button v-if="show" data-test="confirm-batch-delete" @click="$emit(\'confirm\')">{{ message }}</button>'
+          },
+          EmptyState: true,
+          GroupBadge: true,
+          Select: true,
+          UserAttributesConfigModal: true,
+          UserConcurrencyCell: true,
+          UserCreateModal: true,
+          UserEditModal: true,
+          UserApiKeysModal: true,
+          UserAllowedGroupsModal: true,
+          UserBalanceModal: true,
+          UserBalanceHistoryModal: true,
+          GroupReplaceModal: true,
+          UserBulkActionsBar: {
+            props: ['selectedIds'],
+            emits: ['delete'],
+            template: '<button data-test="open-batch-delete" @click="$emit(\'delete\')">{{ selectedIds.length }}</button>'
+          },
+          UserBatchAddGroupModal: true,
+          UserBatchBalanceModal: true,
+          Icon: true,
+          Teleport: true
+        }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+    await flushPromises()
+    await wrapper.get('[data-test="open-batch-delete"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-test="confirm-batch-delete"]').trigger('click')
+    await flushPromises()
+
+    expect(batchDeleteUsers).toHaveBeenCalledWith([42])
+    expect(listUsers).toHaveBeenCalledTimes(2)
   })
 
   it('passes comma-separated email filters through email_list without replacing fuzzy search', async () => {

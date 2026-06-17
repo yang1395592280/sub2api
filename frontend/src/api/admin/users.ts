@@ -194,6 +194,10 @@ export interface BatchAddBalanceToUsersResponse {
   affected: number
 }
 
+export interface BatchDeleteUsersResponse {
+  deleted: number
+}
+
 export async function batchAddGroupToUsers(
   userIds: number[],
   groupId: number
@@ -236,6 +240,16 @@ export async function batchSubtractBalanceFromUsers(
       balance,
       operation: 'subtract',
       notes: notes || ''
+    }
+  )
+  return data
+}
+
+export async function batchDeleteUsers(userIds: number[]): Promise<BatchDeleteUsersResponse> {
+  const { data } = await apiClient.post<BatchDeleteUsersResponse>(
+    '/admin/users/batch-delete',
+    {
+      user_ids: userIds
     }
   )
   return data
@@ -455,6 +469,7 @@ export const usersAPI = {
   batchAddBalanceToUsers,
   batchSubtractBalanceFromUsers,
   batchAddGroupToUsers,
+  batchDeleteUsers,
   updateConcurrency,
   toggleStatus,
   getUserApiKeys,

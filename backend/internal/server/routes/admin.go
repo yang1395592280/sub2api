@@ -255,6 +255,7 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		users.POST("", h.Admin.User.Create)
 		users.POST("/batch-balance", h.Admin.User.BatchAddBalance)
 		users.POST("/batch-add-group", h.Admin.User.BatchAddGroup)
+		users.POST("/batch-delete", h.Admin.User.BatchDelete)
 		users.PUT("/:id", h.Admin.User.Update)
 		users.DELETE("/:id", h.Admin.User.Delete)
 		users.POST("/:id/balance", h.Admin.User.UpdateBalance)

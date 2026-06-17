@@ -32,6 +32,9 @@
       <button class="btn btn-primary btn-sm" @click="$emit('add-group')">
         {{ t('admin.users.bulkActions.addGroup') }}
       </button>
+      <button class="btn btn-danger btn-sm" @click="$emit('delete')">
+        {{ t('admin.users.bulkActions.delete') }}
+      </button>
     </div>
   </div>
 </template>
@@ -49,6 +52,7 @@ defineEmits<{
   (e: 'add-balance'): void
   (e: 'subtract-balance'): void
   (e: 'add-group'): void
+  (e: 'delete'): void
 }>()
 
 const { t } = useI18n()

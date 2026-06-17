@@ -31,6 +31,7 @@ func setupAdminRouter() (*gin.Engine, *stubAdminService) {
 	router.POST("/api/v1/admin/users/:id/balance", userHandler.UpdateBalance)
 	router.POST("/api/v1/admin/users/batch-balance", userHandler.BatchAddBalance)
 	router.POST("/api/v1/admin/users/batch-add-group", userHandler.BatchAddGroup)
+	router.POST("/api/v1/admin/users/batch-delete", userHandler.BatchDelete)
 	router.GET("/api/v1/admin/users/:id/api-keys", userHandler.GetUserAPIKeys)
 	router.GET("/api/v1/admin/users/:id/usage", userHandler.GetUserUsage)
 
@@ -143,6 +144,12 @@ func TestUserHandlerEndpoints(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/users/batch-delete", bytes.NewBufferString(`{"user_ids":[1,2]}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/users/1/api-keys", nil)
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -181,6 +188,20 @@ func TestUserHandlerBatchAddBalanceMapsRequest(t *testing.T) {
 	require.Equal(t, 1.5, adminSvc.lastBatchAddBalance.balance)
 	require.Equal(t, "subtract", adminSvc.lastBatchAddBalance.operation)
 	require.Equal(t, "bonus", adminSvc.lastBatchAddBalance.notes)
+}
+
+func TestUserHandlerBatchDeleteMapsRequest(t *testing.T) {
+	router, adminSvc := setupAdminRouter()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/users/batch-delete", bytes.NewBufferString(`{"user_ids":[7,8,7]}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, 1, adminSvc.lastBatchDeleteUsers.calls)
+	require.Equal(t, []int64{7, 8, 7}, adminSvc.lastBatchDeleteUsers.userIDs)
+	require.JSONEq(t, `{"code":0,"data":{"deleted":3},"message":"success"}`, rec.Body.String())
 }
 
 func TestUserHandlerBindAuthIdentityMapsRequest(t *testing.T) {
