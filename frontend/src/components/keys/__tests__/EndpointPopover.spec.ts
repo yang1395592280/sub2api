@@ -10,6 +10,8 @@ const messages: Record<string, string> = {
   'keys.endpoints.copiedHint': '已复制到剪贴板',
   'keys.endpoints.clickToCopy': '点击可复制此端点',
   'keys.endpoints.speedTest': '测速',
+  'keys.endpoints.copyAll': '一键复制',
+  'keys.endpoints.copyAllCopied': '全部端点已复制',
 }
 
 vi.mock('vue-i18n', () => ({
@@ -65,5 +67,29 @@ describe('EndpointPopover', () => {
     expect(copyToClipboard).toHaveBeenCalledWith('https://default.example.com/v1', '已复制')
     expect(wrapper.text()).toContain('已复制到剪贴板')
     expect(wrapper.find('button[aria-label="已复制到剪贴板"]').exists()).toBe(true)
+  })
+
+  it('点击一键复制按钮后会复制全部端点', async () => {
+    const wrapper = mount(EndpointPopover, {
+      props: {
+        apiBaseUrl: 'https://default.example.com/v1',
+        customEndpoints: [
+          {
+            name: '备用线路',
+            endpoint: 'https://backup.example.com/v1',
+            description: '自定义说明',
+          },
+        ],
+      },
+    })
+
+    await wrapper.find('[data-testid="copy-all-endpoints"]').trigger('click')
+    await flushPromises()
+
+    expect(copyToClipboard).toHaveBeenCalledWith(
+      'API 端点: https://default.example.com/v1\n备用线路: https://backup.example.com/v1',
+      '全部端点已复制',
+    )
+    expect(wrapper.text()).toContain('全部端点已复制')
   })
 })

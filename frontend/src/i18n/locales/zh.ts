@@ -716,6 +716,8 @@ export default {
       copiedHint: '已复制到剪贴板',
       clickToCopy: '点击可复制此端点',
       speedTest: '测速',
+      copyAll: '一键复制',
+      copyAllCopied: '全部端点已复制',
     },
     allGroups: '全部分组',
     allStatus: '全部状态',

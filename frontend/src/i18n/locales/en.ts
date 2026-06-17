@@ -717,6 +717,8 @@ export default {
       copiedHint: 'Copied to clipboard',
       clickToCopy: 'Click to copy this endpoint',
       speedTest: 'Speed Test',
+      copyAll: 'Copy All',
+      copyAllCopied: 'All endpoints copied',
     },
     allGroups: 'All Groups',
     allStatus: 'All Status',
