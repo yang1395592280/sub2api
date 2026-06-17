@@ -17,12 +17,18 @@ const copiedAll = ref(false)
 let copiedResetTimer: number | undefined
 let copiedAllResetTimer: number | undefined
 
+const fallbackEndpoint = computed(() => {
+  if (typeof window === 'undefined') return ''
+  return window.location.origin
+})
+
 const allEndpoints = computed(() => {
   const items: Array<{ name: string; endpoint: string; description: string; isDefault: boolean }> = []
-  if (props.apiBaseUrl) {
+  const defaultEndpoint = props.apiBaseUrl || fallbackEndpoint.value
+  if (defaultEndpoint) {
     items.push({
       name: t('keys.endpoints.title'),
-      endpoint: props.apiBaseUrl,
+      endpoint: defaultEndpoint,
       description: '',
       isDefault: true,
     })

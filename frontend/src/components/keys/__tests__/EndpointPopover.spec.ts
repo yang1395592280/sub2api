@@ -31,6 +31,9 @@ import EndpointPopover from '../EndpointPopover.vue'
 describe('EndpointPopover', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal('location', {
+      origin: 'https://current.example.com',
+    })
   })
 
   it('将说明提示渲染到 URL 上方而不是旧的 title 图标上', () => {
@@ -91,5 +94,25 @@ describe('EndpointPopover', () => {
       '全部端点已复制',
     )
     expect(wrapper.text()).toContain('全部端点已复制')
+  })
+
+  it('未配置公开端点时使用当前站点地址作为默认端点', async () => {
+    const wrapper = mount(EndpointPopover, {
+      props: {
+        apiBaseUrl: '',
+        customEndpoints: [],
+      },
+    })
+
+    expect(wrapper.text()).toContain('一键复制')
+    expect(wrapper.text()).toContain('https://current.example.com')
+
+    await wrapper.find('[data-testid="copy-all-endpoints"]').trigger('click')
+    await flushPromises()
+
+    expect(copyToClipboard).toHaveBeenCalledWith(
+      'API 端点: https://current.example.com',
+      '全部端点已复制',
+    )
   })
 })
