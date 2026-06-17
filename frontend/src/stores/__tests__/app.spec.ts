@@ -15,6 +15,7 @@ vi.mock('@/api/auth', () => ({
 describe('useAppStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    vi.clearAllMocks()
     vi.useFakeTimers()
     localStorage.clear()
     // 清除 window.__APP_CONFIG__
@@ -331,6 +332,46 @@ describe('useAppStore', () => {
       expect((window as any).__APP_CONFIG__.table_page_size_options).toEqual([20, 100, 1000])
       expect(localStorage.getItem('table-page-size')).toBeNull()
       expect(localStorage.getItem('table-page-size-source')).toBeNull()
+    })
+
+    it('并发 fetchPublicSettings 调用复用同一个请求', async () => {
+      vi.mocked(getPublicSettings).mockResolvedValue({
+        registration_enabled: false,
+        email_verify_enabled: false,
+        registration_email_suffix_whitelist: [],
+        promo_code_enabled: true,
+        password_reset_enabled: false,
+        invitation_code_enabled: false,
+        turnstile_enabled: false,
+        turnstile_site_key: '',
+        site_name: 'Shared Site',
+        site_logo: '',
+        site_subtitle: '',
+        api_base_url: '',
+        contact_info: '',
+        doc_url: '',
+        home_content: '',
+        hide_ccs_import_button: false,
+        purchase_subscription_enabled: false,
+        purchase_subscription_url: '',
+        table_default_page_size: 20,
+        table_page_size_options: [10, 20, 50, 100],
+        custom_menu_items: [],
+        custom_endpoints: [],
+        linuxdo_oauth_enabled: false,
+        backend_mode_enabled: false,
+        version: '1.0.0'
+      })
+
+      const store = useAppStore()
+      const [first, second] = await Promise.all([
+        store.fetchPublicSettings(),
+        store.fetchPublicSettings()
+      ])
+
+      expect(getPublicSettings).toHaveBeenCalledTimes(1)
+      expect(first?.site_name).toBe('Shared Site')
+      expect(second?.site_name).toBe('Shared Site')
     })
   })
 })

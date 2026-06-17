@@ -1053,7 +1053,7 @@
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 
 const { t } = useI18n()
-import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
+import { keysAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import DataTable from '@/components/common/DataTable.vue'
@@ -1353,7 +1353,7 @@ const loadUserGroupRates = async () => {
 
 const loadPublicSettings = async () => {
   try {
-    publicSettings.value = await authAPI.getPublicSettings()
+    publicSettings.value = await appStore.fetchPublicSettings()
   } catch (error) {
     console.error('Failed to load public settings:', error)
   }
