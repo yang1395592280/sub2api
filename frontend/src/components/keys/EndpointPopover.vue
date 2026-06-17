@@ -12,23 +12,15 @@ const props = defineProps<{
 const { t } = useI18n()
 const { copyToClipboard } = useClipboard()
 const copiedEndpoint = ref<string | null>(null)
-const copiedAll = ref(false)
 
 let copiedResetTimer: number | undefined
-let copiedAllResetTimer: number | undefined
-
-const fallbackEndpoint = computed(() => {
-  if (typeof window === 'undefined') return ''
-  return window.location.origin
-})
 
 const allEndpoints = computed(() => {
   const items: Array<{ name: string; endpoint: string; description: string; isDefault: boolean }> = []
-  const defaultEndpoint = props.apiBaseUrl || fallbackEndpoint.value
-  if (defaultEndpoint) {
+  if (props.apiBaseUrl) {
     items.push({
       name: t('keys.endpoints.title'),
-      endpoint: defaultEndpoint,
+      endpoint: props.apiBaseUrl,
       description: '',
       isDefault: true,
     })
@@ -54,22 +46,6 @@ async function copy(url: string) {
   }, 1800)
 }
 
-async function copyAll() {
-  const content = allEndpoints.value
-    .map((item) => `${item.name}: ${item.endpoint}`)
-    .join('\n')
-  const success = await copyToClipboard(content, t('keys.endpoints.copyAllCopied'))
-  if (!success) return
-
-  copiedAll.value = true
-  if (copiedAllResetTimer !== undefined) {
-    window.clearTimeout(copiedAllResetTimer)
-  }
-  copiedAllResetTimer = window.setTimeout(() => {
-    copiedAll.value = false
-  }, 1800)
-}
-
 function tooltipHint(endpoint: string): string {
   return copiedEndpoint.value === endpoint
     ? t('keys.endpoints.copiedHint')
@@ -84,33 +60,11 @@ onBeforeUnmount(() => {
   if (copiedResetTimer !== undefined) {
     window.clearTimeout(copiedResetTimer)
   }
-  if (copiedAllResetTimer !== undefined) {
-    window.clearTimeout(copiedAllResetTimer)
-  }
 })
 </script>
 
 <template>
   <div v-if="allEndpoints.length > 0" class="flex flex-wrap gap-2">
-    <button
-      type="button"
-      data-testid="copy-all-endpoints"
-      class="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors"
-      :class="copiedAll
-        ? 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-300'
-        : 'border-gray-200 bg-white text-gray-600 hover:border-primary-200 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300 dark:hover:border-primary-700 dark:hover:text-primary-400'"
-      :aria-label="copiedAll ? t('keys.endpoints.copyAllCopied') : t('keys.endpoints.copyAll')"
-      @click="copyAll"
-    >
-      <svg v-if="copiedAll" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-      </svg>
-      <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-      </svg>
-      {{ copiedAll ? t('keys.endpoints.copyAllCopied') : t('keys.endpoints.copyAll') }}
-    </button>
-
     <div
       v-for="(item, index) in allEndpoints"
       :key="index"
