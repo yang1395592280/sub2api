@@ -300,23 +300,38 @@ func (s *PaymentService) VerifyOrderByOutTradeNo(ctx context.Context, outTradeNo
 // ReconcilePendingWxpayOrders actively checks recent pending WeChat orders so
 // missed provider notifications do not wait until order expiry to fulfill.
 func (s *PaymentService) ReconcilePendingWxpayOrders(ctx context.Context) (int, error) {
+	return s.reconcilePendingOrdersByProvider(ctx, payment.TypeWxpay)
+}
+
+// ReconcilePendingProviderOrders actively checks recent pending Alipay and WeChat
+// orders so missed provider notifications do not wait until order expiry.
+func (s *PaymentService) ReconcilePendingProviderOrders(ctx context.Context) (int, error) {
+	wxRecovered, err := s.reconcilePendingOrdersByProvider(ctx, payment.TypeWxpay)
+	if err != nil {
+		return wxRecovered, err
+	}
+	aliRecovered, err := s.reconcilePendingOrdersByProvider(ctx, payment.TypeAlipay)
+	return wxRecovered + aliRecovered, err
+}
+
+func (s *PaymentService) reconcilePendingOrdersByProvider(ctx context.Context, providerKey string) (int, error) {
 	now := time.Now()
 	orders, err := s.entClient.PaymentOrder.Query().
 		Where(
 			paymentorder.StatusEQ(OrderStatusPending),
 			paymentorder.ExpiresAtGT(now),
 			paymentorder.Or(
-				paymentorder.PaymentTypeEQ(payment.TypeWxpay),
-				paymentorder.PaymentTypeHasPrefix(payment.TypeWxpay+"_"),
-				paymentorder.ProviderKeyEQ(payment.TypeWxpay),
-				paymentorder.ProviderKeyHasPrefix(payment.TypeWxpay+"_"),
+				paymentorder.PaymentTypeEQ(providerKey),
+				paymentorder.PaymentTypeHasPrefix(providerKey+"_"),
+				paymentorder.ProviderKeyEQ(providerKey),
+				paymentorder.ProviderKeyHasPrefix(providerKey+"_"),
 			),
 		).
 		Order(dbent.Asc(paymentorder.FieldCreatedAt)).
 		Limit(pendingWxpayReconcileLimit).
 		All(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("query pending wxpay orders: %w", err)
+		return 0, fmt.Errorf("query pending %s orders: %w", providerKey, err)
 	}
 
 	recovered := 0
