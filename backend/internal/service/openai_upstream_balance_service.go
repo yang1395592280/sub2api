@@ -179,7 +179,7 @@ func (s *OpenAIUpstreamBalanceService) probeNewAPI(ctx context.Context, baseURL,
 	if unit == "" {
 		unit = "quota"
 	}
-	if remaining, ok := getFirstFloat64(data, "available_quota", "remaining_quota", "remain_quota", "quota_remaining"); ok {
+	if remaining, ok := getFirstFloat64(data, "total_available", "available_quota", "remaining_quota", "remain_quota", "quota_remaining"); ok {
 		return OpenAIUpstreamBalanceSnapshot{
 			Remaining: remaining,
 			Unit:      unit,
