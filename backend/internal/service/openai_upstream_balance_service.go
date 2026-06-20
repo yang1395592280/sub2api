@@ -181,7 +181,7 @@ func (s *OpenAIUpstreamBalanceService) probeNewAPI(ctx context.Context, baseURL,
 	}
 	if remaining, ok := getFirstFloat64(data, "total_available", "available_quota", "remaining_quota", "remain_quota", "quota_remaining"); ok {
 		return OpenAIUpstreamBalanceSnapshot{
-			Remaining: remaining,
+			Remaining: nonNegativeBalance(remaining),
 			Unit:      unit,
 		}, nil
 	}
@@ -196,7 +196,7 @@ func (s *OpenAIUpstreamBalanceService) probeNewAPI(ctx context.Context, baseURL,
 	}
 
 	return OpenAIUpstreamBalanceSnapshot{
-		Remaining: quota - used,
+		Remaining: nonNegativeBalance(quota - used),
 		Unit:      unit,
 	}, nil
 }
@@ -277,6 +277,13 @@ func getFirstFloat64(m map[string]any, keys ...string) (float64, bool) {
 		}
 	}
 	return 0, false
+}
+
+func nonNegativeBalance(value float64) float64 {
+	if value < 0 {
+		return 0
+	}
+	return value
 }
 
 func getString(m map[string]any, key string) string {
