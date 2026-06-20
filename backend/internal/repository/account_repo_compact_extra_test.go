@@ -23,3 +23,17 @@ func TestShouldEnqueueSchedulerOutboxForExtraUpdates_OpenAIResponsesCapabilityKe
 		t.Fatalf("expected responses capability updates to enqueue scheduler outbox")
 	}
 }
+
+func TestShouldEnqueueSchedulerOutboxForExtraUpdates_UpstreamBalanceKeysAreNeutral(t *testing.T) {
+	updates := map[string]any{
+		"upstream_balance_provider":   "sub2api",
+		"upstream_balance_remaining":  12.34,
+		"upstream_balance_unit":       "USD",
+		"upstream_balance_status":     "ok",
+		"upstream_balance_updated_at": "2026-06-20T10:00:00Z",
+	}
+
+	if shouldEnqueueSchedulerOutboxForExtraUpdates(updates) {
+		t.Fatalf("expected upstream balance updates to skip scheduler outbox")
+	}
+}

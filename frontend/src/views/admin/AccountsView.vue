@@ -289,6 +289,7 @@
               :today-stats="todayStatsByAccountId[String(row.id)] ?? null"
               :today-stats-loading="todayStatsLoading"
               :manual-refresh-token="usageManualRefreshToken"
+              @account-refreshed="handleAccountUpdated"
             />
           </template>
           <template #cell-proxy="{ row }">

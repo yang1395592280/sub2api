@@ -204,6 +204,11 @@ export async function refreshCredentials(id: number): Promise<Account> {
   return data
 }
 
+export async function refreshUpstreamBalance(id: number): Promise<Account> {
+  const { data } = await apiClient.post<Account>(`/admin/accounts/${id}/upstream-balance/refresh`)
+  return data
+}
+
 /**
  * Apply OAuth credentials after re-authorization.
  *
@@ -786,6 +791,7 @@ export const accountsAPI = {
   toggleStatus,
   testAccount,
   refreshCredentials,
+  refreshUpstreamBalance,
   applyOAuthCredentials,
   getStats,
   clearError,

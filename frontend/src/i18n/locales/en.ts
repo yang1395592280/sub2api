@@ -3455,6 +3455,13 @@ export default {
         threshold: 'Alert Amount',
         thresholdPlaceholder: 'Enter percentage',
       },
+      upstreamBalance: {
+        refresh: 'Refresh balance',
+        unknown: 'Not queried',
+        failed: 'Balance query failed',
+        unsupported: 'Unsupported',
+        updatedAt: 'Updated {time}'
+      },
       testConnection: 'Test Connection',
       reAuthorize: 'Re-Authorize',
       refreshToken: 'Refresh Token',

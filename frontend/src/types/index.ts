@@ -836,6 +836,12 @@ export interface Account {
   extra?: (CodexUsageSnapshot & OpenAICompactState & {
     model_rate_limits?: Record<string, { rate_limited_at: string; rate_limit_reset_at: string }>
     antigravity_credits_overages?: Record<string, { activated_at: string; active_until: string }>
+    upstream_balance_provider?: 'sub2api' | 'new-api' | string
+    upstream_balance_remaining?: number
+    upstream_balance_unit?: 'USD' | 'quota' | string
+    upstream_balance_updated_at?: string
+    upstream_balance_status?: 'ok' | 'refreshing' | 'error' | 'unsupported' | string
+    upstream_balance_error?: string
   } & Record<string, unknown>)
   proxy_id: number | null
   proxy_fallback_origin_id?: number | null

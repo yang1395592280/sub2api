@@ -3450,6 +3450,13 @@ export default {
         threshold: '告警金额',
         thresholdPlaceholder: '输入百分比',
       },
+      upstreamBalance: {
+        refresh: '刷新余额',
+        unknown: '未查询',
+        failed: '余额查询失败',
+        unsupported: '接口不支持',
+        updatedAt: '更新于 {time}'
+      },
       testConnection: '测试连接',
       reAuthorize: '重新授权',
       refreshToken: '刷新令牌',

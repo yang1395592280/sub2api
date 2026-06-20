@@ -124,6 +124,11 @@ func ProvideOpenAIQuotaService(
 	return NewOpenAIQuotaService(accountRepo, proxyRepo, tokenProvider, privacyClientFactory)
 }
 
+// ProvideOpenAIUpstreamBalanceService wires the OpenAI upstream balance refresh service.
+func ProvideOpenAIUpstreamBalanceService(accountRepo AccountRepository) *OpenAIUpstreamBalanceService {
+	return NewOpenAIUpstreamBalanceService(accountRepo, nil)
+}
+
 // ProvideGeminiTokenProvider creates GeminiTokenProvider with OAuthRefreshAPI injection
 func ProvideGeminiTokenProvider(
 	accountRepo AccountRepository,
@@ -547,6 +552,7 @@ var ProviderSet = wire.NewSet(
 	ProvideAntigravityTokenProvider,
 	ProvideOpenAITokenProvider,
 	ProvideOpenAIQuotaService,
+	ProvideOpenAIUpstreamBalanceService,
 	ProvideClaudeTokenProvider,
 	NewAntigravityGatewayService,
 	ProvideRateLimitService,
