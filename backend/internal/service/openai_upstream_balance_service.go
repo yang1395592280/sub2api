@@ -175,6 +175,17 @@ func (s *OpenAIUpstreamBalanceService) probeNewAPI(ctx context.Context, baseURL,
 		return OpenAIUpstreamBalanceSnapshot{}, fmt.Errorf("new-api response missing data")
 	}
 
+	unit := strings.TrimSpace(getString(data, "unit"))
+	if unit == "" {
+		unit = "quota"
+	}
+	if remaining, ok := getFirstFloat64(data, "available_quota", "remaining_quota", "remain_quota", "quota_remaining"); ok {
+		return OpenAIUpstreamBalanceSnapshot{
+			Remaining: remaining,
+			Unit:      unit,
+		}, nil
+	}
+
 	quota, ok := getFloat64(data, "quota")
 	if !ok {
 		return OpenAIUpstreamBalanceSnapshot{}, fmt.Errorf("new-api response missing quota")
@@ -183,10 +194,7 @@ func (s *OpenAIUpstreamBalanceService) probeNewAPI(ctx context.Context, baseURL,
 	if !ok {
 		return OpenAIUpstreamBalanceSnapshot{}, fmt.Errorf("new-api response missing or invalid used_quota")
 	}
-	unit := strings.TrimSpace(getString(data, "unit"))
-	if unit == "" {
-		unit = "quota"
-	}
+
 	return OpenAIUpstreamBalanceSnapshot{
 		Remaining: quota - used,
 		Unit:      unit,
@@ -258,6 +266,15 @@ func getFloat64(m map[string]any, key string) (float64, bool) {
 	case json.Number:
 		f, err := v.Float64()
 		return f, err == nil
+	}
+	return 0, false
+}
+
+func getFirstFloat64(m map[string]any, keys ...string) (float64, bool) {
+	for _, key := range keys {
+		if v, ok := getFloat64(m, key); ok {
+			return v, true
+		}
 	}
 	return 0, false
 }

@@ -174,10 +174,12 @@
       <template #table>
         <AccountBulkActionsBar
           :selected-ids="selIds"
+          :balance-refreshing="balanceRefreshing"
           @delete="handleBulkDelete"
           @test-selected="handleBulkTestSelected"
           @reset-status="handleBulkResetStatus"
           @refresh-token="handleBulkRefreshToken"
+          @refresh-balance="handleBulkRefreshBalance"
           @edit-selected="openBulkEditSelected"
           @edit-filtered="openBulkEditFiltered"
           @clear="clearSelection"
@@ -456,6 +458,7 @@ const proxies = ref<AccountProxy[]>([])
 const groups = ref<AdminGroup[]>([])
 const accountTableRef = ref<HTMLElement | null>(null)
 const dataTableRef = ref<InstanceType<typeof DataTable> | null>(null)
+const balanceRefreshing = ref(false)
 type AccountBulkEditTarget =
   | {
       mode: 'selected'
@@ -1280,6 +1283,42 @@ const handleBulkRefreshToken = async () => {
   } catch (error) {
     console.error('Failed to bulk refresh token:', error)
     appStore.showError(String(error))
+  }
+}
+const handleBulkRefreshBalance = async () => {
+  if (balanceRefreshing.value) return
+  const selectedIdSet = new Set(selIds.value)
+  const selectedOpenAIKeyAccounts = accounts.value.filter(account =>
+    selectedIdSet.has(account.id) && account.platform === 'openai' && account.type === 'apikey'
+  )
+  if (selectedOpenAIKeyAccounts.length === 0) {
+    appStore.showWarning(t('admin.accounts.bulkActions.refreshBalanceNoEligible'))
+    return
+  }
+
+  let success = 0
+  let failed = 0
+  balanceRefreshing.value = true
+  try {
+    for (const account of selectedOpenAIKeyAccounts) {
+      try {
+        const updatedAccount = await adminAPI.accounts.refreshUpstreamBalance(account.id)
+        handleAccountUpdated(updatedAccount)
+        success += 1
+      } catch (error) {
+        failed += 1
+        console.error('Failed to refresh upstream balance:', error)
+      }
+    }
+
+    if (failed > 0) {
+      appStore.showError(t('admin.accounts.bulkActions.refreshBalancePartial', { success, failed }))
+      return
+    }
+
+    appStore.showSuccess(t('admin.accounts.bulkActions.refreshBalanceSuccess', { count: success }))
+  } finally {
+    balanceRefreshing.value = false
   }
 }
 const updateSchedulableInList = (accountIds: number[], schedulable: boolean) => {

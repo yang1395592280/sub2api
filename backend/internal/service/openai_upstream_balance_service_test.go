@@ -102,6 +102,40 @@ func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIQuotaMinusUsed(t *testing.T) 
 	require.Equal(t, "quota", repo.updatedExtra["upstream_balance_unit"])
 }
 
+func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIAvailableQuota(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.URL.Path == "/v1/usage" {
+			http.NotFound(w, r)
+			return
+		}
+		require.Equal(t, "/api/usage/token/", r.URL.Path)
+		_, _ = w.Write([]byte(`{"success":true,"data":{"available_quota":59.64,"used_quota":17.89,"unit":"USD"}}`))
+	}))
+	defer srv.Close()
+
+	repo := &openAIUpstreamBalanceRepoStub{
+		account: &Account{
+			ID:       15,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url": srv.URL + "/v1",
+				"api_key":  "sk-upstream",
+			},
+		},
+	}
+
+	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+	_, err := svc.Refresh(context.Background(), 15)
+	require.NoError(t, err)
+	require.Equal(t, 2, calls)
+	require.Equal(t, "new-api", repo.updatedExtra["upstream_balance_provider"])
+	require.Equal(t, 59.64, repo.updatedExtra["upstream_balance_remaining"])
+	require.Equal(t, "USD", repo.updatedExtra["upstream_balance_unit"])
+}
+
 func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIMissingUsedQuotaPersistsErrorSnapshot(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/usage" {

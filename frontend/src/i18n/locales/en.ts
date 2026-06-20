@@ -3485,8 +3485,12 @@ export default {
         disableScheduling: 'Disable Scheduling',
         resetStatus: 'Reset Status',
         refreshToken: 'Refresh Token',
+        refreshBalance: 'Refresh Balance',
         resetStatusSuccess: 'Successfully reset {count} account(s) status',
         refreshTokenSuccess: 'Successfully refreshed {count} account(s) token',
+        refreshBalanceSuccess: 'Successfully refreshed {count} account balance(s)',
+        refreshBalancePartial: 'Balance refresh completed: {success} succeeded, {failed} failed',
+        refreshBalanceNoEligible: 'Select OpenAI API Key accounts before refreshing balances',
         partialSuccess: 'Partially completed: {success} succeeded, {failed} failed'
       },
       bulkEdit: {

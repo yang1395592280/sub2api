@@ -3643,8 +3643,12 @@ export default {
         disableScheduling: '批量停止调度',
         resetStatus: '批量重置状态',
         refreshToken: '批量刷新令牌',
+        refreshBalance: '批量刷新余额',
         resetStatusSuccess: '已成功重置 {count} 个账号状态',
         refreshTokenSuccess: '已成功刷新 {count} 个账号令牌',
+        refreshBalanceSuccess: '已成功刷新 {count} 个账号余额',
+        refreshBalancePartial: '余额刷新完成：成功 {success} 个，失败 {failed} 个',
+        refreshBalanceNoEligible: '请选择 OpenAI API Key 账号后再刷新余额',
         partialSuccess: '操作部分完成：{success} 成功，{failed} 失败'
       },
       bulkEdit: {

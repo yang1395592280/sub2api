@@ -29,6 +29,14 @@
         <button @click="$emit('test-selected')" class="btn btn-secondary btn-sm">{{ t('admin.accounts.bulkActions.testConnection') }}</button>
         <button @click="$emit('reset-status')" class="btn btn-secondary btn-sm">{{ t('admin.accounts.bulkActions.resetStatus') }}</button>
         <button @click="$emit('refresh-token')" class="btn btn-secondary btn-sm">{{ t('admin.accounts.bulkActions.refreshToken') }}</button>
+        <button
+          data-test="bulk-refresh-balance"
+          :disabled="balanceRefreshing"
+          @click="$emit('refresh-balance')"
+          class="btn btn-secondary btn-sm disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {{ t('admin.accounts.bulkActions.refreshBalance') }}
+        </button>
         <button @click="$emit('toggle-schedulable', true)" class="btn btn-success btn-sm">{{ t('admin.accounts.bulkActions.enableScheduling') }}</button>
         <button @click="$emit('toggle-schedulable', false)" class="btn btn-warning btn-sm">{{ t('admin.accounts.bulkActions.disableScheduling') }}</button>
         <button @click="$emit('edit-selected')" class="btn btn-primary btn-sm">{{ t('admin.accounts.bulkActions.edit') }}</button>
@@ -42,5 +50,5 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-defineProps(['selectedIds']); defineEmits(['delete', 'test-selected', 'edit-selected', 'edit-filtered', 'clear', 'select-page', 'toggle-schedulable', 'reset-status', 'refresh-token']); const { t } = useI18n()
+withDefaults(defineProps<{ selectedIds: number[]; balanceRefreshing?: boolean }>(), { balanceRefreshing: false }); defineEmits(['delete', 'test-selected', 'edit-selected', 'edit-filtered', 'clear', 'select-page', 'toggle-schedulable', 'reset-status', 'refresh-token', 'refresh-balance']); const { t } = useI18n()
 </script>

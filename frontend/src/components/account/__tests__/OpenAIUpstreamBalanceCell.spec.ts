@@ -76,7 +76,10 @@ describe('OpenAIUpstreamBalanceCell', () => {
       props: { account }
     })
 
-    expect(wrapper.text()).toContain('$12.34')
+    const balanceAmount = wrapper.get('[data-testid="openai-upstream-balance-amount"]')
+
+    expect(balanceAmount.text()).toBe('$12.34')
+    expect(balanceAmount.classes()).toEqual(expect.arrayContaining(['text-sm', 'font-semibold']))
     expect(wrapper.text()).toContain('sub2api')
   })
 

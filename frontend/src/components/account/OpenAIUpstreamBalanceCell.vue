@@ -1,7 +1,15 @@
 <template>
-  <div v-if="visible" class="space-y-1">
-    <div class="flex flex-wrap items-center gap-1.5 text-[10px]">
-      <span :class="statusClass">{{ balanceLabel }}</span>
+  <div v-if="visible" class="space-y-0.5">
+    <div class="leading-tight">
+      <span
+        data-testid="openai-upstream-balance-amount"
+        class="text-sm font-semibold"
+        :class="statusClass"
+      >
+        {{ balanceLabel }}
+      </span>
+    </div>
+    <div class="flex flex-wrap items-center gap-1.5 text-[10px] leading-tight">
       <span v-if="providerLabel" class="text-gray-400">{{ providerLabel }}</span>
       <button
         type="button"

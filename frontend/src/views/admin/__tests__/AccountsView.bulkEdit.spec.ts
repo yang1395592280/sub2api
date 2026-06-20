@@ -1,20 +1,40 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 import AccountsView from '../AccountsView.vue'
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
 
 const {
   listAccounts,
   listWithEtag,
   getBatchTodayStats,
   getAllProxies,
-  getAllGroups
+  getAllGroups,
+  refreshUpstreamBalance,
+  showError,
+  showSuccess,
+  showInfo,
+  showWarning
 } = vi.hoisted(() => ({
   listAccounts: vi.fn(),
   listWithEtag: vi.fn(),
   getBatchTodayStats: vi.fn(),
   getAllProxies: vi.fn(),
-  getAllGroups: vi.fn()
+  getAllGroups: vi.fn(),
+  refreshUpstreamBalance: vi.fn(),
+  showError: vi.fn(),
+  showSuccess: vi.fn(),
+  showInfo: vi.fn(),
+  showWarning: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -26,7 +46,8 @@ vi.mock('@/api/admin', () => ({
       delete: vi.fn(),
       batchClearError: vi.fn(),
       batchRefresh: vi.fn(),
-      toggleSchedulable: vi.fn()
+      toggleSchedulable: vi.fn(),
+      refreshUpstreamBalance
     },
     proxies: {
       getAll: getAllProxies
@@ -39,9 +60,10 @@ vi.mock('@/api/admin', () => ({
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
-    showError: vi.fn(),
-    showSuccess: vi.fn(),
-    showInfo: vi.fn()
+    showError,
+    showSuccess,
+    showInfo,
+    showWarning
   })
 }))
 
@@ -56,7 +78,15 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => key
+      t: (key: string, params?: Record<string, unknown>) => {
+        if (key === 'admin.accounts.bulkActions.refreshBalancePartial') {
+          return `balance partial ${params?.success}/${params?.failed}`
+        }
+        if (key === 'admin.accounts.bulkActions.refreshBalanceSuccess') {
+          return `balance success ${params?.count}`
+        }
+        return key
+      }
     })
   }
 })
@@ -90,6 +120,10 @@ const BatchAccountTestModalStub = {
 }
 
 describe('admin AccountsView bulk edit scope', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   beforeEach(() => {
     localStorage.clear()
 
@@ -98,6 +132,11 @@ describe('admin AccountsView bulk edit scope', () => {
     getBatchTodayStats.mockReset()
     getAllProxies.mockReset()
     getAllGroups.mockReset()
+    refreshUpstreamBalance.mockReset()
+    showError.mockReset()
+    showSuccess.mockReset()
+    showInfo.mockReset()
+    showWarning.mockReset()
 
     listAccounts.mockResolvedValue({
       items: [],
@@ -315,5 +354,161 @@ describe('admin AccountsView bulk edit scope', () => {
 
     expect(wrapper.get('[data-test="batch-test-modal"]').attributes('data-show')).toBe('true')
     expect(wrapper.get('[data-test="batch-test-modal"]').attributes('data-account-count')).toBe('2')
+  })
+
+  it('refreshes upstream balance for selected OpenAI API Key accounts one by one and keeps going after failures', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const accounts = [
+      {
+        id: 1,
+        name: 'openai-a',
+        platform: 'openai',
+        type: 'apikey',
+        status: 'active',
+        schedulable: true,
+        created_at: '2026-03-07T10:00:00Z',
+        updated_at: '2026-03-07T10:00:00Z'
+      },
+      {
+        id: 2,
+        name: 'openai-b',
+        platform: 'openai',
+        type: 'apikey',
+        status: 'active',
+        schedulable: true,
+        created_at: '2026-03-07T10:00:00Z',
+        updated_at: '2026-03-07T10:00:00Z'
+      },
+      {
+        id: 3,
+        name: 'anthropic',
+        platform: 'anthropic',
+        type: 'apikey',
+        status: 'active',
+        schedulable: true,
+        created_at: '2026-03-07T10:00:00Z',
+        updated_at: '2026-03-07T10:00:00Z'
+      },
+      {
+        id: 4,
+        name: 'openai-c',
+        platform: 'openai',
+        type: 'apikey',
+        status: 'active',
+        schedulable: true,
+        created_at: '2026-03-07T10:00:00Z',
+        updated_at: '2026-03-07T10:00:00Z'
+      }
+    ]
+
+    listAccounts.mockResolvedValue({
+      items: accounts,
+      total: accounts.length,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+    const firstRefresh = deferred<(typeof accounts)[number] & { extra: Record<string, unknown> }>()
+    const secondRefresh = deferred<(typeof accounts)[number] & { extra: Record<string, unknown> }>()
+    const thirdRefresh = deferred<(typeof accounts)[number] & { extra: Record<string, unknown> }>()
+    refreshUpstreamBalance
+      .mockReturnValueOnce(firstRefresh.promise)
+      .mockReturnValueOnce(secondRefresh.promise)
+      .mockReturnValueOnce(thirdRefresh.promise)
+
+    const AccountBulkActionsBarRefreshBalanceStub = {
+      props: ['selectedIds'],
+      emits: ['refresh-balance'],
+      template: '<button data-test="refresh-balance" @click="$emit(\'refresh-balance\')">refresh balance</button>'
+    }
+
+    const wrapper = mount(AccountsView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: {
+            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+          },
+          DataTable: DataTableStub,
+          Pagination: true,
+          ConfirmDialog: true,
+          AccountTableActions: { template: '<div><slot name="beforeCreate" /><slot name="after" /></div>' },
+          AccountTableFilters: { template: '<div></div>' },
+          AccountBulkActionsBar: AccountBulkActionsBarRefreshBalanceStub,
+          AccountActionMenu: true,
+          ImportDataModal: true,
+          ReAuthAccountModal: true,
+          AccountTestModal: true,
+          AccountStatsModal: true,
+          ScheduledTestsPanel: true,
+          SyncFromCrsModal: true,
+          TempUnschedStatusModal: true,
+          ErrorPassthroughRulesModal: true,
+          TLSFingerprintProfilesModal: true,
+          CreateAccountModal: true,
+          EditAccountModal: true,
+          BulkEditAccountModal: BulkEditAccountModalStub,
+          BatchAccountTestModal: BatchAccountTestModalStub,
+          PlatformTypeBadge: true,
+          AccountCapacityCell: true,
+          AccountStatusIndicator: true,
+          AccountTodayStatsCell: true,
+          AccountGroupsCell: true,
+          AccountUsageCell: true,
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.vm.toggleSel(1)
+    await wrapper.vm.toggleSel(2)
+    await wrapper.vm.toggleSel(3)
+    await wrapper.vm.toggleSel(4)
+    await flushPromises()
+
+    await wrapper.get('[data-test="refresh-balance"]').trigger('click')
+    await wrapper.get('[data-test="refresh-balance"]').trigger('click')
+    await flushPromises()
+
+    expect(refreshUpstreamBalance).toHaveBeenCalledTimes(1)
+    expect(refreshUpstreamBalance).toHaveBeenLastCalledWith(1)
+
+    firstRefresh.resolve({
+      ...accounts[0],
+      extra: {
+        upstream_balance_status: 'ok',
+        upstream_balance_remaining: 12.34,
+        upstream_balance_unit: 'USD'
+      }
+    })
+    await flushPromises()
+
+    expect(refreshUpstreamBalance).toHaveBeenCalledTimes(2)
+    expect(refreshUpstreamBalance).toHaveBeenLastCalledWith(2)
+    expect(wrapper.vm.accounts.find(account => account.id === 1)?.extra?.upstream_balance_remaining).toBe(12.34)
+
+    secondRefresh.reject(new Error('upstream unavailable'))
+    await flushPromises()
+
+    expect(refreshUpstreamBalance).toHaveBeenCalledTimes(3)
+    expect(refreshUpstreamBalance).toHaveBeenLastCalledWith(4)
+
+    thirdRefresh.resolve({
+      ...accounts[3],
+      extra: {
+        upstream_balance_status: 'ok',
+        upstream_balance_remaining: 56,
+        upstream_balance_unit: 'USD'
+      }
+    })
+    await flushPromises()
+
+    expect(refreshUpstreamBalance).toHaveBeenCalledTimes(3)
+    expect(refreshUpstreamBalance.mock.calls.map(([id]) => id)).toEqual([1, 2, 4])
+    expect(wrapper.vm.accounts.find(account => account.id === 4)?.extra?.upstream_balance_remaining).toBe(56)
+    expect(showError).toHaveBeenCalledWith('balance partial 2/1')
+    expect(showSuccess).not.toHaveBeenCalled()
+    expect(consoleError).toHaveBeenCalledWith('Failed to refresh upstream balance:', expect.any(Error))
   })
 })
