@@ -1044,9 +1044,19 @@
           <p class="input-hint">{{ apiKeyHint }}</p>
         </div>
 
-        <div v-if="form.platform === 'openai'" class="border-t border-gray-200 pt-4 dark:border-dark-600">
-          <label class="input-label">new-api 用户余额查询</label>
-          <div class="space-y-4">
+        <div v-if="form.platform === 'openai'" class="space-y-4 border-t border-gray-200 pt-4 dark:border-dark-600">
+          <div>
+            <label class="input-label">上游管理类型</label>
+            <select v-model="upstreamAdminType" class="input">
+              <option value="">不配置</option>
+              <option value="sub2api">sub2api</option>
+              <option value="new-api">new-api</option>
+            </select>
+            <p class="input-hint">用于刷新余额时自动获取上游分组和真实倍率</p>
+          </div>
+
+          <div v-if="upstreamAdminType === 'new-api'" class="space-y-4">
+            <label class="input-label">new-api 用户余额查询</label>
             <div>
               <label class="input-label">new_api_user_id</label>
               <input v-model="newApiUserId" type="text" class="input" placeholder="738" />
@@ -1063,6 +1073,41 @@
                 data-bwignore="true"
               />
               <p class="input-hint">Access Token 可留空，填写后才会写入</p>
+            </div>
+          </div>
+
+          <div v-if="upstreamAdminType === 'sub2api'" class="space-y-4">
+            <label class="input-label">sub2api 上游管理凭据</label>
+            <div class="grid gap-4 md:grid-cols-2">
+              <div>
+                <label class="input-label">账号/邮箱</label>
+                <input v-model="upstreamAdminEmail" type="text" class="input" placeholder="admin@example.com" />
+              </div>
+              <div>
+                <label class="input-label">密码</label>
+                <input
+                  v-model="upstreamAdminPassword"
+                  type="password"
+                  class="input"
+                  autocomplete="new-password"
+                  data-1p-ignore
+                  data-lpignore="true"
+                  data-bwignore="true"
+                />
+              </div>
+            </div>
+            <div>
+              <label class="input-label">Access Token</label>
+              <input
+                v-model="upstreamAdminAccessToken"
+                type="password"
+                class="input font-mono"
+                autocomplete="new-password"
+                data-1p-ignore
+                data-lpignore="true"
+                data-bwignore="true"
+              />
+              <p class="input-hint">可填账号密码自动登录，也可直接填 sub2api 登录后的 Access Token</p>
             </div>
           </div>
         </div>
@@ -3389,8 +3434,12 @@ const accountCategory = ref<'oauth-based' | 'apikey' | 'bedrock' | 'service_acco
 const addMethod = ref<AddMethod>('oauth') // For oauth-based: 'oauth' or 'setup-token'
 const apiKeyBaseUrl = ref('https://api.anthropic.com')
 const apiKeyValue = ref('')
+const upstreamAdminType = ref<'' | 'sub2api' | 'new-api'>('')
 const newApiUserId = ref('')
 const newApiUserAccessToken = ref('')
+const upstreamAdminEmail = ref('')
+const upstreamAdminPassword = ref('')
+const upstreamAdminAccessToken = ref('')
 
 const syncPreviewCredentials = computed(() => {
   if (!apiKeyValue.value) return undefined
@@ -4245,8 +4294,12 @@ const resetForm = () => {
   addMethod.value = 'oauth'
   apiKeyBaseUrl.value = 'https://api.anthropic.com'
   apiKeyValue.value = ''
+  upstreamAdminType.value = ''
   newApiUserId.value = ''
   newApiUserAccessToken.value = ''
+  upstreamAdminEmail.value = ''
+  upstreamAdminPassword.value = ''
+  upstreamAdminAccessToken.value = ''
   editQuotaLimit.value = null
   editQuotaDailyLimit.value = null
   editQuotaWeeklyLimit.value = null
@@ -4675,13 +4728,33 @@ const handleSubmit = async () => {
     if (compactModelMapping) {
       credentials.compact_model_mapping = compactModelMapping
     }
-    const trimmedNewApiUserId = newApiUserId.value.trim()
-    const trimmedNewApiUserAccessToken = newApiUserAccessToken.value.trim()
-    if (trimmedNewApiUserId) {
-      credentials.new_api_user_id = trimmedNewApiUserId
+    const trimmedUpstreamAdminType = upstreamAdminType.value.trim()
+    if (trimmedUpstreamAdminType) {
+      credentials.upstream_admin_type = trimmedUpstreamAdminType
     }
-    if (trimmedNewApiUserAccessToken) {
-      credentials.new_api_user_access_token = trimmedNewApiUserAccessToken
+    if (upstreamAdminType.value === 'new-api') {
+      const trimmedNewApiUserId = newApiUserId.value.trim()
+      const trimmedNewApiUserAccessToken = newApiUserAccessToken.value.trim()
+      if (trimmedNewApiUserId) {
+        credentials.new_api_user_id = trimmedNewApiUserId
+      }
+      if (trimmedNewApiUserAccessToken) {
+        credentials.new_api_user_access_token = trimmedNewApiUserAccessToken
+      }
+    }
+    if (upstreamAdminType.value === 'sub2api') {
+      const trimmedUpstreamAdminEmail = upstreamAdminEmail.value.trim()
+      const trimmedUpstreamAdminPassword = upstreamAdminPassword.value.trim()
+      const trimmedUpstreamAdminAccessToken = upstreamAdminAccessToken.value.trim()
+      if (trimmedUpstreamAdminEmail) {
+        credentials.upstream_admin_email = trimmedUpstreamAdminEmail
+      }
+      if (trimmedUpstreamAdminPassword) {
+        credentials.upstream_admin_password = trimmedUpstreamAdminPassword
+      }
+      if (trimmedUpstreamAdminAccessToken) {
+        credentials.upstream_admin_access_token = trimmedUpstreamAdminAccessToken
+      }
     }
   }
 

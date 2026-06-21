@@ -844,6 +844,10 @@ export interface Account {
     upstream_balance_error?: string
     upstream_group_id?: number
     upstream_group?: string
+    upstream_key_id?: number
+    upstream_group_rate_multiplier?: number
+    upstream_effective_rate_multiplier?: number
+    upstream_rate_source?: 'user_group_rate' | 'group_rate' | string
   } & Record<string, unknown>)
   proxy_id: number | null
   proxy_fallback_origin_id?: number | null

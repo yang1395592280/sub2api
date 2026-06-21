@@ -280,13 +280,19 @@
             <AccountGroupsCell :groups="row.groups" :max-display="4" />
           </template>
           <template #cell-upstream_group="{ row }">
-            <span
+            <div
               v-if="getUpstreamGroup(row)"
-              class="inline-flex max-w-[9rem] items-center truncate rounded-md bg-sky-50 px-2 py-1 text-sm font-semibold text-sky-700 ring-1 ring-inset ring-sky-200 dark:bg-sky-900/25 dark:text-sky-200 dark:ring-sky-700/50"
-              :title="getUpstreamGroup(row) || ''"
+              class="inline-flex max-w-[12rem] flex-col gap-1 rounded-md bg-sky-50 px-2.5 py-1.5 text-sky-800 ring-1 ring-inset ring-sky-200 dark:bg-sky-900/25 dark:text-sky-100 dark:ring-sky-700/50"
+              :title="getUpstreamGroupTitle(row)"
             >
-              {{ getUpstreamGroup(row) }}
-            </span>
+              <span class="truncate text-sm font-bold leading-4">{{ getUpstreamGroup(row) }}</span>
+              <span v-if="getUpstreamRateLabel(row)" class="text-xs font-semibold leading-4 text-sky-950 dark:text-sky-100">
+                {{ getUpstreamRateLabel(row) }}
+              </span>
+              <span v-if="getUpstreamBaseRateLabel(row)" class="text-[11px] font-medium leading-3 text-sky-600 dark:text-sky-300">
+                {{ getUpstreamBaseRateLabel(row) }}
+              </span>
+            </div>
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
           </template>
           <template #cell-stability="{ row }">
@@ -1173,6 +1179,40 @@ function getUpstreamGroup(row: Account): string | null {
   const value = row.extra?.upstream_group
   if (typeof value === 'string' && value.trim()) return value.trim()
   return null
+}
+
+function getUpstreamNumber(row: Account, key: string): number | null {
+  const value = row.extra?.[key]
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return null
+}
+
+function formatUpstreamRate(value: number): string {
+  return `${Number(value.toFixed(6)).toString()}x`
+}
+
+function getUpstreamRateLabel(row: Account): string | null {
+  const effectiveRate = getUpstreamNumber(row, 'upstream_effective_rate_multiplier')
+  if (effectiveRate == null) return null
+  return `真实 ${formatUpstreamRate(effectiveRate)}`
+}
+
+function getUpstreamBaseRateLabel(row: Account): string | null {
+  const effectiveRate = getUpstreamNumber(row, 'upstream_effective_rate_multiplier')
+  const baseRate = getUpstreamNumber(row, 'upstream_group_rate_multiplier')
+  if (baseRate == null) return null
+  if (effectiveRate != null && Math.abs(effectiveRate - baseRate) < 0.000001) return null
+  return `基础 ${formatUpstreamRate(baseRate)}`
+}
+
+function getUpstreamGroupTitle(row: Account): string {
+  const labels = [getUpstreamGroup(row), getUpstreamRateLabel(row), getUpstreamBaseRateLabel(row)]
+    .filter((value): value is string => Boolean(value))
+  return labels.join(' | ')
 }
 
 function getStabilityClass(row: Account): string {

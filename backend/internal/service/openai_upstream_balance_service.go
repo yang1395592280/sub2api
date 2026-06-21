@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -32,6 +33,11 @@ type OpenAIUpstreamBalanceSnapshot struct {
 	UpdatedAt time.Time
 	Group     string
 	GroupID   *int64
+
+	UpstreamKeyID           *int64
+	GroupRateMultiplier     *float64
+	EffectiveRateMultiplier *float64
+	RateSource              string
 }
 
 type OpenAIUpstreamBalanceService struct {
@@ -98,13 +104,27 @@ func buildOpenAIUpstreamBalanceUpdates(snapshot OpenAIUpstreamBalanceSnapshot) m
 		"upstream_balance_status":     snapshot.Status,
 		"upstream_balance_error":      snapshot.Error,
 		"upstream_balance_updated_at": "",
-		"upstream_group":              group,
+	}
+	if group != "" {
+		updates["upstream_group"] = group
 	}
 	if !snapshot.UpdatedAt.IsZero() {
 		updates["upstream_balance_updated_at"] = snapshot.UpdatedAt.UTC().Format(time.RFC3339)
 	}
 	if snapshot.GroupID != nil {
 		updates["upstream_group_id"] = *snapshot.GroupID
+	}
+	if snapshot.UpstreamKeyID != nil {
+		updates["upstream_key_id"] = *snapshot.UpstreamKeyID
+	}
+	if snapshot.GroupRateMultiplier != nil {
+		updates["upstream_group_rate_multiplier"] = *snapshot.GroupRateMultiplier
+	}
+	if snapshot.EffectiveRateMultiplier != nil {
+		updates["upstream_effective_rate_multiplier"] = *snapshot.EffectiveRateMultiplier
+	}
+	if strings.TrimSpace(snapshot.RateSource) != "" {
+		updates["upstream_rate_source"] = strings.TrimSpace(snapshot.RateSource)
 	}
 	return updates
 }
@@ -135,7 +155,7 @@ func (s *OpenAIUpstreamBalanceService) probe(ctx context.Context, account *Accou
 		)
 		switch provider {
 		case UpstreamBalanceProviderSub2API:
-			snapshot, err = s.probeSub2API(ctx, baseURL, apiKey)
+			snapshot, err = s.probeSub2API(ctx, account, baseURL, apiKey)
 		case UpstreamBalanceProviderNewAPI:
 			snapshot, err = s.probeNewAPI(ctx, account, baseURL, apiKey)
 		default:
@@ -156,7 +176,7 @@ func (s *OpenAIUpstreamBalanceService) probe(ctx context.Context, account *Accou
 	return OpenAIUpstreamBalanceSnapshot{}, lastErr
 }
 
-func (s *OpenAIUpstreamBalanceService) probeSub2API(ctx context.Context, baseURL, apiKey string) (OpenAIUpstreamBalanceSnapshot, error) {
+func (s *OpenAIUpstreamBalanceService) probeSub2API(ctx context.Context, account *Account, baseURL, apiKey string) (OpenAIUpstreamBalanceSnapshot, error) {
 	var payload map[string]any
 	if err := s.doJSONGET(ctx, buildOpenAIEndpointURL(baseURL, "/v1/usage"), apiKey, &payload); err != nil {
 		return OpenAIUpstreamBalanceSnapshot{}, err
@@ -166,12 +186,16 @@ func (s *OpenAIUpstreamBalanceService) probeSub2API(ctx context.Context, baseURL
 	if !ok {
 		return OpenAIUpstreamBalanceSnapshot{}, fmt.Errorf("sub2api response missing remaining")
 	}
-	return OpenAIUpstreamBalanceSnapshot{
+	snapshot := OpenAIUpstreamBalanceSnapshot{
 		Remaining: remaining,
 		Unit:      strings.TrimSpace(getString(payload, "unit")),
 		Group:     getOpenAIUpstreamGroupName(payload),
 		GroupID:   getOpenAIUpstreamGroupID(payload),
-	}, nil
+	}
+	if strings.TrimSpace(snapshot.Group) == "" {
+		s.enrichSub2APIAdminMetadata(ctx, account, baseURL, apiKey, &snapshot)
+	}
+	return snapshot, nil
 }
 
 func (s *OpenAIUpstreamBalanceService) probeNewAPI(ctx context.Context, account *Account, baseURL, apiKey string) (OpenAIUpstreamBalanceSnapshot, error) {
@@ -276,6 +300,223 @@ func (s *OpenAIUpstreamBalanceService) doJSONGETWithHeaders(ctx context.Context,
 	return nil
 }
 
+func (s *OpenAIUpstreamBalanceService) doJSONPOSTWithHeaders(ctx context.Context, targetURL string, headers map[string]string, body any, dest any) error {
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	for key, value := range headers {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		req.Header.Set(key, value)
+	}
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("upstream returned %d", resp.StatusCode)
+	}
+
+	decoder := json.NewDecoder(resp.Body)
+	decoder.UseNumber()
+	return decoder.Decode(dest)
+}
+
+type sub2APIAdminAuth struct {
+	AccessToken string
+	TokenType   string
+	Email       string
+	Password    string
+}
+
+type sub2APIAdminKey struct {
+	ID                  int64
+	Key                 string
+	GroupID             *int64
+	GroupName           string
+	GroupRateMultiplier *float64
+}
+
+func (s *OpenAIUpstreamBalanceService) enrichSub2APIAdminMetadata(ctx context.Context, account *Account, baseURL, apiKey string, snapshot *OpenAIUpstreamBalanceSnapshot) {
+	if snapshot == nil {
+		return
+	}
+	auth, ok := getSub2APIAdminAuth(account)
+	if !ok {
+		return
+	}
+
+	token := strings.TrimSpace(auth.AccessToken)
+	tokenType := strings.TrimSpace(auth.TokenType)
+	if tokenType == "" {
+		tokenType = "Bearer"
+	}
+	if token == "" && strings.TrimSpace(auth.Email) != "" && strings.TrimSpace(auth.Password) != "" {
+		loginToken, loginTokenType, err := s.loginSub2APIAdmin(ctx, baseURL, auth.Email, auth.Password)
+		if err != nil {
+			return
+		}
+		token = loginToken
+		if strings.TrimSpace(loginTokenType) != "" {
+			tokenType = loginTokenType
+		}
+	}
+	if token == "" {
+		return
+	}
+
+	authHeader := token
+	if !strings.Contains(token, " ") {
+		authHeader = strings.TrimSpace(tokenType) + " " + token
+	}
+	keys, err := s.fetchSub2APIAdminKeys(ctx, baseURL, authHeader)
+	if err != nil {
+		return
+	}
+
+	var matched *sub2APIAdminKey
+	for i := range keys {
+		if strings.TrimSpace(keys[i].Key) == apiKey {
+			matched = &keys[i]
+			break
+		}
+	}
+	if matched == nil {
+		return
+	}
+
+	snapshot.UpstreamKeyID = &matched.ID
+	snapshot.GroupID = matched.GroupID
+	snapshot.Group = matched.GroupName
+	snapshot.GroupRateMultiplier = matched.GroupRateMultiplier
+
+	if matched.GroupID != nil {
+		if rates, err := s.fetchSub2APIUserGroupRates(ctx, baseURL, authHeader); err == nil {
+			if rate, ok := rates[*matched.GroupID]; ok {
+				snapshot.EffectiveRateMultiplier = &rate
+				snapshot.RateSource = "user_group_rate"
+				return
+			}
+		}
+	}
+	if matched.GroupRateMultiplier != nil {
+		snapshot.EffectiveRateMultiplier = matched.GroupRateMultiplier
+		snapshot.RateSource = "group_rate"
+	}
+}
+
+func getSub2APIAdminAuth(account *Account) (sub2APIAdminAuth, bool) {
+	if account == nil {
+		return sub2APIAdminAuth{}, false
+	}
+	if provider := strings.TrimSpace(account.GetCredential("upstream_admin_type")); provider != UpstreamBalanceProviderSub2API {
+		return sub2APIAdminAuth{}, false
+	}
+	auth := sub2APIAdminAuth{
+		AccessToken: strings.TrimSpace(account.GetCredential("upstream_admin_access_token")),
+		TokenType:   strings.TrimSpace(account.GetCredential("upstream_admin_token_type")),
+		Email:       strings.TrimSpace(firstNonEmpty(account.GetCredential("upstream_admin_email"), account.GetCredential("upstream_admin_username"))),
+		Password:    strings.TrimSpace(account.GetCredential("upstream_admin_password")),
+	}
+	return auth, auth.AccessToken != "" || (auth.Email != "" && auth.Password != "")
+}
+
+func (s *OpenAIUpstreamBalanceService) loginSub2APIAdmin(ctx context.Context, baseURL, email, password string) (string, string, error) {
+	var payload map[string]any
+	err := s.doJSONPOSTWithHeaders(ctx, buildSub2APIAuthLoginURL(baseURL), nil, map[string]string{
+		"email":    strings.TrimSpace(email),
+		"password": password,
+	}, &payload)
+	if err != nil {
+		return "", "", err
+	}
+	data, _ := payload["data"].(map[string]any)
+	if data == nil {
+		data = payload
+	}
+	token := strings.TrimSpace(getString(data, "access_token"))
+	if token == "" {
+		return "", "", fmt.Errorf("sub2api login response missing access_token")
+	}
+	return token, strings.TrimSpace(getString(data, "token_type")), nil
+}
+
+func (s *OpenAIUpstreamBalanceService) fetchSub2APIAdminKeys(ctx context.Context, baseURL, authorization string) ([]sub2APIAdminKey, error) {
+	var payload map[string]any
+	if err := s.doJSONGETWithHeaders(ctx, buildSub2APIKeysURL(baseURL), map[string]string{
+		"Authorization": authorization,
+	}, &payload); err != nil {
+		return nil, err
+	}
+	data, _ := payload["data"].(map[string]any)
+	if data == nil {
+		data = payload
+	}
+	rawItems, _ := data["items"].([]any)
+	keys := make([]sub2APIAdminKey, 0, len(rawItems))
+	for _, raw := range rawItems {
+		item, _ := raw.(map[string]any)
+		if item == nil {
+			continue
+		}
+		key := sub2APIAdminKey{Key: strings.TrimSpace(getString(item, "key"))}
+		if id, ok := getInt64(item, "id"); ok {
+			key.ID = id
+		}
+		if groupID, ok := getInt64(item, "group_id"); ok {
+			key.GroupID = &groupID
+		}
+		group, _ := item["group"].(map[string]any)
+		key.GroupName = strings.TrimSpace(getString(group, "name"))
+		if rate, ok := getFloat64(group, "rate_multiplier"); ok {
+			key.GroupRateMultiplier = &rate
+		}
+		keys = append(keys, key)
+	}
+	return keys, nil
+}
+
+func (s *OpenAIUpstreamBalanceService) fetchSub2APIUserGroupRates(ctx context.Context, baseURL, authorization string) (map[int64]float64, error) {
+	var payload map[string]any
+	if err := s.doJSONGETWithHeaders(ctx, buildSub2APIGroupRatesURL(baseURL), map[string]string{
+		"Authorization": authorization,
+	}, &payload); err != nil {
+		return nil, err
+	}
+	data, _ := payload["data"].(map[string]any)
+	if data == nil {
+		data = payload
+	}
+	rates := make(map[int64]float64, len(data))
+	for key, raw := range data {
+		groupID, err := parseInt64String(key)
+		if err != nil {
+			continue
+		}
+		switch value := raw.(type) {
+		case json.Number:
+			if f, err := value.Float64(); err == nil {
+				rates[groupID] = f
+			}
+		case float64:
+			rates[groupID] = value
+		}
+	}
+	return rates, nil
+}
+
 type newAPIUserBalanceAuth struct {
 	UserID      string
 	AccessToken string
@@ -332,6 +573,44 @@ func buildNewAPIUserSelfURL(baseURL string) string {
 	}
 	parsed.Path = path
 	parsed.RawPath = ""
+	return parsed.String()
+}
+
+func buildSub2APIAuthLoginURL(baseURL string) string {
+	return buildUpstreamAdminURL(baseURL, "/api/v1/auth/login")
+}
+
+func buildSub2APIKeysURL(baseURL string) string {
+	return buildUpstreamAdminURL(baseURL, "/api/v1/keys?page=1&page_size=100&sort_by=created_at&sort_order=desc")
+}
+
+func buildSub2APIGroupRatesURL(baseURL string) string {
+	return buildUpstreamAdminURL(baseURL, "/api/v1/groups/rates")
+}
+
+func buildUpstreamAdminURL(baseURL, endpoint string) string {
+	trimmed := strings.TrimSpace(baseURL)
+	endpointURL, endpointErr := url.Parse(endpoint)
+	endpointPath := endpoint
+	endpointQuery := ""
+	if endpointErr == nil {
+		endpointPath = endpointURL.Path
+		endpointQuery = endpointURL.RawQuery
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return strings.TrimRight(strings.TrimSuffix(trimmed, "/v1"), "/") + endpoint
+	}
+	path := strings.TrimRight(parsed.Path, "/")
+	path = strings.TrimSuffix(path, "/v1")
+	if path == "" {
+		path = endpointPath
+	} else {
+		path += endpointPath
+	}
+	parsed.Path = path
+	parsed.RawPath = ""
+	parsed.RawQuery = endpointQuery
 	return parsed.String()
 }
 
@@ -425,4 +704,19 @@ func getInt64(m map[string]any, key string) (int64, bool) {
 		return 0, false
 	}
 	return int64(value), true
+}
+
+func parseInt64String(value string) (int64, error) {
+	var n int64
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return 0, fmt.Errorf("empty int64")
+	}
+	for _, r := range trimmed {
+		if r < '0' || r > '9' {
+			return 0, fmt.Errorf("invalid int64 %q", value)
+		}
+		n = n*10 + int64(r-'0')
+	}
+	return n, nil
 }

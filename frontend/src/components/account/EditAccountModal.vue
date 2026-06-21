@@ -71,10 +71,20 @@
 
         <div
           v-if="account.platform === 'openai' && account.type === 'apikey'"
-          class="border-t border-gray-200 pt-4 dark:border-dark-600"
+          class="space-y-4 border-t border-gray-200 pt-4 dark:border-dark-600"
         >
-          <label class="input-label">new-api 用户余额查询</label>
-          <div class="space-y-4">
+          <div>
+            <label class="input-label">上游管理类型</label>
+            <select v-model="editUpstreamAdminType" class="input">
+              <option value="">不配置</option>
+              <option value="sub2api">sub2api</option>
+              <option value="new-api">new-api</option>
+            </select>
+            <p class="input-hint">用于刷新余额时自动获取上游分组和真实倍率</p>
+          </div>
+
+          <div v-if="editUpstreamAdminType === 'new-api'" class="space-y-4">
+            <label class="input-label">new-api 用户余额查询</label>
             <div>
               <label class="input-label">new_api_user_id</label>
               <input
@@ -96,6 +106,49 @@
                 data-bwignore="true"
               />
               <p class="input-hint">{{ t('admin.accounts.leaveEmptyToKeep') }}</p>
+            </div>
+          </div>
+
+          <div v-if="editUpstreamAdminType === 'sub2api'" class="space-y-4">
+            <label class="input-label">sub2api 上游管理凭据</label>
+            <div class="grid gap-4 md:grid-cols-2">
+              <div>
+                <label class="input-label">账号/邮箱</label>
+                <input
+                  v-model="editUpstreamAdminEmail"
+                  type="text"
+                  class="input"
+                  placeholder="admin@example.com"
+                />
+              </div>
+              <div>
+                <label class="input-label">密码</label>
+                <input
+                  v-model="editUpstreamAdminPassword"
+                  type="password"
+                  class="input"
+                  autocomplete="new-password"
+                  data-testid="upstream-admin-password-input"
+                  data-1p-ignore
+                  data-lpignore="true"
+                  data-bwignore="true"
+                />
+                <p class="input-hint">{{ t('admin.accounts.leaveEmptyToKeep') }}</p>
+              </div>
+            </div>
+            <div>
+              <label class="input-label">Access Token</label>
+              <input
+                v-model="editUpstreamAdminAccessToken"
+                type="password"
+                class="input font-mono"
+                autocomplete="new-password"
+                data-testid="upstream-admin-access-token-input"
+                data-1p-ignore
+                data-lpignore="true"
+                data-bwignore="true"
+              />
+              <p class="input-hint">可填账号密码自动登录，也可直接填 sub2api 登录后的 Access Token；留空保留</p>
             </div>
           </div>
         </div>
@@ -2500,8 +2553,12 @@ interface TempUnschedRuleForm {
 const submitting = ref(false)
 const editBaseUrl = ref('https://api.anthropic.com')
 const editApiKey = ref('')
+const editUpstreamAdminType = ref<'' | 'sub2api' | 'new-api'>('')
 const editNewApiUserId = ref('')
 const editNewApiUserAccessToken = ref('')
+const editUpstreamAdminEmail = ref('')
+const editUpstreamAdminPassword = ref('')
+const editUpstreamAdminAccessToken = ref('')
 // Bedrock credentials
 const editBedrockAccessKeyId = ref('')
 const editBedrockSecretAccessKey = ref('')
@@ -3139,10 +3196,18 @@ const syncFormFromAccount = (newAccount: Account | null) => {
           ? 'https://generativelanguage.googleapis.com'
           : 'https://api.anthropic.com'
     editBaseUrl.value = (credentials.base_url as string) || platformDefaultUrl
+    editUpstreamAdminType.value = newAccount.platform === 'openai'
+      ? String(credentials.upstream_admin_type ?? (credentials.new_api_user_id ? 'new-api' : '')) as '' | 'sub2api' | 'new-api'
+      : ''
     editNewApiUserId.value = newAccount.platform === 'openai'
       ? String(credentials.new_api_user_id ?? '')
       : ''
     editNewApiUserAccessToken.value = ''
+    editUpstreamAdminEmail.value = newAccount.platform === 'openai'
+      ? String(credentials.upstream_admin_email ?? credentials.upstream_admin_username ?? '')
+      : ''
+    editUpstreamAdminPassword.value = ''
+    editUpstreamAdminAccessToken.value = ''
 
     // Load model mappings and detect mode
     loadModelRestrictionFromMapping(credentials.model_mapping as Record<string, unknown> | undefined)
@@ -3226,8 +3291,12 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     poolModeRetryStatusCodesInput.value = ''
     customErrorCodesEnabled.value = false
     selectedErrorCodes.value = []
+    editUpstreamAdminType.value = ''
     editNewApiUserId.value = ''
     editNewApiUserAccessToken.value = ''
+    editUpstreamAdminEmail.value = ''
+    editUpstreamAdminPassword.value = ''
+    editUpstreamAdminAccessToken.value = ''
   }
   editApiKey.value = ''
 }
@@ -3756,17 +3825,56 @@ const handleSubmit = async () => {
         base_url: newBaseUrl
       }
       if (props.account.platform === 'openai') {
-        const trimmedNewApiUserId = editNewApiUserId.value.trim()
-        if (trimmedNewApiUserId) {
-          newCredentials.new_api_user_id = trimmedNewApiUserId
+        const trimmedUpstreamAdminType = editUpstreamAdminType.value.trim()
+        if (trimmedUpstreamAdminType) {
+          newCredentials.upstream_admin_type = trimmedUpstreamAdminType
         } else {
-          delete newCredentials.new_api_user_id
+          delete newCredentials.upstream_admin_type
         }
 
-        if (editNewApiUserAccessToken.value.trim()) {
-          newCredentials.new_api_user_access_token = editNewApiUserAccessToken.value.trim()
+        if (editUpstreamAdminType.value === 'new-api') {
+          const trimmedNewApiUserId = editNewApiUserId.value.trim()
+          if (trimmedNewApiUserId) {
+            newCredentials.new_api_user_id = trimmedNewApiUserId
+          } else {
+            delete newCredentials.new_api_user_id
+          }
+
+          if (editNewApiUserAccessToken.value.trim()) {
+            newCredentials.new_api_user_access_token = editNewApiUserAccessToken.value.trim()
+          } else {
+            delete newCredentials.new_api_user_access_token
+          }
         } else {
+          delete newCredentials.new_api_user_id
           delete newCredentials.new_api_user_access_token
+        }
+
+        if (editUpstreamAdminType.value === 'sub2api') {
+          const trimmedUpstreamAdminEmail = editUpstreamAdminEmail.value.trim()
+          if (trimmedUpstreamAdminEmail) {
+            newCredentials.upstream_admin_email = trimmedUpstreamAdminEmail
+          } else {
+            delete newCredentials.upstream_admin_email
+          }
+
+          if (editUpstreamAdminPassword.value.trim()) {
+            newCredentials.upstream_admin_password = editUpstreamAdminPassword.value.trim()
+          } else {
+            delete newCredentials.upstream_admin_password
+          }
+
+          if (editUpstreamAdminAccessToken.value.trim()) {
+            newCredentials.upstream_admin_access_token = editUpstreamAdminAccessToken.value.trim()
+          } else {
+            delete newCredentials.upstream_admin_access_token
+          }
+        } else {
+          delete newCredentials.upstream_admin_email
+          delete newCredentials.upstream_admin_username
+          delete newCredentials.upstream_admin_password
+          delete newCredentials.upstream_admin_access_token
+          delete newCredentials.upstream_admin_refresh_token
         }
       }
 

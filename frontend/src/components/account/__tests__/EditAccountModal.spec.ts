@@ -538,6 +538,42 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('new_api_user_access_token')
   })
 
+  it('preserves sub2api upstream admin secrets unless replacements are entered', async () => {
+    const account = buildAccount()
+    account.credentials = {
+      ...account.credentials,
+      upstream_admin_type: 'sub2api',
+      upstream_admin_email: 'admin@example.com'
+    }
+    account.credentials_status = {
+      has_api_key: true,
+      has_upstream_admin_access_token: true,
+      has_upstream_admin_password: true
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_admin_type).toBe('sub2api')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_admin_email).toBe('admin@example.com')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('upstream_admin_access_token')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('upstream_admin_password')
+
+    updateAccountMock.mockClear()
+    await wrapper.get('[data-testid="upstream-admin-access-token-input"]').setValue(' new-token ')
+    await wrapper.get('[data-testid="upstream-admin-password-input"]').setValue(' new-password ')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_admin_access_token).toBe('new-token')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_admin_password).toBe('new-password')
+  })
+
   it('allows saving apikey account against legacy backend without credentials_status', async () => {
     // 新前端 + 旧后端：credentials_status 缺失，但 credentials.api_key 仍是明文，应允许保存
     const account = buildAccount()
