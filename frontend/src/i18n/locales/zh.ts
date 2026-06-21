@@ -447,6 +447,7 @@ export default {
     chatHint: '聊天模式会调用 workbench chat_completions 代理接口。',
     imageHint: '图片模式会调用 workbench images_generations 代理接口。',
     emptyMessages: '这里会显示消息内容与图片结果。',
+    loading: '加载中...',
     sending: '发送中...',
     send: '发送',
     you: '你',

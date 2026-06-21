@@ -447,6 +447,7 @@ export default {
     chatHint: 'Chat mode sends requests through the workbench chat_completions endpoint.',
     imageHint: 'Image mode sends requests through the workbench images_generations endpoint.',
     emptyMessages: 'Messages and generated images will appear here.',
+    loading: 'Loading...',
     sending: 'Sending...',
     send: 'Send',
     you: 'You',
