@@ -384,6 +384,16 @@ function sanitizeErrorSummary(message?: string | null): string {
     .replace(/\bBearer\s+[A-Za-z0-9._-]+\b/gi, 'Bearer [redacted]')
 }
 
+function sanitizeWorkbenchMessage(message: WorkbenchMessage): WorkbenchMessage {
+  return message.error_message
+    ? { ...message, error_message: sanitizeErrorSummary(message.error_message) }
+    : message
+}
+
+function sanitizeWorkbenchMessages(items: WorkbenchMessage[]): WorkbenchMessage[] {
+  return items.map((item) => sanitizeWorkbenchMessage(item))
+}
+
 function isSendResult(payload: WorkbenchSendResponse): payload is WorkbenchSendResult {
   return 'user_message' in payload && 'assistant_message' in payload && 'conversation' in payload
 }
@@ -432,7 +442,7 @@ async function loadConversations(): Promise<void> {
 async function loadMessages(conversationId: number): Promise<void> {
   loadingMessages.value = true
   try {
-    messages.value = await workbenchAPI.listMessages(conversationId)
+    messages.value = sanitizeWorkbenchMessages(await workbenchAPI.listMessages(conversationId))
   } finally {
     loadingMessages.value = false
   }
@@ -517,11 +527,13 @@ async function handleSend(): Promise<void> {
     const { result, errorSummary } = normalizeSendResponse(response)
 
     if (result) {
+      const sanitizedUserMessage = sanitizeWorkbenchMessage(result.user_message as WorkbenchMessage)
+      const sanitizedAssistantMessage = sanitizeWorkbenchMessage(result.assistant_message as WorkbenchMessage)
       const assistantMessage = errorSummary && !result.assistant_message.error_message
-        ? { ...result.assistant_message, error_message: errorSummary }
-        : result.assistant_message
+        ? { ...sanitizedAssistantMessage, error_message: errorSummary }
+        : sanitizedAssistantMessage
 
-      messages.value = [...messages.value, result.user_message as WorkbenchMessage, assistantMessage as WorkbenchMessage]
+      messages.value = [...messages.value, sanitizedUserMessage, assistantMessage as WorkbenchMessage]
       upsertConversation(result.conversation as WorkbenchConversation)
       activeConversationId.value = result.conversation.id
       prompt.value = ''

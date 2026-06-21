@@ -68,7 +68,9 @@ describe('WorkbenchView', () => {
       page_size: 20,
       pages: 1
     })
-    listMessages.mockResolvedValue([])
+    listMessages.mockResolvedValue([
+      { id: 2, role: 'assistant', content: '历史消息', status: 'error', error_message: 'upstream failed with sk-test-1234567890abcdef token' },
+    ])
     listKeys.mockResolvedValue({
       items: [{ id: 7, name: 'main', key: 'sk-test', status: 'active', quota: 10, quota_used: 2 }],
       total: 1,
@@ -91,6 +93,8 @@ describe('WorkbenchView', () => {
     expect(listConversations).toHaveBeenCalled()
     expect(listMessages).toHaveBeenCalledWith(1)
     expect(wrapper.text()).toContain('你好')
+    expect(wrapper.text()).toContain('[redacted]')
+    expect(wrapper.text()).not.toContain('sk-test-1234567890abcdef')
   })
 
   it('sends chat message through workbench API', async () => {
@@ -166,11 +170,11 @@ describe('WorkbenchView', () => {
     send.mockResolvedValue({
       result: {
         user_message: { id: 20, role: 'user', content: '继续', status: 'success' },
-        assistant_message: { id: 21, role: 'assistant', content: '已返回部分结果', status: 'error' },
+        assistant_message: { id: 21, role: 'assistant', content: '已返回部分结果', status: 'error', error_message: 'upstream failed with sk-test-1234567890abcdef token' },
         conversation: { id: 1, title: '你好', mode: 'chat', message_count: 2, updated_at: '2026-06-21T00:00:02Z' },
       },
       error: {
-        message: 'upstream failed with sk-test-1234567890abcdef token'
+        message: 'upstream failed with Bearer abc.def.ghi token'
       }
     })
 
@@ -183,8 +187,10 @@ describe('WorkbenchView', () => {
 
     expect(wrapper.text()).toContain('已返回部分结果')
     expect(wrapper.text()).toContain('upstream failed')
+    expect(wrapper.text()).toContain('[redacted]')
     expect(wrapper.text()).not.toContain('sk-test-1234567890abcdef')
     expect(showError).toHaveBeenCalled()
+    expect(String(showError.mock.calls.at(-1)?.[0] ?? '')).toContain('Bearer [redacted]')
     expect(String(showError.mock.calls.at(-1)?.[0] ?? '')).not.toContain('sk-test-1234567890abcdef')
   })
 })
