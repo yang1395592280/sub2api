@@ -36,6 +36,15 @@ type workbenchSendRequest struct {
 	Options  map[string]any `json:"options"`
 }
 
+type workbenchSendPartialError struct {
+	Message string `json:"message"`
+}
+
+type workbenchSendPartialResponse struct {
+	Result *service.WorkbenchSendResult `json:"result"`
+	Error  any                          `json:"error,omitempty"`
+}
+
 func (h *WorkbenchHandler) ListConversations(c *gin.Context) {
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
@@ -161,11 +170,28 @@ func (h *WorkbenchHandler) Send(c *gin.Context) {
 		Options:  req.Options,
 	})
 	if err != nil {
+		if result != nil {
+			response.Success(c, workbenchSendPartialResponse{
+				Result: result,
+				Error:  buildWorkbenchSendPartialError(result),
+			})
+			return
+		}
 		response.ErrorFrom(c, err)
 		return
 	}
 
 	response.Success(c, result)
+}
+
+func buildWorkbenchSendPartialError(result *service.WorkbenchSendResult) any {
+	if result != nil && result.AssistantMessage.ErrorMessage != nil {
+		msg := strings.TrimSpace(*result.AssistantMessage.ErrorMessage)
+		if msg != "" {
+			return workbenchSendPartialError{Message: msg}
+		}
+	}
+	return workbenchSendPartialError{Message: "workbench request partially completed"}
 }
 
 func parseWorkbenchID(raw string) (int64, error) {

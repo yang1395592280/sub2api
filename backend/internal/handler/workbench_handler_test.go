@@ -3,11 +3,14 @@ package handler
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -145,6 +148,35 @@ func (s *workbenchHandlerGatewayStub) GenerateImage(_ context.Context, _ string,
 	return service.WorkbenchGatewayImageResponse{}, nil
 }
 
+type workbenchHandlerGatewayFailStub struct {
+	resultContent string
+	err           error
+}
+
+func (s *workbenchHandlerGatewayFailStub) SendChat(_ context.Context, _ string, _ service.WorkbenchGatewayChatRequest) (service.WorkbenchGatewayChatResponse, error) {
+	return service.WorkbenchGatewayChatResponse{Content: s.resultContent}, s.err
+}
+
+func (s *workbenchHandlerGatewayFailStub) GenerateImage(_ context.Context, _ string, _ service.WorkbenchGatewayImageRequest) (service.WorkbenchGatewayImageResponse, error) {
+	return service.WorkbenchGatewayImageResponse{}, s.err
+}
+
+func newWorkbenchAuthedRouter(h *WorkbenchHandler) *gin.Engine {
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 7})
+		c.Next()
+	})
+	return r
+}
+
+func decodeWorkbenchResponse(t *testing.T, body *bytes.Buffer) map[string]any {
+	t.Helper()
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(body.Bytes(), &payload))
+	return payload
+}
+
 func TestWorkbenchHandlerCreateConversationRequiresUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h := NewWorkbenchHandler(service.NewWorkbenchService(newWorkbenchHandlerRepoStub(), &workbenchHandlerAPIKeyStub{}, &workbenchHandlerGatewayStub{}))
@@ -183,4 +215,189 @@ func TestWorkbenchHandlerListConversationsReturnsPaginatedData(t *testing.T) {
 	require.Contains(t, rec.Body.String(), `"total":1`)
 	require.Contains(t, rec.Body.String(), `"page":2`)
 	require.Contains(t, rec.Body.String(), `"page_size":5`)
+}
+
+func TestWorkbenchHandlerCreateConversationBadJSONReturns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewWorkbenchHandler(service.NewWorkbenchService(newWorkbenchHandlerRepoStub(), &workbenchHandlerAPIKeyStub{}, &workbenchHandlerGatewayStub{}))
+	r := newWorkbenchAuthedRouter(h)
+	r.POST("/api/v1/workbench/conversations", h.CreateConversation)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/workbench/conversations", bytes.NewBufferString(`{`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	payload := decodeWorkbenchResponse(t, rec.Body)
+	require.Equal(t, float64(http.StatusBadRequest), payload["code"])
+}
+
+func TestWorkbenchHandlerListMessagesInvalidIDReturns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewWorkbenchHandler(service.NewWorkbenchService(newWorkbenchHandlerRepoStub(), &workbenchHandlerAPIKeyStub{}, &workbenchHandlerGatewayStub{}))
+	r := newWorkbenchAuthedRouter(h)
+	r.GET("/api/v1/workbench/conversations/:id/messages", h.ListMessages)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/workbench/conversations/nope/messages", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	payload := decodeWorkbenchResponse(t, rec.Body)
+	require.Equal(t, "Invalid conversation ID", payload["message"])
+}
+
+func TestWorkbenchHandlerDeleteConversationSuccess(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newWorkbenchHandlerRepoStub()
+	svc := service.NewWorkbenchService(repo, &workbenchHandlerAPIKeyStub{}, &workbenchHandlerGatewayStub{})
+	conv, err := svc.CreateConversation(context.Background(), 7, service.CreateWorkbenchConversationRequest{Mode: service.WorkbenchModeChat, Title: "Hello"})
+	require.NoError(t, err)
+
+	h := NewWorkbenchHandler(svc)
+	r := newWorkbenchAuthedRouter(h)
+	r.DELETE("/api/v1/workbench/conversations/:id", h.DeleteConversation)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/workbench/conversations/1", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	payload := decodeWorkbenchResponse(t, rec.Body)
+	require.Equal(t, "success", payload["message"])
+	data := payload["data"].(map[string]any)
+	require.Equal(t, "ok", data["message"])
+	_, err = repo.GetConversation(context.Background(), 7, conv.ID)
+	require.ErrorIs(t, err, service.ErrWorkbenchConversationNotFound)
+}
+
+func TestWorkbenchHandlerSendBadJSONReturns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newWorkbenchHandlerRepoStub()
+	svc := service.NewWorkbenchService(repo, &workbenchHandlerAPIKeyStub{}, &workbenchHandlerGatewayStub{})
+	_, err := svc.CreateConversation(context.Background(), 7, service.CreateWorkbenchConversationRequest{Mode: service.WorkbenchModeChat})
+	require.NoError(t, err)
+
+	h := NewWorkbenchHandler(svc)
+	r := newWorkbenchAuthedRouter(h)
+	r.POST("/api/v1/workbench/conversations/:id/send", h.Send)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/workbench/conversations/1/send", bytes.NewBufferString(`{`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	payload := decodeWorkbenchResponse(t, rec.Body)
+	require.Equal(t, float64(http.StatusBadRequest), payload["code"])
+}
+
+func TestWorkbenchHandlerSendSuccessReturnsResult(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newWorkbenchHandlerRepoStub()
+	svc := service.NewWorkbenchService(repo, &workbenchHandlerAPIKeyStub{}, &workbenchHandlerGatewayStub{})
+	_, err := svc.CreateConversation(context.Background(), 7, service.CreateWorkbenchConversationRequest{Mode: service.WorkbenchModeChat})
+	require.NoError(t, err)
+
+	h := NewWorkbenchHandler(svc)
+	r := newWorkbenchAuthedRouter(h)
+	r.POST("/api/v1/workbench/conversations/:id/send", h.Send)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/workbench/conversations/1/send", bytes.NewBufferString(`{"mode":"chat","api_key_id":1,"endpoint":"chat_completions","model":"gpt-5.5","input":"hi"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	payload := decodeWorkbenchResponse(t, rec.Body)
+	require.Equal(t, "success", payload["message"])
+	data := payload["data"].(map[string]any)
+	result := data["result"]
+	require.Nil(t, result)
+	require.Equal(t, "assistant reply", data["assistant_message"].(map[string]any)["content"])
+}
+
+func TestWorkbenchHandlerSendPartialResultReturnsSuccessEnvelope(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newWorkbenchHandlerRepoStub()
+	svc := service.NewWorkbenchService(
+		repo,
+		&workbenchHandlerAPIKeyStub{},
+		&workbenchHandlerGatewayFailStub{
+			resultContent: "ignored because error result stores summary",
+			err:           errors.New("gateway returned 502: provider failure secret sk-test"),
+		},
+	)
+	_, err := svc.CreateConversation(context.Background(), 7, service.CreateWorkbenchConversationRequest{Mode: service.WorkbenchModeChat})
+	require.NoError(t, err)
+
+	h := NewWorkbenchHandler(svc)
+	r := newWorkbenchAuthedRouter(h)
+	r.POST("/api/v1/workbench/conversations/:id/send", h.Send)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/workbench/conversations/1/send", bytes.NewBufferString(`{"mode":"chat","api_key_id":1,"endpoint":"chat_completions","model":"gpt-5.5","input":"hi"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	payload := decodeWorkbenchResponse(t, rec.Body)
+	require.Equal(t, "success", payload["message"])
+	data := payload["data"].(map[string]any)
+	require.NotNil(t, data["result"])
+	errSummary := data["error"].(map[string]any)
+	require.Equal(t, "gateway returned 502", errSummary["message"])
+	body := rec.Body.String()
+	require.NotContains(t, body, "sk-test")
+	require.NotContains(t, body, "provider failure")
+}
+
+func TestWorkbenchHandlerSendGatewayFailureWithoutResultStillReturnsError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewWorkbenchHandler(service.NewWorkbenchService(
+		newWorkbenchHandlerRepoStub(),
+		&workbenchHandlerAPIKeyStub{},
+		&workbenchHandlerGatewayStub{},
+	))
+	r := newWorkbenchAuthedRouter(h)
+	r.POST("/api/v1/workbench/conversations/:id/send", h.Send)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/workbench/conversations/999/send", bytes.NewBufferString(`{"mode":"chat","api_key_id":1,"endpoint":"chat_completions","model":"gpt-5.5","input":"hi"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusNotFound, rec.Code)
+	payload := decodeWorkbenchResponse(t, rec.Body)
+	require.Equal(t, service.ErrWorkbenchConversationNotFound.Message, payload["message"])
+}
+
+func TestWorkbenchHandlerSendPartialResultFallbackMessage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newWorkbenchHandlerRepoStub()
+	svc := service.NewWorkbenchService(
+		repo,
+		&workbenchHandlerAPIKeyStub{},
+		&workbenchHandlerGatewayFailStub{
+			resultContent: "",
+			err:           infraerrors.InternalServer("WORKBENCH_GATEWAY_FAILED", "raw upstream details secret sk-test"),
+		},
+	)
+	_, err := svc.CreateConversation(context.Background(), 7, service.CreateWorkbenchConversationRequest{Mode: service.WorkbenchModeChat})
+	require.NoError(t, err)
+
+	h := NewWorkbenchHandler(svc)
+	r := newWorkbenchAuthedRouter(h)
+	r.POST("/api/v1/workbench/conversations/:id/send", h.Send)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/workbench/conversations/1/send", bytes.NewBufferString(`{"mode":"chat","api_key_id":1,"endpoint":"chat_completions","model":"gpt-5.5","input":"hi"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	require.NotContains(t, body, "sk-test")
+	require.NotContains(t, body, "raw upstream details")
 }
