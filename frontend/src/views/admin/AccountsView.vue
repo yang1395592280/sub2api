@@ -1172,10 +1172,10 @@ function getAntigravityTierClass(row: any): string {
 function getUpstreamGroup(row: Account): string | null {
   const value = row.extra?.upstream_group
   if (typeof value === 'string' && value.trim()) return value.trim()
-  const firstGroupName = row.groups?.find((group) => typeof group?.name === 'string' && group.name.trim())?.name?.trim()
-  if (firstGroupName) return firstGroupName
-  const firstAccountGroupName = row.account_groups?.find((link) => typeof link?.group?.name === 'string' && link.group.name.trim())?.group?.name?.trim()
-  return firstAccountGroupName || null
+  const selectedGroupId = typeof row.extra?.group_id === 'number' ? row.extra.group_id : null
+  const selectedGroupName = row.groups?.find((group) => group.id === selectedGroupId)?.name?.trim()
+  if (selectedGroupName) return selectedGroupName
+  return row.groups?.[0]?.name?.trim() || row.account_groups?.find((link) => link.group_id === selectedGroupId)?.group?.name?.trim() || null
 }
 
 function getStabilityClass(row: Account): string {
