@@ -863,6 +863,7 @@ export interface Account {
   updated_at: string
   proxy?: Proxy
   group_ids?: number[] // Groups this account belongs to
+  account_groups?: AccountGroup[] // Preloaded account-group links
   groups?: Group[] // Preloaded group objects
 
   // Rate limit & scheduling fields
@@ -942,6 +943,15 @@ export interface AccountStability {
   avg_duration_ms?: number
   window_days: number
   reason?: string
+}
+
+export interface AccountGroup {
+  account_id: number
+  group_id: number
+  priority: number
+  created_at: string
+  account?: Account | null
+  group?: Group | null
 }
 
 // Account Usage types

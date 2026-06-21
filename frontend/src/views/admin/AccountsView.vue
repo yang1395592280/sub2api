@@ -1171,7 +1171,11 @@ function getAntigravityTierClass(row: any): string {
 
 function getUpstreamGroup(row: Account): string | null {
   const value = row.extra?.upstream_group
-  return typeof value === 'string' && value.trim() ? value.trim() : null
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  const firstGroupName = row.groups?.find((group) => typeof group?.name === 'string' && group.name.trim())?.name?.trim()
+  if (firstGroupName) return firstGroupName
+  const firstAccountGroupName = row.account_groups?.find((link) => typeof link?.group?.name === 'string' && link.group.name.trim())?.group?.name?.trim()
+  return firstAccountGroupName || null
 }
 
 function getStabilityClass(row: Account): string {
@@ -1613,7 +1617,8 @@ const mergeRuntimeFields = (oldAccount: Account, updatedAccount: Account): Accou
   ...updatedAccount,
   current_concurrency: updatedAccount.current_concurrency ?? oldAccount.current_concurrency,
   current_window_cost: updatedAccount.current_window_cost ?? oldAccount.current_window_cost,
-  active_sessions: updatedAccount.active_sessions ?? oldAccount.active_sessions
+  active_sessions: updatedAccount.active_sessions ?? oldAccount.active_sessions,
+  stability: updatedAccount.stability ?? oldAccount.stability
 })
 
 const syncPaginationAfterLocalRemoval = () => {

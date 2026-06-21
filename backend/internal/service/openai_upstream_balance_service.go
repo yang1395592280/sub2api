@@ -89,6 +89,7 @@ func (s *OpenAIUpstreamBalanceService) Refresh(ctx context.Context, accountID in
 }
 
 func buildOpenAIUpstreamBalanceUpdates(snapshot OpenAIUpstreamBalanceSnapshot) map[string]any {
+	group := strings.TrimSpace(snapshot.Group)
 	updates := map[string]any{
 		"upstream_balance_provider":   snapshot.Provider,
 		"upstream_balance_remaining":  snapshot.Remaining,
@@ -96,12 +97,10 @@ func buildOpenAIUpstreamBalanceUpdates(snapshot OpenAIUpstreamBalanceSnapshot) m
 		"upstream_balance_status":     snapshot.Status,
 		"upstream_balance_error":      snapshot.Error,
 		"upstream_balance_updated_at": "",
+		"upstream_group":              group,
 	}
 	if !snapshot.UpdatedAt.IsZero() {
 		updates["upstream_balance_updated_at"] = snapshot.UpdatedAt.UTC().Format(time.RFC3339)
-	}
-	if strings.TrimSpace(snapshot.Group) != "" {
-		updates["upstream_group"] = strings.TrimSpace(snapshot.Group)
 	}
 	return updates
 }

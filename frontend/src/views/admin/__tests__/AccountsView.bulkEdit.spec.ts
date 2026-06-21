@@ -105,8 +105,8 @@ const DataTableStub = {
 
 const AccountBulkActionsBarStub = {
   props: ['selectedIds'],
-  emits: ['edit-filtered'],
-  template: '<button data-test="edit-filtered" @click="$emit(\'edit-filtered\')">edit filtered</button>'
+  emits: ['edit-filtered', 'refresh-balance'],
+  template: '<div><button data-test="edit-filtered" @click="$emit(\'edit-filtered\')">edit filtered</button><button data-test="refresh-balance" @click="$emit(\'refresh-balance\')">refresh balance</button></div>'
 }
 
 const BulkEditAccountModalStub = {
@@ -510,5 +510,95 @@ describe('admin AccountsView bulk edit scope', () => {
     expect(showError).toHaveBeenCalledWith('balance partial 2/1')
     expect(showSuccess).not.toHaveBeenCalled()
     expect(consoleError).toHaveBeenCalledWith('Failed to refresh upstream balance:', expect.any(Error))
+  })
+
+  it('preserves stability when an upstream balance refresh returns a partial account payload', async () => {
+    listAccounts.mockResolvedValue({
+      items: [
+        {
+          id: 11,
+          name: 'openai-stable',
+          platform: 'openai',
+          type: 'apikey',
+          status: 'active',
+          schedulable: true,
+          created_at: '2026-03-07T10:00:00Z',
+          updated_at: '2026-03-07T10:00:00Z',
+          stability: {
+            level: 'healthy',
+            label: '健康',
+            total_requests: 20,
+            success_count: 19,
+            error_count: 1,
+            window_days: 3
+          }
+        }
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+
+    refreshUpstreamBalance.mockResolvedValueOnce({
+      id: 11,
+      name: 'openai-stable',
+      platform: 'openai',
+      type: 'apikey',
+      status: 'active',
+      schedulable: true,
+      created_at: '2026-03-07T10:00:00Z',
+      updated_at: '2026-03-07T10:00:01Z',
+      extra: {
+        upstream_balance_status: 'ok',
+        upstream_balance_remaining: 8.5,
+        upstream_balance_unit: 'USD'
+      }
+    })
+
+    const wrapper = mount(AccountsView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: { template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>' },
+          DataTable: DataTableStub,
+          Pagination: true,
+          ConfirmDialog: true,
+          AccountTableActions: { template: '<div><slot name="beforeCreate" /><slot name="after" /></div>' },
+          AccountTableFilters: { template: '<div></div>' },
+          AccountBulkActionsBar: AccountBulkActionsBarStub,
+          AccountActionMenu: true,
+          ImportDataModal: true,
+          ReAuthAccountModal: true,
+          AccountTestModal: true,
+          AccountStatsModal: true,
+          ScheduledTestsPanel: true,
+          SyncFromCrsModal: true,
+          TempUnschedStatusModal: true,
+          ErrorPassthroughRulesModal: true,
+          TLSFingerprintProfilesModal: true,
+          CreateAccountModal: true,
+          EditAccountModal: true,
+          BulkEditAccountModal: BulkEditAccountModalStub,
+          BatchAccountTestModal: BatchAccountTestModalStub,
+          PlatformTypeBadge: true,
+          AccountCapacityCell: true,
+          AccountStatusIndicator: true,
+          AccountTodayStatsCell: true,
+          AccountGroupsCell: true,
+          AccountUsageCell: true,
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.vm.toggleSel(11)
+    await flushPromises()
+    await wrapper.get('[data-test="refresh-balance"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.vm.accounts.find(account => account.id === 11)?.stability?.label).toBe('健康')
+    expect(wrapper.vm.accounts.find(account => account.id === 11)?.extra?.upstream_balance_remaining).toBe(8.5)
   })
 })
