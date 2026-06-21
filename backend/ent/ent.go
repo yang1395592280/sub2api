@@ -47,6 +47,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
+	"github.com/Wei-Shaw/sub2api/ent/workbenchconversation"
+	"github.com/Wei-Shaw/sub2api/ent/workbenchmessage"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -142,6 +144,8 @@ func checkColumn(t, c string) error {
 			userattributevalue.Table:            userattributevalue.ValidColumn,
 			userplatformquota.Table:             userplatformquota.ValidColumn,
 			usersubscription.Table:              usersubscription.ValidColumn,
+			workbenchconversation.Table:         workbenchconversation.ValidColumn,
+			workbenchmessage.Table:              workbenchmessage.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

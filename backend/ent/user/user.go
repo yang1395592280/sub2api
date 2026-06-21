@@ -87,6 +87,10 @@ const (
 	EdgePendingAuthSessions = "pending_auth_sessions"
 	// EdgePlatformQuotas holds the string denoting the platform_quotas edge name in mutations.
 	EdgePlatformQuotas = "platform_quotas"
+	// EdgeWorkbenchConversations holds the string denoting the workbench_conversations edge name in mutations.
+	EdgeWorkbenchConversations = "workbench_conversations"
+	// EdgeWorkbenchMessages holds the string denoting the workbench_messages edge name in mutations.
+	EdgeWorkbenchMessages = "workbench_messages"
 	// EdgeUserAllowedGroups holds the string denoting the user_allowed_groups edge name in mutations.
 	EdgeUserAllowedGroups = "user_allowed_groups"
 	// Table holds the table name of the user in the database.
@@ -180,6 +184,20 @@ const (
 	PlatformQuotasInverseTable = "user_platform_quotas"
 	// PlatformQuotasColumn is the table column denoting the platform_quotas relation/edge.
 	PlatformQuotasColumn = "user_id"
+	// WorkbenchConversationsTable is the table that holds the workbench_conversations relation/edge.
+	WorkbenchConversationsTable = "workbench_conversations"
+	// WorkbenchConversationsInverseTable is the table name for the WorkbenchConversation entity.
+	// It exists in this package in order to avoid circular dependency with the "workbenchconversation" package.
+	WorkbenchConversationsInverseTable = "workbench_conversations"
+	// WorkbenchConversationsColumn is the table column denoting the workbench_conversations relation/edge.
+	WorkbenchConversationsColumn = "user_id"
+	// WorkbenchMessagesTable is the table that holds the workbench_messages relation/edge.
+	WorkbenchMessagesTable = "workbench_messages"
+	// WorkbenchMessagesInverseTable is the table name for the WorkbenchMessage entity.
+	// It exists in this package in order to avoid circular dependency with the "workbenchmessage" package.
+	WorkbenchMessagesInverseTable = "workbench_messages"
+	// WorkbenchMessagesColumn is the table column denoting the workbench_messages relation/edge.
+	WorkbenchMessagesColumn = "user_id"
 	// UserAllowedGroupsTable is the table that holds the user_allowed_groups relation/edge.
 	UserAllowedGroupsTable = "user_allowed_groups"
 	// UserAllowedGroupsInverseTable is the table name for the UserAllowedGroup entity.
@@ -592,6 +610,34 @@ func ByPlatformQuotas(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// ByWorkbenchConversationsCount orders the results by workbench_conversations count.
+func ByWorkbenchConversationsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newWorkbenchConversationsStep(), opts...)
+	}
+}
+
+// ByWorkbenchConversations orders the results by workbench_conversations terms.
+func ByWorkbenchConversations(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newWorkbenchConversationsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByWorkbenchMessagesCount orders the results by workbench_messages count.
+func ByWorkbenchMessagesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newWorkbenchMessagesStep(), opts...)
+	}
+}
+
+// ByWorkbenchMessages orders the results by workbench_messages terms.
+func ByWorkbenchMessages(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newWorkbenchMessagesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByUserAllowedGroupsCount orders the results by user_allowed_groups count.
 func ByUserAllowedGroupsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -694,6 +740,20 @@ func newPlatformQuotasStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(PlatformQuotasInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, PlatformQuotasTable, PlatformQuotasColumn),
+	)
+}
+func newWorkbenchConversationsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(WorkbenchConversationsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, WorkbenchConversationsTable, WorkbenchConversationsColumn),
+	)
+}
+func newWorkbenchMessagesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(WorkbenchMessagesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, WorkbenchMessagesTable, WorkbenchMessagesColumn),
 	)
 }
 func newUserAllowedGroupsStep() *sqlgraph.Step {

@@ -408,6 +408,21 @@ const RechargeSubscriptionIcon = {
     )
 }
 
+const SparklesIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.283-3.283L2.06 11.81l2.845-.813a4.5 4.5 0 0 0 3.283-3.283L9 4.872l.813 2.845a4.5 4.5 0 0 0 3.283 3.283l2.845.813-2.845.813a4.5 4.5 0 0 0-3.283 3.283ZM18.258 8.715 18 9.75l-.258-1.035a2.25 2.25 0 0 0-1.64-1.64L15.068 6.75l1.035-.258a2.25 2.25 0 0 0 1.64-1.64L18 3.818l.258 1.034a2.25 2.25 0 0 0 1.64 1.641l1.034.258-1.034.258a2.25 2.25 0 0 0-1.641 1.64ZM16.5 20.25 16 21.75l-.5-1.5a2.25 2.25 0 0 0-1.5-1.5l-1.5-.5 1.5-.5a2.25 2.25 0 0 0 1.5-1.5l.5-1.5.5 1.5a2.25 2.25 0 0 0 1.5 1.5l1.5.5-1.5.5a2.25 2.25 0 0 0-1.5 1.5Z'
+        })
+      ]
+    )
+}
+
 const GlobeIcon = {
   render: () =>
     h(
@@ -668,6 +683,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
+    { path: '/workbench', label: t('nav.workbench'), icon: SparklesIcon },
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/purchase', label: t('nav.buySubscription'), icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },

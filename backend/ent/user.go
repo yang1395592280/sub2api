@@ -97,11 +97,15 @@ type UserEdges struct {
 	PendingAuthSessions []*PendingAuthSession `json:"pending_auth_sessions,omitempty"`
 	// PlatformQuotas holds the value of the platform_quotas edge.
 	PlatformQuotas []*UserPlatformQuota `json:"platform_quotas,omitempty"`
+	// WorkbenchConversations holds the value of the workbench_conversations edge.
+	WorkbenchConversations []*WorkbenchConversation `json:"workbench_conversations,omitempty"`
+	// WorkbenchMessages holds the value of the workbench_messages edge.
+	WorkbenchMessages []*WorkbenchMessage `json:"workbench_messages,omitempty"`
 	// UserAllowedGroups holds the value of the user_allowed_groups edge.
 	UserAllowedGroups []*UserAllowedGroup `json:"user_allowed_groups,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [14]bool
+	loadedTypes [16]bool
 }
 
 // APIKeysOrErr returns the APIKeys value or an error if the edge
@@ -221,10 +225,28 @@ func (e UserEdges) PlatformQuotasOrErr() ([]*UserPlatformQuota, error) {
 	return nil, &NotLoadedError{edge: "platform_quotas"}
 }
 
+// WorkbenchConversationsOrErr returns the WorkbenchConversations value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) WorkbenchConversationsOrErr() ([]*WorkbenchConversation, error) {
+	if e.loadedTypes[13] {
+		return e.WorkbenchConversations, nil
+	}
+	return nil, &NotLoadedError{edge: "workbench_conversations"}
+}
+
+// WorkbenchMessagesOrErr returns the WorkbenchMessages value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) WorkbenchMessagesOrErr() ([]*WorkbenchMessage, error) {
+	if e.loadedTypes[14] {
+		return e.WorkbenchMessages, nil
+	}
+	return nil, &NotLoadedError{edge: "workbench_messages"}
+}
+
 // UserAllowedGroupsOrErr returns the UserAllowedGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) UserAllowedGroupsOrErr() ([]*UserAllowedGroup, error) {
-	if e.loadedTypes[13] {
+	if e.loadedTypes[15] {
 		return e.UserAllowedGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "user_allowed_groups"}
@@ -486,6 +508,16 @@ func (_m *User) QueryPendingAuthSessions() *PendingAuthSessionQuery {
 // QueryPlatformQuotas queries the "platform_quotas" edge of the User entity.
 func (_m *User) QueryPlatformQuotas() *UserPlatformQuotaQuery {
 	return NewUserClient(_m.config).QueryPlatformQuotas(_m)
+}
+
+// QueryWorkbenchConversations queries the "workbench_conversations" edge of the User entity.
+func (_m *User) QueryWorkbenchConversations() *WorkbenchConversationQuery {
+	return NewUserClient(_m.config).QueryWorkbenchConversations(_m)
+}
+
+// QueryWorkbenchMessages queries the "workbench_messages" edge of the User entity.
+func (_m *User) QueryWorkbenchMessages() *WorkbenchMessageQuery {
+	return NewUserClient(_m.config).QueryWorkbenchMessages(_m)
 }
 
 // QueryUserAllowedGroups queries the "user_allowed_groups" edge of the User entity.
