@@ -27,6 +27,10 @@ export interface WorkbenchImageOutput {
   mime_type?: string
 }
 
+export interface WorkbenchModel {
+  name: string
+}
+
 export interface WorkbenchMessage {
   id: number
   conversation_id: number
@@ -83,6 +87,11 @@ async function listConversations(params?: { mode?: WorkbenchMode; page?: number;
   return data
 }
 
+async function listModels(apiKeyId: number): Promise<WorkbenchModel[]> {
+  const { data } = await apiClient.get<WorkbenchModel[]>(`/workbench/api-keys/${apiKeyId}/models`)
+  return data
+}
+
 async function createConversation(payload: CreateWorkbenchConversationRequest): Promise<WorkbenchConversation> {
   const { data } = await apiClient.post<WorkbenchConversation>('/workbench/conversations', payload)
   return data
@@ -103,5 +112,5 @@ async function send(conversationId: number, payload: WorkbenchSendRequest): Prom
   return data
 }
 
-export const workbenchAPI = { listConversations, createConversation, listMessages, deleteConversation, send }
+export const workbenchAPI = { listConversations, listModels, createConversation, listMessages, deleteConversation, send }
 export default workbenchAPI

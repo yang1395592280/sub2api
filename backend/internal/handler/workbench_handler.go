@@ -45,6 +45,28 @@ type workbenchSendPartialResponse struct {
 	Error  any                          `json:"error,omitempty"`
 }
 
+func (h *WorkbenchHandler) ListModels(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	apiKeyID, err := parseWorkbenchID(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "Invalid API key ID")
+		return
+	}
+
+	models, err := h.workbenchService.ListModels(c.Request.Context(), subject.UserID, apiKeyID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, models)
+}
+
 func (h *WorkbenchHandler) ListConversations(c *gin.Context) {
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {

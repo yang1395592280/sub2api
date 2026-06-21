@@ -2,8 +2,13 @@ package service
 
 import (
 	"context"
+	"sort"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 )
 
@@ -16,13 +21,55 @@ const (
 )
 
 type WorkbenchService struct {
-	repo    WorkbenchRepository
-	apiKeys WorkbenchAPIKeyLookup
-	gateway WorkbenchGatewayClient
+	repo          WorkbenchRepository
+	apiKeys       WorkbenchAPIKeyLookup
+	gateway       WorkbenchGatewayClient
+	modelProvider WorkbenchModelProvider
 }
 
 func NewWorkbenchService(repo WorkbenchRepository, apiKeys WorkbenchAPIKeyLookup, gateway WorkbenchGatewayClient) *WorkbenchService {
 	return &WorkbenchService{repo: repo, apiKeys: apiKeys, gateway: gateway}
+}
+
+func NewWorkbenchServiceWithModels(repo WorkbenchRepository, apiKeys WorkbenchAPIKeyLookup, gateway WorkbenchGatewayClient, modelProvider WorkbenchModelProvider) *WorkbenchService {
+	return &WorkbenchService{repo: repo, apiKeys: apiKeys, gateway: gateway, modelProvider: modelProvider}
+}
+
+func (s *WorkbenchService) ListModels(ctx context.Context, userID, apiKeyID int64) ([]WorkbenchModel, error) {
+	apiKey, err := s.validateWorkbenchAPIKey(ctx, userID, apiKeyID)
+	if err != nil {
+		return nil, err
+	}
+
+	platform := ""
+	if apiKey.Group != nil {
+		platform = apiKey.Group.Platform
+	}
+	models := []string(nil)
+	if s.modelProvider != nil {
+		models = s.modelProvider.GetAvailableModels(ctx, apiKey.GroupID, platform)
+	}
+	if apiKey.Group != nil && apiKey.Group.CustomModelsListEnabled() {
+		models = filterWorkbenchModelsByCustomList(models, defaultWorkbenchModelIDsForPlatform(platform), apiKey.Group.ModelsListConfig.Models)
+	} else if len(models) == 0 {
+		models = defaultWorkbenchModelIDsForPlatform(platform)
+	}
+
+	out := make([]WorkbenchModel, 0, len(models))
+	seen := make(map[string]struct{}, len(models))
+	for _, model := range models {
+		model = strings.TrimSpace(model)
+		if model == "" {
+			continue
+		}
+		if _, ok := seen[model]; ok {
+			continue
+		}
+		seen[model] = struct{}{}
+		out = append(out, WorkbenchModel{Name: model})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
 }
 
 func (s *WorkbenchService) ListConversations(ctx context.Context, userID int64, params pagination.PaginationParams, filters WorkbenchConversationFilters) ([]WorkbenchConversation, *pagination.PaginationResult, error) {
@@ -219,6 +266,79 @@ func (s *WorkbenchService) validateWorkbenchAPIKey(ctx context.Context, userID, 
 		return nil, ErrWorkbenchAPIKeyUnavailable
 	}
 	return apiKey, nil
+}
+
+func defaultWorkbenchModelIDsForPlatform(platform string) []string {
+	switch platform {
+	case PlatformOpenAI:
+		return openai.DefaultModelIDs()
+	case PlatformGemini:
+		ids := make([]string, 0, len(geminicli.DefaultModels))
+		for _, model := range geminicli.DefaultModels {
+			ids = append(ids, model.ID)
+		}
+		return ids
+	case PlatformAntigravity:
+		models := antigravity.DefaultModels()
+		ids := make([]string, 0, len(models))
+		for _, model := range models {
+			ids = append(ids, model.ID)
+		}
+		return ids
+	default:
+		return claude.DefaultModelIDs()
+	}
+}
+
+func filterWorkbenchModelsByCustomList(availableModels, fallbackModels, selectedModels []string) []string {
+	if len(selectedModels) == 0 {
+		return availableModels
+	}
+	source := availableModels
+	if len(source) == 0 {
+		source = fallbackModels
+	}
+	if len(source) == 0 {
+		return nil
+	}
+
+	allowed := make([]string, 0, len(source))
+	for _, model := range source {
+		model = strings.TrimSpace(model)
+		if model != "" {
+			allowed = append(allowed, model)
+		}
+	}
+
+	seen := make(map[string]struct{}, len(selectedModels))
+	filtered := make([]string, 0, len(selectedModels))
+	for _, model := range selectedModels {
+		model = strings.TrimSpace(model)
+		if model == "" {
+			continue
+		}
+		if !workbenchModelsListAllowsModel(allowed, model) {
+			continue
+		}
+		if _, ok := seen[model]; ok {
+			continue
+		}
+		seen[model] = struct{}{}
+		filtered = append(filtered, model)
+	}
+	return filtered
+}
+
+func workbenchModelsListAllowsModel(availablePatterns []string, model string) bool {
+	for _, pattern := range availablePatterns {
+		if pattern == model {
+			return true
+		}
+		if strings.HasSuffix(pattern, "*") && strings.HasPrefix(model, strings.TrimSuffix(pattern, "*")) {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeWorkbenchMode(mode string) string {

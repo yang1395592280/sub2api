@@ -516,8 +516,8 @@ func ProvideAPIKeyService(
 	return svc
 }
 
-func ProvideWorkbenchService(repo WorkbenchRepository, apiKeyService *APIKeyService, cfg *config.Config) *WorkbenchService {
-	return NewWorkbenchService(repo, apiKeyService, NewHTTPWorkbenchGatewayClient(cfg))
+func ProvideWorkbenchService(repo WorkbenchRepository, apiKeyService *APIKeyService, gatewayService *GatewayService, cfg *config.Config) *WorkbenchService {
+	return NewWorkbenchServiceWithModels(repo, apiKeyService, NewHTTPWorkbenchGatewayClient(cfg), gatewayService)
 }
 
 // ProviderSet is the Wire provider set for all services
