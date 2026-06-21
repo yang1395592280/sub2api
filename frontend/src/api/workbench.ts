@@ -69,6 +69,15 @@ export interface WorkbenchSendResult {
   conversation: WorkbenchConversation
 }
 
+export interface WorkbenchSendPartialEnvelope {
+  result?: WorkbenchSendResult
+  error?: {
+    message?: string
+  } | null
+}
+
+export type WorkbenchSendResponse = WorkbenchSendResult | WorkbenchSendPartialEnvelope
+
 async function listConversations(params?: { mode?: WorkbenchMode; page?: number; page_size?: number }): Promise<PaginatedResponse<WorkbenchConversation>> {
   const { data } = await apiClient.get<PaginatedResponse<WorkbenchConversation>>('/workbench/conversations', { params })
   return data
@@ -89,8 +98,8 @@ async function deleteConversation(conversationId: number): Promise<{ message: st
   return data
 }
 
-async function send(conversationId: number, payload: WorkbenchSendRequest): Promise<WorkbenchSendResult> {
-  const { data } = await apiClient.post<WorkbenchSendResult>(`/workbench/conversations/${conversationId}/send`, payload)
+async function send(conversationId: number, payload: WorkbenchSendRequest): Promise<WorkbenchSendResponse> {
+  const { data } = await apiClient.post<WorkbenchSendResponse>(`/workbench/conversations/${conversationId}/send`, payload)
   return data
 }
 

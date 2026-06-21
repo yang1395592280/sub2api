@@ -127,4 +127,64 @@ describe('WorkbenchView', () => {
     expect(send).toHaveBeenCalledWith(1, expect.objectContaining({ mode: 'image', endpoint: 'images_generations', options: expect.objectContaining({ n: 1 }) }))
     expect(wrapper.find('img[src="https://img.example/1.png"]').exists()).toBe(true)
   })
+
+  it('creates a conversation before first send when the list is empty', async () => {
+    listConversations.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 20,
+      pages: 0
+    })
+    createConversation.mockResolvedValue({
+      id: 9,
+      title: 'workbench.newConversation',
+      mode: 'chat',
+      message_count: 0,
+      updated_at: '2026-06-21T00:00:00Z'
+    })
+    send.mockResolvedValue({
+      user_message: { id: 12, role: 'user', content: '首条消息', status: 'success' },
+      assistant_message: { id: 13, role: 'assistant', content: '收到首条消息', status: 'success' },
+      conversation: { id: 9, title: '首条消息', mode: 'chat', message_count: 2, updated_at: '2026-06-21T00:00:01Z' },
+    })
+
+    const wrapper = mount(WorkbenchView, { global: { stubs: { AppLayout: AppLayoutStub } } })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="workbench-input"]').setValue('首条消息')
+    expect(wrapper.get('[data-testid="workbench-send"]').attributes('disabled')).toBeUndefined()
+    await wrapper.get('[data-testid="workbench-send"]').trigger('click')
+    await flushPromises()
+
+    expect(createConversation).toHaveBeenCalledTimes(1)
+    expect(send).toHaveBeenCalledWith(9, expect.objectContaining({ input: '首条消息' }))
+    expect(wrapper.text()).toContain('收到首条消息')
+  })
+
+  it('renders partial result envelope and redacts raw secret from shown errors', async () => {
+    send.mockResolvedValue({
+      result: {
+        user_message: { id: 20, role: 'user', content: '继续', status: 'success' },
+        assistant_message: { id: 21, role: 'assistant', content: '已返回部分结果', status: 'error' },
+        conversation: { id: 1, title: '你好', mode: 'chat', message_count: 2, updated_at: '2026-06-21T00:00:02Z' },
+      },
+      error: {
+        message: 'upstream failed with sk-test-1234567890abcdef token'
+      }
+    })
+
+    const wrapper = mount(WorkbenchView, { global: { stubs: { AppLayout: AppLayoutStub } } })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="workbench-input"]').setValue('继续')
+    await wrapper.get('[data-testid="workbench-send"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('已返回部分结果')
+    expect(wrapper.text()).toContain('upstream failed')
+    expect(wrapper.text()).not.toContain('sk-test-1234567890abcdef')
+    expect(showError).toHaveBeenCalled()
+    expect(String(showError.mock.calls.at(-1)?.[0] ?? '')).not.toContain('sk-test-1234567890abcdef')
+  })
 })

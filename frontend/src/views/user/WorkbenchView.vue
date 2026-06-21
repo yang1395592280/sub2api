@@ -20,6 +20,10 @@
           </div>
 
           <div class="flex-1 overflow-y-auto p-2">
+            <div v-if="loadingConversations" class="flex items-center justify-center p-6 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('workbench.loading') }}
+            </div>
+
             <button
               v-for="conversation in conversations"
               :key="conversation.id"
@@ -100,6 +104,10 @@
           </div>
 
           <div class="flex-1 space-y-4 overflow-y-auto bg-gray-50/80 px-4 py-4 dark:bg-dark-900/40">
+            <div v-if="loadingMessages" class="flex items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-white/70 p-6 text-sm text-gray-500 dark:border-dark-600 dark:bg-dark-800/70 dark:text-gray-400">
+              {{ t('workbench.loading') }}
+            </div>
+
             <article
               v-for="message in messages"
               :key="message.id"
@@ -154,7 +162,7 @@
                   type="button"
                   class="btn btn-primary"
                   data-testid="workbench-send"
-                  :disabled="sending || !prompt.trim() || !activeConversationId || !selectedApiKeyId || !selectedModel"
+                  :disabled="sending || !prompt.trim() || !selectedApiKeyId || !selectedModel"
                   @click="handleSend"
                 >
                   {{ sending ? t('workbench.sending') : t('workbench.send') }}
@@ -274,7 +282,9 @@ import {
   type WorkbenchImageOutput,
   type WorkbenchMessage,
   type WorkbenchMode,
+  type WorkbenchSendResponse,
   type WorkbenchSendRequest,
+  type WorkbenchSendResult,
 } from '@/api/workbench'
 import { useAppStore } from '@/stores/app'
 
@@ -364,6 +374,29 @@ function imageURL(output: WorkbenchImageOutput): string {
     return `data:${mimeType};base64,${output.b64_json}`
   }
   return ''
+}
+
+function sanitizeErrorSummary(message?: string | null): string {
+  if (!message) return ''
+
+  return message
+    .replace(/\bsk-[A-Za-z0-9_-]+\b/g, '[redacted]')
+    .replace(/\bBearer\s+[A-Za-z0-9._-]+\b/gi, 'Bearer [redacted]')
+}
+
+function isSendResult(payload: WorkbenchSendResponse): payload is WorkbenchSendResult {
+  return 'user_message' in payload && 'assistant_message' in payload && 'conversation' in payload
+}
+
+function normalizeSendResponse(payload: WorkbenchSendResponse): { result: WorkbenchSendResult | null; errorSummary: string } {
+  if (isSendResult(payload)) {
+    return { result: payload, errorSummary: '' }
+  }
+
+  return {
+    result: payload.result ?? null,
+    errorSummary: sanitizeErrorSummary(payload.error?.message),
+  }
 }
 
 async function loadKeys(): Promise<void> {
@@ -480,11 +513,27 @@ async function handleSend(): Promise<void> {
 
   sending.value = true
   try {
-    const result = await workbenchAPI.send(conversationId, payload)
-    messages.value = [...messages.value, result.user_message as WorkbenchMessage, result.assistant_message as WorkbenchMessage]
-    upsertConversation(result.conversation as WorkbenchConversation)
-    activeConversationId.value = result.conversation.id
-    prompt.value = ''
+    const response = await workbenchAPI.send(conversationId, payload)
+    const { result, errorSummary } = normalizeSendResponse(response)
+
+    if (result) {
+      const assistantMessage = errorSummary && !result.assistant_message.error_message
+        ? { ...result.assistant_message, error_message: errorSummary }
+        : result.assistant_message
+
+      messages.value = [...messages.value, result.user_message as WorkbenchMessage, assistantMessage as WorkbenchMessage]
+      upsertConversation(result.conversation as WorkbenchConversation)
+      activeConversationId.value = result.conversation.id
+      prompt.value = ''
+    }
+
+    if (errorSummary) {
+      appStore.showError(errorSummary)
+    }
+
+    if (!result) {
+      appStore.showError(t('workbench.sendFailed'))
+    }
   } catch (error: unknown) {
     console.error(error)
     appStore.showError(t('workbench.sendFailed'))
