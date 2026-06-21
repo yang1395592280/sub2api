@@ -675,6 +675,79 @@ describe('admin AccountsView bulk edit scope', () => {
     expect(wrapper.vm.accounts.find(account => account.id === 11)?.extra?.upstream_balance_remaining).toBe(8.5)
   })
 
+  it('renders OpenAI realtime scheduler stability and reason returned by the account list', async () => {
+    listAccounts.mockResolvedValue({
+      items: [
+        {
+          id: 11868,
+          name: 'https://2chat.cc--tg2chat.cc--plus--0.08--plus',
+          platform: 'openai',
+          type: 'apikey',
+          status: 'active',
+          schedulable: true,
+          created_at: '2026-03-07T10:00:00Z',
+          updated_at: '2026-03-07T10:00:00Z',
+          stability: {
+            level: 'down',
+            label: '降级',
+            success_rate: 0,
+            total_requests: 3,
+            success_count: 0,
+            error_count: 3,
+            reason: 'upstream_5xx',
+            window_days: 3
+          }
+        }
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+
+    const wrapper = mount(AccountsView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: { template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>' },
+          DataTable: DataTableStub,
+          Pagination: true,
+          ConfirmDialog: true,
+          AccountTableActions: { template: '<div><slot name="beforeCreate" /><slot name="after" /></div>' },
+          AccountTableFilters: { template: '<div></div>' },
+          AccountBulkActionsBar: AccountBulkActionsBarStub,
+          AccountActionMenu: true,
+          ImportDataModal: true,
+          ReAuthAccountModal: true,
+          AccountTestModal: true,
+          AccountStatsModal: true,
+          ScheduledTestsPanel: true,
+          SyncFromCrsModal: true,
+          TempUnschedStatusModal: true,
+          ErrorPassthroughRulesModal: true,
+          TLSFingerprintProfilesModal: true,
+          CreateAccountModal: true,
+          EditAccountModal: true,
+          BulkEditAccountModal: BulkEditAccountModalStub,
+          BatchAccountTestModal: BatchAccountTestModalStub,
+          PlatformTypeBadge: true,
+          AccountCapacityCell: true,
+          AccountStatusIndicator: true,
+          AccountTodayStatsCell: true,
+          AccountGroupsCell: true,
+          AccountUsageCell: true,
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('降级')
+    expect(wrapper.text()).toContain('upstream_5xx')
+    expect(wrapper.text()).not.toContain('健康')
+  })
+
   it('does not show local account groups as the upstream group fallback', async () => {
     listAccounts.mockResolvedValue({
       items: [

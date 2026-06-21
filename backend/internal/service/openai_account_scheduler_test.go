@@ -729,6 +729,95 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyRateLimite
 	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
 }
 
+func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyDegradedAccountFallsBackToFreshCandidate(t *testing.T) {
+	ctx := context.Background()
+	groupID := int64(10105)
+	degraded := Account{ID: 21601, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID}}
+	healthy := Account{ID: 21602, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 1, GroupIDs: []int64{groupID}}
+	cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{"openai:session_hash_degraded": degraded.ID}}
+	svc := &OpenAIGatewayService{
+		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: []Account{degraded, healthy}},
+		cache:              cache,
+		cfg:                &config.Config{},
+		rateLimitService:   newOpenAIAdvancedSchedulerRateLimitService("true"),
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+		openaiAccountStats: newOpenAIAccountRuntimeStats(),
+	}
+	scheduler, ok := svc.getOpenAIAccountScheduler(ctx).(*defaultOpenAIAccountScheduler)
+	require.True(t, ok)
+	scheduler.UpdateHealthSettings(OpenAISchedulerHealthSettings{
+		HealthRankingEnabled:        true,
+		ConsecutiveFailureThreshold: 3,
+	})
+	scheduler.seedHealthForTest(degraded.ID, openAIAccountHealthRuntime{
+		successEWMA:         0.1,
+		errorEWMA:           0.9,
+		consecutiveFailures: 3,
+		lastDegradeReason:   OpenAISchedulerDegradeUpstream5xx,
+	})
+	scheduler.seedHealthForTest(healthy.ID, openAIAccountHealthRuntime{
+		successEWMA:        1,
+		consecutiveSuccess: 5,
+	})
+
+	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "session_hash_degraded", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, healthy.ID, selection.Account.ID)
+	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+	require.False(t, decision.StickySessionHit)
+}
+
+func TestOpenAIGatewayService_SelectAccountWithScheduler_LoadBalanceDoesNotFallbackToDegradedAccount(t *testing.T) {
+	ctx := context.Background()
+	groupID := int64(10106)
+	healthy := Account{ID: 21701, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 5, GroupIDs: []int64{groupID}}
+	degraded := Account{ID: 21702, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID}}
+	svc := &OpenAIGatewayService{
+		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: []Account{healthy, degraded}},
+		cache:            &schedulerTestGatewayCache{},
+		cfg:              &config.Config{},
+		rateLimitService: newOpenAIAdvancedSchedulerRateLimitService("true"),
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{
+			acquireResults: map[int64]bool{
+				healthy.ID:  false,
+				degraded.ID: true,
+			},
+			loadMap: map[int64]*AccountLoadInfo{
+				healthy.ID:  {AccountID: healthy.ID, LoadRate: 100, WaitingCount: 9},
+				degraded.ID: {AccountID: degraded.ID, LoadRate: 0, WaitingCount: 0},
+			},
+		}),
+		openaiAccountStats: newOpenAIAccountRuntimeStats(),
+	}
+	scheduler, ok := svc.getOpenAIAccountScheduler(ctx).(*defaultOpenAIAccountScheduler)
+	require.True(t, ok)
+	scheduler.UpdateHealthSettings(OpenAISchedulerHealthSettings{
+		HealthRankingEnabled:        true,
+		ConsecutiveFailureThreshold: 3,
+	})
+	scheduler.seedHealthForTest(healthy.ID, openAIAccountHealthRuntime{
+		successEWMA:        1,
+		consecutiveSuccess: 5,
+	})
+	scheduler.seedHealthForTest(degraded.ID, openAIAccountHealthRuntime{
+		successEWMA:         0.1,
+		errorEWMA:           0.9,
+		consecutiveFailures: 3,
+		lastDegradeReason:   OpenAISchedulerDegradeUpstream5xx,
+	})
+
+	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, healthy.ID, selection.Account.ID)
+	require.NotNil(t, selection.WaitPlan)
+	require.Equal(t, healthy.ID, selection.WaitPlan.AccountID)
+	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+}
+
 func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_AutoPauseBy5hThreshold(t *testing.T) {
 	ctx := context.Background()
 	primary := Account{

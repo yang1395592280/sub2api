@@ -677,6 +677,12 @@ func (s *defaultOpenAIAccountScheduler) Select(
 				selection = nil
 			}
 		}
+		if selection != nil && selection.Account != nil && !s.isAccountHealthRoutable(selection.Account.ID) {
+			if selection.ReleaseFunc != nil {
+				selection.ReleaseFunc()
+			}
+			selection = nil
+		}
 		if selection != nil && selection.Account != nil {
 			decision.Layer = openAIAccountScheduleLayerPreviousResponse
 			decision.StickyPreviousHit = true
@@ -766,6 +772,10 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		return nil, false, nil
 	}
+	if !s.isAccountHealthRoutable(account.ID) {
+		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
+		return nil, false, nil
+	}
 	escapeCfg := s.service.openAIStickyEscapeConfig()
 	if reason, errorRate, ttft, shouldEscape := s.shouldEscapeStickyAccount(accountID, escapeCfg); shouldEscape {
 		slog.Info("sticky_escape_triggered",
@@ -844,6 +854,25 @@ func (s *defaultOpenAIAccountScheduler) shouldEscapeStickyAccount(accountID int6
 		return "error_rate", errorRate, ttft, true
 	}
 	return "", errorRate, ttft, false
+}
+
+func (s *defaultOpenAIAccountScheduler) isAccountHealthRoutable(accountID int64) bool {
+	if s == nil || accountID <= 0 {
+		return false
+	}
+	settings := s.SnapshotHealthSettings()
+	if !settings.HealthRankingEnabled {
+		return true
+	}
+	health := buildOpenAIAccountHealthSnapshot(accountID, openAIAccountHealthRuntime{
+		successEWMA: 1,
+	}, settings, time.Now())
+	if s.stats != nil {
+		if snapshot, ok := s.stats.healthSnapshot(accountID, settings, time.Now()); ok {
+			health = snapshot
+		}
+	}
+	return health.Tier != OpenAISchedulerTierDegraded
 }
 
 type openAIAccountCandidateScore struct {
@@ -1136,16 +1165,26 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 	}
 
 	candidates := allCandidates
-	staleSnapshotCompactRetry := make([]openAIAccountCandidateScore, 0, len(allCandidates))
-	if req.RequireCompact {
+	if settings.HealthRankingEnabled {
 		candidates = make([]openAIAccountCandidateScore, 0, len(allCandidates))
 		for _, candidate := range allCandidates {
-			if openAICompactSupportTier(candidate.account) == 0 {
-				staleSnapshotCompactRetry = append(staleSnapshotCompactRetry, candidate)
+			if candidate.health.Tier == OpenAISchedulerTierDegraded {
 				continue
 			}
 			candidates = append(candidates, candidate)
 		}
+	}
+	staleSnapshotCompactRetry := make([]openAIAccountCandidateScore, 0, len(allCandidates))
+	if req.RequireCompact {
+		compactCandidates := make([]openAIAccountCandidateScore, 0, len(candidates))
+		for _, candidate := range candidates {
+			if openAICompactSupportTier(candidate.account) == 0 {
+				staleSnapshotCompactRetry = append(staleSnapshotCompactRetry, candidate)
+				continue
+			}
+			compactCandidates = append(compactCandidates, candidate)
+		}
+		candidates = compactCandidates
 	}
 
 	plan := openAIAccountLoadPlan{
@@ -1378,6 +1417,9 @@ func (s *defaultOpenAIAccountScheduler) tryAcquireOpenAISelectionOrder(
 		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
 			continue
 		}
+		if !s.isAccountHealthRoutable(fresh.ID) {
+			continue
+		}
 		if req.RequireCompact && openAICompactSupportTier(fresh) == 0 {
 			compactBlocked = true
 			continue
@@ -1515,6 +1557,9 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		}
 		fresh = s.service.recheckSelectedOpenAIAccountFromDB(ctx, fresh, req.RequestedModel, false, req.RequiredCapability)
 		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
+			continue
+		}
+		if !s.isAccountHealthRoutable(fresh.ID) {
 			continue
 		}
 		if req.RequireCompact && openAICompactSupportTier(fresh) == 0 {

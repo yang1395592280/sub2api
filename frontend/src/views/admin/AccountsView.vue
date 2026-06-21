@@ -282,11 +282,11 @@
           <template #cell-upstream_group="{ row }">
             <div
               v-if="getUpstreamGroup(row)"
-              class="inline-flex max-w-[12rem] flex-col gap-1 rounded-md bg-sky-50 px-2.5 py-1.5 text-sky-800 ring-1 ring-inset ring-sky-200 dark:bg-sky-900/25 dark:text-sky-100 dark:ring-sky-700/50"
+              class="inline-flex max-w-[12rem] flex-col gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-gray-800 shadow-sm shadow-gray-100/70 dark:border-dark-600 dark:bg-dark-800/80 dark:text-gray-100 dark:shadow-none"
               :title="getUpstreamGroupTitle(row)"
             >
-              <span class="truncate text-sm font-bold leading-4">{{ getUpstreamGroup(row) }}</span>
-              <span v-if="getUpstreamRateLabel(row)" class="text-xs font-semibold leading-4 text-sky-950 dark:text-sky-100">
+              <span class="truncate text-sm font-semibold leading-4">{{ getUpstreamGroup(row) }}</span>
+              <span v-if="getUpstreamRateLabel(row)" class="text-xs font-semibold leading-4 text-slate-700 dark:text-slate-200">
                 {{ getUpstreamRateLabel(row) }}
               </span>
               <span v-if="getUpstreamBaseRateLabel(row)" class="text-[11px] font-medium leading-3 text-sky-600 dark:text-sky-300">
@@ -295,14 +295,24 @@
             </div>
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
           </template>
+          <template #header-stability="{ column }">
+            <div class="flex items-center">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.accounts.stabilityHint')" width-class="w-80" />
+            </div>
+          </template>
           <template #cell-stability="{ row }">
-            <span
-              :class="['inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-bold ring-1 ring-inset', getStabilityClass(row)]"
-              :title="getStabilityTitle(row)"
-            >
-              <span :class="['h-2 w-2 rounded-full', getStabilityDotClass(row)]" />
-              {{ row.stability?.label || t('admin.accounts.stability.unknown') }}
-            </span>
+            <div class="inline-flex max-w-[9rem] flex-col gap-1" :title="getStabilityTitle(row)">
+              <span
+                :class="['inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-bold ring-1 ring-inset', getStabilityClass(row)]"
+              >
+                <span :class="['h-2 w-2 rounded-full', getStabilityDotClass(row)]" />
+                {{ row.stability?.label || t('admin.accounts.stability.unknown') }}
+              </span>
+              <span v-if="getVisibleStabilityReason(row)" class="truncate text-[11px] font-medium text-red-500 dark:text-red-400">
+                {{ getVisibleStabilityReason(row) }}
+              </span>
+            </div>
           </template>
           <template #header-usage="{ column }">
             <div class="flex items-center">
@@ -1266,6 +1276,12 @@ function getStabilityTitle(row: Account): string {
     parts.push(stability.reason)
   }
   return parts.join(' | ')
+}
+
+function getVisibleStabilityReason(row: Account): string | null {
+  const stability = row.stability
+  if (!stability?.reason || stability.level === 'excellent' || stability.level === 'healthy') return null
+  return stability.reason
 }
 
 // All available columns

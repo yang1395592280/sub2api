@@ -2825,6 +2825,19 @@ func (s *adminServiceImpl) ListAccounts(ctx context.Context, page, pageSize int,
 	return accounts, result.Total, nil
 }
 
+func (s *adminServiceImpl) SnapshotOpenAIAccountHealth(ctx context.Context, accountID int64) (OpenAIAccountHealthSnapshot, bool) {
+	if s == nil || s.runtimeBlocker == nil {
+		return OpenAIAccountHealthSnapshot{}, false
+	}
+	provider, ok := s.runtimeBlocker.(interface {
+		SnapshotOpenAIAccountHealth(ctx context.Context, accountID int64) (OpenAIAccountHealthSnapshot, bool)
+	})
+	if !ok {
+		return OpenAIAccountHealthSnapshot{}, false
+	}
+	return provider.SnapshotOpenAIAccountHealth(ctx, accountID)
+}
+
 func (s *adminServiceImpl) GetAccount(ctx context.Context, id int64) (*Account, error) {
 	return s.accountRepo.GetByID(ctx, id)
 }

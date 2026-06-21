@@ -186,6 +186,80 @@ type AccountWithConcurrency struct {
 const accountListGroupUngroupedQueryValue = "ungrouped"
 const accountStabilityWindowDays = 3
 
+type openAIAccountHealthSnapshotProvider interface {
+	SnapshotOpenAIAccountHealth(ctx context.Context, accountID int64) (service.OpenAIAccountHealthSnapshot, bool)
+}
+
+func buildOpenAISchedulerStability(health service.OpenAIAccountHealthSnapshot) *service.AccountStability {
+	successRate := health.SuccessRateEWMA
+	if successRate < 0 {
+		successRate = 0
+	}
+	if successRate > 1 {
+		successRate = 1
+	}
+
+	successCount := int64(health.ConsecutiveOK)
+	if successCount < 0 {
+		successCount = 0
+	}
+	errorCount := int64(health.ConsecutiveErrors)
+	if errorCount < 0 {
+		errorCount = 0
+	}
+
+	var avgDurationMs *int
+	if health.TTFTEWMAMS > 0 {
+		v := int(health.TTFTEWMAMS + 0.5)
+		avgDurationMs = &v
+	}
+
+	reason := strings.TrimSpace(health.DegradeReason)
+	if reason == "" {
+		reason = strings.TrimSpace(health.DecisionReason)
+	}
+
+	stability := &service.AccountStability{
+		Level:         "unknown",
+		Label:         "无数据",
+		SuccessRate:   &successRate,
+		TotalRequests: successCount + errorCount,
+		SuccessCount:  successCount,
+		ErrorCount:    errorCount,
+		AvgDurationMs: avgDurationMs,
+		WindowDays:    accountStabilityWindowDays,
+		Reason:        reason,
+	}
+
+	switch health.Tier {
+	case service.OpenAISchedulerTierPrimary:
+		stability.Level = "excellent"
+		stability.Label = "优秀"
+	case service.OpenAISchedulerTierStandby:
+		stability.Level = "healthy"
+		stability.Label = "健康"
+	case service.OpenAISchedulerTierObserve:
+		stability.Level = "normal"
+		stability.Label = "观察"
+	case service.OpenAISchedulerTierDegraded:
+		stability.Level = "down"
+		stability.Label = "降级"
+	}
+
+	return stability
+}
+
+func (h *AccountHandler) buildAccountStability(ctx context.Context, account *service.Account, stats *service.AccountStabilityStats) *service.AccountStability {
+	if account != nil && account.IsOpenAI() {
+		if provider, ok := h.adminService.(openAIAccountHealthSnapshotProvider); ok {
+			if health, found := provider.SnapshotOpenAIAccountHealth(ctx, account.ID); found {
+				return buildOpenAISchedulerStability(health)
+			}
+		}
+	}
+	return service.BuildAccountStability(account, stats, accountStabilityWindowDays)
+}
+
 func (h *AccountHandler) buildAccountResponseWithRuntime(ctx context.Context, account *service.Account) AccountWithConcurrency {
 	item := AccountWithConcurrency{
 		Account:            dto.AccountFromService(account),
@@ -371,7 +445,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 		item := AccountWithConcurrency{
 			Account:            dto.AccountFromService(acc),
 			CurrentConcurrency: concurrencyCounts[acc.ID],
-			Stability:          service.BuildAccountStability(acc, stabilityStats[acc.ID], accountStabilityWindowDays),
+			Stability:          h.buildAccountStability(c.Request.Context(), acc, stabilityStats[acc.ID]),
 		}
 
 		// 添加窗口费用（仅当启用时）

@@ -209,18 +209,17 @@ func TestOpenAISchedulerBuildOpenAIAccountLoadPlan_FillsHealthAndMixesScore(t *t
 		degraded.ID: {AccountID: degraded.ID, LoadRate: 0, WaitingCount: 0},
 	})
 
-	require.Len(t, plan.candidates, 2)
-	scoreByID := make(map[int64]float64, len(plan.candidates))
-	healthByID := make(map[int64]OpenAIAccountHealthSnapshot, len(plan.candidates))
-	for _, candidate := range plan.candidates {
-		scoreByID[candidate.account.ID] = candidate.score
+	require.Len(t, plan.allCandidates, 2)
+	healthByID := make(map[int64]OpenAIAccountHealthSnapshot, len(plan.allCandidates))
+	for _, candidate := range plan.allCandidates {
 		healthByID[candidate.account.ID] = candidate.health
 	}
 	require.Equal(t, healthy.ID, healthByID[healthy.ID].AccountID)
 	require.Equal(t, OpenAISchedulerTierPrimary, healthByID[healthy.ID].Tier)
 	require.Equal(t, degraded.ID, healthByID[degraded.ID].AccountID)
 	require.Equal(t, OpenAISchedulerTierDegraded, healthByID[degraded.ID].Tier)
-	require.Greater(t, scoreByID[healthy.ID], scoreByID[degraded.ID])
+	require.Len(t, plan.candidates, 1)
+	require.Equal(t, healthy.ID, plan.candidates[0].account.ID)
 	require.Equal(t, healthy.ID, plan.selectionOrder[0].account.ID)
 }
 

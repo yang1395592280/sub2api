@@ -45,6 +45,9 @@ type stubAdminService struct {
 		sortOrder   string
 		calls       int
 	}
+	openAIHealthProvider interface {
+		SnapshotOpenAIAccountHealth(ctx context.Context, accountID int64) (service.OpenAIAccountHealthSnapshot, bool)
+	}
 	lastListUsers struct {
 		page      int
 		pageSize  int
@@ -401,6 +404,13 @@ func (s *stubAdminService) ListAccounts(ctx context.Context, page, pageSize int,
 	s.lastListAccounts.sortOrder = sortOrder
 	s.lastListAccounts.calls++
 	return s.accounts, int64(len(s.accounts)), nil
+}
+
+func (s *stubAdminService) SnapshotOpenAIAccountHealth(ctx context.Context, accountID int64) (service.OpenAIAccountHealthSnapshot, bool) {
+	if s.openAIHealthProvider == nil {
+		return service.OpenAIAccountHealthSnapshot{}, false
+	}
+	return s.openAIHealthProvider.SnapshotOpenAIAccountHealth(ctx, accountID)
 }
 
 func (s *stubAdminService) GetAccount(ctx context.Context, id int64) (*service.Account, error) {

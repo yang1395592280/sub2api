@@ -3392,6 +3392,7 @@ export default {
         successRate: 'Success rate {rate}',
         avgDuration: 'Avg duration {ms}ms'
       },
+      stabilityHint: 'OpenAI accounts show the realtime scheduler health snapshot (primary, observe, degraded, and reason). Other platforms show request stability over the last 3 days.',
       usageWindowsHint: '"5h / 7d" are the upstream account\'s official rolling usage windows (e.g. OpenAI ChatGPT, Claude). They are imposed by the upstream provider on the account itself — not configured by sub2api, and unrelated to the models you map. Usage resets automatically once each window rolls over, and the limit cannot be lifted from within sub2api.',
       allPrivacyModes: 'All Privacy States',
       privacyUnset: 'Unset',
