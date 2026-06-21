@@ -68,6 +68,35 @@ func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIUsageRemaining(t *testing.T)
 	require.Equal(t, "kept", account.Extra["existing"])
 }
 
+func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIUsageGroup(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/usage", r.URL.Path)
+		require.Equal(t, "Bearer sk-upstream", r.Header.Get("Authorization"))
+		_, _ = w.Write([]byte(`{"remaining":0.13404922,"unit":"USD","group_id":2,"group":{"id":2,"name":"GPT Plus","rate_multiplier":0.08}}`))
+	}))
+	defer srv.Close()
+
+	repo := &openAIUpstreamBalanceRepoStub{
+		account: &Account{
+			ID:       19,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url": srv.URL + "/v1",
+				"api_key":  "sk-upstream",
+			},
+		},
+	}
+
+	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+	_, err := svc.Refresh(context.Background(), 19)
+	require.NoError(t, err)
+	require.Equal(t, "sub2api", repo.updatedExtra["upstream_balance_provider"])
+	require.Equal(t, 0.13404922, repo.updatedExtra["upstream_balance_remaining"])
+	require.Equal(t, "GPT Plus", repo.updatedExtra["upstream_group"])
+	require.Equal(t, int64(2), repo.updatedExtra["upstream_group_id"])
+}
+
 func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIQuotaMinusUsed(t *testing.T) {
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

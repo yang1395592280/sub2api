@@ -31,6 +31,7 @@ type OpenAIUpstreamBalanceSnapshot struct {
 	Error     string
 	UpdatedAt time.Time
 	Group     string
+	GroupID   *int64
 }
 
 type OpenAIUpstreamBalanceService struct {
@@ -102,6 +103,9 @@ func buildOpenAIUpstreamBalanceUpdates(snapshot OpenAIUpstreamBalanceSnapshot) m
 	if !snapshot.UpdatedAt.IsZero() {
 		updates["upstream_balance_updated_at"] = snapshot.UpdatedAt.UTC().Format(time.RFC3339)
 	}
+	if snapshot.GroupID != nil {
+		updates["upstream_group_id"] = *snapshot.GroupID
+	}
 	return updates
 }
 
@@ -165,6 +169,8 @@ func (s *OpenAIUpstreamBalanceService) probeSub2API(ctx context.Context, baseURL
 	return OpenAIUpstreamBalanceSnapshot{
 		Remaining: remaining,
 		Unit:      strings.TrimSpace(getString(payload, "unit")),
+		Group:     getOpenAIUpstreamGroupName(payload),
+		GroupID:   getOpenAIUpstreamGroupID(payload),
 	}, nil
 }
 
@@ -375,4 +381,48 @@ func getString(m map[string]any, key string) string {
 	}
 	v, _ := m[key].(string)
 	return v
+}
+
+func getOpenAIUpstreamGroupName(payload map[string]any) string {
+	if payload == nil {
+		return ""
+	}
+	for _, key := range []string{"upstream_group", "group_name"} {
+		if value := strings.TrimSpace(getString(payload, key)); value != "" {
+			return value
+		}
+	}
+	if value := strings.TrimSpace(getString(payload, "group")); value != "" {
+		return value
+	}
+	group, _ := payload["group"].(map[string]any)
+	if value := strings.TrimSpace(getString(group, "name")); value != "" {
+		return value
+	}
+	return ""
+}
+
+func getOpenAIUpstreamGroupID(payload map[string]any) *int64 {
+	if payload == nil {
+		return nil
+	}
+	if id, ok := getInt64(payload, "upstream_group_id"); ok {
+		return &id
+	}
+	if id, ok := getInt64(payload, "group_id"); ok {
+		return &id
+	}
+	group, _ := payload["group"].(map[string]any)
+	if id, ok := getInt64(group, "id"); ok {
+		return &id
+	}
+	return nil
+}
+
+func getInt64(m map[string]any, key string) (int64, bool) {
+	value, ok := getFloat64(m, key)
+	if !ok {
+		return 0, false
+	}
+	return int64(value), true
 }

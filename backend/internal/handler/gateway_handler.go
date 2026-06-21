@@ -1296,6 +1296,7 @@ func (h *GatewayHandler) usageQuotaLimited(c *gin.Context, ctx context.Context, 
 		"isValid": apiKey.Status == service.StatusAPIKeyActive || apiKey.Status == service.StatusAPIKeyQuotaExhausted || apiKey.Status == service.StatusAPIKeyExpired,
 		"status":  apiKey.Status,
 	}
+	applyAPIKeyGroupUsageFields(resp, apiKey)
 
 	// 总额度信息
 	if apiKey.Quota > 0 {
@@ -1392,6 +1393,7 @@ func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, 
 			"planName": apiKey.Group.Name,
 			"unit":     "USD",
 		}
+		applyAPIKeyGroupUsageFields(resp, apiKey)
 
 		// 订阅信息可能不在 context 中（/v1/usage 路径跳过了中间件的计费检查）
 		subscription, ok := middleware2.GetSubscriptionFromContext(c)
@@ -1437,6 +1439,7 @@ func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, 
 		"unit":      "USD",
 		"balance":   latestUser.Balance,
 	}
+	applyAPIKeyGroupUsageFields(resp, apiKey)
 	if usageData != nil {
 		resp["usage"] = usageData
 	}
@@ -1447,6 +1450,27 @@ func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, 
 		resp["model_stats"] = modelStats
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+func applyAPIKeyGroupUsageFields(resp gin.H, apiKey *service.APIKey) {
+	if resp == nil || apiKey == nil {
+		return
+	}
+	if apiKey.GroupID != nil {
+		resp["group_id"] = *apiKey.GroupID
+	}
+	if apiKey.Group == nil {
+		return
+	}
+	if apiKey.Group.ID != 0 {
+		resp["group_id"] = apiKey.Group.ID
+	}
+	resp["group"] = gin.H{
+		"id":              apiKey.Group.ID,
+		"name":            apiKey.Group.Name,
+		"platform":        apiKey.Group.Platform,
+		"rate_multiplier": apiKey.Group.RateMultiplier,
+	}
 }
 
 // calculateSubscriptionRemaining 计算订阅剩余可用额度

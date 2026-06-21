@@ -842,7 +842,7 @@ export interface Account {
     upstream_balance_updated_at?: string
     upstream_balance_status?: 'ok' | 'refreshing' | 'error' | 'unsupported' | string
     upstream_balance_error?: string
-    group_id?: number
+    upstream_group_id?: number
     upstream_group?: string
   } & Record<string, unknown>)
   proxy_id: number | null
