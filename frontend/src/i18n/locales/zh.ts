@@ -3366,12 +3366,22 @@ export default {
         schedulable: '调度',
         todayStats: '今日统计',
         groups: '分组',
+        upstreamGroup: '上游分组',
+        stability: '稳定性',
         usageWindows: '用量窗口',
         proxy: '代理',
         lastUsed: '最近使用',
         createdAt: '创建时间',
         expiresAt: '过期时间',
         actions: '操作'
+      },
+      stability: {
+        unknown: '无数据',
+        noData: '暂无稳定性数据',
+        windowDays: '近 {days} 天',
+        requests: '成功 {success} / 失败 {error} / 总计 {total}',
+        successRate: '成功率 {rate}',
+        avgDuration: '平均耗时 {ms}ms'
       },
       usageWindowsHint: '“5h / 7d”是上游账号（如 OpenAI ChatGPT、Claude）官方的滚动用量窗口限制，由上游对账号设定，并非 sub2api 配置，也与你映射的模型无关。窗口滚动到期后用量会自动重置，无法在 sub2api 端解除该限制。',
       allPrivacyModes: '全部Privacy状态',

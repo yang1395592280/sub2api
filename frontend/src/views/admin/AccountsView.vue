@@ -279,6 +279,25 @@
           <template #cell-groups="{ row }">
             <AccountGroupsCell :groups="row.groups" :max-display="4" />
           </template>
+          <template #cell-upstream_group="{ row }">
+            <span
+              v-if="getUpstreamGroup(row)"
+              class="inline-flex max-w-[9rem] items-center truncate rounded-md bg-sky-50 px-2 py-1 text-sm font-semibold text-sky-700 ring-1 ring-inset ring-sky-200 dark:bg-sky-900/25 dark:text-sky-200 dark:ring-sky-700/50"
+              :title="getUpstreamGroup(row) || ''"
+            >
+              {{ getUpstreamGroup(row) }}
+            </span>
+            <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
+          </template>
+          <template #cell-stability="{ row }">
+            <span
+              :class="['inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-bold ring-1 ring-inset', getStabilityClass(row)]"
+              :title="getStabilityTitle(row)"
+            >
+              <span :class="['h-2 w-2 rounded-full', getStabilityDotClass(row)]" />
+              {{ row.stability?.label || t('admin.accounts.stability.unknown') }}
+            </span>
+          </template>
           <template #header-usage="{ column }">
             <div class="flex items-center">
               <span>{{ column.label }}</span>
@@ -1150,6 +1169,64 @@ function getAntigravityTierClass(row: any): string {
   }
 }
 
+function getUpstreamGroup(row: Account): string | null {
+  const value = row.extra?.upstream_group
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function getStabilityClass(row: Account): string {
+  switch (row.stability?.level) {
+    case 'excellent':
+      return 'bg-emerald-100 text-emerald-900 ring-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-100 dark:ring-emerald-700'
+    case 'healthy':
+      return 'bg-green-50 text-green-700 ring-green-200 dark:bg-green-900/25 dark:text-green-200 dark:ring-green-700/50'
+    case 'normal':
+      return 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-900/25 dark:text-orange-200 dark:ring-orange-700/50'
+    case 'down':
+      return 'bg-gray-200 text-gray-700 ring-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-600'
+    default:
+      return 'bg-gray-50 text-gray-500 ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700'
+  }
+}
+
+function getStabilityDotClass(row: Account): string {
+  switch (row.stability?.level) {
+    case 'excellent':
+      return 'bg-emerald-800 dark:bg-emerald-300'
+    case 'healthy':
+      return 'bg-green-500'
+    case 'normal':
+      return 'bg-orange-500'
+    case 'down':
+      return 'bg-gray-500'
+    default:
+      return 'bg-gray-300 dark:bg-gray-500'
+  }
+}
+
+function getStabilityTitle(row: Account): string {
+  const stability = row.stability
+  if (!stability) return t('admin.accounts.stability.noData')
+  const parts = [
+    t('admin.accounts.stability.windowDays', { days: stability.window_days }),
+    t('admin.accounts.stability.requests', {
+      success: stability.success_count,
+      error: stability.error_count,
+      total: stability.total_requests
+    })
+  ]
+  if (typeof stability.success_rate === 'number') {
+    parts.push(t('admin.accounts.stability.successRate', { rate: `${(stability.success_rate * 100).toFixed(1)}%` }))
+  }
+  if (typeof stability.avg_duration_ms === 'number') {
+    parts.push(t('admin.accounts.stability.avgDuration', { ms: stability.avg_duration_ms }))
+  }
+  if (stability.reason) {
+    parts.push(stability.reason)
+  }
+  return parts.join(' | ')
+}
+
 // All available columns
 const allColumns = computed(() => {
   const c = [
@@ -1166,6 +1243,8 @@ const allColumns = computed(() => {
     c.push({ key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false })
   }
   c.push(
+    { key: 'upstream_group', label: t('admin.accounts.columns.upstreamGroup'), sortable: false },
+    { key: 'stability', label: t('admin.accounts.columns.stability'), sortable: false },
     { key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false },
     { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
     { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },

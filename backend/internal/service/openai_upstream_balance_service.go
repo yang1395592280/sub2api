@@ -30,6 +30,7 @@ type OpenAIUpstreamBalanceSnapshot struct {
 	Status    string
 	Error     string
 	UpdatedAt time.Time
+	Group     string
 }
 
 type OpenAIUpstreamBalanceService struct {
@@ -98,6 +99,9 @@ func buildOpenAIUpstreamBalanceUpdates(snapshot OpenAIUpstreamBalanceSnapshot) m
 	}
 	if !snapshot.UpdatedAt.IsZero() {
 		updates["upstream_balance_updated_at"] = snapshot.UpdatedAt.UTC().Format(time.RFC3339)
+	}
+	if strings.TrimSpace(snapshot.Group) != "" {
+		updates["upstream_group"] = strings.TrimSpace(snapshot.Group)
 	}
 	return updates
 }
@@ -225,6 +229,7 @@ func (s *OpenAIUpstreamBalanceService) probeNewAPIUserSelf(ctx context.Context, 
 	return OpenAIUpstreamBalanceSnapshot{
 		Remaining: nonNegativeBalance(quota / newAPIQuotaPerUSD),
 		Unit:      "USD",
+		Group:     strings.TrimSpace(getString(data, "group")),
 	}, nil
 }
 

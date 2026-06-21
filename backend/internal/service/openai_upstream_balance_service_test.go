@@ -181,7 +181,7 @@ func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfQuota(t *testing.T) {
 		require.Equal(t, "/api/user/self", r.URL.Path)
 		require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
 		require.Equal(t, "738", r.Header.Get("New-Api-User"))
-		_, _ = w.Write([]byte(`{"success":true,"data":{"id":738,"quota":4557913,"used_quota":990499351,"request_count":9777}}`))
+		_, _ = w.Write([]byte(`{"success":true,"data":{"id":738,"group":"vip","quota":4557913,"used_quota":990499351,"request_count":9777}}`))
 	}))
 	defer srv.Close()
 
@@ -206,6 +206,7 @@ func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfQuota(t *testing.T) {
 	require.Equal(t, "new-api", repo.updatedExtra["upstream_balance_provider"])
 	require.InDelta(t, 9.115826, repo.updatedExtra["upstream_balance_remaining"], 0.000001)
 	require.Equal(t, "USD", repo.updatedExtra["upstream_balance_unit"])
+	require.Equal(t, "vip", repo.updatedExtra["upstream_group"])
 }
 
 func TestOpenAIUpstreamBalanceServiceRefresh_NewAPINegativeTotalAvailableClampsToZero(t *testing.T) {
@@ -388,6 +389,7 @@ func TestBuildOpenAIUpstreamBalanceUpdates(t *testing.T) {
 		Status:    "ok",
 		Error:     "",
 		UpdatedAt: now,
+		Group:     "vip",
 	})
 
 	require.Equal(t, "new-api", updates["upstream_balance_provider"])
@@ -396,4 +398,5 @@ func TestBuildOpenAIUpstreamBalanceUpdates(t *testing.T) {
 	require.Equal(t, "ok", updates["upstream_balance_status"])
 	require.Equal(t, "", updates["upstream_balance_error"])
 	require.Equal(t, now.Format(time.RFC3339), updates["upstream_balance_updated_at"])
+	require.Equal(t, "vip", updates["upstream_group"])
 }

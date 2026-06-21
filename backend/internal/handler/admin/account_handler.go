@@ -175,7 +175,8 @@ type CheckMixedChannelRequest struct {
 // AccountWithConcurrency extends Account with real-time concurrency info
 type AccountWithConcurrency struct {
 	*dto.Account
-	CurrentConcurrency int `json:"current_concurrency"`
+	CurrentConcurrency int                       `json:"current_concurrency"`
+	Stability          *service.AccountStability `json:"stability,omitempty"`
 	// 以下字段仅对 Anthropic OAuth/SetupToken 账号有效，且仅在启用相应功能时返回
 	CurrentWindowCost *float64 `json:"current_window_cost,omitempty"` // 当前窗口费用
 	ActiveSessions    *int     `json:"active_sessions,omitempty"`     // 当前活跃会话数
@@ -183,6 +184,7 @@ type AccountWithConcurrency struct {
 }
 
 const accountListGroupUngroupedQueryValue = "ungrouped"
+const accountStabilityWindowDays = 3
 
 func (h *AccountHandler) buildAccountResponseWithRuntime(ctx context.Context, account *service.Account) AccountWithConcurrency {
 	item := AccountWithConcurrency{
@@ -192,6 +194,7 @@ func (h *AccountHandler) buildAccountResponseWithRuntime(ctx context.Context, ac
 	if account == nil {
 		return item
 	}
+	item.Stability = service.BuildAccountStability(account, nil, accountStabilityWindowDays)
 
 	if h.concurrencyService != nil {
 		if counts, err := h.concurrencyService.GetAccountConcurrencyBatch(ctx, []int64{account.ID}); err == nil {
@@ -280,11 +283,20 @@ func (h *AccountHandler) List(c *gin.Context) {
 	var windowCosts map[int64]float64
 	var activeSessions map[int64]int
 	var rpmCounts map[int64]int
+	var stabilityStats map[int64]*service.AccountStabilityStats
 
 	// 始终获取并发数（Redis ZCARD，极低开销）
 	if h.concurrencyService != nil {
 		if cc, ccErr := h.concurrencyService.GetAccountConcurrencyBatch(c.Request.Context(), accountIDs); ccErr == nil && cc != nil {
 			concurrencyCounts = cc
+		}
+	}
+
+	if h.accountUsageService != nil && len(accountIDs) > 0 {
+		endTime := time.Now().UTC()
+		startTime := endTime.AddDate(0, 0, -accountStabilityWindowDays)
+		if stats, statsErr := h.accountUsageService.GetAccountStabilityStatsBatch(c.Request.Context(), accountIDs, startTime, endTime); statsErr == nil {
+			stabilityStats = stats
 		}
 	}
 
@@ -360,6 +372,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 		item := AccountWithConcurrency{
 			Account:            dto.AccountFromService(acc),
 			CurrentConcurrency: concurrencyCounts[acc.ID],
+			Stability:          service.BuildAccountStability(acc, stabilityStats[acc.ID], accountStabilityWindowDays),
 		}
 
 		// 添加窗口费用（仅当启用时）

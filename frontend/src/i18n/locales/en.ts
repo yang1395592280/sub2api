@@ -3328,12 +3328,22 @@ export default {
         schedulable: 'Schedulable',
         todayStats: 'Today Stats',
         groups: 'Groups',
+        upstreamGroup: 'Upstream Group',
+        stability: 'Stability',
         usageWindows: 'Usage Windows',
         proxy: 'Proxy',
         lastUsed: 'Last Used',
         createdAt: 'Created',
         expiresAt: 'Expires At',
         actions: 'Actions'
+      },
+      stability: {
+        unknown: 'No Data',
+        noData: 'No stability data',
+        windowDays: 'Last {days} days',
+        requests: 'Success {success} / Error {error} / Total {total}',
+        successRate: 'Success rate {rate}',
+        avgDuration: 'Avg duration {ms}ms'
       },
       usageWindowsHint: '"5h / 7d" are the upstream account\'s official rolling usage windows (e.g. OpenAI ChatGPT, Claude). They are imposed by the upstream provider on the account itself — not configured by sub2api, and unrelated to the models you map. Usage resets automatically once each window rolls over, and the limit cannot be lifted from within sub2api.',
       allPrivacyModes: 'All Privacy States',
