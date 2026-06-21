@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -98,7 +101,7 @@ func TestWorkbenchServiceSendStoresErrorMessageWhenGatewayFails(t *testing.T) {
 	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
 		7: {ID: 7, UserID: 42, Key: "sk-test", Status: StatusAPIKeyActive, Name: "main"},
 	}}
-	gateway := &workbenchGatewayStub{err: errors.New("upstream timeout with secret sk-test")}
+	gateway := &workbenchGatewayStub{err: errors.New("gateway returned 502: provider failure secret sk-test")}
 	svc := NewWorkbenchService(repo, apiKeys, gateway)
 
 	conv, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{Mode: WorkbenchModeChat})
@@ -113,8 +116,218 @@ func TestWorkbenchServiceSendStoresErrorMessageWhenGatewayFails(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Equal(t, WorkbenchMessageStatusError, result.AssistantMessage.Status)
-	require.NotContains(t, *result.AssistantMessage.ErrorMessage, "sk-test")
+	require.Equal(t, "gateway returned 502", *result.AssistantMessage.ErrorMessage)
 	require.Len(t, repo.messages[conv.ID], 2)
+	require.NotContains(t, *result.AssistantMessage.ErrorMessage, "sk-test")
+	require.NotContains(t, *result.AssistantMessage.ErrorMessage, "provider failure")
+	require.NotContains(t, repo.messages[conv.ID][1].Content, "provider failure")
+}
+
+func TestWorkbenchServiceCreateConversationRejectsInvalidMode(t *testing.T) {
+	ctx := context.Background()
+	svc := NewWorkbenchService(newWorkbenchMemoryRepo(), &workbenchAPIKeyLookupStub{}, &workbenchGatewayStub{})
+
+	_, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{Mode: "audio"})
+
+	require.ErrorIs(t, err, ErrWorkbenchInvalidMode)
+}
+
+func TestWorkbenchServiceSendRejectsInvalidMode(t *testing.T) {
+	ctx := context.Background()
+	repo := newWorkbenchMemoryRepo()
+	svc := NewWorkbenchService(repo, &workbenchAPIKeyLookupStub{}, &workbenchGatewayStub{})
+
+	conv, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{})
+	require.NoError(t, err)
+
+	_, err = svc.Send(ctx, 42, conv.ID, WorkbenchSendRequest{
+		Mode:     "audio",
+		APIKeyID: 7,
+		Endpoint: WorkbenchEndpointChatCompletions,
+		Model:    "gpt-5.5",
+		Input:    "hi",
+	})
+
+	require.ErrorIs(t, err, ErrWorkbenchInvalidMode)
+}
+
+func TestWorkbenchServiceSendRejectsInvalidEndpoint(t *testing.T) {
+	ctx := context.Background()
+	repo := newWorkbenchMemoryRepo()
+	svc := NewWorkbenchService(repo, &workbenchAPIKeyLookupStub{}, &workbenchGatewayStub{})
+
+	conv, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{})
+	require.NoError(t, err)
+
+	_, err = svc.Send(ctx, 42, conv.ID, WorkbenchSendRequest{
+		Mode:     WorkbenchModeChat,
+		APIKeyID: 7,
+		Endpoint: WorkbenchEndpointImagesGenerations,
+		Model:    "gpt-5.5",
+		Input:    "hi",
+	})
+
+	require.ErrorIs(t, err, ErrWorkbenchInvalidEndpoint)
+}
+
+func TestWorkbenchServiceSendRejectsEmptyInput(t *testing.T) {
+	ctx := context.Background()
+	repo := newWorkbenchMemoryRepo()
+	svc := NewWorkbenchService(repo, &workbenchAPIKeyLookupStub{}, &workbenchGatewayStub{})
+
+	conv, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{})
+	require.NoError(t, err)
+
+	_, err = svc.Send(ctx, 42, conv.ID, WorkbenchSendRequest{
+		Mode:     WorkbenchModeChat,
+		APIKeyID: 7,
+		Endpoint: WorkbenchEndpointChatCompletions,
+		Model:    "gpt-5.5",
+		Input:    " \n\t ",
+	})
+
+	require.ErrorIs(t, err, ErrWorkbenchEmptyInput)
+}
+
+func TestWorkbenchServiceSendRejectsInactiveAPIKey(t *testing.T) {
+	ctx := context.Background()
+	repo := newWorkbenchMemoryRepo()
+	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
+		7: {ID: 7, UserID: 42, Key: "sk-test", Status: StatusAPIKeyDisabled, Name: "main"},
+	}}
+	svc := NewWorkbenchService(repo, apiKeys, &workbenchGatewayStub{})
+
+	conv, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{})
+	require.NoError(t, err)
+
+	_, err = svc.Send(ctx, 42, conv.ID, WorkbenchSendRequest{
+		Mode:     WorkbenchModeChat,
+		APIKeyID: 7,
+		Endpoint: WorkbenchEndpointChatCompletions,
+		Model:    "gpt-5.5",
+		Input:    "hi",
+	})
+
+	require.ErrorIs(t, err, ErrWorkbenchAPIKeyUnavailable)
+}
+
+func TestWorkbenchServiceSendRejectsConversationOwnershipFailure(t *testing.T) {
+	ctx := context.Background()
+	repo := newWorkbenchMemoryRepo()
+	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
+		7: {ID: 7, UserID: 42, Key: "sk-test", Status: StatusAPIKeyActive, Name: "main"},
+	}}
+	svc := NewWorkbenchService(repo, apiKeys, &workbenchGatewayStub{})
+
+	conv, err := svc.CreateConversation(ctx, 99, CreateWorkbenchConversationRequest{})
+	require.NoError(t, err)
+
+	_, err = svc.Send(ctx, 42, conv.ID, WorkbenchSendRequest{
+		Mode:     WorkbenchModeChat,
+		APIKeyID: 7,
+		Endpoint: WorkbenchEndpointChatCompletions,
+		Model:    "gpt-5.5",
+		Input:    "hi",
+	})
+
+	require.ErrorIs(t, err, ErrWorkbenchConversationNotFound)
+}
+
+func TestWorkbenchServiceSendChatHistoryIsBoundedAndDoesNotDuplicateCurrentInput(t *testing.T) {
+	ctx := context.Background()
+	repo := newWorkbenchMemoryRepo()
+	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
+		7: {ID: 7, UserID: 42, Key: "sk-test", Status: StatusAPIKeyActive, Name: "main"},
+	}}
+	gateway := &workbenchGatewayStub{chat: WorkbenchGatewayChatResponse{Content: "done"}}
+	svc := NewWorkbenchService(repo, apiKeys, gateway)
+
+	conv, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{})
+	require.NoError(t, err)
+
+	for i := 0; i < 25; i++ {
+		userText := "old-user-" + string(rune('a'+i))
+		assistantText := "old-assistant-" + string(rune('a'+i))
+		require.NoError(t, repo.CreateMessage(ctx, &WorkbenchMessage{
+			ConversationID: conv.ID,
+			UserID:         42,
+			Mode:           WorkbenchModeChat,
+			Role:           WorkbenchRoleUser,
+			Content:        userText,
+			Status:         WorkbenchMessageStatusSuccess,
+		}))
+		require.NoError(t, repo.CreateMessage(ctx, &WorkbenchMessage{
+			ConversationID: conv.ID,
+			UserID:         42,
+			Mode:           WorkbenchModeChat,
+			Role:           WorkbenchRoleAssistant,
+			Content:        assistantText,
+			Status:         WorkbenchMessageStatusSuccess,
+		}))
+	}
+
+	currentInput := "current prompt"
+	_, err = svc.Send(ctx, 42, conv.ID, WorkbenchSendRequest{
+		Mode:     WorkbenchModeChat,
+		APIKeyID: 7,
+		Endpoint: WorkbenchEndpointChatCompletions,
+		Model:    "gpt-5.5",
+		Input:    currentInput,
+	})
+	require.NoError(t, err)
+	require.Len(t, gateway.lastChat.Messages, workbenchHistoryLimit+1)
+	require.Equal(t, currentInput, gateway.lastChat.Messages[len(gateway.lastChat.Messages)-1].Content)
+
+	currentCount := 0
+	for _, message := range gateway.lastChat.Messages {
+		if message.Content == currentInput {
+			currentCount++
+		}
+	}
+	require.Equal(t, 1, currentCount)
+	require.Equal(t, "old-user-p", gateway.lastChat.Messages[0].Content)
+}
+
+func TestHTTPWorkbenchGatewayClientSendChatIncludesStreamFalse(t *testing.T) {
+	var got map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/chat/completions", r.URL.Path)
+		require.Equal(t, "Bearer sk-test", r.Header.Get("Authorization"))
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&got))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"chatcmpl_1","choices":[{"message":{"content":"hello"}}]}`))
+	}))
+	defer server.Close()
+
+	client := &HTTPWorkbenchGatewayClient{client: server.Client(), baseURL: server.URL}
+
+	resp, err := client.SendChat(context.Background(), "Bearer sk-test", WorkbenchGatewayChatRequest{
+		Model:    "gpt-5.5",
+		Messages: []WorkbenchGatewayMessage{{Role: WorkbenchRoleUser, Content: "hi"}},
+		Options:  map[string]any{"temperature": 0.2},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "hello", resp.Content)
+	require.Equal(t, false, got["stream"])
+	require.Equal(t, "gpt-5.5", got["model"])
+}
+
+func TestHTTPWorkbenchGatewayClientPostJSONDoesNotLeakRawBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(`{"error":{"message":"provider exploded","secret":"sk-secret","provider":"openai"}}`))
+	}))
+	defer server.Close()
+
+	client := &HTTPWorkbenchGatewayClient{client: server.Client(), baseURL: server.URL}
+
+	err := client.postJSON(context.Background(), "/v1/chat/completions", "Bearer sk-test", map[string]any{"model": "gpt"}, &map[string]any{})
+
+	require.EqualError(t, err, "gateway returned 502")
+	require.NotContains(t, err.Error(), "sk-secret")
+	require.NotContains(t, err.Error(), "provider exploded")
+	require.NotContains(t, err.Error(), "openai")
 }
 
 type workbenchGatewayStub struct {

@@ -200,10 +200,17 @@ func (s *WorkbenchService) Send(ctx context.Context, userID, conversationID int6
 }
 
 func normalizeWorkbenchMode(mode string) string {
-	if strings.TrimSpace(mode) == WorkbenchModeImage {
+	mode = strings.TrimSpace(mode)
+	switch mode {
+	case "":
+		return WorkbenchModeChat
+	case WorkbenchModeChat:
+		return WorkbenchModeChat
+	case WorkbenchModeImage:
 		return WorkbenchModeImage
+	default:
+		return mode
 	}
-	return WorkbenchModeChat
 }
 
 func normalizeWorkbenchEndpoint(endpoint, mode string) string {
@@ -245,11 +252,23 @@ func truncateWorkbenchText(s string, max int) string {
 }
 
 func sanitizeWorkbenchError(message, secret string) string {
+	const fallback = "workbench gateway request failed"
+
 	message = strings.TrimSpace(message)
+	if message == "" {
+		return fallback
+	}
+	if strings.HasPrefix(message, "gateway returned ") {
+		fields := strings.Fields(message)
+		if len(fields) >= 3 {
+			return truncateWorkbenchText(strings.TrimSuffix(strings.Join(fields[:3], " "), ":"), workbenchErrorMessageMax)
+		}
+		return fallback
+	}
 	if secret != "" {
 		message = strings.ReplaceAll(message, secret, "[redacted]")
 	}
-	return truncateWorkbenchText(message, workbenchErrorMessageMax)
+	return fallback
 }
 
 func nonNilWorkbenchMap(in map[string]any) map[string]any {

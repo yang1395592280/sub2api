@@ -125,12 +125,8 @@ func (c *HTTPWorkbenchGatewayClient) postJSON(ctx context.Context, path, authori
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		message := strings.TrimSpace(string(raw))
-		if message == "" {
-			return fmt.Errorf("gateway returned %d", resp.StatusCode)
-		}
-		return fmt.Errorf("gateway returned %d: %s", resp.StatusCode, message)
+		_, _ = io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return fmt.Errorf("gateway returned %d", resp.StatusCode)
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
 }
