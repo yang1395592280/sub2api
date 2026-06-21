@@ -254,6 +254,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/workbench',
+    name: 'Workbench',
+    component: () => import('@/views/user/WorkbenchView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Workbench',
+      titleKey: 'workbench.title',
+      descriptionKey: 'workbench.description'
+    }
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('@/views/user/ProfileView.vue'),
