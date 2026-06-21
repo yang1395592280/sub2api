@@ -69,6 +69,37 @@
           <p class="input-hint">{{ t('admin.accounts.leaveEmptyToKeep') }}</p>
         </div>
 
+        <div
+          v-if="account.platform === 'openai' && account.type === 'apikey'"
+          class="border-t border-gray-200 pt-4 dark:border-dark-600"
+        >
+          <label class="input-label">new-api 用户余额查询</label>
+          <div class="space-y-4">
+            <div>
+              <label class="input-label">new_api_user_id</label>
+              <input
+                v-model="editNewApiUserId"
+                type="text"
+                class="input"
+                placeholder="738"
+              />
+            </div>
+            <div>
+              <label class="input-label">new_api_user_access_token</label>
+              <input
+                v-model="editNewApiUserAccessToken"
+                type="password"
+                class="input font-mono"
+                autocomplete="new-password"
+                data-1p-ignore
+                data-lpignore="true"
+                data-bwignore="true"
+              />
+              <p class="input-hint">{{ t('admin.accounts.leaveEmptyToKeep') }}</p>
+            </div>
+          </div>
+        </div>
+
         <!-- Model Restriction Section (不适用于 Antigravity) -->
         <div v-if="account.platform !== 'antigravity'" class="border-t border-gray-200 pt-4 dark:border-dark-600">
           <label class="input-label">{{ t('admin.accounts.modelRestriction') }}</label>
@@ -2469,6 +2500,8 @@ interface TempUnschedRuleForm {
 const submitting = ref(false)
 const editBaseUrl = ref('https://api.anthropic.com')
 const editApiKey = ref('')
+const editNewApiUserId = ref('')
+const editNewApiUserAccessToken = ref('')
 // Bedrock credentials
 const editBedrockAccessKeyId = ref('')
 const editBedrockSecretAccessKey = ref('')
@@ -3106,6 +3139,10 @@ const syncFormFromAccount = (newAccount: Account | null) => {
           ? 'https://generativelanguage.googleapis.com'
           : 'https://api.anthropic.com'
     editBaseUrl.value = (credentials.base_url as string) || platformDefaultUrl
+    editNewApiUserId.value = newAccount.platform === 'openai'
+      ? String(credentials.new_api_user_id ?? '')
+      : ''
+    editNewApiUserAccessToken.value = ''
 
     // Load model mappings and detect mode
     loadModelRestrictionFromMapping(credentials.model_mapping as Record<string, unknown> | undefined)
@@ -3189,6 +3226,8 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     poolModeRetryStatusCodesInput.value = ''
     customErrorCodesEnabled.value = false
     selectedErrorCodes.value = []
+    editNewApiUserId.value = ''
+    editNewApiUserAccessToken.value = ''
   }
   editApiKey.value = ''
 }
@@ -3715,6 +3754,20 @@ const handleSubmit = async () => {
       const newCredentials: Record<string, unknown> = {
         ...currentCredentials,
         base_url: newBaseUrl
+      }
+      if (props.account.platform === 'openai') {
+        const trimmedNewApiUserId = editNewApiUserId.value.trim()
+        if (trimmedNewApiUserId) {
+          newCredentials.new_api_user_id = trimmedNewApiUserId
+        } else {
+          delete newCredentials.new_api_user_id
+        }
+
+        if (editNewApiUserAccessToken.value.trim()) {
+          newCredentials.new_api_user_access_token = editNewApiUserAccessToken.value.trim()
+        } else {
+          delete newCredentials.new_api_user_access_token
+        }
       }
 
       // Handle API key

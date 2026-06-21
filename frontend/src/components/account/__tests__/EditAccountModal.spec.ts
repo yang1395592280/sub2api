@@ -125,6 +125,7 @@ function buildAccount() {
     credentials: {
       api_key: 'sk-test',
       base_url: 'https://api.openai.com',
+      new_api_user_id: '  738  ',
       model_mapping: {
         'gpt-5.2': 'gpt-5.2'
       }
@@ -189,6 +190,22 @@ function mountModal(account = buildAccount()) {
 }
 
 describe('EditAccountModal', () => {
+  it('only shows new-api user balance fields for OpenAI API key accounts', () => {
+    const oauthAccount = {
+      ...buildAccount(),
+      type: 'oauth',
+      credentials: {
+        access_token: 'at-test',
+        refresh_token: 'rt-test'
+      }
+    }
+
+    const wrapper = mountModal(oauthAccount)
+
+    expect(wrapper.text()).not.toContain('new-api 用户余额查询')
+    expect(wrapper.find('input[placeholder="738"]').exists()).toBe(false)
+  })
+
   it('reopening the same account rehydrates the OpenAI whitelist from props', async () => {
     const account = buildAccount()
     updateAccountMock.mockReset()
@@ -493,6 +510,32 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
     // 用户未输入新 key 时，payload 不应带 api_key，由后端合并保留旧值
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('api_key')
+  })
+
+  it('saves trimmed new-api user id and keeps access token untouched when left blank', async () => {
+    const account = buildAccount()
+    account.credentials = {
+      ...account.credentials,
+      new_api_user_id: '  738  '
+    }
+    account.credentials_status = {
+      has_new_api_user_access_token: true
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    const userIdInput = wrapper.get<HTMLInputElement>('input[placeholder="738"]')
+    expect(userIdInput.element.value).toBe('  738  ')
+    await userIdInput.setValue('  738  ')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.new_api_user_id).toBe('738')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('new_api_user_access_token')
   })
 
   it('allows saving apikey account against legacy backend without credentials_status', async () => {

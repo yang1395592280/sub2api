@@ -1044,6 +1044,29 @@
           <p class="input-hint">{{ apiKeyHint }}</p>
         </div>
 
+        <div v-if="form.platform === 'openai'" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+          <label class="input-label">new-api 用户余额查询</label>
+          <div class="space-y-4">
+            <div>
+              <label class="input-label">new_api_user_id</label>
+              <input v-model="newApiUserId" type="text" class="input" placeholder="738" />
+            </div>
+            <div>
+              <label class="input-label">new_api_user_access_token</label>
+              <input
+                v-model="newApiUserAccessToken"
+                type="password"
+                class="input font-mono"
+                autocomplete="new-password"
+                data-1p-ignore
+                data-lpignore="true"
+                data-bwignore="true"
+              />
+              <p class="input-hint">Access Token 可留空，填写后才会写入</p>
+            </div>
+          </div>
+        </div>
+
         <!-- Gemini API Key tier selection -->
         <div v-if="form.platform === 'gemini'">
           <label class="input-label">{{ t('admin.accounts.gemini.tier.label') }}</label>
@@ -3366,6 +3389,8 @@ const accountCategory = ref<'oauth-based' | 'apikey' | 'bedrock' | 'service_acco
 const addMethod = ref<AddMethod>('oauth') // For oauth-based: 'oauth' or 'setup-token'
 const apiKeyBaseUrl = ref('https://api.anthropic.com')
 const apiKeyValue = ref('')
+const newApiUserId = ref('')
+const newApiUserAccessToken = ref('')
 
 const syncPreviewCredentials = computed(() => {
   if (!apiKeyValue.value) return undefined
@@ -4220,6 +4245,8 @@ const resetForm = () => {
   addMethod.value = 'oauth'
   apiKeyBaseUrl.value = 'https://api.anthropic.com'
   apiKeyValue.value = ''
+  newApiUserId.value = ''
+  newApiUserAccessToken.value = ''
   editQuotaLimit.value = null
   editQuotaDailyLimit.value = null
   editQuotaWeeklyLimit.value = null
@@ -4647,6 +4674,14 @@ const handleSubmit = async () => {
     const compactModelMapping = buildOpenAICompactModelMapping()
     if (compactModelMapping) {
       credentials.compact_model_mapping = compactModelMapping
+    }
+    const trimmedNewApiUserId = newApiUserId.value.trim()
+    const trimmedNewApiUserAccessToken = newApiUserAccessToken.value.trim()
+    if (trimmedNewApiUserId) {
+      credentials.new_api_user_id = trimmedNewApiUserId
+    }
+    if (trimmedNewApiUserAccessToken) {
+      credentials.new_api_user_access_token = trimmedNewApiUserAccessToken
     }
   }
 

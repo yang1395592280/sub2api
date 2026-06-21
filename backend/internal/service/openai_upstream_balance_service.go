@@ -20,6 +20,7 @@ const (
 	UpstreamBalanceStatusUnsupported  = "unsupported"
 	openAIUpstreamBalanceHTTPTimeout  = 15 * time.Second
 	openAIUpstreamBalanceErrorMaxText = 180
+	newAPIQuotaPerUSD                 = 500000.0
 )
 
 type OpenAIUpstreamBalanceSnapshot struct {
@@ -115,7 +116,7 @@ func buildOpenAIUpstreamBalanceErrorUpdates(snapshot OpenAIUpstreamBalanceSnapsh
 
 func (s *OpenAIUpstreamBalanceService) probe(ctx context.Context, account *Account, baseURL, apiKey string) (OpenAIUpstreamBalanceSnapshot, error) {
 	providers := []string{UpstreamBalanceProviderSub2API, UpstreamBalanceProviderNewAPI}
-	if account.GetExtraString("upstream_balance_provider") == UpstreamBalanceProviderNewAPI {
+	if account.GetExtraString("upstream_balance_provider") == UpstreamBalanceProviderNewAPI || hasNewAPIUserBalanceCredentials(account) {
 		providers = []string{UpstreamBalanceProviderNewAPI, UpstreamBalanceProviderSub2API}
 	}
 
@@ -129,7 +130,7 @@ func (s *OpenAIUpstreamBalanceService) probe(ctx context.Context, account *Accou
 		case UpstreamBalanceProviderSub2API:
 			snapshot, err = s.probeSub2API(ctx, baseURL, apiKey)
 		case UpstreamBalanceProviderNewAPI:
-			snapshot, err = s.probeNewAPI(ctx, baseURL, apiKey)
+			snapshot, err = s.probeNewAPI(ctx, account, baseURL, apiKey)
 		default:
 			err = fmt.Errorf("unsupported provider %q", provider)
 		}
@@ -164,7 +165,10 @@ func (s *OpenAIUpstreamBalanceService) probeSub2API(ctx context.Context, baseURL
 	}, nil
 }
 
-func (s *OpenAIUpstreamBalanceService) probeNewAPI(ctx context.Context, baseURL, apiKey string) (OpenAIUpstreamBalanceSnapshot, error) {
+func (s *OpenAIUpstreamBalanceService) probeNewAPI(ctx context.Context, account *Account, baseURL, apiKey string) (OpenAIUpstreamBalanceSnapshot, error) {
+	if auth, ok := getNewAPIUserBalanceAuth(account); ok {
+		return s.probeNewAPIUserSelf(ctx, baseURL, auth)
+	}
 	var payload map[string]any
 	if err := s.doJSONGET(ctx, buildNewAPIUsageURL(baseURL), apiKey, &payload); err != nil {
 		return OpenAIUpstreamBalanceSnapshot{}, err
@@ -201,13 +205,48 @@ func (s *OpenAIUpstreamBalanceService) probeNewAPI(ctx context.Context, baseURL,
 	}, nil
 }
 
+func (s *OpenAIUpstreamBalanceService) probeNewAPIUserSelf(ctx context.Context, baseURL string, auth newAPIUserBalanceAuth) (OpenAIUpstreamBalanceSnapshot, error) {
+	var payload map[string]any
+	if err := s.doJSONGETWithHeaders(ctx, buildNewAPIUserSelfURL(baseURL), map[string]string{
+		"Authorization": auth.AccessToken,
+		"New-Api-User":  auth.UserID,
+	}, &payload); err != nil {
+		return OpenAIUpstreamBalanceSnapshot{}, err
+	}
+
+	data, _ := payload["data"].(map[string]any)
+	if data == nil {
+		return OpenAIUpstreamBalanceSnapshot{}, fmt.Errorf("new-api user self response missing data")
+	}
+	quota, ok := getFloat64(data, "quota")
+	if !ok {
+		return OpenAIUpstreamBalanceSnapshot{}, fmt.Errorf("new-api user self response missing quota")
+	}
+	return OpenAIUpstreamBalanceSnapshot{
+		Remaining: nonNegativeBalance(quota / newAPIQuotaPerUSD),
+		Unit:      "USD",
+	}, nil
+}
+
 func (s *OpenAIUpstreamBalanceService) doJSONGET(ctx context.Context, targetURL, apiKey string, dest any) error {
+	return s.doJSONGETWithHeaders(ctx, targetURL, map[string]string{
+		"Authorization": "Bearer " + apiKey,
+	}, dest)
+}
+
+func (s *OpenAIUpstreamBalanceService) doJSONGETWithHeaders(ctx context.Context, targetURL string, headers map[string]string, dest any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Accept", "application/json")
+	for key, value := range headers {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		req.Header.Set(key, value)
+	}
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -227,6 +266,27 @@ func (s *OpenAIUpstreamBalanceService) doJSONGET(ctx context.Context, targetURL,
 	return nil
 }
 
+type newAPIUserBalanceAuth struct {
+	UserID      string
+	AccessToken string
+}
+
+func getNewAPIUserBalanceAuth(account *Account) (newAPIUserBalanceAuth, bool) {
+	if account == nil {
+		return newAPIUserBalanceAuth{}, false
+	}
+	auth := newAPIUserBalanceAuth{
+		UserID:      strings.TrimSpace(account.GetCredential("new_api_user_id")),
+		AccessToken: strings.TrimSpace(account.GetCredential("new_api_user_access_token")),
+	}
+	return auth, auth.UserID != "" && auth.AccessToken != ""
+}
+
+func hasNewAPIUserBalanceCredentials(account *Account) bool {
+	_, ok := getNewAPIUserBalanceAuth(account)
+	return ok
+}
+
 func buildNewAPIUsageURL(baseURL string) string {
 	trimmed := strings.TrimSpace(baseURL)
 	parsed, err := url.Parse(trimmed)
@@ -240,6 +300,25 @@ func buildNewAPIUsageURL(baseURL string) string {
 		path = "/api/usage/token/"
 	} else {
 		path = path + "/api/usage/token/"
+	}
+	parsed.Path = path
+	parsed.RawPath = ""
+	return parsed.String()
+}
+
+func buildNewAPIUserSelfURL(baseURL string) string {
+	trimmed := strings.TrimSpace(baseURL)
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return strings.TrimRight(strings.TrimSuffix(trimmed, "/v1"), "/") + "/api/user/self"
+	}
+
+	path := strings.TrimRight(parsed.Path, "/")
+	path = strings.TrimSuffix(path, "/v1")
+	if path == "" {
+		path = "/api/user/self"
+	} else {
+		path = path + "/api/user/self"
 	}
 	parsed.Path = path
 	parsed.RawPath = ""
