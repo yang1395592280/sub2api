@@ -282,7 +282,8 @@
           <template #cell-upstream_group="{ row }">
             <div
               v-if="getUpstreamGroup(row)"
-              class="inline-flex max-w-[12rem] flex-col gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-gray-800 shadow-sm shadow-gray-100/70 dark:border-dark-600 dark:bg-dark-800/80 dark:text-gray-100 dark:shadow-none"
+              data-test="upstream-group-badge"
+              class="inline-flex max-w-[12rem] flex-col gap-1 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-blue-950 dark:border-blue-800/60 dark:bg-blue-950/35 dark:text-blue-100"
               :title="getUpstreamGroupTitle(row)"
             >
               <span class="truncate text-sm font-semibold leading-4">{{ getUpstreamGroup(row) }}</span>

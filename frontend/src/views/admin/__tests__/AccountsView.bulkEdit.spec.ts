@@ -342,6 +342,8 @@ describe('admin AccountsView bulk edit scope', () => {
     expect(wrapper.text()).toContain('额度模式 - 标准')
     expect(wrapper.text()).toContain('真实 0.09x')
     expect(wrapper.text()).toContain('基础 0.4x')
+    const badge = wrapper.get('[data-test="upstream-group-badge"]')
+    expect(badge.classes()).toEqual(expect.arrayContaining(['rounded-xl', 'bg-blue-50', 'border-blue-200', 'text-blue-950']))
   })
 
   it('opens batch account test modal with selected accounts', async () => {
