@@ -88,6 +88,65 @@ type WorkbenchConversationUpdate struct {
 	MessageCountDelta  int
 }
 
+type WorkbenchAPIKeyLookup interface {
+	GetByID(ctx context.Context, id int64) (*APIKey, error)
+}
+
+type CreateWorkbenchConversationRequest struct {
+	Mode     string
+	Title    string
+	APIKeyID *int64
+	Endpoint string
+	Model    string
+}
+
+type WorkbenchSendRequest struct {
+	Mode     string
+	APIKeyID int64
+	Endpoint string
+	Model    string
+	Input    string
+	Options  map[string]any
+}
+
+type WorkbenchSendResult struct {
+	UserMessage      WorkbenchMessage      `json:"user_message"`
+	AssistantMessage WorkbenchMessage      `json:"assistant_message"`
+	Conversation     WorkbenchConversation `json:"conversation"`
+}
+
+type WorkbenchGatewayMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type WorkbenchGatewayChatRequest struct {
+	Model    string                    `json:"model"`
+	Messages []WorkbenchGatewayMessage `json:"messages"`
+	Options  map[string]any            `json:"options"`
+}
+
+type WorkbenchGatewayChatResponse struct {
+	Content  string         `json:"content"`
+	Metadata map[string]any `json:"metadata"`
+}
+
+type WorkbenchGatewayImageRequest struct {
+	Model   string         `json:"model"`
+	Prompt  string         `json:"prompt"`
+	Options map[string]any `json:"options"`
+}
+
+type WorkbenchGatewayImageResponse struct {
+	Images   []WorkbenchImageOutput `json:"images"`
+	Metadata map[string]any         `json:"metadata"`
+}
+
+type WorkbenchGatewayClient interface {
+	SendChat(ctx context.Context, authorization string, req WorkbenchGatewayChatRequest) (WorkbenchGatewayChatResponse, error)
+	GenerateImage(ctx context.Context, authorization string, req WorkbenchGatewayImageRequest) (WorkbenchGatewayImageResponse, error)
+}
+
 type WorkbenchRepository interface {
 	CreateConversation(ctx context.Context, c *WorkbenchConversation) error
 	ListConversations(ctx context.Context, userID int64, params pagination.PaginationParams, filters WorkbenchConversationFilters) ([]WorkbenchConversation, *pagination.PaginationResult, error)

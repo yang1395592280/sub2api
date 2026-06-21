@@ -516,6 +516,10 @@ func ProvideAPIKeyService(
 	return svc
 }
 
+func ProvideWorkbenchService(repo WorkbenchRepository, apiKeyService *APIKeyService, cfg *config.Config) *WorkbenchService {
+	return NewWorkbenchService(repo, apiKeyService, NewHTTPWorkbenchGatewayClient(cfg))
+}
+
 // ProviderSet is the Wire provider set for all services
 var ProviderSet = wire.NewSet(
 	// Core services
@@ -613,6 +617,7 @@ var ProviderSet = wire.NewSet(
 	ProvideChannelMonitorService,
 	ProvideChannelMonitorRunner,
 	NewChannelMonitorRequestTemplateService,
+	ProvideWorkbenchService,
 	ProvideUserPlatformQuotaUsageFlusher,
 )
 
