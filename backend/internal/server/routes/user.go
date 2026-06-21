@@ -78,6 +78,15 @@ func RegisterUserRoutes(
 			channels.GET("/available", h.AvailableChannel.List)
 		}
 
+		workbench := authenticated.Group("/workbench")
+		{
+			workbench.GET("/conversations", h.Workbench.ListConversations)
+			workbench.POST("/conversations", h.Workbench.CreateConversation)
+			workbench.GET("/conversations/:id/messages", h.Workbench.ListMessages)
+			workbench.DELETE("/conversations/:id", h.Workbench.DeleteConversation)
+			workbench.POST("/conversations/:id/send", h.Workbench.Send)
+		}
+
 		// 使用记录
 		usage := authenticated.Group("/usage")
 		{
