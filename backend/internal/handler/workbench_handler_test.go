@@ -171,6 +171,12 @@ func (s *workbenchHandlerGatewayFailStub) GenerateImage(_ context.Context, _ str
 	return service.WorkbenchGatewayImageResponse{}, s.err
 }
 
+type workbenchHandlerModelProviderStub struct{ models []string }
+
+func (s *workbenchHandlerModelProviderStub) GetAvailableModels(_ context.Context, _ *int64, _ string) []string {
+	return append([]string(nil), s.models...)
+}
+
 func newWorkbenchAuthedRouter(h *WorkbenchHandler) *gin.Engine {
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -225,6 +231,56 @@ func TestWorkbenchHandlerListConversationsReturnsPaginatedData(t *testing.T) {
 	require.Contains(t, rec.Body.String(), `"total":1`)
 	require.Contains(t, rec.Body.String(), `"page":2`)
 	require.Contains(t, rec.Body.String(), `"page_size":5`)
+}
+
+func TestWorkbenchHandlerListModelsReturnsSelectedAPIKeyModels(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	groupID := int64(11)
+	svc := service.NewWorkbenchServiceWithModels(
+		newWorkbenchHandlerRepoStub(),
+		&workbenchHandlerAPIKeyStub{keys: map[int64]*service.APIKey{
+			7: {
+				ID:      7,
+				UserID:  7,
+				Key:     "sk-test",
+				Status:  service.StatusAPIKeyActive,
+				GroupID: &groupID,
+				Group:   &service.Group{ID: groupID, Platform: service.PlatformOpenAI},
+			},
+		}},
+		&workbenchHandlerGatewayStub{},
+		&workbenchHandlerModelProviderStub{models: []string{"gpt-5.5", "gpt-5.4"}},
+	)
+	h := NewWorkbenchHandler(svc)
+	r := newWorkbenchAuthedRouter(h)
+	r.GET("/api/v1/workbench/api-keys/:id/models", h.ListModels)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/workbench/api-keys/7/models", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	payload := decodeWorkbenchResponse(t, rec.Body)
+	require.Equal(t, "success", payload["message"])
+	data := payload["data"].([]any)
+	require.Len(t, data, 2)
+	require.Equal(t, "gpt-5.4", data[0].(map[string]any)["name"])
+	require.Equal(t, "gpt-5.5", data[1].(map[string]any)["name"])
+}
+
+func TestWorkbenchHandlerListModelsInvalidAPIKeyIDReturns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewWorkbenchHandler(service.NewWorkbenchService(newWorkbenchHandlerRepoStub(), &workbenchHandlerAPIKeyStub{}, &workbenchHandlerGatewayStub{}))
+	r := newWorkbenchAuthedRouter(h)
+	r.GET("/api/v1/workbench/api-keys/:id/models", h.ListModels)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/workbench/api-keys/nope/models", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	payload := decodeWorkbenchResponse(t, rec.Body)
+	require.Equal(t, "Invalid API key ID", payload["message"])
 }
 
 func TestWorkbenchHandlerCreateConversationBadJSONReturns400(t *testing.T) {

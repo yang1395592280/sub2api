@@ -187,6 +187,73 @@ func TestWorkbenchServiceCreateConversationStoresOwnerActiveAPIKey(t *testing.T)
 	require.Equal(t, int64(7), *repo.conversations[conv.ID].APIKeyID)
 }
 
+func TestWorkbenchServiceListModelsUsesSelectedAPIKeyGroup(t *testing.T) {
+	ctx := context.Background()
+	groupID := int64(11)
+	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
+		7: {
+			ID:      7,
+			UserID:  42,
+			Key:     "sk-test",
+			Status:  StatusAPIKeyActive,
+			Name:    "main",
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformOpenAI},
+		},
+	}}
+	provider := &workbenchModelProviderStub{models: []string{"gpt-5.5", "gpt-5.4", "gpt-5.5", " "}}
+	svc := NewWorkbenchServiceWithModels(newWorkbenchMemoryRepo(), apiKeys, &workbenchGatewayStub{}, provider)
+
+	models, err := svc.ListModels(ctx, 42, 7)
+
+	require.NoError(t, err)
+	require.Equal(t, &groupID, provider.lastGroupID)
+	require.Equal(t, PlatformOpenAI, provider.lastPlatform)
+	require.Equal(t, []WorkbenchModel{{Name: "gpt-5.4"}, {Name: "gpt-5.5"}}, models)
+}
+
+func TestWorkbenchServiceListModelsAppliesCustomModelsList(t *testing.T) {
+	ctx := context.Background()
+	groupID := int64(12)
+	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
+		7: {
+			ID:      7,
+			UserID:  42,
+			Key:     "sk-test",
+			Status:  StatusAPIKeyActive,
+			Name:    "main",
+			GroupID: &groupID,
+			Group: &Group{
+				ID:       groupID,
+				Platform: PlatformOpenAI,
+				ModelsListConfig: GroupModelsListConfig{
+					Enabled: true,
+					Models:  []string{"gpt-5.5", "not-available"},
+				},
+			},
+		},
+	}}
+	provider := &workbenchModelProviderStub{models: []string{"gpt-5.5", "gpt-5.4"}}
+	svc := NewWorkbenchServiceWithModels(newWorkbenchMemoryRepo(), apiKeys, &workbenchGatewayStub{}, provider)
+
+	models, err := svc.ListModels(ctx, 42, 7)
+
+	require.NoError(t, err)
+	require.Equal(t, []WorkbenchModel{{Name: "gpt-5.5"}}, models)
+}
+
+func TestWorkbenchServiceListModelsRejectsForeignAPIKey(t *testing.T) {
+	ctx := context.Background()
+	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
+		7: {ID: 7, UserID: 99, Key: "sk-other", Status: StatusAPIKeyActive, Name: "other"},
+	}}
+	svc := NewWorkbenchServiceWithModels(newWorkbenchMemoryRepo(), apiKeys, &workbenchGatewayStub{}, &workbenchModelProviderStub{})
+
+	_, err := svc.ListModels(ctx, 42, 7)
+
+	require.ErrorIs(t, err, ErrWorkbenchAPIKeyNotFound)
+}
+
 func TestWorkbenchServiceSendRejectsInvalidMode(t *testing.T) {
 	ctx := context.Background()
 	repo := newWorkbenchMemoryRepo()
@@ -427,6 +494,18 @@ func (g *workbenchGatewayStub) GenerateImage(_ context.Context, authorization st
 	g.lastAuthorization = authorization
 	g.lastImage = req
 	return g.image, g.err
+}
+
+type workbenchModelProviderStub struct {
+	models       []string
+	lastGroupID  *int64
+	lastPlatform string
+}
+
+func (p *workbenchModelProviderStub) GetAvailableModels(_ context.Context, groupID *int64, platform string) []string {
+	p.lastGroupID = groupID
+	p.lastPlatform = platform
+	return append([]string(nil), p.models...)
 }
 
 type workbenchAPIKeyLookupStub struct{ keys map[int64]*APIKey }

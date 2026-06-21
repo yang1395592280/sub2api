@@ -72,6 +72,10 @@ type WorkbenchMessage struct {
 
 type WorkbenchImageOutput = domain.WorkbenchImageOutput
 
+type WorkbenchModel struct {
+	Name string `json:"name"`
+}
+
 type WorkbenchConversationFilters struct {
 	Mode string
 }
@@ -91,6 +95,10 @@ type WorkbenchConversationUpdate struct {
 
 type WorkbenchAPIKeyLookup interface {
 	GetByID(ctx context.Context, id int64) (*APIKey, error)
+}
+
+type WorkbenchModelProvider interface {
+	GetAvailableModels(ctx context.Context, groupID *int64, platform string) []string
 }
 
 type CreateWorkbenchConversationRequest struct {

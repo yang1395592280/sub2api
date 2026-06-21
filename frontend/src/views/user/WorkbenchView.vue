@@ -181,7 +181,7 @@
           <div class="flex-1 space-y-4 overflow-y-auto px-4 py-4">
             <div class="space-y-2">
               <label class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ t('workbench.apiKey') }}</label>
-              <select v-model.number="selectedApiKeyId" class="input">
+              <select v-model.number="selectedApiKeyId" class="input" data-testid="workbench-api-key-select">
                 <option :value="0">{{ t('workbench.selectApiKey') }}</option>
                 <option v-for="keyItem in activeKeys" :key="keyItem.id" :value="keyItem.id">{{ keyItem.name }}</option>
               </select>
@@ -189,7 +189,7 @@
 
             <div class="space-y-2">
               <label class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ t('workbench.model') }}</label>
-              <select v-model="selectedModel" class="input">
+              <select v-model="selectedModel" class="input" data-testid="workbench-model-select">
                 <option value="">{{ t('workbench.selectModel') }}</option>
                 <option v-for="model in availableModels" :key="model.name" :value="model.name">{{ model.name }}</option>
               </select>
@@ -206,10 +206,10 @@
               <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
                 <div class="space-y-2">
                   <label class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ t('workbench.imageSize') }}</label>
-                  <select v-model="imageOptions.size" class="input">
-                    <option value="1024x1024">1024x1024</option>
-                    <option value="1536x1024">1536x1024</option>
-                    <option value="1024x1536">1024x1536</option>
+                  <select v-model="imageOptions.size" class="input" data-testid="workbench-image-size-select">
+                    <option value="1K">1K</option>
+                    <option value="2K">2K</option>
+                    <option value="4K">4K</option>
                   </select>
                 </div>
 
@@ -271,16 +271,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, ref } from 'vue'
+import { computed, defineComponent, h, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import { keysAPI } from '@/api/keys'
-import { userChannelsAPI, type UserAvailableChannel, type UserSupportedModel } from '@/api/channels'
 import {
   workbenchAPI,
   type WorkbenchConversation,
   type WorkbenchImageOutput,
   type WorkbenchMessage,
+  type WorkbenchModel,
   type WorkbenchMode,
   type WorkbenchSendResponse,
   type WorkbenchSendRequest,
@@ -324,12 +324,14 @@ const sending = ref(false)
 const prompt = ref('')
 const currentMode = ref<WorkbenchMode>('chat')
 const keys = ref<ApiKeyListItem[]>([])
-const channels = ref<UserAvailableChannel[]>([])
+const models = ref<WorkbenchModel[]>([])
 const selectedApiKeyId = ref<number>(0)
 const selectedModel = ref('')
+const modelsLoadedForApiKeyId = ref<number | null>(null)
+const modelSelectionReady = ref(false)
 
 const imageOptions = ref({
-  size: '1024x1024',
+  size: '1K',
   quality: 'auto',
   background: 'auto',
   output_format: 'png',
@@ -339,19 +341,7 @@ const imageOptions = ref({
 
 const activeKeys = computed(() => keys.value.filter((item) => item.status === 'active' || !item.status))
 
-const availableModels = computed<UserSupportedModel[]>(() => {
-  const deduped = new Map<string, UserSupportedModel>()
-  for (const channel of channels.value) {
-    for (const platform of channel.platforms) {
-      for (const model of platform.supported_models) {
-        if (!deduped.has(model.name)) {
-          deduped.set(model.name, model)
-        }
-      }
-    }
-  }
-  return [...deduped.values()]
-})
+const availableModels = computed<WorkbenchModel[]>(() => models.value)
 
 const currentEndpoint = computed(() => currentMode.value === 'image' ? 'images_generations' : 'chat_completions')
 
@@ -418,7 +408,20 @@ async function loadKeys(): Promise<void> {
 }
 
 async function loadModels(): Promise<void> {
-  channels.value = await userChannelsAPI.getAvailable()
+  if (!selectedApiKeyId.value) {
+    models.value = []
+    selectedModel.value = ''
+    modelsLoadedForApiKeyId.value = null
+    return
+  }
+  if (modelsLoadedForApiKeyId.value === selectedApiKeyId.value) {
+    return
+  }
+  models.value = await workbenchAPI.listModels(selectedApiKeyId.value)
+  modelsLoadedForApiKeyId.value = selectedApiKeyId.value
+  if (!availableModels.value.some((model) => model.name === selectedModel.value)) {
+    selectedModel.value = ''
+  }
   if (!selectedModel.value && availableModels.value.length > 0) {
     selectedModel.value = availableModels.value[0].name
   }
@@ -556,7 +559,20 @@ async function handleSend(): Promise<void> {
 
 onMounted(async () => {
   try {
-    await Promise.all([loadKeys(), loadModels(), loadConversations()])
+    await loadKeys()
+    await Promise.all([loadModels(), loadConversations()])
+    modelSelectionReady.value = true
+  } catch (error: unknown) {
+    console.error(error)
+    appStore.showError(t('workbench.loadFailed'))
+  }
+})
+
+watch(selectedApiKeyId, async (next, prev) => {
+  if (!modelSelectionReady.value) return
+  if (next === prev) return
+  try {
+    await loadModels()
   } catch (error: unknown) {
     console.error(error)
     appStore.showError(t('workbench.loadFailed'))

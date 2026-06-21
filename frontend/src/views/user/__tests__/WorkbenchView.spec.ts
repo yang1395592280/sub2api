@@ -8,8 +8,8 @@ const {
   listMessages,
   deleteConversation,
   send,
+  listModels,
   listKeys,
-  getAvailable,
   showError,
   showSuccess,
 } = vi.hoisted(() => ({
@@ -18,24 +18,19 @@ const {
   listMessages: vi.fn(),
   deleteConversation: vi.fn(),
   send: vi.fn(),
+  listModels: vi.fn(),
   listKeys: vi.fn(),
-  getAvailable: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
 }))
 
 vi.mock('@/api/workbench', () => ({
-  workbenchAPI: { listConversations, createConversation, listMessages, deleteConversation, send },
+  workbenchAPI: { listConversations, listModels, createConversation, listMessages, deleteConversation, send },
 }))
 
 vi.mock('@/api/keys', () => ({
   default: { list: listKeys },
   keysAPI: { list: listKeys },
-}))
-
-vi.mock('@/api/channels', () => ({
-  default: { getAvailable },
-  userChannelsAPI: { getAvailable },
 }))
 
 vi.mock('@/stores/app', () => ({
@@ -56,8 +51,8 @@ describe('WorkbenchView', () => {
     listMessages.mockReset()
     deleteConversation.mockReset()
     send.mockReset()
+    listModels.mockReset()
     listKeys.mockReset()
-    getAvailable.mockReset()
     showError.mockReset()
     showSuccess.mockReset()
 
@@ -78,12 +73,7 @@ describe('WorkbenchView', () => {
       page_size: 20,
       pages: 1
     })
-    getAvailable.mockResolvedValue([
-      {
-        name: 'OpenAI',
-        platforms: [{ platform: 'openai', groups: [], supported_models: [{ name: 'gpt-5.5', platform: 'openai', pricing: null }] }]
-      }
-    ])
+    listModels.mockResolvedValue([{ name: 'gpt-5.5' }])
   })
 
   it('loads conversations and messages on mount', async () => {
@@ -114,6 +104,35 @@ describe('WorkbenchView', () => {
     expect(wrapper.text()).toContain('你好，我可以帮你。')
   })
 
+  it('loads models from the selected workbench API key', async () => {
+    listKeys.mockResolvedValue({
+      items: [
+        { id: 7, name: 'main', key: 'sk-test', status: 'active', quota: 10, quota_used: 2 },
+        { id: 8, name: 'image', key: 'sk-image', status: 'active', quota: 10, quota_used: 2 },
+      ],
+      total: 2,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+    listModels.mockImplementation(async (apiKeyId: number) => {
+      if (apiKeyId === 8) return [{ name: 'gpt-image-2' }]
+      return [{ name: 'gpt-5.5' }]
+    })
+
+    const wrapper = mount(WorkbenchView, { global: { stubs: { AppLayout: AppLayoutStub } } })
+    await flushPromises()
+
+    expect(listModels).toHaveBeenCalledWith(7)
+    expect((wrapper.get('[data-testid="workbench-model-select"]').element as HTMLSelectElement).value).toBe('gpt-5.5')
+
+    await wrapper.get('[data-testid="workbench-api-key-select"]').setValue('8')
+    await flushPromises()
+
+    expect(listModels).toHaveBeenCalledWith(8)
+    expect((wrapper.get('[data-testid="workbench-model-select"]').element as HTMLSelectElement).value).toBe('gpt-image-2')
+  })
+
   it('switches to image mode and sends image options', async () => {
     send.mockResolvedValue({
       user_message: { id: 10, role: 'user', content: '画一张图', status: 'success' },
@@ -124,11 +143,14 @@ describe('WorkbenchView', () => {
     await flushPromises()
 
     await wrapper.get('[data-testid="workbench-mode-image"]').trigger('click')
+    const sizeSelect = wrapper.get('[data-testid="workbench-image-size-select"]')
+    expect(sizeSelect.findAll('option').map((option) => option.attributes('value'))).toEqual(['1K', '2K', '4K'])
+    await sizeSelect.setValue('4K')
     await wrapper.get('[data-testid="workbench-input"]').setValue('画一张图')
     await wrapper.get('[data-testid="workbench-send"]').trigger('click')
     await flushPromises()
 
-    expect(send).toHaveBeenCalledWith(1, expect.objectContaining({ mode: 'image', endpoint: 'images_generations', options: expect.objectContaining({ n: 1 }) }))
+    expect(send).toHaveBeenCalledWith(1, expect.objectContaining({ mode: 'image', endpoint: 'images_generations', options: expect.objectContaining({ n: 1, size: '4K' }) }))
     expect(wrapper.find('img[src="https://img.example/1.png"]').exists()).toBe(true)
   })
 

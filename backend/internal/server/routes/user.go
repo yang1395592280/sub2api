@@ -80,6 +80,7 @@ func RegisterUserRoutes(
 
 		workbench := authenticated.Group("/workbench")
 		{
+			workbench.GET("/api-keys/:id/models", h.Workbench.ListModels)
 			workbench.GET("/conversations", h.Workbench.ListConversations)
 			workbench.POST("/conversations", h.Workbench.CreateConversation)
 			workbench.GET("/conversations/:id/messages", h.Workbench.ListMessages)
