@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -83,46 +84,69 @@ func (r *workbenchRepository) GetConversation(ctx context.Context, userID, conve
 }
 
 func (r *workbenchRepository) SoftDeleteConversation(ctx context.Context, userID, conversationID int64) error {
-	client := clientFromContext(ctx, r.client)
-	deletedAt := time.Now().UTC()
-	updated, err := client.WorkbenchConversation.Update().
-		Where(workbenchconversation.IDEQ(conversationID), workbenchconversation.UserIDEQ(userID)).
-		SetDeletedAt(deletedAt).
-		Save(ctx)
-	if err != nil {
+	return r.withTx(ctx, func(txCtx context.Context, txClient *dbent.Client) error {
+		deletedAt := time.Now().UTC()
+		updated, err := txClient.WorkbenchConversation.Update().
+			Where(
+				workbenchconversation.IDEQ(conversationID),
+				workbenchconversation.UserIDEQ(userID),
+				workbenchconversation.DeletedAtIsNil(),
+			).
+			SetDeletedAt(deletedAt).
+			Save(txCtx)
+		if err != nil {
+			return err
+		}
+		if updated == 0 {
+			return service.ErrWorkbenchConversationNotFound
+		}
+		_, err = txClient.WorkbenchMessage.Update().
+			Where(
+				workbenchmessage.ConversationIDEQ(conversationID),
+				workbenchmessage.UserIDEQ(userID),
+				workbenchmessage.DeletedAtIsNil(),
+			).
+			SetDeletedAt(deletedAt).
+			Save(txCtx)
 		return err
-	}
-	if updated == 0 {
-		return service.ErrWorkbenchConversationNotFound
-	}
-	_, err = client.WorkbenchMessage.Update().
-		Where(workbenchmessage.ConversationIDEQ(conversationID), workbenchmessage.UserIDEQ(userID)).
-		SetDeletedAt(deletedAt).
-		Save(ctx)
-	return err
+	})
 }
 
 func (r *workbenchRepository) CreateMessage(ctx context.Context, m *service.WorkbenchMessage) error {
-	client := clientFromContext(ctx, r.client)
-	builder := client.WorkbenchMessage.Create().
-		SetConversationID(m.ConversationID).
-		SetUserID(m.UserID).
-		SetMode(m.Mode).
-		SetRole(m.Role).
-		SetContent(m.Content).
-		SetEndpoint(m.Endpoint).
-		SetModel(m.Model).
-		SetRequestOptions(nonNilMap(m.RequestOptions)).
-		SetResponseMetadata(nonNilMap(m.ResponseMetadata)).
-		SetImageOutputs(nonNilImageOutputs(m.ImageOutputs)).
-		SetStatus(m.Status)
-	if m.APIKeyID != nil {
-		builder.SetAPIKeyID(*m.APIKeyID)
-	}
-	if m.ErrorMessage != nil {
-		builder.SetErrorMessage(*m.ErrorMessage)
-	}
-	created, err := builder.Save(ctx)
+	var created *dbent.WorkbenchMessage
+	err := r.withTx(ctx, func(txCtx context.Context, txClient *dbent.Client) error {
+		_, err := txClient.WorkbenchConversation.Query().
+			Where(
+				workbenchconversation.IDEQ(m.ConversationID),
+				workbenchconversation.UserIDEQ(m.UserID),
+				workbenchconversation.DeletedAtIsNil(),
+			).
+			Only(txCtx)
+		if err != nil {
+			return translatePersistenceError(err, service.ErrWorkbenchConversationNotFound, nil)
+		}
+
+		builder := txClient.WorkbenchMessage.Create().
+			SetConversationID(m.ConversationID).
+			SetUserID(m.UserID).
+			SetMode(m.Mode).
+			SetRole(m.Role).
+			SetContent(m.Content).
+			SetEndpoint(m.Endpoint).
+			SetModel(m.Model).
+			SetRequestOptions(nonNilMap(m.RequestOptions)).
+			SetResponseMetadata(nonNilMap(m.ResponseMetadata)).
+			SetImageOutputs(nonNilImageOutputs(m.ImageOutputs)).
+			SetStatus(m.Status)
+		if m.APIKeyID != nil {
+			builder.SetAPIKeyID(*m.APIKeyID)
+		}
+		if m.ErrorMessage != nil {
+			builder.SetErrorMessage(*m.ErrorMessage)
+		}
+		created, err = builder.Save(txCtx)
+		return err
+	})
 	if err != nil {
 		return err
 	}
@@ -170,7 +194,11 @@ func (r *workbenchRepository) ListRecentChatMessages(ctx context.Context, userID
 func (r *workbenchRepository) UpdateConversationAfterMessage(ctx context.Context, update service.WorkbenchConversationUpdate) error {
 	client := clientFromContext(ctx, r.client)
 	builder := client.WorkbenchConversation.Update().
-		Where(workbenchconversation.IDEQ(update.ConversationID), workbenchconversation.UserIDEQ(update.UserID)).
+		Where(
+			workbenchconversation.IDEQ(update.ConversationID),
+			workbenchconversation.UserIDEQ(update.UserID),
+			workbenchconversation.DeletedAtIsNil(),
+		).
 		SetMode(update.Mode).
 		SetEndpoint(update.Endpoint).
 		SetModel(update.Model).
@@ -195,6 +223,28 @@ func (r *workbenchRepository) UpdateConversationAfterMessage(ctx context.Context
 	}
 	if n == 0 {
 		return service.ErrWorkbenchConversationNotFound
+	}
+	return nil
+}
+
+func (r *workbenchRepository) withTx(ctx context.Context, fn func(txCtx context.Context, txClient *dbent.Client) error) error {
+	if tx := dbent.TxFromContext(ctx); tx != nil {
+		return fn(ctx, tx.Client())
+	}
+
+	tx, err := r.client.Tx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin workbench transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	txCtx := dbent.NewTxContext(ctx, tx)
+	if err := fn(txCtx, tx.Client()); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit workbench transaction: %w", err)
 	}
 	return nil
 }
