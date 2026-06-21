@@ -127,9 +127,19 @@ func (r *workbenchHandlerRepoStub) UpdateConversationAfterMessage(_ context.Cont
 	return nil
 }
 
-type workbenchHandlerAPIKeyStub struct{}
+type workbenchHandlerAPIKeyStub struct {
+	keys map[int64]*service.APIKey
+}
 
 func (s *workbenchHandlerAPIKeyStub) GetByID(_ context.Context, id int64) (*service.APIKey, error) {
+	if s.keys != nil {
+		key := s.keys[id]
+		if key == nil {
+			return nil, service.ErrWorkbenchAPIKeyNotFound
+		}
+		cp := *key
+		return &cp, nil
+	}
 	return &service.APIKey{
 		ID:     id,
 		UserID: 7,
@@ -316,6 +326,50 @@ func TestWorkbenchHandlerSendSuccessReturnsResult(t *testing.T) {
 	result := data["result"]
 	require.Nil(t, result)
 	require.Equal(t, "assistant reply", data["assistant_message"].(map[string]any)["content"])
+}
+
+func TestWorkbenchHandlerCreateConversationForeignAPIKeyReturns404(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewWorkbenchHandler(service.NewWorkbenchService(
+		newWorkbenchHandlerRepoStub(),
+		&workbenchHandlerAPIKeyStub{keys: map[int64]*service.APIKey{
+			1: {ID: 1, UserID: 99, Key: "sk-other", Status: service.StatusAPIKeyActive},
+		}},
+		&workbenchHandlerGatewayStub{},
+	))
+	r := newWorkbenchAuthedRouter(h)
+	r.POST("/api/v1/workbench/conversations", h.CreateConversation)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/workbench/conversations", bytes.NewBufferString(`{"mode":"chat","api_key_id":1}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusNotFound, rec.Code)
+	payload := decodeWorkbenchResponse(t, rec.Body)
+	require.Equal(t, service.ErrWorkbenchAPIKeyNotFound.Message, payload["message"])
+}
+
+func TestWorkbenchHandlerCreateConversationInactiveAPIKeyReturns403(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewWorkbenchHandler(service.NewWorkbenchService(
+		newWorkbenchHandlerRepoStub(),
+		&workbenchHandlerAPIKeyStub{keys: map[int64]*service.APIKey{
+			1: {ID: 1, UserID: 7, Key: "sk-test", Status: service.StatusAPIKeyDisabled},
+		}},
+		&workbenchHandlerGatewayStub{},
+	))
+	r := newWorkbenchAuthedRouter(h)
+	r.POST("/api/v1/workbench/conversations", h.CreateConversation)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/workbench/conversations", bytes.NewBufferString(`{"mode":"chat","api_key_id":1}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	payload := decodeWorkbenchResponse(t, rec.Body)
+	require.Equal(t, service.ErrWorkbenchAPIKeyUnavailable.Message, payload["message"])
 }
 
 func TestWorkbenchHandlerSendPartialResultReturnsSuccessEnvelope(t *testing.T) {

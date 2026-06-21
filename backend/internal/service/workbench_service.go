@@ -39,6 +39,16 @@ func (s *WorkbenchService) CreateConversation(ctx context.Context, userID int64,
 		return nil, err
 	}
 
+	model := strings.TrimSpace(req.Model)
+	var apiKeyID *int64
+	if req.APIKeyID != nil {
+		apiKey, err := s.validateWorkbenchAPIKey(ctx, userID, *req.APIKeyID)
+		if err != nil {
+			return nil, err
+		}
+		apiKeyID = &apiKey.ID
+	}
+
 	title := truncateWorkbenchText(strings.TrimSpace(req.Title), workbenchConversationTitleMax)
 	if title == "" {
 		if mode == WorkbenchModeImage {
@@ -52,9 +62,9 @@ func (s *WorkbenchService) CreateConversation(ctx context.Context, userID int64,
 		UserID:   userID,
 		Title:    title,
 		Mode:     mode,
-		APIKeyID: req.APIKeyID,
+		APIKeyID: apiKeyID,
 		Endpoint: endpoint,
-		Model:    strings.TrimSpace(req.Model),
+		Model:    model,
 	}
 	if err := s.repo.CreateConversation(ctx, conv); err != nil {
 		return nil, err
@@ -85,22 +95,23 @@ func (s *WorkbenchService) Send(ctx context.Context, userID, conversationID int6
 		return nil, ErrWorkbenchEmptyInput
 	}
 
+	model := strings.TrimSpace(req.Model)
+	if model == "" {
+		return nil, ErrWorkbenchEmptyModel
+	}
+
 	conv, err := s.repo.GetConversation(ctx, userID, conversationID)
 	if err != nil {
 		return nil, err
 	}
 
-	apiKey, err := s.apiKeys.GetByID(ctx, req.APIKeyID)
-	if err != nil || apiKey == nil || apiKey.UserID != userID {
-		return nil, ErrWorkbenchAPIKeyNotFound
-	}
-	if apiKey.Status != StatusAPIKeyActive {
-		return nil, ErrWorkbenchAPIKeyUnavailable
+	apiKey, err := s.validateWorkbenchAPIKey(ctx, userID, req.APIKeyID)
+	if err != nil {
+		return nil, err
 	}
 
 	apiKeyID := apiKey.ID
 	options := nonNilWorkbenchMap(req.Options)
-	model := strings.TrimSpace(req.Model)
 	var chatHistory []WorkbenchMessage
 	if mode == WorkbenchModeChat {
 		chatHistory, err = s.repo.ListRecentChatMessages(ctx, userID, conversationID, workbenchHistoryLimit)
@@ -197,6 +208,17 @@ func (s *WorkbenchService) Send(ctx context.Context, userID, conversationID int6
 		return result, sendErr
 	}
 	return result, nil
+}
+
+func (s *WorkbenchService) validateWorkbenchAPIKey(ctx context.Context, userID, apiKeyID int64) (*APIKey, error) {
+	apiKey, err := s.apiKeys.GetByID(ctx, apiKeyID)
+	if err != nil || apiKey == nil || apiKey.UserID != userID {
+		return nil, ErrWorkbenchAPIKeyNotFound
+	}
+	if apiKey.Status != StatusAPIKeyActive {
+		return nil, ErrWorkbenchAPIKeyUnavailable
+	}
+	return apiKey, nil
 }
 
 func normalizeWorkbenchMode(mode string) string {

@@ -33,6 +33,7 @@ var (
 	ErrWorkbenchInvalidMode          = infraerrors.New(http.StatusBadRequest, "WORKBENCH_INVALID_MODE", "invalid workbench mode")
 	ErrWorkbenchInvalidEndpoint      = infraerrors.New(http.StatusBadRequest, "WORKBENCH_INVALID_ENDPOINT", "invalid workbench endpoint")
 	ErrWorkbenchEmptyInput           = infraerrors.New(http.StatusBadRequest, "WORKBENCH_EMPTY_INPUT", "input is required")
+	ErrWorkbenchEmptyModel           = infraerrors.New(http.StatusBadRequest, "WORKBENCH_EMPTY_MODEL", "model is required")
 )
 
 type WorkbenchConversation struct {

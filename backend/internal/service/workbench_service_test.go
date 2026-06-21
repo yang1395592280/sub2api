@@ -132,6 +132,61 @@ func TestWorkbenchServiceCreateConversationRejectsInvalidMode(t *testing.T) {
 	require.ErrorIs(t, err, ErrWorkbenchInvalidMode)
 }
 
+func TestWorkbenchServiceCreateConversationRejectsForeignAPIKey(t *testing.T) {
+	ctx := context.Background()
+	repo := newWorkbenchMemoryRepo()
+	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
+		7: {ID: 7, UserID: 99, Key: "sk-other", Status: StatusAPIKeyActive, Name: "other"},
+	}}
+	svc := NewWorkbenchService(repo, apiKeys, &workbenchGatewayStub{})
+
+	_, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{
+		Mode:     WorkbenchModeChat,
+		APIKeyID: workbenchInt64Ptr(7),
+	})
+
+	require.ErrorIs(t, err, ErrWorkbenchAPIKeyNotFound)
+	require.Empty(t, repo.conversations)
+}
+
+func TestWorkbenchServiceCreateConversationRejectsInactiveAPIKey(t *testing.T) {
+	ctx := context.Background()
+	repo := newWorkbenchMemoryRepo()
+	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
+		7: {ID: 7, UserID: 42, Key: "sk-test", Status: StatusAPIKeyDisabled, Name: "main"},
+	}}
+	svc := NewWorkbenchService(repo, apiKeys, &workbenchGatewayStub{})
+
+	_, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{
+		Mode:     WorkbenchModeChat,
+		APIKeyID: workbenchInt64Ptr(7),
+	})
+
+	require.ErrorIs(t, err, ErrWorkbenchAPIKeyUnavailable)
+	require.Empty(t, repo.conversations)
+}
+
+func TestWorkbenchServiceCreateConversationStoresOwnerActiveAPIKey(t *testing.T) {
+	ctx := context.Background()
+	repo := newWorkbenchMemoryRepo()
+	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
+		7: {ID: 7, UserID: 42, Key: "sk-test", Status: StatusAPIKeyActive, Name: "main"},
+	}}
+	svc := NewWorkbenchService(repo, apiKeys, &workbenchGatewayStub{})
+
+	conv, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{
+		Mode:     WorkbenchModeChat,
+		APIKeyID: workbenchInt64Ptr(7),
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, conv.APIKeyID)
+	require.Equal(t, int64(7), *conv.APIKeyID)
+	require.NotEmpty(t, repo.conversations)
+	require.NotNil(t, repo.conversations[conv.ID].APIKeyID)
+	require.Equal(t, int64(7), *repo.conversations[conv.ID].APIKeyID)
+}
+
 func TestWorkbenchServiceSendRejectsInvalidMode(t *testing.T) {
 	ctx := context.Background()
 	repo := newWorkbenchMemoryRepo()
@@ -187,6 +242,29 @@ func TestWorkbenchServiceSendRejectsEmptyInput(t *testing.T) {
 	})
 
 	require.ErrorIs(t, err, ErrWorkbenchEmptyInput)
+}
+
+func TestWorkbenchServiceSendRejectsEmptyModel(t *testing.T) {
+	ctx := context.Background()
+	repo := newWorkbenchMemoryRepo()
+	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
+		7: {ID: 7, UserID: 42, Key: "sk-test", Status: StatusAPIKeyActive, Name: "main"},
+	}}
+	svc := NewWorkbenchService(repo, apiKeys, &workbenchGatewayStub{})
+
+	conv, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{})
+	require.NoError(t, err)
+
+	_, err = svc.Send(ctx, 42, conv.ID, WorkbenchSendRequest{
+		Mode:     WorkbenchModeChat,
+		APIKeyID: 7,
+		Endpoint: WorkbenchEndpointChatCompletions,
+		Model:    " \n\t ",
+		Input:    "hi",
+	})
+
+	require.ErrorIs(t, err, ErrWorkbenchEmptyModel)
+	require.Empty(t, repo.messages[conv.ID])
 }
 
 func TestWorkbenchServiceSendRejectsInactiveAPIKey(t *testing.T) {
@@ -478,4 +556,8 @@ func (r *workbenchMemoryRepo) UpdateConversationAfterMessage(_ context.Context, 
 	c.UpdatedAt = time.Now().UTC()
 	r.conversations[c.ID] = c
 	return nil
+}
+
+func workbenchInt64Ptr(v int64) *int64 {
+	return &v
 }
