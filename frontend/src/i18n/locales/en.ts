@@ -471,7 +471,19 @@ export default {
     deleteConversation: 'Delete Conversation',
     deleteConversationSuccess: 'Conversation deleted',
     deleteConversationFailed: 'Failed to delete conversation',
-    retentionNotice: 'Workbench records are kept for 7 days only. Save anything important in time.'
+    retentionNotice: 'Workbench records are kept for 7 days only. Save anything important in time.',
+    imageApiDocs: 'Image API Docs'
+  },
+
+  imageApiDocs: {
+    title: 'Image API Docs',
+    subtitle: 'OpenAI-compatible image generation API for customers',
+    baseUrl: 'Base URL',
+    auth: 'Authentication',
+    textToImage: 'Text to Image',
+    imageEdit: 'Image Edit',
+    params: 'Parameters',
+    errors: 'Error Format'
   },
 
   // Auth

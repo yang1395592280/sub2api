@@ -471,7 +471,19 @@ export default {
     deleteConversation: '删除会话',
     deleteConversationSuccess: '会话已删除',
     deleteConversationFailed: '删除会话失败',
-    retentionNotice: '网页工作台记录仅保留 7 天，请及时保存重要内容。'
+    retentionNotice: '网页工作台记录仅保留 7 天，请及时保存重要内容。',
+    imageApiDocs: '图片接口文档'
+  },
+
+  imageApiDocs: {
+    title: '图片接口文档',
+    subtitle: '面向客户的 OpenAI 兼容图片生成接口说明',
+    baseUrl: 'Base URL',
+    auth: '鉴权',
+    textToImage: '文生图',
+    imageEdit: '图生图',
+    params: '参数',
+    errors: '错误格式'
   },
 
   // Auth

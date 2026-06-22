@@ -92,6 +92,17 @@ describe('WorkbenchView', () => {
     expect(wrapper.text()).not.toContain('sk-test-1234567890abcdef')
   })
 
+  it('links to the image API docs from the workbench settings panel', async () => {
+    const wrapper = mount(WorkbenchView, { global: { stubs: { AppLayout: AppLayoutStub } } })
+    await flushPromises()
+
+    const link = wrapper.get('[data-testid="workbench-image-api-docs-link"]')
+    expect(link.text()).toContain('workbench.imageApiDocs')
+    expect(link.attributes('href')).toBe('/image-api-docs')
+    expect(link.attributes('target')).toBe('_blank')
+    expect(link.attributes('rel')).toBe('noopener noreferrer')
+  })
+
   it('deletes the selected conversation and switches to the next conversation', async () => {
     listConversations.mockResolvedValue({
       items: [

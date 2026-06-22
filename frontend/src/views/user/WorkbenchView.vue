@@ -344,6 +344,17 @@
             <div class="rounded-2xl border border-dashed border-gray-300 p-4 text-xs leading-6 text-gray-500 dark:border-dark-600 dark:text-gray-400">
               {{ t('workbench.routeOnlyHint') }}
             </div>
+
+            <a
+              href="/image-api-docs"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="workbench-image-api-docs-link"
+              class="flex items-center justify-between gap-3 rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm font-medium text-primary-700 transition hover:border-primary-300 hover:bg-primary-100 dark:border-primary-500/30 dark:bg-primary-500/10 dark:text-primary-200 dark:hover:border-primary-400/50 dark:hover:bg-primary-500/20"
+            >
+              <span>{{ t('workbench.imageApiDocs') }}</span>
+              <span aria-hidden="true">→</span>
+            </a>
           </div>
         </aside>
       </div>
