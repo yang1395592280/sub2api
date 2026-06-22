@@ -10,8 +10,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/gin-gonic/gin"
@@ -403,6 +406,10 @@ func TestResolveOpenAIImageBytes_PrefersInlineBase64(t *testing.T) {
 	}, openAIUpstreamErrorBodyReadLimit)
 	require.NoError(t, err)
 	require.Equal(t, []byte("ABC"), data)
+}
+
+func TestNormalizeOpenAIImageBase64_AcceptsPaddedBase64(t *testing.T) {
+	require.Equal(t, "ZmFrZS1pbWFnZQ==", normalizeOpenAIImageBase64("ZmFrZS1pbWFnZQ=="))
 }
 
 func TestNewOpenAIImageStatusError_UsesProvidedReadLimit(t *testing.T) {
@@ -969,6 +976,183 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseU
 	require.Equal(t, "gpt-image-2", gjson.GetBytes(upstream.lastBody, "model").String())
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "aGVsbG8=", gjson.Get(rec.Body.String(), "data.0.b64_json").String())
+}
+
+func TestOpenAIGatewayServiceForwardImages_MikotoURLResponseIsStoredAsPublicFile(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","response_format":"url"}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Host = "www.loomex.site"
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	imageServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/adobe2api/generated/mikoto.png", r.URL.Path)
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("fake-png"))
+	}))
+	defer imageServer.Close()
+
+	upstreamURL := imageServer.URL + "/adobe2api/generated/mikoto.png"
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{Pricing: config.PricingConfig{DataDir: t.TempDir()}},
+		httpUpstream: &httpUpstreamRecorder{
+			resp: &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"created":1710000007,"model":"gpt-image-2","data":[{"url":"` + upstreamURL + `","revised_prompt":"draw a cat"}]}`)),
+			},
+		},
+	}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+
+	account := &Account{
+		ID:       61,
+		Name:     "mikoto",
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "test-api-key",
+			"base_url": "https://api.mikoto.vip/v1",
+		},
+	}
+
+	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	upstream := svc.httpUpstream.(*httpUpstreamRecorder)
+	require.Equal(t, "b64_json", gjson.GetBytes(upstream.lastBody, "response_format").String())
+	require.NotContains(t, rec.Body.String(), "mikoto.vip")
+	require.NotContains(t, rec.Body.String(), "adobe2api")
+	publicURL := gjson.Get(rec.Body.String(), "data.0.url").String()
+	require.Equal(t, "https://www.loomex.site/v1/images/files/", publicURL[:len("https://www.loomex.site/v1/images/files/")])
+
+	stored, contentType, err := svc.GetStoredImageFile(strings.TrimPrefix(publicURL, "https://www.loomex.site/v1/images/files/"))
+	require.NoError(t, err)
+	require.Equal(t, "image/png", contentType)
+	require.Equal(t, []byte("fake-png"), stored)
+}
+
+func TestOpenAIGatewayServiceCleanupStoredImageFilesOlderThan_RemovesImageAndMetadata(t *testing.T) {
+	dir := t.TempDir()
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{Pricing: config.PricingConfig{DataDir: dir}},
+	}
+	oldID, err := svc.StoreImageFile([]byte("old-image"), "image/png")
+	require.NoError(t, err)
+	newID, err := svc.StoreImageFile([]byte("new-image"), "image/png")
+	require.NoError(t, err)
+
+	oldTime := time.Now().Add(-2 * time.Hour)
+	oldPath := filepath.Join(dir, "images", oldID)
+	oldMetaPath := oldPath + ".content-type"
+	require.NoError(t, os.Chtimes(oldPath, oldTime, oldTime))
+	require.NoError(t, os.Chtimes(oldMetaPath, oldTime, oldTime))
+
+	deleted, err := svc.CleanupStoredImageFilesOlderThan(time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	require.Equal(t, 1, deleted)
+
+	_, _, err = svc.GetStoredImageFile(oldID)
+	require.Error(t, err)
+	_, err = os.Stat(oldMetaPath)
+	require.True(t, os.IsNotExist(err))
+	stored, contentType, err := svc.GetStoredImageFile(newID)
+	require.NoError(t, err)
+	require.Equal(t, "image/png", contentType)
+	require.Equal(t, []byte("new-image"), stored)
+}
+
+func TestOpenAIGatewayServiceForwardImages_MikotoB64ResponseDoesNotLeakURL(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","response_format":"b64_json"}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{Pricing: config.PricingConfig{DataDir: t.TempDir()}},
+		httpUpstream: &httpUpstreamRecorder{
+			resp: &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"created":1710000008,"model":"gpt-image-2","data":[{"b64_json":"ZmFrZS1pbWFnZQ==","url":"https://image.mikoto.vip/adobe2api/generated/leak.png"}]}`)),
+			},
+		},
+	}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+
+	account := &Account{
+		ID:       62,
+		Name:     "mikoto",
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "test-api-key",
+			"base_url": "https://api.mikoto.vip/v1",
+		},
+	}
+
+	_, err = svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+	require.NoError(t, err)
+	require.Equal(t, "ZmFrZS1pbWFnZQ==", gjson.Get(rec.Body.String(), "data.0.b64_json").String())
+	require.False(t, gjson.Get(rec.Body.String(), "data.0.url").Exists())
+	require.NotContains(t, rec.Body.String(), "mikoto.vip")
+	require.NotContains(t, rec.Body.String(), "adobe2api")
+}
+
+func TestOpenAIGatewayServiceForwardImages_MikotoErrorIsSanitized(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat"}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{},
+		httpUpstream: &httpUpstreamRecorder{
+			resp: &http.Response{
+				StatusCode: http.StatusBadGateway,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"adobe2api task abc failed at https://image.mikoto.vip/generated/1.png","type":"provider_error","code":"mikoto_task_failed"}}`)),
+			},
+		},
+	}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+
+	account := &Account{
+		ID:       63,
+		Name:     "mikoto",
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "test-api-key",
+			"base_url": "https://api.mikoto.vip/v1",
+		},
+	}
+
+	_, err = svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+	require.Error(t, err)
+	require.Equal(t, http.StatusBadGateway, rec.Code)
+	require.Equal(t, "image_generation_failed", gjson.Get(rec.Body.String(), "error.code").String())
+	require.Equal(t, "Image generation failed", gjson.Get(rec.Body.String(), "error.message").String())
+	require.NotContains(t, rec.Body.String(), "mikoto")
+	require.NotContains(t, rec.Body.String(), "adobe2api")
+	require.NotContains(t, rec.Body.String(), "abc")
 }
 
 func TestOpenAIGatewayServiceForwardImages_APIKeyStreamJSONResponseBillsImage(t *testing.T) {

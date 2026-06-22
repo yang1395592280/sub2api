@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -46,4 +47,29 @@ func TestOpenAIGatewayHandlerImages_DisabledGroupRejectsBeforeScheduling(t *test
 	require.Equal(t, http.StatusForbidden, rec.Code)
 	require.Equal(t, "permission_error", gjson.GetBytes(rec.Body.Bytes(), "error.type").String())
 	require.Contains(t, rec.Body.String(), service.ImageGenerationPermissionMessage())
+}
+
+func TestOpenAIGatewayHandlerImageFile_ReturnsStoredImage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	gatewayService := service.NewOpenAIGatewayService(
+		nil, nil, nil, nil, nil, nil, nil, nil,
+		&config.Config{Pricing: config.PricingConfig{DataDir: t.TempDir()}},
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+	)
+	id, err := gatewayService.StoreImageFile([]byte("fake-png"), "image/png")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/images/files/"+id, nil)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+	c.Params = gin.Params{{Key: "id", Value: id}}
+
+	h := &OpenAIGatewayHandler{gatewayService: gatewayService}
+	h.ImageFile(c)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "image/png", rec.Header().Get("Content-Type"))
+	require.Equal(t, "fake-png", rec.Body.String())
 }

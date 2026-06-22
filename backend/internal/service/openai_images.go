@@ -14,6 +14,9 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -40,6 +43,7 @@ const (
 	openAIImageMaxDownloadBytes    = 20 << 20 // 20MB per image download
 	openAIImageMaxUploadPartSize   = 20 << 20 // 20MB per multipart upload part
 	openAIImagesResponsesMainModel = "gpt-5.4-mini"
+	openAIImageFileRoutePrefix     = "/v1/images/files/"
 )
 
 type OpenAIImagesCapability string
@@ -588,6 +592,13 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	if err != nil {
 		return nil, err
 	}
+	mikoto := isMikotoImagesAccount(account)
+	if mikoto {
+		forwardBody, forwardContentType, err = forceOpenAIImagesResponseFormat(forwardBody, forwardContentType, "b64_json")
+		if err != nil {
+			return nil, err
+		}
+	}
 	upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, parsed.Stream)
 	defer releaseUpstreamCtx()
 
@@ -625,6 +636,11 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 		respBody := s.readUpstreamErrorBody(resp)
 		_ = resp.Body.Close()
 		resp.Body = io.NopCloser(bytes.NewReader(respBody))
+		if mikoto {
+			upErr := mikotoImageGenerationError(resp.StatusCode)
+			writeOpenAIImagesUpstreamErrorResponse(c, upErr)
+			return nil, upErr
+		}
 		upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
 		upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
 		if s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody) {
@@ -692,7 +708,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 			ImageOutputSizes: imageOutputSizes,
 		}, nil
 	} else {
-		nonStreamUsage, nonStreamCount, nonStreamSizes, err := s.handleOpenAIImagesNonStreamingResponse(resp, c)
+		nonStreamUsage, nonStreamCount, nonStreamSizes, err := s.handleOpenAIImagesNonStreamingResponse(resp, c, parsed, mikoto)
 		if err != nil {
 			return nil, err
 		}
@@ -784,6 +800,78 @@ func rewriteOpenAIImagesModel(body []byte, contentType string, model string) ([]
 	return rewritten, contentType, nil
 }
 
+func forceOpenAIImagesResponseFormat(body []byte, contentType string, responseFormat string) ([]byte, string, error) {
+	responseFormat = strings.TrimSpace(responseFormat)
+	if responseFormat == "" {
+		return body, contentType, nil
+	}
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err == nil && strings.EqualFold(mediaType, "multipart/form-data") {
+		return rewriteOpenAIImagesMultipartField(body, contentType, "response_format", responseFormat)
+	}
+	rewritten, err := sjson.SetBytes(body, "response_format", responseFormat)
+	if err != nil {
+		return nil, "", fmt.Errorf("rewrite image response_format: %w", err)
+	}
+	return rewritten, contentType, nil
+}
+
+func rewriteOpenAIImagesMultipartField(body []byte, contentType string, fieldName string, value string) ([]byte, string, error) {
+	_, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return nil, "", fmt.Errorf("parse multipart content-type: %w", err)
+	}
+	boundary := strings.TrimSpace(params["boundary"])
+	if boundary == "" {
+		return nil, "", fmt.Errorf("multipart boundary is required")
+	}
+
+	reader := multipart.NewReader(bytes.NewReader(body), boundary)
+	var buffer bytes.Buffer
+	writer := multipart.NewWriter(&buffer)
+	fieldWritten := false
+
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, "", fmt.Errorf("read multipart body: %w", err)
+		}
+		formName := strings.TrimSpace(part.FormName())
+		partHeader := cloneMultipartHeader(part.Header)
+		target, err := writer.CreatePart(partHeader)
+		if err != nil {
+			_ = part.Close()
+			return nil, "", fmt.Errorf("create multipart part: %w", err)
+		}
+		if formName == fieldName && part.FileName() == "" {
+			if _, err := target.Write([]byte(value)); err != nil {
+				_ = part.Close()
+				return nil, "", fmt.Errorf("rewrite multipart field %s: %w", fieldName, err)
+			}
+			fieldWritten = true
+			_ = part.Close()
+			continue
+		}
+		if _, err := io.Copy(target, part); err != nil {
+			_ = part.Close()
+			return nil, "", fmt.Errorf("copy multipart part: %w", err)
+		}
+		_ = part.Close()
+	}
+	if !fieldWritten {
+		if err := writer.WriteField(fieldName, value); err != nil {
+			return nil, "", fmt.Errorf("append multipart field %s: %w", fieldName, err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		return nil, "", fmt.Errorf("finalize multipart body: %w", err)
+	}
+	return buffer.Bytes(), writer.FormDataContentType(), nil
+}
+
 func rewriteOpenAIImagesMultipartModel(body []byte, contentType string, model string) ([]byte, string, error) {
 	_, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
@@ -853,10 +941,23 @@ func cloneMultipartHeader(src textproto.MIMEHeader) textproto.MIMEHeader {
 	return dst
 }
 
-func (s *OpenAIGatewayService) handleOpenAIImagesNonStreamingResponse(resp *http.Response, c *gin.Context) (OpenAIUsage, int, []string, error) {
+func (s *OpenAIGatewayService) handleOpenAIImagesNonStreamingResponse(resp *http.Response, c *gin.Context, parsed *OpenAIImagesRequest, sanitizeMikoto bool) (OpenAIUsage, int, []string, error) {
 	body, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
 	if err != nil {
 		return OpenAIUsage{}, 0, nil, err
+	}
+	if sanitizeMikoto {
+		body, err = s.rewriteMikotoImagesResponse(c, body, parsed)
+		if err != nil {
+			upErr := &OpenAIImagesUpstreamError{
+				StatusCode: http.StatusBadGateway,
+				ErrorType:  "upstream_error",
+				Code:       "image_generation_failed",
+				Message:    "Image generation failed",
+			}
+			writeOpenAIImagesUpstreamErrorResponse(c, upErr)
+			return OpenAIUsage{}, 0, nil, upErr
+		}
 	}
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	contentType := "application/json"
@@ -869,6 +970,241 @@ func (s *OpenAIGatewayService) handleOpenAIImagesNonStreamingResponse(resp *http
 
 	usage, _ := extractOpenAIUsageFromJSONBytes(body)
 	return usage, extractOpenAIImageCountFromJSONBytes(body), collectOpenAIResponseImageOutputSizesFromJSONBytes(body), nil
+}
+
+func isMikotoImagesAccount(account *Account) bool {
+	if account == nil {
+		return false
+	}
+	baseURL := strings.ToLower(strings.TrimSpace(account.GetOpenAIBaseURL()))
+	if baseURL == "" {
+		return false
+	}
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return strings.Contains(baseURL, "api.mikoto.vip")
+	}
+	return strings.EqualFold(u.Hostname(), "api.mikoto.vip")
+}
+
+func mikotoImageGenerationError(statusCode int) *OpenAIImagesUpstreamError {
+	if statusCode < 400 {
+		statusCode = http.StatusBadGateway
+	}
+	return &OpenAIImagesUpstreamError{
+		StatusCode: statusCode,
+		ErrorType:  "image_generation_failed",
+		Code:       "image_generation_failed",
+		Message:    "Image generation failed",
+	}
+}
+
+func (s *OpenAIGatewayService) rewriteMikotoImagesResponse(c *gin.Context, body []byte, parsed *OpenAIImagesRequest) ([]byte, error) {
+	if !gjson.ValidBytes(body) {
+		return nil, fmt.Errorf("invalid image response")
+	}
+	responseFormat := "url"
+	if parsed != nil && strings.EqualFold(strings.TrimSpace(parsed.ResponseFormat), "b64_json") {
+		responseFormat = "b64_json"
+	}
+	out := body
+	for i, item := range gjson.GetBytes(body, "data").Array() {
+		b64 := normalizeOpenAIImageBase64(item.Get("b64_json").String())
+		mimeType := openAIImageOutputMIMEType(item.Get("output_format").String())
+		if mimeType == "image/png" {
+			if rawMime := strings.TrimSpace(item.Get("mime_type").String()); strings.HasPrefix(strings.ToLower(rawMime), "image/") {
+				mimeType = rawMime
+			}
+		}
+		if b64 == "" {
+			urlValue := strings.TrimSpace(item.Get("url").String())
+			if urlValue == "" {
+				urlValue = strings.TrimSpace(item.Get("download_url").String())
+			}
+			if urlValue == "" {
+				continue
+			}
+			downloaded, detected, err := s.downloadOpenAIImageURL(c.Request.Context(), urlValue)
+			if err != nil {
+				return nil, err
+			}
+			b64 = base64.StdEncoding.EncodeToString(downloaded)
+			if detected != "" {
+				mimeType = detected
+			}
+		}
+		path := fmt.Sprintf("data.%d", i)
+		out, _ = sjson.DeleteBytes(out, path+".url")
+		out, _ = sjson.DeleteBytes(out, path+".download_url")
+		if responseFormat == "b64_json" {
+			out, _ = sjson.SetBytes(out, path+".b64_json", b64)
+			continue
+		}
+		raw, err := base64.StdEncoding.DecodeString(b64)
+		if err != nil {
+			return nil, err
+		}
+		id, err := s.StoreImageFile(raw, mimeType)
+		if err != nil {
+			return nil, err
+		}
+		out, _ = sjson.DeleteBytes(out, path+".b64_json")
+		out, _ = sjson.SetBytes(out, path+".url", buildPublicImageFileURL(c, id))
+	}
+	return out, nil
+}
+
+func (s *OpenAIGatewayService) downloadOpenAIImageURL(ctx context.Context, rawURL string) ([]byte, string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, "", fmt.Errorf("download image failed: %d", resp.StatusCode)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, openAIImageMaxDownloadBytes+1))
+	if err != nil {
+		return nil, "", err
+	}
+	if len(data) > openAIImageMaxDownloadBytes {
+		return nil, "", fmt.Errorf("downloaded image too large")
+	}
+	mimeType := strings.TrimSpace(resp.Header.Get("Content-Type"))
+	if idx := strings.Index(mimeType, ";"); idx >= 0 {
+		mimeType = strings.TrimSpace(mimeType[:idx])
+	}
+	if !strings.HasPrefix(strings.ToLower(mimeType), "image/") {
+		mimeType = http.DetectContentType(data)
+	}
+	if !strings.HasPrefix(strings.ToLower(mimeType), "image/") {
+		return nil, "", fmt.Errorf("downloaded content is not an image")
+	}
+	return data, mimeType, nil
+}
+
+func buildPublicImageFileURL(c *gin.Context, id string) string {
+	host := ""
+	scheme := "https"
+	if c != nil && c.Request != nil {
+		host = strings.TrimSpace(c.Request.Host)
+		if xfHost := strings.TrimSpace(c.Request.Header.Get("X-Forwarded-Host")); xfHost != "" {
+			host = strings.Split(xfHost, ",")[0]
+		}
+		if xfProto := strings.TrimSpace(c.Request.Header.Get("X-Forwarded-Proto")); xfProto != "" {
+			scheme = strings.Split(xfProto, ",")[0]
+		} else if c.Request.TLS != nil {
+			scheme = "https"
+		} else if c.Request.URL != nil && strings.TrimSpace(c.Request.URL.Scheme) != "" {
+			scheme = c.Request.URL.Scheme
+		}
+	}
+	if host == "" {
+		host = "localhost"
+	}
+	return strings.TrimRight(scheme, ":/") + "://" + strings.TrimSpace(host) + openAIImageFileRoutePrefix + id
+}
+
+func (s *OpenAIGatewayService) StoreImageFile(data []byte, contentType string) (string, error) {
+	if len(data) == 0 {
+		return "", fmt.Errorf("image data is empty")
+	}
+	contentType = strings.TrimSpace(contentType)
+	if contentType == "" || !strings.HasPrefix(strings.ToLower(contentType), "image/") {
+		contentType = http.DetectContentType(data)
+	}
+	ext := ".bin"
+	switch strings.ToLower(contentType) {
+	case "image/png":
+		ext = ".png"
+	case "image/jpeg", "image/jpg":
+		ext = ".jpg"
+	case "image/webp":
+		ext = ".webp"
+	}
+	sum := sha256.Sum256(append(data, []byte(time.Now().UTC().Format(time.RFC3339Nano))...))
+	id := hex.EncodeToString(sum[:16]) + ext
+	dir := s.imageFileDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(filepath.Join(dir, id), data, 0o644); err != nil {
+		return "", err
+	}
+	meta := []byte(contentType)
+	_ = os.WriteFile(filepath.Join(dir, id+".content-type"), meta, 0o644)
+	return id, nil
+}
+
+func (s *OpenAIGatewayService) GetStoredImageFile(id string) ([]byte, string, error) {
+	id = filepath.Base(strings.TrimSpace(id))
+	if id == "." || id == "" || strings.Contains(id, "..") {
+		return nil, "", fmt.Errorf("invalid image id")
+	}
+	path := filepath.Join(s.imageFileDir(), id)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, "", err
+	}
+	contentType := strings.TrimSpace(string(mustReadFile(filepath.Join(s.imageFileDir(), id+".content-type"))))
+	if contentType == "" {
+		contentType = http.DetectContentType(data)
+	}
+	return data, contentType, nil
+}
+
+func (s *OpenAIGatewayService) CleanupStoredImageFilesOlderThan(cutoff time.Time) (int, error) {
+	if cutoff.IsZero() {
+		return 0, fmt.Errorf("cutoff is required")
+	}
+	dir := s.imageFileDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	deleted := 0
+	for _, entry := range entries {
+		if entry.IsDir() || strings.HasSuffix(entry.Name(), ".content-type") {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		info, err := entry.Info()
+		if err != nil {
+			return deleted, err
+		}
+		if !info.ModTime().Before(cutoff) {
+			continue
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return deleted, err
+		}
+		metaPath := filepath.Join(dir, entry.Name()+".content-type")
+		if err := os.Remove(metaPath); err != nil && !os.IsNotExist(err) {
+			return deleted, err
+		}
+		deleted++
+	}
+	return deleted, nil
+}
+
+func (s *OpenAIGatewayService) imageFileDir() string {
+	base := "./data"
+	if s != nil && s.cfg != nil && strings.TrimSpace(s.cfg.Pricing.DataDir) != "" {
+		base = strings.TrimSpace(s.cfg.Pricing.DataDir)
+	}
+	return filepath.Join(base, "images")
+}
+
+func mustReadFile(path string) []byte {
+	b, _ := os.ReadFile(path)
+	return b
 }
 
 func (s *OpenAIGatewayService) handleOpenAIImagesStreamingResponse(
@@ -1305,7 +1641,8 @@ func normalizeOpenAIImageBase64(raw string) string {
 		}
 	}
 	raw = strings.TrimSpace(raw)
-	raw = strings.TrimRight(raw, "=") + strings.Repeat("=", (4-len(raw)%4)%4)
+	raw = strings.TrimRight(raw, "=")
+	raw = raw + strings.Repeat("=", (4-len(raw)%4)%4)
 	if raw == "" {
 		return ""
 	}

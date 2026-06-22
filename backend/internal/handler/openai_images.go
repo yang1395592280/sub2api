@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -364,6 +365,22 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		)
 		return
 	}
+}
+
+// ImageFile serves generated image files stored by the gateway.
+// GET /v1/images/files/:id
+func (h *OpenAIGatewayHandler) ImageFile(c *gin.Context) {
+	id := filepath.Base(strings.TrimSpace(c.Param("id")))
+	if id == "" || id == "." || strings.Contains(id, "..") {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Invalid image file ID")
+		return
+	}
+	data, contentType, err := h.gatewayService.GetStoredImageFile(id)
+	if err != nil {
+		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Image file not found")
+		return
+	}
+	c.Data(http.StatusOK, contentType, data)
 }
 
 func isMultipartImagesContentType(contentType string) bool {
