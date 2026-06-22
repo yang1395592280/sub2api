@@ -9,6 +9,7 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/enttest"
+	"github.com/Wei-Shaw/sub2api/ent/workbenchmessage"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
@@ -81,6 +82,46 @@ func TestWorkbenchRepository(t *testing.T) {
 			Status:         service.WorkbenchMessageStatusSuccess,
 		})
 		require.ErrorIs(t, err, service.ErrWorkbenchConversationNotFound)
+	})
+
+	t.Run("SoftDeleteConversation hides conversations and messages from user queries", func(t *testing.T) {
+		ctx := context.Background()
+		repo, client := newWorkbenchEntRepo(t)
+
+		user := createWorkbenchUser(t, ctx, client, "hide-deleted@example.com")
+		conv := createWorkbenchConversation(t, ctx, repo, user.ID, "deleted-chat", service.WorkbenchModeChat)
+		require.NoError(t, repo.CreateMessage(ctx, &service.WorkbenchMessage{
+			UserID:         user.ID,
+			ConversationID: conv.ID,
+			Mode:           service.WorkbenchModeChat,
+			Role:           service.WorkbenchRoleUser,
+			Content:        "需要隐藏",
+			Endpoint:       service.WorkbenchEndpointChatCompletions,
+			Model:          "gpt-5.5",
+			Status:         service.WorkbenchMessageStatusSuccess,
+		}))
+
+		require.NoError(t, repo.SoftDeleteConversation(ctx, user.ID, conv.ID))
+
+		_, err := repo.GetConversation(ctx, user.ID, conv.ID)
+		require.ErrorIs(t, err, service.ErrWorkbenchConversationNotFound)
+
+		conversations, page, err := repo.ListConversations(ctx, user.ID, pagination.PaginationParams{
+			Page:     1,
+			PageSize: 20,
+		}, service.WorkbenchConversationFilters{})
+		require.NoError(t, err)
+		require.Empty(t, conversations)
+		require.NotNil(t, page)
+		require.Equal(t, int64(0), page.Total)
+
+		messages, err := repo.ListMessages(ctx, user.ID, conv.ID)
+		require.NoError(t, err)
+		require.Empty(t, messages)
+
+		recentMessages, err := repo.ListRecentChatMessages(ctx, user.ID, conv.ID, 20)
+		require.NoError(t, err)
+		require.Empty(t, recentMessages)
 	})
 
 	t.Run("ListRecentChatMessages filters successful chat messages and restores ascending order", func(t *testing.T) {
@@ -205,6 +246,97 @@ func TestWorkbenchRepository(t *testing.T) {
 		require.NotNil(t, page)
 		require.Equal(t, int64(2), page.Total)
 		require.Equal(t, chatB.ID, conversations[0].ID)
+	})
+
+	t.Run("Admin workbench queries list all users and hard delete conversations", func(t *testing.T) {
+		ctx := context.Background()
+		repo, client := newWorkbenchEntRepo(t)
+
+		userA := createWorkbenchUser(t, ctx, client, "admin-a@example.com")
+		userB := createWorkbenchUser(t, ctx, client, "admin-b@example.com")
+		chat := createWorkbenchConversation(t, ctx, repo, userA.ID, "admin-chat", service.WorkbenchModeChat)
+		image := createWorkbenchConversation(t, ctx, repo, userB.ID, "admin-image", service.WorkbenchModeImage)
+		require.NoError(t, repo.CreateMessage(ctx, &service.WorkbenchMessage{
+			UserID:         userB.ID,
+			ConversationID: image.ID,
+			Mode:           service.WorkbenchModeImage,
+			Role:           service.WorkbenchRoleAssistant,
+			Content:        "已生成图片",
+			Endpoint:       service.WorkbenchEndpointImagesGenerations,
+			Model:          "gpt-image-2",
+			ImageOutputs: []service.WorkbenchImageOutput{{
+				B64JSON:  "ZmFrZQ==",
+				MimeType: "image/png",
+			}},
+			Status: service.WorkbenchMessageStatusSuccess,
+		}))
+
+		rows, page, err := repo.AdminListConversations(ctx, pagination.PaginationParams{
+			Page:     1,
+			PageSize: 20,
+		}, service.AdminWorkbenchConversationFilters{})
+		require.NoError(t, err)
+		require.NotNil(t, page)
+		require.Equal(t, int64(2), page.Total)
+		require.Len(t, rows, 2)
+		require.Equal(t, image.ID, rows[0].ID)
+		require.Equal(t, "admin-b@example.com", rows[0].UserEmail)
+		require.Equal(t, 1, rows[0].ImageCount)
+		require.Greater(t, rows[0].ImageBytes, int64(0))
+
+		filtered, _, err := repo.AdminListConversations(ctx, pagination.PaginationParams{
+			Page:     1,
+			PageSize: 20,
+		}, service.AdminWorkbenchConversationFilters{Mode: service.WorkbenchModeChat, Search: "admin-a"})
+		require.NoError(t, err)
+		require.Len(t, filtered, 1)
+		require.Equal(t, chat.ID, filtered[0].ID)
+
+		detail, messages, err := repo.AdminGetConversation(ctx, image.ID)
+		require.NoError(t, err)
+		require.Equal(t, image.ID, detail.ID)
+		require.Equal(t, "admin-b@example.com", detail.UserEmail)
+		require.Len(t, messages, 1)
+		require.Len(t, messages[0].ImageOutputs, 1)
+
+		deleted, err := repo.AdminHardDeleteConversations(ctx, []int64{image.ID})
+		require.NoError(t, err)
+		require.Equal(t, int64(1), deleted)
+
+		_, err = client.WorkbenchConversation.Get(ctx, image.ID)
+		require.True(t, dbent.IsNotFound(err))
+		messageCount, err := client.WorkbenchMessage.Query().Where(workbenchmessage.ConversationIDEQ(image.ID)).Count(ctx)
+		require.NoError(t, err)
+		require.Equal(t, 0, messageCount)
+	})
+
+	t.Run("Admin hard deletes workbench conversations older than cutoff", func(t *testing.T) {
+		ctx := context.Background()
+		repo, client := newWorkbenchEntRepo(t)
+
+		user := createWorkbenchUser(t, ctx, client, "cleanup@example.com")
+		oldConv := createWorkbenchConversation(t, ctx, repo, user.ID, "old", service.WorkbenchModeImage)
+		newConv := createWorkbenchConversation(t, ctx, repo, user.ID, "new", service.WorkbenchModeChat)
+		cutoff := time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC)
+
+		_, err := client.WorkbenchConversation.UpdateOneID(oldConv.ID).
+			SetUpdatedAt(cutoff.Add(-time.Hour)).
+			Save(ctx)
+		require.NoError(t, err)
+		_, err = client.WorkbenchConversation.UpdateOneID(newConv.ID).
+			SetUpdatedAt(cutoff.Add(time.Hour)).
+			Save(ctx)
+		require.NoError(t, err)
+
+		deleted, err := repo.AdminHardDeleteExpiredConversations(ctx, cutoff)
+		require.NoError(t, err)
+		require.Equal(t, int64(1), deleted)
+
+		_, err = client.WorkbenchConversation.Get(ctx, oldConv.ID)
+		require.True(t, dbent.IsNotFound(err))
+		remaining, err := client.WorkbenchConversation.Get(ctx, newConv.ID)
+		require.NoError(t, err)
+		require.Equal(t, newConv.ID, remaining.ID)
 	})
 }
 

@@ -390,6 +390,7 @@ export default {
     channels: 'Channels',
     availableChannels: 'Available Channels',
     workbench: 'Workbench',
+    adminWorkbench: 'Workbench Records',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
     proxies: 'Proxies',
@@ -466,7 +467,11 @@ export default {
     modelRequired: 'Please select a model',
     loadFailed: 'Failed to load workbench data',
     sendFailed: 'Failed to send request',
-    createConversationFailed: 'Failed to create conversation'
+    createConversationFailed: 'Failed to create conversation',
+    deleteConversation: 'Delete Conversation',
+    deleteConversationSuccess: 'Conversation deleted',
+    deleteConversationFailed: 'Failed to delete conversation',
+    retentionNotice: 'Workbench records are kept for 7 days only. Save anything important in time.'
   },
 
   // Auth
@@ -1476,6 +1481,33 @@ export default {
 
   // Admin
   admin: {
+    workbench: {
+      title: 'Workbench Records',
+      description: 'Review and clean workbench conversations, messages, and image data',
+      searchPlaceholder: 'Search user email, title, or message preview',
+      allModes: 'All modes',
+      allStatuses: 'All statuses',
+      hasImages: 'Has images',
+      selectedCount: '{count} selected',
+      deleteSelected: 'Hard Delete Selected',
+      cleanupExpired: 'Clean Older Than 7 Days',
+      user: 'User',
+      conversation: 'Conversation',
+      mode: 'Mode',
+      images: 'Images / Data',
+      updatedAt: 'Updated At',
+      totalConversations: 'Conversations',
+      totalMessages: 'Messages',
+      imageMessages: 'Image Messages',
+      expiredConversations: 'To Clean',
+      imageBytes: 'Image Data',
+      loadFailed: 'Failed to load workbench records',
+      detailLoadFailed: 'Failed to load conversation detail',
+      deleteSelectedSuccess: 'Hard deleted {count} conversations',
+      deleteSelectedFailed: 'Failed to hard delete conversations',
+      cleanupSuccess: 'Cleaned {count} expired conversations',
+      cleanupFailed: 'Failed to clean expired conversations'
+    },
     // Dashboard
     dashboard: {
       title: 'Admin Dashboard',

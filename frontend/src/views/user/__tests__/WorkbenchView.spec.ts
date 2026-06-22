@@ -87,8 +87,37 @@ describe('WorkbenchView', () => {
     expect(listConversations).toHaveBeenCalled()
     expect(listMessages).toHaveBeenCalledWith(1)
     expect(wrapper.text()).toContain('你好')
+    expect(wrapper.text()).toContain('workbench.retentionNotice')
     expect(wrapper.text()).toContain('[redacted]')
     expect(wrapper.text()).not.toContain('sk-test-1234567890abcdef')
+  })
+
+  it('deletes the selected conversation and switches to the next conversation', async () => {
+    listConversations.mockResolvedValue({
+      items: [
+        { id: 1, title: '第一条', mode: 'chat', message_count: 1, updated_at: '2026-06-21T00:00:00Z' },
+        { id: 2, title: '第二条', mode: 'image', message_count: 2, updated_at: '2026-06-21T00:01:00Z' },
+      ],
+      total: 2,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+    listMessages
+      .mockResolvedValueOnce([{ id: 10, role: 'assistant', content: '第一条消息', status: 'success' }])
+      .mockResolvedValueOnce([{ id: 20, role: 'assistant', content: '第二条消息', status: 'success' }])
+    deleteConversation.mockResolvedValue({ message: 'ok' })
+
+    const wrapper = mount(WorkbenchView, { global: { stubs: { AppLayout: AppLayoutStub } } })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="workbench-delete-conversation-1"]').trigger('click')
+    await flushPromises()
+
+    expect(deleteConversation).toHaveBeenCalledWith(1)
+    expect(wrapper.text()).not.toContain('第一条')
+    expect(wrapper.text()).toContain('第二条')
+    expect(listMessages).toHaveBeenLastCalledWith(2)
   })
 
   it('sends chat message through workbench API', async () => {

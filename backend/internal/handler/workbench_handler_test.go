@@ -146,6 +146,81 @@ func (r *workbenchHandlerRepoStub) UpdateConversationAfterMessage(_ context.Cont
 	return nil
 }
 
+func (r *workbenchHandlerRepoStub) AdminListConversations(_ context.Context, params pagination.PaginationParams, filters service.AdminWorkbenchConversationFilters) ([]service.AdminWorkbenchConversation, *pagination.PaginationResult, error) {
+	items := make([]service.AdminWorkbenchConversation, 0, len(r.conversations))
+	for _, conv := range r.conversations {
+		if filters.Mode != "" && conv.Mode != filters.Mode {
+			continue
+		}
+		if filters.UserID > 0 && conv.UserID != filters.UserID {
+			continue
+		}
+		items = append(items, service.AdminWorkbenchConversation{WorkbenchConversation: conv})
+	}
+	return items, &pagination.PaginationResult{
+		Total:    int64(len(items)),
+		Page:     params.Page,
+		PageSize: params.PageSize,
+		Pages:    1,
+	}, nil
+}
+
+func (r *workbenchHandlerRepoStub) AdminGetConversation(_ context.Context, conversationID int64) (*service.AdminWorkbenchConversation, []service.WorkbenchMessage, error) {
+	conv, ok := r.conversations[conversationID]
+	if !ok {
+		return nil, nil, service.ErrWorkbenchConversationNotFound
+	}
+	detail := service.AdminWorkbenchConversation{WorkbenchConversation: conv}
+	return &detail, append([]service.WorkbenchMessage(nil), r.messages[conversationID]...), nil
+}
+
+func (r *workbenchHandlerRepoStub) AdminGetStats(context.Context, int) (*service.AdminWorkbenchStats, error) {
+	var totalMessages int64
+	var imageMessages int64
+	var imageBytes int64
+	for _, messages := range r.messages {
+		for _, message := range messages {
+			totalMessages++
+			if message.Mode == service.WorkbenchModeImage {
+				imageMessages++
+			}
+			for _, image := range message.ImageOutputs {
+				imageBytes += int64(len(image.B64JSON))
+			}
+		}
+	}
+	return &service.AdminWorkbenchStats{
+		TotalConversations: int64(len(r.conversations)),
+		TotalMessages:      totalMessages,
+		ImageMessages:      imageMessages,
+		ImageBytes:         imageBytes,
+		RetentionDays:      7,
+	}, nil
+}
+
+func (r *workbenchHandlerRepoStub) AdminHardDeleteConversations(_ context.Context, conversationIDs []int64) (int64, error) {
+	var deleted int64
+	for _, id := range conversationIDs {
+		if _, ok := r.conversations[id]; !ok {
+			continue
+		}
+		delete(r.conversations, id)
+		delete(r.messages, id)
+		deleted++
+	}
+	return deleted, nil
+}
+
+func (r *workbenchHandlerRepoStub) AdminHardDeleteExpiredConversations(_ context.Context, cutoff time.Time) (int64, error) {
+	var ids []int64
+	for _, conv := range r.conversations {
+		if conv.UpdatedAt.Before(cutoff) {
+			ids = append(ids, conv.ID)
+		}
+	}
+	return r.AdminHardDeleteConversations(context.Background(), ids)
+}
+
 type workbenchHandlerAPIKeyStub struct {
 	keys map[int64]*service.APIKey
 }

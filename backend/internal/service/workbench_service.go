@@ -141,6 +141,51 @@ func (s *WorkbenchService) DeleteConversation(ctx context.Context, userID, conve
 	return s.repo.SoftDeleteConversation(ctx, userID, conversationID)
 }
 
+func (s *WorkbenchService) AdminListConversations(ctx context.Context, params pagination.PaginationParams, filters AdminWorkbenchConversationFilters) ([]AdminWorkbenchConversation, *pagination.PaginationResult, error) {
+	if filters.Mode != "" && filters.Mode != WorkbenchModeChat && filters.Mode != WorkbenchModeImage {
+		return nil, nil, ErrWorkbenchInvalidMode
+	}
+	if filters.Status != "" && filters.Status != WorkbenchMessageStatusPending && filters.Status != WorkbenchMessageStatusSuccess && filters.Status != WorkbenchMessageStatusError {
+		return nil, nil, ErrWorkbenchInvalidStatus
+	}
+	return s.repo.AdminListConversations(ctx, params, filters)
+}
+
+func (s *WorkbenchService) AdminGetConversation(ctx context.Context, conversationID int64) (*AdminWorkbenchConversation, []WorkbenchMessage, error) {
+	return s.repo.AdminGetConversation(ctx, conversationID)
+}
+
+func (s *WorkbenchService) AdminGetStats(ctx context.Context, retentionDays int) (*AdminWorkbenchStats, error) {
+	if retentionDays <= 0 {
+		retentionDays = 7
+	}
+	return s.repo.AdminGetStats(ctx, retentionDays)
+}
+
+func (s *WorkbenchService) AdminHardDeleteConversations(ctx context.Context, conversationIDs []int64) (int64, error) {
+	ids := make([]int64, 0, len(conversationIDs))
+	seen := make(map[int64]struct{}, len(conversationIDs))
+	for _, id := range conversationIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	return s.repo.AdminHardDeleteConversations(ctx, ids)
+}
+
+func (s *WorkbenchService) AdminHardDeleteExpiredConversations(ctx context.Context, retentionDays int) (int64, error) {
+	if retentionDays <= 0 {
+		retentionDays = 7
+	}
+	cutoff := time.Now().UTC().AddDate(0, 0, -retentionDays)
+	return s.repo.AdminHardDeleteExpiredConversations(ctx, cutoff)
+}
+
 func (s *WorkbenchService) Send(ctx context.Context, userID, conversationID int64, req WorkbenchSendRequest) (*WorkbenchSendResult, error) {
 	mode := normalizeWorkbenchMode(req.Mode)
 	endpoint := normalizeWorkbenchEndpoint(req.Endpoint, mode)

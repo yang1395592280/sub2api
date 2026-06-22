@@ -21,48 +21,67 @@
           </div>
 
           <div class="flex-1 overflow-y-auto p-2">
+            <div class="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+              {{ t('workbench.retentionNotice') }}
+            </div>
+
             <div v-if="loadingConversations" class="flex items-center justify-center p-6 text-sm text-gray-500 dark:text-gray-400">
               {{ t('workbench.loading') }}
             </div>
 
-            <button
+            <div
               v-for="conversation in conversations"
               :key="conversation.id"
-              type="button"
-              class="group mb-2 flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-all duration-200"
+              class="group mb-2 flex w-full items-start gap-2 rounded-xl border px-3 py-3 transition-all duration-200"
               :class="activeConversationId === conversation.id
                 ? 'border-primary-300 bg-primary-50 shadow-sm dark:border-primary-500/60 dark:bg-primary-500/10'
                 : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm dark:border-dark-700 dark:bg-dark-800 dark:hover:border-dark-500 dark:hover:bg-dark-700/80'"
-              @click="selectConversation(conversation.id)"
             >
-              <div
-                class="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105"
-                :class="conversation.mode === 'image'
-                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
-                  : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'"
+              <button
+                type="button"
+                class="flex min-w-0 flex-1 items-start gap-3 text-left"
+                @click="selectConversation(conversation.id)"
               >
-                <SparklesIcon class="h-4 w-4" />
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center justify-between gap-2">
-                  <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ conversation.title || t('workbench.untitled') }}</p>
-                  <span class="rounded-full px-2 py-0.5 text-[11px] font-medium uppercase"
-                    :class="conversation.mode === 'image'
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
-                      : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'"
-                  >
-                    {{ conversation.mode }}
-                  </span>
+                <div
+                  class="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105"
+                  :class="conversation.mode === 'image'
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                    : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'"
+                >
+                  <SparklesIcon class="h-4 w-4" />
                 </div>
-                <p class="mt-1 line-clamp-2 text-xs text-gray-500 dark:text-gray-400">
-                  {{ conversation.last_message_preview || t('workbench.emptyConversation') }}
-                </p>
-                <div class="mt-2 flex items-center justify-between gap-2 text-[11px] text-gray-400 dark:text-gray-500">
-                  <span>{{ conversation.message_count || 0 }} {{ t('workbench.messagesCount') }}</span>
-                  <span>{{ formatDateTime(conversation.updated_at) }}</span>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ conversation.title || t('workbench.untitled') }}</p>
+                    <span class="rounded-full px-2 py-0.5 text-[11px] font-medium uppercase"
+                      :class="conversation.mode === 'image'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                        : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'"
+                    >
+                      {{ conversation.mode }}
+                    </span>
+                  </div>
+                  <p class="mt-1 line-clamp-2 text-xs text-gray-500 dark:text-gray-400">
+                    {{ conversation.last_message_preview || t('workbench.emptyConversation') }}
+                  </p>
+                  <div class="mt-2 flex items-center justify-between gap-2 text-[11px] text-gray-400 dark:text-gray-500">
+                    <span>{{ conversation.message_count || 0 }} {{ t('workbench.messagesCount') }}</span>
+                    <span>{{ formatDateTime(conversation.updated_at) }}</span>
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
+              <button
+                type="button"
+                class="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-500 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                :aria-label="t('workbench.deleteConversation')"
+                :title="t('workbench.deleteConversation')"
+                :disabled="isDeletingConversation(conversation.id)"
+                :data-testid="`workbench-delete-conversation-${conversation.id}`"
+                @click.stop="handleDeleteConversation(conversation.id)"
+              >
+                <TrashIcon class="h-4 w-4" />
+              </button>
+            </div>
 
             <div v-if="!loadingConversations && conversations.length === 0" class="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
               <div class="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-dark-700 dark:text-gray-500">
@@ -373,6 +392,23 @@ const SparklesIcon = defineComponent({
   }
 })
 
+const TrashIcon = defineComponent({
+  name: 'TrashIcon',
+  setup() {
+    return () => h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5', 'aria-hidden': 'true' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673A2.25 2.25 0 0 1 15.916 21H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0'
+        })
+      ]
+    )
+  }
+})
+
 const { t } = useI18n()
 const appStore = useAppStore()
 
@@ -382,6 +418,7 @@ const activeConversationId = ref<number | null>(null)
 const loadingConversations = ref(false)
 const loadingMessages = ref(false)
 const creatingConversation = ref(false)
+const deletingConversationIds = ref<Set<number>>(new Set())
 const sending = ref(false)
 const prompt = ref('')
 const currentMode = ref<WorkbenchMode>('chat')
@@ -471,6 +508,20 @@ function sanitizeWorkbenchMessage(message: WorkbenchMessage): WorkbenchMessage {
 
 function sanitizeWorkbenchMessages(items: WorkbenchMessage[]): WorkbenchMessage[] {
   return items.map((item) => sanitizeWorkbenchMessage(item))
+}
+
+function isDeletingConversation(conversationId: number): boolean {
+  return deletingConversationIds.value.has(conversationId)
+}
+
+function setConversationDeleting(conversationId: number, deleting: boolean): void {
+  const next = new Set(deletingConversationIds.value)
+  if (deleting) {
+    next.add(conversationId)
+  } else {
+    next.delete(conversationId)
+  }
+  deletingConversationIds.value = next
 }
 
 function hasPendingImageMessage(items: WorkbenchMessage[] = messages.value): boolean {
@@ -656,6 +707,40 @@ function upsertConversation(nextConversation: WorkbenchConversation): void {
     conversations.value.unshift(nextConversation)
   }
   conversations.value = [...conversations.value]
+}
+
+async function handleDeleteConversation(conversationId: number): Promise<void> {
+  if (isDeletingConversation(conversationId)) return
+
+  const deleteIndex = conversations.value.findIndex((item) => item.id === conversationId)
+  const wasActive = activeConversationId.value === conversationId
+  setConversationDeleting(conversationId, true)
+
+  try {
+    await workbenchAPI.deleteConversation(conversationId)
+    const remaining = conversations.value.filter((item) => item.id !== conversationId)
+    conversations.value = remaining
+
+    if (wasActive) {
+      stopPendingImagePolling()
+      const nextConversation = remaining[deleteIndex] ?? remaining[deleteIndex - 1] ?? remaining[0] ?? null
+      if (nextConversation) {
+        activeConversationId.value = nextConversation.id
+        currentMode.value = nextConversation.mode
+        await loadMessages(nextConversation.id)
+      } else {
+        activeConversationId.value = null
+        messages.value = []
+      }
+    }
+
+    appStore.showSuccess(t('workbench.deleteConversationSuccess'))
+  } catch (error: unknown) {
+    console.error(error)
+    appStore.showError(t('workbench.deleteConversationFailed'))
+  } finally {
+    setConversationDeleting(conversationId, false)
+  }
 }
 
 async function ensureConversation(): Promise<number | null> {

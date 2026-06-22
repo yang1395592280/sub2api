@@ -34,6 +34,7 @@ import riskControlAPI from './riskControl'
 import adminComplianceAPI from './compliance'
 import openaiSchedulerAPI from './openaiScheduler'
 import openaiHealthAPI from './openaiHealth'
+import adminWorkbenchAPI from './workbench'
 
 /**
  * Unified admin API object for convenient access
@@ -69,7 +70,8 @@ export const adminAPI = {
   riskControl: riskControlAPI,
   compliance: adminComplianceAPI,
   openaiScheduler: openaiSchedulerAPI,
-  openaiHealth: openaiHealthAPI
+  openaiHealth: openaiHealthAPI,
+  workbench: adminWorkbenchAPI
 }
 
 export {
@@ -103,7 +105,8 @@ export {
   riskControlAPI,
   adminComplianceAPI,
   openaiSchedulerAPI,
-  openaiHealthAPI
+  openaiHealthAPI,
+  adminWorkbenchAPI
 }
 
 export default adminAPI
@@ -114,3 +117,4 @@ export type { ErrorPassthroughRule, CreateRuleRequest, UpdateRuleRequest } from 
 export type { BackupAgentHealth, DataManagementConfig } from './dataManagement'
 export type { TLSFingerprintProfile, CreateProfileRequest, UpdateProfileRequest } from './tlsFingerprintProfile'
 export type { ContentModerationConfig, ContentModerationLog, ModerationMode } from './riskControl'
+export type { AdminWorkbenchConversation, AdminWorkbenchStats, AdminWorkbenchConversationDetail } from './workbench'

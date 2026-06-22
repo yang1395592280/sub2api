@@ -3,9 +3,12 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	"github.com/Wei-Shaw/sub2api/ent/schema/mixins"
+	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/workbenchconversation"
 	"github.com/Wei-Shaw/sub2api/ent/workbenchmessage"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -191,6 +194,109 @@ func (r *workbenchRepository) ListRecentChatMessages(ctx context.Context, userID
 	return out, nil
 }
 
+func (r *workbenchRepository) AdminListConversations(ctx context.Context, params pagination.PaginationParams, filters service.AdminWorkbenchConversationFilters) ([]service.AdminWorkbenchConversation, *pagination.PaginationResult, error) {
+	client := clientFromContext(ctx, r.client)
+	q := client.WorkbenchConversation.Query().WithUser()
+	q = applyAdminWorkbenchConversationFilters(q, filters)
+
+	total, err := q.Count(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	rows, err := q.
+		Offset(params.Offset()).
+		Limit(params.Limit()).
+		Order(workbenchconversation.ByUpdatedAt(sql.OrderDesc())).
+		All(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	out := r.adminWorkbenchConversationsFromEnt(ctx, rows)
+	return out, paginationResultFromTotal(int64(total), params), nil
+}
+
+func (r *workbenchRepository) AdminGetConversation(ctx context.Context, conversationID int64) (*service.AdminWorkbenchConversation, []service.WorkbenchMessage, error) {
+	client := clientFromContext(ctx, r.client)
+	row, err := client.WorkbenchConversation.Query().
+		Where(workbenchconversation.IDEQ(conversationID)).
+		WithUser().
+		Only(ctx)
+	if err != nil {
+		return nil, nil, translatePersistenceError(err, service.ErrWorkbenchConversationNotFound, nil)
+	}
+	out := r.adminWorkbenchConversationsFromEnt(ctx, []*dbent.WorkbenchConversation{row})
+	if len(out) == 0 {
+		return nil, nil, service.ErrWorkbenchConversationNotFound
+	}
+	messages, err := client.WorkbenchMessage.Query().
+		Where(workbenchmessage.ConversationIDEQ(conversationID)).
+		Order(workbenchmessage.ByCreatedAt(sql.OrderAsc())).
+		All(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &out[0], workbenchMessagesFromEnt(messages), nil
+}
+
+func (r *workbenchRepository) AdminGetStats(ctx context.Context, retentionDays int) (*service.AdminWorkbenchStats, error) {
+	if retentionDays <= 0 {
+		retentionDays = 7
+	}
+	client := clientFromContext(ctx, r.client)
+	totalConversations, err := client.WorkbenchConversation.Query().Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+	totalMessages, err := client.WorkbenchMessage.Query().Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+	imageMessages, err := client.WorkbenchMessage.Query().
+		Where(workbenchmessage.ModeEQ(service.WorkbenchModeImage)).
+		Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cutoff := time.Now().UTC().AddDate(0, 0, -retentionDays)
+	expired, err := client.WorkbenchConversation.Query().
+		Where(workbenchconversation.UpdatedAtLT(cutoff)).
+		Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+	imageBytes, err := r.sumWorkbenchImageBytes(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &service.AdminWorkbenchStats{
+		TotalConversations:   int64(totalConversations),
+		TotalMessages:        int64(totalMessages),
+		ImageMessages:        int64(imageMessages),
+		ExpiredConversations: int64(expired),
+		ImageBytes:           imageBytes,
+		RetentionDays:        retentionDays,
+	}, nil
+}
+
+func (r *workbenchRepository) AdminHardDeleteConversations(ctx context.Context, conversationIDs []int64) (int64, error) {
+	if len(conversationIDs) == 0 {
+		return 0, nil
+	}
+	client := clientFromContext(ctx, r.client)
+	deleted, err := client.WorkbenchConversation.Delete().
+		Where(workbenchconversation.IDIn(conversationIDs...)).
+		Exec(mixins.SkipSoftDelete(ctx))
+	return int64(deleted), err
+}
+
+func (r *workbenchRepository) AdminHardDeleteExpiredConversations(ctx context.Context, cutoff time.Time) (int64, error) {
+	client := clientFromContext(ctx, r.client)
+	deleted, err := client.WorkbenchConversation.Delete().
+		Where(workbenchconversation.UpdatedAtLT(cutoff)).
+		Exec(mixins.SkipSoftDelete(ctx))
+	return int64(deleted), err
+}
+
 func (r *workbenchRepository) UpdateMessageAfterGateway(ctx context.Context, update service.WorkbenchMessageUpdate) error {
 	client := clientFromContext(ctx, r.client)
 	builder := client.WorkbenchMessage.Update().
@@ -275,6 +381,99 @@ func (r *workbenchRepository) withTx(ctx context.Context, fn func(txCtx context.
 		return fmt.Errorf("commit workbench transaction: %w", err)
 	}
 	return nil
+}
+
+func applyAdminWorkbenchConversationFilters(q *dbent.WorkbenchConversationQuery, filters service.AdminWorkbenchConversationFilters) *dbent.WorkbenchConversationQuery {
+	if filters.Mode != "" {
+		q = q.Where(workbenchconversation.ModeEQ(filters.Mode))
+	}
+	if filters.UserID > 0 {
+		q = q.Where(workbenchconversation.UserIDEQ(filters.UserID))
+	}
+	if filters.Search != "" {
+		search := strings.TrimSpace(filters.Search)
+		q = q.Where(workbenchconversation.Or(
+			workbenchconversation.TitleContainsFold(search),
+			workbenchconversation.LastMessagePreviewContainsFold(search),
+			workbenchconversation.HasUserWith(user.EmailContainsFold(search)),
+		))
+	}
+	if filters.Status != "" {
+		q = q.Where(workbenchconversation.HasMessagesWith(workbenchmessage.StatusEQ(filters.Status)))
+	}
+	if filters.HasImages != nil && *filters.HasImages {
+		q = q.Where(workbenchconversation.HasMessagesWith(workbenchmessage.ModeEQ(service.WorkbenchModeImage)))
+	}
+	if filters.OlderThanDays > 0 {
+		cutoff := time.Now().UTC().AddDate(0, 0, -filters.OlderThanDays)
+		q = q.Where(workbenchconversation.UpdatedAtLT(cutoff))
+	}
+	return q
+}
+
+func (r *workbenchRepository) adminWorkbenchConversationsFromEnt(ctx context.Context, rows []*dbent.WorkbenchConversation) []service.AdminWorkbenchConversation {
+	out := make([]service.AdminWorkbenchConversation, 0, len(rows))
+	if len(rows) == 0 {
+		return out
+	}
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	imageCounts, imageBytes := r.workbenchImageStatsByConversation(ctx, ids)
+	for _, row := range rows {
+		item := service.AdminWorkbenchConversation{WorkbenchConversation: workbenchConversationFromEnt(row)}
+		if row.Edges.User != nil {
+			item.UserEmail = row.Edges.User.Email
+			item.Username = row.Edges.User.Username
+		}
+		item.ImageCount = imageCounts[row.ID]
+		item.ImageBytes = imageBytes[row.ID]
+		out = append(out, item)
+	}
+	return out
+}
+
+func (r *workbenchRepository) workbenchImageStatsByConversation(ctx context.Context, conversationIDs []int64) (map[int64]int, map[int64]int64) {
+	counts := make(map[int64]int, len(conversationIDs))
+	bytesByID := make(map[int64]int64, len(conversationIDs))
+	client := clientFromContext(ctx, r.client)
+	rows, err := client.WorkbenchMessage.Query().
+		Where(workbenchmessage.ConversationIDIn(conversationIDs...), workbenchmessage.ModeEQ(service.WorkbenchModeImage)).
+		All(ctx)
+	if err != nil {
+		return counts, bytesByID
+	}
+	for _, row := range rows {
+		for _, image := range row.ImageOutputs {
+			if image.URL != "" || image.B64JSON != "" {
+				counts[row.ConversationID]++
+			}
+			if image.B64JSON != "" {
+				bytesByID[row.ConversationID] += int64(len(image.B64JSON))
+			}
+		}
+	}
+	return counts, bytesByID
+}
+
+func (r *workbenchRepository) sumWorkbenchImageBytes(ctx context.Context, conversationIDs []int64) (int64, error) {
+	client := clientFromContext(ctx, r.client)
+	q := client.WorkbenchMessage.Query().Where(workbenchmessage.ModeEQ(service.WorkbenchModeImage))
+	if len(conversationIDs) > 0 {
+		q = q.Where(workbenchmessage.ConversationIDIn(conversationIDs...))
+	}
+	rows, err := q.All(ctx)
+	if err != nil {
+		return 0, err
+	}
+	var total int64
+	for _, row := range rows {
+		for _, image := range row.ImageOutputs {
+			total += int64(len(image.B64JSON))
+		}
+	}
+	return total, nil
 }
 
 func workbenchConversationFromEnt(row *dbent.WorkbenchConversation) service.WorkbenchConversation {

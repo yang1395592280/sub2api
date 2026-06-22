@@ -390,6 +390,7 @@ export default {
     channels: '渠道管理',
     availableChannels: '可用渠道',
     workbench: '网页工作台',
+    adminWorkbench: '工作台记录',
     subscriptions: '订阅管理',
     accounts: '账号管理',
     proxies: 'IP管理',
@@ -466,7 +467,11 @@ export default {
     modelRequired: '请选择一个模型',
     loadFailed: '加载网页工作台数据失败',
     sendFailed: '发送请求失败',
-    createConversationFailed: '创建会话失败'
+    createConversationFailed: '创建会话失败',
+    deleteConversation: '删除会话',
+    deleteConversationSuccess: '会话已删除',
+    deleteConversationFailed: '删除会话失败',
+    retentionNotice: '网页工作台记录仅保留 7 天，请及时保存重要内容。'
   },
 
   // Auth
@@ -1480,6 +1485,33 @@ export default {
 
   // Admin
   admin: {
+    workbench: {
+      title: '工作台记录',
+      description: '查看和清理网页工作台会话、消息和图片数据',
+      searchPlaceholder: '搜索用户邮箱、标题或消息摘要',
+      allModes: '全部模式',
+      allStatuses: '全部状态',
+      hasImages: '含图片',
+      selectedCount: '已选择 {count} 条',
+      deleteSelected: '硬删除选中',
+      cleanupExpired: '清理超过 7 天',
+      user: '用户',
+      conversation: '会话',
+      mode: '模式',
+      images: '图片/数据量',
+      updatedAt: '更新时间',
+      totalConversations: '总会话',
+      totalMessages: '总消息',
+      imageMessages: '图片消息',
+      expiredConversations: '待清理',
+      imageBytes: '图片数据量',
+      loadFailed: '加载工作台记录失败',
+      detailLoadFailed: '加载会话详情失败',
+      deleteSelectedSuccess: '已硬删除 {count} 条会话',
+      deleteSelectedFailed: '硬删除会话失败',
+      cleanupSuccess: '已清理 {count} 条过期会话',
+      cleanupFailed: '清理过期会话失败'
+    },
     // Dashboard
     dashboard: {
       title: '管理控制台',

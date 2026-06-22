@@ -816,6 +816,76 @@ func (r *workbenchMemoryRepo) UpdateConversationAfterMessage(_ context.Context, 
 	return nil
 }
 
+func (r *workbenchMemoryRepo) AdminListConversations(_ context.Context, params pagination.PaginationParams, filters AdminWorkbenchConversationFilters) ([]AdminWorkbenchConversation, *pagination.PaginationResult, error) {
+	out := []AdminWorkbenchConversation{}
+	for _, c := range r.conversations {
+		if filters.Mode != "" && c.Mode != filters.Mode {
+			continue
+		}
+		if filters.UserID > 0 && c.UserID != filters.UserID {
+			continue
+		}
+		out = append(out, AdminWorkbenchConversation{WorkbenchConversation: c})
+	}
+	return out, &pagination.PaginationResult{Total: int64(len(out)), Page: params.Page, PageSize: params.PageSize, Pages: 1}, nil
+}
+
+func (r *workbenchMemoryRepo) AdminGetConversation(_ context.Context, conversationID int64) (*AdminWorkbenchConversation, []WorkbenchMessage, error) {
+	c, ok := r.conversations[conversationID]
+	if !ok {
+		return nil, nil, ErrWorkbenchConversationNotFound
+	}
+	detail := AdminWorkbenchConversation{WorkbenchConversation: c}
+	return &detail, append([]WorkbenchMessage(nil), r.messages[conversationID]...), nil
+}
+
+func (r *workbenchMemoryRepo) AdminGetStats(context.Context, int) (*AdminWorkbenchStats, error) {
+	var totalMessages int64
+	var imageMessages int64
+	var imageBytes int64
+	for _, messages := range r.messages {
+		for _, message := range messages {
+			totalMessages++
+			if message.Mode == WorkbenchModeImage {
+				imageMessages++
+			}
+			for _, image := range message.ImageOutputs {
+				imageBytes += int64(len(image.B64JSON))
+			}
+		}
+	}
+	return &AdminWorkbenchStats{
+		TotalConversations: int64(len(r.conversations)),
+		TotalMessages:      totalMessages,
+		ImageMessages:      imageMessages,
+		ImageBytes:         imageBytes,
+		RetentionDays:      7,
+	}, nil
+}
+
+func (r *workbenchMemoryRepo) AdminHardDeleteConversations(_ context.Context, conversationIDs []int64) (int64, error) {
+	var deleted int64
+	for _, id := range conversationIDs {
+		if _, ok := r.conversations[id]; !ok {
+			continue
+		}
+		delete(r.conversations, id)
+		delete(r.messages, id)
+		deleted++
+	}
+	return deleted, nil
+}
+
+func (r *workbenchMemoryRepo) AdminHardDeleteExpiredConversations(_ context.Context, cutoff time.Time) (int64, error) {
+	var ids []int64
+	for _, c := range r.conversations {
+		if c.UpdatedAt.Before(cutoff) {
+			ids = append(ids, c.ID)
+		}
+	}
+	return r.AdminHardDeleteConversations(context.Background(), ids)
+}
+
 func workbenchInt64Ptr(v int64) *int64 {
 	return &v
 }

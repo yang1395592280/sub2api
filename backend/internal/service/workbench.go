@@ -32,6 +32,7 @@ var (
 	ErrWorkbenchAPIKeyUnavailable    = infraerrors.Forbidden("WORKBENCH_API_KEY_UNAVAILABLE", "api key is not available")
 	ErrWorkbenchInvalidMode          = infraerrors.New(http.StatusBadRequest, "WORKBENCH_INVALID_MODE", "invalid workbench mode")
 	ErrWorkbenchInvalidEndpoint      = infraerrors.New(http.StatusBadRequest, "WORKBENCH_INVALID_ENDPOINT", "invalid workbench endpoint")
+	ErrWorkbenchInvalidStatus        = infraerrors.New(http.StatusBadRequest, "WORKBENCH_INVALID_STATUS", "invalid workbench status")
 	ErrWorkbenchEmptyInput           = infraerrors.New(http.StatusBadRequest, "WORKBENCH_EMPTY_INPUT", "input is required")
 	ErrWorkbenchEmptyModel           = infraerrors.New(http.StatusBadRequest, "WORKBENCH_EMPTY_MODEL", "model is required")
 )
@@ -78,6 +79,32 @@ type WorkbenchModel struct {
 
 type WorkbenchConversationFilters struct {
 	Mode string
+}
+
+type AdminWorkbenchConversationFilters struct {
+	Mode          string
+	Status        string
+	Search        string
+	UserID        int64
+	HasImages     *bool
+	OlderThanDays int
+}
+
+type AdminWorkbenchConversation struct {
+	WorkbenchConversation
+	UserEmail  string `json:"user_email"`
+	Username   string `json:"username"`
+	ImageCount int    `json:"image_count"`
+	ImageBytes int64  `json:"image_bytes"`
+}
+
+type AdminWorkbenchStats struct {
+	TotalConversations   int64 `json:"total_conversations"`
+	TotalMessages        int64 `json:"total_messages"`
+	ImageMessages        int64 `json:"image_messages"`
+	ExpiredConversations int64 `json:"expired_conversations"`
+	ImageBytes           int64 `json:"image_bytes"`
+	RetentionDays        int   `json:"retention_days"`
 }
 
 type WorkbenchConversationUpdate struct {
@@ -177,4 +204,9 @@ type WorkbenchRepository interface {
 	ListRecentChatMessages(ctx context.Context, userID, conversationID int64, limit int) ([]WorkbenchMessage, error)
 	UpdateMessageAfterGateway(ctx context.Context, update WorkbenchMessageUpdate) error
 	UpdateConversationAfterMessage(ctx context.Context, update WorkbenchConversationUpdate) error
+	AdminListConversations(ctx context.Context, params pagination.PaginationParams, filters AdminWorkbenchConversationFilters) ([]AdminWorkbenchConversation, *pagination.PaginationResult, error)
+	AdminGetConversation(ctx context.Context, conversationID int64) (*AdminWorkbenchConversation, []WorkbenchMessage, error)
+	AdminGetStats(ctx context.Context, retentionDays int) (*AdminWorkbenchStats, error)
+	AdminHardDeleteConversations(ctx context.Context, conversationIDs []int64) (int64, error)
+	AdminHardDeleteExpiredConversations(ctx context.Context, cutoff time.Time) (int64, error)
 }
