@@ -144,13 +144,13 @@ describe('WorkbenchView', () => {
 
     await wrapper.get('[data-testid="workbench-mode-image"]').trigger('click')
     const sizeSelect = wrapper.get('[data-testid="workbench-image-size-select"]')
-    expect(sizeSelect.findAll('option').map((option) => option.attributes('value'))).toEqual(['1K', '2K', '4K'])
-    await sizeSelect.setValue('4K')
+    expect(sizeSelect.findAll('option').map((option) => option.attributes('value'))).toEqual(['1024x1024', '1536x1024', '3840x2160'])
+    await sizeSelect.setValue('3840x2160')
     await wrapper.get('[data-testid="workbench-input"]').setValue('画一张图')
     await wrapper.get('[data-testid="workbench-send"]').trigger('click')
     await flushPromises()
 
-    expect(send).toHaveBeenCalledWith(1, expect.objectContaining({ mode: 'image', endpoint: 'images_generations', options: expect.objectContaining({ n: 1, size: '4K' }) }))
+    expect(send).toHaveBeenCalledWith(1, expect.objectContaining({ mode: 'image', endpoint: 'images_generations', options: expect.objectContaining({ n: 1, size: '3840x2160' }) }))
     expect(wrapper.find('img[src="https://img.example/1.png"]').exists()).toBe(true)
   })
 

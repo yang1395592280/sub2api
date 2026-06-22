@@ -449,6 +449,7 @@ export default {
     emptyMessages: 'Messages and generated images will appear here.',
     loading: 'Loading...',
     sending: 'Sending...',
+    thinking: 'Thinking...',
     send: 'Send',
     you: 'You',
     assistant: 'Assistant',

@@ -2,8 +2,9 @@
   <AppLayout>
     <div class="flex min-h-[calc(100vh-7rem)] flex-col gap-4 px-4 py-4 lg:px-6">
       <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
+        <!-- 左侧：会话列表 -->
         <section class="card flex min-h-[720px] flex-col overflow-hidden">
-          <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-dark-700">
+          <div class="flex items-center justify-between border-b border-gray-100 bg-gradient-to-r from-primary-50/60 to-transparent px-4 py-3 dark:border-dark-700 dark:from-primary-500/5">
             <div>
               <h1 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('workbench.conversations') }}</h1>
               <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('workbench.conversationsHint') }}</p>
@@ -28,14 +29,14 @@
               v-for="conversation in conversations"
               :key="conversation.id"
               type="button"
-              class="mb-2 flex w-full items-start gap-3 rounded-lg border px-3 py-3 text-left transition"
+              class="group mb-2 flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-all duration-200"
               :class="activeConversationId === conversation.id
-                ? 'border-primary-300 bg-primary-50 dark:border-primary-500/60 dark:bg-primary-500/10'
-                : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 dark:border-dark-700 dark:bg-dark-800 dark:hover:border-dark-500 dark:hover:bg-dark-700/80'"
+                ? 'border-primary-300 bg-primary-50 shadow-sm dark:border-primary-500/60 dark:bg-primary-500/10'
+                : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm dark:border-dark-700 dark:bg-dark-800 dark:hover:border-dark-500 dark:hover:bg-dark-700/80'"
               @click="selectConversation(conversation.id)"
             >
               <div
-                class="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg"
+                class="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105"
                 :class="conversation.mode === 'image'
                   ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
                   : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'"
@@ -63,14 +64,18 @@
               </div>
             </button>
 
-            <div v-if="!loadingConversations && conversations.length === 0" class="flex h-full items-center justify-center p-6 text-center text-sm text-gray-500 dark:text-gray-400">
-              {{ t('workbench.emptyState') }}
+            <div v-if="!loadingConversations && conversations.length === 0" class="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+              <div class="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-dark-700 dark:text-gray-500">
+                <SparklesIcon class="h-6 w-6" />
+              </div>
+              <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('workbench.emptyState') }}</p>
             </div>
           </div>
         </section>
 
+        <!-- 中间：聊天区域 -->
         <section class="card flex min-h-[720px] flex-col overflow-hidden">
-          <div class="border-b border-gray-100 px-4 py-3 dark:border-dark-700">
+          <div class="border-b border-gray-100 bg-gradient-to-r from-primary-50/40 to-transparent px-4 py-3 dark:border-dark-700 dark:from-primary-500/5">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ activeConversationTitle }}</h2>
@@ -103,49 +108,101 @@
             </div>
           </div>
 
-          <div class="flex-1 space-y-4 overflow-y-auto bg-gray-50/80 px-4 py-4 dark:bg-dark-900/40">
+          <!-- 消息列表 -->
+          <div ref="messageContainerRef" class="flex-1 space-y-4 overflow-y-auto bg-gradient-to-b from-gray-50/50 to-gray-100/50 px-4 py-4 dark:from-dark-900/40 dark:to-dark-900/60">
             <div v-if="loadingMessages" class="flex items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-white/70 p-6 text-sm text-gray-500 dark:border-dark-600 dark:bg-dark-800/70 dark:text-gray-400">
               {{ t('workbench.loading') }}
             </div>
 
-            <article
-              v-for="message in messages"
-              :key="message.id"
-              class="max-w-3xl rounded-2xl border px-4 py-3 shadow-sm"
-              :class="message.role === 'user'
-                ? 'ml-auto border-primary-200 bg-primary-50 dark:border-primary-500/30 dark:bg-primary-500/10'
-                : 'mr-auto border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800'"
-            >
-              <div class="mb-2 flex items-center justify-between gap-3 text-xs">
-                <span class="font-medium text-gray-700 dark:text-gray-200">{{ message.role === 'user' ? t('workbench.you') : t('workbench.assistant') }}</span>
-                <span class="text-gray-400 dark:text-gray-500">{{ message.status || 'success' }}</span>
-              </div>
-              <p class="whitespace-pre-wrap break-words text-sm leading-6 text-gray-800 dark:text-gray-100">{{ message.content }}</p>
-
-              <div v-if="message.image_outputs?.length" class="mt-3 grid gap-3 sm:grid-cols-2">
+            <TransitionGroup v-else name="msg" tag="div" class="space-y-4">
+              <article
+                v-for="message in messages"
+                :key="message.id"
+                class="flex max-w-3xl gap-3"
+                :class="message.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'"
+              >
+                <!-- 头像 -->
                 <div
-                  v-for="(output, index) in message.image_outputs"
-                  :key="`${message.id}-${index}`"
-                  class="overflow-hidden rounded-xl border border-gray-200 bg-gray-100 dark:border-dark-600 dark:bg-dark-700"
+                  class="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+                  :class="message.role === 'user'
+                    ? 'bg-primary-500'
+                    : 'bg-gradient-to-br from-emerald-400 to-blue-500'"
                 >
-                  <img
-                    :src="imageURL(output)"
-                    :alt="`generated-${index}`"
-                    class="h-full w-full object-cover"
-                  />
+                  {{ message.role === 'user' ? t('workbench.you').charAt(0) : 'AI' }}
+                </div>
+                <!-- 气泡 -->
+                <div
+                  class="rounded-2xl border px-4 py-3 shadow-sm transition-all"
+                  :class="[
+                    message.role === 'user'
+                      ? 'border-primary-200 bg-primary-50 dark:border-primary-500/30 dark:bg-primary-500/10'
+                      : 'border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800',
+                    message.status === 'pending' ? 'opacity-70' : '',
+                    message.status === 'error' ? 'border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10' : ''
+                  ]"
+                >
+                  <div class="mb-1.5 flex items-center justify-between gap-3 text-xs">
+                    <span class="font-medium text-gray-700 dark:text-gray-200">{{ message.role === 'user' ? t('workbench.you') : t('workbench.assistant') }}</span>
+                    <span
+                      class="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                      :class="message.status === 'pending'
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
+                        : message.status === 'error'
+                          ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300'
+                          : 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-gray-400'"
+                    >
+                      {{ message.status || 'success' }}
+                    </span>
+                  </div>
+                  <p class="whitespace-pre-wrap break-words text-sm leading-6 text-gray-800 dark:text-gray-100">{{ message.content }}</p>
+
+                  <div v-if="message.image_outputs?.length" class="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div
+                      v-for="(output, index) in message.image_outputs"
+                      :key="`${message.id}-${index}`"
+                      class="overflow-hidden rounded-xl border border-gray-200 bg-gray-100 dark:border-dark-600 dark:bg-dark-700"
+                    >
+                      <img
+                        :src="imageURL(output)"
+                        :alt="`generated-${index}`"
+                        class="h-full w-full object-cover"
+                      />
+                    </div>
+                  </div>
+
+                  <p v-if="message.error_message" class="mt-2 text-xs text-red-500">{{ message.error_message }}</p>
+                </div>
+              </article>
+            </TransitionGroup>
+
+            <!-- 思考中占位气泡 -->
+            <div v-if="sending" class="mr-auto flex max-w-3xl gap-3">
+              <div class="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-blue-500 text-xs font-semibold text-white">
+                AI
+              </div>
+              <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm dark:border-dark-700 dark:bg-dark-800">
+                <div class="flex items-center gap-2">
+                  <span class="flex gap-1">
+                    <span class="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s] dark:bg-gray-500"></span>
+                    <span class="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s] dark:bg-gray-500"></span>
+                    <span class="h-2 w-2 animate-bounce rounded-full bg-gray-400 dark:bg-gray-500"></span>
+                  </span>
+                  <span class="text-sm text-gray-500 dark:text-gray-400">{{ t('workbench.thinking') }}</span>
                 </div>
               </div>
+            </div>
 
-              <p v-if="message.error_message" class="mt-2 text-xs text-red-500">{{ message.error_message }}</p>
-            </article>
-
-            <div v-if="!loadingMessages && messages.length === 0" class="flex h-full min-h-[320px] items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-white/70 p-8 text-center text-sm text-gray-500 dark:border-dark-600 dark:bg-dark-800/70 dark:text-gray-400">
-              {{ t('workbench.emptyMessages') }}
+            <div v-if="!loadingMessages && messages.length === 0 && !sending" class="flex h-full min-h-[320px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-300 bg-white/70 p-8 text-center dark:border-dark-600 dark:bg-dark-800/70">
+              <div class="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-dark-700 dark:text-gray-500">
+                <SparklesIcon class="h-6 w-6" />
+              </div>
+              <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('workbench.emptyMessages') }}</p>
             </div>
           </div>
 
+          <!-- 输入框 -->
           <div class="border-t border-gray-100 bg-white px-4 py-4 dark:border-dark-700 dark:bg-dark-900">
-            <div class="rounded-2xl border border-gray-200 bg-gray-50 p-3 dark:border-dark-600 dark:bg-dark-800">
+            <div class="rounded-2xl border border-gray-200 bg-gray-50 p-3 transition-all duration-200 focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-100 dark:border-dark-600 dark:bg-dark-800 dark:focus-within:border-primary-500 dark:focus-within:ring-primary-500/20">
               <textarea
                 v-model="prompt"
                 data-testid="workbench-input"
@@ -160,20 +217,25 @@
                 </p>
                 <button
                   type="button"
-                  class="btn btn-primary"
+                  class="btn btn-primary inline-flex items-center gap-2"
                   data-testid="workbench-send"
                   :disabled="sending || !prompt.trim() || !selectedApiKeyId || !selectedModel"
                   @click="handleSend"
                 >
-                  {{ sending ? t('workbench.sending') : t('workbench.send') }}
+                  <svg v-if="sending" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>{{ sending ? t('workbench.sending') : t('workbench.send') }}</span>
                 </button>
               </div>
             </div>
           </div>
         </section>
 
+        <!-- 右侧：设置面板 -->
         <aside class="card flex min-h-[720px] flex-col overflow-hidden">
-          <div class="border-b border-gray-100 px-4 py-3 dark:border-dark-700">
+          <div class="border-b border-gray-100 bg-gradient-to-r from-primary-50/40 to-transparent px-4 py-3 dark:border-dark-700 dark:from-primary-500/5">
             <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('workbench.settings') }}</h2>
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('workbench.settingsHint') }}</p>
           </div>
@@ -207,9 +269,9 @@
                 <div class="space-y-2">
                   <label class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ t('workbench.imageSize') }}</label>
                   <select v-model="imageOptions.size" class="input" data-testid="workbench-image-size-select">
-                    <option value="1K">1K</option>
-                    <option value="2K">2K</option>
-                    <option value="4K">4K</option>
+                    <option value="1024x1024">1K</option>
+                    <option value="1536x1024">2K</option>
+                    <option value="3840x2160">4K</option>
                   </select>
                 </div>
 
@@ -271,7 +333,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, ref, watch } from 'vue'
+import { computed, defineComponent, h, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import { keysAPI } from '@/api/keys'
@@ -329,9 +391,11 @@ const selectedApiKeyId = ref<number>(0)
 const selectedModel = ref('')
 const modelsLoadedForApiKeyId = ref<number | null>(null)
 const modelSelectionReady = ref(false)
+const messageContainerRef = ref<HTMLElement | null>(null)
+let optimisticIdCounter = -1
 
 const imageOptions = ref({
-  size: '1K',
+  size: '1024x1024',
   quality: 'auto',
   background: 'auto',
   output_format: 'png',
@@ -349,6 +413,14 @@ const activeConversationTitle = computed(() => {
   const current = conversations.value.find((item) => item.id === activeConversationId.value)
   return current?.title || t('workbench.title')
 })
+
+async function scrollToBottom(): Promise<void> {
+  await nextTick()
+  const container = messageContainerRef.value
+  if (container) {
+    container.scrollTop = container.scrollHeight
+  }
+}
 
 function formatDateTime(value?: string): string {
   if (!value) return ''
@@ -446,6 +518,7 @@ async function loadMessages(conversationId: number): Promise<void> {
   loadingMessages.value = true
   try {
     messages.value = sanitizeWorkbenchMessages(await workbenchAPI.listMessages(conversationId))
+    await scrollToBottom()
   } finally {
     loadingMessages.value = false
   }
@@ -502,6 +575,7 @@ async function ensureConversation(): Promise<number | null> {
 }
 
 async function handleSend(): Promise<void> {
+  if (sending.value) return
   if (!prompt.value.trim()) return
   if (!selectedApiKeyId.value) {
     appStore.showError(t('workbench.apiKeyRequired'))
@@ -512,15 +586,44 @@ async function handleSend(): Promise<void> {
     return
   }
 
+  const inputText = prompt.value.trim()
+
+  // 乐观上屏：立即将用户消息显示到聊天区域
+  const optimisticId = optimisticIdCounter--
+  const optimisticMessage = {
+    id: optimisticId,
+    conversation_id: activeConversationId.value || 0,
+    user_id: 0,
+    mode: currentMode.value,
+    role: 'user' as const,
+    content: inputText,
+    endpoint: currentEndpoint.value,
+    model: selectedModel.value,
+    request_options: {},
+    response_metadata: {},
+    image_outputs: [],
+    status: 'pending' as const,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  } as WorkbenchMessage
+  messages.value = [...messages.value, optimisticMessage]
+  prompt.value = ''
+  await scrollToBottom()
+
   const conversationId = await ensureConversation()
-  if (!conversationId) return
+  if (!conversationId) {
+    messages.value = messages.value.map((m) =>
+      m.id === optimisticId ? { ...m, status: 'error' as const } : m
+    )
+    return
+  }
 
   const payload: WorkbenchSendRequest = {
     mode: currentMode.value,
     api_key_id: selectedApiKeyId.value,
     endpoint: currentEndpoint.value,
     model: selectedModel.value,
-    input: prompt.value.trim(),
+    input: inputText,
     options: currentMode.value === 'image' ? { ...imageOptions.value } : undefined,
   }
 
@@ -536,10 +639,17 @@ async function handleSend(): Promise<void> {
         ? { ...sanitizedAssistantMessage, error_message: errorSummary }
         : sanitizedAssistantMessage
 
-      messages.value = [...messages.value, sanitizedUserMessage, assistantMessage as WorkbenchMessage]
+      // 用真实消息替换乐观消息，并追加助手回复
+      messages.value = messages.value.map((m) =>
+        m.id === optimisticId ? sanitizedUserMessage : m
+      )
+      messages.value = [...messages.value, assistantMessage as WorkbenchMessage]
       upsertConversation(result.conversation as WorkbenchConversation)
       activeConversationId.value = result.conversation.id
-      prompt.value = ''
+    } else {
+      messages.value = messages.value.map((m) =>
+        m.id === optimisticId ? { ...m, status: 'error' as const } : m
+      )
     }
 
     if (errorSummary) {
@@ -551,9 +661,13 @@ async function handleSend(): Promise<void> {
     }
   } catch (error: unknown) {
     console.error(error)
+    messages.value = messages.value.map((m) =>
+      m.id === optimisticId ? { ...m, status: 'error' as const } : m
+    )
     appStore.showError(t('workbench.sendFailed'))
   } finally {
     sending.value = false
+    await scrollToBottom()
   }
 }
 
@@ -578,4 +692,18 @@ watch(selectedApiKeyId, async (next, prev) => {
     appStore.showError(t('workbench.loadFailed'))
   }
 })
+
+watch(() => messages.value.length, () => {
+  scrollToBottom()
+})
 </script>
+
+<style scoped>
+.msg-enter-active {
+  transition: all 0.3s ease;
+}
+.msg-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+}
+</style>

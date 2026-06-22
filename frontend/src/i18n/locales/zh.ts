@@ -449,6 +449,7 @@ export default {
     emptyMessages: '这里会显示消息内容与图片结果。',
     loading: '加载中...',
     sending: '发送中...',
+    thinking: '思考中...',
     send: '发送',
     you: '你',
     assistant: '助手',
