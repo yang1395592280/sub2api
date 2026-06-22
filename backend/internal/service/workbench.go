@@ -148,12 +148,14 @@ type CreateWorkbenchConversationRequest struct {
 }
 
 type WorkbenchSendRequest struct {
-	Mode     string
-	APIKeyID int64
-	Endpoint string
-	Model    string
-	Input    string
-	Options  map[string]any
+	Mode         string
+	APIKeyID     int64
+	Endpoint     string
+	Model        string
+	Input        string
+	Options      map[string]any
+	PublicHost   string
+	PublicScheme string
 }
 
 type WorkbenchSendResult struct {
@@ -179,9 +181,11 @@ type WorkbenchGatewayChatResponse struct {
 }
 
 type WorkbenchGatewayImageRequest struct {
-	Model   string         `json:"model"`
-	Prompt  string         `json:"prompt"`
-	Options map[string]any `json:"options"`
+	Model        string         `json:"model"`
+	Prompt       string         `json:"prompt"`
+	Options      map[string]any `json:"options"`
+	PublicHost   string         `json:"-"`
+	PublicScheme string         `json:"-"`
 }
 
 type WorkbenchGatewayImageResponse struct {

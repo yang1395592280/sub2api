@@ -99,6 +99,36 @@ func TestWorkbenchServiceSendImagePersistsImageOutputs(t *testing.T) {
 	require.Equal(t, "1024x1024", gateway.lastImage.Options["size"])
 }
 
+func TestWorkbenchServiceSendImagePassesPublicOriginToAsyncGateway(t *testing.T) {
+	ctx := context.Background()
+	repo := newWorkbenchMemoryRepo()
+	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
+		7: {ID: 7, UserID: 42, Key: "sk-test", Status: StatusAPIKeyActive, Name: "main"},
+	}}
+	gateway := &workbenchGatewayStub{image: WorkbenchGatewayImageResponse{
+		Images: []WorkbenchImageOutput{{URL: "https://www.loomex.site/v1/images/files/1.png", MimeType: "image/png"}},
+	}}
+	svc := NewWorkbenchService(repo, apiKeys, gateway)
+	svc.asyncRunner = func(fn func()) { fn() }
+
+	conv, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{Mode: WorkbenchModeImage})
+	require.NoError(t, err)
+
+	_, err = svc.Send(ctx, 42, conv.ID, WorkbenchSendRequest{
+		Mode:         WorkbenchModeImage,
+		APIKeyID:     7,
+		Endpoint:     WorkbenchEndpointImagesGenerations,
+		Model:        "gpt-image-2",
+		Input:        "draw public image",
+		PublicHost:   "www.loomex.site",
+		PublicScheme: "https",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "www.loomex.site", gateway.lastImage.PublicHost)
+	require.Equal(t, "https", gateway.lastImage.PublicScheme)
+}
+
 func TestWorkbenchServiceSendImageReturnsPendingBeforeGatewayCompletes(t *testing.T) {
 	ctx := context.Background()
 	repo := newWorkbenchMemoryRepo()
@@ -581,6 +611,32 @@ func TestHTTPWorkbenchGatewayClientSendChatIncludesStreamFalse(t *testing.T) {
 	require.Equal(t, "hello", resp.Content)
 	require.Equal(t, false, got["stream"])
 	require.Equal(t, "gpt-5.5", got["model"])
+}
+
+func TestHTTPWorkbenchGatewayClientGenerateImageForwardsPublicOrigin(t *testing.T) {
+	var gotHost string
+	var gotProto string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/images/generations", r.URL.Path)
+		gotHost = r.Header.Get("X-Forwarded-Host")
+		gotProto = r.Header.Get("X-Forwarded-Proto")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"created":1,"data":[{"url":"https://www.loomex.site/v1/images/files/1.png"}]}`))
+	}))
+	defer server.Close()
+
+	client := &HTTPWorkbenchGatewayClient{client: server.Client(), baseURL: server.URL}
+
+	_, err := client.GenerateImage(context.Background(), "Bearer sk-test", WorkbenchGatewayImageRequest{
+		Model:        "gpt-image-2",
+		Prompt:       "draw public image",
+		PublicHost:   "www.loomex.site",
+		PublicScheme: "https",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "www.loomex.site", gotHost)
+	require.Equal(t, "https", gotProto)
 }
 
 func TestNewHTTPWorkbenchGatewayClientUsesLongTimeoutForAsyncImages(t *testing.T) {

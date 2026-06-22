@@ -89,7 +89,14 @@ func (c *HTTPWorkbenchGatewayClient) GenerateImage(ctx context.Context, authoriz
 			RevisedPrompt string `json:"revised_prompt"`
 		} `json:"data"`
 	}
-	if err := c.postJSON(ctx, "/v1/images/generations", authorization, payload, &resp); err != nil {
+	headers := map[string]string{}
+	if host := strings.TrimSpace(req.PublicHost); host != "" {
+		headers["X-Forwarded-Host"] = host
+	}
+	if scheme := strings.TrimSpace(req.PublicScheme); scheme != "" {
+		headers["X-Forwarded-Proto"] = strings.TrimRight(scheme, ":/")
+	}
+	if err := c.postJSONWithHeaders(ctx, "/v1/images/generations", authorization, payload, headers, &resp); err != nil {
 		return WorkbenchGatewayImageResponse{}, err
 	}
 
@@ -107,6 +114,10 @@ func (c *HTTPWorkbenchGatewayClient) GenerateImage(ctx context.Context, authoriz
 }
 
 func (c *HTTPWorkbenchGatewayClient) postJSON(ctx context.Context, path, authorization string, payload any, out any) error {
+	return c.postJSONWithHeaders(ctx, path, authorization, payload, nil, out)
+}
+
+func (c *HTTPWorkbenchGatewayClient) postJSONWithHeaders(ctx context.Context, path, authorization string, payload any, headers map[string]string, out any) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -117,6 +128,11 @@ func (c *HTTPWorkbenchGatewayClient) postJSON(ctx context.Context, path, authori
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", authorization)
+	for k, v := range headers {
+		if strings.TrimSpace(k) != "" && strings.TrimSpace(v) != "" {
+			req.Header.Set(k, strings.TrimSpace(v))
+		}
+	}
 
 	resp, err := c.client.Do(req)
 	if err != nil {

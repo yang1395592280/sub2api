@@ -265,6 +265,21 @@ func (s *workbenchHandlerGatewayFailStub) GenerateImage(_ context.Context, _ str
 	return service.WorkbenchGatewayImageResponse{}, s.err
 }
 
+type workbenchHandlerCaptureImageGateway struct {
+	requests chan service.WorkbenchGatewayImageRequest
+}
+
+func (s *workbenchHandlerCaptureImageGateway) SendChat(_ context.Context, _ string, _ service.WorkbenchGatewayChatRequest) (service.WorkbenchGatewayChatResponse, error) {
+	return service.WorkbenchGatewayChatResponse{Content: "assistant reply"}, nil
+}
+
+func (s *workbenchHandlerCaptureImageGateway) GenerateImage(_ context.Context, _ string, req service.WorkbenchGatewayImageRequest) (service.WorkbenchGatewayImageResponse, error) {
+	s.requests <- req
+	return service.WorkbenchGatewayImageResponse{
+		Images: []service.WorkbenchImageOutput{{URL: "https://www.loomex.site/v1/images/files/1.png"}},
+	}, nil
+}
+
 type workbenchHandlerModelProviderStub struct{ models []string }
 
 func (s *workbenchHandlerModelProviderStub) GetAvailableModels(_ context.Context, _ *int64, _ string) []string {
@@ -360,6 +375,68 @@ func TestWorkbenchHandlerListModelsReturnsSelectedAPIKeyModels(t *testing.T) {
 	require.Len(t, data, 2)
 	require.Equal(t, "gpt-5.4", data[0].(map[string]any)["name"])
 	require.Equal(t, "gpt-5.5", data[1].(map[string]any)["name"])
+}
+
+func TestWorkbenchHandlerListMessagesRewritesInternalImageFileURLs(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newWorkbenchHandlerRepoStub()
+	conv := service.WorkbenchConversation{UserID: 7, Mode: service.WorkbenchModeImage, Title: "images"}
+	require.NoError(t, repo.CreateConversation(context.Background(), &conv))
+	require.NoError(t, repo.CreateMessage(context.Background(), &service.WorkbenchMessage{
+		ConversationID: conv.ID,
+		UserID:         7,
+		Mode:           service.WorkbenchModeImage,
+		Role:           service.WorkbenchRoleAssistant,
+		Status:         service.WorkbenchMessageStatusSuccess,
+		ImageOutputs: []service.WorkbenchImageOutput{{
+			URL: "https://127.0.0.1:8318/v1/images/files/abc.png",
+		}},
+	}))
+
+	h := NewWorkbenchHandler(service.NewWorkbenchService(repo, &workbenchHandlerAPIKeyStub{}, &workbenchHandlerGatewayStub{}))
+	r := newWorkbenchAuthedRouter(h)
+	r.GET("/api/v1/workbench/conversations/:id/messages", h.ListMessages)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/workbench/conversations/1/messages", nil)
+	req.Header.Set("X-Forwarded-Host", "www.loomex.site")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), "https://www.loomex.site/v1/images/files/abc.png")
+	require.NotContains(t, rec.Body.String(), "127.0.0.1:8318")
+}
+
+func TestWorkbenchHandlerSendImagePassesPublicOriginToGateway(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newWorkbenchHandlerRepoStub()
+	gateway := &workbenchHandlerCaptureImageGateway{requests: make(chan service.WorkbenchGatewayImageRequest, 1)}
+	svc := service.NewWorkbenchService(repo, &workbenchHandlerAPIKeyStub{}, gateway)
+	conv, err := svc.CreateConversation(context.Background(), 7, service.CreateWorkbenchConversationRequest{Mode: service.WorkbenchModeImage})
+	require.NoError(t, err)
+
+	h := NewWorkbenchHandler(svc)
+	r := newWorkbenchAuthedRouter(h)
+	r.POST("/api/v1/workbench/conversations/:id/send", h.Send)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/workbench/conversations/1/send", bytes.NewBufferString(`{"mode":"image","api_key_id":1,"endpoint":"images_generations","model":"gpt-image-2","input":"draw"}`))
+	req.Host = "127.0.0.1:8318"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-Host", "www.loomex.site")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(1), conv.ID)
+	select {
+	case got := <-gateway.requests:
+		require.Equal(t, "www.loomex.site", got.PublicHost)
+		require.Equal(t, "https", got.PublicScheme)
+	case <-time.After(time.Second):
+		t.Fatal("expected async image gateway request")
+	}
 }
 
 func TestWorkbenchHandlerListModelsInvalidAPIKeyIDReturns400(t *testing.T) {

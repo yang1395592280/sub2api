@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -140,6 +141,8 @@ func (h *WorkbenchHandler) ListMessages(c *gin.Context) {
 		return
 	}
 
+	publicHost, publicScheme := workbenchPublicRequestOrigin(c)
+	rewriteWorkbenchImageFileURLs(items, publicHost, publicScheme)
 	response.Success(c, items)
 }
 
@@ -183,13 +186,16 @@ func (h *WorkbenchHandler) Send(c *gin.Context) {
 		return
 	}
 
+	publicHost, publicScheme := workbenchPublicRequestOrigin(c)
 	result, err := h.workbenchService.Send(c.Request.Context(), subject.UserID, id, service.WorkbenchSendRequest{
-		Mode:     req.Mode,
-		APIKeyID: req.APIKeyID,
-		Endpoint: req.Endpoint,
-		Model:    req.Model,
-		Input:    req.Input,
-		Options:  req.Options,
+		Mode:         req.Mode,
+		APIKeyID:     req.APIKeyID,
+		Endpoint:     req.Endpoint,
+		Model:        req.Model,
+		Input:        req.Input,
+		Options:      req.Options,
+		PublicHost:   publicHost,
+		PublicScheme: publicScheme,
 	})
 	if err != nil {
 		if result != nil {
@@ -204,6 +210,65 @@ func (h *WorkbenchHandler) Send(c *gin.Context) {
 	}
 
 	response.Success(c, result)
+}
+
+func workbenchPublicRequestOrigin(c *gin.Context) (string, string) {
+	host := ""
+	scheme := "https"
+	if c != nil && c.Request != nil {
+		host = strings.TrimSpace(c.Request.Host)
+		if xfHost := strings.TrimSpace(c.Request.Header.Get("X-Forwarded-Host")); xfHost != "" {
+			host = strings.TrimSpace(strings.Split(xfHost, ",")[0])
+		}
+		if xfProto := strings.TrimSpace(c.Request.Header.Get("X-Forwarded-Proto")); xfProto != "" {
+			scheme = strings.TrimSpace(strings.Split(xfProto, ",")[0])
+		} else if c.Request.TLS != nil {
+			scheme = "https"
+		} else if c.Request.URL != nil && strings.TrimSpace(c.Request.URL.Scheme) != "" {
+			scheme = strings.TrimSpace(c.Request.URL.Scheme)
+		}
+	}
+	return host, strings.TrimRight(scheme, ":/")
+}
+
+func rewriteWorkbenchImageFileURLs(messages []service.WorkbenchMessage, publicHost, publicScheme string) {
+	publicHost = strings.TrimSpace(publicHost)
+	if publicHost == "" {
+		return
+	}
+	publicScheme = strings.TrimRight(strings.TrimSpace(publicScheme), ":/")
+	if publicScheme == "" {
+		publicScheme = "https"
+	}
+	for mi := range messages {
+		for ii := range messages[mi].ImageOutputs {
+			rawURL := strings.TrimSpace(messages[mi].ImageOutputs[ii].URL)
+			if rawURL == "" {
+				continue
+			}
+			parsed, err := url.Parse(rawURL)
+			if err != nil || !isInternalWorkbenchImageFileURL(parsed) {
+				continue
+			}
+			rewritten := publicScheme + "://" + publicHost + parsed.EscapedPath()
+			if parsed.RawQuery != "" {
+				rewritten += "?" + parsed.RawQuery
+			}
+			messages[mi].ImageOutputs[ii].URL = rewritten
+		}
+	}
+}
+
+func isInternalWorkbenchImageFileURL(u *url.URL) bool {
+	if u == nil {
+		return false
+	}
+	path := u.EscapedPath()
+	if !strings.HasPrefix(path, "/v1/images/files/") && !strings.HasPrefix(path, "/images/files/") {
+		return false
+	}
+	host := strings.ToLower(strings.TrimSpace(u.Hostname()))
+	return host == "127.0.0.1" || host == "localhost" || host == "::1" || host == "0.0.0.0"
 }
 
 func buildWorkbenchSendPartialError(result *service.WorkbenchSendResult) any {

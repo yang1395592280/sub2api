@@ -286,7 +286,7 @@ func (s *WorkbenchService) Send(ctx context.Context, userID, conversationID int6
 			Conversation:     *updated,
 		}
 		s.runAsync(func() {
-			s.completeImageMessage(apiKey.Key, input, model, options, *conv, assistantMessage)
+			s.completeImageMessage(apiKey.Key, input, model, options, req.PublicHost, req.PublicScheme, *conv, assistantMessage)
 		})
 		return result, nil
 	}
@@ -350,14 +350,16 @@ func (s *WorkbenchService) runAsync(fn func()) {
 	go fn()
 }
 
-func (s *WorkbenchService) completeImageMessage(apiKeySecret, input, model string, options map[string]any, conv WorkbenchConversation, assistantMessage WorkbenchMessage) {
+func (s *WorkbenchService) completeImageMessage(apiKeySecret, input, model string, options map[string]any, publicHost, publicScheme string, conv WorkbenchConversation, assistantMessage WorkbenchMessage) {
 	ctx, cancel := context.WithTimeout(context.Background(), workbenchAsyncImageTimeout)
 	defer cancel()
 
 	resp, sendErr := s.gateway.GenerateImage(ctx, "Bearer "+apiKeySecret, WorkbenchGatewayImageRequest{
-		Model:   model,
-		Prompt:  input,
-		Options: options,
+		Model:        model,
+		Prompt:       input,
+		Options:      options,
+		PublicHost:   strings.TrimSpace(publicHost),
+		PublicScheme: strings.TrimSpace(publicScheme),
 	})
 
 	completed := WorkbenchMessageUpdate{
