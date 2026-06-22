@@ -109,6 +109,25 @@ func (r *workbenchHandlerRepoStub) ListRecentChatMessages(ctx context.Context, u
 	return items, nil
 }
 
+func (r *workbenchHandlerRepoStub) UpdateMessageAfterGateway(_ context.Context, update service.WorkbenchMessageUpdate) error {
+	items := r.messages[update.ConversationID]
+	for i, item := range items {
+		if item.ID != update.MessageID || item.UserID != update.UserID {
+			continue
+		}
+		item.Content = update.Content
+		item.ResponseMetadata = update.ResponseMetadata
+		item.ImageOutputs = update.ImageOutputs
+		item.Status = update.Status
+		item.ErrorMessage = update.ErrorMessage
+		item.UpdatedAt = time.Now().UTC()
+		items[i] = item
+		r.messages[update.ConversationID] = items
+		return nil
+	}
+	return service.ErrWorkbenchConversationNotFound
+}
+
 func (r *workbenchHandlerRepoStub) UpdateConversationAfterMessage(_ context.Context, update service.WorkbenchConversationUpdate) error {
 	conv, ok := r.conversations[update.ConversationID]
 	if !ok || conv.UserID != update.UserID {

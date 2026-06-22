@@ -191,6 +191,34 @@ func (r *workbenchRepository) ListRecentChatMessages(ctx context.Context, userID
 	return out, nil
 }
 
+func (r *workbenchRepository) UpdateMessageAfterGateway(ctx context.Context, update service.WorkbenchMessageUpdate) error {
+	client := clientFromContext(ctx, r.client)
+	builder := client.WorkbenchMessage.Update().
+		Where(
+			workbenchmessage.IDEQ(update.MessageID),
+			workbenchmessage.UserIDEQ(update.UserID),
+			workbenchmessage.ConversationIDEQ(update.ConversationID),
+			workbenchmessage.DeletedAtIsNil(),
+		).
+		SetContent(update.Content).
+		SetResponseMetadata(nonNilMap(update.ResponseMetadata)).
+		SetImageOutputs(nonNilImageOutputs(update.ImageOutputs)).
+		SetStatus(update.Status)
+	if update.ErrorMessage != nil {
+		builder.SetErrorMessage(*update.ErrorMessage)
+	} else {
+		builder.ClearErrorMessage()
+	}
+	n, err := builder.Save(ctx)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return service.ErrWorkbenchConversationNotFound
+	}
+	return nil
+}
+
 func (r *workbenchRepository) UpdateConversationAfterMessage(ctx context.Context, update service.WorkbenchConversationUpdate) error {
 	client := clientFromContext(ctx, r.client)
 	builder := client.WorkbenchConversation.Update().

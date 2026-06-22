@@ -77,6 +77,7 @@ func TestWorkbenchServiceSendImagePersistsImageOutputs(t *testing.T) {
 		Metadata: map[string]any{"image_count": float64(1)},
 	}}
 	svc := NewWorkbenchService(repo, apiKeys, gateway)
+	svc.asyncRunner = func(fn func()) { fn() }
 
 	conv, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{Mode: WorkbenchModeImage})
 	require.NoError(t, err)
@@ -90,9 +91,71 @@ func TestWorkbenchServiceSendImagePersistsImageOutputs(t *testing.T) {
 		Options:  map[string]any{"size": "1024x1024", "n": float64(1)},
 	})
 	require.NoError(t, err)
-	require.Len(t, result.AssistantMessage.ImageOutputs, 1)
-	require.Equal(t, "https://img.example/1.png", result.AssistantMessage.ImageOutputs[0].URL)
+	require.Equal(t, WorkbenchMessageStatusPending, result.AssistantMessage.Status)
+	messages, err := repo.ListMessages(ctx, 42, conv.ID)
+	require.NoError(t, err)
+	require.Len(t, messages[1].ImageOutputs, 1)
+	require.Equal(t, "https://img.example/1.png", messages[1].ImageOutputs[0].URL)
 	require.Equal(t, "1024x1024", gateway.lastImage.Options["size"])
+}
+
+func TestWorkbenchServiceSendImageReturnsPendingBeforeGatewayCompletes(t *testing.T) {
+	ctx := context.Background()
+	repo := newWorkbenchMemoryRepo()
+	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
+		7: {ID: 7, UserID: 42, Key: "sk-test", Status: StatusAPIKeyActive, Name: "main"},
+	}}
+	gateway := newWorkbenchBlockingImageGateway(WorkbenchGatewayImageResponse{
+		Images:   []WorkbenchImageOutput{{URL: "https://img.example/async.png", MimeType: "image/png"}},
+		Metadata: map[string]any{"image_count": float64(1)},
+	})
+	svc := NewWorkbenchService(repo, apiKeys, gateway)
+
+	conv, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{Mode: WorkbenchModeImage})
+	require.NoError(t, err)
+
+	done := make(chan struct {
+		result *WorkbenchSendResult
+		err    error
+	}, 1)
+	go func() {
+		result, err := svc.Send(ctx, 42, conv.ID, WorkbenchSendRequest{
+			Mode:     WorkbenchModeImage,
+			APIKeyID: 7,
+			Endpoint: WorkbenchEndpointImagesGenerations,
+			Model:    "gpt-image-2",
+			Input:    "draw async image",
+		})
+		done <- struct {
+			result *WorkbenchSendResult
+			err    error
+		}{result: result, err: err}
+	}()
+
+	var initial struct {
+		result *WorkbenchSendResult
+		err    error
+	}
+	select {
+	case initial = <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("expected image send to return pending before gateway completes")
+	}
+	require.NoError(t, initial.err)
+	require.Equal(t, WorkbenchMessageStatusPending, initial.result.AssistantMessage.Status)
+	require.Empty(t, initial.result.AssistantMessage.ImageOutputs)
+	require.Equal(t, "生图任务已提交，正在生成图片。", initial.result.AssistantMessage.Content)
+
+	gateway.release()
+	require.Eventually(t, func() bool {
+		messages, err := repo.ListMessages(ctx, 42, conv.ID)
+		if err != nil || len(messages) != 2 {
+			return false
+		}
+		return messages[1].Status == WorkbenchMessageStatusSuccess &&
+			len(messages[1].ImageOutputs) == 1 &&
+			messages[1].ImageOutputs[0].URL == "https://img.example/async.png"
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestWorkbenchServiceSendImageDefaultsNonImageModel(t *testing.T) {
@@ -105,6 +168,7 @@ func TestWorkbenchServiceSendImageDefaultsNonImageModel(t *testing.T) {
 		Images: []WorkbenchImageOutput{{B64JSON: "ZmFrZQ==", MimeType: "image/png"}},
 	}}
 	svc := NewWorkbenchService(repo, apiKeys, gateway)
+	svc.asyncRunner = func(fn func()) { fn() }
 
 	conv, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{Mode: WorkbenchModeImage})
 	require.NoError(t, err)
@@ -122,6 +186,38 @@ func TestWorkbenchServiceSendImageDefaultsNonImageModel(t *testing.T) {
 	require.Equal(t, "gpt-image-2", result.UserMessage.Model)
 	require.Equal(t, "gpt-image-2", result.AssistantMessage.Model)
 	require.Equal(t, "gpt-image-2", result.Conversation.Model)
+}
+
+func TestWorkbenchServiceSendImageAsyncFailureUpdatesPendingMessage(t *testing.T) {
+	ctx := context.Background()
+	repo := newWorkbenchMemoryRepo()
+	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
+		7: {ID: 7, UserID: 42, Key: "sk-test", Status: StatusAPIKeyActive, Name: "main"},
+	}}
+	gateway := &workbenchGatewayStub{err: errors.New("gateway returned 502: provider failure secret sk-test")}
+	svc := NewWorkbenchService(repo, apiKeys, gateway)
+	svc.asyncRunner = func(fn func()) { fn() }
+
+	conv, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{Mode: WorkbenchModeImage})
+	require.NoError(t, err)
+
+	result, err := svc.Send(ctx, 42, conv.ID, WorkbenchSendRequest{
+		Mode:     WorkbenchModeImage,
+		APIKeyID: 7,
+		Endpoint: WorkbenchEndpointImagesGenerations,
+		Model:    "gpt-image-2",
+		Input:    "draw a cat",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, WorkbenchMessageStatusPending, result.AssistantMessage.Status)
+	messages, err := repo.ListMessages(ctx, 42, conv.ID)
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, WorkbenchMessageStatusError, messages[1].Status)
+	require.NotNil(t, messages[1].ErrorMessage)
+	require.Equal(t, "gateway returned 502", *messages[1].ErrorMessage)
+	require.NotContains(t, *messages[1].ErrorMessage, "sk-test")
 }
 
 func TestWorkbenchServiceSendStoresErrorMessageWhenGatewayFails(t *testing.T) {
@@ -487,6 +583,12 @@ func TestHTTPWorkbenchGatewayClientSendChatIncludesStreamFalse(t *testing.T) {
 	require.Equal(t, "gpt-5.5", got["model"])
 }
 
+func TestNewHTTPWorkbenchGatewayClientUsesLongTimeoutForAsyncImages(t *testing.T) {
+	client, ok := NewHTTPWorkbenchGatewayClient(nil).(*HTTPWorkbenchGatewayClient)
+	require.True(t, ok)
+	require.Equal(t, 5*time.Minute, client.client.Timeout)
+}
+
 func TestHTTPWorkbenchGatewayClientPostJSONDoesNotLeakRawBody(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
@@ -523,6 +625,35 @@ func (g *workbenchGatewayStub) GenerateImage(_ context.Context, authorization st
 	g.lastAuthorization = authorization
 	g.lastImage = req
 	return g.image, g.err
+}
+
+type workbenchBlockingImageGateway struct {
+	resp     WorkbenchGatewayImageResponse
+	started  chan struct{}
+	releaseC chan struct{}
+}
+
+func newWorkbenchBlockingImageGateway(resp WorkbenchGatewayImageResponse) *workbenchBlockingImageGateway {
+	return &workbenchBlockingImageGateway{
+		resp:     resp,
+		started:  make(chan struct{}),
+		releaseC: make(chan struct{}),
+	}
+}
+
+func (g *workbenchBlockingImageGateway) SendChat(context.Context, string, WorkbenchGatewayChatRequest) (WorkbenchGatewayChatResponse, error) {
+	return WorkbenchGatewayChatResponse{}, nil
+}
+
+func (g *workbenchBlockingImageGateway) GenerateImage(context.Context, string, WorkbenchGatewayImageRequest) (WorkbenchGatewayImageResponse, error) {
+	close(g.started)
+	<-g.releaseC
+	return g.resp, nil
+}
+
+func (g *workbenchBlockingImageGateway) release() {
+	<-g.started
+	close(g.releaseC)
 }
 
 type workbenchModelProviderStub struct {
@@ -644,6 +775,25 @@ func (r *workbenchMemoryRepo) ListRecentChatMessages(ctx context.Context, userID
 		filtered = filtered[len(filtered)-limit:]
 	}
 	return filtered, nil
+}
+
+func (r *workbenchMemoryRepo) UpdateMessageAfterGateway(_ context.Context, update WorkbenchMessageUpdate) error {
+	messages := r.messages[update.ConversationID]
+	for i, m := range messages {
+		if m.ID != update.MessageID || m.UserID != update.UserID {
+			continue
+		}
+		m.Content = update.Content
+		m.ResponseMetadata = nonNilWorkbenchMap(update.ResponseMetadata)
+		m.ImageOutputs = update.ImageOutputs
+		m.Status = update.Status
+		m.ErrorMessage = update.ErrorMessage
+		m.UpdatedAt = time.Now().UTC()
+		messages[i] = m
+		r.messages[update.ConversationID] = messages
+		return nil
+	}
+	return ErrWorkbenchConversationNotFound
 }
 
 func (r *workbenchMemoryRepo) UpdateConversationAfterMessage(_ context.Context, update WorkbenchConversationUpdate) error {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
@@ -19,6 +20,8 @@ const (
 	workbenchMessageContentMax      = 12000
 	workbenchErrorMessageMax        = 500
 	defaultWorkbenchImageModel      = "gpt-image-2"
+	workbenchImagePendingContent    = "生图任务已提交，正在生成图片。"
+	workbenchAsyncImageTimeout      = 5 * time.Minute
 )
 
 type WorkbenchService struct {
@@ -26,14 +29,21 @@ type WorkbenchService struct {
 	apiKeys       WorkbenchAPIKeyLookup
 	gateway       WorkbenchGatewayClient
 	modelProvider WorkbenchModelProvider
+	asyncRunner   func(func())
 }
 
 func NewWorkbenchService(repo WorkbenchRepository, apiKeys WorkbenchAPIKeyLookup, gateway WorkbenchGatewayClient) *WorkbenchService {
-	return &WorkbenchService{repo: repo, apiKeys: apiKeys, gateway: gateway}
+	return NewWorkbenchServiceWithModels(repo, apiKeys, gateway, nil)
 }
 
 func NewWorkbenchServiceWithModels(repo WorkbenchRepository, apiKeys WorkbenchAPIKeyLookup, gateway WorkbenchGatewayClient, modelProvider WorkbenchModelProvider) *WorkbenchService {
-	return &WorkbenchService{repo: repo, apiKeys: apiKeys, gateway: gateway, modelProvider: modelProvider}
+	return &WorkbenchService{
+		repo:          repo,
+		apiKeys:       apiKeys,
+		gateway:       gateway,
+		modelProvider: modelProvider,
+		asyncRunner:   func(fn func()) { go fn() },
+	}
 }
 
 func (s *WorkbenchService) ListModels(ctx context.Context, userID, apiKeyID int64) ([]WorkbenchModel, error) {
@@ -198,27 +208,53 @@ func (s *WorkbenchService) Send(ctx context.Context, userID, conversationID int6
 		Status:         WorkbenchMessageStatusSuccess,
 	}
 
-	var sendErr error
 	if mode == WorkbenchModeImage {
-		var resp WorkbenchGatewayImageResponse
-		resp, sendErr = s.gateway.GenerateImage(ctx, "Bearer "+apiKey.Key, WorkbenchGatewayImageRequest{
-			Model:   model,
-			Prompt:  input,
-			Options: options,
+		assistantMessage.Status = WorkbenchMessageStatusPending
+		assistantMessage.Content = workbenchImagePendingContent
+		if err := s.repo.CreateMessage(ctx, &assistantMessage); err != nil {
+			return nil, err
+		}
+
+		update := WorkbenchConversationUpdate{
+			UserID:             userID,
+			ConversationID:     conversationID,
+			Mode:               mode,
+			APIKeyID:           &apiKeyID,
+			Endpoint:           endpoint,
+			Model:              model,
+			Title:              conversationTitle(*conv, input, mode),
+			LastMessagePreview: conversationPreview(input, assistantMessage),
+			LastError:          nil,
+			MessageCountDelta:  2,
+		}
+		if err := s.repo.UpdateConversationAfterMessage(ctx, update); err != nil {
+			return nil, err
+		}
+
+		updated, err := s.repo.GetConversation(ctx, userID, conversationID)
+		if err != nil {
+			return nil, err
+		}
+		result := &WorkbenchSendResult{
+			UserMessage:      userMessage,
+			AssistantMessage: assistantMessage,
+			Conversation:     *updated,
+		}
+		s.runAsync(func() {
+			s.completeImageMessage(apiKey.Key, input, model, options, *conv, assistantMessage)
 		})
-		assistantMessage.ImageOutputs = resp.Images
-		assistantMessage.ResponseMetadata = nonNilWorkbenchMap(resp.Metadata)
-		assistantMessage.Content = imageAssistantContent(resp.Images)
-	} else {
-		var resp WorkbenchGatewayChatResponse
-		resp, sendErr = s.gateway.SendChat(ctx, "Bearer "+apiKey.Key, WorkbenchGatewayChatRequest{
-			Model:    model,
-			Messages: append(buildWorkbenchChatMessages(chatHistory), WorkbenchGatewayMessage{Role: WorkbenchRoleUser, Content: input}),
-			Options:  options,
-		})
-		assistantMessage.Content = truncateWorkbenchText(resp.Content, workbenchMessageContentMax)
-		assistantMessage.ResponseMetadata = nonNilWorkbenchMap(resp.Metadata)
+		return result, nil
 	}
+
+	var sendErr error
+	var resp WorkbenchGatewayChatResponse
+	resp, sendErr = s.gateway.SendChat(ctx, "Bearer "+apiKey.Key, WorkbenchGatewayChatRequest{
+		Model:    model,
+		Messages: append(buildWorkbenchChatMessages(chatHistory), WorkbenchGatewayMessage{Role: WorkbenchRoleUser, Content: input}),
+		Options:  options,
+	})
+	assistantMessage.Content = truncateWorkbenchText(resp.Content, workbenchMessageContentMax)
+	assistantMessage.ResponseMetadata = nonNilWorkbenchMap(resp.Metadata)
 
 	if sendErr != nil {
 		msg := sanitizeWorkbenchError(sendErr.Error(), apiKey.Key)
@@ -259,6 +295,58 @@ func (s *WorkbenchService) Send(ctx context.Context, userID, conversationID int6
 		return result, sendErr
 	}
 	return result, nil
+}
+
+func (s *WorkbenchService) runAsync(fn func()) {
+	if s != nil && s.asyncRunner != nil {
+		s.asyncRunner(fn)
+		return
+	}
+	go fn()
+}
+
+func (s *WorkbenchService) completeImageMessage(apiKeySecret, input, model string, options map[string]any, conv WorkbenchConversation, assistantMessage WorkbenchMessage) {
+	ctx, cancel := context.WithTimeout(context.Background(), workbenchAsyncImageTimeout)
+	defer cancel()
+
+	resp, sendErr := s.gateway.GenerateImage(ctx, "Bearer "+apiKeySecret, WorkbenchGatewayImageRequest{
+		Model:   model,
+		Prompt:  input,
+		Options: options,
+	})
+
+	completed := WorkbenchMessageUpdate{
+		UserID:           assistantMessage.UserID,
+		ConversationID:   assistantMessage.ConversationID,
+		MessageID:        assistantMessage.ID,
+		ResponseMetadata: nonNilWorkbenchMap(resp.Metadata),
+		ImageOutputs:     resp.Images,
+		Status:           WorkbenchMessageStatusSuccess,
+		Content:          imageAssistantContent(resp.Images),
+	}
+	if sendErr != nil {
+		msg := sanitizeWorkbenchError(sendErr.Error(), apiKeySecret)
+		completed.Status = WorkbenchMessageStatusError
+		completed.Content = ""
+		completed.ImageOutputs = nil
+		completed.ErrorMessage = &msg
+	}
+	if err := s.repo.UpdateMessageAfterGateway(ctx, completed); err != nil {
+		return
+	}
+
+	_ = s.repo.UpdateConversationAfterMessage(ctx, WorkbenchConversationUpdate{
+		UserID:             assistantMessage.UserID,
+		ConversationID:     assistantMessage.ConversationID,
+		Mode:               assistantMessage.Mode,
+		APIKeyID:           assistantMessage.APIKeyID,
+		Endpoint:           assistantMessage.Endpoint,
+		Model:              assistantMessage.Model,
+		Title:              conversationTitle(conv, input, assistantMessage.Mode),
+		LastMessagePreview: conversationPreview(input, WorkbenchMessage{Content: completed.Content, Status: completed.Status, ErrorMessage: completed.ErrorMessage}),
+		LastError:          completed.ErrorMessage,
+		MessageCountDelta:  0,
+	})
 }
 
 func (s *WorkbenchService) validateWorkbenchAPIKey(ctx context.Context, userID, apiKeyID int64) (*APIKey, error) {

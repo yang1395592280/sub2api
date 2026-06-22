@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import WorkbenchView from '../WorkbenchView.vue'
 
@@ -45,6 +45,10 @@ vi.mock('vue-i18n', async () => {
 const AppLayoutStub = { template: '<div><slot /></div>' }
 
 describe('WorkbenchView', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   beforeEach(() => {
     listConversations.mockReset()
     createConversation.mockReset()
@@ -236,5 +240,75 @@ describe('WorkbenchView', () => {
     expect(showError).toHaveBeenCalled()
     expect(String(showError.mock.calls.at(-1)?.[0] ?? '')).toContain('Bearer [redacted]')
     expect(String(showError.mock.calls.at(-1)?.[0] ?? '')).not.toContain('sk-test-1234567890abcdef')
+  })
+
+  it('refreshes messages after a timed-out send instead of leaving a false failure', async () => {
+    listMessages
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: 30, role: 'user', content: '继续', status: 'success' },
+        { id: 31, role: 'assistant', content: '后台完成了', status: 'success' },
+      ])
+    send.mockRejectedValue({ code: 'ECONNABORTED', message: 'timeout of 30000ms exceeded' })
+
+    const wrapper = mount(WorkbenchView, { global: { stubs: { AppLayout: AppLayoutStub } } })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="workbench-input"]').setValue('继续')
+    await wrapper.get('[data-testid="workbench-send"]').trigger('click')
+    await flushPromises()
+
+    expect(listMessages).toHaveBeenCalledTimes(2)
+    expect(listMessages).toHaveBeenLastCalledWith(1)
+    expect(wrapper.text()).toContain('后台完成了')
+  })
+
+  it('keeps the pending message when timed-out refresh has not persisted the send yet', async () => {
+    listMessages
+      .mockResolvedValueOnce([{ id: 2, role: 'assistant', content: '历史消息', status: 'success' }])
+      .mockResolvedValueOnce([{ id: 2, role: 'assistant', content: '历史消息', status: 'success' }])
+    send.mockRejectedValue({ code: 'ECONNABORTED', message: 'timeout of 30000ms exceeded' })
+
+    const wrapper = mount(WorkbenchView, { global: { stubs: { AppLayout: AppLayoutStub } } })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="workbench-input"]').setValue('继续')
+    await wrapper.get('[data-testid="workbench-send"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('历史消息')
+    expect(wrapper.text()).toContain('继续')
+    expect(showError).not.toHaveBeenCalledWith('workbench.sendFailed')
+  })
+
+  it('polls pending image messages until generated image appears', async () => {
+    vi.useFakeTimers()
+    listMessages
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: 40, role: 'user', content: '画一张图', mode: 'image', status: 'success' },
+        { id: 41, role: 'assistant', content: '已生成图片', mode: 'image', status: 'success', image_outputs: [{ url: 'https://img.example/done.png' }] },
+      ])
+    send.mockResolvedValue({
+      user_message: { id: 40, role: 'user', content: '画一张图', mode: 'image', status: 'success' },
+      assistant_message: { id: 41, role: 'assistant', content: '生图任务已提交，正在生成图片。', mode: 'image', status: 'pending', image_outputs: [] },
+      conversation: { id: 1, title: '画一张图', mode: 'image', message_count: 2 },
+    })
+
+    const wrapper = mount(WorkbenchView, { global: { stubs: { AppLayout: AppLayoutStub } } })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="workbench-mode-image"]').trigger('click')
+    await wrapper.get('[data-testid="workbench-input"]').setValue('画一张图')
+    await wrapper.get('[data-testid="workbench-send"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('生图任务已提交，正在生成图片。')
+
+    await vi.advanceTimersByTimeAsync(2000)
+    await flushPromises()
+
+    expect(listMessages).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('img[src="https://img.example/done.png"]').exists()).toBe(true)
   })
 })

@@ -93,6 +93,17 @@ type WorkbenchConversationUpdate struct {
 	MessageCountDelta  int
 }
 
+type WorkbenchMessageUpdate struct {
+	UserID           int64
+	ConversationID   int64
+	MessageID        int64
+	Content          string
+	ResponseMetadata map[string]any
+	ImageOutputs     []WorkbenchImageOutput
+	Status           string
+	ErrorMessage     *string
+}
+
 type WorkbenchAPIKeyLookup interface {
 	GetByID(ctx context.Context, id int64) (*APIKey, error)
 }
@@ -164,5 +175,6 @@ type WorkbenchRepository interface {
 	CreateMessage(ctx context.Context, m *WorkbenchMessage) error
 	ListMessages(ctx context.Context, userID, conversationID int64) ([]WorkbenchMessage, error)
 	ListRecentChatMessages(ctx context.Context, userID, conversationID int64, limit int) ([]WorkbenchMessage, error)
+	UpdateMessageAfterGateway(ctx context.Context, update WorkbenchMessageUpdate) error
 	UpdateConversationAfterMessage(ctx context.Context, update WorkbenchConversationUpdate) error
 }

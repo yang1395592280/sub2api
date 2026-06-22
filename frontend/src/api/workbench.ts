@@ -108,7 +108,7 @@ async function deleteConversation(conversationId: number): Promise<{ message: st
 }
 
 async function send(conversationId: number, payload: WorkbenchSendRequest): Promise<WorkbenchSendResponse> {
-  const { data } = await apiClient.post<WorkbenchSendResponse>(`/workbench/conversations/${conversationId}/send`, payload)
+  const { data } = await apiClient.post<WorkbenchSendResponse>(`/workbench/conversations/${conversationId}/send`, payload, { timeout: 120000 })
   return data
 }
 

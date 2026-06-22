@@ -333,7 +333,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import { keysAPI } from '@/api/keys'
@@ -393,7 +393,9 @@ const modelsLoadedForApiKeyId = ref<number | null>(null)
 const modelSelectionReady = ref(false)
 const messageContainerRef = ref<HTMLElement | null>(null)
 let optimisticIdCounter = -1
+let pendingImagePollTimer: ReturnType<typeof setInterval> | null = null
 const defaultImageModel = 'gpt-image-2'
+const pendingImagePollIntervalMs = 2000
 
 const imageOptions = ref({
   size: '1024x1024',
@@ -471,6 +473,14 @@ function sanitizeWorkbenchMessages(items: WorkbenchMessage[]): WorkbenchMessage[
   return items.map((item) => sanitizeWorkbenchMessage(item))
 }
 
+function hasPendingImageMessage(items: WorkbenchMessage[] = messages.value): boolean {
+  return items.some((message) =>
+    message.mode === 'image' &&
+    message.role === 'assistant' &&
+    message.status === 'pending'
+  )
+}
+
 function isSendResult(payload: WorkbenchSendResponse): payload is WorkbenchSendResult {
   return 'user_message' in payload && 'assistant_message' in payload && 'conversation' in payload
 }
@@ -486,12 +496,71 @@ function normalizeSendResponse(payload: WorkbenchSendResponse): { result: Workbe
   }
 }
 
+function isWorkbenchSendTimeoutError(error: unknown): boolean {
+  const candidate = error as { code?: unknown; message?: unknown }
+  const code = typeof candidate?.code === 'string' ? candidate.code : ''
+  const message = typeof candidate?.message === 'string' ? candidate.message.toLowerCase() : ''
+  return code === 'ECONNABORTED' || message.includes('timeout')
+}
+
 function ensureSelectedModel(): void {
   if (!availableModels.value.some((model) => model.name === selectedModel.value)) {
     selectedModel.value = ''
   }
   if (!selectedModel.value && availableModels.value.length > 0) {
     selectedModel.value = availableModels.value[0].name
+  }
+}
+
+async function refreshMessagesAfterTimedOutSend(conversationId: number, inputText: string): Promise<void> {
+  const refreshed = sanitizeWorkbenchMessages(await workbenchAPI.listMessages(conversationId))
+  const hasPersistedUserMessage = refreshed.some((message) =>
+    message.role === 'user' && message.content === inputText && message.id > 0
+  )
+  if (hasPersistedUserMessage) {
+    messages.value = refreshed
+    syncPendingImagePolling()
+  }
+}
+
+function stopPendingImagePolling(): void {
+  if (pendingImagePollTimer) {
+    clearInterval(pendingImagePollTimer)
+    pendingImagePollTimer = null
+  }
+}
+
+function syncPendingImagePolling(): void {
+  if (!hasPendingImageMessage()) {
+    stopPendingImagePolling()
+    return
+  }
+  if (pendingImagePollTimer || !activeConversationId.value) {
+    return
+  }
+  const conversationId = activeConversationId.value
+  pendingImagePollTimer = setInterval(() => {
+    refreshPendingImageMessages(conversationId)
+  }, pendingImagePollIntervalMs)
+}
+
+async function refreshPendingImageMessages(conversationId: number): Promise<void> {
+  if (activeConversationId.value !== conversationId) {
+    stopPendingImagePolling()
+    return
+  }
+  try {
+    const refreshed = sanitizeWorkbenchMessages(await workbenchAPI.listMessages(conversationId))
+    if (activeConversationId.value !== conversationId) {
+      return
+    }
+    messages.value = refreshed
+    if (!hasPendingImageMessage(refreshed)) {
+      stopPendingImagePolling()
+    }
+    await scrollToBottom()
+  } catch (error: unknown) {
+    console.error(error)
   }
 }
 
@@ -537,6 +606,7 @@ async function loadMessages(conversationId: number): Promise<void> {
   loadingMessages.value = true
   try {
     messages.value = sanitizeWorkbenchMessages(await workbenchAPI.listMessages(conversationId))
+    syncPendingImagePolling()
     await scrollToBottom()
   } finally {
     loadingMessages.value = false
@@ -666,6 +736,7 @@ async function handleSend(): Promise<void> {
       messages.value = [...messages.value, assistantMessage as WorkbenchMessage]
       upsertConversation(result.conversation as WorkbenchConversation)
       activeConversationId.value = result.conversation.id
+      syncPendingImagePolling()
     } else {
       messages.value = messages.value.map((m) =>
         m.id === optimisticId ? { ...m, status: 'error' as const } : m
@@ -680,11 +751,15 @@ async function handleSend(): Promise<void> {
       appStore.showError(t('workbench.sendFailed'))
     }
   } catch (error: unknown) {
-    console.error(error)
-    messages.value = messages.value.map((m) =>
-      m.id === optimisticId ? { ...m, status: 'error' as const } : m
-    )
-    appStore.showError(t('workbench.sendFailed'))
+    if (isWorkbenchSendTimeoutError(error)) {
+      await refreshMessagesAfterTimedOutSend(conversationId, inputText)
+    } else {
+      console.error(error)
+      messages.value = messages.value.map((m) =>
+        m.id === optimisticId ? { ...m, status: 'error' as const } : m
+      )
+      appStore.showError(t('workbench.sendFailed'))
+    }
   } finally {
     sending.value = false
     await scrollToBottom()
@@ -700,6 +775,10 @@ onMounted(async () => {
     console.error(error)
     appStore.showError(t('workbench.loadFailed'))
   }
+})
+
+onBeforeUnmount(() => {
+  stopPendingImagePolling()
 })
 
 watch(selectedApiKeyId, async (next, prev) => {

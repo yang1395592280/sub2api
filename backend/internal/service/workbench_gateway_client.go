@@ -30,7 +30,7 @@ func NewHTTPWorkbenchGatewayClient(cfg *config.Config) WorkbenchGatewayClient {
 		}
 	}
 	return &HTTPWorkbenchGatewayClient{
-		client:  &http.Client{Timeout: 60 * time.Second},
+		client:  &http.Client{Timeout: 5 * time.Minute},
 		baseURL: fmt.Sprintf("http://%s:%d", host, port),
 	}
 }
