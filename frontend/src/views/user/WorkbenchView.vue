@@ -179,13 +179,35 @@
                     <div
                       v-for="(output, index) in message.image_outputs"
                       :key="`${message.id}-${index}`"
-                      class="overflow-hidden rounded-xl border border-gray-200 bg-gray-100 dark:border-dark-600 dark:bg-dark-700"
+                      class="group/img relative overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-sm dark:border-dark-600 dark:bg-dark-700"
                     >
                       <img
                         :src="imageURL(output)"
                         :alt="`generated-${index}`"
-                        class="h-full w-full object-cover"
+                        class="w-full cursor-zoom-in object-cover transition-transform duration-300 group-hover/img:scale-105"
+                        @click="openLightbox(imageURL(output))"
                       />
+                      <!-- 悬浮操作栏 -->
+                      <div class="absolute inset-x-0 bottom-0 flex items-center justify-end gap-2 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 transition-opacity duration-200 group-hover/img:opacity-100">
+                        <button
+                          type="button"
+                          class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/90 text-gray-700 shadow-sm transition hover:bg-white hover:text-gray-900 dark:bg-dark-800/90 dark:text-gray-300 dark:hover:bg-dark-800"
+                          @click="openLightbox(imageURL(output))"
+                        >
+                          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6M7 10h6" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/90 text-gray-700 shadow-sm transition hover:bg-white hover:text-gray-900 dark:bg-dark-800/90 dark:text-gray-300 dark:hover:bg-dark-800"
+                          @click="downloadImage(imageURL(output), `${message.id}-${index}`)"
+                        >
+                          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -359,6 +381,43 @@
         </aside>
       </div>
     </div>
+    <!-- 图片大图查看 -->
+    <Teleport to="body">
+      <Transition name="lightbox">
+        <div
+          v-if="lightboxImage"
+          class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          @click="closeLightbox"
+        >
+          <div class="relative max-h-full max-w-full">
+            <img
+              :src="lightboxImage"
+              alt="preview"
+              class="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
+              @click.stop
+            />
+            <button
+              type="button"
+              class="absolute -right-3 -top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg transition hover:bg-gray-100"
+              @click="closeLightbox"
+            >
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="absolute -bottom-3 -right-3 flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg transition hover:bg-gray-100"
+              @click.stop="downloadImage(lightboxImage, 'full')"
+            >
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </AppLayout>
 </template>
 
@@ -440,6 +499,7 @@ const selectedModel = ref('')
 const modelsLoadedForApiKeyId = ref<number | null>(null)
 const modelSelectionReady = ref(false)
 const messageContainerRef = ref<HTMLElement | null>(null)
+const lightboxImage = ref<string>('')
 let optimisticIdCounter = -1
 let pendingImagePollTimer: ReturnType<typeof setInterval> | null = null
 const defaultImageModel = 'gpt-image-2'
@@ -478,6 +538,37 @@ const activeConversationTitle = computed(() => {
   const current = conversations.value.find((item) => item.id === activeConversationId.value)
   return current?.title || t('workbench.title')
 })
+
+function openLightbox(url: string): void {
+  lightboxImage.value = url
+}
+
+function closeLightbox(): void {
+  lightboxImage.value = ''
+}
+
+async function downloadImage(url: string, name: string): Promise<void> {
+  try {
+    const response = await fetch(url)
+    const blob = await response.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = blobUrl
+    link.download = `workbench-${name}.png`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(blobUrl)
+  } catch {
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `workbench-${name}.png`
+    link.target = '_blank'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+}
 
 async function scrollToBottom(): Promise<void> {
   await nextTick()
@@ -900,5 +991,13 @@ watch(() => messages.value.length, () => {
 .msg-enter-from {
   opacity: 0;
   transform: translateY(12px);
+}
+.lightbox-enter-active,
+.lightbox-leave-active {
+  transition: opacity 0.2s ease;
+}
+.lightbox-enter-from,
+.lightbox-leave-to {
+  opacity: 0;
 }
 </style>
