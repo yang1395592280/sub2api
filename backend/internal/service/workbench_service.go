@@ -18,6 +18,7 @@ const (
 	workbenchConversationPreviewMax = 120
 	workbenchMessageContentMax      = 12000
 	workbenchErrorMessageMax        = 500
+	defaultWorkbenchImageModel      = "gpt-image-2"
 )
 
 type WorkbenchService struct {
@@ -143,6 +144,9 @@ func (s *WorkbenchService) Send(ctx context.Context, userID, conversationID int6
 	}
 
 	model := strings.TrimSpace(req.Model)
+	if mode == WorkbenchModeImage {
+		model = normalizeWorkbenchImageModel(model)
+	}
 	if model == "" {
 		return nil, ErrWorkbenchEmptyModel
 	}
@@ -380,6 +384,14 @@ func validateWorkbenchModeEndpoint(mode, endpoint string) error {
 		return ErrWorkbenchInvalidMode
 	}
 	return nil
+}
+
+func normalizeWorkbenchImageModel(model string) string {
+	model = strings.TrimSpace(model)
+	if strings.HasPrefix(strings.ToLower(model), "gpt-image-") {
+		return model
+	}
+	return defaultWorkbenchImageModel
 }
 
 func truncateWorkbenchText(s string, max int) string {

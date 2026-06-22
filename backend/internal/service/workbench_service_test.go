@@ -95,6 +95,35 @@ func TestWorkbenchServiceSendImagePersistsImageOutputs(t *testing.T) {
 	require.Equal(t, "1024x1024", gateway.lastImage.Options["size"])
 }
 
+func TestWorkbenchServiceSendImageDefaultsNonImageModel(t *testing.T) {
+	ctx := context.Background()
+	repo := newWorkbenchMemoryRepo()
+	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
+		7: {ID: 7, UserID: 42, Key: "sk-test", Status: StatusAPIKeyActive, Name: "main"},
+	}}
+	gateway := &workbenchGatewayStub{image: WorkbenchGatewayImageResponse{
+		Images: []WorkbenchImageOutput{{B64JSON: "ZmFrZQ==", MimeType: "image/png"}},
+	}}
+	svc := NewWorkbenchService(repo, apiKeys, gateway)
+
+	conv, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{Mode: WorkbenchModeImage})
+	require.NoError(t, err)
+
+	result, err := svc.Send(ctx, 42, conv.ID, WorkbenchSendRequest{
+		Mode:     WorkbenchModeImage,
+		APIKeyID: 7,
+		Endpoint: WorkbenchEndpointImagesGenerations,
+		Model:    "gpt-5.5",
+		Input:    "draw a cat",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "gpt-image-2", gateway.lastImage.Model)
+	require.Equal(t, "gpt-image-2", result.UserMessage.Model)
+	require.Equal(t, "gpt-image-2", result.AssistantMessage.Model)
+	require.Equal(t, "gpt-image-2", result.Conversation.Model)
+}
+
 func TestWorkbenchServiceSendStoresErrorMessageWhenGatewayFails(t *testing.T) {
 	ctx := context.Background()
 	repo := newWorkbenchMemoryRepo()

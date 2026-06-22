@@ -393,6 +393,7 @@ const modelsLoadedForApiKeyId = ref<number | null>(null)
 const modelSelectionReady = ref(false)
 const messageContainerRef = ref<HTMLElement | null>(null)
 let optimisticIdCounter = -1
+const defaultImageModel = 'gpt-image-2'
 
 const imageOptions = ref({
   size: '1024x1024',
@@ -405,7 +406,21 @@ const imageOptions = ref({
 
 const activeKeys = computed(() => keys.value.filter((item) => item.status === 'active' || !item.status))
 
-const availableModels = computed<WorkbenchModel[]>(() => models.value)
+function isImageModel(model: string): boolean {
+  return model.trim().toLowerCase().startsWith('gpt-image-')
+}
+
+const availableModels = computed<WorkbenchModel[]>(() => {
+  if (currentMode.value !== 'image') {
+    return models.value
+  }
+
+  const imageModels = models.value.filter((model) => isImageModel(model.name))
+  if (imageModels.some((model) => model.name === defaultImageModel)) {
+    return imageModels
+  }
+  return [...imageModels, { name: defaultImageModel }]
+})
 
 const currentEndpoint = computed(() => currentMode.value === 'image' ? 'images_generations' : 'chat_completions')
 
@@ -471,6 +486,15 @@ function normalizeSendResponse(payload: WorkbenchSendResponse): { result: Workbe
   }
 }
 
+function ensureSelectedModel(): void {
+  if (!availableModels.value.some((model) => model.name === selectedModel.value)) {
+    selectedModel.value = ''
+  }
+  if (!selectedModel.value && availableModels.value.length > 0) {
+    selectedModel.value = availableModels.value[0].name
+  }
+}
+
 async function loadKeys(): Promise<void> {
   const response = await keysAPI.list(1, 100)
   keys.value = response.items as ApiKeyListItem[]
@@ -491,12 +515,7 @@ async function loadModels(): Promise<void> {
   }
   models.value = await workbenchAPI.listModels(selectedApiKeyId.value)
   modelsLoadedForApiKeyId.value = selectedApiKeyId.value
-  if (!availableModels.value.some((model) => model.name === selectedModel.value)) {
-    selectedModel.value = ''
-  }
-  if (!selectedModel.value && availableModels.value.length > 0) {
-    selectedModel.value = availableModels.value[0].name
-  }
+  ensureSelectedModel()
 }
 
 async function loadConversations(): Promise<void> {
@@ -535,6 +554,7 @@ async function selectConversation(conversationId: number): Promise<void> {
 
 function setMode(mode: WorkbenchMode): void {
   currentMode.value = mode
+  ensureSelectedModel()
 }
 
 async function handleCreateConversation(): Promise<void> {

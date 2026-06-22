@@ -154,6 +154,28 @@ describe('WorkbenchView', () => {
     expect(wrapper.find('img[src="https://img.example/1.png"]').exists()).toBe(true)
   })
 
+  it('uses the default image model when only chat models are listed', async () => {
+    send.mockResolvedValue({
+      user_message: { id: 10, role: 'user', content: '画一张图', status: 'success' },
+      assistant_message: { id: 11, role: 'assistant', content: '已生成图片', status: 'success', image_outputs: [] },
+      conversation: { id: 1, title: '画一张图', mode: 'image', message_count: 2 },
+    })
+    const wrapper = mount(WorkbenchView, { global: { stubs: { AppLayout: AppLayoutStub } } })
+    await flushPromises()
+
+    expect((wrapper.get('[data-testid="workbench-model-select"]').element as HTMLSelectElement).value).toBe('gpt-5.5')
+
+    await wrapper.get('[data-testid="workbench-mode-image"]').trigger('click')
+    await flushPromises()
+    expect((wrapper.get('[data-testid="workbench-model-select"]').element as HTMLSelectElement).value).toBe('gpt-image-2')
+
+    await wrapper.get('[data-testid="workbench-input"]').setValue('画一张图')
+    await wrapper.get('[data-testid="workbench-send"]').trigger('click')
+    await flushPromises()
+
+    expect(send).toHaveBeenCalledWith(1, expect.objectContaining({ mode: 'image', model: 'gpt-image-2' }))
+  })
+
   it('creates a conversation before first send when the list is empty', async () => {
     listConversations.mockResolvedValue({
       items: [],
