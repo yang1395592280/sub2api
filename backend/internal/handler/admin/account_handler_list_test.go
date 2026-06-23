@@ -118,6 +118,6 @@ func TestAccountHandlerListUsesOpenAISchedulerHealthSnapshotForStability(t *test
 	require.Len(t, payload.Data.Items, 1)
 	require.Equal(t, int64(11868), payload.Data.Items[0].ID)
 	require.Equal(t, "down", payload.Data.Items[0].Stability.Level)
-	require.Equal(t, "降级", payload.Data.Items[0].Stability.Label)
-	require.Equal(t, "upstream_5xx", payload.Data.Items[0].Stability.Reason)
+	require.Equal(t, "隔离", payload.Data.Items[0].Stability.Label)
+	require.Equal(t, "上游 5xx 连续失败", payload.Data.Items[0].Stability.Reason)
 }

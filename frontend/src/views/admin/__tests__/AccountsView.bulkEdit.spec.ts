@@ -677,7 +677,7 @@ describe('admin AccountsView bulk edit scope', () => {
     expect(wrapper.vm.accounts.find(account => account.id === 11)?.extra?.upstream_balance_remaining).toBe(8.5)
   })
 
-  it('renders OpenAI realtime scheduler stability and reason returned by the account list', async () => {
+  it('renders OpenAI realtime scheduler routing status and readable reason returned by the account list', async () => {
     listAccounts.mockResolvedValue({
       items: [
         {
@@ -691,12 +691,12 @@ describe('admin AccountsView bulk edit scope', () => {
           updated_at: '2026-03-07T10:00:00Z',
           stability: {
             level: 'down',
-            label: '降级',
+            label: '隔离',
             success_rate: 0,
             total_requests: 3,
             success_count: 0,
             error_count: 3,
-            reason: 'upstream_5xx',
+            reason: '上游 5xx 连续失败',
             window_days: 3
           }
         }
@@ -745,8 +745,9 @@ describe('admin AccountsView bulk edit scope', () => {
 
     await flushPromises()
 
-    expect(wrapper.text()).toContain('降级')
-    expect(wrapper.text()).toContain('upstream_5xx')
+    expect(wrapper.text()).toContain('隔离')
+    expect(wrapper.text()).toContain('上游 5xx 连续失败')
+    expect(wrapper.text()).not.toContain('upstream_5xx')
     expect(wrapper.text()).not.toContain('健康')
   })
 

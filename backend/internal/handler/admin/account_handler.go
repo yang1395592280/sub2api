@@ -234,19 +234,39 @@ func buildOpenAISchedulerStability(health service.OpenAIAccountHealthSnapshot) *
 	switch health.Tier {
 	case service.OpenAISchedulerTierPrimary:
 		stability.Level = "excellent"
-		stability.Label = "优秀"
+		stability.Label = "主力"
 	case service.OpenAISchedulerTierStandby:
 		stability.Level = "healthy"
-		stability.Label = "健康"
+		stability.Label = "备用"
 	case service.OpenAISchedulerTierObserve:
 		stability.Level = "normal"
 		stability.Label = "观察"
 	case service.OpenAISchedulerTierDegraded:
 		stability.Level = "down"
-		stability.Label = "降级"
+		stability.Label = "隔离"
 	}
+	stability.Reason = localizeOpenAISchedulerStabilityReason(reason)
 
 	return stability
+}
+
+func localizeOpenAISchedulerStabilityReason(reason string) string {
+	switch strings.TrimSpace(reason) {
+	case service.OpenAISchedulerDegradeUpstream5xx:
+		return "上游 5xx 连续失败"
+	case service.OpenAISchedulerDegradeHighLatency:
+		return "首包延迟过高"
+	case service.OpenAISchedulerDegradeRateLimited:
+		return "上游限流"
+	case service.OpenAISchedulerDegradeTimeout:
+		return "上游响应超时"
+	case service.OpenAISchedulerDegradeRecovering:
+		return "恢复观察中"
+	case service.OpenAISchedulerDegradeManual:
+		return "手动冷却中"
+	default:
+		return strings.TrimSpace(reason)
+	}
 }
 
 func (h *AccountHandler) buildAccountStability(ctx context.Context, account *service.Account, stats *service.AccountStabilityStats) *service.AccountStability {

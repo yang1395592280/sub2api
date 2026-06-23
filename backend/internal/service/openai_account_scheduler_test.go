@@ -769,6 +769,43 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyDegradedAc
 	require.False(t, decision.StickySessionHit)
 }
 
+func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyDegradedFallsBackWhenHealthRankingDisabled(t *testing.T) {
+	ctx := context.Background()
+	groupID := int64(10107)
+	degraded := Account{ID: 21801, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID}}
+	healthy := Account{ID: 21802, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 1, GroupIDs: []int64{groupID}}
+	cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{"openai:session_hash_degraded_no_ranking": degraded.ID}}
+	svc := &OpenAIGatewayService{
+		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: []Account{degraded, healthy}},
+		cache:              cache,
+		cfg:                &config.Config{},
+		rateLimitService:   newOpenAIAdvancedSchedulerRateLimitService("true"),
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+		openaiAccountStats: newOpenAIAccountRuntimeStats(),
+	}
+	scheduler, ok := svc.getOpenAIAccountScheduler(ctx).(*defaultOpenAIAccountScheduler)
+	require.True(t, ok)
+	scheduler.UpdateHealthSettings(defaultOpenAISchedulerHealthSettings())
+	scheduler.seedHealthForTest(degraded.ID, openAIAccountHealthRuntime{
+		successEWMA:         0.1,
+		errorEWMA:           0.9,
+		consecutiveFailures: 3,
+		lastDegradeReason:   OpenAISchedulerDegradeUpstream5xx,
+	})
+	scheduler.seedHealthForTest(healthy.ID, openAIAccountHealthRuntime{
+		successEWMA:        1,
+		consecutiveSuccess: 5,
+	})
+
+	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "session_hash_degraded_no_ranking", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, healthy.ID, selection.Account.ID)
+	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+	require.False(t, decision.StickySessionHit)
+}
+
 func TestOpenAIGatewayService_SelectAccountWithScheduler_LoadBalanceDoesNotFallbackToDegradedAccount(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(10106)
@@ -1503,6 +1540,11 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyEscapeByEr
 		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{acquireResults: map[int64]bool{21202: true}}),
 		openaiAccountStats: newOpenAIAccountRuntimeStats(),
 	}
+	scheduler, ok := svc.getOpenAIAccountScheduler(ctx).(*defaultOpenAIAccountScheduler)
+	require.True(t, ok)
+	scheduler.UpdateHealthSettings(OpenAISchedulerHealthSettings{
+		ConsecutiveFailureThreshold: 100,
+	})
 	for i := 0; i < 3; i++ {
 		svc.openaiAccountStats.report(21201, false, nil)
 	}
@@ -1576,7 +1618,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyBusyEscape
 	}
 }
 
-func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyEscapeDisabledKeepsLegacyBehavior(t *testing.T) {
+func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyEscapeDisabledStillSkipsDegraded(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(10104)
 	accounts := []Account{
@@ -1612,11 +1654,13 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyEscapeDisa
 	require.NoError(t, err)
 	require.NotNil(t, selection)
 	require.NotNil(t, selection.Account)
-	require.Equal(t, int64(21401), selection.Account.ID)
-	require.NotNil(t, selection.WaitPlan)
-	require.Equal(t, int64(21401), selection.WaitPlan.AccountID)
-	require.Equal(t, openAIAccountScheduleLayerSessionSticky, decision.Layer)
-	require.True(t, decision.StickySessionHit)
+	require.Equal(t, int64(21402), selection.Account.ID)
+	require.Nil(t, selection.WaitPlan)
+	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+	require.False(t, decision.StickySessionHit)
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
 }
 
 func TestDefaultOpenAIAccountScheduler_ShouldEscapeStickyAccount_ThresholdBoundary(t *testing.T) {

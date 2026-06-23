@@ -861,9 +861,6 @@ func (s *defaultOpenAIAccountScheduler) isAccountHealthRoutable(accountID int64)
 		return false
 	}
 	settings := s.SnapshotHealthSettings()
-	if !settings.HealthRankingEnabled {
-		return true
-	}
 	health := buildOpenAIAccountHealthSnapshot(accountID, openAIAccountHealthRuntime{
 		successEWMA: 1,
 	}, settings, time.Now())
@@ -1165,14 +1162,12 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 	}
 
 	candidates := allCandidates
-	if settings.HealthRankingEnabled {
-		candidates = make([]openAIAccountCandidateScore, 0, len(allCandidates))
-		for _, candidate := range allCandidates {
-			if candidate.health.Tier == OpenAISchedulerTierDegraded {
-				continue
-			}
-			candidates = append(candidates, candidate)
+	candidates = make([]openAIAccountCandidateScore, 0, len(allCandidates))
+	for _, candidate := range allCandidates {
+		if candidate.health.Tier == OpenAISchedulerTierDegraded {
+			continue
 		}
+		candidates = append(candidates, candidate)
 	}
 	staleSnapshotCompactRetry := make([]openAIAccountCandidateScore, 0, len(allCandidates))
 	if req.RequireCompact {

@@ -223,6 +223,40 @@ func TestOpenAISchedulerBuildOpenAIAccountLoadPlan_FillsHealthAndMixesScore(t *t
 	require.Equal(t, healthy.ID, plan.selectionOrder[0].account.ID)
 }
 
+func TestOpenAISchedulerBuildOpenAIAccountLoadPlan_ExcludesDegradedWhenHealthRankingDisabled(t *testing.T) {
+	scheduler := &defaultOpenAIAccountScheduler{
+		stats:          newOpenAIAccountRuntimeStats(),
+		healthSettings: defaultOpenAISchedulerHealthSettings(),
+		service:        &OpenAIGatewayService{cfg: &config.Config{}},
+	}
+	healthy := &Account{ID: 511, Priority: 1}
+	degraded := &Account{ID: 512, Priority: 0}
+	scheduler.seedHealthForTest(healthy.ID, openAIAccountHealthRuntime{
+		successEWMA:        1,
+		consecutiveSuccess: 5,
+	})
+	scheduler.seedHealthForTest(degraded.ID, openAIAccountHealthRuntime{
+		successEWMA:         0.1,
+		errorEWMA:           0.9,
+		consecutiveFailures: 3,
+		lastDegradeReason:   OpenAISchedulerDegradeUpstream5xx,
+	})
+
+	plan := scheduler.buildOpenAIAccountLoadPlan(OpenAIAccountScheduleRequest{SessionHash: "degraded-filtered-without-ranking"}, []*Account{
+		degraded,
+		healthy,
+	}, map[int64]*AccountLoadInfo{
+		healthy.ID:  {AccountID: healthy.ID, LoadRate: 100, WaitingCount: 9},
+		degraded.ID: {AccountID: degraded.ID, LoadRate: 0, WaitingCount: 0},
+	})
+
+	require.Len(t, plan.allCandidates, 2)
+	require.Len(t, plan.candidates, 1)
+	require.Equal(t, healthy.ID, plan.candidates[0].account.ID)
+	require.Len(t, plan.selectionOrder, 1)
+	require.Equal(t, healthy.ID, plan.selectionOrder[0].account.ID)
+}
+
 func TestOpenAISchedulerBuildOpenAIAccountLoadPlan_PrefersLowerChannelPriceWhenSpeedComparable(t *testing.T) {
 	scheduler := &defaultOpenAIAccountScheduler{
 		stats: newOpenAIAccountRuntimeStats(),
