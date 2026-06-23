@@ -161,3 +161,31 @@ func TestOpenAISchedulerHandler_GetDailyStats_InvalidDate(t *testing.T) {
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
+
+func TestOpenAISchedulerHandler_RoutingRanking_ResponseShape(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewOpenAISchedulerHandler(&service.OpenAIGatewayService{})
+	r := gin.New()
+	r.GET("/ranking", h.GetRoutingRanking)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/ranking?model=gpt-5.1", nil)
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"items"`)
+	require.Contains(t, w.Body.String(), `"snapshot_at"`)
+}
+
+func TestOpenAISchedulerHandler_RoutingExplain_InvalidID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewOpenAISchedulerHandler(&service.OpenAIGatewayService{})
+	r := gin.New()
+	r.GET("/accounts/:id/routing-explain", h.GetRoutingExplain)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/accounts/bad/routing-explain", nil)
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}

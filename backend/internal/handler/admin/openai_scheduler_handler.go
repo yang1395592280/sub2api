@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -152,6 +153,50 @@ func (h *OpenAISchedulerHandler) GetAccount(c *gin.Context) {
 		return
 	}
 	response.Success(c, snapshot)
+}
+
+func (h *OpenAISchedulerHandler) GetRoutingRanking(c *gin.Context) {
+	groupID, ok := parseOptionalQueryInt64(c, "group_id")
+	if !ok {
+		return
+	}
+	params := service.OpenAIRoutingExplainParams{
+		GroupID:  groupID,
+		Model:    strings.TrimSpace(c.Query("model")),
+		Platform: strings.TrimSpace(c.DefaultQuery("platform", service.PlatformOpenAI)),
+	}
+	result, err := h.gatewayService.ExplainOpenAIRouting(c.Request.Context(), params)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *OpenAISchedulerHandler) GetRoutingExplain(c *gin.Context) {
+	accountID, ok := parsePathInt64(c, "id")
+	if !ok {
+		return
+	}
+	groupID, ok := parseOptionalQueryInt64(c, "group_id")
+	if !ok {
+		return
+	}
+	params := service.OpenAIRoutingExplainParams{
+		GroupID:  groupID,
+		Model:    strings.TrimSpace(c.Query("model")),
+		Platform: strings.TrimSpace(c.DefaultQuery("platform", service.PlatformOpenAI)),
+	}
+	result, err := h.gatewayService.ExplainOpenAIRoutingForAccount(c.Request.Context(), accountID, params)
+	if err != nil {
+		if errors.Is(err, service.ErrAccountNotFound) {
+			response.NotFound(c, "routing explanation not found")
+			return
+		}
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, result)
 }
 
 func (h *OpenAISchedulerHandler) ApplyAction(c *gin.Context) {
