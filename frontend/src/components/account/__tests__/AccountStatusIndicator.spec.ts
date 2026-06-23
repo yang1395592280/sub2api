@@ -1,3 +1,4 @@
+import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import AccountStatusIndicator from '../AccountStatusIndicator.vue'
@@ -43,6 +44,65 @@ function makeAccount(overrides: Partial<Account>): Account {
 }
 
 describe('AccountStatusIndicator', () => {
+  it('updates rate-limit state when countdown expires', async () => {
+    vi.useFakeTimers()
+    const resetAt = new Date(Date.now() + 1000).toISOString()
+    const wrapper = mount(AccountStatusIndicator, {
+      props: {
+        account: makeAccount({
+          rate_limit_reset_at: resetAt,
+        })
+      },
+      global: {
+        stubs: {
+          Icon: true
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('429')
+
+    vi.advanceTimersByTime(1500)
+    await nextTick()
+
+    expect(wrapper.text()).not.toContain('429')
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
+
+  it('removes model rate-limit badge after countdown expires', async () => {
+    vi.useFakeTimers()
+    const resetAt = new Date(Date.now() + 1000).toISOString()
+    const wrapper = mount(AccountStatusIndicator, {
+      props: {
+        account: makeAccount({
+          extra: {
+            model_rate_limits: {
+              'claude-sonnet-4-5': {
+                rate_limited_at: new Date().toISOString(),
+                rate_limit_reset_at: resetAt
+              }
+            }
+          }
+        })
+      },
+      global: {
+        stubs: {
+          Icon: true
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('CSon45')
+
+    vi.advanceTimersByTime(1500)
+    await nextTick()
+
+    expect(wrapper.text()).not.toContain('CSon45')
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
+
   it('模型限流 + overages 启用 + 无 AICredits key → 显示 ⚡ (credits_active)', () => {
     const wrapper = mount(AccountStatusIndicator, {
       props: {

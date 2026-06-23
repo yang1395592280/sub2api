@@ -155,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import type { Account } from '@/types'
@@ -171,10 +171,26 @@ const emit = defineEmits<{
   (e: 'show-temp-unsched', account: Account): void
 }>()
 
+const nowMs = ref(Date.now())
+let nowTimer: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  nowTimer = setInterval(() => {
+    nowMs.value = Date.now()
+  }, 1000)
+})
+
+onBeforeUnmount(() => {
+  if (nowTimer !== null) {
+    clearInterval(nowTimer)
+    nowTimer = null
+  }
+})
+
 // Computed: is rate limited (429)
 const isRateLimited = computed(() => {
   if (!props.account.rate_limit_reset_at) return false
-  return new Date(props.account.rate_limit_reset_at) > new Date()
+  return new Date(props.account.rate_limit_reset_at).getTime() > nowMs.value
 })
 
 type AccountModelStatusItem = {
@@ -189,18 +205,18 @@ const activeModelStatuses = computed<AccountModelStatusItem[]>(() => {
   const modelLimits = extra?.model_rate_limits as
     | Record<string, { rate_limited_at: string; rate_limit_reset_at: string }>
     | undefined
-  const now = new Date()
   const items: AccountModelStatusItem[] = []
 
   if (!modelLimits) return items
 
   // 检查 AICredits key 是否生效（积分是否耗尽）
   const aiCreditsEntry = modelLimits['AICredits']
-  const hasActiveAICredits = aiCreditsEntry && new Date(aiCreditsEntry.rate_limit_reset_at) > now
+  const hasActiveAICredits =
+    !!aiCreditsEntry && new Date(aiCreditsEntry.rate_limit_reset_at).getTime() > nowMs.value
   const allowOverages = !!(extra?.allow_overages)
 
   for (const [model, info] of Object.entries(modelLimits)) {
-    if (new Date(info.rate_limit_reset_at) <= now) continue
+    if (new Date(info.rate_limit_reset_at).getTime() <= nowMs.value) continue
 
     if (model === 'AICredits') {
       // AICredits key → 积分已用尽
@@ -260,8 +276,7 @@ const formatScopeName = (scope: string): string => {
 
 const formatModelResetTime = (resetAt: string): string => {
   const date = new Date(resetAt)
-  const now = new Date()
-  const diffMs = date.getTime() - now.getTime()
+  const diffMs = date.getTime() - nowMs.value
   if (diffMs <= 0) return ''
   const totalSecs = Math.floor(diffMs / 1000)
   const h = Math.floor(totalSecs / 3600)
@@ -275,13 +290,13 @@ const formatModelResetTime = (resetAt: string): string => {
 // Computed: is overloaded (529)
 const isOverloaded = computed(() => {
   if (!props.account.overload_until) return false
-  return new Date(props.account.overload_until) > new Date()
+  return new Date(props.account.overload_until).getTime() > nowMs.value
 })
 
 // Computed: is temp unschedulable
 const isTempUnschedulable = computed(() => {
   if (!props.account.temp_unschedulable_until) return false
-  return new Date(props.account.temp_unschedulable_until) > new Date()
+  return new Date(props.account.temp_unschedulable_until).getTime() > nowMs.value
 })
 
 // Computed: has error status
@@ -301,6 +316,7 @@ const isQuotaExceeded = computed(() => {
 
 // Computed: countdown text for rate limit (429)
 const rateLimitCountdown = computed(() => {
+  nowMs.value
   return formatCountdown(props.account.rate_limit_reset_at)
 })
 
@@ -311,6 +327,7 @@ const rateLimitResumeText = computed(() => {
 
 // Computed: countdown text for overload (529)
 const overloadCountdown = computed(() => {
+  nowMs.value
   return formatCountdownWithSuffix(props.account.overload_until)
 })
 
