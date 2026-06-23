@@ -165,6 +165,7 @@ func TestOpenAIClassifyScheduleFailureReason(t *testing.T) {
 		},
 		{
 			name:         "transport failover body",
+			statusCode:   http.StatusBadGateway,
 			err:          &service.UpstreamFailoverError{StatusCode: http.StatusBadGateway},
 			responseBody: []byte(`{"error":{"type":"upstream_error","message":"Upstream request failed"}}`),
 			want:         service.OpenAISchedulerDegradeTransport,
