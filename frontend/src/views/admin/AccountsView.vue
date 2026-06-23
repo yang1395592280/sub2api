@@ -648,6 +648,7 @@ const todayStatsLoading = ref(false)
 const todayStatsError = ref<string | null>(null)
 const todayStatsReqSeq = ref(0)
 const pendingTodayStatsRefresh = ref(false)
+const pendingRoutingPrioritiesRefresh = ref(false)
 const usageManualRefreshToken = ref(0)
 
 const buildDefaultTodayStats = (): WindowStats => ({
@@ -876,6 +877,7 @@ const load = async () => {
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = false
+  pendingRoutingPrioritiesRefresh.value = false
   if (isFirstLoad.value) {
     requestParams.lite = '1'
   }
@@ -892,6 +894,7 @@ const reload = async () => {
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = false
+  pendingRoutingPrioritiesRefresh.value = false
   await baseReload()
   await refreshTodayStatsBatch()
   await refreshRoutingPriorities()
@@ -901,6 +904,7 @@ const debouncedReload = () => {
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = true
+  pendingRoutingPrioritiesRefresh.value = true
   baseDebouncedReload()
 }
 
@@ -908,6 +912,7 @@ const handlePageChange = (page: number) => {
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = true
+  pendingRoutingPrioritiesRefresh.value = true
   baseHandlePageChange(page)
 }
 
@@ -915,6 +920,7 @@ const handlePageSizeChange = (size: number) => {
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = true
+  pendingRoutingPrioritiesRefresh.value = true
   baseHandlePageSizeChange(size)
 }
 
@@ -932,11 +938,25 @@ const handleSort = (key: string, order: AccountSortOrder) => {
 }
 
 watch(loading, (isLoading, wasLoading) => {
-  if (wasLoading && !isLoading && pendingTodayStatsRefresh.value) {
+  if (wasLoading && !isLoading && (pendingTodayStatsRefresh.value || pendingRoutingPrioritiesRefresh.value)) {
+    const shouldRefreshTodayStats = pendingTodayStatsRefresh.value
+    const shouldRefreshRoutingPriorities = pendingRoutingPrioritiesRefresh.value
     pendingTodayStatsRefresh.value = false
-    refreshTodayStatsBatch().catch((error) => {
-      console.error('Failed to refresh account today stats after table load:', error)
-    })
+    pendingRoutingPrioritiesRefresh.value = false
+
+    ;(async () => {
+      if (shouldRefreshTodayStats) {
+        try {
+          await refreshTodayStatsBatch()
+        } catch (error) {
+          console.error('Failed to refresh account today stats after table load:', error)
+        }
+      }
+
+      if (shouldRefreshRoutingPriorities) {
+        await refreshRoutingPriorities()
+      }
+    })()
   }
 })
 

@@ -89,6 +89,27 @@ const DataTableStub = {
   `,
 }
 
+const AccountTableFiltersStub = {
+  emits: ['change', 'update:searchQuery', 'update:filters'],
+  template: `
+    <div>
+      <button data-test="filter-change" type="button" @click="$emit('change')">change</button>
+      <button data-test="filter-search" type="button" @click="$emit('update:searchQuery', 'cheap')">search</button>
+    </div>
+  `,
+}
+
+const PaginationStub = {
+  props: ['page', 'pageSize', 'total'],
+  emits: ['update:page', 'update:pageSize'],
+  template: `
+    <div>
+      <button data-test="page-next" type="button" @click="$emit('update:page', Number(page) + 1)">next</button>
+      <button data-test="page-size-50" type="button" @click="$emit('update:pageSize', 50)">size 50</button>
+    </div>
+  `,
+}
+
 const RoutingPriorityBadgeStub = {
   props: ['summary'],
   emits: ['open'],
@@ -153,10 +174,10 @@ function mountView() {
           template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>',
         },
         DataTable: DataTableStub,
-        Pagination: true,
+        Pagination: PaginationStub,
         ConfirmDialog: true,
         AccountTableActions: { template: '<div><slot name="beforeCreate" /><slot name="after" /></div>' },
-        AccountTableFilters: { template: '<div></div>' },
+        AccountTableFilters: AccountTableFiltersStub,
         AccountBulkActionsBar: true,
         AccountActionMenu: true,
         ImportDataModal: true,
@@ -336,5 +357,157 @@ describe('admin AccountsView routing priority', () => {
     const badges = wrapper.findAll('[data-test="routing-priority-badge"]')
     expect(badges).toHaveLength(1)
     expect(badges[0].text()).toContain('low_load')
+  })
+
+  it('refreshes routing priorities after debounced filter reload completes', async () => {
+    vi.useFakeTimers()
+    getRoutingRanking.mockReset()
+    getRoutingRanking
+      .mockResolvedValueOnce({
+        items: [buildRankingSummary(10, 'cost_advantage')],
+        source: 'scheduler_snapshot',
+        snapshot_at: '2026-06-23T00:00:00Z',
+      })
+      .mockResolvedValueOnce({
+        items: [buildRankingSummary(10, 'filter_reload')],
+        source: 'scheduler_snapshot',
+        snapshot_at: '2026-06-24T00:00:00Z',
+      })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(getRoutingRanking).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-test="routing-priority-badge"]').text()).toContain('cost_advantage')
+
+    await wrapper.get('[data-test="filter-search"]').trigger('click')
+    await vi.advanceTimersByTimeAsync(301)
+    await flushPromises()
+
+    expect(listAccounts).toHaveBeenCalledTimes(2)
+    expect(getRoutingRanking).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-test="routing-priority-badge"]').text()).toContain('filter_reload')
+  })
+
+  it('refreshes routing priorities after pagination and page size reloads complete', async () => {
+    vi.useFakeTimers()
+    getRoutingRanking.mockReset()
+    getRoutingRanking
+      .mockResolvedValueOnce({
+        items: [buildRankingSummary(10, 'cost_advantage')],
+        source: 'scheduler_snapshot',
+        snapshot_at: '2026-06-23T00:00:00Z',
+      })
+      .mockResolvedValueOnce({
+        items: [buildRankingSummary(11, 'page_two')],
+        source: 'scheduler_snapshot',
+        snapshot_at: '2026-06-24T00:00:00Z',
+      })
+      .mockResolvedValueOnce({
+        items: [buildRankingSummary(12, 'page_size_reload')],
+        source: 'scheduler_snapshot',
+        snapshot_at: '2026-06-25T00:00:00Z',
+      })
+
+    listAccounts.mockImplementation(async (page: number, pageSize: number) => {
+      if (page === 2) {
+        return {
+          items: [
+            {
+              id: 11,
+              name: 'page-two-openai',
+              platform: 'openai',
+              type: 'apikey',
+              status: 'active',
+              schedulable: true,
+              priority: 1,
+              concurrency: 3,
+              error_message: null,
+              last_used_at: null,
+              expires_at: null,
+              auto_pause_on_expired: false,
+              created_at: '2026-06-23T00:00:00Z',
+              updated_at: '2026-06-24T00:00:00Z',
+              proxy_id: null,
+            },
+          ],
+          total: 2,
+          page: 2,
+          page_size: pageSize,
+          pages: 2,
+        }
+      }
+
+      if (pageSize === 50) {
+        return {
+          items: [
+            {
+              id: 12,
+              name: 'page-size-openai',
+              platform: 'openai',
+              type: 'apikey',
+              status: 'active',
+              schedulable: true,
+              priority: 1,
+              concurrency: 4,
+              error_message: null,
+              last_used_at: null,
+              expires_at: null,
+              auto_pause_on_expired: false,
+              created_at: '2026-06-23T00:00:00Z',
+              updated_at: '2026-06-25T00:00:00Z',
+              proxy_id: null,
+            },
+          ],
+          total: 1,
+          page: 1,
+          page_size: 50,
+          pages: 1,
+        }
+      }
+
+      return {
+        items: [
+          {
+            id: 10,
+            name: 'cheap-fast',
+            platform: 'openai',
+            type: 'apikey',
+            status: 'active',
+            schedulable: true,
+            priority: 1,
+            concurrency: 5,
+            error_message: null,
+            last_used_at: null,
+            expires_at: null,
+            auto_pause_on_expired: false,
+            created_at: '2026-06-23T00:00:00Z',
+            updated_at: '2026-06-23T00:00:00Z',
+            proxy_id: null,
+          },
+        ],
+        total: 2,
+        page: 1,
+        page_size: pageSize,
+        pages: 2,
+      }
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-test="page-next"]').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(getRoutingRanking).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-test="routing-priority-badge"]').text()).toContain('page_two')
+
+    await wrapper.get('[data-test="page-size-50"]').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(getRoutingRanking).toHaveBeenCalledTimes(3)
+    expect(wrapper.find('[data-test="routing-priority-badge"]').text()).toContain('page_size_reload')
   })
 })

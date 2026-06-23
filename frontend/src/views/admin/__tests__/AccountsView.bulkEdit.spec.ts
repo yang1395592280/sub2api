@@ -19,6 +19,8 @@ const {
   getBatchTodayStats,
   getAllProxies,
   getAllGroups,
+  getRoutingRanking,
+  getRoutingExplain,
   refreshUpstreamBalance,
   showError,
   showSuccess,
@@ -30,6 +32,8 @@ const {
   getBatchTodayStats: vi.fn(),
   getAllProxies: vi.fn(),
   getAllGroups: vi.fn(),
+  getRoutingRanking: vi.fn(),
+  getRoutingExplain: vi.fn(),
   refreshUpstreamBalance: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
@@ -55,6 +59,13 @@ vi.mock('@/api/admin', () => ({
     groups: {
       getAll: getAllGroups
     }
+  }
+}))
+
+vi.mock('@/api/admin/openaiScheduler', () => ({
+  openaiSchedulerAPI: {
+    getRoutingRanking,
+    getRoutingExplain
   }
 }))
 
@@ -134,6 +145,8 @@ describe('admin AccountsView bulk edit scope', () => {
     getBatchTodayStats.mockReset()
     getAllProxies.mockReset()
     getAllGroups.mockReset()
+    getRoutingRanking.mockReset()
+    getRoutingExplain.mockReset()
     refreshUpstreamBalance.mockReset()
     showError.mockReset()
     showSuccess.mockReset()
@@ -155,6 +168,12 @@ describe('admin AccountsView bulk edit scope', () => {
     getBatchTodayStats.mockResolvedValue({ stats: {} })
     getAllProxies.mockResolvedValue([])
     getAllGroups.mockResolvedValue([])
+    getRoutingRanking.mockResolvedValue({
+      items: [],
+      source: 'scheduler_snapshot',
+      snapshot_at: '2026-06-23T00:00:00Z'
+    })
+    getRoutingExplain.mockResolvedValue(null)
   })
 
   it('opens bulk edit in filtered-results mode from the bulk actions dropdown', async () => {
