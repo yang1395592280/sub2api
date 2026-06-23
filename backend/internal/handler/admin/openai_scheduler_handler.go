@@ -163,7 +163,7 @@ func (h *OpenAISchedulerHandler) GetRoutingRanking(c *gin.Context) {
 	params := service.OpenAIRoutingExplainParams{
 		GroupID:  groupID,
 		Model:    strings.TrimSpace(c.Query("model")),
-		Platform: strings.TrimSpace(c.DefaultQuery("platform", service.PlatformOpenAI)),
+		Platform: openAIRoutingPlatformQuery(c),
 	}
 	result, err := h.gatewayService.ExplainOpenAIRouting(c.Request.Context(), params)
 	if err != nil {
@@ -185,7 +185,7 @@ func (h *OpenAISchedulerHandler) GetRoutingExplain(c *gin.Context) {
 	params := service.OpenAIRoutingExplainParams{
 		GroupID:  groupID,
 		Model:    strings.TrimSpace(c.Query("model")),
-		Platform: strings.TrimSpace(c.DefaultQuery("platform", service.PlatformOpenAI)),
+		Platform: openAIRoutingPlatformQuery(c),
 	}
 	result, err := h.gatewayService.ExplainOpenAIRoutingForAccount(c.Request.Context(), accountID, params)
 	if err != nil {
@@ -197,6 +197,14 @@ func (h *OpenAISchedulerHandler) GetRoutingExplain(c *gin.Context) {
 		return
 	}
 	response.Success(c, result)
+}
+
+func openAIRoutingPlatformQuery(c *gin.Context) string {
+	platform := strings.TrimSpace(c.Query("platform"))
+	if platform == "" {
+		return service.PlatformOpenAI
+	}
+	return platform
 }
 
 func (h *OpenAISchedulerHandler) ApplyAction(c *gin.Context) {

@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,6 +15,57 @@ import (
 
 type openAISchedulerHandlerStatsRepoStub struct {
 	stats *service.OpenAISchedulerDailyStats
+}
+
+type openAISchedulerHandlerRoutingRepoStub struct {
+	service.AccountRepository
+	accounts []service.Account
+	getByID  func(context.Context, int64) (*service.Account, error)
+	listErr  error
+}
+
+func (r openAISchedulerHandlerRoutingRepoStub) GetByID(ctx context.Context, id int64) (*service.Account, error) {
+	if r.getByID != nil {
+		return r.getByID(ctx, id)
+	}
+	for i := range r.accounts {
+		if r.accounts[i].ID == id {
+			account := r.accounts[i]
+			return &account, nil
+		}
+	}
+	return nil, service.ErrAccountNotFound
+}
+
+func (r openAISchedulerHandlerRoutingRepoStub) ListSchedulableByGroupIDAndPlatform(_ context.Context, groupID int64, platform string) ([]service.Account, error) {
+	if r.listErr != nil {
+		return nil, r.listErr
+	}
+	return r.listByPlatform(platform), nil
+}
+
+func (r openAISchedulerHandlerRoutingRepoStub) ListSchedulableByPlatform(_ context.Context, platform string) ([]service.Account, error) {
+	if r.listErr != nil {
+		return nil, r.listErr
+	}
+	return r.listByPlatform(platform), nil
+}
+
+func (r openAISchedulerHandlerRoutingRepoStub) ListSchedulableUngroupedByPlatform(_ context.Context, platform string) ([]service.Account, error) {
+	if r.listErr != nil {
+		return nil, r.listErr
+	}
+	return r.listByPlatform(platform), nil
+}
+
+func (r openAISchedulerHandlerRoutingRepoStub) listByPlatform(platform string) []service.Account {
+	result := make([]service.Account, 0, len(r.accounts))
+	for _, account := range r.accounts {
+		if account.Platform == platform {
+			result = append(result, account)
+		}
+	}
+	return result
 }
 
 func (r *openAISchedulerHandlerStatsRepoStub) IncrementDailySelection(ctx context.Context, statDate time.Time, groupID int64, accountID int64, selectedAt time.Time) error {
@@ -188,4 +240,73 @@ func TestOpenAISchedulerHandler_RoutingExplain_InvalidID(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestOpenAISchedulerHandler_RoutingPlatformQueryDefaultsOpenAI(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/ranking?platform=+++", nil)
+
+	require.Equal(t, service.PlatformOpenAI, openAIRoutingPlatformQuery(c))
+}
+
+func TestOpenAISchedulerHandler_RoutingRanking_BlankPlatformDefaultsToOpenAI(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewOpenAISchedulerHandler(service.NewOpenAIGatewayService(
+		openAISchedulerHandlerRoutingRepoStub{
+			accounts: []service.Account{
+				{ID: 123, Name: "openai-primary", Platform: service.PlatformOpenAI, Type: service.AccountTypeAPIKey, Status: service.StatusActive, Schedulable: true, Priority: 1, Concurrency: 1},
+			},
+		},
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+	))
+	r := gin.New()
+	r.GET("/ranking", h.GetRoutingRanking)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/ranking?platform=+++", nil)
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"account_id":123`)
+}
+
+func TestOpenAISchedulerHandler_RoutingExplain_AccountNotFoundReturns404(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewOpenAISchedulerHandler(service.NewOpenAIGatewayService(
+		openAISchedulerHandlerRoutingRepoStub{
+			getByID: func(context.Context, int64) (*service.Account, error) {
+				return nil, service.ErrAccountNotFound
+			},
+		},
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+	))
+	r := gin.New()
+	r.GET("/accounts/:id/routing-explain", h.GetRoutingExplain)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/accounts/404/routing-explain", nil)
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+	require.Contains(t, w.Body.String(), "routing explanation not found")
+}
+
+func TestOpenAISchedulerHandler_RoutingExplain_OtherErrorsReturn500(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewOpenAISchedulerHandler(service.NewOpenAIGatewayService(
+		openAISchedulerHandlerRoutingRepoStub{
+			listErr: errors.New("boom"),
+		},
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+	))
+	r := gin.New()
+	r.GET("/accounts/:id/routing-explain", h.GetRoutingExplain)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/accounts/500/routing-explain", nil)
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	require.Contains(t, w.Body.String(), "boom")
 }
