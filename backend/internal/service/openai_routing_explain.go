@@ -50,6 +50,21 @@ type OpenAIRoutingScoreBreakdown struct {
 	Health    float64 `json:"health"`
 }
 
+type OpenAIRoutingQuotaDecision struct {
+	Window      string    `json:"window,omitempty"`
+	Threshold   float64   `json:"threshold,omitempty"`
+	Utilization float64   `json:"utilization,omitempty"`
+	SnapshotAt  time.Time `json:"snapshot_at"`
+}
+
+type OpenAIRoutingBlockDetail struct {
+	Reason        OpenAIRoutingReasonCode     `json:"reason"`
+	Source        string                      `json:"source"`
+	Until         *time.Time                  `json:"until,omitempty"`
+	QuotaDecision *OpenAIRoutingQuotaDecision `json:"quota_decision,omitempty"`
+	SnapshotAt    time.Time                   `json:"snapshot_at"`
+}
+
 type OpenAIRoutingSummary struct {
 	AccountID        int64                       `json:"account_id"`
 	AccountName      string                      `json:"account_name"`
@@ -61,6 +76,7 @@ type OpenAIRoutingSummary struct {
 	SummaryReasons   []string                    `json:"summary_reasons"`
 	IsSchedulableNow bool                        `json:"is_schedulable_now"`
 	BlockReasons     []OpenAIRoutingReasonCode   `json:"block_reasons,omitempty"`
+	BlockDetails     []OpenAIRoutingBlockDetail  `json:"block_details,omitempty"`
 	SnapshotAt       time.Time                   `json:"snapshot_at"`
 }
 
@@ -145,7 +161,22 @@ func (s *OpenAIGatewayService) ExplainOpenAIRoutingForAccount(ctx context.Contex
 		}
 	}
 	if selected == nil {
-		return nil, ErrAccountNotFound
+		if s == nil || s.accountRepo == nil {
+			return nil, ErrAccountNotFound
+		}
+		account, err := s.accountRepo.GetByID(ctx, accountID)
+		if err != nil || account == nil {
+			return nil, ErrAccountNotFound
+		}
+		if strings.TrimSpace(params.Platform) == "" {
+			params.Platform = PlatformOpenAI
+		}
+		if account.Platform != params.Platform {
+			return nil, ErrAccountNotFound
+		}
+		loadMap := s.openAIRoutingLoadMap(ctx, []Account{*account})
+		fallback := s.explainOpenAIRoutingAccount(ctx, account, loadMap[account.ID], params, ranking.SnapshotAt)
+		selected = &fallback
 	}
 	top := ranking.Items
 	if len(top) > 10 {
@@ -155,28 +186,34 @@ func (s *OpenAIGatewayService) ExplainOpenAIRoutingForAccount(ctx context.Contex
 		Account: *selected,
 		Top:     top,
 		Notes: []string{
-			"真实请求仍会先检查 previous_response_id 和 session_hash 粘性。",
-			"Top-K 加权模式下候选排名第一不代表每次必选。",
+			"sticky_may_override_ranking",
+			"weighted_top_k_not_strict_best",
 		},
 	}, nil
 }
 
 func (s *OpenAIGatewayService) explainOpenAIRoutingAccount(ctx context.Context, account *Account, loadInfo *AccountLoadInfo, params OpenAIRoutingExplainParams, now time.Time) OpenAIRoutingSummary {
-	reasons := s.openAIRoutingBlockReasons(ctx, account, loadInfo, params, now)
+	reasons, details := s.openAIRoutingBlockReasons(ctx, account, loadInfo, params, now)
 	health, ok := s.SnapshotOpenAIAccountHealth(ctx, account.ID)
 	if !ok {
 		health = buildOpenAIAccountHealthSnapshot(account.ID, openAIAccountHealthRuntime{successEWMA: 1}, defaultOpenAISchedulerHealthSettings(), now)
 	}
 	score := s.openAIRoutingScore(account, loadInfo, health)
-	statusLabel := "候选"
+	statusLabel := "candidate"
 	isSchedulableNow := len(reasons) == 0
 	if len(reasons) > 0 {
-		statusLabel = "跳过"
+		statusLabel = "skipped"
 	}
 	if health.Tier == OpenAISchedulerTierDegraded {
 		isSchedulableNow = false
-		statusLabel = "隔离"
+		statusLabel = "degraded"
 		reasons = appendOpenAIRoutingReason(reasons, OpenAIRoutingReasonHealthDegraded)
+		details = appendOpenAIRoutingBlockDetail(details, OpenAIRoutingBlockDetail{
+			Reason:     OpenAIRoutingReasonHealthDegraded,
+			Source:     "advanced_scheduler_health",
+			Until:      health.CooldownUntil,
+			SnapshotAt: now,
+		})
 	}
 
 	summaryReasons := openAIRoutingSummaryReasons(account, score, health, reasons)
@@ -195,58 +232,146 @@ func (s *OpenAIGatewayService) explainOpenAIRoutingAccount(ctx context.Context, 
 		SummaryReasons:   summaryReasons,
 		IsSchedulableNow: isSchedulableNow,
 		BlockReasons:     reasons,
+		BlockDetails:     details,
 		SnapshotAt:       now,
 	}
 }
 
-func (s *OpenAIGatewayService) openAIRoutingBlockReasons(ctx context.Context, account *Account, loadInfo *AccountLoadInfo, params OpenAIRoutingExplainParams, now time.Time) []OpenAIRoutingReasonCode {
+func (s *OpenAIGatewayService) openAIRoutingBlockReasons(ctx context.Context, account *Account, loadInfo *AccountLoadInfo, params OpenAIRoutingExplainParams, now time.Time) ([]OpenAIRoutingReasonCode, []OpenAIRoutingBlockDetail) {
 	reasons := make([]OpenAIRoutingReasonCode, 0, 4)
+	details := make([]OpenAIRoutingBlockDetail, 0, 4)
 	if account == nil {
-		return []OpenAIRoutingReasonCode{OpenAIRoutingReasonStatusInactive}
+		return []OpenAIRoutingReasonCode{OpenAIRoutingReasonStatusInactive}, []OpenAIRoutingBlockDetail{{
+			Reason:     OpenAIRoutingReasonStatusInactive,
+			Source:     "persistent_account_state",
+			SnapshotAt: now,
+		}}
 	}
 	if account.Status == StatusError {
 		reasons = append(reasons, OpenAIRoutingReasonStatusError)
+		details = appendOpenAIRoutingBlockDetail(details, OpenAIRoutingBlockDetail{
+			Reason:     OpenAIRoutingReasonStatusError,
+			Source:     "persistent_account_state",
+			SnapshotAt: now,
+		})
 	}
 	if account.Status != StatusActive && account.Status != StatusError {
 		reasons = append(reasons, OpenAIRoutingReasonStatusInactive)
+		details = appendOpenAIRoutingBlockDetail(details, OpenAIRoutingBlockDetail{
+			Reason:     OpenAIRoutingReasonStatusInactive,
+			Source:     "persistent_account_state",
+			SnapshotAt: now,
+		})
 	}
 	if !account.Schedulable {
 		reasons = append(reasons, OpenAIRoutingReasonManualUnschedulable)
+		details = appendOpenAIRoutingBlockDetail(details, OpenAIRoutingBlockDetail{
+			Reason:     OpenAIRoutingReasonManualUnschedulable,
+			Source:     "persistent_account_state",
+			SnapshotAt: now,
+		})
 	}
 	if params.GroupID != nil && !openAIStickyAccountMatchesGroup(account, params.GroupID) {
 		reasons = append(reasons, OpenAIRoutingReasonGroupMismatch)
+		details = appendOpenAIRoutingBlockDetail(details, OpenAIRoutingBlockDetail{
+			Reason:     OpenAIRoutingReasonGroupMismatch,
+			Source:     "persistent_account_state",
+			SnapshotAt: now,
+		})
 	}
 	if account.RateLimitResetAt != nil && account.RateLimitResetAt.After(now) {
 		reasons = append(reasons, OpenAIRoutingReasonRateLimited)
+		details = appendOpenAIRoutingBlockDetail(details, OpenAIRoutingBlockDetail{
+			Reason:     OpenAIRoutingReasonRateLimited,
+			Source:     "ui_countdown_state",
+			Until:      account.RateLimitResetAt,
+			SnapshotAt: now,
+		})
 	}
 	if account.OverloadUntil != nil && account.OverloadUntil.After(now) {
 		reasons = append(reasons, OpenAIRoutingReasonOverloaded)
+		details = appendOpenAIRoutingBlockDetail(details, OpenAIRoutingBlockDetail{
+			Reason:     OpenAIRoutingReasonOverloaded,
+			Source:     "ui_countdown_state",
+			Until:      account.OverloadUntil,
+			SnapshotAt: now,
+		})
 	}
 	if account.TempUnschedulableUntil != nil && account.TempUnschedulableUntil.After(now) {
 		reasons = append(reasons, OpenAIRoutingReasonTempUnschedulable)
+		details = appendOpenAIRoutingBlockDetail(details, OpenAIRoutingBlockDetail{
+			Reason:     OpenAIRoutingReasonTempUnschedulable,
+			Source:     "ui_countdown_state",
+			Until:      account.TempUnschedulableUntil,
+			SnapshotAt: now,
+		})
 	}
 	if s != nil && s.isOpenAIAccountRuntimeBlocked(account) {
 		reasons = append(reasons, OpenAIRoutingReasonRuntimeBlocked)
+		details = appendOpenAIRoutingBlockDetail(details, OpenAIRoutingBlockDetail{
+			Reason:     OpenAIRoutingReasonRuntimeBlocked,
+			Source:     "runtime_block",
+			SnapshotAt: now,
+		})
 	}
 	if params.Model != "" && !account.IsModelSupported(params.Model) {
 		reasons = append(reasons, OpenAIRoutingReasonModelUnsupported)
+		details = appendOpenAIRoutingBlockDetail(details, OpenAIRoutingBlockDetail{
+			Reason:     OpenAIRoutingReasonModelUnsupported,
+			Source:     "persistent_account_state",
+			SnapshotAt: now,
+		})
 	}
 	if params.RequiredCapability != "" && !account.SupportsOpenAIEndpointCapability(params.RequiredCapability) {
 		reasons = append(reasons, OpenAIRoutingReasonCapabilityUnsupported)
+		details = appendOpenAIRoutingBlockDetail(details, OpenAIRoutingBlockDetail{
+			Reason:     OpenAIRoutingReasonCapabilityUnsupported,
+			Source:     "persistent_account_state",
+			SnapshotAt: now,
+		})
 	}
 	if params.RequiredTransport != "" && params.RequiredTransport != OpenAIUpstreamTransportAny && !s.isOpenAIAccountTransportCompatible(account, params.RequiredTransport) {
 		reasons = append(reasons, OpenAIRoutingReasonTransportUnsupported)
+		details = appendOpenAIRoutingBlockDetail(details, OpenAIRoutingBlockDetail{
+			Reason:     OpenAIRoutingReasonTransportUnsupported,
+			Source:     "persistent_account_state",
+			SnapshotAt: now,
+		})
 	}
-	if paused, _ := shouldAutoPauseOpenAIAccountByQuota(ctx, account); paused {
+	if paused, decision := shouldAutoPauseOpenAIAccountByQuota(ctx, account); paused {
 		reasons = append(reasons, OpenAIRoutingReasonQuotaAutoPaused)
+		detail := OpenAIRoutingBlockDetail{
+			Reason:     OpenAIRoutingReasonQuotaAutoPaused,
+			Source:     "persistent_account_state",
+			SnapshotAt: now,
+		}
+		if decision.window != "" || decision.threshold > 0 || decision.utilization > 0 {
+			detail.QuotaDecision = &OpenAIRoutingQuotaDecision{
+				Window:      decision.window,
+				Threshold:   roundOpenAIRoutingScore(decision.threshold),
+				Utilization: roundOpenAIRoutingScore(decision.utilization),
+				SnapshotAt:  now,
+			}
+		}
+		details = appendOpenAIRoutingBlockDetail(details, detail)
 	}
 	if params.RequireCompact && openAICompactSupportTier(account) == 0 {
 		reasons = append(reasons, OpenAIRoutingReasonCompactUnsupported)
+		details = appendOpenAIRoutingBlockDetail(details, OpenAIRoutingBlockDetail{
+			Reason:     OpenAIRoutingReasonCompactUnsupported,
+			Source:     "persistent_account_state",
+			SnapshotAt: now,
+		})
 	}
 	if loadInfo != nil && account.Concurrency > 0 && loadInfo.CurrentConcurrency >= account.Concurrency {
 		reasons = append(reasons, OpenAIRoutingReasonConcurrencyFull)
+		details = appendOpenAIRoutingBlockDetail(details, OpenAIRoutingBlockDetail{
+			Reason:     OpenAIRoutingReasonConcurrencyFull,
+			Source:     "persistent_account_state",
+			SnapshotAt: now,
+		})
 	}
-	return reasons
+	return reasons, details
 }
 
 func (s *OpenAIGatewayService) openAIRoutingScore(account *Account, loadInfo *AccountLoadInfo, health OpenAIAccountHealthSnapshot) OpenAIRoutingScoreBreakdown {
@@ -323,68 +448,27 @@ func openAIRoutingSummaryReasons(account *Account, score OpenAIRoutingScoreBreak
 	if len(reasons) > 0 {
 		out := make([]string, 0, len(reasons))
 		for _, reason := range reasons {
-			out = append(out, openAIRoutingReasonLabel(reason))
+			out = append(out, string(reason))
 		}
 		return out
 	}
 	out := make([]string, 0, 4)
 	if score.Price >= 0.9 {
-		out = append(out, "成本优")
+		out = append(out, "cost_advantage")
 	}
 	if score.Load >= 0.9 && score.Queue >= 0.9 {
-		out = append(out, "负载轻")
+		out = append(out, "low_load")
 	}
 	if health.TTFTEWMAMS > 0 && health.TTFTEWMAMS <= 1000 {
-		out = append(out, "低延迟")
+		out = append(out, "low_latency")
 	}
 	if account != nil && account.Priority <= 5 {
-		out = append(out, "高优先级")
+		out = append(out, "high_priority")
 	}
 	if len(out) == 0 {
-		out = append(out, "可调度")
+		out = append(out, "schedulable")
 	}
 	return out
-}
-
-func openAIRoutingReasonLabel(reason OpenAIRoutingReasonCode) string {
-	switch reason {
-	case OpenAIRoutingReasonStatusError:
-		return "状态异常"
-	case OpenAIRoutingReasonStatusInactive:
-		return "未激活"
-	case OpenAIRoutingReasonManualUnschedulable:
-		return "手动停用"
-	case OpenAIRoutingReasonRateLimited:
-		return "限流中"
-	case OpenAIRoutingReasonOverloaded:
-		return "过载中"
-	case OpenAIRoutingReasonTempUnschedulable:
-		return "临时不可调度"
-	case OpenAIRoutingReasonRuntimeBlocked:
-		return "运行时封禁"
-	case OpenAIRoutingReasonHealthDegraded:
-		return "健康降级"
-	case OpenAIRoutingReasonModelUnsupported:
-		return "模型不支持"
-	case OpenAIRoutingReasonCapabilityUnsupported:
-		return "能力不支持"
-	case OpenAIRoutingReasonTransportUnsupported:
-		return "传输协议不支持"
-	case OpenAIRoutingReasonGroupMismatch:
-		return "分组不匹配"
-	case OpenAIRoutingReasonPrivacyNotSet:
-		return "隐私未设置"
-	case OpenAIRoutingReasonQuotaAutoPaused:
-		return "额度自动暂停"
-	case OpenAIRoutingReasonConcurrencyFull:
-		return "并发已满"
-	case OpenAIRoutingReasonChannelRestricted:
-		return "渠道受限"
-	case OpenAIRoutingReasonCompactUnsupported:
-		return "compact 不支持"
-	default:
-		return string(reason)
-	}
 }
 
 func appendOpenAIRoutingReason(reasons []OpenAIRoutingReasonCode, reason OpenAIRoutingReasonCode) []OpenAIRoutingReasonCode {
@@ -394,6 +478,15 @@ func appendOpenAIRoutingReason(reasons []OpenAIRoutingReasonCode, reason OpenAIR
 		}
 	}
 	return append(reasons, reason)
+}
+
+func appendOpenAIRoutingBlockDetail(details []OpenAIRoutingBlockDetail, detail OpenAIRoutingBlockDetail) []OpenAIRoutingBlockDetail {
+	for _, item := range details {
+		if item.Reason == detail.Reason {
+			return details
+		}
+	}
+	return append(details, detail)
 }
 
 func roundOpenAIRoutingScore(value float64) float64 {
