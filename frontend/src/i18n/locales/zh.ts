@@ -3560,6 +3560,71 @@ export default {
         unsupported: '接口不支持',
         updatedAt: '更新于 {time}'
       },
+      routingPriority: {
+        viewDetails: '查看路由优先级',
+        status: {
+          candidate: '候选',
+          skipped: '已跳过',
+          degraded: '已降级'
+        },
+        summary: {
+          cost_advantage: '成本优先',
+          low_load: '低负载',
+          low_latency: '低延迟',
+          high_priority: '人工优先级高',
+          schedulable: '可参与调度'
+        },
+        reasons: {
+          status_error: '账号状态异常',
+          status_inactive: '账号未启用',
+          manual_unschedulable: '手动关闭调度',
+          rate_limited: '速率限制',
+          overloaded: '负载过高',
+          temp_unschedulable: '临时不可调度',
+          runtime_blocked: '运行时阻塞',
+          health_degraded: '健康度降级',
+          model_unsupported: '模型不支持',
+          capability_unsupported: '能力不支持',
+          transport_unsupported: '传输方式不支持',
+          group_mismatch: '分组不匹配',
+          privacy_not_set: '隐私状态未设置',
+          quota_auto_paused: '配额触发自动暂停',
+          concurrency_full: '并发已满',
+          channel_restricted: '渠道受限',
+          compact_unsupported: '不支持 compact 模式'
+        },
+        blockSources: {
+          persistent_account_state: '账号持久状态',
+          advanced_scheduler_health: '高级调度健康判定',
+          runtime_block: '运行时阻塞器',
+          ui_countdown_state: '前端倒计时状态'
+        },
+        notes: {
+          sticky_may_override_ranking: '命中会话保持时，实际路由可能覆盖当前排名。',
+          weighted_top_k_not_strict_best: '加权 Top-K 模式下，排名第一不代表每次都会被选中。'
+        },
+        score: {
+          total: '总分',
+          priority: '优先级',
+          load: '负载',
+          queue: '排队',
+          error_rate: '错误率',
+          ttft: '首包延迟',
+          price: '价格',
+          health: '健康度'
+        },
+        sections: {
+          summary: '当前账号',
+          score: '分数拆解',
+          blockReasons: '阻塞原因',
+          topCandidates: 'Top 候选',
+          notes: '说明'
+        },
+        modal: {
+          title: '路由优先级详情',
+          empty: '暂无路由优先级说明'
+        }
+      },
       testConnection: '测试连接',
       reAuthorize: '重新授权',
       refreshToken: '刷新令牌',

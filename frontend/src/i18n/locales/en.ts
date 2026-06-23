@@ -3565,6 +3565,71 @@ export default {
         unsupported: 'Unsupported',
         updatedAt: 'Updated {time}'
       },
+      routingPriority: {
+        viewDetails: 'View routing priority',
+        status: {
+          candidate: 'Candidate',
+          skipped: 'Skipped',
+          degraded: 'Degraded'
+        },
+        summary: {
+          cost_advantage: 'Cost advantage',
+          low_load: 'Low load',
+          low_latency: 'Low latency',
+          high_priority: 'High manual priority',
+          schedulable: 'Schedulable'
+        },
+        reasons: {
+          status_error: 'Account status error',
+          status_inactive: 'Account inactive',
+          manual_unschedulable: 'Scheduling disabled manually',
+          rate_limited: 'Rate limited',
+          overloaded: 'Overloaded',
+          temp_unschedulable: 'Temporarily unschedulable',
+          runtime_blocked: 'Runtime blocked',
+          health_degraded: 'Health degraded',
+          model_unsupported: 'Model unsupported',
+          capability_unsupported: 'Capability unsupported',
+          transport_unsupported: 'Transport unsupported',
+          group_mismatch: 'Group mismatch',
+          privacy_not_set: 'Privacy not set',
+          quota_auto_paused: 'Auto paused by quota',
+          concurrency_full: 'Concurrency full',
+          channel_restricted: 'Channel restricted',
+          compact_unsupported: 'Compact mode unsupported'
+        },
+        blockSources: {
+          persistent_account_state: 'Persistent account state',
+          advanced_scheduler_health: 'Advanced scheduler health',
+          runtime_block: 'Runtime block',
+          ui_countdown_state: 'UI countdown state'
+        },
+        notes: {
+          sticky_may_override_ranking: 'Sticky-session routing can override the current ranking.',
+          weighted_top_k_not_strict_best: 'In weighted Top-K mode, rank #1 is not guaranteed to be selected every time.'
+        },
+        score: {
+          total: 'Total',
+          priority: 'Priority',
+          load: 'Load',
+          queue: 'Queue',
+          error_rate: 'Error rate',
+          ttft: 'TTFT',
+          price: 'Price',
+          health: 'Health'
+        },
+        sections: {
+          summary: 'Current account',
+          score: 'Score breakdown',
+          blockReasons: 'Block reasons',
+          topCandidates: 'Top candidates',
+          notes: 'Notes'
+        },
+        modal: {
+          title: 'Routing priority details',
+          empty: 'No routing priority details available'
+        }
+      },
       testConnection: 'Test Connection',
       reAuthorize: 'Re-Authorize',
       refreshToken: 'Refresh Token',
