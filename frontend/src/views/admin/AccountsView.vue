@@ -1016,12 +1016,18 @@ const mergeRoutingPriority = (nextAccount: Account, currentAccount?: Account): A
   routing_priority: nextAccount.routing_priority ?? currentAccount?.routing_priority
 })
 
+const currentRoutingContextParams = () => {
+  const groupID = Number(params.group)
+  if (!Number.isInteger(groupID) || groupID <= 0) return {}
+  return { group_id: groupID }
+}
+
 const refreshRoutingPriorities = async () => {
   const openAIAccounts = accounts.value.filter(account => account.platform === 'openai')
   if (openAIAccounts.length === 0) return
 
   try {
-    const result = await openaiSchedulerAPI.getRoutingRanking({})
+    const result = await openaiSchedulerAPI.getRoutingRanking(currentRoutingContextParams())
     const byID = new Map(result.items.map(item => [item.account_id, item]))
     accounts.value = accounts.value.map((account) => {
       if (account.platform !== 'openai') return account
@@ -1121,7 +1127,7 @@ const openRoutingExplain = async (account: Account) => {
   routingExplainLoading.value = true
   routingExplain.value = null
   try {
-    routingExplain.value = await openaiSchedulerAPI.getRoutingExplain(account.id, {})
+    routingExplain.value = await openaiSchedulerAPI.getRoutingExplain(account.id, currentRoutingContextParams())
   } catch (error: any) {
     appStore.showError(error?.message || t('admin.accounts.routingPriority.loadFailed'))
   } finally {

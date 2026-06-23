@@ -107,6 +107,7 @@ describe('OpenAIRoutingExplainModal', () => {
     expect(wrapper.text()).toContain('人工优先级高')
     expect(wrapper.text()).toContain('价格')
     expect(wrapper.text()).toContain('临时不可调度')
+    expect(wrapper.text().match(/临时不可调度/g)).toHaveLength(1)
     expect(wrapper.text()).toContain('前端倒计时状态')
     expect(wrapper.text()).toContain('2026/6/23 09:00:00')
     expect(wrapper.text()).toContain('steady-one')

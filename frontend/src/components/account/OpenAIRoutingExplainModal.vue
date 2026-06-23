@@ -71,6 +71,12 @@ const scoreItems = computed(() => {
 })
 
 const noteItems = computed(() => props.explain?.notes.map(translateNote) ?? [])
+
+const blockReasonsWithoutDetails = computed(() => {
+  const reasons = props.explain?.account.block_reasons ?? []
+  const detailedReasons = new Set((props.explain?.account.block_details ?? []).map(detail => detail.reason))
+  return reasons.filter(reason => !detailedReasons.has(reason))
+})
 </script>
 
 <template>
@@ -151,7 +157,7 @@ const noteItems = computed(() => props.explain?.notes.map(translateNote) ?? [])
             </div>
           </div>
           <div
-            v-for="reason in explain.account.block_reasons ?? []"
+            v-for="reason in blockReasonsWithoutDetails"
             :key="reason"
             class="rounded-md border border-amber-200 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:text-amber-200"
           >

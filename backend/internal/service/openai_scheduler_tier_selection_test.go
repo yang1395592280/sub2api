@@ -49,7 +49,7 @@ func TestOpenAISchedulerBuildSelectionOrder_PrimaryBeforeStandby(t *testing.T) {
 	require.Equal(t, standby.ID, order[1].account.ID)
 }
 
-func TestOpenAISchedulerBuildSelectionOrder_DegradedLast(t *testing.T) {
+func TestOpenAISchedulerBuildSelectionOrder_ExcludesDegraded(t *testing.T) {
 	scheduler := &defaultOpenAIAccountScheduler{
 		stats: newOpenAIAccountRuntimeStats(),
 		healthSettings: OpenAISchedulerHealthSettings{
@@ -87,9 +87,8 @@ func TestOpenAISchedulerBuildSelectionOrder_DegradedLast(t *testing.T) {
 
 	order := scheduler.buildOpenAISelectionOrder(OpenAIAccountScheduleRequest{SessionHash: "degraded-last"}, plan)
 
-	require.Len(t, order, 2)
+	require.Len(t, order, 1)
 	require.Equal(t, healthy.ID, order[0].account.ID)
-	require.Equal(t, degraded.ID, order[1].account.ID)
 }
 
 func TestOpenAISchedulerBuildSelectionOrder_TieredTopKUsesGlobalLimit(t *testing.T) {
@@ -182,6 +181,99 @@ func TestOpenAISchedulerObserveProbeAddsObserveAfterPrimary(t *testing.T) {
 	require.Equal(t, primary.ID, order[0].account.ID)
 	require.Equal(t, standby.ID, order[1].account.ID)
 	require.Equal(t, observe.ID, order[2].account.ID)
+}
+
+func TestOpenAISchedulerObserveProbeRatioZeroDoesNotFillRemainingTopKWithObserve(t *testing.T) {
+	scheduler := &defaultOpenAIAccountScheduler{
+		stats: newOpenAIAccountRuntimeStats(),
+		healthSettings: OpenAISchedulerHealthSettings{
+			HealthRankingEnabled:      true,
+			ObserveProbeRatio:         0,
+			TTFTDegradeMS:             1000,
+			ErrorRateDegradeThreshold: 0.35,
+			RecoverSuccessThreshold:   5,
+		},
+	}
+	primary := &Account{ID: 321, Priority: 1}
+	observe := &Account{ID: 322, Priority: 1}
+	degraded := &Account{ID: 323, Priority: 1}
+	scheduler.seedHealthForTest(primary.ID, openAIAccountHealthRuntime{
+		successEWMA:        1,
+		consecutiveSuccess: 5,
+	})
+	scheduler.seedHealthForTest(observe.ID, openAIAccountHealthRuntime{
+		successEWMA: 0.9,
+		ttftEWMA:    2000,
+	})
+	scheduler.seedHealthForTest(degraded.ID, openAIAccountHealthRuntime{
+		successEWMA:         0.1,
+		errorEWMA:           0.9,
+		consecutiveFailures: 3,
+		lastDegradeReason:   OpenAISchedulerDegradeTimeout,
+	})
+
+	plan := openAIAccountLoadPlan{
+		candidates: []openAIAccountCandidateScore{
+			{account: observe, loadInfo: &AccountLoadInfo{AccountID: observe.ID}, score: 100},
+			{account: primary, loadInfo: &AccountLoadInfo{AccountID: primary.ID}, score: 90},
+			{account: degraded, loadInfo: &AccountLoadInfo{AccountID: degraded.ID}, score: 110},
+		},
+		topK: 3,
+	}
+
+	order := scheduler.buildOpenAISelectionOrder(OpenAIAccountScheduleRequest{SessionHash: "observe-ratio-zero"}, plan)
+
+	require.Len(t, order, 1)
+	require.Equal(t, primary.ID, order[0].account.ID)
+}
+
+func TestOpenAISchedulerObserveProbeRatioOneCanFillRemainingTopKWithObserve(t *testing.T) {
+	scheduler := &defaultOpenAIAccountScheduler{
+		stats: newOpenAIAccountRuntimeStats(),
+		healthSettings: OpenAISchedulerHealthSettings{
+			HealthRankingEnabled:      true,
+			ObserveProbeRatio:         1,
+			TTFTDegradeMS:             1000,
+			ErrorRateDegradeThreshold: 0.35,
+			RecoverSuccessThreshold:   5,
+		},
+	}
+	primary := &Account{ID: 331, Priority: 1}
+	observeOne := &Account{ID: 332, Priority: 1}
+	observeTwo := &Account{ID: 333, Priority: 1}
+	degraded := &Account{ID: 334, Priority: 1}
+	scheduler.seedHealthForTest(primary.ID, openAIAccountHealthRuntime{
+		successEWMA:        1,
+		consecutiveSuccess: 5,
+	})
+	for _, account := range []*Account{observeOne, observeTwo} {
+		scheduler.seedHealthForTest(account.ID, openAIAccountHealthRuntime{
+			successEWMA: 0.9,
+			ttftEWMA:    2000,
+		})
+	}
+	scheduler.seedHealthForTest(degraded.ID, openAIAccountHealthRuntime{
+		successEWMA:         0.1,
+		errorEWMA:           0.9,
+		consecutiveFailures: 3,
+		lastDegradeReason:   OpenAISchedulerDegradeTimeout,
+	})
+
+	plan := openAIAccountLoadPlan{
+		candidates: []openAIAccountCandidateScore{
+			{account: observeOne, loadInfo: &AccountLoadInfo{AccountID: observeOne.ID}, score: 100},
+			{account: observeTwo, loadInfo: &AccountLoadInfo{AccountID: observeTwo.ID}, score: 99},
+			{account: primary, loadInfo: &AccountLoadInfo{AccountID: primary.ID}, score: 90},
+			{account: degraded, loadInfo: &AccountLoadInfo{AccountID: degraded.ID}, score: 110},
+		},
+		topK: 3,
+	}
+
+	order := scheduler.buildOpenAISelectionOrder(OpenAIAccountScheduleRequest{SessionHash: "observe-ratio-one"}, plan)
+
+	require.Len(t, order, 3)
+	require.Equal(t, primary.ID, order[0].account.ID)
+	require.ElementsMatch(t, []int64{observeOne.ID, observeTwo.ID}, []int64{order[1].account.ID, order[2].account.ID})
 }
 
 func TestOpenAISchedulerBuildSelectionOrder_CompactKeepsSupportedBeforeUnknownAndTiered(t *testing.T) {

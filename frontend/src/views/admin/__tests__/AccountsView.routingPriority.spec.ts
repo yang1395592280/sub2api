@@ -89,14 +89,20 @@ const DataTableStub = {
   `,
 }
 
+let filterPatch: Record<string, string> = {}
+
 const AccountTableFiltersStub = {
   emits: ['change', 'update:searchQuery', 'update:filters'],
   template: `
     <div>
+      <button data-test="filter-group" type="button" @click="$emit('update:filters', getFilterPatch()); $emit('change')">group</button>
       <button data-test="filter-change" type="button" @click="$emit('change')">change</button>
       <button data-test="filter-search" type="button" @click="$emit('update:searchQuery', 'cheap')">search</button>
     </div>
   `,
+  setup() {
+    return { getFilterPatch: () => filterPatch }
+  },
 }
 
 const PaginationStub = {
@@ -224,6 +230,7 @@ describe('admin AccountsView routing priority', () => {
     getRoutingRanking.mockReset()
     getRoutingExplain.mockReset()
     showError.mockReset()
+    filterPatch = {}
 
     listAccounts.mockResolvedValue({
       items: [
@@ -322,6 +329,7 @@ describe('admin AccountsView routing priority', () => {
     await flushPromises()
 
     expect(getRoutingRanking).toHaveBeenCalledTimes(1)
+    expect(getRoutingRanking).toHaveBeenCalledWith({})
     expect(wrapper.findAll('[data-test="column-key"]').map((node) => node.text())).toContain('routing_priority')
 
     const badges = wrapper.findAll('[data-test="routing-priority-badge"]')
@@ -338,6 +346,74 @@ describe('admin AccountsView routing priority', () => {
     expect(modal.attributes('data-show')).toBe('true')
     expect(modal.attributes('data-account-id')).toBe('10')
     expect(modal.text()).toContain('account-10')
+  })
+
+  it('passes selected group context to routing ranking and explain requests', async () => {
+    vi.useFakeTimers()
+    filterPatch = { group: '123' }
+    getRoutingRanking.mockReset()
+    getRoutingRanking
+      .mockResolvedValueOnce({
+        items: [buildRankingSummary(10, 'cost_advantage')],
+        source: 'scheduler_snapshot',
+        snapshot_at: '2026-06-23T00:00:00Z',
+      })
+      .mockResolvedValueOnce({
+        items: [buildRankingSummary(10, 'low_load')],
+        source: 'scheduler_snapshot',
+        snapshot_at: '2026-06-24T00:00:00Z',
+      })
+
+    const wrapper = mountView()
+    await flushPromises()
+    expect(getRoutingRanking).toHaveBeenLastCalledWith({})
+
+    await wrapper.get('[data-test="filter-group"]').trigger('click')
+    await vi.advanceTimersByTimeAsync(301)
+    await flushPromises()
+
+    expect(getRoutingRanking).toHaveBeenLastCalledWith({ group_id: 123 })
+
+    await wrapper.get('[data-test="routing-priority-badge"]').trigger('click')
+    await flushPromises()
+
+    expect(getRoutingExplain).toHaveBeenCalledWith(10, { group_id: 123 })
+  })
+
+  it('does not pass invalid or ungrouped filters as routing group context', async () => {
+    vi.useFakeTimers()
+    getRoutingRanking.mockReset()
+    getRoutingRanking
+      .mockResolvedValueOnce({
+        items: [buildRankingSummary(10, 'cost_advantage')],
+        source: 'scheduler_snapshot',
+        snapshot_at: '2026-06-23T00:00:00Z',
+      })
+      .mockResolvedValueOnce({
+        items: [buildRankingSummary(10, 'low_load')],
+        source: 'scheduler_snapshot',
+        snapshot_at: '2026-06-24T00:00:00Z',
+      })
+      .mockResolvedValueOnce({
+        items: [buildRankingSummary(10, 'schedulable')],
+        source: 'scheduler_snapshot',
+        snapshot_at: '2026-06-25T00:00:00Z',
+      })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    filterPatch = { group: 'ungrouped' }
+    await wrapper.get('[data-test="filter-group"]').trigger('click')
+    await vi.advanceTimersByTimeAsync(301)
+    await flushPromises()
+    expect(getRoutingRanking).toHaveBeenLastCalledWith({})
+
+    filterPatch = { group: 'not-a-number' }
+    await wrapper.get('[data-test="filter-group"]').trigger('click')
+    await vi.advanceTimersByTimeAsync(301)
+    await flushPromises()
+    expect(getRoutingRanking).toHaveBeenLastCalledWith({})
   })
 
   it('preserves previous routing priority until incremental refresh ranking arrives', async () => {

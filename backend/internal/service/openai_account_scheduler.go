@@ -1352,9 +1352,8 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 			dst = append(dst, buildSelectionOrder(tierPools[openAISchedulerTierRank(OpenAISchedulerTierStandby)], limit-len(dst))...)
 		}
 		if len(dst) < limit {
-			observeLimit := limit - len(dst)
 			if settings.ObserveProbeRatio > 0 {
-				observeLimit = int(math.Ceil(float64(limit) * settings.ObserveProbeRatio))
+				observeLimit := int(math.Ceil(float64(limit) * settings.ObserveProbeRatio))
 				if observeLimit < 1 {
 					observeLimit = 1
 				}
@@ -1362,11 +1361,8 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 				if observeLimit > remaining {
 					observeLimit = remaining
 				}
+				dst = append(dst, buildSelectionOrder(tierPools[openAISchedulerTierRank(OpenAISchedulerTierObserve)], observeLimit)...)
 			}
-			dst = append(dst, buildSelectionOrder(tierPools[openAISchedulerTierRank(OpenAISchedulerTierObserve)], observeLimit)...)
-		}
-		if len(dst) < limit {
-			dst = append(dst, buildSelectionOrder(tierPools[openAISchedulerTierRank(OpenAISchedulerTierDegraded)], limit-len(dst))...)
 		}
 		return dst
 	}

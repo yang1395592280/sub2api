@@ -119,19 +119,31 @@ func (s *OpenAIGatewayService) ExplainOpenAIRouting(ctx context.Context, params 
 		return nil, err
 	}
 	loadMap := s.openAIRoutingLoadMap(ctx, accounts)
+	scheduler, _ := s.getOpenAIAccountScheduler(ctx).(*defaultOpenAIAccountScheduler)
+	schedulableAccounts := make([]*Account, 0, len(accounts))
 	summaries := make([]OpenAIRoutingSummary, 0, len(accounts))
 	for i := range accounts {
 		acc := &accounts[i]
 		if acc.Platform != params.Platform {
 			continue
 		}
-		summaries = append(summaries, s.explainOpenAIRoutingAccount(ctx, acc, loadMap[acc.ID], params, now))
+		summary := s.explainOpenAIRoutingAccount(ctx, acc, loadMap[acc.ID], params, now)
+		summaries = append(summaries, summary)
+		if summary.IsSchedulableNow {
+			schedulableAccounts = append(schedulableAccounts, acc)
+		}
+	}
+	if scheduler != nil && len(schedulableAccounts) > 0 {
+		s.applyOpenAIRoutingLoadPlan(ctx, summaries, schedulableAccounts, loadMap, params)
 	}
 
 	sort.SliceStable(summaries, func(i, j int) bool {
 		a, b := summaries[i], summaries[j]
 		if a.IsSchedulableNow != b.IsSchedulableNow {
 			return a.IsSchedulableNow
+		}
+		if a.IsSchedulableNow && b.IsSchedulableNow && a.Rank != b.Rank {
+			return a.Rank < b.Rank
 		}
 		if a.Score.Total != b.Score.Total {
 			return a.Score.Total > b.Score.Total
@@ -141,7 +153,7 @@ func (s *OpenAIGatewayService) ExplainOpenAIRouting(ctx context.Context, params 
 
 	rank := 1
 	for i := range summaries {
-		if summaries[i].IsSchedulableNow {
+		if summaries[i].IsSchedulableNow && summaries[i].Rank == 0 {
 			summaries[i].Rank = rank
 			rank++
 		}
@@ -152,6 +164,69 @@ func (s *OpenAIGatewayService) ExplainOpenAIRouting(ctx context.Context, params 
 		Source:     "scheduler_snapshot",
 		SnapshotAt: now,
 	}, nil
+}
+
+func (s *OpenAIGatewayService) applyOpenAIRoutingLoadPlan(
+	ctx context.Context,
+	summaries []OpenAIRoutingSummary,
+	accounts []*Account,
+	loadMap map[int64]*AccountLoadInfo,
+	params OpenAIRoutingExplainParams,
+) {
+	scheduler, _ := s.getOpenAIAccountScheduler(ctx).(*defaultOpenAIAccountScheduler)
+	if scheduler == nil {
+		return
+	}
+	req := OpenAIAccountScheduleRequest{
+		GroupID:            params.GroupID,
+		RequestedModel:     params.Model,
+		RequiredTransport:  params.RequiredTransport,
+		RequiredCapability: params.RequiredCapability,
+		RequireCompact:     params.RequireCompact,
+	}
+	plan := scheduler.buildOpenAIAccountLoadPlan(req, accounts, loadMap)
+	candidatesByID := make(map[int64]openAIAccountCandidateScore, len(plan.candidates)+len(plan.staleSnapshotCompactRetry))
+	for _, candidate := range plan.candidates {
+		if candidate.account == nil {
+			continue
+		}
+		candidatesByID[candidate.account.ID] = candidate
+	}
+	for _, candidate := range plan.staleSnapshotCompactRetry {
+		if candidate.account == nil {
+			continue
+		}
+		if _, ok := candidatesByID[candidate.account.ID]; !ok {
+			candidatesByID[candidate.account.ID] = candidate
+		}
+	}
+	orderByID := make(map[int64]int, len(plan.selectionOrder))
+	for i, candidate := range plan.selectionOrder {
+		if candidate.account == nil {
+			continue
+		}
+		orderByID[candidate.account.ID] = i + 1
+	}
+	for i := range summaries {
+		candidate, ok := candidatesByID[summaries[i].AccountID]
+		if !ok {
+			continue
+		}
+		summaries[i].Score = openAIRoutingScoreFromCandidate(candidate)
+		summaries[i].Tier = candidate.health.Tier
+		summaries[i].SummaryReasons = openAIRoutingSummaryReasons(candidate.account, summaries[i].Score, candidate.health, summaries[i].BlockReasons)
+		if len(summaries[i].SummaryReasons) > 0 {
+			summaries[i].SummaryReason = summaries[i].SummaryReasons[0]
+		}
+		if summaries[i].IsSchedulableNow {
+			if order, ok := orderByID[summaries[i].AccountID]; ok {
+				summaries[i].Rank = order
+			} else {
+				summaries[i].IsSchedulableNow = false
+				summaries[i].StatusLabel = "skipped"
+			}
+		}
+	}
 }
 
 func (s *OpenAIGatewayService) ExplainOpenAIRoutingForAccount(ctx context.Context, accountID int64, params OpenAIRoutingExplainParams) (*OpenAIRoutingAccountExplain, error) {
@@ -430,6 +505,38 @@ func (s *OpenAIGatewayService) openAIRoutingScore(account *Account, loadInfo *Ac
 		TTFT:      roundOpenAIRoutingScore(ttft),
 		Price:     roundOpenAIRoutingScore(price),
 		Health:    roundOpenAIRoutingScore(healthScore),
+	}
+}
+
+func openAIRoutingScoreFromCandidate(candidate openAIAccountCandidateScore) OpenAIRoutingScoreBreakdown {
+	loadInfo := candidate.loadInfo
+	if loadInfo == nil {
+		loadInfo = &AccountLoadInfo{}
+	}
+	load := 1 - clamp01(float64(loadInfo.LoadRate)/100.0)
+	queue := 1.0
+	if loadInfo.WaitingCount > 0 {
+		queue = 1 / (1 + float64(loadInfo.WaitingCount))
+	}
+	ttft := 0.5
+	if candidate.hasTTFT && candidate.ttft > 0 {
+		ttft = 1 / (1 + candidate.ttft/1000)
+	}
+	price := 1.0
+	priority := 1.0
+	if candidate.account != nil {
+		priority = 1 / (1 + float64(maxInt(candidate.account.Priority, 0)))
+		price = 1 / (1 + candidate.account.EffectiveChannelPrice())
+	}
+	return OpenAIRoutingScoreBreakdown{
+		Total:     roundOpenAIRoutingScore(candidate.score),
+		Priority:  roundOpenAIRoutingScore(priority),
+		Load:      roundOpenAIRoutingScore(load),
+		Queue:     roundOpenAIRoutingScore(queue),
+		ErrorRate: roundOpenAIRoutingScore(1 - clamp01(candidate.errorRate)),
+		TTFT:      roundOpenAIRoutingScore(ttft),
+		Price:     roundOpenAIRoutingScore(price),
+		Health:    roundOpenAIRoutingScore(clamp01(candidate.health.HealthScore / 100)),
 	}
 }
 

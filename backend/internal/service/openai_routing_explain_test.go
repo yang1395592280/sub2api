@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,7 +18,18 @@ func TestOpenAIRoutingExplainRanksCandidatesAndExplainsScore(t *testing.T) {
 		{ID: 1, Name: "cheap-fast", Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Priority: 1, Concurrency: 5, ChannelPrice: &cheap, GroupIDs: []int64{groupID}},
 		{ID: 2, Name: "expensive-fast", Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Priority: 1, Concurrency: 5, ChannelPrice: &expensive, GroupIDs: []int64{groupID}},
 	}
+	cfg := &config.Config{}
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Priority = 1
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Load = 1
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Queue = 0.7
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.ErrorRate = 0.8
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.TTFT = 0.5
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Price = 0.6
+	cfg.Gateway.OpenAIScheduler.SelectionMode = "strict_best"
+	cfg.Gateway.OpenAIScheduler.PriceBoostSpeedGapMS = 1000
+	cfg.Gateway.OpenAIScheduler.PriceBoostMultiplier = 3
 	svc := &OpenAIGatewayService{
+		cfg:              cfg,
 		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
 		rateLimitService: newOpenAIAdvancedSchedulerRateLimitService("true"),
 	}
@@ -95,6 +107,95 @@ func TestOpenAIRoutingExplainExposesDetailedDegradeReason(t *testing.T) {
 	require.Len(t, got.Items[0].BlockDetails, 1)
 	require.Equal(t, OpenAIRoutingReasonCode(OpenAISchedulerDegradeTimeout), got.Items[0].BlockDetails[0].Reason)
 	require.Equal(t, "advanced_scheduler_health", got.Items[0].BlockDetails[0].Source)
+}
+
+func TestOpenAIRoutingExplainCostFirstMatchesSchedulerLoadPlanDirection(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Gateway.OpenAIWS.LBTopK = 1
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Priority = 0
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Load = 0
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Queue = 0
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.ErrorRate = 0
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.TTFT = 0.5
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Price = 0.6
+	cfg.Gateway.OpenAIScheduler.RoutingStrategy = "cost_first"
+	cfg.Gateway.OpenAIScheduler.SelectionMode = "strict_best"
+	cfg.Gateway.OpenAIScheduler.PriceBoostSpeedGapMS = 1000
+	cfg.Gateway.OpenAIScheduler.PriceBoostMultiplier = 3
+	groupID := int64(9006)
+	cheapPrice := 0.05
+	expensivePrice := 0.20
+	accounts := []Account{
+		{ID: 31, Name: "cheap-slightly-slower", Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Priority: 1, Concurrency: 5, ChannelPrice: &cheapPrice, GroupIDs: []int64{groupID}},
+		{ID: 32, Name: "expensive-fast", Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Priority: 1, Concurrency: 5, ChannelPrice: &expensivePrice, GroupIDs: []int64{groupID}},
+	}
+	svc := &OpenAIGatewayService{
+		cfg:              cfg,
+		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
+		rateLimitService: newOpenAIAdvancedSchedulerRateLimitService("true"),
+	}
+	scheduler := svc.getOpenAIAccountScheduler(context.Background()).(*defaultOpenAIAccountScheduler)
+	scheduler.ReportResult(31, true, intPtrForTest(650))
+	scheduler.ReportResult(32, true, intPtrForTest(350))
+
+	got, err := svc.ExplainOpenAIRouting(context.Background(), OpenAIRoutingExplainParams{GroupID: &groupID})
+	require.NoError(t, err)
+	require.Len(t, got.Items, 2)
+
+	filtered := []*Account{&accounts[0], &accounts[1]}
+	plan := scheduler.buildOpenAIAccountLoadPlan(OpenAIAccountScheduleRequest{GroupID: &groupID, SessionHash: "cost-first-explain"}, filtered, map[int64]*AccountLoadInfo{
+		31: {AccountID: 31},
+		32: {AccountID: 32},
+	})
+	require.NotEmpty(t, plan.selectionOrder)
+	require.Equal(t, plan.selectionOrder[0].account.ID, got.Items[0].AccountID)
+	require.Equal(t, int64(31), got.Items[0].AccountID)
+	require.Greater(t, got.Items[0].Score.Total, got.Items[1].Score.Total)
+}
+
+func TestOpenAIRoutingExplainSpeedFirstMatchesSchedulerLoadPlanDirection(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Gateway.OpenAIWS.LBTopK = 1
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Priority = 0
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Load = 0
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Queue = 0
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.ErrorRate = 1
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.TTFT = 0.5
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Price = 0.6
+	cfg.Gateway.OpenAIScheduler.RoutingStrategy = "speed_first"
+	cfg.Gateway.OpenAIScheduler.SelectionMode = "strict_best"
+	cfg.Gateway.OpenAIScheduler.PriceBoostSpeedGapMS = 1000
+	cfg.Gateway.OpenAIScheduler.PriceBoostMultiplier = 3
+	groupID := int64(9007)
+	cheapPrice := 0.05
+	expensivePrice := 0.20
+	accounts := []Account{
+		{ID: 41, Name: "cheap-slower-errors", Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Priority: 1, Concurrency: 5, ChannelPrice: &cheapPrice, GroupIDs: []int64{groupID}},
+		{ID: 42, Name: "expensive-fast-reliable", Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Priority: 1, Concurrency: 5, ChannelPrice: &expensivePrice, GroupIDs: []int64{groupID}},
+	}
+	svc := &OpenAIGatewayService{
+		cfg:              cfg,
+		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
+		rateLimitService: newOpenAIAdvancedSchedulerRateLimitService("true"),
+	}
+	scheduler := svc.getOpenAIAccountScheduler(context.Background()).(*defaultOpenAIAccountScheduler)
+	scheduler.ReportResult(41, true, intPtrForTest(900))
+	scheduler.ReportResultWithReason(41, false, nil, OpenAISchedulerDegradeTimeout)
+	scheduler.ReportResult(42, true, intPtrForTest(300))
+
+	got, err := svc.ExplainOpenAIRouting(context.Background(), OpenAIRoutingExplainParams{GroupID: &groupID})
+	require.NoError(t, err)
+	require.Len(t, got.Items, 2)
+
+	filtered := []*Account{&accounts[0], &accounts[1]}
+	plan := scheduler.buildOpenAIAccountLoadPlan(OpenAIAccountScheduleRequest{GroupID: &groupID, SessionHash: "speed-first-explain"}, filtered, map[int64]*AccountLoadInfo{
+		41: {AccountID: 41},
+		42: {AccountID: 42},
+	})
+	require.NotEmpty(t, plan.selectionOrder)
+	require.Equal(t, plan.selectionOrder[0].account.ID, got.Items[0].AccountID)
+	require.Equal(t, int64(42), got.Items[0].AccountID)
+	require.Greater(t, got.Items[0].Score.Total, got.Items[1].Score.Total)
 }
 
 func TestOpenAIRoutingExplainForAccountLoadsManualUnschedulableAccountByID(t *testing.T) {
