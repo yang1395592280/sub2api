@@ -315,6 +315,14 @@
               </span>
             </div>
           </template>
+          <template #cell-routing_priority="{ row }">
+            <RoutingPriorityBadge
+              v-if="row.platform === 'openai'"
+              :summary="row.routing_priority"
+              @open="openRoutingExplain(row)"
+            />
+            <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
+          </template>
           <template #header-usage="{ column }">
             <div class="flex items-center">
               <span>{{ column.label }}</span>
@@ -439,6 +447,13 @@
         <span>{{ t('admin.accounts.dataExportIncludeProxies') }}</span>
       </label>
     </ConfirmDialog>
+    <OpenAIRoutingExplainModal
+      :show="routingExplainVisible"
+      :loading="routingExplainLoading"
+      :explain="routingExplain"
+      :account-id="routingExplainAccountId"
+      @close="closeRoutingExplain"
+    />
     <ErrorPassthroughRulesModal :show="showErrorPassthrough" @close="showErrorPassthrough = false" />
     <TLSFingerprintProfilesModal :show="showTLSFingerprintProfiles" @close="showTLSFingerprintProfiles = false" />
   </AppLayout>
@@ -477,10 +492,13 @@ import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
 import AccountCapacityCell from '@/components/account/AccountCapacityCell.vue'
+import RoutingPriorityBadge from '@/components/account/RoutingPriorityBadge.vue'
+import OpenAIRoutingExplainModal from '@/components/account/OpenAIRoutingExplainModal.vue'
 import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ErrorPassthroughRulesModal from '@/components/admin/ErrorPassthroughRulesModal.vue'
 import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfilesModal.vue'
+import { openaiSchedulerAPI, type OpenAIRoutingAccountExplain } from '@/api/admin/openaiScheduler'
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { formatDateTime, formatRelativeTime } from '@/utils/format'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
@@ -550,6 +568,10 @@ const showBatchTest = ref(false)
 const showStats = ref(false)
 const showErrorPassthrough = ref(false)
 const showTLSFingerprintProfiles = ref(false)
+const routingExplainVisible = ref(false)
+const routingExplainLoading = ref(false)
+const routingExplain = ref<OpenAIRoutingAccountExplain | null>(null)
+const routingExplainAccountId = ref<number | null>(null)
 const edAcc = ref<Account | null>(null)
 const tempUnschedAcc = ref<Account | null>(null)
 const deletingAcc = ref<Account | null>(null)
@@ -863,6 +885,7 @@ const load = async () => {
     delete requestParams.lite
   }
   await refreshTodayStatsBatch()
+  await refreshRoutingPriorities()
 }
 
 const reload = async () => {
@@ -871,6 +894,7 @@ const reload = async () => {
   pendingTodayStatsRefresh.value = false
   await baseReload()
   await refreshTodayStatsBatch()
+  await refreshRoutingPriorities()
 }
 
 const debouncedReload = () => {
@@ -967,6 +991,32 @@ const syncAccountRefs = (nextAccount: Account) => {
   if (menu.acc?.id === nextAccount.id) menu.acc = nextAccount
 }
 
+const mergeRoutingPriority = (nextAccount: Account, currentAccount?: Account): Account => ({
+  ...nextAccount,
+  routing_priority: nextAccount.routing_priority ?? currentAccount?.routing_priority
+})
+
+const refreshRoutingPriorities = async () => {
+  const openAIAccounts = accounts.value.filter(account => account.platform === 'openai')
+  if (openAIAccounts.length === 0) return
+
+  try {
+    const result = await openaiSchedulerAPI.getRoutingRanking({})
+    const byID = new Map(result.items.map(item => [item.account_id, item]))
+    accounts.value = accounts.value.map((account) => {
+      if (account.platform !== 'openai') return account
+      const nextAccount = {
+        ...account,
+        routing_priority: byID.get(account.id) ?? account.routing_priority
+      }
+      syncAccountRefs(nextAccount)
+      return nextAccount
+    })
+  } catch (error) {
+    console.error('Failed to refresh OpenAI routing priorities:', error)
+  }
+}
+
 const mergeAccountsIncrementally = (nextRows: Account[]) => {
   const currentRows = accounts.value
   const currentByID = new Map(currentRows.map(row => [row.id, row]))
@@ -975,12 +1025,13 @@ const mergeAccountsIncrementally = (nextRows: Account[]) => {
     const currentRow = currentByID.get(nextRow.id)
     if (!currentRow) {
       changed = true
-      return nextRow
+      return mergeRoutingPriority(nextRow)
     }
     if (shouldReplaceAutoRefreshRow(currentRow, nextRow)) {
       changed = true
-      syncAccountRefs(nextRow)
-      return nextRow
+      const mergedAccount = mergeRoutingPriority(nextRow, currentRow)
+      syncAccountRefs(mergedAccount)
+      return mergedAccount
     }
     return currentRow
   })
@@ -1029,6 +1080,7 @@ const refreshAccountsIncrementally = async () => {
     }
 
     await refreshTodayStatsBatch()
+    await refreshRoutingPriorities()
   } catch (error) {
     console.error('Auto refresh failed:', error)
   } finally {
@@ -1040,6 +1092,28 @@ const handleManualRefresh = async () => {
   await load()
   // Force usage cells to refetch /usage on explicit user refresh.
   usageManualRefreshToken.value += 1
+}
+
+const openRoutingExplain = async (account: Account) => {
+  if (account.platform !== 'openai') return
+  routingExplainAccountId.value = account.id
+  routingExplainVisible.value = true
+  routingExplainLoading.value = true
+  routingExplain.value = null
+  try {
+    routingExplain.value = await openaiSchedulerAPI.getRoutingExplain(account.id, {})
+  } catch (error: any) {
+    appStore.showError(error?.message || t('admin.accounts.routingPriority.loadFailed'))
+  } finally {
+    routingExplainLoading.value = false
+  }
+}
+
+const closeRoutingExplain = () => {
+  routingExplainVisible.value = false
+  routingExplainLoading.value = false
+  routingExplain.value = null
+  routingExplainAccountId.value = null
 }
 
 const closeAccountToolsDropdown = () => {
@@ -1303,6 +1377,7 @@ const allColumns = computed(() => {
   c.push(
     { key: 'upstream_group', label: t('admin.accounts.columns.upstreamGroup'), sortable: false },
     { key: 'stability', label: t('admin.accounts.columns.stability'), sortable: false },
+    { key: 'routing_priority', label: t('admin.accounts.columns.routingPriority'), sortable: false },
     { key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false },
     { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
     { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
@@ -1672,7 +1747,8 @@ const mergeRuntimeFields = (oldAccount: Account, updatedAccount: Account): Accou
   current_concurrency: updatedAccount.current_concurrency ?? oldAccount.current_concurrency,
   current_window_cost: updatedAccount.current_window_cost ?? oldAccount.current_window_cost,
   active_sessions: updatedAccount.active_sessions ?? oldAccount.active_sessions,
-  stability: updatedAccount.stability ?? oldAccount.stability
+  stability: updatedAccount.stability ?? oldAccount.stability,
+  routing_priority: updatedAccount.routing_priority ?? oldAccount.routing_priority
 })
 
 const syncPaginationAfterLocalRemoval = () => {
