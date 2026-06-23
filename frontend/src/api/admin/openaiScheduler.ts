@@ -87,6 +87,31 @@ export type OpenAIRoutingReasonCode =
   | 'channel_restricted'
   | 'compact_unsupported'
 
+export type OpenAIRoutingQuotaWindow = '5h' | '7d'
+
+export type OpenAIRoutingBlockSource =
+  | 'persistent_account_state'
+  | 'advanced_scheduler_health'
+  | 'runtime_block'
+  | 'ui_countdown_state'
+
+export type OpenAIRoutingStatusLabel = 'candidate' | 'skipped' | 'degraded'
+
+export type OpenAIRoutingSummaryCode =
+  | 'cost_advantage'
+  | 'low_load'
+  | 'low_latency'
+  | 'high_priority'
+  | 'schedulable'
+
+export type OpenAIRoutingSummaryReason = OpenAIRoutingReasonCode | OpenAIRoutingSummaryCode
+
+export type OpenAIRoutingExplainNote =
+  | 'sticky_may_override_ranking'
+  | 'weighted_top_k_not_strict_best'
+
+export type OpenAIRoutingRankingSource = 'empty' | 'scheduler_snapshot'
+
 export interface OpenAIRoutingScoreBreakdown {
   total: number
   priority: number
@@ -99,7 +124,7 @@ export interface OpenAIRoutingScoreBreakdown {
 }
 
 export interface OpenAIRoutingQuotaDecision {
-  window?: string
+  window?: OpenAIRoutingQuotaWindow
   threshold?: number
   utilization?: number
   snapshot_at: string
@@ -107,7 +132,7 @@ export interface OpenAIRoutingQuotaDecision {
 
 export interface OpenAIRoutingBlockDetail {
   reason: OpenAIRoutingReasonCode
-  source: string
+  source: OpenAIRoutingBlockSource
   until?: string | null
   quota_decision?: OpenAIRoutingQuotaDecision
   snapshot_at: string
@@ -119,9 +144,9 @@ export interface OpenAIRoutingSummary {
   rank?: number
   tier: OpenAISchedulerTier
   score: OpenAIRoutingScoreBreakdown
-  status_label: string
-  summary_reason: string
-  summary_reasons: string[]
+  status_label: OpenAIRoutingStatusLabel
+  summary_reason: OpenAIRoutingSummaryReason
+  summary_reasons: OpenAIRoutingSummaryReason[]
   is_schedulable_now: boolean
   block_reasons?: OpenAIRoutingReasonCode[]
   block_details?: OpenAIRoutingBlockDetail[]
@@ -130,14 +155,14 @@ export interface OpenAIRoutingSummary {
 
 export interface OpenAIRoutingRankingResponse {
   items: OpenAIRoutingSummary[]
-  source: string
+  source: OpenAIRoutingRankingSource
   snapshot_at: string
 }
 
 export interface OpenAIRoutingAccountExplain {
   account: OpenAIRoutingSummary
   top: OpenAIRoutingSummary[]
-  notes: string[]
+  notes: OpenAIRoutingExplainNote[]
 }
 
 export interface ListAccountsParams {
