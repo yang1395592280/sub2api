@@ -1236,7 +1236,7 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 	}
 	plan.loadSkew = calcLoadSkewByMoments(loadRateSum, loadRateSumSquares, len(candidates))
 
-	weights := s.service.openAIWSSchedulerWeights()
+	weights := s.service.adjustedOpenAIWSSchedulerWeights()
 	for i := range candidates {
 		item := &candidates[i]
 		priorityFactor := 1.0
@@ -1298,6 +1298,10 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 ) []openAIAccountCandidateScore {
 	now := time.Now()
 	settings := s.SnapshotHealthSettings()
+	strictBest := s != nil &&
+		s.service != nil &&
+		s.service.cfg != nil &&
+		strings.EqualFold(strings.TrimSpace(s.service.cfg.Gateway.OpenAIScheduler.SelectionMode), "strict_best")
 	buildSelectionOrder := func(pool []openAIAccountCandidateScore, limit int) []openAIAccountCandidateScore {
 		if len(pool) == 0 || limit <= 0 {
 			return nil
@@ -1307,6 +1311,9 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 			groupTopK = len(pool)
 		}
 		ranked := selectTopKOpenAICandidates(pool, groupTopK)
+		if strictBest {
+			return ranked
+		}
 		return buildOpenAIWeightedSelectionOrder(ranked, req)
 	}
 	appendTiered := func(dst []openAIAccountCandidateScore, pool []openAIAccountCandidateScore, limit int) []openAIAccountCandidateScore {
@@ -1317,11 +1324,29 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 			return append(dst, buildSelectionOrder(pool, limit)...)
 		}
 		pool = s.fillOpenAISelectionHealth(pool, now)
-		for _, tierPool := range splitOpenAISelectionPools(pool) {
-			if len(dst) >= limit {
-				break
+		tierPools := splitOpenAISelectionPools(pool)
+		if len(dst) < limit {
+			dst = append(dst, buildSelectionOrder(tierPools[openAISchedulerTierRank(OpenAISchedulerTierPrimary)], limit-len(dst))...)
+		}
+		if len(dst) < limit {
+			dst = append(dst, buildSelectionOrder(tierPools[openAISchedulerTierRank(OpenAISchedulerTierStandby)], limit-len(dst))...)
+		}
+		if len(dst) < limit {
+			observeLimit := limit - len(dst)
+			if settings.ObserveProbeRatio > 0 {
+				observeLimit = int(math.Ceil(float64(limit) * settings.ObserveProbeRatio))
+				if observeLimit < 1 {
+					observeLimit = 1
+				}
+				remaining := limit - len(dst)
+				if observeLimit > remaining {
+					observeLimit = remaining
+				}
 			}
-			dst = append(dst, buildSelectionOrder(tierPool, limit-len(dst))...)
+			dst = append(dst, buildSelectionOrder(tierPools[openAISchedulerTierRank(OpenAISchedulerTierObserve)], observeLimit)...)
+		}
+		if len(dst) < limit {
+			dst = append(dst, buildSelectionOrder(tierPools[openAISchedulerTierRank(OpenAISchedulerTierDegraded)], limit-len(dst))...)
 		}
 		return dst
 	}
@@ -2195,6 +2220,23 @@ func (s *OpenAIGatewayService) openAIWSSchedulerWeights() GatewayOpenAIWSSchedul
 		TTFT:      0.5,
 		Price:     0.6,
 	}
+}
+
+func (s *OpenAIGatewayService) adjustedOpenAIWSSchedulerWeights() GatewayOpenAIWSSchedulerScoreWeightsView {
+	weights := s.openAIWSSchedulerWeights()
+	if s == nil || s.cfg == nil {
+		return weights
+	}
+	switch strings.ToLower(strings.TrimSpace(s.cfg.Gateway.OpenAIScheduler.RoutingStrategy)) {
+	case "cost_first":
+		weights.Price *= 2.5
+		weights.TTFT *= 0.8
+	case "speed_first":
+		weights.TTFT *= 2.0
+		weights.ErrorRate *= 1.5
+		weights.Price *= 0.5
+	}
+	return weights
 }
 
 type GatewayOpenAIWSSchedulerScoreWeightsView struct {

@@ -132,6 +132,58 @@ func TestOpenAISchedulerBuildSelectionOrder_TieredTopKUsesGlobalLimit(t *testing
 	require.Equal(t, primary.ID, order[0].account.ID)
 }
 
+func TestOpenAISchedulerObserveProbeAddsObserveAfterPrimary(t *testing.T) {
+	scheduler := &defaultOpenAIAccountScheduler{
+		stats: newOpenAIAccountRuntimeStats(),
+		healthSettings: OpenAISchedulerHealthSettings{
+			HealthRankingEnabled:      true,
+			ObserveProbeRatio:         0.2,
+			TTFTDegradeMS:             1000,
+			ErrorRateDegradeThreshold: 0.35,
+			RecoverSuccessThreshold:   5,
+		},
+	}
+	primary := &Account{ID: 311, Priority: 1}
+	standby := &Account{ID: 312, Priority: 1}
+	observe := &Account{ID: 313, Priority: 1}
+	degraded := &Account{ID: 314, Priority: 1}
+	scheduler.seedHealthForTest(primary.ID, openAIAccountHealthRuntime{
+		successEWMA:        1,
+		consecutiveSuccess: 5,
+	})
+	scheduler.seedHealthForTest(standby.ID, openAIAccountHealthRuntime{
+		successEWMA: 0.7,
+		errorEWMA:   0.3,
+	})
+	scheduler.seedHealthForTest(observe.ID, openAIAccountHealthRuntime{
+		successEWMA: 0.9,
+		ttftEWMA:    2000,
+	})
+	scheduler.seedHealthForTest(degraded.ID, openAIAccountHealthRuntime{
+		successEWMA:         0.1,
+		errorEWMA:           0.9,
+		consecutiveFailures: 3,
+		lastDegradeReason:   OpenAISchedulerDegradeTimeout,
+	})
+
+	plan := openAIAccountLoadPlan{
+		candidates: []openAIAccountCandidateScore{
+			{account: observe, loadInfo: &AccountLoadInfo{AccountID: observe.ID}, score: 99},
+			{account: standby, loadInfo: &AccountLoadInfo{AccountID: standby.ID}, score: 98},
+			{account: primary, loadInfo: &AccountLoadInfo{AccountID: primary.ID}, score: 1},
+			{account: degraded, loadInfo: &AccountLoadInfo{AccountID: degraded.ID}, score: 100},
+		},
+		topK: 3,
+	}
+
+	order := scheduler.buildOpenAISelectionOrder(OpenAIAccountScheduleRequest{SessionHash: "observe-probe"}, plan)
+
+	require.Len(t, order, 3)
+	require.Equal(t, primary.ID, order[0].account.ID)
+	require.Equal(t, standby.ID, order[1].account.ID)
+	require.Equal(t, observe.ID, order[2].account.ID)
+}
+
 func TestOpenAISchedulerBuildSelectionOrder_CompactKeepsSupportedBeforeUnknownAndTiered(t *testing.T) {
 	scheduler := &defaultOpenAIAccountScheduler{
 		stats: newOpenAIAccountRuntimeStats(),
@@ -329,6 +381,57 @@ func TestOpenAISchedulerBuildOpenAIAccountLoadPlan_BoostsPriceOnlyWhenSpeedGapIs
 		scoreByID[candidate.account.ID] = candidate.score
 	}
 	require.Greater(t, scoreByID[cheapSlightlySlower.ID], scoreByID[expensiveFast.ID])
+}
+
+func TestOpenAISchedulerCostFirstBoostsCheapComparableAccount(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Priority = 1
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Load = 1
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Queue = 1
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.ErrorRate = 1
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.TTFT = 0.5
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Price = 0.6
+	cfg.Gateway.OpenAIScheduler.RoutingStrategy = "cost_first"
+	cfg.Gateway.OpenAIScheduler.PriceBoostSpeedGapMS = 1000
+	cfg.Gateway.OpenAIScheduler.PriceBoostMultiplier = 3
+	scheduler := &defaultOpenAIAccountScheduler{
+		stats:   newOpenAIAccountRuntimeStats(),
+		service: &OpenAIGatewayService{cfg: cfg},
+	}
+
+	cheapPrice := 0.05
+	expensivePrice := 0.20
+	cheap := &Account{ID: 701, Priority: 1, ChannelPrice: &cheapPrice}
+	expensive := &Account{ID: 702, Priority: 1, ChannelPrice: &expensivePrice}
+	scheduler.stats.report(cheap.ID, true, intPtrForTest(650))
+	scheduler.stats.report(expensive.ID, true, intPtrForTest(350))
+
+	plan := scheduler.buildOpenAIAccountLoadPlan(OpenAIAccountScheduleRequest{SessionHash: "cost-first"}, []*Account{cheap, expensive}, map[int64]*AccountLoadInfo{
+		cheap.ID:     {AccountID: cheap.ID},
+		expensive.ID: {AccountID: expensive.ID},
+	})
+
+	require.Equal(t, cheap.ID, plan.selectionOrder[0].account.ID)
+}
+
+func TestOpenAISchedulerStrictBestKeepsHighestScoreFirst(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Gateway.OpenAIScheduler.SelectionMode = "strict_best"
+	scheduler := &defaultOpenAIAccountScheduler{
+		stats:   newOpenAIAccountRuntimeStats(),
+		service: &OpenAIGatewayService{cfg: cfg},
+	}
+	candidates := []openAIAccountCandidateScore{
+		{account: &Account{ID: 801, Priority: 1}, loadInfo: &AccountLoadInfo{}, score: 1},
+		{account: &Account{ID: 802, Priority: 1}, loadInfo: &AccountLoadInfo{}, score: 3},
+	}
+
+	order := scheduler.buildOpenAISelectionOrder(OpenAIAccountScheduleRequest{SessionHash: "strict-best"}, openAIAccountLoadPlan{
+		candidates: candidates,
+		topK:       2,
+	})
+
+	require.Equal(t, int64(802), order[0].account.ID)
 }
 
 func TestOpenAISchedulerBuildOpenAIAccountLoadPlan_KeepsFasterAccountWhenSpeedGapIsLarge(t *testing.T) {

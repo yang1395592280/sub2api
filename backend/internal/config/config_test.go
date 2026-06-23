@@ -1897,6 +1897,40 @@ func TestLoad_DefaultGatewayUsageRecordConfig(t *testing.T) {
 	}
 }
 
+func TestLoad_DefaultOpenAISchedulerStrategyConfig(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, "balanced", cfg.Gateway.OpenAIScheduler.RoutingStrategy)
+	require.Equal(t, "weighted_top_k", cfg.Gateway.OpenAIScheduler.SelectionMode)
+}
+
+func TestValidateConfig_OpenAISchedulerStrategyRules(t *testing.T) {
+	buildValid := func(t *testing.T) *Config {
+		t.Helper()
+		resetViperWithJWTSecret(t)
+		cfg, err := Load()
+		require.NoError(t, err)
+		return cfg
+	}
+
+	t.Run("routing strategy invalid", func(t *testing.T) {
+		cfg := buildValid(t)
+		cfg.Gateway.OpenAIScheduler.RoutingStrategy = "cheapest"
+		err := cfg.Validate()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "gateway.openai_scheduler.routing_strategy")
+	})
+
+	t.Run("selection mode invalid", func(t *testing.T) {
+		cfg := buildValid(t)
+		cfg.Gateway.OpenAIScheduler.SelectionMode = "random"
+		err := cfg.Validate()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "gateway.openai_scheduler.selection_mode")
+	})
+}
+
 func TestLoad_DefaultGatewayImageStreamConfig(t *testing.T) {
 	resetViperWithJWTSecret(t)
 	cfg, err := Load()

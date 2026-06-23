@@ -968,6 +968,10 @@ type GatewayOpenAISchedulerConfig struct {
 	StickyEscapeTTFTMs int `mapstructure:"sticky_escape_ttft_ms"`
 	// StickyEscapeErrorRate: 错误率 EWMA 超过该阈值时跳过 sticky
 	StickyEscapeErrorRate float64 `mapstructure:"sticky_escape_error_rate"`
+	// RoutingStrategy: OpenAI scheduler 排序策略，默认 balanced
+	RoutingStrategy string `mapstructure:"routing_strategy"`
+	// SelectionMode: OpenAI scheduler 选择模式，默认 weighted_top_k
+	SelectionMode string `mapstructure:"selection_mode"`
 	// PriceBoostSpeedGapMS: TTFT 差距不超过该阈值时，价格权重才参与放大
 	PriceBoostSpeedGapMS int `mapstructure:"price_boost_speed_gap_ms"`
 	// PriceBoostMultiplier: 速度接近时对价格权重的放大倍数
@@ -1413,6 +1417,12 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	}
 	if cfg.Gateway.OpenAIScheduler.PriceBoostMultiplier == 0 {
 		cfg.Gateway.OpenAIScheduler.PriceBoostMultiplier = 3.0
+	}
+	if strings.TrimSpace(cfg.Gateway.OpenAIScheduler.RoutingStrategy) == "" {
+		cfg.Gateway.OpenAIScheduler.RoutingStrategy = "balanced"
+	}
+	if strings.TrimSpace(cfg.Gateway.OpenAIScheduler.SelectionMode) == "" {
+		cfg.Gateway.OpenAIScheduler.SelectionMode = "weighted_top_k"
 	}
 	if !cfg.Gateway.OpenAIScheduler.StickyEscapeEnabled && !viper.IsSet("gateway.openai_scheduler.sticky_escape_enabled") {
 		cfg.Gateway.OpenAIScheduler.StickyEscapeEnabled = true
@@ -1882,6 +1892,8 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.error_rate", 0.8)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.ttft", 0.5)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.price", 0.6)
+	viper.SetDefault("gateway.openai_scheduler.routing_strategy", "balanced")
+	viper.SetDefault("gateway.openai_scheduler.selection_mode", "weighted_top_k")
 	viper.SetDefault("gateway.openai_scheduler.price_boost_speed_gap_ms", 1000)
 	viper.SetDefault("gateway.openai_scheduler.price_boost_multiplier", 3.0)
 	// OpenAI HTTP upstream protocol strategy
@@ -2683,6 +2695,16 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.OpenAIScheduler.PriceBoostMultiplier < 0 {
 		return fmt.Errorf("gateway.openai_scheduler.price_boost_multiplier must be non-negative")
+	}
+	switch strings.ToLower(strings.TrimSpace(c.Gateway.OpenAIScheduler.RoutingStrategy)) {
+	case "", "balanced", "cost_first", "speed_first":
+	default:
+		return fmt.Errorf("gateway.openai_scheduler.routing_strategy must be balanced, cost_first, or speed_first")
+	}
+	switch strings.ToLower(strings.TrimSpace(c.Gateway.OpenAIScheduler.SelectionMode)) {
+	case "", "weighted_top_k", "strict_best":
+	default:
+		return fmt.Errorf("gateway.openai_scheduler.selection_mode must be weighted_top_k or strict_best")
 	}
 	if c.Gateway.MaxLineSize < 0 {
 		return fmt.Errorf("gateway.max_line_size must be non-negative")
