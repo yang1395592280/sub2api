@@ -24,6 +24,7 @@ const messages: Record<string, string> = {
   'admin.accounts.routingPriority.sections.blockReasons': '阻塞原因',
   'admin.accounts.routingPriority.sections.topCandidates': 'Top 候选',
   'admin.accounts.routingPriority.sections.notes': '说明',
+  'admin.accounts.routingPriority.modal.empty': '暂无路由优先级说明',
   'common.loading': '加载中...',
   'common.close': '关闭',
 }
@@ -40,11 +41,13 @@ vi.mock('vue-i18n', async () => {
 })
 
 describe('OpenAIRoutingExplainModal', () => {
-  it('renders localized score breakdown, block details and notes', () => {
+  it('renders localized score breakdown, block details, until time, notes, and prefers accountId prop', () => {
+    const toLocaleStringSpy = vi.spyOn(Date.prototype, 'toLocaleString').mockReturnValue('2026/6/23 09:00:00')
+
     const wrapper = mount(OpenAIRoutingExplainModal, {
       props: {
         show: true,
-        accountId: 1,
+        accountId: 99,
         loading: false,
         explain: {
           account: {
@@ -89,7 +92,9 @@ describe('OpenAIRoutingExplainModal', () => {
         stubs: {
           BaseDialog: {
             props: ['show', 'title', 'width'],
-            template: '<div data-testid="base-dialog"><div>{{ title }}</div><slot /><slot name="footer" /></div>',
+            emits: ['close'],
+            template:
+              '<div data-testid="base-dialog"><div>{{ title }}</div><button data-testid="dialog-close" @click="$emit(\'close\')">x</button><slot /><slot name="footer" /></div>',
           },
         },
       },
@@ -97,10 +102,13 @@ describe('OpenAIRoutingExplainModal', () => {
 
     expect(wrapper.text()).toContain('路由优先级详情')
     expect(wrapper.text()).toContain('cheap-fast')
+    expect(wrapper.text()).toContain('99')
+    expect(wrapper.text()).not.toContain(' 1 ')
     expect(wrapper.text()).toContain('人工优先级高')
     expect(wrapper.text()).toContain('价格')
     expect(wrapper.text()).toContain('临时不可调度')
     expect(wrapper.text()).toContain('前端倒计时状态')
+    expect(wrapper.text()).toContain('2026/6/23 09:00:00')
     expect(wrapper.text()).toContain('steady-one')
     expect(wrapper.text()).toContain('低负载')
     expect(wrapper.text()).toContain('会话保持命中时，实际路由可能覆盖当前排名。')
@@ -108,5 +116,88 @@ describe('OpenAIRoutingExplainModal', () => {
     expect(wrapper.text()).not.toContain('high_priority')
     expect(wrapper.text()).not.toContain('ui_countdown_state')
     expect(wrapper.text()).not.toContain('sticky_may_override_ranking')
+
+    toLocaleStringSpy.mockRestore()
+  })
+
+  it('renders loading state before explain content', () => {
+    const wrapper = mount(OpenAIRoutingExplainModal, {
+      props: {
+        show: true,
+        loading: true,
+        explain: null,
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            props: ['show', 'title', 'width'],
+            template: '<div data-testid="base-dialog"><slot /></div>',
+          },
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('加载中...')
+    expect(wrapper.text()).not.toContain('暂无')
+  })
+
+  it('renders empty state when explain is unavailable', () => {
+    const wrapper = mount(OpenAIRoutingExplainModal, {
+      props: {
+        show: true,
+        loading: false,
+        explain: null,
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            props: ['show', 'title', 'width'],
+            template: '<div data-testid="base-dialog"><slot /></div>',
+          },
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('暂无路由优先级说明')
+  })
+
+  it('re-emits dialog close and footer close actions', async () => {
+    const wrapper = mount(OpenAIRoutingExplainModal, {
+      props: {
+        show: true,
+        loading: false,
+        explain: {
+          account: {
+            account_id: 1,
+            account_name: 'cheap-fast',
+            rank: 1,
+            tier: 'primary',
+            status_label: 'candidate',
+            summary_reason: 'high_priority',
+            summary_reasons: ['high_priority'],
+            is_schedulable_now: true,
+            score: { total: 3.2, priority: 1, load: 0.8, queue: 1, error_rate: 1, ttft: 0.9, price: 1, health: 1 },
+            snapshot_at: '2026-06-23T00:00:00Z',
+          },
+          top: [],
+          notes: [],
+        },
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            props: ['show', 'title', 'width'],
+            emits: ['close'],
+            template:
+              '<div data-testid="base-dialog"><button data-testid="dialog-close" @click="$emit(\'close\')">x</button><slot /><slot name="footer" /></div>',
+          },
+        },
+      },
+    })
+
+    await wrapper.get('[data-testid="dialog-close"]').trigger('click')
+    await wrapper.get('button.btn.btn-secondary').trigger('click')
+
+    expect(wrapper.emitted('close')).toHaveLength(2)
   })
 })
