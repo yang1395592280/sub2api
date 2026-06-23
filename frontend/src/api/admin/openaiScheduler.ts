@@ -68,6 +68,78 @@ export interface OpenAISchedulerOverview {
   average_ttft_ms?: number
 }
 
+export type OpenAIRoutingReasonCode =
+  | 'status_error'
+  | 'status_inactive'
+  | 'manual_unschedulable'
+  | 'rate_limited'
+  | 'overloaded'
+  | 'temp_unschedulable'
+  | 'runtime_blocked'
+  | 'health_degraded'
+  | 'model_unsupported'
+  | 'capability_unsupported'
+  | 'transport_unsupported'
+  | 'group_mismatch'
+  | 'privacy_not_set'
+  | 'quota_auto_paused'
+  | 'concurrency_full'
+  | 'channel_restricted'
+  | 'compact_unsupported'
+
+export interface OpenAIRoutingScoreBreakdown {
+  total: number
+  priority: number
+  load: number
+  queue: number
+  error_rate: number
+  ttft: number
+  price: number
+  health: number
+}
+
+export interface OpenAIRoutingQuotaDecision {
+  window?: string
+  threshold?: number
+  utilization?: number
+  snapshot_at: string
+}
+
+export interface OpenAIRoutingBlockDetail {
+  reason: OpenAIRoutingReasonCode
+  source: string
+  until?: string | null
+  quota_decision?: OpenAIRoutingQuotaDecision
+  snapshot_at: string
+}
+
+export interface OpenAIRoutingSummary {
+  account_id: number
+  account_name: string
+  rank?: number
+  tier: OpenAISchedulerTier
+  score: OpenAIRoutingScoreBreakdown
+  status_label: string
+  summary_reason: string
+  summary_reasons: string[]
+  is_schedulable_now: boolean
+  block_reasons?: OpenAIRoutingReasonCode[]
+  block_details?: OpenAIRoutingBlockDetail[]
+  snapshot_at: string
+}
+
+export interface OpenAIRoutingRankingResponse {
+  items: OpenAIRoutingSummary[]
+  source: string
+  snapshot_at: string
+}
+
+export interface OpenAIRoutingAccountExplain {
+  account: OpenAIRoutingSummary
+  top: OpenAIRoutingSummary[]
+  notes: string[]
+}
+
 export interface ListAccountsParams {
   page?: number
   page_size?: number
@@ -154,6 +226,28 @@ export async function updateSettings(
   return data
 }
 
+export async function getRoutingRanking(
+  params: { group_id?: number; model?: string; platform?: string } = {},
+  options?: { signal?: AbortSignal }
+): Promise<OpenAIRoutingRankingResponse> {
+  const { data } = await apiClient.get<OpenAIRoutingRankingResponse>('/admin/openai-scheduler/ranking', {
+    params,
+    signal: options?.signal,
+  })
+  return data
+}
+
+export async function getRoutingExplain(
+  id: number,
+  params: { group_id?: number; model?: string; platform?: string } = {}
+): Promise<OpenAIRoutingAccountExplain> {
+  const { data } = await apiClient.get<OpenAIRoutingAccountExplain>(
+    `/admin/openai-scheduler/accounts/${id}/routing-explain`,
+    { params }
+  )
+  return data
+}
+
 export const openaiSchedulerAPI = {
   getOverview,
   getDailyStats,
@@ -163,6 +257,8 @@ export const openaiSchedulerAPI = {
   applyAction,
   getSettings,
   updateSettings,
+  getRoutingRanking,
+  getRoutingExplain,
 }
 
 export default openaiSchedulerAPI

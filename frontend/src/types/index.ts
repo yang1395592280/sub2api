@@ -2,6 +2,8 @@
  * Core Type Definitions for Sub2API Frontend
  */
 
+import type { OpenAIRoutingSummary } from '@/api/admin/openaiScheduler'
+
 // ==================== Common Types ====================
 
 export interface SelectOption {
@@ -856,6 +858,7 @@ export interface Account {
   load_factor?: number | null
   current_concurrency?: number // Real-time concurrency count from Redis
   stability?: AccountStability
+  routing_priority?: OpenAIRoutingSummary
   priority: number
   rate_multiplier?: number // Account billing multiplier (>=0, 0 means free)
   channel_price?: number | null // Upstream channel price used by OpenAI scheduler
