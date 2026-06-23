@@ -414,6 +414,55 @@ func TestOpenAISchedulerCostFirstBoostsCheapComparableAccount(t *testing.T) {
 	require.Equal(t, cheap.ID, plan.selectionOrder[0].account.ID)
 }
 
+func TestOpenAISchedulerSpeedFirstBoostsFastReliableAccount(t *testing.T) {
+	buildPlan := func(routingStrategy string) openAIAccountLoadPlan {
+		cfg := &config.Config{}
+		cfg.Gateway.OpenAIWS.LBTopK = 1
+		cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Priority = 0
+		cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Load = 0
+		cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Queue = 0
+		cfg.Gateway.OpenAIWS.SchedulerScoreWeights.ErrorRate = 1
+		cfg.Gateway.OpenAIWS.SchedulerScoreWeights.TTFT = 0.5
+		cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Price = 0.6
+		cfg.Gateway.OpenAIScheduler.RoutingStrategy = routingStrategy
+		cfg.Gateway.OpenAIScheduler.PriceBoostSpeedGapMS = 1000
+		cfg.Gateway.OpenAIScheduler.PriceBoostMultiplier = 3
+
+		scheduler := &defaultOpenAIAccountScheduler{
+			stats:   newOpenAIAccountRuntimeStats(),
+			service: &OpenAIGatewayService{cfg: cfg},
+		}
+
+		cheapPrice := 0.05
+		expensivePrice := 0.20
+		cheapSlower := &Account{ID: 711, Priority: 1, ChannelPrice: &cheapPrice}
+		fastReliable := &Account{ID: 712, Priority: 1, ChannelPrice: &expensivePrice}
+
+		scheduler.stats.report(cheapSlower.ID, true, intPtrForTest(900))
+		scheduler.stats.report(cheapSlower.ID, false, nil)
+		scheduler.stats.report(fastReliable.ID, true, intPtrForTest(300))
+
+		return scheduler.buildOpenAIAccountLoadPlan(OpenAIAccountScheduleRequest{SessionHash: "speed-first"}, []*Account{cheapSlower, fastReliable}, map[int64]*AccountLoadInfo{
+			cheapSlower.ID:  {AccountID: cheapSlower.ID},
+			fastReliable.ID: {AccountID: fastReliable.ID},
+		})
+	}
+
+	balancedPlan := buildPlan("balanced")
+	require.Len(t, balancedPlan.candidates, 2)
+	require.Equal(t, int64(711), balancedPlan.selectionOrder[0].account.ID)
+
+	speedFirstPlan := buildPlan("speed_first")
+	require.Len(t, speedFirstPlan.candidates, 2)
+	require.Equal(t, int64(712), speedFirstPlan.selectionOrder[0].account.ID)
+
+	scoreByID := make(map[int64]float64, len(speedFirstPlan.candidates))
+	for _, candidate := range speedFirstPlan.candidates {
+		scoreByID[candidate.account.ID] = candidate.score
+	}
+	require.Greater(t, scoreByID[712], scoreByID[711])
+}
+
 func TestOpenAISchedulerStrictBestKeepsHighestScoreFirst(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Gateway.OpenAIScheduler.SelectionMode = "strict_best"
