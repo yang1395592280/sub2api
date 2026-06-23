@@ -48,6 +48,7 @@ const (
 	OpenAISchedulerDegradeRateLimited = "rate_limited"
 	OpenAISchedulerDegradeUpstream5xx = "upstream_5xx"
 	OpenAISchedulerDegradeTimeout     = "timeout"
+	OpenAISchedulerDegradeTransport   = "transport_error"
 	OpenAISchedulerDegradeRecovering  = "recovering"
 	OpenAISchedulerDegradeManual      = "manual"
 )
@@ -166,6 +167,7 @@ type OpenAISchedulerAccountSnapshot struct {
 type OpenAIAccountScheduler interface {
 	Select(ctx context.Context, req OpenAIAccountScheduleRequest) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error)
 	ReportResult(accountID int64, success bool, firstTokenMs *int)
+	ReportResultWithReason(accountID int64, success bool, firstTokenMs *int, reason string)
 	ReportSwitch()
 	SnapshotMetrics() OpenAIAccountSchedulerMetricsSnapshot
 	SnapshotAccountHealth(ctx context.Context, accountID int64) (OpenAIAccountHealthSnapshot, bool)
@@ -411,6 +413,7 @@ func buildOpenAIAccountHealthSnapshot(
 		AccountID:         accountID,
 		HealthScore:       math.Round(score*10) / 10,
 		Tier:              OpenAISchedulerTierStandby,
+		DegradeReason:     strings.TrimSpace(stat.lastDegradeReason),
 		SuccessRateEWMA:   successEWMA,
 		ErrorRateEWMA:     errorEWMA,
 		TTFTEWMAMS:        ttftEWMA,
@@ -562,6 +565,23 @@ func (s *openAIAccountRuntimeStats) report(accountID int64, success bool, firstT
 			stat.health.lastDegradeReason = OpenAISchedulerDegradeUpstream5xx
 		}
 	}
+}
+
+func (s *openAIAccountRuntimeStats) reportWithReason(accountID int64, success bool, firstTokenMs *int, reason string) {
+	s.report(accountID, success, firstTokenMs)
+	if s == nil || accountID <= 0 || success {
+		return
+	}
+
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return
+	}
+
+	stat := s.loadOrCreate(accountID)
+	stat.healthMu.Lock()
+	stat.health.lastDegradeReason = reason
+	stat.healthMu.Unlock()
 }
 
 func (s *openAIAccountRuntimeStats) snapshot(accountID int64) (errorRate float64, ttft float64, hasTTFT bool) {
@@ -1642,6 +1662,13 @@ func (s *defaultOpenAIAccountScheduler) ReportResult(accountID int64, success bo
 	s.stats.report(accountID, success, firstTokenMs)
 }
 
+func (s *defaultOpenAIAccountScheduler) ReportResultWithReason(accountID int64, success bool, firstTokenMs *int, reason string) {
+	if s == nil || s.stats == nil {
+		return
+	}
+	s.stats.reportWithReason(accountID, success, firstTokenMs, reason)
+}
+
 func (s *defaultOpenAIAccountScheduler) ReportSwitch() {
 	if s == nil {
 		return
@@ -2123,6 +2150,14 @@ func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(accountID int64
 		return
 	}
 	scheduler.ReportResult(accountID, success, firstTokenMs)
+}
+
+func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResultWithReason(accountID int64, success bool, firstTokenMs *int, reason string) {
+	scheduler := s.getOpenAIAccountScheduler(context.Background())
+	if scheduler == nil {
+		return
+	}
+	scheduler.ReportResultWithReason(accountID, success, firstTokenMs, reason)
 }
 
 func (s *OpenAIGatewayService) RecordOpenAIAccountSwitch() {

@@ -124,6 +124,16 @@ func TestDefaultOpenAIAccountScheduler_ReportResultUpdatesHealth(t *testing.T) {
 	require.NotNil(t, snapshot.LastErrorAt)
 }
 
+func TestDefaultOpenAIAccountScheduler_ReportResultWithReason(t *testing.T) {
+	scheduler := newDefaultOpenAIAccountScheduler(nil, newOpenAIAccountRuntimeStats()).(*defaultOpenAIAccountScheduler)
+
+	scheduler.ReportResultWithReason(9101, false, nil, OpenAISchedulerDegradeRateLimited)
+	snapshot, ok := scheduler.SnapshotAccountHealth(context.Background(), 9101)
+
+	require.True(t, ok)
+	require.Equal(t, OpenAISchedulerDegradeRateLimited, snapshot.DegradeReason)
+}
+
 func TestDefaultOpenAIAccountScheduler_UpdateHealthSettingsClampsValues(t *testing.T) {
 	schedulerAny := newDefaultOpenAIAccountScheduler(&OpenAIGatewayService{}, nil)
 	scheduler, ok := schedulerAny.(*defaultOpenAIAccountScheduler)

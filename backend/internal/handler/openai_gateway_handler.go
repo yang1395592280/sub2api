@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"strconv"
@@ -422,7 +423,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 						h.handleFailoverExhausted(c, failoverErr, true)
 						return
 					}
-					h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
+					h.reportOpenAIAccountScheduleFailure(account.ID, failoverErr.StatusCode, failoverErr, failoverErr.ResponseBody)
 					// 池模式：同账号重试
 					if failoverErr.RetryableOnSameAccount {
 						retryLimit := account.GetPoolModeRetryCount()
@@ -462,7 +463,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 					)
 					continue
 				}
-				h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
+				h.reportOpenAIAccountScheduleFailure(account.ID, 0, err, nil)
 				upstreamErrorAlreadyCommunicated := openAIForwardErrorAlreadyCommunicated(c, writerSizeBeforeForward, err)
 				wroteFallback := false
 				if !upstreamErrorAlreadyCommunicated {
@@ -834,7 +835,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 						h.handleAnthropicFailoverExhausted(c, failoverErr, true)
 						return
 					}
-					h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
+					h.reportOpenAIAccountScheduleFailure(account.ID, failoverErr.StatusCode, failoverErr, failoverErr.ResponseBody)
 					// 池模式：同账号重试
 					if failoverErr.RetryableOnSameAccount {
 						retryLimit := account.GetPoolModeRetryCount()
@@ -881,7 +882,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 					)
 					return
 				}
-				h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
+				h.reportOpenAIAccountScheduleFailure(account.ID, 0, err, nil)
 				wroteFallback := h.ensureAnthropicErrorResponse(c, streamStarted)
 				reqLog.Warn("openai_messages.forward_failed",
 					zap.Int64("account_id", account.ID),
@@ -1548,7 +1549,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		if err := h.gatewayService.ProxyResponsesWebSocketFromClient(ctx, c, wsConn, account, token, wsFirstMessage, hooks); err != nil {
 			var failoverErr *service.UpstreamFailoverError
 			if errors.As(err, &failoverErr) {
-				h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
+				h.reportOpenAIAccountScheduleFailure(account.ID, failoverErr.StatusCode, failoverErr, failoverErr.ResponseBody)
 				releaseAccountSlot()
 				failedAccountIDs[account.ID] = struct{}{}
 				lastFailoverErr = failoverErr
@@ -1574,7 +1575,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				continue
 			}
 
-			h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
+			h.reportOpenAIAccountScheduleFailure(account.ID, 0, err, nil)
 			closeStatus, closeReason := summarizeWSCloseErrorForLog(err)
 			reqLog.Warn("openai.websocket_proxy_failed",
 				zap.Int64("account_id", account.ID),
@@ -1830,6 +1831,55 @@ func (h *OpenAIGatewayHandler) handleFailoverExhaustedSimple(c *gin.Context, sta
 	status, errType, errMsg := h.mapUpstreamError(statusCode)
 	service.SetOpsUpstreamError(c, statusCode, errMsg, "")
 	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
+}
+
+func classifyOpenAIAccountScheduleFailureReason(statusCode int, err error, responseBody []byte) string {
+	switch statusCode {
+	case http.StatusTooManyRequests:
+		return service.OpenAISchedulerDegradeRateLimited
+	case http.StatusForbidden:
+		return service.OpenAISchedulerDegradeManual
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		return service.OpenAISchedulerDegradeTimeout
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return service.OpenAISchedulerDegradeTimeout
+	}
+
+	if statusCode >= http.StatusInternalServerError && statusCode <= 599 {
+		if isOpenAITransportFailoverBody(responseBody) {
+			return service.OpenAISchedulerDegradeTransport
+		}
+		return service.OpenAISchedulerDegradeUpstream5xx
+	}
+
+	if err != nil {
+		return service.OpenAISchedulerDegradeTransport
+	}
+	return ""
+}
+
+func isOpenAITransportFailoverBody(responseBody []byte) bool {
+	if len(responseBody) == 0 {
+		return false
+	}
+	return strings.TrimSpace(gjson.GetBytes(responseBody, "error.type").String()) == "upstream_error" &&
+		strings.TrimSpace(gjson.GetBytes(responseBody, "error.message").String()) == "Upstream request failed"
+}
+
+func (h *OpenAIGatewayHandler) reportOpenAIAccountScheduleFailure(accountID int64, statusCode int, err error, responseBody []byte) {
+	if h == nil || h.gatewayService == nil || accountID <= 0 {
+		return
+	}
+	h.gatewayService.ReportOpenAIAccountScheduleResultWithReason(
+		accountID,
+		false,
+		nil,
+		classifyOpenAIAccountScheduleFailureReason(statusCode, err, responseBody),
+	)
 }
 
 func (h *OpenAIGatewayHandler) mapUpstreamError(statusCode int) (int, string, string) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,6 +24,12 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
+
+type openAITestTimeoutError struct{}
+
+func (openAITestTimeoutError) Error() string   { return "timeout" }
+func (openAITestTimeoutError) Timeout() bool   { return true }
+func (openAITestTimeoutError) Temporary() bool { return true }
 
 func TestOpenAIHandleStreamingAwareError_JSONEscaping(t *testing.T) {
 	tests := []struct {
@@ -131,6 +138,60 @@ func TestOpenAIHandleStreamingAwareError_NonStreaming(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "upstream_error", errorObj["type"])
 	assert.Equal(t, "test error", errorObj["message"])
+}
+
+func TestOpenAIClassifyScheduleFailureReason(t *testing.T) {
+	tests := []struct {
+		name         string
+		statusCode   int
+		responseBody []byte
+		err          error
+		want         string
+	}{
+		{
+			name:       "429 rate limited",
+			statusCode: http.StatusTooManyRequests,
+			want:       service.OpenAISchedulerDegradeRateLimited,
+		},
+		{
+			name:       "403 manual",
+			statusCode: http.StatusForbidden,
+			want:       service.OpenAISchedulerDegradeManual,
+		},
+		{
+			name:       "503 upstream 5xx",
+			statusCode: http.StatusServiceUnavailable,
+			want:       service.OpenAISchedulerDegradeUpstream5xx,
+		},
+		{
+			name:         "transport failover body",
+			err:          &service.UpstreamFailoverError{StatusCode: http.StatusBadGateway},
+			responseBody: []byte(`{"error":{"type":"upstream_error","message":"Upstream request failed"}}`),
+			want:         "transport_error",
+		},
+		{
+			name: "deadline exceeded",
+			err:  context.DeadlineExceeded,
+			want: service.OpenAISchedulerDegradeTimeout,
+		},
+		{
+			name: "net timeout",
+			err:  net.Error(openAITestTimeoutError{}),
+			want: service.OpenAISchedulerDegradeTimeout,
+		},
+		{
+			name: "generic transport error",
+			err:  errors.New("dial tcp 1.2.3.4:443: connection refused"),
+			want: "transport_error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := classifyOpenAIAccountScheduleFailureReason(tt.statusCode, tt.err, tt.responseBody)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestReadRequestBodyWithPrealloc(t *testing.T) {
