@@ -3460,6 +3460,7 @@ export default {
         groups: '分组',
         upstreamGroup: '上游分组',
         stability: '调度状态',
+        routingPriority: '调度优先级',
         usageWindows: '用量窗口',
         proxy: '代理',
         lastUsed: '最近使用',
@@ -3562,6 +3563,7 @@ export default {
       },
       routingPriority: {
         viewDetails: '查看路由优先级',
+        loadFailed: '加载路由优先级失败',
         status: {
           candidate: '候选',
           skipped: '已跳过',

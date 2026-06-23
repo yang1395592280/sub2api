@@ -3422,6 +3422,7 @@ export default {
         groups: 'Groups',
         upstreamGroup: 'Upstream Group',
         stability: 'Routing Status',
+        routingPriority: 'Routing Priority',
         usageWindows: 'Usage Windows',
         proxy: 'Proxy',
         lastUsed: 'Last Used',
@@ -3567,6 +3568,7 @@ export default {
       },
       routingPriority: {
         viewDetails: 'View routing priority',
+        loadFailed: 'Failed to load routing priority',
         status: {
           candidate: 'Candidate',
           skipped: 'Skipped',

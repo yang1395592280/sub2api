@@ -119,7 +119,6 @@ func TestOpenAIRoutingExplainCostFirstMatchesSchedulerLoadPlanDirection(t *testi
 	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.TTFT = 0.5
 	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Price = 0.6
 	cfg.Gateway.OpenAIScheduler.RoutingStrategy = "cost_first"
-	cfg.Gateway.OpenAIScheduler.SelectionMode = "strict_best"
 	cfg.Gateway.OpenAIScheduler.PriceBoostSpeedGapMS = 1000
 	cfg.Gateway.OpenAIScheduler.PriceBoostMultiplier = 3
 	groupID := int64(9006)
@@ -147,8 +146,9 @@ func TestOpenAIRoutingExplainCostFirstMatchesSchedulerLoadPlanDirection(t *testi
 		31: {AccountID: 31},
 		32: {AccountID: 32},
 	})
-	require.NotEmpty(t, plan.selectionOrder)
-	require.Equal(t, plan.selectionOrder[0].account.ID, got.Items[0].AccountID)
+	stableOrder := selectTopKOpenAICandidates(plan.candidates, plan.topK)
+	require.NotEmpty(t, stableOrder)
+	require.Equal(t, stableOrder[0].account.ID, got.Items[0].AccountID)
 	require.Equal(t, int64(31), got.Items[0].AccountID)
 	require.Greater(t, got.Items[0].Score.Total, got.Items[1].Score.Total)
 }
@@ -163,7 +163,6 @@ func TestOpenAIRoutingExplainSpeedFirstMatchesSchedulerLoadPlanDirection(t *test
 	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.TTFT = 0.5
 	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Price = 0.6
 	cfg.Gateway.OpenAIScheduler.RoutingStrategy = "speed_first"
-	cfg.Gateway.OpenAIScheduler.SelectionMode = "strict_best"
 	cfg.Gateway.OpenAIScheduler.PriceBoostSpeedGapMS = 1000
 	cfg.Gateway.OpenAIScheduler.PriceBoostMultiplier = 3
 	groupID := int64(9007)
@@ -192,8 +191,9 @@ func TestOpenAIRoutingExplainSpeedFirstMatchesSchedulerLoadPlanDirection(t *test
 		41: {AccountID: 41},
 		42: {AccountID: 42},
 	})
-	require.NotEmpty(t, plan.selectionOrder)
-	require.Equal(t, plan.selectionOrder[0].account.ID, got.Items[0].AccountID)
+	stableOrder := selectTopKOpenAICandidates(plan.candidates, plan.topK)
+	require.NotEmpty(t, stableOrder)
+	require.Equal(t, stableOrder[0].account.ID, got.Items[0].AccountID)
 	require.Equal(t, int64(42), got.Items[0].AccountID)
 	require.Greater(t, got.Items[0].Score.Total, got.Items[1].Score.Total)
 }

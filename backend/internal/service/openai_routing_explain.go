@@ -200,8 +200,9 @@ func (s *OpenAIGatewayService) applyOpenAIRoutingLoadPlan(
 			candidatesByID[candidate.account.ID] = candidate
 		}
 	}
-	orderByID := make(map[int64]int, len(plan.selectionOrder))
-	for i, candidate := range plan.selectionOrder {
+	stableOrder := selectTopKOpenAICandidates(plan.candidates, plan.topK)
+	orderByID := make(map[int64]int, len(stableOrder))
+	for i, candidate := range stableOrder {
 		if candidate.account == nil {
 			continue
 		}
