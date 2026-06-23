@@ -167,7 +167,7 @@ func TestOpenAIClassifyScheduleFailureReason(t *testing.T) {
 			name:         "transport failover body",
 			err:          &service.UpstreamFailoverError{StatusCode: http.StatusBadGateway},
 			responseBody: []byte(`{"error":{"type":"upstream_error","message":"Upstream request failed"}}`),
-			want:         "transport_error",
+			want:         service.OpenAISchedulerDegradeTransport,
 		},
 		{
 			name: "deadline exceeded",
@@ -182,7 +182,7 @@ func TestOpenAIClassifyScheduleFailureReason(t *testing.T) {
 		{
 			name: "generic transport error",
 			err:  errors.New("dial tcp 1.2.3.4:443: connection refused"),
-			want: "transport_error",
+			want: service.OpenAISchedulerDegradeTransport,
 		},
 	}
 

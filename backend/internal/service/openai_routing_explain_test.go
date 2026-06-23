@@ -67,6 +67,36 @@ func TestOpenAIRoutingExplainReportsStructuredCooldownDetails(t *testing.T) {
 	require.WithinDuration(t, got.Items[0].SnapshotAt, got.Items[0].BlockDetails[0].SnapshotAt, time.Second)
 }
 
+func TestOpenAIRoutingExplainExposesDetailedDegradeReason(t *testing.T) {
+	groupID := int64(9005)
+	accounts := []Account{
+		{ID: 4, Name: "degraded-timeout", Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Priority: 1, Concurrency: 5, GroupIDs: []int64{groupID}},
+	}
+	svc := &OpenAIGatewayService{
+		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
+		rateLimitService: newOpenAIAdvancedSchedulerRateLimitService("true"),
+	}
+	scheduler := svc.getOpenAIAccountScheduler(context.Background()).(*defaultOpenAIAccountScheduler)
+	settings := defaultOpenAISchedulerHealthSettings()
+	settings.HealthRankingEnabled = true
+	scheduler.UpdateHealthSettings(settings)
+	for i := 0; i < settings.ConsecutiveFailureThreshold; i++ {
+		scheduler.ReportResultWithReason(accounts[0].ID, false, nil, OpenAISchedulerDegradeTimeout)
+	}
+
+	got, err := svc.ExplainOpenAIRouting(context.Background(), OpenAIRoutingExplainParams{GroupID: &groupID})
+
+	require.NoError(t, err)
+	require.Len(t, got.Items, 1)
+	require.False(t, got.Items[0].IsSchedulableNow)
+	require.Equal(t, "degraded", got.Items[0].StatusLabel)
+	require.Contains(t, got.Items[0].BlockReasons, OpenAIRoutingReasonCode(OpenAISchedulerDegradeTimeout))
+	require.Contains(t, got.Items[0].SummaryReasons, OpenAISchedulerDegradeTimeout)
+	require.Len(t, got.Items[0].BlockDetails, 1)
+	require.Equal(t, OpenAIRoutingReasonCode(OpenAISchedulerDegradeTimeout), got.Items[0].BlockDetails[0].Reason)
+	require.Equal(t, "advanced_scheduler_health", got.Items[0].BlockDetails[0].Source)
+}
+
 func TestOpenAIRoutingExplainForAccountLoadsManualUnschedulableAccountByID(t *testing.T) {
 	groupID := int64(9003)
 	accounts := []Account{

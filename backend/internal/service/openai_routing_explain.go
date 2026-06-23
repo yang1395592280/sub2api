@@ -18,6 +18,12 @@ const (
 	OpenAIRoutingReasonOverloaded            OpenAIRoutingReasonCode = "overloaded"
 	OpenAIRoutingReasonTempUnschedulable     OpenAIRoutingReasonCode = "temp_unschedulable"
 	OpenAIRoutingReasonRuntimeBlocked        OpenAIRoutingReasonCode = "runtime_blocked"
+	OpenAIRoutingReasonHighLatency           OpenAIRoutingReasonCode = "high_latency"
+	OpenAIRoutingReasonUpstream5xx           OpenAIRoutingReasonCode = "upstream_5xx"
+	OpenAIRoutingReasonTimeout               OpenAIRoutingReasonCode = "timeout"
+	OpenAIRoutingReasonTransportError        OpenAIRoutingReasonCode = "transport_error"
+	OpenAIRoutingReasonManual                OpenAIRoutingReasonCode = "manual"
+	OpenAIRoutingReasonRecovering            OpenAIRoutingReasonCode = "recovering"
 	OpenAIRoutingReasonHealthDegraded        OpenAIRoutingReasonCode = "health_degraded"
 	OpenAIRoutingReasonModelUnsupported      OpenAIRoutingReasonCode = "model_unsupported"
 	OpenAIRoutingReasonCapabilityUnsupported OpenAIRoutingReasonCode = "capability_unsupported"
@@ -205,11 +211,12 @@ func (s *OpenAIGatewayService) explainOpenAIRoutingAccount(ctx context.Context, 
 		statusLabel = "skipped"
 	}
 	if health.Tier == OpenAISchedulerTierDegraded {
+		healthReason := openAIRoutingHealthReason(health.DegradeReason)
 		isSchedulableNow = false
 		statusLabel = "degraded"
-		reasons = appendOpenAIRoutingReason(reasons, OpenAIRoutingReasonHealthDegraded)
+		reasons = appendOpenAIRoutingReason(reasons, healthReason)
 		details = appendOpenAIRoutingBlockDetail(details, OpenAIRoutingBlockDetail{
-			Reason:     OpenAIRoutingReasonHealthDegraded,
+			Reason:     healthReason,
 			Source:     "advanced_scheduler_health",
 			Until:      health.CooldownUntil,
 			SnapshotAt: now,
@@ -478,6 +485,27 @@ func appendOpenAIRoutingReason(reasons []OpenAIRoutingReasonCode, reason OpenAIR
 		}
 	}
 	return append(reasons, reason)
+}
+
+func openAIRoutingHealthReason(reason string) OpenAIRoutingReasonCode {
+	switch strings.TrimSpace(reason) {
+	case OpenAISchedulerDegradeRateLimited:
+		return OpenAIRoutingReasonRateLimited
+	case OpenAISchedulerDegradeUpstream5xx:
+		return OpenAIRoutingReasonUpstream5xx
+	case OpenAISchedulerDegradeTimeout:
+		return OpenAIRoutingReasonTimeout
+	case OpenAISchedulerDegradeTransport:
+		return OpenAIRoutingReasonTransportError
+	case OpenAISchedulerDegradeManual:
+		return OpenAIRoutingReasonManual
+	case OpenAISchedulerDegradeHighLatency:
+		return OpenAIRoutingReasonHighLatency
+	case OpenAISchedulerDegradeRecovering:
+		return OpenAIRoutingReasonRecovering
+	default:
+		return OpenAIRoutingReasonHealthDegraded
+	}
 }
 
 func appendOpenAIRoutingBlockDetail(details []OpenAIRoutingBlockDetail, detail OpenAIRoutingBlockDetail) []OpenAIRoutingBlockDetail {
