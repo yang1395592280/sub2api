@@ -363,7 +363,7 @@ func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfQuota(t *testing.T) {
 	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
 	_, err := svc.Refresh(context.Background(), 18)
 	require.NoError(t, err)
-	require.Equal(t, 2, calls)
+	require.Equal(t, 3, calls)
 	require.Equal(t, "new-api", repo.updatedExtra["upstream_balance_provider"])
 	require.InDelta(t, 9.115826, repo.updatedExtra["upstream_balance_remaining"], 0.000001)
 	require.Equal(t, "USD", repo.updatedExtra["upstream_balance_unit"])
@@ -383,6 +383,10 @@ func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfPrefersTokenGroup(t *
 			require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
 			require.Equal(t, "209", r.Header.Get("New-Api-User"))
 			_, _ = w.Write([]byte(`{"success":true,"data":{"page":1,"page_size":10,"total":2,"items":[{"id":206,"user_id":209,"key":"other**********key","group":"default"},{"id":207,"user_id":209,"key":"5mlD**********HAbe","group":"codex pro special"}]}}`))
+		case "/api/user/self/groups":
+			require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
+			require.Equal(t, "209", r.Header.Get("New-Api-User"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"codex pro special":{"desc":"codex pro special","ratio":0.08},"default":{"desc":"default","ratio":1}}}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -406,9 +410,12 @@ func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfPrefersTokenGroup(t *
 	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
 	_, err := svc.Refresh(context.Background(), 23)
 	require.NoError(t, err)
-	require.Equal(t, 2, calls)
+	require.Equal(t, 3, calls)
 	require.Equal(t, "new-api", repo.updatedExtra["upstream_balance_provider"])
 	require.Equal(t, "codex pro special", repo.updatedExtra["upstream_group"])
+	require.Equal(t, 0.08, repo.updatedExtra["upstream_group_rate_multiplier"])
+	require.Equal(t, 0.08, repo.updatedExtra["upstream_effective_rate_multiplier"])
+	require.Equal(t, "group_rate", repo.updatedExtra["upstream_rate_source"])
 }
 
 func TestOpenAIUpstreamBalanceServiceRefresh_NewAPINegativeTotalAvailableClampsToZero(t *testing.T) {

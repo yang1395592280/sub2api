@@ -259,11 +259,17 @@ func (s *OpenAIUpstreamBalanceService) probeNewAPIUserSelf(ctx context.Context, 
 	if tokenGroup, ok := s.resolveNewAPITokenGroup(ctx, baseURL, apiKey, auth); ok {
 		group = tokenGroup
 	}
-	return OpenAIUpstreamBalanceSnapshot{
+	snapshot := OpenAIUpstreamBalanceSnapshot{
 		Remaining: nonNegativeBalance(quota / newAPIQuotaPerUSD),
 		Unit:      "USD",
 		Group:     group,
-	}, nil
+	}
+	if rate, ok := s.resolveNewAPIGroupRate(ctx, baseURL, group, auth); ok {
+		snapshot.GroupRateMultiplier = &rate
+		snapshot.EffectiveRateMultiplier = &rate
+		snapshot.RateSource = "group_rate"
+	}
+	return snapshot, nil
 }
 
 func (s *OpenAIUpstreamBalanceService) doJSONGET(ctx context.Context, targetURL, apiKey string, dest any) error {
@@ -577,6 +583,44 @@ func (s *OpenAIUpstreamBalanceService) fetchNewAPITokens(ctx context.Context, ba
 	return tokens, nil
 }
 
+func (s *OpenAIUpstreamBalanceService) resolveNewAPIGroupRate(ctx context.Context, baseURL, group string, auth newAPIUserBalanceAuth) (float64, bool) {
+	group = strings.TrimSpace(group)
+	if group == "" {
+		return 0, false
+	}
+	rates, err := s.fetchNewAPIGroupRates(ctx, baseURL, auth)
+	if err != nil {
+		return 0, false
+	}
+	rate, ok := rates[group]
+	return rate, ok
+}
+
+func (s *OpenAIUpstreamBalanceService) fetchNewAPIGroupRates(ctx context.Context, baseURL string, auth newAPIUserBalanceAuth) (map[string]float64, error) {
+	var payload map[string]any
+	if err := s.doJSONGETWithHeaders(ctx, buildNewAPIUserGroupsURL(baseURL), map[string]string{
+		"Authorization": auth.AccessToken,
+		"New-Api-User":  auth.UserID,
+	}, &payload); err != nil {
+		return nil, err
+	}
+	data, _ := payload["data"].(map[string]any)
+	if data == nil {
+		data = payload
+	}
+	rates := make(map[string]float64, len(data))
+	for group, raw := range data {
+		item, _ := raw.(map[string]any)
+		if item == nil {
+			continue
+		}
+		if rate, ok := getFloat64(item, "ratio"); ok {
+			rates[strings.TrimSpace(group)] = rate
+		}
+	}
+	return rates, nil
+}
+
 func getNewAPIUserBalanceAuth(account *Account) (newAPIUserBalanceAuth, bool) {
 	if account == nil {
 		return newAPIUserBalanceAuth{}, false
@@ -614,6 +658,10 @@ func buildNewAPIUsageURL(baseURL string) string {
 
 func buildNewAPITokensURL(baseURL string) string {
 	return buildUpstreamAdminURL(baseURL, "/api/token/?p=1&size=100")
+}
+
+func buildNewAPIUserGroupsURL(baseURL string) string {
+	return buildUpstreamAdminURL(baseURL, "/api/user/self/groups")
 }
 
 func buildNewAPIUserSelfURL(baseURL string) string {
