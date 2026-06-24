@@ -329,14 +329,20 @@ func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfQuota(t *testing.T) {
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
-		if r.URL.Path == "/v1/usage" {
+		switch r.URL.Path {
+		case "/v1/usage":
 			http.NotFound(w, r)
-			return
+		case "/api/user/self":
+			require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
+			require.Equal(t, "738", r.Header.Get("New-Api-User"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"id":738,"group":"vip","quota":4557913,"used_quota":990499351,"request_count":9777}}`))
+		case "/api/token/":
+			require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
+			require.Equal(t, "738", r.Header.Get("New-Api-User"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"page":1,"page_size":10,"total":0,"items":[]}}`))
+		default:
+			http.NotFound(w, r)
 		}
-		require.Equal(t, "/api/user/self", r.URL.Path)
-		require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
-		require.Equal(t, "738", r.Header.Get("New-Api-User"))
-		_, _ = w.Write([]byte(`{"success":true,"data":{"id":738,"group":"vip","quota":4557913,"used_quota":990499351,"request_count":9777}}`))
 	}))
 	defer srv.Close()
 
@@ -357,11 +363,52 @@ func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfQuota(t *testing.T) {
 	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
 	_, err := svc.Refresh(context.Background(), 18)
 	require.NoError(t, err)
-	require.Equal(t, 1, calls)
+	require.Equal(t, 2, calls)
 	require.Equal(t, "new-api", repo.updatedExtra["upstream_balance_provider"])
 	require.InDelta(t, 9.115826, repo.updatedExtra["upstream_balance_remaining"], 0.000001)
 	require.Equal(t, "USD", repo.updatedExtra["upstream_balance_unit"])
 	require.Equal(t, "vip", repo.updatedExtra["upstream_group"])
+}
+
+func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfPrefersTokenGroup(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		switch r.URL.Path {
+		case "/api/user/self":
+			require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
+			require.Equal(t, "209", r.Header.Get("New-Api-User"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"id":209,"group":"default","quota":50231036,"used_quota":1268964}}`))
+		case "/api/token/":
+			require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
+			require.Equal(t, "209", r.Header.Get("New-Api-User"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"page":1,"page_size":10,"total":2,"items":[{"id":206,"user_id":209,"key":"other**********key","group":"default"},{"id":207,"user_id":209,"key":"5mlD**********HAbe","group":"codex pro special"}]}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	repo := &openAIUpstreamBalanceRepoStub{
+		account: &Account{
+			ID:       23,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url":                  srv.URL + "/v1",
+				"api_key":                   "sk-5mlDabcdefghijklmnopqrstuvwxyzHAbe",
+				"new_api_user_id":           "209",
+				"new_api_user_access_token": "user-access-token",
+			},
+		},
+	}
+
+	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+	_, err := svc.Refresh(context.Background(), 23)
+	require.NoError(t, err)
+	require.Equal(t, 2, calls)
+	require.Equal(t, "new-api", repo.updatedExtra["upstream_balance_provider"])
+	require.Equal(t, "codex pro special", repo.updatedExtra["upstream_group"])
 }
 
 func TestOpenAIUpstreamBalanceServiceRefresh_NewAPINegativeTotalAvailableClampsToZero(t *testing.T) {

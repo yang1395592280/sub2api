@@ -200,7 +200,7 @@ func (s *OpenAIUpstreamBalanceService) probeSub2API(ctx context.Context, account
 
 func (s *OpenAIUpstreamBalanceService) probeNewAPI(ctx context.Context, account *Account, baseURL, apiKey string) (OpenAIUpstreamBalanceSnapshot, error) {
 	if auth, ok := getNewAPIUserBalanceAuth(account); ok {
-		return s.probeNewAPIUserSelf(ctx, baseURL, auth)
+		return s.probeNewAPIUserSelf(ctx, baseURL, apiKey, auth)
 	}
 	var payload map[string]any
 	if err := s.doJSONGET(ctx, buildNewAPIUsageURL(baseURL), apiKey, &payload); err != nil {
@@ -238,7 +238,7 @@ func (s *OpenAIUpstreamBalanceService) probeNewAPI(ctx context.Context, account 
 	}, nil
 }
 
-func (s *OpenAIUpstreamBalanceService) probeNewAPIUserSelf(ctx context.Context, baseURL string, auth newAPIUserBalanceAuth) (OpenAIUpstreamBalanceSnapshot, error) {
+func (s *OpenAIUpstreamBalanceService) probeNewAPIUserSelf(ctx context.Context, baseURL, apiKey string, auth newAPIUserBalanceAuth) (OpenAIUpstreamBalanceSnapshot, error) {
 	var payload map[string]any
 	if err := s.doJSONGETWithHeaders(ctx, buildNewAPIUserSelfURL(baseURL), map[string]string{
 		"Authorization": auth.AccessToken,
@@ -255,10 +255,14 @@ func (s *OpenAIUpstreamBalanceService) probeNewAPIUserSelf(ctx context.Context, 
 	if !ok {
 		return OpenAIUpstreamBalanceSnapshot{}, fmt.Errorf("new-api user self response missing quota")
 	}
+	group := strings.TrimSpace(getString(data, "group"))
+	if tokenGroup, ok := s.resolveNewAPITokenGroup(ctx, baseURL, apiKey, auth); ok {
+		group = tokenGroup
+	}
 	return OpenAIUpstreamBalanceSnapshot{
 		Remaining: nonNegativeBalance(quota / newAPIQuotaPerUSD),
 		Unit:      "USD",
-		Group:     strings.TrimSpace(getString(data, "group")),
+		Group:     group,
 	}, nil
 }
 
@@ -522,6 +526,57 @@ type newAPIUserBalanceAuth struct {
 	AccessToken string
 }
 
+type newAPIToken struct {
+	Key   string
+	Group string
+}
+
+func (s *OpenAIUpstreamBalanceService) resolveNewAPITokenGroup(ctx context.Context, baseURL, apiKey string, auth newAPIUserBalanceAuth) (string, bool) {
+	tokens, err := s.fetchNewAPITokens(ctx, baseURL, auth)
+	if err != nil {
+		return "", false
+	}
+	for _, token := range tokens {
+		if !matchesNewAPITokenKey(apiKey, token.Key) {
+			continue
+		}
+		group := strings.TrimSpace(token.Group)
+		return group, group != ""
+	}
+	if len(tokens) == 1 {
+		group := strings.TrimSpace(tokens[0].Group)
+		return group, group != ""
+	}
+	return "", false
+}
+
+func (s *OpenAIUpstreamBalanceService) fetchNewAPITokens(ctx context.Context, baseURL string, auth newAPIUserBalanceAuth) ([]newAPIToken, error) {
+	var payload map[string]any
+	if err := s.doJSONGETWithHeaders(ctx, buildNewAPITokensURL(baseURL), map[string]string{
+		"Authorization": auth.AccessToken,
+		"New-Api-User":  auth.UserID,
+	}, &payload); err != nil {
+		return nil, err
+	}
+	data, _ := payload["data"].(map[string]any)
+	if data == nil {
+		data = payload
+	}
+	rawItems, _ := data["items"].([]any)
+	tokens := make([]newAPIToken, 0, len(rawItems))
+	for _, raw := range rawItems {
+		item, _ := raw.(map[string]any)
+		if item == nil {
+			continue
+		}
+		tokens = append(tokens, newAPIToken{
+			Key:   strings.TrimSpace(getString(item, "key")),
+			Group: strings.TrimSpace(getString(item, "group")),
+		})
+	}
+	return tokens, nil
+}
+
 func getNewAPIUserBalanceAuth(account *Account) (newAPIUserBalanceAuth, bool) {
 	if account == nil {
 		return newAPIUserBalanceAuth{}, false
@@ -555,6 +610,10 @@ func buildNewAPIUsageURL(baseURL string) string {
 	parsed.Path = path
 	parsed.RawPath = ""
 	return parsed.String()
+}
+
+func buildNewAPITokensURL(baseURL string) string {
+	return buildUpstreamAdminURL(baseURL, "/api/token/?p=1&size=100")
 }
 
 func buildNewAPIUserSelfURL(baseURL string) string {
@@ -696,6 +755,33 @@ func getOpenAIUpstreamGroupID(payload map[string]any) *int64 {
 		return &id
 	}
 	return nil
+}
+
+func matchesNewAPITokenKey(apiKey, maskedKey string) bool {
+	apiKey = strings.TrimSpace(apiKey)
+	maskedKey = strings.TrimSpace(maskedKey)
+	if apiKey == "" || maskedKey == "" {
+		return false
+	}
+	if apiKey == maskedKey {
+		return true
+	}
+	if !strings.Contains(maskedKey, "*") {
+		return false
+	}
+	parts := strings.Split(maskedKey, "*")
+	prefix := strings.TrimSpace(parts[0])
+	suffix := strings.TrimSpace(parts[len(parts)-1])
+	if prefix == "" && suffix == "" {
+		return false
+	}
+	if prefix != "" && !strings.Contains(apiKey, prefix) {
+		return false
+	}
+	if suffix != "" && !strings.HasSuffix(apiKey, suffix) {
+		return false
+	}
+	return true
 }
 
 func getInt64(m map[string]any, key string) (int64, bool) {
