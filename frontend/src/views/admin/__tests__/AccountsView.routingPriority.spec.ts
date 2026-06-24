@@ -83,6 +83,7 @@ const DataTableStub = {
     <div data-test="data-table">
       <span v-for="column in columns" :key="column.key" data-test="column-key">{{ column.key }}</span>
       <div v-for="row in data" :key="row.id" :data-row-id="String(row.id)">
+        <span data-test="row-id">{{ row.id }}</span>
         <slot name="cell-routing_priority" :row="row" />
       </div>
     </div>
@@ -168,6 +169,27 @@ function buildRankingSummary(accountId: number, summaryReason: string) {
       health: 1,
     },
     snapshot_at: '2026-06-23T00:00:00Z',
+  }
+}
+
+function buildAccount(id: number, overrides: Record<string, unknown> = {}) {
+  return {
+    id,
+    name: `account-${id}`,
+    platform: 'openai',
+    type: 'apikey',
+    status: 'active',
+    schedulable: true,
+    priority: id,
+    concurrency: 5,
+    error_message: null,
+    last_used_at: null,
+    expires_at: null,
+    auto_pause_on_expired: false,
+    created_at: '2026-06-23T00:00:00Z',
+    updated_at: '2026-06-23T00:00:00Z',
+    proxy_id: null,
+    ...overrides,
   }
 }
 
@@ -346,6 +368,62 @@ describe('admin AccountsView routing priority', () => {
     expect(modal.attributes('data-show')).toBe('true')
     expect(modal.attributes('data-account-id')).toBe('10')
     expect(modal.text()).toContain('account-10')
+  })
+
+  it('forces account priority ascending as the initial sort even when a saved sort exists', async () => {
+    localStorage.setItem('account-table-sort', JSON.stringify({ key: 'name', order: 'desc' }))
+
+    mountView()
+    await flushPromises()
+
+    expect(listAccounts).toHaveBeenCalledWith(
+      1,
+      20,
+      expect.objectContaining({
+        sort_by: 'priority',
+        sort_order: 'asc',
+      }),
+      expect.anything(),
+    )
+    expect(localStorage.getItem('account-table-sort')).toBe(JSON.stringify({ key: 'priority', order: 'asc' }))
+  })
+
+  it('orders visible OpenAI accounts by routing rank after ranking data loads', async () => {
+    listAccounts.mockResolvedValue({
+      items: [
+        buildAccount(40, { priority: 4 }),
+        buildAccount(10, { priority: 1 }),
+        buildAccount(30, { priority: 3 }),
+      ],
+      total: 3,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    const rankOne = buildRankingSummary(10, 'cost_advantage')
+    rankOne.rank = 1
+    const rankThree = buildRankingSummary(30, 'low_load')
+    rankThree.rank = 3
+    const rankFour = buildRankingSummary(40, 'high_priority')
+    rankFour.rank = 4
+    getRoutingRanking.mockReset()
+    getRoutingRanking.mockResolvedValueOnce({
+      items: [rankOne, rankThree, rankFour],
+      source: 'scheduler_snapshot',
+      snapshot_at: '2026-06-23T00:00:00Z',
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-test="row-id"]').map(node => node.text())).toEqual(['10', '30', '40'])
+    expect(wrapper.findAll('[data-test="routing-priority-badge"]').map(node => node.text())).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('#1'),
+        expect.stringContaining('#3'),
+        expect.stringContaining('#4'),
+      ]),
+    )
   })
 
   it('passes selected group context to routing ranking and explain requests', async () => {

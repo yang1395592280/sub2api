@@ -195,8 +195,8 @@
           row-key="id"
           :server-side-sort="true"
           @sort="handleSort"
-          default-sort-key="name"
-          default-sort-order="asc"
+          :default-sort-key="ACCOUNT_DEFAULT_SORT.sort_by"
+          :default-sort-order="ACCOUNT_DEFAULT_SORT.sort_order"
           :sort-storage-key="ACCOUNT_SORT_STORAGE_KEY"
           :estimate-row-height="72"
           :overscan="5"
@@ -600,30 +600,15 @@ type AccountSortState = {
   sort_by: string
   sort_order: AccountSortOrder
 }
-const ACCOUNT_SORTABLE_KEYS = new Set([
-  'id',
-  'name',
-  'status',
-  'schedulable',
-  'priority',
-  'rate_multiplier',
-  'channel_price',
-  'last_used_at',
-  'created_at',
-  'expires_at'
-])
+const ACCOUNT_DEFAULT_SORT: AccountSortState = { sort_by: 'priority', sort_order: 'asc' }
 const loadInitialAccountSortState = (): AccountSortState => {
-  const fallback: AccountSortState = { sort_by: 'name', sort_order: 'asc' }
+  const fallback: AccountSortState = { ...ACCOUNT_DEFAULT_SORT }
   try {
-    const raw = localStorage.getItem(ACCOUNT_SORT_STORAGE_KEY)
-    if (!raw) return fallback
-    const parsed = JSON.parse(raw) as { key?: string; order?: string }
-    const key = typeof parsed.key === 'string' ? parsed.key : ''
-    if (!ACCOUNT_SORTABLE_KEYS.has(key)) return fallback
-    return {
-      sort_by: key,
-      sort_order: parsed.order === 'desc' ? 'desc' : 'asc'
-    }
+    localStorage.setItem(
+      ACCOUNT_SORT_STORAGE_KEY,
+      JSON.stringify({ key: ACCOUNT_DEFAULT_SORT.sort_by, order: ACCOUNT_DEFAULT_SORT.sort_order })
+    )
+    return fallback
   } catch {
     return fallback
   }
@@ -1016,6 +1001,21 @@ const mergeRoutingPriority = (nextAccount: Account, currentAccount?: Account): A
   routing_priority: nextAccount.routing_priority ?? currentAccount?.routing_priority
 })
 
+const shouldSortByRoutingRank = () =>
+  sortState.sort_by === ACCOUNT_DEFAULT_SORT.sort_by &&
+  sortState.sort_order === ACCOUNT_DEFAULT_SORT.sort_order
+
+const compareRoutingRankedAccounts = (left: Account, right: Account) => {
+  const leftRank = left.routing_priority?.rank
+  const rightRank = right.routing_priority?.rank
+  const leftHasRank = typeof leftRank === 'number' && Number.isFinite(leftRank)
+  const rightHasRank = typeof rightRank === 'number' && Number.isFinite(rightRank)
+  if (leftHasRank && rightHasRank && leftRank !== rightRank) return leftRank - rightRank
+  if (leftHasRank !== rightHasRank) return leftHasRank ? -1 : 1
+  if (left.priority !== right.priority) return left.priority - right.priority
+  return left.id - right.id
+}
+
 const currentRoutingContextParams = () => {
   const groupID = Number(params.group)
   if (!Number.isInteger(groupID) || groupID <= 0) return {}
@@ -1029,7 +1029,7 @@ const refreshRoutingPriorities = async () => {
   try {
     const result = await openaiSchedulerAPI.getRoutingRanking(currentRoutingContextParams())
     const byID = new Map(result.items.map(item => [item.account_id, item]))
-    accounts.value = accounts.value.map((account) => {
+    const nextAccounts = accounts.value.map((account) => {
       if (account.platform !== 'openai') return account
       const nextAccount = {
         ...account,
@@ -1038,6 +1038,9 @@ const refreshRoutingPriorities = async () => {
       syncAccountRefs(nextAccount)
       return nextAccount
     })
+    accounts.value = shouldSortByRoutingRank()
+      ? [...nextAccounts].sort(compareRoutingRankedAccounts)
+      : nextAccounts
   } catch (error) {
     console.error('Failed to refresh OpenAI routing priorities:', error)
   }
