@@ -175,8 +175,7 @@ type CheckMixedChannelRequest struct {
 // AccountWithConcurrency extends Account with real-time concurrency info
 type AccountWithConcurrency struct {
 	*dto.Account
-	CurrentConcurrency int                       `json:"current_concurrency"`
-	Stability          *service.AccountStability `json:"stability,omitempty"`
+	CurrentConcurrency int `json:"current_concurrency"`
 	// 以下字段仅对 Anthropic OAuth/SetupToken 账号有效，且仅在启用相应功能时返回
 	CurrentWindowCost *float64 `json:"current_window_cost,omitempty"` // 当前窗口费用
 	ActiveSessions    *int     `json:"active_sessions,omitempty"`     // 当前活跃会话数
@@ -184,101 +183,6 @@ type AccountWithConcurrency struct {
 }
 
 const accountListGroupUngroupedQueryValue = "ungrouped"
-const accountStabilityWindowDays = 3
-
-type openAIAccountHealthSnapshotProvider interface {
-	SnapshotOpenAIAccountHealth(ctx context.Context, accountID int64) (service.OpenAIAccountHealthSnapshot, bool)
-}
-
-func buildOpenAISchedulerStability(health service.OpenAIAccountHealthSnapshot) *service.AccountStability {
-	successRate := health.SuccessRateEWMA
-	if successRate < 0 {
-		successRate = 0
-	}
-	if successRate > 1 {
-		successRate = 1
-	}
-
-	successCount := int64(health.ConsecutiveOK)
-	if successCount < 0 {
-		successCount = 0
-	}
-	errorCount := int64(health.ConsecutiveErrors)
-	if errorCount < 0 {
-		errorCount = 0
-	}
-
-	var avgDurationMs *int
-	if health.TTFTEWMAMS > 0 {
-		v := int(health.TTFTEWMAMS + 0.5)
-		avgDurationMs = &v
-	}
-
-	reason := strings.TrimSpace(health.DegradeReason)
-	if reason == "" {
-		reason = strings.TrimSpace(health.DecisionReason)
-	}
-
-	stability := &service.AccountStability{
-		Level:         "unknown",
-		Label:         "无数据",
-		SuccessRate:   &successRate,
-		TotalRequests: successCount + errorCount,
-		SuccessCount:  successCount,
-		ErrorCount:    errorCount,
-		AvgDurationMs: avgDurationMs,
-		WindowDays:    accountStabilityWindowDays,
-		Reason:        reason,
-	}
-
-	switch health.Tier {
-	case service.OpenAISchedulerTierPrimary:
-		stability.Level = "excellent"
-		stability.Label = "主力"
-	case service.OpenAISchedulerTierStandby:
-		stability.Level = "healthy"
-		stability.Label = "备用"
-	case service.OpenAISchedulerTierObserve:
-		stability.Level = "normal"
-		stability.Label = "观察"
-	case service.OpenAISchedulerTierDegraded:
-		stability.Level = "down"
-		stability.Label = "隔离"
-	}
-	stability.Reason = localizeOpenAISchedulerStabilityReason(reason)
-
-	return stability
-}
-
-func localizeOpenAISchedulerStabilityReason(reason string) string {
-	switch strings.TrimSpace(reason) {
-	case service.OpenAISchedulerDegradeUpstream5xx:
-		return "上游 5xx 连续失败"
-	case service.OpenAISchedulerDegradeHighLatency:
-		return "首包延迟过高"
-	case service.OpenAISchedulerDegradeRateLimited:
-		return "上游限流"
-	case service.OpenAISchedulerDegradeTimeout:
-		return "上游响应超时"
-	case service.OpenAISchedulerDegradeRecovering:
-		return "恢复观察中"
-	case service.OpenAISchedulerDegradeManual:
-		return "手动冷却中"
-	default:
-		return strings.TrimSpace(reason)
-	}
-}
-
-func (h *AccountHandler) buildAccountStability(ctx context.Context, account *service.Account, stats *service.AccountStabilityStats) *service.AccountStability {
-	if account != nil && account.IsOpenAI() {
-		if provider, ok := h.adminService.(openAIAccountHealthSnapshotProvider); ok {
-			if health, found := provider.SnapshotOpenAIAccountHealth(ctx, account.ID); found {
-				return buildOpenAISchedulerStability(health)
-			}
-		}
-	}
-	return service.BuildAccountStability(account, stats, accountStabilityWindowDays)
-}
 
 func (h *AccountHandler) buildAccountResponseWithRuntime(ctx context.Context, account *service.Account) AccountWithConcurrency {
 	item := AccountWithConcurrency{
@@ -376,20 +280,11 @@ func (h *AccountHandler) List(c *gin.Context) {
 	var windowCosts map[int64]float64
 	var activeSessions map[int64]int
 	var rpmCounts map[int64]int
-	var stabilityStats map[int64]*service.AccountStabilityStats
 
 	// 始终获取并发数（Redis ZCARD，极低开销）
 	if h.concurrencyService != nil {
 		if cc, ccErr := h.concurrencyService.GetAccountConcurrencyBatch(c.Request.Context(), accountIDs); ccErr == nil && cc != nil {
 			concurrencyCounts = cc
-		}
-	}
-
-	if h.accountUsageService != nil && len(accountIDs) > 0 {
-		endTime := time.Now().UTC()
-		startTime := endTime.AddDate(0, 0, -accountStabilityWindowDays)
-		if stats, statsErr := h.accountUsageService.GetAccountStabilityStatsBatch(c.Request.Context(), accountIDs, startTime, endTime); statsErr == nil {
-			stabilityStats = stats
 		}
 	}
 
@@ -465,7 +360,6 @@ func (h *AccountHandler) List(c *gin.Context) {
 		item := AccountWithConcurrency{
 			Account:            dto.AccountFromService(acc),
 			CurrentConcurrency: concurrencyCounts[acc.ID],
-			Stability:          h.buildAccountStability(c.Request.Context(), acc, stabilityStats[acc.ID]),
 		}
 
 		// 添加窗口费用（仅当启用时）

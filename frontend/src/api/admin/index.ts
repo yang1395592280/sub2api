@@ -32,8 +32,6 @@ import adminPaymentAPI from './payment'
 import affiliatesAPI from './affiliates'
 import riskControlAPI from './riskControl'
 import adminComplianceAPI from './compliance'
-import openaiSchedulerAPI from './openaiScheduler'
-import openaiHealthAPI from './openaiHealth'
 import adminWorkbenchAPI from './workbench'
 
 /**
@@ -69,8 +67,6 @@ export const adminAPI = {
   affiliates: affiliatesAPI,
   riskControl: riskControlAPI,
   compliance: adminComplianceAPI,
-  openaiScheduler: openaiSchedulerAPI,
-  openaiHealth: openaiHealthAPI,
   workbench: adminWorkbenchAPI
 }
 
@@ -104,8 +100,6 @@ export {
   affiliatesAPI,
   riskControlAPI,
   adminComplianceAPI,
-  openaiSchedulerAPI,
-  openaiHealthAPI,
   adminWorkbenchAPI
 }
 

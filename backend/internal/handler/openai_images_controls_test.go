@@ -53,7 +53,7 @@ func TestOpenAIGatewayHandlerImageFile_ReturnsStoredImage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	gatewayService := service.NewOpenAIGatewayService(
-		nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil,
 		&config.Config{Pricing: config.PricingConfig{DataDir: t.TempDir()}},
 		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)

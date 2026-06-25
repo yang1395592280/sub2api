@@ -25,34 +25,6 @@ const (
 )
 
 const (
-	openAISchedulerHealthRankingEnabledKey        = "openai_scheduler_health_ranking_enabled"
-	openAISchedulerPrimaryRatioKey                = "openai_scheduler_primary_ratio"
-	openAISchedulerPrimaryMinCountKey             = "openai_scheduler_primary_min_count"
-	openAISchedulerTTFTDegradeMSKey               = "openai_scheduler_ttft_degrade_ms"
-	openAISchedulerErrorRateDegradeThresholdKey   = "openai_scheduler_error_rate_degrade_threshold"
-	openAISchedulerConsecutiveFailureThresholdKey = "openai_scheduler_consecutive_failure_threshold"
-	openAISchedulerRecoverSuccessThresholdKey     = "openai_scheduler_recover_success_threshold"
-	openAISchedulerCooldownSecondsKey             = "openai_scheduler_cooldown_seconds"
-	openAISchedulerObserveProbeRatioKey           = "openai_scheduler_observe_probe_ratio"
-)
-
-const (
-	OpenAISchedulerTierPrimary  = "primary"
-	OpenAISchedulerTierStandby  = "standby"
-	OpenAISchedulerTierObserve  = "observe"
-	OpenAISchedulerTierDegraded = "degraded"
-)
-
-const (
-	OpenAISchedulerDegradeHighLatency = "high_latency"
-	OpenAISchedulerDegradeRateLimited = "rate_limited"
-	OpenAISchedulerDegradeUpstream5xx = "upstream_5xx"
-	OpenAISchedulerDegradeTimeout     = "timeout"
-	OpenAISchedulerDegradeRecovering  = "recovering"
-	OpenAISchedulerDegradeManual      = "manual"
-)
-
-const (
 	openAIAdvancedSchedulerSettingCacheTTL  = 5 * time.Second
 	openAIAdvancedSchedulerSettingDBTimeout = 2 * time.Second
 )
@@ -64,18 +36,6 @@ type cachedOpenAIAdvancedSchedulerSetting struct {
 
 var openAIAdvancedSchedulerSettingCache atomic.Value // *cachedOpenAIAdvancedSchedulerSetting
 var openAIAdvancedSchedulerSettingSF singleflight.Group
-
-var openAISchedulerHealthSettingKeys = []string{
-	openAISchedulerHealthRankingEnabledKey,
-	openAISchedulerPrimaryRatioKey,
-	openAISchedulerPrimaryMinCountKey,
-	openAISchedulerTTFTDegradeMSKey,
-	openAISchedulerErrorRateDegradeThresholdKey,
-	openAISchedulerConsecutiveFailureThresholdKey,
-	openAISchedulerRecoverSuccessThresholdKey,
-	openAISchedulerCooldownSecondsKey,
-	openAISchedulerObserveProbeRatioKey,
-}
 
 type OpenAIAccountScheduleRequest struct {
 	GroupID                 *int64
@@ -117,61 +77,11 @@ type OpenAIAccountSchedulerMetricsSnapshot struct {
 	RuntimeStatsAccountCount int
 }
 
-type OpenAISchedulerHealthSettings struct {
-	HealthRankingEnabled        bool
-	PrimaryRatio                float64
-	PrimaryMinCount             int
-	TTFTDegradeMS               int
-	ErrorRateDegradeThreshold   float64
-	ConsecutiveFailureThreshold int
-	RecoverSuccessThreshold     int
-	Cooldown                    time.Duration
-	ObserveProbeRatio           float64
-}
-
-type OpenAISchedulerHealthAction struct {
-	Action   string
-	Reason   string
-	Duration time.Duration
-}
-
-type OpenAIAccountHealthSnapshot struct {
-	AccountID         int64      `json:"account_id"`
-	HealthScore       float64    `json:"health_score"`
-	Tier              string     `json:"tier"`
-	DegradeReason     string     `json:"degrade_reason"`
-	CooldownUntil     *time.Time `json:"cooldown_until,omitempty"`
-	SuccessRateEWMA   float64    `json:"success_rate_ewma"`
-	ErrorRateEWMA     float64    `json:"error_rate_ewma"`
-	TTFTEWMAMS        float64    `json:"ttft_ewma_ms"`
-	ConsecutiveErrors int        `json:"consecutive_errors"`
-	ConsecutiveOK     int        `json:"consecutive_ok"`
-	LastSelectedAt    *time.Time `json:"last_selected_at,omitempty"`
-	LastErrorAt       *time.Time `json:"last_error_at,omitempty"`
-	DecisionReason    string     `json:"decision_reason"`
-}
-
-type OpenAISchedulerAccountSnapshot struct {
-	AccountID      int64                       `json:"account_id"`
-	AccountName    string                      `json:"account_name"`
-	Platform       string                      `json:"platform"`
-	Type           string                      `json:"type"`
-	Status         string                      `json:"status"`
-	ManualPriority int                         `json:"manual_priority"`
-	ChannelPrice   *float64                    `json:"channel_price,omitempty"`
-	Groups         []int64                     `json:"groups"`
-	Health         OpenAIAccountHealthSnapshot `json:"health"`
-}
-
 type OpenAIAccountScheduler interface {
 	Select(ctx context.Context, req OpenAIAccountScheduleRequest) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error)
 	ReportResult(accountID int64, success bool, firstTokenMs *int)
 	ReportSwitch()
 	SnapshotMetrics() OpenAIAccountSchedulerMetricsSnapshot
-	SnapshotAccountHealth(ctx context.Context, accountID int64) (OpenAIAccountHealthSnapshot, bool)
-	SnapshotHealthSettings() OpenAISchedulerHealthSettings
-	UpdateHealthSettings(settings OpenAISchedulerHealthSettings)
-	ApplyHealthAction(accountID int64, action OpenAISchedulerHealthAction) error
 }
 
 type openAIAccountSchedulerMetrics struct {
@@ -224,23 +134,9 @@ type openAIAccountRuntimeStats struct {
 	accountCount atomic.Int64
 }
 
-type openAIAccountHealthRuntime struct {
-	successEWMA          float64
-	errorEWMA            float64
-	ttftEWMA             float64
-	consecutiveFailures  int
-	consecutiveSuccess   int
-	lastDegradeReason    string
-	cooldownUntilUnixSec int64
-	lastSelectedUnixSec  int64
-	lastErrorUnixSec     int64
-}
-
 type openAIAccountRuntimeStat struct {
 	errorRateEWMABits atomic.Uint64
 	ttftEWMABits      atomic.Uint64
-	healthMu          sync.RWMutex
-	health            openAIAccountHealthRuntime
 }
 
 func newOpenAIAccountRuntimeStats() *openAIAccountRuntimeStats {
@@ -280,231 +176,6 @@ func updateEWMAAtomic(target *atomic.Uint64, sample float64, alpha float64) {
 	}
 }
 
-func defaultOpenAISchedulerHealthSettings() OpenAISchedulerHealthSettings {
-	return OpenAISchedulerHealthSettings{
-		HealthRankingEnabled:        false,
-		PrimaryRatio:                0.30,
-		PrimaryMinCount:             1,
-		TTFTDegradeMS:               2500,
-		ErrorRateDegradeThreshold:   0.35,
-		ConsecutiveFailureThreshold: 3,
-		RecoverSuccessThreshold:     5,
-		Cooldown:                    10 * time.Minute,
-		ObserveProbeRatio:           0.0,
-	}
-}
-
-func clampOpenAISchedulerRatio(v float64, fallback float64) float64 {
-	if math.IsNaN(v) || math.IsInf(v, 0) || v < 0 || v > 1 {
-		return fallback
-	}
-	return v
-}
-
-func normalizeOpenAISchedulerHealthSettings(input OpenAISchedulerHealthSettings) OpenAISchedulerHealthSettings {
-	defaults := defaultOpenAISchedulerHealthSettings()
-	settings := defaults
-	settings.HealthRankingEnabled = input.HealthRankingEnabled
-
-	settings.PrimaryRatio = clampOpenAISchedulerRatio(input.PrimaryRatio, defaults.PrimaryRatio)
-	if input.PrimaryMinCount > 0 {
-		settings.PrimaryMinCount = input.PrimaryMinCount
-	}
-	if input.TTFTDegradeMS > 0 {
-		settings.TTFTDegradeMS = input.TTFTDegradeMS
-	}
-	settings.ErrorRateDegradeThreshold = clampOpenAISchedulerRatio(input.ErrorRateDegradeThreshold, defaults.ErrorRateDegradeThreshold)
-	if settings.ErrorRateDegradeThreshold == 0 {
-		settings.ErrorRateDegradeThreshold = defaults.ErrorRateDegradeThreshold
-	}
-	if input.ConsecutiveFailureThreshold > 0 {
-		settings.ConsecutiveFailureThreshold = input.ConsecutiveFailureThreshold
-	}
-	if input.RecoverSuccessThreshold > 0 {
-		settings.RecoverSuccessThreshold = input.RecoverSuccessThreshold
-	}
-	if input.Cooldown > 0 {
-		settings.Cooldown = input.Cooldown
-	}
-	settings.ObserveProbeRatio = clampOpenAISchedulerRatio(input.ObserveProbeRatio, defaults.ObserveProbeRatio)
-	return settings
-}
-
-func parseOpenAISchedulerHealthSettings(values map[string]string) OpenAISchedulerHealthSettings {
-	settings := defaultOpenAISchedulerHealthSettings()
-	if raw := strings.TrimSpace(values[openAISchedulerHealthRankingEnabledKey]); raw != "" {
-		settings.HealthRankingEnabled = strings.EqualFold(raw, "true")
-	}
-	if v, err := strconv.ParseFloat(strings.TrimSpace(values[openAISchedulerPrimaryRatioKey]), 64); err == nil {
-		settings.PrimaryRatio = v
-	}
-	if v, err := strconv.Atoi(strings.TrimSpace(values[openAISchedulerPrimaryMinCountKey])); err == nil {
-		settings.PrimaryMinCount = v
-	}
-	if v, err := strconv.Atoi(strings.TrimSpace(values[openAISchedulerTTFTDegradeMSKey])); err == nil {
-		settings.TTFTDegradeMS = v
-	}
-	if v, err := strconv.ParseFloat(strings.TrimSpace(values[openAISchedulerErrorRateDegradeThresholdKey]), 64); err == nil {
-		settings.ErrorRateDegradeThreshold = v
-	}
-	if v, err := strconv.Atoi(strings.TrimSpace(values[openAISchedulerConsecutiveFailureThresholdKey])); err == nil {
-		settings.ConsecutiveFailureThreshold = v
-	}
-	if v, err := strconv.Atoi(strings.TrimSpace(values[openAISchedulerRecoverSuccessThresholdKey])); err == nil {
-		settings.RecoverSuccessThreshold = v
-	}
-	if v, err := strconv.Atoi(strings.TrimSpace(values[openAISchedulerCooldownSecondsKey])); err == nil {
-		settings.Cooldown = time.Duration(v) * time.Second
-	}
-	if v, err := strconv.ParseFloat(strings.TrimSpace(values[openAISchedulerObserveProbeRatioKey]), 64); err == nil {
-		settings.ObserveProbeRatio = v
-	}
-	return normalizeOpenAISchedulerHealthSettings(settings)
-}
-
-func encodeOpenAISchedulerHealthSettings(settings OpenAISchedulerHealthSettings) map[string]string {
-	settings = normalizeOpenAISchedulerHealthSettings(settings)
-	return map[string]string{
-		openAISchedulerHealthRankingEnabledKey:        strconv.FormatBool(settings.HealthRankingEnabled),
-		openAISchedulerPrimaryRatioKey:                strconv.FormatFloat(settings.PrimaryRatio, 'f', -1, 64),
-		openAISchedulerPrimaryMinCountKey:             strconv.Itoa(settings.PrimaryMinCount),
-		openAISchedulerTTFTDegradeMSKey:               strconv.Itoa(settings.TTFTDegradeMS),
-		openAISchedulerErrorRateDegradeThresholdKey:   strconv.FormatFloat(settings.ErrorRateDegradeThreshold, 'f', -1, 64),
-		openAISchedulerConsecutiveFailureThresholdKey: strconv.Itoa(settings.ConsecutiveFailureThreshold),
-		openAISchedulerRecoverSuccessThresholdKey:     strconv.Itoa(settings.RecoverSuccessThreshold),
-		openAISchedulerCooldownSecondsKey:             strconv.Itoa(int(settings.Cooldown.Seconds())),
-		openAISchedulerObserveProbeRatioKey:           strconv.FormatFloat(settings.ObserveProbeRatio, 'f', -1, 64),
-	}
-}
-
-func buildOpenAIAccountHealthSnapshot(
-	accountID int64,
-	stat openAIAccountHealthRuntime,
-	settings OpenAISchedulerHealthSettings,
-	now time.Time,
-) OpenAIAccountHealthSnapshot {
-	if now.IsZero() {
-		now = time.Now()
-	}
-
-	successEWMA := clamp01(stat.successEWMA)
-	errorEWMA := clamp01(stat.errorEWMA)
-	if successEWMA == 0 && errorEWMA == 0 {
-		successEWMA = 1
-	}
-
-	ttftEWMA := stat.ttftEWMA
-	latencyPenalty := 0.0
-	if settings.TTFTDegradeMS > 0 && ttftEWMA > float64(settings.TTFTDegradeMS) {
-		latencyPenalty = clamp01((ttftEWMA - float64(settings.TTFTDegradeMS)) / float64(settings.TTFTDegradeMS))
-	}
-
-	score := 100 - errorEWMA*55 - latencyPenalty*25 - float64(stat.consecutiveFailures)*6
-	if score < 0 {
-		score = 0
-	}
-	if score > 100 {
-		score = 100
-	}
-
-	snapshot := OpenAIAccountHealthSnapshot{
-		AccountID:         accountID,
-		HealthScore:       math.Round(score*10) / 10,
-		Tier:              OpenAISchedulerTierStandby,
-		SuccessRateEWMA:   successEWMA,
-		ErrorRateEWMA:     errorEWMA,
-		TTFTEWMAMS:        ttftEWMA,
-		ConsecutiveErrors: stat.consecutiveFailures,
-		ConsecutiveOK:     stat.consecutiveSuccess,
-	}
-	if stat.lastSelectedUnixSec > 0 {
-		lastSelectedAt := time.Unix(stat.lastSelectedUnixSec, 0)
-		snapshot.LastSelectedAt = &lastSelectedAt
-	}
-	if stat.lastErrorUnixSec > 0 {
-		lastErrorAt := time.Unix(stat.lastErrorUnixSec, 0)
-		snapshot.LastErrorAt = &lastErrorAt
-	}
-
-	if stat.cooldownUntilUnixSec > 0 {
-		cooldownUntil := time.Unix(stat.cooldownUntilUnixSec, 0)
-		if cooldownUntil.After(now) {
-			snapshot.Tier = OpenAISchedulerTierDegraded
-			snapshot.DegradeReason = stat.lastDegradeReason
-			if snapshot.DegradeReason == "" {
-				snapshot.DegradeReason = OpenAISchedulerDegradeManual
-			}
-			snapshot.CooldownUntil = &cooldownUntil
-			snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.DegradeReason)
-			return snapshot
-		}
-
-		snapshot.Tier = OpenAISchedulerTierObserve
-		snapshot.DegradeReason = OpenAISchedulerDegradeRecovering
-		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.DegradeReason)
-		return snapshot
-	}
-
-	if settings.ConsecutiveFailureThreshold > 0 && stat.consecutiveFailures >= settings.ConsecutiveFailureThreshold {
-		snapshot.Tier = OpenAISchedulerTierDegraded
-		snapshot.DegradeReason = stat.lastDegradeReason
-		if snapshot.DegradeReason == "" {
-			snapshot.DegradeReason = OpenAISchedulerDegradeUpstream5xx
-		}
-		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.DegradeReason)
-		return snapshot
-	}
-
-	if settings.ErrorRateDegradeThreshold > 0 && errorEWMA >= settings.ErrorRateDegradeThreshold {
-		snapshot.Tier = OpenAISchedulerTierObserve
-		snapshot.DegradeReason = stat.lastDegradeReason
-		if snapshot.DegradeReason == "" {
-			snapshot.DegradeReason = OpenAISchedulerDegradeRecovering
-		}
-		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.DegradeReason)
-		return snapshot
-	}
-
-	if settings.TTFTDegradeMS > 0 && ttftEWMA > float64(settings.TTFTDegradeMS) {
-		snapshot.Tier = OpenAISchedulerTierObserve
-		snapshot.DegradeReason = OpenAISchedulerDegradeHighLatency
-		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.DegradeReason)
-		return snapshot
-	}
-
-	if snapshot.HealthScore >= 90 || (settings.RecoverSuccessThreshold > 0 && stat.consecutiveSuccess >= settings.RecoverSuccessThreshold && snapshot.HealthScore >= 90) {
-		snapshot.Tier = OpenAISchedulerTierPrimary
-		snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.DegradeReason)
-		return snapshot
-	}
-
-	snapshot.DecisionReason = openAIHealthDecisionReason(snapshot.Tier, snapshot.DegradeReason)
-	return snapshot
-}
-
-func openAIHealthDecisionReason(tier string, reason string) string {
-	tier = strings.TrimSpace(tier)
-	reason = strings.TrimSpace(reason)
-	switch tier {
-	case OpenAISchedulerTierPrimary:
-		return "health score is high and account is eligible for primary routing"
-	case OpenAISchedulerTierStandby:
-		return "account is healthy but below the primary cutoff"
-	case OpenAISchedulerTierObserve:
-		if reason != "" {
-			return "account is being observed after " + reason
-		}
-		return "account is being observed before returning to active routing"
-	case OpenAISchedulerTierDegraded:
-		if reason != "" {
-			return "account is degraded because of " + reason
-		}
-		return "account is degraded"
-	default:
-		return "health state is unknown"
-	}
-}
-
 func (s *openAIAccountRuntimeStats) report(accountID int64, success bool, firstTokenMs *int) {
 	if s == nil || accountID <= 0 {
 		return
@@ -537,31 +208,7 @@ func (s *openAIAccountRuntimeStats) report(accountID int64, success bool, firstT
 		}
 	}
 
-	stat.healthMu.Lock()
-	defer stat.healthMu.Unlock()
-
-	stat.health.successEWMA = clamp01(alpha*(1-errorSample) + (1-alpha)*stat.health.successEWMA)
-	stat.health.errorEWMA = clamp01(alpha*errorSample + (1-alpha)*stat.health.errorEWMA)
-	stat.health.lastSelectedUnixSec = time.Now().Unix()
-	if firstTokenMs != nil && *firstTokenMs > 0 {
-		ttft := float64(*firstTokenMs)
-		if stat.health.ttftEWMA <= 0 {
-			stat.health.ttftEWMA = ttft
-		} else {
-			stat.health.ttftEWMA = alpha*ttft + (1-alpha)*stat.health.ttftEWMA
-		}
-	}
-	if success {
-		stat.health.consecutiveSuccess++
-		stat.health.consecutiveFailures = 0
-	} else {
-		stat.health.consecutiveFailures++
-		stat.health.consecutiveSuccess = 0
-		stat.health.lastErrorUnixSec = time.Now().Unix()
-		if stat.health.lastDegradeReason == "" {
-			stat.health.lastDegradeReason = OpenAISchedulerDegradeUpstream5xx
-		}
-	}
+	_ = success
 }
 
 func (s *openAIAccountRuntimeStats) snapshot(accountID int64) (errorRate float64, ttft float64, hasTTFT bool) {
@@ -591,37 +238,10 @@ func (s *openAIAccountRuntimeStats) size() int {
 	return int(s.accountCount.Load())
 }
 
-func (s *openAIAccountRuntimeStats) healthSnapshot(
-	accountID int64,
-	settings OpenAISchedulerHealthSettings,
-	now time.Time,
-) (OpenAIAccountHealthSnapshot, bool) {
-	if s == nil || accountID <= 0 {
-		return OpenAIAccountHealthSnapshot{}, false
-	}
-	value, ok := s.accounts.Load(accountID)
-	if !ok {
-		return buildOpenAIAccountHealthSnapshot(accountID, openAIAccountHealthRuntime{
-			successEWMA: 1,
-		}, settings, now), true
-	}
-	stat, _ := value.(*openAIAccountRuntimeStat)
-	if stat == nil {
-		return OpenAIAccountHealthSnapshot{}, false
-	}
-
-	stat.healthMu.RLock()
-	health := stat.health
-	stat.healthMu.RUnlock()
-	return buildOpenAIAccountHealthSnapshot(accountID, health, settings, now), true
-}
-
 type defaultOpenAIAccountScheduler struct {
-	service          *OpenAIGatewayService
-	metrics          openAIAccountSchedulerMetrics
-	stats            *openAIAccountRuntimeStats
-	healthSettingsMu sync.RWMutex
-	healthSettings   OpenAISchedulerHealthSettings
+	service *OpenAIGatewayService
+	metrics openAIAccountSchedulerMetrics
+	stats   *openAIAccountRuntimeStats
 }
 
 type openAIStickyEscapeConfig struct {
@@ -635,9 +255,8 @@ func newDefaultOpenAIAccountScheduler(service *OpenAIGatewayService, stats *open
 		stats = newOpenAIAccountRuntimeStats()
 	}
 	return &defaultOpenAIAccountScheduler{
-		service:        service,
-		stats:          stats,
-		healthSettings: normalizeOpenAISchedulerHealthSettings(defaultOpenAISchedulerHealthSettings()),
+		service: service,
+		stats:   stats,
 	}
 }
 
@@ -650,9 +269,6 @@ func (s *defaultOpenAIAccountScheduler) Select(
 	defer func() {
 		decision.LatencyMs = time.Since(start).Milliseconds()
 		s.metrics.recordSelect(decision)
-		if s.service != nil && decision.SelectedAccountID > 0 {
-			s.service.recordOpenAISchedulerDailySelection(ctx, req.GroupID, decision.SelectedAccountID, time.Now())
-		}
 	}()
 
 	previousResponseID := strings.TrimSpace(req.PreviousResponseID)
@@ -676,12 +292,6 @@ func (s *defaultOpenAIAccountScheduler) Select(
 				}
 				selection = nil
 			}
-		}
-		if selection != nil && selection.Account != nil && !s.isAccountHealthRoutable(selection.Account.ID) {
-			if selection.ReleaseFunc != nil {
-				selection.ReleaseFunc()
-			}
-			selection = nil
 		}
 		if selection != nil && selection.Account != nil {
 			decision.Layer = openAIAccountScheduleLayerPreviousResponse
@@ -772,10 +382,6 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		return nil, false, nil
 	}
-	if !s.isAccountHealthRoutable(account.ID) {
-		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
-		return nil, false, nil
-	}
 	escapeCfg := s.service.openAIStickyEscapeConfig()
 	if reason, errorRate, ttft, shouldEscape := s.shouldEscapeStickyAccount(accountID, escapeCfg); shouldEscape {
 		slog.Info("sticky_escape_triggered",
@@ -856,22 +462,6 @@ func (s *defaultOpenAIAccountScheduler) shouldEscapeStickyAccount(accountID int6
 	return "", errorRate, ttft, false
 }
 
-func (s *defaultOpenAIAccountScheduler) isAccountHealthRoutable(accountID int64) bool {
-	if s == nil || accountID <= 0 {
-		return false
-	}
-	settings := s.SnapshotHealthSettings()
-	health := buildOpenAIAccountHealthSnapshot(accountID, openAIAccountHealthRuntime{
-		successEWMA: 1,
-	}, settings, time.Now())
-	if s.stats != nil {
-		if snapshot, ok := s.stats.healthSnapshot(accountID, settings, time.Now()); ok {
-			health = snapshot
-		}
-	}
-	return health.Tier != OpenAISchedulerTierDegraded
-}
-
 type openAIAccountCandidateScore struct {
 	account   *Account
 	loadInfo  *AccountLoadInfo
@@ -879,7 +469,6 @@ type openAIAccountCandidateScore struct {
 	errorRate float64
 	ttft      float64
 	hasTTFT   bool
-	health    OpenAIAccountHealthSnapshot
 }
 
 type openAIAccountCandidateHeap []openAIAccountCandidateScore
@@ -962,60 +551,6 @@ func selectTopKOpenAICandidates(candidates []openAIAccountCandidateScore, topK i
 		return isOpenAIAccountCandidateBetter(ranked[i], ranked[j])
 	})
 	return ranked
-}
-
-func openAISchedulerTierRank(tier string) int {
-	switch tier {
-	case OpenAISchedulerTierPrimary:
-		return 0
-	case OpenAISchedulerTierStandby:
-		return 1
-	case OpenAISchedulerTierObserve:
-		return 2
-	case OpenAISchedulerTierDegraded:
-		return 3
-	default:
-		return 1
-	}
-}
-
-func splitOpenAISelectionPools(candidates []openAIAccountCandidateScore) [][]openAIAccountCandidateScore {
-	pools := make([][]openAIAccountCandidateScore, 4)
-	for _, candidate := range candidates {
-		rank := openAISchedulerTierRank(candidate.health.Tier)
-		if rank < 0 || rank >= len(pools) {
-			rank = 1
-		}
-		pools[rank] = append(pools[rank], candidate)
-	}
-	return pools
-}
-
-// fillOpenAISelectionHealth keeps direct candidate construction paths, including
-// package tests, consistent with the normal load plan path that pre-fills health.
-func (s *defaultOpenAIAccountScheduler) fillOpenAISelectionHealth(pool []openAIAccountCandidateScore, now time.Time) []openAIAccountCandidateScore {
-	if len(pool) == 0 {
-		return nil
-	}
-	settings := s.SnapshotHealthSettings()
-	filled := make([]openAIAccountCandidateScore, len(pool))
-	copy(filled, pool)
-	for i := range filled {
-		if filled[i].health.AccountID > 0 || filled[i].account == nil {
-			continue
-		}
-		accountID := filled[i].account.ID
-		health := buildOpenAIAccountHealthSnapshot(accountID, openAIAccountHealthRuntime{
-			successEWMA: 1,
-		}, settings, now)
-		if s.stats != nil {
-			if snapshot, ok := s.stats.healthSnapshot(accountID, settings, now); ok {
-				health = snapshot
-			}
-		}
-		filled[i].health = health
-	}
-	return filled
 }
 
 type openAISelectionRNG struct {
@@ -1135,21 +670,14 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 ) openAIAccountLoadPlan {
 	allCandidates := make([]openAIAccountCandidateScore, 0, len(filtered))
 	now := time.Now()
-	settings := s.SnapshotHealthSettings()
 	for _, account := range filtered {
 		loadInfo := loadMap[account.ID]
 		if loadInfo == nil {
 			loadInfo = &AccountLoadInfo{AccountID: account.ID}
 		}
 		errorRate, ttft, hasTTFT := 0.0, 0.0, false
-		health := buildOpenAIAccountHealthSnapshot(account.ID, openAIAccountHealthRuntime{
-			successEWMA: 1,
-		}, settings, now)
 		if s.stats != nil {
 			errorRate, ttft, hasTTFT = s.stats.snapshot(account.ID)
-			if snapshot, ok := s.stats.healthSnapshot(account.ID, settings, now); ok {
-				health = snapshot
-			}
 		}
 		allCandidates = append(allCandidates, openAIAccountCandidateScore{
 			account:   account,
@@ -1157,18 +685,10 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 			errorRate: errorRate,
 			ttft:      ttft,
 			hasTTFT:   hasTTFT,
-			health:    health,
 		})
 	}
 
-	candidates := allCandidates
-	candidates = make([]openAIAccountCandidateScore, 0, len(allCandidates))
-	for _, candidate := range allCandidates {
-		if candidate.health.Tier == OpenAISchedulerTierDegraded {
-			continue
-		}
-		candidates = append(candidates, candidate)
-	}
+	candidates := append([]openAIAccountCandidateScore(nil), allCandidates...)
 	staleSnapshotCompactRetry := make([]openAIAccountCandidateScore, 0, len(allCandidates))
 	if req.RequireCompact {
 		compactCandidates := make([]openAIAccountCandidateScore, 0, len(candidates))
@@ -1312,10 +832,6 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 			weights.TTFT*ttftFactor +
 			priceWeight*priceFactor +
 			weights.Reset*resetFactor
-		if settings.HealthRankingEnabled {
-			healthFactor := clamp01(item.health.HealthScore / 100)
-			item.score = item.score*0.65 + healthFactor*0.35
-		}
 	}
 	plan.candidates = candidates
 
@@ -1335,8 +851,6 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 	req OpenAIAccountScheduleRequest,
 	plan openAIAccountLoadPlan,
 ) []openAIAccountCandidateScore {
-	now := time.Now()
-	settings := s.SnapshotHealthSettings()
 	buildSelectionOrder := func(pool []openAIAccountCandidateScore, limit int) []openAIAccountCandidateScore {
 		if len(pool) == 0 || limit <= 0 {
 			return nil
@@ -1348,21 +862,11 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 		ranked := selectTopKOpenAICandidates(pool, groupTopK)
 		return buildOpenAIWeightedSelectionOrder(ranked, req)
 	}
-	appendTiered := func(dst []openAIAccountCandidateScore, pool []openAIAccountCandidateScore, limit int) []openAIAccountCandidateScore {
+	appendSelectionOrder := func(dst []openAIAccountCandidateScore, pool []openAIAccountCandidateScore, limit int) []openAIAccountCandidateScore {
 		if limit <= 0 {
 			return dst
 		}
-		if !settings.HealthRankingEnabled {
-			return append(dst, buildSelectionOrder(pool, limit)...)
-		}
-		pool = s.fillOpenAISelectionHealth(pool, now)
-		for _, tierPool := range splitOpenAISelectionPools(pool) {
-			if len(dst) >= limit {
-				break
-			}
-			dst = append(dst, buildSelectionOrder(tierPool, limit-len(dst))...)
-		}
-		return dst
+		return append(dst, buildSelectionOrder(pool, limit)...)
 	}
 
 	if req.RequireCompact {
@@ -1377,8 +881,8 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 			}
 		}
 		selectionOrder := make([]openAIAccountCandidateScore, 0, len(plan.allCandidates))
-		selectionOrder = appendTiered(selectionOrder, supported, plan.topK)
-		selectionOrder = appendTiered(selectionOrder, unknown, plan.topK)
+		selectionOrder = appendSelectionOrder(selectionOrder, supported, plan.topK)
+		selectionOrder = appendSelectionOrder(selectionOrder, unknown, plan.topK)
 		if remaining := plan.topK - len(selectionOrder); remaining > 0 && len(plan.staleSnapshotCompactRetry) > 0 && s.service != nil && s.service.schedulerSnapshot != nil {
 			retryCandidates := sortOpenAICompactRetryCandidates(plan.staleSnapshotCompactRetry)
 			if len(retryCandidates) > remaining {
@@ -1389,20 +893,7 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 		return selectionOrder
 	}
 
-	return appendTiered(nil, plan.candidates, plan.topK)
-}
-
-func (s *defaultOpenAIAccountScheduler) seedHealthForTest(accountID int64, health openAIAccountHealthRuntime) {
-	if s == nil {
-		return
-	}
-	if s.stats == nil {
-		s.stats = newOpenAIAccountRuntimeStats()
-	}
-	stat := s.stats.loadOrCreate(accountID)
-	stat.healthMu.Lock()
-	stat.health = health
-	stat.healthMu.Unlock()
+	return appendSelectionOrder(nil, plan.candidates, plan.topK)
 }
 
 func sortOpenAICompactRetryCandidates(pool []openAIAccountCandidateScore) []openAIAccountCandidateScore {
@@ -1449,9 +940,6 @@ func (s *defaultOpenAIAccountScheduler) tryAcquireOpenAISelectionOrder(
 		}
 		fresh = s.service.recheckSelectedOpenAIAccountFromDB(ctx, fresh, req.RequestedModel, false, req.RequiredCapability)
 		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
-			continue
-		}
-		if !s.isAccountHealthRoutable(fresh.ID) {
 			continue
 		}
 		if req.RequireCompact && openAICompactSupportTier(fresh) == 0 {
@@ -1593,9 +1081,6 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
 			continue
 		}
-		if !s.isAccountHealthRoutable(fresh.ID) {
-			continue
-		}
 		if req.RequireCompact && openAICompactSupportTier(fresh) == 0 {
 			compactBlocked = true
 			continue
@@ -1693,201 +1178,6 @@ func (s *defaultOpenAIAccountScheduler) SnapshotMetrics() OpenAIAccountScheduler
 	return snapshot
 }
 
-func (s *defaultOpenAIAccountScheduler) SnapshotHealthSettings() OpenAISchedulerHealthSettings {
-	if s == nil {
-		return defaultOpenAISchedulerHealthSettings()
-	}
-	s.healthSettingsMu.RLock()
-	settings := s.healthSettings
-	s.healthSettingsMu.RUnlock()
-	return normalizeOpenAISchedulerHealthSettings(settings)
-}
-
-func (s *defaultOpenAIAccountScheduler) UpdateHealthSettings(settings OpenAISchedulerHealthSettings) {
-	if s == nil {
-		return
-	}
-	s.healthSettingsMu.Lock()
-	s.healthSettings = normalizeOpenAISchedulerHealthSettings(settings)
-	s.healthSettingsMu.Unlock()
-}
-
-func (s *defaultOpenAIAccountScheduler) ApplyHealthAction(accountID int64, action OpenAISchedulerHealthAction) error {
-	if s == nil || accountID <= 0 {
-		return fmt.Errorf("invalid scheduler account id: %d", accountID)
-	}
-	if s.stats == nil {
-		s.stats = newOpenAIAccountRuntimeStats()
-	}
-
-	stat := s.stats.loadOrCreate(accountID)
-	if stat == nil {
-		return fmt.Errorf("scheduler account stat is unavailable: %d", accountID)
-	}
-
-	now := time.Now()
-	stat.healthMu.Lock()
-	health := stat.health
-	switch strings.TrimSpace(action.Action) {
-	case "cooldown":
-		duration := action.Duration
-		if duration <= 0 {
-			duration = s.SnapshotHealthSettings().Cooldown
-		}
-		health.cooldownUntilUnixSec = now.Add(duration).Unix()
-		health.lastDegradeReason = OpenAISchedulerDegradeManual
-		health.lastErrorUnixSec = now.Unix()
-	case "clear_cooldown":
-		health.cooldownUntilUnixSec = now.Add(-time.Second).Unix()
-		health.lastDegradeReason = OpenAISchedulerDegradeRecovering
-		health.consecutiveFailures = 0
-	case "promote_observe":
-		health.cooldownUntilUnixSec = now.Add(-time.Second).Unix()
-		health.lastDegradeReason = OpenAISchedulerDegradeRecovering
-	case "run_probe":
-		health.lastDegradeReason = OpenAISchedulerDegradeRecovering
-	default:
-		stat.healthMu.Unlock()
-		return fmt.Errorf("unsupported scheduler action: %s", action.Action)
-	}
-	stat.health = health
-	stat.healthMu.Unlock()
-	return nil
-}
-
-func (s *defaultOpenAIAccountScheduler) SnapshotAccountHealth(ctx context.Context, accountID int64) (OpenAIAccountHealthSnapshot, bool) {
-	_ = ctx
-	if s == nil || s.stats == nil {
-		return OpenAIAccountHealthSnapshot{}, false
-	}
-	return s.stats.healthSnapshot(accountID, s.SnapshotHealthSettings(), time.Now())
-}
-
-func (s *OpenAIGatewayService) SnapshotOpenAISchedulerHealthSettings() OpenAISchedulerHealthSettings {
-	settings := defaultOpenAISchedulerHealthSettings()
-	if repo := s.openAIAdvancedSchedulerSettingRepo(); repo != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), openAIAdvancedSchedulerSettingDBTimeout)
-		defer cancel()
-		if values, err := repo.GetMultiple(ctx, openAISchedulerHealthSettingKeys); err == nil {
-			settings = parseOpenAISchedulerHealthSettings(values)
-		}
-	}
-	scheduler := s.getOpenAIAccountScheduler(context.Background())
-	if scheduler != nil {
-		scheduler.UpdateHealthSettings(settings)
-	}
-	return settings
-}
-
-func (s *OpenAIGatewayService) SaveOpenAISchedulerHealthSettings(ctx context.Context, settings OpenAISchedulerHealthSettings) error {
-	settings = normalizeOpenAISchedulerHealthSettings(settings)
-	if repo := s.openAIAdvancedSchedulerSettingRepo(); repo != nil {
-		values := encodeOpenAISchedulerHealthSettings(settings)
-		if settings.HealthRankingEnabled {
-			values[openAIAdvancedSchedulerSettingKey] = "true"
-		}
-		if err := repo.SetMultiple(ctx, values); err != nil {
-			return err
-		}
-		if settings.HealthRankingEnabled {
-			openAIAdvancedSchedulerSettingCache.Store(&cachedOpenAIAdvancedSchedulerSetting{
-				enabled:   true,
-				expiresAt: time.Now().Add(openAIAdvancedSchedulerSettingCacheTTL).UnixNano(),
-			})
-		}
-	}
-	scheduler := s.getOpenAIAccountScheduler(context.Background())
-	if scheduler != nil {
-		scheduler.UpdateHealthSettings(settings)
-	}
-	return nil
-}
-
-func (s *OpenAIGatewayService) SnapshotOpenAIAccountHealth(ctx context.Context, accountID int64) (OpenAIAccountHealthSnapshot, bool) {
-	scheduler := s.getOpenAIAccountScheduler(ctx)
-	if scheduler == nil {
-		return OpenAIAccountHealthSnapshot{}, false
-	}
-	return scheduler.SnapshotAccountHealth(ctx, accountID)
-}
-
-func (s *OpenAIGatewayService) ApplyOpenAISchedulerHealthAction(accountID int64, action OpenAISchedulerHealthAction) error {
-	scheduler := s.getOpenAIAccountScheduler(context.Background())
-	if scheduler == nil {
-		return fmt.Errorf("openai advanced scheduler is not enabled")
-	}
-	return scheduler.ApplyHealthAction(accountID, action)
-}
-
-func (s *OpenAIGatewayService) ListOpenAISchedulerAccountSnapshots(ctx context.Context, groupID *int64) ([]OpenAISchedulerAccountSnapshot, error) {
-	if s == nil {
-		return nil, nil
-	}
-	if s.schedulerSnapshot == nil && s.accountRepo == nil {
-		return nil, nil
-	}
-
-	accounts, err := s.listSchedulableAccounts(ctx, groupID)
-	if err != nil {
-		return nil, err
-	}
-	return s.buildOpenAISchedulerAccountSnapshots(ctx, accounts), nil
-}
-
-func (s *OpenAIGatewayService) ListAllOpenAISchedulerAccountSnapshots(ctx context.Context) ([]OpenAISchedulerAccountSnapshot, error) {
-	if s == nil {
-		return nil, nil
-	}
-	if s.accountRepo == nil {
-		return s.ListOpenAISchedulerAccountSnapshots(ctx, nil)
-	}
-	accounts, err := s.accountRepo.ListSchedulableByPlatform(ctx, PlatformOpenAI)
-	if err != nil {
-		return nil, fmt.Errorf("query accounts failed: %w", err)
-	}
-	return s.buildOpenAISchedulerAccountSnapshots(ctx, accounts), nil
-}
-
-func (s *OpenAIGatewayService) buildOpenAISchedulerAccountSnapshots(ctx context.Context, accounts []Account) []OpenAISchedulerAccountSnapshot {
-	settings := s.SnapshotOpenAISchedulerHealthSettings()
-	items := make([]OpenAISchedulerAccountSnapshot, 0, len(accounts))
-	for i := range accounts {
-		acc := accounts[i]
-		if !acc.IsOpenAI() {
-			continue
-		}
-		health, ok := s.SnapshotOpenAIAccountHealth(ctx, acc.ID)
-		if !ok {
-			health = buildOpenAIAccountHealthSnapshot(acc.ID, openAIAccountHealthRuntime{successEWMA: 1}, settings, time.Now())
-		}
-		items = append(items, OpenAISchedulerAccountSnapshot{
-			AccountID:      acc.ID,
-			AccountName:    acc.Name,
-			Platform:       acc.Platform,
-			Type:           acc.Type,
-			Status:         acc.Status,
-			ManualPriority: acc.Priority,
-			ChannelPrice:   acc.ChannelPrice,
-			Groups:         acc.GroupIDs,
-			Health:         health,
-		})
-	}
-	sort.SliceStable(items, func(i, j int) bool {
-		a, b := items[i], items[j]
-		if openAISchedulerTierRank(a.Health.Tier) != openAISchedulerTierRank(b.Health.Tier) {
-			return openAISchedulerTierRank(a.Health.Tier) < openAISchedulerTierRank(b.Health.Tier)
-		}
-		if a.Health.HealthScore != b.Health.HealthScore {
-			return a.Health.HealthScore > b.Health.HealthScore
-		}
-		if a.ManualPriority != b.ManualPriority {
-			return a.ManualPriority < b.ManualPriority
-		}
-		return a.AccountID < b.AccountID
-	})
-	return items
-}
-
 func (s *OpenAIGatewayService) openAIAdvancedSchedulerSettingRepo() SettingRepository {
 	if s == nil || s.rateLimitService == nil || s.rateLimitService.settingService == nil {
 		return nil
@@ -1917,11 +1207,6 @@ func (s *OpenAIGatewayService) isOpenAIAdvancedSchedulerEnabled(ctx context.Cont
 			value, err := repo.GetValue(dbCtx, openAIAdvancedSchedulerSettingKey)
 			if err == nil {
 				enabled = strings.EqualFold(strings.TrimSpace(value), "true")
-			}
-			if !enabled {
-				if value, err := repo.GetValue(dbCtx, openAISchedulerHealthRankingEnabledKey); err == nil {
-					enabled = strings.EqualFold(strings.TrimSpace(value), "true")
-				}
 			}
 		}
 

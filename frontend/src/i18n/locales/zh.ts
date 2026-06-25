@@ -416,8 +416,6 @@ export default {
     channelManagement: '渠道管理',
     channelPricing: '渠道定价',
     channelMonitor: '渠道监控',
-    openaiScheduler: 'OpenAI 调度',
-    openaiHealth: 'OpenAI 健康看板',
     channelStatus: '渠道状态',
     riskControl: '风控中心',
     userSpendingRanking: '用户消费榜',
@@ -3022,93 +3020,6 @@ export default {
       },
     },
 
-    openaiScheduler: {
-      title: 'OpenAI 调度',
-      description: '按账号健康分自动分层调度 OpenAI 上游账号',
-      refresh: '刷新',
-      saveSettings: '保存策略',
-      settingsSaved: '策略已保存',
-      loadError: '加载 OpenAI 调度数据失败',
-      groupsLoadError: '加载 OpenAI 分组失败',
-      settingsLoadError: '加载调度策略失败',
-      actionSuccess: '操作已执行',
-      actionFailed: '操作执行失败',
-      searchPlaceholder: '搜索账号',
-      noGroups: '暂无 OpenAI 分组',
-      settings: {
-        primaryRatio: '主力比例',
-        ttftDegradeMs: '首包延迟降级阈值（毫秒）',
-        errorRateThreshold: '错误率降级阈值',
-        cooldownSeconds: '冷却时间（秒）'
-      },
-      stats: {
-        date: '统计日期',
-        totalSelects: '当前分组调用次数',
-        activeAccounts: '被调用账号数',
-        topAccount: '调用最多账号',
-        recompute: '重算当天',
-        recomputeSuccess: '当天统计已重算',
-        recomputeFailed: '重算当天统计失败'
-      },
-      columns: {
-        account: '账号',
-        tier: '分层',
-        health: '健康分',
-        successRate: '成功率',
-        ttft: '首包延迟',
-        channelPrice: '渠道价格',
-        selectCount: '调用次数',
-        selectRatio: '调用占比',
-        lastSelectedAt: '最后调用',
-        priority: '人工优先级',
-        reason: '调度原因',
-        actions: '操作'
-      },
-      tier: {
-        primary: '主力',
-        standby: '备用',
-        observe: '观察',
-        degraded: '降级'
-      },
-      actions: {
-        cooldown: '冷却',
-        clearCooldown: '解除冷却',
-        promoteObserve: '进入观察',
-        runProbe: '立即探测'
-      }
-    },
-
-    openaiHealth: {
-      title: 'OpenAI 健康看板',
-      description: '按账号汇总 OpenAI 调度健康、层级、成功率、首 Token 延迟和调度使用情况',
-      refresh: '刷新',
-      schedulerTab: '调度策略',
-      accountTab: '账号配置',
-      searchPlaceholder: '搜索账号名称',
-      allGroups: '全部分组',
-      noGroups: '暂无 OpenAI 分组',
-      loadError: '加载 OpenAI 健康看板失败',
-      monitorHistoryLoadError: '加载监控历史失败',
-      overview: {
-        totalAccounts: '账号总数',
-        activeAccounts: '启用账号',
-        avgHealth: '平均健康分',
-        avgTtft: '平均首 Token',
-      },
-      columns: {
-        account: '账号',
-        tier: '调度层',
-        healthScore: '健康分',
-        successRate: '成功率',
-        ttft: '首 Token',
-        channelPrice: '渠道价格',
-        selectCount: '今日调度',
-        lastSelected: '最近调度'
-      },
-      emptyTitle: '暂无 OpenAI 账号健康数据',
-      emptyDescription: '请先添加 OpenAI 账号并绑定分组，调度运行后这里会展示账号健康快照。'
-    },
-
     // Channel Monitor
     channelMonitor: {
       title: '渠道监控',
@@ -3463,7 +3374,6 @@ export default {
         todayStats: '今日统计',
         groups: '分组',
         upstreamGroup: '上游分组',
-        stability: '调度状态',
         usageWindows: '用量窗口',
         proxy: '代理',
         lastUsed: '最近使用',
@@ -3471,15 +3381,6 @@ export default {
         expiresAt: '过期时间',
         actions: '操作'
       },
-      stability: {
-        unknown: '无数据',
-        noData: '暂无调度状态数据',
-        windowDays: '近 {days} 天',
-        requests: '成功 {success} / 失败 {error} / 总计 {total}',
-        successRate: '成功率 {rate}',
-        avgDuration: '平均耗时 {ms}ms'
-      },
-      stabilityHint: 'OpenAI 账号显示实时调度状态（主力、备用、观察、隔离及原因）；其他平台显示近 3 天请求稳定性统计。',
       usageWindowsHint: '“5h / 7d”是上游账号（如 OpenAI ChatGPT、Claude）官方的滚动用量窗口限制，由上游对账号设定，并非 sub2api 配置，也与你映射的模型无关。窗口滚动到期后用量会自动重置，无法在 sub2api 端解除该限制。',
       allPrivacyModes: '全部Privacy状态',
       privacyUnset: '未设置',

@@ -15,8 +15,6 @@ type AdminHandlers struct {
 	Backup                 *admin.BackupHandler
 	OAuth                  *admin.OAuthHandler
 	OpenAIOAuth            *admin.OpenAIOAuthHandler
-	OpenAIScheduler        *admin.OpenAISchedulerHandler
-	OpenAIHealth           *admin.OpenAIHealthHandler
 	GeminiOAuth            *admin.GeminiOAuthHandler
 	AntigravityOAuth       *admin.AntigravityOAuthHandler
 	Proxy                  *admin.ProxyHandler

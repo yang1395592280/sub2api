@@ -94,5 +94,4 @@ func TestAccountHandlerRefreshUpstreamBalance(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), `"upstream_balance_remaining":1.25`)
-	require.NotContains(t, w.Body.String(), `"stability":{"level":"unknown"`)
 }

@@ -1051,45 +1051,6 @@ func (s *AccountUsageService) GetTodayStatsBatch(ctx context.Context, accountIDs
 	return result, nil
 }
 
-// GetAccountStabilityStatsBatch 批量获取账号稳定性统计，当前窗口内 usage_logs 计为成功，
-// ops_error_logs 中 HTTP >= 400 计为失败。
-func (s *AccountUsageService) GetAccountStabilityStatsBatch(ctx context.Context, accountIDs []int64, startTime, endTime time.Time) (map[int64]*AccountStabilityStats, error) {
-	result := make(map[int64]*AccountStabilityStats, len(accountIDs))
-	if s == nil || s.usageLogRepo == nil || len(accountIDs) == 0 {
-		return result, nil
-	}
-	uniqueIDs := make([]int64, 0, len(accountIDs))
-	seen := make(map[int64]struct{}, len(accountIDs))
-	for _, accountID := range accountIDs {
-		if accountID <= 0 {
-			continue
-		}
-		if _, ok := seen[accountID]; ok {
-			continue
-		}
-		seen[accountID] = struct{}{}
-		uniqueIDs = append(uniqueIDs, accountID)
-	}
-	for _, accountID := range uniqueIDs {
-		result[accountID] = &AccountStabilityStats{}
-	}
-	if len(uniqueIDs) == 0 {
-		return result, nil
-	}
-	if batchReader, ok := s.usageLogRepo.(accountStabilityStatsBatchReader); ok {
-		stats, err := batchReader.GetAccountStabilityStatsBatch(ctx, uniqueIDs, startTime, endTime)
-		if err != nil {
-			return result, err
-		}
-		for _, accountID := range uniqueIDs {
-			if stats != nil && stats[accountID] != nil {
-				result[accountID] = stats[accountID]
-			}
-		}
-	}
-	return result, nil
-}
-
 func windowStatsFromAccountStats(stats *usagestats.AccountStats) *WindowStats {
 	if stats == nil {
 		return &WindowStats{}

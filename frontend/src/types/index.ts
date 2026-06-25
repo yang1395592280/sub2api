@@ -855,7 +855,6 @@ export interface Account {
   concurrency: number
   load_factor?: number | null
   current_concurrency?: number // Real-time concurrency count from Redis
-  stability?: AccountStability
   priority: number
   rate_multiplier?: number // Account billing multiplier (>=0, 0 means free)
   channel_price?: number | null // Upstream channel price used by OpenAI scheduler
@@ -936,18 +935,6 @@ export interface Account {
   current_window_cost?: number | null // 当前窗口费用
   active_sessions?: number | null // 当前活跃会话数
   current_rpm?: number | null // 当前分钟 RPM 计数
-}
-
-export interface AccountStability {
-  level: 'excellent' | 'healthy' | 'normal' | 'down' | 'unknown' | string
-  label: string
-  success_rate?: number
-  total_requests: number
-  success_count: number
-  error_count: number
-  avg_duration_ms?: number
-  window_days: number
-  reason?: string
 }
 
 export interface AccountGroup {

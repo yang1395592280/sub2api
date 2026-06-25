@@ -332,31 +332,30 @@ var ErrNoAvailableCompactAccounts = errors.New("no available OpenAI accounts sup
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
-	accountRepo              AccountRepository
-	usageLogRepo             UsageLogRepository
-	usageBillingRepo         UsageBillingRepository
-	openAISchedulerStatsRepo OpenAISchedulerStatsRepository
-	userRepo                 UserRepository
-	userSubRepo              UserSubscriptionRepository
-	cache                    GatewayCache
-	cfg                      *config.Config
-	codexDetector            CodexClientRestrictionDetector
-	schedulerSnapshot        *SchedulerSnapshotService
-	concurrencyService       *ConcurrencyService
-	billingService           *BillingService
-	rateLimitService         *RateLimitService
-	billingCacheService      *BillingCacheService
-	userGroupRateResolver    *userGroupRateResolver
-	httpUpstream             HTTPUpstream
-	deferredService          *DeferredService
-	openAITokenProvider      *OpenAITokenProvider
-	toolCorrector            *CodexToolCorrector
-	openaiWSResolver         OpenAIWSProtocolResolver
-	resolver                 *ModelPricingResolver
-	channelService           *ChannelService
-	balanceNotifyService     *BalanceNotifyService
-	settingService           *SettingService
-	userPlatformQuotaRepo    UserPlatformQuotaRepository
+	accountRepo           AccountRepository
+	usageLogRepo          UsageLogRepository
+	usageBillingRepo      UsageBillingRepository
+	userRepo              UserRepository
+	userSubRepo           UserSubscriptionRepository
+	cache                 GatewayCache
+	cfg                   *config.Config
+	codexDetector         CodexClientRestrictionDetector
+	schedulerSnapshot     *SchedulerSnapshotService
+	concurrencyService    *ConcurrencyService
+	billingService        *BillingService
+	rateLimitService      *RateLimitService
+	billingCacheService   *BillingCacheService
+	userGroupRateResolver *userGroupRateResolver
+	httpUpstream          HTTPUpstream
+	deferredService       *DeferredService
+	openAITokenProvider   *OpenAITokenProvider
+	toolCorrector         *CodexToolCorrector
+	openaiWSResolver      OpenAIWSProtocolResolver
+	resolver              *ModelPricingResolver
+	channelService        *ChannelService
+	balanceNotifyService  *BalanceNotifyService
+	settingService        *SettingService
+	userPlatformQuotaRepo UserPlatformQuotaRepository
 
 	openaiWSPoolOnce              sync.Once
 	openaiWSStateStoreOnce        sync.Once
@@ -384,7 +383,6 @@ func NewOpenAIGatewayService(
 	accountRepo AccountRepository,
 	usageLogRepo UsageLogRepository,
 	usageBillingRepo UsageBillingRepository,
-	openAISchedulerStatsRepo OpenAISchedulerStatsRepository,
 	userRepo UserRepository,
 	userSubRepo UserSubscriptionRepository,
 	userGroupRateRepo UserGroupRateRepository,
@@ -405,20 +403,19 @@ func NewOpenAIGatewayService(
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
 ) *OpenAIGatewayService {
 	svc := &OpenAIGatewayService{
-		accountRepo:              accountRepo,
-		usageLogRepo:             usageLogRepo,
-		usageBillingRepo:         usageBillingRepo,
-		openAISchedulerStatsRepo: openAISchedulerStatsRepo,
-		userRepo:                 userRepo,
-		userSubRepo:              userSubRepo,
-		cache:                    cache,
-		cfg:                      cfg,
-		codexDetector:            NewOpenAICodexClientRestrictionDetector(cfg),
-		schedulerSnapshot:        schedulerSnapshot,
-		concurrencyService:       concurrencyService,
-		billingService:           billingService,
-		rateLimitService:         rateLimitService,
-		billingCacheService:      billingCacheService,
+		accountRepo:         accountRepo,
+		usageLogRepo:        usageLogRepo,
+		usageBillingRepo:    usageBillingRepo,
+		userRepo:            userRepo,
+		userSubRepo:         userSubRepo,
+		cache:               cache,
+		cfg:                 cfg,
+		codexDetector:       NewOpenAICodexClientRestrictionDetector(cfg),
+		schedulerSnapshot:   schedulerSnapshot,
+		concurrencyService:  concurrencyService,
+		billingService:      billingService,
+		rateLimitService:    rateLimitService,
+		billingCacheService: billingCacheService,
 		userGroupRateResolver: newUserGroupRateResolver(
 			userGroupRateRepo,
 			nil,

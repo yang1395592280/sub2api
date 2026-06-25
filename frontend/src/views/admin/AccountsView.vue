@@ -296,25 +296,6 @@
             </div>
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
           </template>
-          <template #header-stability="{ column }">
-            <div class="flex items-center">
-              <span>{{ column.label }}</span>
-              <HelpTooltip :content="t('admin.accounts.stabilityHint')" width-class="w-80" />
-            </div>
-          </template>
-          <template #cell-stability="{ row }">
-            <div class="inline-flex max-w-[9rem] flex-col gap-1" :title="getStabilityTitle(row)">
-              <span
-                :class="['inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-bold ring-1 ring-inset', getStabilityClass(row)]"
-              >
-                <span :class="['h-2 w-2 rounded-full', getStabilityDotClass(row)]" />
-                {{ row.stability?.label || t('admin.accounts.stability.unknown') }}
-              </span>
-              <span v-if="getVisibleStabilityReason(row)" class="truncate text-[11px] font-medium text-red-500 dark:text-red-400">
-                {{ getVisibleStabilityReason(row) }}
-              </span>
-            </div>
-          </template>
           <template #header-usage="{ column }">
             <div class="flex items-center">
               <span>{{ column.label }}</span>
@@ -1226,65 +1207,6 @@ function getUpstreamGroupTitle(row: Account): string {
   return labels.join(' | ')
 }
 
-function getStabilityClass(row: Account): string {
-  switch (row.stability?.level) {
-    case 'excellent':
-      return 'bg-emerald-100 text-emerald-900 ring-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-100 dark:ring-emerald-700'
-    case 'healthy':
-      return 'bg-green-50 text-green-700 ring-green-200 dark:bg-green-900/25 dark:text-green-200 dark:ring-green-700/50'
-    case 'normal':
-      return 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-900/25 dark:text-orange-200 dark:ring-orange-700/50'
-    case 'down':
-      return 'bg-gray-200 text-gray-700 ring-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-600'
-    default:
-      return 'bg-gray-50 text-gray-500 ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700'
-  }
-}
-
-function getStabilityDotClass(row: Account): string {
-  switch (row.stability?.level) {
-    case 'excellent':
-      return 'bg-emerald-800 dark:bg-emerald-300'
-    case 'healthy':
-      return 'bg-green-500'
-    case 'normal':
-      return 'bg-orange-500'
-    case 'down':
-      return 'bg-gray-500'
-    default:
-      return 'bg-gray-300 dark:bg-gray-500'
-  }
-}
-
-function getStabilityTitle(row: Account): string {
-  const stability = row.stability
-  if (!stability) return t('admin.accounts.stability.noData')
-  const parts = [
-    t('admin.accounts.stability.windowDays', { days: stability.window_days }),
-    t('admin.accounts.stability.requests', {
-      success: stability.success_count,
-      error: stability.error_count,
-      total: stability.total_requests
-    })
-  ]
-  if (typeof stability.success_rate === 'number') {
-    parts.push(t('admin.accounts.stability.successRate', { rate: `${(stability.success_rate * 100).toFixed(1)}%` }))
-  }
-  if (typeof stability.avg_duration_ms === 'number') {
-    parts.push(t('admin.accounts.stability.avgDuration', { ms: stability.avg_duration_ms }))
-  }
-  if (stability.reason) {
-    parts.push(stability.reason)
-  }
-  return parts.join(' | ')
-}
-
-function getVisibleStabilityReason(row: Account): string | null {
-  const stability = row.stability
-  if (!stability?.reason || stability.level === 'excellent' || stability.level === 'healthy') return null
-  return stability.reason
-}
-
 // All available columns
 const allColumns = computed(() => {
   const c = [
@@ -1302,7 +1224,6 @@ const allColumns = computed(() => {
   }
   c.push(
     { key: 'upstream_group', label: t('admin.accounts.columns.upstreamGroup'), sortable: false },
-    { key: 'stability', label: t('admin.accounts.columns.stability'), sortable: false },
     { key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false },
     { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
     { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
@@ -1671,8 +1592,7 @@ const mergeRuntimeFields = (oldAccount: Account, updatedAccount: Account): Accou
   ...updatedAccount,
   current_concurrency: updatedAccount.current_concurrency ?? oldAccount.current_concurrency,
   current_window_cost: updatedAccount.current_window_cost ?? oldAccount.current_window_cost,
-  active_sessions: updatedAccount.active_sessions ?? oldAccount.active_sessions,
-  stability: updatedAccount.stability ?? oldAccount.stability
+  active_sessions: updatedAccount.active_sessions ?? oldAccount.active_sessions
 })
 
 const syncPaginationAfterLocalRemoval = () => {

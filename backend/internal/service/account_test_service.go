@@ -208,17 +208,6 @@ func (s *AccountTestService) reportOpenAIAccountTestResult(accountID int64, succ
 		return
 	}
 	s.openAIScheduleReporter.ReportOpenAIAccountScheduleResult(accountID, success, nil)
-	if success {
-		return
-	}
-	if applier, ok := s.openAIScheduleReporter.(interface {
-		ApplyOpenAISchedulerHealthAction(accountID int64, action OpenAISchedulerHealthAction) error
-	}); ok {
-		_ = applier.ApplyOpenAISchedulerHealthAction(accountID, OpenAISchedulerHealthAction{
-			Action: "cooldown",
-			Reason: "account test failed",
-		})
-	}
 }
 
 // testClaudeAccountConnection tests an Anthropic Claude account's connection

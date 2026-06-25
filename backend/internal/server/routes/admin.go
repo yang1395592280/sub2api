@@ -41,12 +41,6 @@ func RegisterAdminRoutes(
 		// OpenAI OAuth
 		registerOpenAIOAuthRoutes(admin, h)
 
-		// OpenAI 调度管理
-		registerOpenAISchedulerRoutes(admin, h)
-
-		// OpenAI 健康看板
-		registerOpenAIHealthRoutes(admin, h)
-
 		// Gemini OAuth
 		registerGeminiOAuthRoutes(admin, h)
 
@@ -391,27 +385,6 @@ func registerOpenAIOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		openai.POST("/create-from-oauth", h.Admin.OpenAIOAuth.CreateAccountFromOAuth)
 		openai.GET("/accounts/:id/quota", h.Admin.OpenAIOAuth.QueryQuota)
 		openai.POST("/accounts/:id/reset-quota", h.Admin.OpenAIOAuth.ResetQuota)
-	}
-}
-
-func registerOpenAISchedulerRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
-	scheduler := admin.Group("/openai-scheduler")
-	{
-		scheduler.GET("/overview", h.Admin.OpenAIScheduler.GetOverview)
-		scheduler.GET("/accounts", h.Admin.OpenAIScheduler.ListAccounts)
-		scheduler.GET("/accounts/:id", h.Admin.OpenAIScheduler.GetAccount)
-		scheduler.POST("/accounts/:id/actions", h.Admin.OpenAIScheduler.ApplyAction)
-		scheduler.GET("/stats", h.Admin.OpenAIScheduler.GetDailyStats)
-		scheduler.POST("/stats/recompute", h.Admin.OpenAIScheduler.RecomputeDailyStats)
-		scheduler.GET("/settings", h.Admin.OpenAIScheduler.GetSettings)
-		scheduler.PUT("/settings", h.Admin.OpenAIScheduler.UpdateSettings)
-	}
-}
-
-func registerOpenAIHealthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
-	health := admin.Group("/openai-health")
-	{
-		health.GET("/overview", h.Admin.OpenAIHealth.GetOverview)
 	}
 }
 

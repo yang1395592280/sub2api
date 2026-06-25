@@ -416,8 +416,6 @@ export default {
     channelManagement: 'Channels',
     channelPricing: 'Channel Pricing',
     channelMonitor: 'Channel Monitor',
-    openaiScheduler: 'OpenAI Scheduler',
-    openaiHealth: 'OpenAI Health',
     channelStatus: 'Channel Status',
     riskControl: 'Risk Control',
     userSpendingRanking: 'User Spending Ranking',
@@ -2945,93 +2943,6 @@ export default {
       },
     },
 
-    openaiScheduler: {
-      title: 'OpenAI Scheduler',
-      description: 'Route OpenAI upstream accounts by runtime health tiers',
-      refresh: 'Refresh',
-      saveSettings: 'Save Policy',
-      settingsSaved: 'Policy saved',
-      loadError: 'Failed to load OpenAI scheduler data',
-      groupsLoadError: 'Failed to load OpenAI groups',
-      settingsLoadError: 'Failed to load scheduler policy',
-      actionSuccess: 'Action completed',
-      actionFailed: 'Action failed',
-      searchPlaceholder: 'Search account',
-      noGroups: 'No OpenAI groups',
-      settings: {
-        primaryRatio: 'Primary Ratio',
-        ttftDegradeMs: 'TTFT Degrade Threshold (ms)',
-        errorRateThreshold: 'Error Rate Degrade Threshold',
-        cooldownSeconds: 'Cooldown Seconds'
-      },
-      stats: {
-        date: 'Stats Date',
-        totalSelects: 'Selected Group Calls',
-        activeAccounts: 'Called Accounts',
-        topAccount: 'Top Called Account',
-        recompute: 'Recompute Day',
-        recomputeSuccess: 'Daily stats recomputed',
-        recomputeFailed: 'Failed to recompute daily stats'
-      },
-      columns: {
-        account: 'Account',
-        tier: 'Tier',
-        health: 'Health',
-        successRate: 'Success',
-        ttft: 'TTFT',
-        channelPrice: 'Channel Price',
-        selectCount: 'Calls',
-        selectRatio: 'Call Share',
-        lastSelectedAt: 'Last Called',
-        priority: 'Manual Priority',
-        reason: 'Decision Reason',
-        actions: 'Actions'
-      },
-      tier: {
-        primary: 'Primary',
-        standby: 'Standby',
-        observe: 'Observe',
-        degraded: 'Degraded'
-      },
-      actions: {
-        cooldown: 'Cooldown',
-        clearCooldown: 'Clear Cooldown',
-        promoteObserve: 'Observe',
-        runProbe: 'Probe Now'
-      }
-    },
-
-    openaiHealth: {
-      title: 'OpenAI Health',
-      description: 'Summarize OpenAI account scheduler health, tier, success rate, TTFT and routing usage',
-      refresh: 'Refresh',
-      schedulerTab: 'Scheduler Policy',
-      accountTab: 'Account Config',
-      searchPlaceholder: 'Search account name',
-      allGroups: 'All Groups',
-      noGroups: 'No OpenAI groups',
-      loadError: 'Failed to load OpenAI health dashboard',
-      monitorHistoryLoadError: 'Failed to load monitor history',
-      overview: {
-        totalAccounts: 'Total Accounts',
-        activeAccounts: 'Active Accounts',
-        avgHealth: 'Avg Health',
-        avgTtft: 'Avg TTFT',
-      },
-      columns: {
-        account: 'Account',
-        tier: 'Tier',
-        healthScore: 'Health',
-        successRate: 'Success Rate',
-        ttft: 'TTFT',
-        channelPrice: 'Channel Price',
-        selectCount: 'Today Selects',
-        lastSelected: 'Last Selected'
-      },
-      emptyTitle: 'No OpenAI account health data',
-      emptyDescription: 'Add OpenAI accounts and bind groups first. Account health snapshots appear after scheduler activity.'
-    },
-
     // Channel Monitor
     channelMonitor: {
       title: 'Channel Monitor',
@@ -3425,7 +3336,6 @@ export default {
         todayStats: 'Today Stats',
         groups: 'Groups',
         upstreamGroup: 'Upstream Group',
-        stability: 'Routing Status',
         usageWindows: 'Usage Windows',
         proxy: 'Proxy',
         lastUsed: 'Last Used',
@@ -3433,15 +3343,6 @@ export default {
         expiresAt: 'Expires At',
         actions: 'Actions'
       },
-      stability: {
-        unknown: 'No Data',
-        noData: 'No routing status data',
-        windowDays: 'Last {days} days',
-        requests: 'Success {success} / Error {error} / Total {total}',
-        successRate: 'Success rate {rate}',
-        avgDuration: 'Avg duration {ms}ms'
-      },
-      stabilityHint: 'OpenAI accounts show realtime routing status (primary, standby, observe, isolated, and reason). Other platforms show request stability over the last 3 days.',
       usageWindowsHint: '"5h / 7d" are the upstream account\'s official rolling usage windows (e.g. OpenAI ChatGPT, Claude). They are imposed by the upstream provider on the account itself — not configured by sub2api, and unrelated to the models you map. Usage resets automatically once each window rolls over, and the limit cannot be lifted from within sub2api.',
       allPrivacyModes: 'All Privacy States',
       privacyUnset: 'Unset',
