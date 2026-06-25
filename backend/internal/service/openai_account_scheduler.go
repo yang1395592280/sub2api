@@ -1237,6 +1237,33 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 	plan.loadSkew = calcLoadSkewByMoments(loadRateSum, loadRateSumSquares, len(candidates))
 
 	weights := s.service.openAIWSSchedulerWeights()
+
+	// Reset 因子（use-it-or-lose-it）：在拥有「未来会话窗口结束时间」的账号中，
+	// 剩余时间越短 → 因子越接近 1（越早重置越优先用尽）。无活跃窗口的账号因子为 0。
+	// 仅在 weights.Reset > 0 时计算，默认关闭不影响原有行为。
+	minResetRemaining, maxResetRemaining := 0.0, 0.0
+	hasResetSample := false
+	if weights.Reset > 0 {
+		for _, candidate := range candidates {
+			end := candidate.account.SessionWindowEnd
+			if end == nil || !now.Before(*end) {
+				continue
+			}
+			remaining := end.Sub(now).Seconds()
+			if !hasResetSample {
+				minResetRemaining, maxResetRemaining = remaining, remaining
+				hasResetSample = true
+				continue
+			}
+			if remaining < minResetRemaining {
+				minResetRemaining = remaining
+			}
+			if remaining > maxResetRemaining {
+				maxResetRemaining = remaining
+			}
+		}
+	}
+
 	for i := range candidates {
 		item := &candidates[i]
 		priorityFactor := 1.0
@@ -1266,13 +1293,25 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlan(
 				priceWeight = 0
 			}
 		}
+		resetFactor := 0.0
+		if weights.Reset > 0 && hasResetSample {
+			if end := item.account.SessionWindowEnd; end != nil && now.Before(*end) {
+				if maxResetRemaining > minResetRemaining {
+					resetFactor = 1 - clamp01((end.Sub(now).Seconds()-minResetRemaining)/(maxResetRemaining-minResetRemaining))
+				} else {
+					// 所有有窗口的账号剩余时间相同：一律给满分，让其优于无窗口账号。
+					resetFactor = 1
+				}
+			}
+		}
 
 		item.score = weights.Priority*priorityFactor +
 			weights.Load*loadFactor +
 			weights.Queue*queueFactor +
 			weights.ErrorRate*errorFactor +
 			weights.TTFT*ttftFactor +
-			priceWeight*priceFactor
+			priceWeight*priceFactor +
+			weights.Reset*resetFactor
 		if settings.HealthRankingEnabled {
 			healthFactor := clamp01(item.health.HealthScore / 100)
 			item.score = item.score*0.65 + healthFactor*0.35
@@ -2185,6 +2224,7 @@ func (s *OpenAIGatewayService) openAIWSSchedulerWeights() GatewayOpenAIWSSchedul
 			ErrorRate: s.cfg.Gateway.OpenAIWS.SchedulerScoreWeights.ErrorRate,
 			TTFT:      s.cfg.Gateway.OpenAIWS.SchedulerScoreWeights.TTFT,
 			Price:     s.cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Price,
+			Reset:     s.cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Reset,
 		}
 	}
 	return GatewayOpenAIWSSchedulerScoreWeightsView{
@@ -2194,6 +2234,7 @@ func (s *OpenAIGatewayService) openAIWSSchedulerWeights() GatewayOpenAIWSSchedul
 		ErrorRate: 0.8,
 		TTFT:      0.5,
 		Price:     0.6,
+		Reset:     0.0,
 	}
 }
 
@@ -2204,6 +2245,8 @@ type GatewayOpenAIWSSchedulerScoreWeightsView struct {
 	ErrorRate float64
 	TTFT      float64
 	Price     float64
+	// Reset 倾向「会话窗口最早重置」的账号；0 表示关闭（默认）。
+	Reset float64
 }
 
 func clamp01(value float64) float64 {
