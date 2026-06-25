@@ -33,6 +33,9 @@ type openAITransportErrorClass struct {
 	// or DNS/routing failure. Such accounts should be temporarily unscheduled
 	// (and alerted on) instead of being repeatedly scheduled into hard failures.
 	Persistent bool
+	// Timeout marks transient deadline/timeout failures so scheduler health can
+	// distinguish slow upstreams from generic network errors.
+	Timeout bool
 }
 
 // openAIPersistentTransportErrorMarkers are substrings (matched case-insensitively
@@ -80,6 +83,13 @@ func classifyOpenAITransportError(err error) openAITransportErrorClass {
 	if errors.As(err, &dnsErr) && dnsErr.IsNotFound {
 		return openAITransportErrorClass{Persistent: true}
 	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return openAITransportErrorClass{Timeout: true}
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return openAITransportErrorClass{Timeout: true}
+	}
 
 	// — String-marker fallback ————————————————————————————————————————————————
 	msg := strings.ToLower(err.Error())
@@ -124,8 +134,18 @@ func (s *OpenAIGatewayService) handleOpenAIUpstreamTransportError(ctx context.Co
 		return err
 	}
 
-	if classifyOpenAITransportError(err).Persistent {
+	classification := classifyOpenAITransportError(err)
+	if s != nil && account != nil {
+		reason := OpenAISchedulerDegradeTransport
+		if classification.Timeout {
+			reason = OpenAISchedulerDegradeTimeout
+		}
+		s.ReportOpenAIAccountScheduleResultWithReason(account.ID, false, nil, reason)
+	}
+	if classification.Persistent {
 		s.tempUnscheduleOpenAITransportError(ctx, account, safeErr)
+	} else if s != nil && account != nil {
+		s.BlockAccountScheduling(account, openAITransientCooldownUntil(time.Now()), "openai_transient_transport")
 	}
 
 	return &UpstreamFailoverError{

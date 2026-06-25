@@ -79,6 +79,44 @@ func TestOpenAIModelNotFound_DoesNotRuntimeBlockWholeAccount(t *testing.T) {
 	require.Len(t, repo.modelRateLimitCalls, 1)
 }
 
+func TestOpenAI5xxFastPath_RuntimeBlocksAccount(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	account := &Account{ID: 501, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+
+	shouldDisable := svc.handleOpenAIAccountUpstreamError(
+		context.Background(),
+		account,
+		http.StatusServiceUnavailable,
+		http.Header{},
+		[]byte(`{"error":{"message":"Service temporarily unavailable"}}`),
+	)
+
+	require.False(t, shouldDisable)
+	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
+	value, ok := svc.openaiAccountRuntimeBlockUntil.Load(account.ID)
+	require.True(t, ok)
+	until, ok := value.(time.Time)
+	require.True(t, ok)
+	require.True(t, until.After(time.Now().Add(55*time.Second)))
+	require.True(t, until.Before(time.Now().Add(65*time.Second)))
+}
+
+func TestOpenAI5xxFastPath_DoesNotRuntimeBlockNonOpenAI(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	account := &Account{ID: 502, Platform: PlatformGemini, Type: AccountTypeAPIKey}
+
+	shouldDisable := svc.handleOpenAIAccountUpstreamError(
+		context.Background(),
+		account,
+		http.StatusServiceUnavailable,
+		http.Header{},
+		[]byte(`{"error":{"message":"Service temporarily unavailable"}}`),
+	)
+
+	require.False(t, shouldDisable)
+	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
+}
+
 func TestOpenAIRuntimeBlock_DoesNotShortenExistingBlock(t *testing.T) {
 	svc := &OpenAIGatewayService{}
 	account := &Account{ID: 46, Platform: PlatformOpenAI, Type: AccountTypeOAuth}

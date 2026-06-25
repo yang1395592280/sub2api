@@ -10,6 +10,7 @@ const (
 	openAIAccountStateUpdateTimeout       = 5 * time.Second
 	openAIOAuth429FallbackCooldown        = 5 * time.Second
 	openAIStopSchedulingBridgeCooldown    = 2 * time.Minute
+	openAITransientFailureCooldown        = 60 * time.Second
 	openAIOAuth429StormWindow             = 10 * time.Second
 	openAIOAuth429StormThreshold          = 20
 	openAIOAuth429StormMaxAccountSwitches = 1
@@ -31,6 +32,29 @@ func isOpenAIAccount(account *Account) bool {
 	return account != nil && account.Platform == PlatformOpenAI
 }
 
+func openAITransientCooldownUntil(now time.Time) time.Time {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	return now.Add(openAITransientFailureCooldown)
+}
+
+func classifyOpenAIUpstreamFailureReason(statusCode int) string {
+	switch statusCode {
+	case http.StatusTooManyRequests:
+		return OpenAISchedulerDegradeRateLimited
+	case 529:
+		return OpenAISchedulerDegradeUpstream5xx
+	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return OpenAISchedulerDegradeUpstream5xx
+	default:
+		if statusCode >= http.StatusInternalServerError && statusCode <= 599 {
+			return OpenAISchedulerDegradeUpstream5xx
+		}
+		return ""
+	}
+}
+
 func (s *OpenAIGatewayService) handleOpenAIAccountUpstreamError(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte, requestedModel ...string) bool {
 	stateCtx, cancel := openAIAccountStateContext(ctx)
 	defer cancel()
@@ -44,6 +68,15 @@ func (s *OpenAIGatewayService) handleOpenAIAccountUpstreamError(ctx context.Cont
 
 	if statusCode == http.StatusTooManyRequests {
 		s.markOpenAIOAuth429RateLimited(stateCtx, account, headers, responseBody)
+	}
+	if s != nil && isOpenAIAccount(account) {
+		if reason := classifyOpenAIUpstreamFailureReason(statusCode); reason != "" {
+			s.ReportOpenAIAccountScheduleResultWithReason(account.ID, false, nil, reason)
+		}
+		switch statusCode {
+		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+			s.BlockAccountScheduling(account, openAITransientCooldownUntil(time.Now()), "openai_transient_5xx")
+		}
 	}
 	if s == nil || account == nil || s.rateLimitService == nil {
 		return false

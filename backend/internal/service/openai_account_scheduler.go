@@ -780,6 +780,10 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		return nil, false, nil
 	}
+	if s.service.isOpenAIAccountRuntimeBlocked(account) {
+		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
+		return nil, false, nil
+	}
 	if !s.isAccountRequestCompatible(ctx, account, req) {
 		return nil, false, nil
 	}
@@ -1918,19 +1922,14 @@ func (s *OpenAIGatewayService) isOpenAIAdvancedSchedulerEnabled(ctx context.Cont
 			}
 		}
 
-		enabled := false
+		enabled := true
 		if repo := s.openAIAdvancedSchedulerSettingRepo(); repo != nil {
 			dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), openAIAdvancedSchedulerSettingDBTimeout)
 			defer cancel()
 
 			value, err := repo.GetValue(dbCtx, openAIAdvancedSchedulerSettingKey)
-			if err == nil {
+			if err == nil && strings.TrimSpace(value) != "" {
 				enabled = strings.EqualFold(strings.TrimSpace(value), "true")
-			}
-			if !enabled {
-				if value, err := repo.GetValue(dbCtx, openAISchedulerHealthRankingEnabledKey); err == nil {
-					enabled = strings.EqualFold(strings.TrimSpace(value), "true")
-				}
 			}
 		}
 
@@ -2195,7 +2194,7 @@ func (s *OpenAIGatewayService) openAIStickyEscapeConfig() openAIStickyEscapeConf
 		}
 		ttftMs := float64(cfg.StickyEscapeTTFTMs)
 		if ttftMs <= 0 {
-			ttftMs = 15000
+			ttftMs = 10000
 		}
 		errorRate := cfg.StickyEscapeErrorRate
 		if errorRate < 0 || errorRate > 1 {
@@ -2212,7 +2211,7 @@ func (s *OpenAIGatewayService) openAIStickyEscapeConfig() openAIStickyEscapeConf
 	}
 	return openAIStickyEscapeConfig{
 		enabled:   true,
-		ttftMs:    15000,
+		ttftMs:    10000,
 		errorRate: 0.5,
 	}
 }

@@ -202,7 +202,7 @@ func TestDefaultOpenAIAccountScheduler_InvalidManualAction(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestOpenAIGatewayService_HealthSchedulerDisabledReturnsDefaults(t *testing.T) {
+func TestOpenAIGatewayService_HealthSchedulerEnabledByDefaultReturnsSettings(t *testing.T) {
 	resetOpenAIAdvancedSchedulerSettingCacheForTest()
 	svc := &OpenAIGatewayService{}
 
@@ -210,8 +210,26 @@ func TestOpenAIGatewayService_HealthSchedulerDisabledReturnsDefaults(t *testing.
 	snapshot, ok := svc.SnapshotOpenAIAccountHealth(context.Background(), 1)
 
 	require.False(t, settings.HealthRankingEnabled)
-	require.False(t, ok)
-	require.Equal(t, OpenAIAccountHealthSnapshot{}, snapshot)
+	require.True(t, ok)
+	require.Equal(t, int64(1), snapshot.AccountID)
+}
+
+func TestOpenAIScheduler_DefaultEnabledWithoutSettingsRepo(t *testing.T) {
+	resetOpenAIAdvancedSchedulerSettingCacheForTest()
+	svc := &OpenAIGatewayService{}
+
+	require.True(t, svc.isOpenAIAdvancedSchedulerEnabled(context.Background()))
+	require.NotNil(t, svc.getOpenAIAccountScheduler(context.Background()))
+}
+
+func TestOpenAIScheduler_ExplicitSettingFalseStillDisables(t *testing.T) {
+	resetOpenAIAdvancedSchedulerSettingCacheForTest()
+	svc := &OpenAIGatewayService{
+		rateLimitService: newOpenAIAdvancedSchedulerRateLimitService("false"),
+	}
+
+	require.False(t, svc.isOpenAIAdvancedSchedulerEnabled(context.Background()))
+	require.Nil(t, svc.getOpenAIAccountScheduler(context.Background()))
 }
 
 func TestOpenAISchedulerHealthSettingsRoundTrip(t *testing.T) {
@@ -256,7 +274,7 @@ func TestOpenAISchedulerHealthSettings_EnableHealthRankingTurnsOnAdvancedSchedul
 			settingService: &SettingService{settingRepo: repo},
 		},
 	}
-	require.False(t, svc.isOpenAIAdvancedSchedulerEnabled(context.Background()))
+	require.True(t, svc.isOpenAIAdvancedSchedulerEnabled(context.Background()))
 
 	require.NoError(t, svc.SaveOpenAISchedulerHealthSettings(context.Background(), OpenAISchedulerHealthSettings{
 		HealthRankingEnabled: true,
