@@ -290,6 +290,7 @@
           <template #cell-actions="{ row }">
             <div class="flex items-center gap-1">
               <button
+                v-if="row.is_exclusive"
                 @click="handleViewMembers(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-sky-50 hover:text-sky-600 dark:hover:bg-dark-700 dark:hover:text-sky-400"
               >
