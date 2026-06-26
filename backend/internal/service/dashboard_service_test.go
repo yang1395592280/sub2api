@@ -14,6 +14,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type groupUserUsageDashboardRepoStub struct {
+	UsageLogRepository
+
+	stats map[string]map[int64]*usagestats.AccountStats
+}
+
+func (s *groupUserUsageDashboardRepoStub) GetGroupUserDailyStatsBatch(_ context.Context, groupID int64, userIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.AccountStats, error) {
+	key := startTime.Format(time.RFC3339) + "|" + endTime.Format(time.RFC3339)
+	out := make(map[int64]*usagestats.AccountStats, len(userIDs))
+	for _, userID := range userIDs {
+		if s.stats != nil && s.stats[key] != nil && s.stats[key][userID] != nil {
+			out[userID] = s.stats[key][userID]
+		} else {
+			out[userID] = &usagestats.AccountStats{}
+		}
+	}
+	_ = groupID
+	return out, nil
+}
+
 type usageRepoStub struct {
 	UsageLogRepository
 	stats      *usagestats.DashboardStats
@@ -241,6 +261,46 @@ func TestDashboardService_CacheDisabled_SkipsCache(t *testing.T) {
 	require.Equal(t, int32(1), atomic.LoadInt32(&repo.calls))
 	require.Equal(t, int32(0), atomic.LoadInt32(&cache.getCalls))
 	require.Equal(t, int32(0), atomic.LoadInt32(&cache.setCalls))
+}
+
+func TestDashboardService_GetGroupUserUsageComparison(t *testing.T) {
+	today := time.Date(2026, 6, 26, 0, 0, 0, 0, time.UTC)
+	yesterday := today.AddDate(0, 0, -1)
+	tomorrow := today.AddDate(0, 0, 1)
+
+	usageRepo := &groupUserUsageDashboardRepoStub{
+		stats: map[string]map[int64]*usagestats.AccountStats{
+			today.Format(time.RFC3339) + "|" + tomorrow.Format(time.RFC3339): {
+				1: {Requests: 2, Tokens: 100, Cost: 3.75, StandardCost: 3.75, UserCost: 2.25},
+			},
+			yesterday.Format(time.RFC3339) + "|" + today.Format(time.RFC3339): {
+				1: {Requests: 1, Tokens: 40, Cost: 1.25, StandardCost: 1.25, UserCost: 0.75},
+			},
+		},
+	}
+	svc := NewDashboardService(usageRepo, nil, nil, nil)
+
+	got, err := svc.GetGroupUserUsageComparison(context.Background(), 10, []int64{1, 2}, today)
+	require.NoError(t, err)
+	require.Equal(t, int64(10), got.GroupID)
+	require.Equal(t, "2026-06-26", got.Today)
+	require.Equal(t, "2026-06-25", got.Yesterday)
+	require.Equal(t, int64(2), got.Stats[1].Today.Requests)
+	require.Equal(t, int64(1), got.Stats[1].Yesterday.Requests)
+	require.Equal(t, int64(0), got.Stats[2].Today.Requests)
+	require.Equal(t, int64(0), got.Stats[2].Yesterday.Requests)
+}
+
+func TestDashboardService_GetGroupUserUsageComparison_EmptyUsers(t *testing.T) {
+	today := time.Date(2026, 6, 26, 0, 0, 0, 0, time.UTC)
+	svc := NewDashboardService(&groupUserUsageDashboardRepoStub{}, nil, nil, nil)
+
+	got, err := svc.GetGroupUserUsageComparison(context.Background(), 10, nil, today)
+	require.NoError(t, err)
+	require.Equal(t, int64(10), got.GroupID)
+	require.Equal(t, "2026-06-26", got.Today)
+	require.Equal(t, "2026-06-25", got.Yesterday)
+	require.Empty(t, got.Stats)
 }
 
 func TestDashboardService_CacheHitStale_TriggersAsyncRefresh(t *testing.T) {

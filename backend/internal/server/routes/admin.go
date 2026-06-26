@@ -298,6 +298,7 @@ func registerGroupRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		groups.DELETE("/:id", h.Admin.Group.Delete)
 		groups.GET("/:id/stats", h.Admin.Group.GetStats)
 		groups.GET("/:id/rate-multipliers", h.Admin.Group.GetGroupRateMultipliers)
+		groups.GET("/:id/members/usage-comparison", h.Admin.Group.GetGroupMemberUsageComparison)
 		groups.GET("/:id/members", h.Admin.Group.GetGroupMembers)
 		groups.DELETE("/:id/members/:user_id", h.Admin.Group.RemoveGroupMember)
 		groups.PUT("/:id/rate-multipliers", h.Admin.Group.BatchSetGroupRateMultipliers)

@@ -38,6 +38,18 @@ type dashboardStatsCacheEntry struct {
 	UpdatedAt int64                      `json:"updated_at"`
 }
 
+type GroupUserUsageComparisonResult struct {
+	GroupID   int64
+	Today     string
+	Yesterday string
+	Stats     map[int64]GroupUserUsageComparison
+}
+
+type GroupUserUsageComparison struct {
+	Today     *usagestats.AccountStats
+	Yesterday *usagestats.AccountStats
+}
+
 // DashboardService 提供管理员仪表盘统计服务。
 type DashboardService struct {
 	usageRepo      UsageLogRepository
@@ -176,6 +188,49 @@ func (s *DashboardService) GetGroupUsageSummary(ctx context.Context, todayStart 
 		return nil, fmt.Errorf("get group usage summary: %w", err)
 	}
 	return results, nil
+}
+
+// GetGroupUserUsageComparison returns yesterday/today usage stats for selected users in one group.
+func (s *DashboardService) GetGroupUserUsageComparison(ctx context.Context, groupID int64, userIDs []int64, todayStart time.Time) (*GroupUserUsageComparisonResult, error) {
+	result := &GroupUserUsageComparisonResult{
+		GroupID:   groupID,
+		Today:     todayStart.Format("2006-01-02"),
+		Yesterday: todayStart.AddDate(0, 0, -1).Format("2006-01-02"),
+		Stats:     make(map[int64]GroupUserUsageComparison, len(userIDs)),
+	}
+	for _, userID := range userIDs {
+		result.Stats[userID] = GroupUserUsageComparison{
+			Today:     &usagestats.AccountStats{},
+			Yesterday: &usagestats.AccountStats{},
+		}
+	}
+	if len(userIDs) == 0 || s.usageRepo == nil {
+		return result, nil
+	}
+
+	tomorrowStart := todayStart.AddDate(0, 0, 1)
+	yesterdayStart := todayStart.AddDate(0, 0, -1)
+
+	todayStats, err := s.usageRepo.GetGroupUserDailyStatsBatch(ctx, groupID, userIDs, todayStart, tomorrowStart)
+	if err != nil {
+		return nil, fmt.Errorf("get group user today usage: %w", err)
+	}
+	yesterdayStats, err := s.usageRepo.GetGroupUserDailyStatsBatch(ctx, groupID, userIDs, yesterdayStart, todayStart)
+	if err != nil {
+		return nil, fmt.Errorf("get group user yesterday usage: %w", err)
+	}
+
+	for _, userID := range userIDs {
+		comparison := result.Stats[userID]
+		if todayStats[userID] != nil {
+			comparison.Today = todayStats[userID]
+		}
+		if yesterdayStats[userID] != nil {
+			comparison.Yesterday = yesterdayStats[userID]
+		}
+		result.Stats[userID] = comparison
+	}
+	return result, nil
 }
 
 func (s *DashboardService) getCachedDashboardStats(ctx context.Context) (*usagestats.DashboardStats, bool, error) {

@@ -8,8 +8,10 @@ import (
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -529,6 +531,113 @@ func (h *GroupHandler) GetGroupMembers(c *gin.Context) {
 	}
 
 	response.Success(c, out)
+}
+
+type groupMemberUsageStatsResponse struct {
+	Requests     int64   `json:"requests"`
+	Tokens       int64   `json:"tokens"`
+	Cost         float64 `json:"cost"`
+	StandardCost float64 `json:"standard_cost"`
+	UserCost     float64 `json:"user_cost"`
+}
+
+type groupMemberUsageComparisonResponse struct {
+	Today     groupMemberUsageStatsResponse `json:"today"`
+	Yesterday groupMemberUsageStatsResponse `json:"yesterday"`
+}
+
+// GetGroupMemberUsageComparison handles yesterday/today usage comparison for users in an exclusive group.
+// GET /api/v1/admin/groups/:id/members/usage-comparison?user_ids=1,2&timezone=Asia/Shanghai
+func (h *GroupHandler) GetGroupMemberUsageComparison(c *gin.Context) {
+	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+
+	userIDs, err := parseInt64CSV(c.Query("user_ids"))
+	if err != nil {
+		response.BadRequest(c, "Invalid user_ids")
+		return
+	}
+
+	group, err := h.adminService.GetGroup(c.Request.Context(), groupID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if !group.IsExclusive {
+		response.ErrorFrom(c, infraerrors.Forbidden("GROUP_USAGE_EXCLUSIVE_ONLY", "group user usage comparison is only available for exclusive groups"))
+		return
+	}
+
+	userTZ := c.Query("timezone")
+	now := timezone.NowInUserLocation(userTZ)
+	todayStart := timezone.StartOfDayInUserLocation(now, userTZ)
+
+	result, err := h.dashboardService.GetGroupUserUsageComparison(c.Request.Context(), groupID, userIDs, todayStart)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	out := struct {
+		GroupID   int64                                         `json:"group_id"`
+		Today     string                                        `json:"today"`
+		Yesterday string                                        `json:"yesterday"`
+		Stats     map[string]groupMemberUsageComparisonResponse `json:"stats"`
+	}{
+		GroupID:   result.GroupID,
+		Today:     result.Today,
+		Yesterday: result.Yesterday,
+		Stats:     make(map[string]groupMemberUsageComparisonResponse, len(result.Stats)),
+	}
+	for userID, comparison := range result.Stats {
+		out.Stats[strconv.FormatInt(userID, 10)] = groupMemberUsageComparisonResponse{
+			Today:     groupMemberUsageStatsFromService(comparison.Today),
+			Yesterday: groupMemberUsageStatsFromService(comparison.Yesterday),
+		}
+	}
+	response.Success(c, out)
+}
+
+func groupMemberUsageStatsFromService(stats *usagestats.AccountStats) groupMemberUsageStatsResponse {
+	if stats == nil {
+		return groupMemberUsageStatsResponse{}
+	}
+	return groupMemberUsageStatsResponse{
+		Requests:     stats.Requests,
+		Tokens:       stats.Tokens,
+		Cost:         stats.Cost,
+		StandardCost: stats.StandardCost,
+		UserCost:     stats.UserCost,
+	}
+}
+
+func parseInt64CSV(raw string) ([]int64, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return []int64{}, nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]int64, 0, len(parts))
+	seen := make(map[int64]struct{}, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(part, 10, 64)
+		if err != nil || id <= 0 {
+			return nil, fmt.Errorf("invalid id %q", part)
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out, nil
 }
 
 // RemoveGroupMember handles removing a user from an exclusive standard group.
