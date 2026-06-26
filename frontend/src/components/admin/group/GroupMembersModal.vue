@@ -53,7 +53,10 @@
                 <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.groups.columns.userStatus') }}
                 </th>
-                <th class="min-w-[260px] px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                <th
+                  v-if="showUsageComparison"
+                  class="min-w-[260px] px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400"
+                >
                   {{ t('admin.groups.columns.usage') }}
                 </th>
                 <th
@@ -88,7 +91,7 @@
                     {{ member.status }}
                   </span>
                 </td>
-                <td class="px-3 py-2">
+                <td v-if="showUsageComparison" class="px-3 py-2">
                   <div v-if="usageLoading" class="space-y-1">
                     <div class="h-5 w-56 animate-pulse rounded bg-gray-100 dark:bg-dark-600"></div>
                     <div class="h-5 w-52 animate-pulse rounded bg-gray-100 dark:bg-dark-600"></div>
@@ -181,6 +184,10 @@ const canRemoveMembers = computed(() => {
   return !!props.group && props.group.is_exclusive && props.group.subscription_type === 'standard'
 })
 
+const showUsageComparison = computed(() => {
+  return !!props.group?.is_exclusive && members.has_fixed_members
+})
+
 function resetMembers() {
   members.group_id = 0
   members.has_fixed_members = false
@@ -243,8 +250,6 @@ function formatTokens(tokens: number): string {
 
 function formatMoney(value: number | undefined): string {
   const amount = Number(value || 0)
-  if (amount >= 1000) return amount.toFixed(0)
-  if (amount >= 100) return amount.toFixed(2)
   return amount.toFixed(2)
 }
 

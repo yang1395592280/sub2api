@@ -171,6 +171,59 @@ describe('GroupMembersModal', () => {
     expect(wrapper.text()).toContain('U $41.79')
   })
 
+  it('does not render usage column or request usage comparison for non-exclusive fixed members', async () => {
+    vi.mocked(adminAPI.groups.getGroupMembers).mockResolvedValue({
+      group_id: 13,
+      has_fixed_members: true,
+      total: 1,
+      items: [{ id: 3, username: 'charlie', email: 'charlie@test.com', notes: '', status: 'active' }]
+    })
+
+    const wrapper = mountModal({
+      id: 13,
+      name: '公开固定分组',
+      is_exclusive: false,
+      subscription_type: 'standard'
+    })
+    await flushPromises()
+
+    expect(adminAPI.groups.getGroupMemberUsageComparison).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('charlie')
+    expect(wrapper.text()).not.toContain(getMessage(zh, 'admin.groups.columns.usage'))
+    expect(wrapper.text()).not.toContain(getMessage(zh, 'admin.groups.memberUsageToday'))
+    expect(wrapper.text()).not.toContain(getMessage(zh, 'admin.groups.memberUsageYesterday'))
+    expect(wrapper.text()).not.toContain('A $')
+    expect(wrapper.text()).not.toContain('U $')
+  })
+
+  it('keeps two decimal places for large account and user usage costs', async () => {
+    vi.mocked(adminAPI.groups.getGroupMembers).mockResolvedValue({
+      group_id: 12,
+      has_fixed_members: true,
+      total: 1,
+      items: [{ id: 1, username: 'alice', email: 'alice@test.com', notes: '', status: 'active' }]
+    })
+    vi.mocked(adminAPI.groups.getGroupMemberUsageComparison).mockResolvedValue({
+      group_id: 12,
+      today: '2026-06-26',
+      yesterday: '2026-06-25',
+      stats: {
+        '1': {
+          today: { requests: 10, tokens: 2000, cost: 1234.56, standard_cost: 1200, user_cost: 2345.67 },
+          yesterday: { requests: 8, tokens: 1500, cost: 3456.78, standard_cost: 3000, user_cost: 4567.89 }
+        }
+      }
+    })
+
+    const wrapper = mountModal()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('A $1234.56')
+    expect(wrapper.text()).toContain('U $2345.67')
+    expect(wrapper.text()).toContain('A $3456.78')
+    expect(wrapper.text()).toContain('U $4567.89')
+  })
+
   it('keeps members visible when usage comparison fails', async () => {
     vi.mocked(adminAPI.groups.getGroupMembers).mockResolvedValue({
       group_id: 12,
