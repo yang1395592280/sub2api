@@ -463,7 +463,7 @@ const startBatchTest = async () => {
   resetState()
   status.value = 'connecting'
 
-  const { successCount, failedCount } = await runWithConcurrency()
+  const { failedCount } = await runWithConcurrency()
 
   status.value = failedCount > 0 ? 'error' : 'success'
   errorMessage.value = failedCount > 0 ? t('admin.accounts.bulkTestHasFailures') : ''

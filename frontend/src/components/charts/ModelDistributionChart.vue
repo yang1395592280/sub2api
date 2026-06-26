@@ -437,7 +437,7 @@ const doughnutOptions = computed(() => ({
     tooltip: {
       callbacks: {
         label: (context: any) => {
-          const value = context.raw as number
+          const value = Number(context.raw ?? 0)
           const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0)
           const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
           const formattedValue = props.metric === 'actual_cost'
@@ -460,7 +460,7 @@ const rankingDoughnutOptions = computed(() => ({
     tooltip: {
       callbacks: {
         label: (context: any) => {
-          const value = context.raw as number
+          const value = Number(context.raw ?? 0)
           const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0)
           const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
           return `${context.label}: $${formatCost(value)} (${percentage}%)`
@@ -495,14 +495,16 @@ const getRankingRowLabel = (item: RankingDisplayItem): string => {
   return getRankingUserLabel(item)
 }
 
-const formatCost = (value: number): string => {
-  if (value >= 1000) {
-    return (value / 1000).toFixed(2) + 'K'
-  } else if (value >= 1) {
-    return value.toFixed(2)
-  } else if (value >= 0.01) {
-    return value.toFixed(3)
+const formatCost = (value: number | null | undefined): string => {
+  const amount = Number(value ?? 0)
+  if (!Number.isFinite(amount)) return '0.0000'
+  if (amount >= 1000) {
+    return (amount / 1000).toFixed(2) + 'K'
+  } else if (amount >= 1) {
+    return amount.toFixed(2)
+  } else if (amount >= 0.01) {
+    return amount.toFixed(3)
   }
-  return value.toFixed(4)
+  return amount.toFixed(4)
 }
 </script>
