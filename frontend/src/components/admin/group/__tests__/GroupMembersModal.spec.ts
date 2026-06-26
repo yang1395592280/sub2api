@@ -1,6 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createI18n } from 'vue-i18n'
 import GroupMembersModal from '../GroupMembersModal.vue'
 import { adminAPI } from '@/api/admin'
 import en from '@/i18n/locales/en'
@@ -8,19 +7,31 @@ import zh from '@/i18n/locales/zh'
 
 const showError = vi.fn()
 const showSuccess = vi.fn()
-const i18n = createI18n({
-  legacy: false,
-  locale: 'zh',
-  messages: { en, zh }
-})
+
+function getMessage(messages: Record<string, any>, key: string): string {
+  return key.split('.').reduce<any>((value, segment) => value?.[segment], messages) ?? key
+}
+
+function translate(key: string, params?: Record<string, string | number>): string {
+  const template = getMessage(zh, key)
+  if (typeof template !== 'string' || !params) return template
+  return template.replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? `{${name}}`))
+}
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     groups: {
       getGroupMembers: vi.fn(),
+      getGroupMemberUsageComparison: vi.fn(),
       removeGroupMember: vi.fn()
     }
   }
+}))
+
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: translate
+  })
 }))
 
 vi.mock('@/stores/app', () => ({
@@ -35,7 +46,14 @@ describe('GroupMembersModal', () => {
     showError.mockReset()
     showSuccess.mockReset()
     vi.mocked(adminAPI.groups.getGroupMembers).mockReset()
+    vi.mocked(adminAPI.groups.getGroupMemberUsageComparison).mockReset()
     vi.mocked(adminAPI.groups.removeGroupMember).mockReset()
+    vi.mocked(adminAPI.groups.getGroupMemberUsageComparison).mockResolvedValue({
+      group_id: 12,
+      today: '2026-06-26',
+      yesterday: '2026-06-25',
+      stats: {}
+    })
     vi.stubGlobal('confirm', vi.fn(() => true))
   })
 
@@ -51,7 +69,6 @@ describe('GroupMembersModal', () => {
         }
       },
       global: {
-        plugins: [i18n],
         stubs: {
           Teleport: true,
           BaseDialog: {
@@ -95,7 +112,7 @@ describe('GroupMembersModal', () => {
     const wrapper = mountModal({ id: 13, name: '公开分组' })
     await flushPromises()
 
-    expect(wrapper.text()).toContain('admin.groups.publicGroupNoFixedMembers')
+    expect(wrapper.text()).toContain('这是公开标准分组，所有用户都可访问，因此没有固定的用户名单。')
   })
 
   it('removes a member for exclusive standard groups', async () => {
@@ -117,5 +134,56 @@ describe('GroupMembersModal', () => {
     expect(global.confirm).toHaveBeenCalled()
     expect(adminAPI.groups.removeGroupMember).toHaveBeenCalledWith(12, 1)
     expect(showSuccess).toHaveBeenCalled()
+  })
+
+  it('loads and renders yesterday and today usage for exclusive members', async () => {
+    vi.mocked(adminAPI.groups.getGroupMembers).mockResolvedValue({
+      group_id: 12,
+      has_fixed_members: true,
+      total: 1,
+      items: [{ id: 1, username: 'alice', email: 'alice@test.com', notes: '', status: 'active' }]
+    })
+    vi.mocked(adminAPI.groups.getGroupMemberUsageComparison).mockResolvedValue({
+      group_id: 12,
+      today: '2026-06-26',
+      yesterday: '2026-06-25',
+      stats: {
+        '1': {
+          today: { requests: 2600, tokens: 232900000, cost: 281.55, standard_cost: 250.1, user_cost: 41.79 },
+          yesterday: { requests: 1900, tokens: 180200000, cost: 210.3, standard_cost: 198.4, user_cost: 35.12 }
+        }
+      }
+    })
+
+    const wrapper = mountModal()
+    await flushPromises()
+
+    expect(adminAPI.groups.getGroupMemberUsageComparison).toHaveBeenCalledWith(
+      12,
+      [1],
+      expect.any(String)
+    )
+    expect(wrapper.text()).toContain('今天')
+    expect(wrapper.text()).toContain('昨天')
+    expect(wrapper.text()).toContain('2.6K req')
+    expect(wrapper.text()).toContain('232.90M token')
+    expect(wrapper.text()).toContain('A $281.55')
+    expect(wrapper.text()).toContain('U $41.79')
+  })
+
+  it('keeps members visible when usage comparison fails', async () => {
+    vi.mocked(adminAPI.groups.getGroupMembers).mockResolvedValue({
+      group_id: 12,
+      has_fixed_members: true,
+      total: 1,
+      items: [{ id: 1, username: 'alice', email: 'alice@test.com', notes: '', status: 'active' }]
+    })
+    vi.mocked(adminAPI.groups.getGroupMemberUsageComparison).mockRejectedValue(new Error('boom'))
+
+    const wrapper = mountModal()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('alice')
+    expect(wrapper.text()).toContain('用量加载失败')
   })
 })

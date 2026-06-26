@@ -53,6 +53,9 @@
                 <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.groups.columns.userStatus') }}
                 </th>
+                <th class="min-w-[260px] px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                  {{ t('admin.groups.columns.usage') }}
+                </th>
                 <th
                   v-if="canRemoveMembers"
                   class="w-16 px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400"
@@ -85,6 +88,33 @@
                     {{ member.status }}
                   </span>
                 </td>
+                <td class="px-3 py-2">
+                  <div v-if="usageLoading" class="space-y-1">
+                    <div class="h-5 w-56 animate-pulse rounded bg-gray-100 dark:bg-dark-600"></div>
+                    <div class="h-5 w-52 animate-pulse rounded bg-gray-100 dark:bg-dark-600"></div>
+                  </div>
+                  <div v-else-if="usageError" class="text-xs text-amber-600 dark:text-amber-400">
+                    {{ usageError }}
+                  </div>
+                  <div v-else class="space-y-1 text-xs">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      <span class="w-10 font-medium text-gray-500 dark:text-gray-400">{{ t('admin.groups.memberUsageToday') }}</span>
+                      <span class="text-gray-400">{{ usageDates.today }}</span>
+                      <span class="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300">{{ formatCompactNumber(getUsageForUser(member.id).today.requests) }} req</span>
+                      <span class="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300">{{ formatTokens(getUsageForUser(member.id).today.tokens) }} token</span>
+                      <span class="rounded bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">A ${{ formatMoney(getUsageForUser(member.id).today.cost) }}</span>
+                      <span class="rounded bg-sky-50 px-1.5 py-0.5 font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">U ${{ formatMoney(getUsageForUser(member.id).today.user_cost) }}</span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      <span class="w-10 font-medium text-gray-500 dark:text-gray-400">{{ t('admin.groups.memberUsageYesterday') }}</span>
+                      <span class="text-gray-400">{{ usageDates.yesterday }}</span>
+                      <span class="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300">{{ formatCompactNumber(getUsageForUser(member.id).yesterday.requests) }} req</span>
+                      <span class="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300">{{ formatTokens(getUsageForUser(member.id).yesterday.tokens) }} token</span>
+                      <span class="rounded bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">A ${{ formatMoney(getUsageForUser(member.id).yesterday.cost) }}</span>
+                      <span class="rounded bg-sky-50 px-1.5 py-0.5 font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">U ${{ formatMoney(getUsageForUser(member.id).yesterday.user_cost) }}</span>
+                    </div>
+                  </div>
+                </td>
                 <td v-if="canRemoveMembers" class="whitespace-nowrap px-3 py-2 text-right">
                   <button
                     type="button"
@@ -109,8 +139,8 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
-import type { GroupMembersResponse } from '@/api/admin/groups'
-import type { AdminGroup } from '@/types'
+import type { GroupMemberUsageComparison, GroupMembersResponse } from '@/api/admin/groups'
+import type { AdminGroup, WindowStats } from '@/types'
 import { useAppStore } from '@/stores/app'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 
@@ -128,11 +158,23 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const loading = ref(false)
 const removingUserId = ref<number | null>(null)
+const usageLoading = ref(false)
+const usageError = ref<string | null>(null)
+const usageDates = reactive({ today: '', yesterday: '' })
+const usageByUserId = ref<Record<string, GroupMemberUsageComparison>>({})
 const members = reactive<GroupMembersResponse>({
   group_id: 0,
   has_fixed_members: false,
   items: [],
   total: 0
+})
+
+const emptyWindowStats = (): WindowStats => ({
+  requests: 0,
+  tokens: 0,
+  cost: 0,
+  standard_cost: 0,
+  user_cost: 0
 })
 
 const canRemoveMembers = computed(() => {
@@ -144,6 +186,66 @@ function resetMembers() {
   members.has_fixed_members = false
   members.items = []
   members.total = 0
+  resetUsage()
+}
+
+function resetUsage() {
+  usageLoading.value = false
+  usageError.value = null
+  usageDates.today = ''
+  usageDates.yesterday = ''
+  usageByUserId.value = {}
+}
+
+async function loadUsageComparison(groupId: number) {
+  if (!props.group?.is_exclusive || !members.has_fixed_members || members.items.length === 0) {
+    resetUsage()
+    return
+  }
+
+  usageLoading.value = true
+  usageError.value = null
+  try {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const userIds = members.items.map(member => member.id)
+    const data = await adminAPI.groups.getGroupMemberUsageComparison(groupId, userIds, timezone)
+    usageDates.today = data.today
+    usageDates.yesterday = data.yesterday
+    usageByUserId.value = data.stats || {}
+  } catch (error) {
+    usageByUserId.value = {}
+    usageError.value = t('admin.groups.memberUsageLoadFailed')
+    console.error('Error loading group member usage comparison:', error)
+  } finally {
+    usageLoading.value = false
+  }
+}
+
+function getUsageForUser(userId: number): GroupMemberUsageComparison {
+  return usageByUserId.value[String(userId)] || {
+    today: emptyWindowStats(),
+    yesterday: emptyWindowStats()
+  }
+}
+
+function formatCompactNumber(value: number): string {
+  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`
+  return String(value)
+}
+
+function formatTokens(tokens: number): string {
+  if (tokens >= 1000000000) return `${(tokens / 1000000000).toFixed(2)}B`
+  if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(2)}M`
+  if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}K`
+  return String(tokens)
+}
+
+function formatMoney(value: number | undefined): string {
+  const amount = Number(value || 0)
+  if (amount >= 1000) return amount.toFixed(0)
+  if (amount >= 100) return amount.toFixed(2)
+  return amount.toFixed(2)
 }
 
 async function loadMembers(groupId: number) {
@@ -154,6 +256,7 @@ async function loadMembers(groupId: number) {
     members.has_fixed_members = data.has_fixed_members
     members.items = data.items
     members.total = data.total
+    await loadUsageComparison(groupId)
   } catch (error: any) {
     resetMembers()
     appStore.showError(error?.response?.data?.detail || t('admin.groups.failedToLoadMembers'))

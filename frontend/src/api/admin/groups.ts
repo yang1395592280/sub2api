@@ -9,7 +9,8 @@ import type {
   GroupPlatform,
   CreateGroupRequest,
   UpdateGroupRequest,
-  PaginatedResponse
+  PaginatedResponse,
+  WindowStats
 } from '@/types'
 
 /**
@@ -274,8 +275,37 @@ export interface GroupMembersResponse {
   total: number
 }
 
+export interface GroupMemberUsageComparison {
+  today: WindowStats
+  yesterday: WindowStats
+}
+
+export interface GroupMemberUsageComparisonResponse {
+  group_id: number
+  today: string
+  yesterday: string
+  stats: Record<string, GroupMemberUsageComparison>
+}
+
 export async function getGroupMembers(id: number): Promise<GroupMembersResponse> {
   const { data } = await apiClient.get<GroupMembersResponse>(`/admin/groups/${id}/members`)
+  return data
+}
+
+export async function getGroupMemberUsageComparison(
+  id: number,
+  userIds: number[],
+  timezone?: string
+): Promise<GroupMemberUsageComparisonResponse> {
+  const { data } = await apiClient.get<GroupMemberUsageComparisonResponse>(
+    `/admin/groups/${id}/members/usage-comparison`,
+    {
+      params: {
+        user_ids: userIds.join(','),
+        ...(timezone ? { timezone } : {})
+      }
+    }
+  )
   return data
 }
 
@@ -368,6 +398,7 @@ export const groupsAPI = {
   getStats,
   getGroupApiKeys,
   getGroupMembers,
+  getGroupMemberUsageComparison,
   removeGroupMember,
   getGroupRateMultipliers,
   clearGroupRateMultipliers,
