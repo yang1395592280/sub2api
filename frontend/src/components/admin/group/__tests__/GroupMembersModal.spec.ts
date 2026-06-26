@@ -99,6 +99,7 @@ describe('GroupMembersModal', () => {
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.text()).toContain('bob@test.com')
     expect(wrapper.text()).toContain('vip')
+    expect(wrapper.findAll('[data-testid="group-member-panel"]')).toHaveLength(2)
   })
 
   it('shows public group hint when there is no fixed member list', async () => {
@@ -113,6 +114,7 @@ describe('GroupMembersModal', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('这是公开标准分组，所有用户都可访问，因此没有固定的用户名单。')
+    expect(wrapper.find('[data-testid="group-members-empty-state"]').exists()).toBe(true)
   })
 
   it('removes a member for exclusive standard groups', async () => {
@@ -169,9 +171,12 @@ describe('GroupMembersModal', () => {
     expect(wrapper.text()).toContain('232.90M token')
     expect(wrapper.text()).toContain('A $281.55')
     expect(wrapper.text()).toContain('U $41.79')
+    expect(wrapper.find('[data-testid="member-usage-comparison-1"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="member-usage-today-1"]').text()).toContain('今天')
+    expect(wrapper.find('[data-testid="member-usage-yesterday-1"]').text()).toContain('昨天')
   })
 
-  it('does not render usage column or request usage comparison for non-exclusive fixed members', async () => {
+  it('does not render usage section or request usage comparison for non-exclusive fixed members', async () => {
     vi.mocked(adminAPI.groups.getGroupMembers).mockResolvedValue({
       group_id: 13,
       has_fixed_members: true,

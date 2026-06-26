@@ -23,9 +23,15 @@
 
       <div
         v-else-if="!members.has_fixed_members"
-        class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-4 text-sm text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/10 dark:text-blue-300"
+        data-testid="group-members-empty-state"
+        class="rounded-lg border border-dashed border-gray-300 bg-white px-6 py-10 text-center dark:border-dark-600 dark:bg-dark-800"
       >
-        {{ t('admin.groups.publicGroupNoFixedMembers') }}
+        <div class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-gray-400">
+          <span class="text-lg">—</span>
+        </div>
+        <div class="text-sm font-medium text-gray-900 dark:text-white">
+          {{ t('admin.groups.publicGroupNoFixedMembers') }}
+        </div>
       </div>
 
       <div
@@ -35,103 +41,89 @@
         {{ t('admin.groups.noMembers') }}
       </div>
 
-      <div v-else class="overflow-hidden rounded-lg border border-gray-200 dark:border-dark-600">
-        <div class="max-h-[420px] overflow-y-auto">
-          <table class="w-full text-sm">
-            <thead class="sticky top-0 z-[1]">
-              <tr class="border-b border-gray-200 bg-gray-50 dark:border-dark-600 dark:bg-dark-700">
-                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">ID</th>
-                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                  {{ t('admin.groups.columns.userName') }}
-                </th>
-                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                  {{ t('admin.groups.columns.userEmail') }}
-                </th>
-                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                  {{ t('admin.groups.columns.userNotes') }}
-                </th>
-                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                  {{ t('admin.groups.columns.userStatus') }}
-                </th>
-                <th
-                  v-if="showUsageComparison"
-                  class="min-w-[260px] px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400"
+      <div v-else class="max-h-[520px] space-y-3 overflow-y-auto pr-1">
+        <div
+          v-for="member in members.items"
+          :key="member.id"
+          data-testid="group-member-panel"
+          class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-600 dark:bg-dark-800"
+        >
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-mono text-xs text-gray-400 dark:text-gray-500">#{{ member.id }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ member.username || '-' }}</span>
+                <span
+                  :class="[
+                    'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
+                    member.status === 'active'
+                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                      : 'bg-gray-100 text-gray-600 dark:bg-dark-600 dark:text-gray-400'
+                  ]"
                 >
-                  {{ t('admin.groups.columns.usage') }}
-                </th>
-                <th
-                  v-if="canRemoveMembers"
-                  class="w-16 px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400"
-                >
-                  {{ t('common.actions') }}
-                </th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100 dark:divide-dark-600">
-              <tr
-                v-for="member in members.items"
-                :key="member.id"
-                class="hover:bg-gray-50 dark:hover:bg-dark-700/50"
+                  {{ member.status }}
+                </span>
+              </div>
+              <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                <span class="break-all">{{ member.email }}</span>
+                <span class="break-all">{{ member.notes || '-' }}</span>
+              </div>
+            </div>
+
+            <button
+              v-if="canRemoveMembers"
+              type="button"
+              :data-testid="`remove-member-${member.id}`"
+              class="self-start rounded px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+              :disabled="removingUserId === member.id"
+              @click="handleRemove(member.id)"
+            >
+              {{ removingUserId === member.id ? t('common.loading') : t('admin.groups.removeMember') }}
+            </button>
+          </div>
+
+          <div
+            v-if="showUsageComparison"
+            :data-testid="`member-usage-comparison-${member.id}`"
+            class="mt-3 rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-dark-700 dark:bg-dark-700/50"
+          >
+            <div v-if="usageLoading" class="space-y-2">
+              <div class="h-8 animate-pulse rounded bg-gray-100 dark:bg-dark-600"></div>
+              <div class="h-8 animate-pulse rounded bg-gray-100 dark:bg-dark-600"></div>
+            </div>
+            <div v-else-if="usageError" class="text-sm text-amber-600 dark:text-amber-400">
+              {{ usageError }}
+            </div>
+            <div v-else class="space-y-2">
+              <div
+                :data-testid="`member-usage-today-${member.id}`"
+                class="grid gap-2 rounded bg-white p-2 text-xs dark:bg-dark-800 md:grid-cols-[88px_repeat(4,minmax(0,1fr))]"
               >
-                <td class="whitespace-nowrap px-3 py-2 text-gray-400 dark:text-gray-500">{{ member.id }}</td>
-                <td class="whitespace-nowrap px-3 py-2 text-gray-900 dark:text-white">{{ member.username || '-' }}</td>
-                <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{{ member.email }}</td>
-                <td class="max-w-[220px] truncate px-3 py-2 text-gray-500 dark:text-gray-400" :title="member.notes">
-                  {{ member.notes || '-' }}
-                </td>
-                <td class="whitespace-nowrap px-3 py-2">
-                  <span
-                    :class="[
-                      'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
-                      member.status === 'active'
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                        : 'bg-gray-100 text-gray-600 dark:bg-dark-600 dark:text-gray-400'
-                    ]"
-                  >
-                    {{ member.status }}
-                  </span>
-                </td>
-                <td v-if="showUsageComparison" class="px-3 py-2">
-                  <div v-if="usageLoading" class="space-y-1">
-                    <div class="h-5 w-56 animate-pulse rounded bg-gray-100 dark:bg-dark-600"></div>
-                    <div class="h-5 w-52 animate-pulse rounded bg-gray-100 dark:bg-dark-600"></div>
-                  </div>
-                  <div v-else-if="usageError" class="text-xs text-amber-600 dark:text-amber-400">
-                    {{ usageError }}
-                  </div>
-                  <div v-else class="space-y-1 text-xs">
-                    <div class="flex flex-wrap items-center gap-1.5">
-                      <span class="w-10 font-medium text-gray-500 dark:text-gray-400">{{ t('admin.groups.memberUsageToday') }}</span>
-                      <span class="text-gray-400">{{ usageDates.today }}</span>
-                      <span class="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300">{{ formatCompactNumber(getUsageForUser(member.id).today.requests) }} req</span>
-                      <span class="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300">{{ formatTokens(getUsageForUser(member.id).today.tokens) }} token</span>
-                      <span class="rounded bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">A ${{ formatMoney(getUsageForUser(member.id).today.cost) }}</span>
-                      <span class="rounded bg-sky-50 px-1.5 py-0.5 font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">U ${{ formatMoney(getUsageForUser(member.id).today.user_cost) }}</span>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-1.5">
-                      <span class="w-10 font-medium text-gray-500 dark:text-gray-400">{{ t('admin.groups.memberUsageYesterday') }}</span>
-                      <span class="text-gray-400">{{ usageDates.yesterday }}</span>
-                      <span class="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300">{{ formatCompactNumber(getUsageForUser(member.id).yesterday.requests) }} req</span>
-                      <span class="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300">{{ formatTokens(getUsageForUser(member.id).yesterday.tokens) }} token</span>
-                      <span class="rounded bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">A ${{ formatMoney(getUsageForUser(member.id).yesterday.cost) }}</span>
-                      <span class="rounded bg-sky-50 px-1.5 py-0.5 font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">U ${{ formatMoney(getUsageForUser(member.id).yesterday.user_cost) }}</span>
-                    </div>
-                  </div>
-                </td>
-                <td v-if="canRemoveMembers" class="whitespace-nowrap px-3 py-2 text-right">
-                  <button
-                    type="button"
-                    :data-testid="`remove-member-${member.id}`"
-                    class="rounded px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                    :disabled="removingUserId === member.id"
-                    @click="handleRemove(member.id)"
-                  >
-                    {{ removingUserId === member.id ? t('common.loading') : t('admin.groups.removeMember') }}
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                <div class="flex flex-col">
+                  <span class="font-medium text-gray-700 dark:text-gray-200">{{ t('admin.groups.memberUsageToday') }}</span>
+                  <span class="text-gray-400">{{ usageDates.today }}</span>
+                </div>
+                <span class="rounded bg-gray-100 px-2 py-1 font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300">{{ formatCompactNumber(getUsageForUser(member.id).today.requests) }} req</span>
+                <span class="rounded bg-gray-100 px-2 py-1 font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300">{{ formatTokens(getUsageForUser(member.id).today.tokens) }} token</span>
+                <span class="rounded bg-emerald-50 px-2 py-1 font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">A ${{ formatMoney(getUsageForUser(member.id).today.cost) }}</span>
+                <span class="rounded bg-sky-50 px-2 py-1 font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">U ${{ formatMoney(getUsageForUser(member.id).today.user_cost) }}</span>
+              </div>
+
+              <div
+                :data-testid="`member-usage-yesterday-${member.id}`"
+                class="grid gap-2 rounded bg-white p-2 text-xs dark:bg-dark-800 md:grid-cols-[88px_repeat(4,minmax(0,1fr))]"
+              >
+                <div class="flex flex-col">
+                  <span class="font-medium text-gray-700 dark:text-gray-200">{{ t('admin.groups.memberUsageYesterday') }}</span>
+                  <span class="text-gray-400">{{ usageDates.yesterday }}</span>
+                </div>
+                <span class="rounded bg-gray-100 px-2 py-1 font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300">{{ formatCompactNumber(getUsageForUser(member.id).yesterday.requests) }} req</span>
+                <span class="rounded bg-gray-100 px-2 py-1 font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300">{{ formatTokens(getUsageForUser(member.id).yesterday.tokens) }} token</span>
+                <span class="rounded bg-emerald-50 px-2 py-1 font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">A ${{ formatMoney(getUsageForUser(member.id).yesterday.cost) }}</span>
+                <span class="rounded bg-sky-50 px-2 py-1 font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">U ${{ formatMoney(getUsageForUser(member.id).yesterday.user_cost) }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
