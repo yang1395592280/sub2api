@@ -75,8 +75,31 @@
             <span>{{ t('admin.accounts.connectingToApi') }}</span>
           </div>
 
-          <div v-for="(line, index) in outputLines" :key="index" :class="line.class">
-            {{ line.text }}
+          <div
+            v-for="entry in testEntries"
+            :key="entry.accountId"
+            class="mb-3 rounded-xl border px-3 py-2"
+            :class="entry.cardClass"
+          >
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0 space-y-1">
+                <div class="break-all text-cyan-400">
+                  === {{ entry.accountName }} (#{{ entry.accountId }}) ===
+                </div>
+                <div class="break-all text-gray-500">
+                  {{ t('admin.accounts.testLinkLabel') }}：{{ entry.endpoint }}
+                </div>
+              </div>
+              <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="entry.statusClass">
+                {{ entry.statusLabel }}
+              </span>
+            </div>
+
+            <div class="mt-3 space-y-1">
+              <div v-for="(line, index) in entry.lines" :key="index" :class="line.class">
+                {{ line.text }}
+              </div>
+            </div>
           </div>
 
           <div
@@ -96,7 +119,7 @@
         </div>
 
         <button
-          v-if="outputLines.length > 0"
+          v-if="testEntries.length > 0"
           @click="copyOutput"
           class="absolute right-2 top-2 rounded-lg bg-gray-800/80 p-1.5 text-gray-400 opacity-0 transition-all hover:bg-gray-700 hover:text-white group-hover:opacity-100"
           :title="t('admin.accounts.copyOutput')"
@@ -180,6 +203,18 @@ interface OutputLine {
   class: string
 }
 
+type TestStatus = 'running' | 'success' | 'error'
+
+interface TestEntry {
+  accountId: number
+  accountName: string
+  endpoint: string
+  lines: OutputLine[]
+  cardClass: string
+  statusClass: string
+  statusLabel: string
+}
+
 const props = defineProps<{
   show: boolean
   accounts: Account[]
@@ -194,7 +229,7 @@ const { copyToClipboard } = useClipboard()
 
 const terminalRef = ref<HTMLElement | null>(null)
 const status = ref<'idle' | 'connecting' | 'success' | 'error'>('idle')
-const outputLines = ref<OutputLine[]>([])
+const testEntries = ref<TestEntry[]>([])
 const errorMessage = ref('')
 const availableModels = ref<ClaudeModel[]>([])
 const selectedModelId = ref('')
@@ -205,17 +240,55 @@ const failedEmails = ref<string[]>([])
 const selectedConcurrency = ref(20)
 const concurrencyOptions = [5, 10, 20, 50]
 
-const addLine = (text: string, className: string = 'text-gray-300') => {
-  outputLines.value.push({ text, class: className })
-  scrollToBottom()
-}
-
 const formatConnectDuration = (durationMs: number) => {
   const seconds = Math.max(0, durationMs) / 1000
   return seconds.toFixed(2)
 }
 
 const getTestEndpoint = (account: Account) => `/api/v1/admin/accounts/${account.id}/test`
+
+const getEntryPresentation = (status: TestStatus) => {
+  if (status === 'success') {
+    return {
+      cardClass: 'border-emerald-500/30 bg-emerald-500/8',
+      statusClass: 'bg-emerald-500/15 text-emerald-300',
+      statusLabel: t('admin.accounts.testResultSuccess')
+    }
+  }
+  if (status === 'error') {
+    return {
+      cardClass: 'border-rose-500/30 bg-rose-500/8',
+      statusClass: 'bg-rose-500/15 text-rose-300',
+      statusLabel: t('admin.accounts.testResultFailed')
+    }
+  }
+  return {
+    cardClass: 'border-blue-500/30 bg-blue-500/8',
+    statusClass: 'bg-blue-500/15 text-blue-300',
+    statusLabel: t('admin.accounts.testResultRunning')
+  }
+}
+
+const createEntry = (account: Account): TestEntry => {
+  const entry: TestEntry = {
+    accountId: account.id,
+    accountName: account.name,
+    endpoint: getTestEndpoint(account),
+    lines: [],
+    ...getEntryPresentation('running')
+  }
+  testEntries.value.push(entry)
+  return entry
+}
+
+const setEntryStatus = (entry: TestEntry, nextStatus: TestStatus) => {
+  Object.assign(entry, getEntryPresentation(nextStatus))
+}
+
+const addEntryLine = (entry: TestEntry, text: string, className: string = 'text-gray-300') => {
+  entry.lines.push({ text, class: className })
+  scrollToBottom()
+}
 
 const scrollToBottom = async () => {
   await nextTick()
@@ -226,7 +299,7 @@ const scrollToBottom = async () => {
 
 const resetState = () => {
   status.value = 'idle'
-  outputLines.value = []
+  testEntries.value = []
   errorMessage.value = ''
   progressCurrent.value = 0
   successEmails.value = []
@@ -307,13 +380,11 @@ const loadAvailableModels = async () => {
 }
 
 const testSingleAccount = async (account: Account) => {
-  addLine('', 'text-gray-300')
-  addLine(`=== ${account.name} (#${account.id}) ===`, 'text-cyan-400')
-  addLine(t('admin.accounts.testAccountTypeLabel', { type: account.type }), 'text-gray-400')
-  addLine(`测试链接：${getTestEndpoint(account)}`, 'text-gray-500')
+  const entry = createEntry(account)
+  addEntryLine(entry, t('admin.accounts.testAccountTypeLabel', { type: account.type }), 'text-gray-400')
 
   try {
-    const response = await fetch(getTestEndpoint(account), {
+    const response = await fetch(entry.endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
@@ -333,27 +404,30 @@ const testSingleAccount = async (account: Account) => {
       const email = extractEmail(account)
       if (email) failedEmails.value.push(email)
       if (typeof result.connectDurationMs === 'number') {
-        addLine(`连接耗时 ${formatConnectDuration(result.connectDurationMs)}s`, 'rounded-md bg-amber-300/20 px-2 py-1 font-semibold text-amber-300 ring-1 ring-amber-300/40')
+        addEntryLine(entry, `连接耗时 ${formatConnectDuration(result.connectDurationMs)}s`, 'rounded-md bg-amber-300/20 px-2 py-1 font-semibold text-amber-300 ring-1 ring-amber-300/40')
       }
-      addLine(`ERROR: ${result.error || `HTTP ${response.status}`}`, 'text-red-400')
+      addEntryLine(entry, `ERROR: ${result.error || `HTTP ${response.status}`}`, 'text-red-400')
+      setEntryStatus(entry, 'error')
       return false
     }
 
     const email = extractEmail(account)
     if (email) successEmails.value.push(email)
     if (result.model) {
-      addLine(t('admin.accounts.usingModel', { model: result.model }), 'text-green-400')
+      addEntryLine(entry, t('admin.accounts.usingModel', { model: result.model }), 'text-green-400')
     }
     if (typeof result.connectDurationMs === 'number') {
-      addLine(`连接耗时 ${formatConnectDuration(result.connectDurationMs)}s`, 'rounded-md bg-amber-300/20 px-2 py-1 font-semibold text-amber-300 ring-1 ring-amber-300/40')
+      addEntryLine(entry, `连接耗时 ${formatConnectDuration(result.connectDurationMs)}s`, 'rounded-md bg-amber-300/20 px-2 py-1 font-semibold text-amber-300 ring-1 ring-amber-300/40')
     }
-    addLine(result.responseText || t('admin.accounts.testCompleted'), 'text-green-300')
+    addEntryLine(entry, result.responseText || t('admin.accounts.testCompleted'), 'text-green-300')
+    setEntryStatus(entry, 'success')
     return true
   } catch (error: unknown) {
     const email = extractEmail(account)
     if (email) failedEmails.value.push(email)
     const message = error instanceof Error ? error.message : 'Unknown error'
-    addLine(`ERROR: ${message}`, 'text-red-400')
+    addEntryLine(entry, `ERROR: ${message}`, 'text-red-400')
+    setEntryStatus(entry, 'error')
     return false
   } finally {
     progressCurrent.value += 1
@@ -388,15 +462,8 @@ const startBatchTest = async () => {
 
   resetState()
   status.value = 'connecting'
-  addLine(t('admin.accounts.bulkTestConcurrencyHint', { count: selectedConcurrency.value }), 'text-blue-300')
 
   const { successCount, failedCount } = await runWithConcurrency()
-
-  addLine('', 'text-gray-300')
-  addLine(
-    t('admin.accounts.bulkTestSummary', { success: successCount, failed: failedCount }),
-    failedCount > 0 ? 'text-yellow-400' : 'text-green-400'
-  )
 
   status.value = failedCount > 0 ? 'error' : 'success'
   errorMessage.value = failedCount > 0 ? t('admin.accounts.bulkTestHasFailures') : ''
@@ -414,7 +481,12 @@ const downloadEmails = (emails: string[], filename: string) => {
 }
 
 const copyOutput = () => {
-  const text = outputLines.value.map((line) => line.text).join('\n')
+  const text = testEntries.value
+    .map((entry) => {
+      const body = entry.lines.map((line) => line.text).filter(Boolean)
+      return [`=== ${entry.accountName} (#${entry.accountId}) ===`, `${t('admin.accounts.testLinkLabel')}：${entry.endpoint}`, ...body].join('\n')
+    })
+    .join('\n\n')
   copyToClipboard(text, t('admin.accounts.outputCopied'))
 }
 
