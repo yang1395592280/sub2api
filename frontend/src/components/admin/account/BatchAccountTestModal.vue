@@ -2,27 +2,27 @@
   <BaseDialog
     :show="show"
     :title="t('admin.accounts.bulkActions.testConnection')"
-    width="normal"
+    width="extra-wide"
     @close="handleClose"
   >
-    <div class="space-y-4">
-      <div class="rounded-xl border border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 p-3 dark:border-dark-500 dark:from-dark-700 dark:to-dark-600">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <div class="font-semibold text-gray-900 dark:text-gray-100">
-              {{ t('admin.accounts.bulkActions.selected', { count: accounts.length }) }}
+    <div class="grid gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
+      <div class="space-y-4">
+        <div class="rounded-xl border border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 p-3 dark:border-dark-500 dark:from-dark-700 dark:to-dark-600">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <div class="font-semibold text-gray-900 dark:text-gray-100">
+                {{ t('admin.accounts.bulkActions.selected', { count: accounts.length }) }}
+              </div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.accounts.bulkTestHint') }}
+              </div>
             </div>
-            <div class="text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.bulkTestHint') }}
-            </div>
+            <span class="rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
+              {{ accounts.length }}
+            </span>
           </div>
-          <span class="rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
-            {{ accounts.length }}
-          </span>
         </div>
-      </div>
 
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_9rem]">
         <div class="space-y-1.5">
           <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
             {{ t('admin.accounts.selectTestModel') }}
@@ -52,19 +52,19 @@
             </option>
           </select>
         </div>
-      </div>
 
-      <div
-        v-if="status !== 'idle'"
-        class="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300"
-      >
-        {{ t('admin.accounts.bulkTestProgress', { current: progressCurrent, total: accounts.length }) }}
+        <div
+          v-if="status !== 'idle'"
+          class="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300"
+        >
+          {{ t('admin.accounts.bulkTestProgress', { current: progressCurrent, total: accounts.length }) }}
+        </div>
       </div>
 
       <div class="group relative">
         <div
           ref="terminalRef"
-          class="max-h-[360px] min-h-[160px] overflow-y-auto rounded-xl border border-gray-700 bg-gray-900 p-4 font-mono text-sm dark:border-gray-800 dark:bg-black"
+          class="max-h-[520px] min-h-[320px] overflow-y-auto rounded-xl border border-gray-700 bg-gray-900 p-4 font-mono text-sm dark:border-gray-800 dark:bg-black"
         >
           <div v-if="status === 'idle'" class="flex items-center gap-2 text-gray-500">
             <Icon name="play" size="sm" :stroke-width="2" />
@@ -215,6 +215,8 @@ const formatConnectDuration = (durationMs: number) => {
   return seconds.toFixed(2)
 }
 
+const getTestEndpoint = (account: Account) => `/api/v1/admin/accounts/${account.id}/test`
+
 const scrollToBottom = async () => {
   await nextTick()
   if (terminalRef.value) {
@@ -308,9 +310,10 @@ const testSingleAccount = async (account: Account) => {
   addLine('', 'text-gray-300')
   addLine(`=== ${account.name} (#${account.id}) ===`, 'text-cyan-400')
   addLine(t('admin.accounts.testAccountTypeLabel', { type: account.type }), 'text-gray-400')
+  addLine(`测试链接：${getTestEndpoint(account)}`, 'text-gray-500')
 
   try {
-    const response = await fetch(`/api/v1/admin/accounts/${account.id}/test`, {
+    const response = await fetch(getTestEndpoint(account), {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
