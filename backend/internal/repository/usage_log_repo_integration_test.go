@@ -1269,6 +1269,66 @@ func (s *UsageLogRepoSuite) TestGetAccountWindowStats() {
 	s.Require().Equal(int64(70), stats.Tokens) // (10+20) + (15+25)
 }
 
+// --- GetGroupUserDailyStatsBatch ---
+
+func (s *UsageLogRepoSuite) TestGetGroupUserDailyStatsBatch_GroupUserAndWindowIsolation() {
+	user1 := mustCreateUser(s.T(), s.client, &service.User{Email: "group-user-usage-1@test.com"})
+	user2 := mustCreateUser(s.T(), s.client, &service.User{Email: "group-user-usage-2@test.com"})
+	apiKey1 := mustCreateApiKey(s.T(), s.client, &service.APIKey{UserID: user1.ID, Key: "sk-group-user-usage-1", Name: "k1"})
+	apiKey2 := mustCreateApiKey(s.T(), s.client, &service.APIKey{UserID: user2.ID, Key: "sk-group-user-usage-2", Name: "k2"})
+	account := mustCreateAccount(s.T(), s.client, &service.Account{Name: "acc-group-user-usage"})
+
+	groupA := mustCreateGroup(s.T(), s.client, &service.Group{Name: "usage-group-a", Platform: service.PlatformAnthropic, IsExclusive: true})
+	groupB := mustCreateGroup(s.T(), s.client, &service.Group{Name: "usage-group-b", Platform: service.PlatformAnthropic, IsExclusive: true})
+
+	start := time.Date(2026, 6, 26, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+
+	s.createUsageLogWithGroup(user1, apiKey1, account, groupA.ID, 10, 20, 1.25, 0.75, start.Add(2*time.Hour))
+	s.createUsageLogWithGroup(user1, apiKey1, account, groupA.ID, 30, 40, 2.50, 1.50, start.Add(3*time.Hour))
+	s.createUsageLogWithGroup(user2, apiKey2, account, groupA.ID, 50, 60, 3.75, 2.25, start.Add(4*time.Hour))
+	s.createUsageLogWithGroup(user1, apiKey1, account, groupB.ID, 70, 80, 9.99, 8.88, start.Add(5*time.Hour))
+	s.createUsageLogWithGroup(user1, apiKey1, account, groupA.ID, 90, 100, 7.77, 6.66, start.Add(-time.Hour))
+	s.createUsageLogWithGroup(user1, apiKey1, account, groupA.ID, 110, 120, 5.55, 4.44, end.Add(time.Minute))
+
+	stats, err := s.repo.GetGroupUserDailyStatsBatch(s.ctx, groupA.ID, []int64{user1.ID, user2.ID, 999999}, start, end)
+	s.Require().NoError(err)
+
+	s.Require().Equal(int64(2), stats[user1.ID].Requests)
+	s.Require().Equal(int64(100), stats[user1.ID].Tokens)
+	s.Require().InDelta(3.75, stats[user1.ID].StandardCost, 1e-9)
+	s.Require().InDelta(3.75, stats[user1.ID].Cost, 1e-9)
+	s.Require().InDelta(2.25, stats[user1.ID].UserCost, 1e-9)
+
+	s.Require().Equal(int64(1), stats[user2.ID].Requests)
+	s.Require().Equal(int64(110), stats[user2.ID].Tokens)
+	s.Require().InDelta(3.75, stats[user2.ID].Cost, 1e-9)
+	s.Require().InDelta(2.25, stats[user2.ID].UserCost, 1e-9)
+
+	s.Require().NotNil(stats[int64(999999)])
+	s.Require().Equal(int64(0), stats[int64(999999)].Requests)
+	s.Require().Equal(int64(0), stats[int64(999999)].Tokens)
+}
+
+func (s *UsageLogRepoSuite) createUsageLogWithGroup(user *service.User, apiKey *service.APIKey, account *service.Account, groupID int64, inputTokens, outputTokens int, totalCost, actualCost float64, createdAt time.Time) *service.UsageLog {
+	log := &service.UsageLog{
+		UserID:       user.ID,
+		APIKeyID:     apiKey.ID,
+		AccountID:    account.ID,
+		GroupID:      &groupID,
+		RequestID:    uuid.New().String(),
+		Model:        "claude-3",
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		TotalCost:    totalCost,
+		ActualCost:   actualCost,
+		CreatedAt:    createdAt,
+	}
+	_, err := s.repo.Create(s.ctx, log)
+	s.Require().NoError(err)
+	return log
+}
+
 // --- GetUserUsageTrendByUserID ---
 
 func (s *UsageLogRepoSuite) TestGetUserUsageTrendByUserID() {

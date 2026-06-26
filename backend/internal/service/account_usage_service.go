@@ -70,6 +70,7 @@ type UsageLogRepository interface {
 
 	// Account stats
 	GetAccountUsageStats(ctx context.Context, accountID int64, startTime, endTime time.Time) (*usagestats.AccountUsageStatsResponse, error)
+	GetGroupUserDailyStatsBatch(ctx context.Context, groupID int64, userIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.AccountStats, error)
 
 	// Aggregated stats (optimized)
 	GetUserStatsAggregated(ctx context.Context, userID int64, startTime, endTime time.Time) (*usagestats.UsageStats, error)

@@ -2181,6 +2181,62 @@ func (r *usageLogRepository) GetAccountWindowStatsBatch(ctx context.Context, acc
 	return result, nil
 }
 
+// GetGroupUserDailyStatsBatch aggregates account-management-compatible stats by user for one group and one window.
+// Unmatched users are returned with zero-value stats so callers can index the result without extra checks.
+func (r *usageLogRepository) GetGroupUserDailyStatsBatch(ctx context.Context, groupID int64, userIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.AccountStats, error) {
+	result := make(map[int64]*usagestats.AccountStats, len(userIDs))
+	if groupID <= 0 || len(userIDs) == 0 {
+		return result, nil
+	}
+
+	query := `
+		SELECT
+			user_id,
+			COUNT(*) as requests,
+			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as tokens,
+			COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0) as cost,
+			COALESCE(SUM(total_cost), 0) as standard_cost,
+			COALESCE(SUM(actual_cost), 0) as user_cost
+		FROM usage_logs
+		WHERE group_id = $1
+		  AND user_id = ANY($2)
+		  AND created_at >= $3
+		  AND created_at < $4
+		GROUP BY user_id
+	`
+	rows, err := r.sql.QueryContext(ctx, query, groupID, pq.Array(userIDs), startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var userID int64
+		stats := &usagestats.AccountStats{}
+		if err := rows.Scan(
+			&userID,
+			&stats.Requests,
+			&stats.Tokens,
+			&stats.Cost,
+			&stats.StandardCost,
+			&stats.UserCost,
+		); err != nil {
+			return nil, err
+		}
+		result[userID] = stats
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	for _, userID := range userIDs {
+		if _, ok := result[userID]; !ok {
+			result[userID] = &usagestats.AccountStats{}
+		}
+	}
+	return result, nil
+}
+
 // GetGeminiUsageTotalsBatch 批量聚合 Gemini 账号在窗口内的 Pro/Flash 请求与用量。
 // 模型分类规则与 service.geminiModelClassFromName 一致：model 包含 flash/lite 视为 flash，其余视为 pro。
 func (r *usageLogRepository) GetGeminiUsageTotalsBatch(ctx context.Context, accountIDs []int64, startTime, endTime time.Time) (map[int64]service.GeminiUsageTotals, error) {
