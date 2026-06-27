@@ -502,14 +502,26 @@ func (s *GroupRepoSuite) TestListActive() {
 	baseGroups, err := s.repo.ListActive(s.ctx)
 	s.Require().NoError(err, "ListActive base")
 
-	s.Require().NoError(s.repo.Create(s.ctx, &service.Group{
-		Name:             "active1",
+	first := &service.Group{
+		Name:             "active_sort_first",
 		Platform:         service.PlatformAnthropic,
 		RateMultiplier:   1.0,
 		IsExclusive:      false,
 		Status:           service.StatusActive,
 		SubscriptionType: service.SubscriptionTypeStandard,
-	}))
+		SortOrder:        10,
+	}
+	second := &service.Group{
+		Name:             "active_sort_second",
+		Platform:         service.PlatformAnthropic,
+		RateMultiplier:   1.0,
+		IsExclusive:      false,
+		Status:           service.StatusActive,
+		SubscriptionType: service.SubscriptionTypeStandard,
+		SortOrder:        20,
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, second))
+	s.Require().NoError(s.repo.Create(s.ctx, first))
 	s.Require().NoError(s.repo.Create(s.ctx, &service.Group{
 		Name:             "inactive1",
 		Platform:         service.PlatformAnthropic,
@@ -521,16 +533,19 @@ func (s *GroupRepoSuite) TestListActive() {
 
 	groups, err := s.repo.ListActive(s.ctx)
 	s.Require().NoError(err, "ListActive")
-	s.Require().Len(groups, len(baseGroups)+1)
-	// Verify our test group is in the results
-	var found bool
-	for _, g := range groups {
-		if g.Name == "active1" {
-			found = true
-			break
+	s.Require().Len(groups, len(baseGroups)+2)
+	var firstIndex, secondIndex = -1, -1
+	for i, g := range groups {
+		switch g.Name {
+		case "active_sort_first":
+			firstIndex = i
+		case "active_sort_second":
+			secondIndex = i
 		}
 	}
-	s.Require().True(found, "active1 group should be in results")
+	s.Require().NotEqual(-1, firstIndex, "active_sort_first group should be in results")
+	s.Require().NotEqual(-1, secondIndex, "active_sort_second group should be in results")
+	s.Require().Less(firstIndex, secondIndex, "ListActive should order groups by sort_order asc")
 }
 
 func (s *GroupRepoSuite) TestListActiveByPlatform() {

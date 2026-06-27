@@ -1068,11 +1068,12 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
-	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform } from '@/types'
+	import type { ApiKey, Group, PublicSettings } from '@/types'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
+import { buildKeyGroupOptions, type KeyGroupOption } from './keyGroupOptions'
 import {
   buildCcSwitchImportDeeplink,
   type CcSwitchClientType
@@ -1085,15 +1086,7 @@ const formatDateTimeLocal = (isoDate: string): string => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-interface GroupOption {
-  value: number
-  label: string
-  description: string | null
-  rate: number
-  userRate: number | null
-  subscriptionType: SubscriptionType
-  platform: GroupPlatform
-}
+type GroupOption = KeyGroupOption
 
 const appStore = useAppStore()
 const onboardingStore = useOnboardingStore()
@@ -1243,15 +1236,7 @@ const onStatusFilterChange = (value: string | number | boolean | null) => {
 
 // Convert groups to Select options format with rate multiplier and subscription type
 const groupOptions = computed(() =>
-  groups.value.map((group) => ({
-    value: group.id,
-    label: group.name,
-    description: group.description,
-    rate: group.rate_multiplier,
-    userRate: userGroupRates.value[group.id] ?? null,
-    subscriptionType: group.subscription_type,
-    platform: group.platform
-  }))
+  buildKeyGroupOptions(groups.value, userGroupRates.value)
 )
 
 // Group dropdown search
