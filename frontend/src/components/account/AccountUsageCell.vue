@@ -519,7 +519,7 @@
     <!-- Key/Bedrock accounts: show today stats + optional quota bars -->
     <div v-else class="space-y-1">
       <OpenAIUpstreamBalanceCell
-        v-if="account.platform === 'openai' && account.type === 'apikey'"
+        v-if="supportsUpstreamBalance"
         :account="account"
         @refreshed="emitAccountRefreshed"
       />
@@ -693,6 +693,11 @@ const hasOpenAIUsageFallback = computed(() => {
   if (props.account.platform !== 'openai' || props.account.type !== 'oauth') return false
   return !!usageInfo.value?.five_hour || !!usageInfo.value?.seven_day
 })
+
+const supportsUpstreamBalance = computed(() =>
+  props.account.type === 'apikey' &&
+  (props.account.platform === 'openai' || props.account.platform === 'anthropic')
+)
 
 const openAIUsageRefreshKey = computed(() => buildOpenAIUsageRefreshKey(props.account))
 

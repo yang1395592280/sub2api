@@ -47,7 +47,10 @@ const loading = ref(false)
 const localAccount = ref<Account | null>(null)
 const localError = ref<string | null>(null)
 
-const visible = computed(() => props.account.platform === 'openai' && props.account.type === 'apikey')
+const visible = computed(() =>
+  props.account.type === 'apikey' &&
+  (props.account.platform === 'openai' || props.account.platform === 'anthropic')
+)
 
 const currentAccount = computed(() => localAccount.value ?? props.account)
 const currentExtra = computed(() => currentAccount.value.extra ?? {})

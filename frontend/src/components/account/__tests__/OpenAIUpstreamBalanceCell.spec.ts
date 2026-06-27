@@ -83,6 +83,27 @@ describe('OpenAIUpstreamBalanceCell', () => {
     expect(wrapper.text()).toContain('sub2api')
   })
 
+  it('renders cached USD balance for Anthropic API Key account', () => {
+    const account = makeAccount({
+      platform: 'anthropic',
+      type: 'apikey',
+      extra: {
+        upstream_balance_status: 'ok',
+        upstream_balance_provider: 'sub2api',
+        upstream_balance_remaining: 6.78,
+        upstream_balance_unit: 'USD',
+        upstream_balance_updated_at: '2026-06-20T10:00:00Z'
+      }
+    })
+
+    const wrapper = mount(OpenAIUpstreamBalanceCell, {
+      props: { account }
+    })
+
+    expect(wrapper.get('[data-testid="openai-upstream-balance-amount"]').text()).toBe('$6.78')
+    expect(wrapper.text()).toContain('sub2api')
+  })
+
   it('renders quota unit without dollar sign', () => {
     const account = makeAccount({
       platform: 'openai',
@@ -131,5 +152,36 @@ describe('OpenAIUpstreamBalanceCell', () => {
     await wrapper.get('button').trigger('click')
 
     expect(wrapper.emitted('refreshed')?.[0]?.[0].extra?.upstream_balance_remaining).toBe(9)
+  })
+
+  it('refreshes Anthropic API Key upstream balance manually', async () => {
+    vi.spyOn(accountsAPI, 'refreshUpstreamBalance').mockResolvedValue(
+      makeAccount({
+        id: 2,
+        platform: 'anthropic',
+        type: 'apikey',
+        extra: {
+          upstream_balance_status: 'ok',
+          upstream_balance_remaining: 8,
+          upstream_balance_unit: 'USD',
+          upstream_group: 'Claude Pro'
+        }
+      })
+    )
+
+    const wrapper = mount(OpenAIUpstreamBalanceCell, {
+      props: {
+        account: makeAccount({
+          id: 2,
+          platform: 'anthropic',
+          type: 'apikey'
+        })
+      }
+    })
+
+    await wrapper.get('button').trigger('click')
+
+    expect(accountsAPI.refreshUpstreamBalance).toHaveBeenCalledWith(2)
+    expect(wrapper.emitted('refreshed')?.[0]?.[0].extra?.upstream_group).toBe('Claude Pro')
   })
 })
