@@ -98,6 +98,35 @@ func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIUsageGroup(t *testing.T) {
 	require.Equal(t, int64(2), repo.updatedExtra["upstream_group_id"])
 }
 
+func TestOpenAIUpstreamBalanceServiceRefresh_AnthropicAPIKeySub2APIUsageGroup(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/usage", r.URL.Path)
+		require.Equal(t, "Bearer sk-ant-upstream", r.Header.Get("Authorization"))
+		_, _ = w.Write([]byte(`{"remaining":7.25,"unit":"USD","group_id":8,"group":{"id":8,"name":"Claude Console Pro","rate_multiplier":0.2}}`))
+	}))
+	defer srv.Close()
+
+	repo := &openAIUpstreamBalanceRepoStub{
+		account: &Account{
+			ID:       29,
+			Platform: PlatformAnthropic,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url": srv.URL + "/v1",
+				"api_key":  "sk-ant-upstream",
+			},
+		},
+	}
+
+	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+	_, err := svc.Refresh(context.Background(), 29)
+	require.NoError(t, err)
+	require.Equal(t, "sub2api", repo.updatedExtra["upstream_balance_provider"])
+	require.Equal(t, 7.25, repo.updatedExtra["upstream_balance_remaining"])
+	require.Equal(t, "Claude Console Pro", repo.updatedExtra["upstream_group"])
+	require.Equal(t, int64(8), repo.updatedExtra["upstream_group_id"])
+}
+
 func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveRate(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

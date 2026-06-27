@@ -1072,6 +1072,31 @@ func (a *Account) IsOpenAIApiKey() bool {
 	return a.IsOpenAI() && a.Type == AccountTypeAPIKey
 }
 
+func (a *Account) IsAnthropicAPIKey() bool {
+	return a.IsAnthropic() && a.Type == AccountTypeAPIKey
+}
+
+func (a *Account) IsUpstreamBalanceAPIKeyAccount() bool {
+	return a.IsOpenAIApiKey() || a.IsAnthropicAPIKey()
+}
+
+func (a *Account) GetUpstreamBalanceBaseURL() string {
+	if a.IsOpenAIApiKey() {
+		return a.GetOpenAIBaseURL()
+	}
+	if a.IsAnthropicAPIKey() {
+		return a.GetCredential("base_url")
+	}
+	return ""
+}
+
+func (a *Account) GetUpstreamBalanceAPIKey() string {
+	if !a.IsUpstreamBalanceAPIKeyAccount() {
+		return ""
+	}
+	return a.GetCredential("api_key")
+}
+
 func (a *Account) GetOpenAIBaseURL() string {
 	if !a.IsOpenAI() {
 		return ""

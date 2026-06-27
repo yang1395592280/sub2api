@@ -3502,7 +3502,7 @@ export default {
         refreshTokenSuccess: 'Successfully refreshed {count} account(s) token',
         refreshBalanceSuccess: 'Successfully refreshed {count} account balance(s)',
         refreshBalancePartial: 'Balance refresh completed: {success} succeeded, {failed} failed',
-        refreshBalanceNoEligible: 'Select OpenAI API Key accounts before refreshing balances',
+        refreshBalanceNoEligible: 'Select OpenAI or Anthropic API Key accounts before refreshing balances',
         partialSuccess: 'Partially completed: {success} succeeded, {failed} failed'
       },
       bulkEdit: {

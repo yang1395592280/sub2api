@@ -430,7 +430,7 @@ describe('admin AccountsView bulk edit scope', () => {
     expect(wrapper.get('[data-test="batch-test-modal"]').attributes('data-account-count')).toBe('2')
   })
 
-  it('refreshes upstream balance for selected OpenAI API Key accounts one by one and keeps going after failures', async () => {
+  it('refreshes upstream balance for selected OpenAI and Anthropic API Key accounts one by one and keeps going after failures', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const accounts = [
       {
@@ -485,10 +485,12 @@ describe('admin AccountsView bulk edit scope', () => {
     const firstRefresh = deferred<(typeof accounts)[number] & { extra: Record<string, unknown> }>()
     const secondRefresh = deferred<(typeof accounts)[number] & { extra: Record<string, unknown> }>()
     const thirdRefresh = deferred<(typeof accounts)[number] & { extra: Record<string, unknown> }>()
+    const fourthRefresh = deferred<(typeof accounts)[number] & { extra: Record<string, unknown> }>()
     refreshUpstreamBalance
       .mockReturnValueOnce(firstRefresh.promise)
       .mockReturnValueOnce(secondRefresh.promise)
       .mockReturnValueOnce(thirdRefresh.promise)
+      .mockReturnValueOnce(fourthRefresh.promise)
 
     const AccountBulkActionsBarRefreshBalanceStub = {
       props: ['selectedIds'],
@@ -566,9 +568,24 @@ describe('admin AccountsView bulk edit scope', () => {
     await flushPromises()
 
     expect(refreshUpstreamBalance).toHaveBeenCalledTimes(3)
-    expect(refreshUpstreamBalance).toHaveBeenLastCalledWith(4)
+    expect(refreshUpstreamBalance).toHaveBeenLastCalledWith(3)
 
     thirdRefresh.resolve({
+      ...accounts[2],
+      extra: {
+        upstream_balance_status: 'ok',
+        upstream_balance_remaining: 34,
+        upstream_balance_unit: 'USD',
+        upstream_group: 'Claude Console Pro'
+      }
+    })
+    await flushPromises()
+
+    expect(refreshUpstreamBalance).toHaveBeenCalledTimes(4)
+    expect(refreshUpstreamBalance).toHaveBeenLastCalledWith(4)
+    expect(wrapper.vm.accounts.find(account => account.id === 3)?.extra?.upstream_group).toBe('Claude Console Pro')
+
+    fourthRefresh.resolve({
       ...accounts[3],
       extra: {
         upstream_balance_status: 'ok',
@@ -578,10 +595,10 @@ describe('admin AccountsView bulk edit scope', () => {
     })
     await flushPromises()
 
-    expect(refreshUpstreamBalance).toHaveBeenCalledTimes(3)
-    expect(refreshUpstreamBalance.mock.calls.map(([id]) => id)).toEqual([1, 2, 4])
+    expect(refreshUpstreamBalance).toHaveBeenCalledTimes(4)
+    expect(refreshUpstreamBalance.mock.calls.map(([id]) => id)).toEqual([1, 2, 3, 4])
     expect(wrapper.vm.accounts.find(account => account.id === 4)?.extra?.upstream_balance_remaining).toBe(56)
-    expect(showError).toHaveBeenCalledWith('balance partial 2/1')
+    expect(showError).toHaveBeenCalledWith('balance partial 3/1')
     expect(showSuccess).not.toHaveBeenCalled()
     expect(consoleError).toHaveBeenCalledWith('Failed to refresh upstream balance:', expect.any(Error))
   })

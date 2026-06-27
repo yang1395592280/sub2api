@@ -61,12 +61,12 @@ func (s *OpenAIUpstreamBalanceService) Refresh(ctx context.Context, accountID in
 	if err != nil {
 		return nil, err
 	}
-	if account == nil || !account.IsOpenAIApiKey() {
-		return nil, infraerrors.New(http.StatusBadRequest, "UPSTREAM_BALANCE_INVALID_ACCOUNT", "only OpenAI API Key accounts support upstream balance")
+	if account == nil || !account.IsUpstreamBalanceAPIKeyAccount() {
+		return nil, infraerrors.New(http.StatusBadRequest, "UPSTREAM_BALANCE_INVALID_ACCOUNT", "only OpenAI or Anthropic API Key accounts support upstream balance")
 	}
 
-	baseURL := strings.TrimSpace(account.GetOpenAIBaseURL())
-	apiKey := strings.TrimSpace(account.GetOpenAIApiKey())
+	baseURL := strings.TrimSpace(account.GetUpstreamBalanceBaseURL())
+	apiKey := strings.TrimSpace(account.GetUpstreamBalanceAPIKey())
 	if baseURL == "" || apiKey == "" {
 		return nil, infraerrors.New(http.StatusBadRequest, "UPSTREAM_BALANCE_MISSING_CREDENTIALS", "base_url and api_key are required")
 	}

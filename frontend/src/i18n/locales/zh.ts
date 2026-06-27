@@ -3662,7 +3662,7 @@ export default {
         refreshTokenSuccess: '已成功刷新 {count} 个账号令牌',
         refreshBalanceSuccess: '已成功刷新 {count} 个账号余额',
         refreshBalancePartial: '余额刷新完成：成功 {success} 个，失败 {failed} 个',
-        refreshBalanceNoEligible: '请选择 OpenAI API Key 账号后再刷新余额',
+        refreshBalanceNoEligible: '请选择 OpenAI 或 Anthropic API Key 账号后再刷新余额',
         partialSuccess: '操作部分完成：{success} 成功，{failed} 失败'
       },
       bulkEdit: {

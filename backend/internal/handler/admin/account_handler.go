@@ -989,7 +989,7 @@ func (h *AccountHandler) Refresh(c *gin.Context) {
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), updatedAccount))
 }
 
-// RefreshUpstreamBalance handles refreshing upstream balance for OpenAI API key accounts.
+// RefreshUpstreamBalance handles refreshing upstream balance for OpenAI/Anthropic API key accounts.
 // POST /api/v1/admin/accounts/:id/upstream-balance/refresh
 func (h *AccountHandler) RefreshUpstreamBalance(c *gin.Context) {
 	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
