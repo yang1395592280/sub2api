@@ -55,7 +55,7 @@ func TestOpenAIGatewayHandlerImageFile_ReturnsStoredImage(t *testing.T) {
 	gatewayService := service.NewOpenAIGatewayService(
 		nil, nil, nil, nil, nil, nil, nil,
 		&config.Config{Pricing: config.PricingConfig{DataDir: t.TempDir()}},
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	id, err := gatewayService.StoreImageFile([]byte("fake-png"), "image/png")
 	require.NoError(t, err)
