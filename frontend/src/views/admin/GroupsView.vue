@@ -64,6 +64,7 @@
               @click="openSortModal"
               class="btn btn-secondary"
               :title="t('admin.groups.sortOrder')"
+              data-testid="open-sort-modal"
             >
               <Icon name="arrowsUpDown" size="md" class="mr-2" />
               {{ t("admin.groups.sortOrder") }}
@@ -2952,11 +2953,14 @@
           class="space-y-2"
         >
           <div
-            v-for="group in sortableGroups"
+            v-for="(group, index) in sortableGroups"
             :key="group.id"
             class="flex cursor-grab items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-shadow hover:shadow-md active:cursor-grabbing dark:border-dark-600 dark:bg-dark-700"
           >
-            <div class="text-gray-400">
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-gray-600 dark:bg-dark-600 dark:text-gray-300">
+              {{ index + 1 }}
+            </div>
+            <div class="text-gray-400" :title="t('admin.groups.dragToSort')">
               <Icon name="menu" size="md" />
             </div>
             <div class="flex-1">
@@ -2978,7 +2982,33 @@
                 >
                   {{ t("admin.groups.platforms." + group.platform) }}
                 </span>
+                <span class="ml-2 text-gray-400 dark:text-gray-500">
+                  {{ t("admin.groups.currentSortOrder") }}:
+                  {{ group.sort_order }}
+                </span>
               </div>
+            </div>
+            <div class="flex items-center gap-1">
+              <button
+                type="button"
+                class="rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                :disabled="index === 0"
+                :title="t('admin.groups.moveUp')"
+                :data-testid="`move-sort-${group.id}-up`"
+                @click.stop="moveSortableGroup(index, index - 1)"
+              >
+                <Icon name="arrowUp" size="sm" />
+              </button>
+              <button
+                type="button"
+                class="rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                :disabled="index === sortableGroups.length - 1"
+                :title="t('admin.groups.moveDown')"
+                :data-testid="`move-sort-${group.id}-down`"
+                @click.stop="moveSortableGroup(index, index + 1)"
+              >
+                <Icon name="arrowDown" size="sm" />
+              </button>
             </div>
             <div class="text-sm text-gray-400">#{{ group.id }}</div>
           </div>
@@ -2998,6 +3028,7 @@
             @click="saveSortOrder"
             :disabled="sortSubmitting"
             class="btn btn-primary"
+            data-testid="save-sort-order"
           >
             <svg
               v-if="sortSubmitting"
@@ -4334,6 +4365,23 @@ const openSortModal = async () => {
 const closeSortModal = () => {
   showSortModal.value = false;
   sortableGroups.value = [];
+};
+
+// 调整排序弹窗中的分组位置；拖拽和按钮最终都提交同一批 sort_order。
+const moveSortableGroup = (fromIndex: number, toIndex: number) => {
+  if (
+    fromIndex === toIndex ||
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= sortableGroups.value.length ||
+    toIndex >= sortableGroups.value.length
+  ) {
+    return;
+  }
+  const next = [...sortableGroups.value];
+  const [moved] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, moved);
+  sortableGroups.value = next;
 };
 
 // 保存排序
