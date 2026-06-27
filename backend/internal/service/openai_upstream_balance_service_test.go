@@ -98,6 +98,36 @@ func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIUsageGroup(t *testing.T) {
 	require.Equal(t, int64(2), repo.updatedExtra["upstream_group_id"])
 }
 
+func TestOpenAIUpstreamBalanceServiceRefresh_AnthropicAPIKeySub2APIUsageGroup(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/usage", r.URL.Path)
+		require.Equal(t, "Bearer sk-ant-upstream", r.Header.Get("Authorization"))
+		_, _ = w.Write([]byte(`{"remaining":6.78,"unit":"USD","group_id":9,"group":{"id":9,"name":"Claude Pro","rate_multiplier":0.42}}`))
+	}))
+	defer srv.Close()
+
+	repo := &openAIUpstreamBalanceRepoStub{
+		account: &Account{
+			ID:       29,
+			Platform: PlatformAnthropic,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url": srv.URL + "/v1",
+				"api_key":  "sk-ant-upstream",
+			},
+		},
+	}
+
+	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+	_, err := svc.Refresh(context.Background(), 29)
+	require.NoError(t, err)
+	require.Equal(t, "sub2api", repo.updatedExtra["upstream_balance_provider"])
+	require.Equal(t, 6.78, repo.updatedExtra["upstream_balance_remaining"])
+	require.Equal(t, "USD", repo.updatedExtra["upstream_balance_unit"])
+	require.Equal(t, "Claude Pro", repo.updatedExtra["upstream_group"])
+	require.Equal(t, int64(9), repo.updatedExtra["upstream_group_id"])
+}
+
 func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveRate(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -525,7 +555,7 @@ func TestOpenAIUpstreamBalanceServiceRefresh_PersistsErrorSnapshotWhenProvidersF
 	require.Equal(t, "error", account.Extra["upstream_balance_status"])
 }
 
-func TestOpenAIUpstreamBalanceServiceRefresh_RejectsNonOpenAIAPIKey(t *testing.T) {
+func TestOpenAIUpstreamBalanceServiceRefresh_RejectsUnsupportedAccount(t *testing.T) {
 	repo := &openAIUpstreamBalanceRepoStub{
 		account: &Account{ID: 11, Platform: PlatformOpenAI, Type: AccountTypeOAuth},
 	}

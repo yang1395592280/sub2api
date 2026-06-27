@@ -1104,7 +1104,7 @@
           <p class="input-hint">{{ apiKeyHint }}</p>
         </div>
 
-        <div v-if="form.platform === 'openai'" class="space-y-4 border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div v-if="supportsUpstreamAdminSettings" class="space-y-4 border-t border-gray-200 pt-4 dark:border-dark-600">
           <div>
             <label class="input-label">上游管理类型</label>
             <select v-model="upstreamAdminType" class="input">
@@ -3517,6 +3517,10 @@ const upstreamAdminEmail = ref('')
 const upstreamAdminPassword = ref('')
 const upstreamAdminAccessToken = ref('')
 
+const supportsUpstreamAdminSettings = computed(() =>
+  form.type === 'apikey' && (form.platform === 'openai' || form.platform === 'anthropic')
+)
+
 const syncPreviewCredentials = computed(() => {
   if (!apiKeyValue.value) return undefined
   return {
@@ -4822,6 +4826,8 @@ const handleSubmit = async () => {
     if (compactModelMapping) {
       credentials.compact_model_mapping = compactModelMapping
     }
+  }
+  if (supportsUpstreamAdminSettings.value) {
     const trimmedUpstreamAdminType = upstreamAdminType.value.trim()
     if (trimmedUpstreamAdminType) {
       credentials.upstream_admin_type = trimmedUpstreamAdminType

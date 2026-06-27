@@ -70,7 +70,7 @@
         </div>
 
         <div
-          v-if="account.platform === 'openai' && account.type === 'apikey'"
+          v-if="supportsUpstreamAdminSettings"
           class="space-y-4 border-t border-gray-200 pt-4 dark:border-dark-600"
         >
           <div>
@@ -2577,6 +2577,10 @@ const editNewApiUserAccessToken = ref('')
 const editUpstreamAdminEmail = ref('')
 const editUpstreamAdminPassword = ref('')
 const editUpstreamAdminAccessToken = ref('')
+const supportsUpstreamAdminSettings = computed(() =>
+  props.account?.type === 'apikey' &&
+  (props.account.platform === 'openai' || props.account.platform === 'anthropic')
+)
 // Bedrock credentials
 const editBedrockAccessKeyId = ref('')
 const editBedrockSecretAccessKey = ref('')
@@ -3220,14 +3224,14 @@ const syncFormFromAccount = (newAccount: Account | null) => {
           ? 'https://generativelanguage.googleapis.com'
           : 'https://api.anthropic.com'
     editBaseUrl.value = (credentials.base_url as string) || platformDefaultUrl
-    editUpstreamAdminType.value = newAccount.platform === 'openai'
+    editUpstreamAdminType.value = supportsUpstreamAdminSettings.value
       ? String(credentials.upstream_admin_type ?? (credentials.new_api_user_id ? 'new-api' : '')) as '' | 'sub2api' | 'new-api'
       : ''
-    editNewApiUserId.value = newAccount.platform === 'openai'
+    editNewApiUserId.value = supportsUpstreamAdminSettings.value
       ? String(credentials.new_api_user_id ?? '')
       : ''
     editNewApiUserAccessToken.value = ''
-    editUpstreamAdminEmail.value = newAccount.platform === 'openai'
+    editUpstreamAdminEmail.value = supportsUpstreamAdminSettings.value
       ? String(credentials.upstream_admin_email ?? credentials.upstream_admin_username ?? '')
       : ''
     editUpstreamAdminPassword.value = ''
@@ -3848,7 +3852,7 @@ const handleSubmit = async () => {
         ...currentCredentials,
         base_url: newBaseUrl
       }
-      if (props.account.platform === 'openai') {
+      if (supportsUpstreamAdminSettings.value) {
         const trimmedUpstreamAdminType = editUpstreamAdminType.value.trim()
         if (trimmedUpstreamAdminType) {
           newCredentials.upstream_admin_type = trimmedUpstreamAdminType

@@ -430,7 +430,7 @@ describe('admin AccountsView bulk edit scope', () => {
     expect(wrapper.get('[data-test="batch-test-modal"]').attributes('data-account-count')).toBe('2')
   })
 
-  it('refreshes upstream balance for selected OpenAI API Key accounts one by one and keeps going after failures', async () => {
+  it('refreshes upstream balance for selected OpenAI and Anthropic API Key accounts one by one and keeps going after failures', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const accounts = [
       {
@@ -455,7 +455,17 @@ describe('admin AccountsView bulk edit scope', () => {
       },
       {
         id: 3,
-        name: 'anthropic',
+        name: 'anthropic-oauth',
+        platform: 'anthropic',
+        type: 'oauth',
+        status: 'active',
+        schedulable: true,
+        created_at: '2026-03-07T10:00:00Z',
+        updated_at: '2026-03-07T10:00:00Z'
+      },
+      {
+        id: 4,
+        name: 'anthropic-key',
         platform: 'anthropic',
         type: 'apikey',
         status: 'active',
@@ -464,10 +474,10 @@ describe('admin AccountsView bulk edit scope', () => {
         updated_at: '2026-03-07T10:00:00Z'
       },
       {
-        id: 4,
-        name: 'openai-c',
+        id: 5,
+        name: 'openai-oauth',
         platform: 'openai',
-        type: 'apikey',
+        type: 'oauth',
         status: 'active',
         schedulable: true,
         created_at: '2026-03-07T10:00:00Z',
@@ -539,6 +549,7 @@ describe('admin AccountsView bulk edit scope', () => {
     await wrapper.vm.toggleSel(2)
     await wrapper.vm.toggleSel(3)
     await wrapper.vm.toggleSel(4)
+    await wrapper.vm.toggleSel(5)
     await flushPromises()
 
     await wrapper.get('[data-test="refresh-balance"]').trigger('click')

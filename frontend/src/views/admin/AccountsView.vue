@@ -1207,6 +1207,10 @@ function getUpstreamGroupTitle(row: Account): string {
   return labels.join(' | ')
 }
 
+function supportsUpstreamBalanceRefresh(account: Account): boolean {
+  return account.type === 'apikey' && (account.platform === 'openai' || account.platform === 'anthropic')
+}
+
 // All available columns
 const allColumns = computed(() => {
   const c = [
@@ -1346,10 +1350,10 @@ const handleBulkRefreshToken = async () => {
 const handleBulkRefreshBalance = async () => {
   if (balanceRefreshing.value) return
   const selectedIdSet = new Set(selIds.value)
-  const selectedOpenAIKeyAccounts = accounts.value.filter(account =>
-    selectedIdSet.has(account.id) && account.platform === 'openai' && account.type === 'apikey'
+  const selectedUpstreamBalanceAccounts = accounts.value.filter(account =>
+    selectedIdSet.has(account.id) && supportsUpstreamBalanceRefresh(account)
   )
-  if (selectedOpenAIKeyAccounts.length === 0) {
+  if (selectedUpstreamBalanceAccounts.length === 0) {
     appStore.showWarning(t('admin.accounts.bulkActions.refreshBalanceNoEligible'))
     return
   }
@@ -1358,7 +1362,7 @@ const handleBulkRefreshBalance = async () => {
   let failed = 0
   balanceRefreshing.value = true
   try {
-    for (const account of selectedOpenAIKeyAccounts) {
+    for (const account of selectedUpstreamBalanceAccounts) {
       try {
         const updatedAccount = await adminAPI.accounts.refreshUpstreamBalance(account.id)
         handleAccountUpdated(updatedAccount)

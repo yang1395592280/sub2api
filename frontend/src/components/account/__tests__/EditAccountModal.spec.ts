@@ -599,6 +599,42 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_admin_password).toBe('new-password')
   })
 
+  it('shows and saves upstream admin settings for Anthropic API key accounts', async () => {
+    const account = {
+      ...buildAccount(),
+      name: 'Anthropic Key',
+      platform: 'anthropic',
+      credentials: {
+        api_key: 'sk-ant-test',
+        base_url: 'https://api.anthropic.com',
+        upstream_admin_type: 'sub2api',
+        upstream_admin_email: 'admin@example.com'
+      },
+      credentials_status: {
+        has_api_key: true,
+        has_upstream_admin_access_token: true,
+        has_upstream_admin_password: true
+      }
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    expect(wrapper.text()).toContain('上游管理类型')
+    expect(wrapper.text()).toContain('sub2api 上游管理凭据')
+
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_admin_type).toBe('sub2api')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_admin_email).toBe('admin@example.com')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('upstream_admin_access_token')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('upstream_admin_password')
+  })
+
   it('allows saving apikey account against legacy backend without credentials_status', async () => {
     // 新前端 + 旧后端：credentials_status 缺失，但 credentials.api_key 仍是明文，应允许保存
     const account = buildAccount()

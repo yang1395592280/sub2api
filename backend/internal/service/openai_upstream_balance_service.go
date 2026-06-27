@@ -61,12 +61,12 @@ func (s *OpenAIUpstreamBalanceService) Refresh(ctx context.Context, accountID in
 	if err != nil {
 		return nil, err
 	}
-	if account == nil || !account.IsOpenAIApiKey() {
-		return nil, infraerrors.New(http.StatusBadRequest, "UPSTREAM_BALANCE_INVALID_ACCOUNT", "only OpenAI API Key accounts support upstream balance")
+	if account == nil || !accountSupportsUpstreamBalance(account) {
+		return nil, infraerrors.New(http.StatusBadRequest, "UPSTREAM_BALANCE_INVALID_ACCOUNT", "only OpenAI and Anthropic API Key accounts support upstream balance")
 	}
 
-	baseURL := strings.TrimSpace(account.GetOpenAIBaseURL())
-	apiKey := strings.TrimSpace(account.GetOpenAIApiKey())
+	baseURL := strings.TrimSpace(getUpstreamBalanceBaseURL(account))
+	apiKey := strings.TrimSpace(account.GetCredential("api_key"))
 	if baseURL == "" || apiKey == "" {
 		return nil, infraerrors.New(http.StatusBadRequest, "UPSTREAM_BALANCE_MISSING_CREDENTIALS", "base_url and api_key are required")
 	}
@@ -93,6 +93,22 @@ func (s *OpenAIUpstreamBalanceService) Refresh(ctx context.Context, accountID in
 		account.Extra[k] = v
 	}
 	return account, nil
+}
+
+func accountSupportsUpstreamBalance(account *Account) bool {
+	return account != nil &&
+		account.Type == AccountTypeAPIKey &&
+		(account.Platform == PlatformOpenAI || account.Platform == PlatformAnthropic)
+}
+
+func getUpstreamBalanceBaseURL(account *Account) string {
+	if account == nil {
+		return ""
+	}
+	if account.Platform == PlatformOpenAI {
+		return account.GetOpenAIBaseURL()
+	}
+	return account.GetBaseURL()
 }
 
 func buildOpenAIUpstreamBalanceUpdates(snapshot OpenAIUpstreamBalanceSnapshot) map[string]any {
