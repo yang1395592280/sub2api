@@ -13,8 +13,9 @@ import (
 
 type openAIUpstreamBalanceRepoStub struct {
 	AccountRepository
-	account      *Account
-	updatedExtra map[string]any
+	account             *Account
+	updatedExtra        map[string]any
+	updatedChannelPrice *float64
 }
 
 func (r *openAIUpstreamBalanceRepoStub) GetByID(context.Context, int64) (*Account, error) {
@@ -36,6 +37,30 @@ func (r *openAIUpstreamBalanceRepoStub) UpdateExtra(_ context.Context, _ int64, 
 		r.account.Extra[k] = v
 	}
 	return nil
+}
+
+func (r *openAIUpstreamBalanceRepoStub) BulkUpdate(_ context.Context, ids []int64, updates AccountBulkUpdate) (int64, error) {
+	if len(ids) == 0 || r.account == nil || ids[0] != r.account.ID {
+		return 0, nil
+	}
+	if len(updates.Extra) > 0 {
+		r.updatedExtra = make(map[string]any, len(updates.Extra))
+		for k, v := range updates.Extra {
+			r.updatedExtra[k] = v
+		}
+		if r.account.Extra == nil {
+			r.account.Extra = map[string]any{}
+		}
+		for k, v := range updates.Extra {
+			r.account.Extra[k] = v
+		}
+	}
+	if updates.ChannelPrice != nil {
+		channelPrice := *updates.ChannelPrice
+		r.updatedChannelPrice = &channelPrice
+		r.account.ChannelPrice = &channelPrice
+	}
+	return 1, nil
 }
 
 func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIUsageRemaining(t *testing.T) {
@@ -82,6 +107,10 @@ func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIUsageGroup(t *testing.T) {
 			ID:       19,
 			Platform: PlatformOpenAI,
 			Type:     AccountTypeAPIKey,
+			ChannelPrice: func() *float64 {
+				price := 1.23
+				return &price
+			}(),
 			Credentials: map[string]any{
 				"base_url": srv.URL + "/v1",
 				"api_key":  "sk-upstream",
@@ -96,6 +125,9 @@ func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIUsageGroup(t *testing.T) {
 	require.Equal(t, 0.13404922, repo.updatedExtra["upstream_balance_remaining"])
 	require.Equal(t, "GPT Plus", repo.updatedExtra["upstream_group"])
 	require.Equal(t, int64(2), repo.updatedExtra["upstream_group_id"])
+	require.Equal(t, 0.08, repo.updatedExtra["upstream_group_rate_multiplier"])
+	require.NotNil(t, repo.updatedChannelPrice)
+	require.Equal(t, 0.08, *repo.updatedChannelPrice)
 }
 
 func TestOpenAIUpstreamBalanceServiceRefresh_AnthropicAPIKeySub2APIUsageGroup(t *testing.T) {
@@ -151,6 +183,10 @@ func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveR
 			ID:       20,
 			Platform: PlatformOpenAI,
 			Type:     AccountTypeAPIKey,
+			ChannelPrice: func() *float64 {
+				price := 1.23
+				return &price
+			}(),
 			Credentials: map[string]any{
 				"base_url":                    srv.URL + "/v1",
 				"api_key":                     "sk-upstream",
@@ -171,6 +207,8 @@ func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveR
 	require.Equal(t, 0.4, repo.updatedExtra["upstream_group_rate_multiplier"])
 	require.Equal(t, 0.09, repo.updatedExtra["upstream_effective_rate_multiplier"])
 	require.Equal(t, "user_group_rate", repo.updatedExtra["upstream_rate_source"])
+	require.NotNil(t, repo.updatedChannelPrice)
+	require.Equal(t, 0.09, *repo.updatedChannelPrice)
 }
 
 func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminPasswordLogsInForEffectiveRate(t *testing.T) {

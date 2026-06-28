@@ -83,7 +83,7 @@ func (s *OpenAIUpstreamBalanceService) Refresh(ctx context.Context, accountID in
 	} else {
 		updates = buildOpenAIUpstreamBalanceUpdates(snapshot)
 	}
-	if err := s.accountRepo.UpdateExtra(ctx, account.ID, updates); err != nil {
+	if err := s.persistRefreshUpdates(ctx, account, updates, snapshot); err != nil {
 		return nil, err
 	}
 	if account.Extra == nil {
@@ -92,7 +92,41 @@ func (s *OpenAIUpstreamBalanceService) Refresh(ctx context.Context, accountID in
 	for k, v := range updates {
 		account.Extra[k] = v
 	}
+	if channelPrice := openAIUpstreamBalanceChannelPrice(snapshot); channelPrice != nil {
+		account.ChannelPrice = channelPrice
+	}
 	return account, nil
+}
+
+func (s *OpenAIUpstreamBalanceService) persistRefreshUpdates(ctx context.Context, account *Account, updates map[string]any, snapshot OpenAIUpstreamBalanceSnapshot) error {
+	channelPrice := openAIUpstreamBalanceChannelPrice(snapshot)
+	if channelPrice == nil {
+		return s.accountRepo.UpdateExtra(ctx, account.ID, updates)
+	}
+
+	rows, err := s.accountRepo.BulkUpdate(ctx, []int64{account.ID}, AccountBulkUpdate{
+		ChannelPrice: channelPrice,
+		Extra:        updates,
+	})
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrAccountNotFound
+	}
+	return nil
+}
+
+func openAIUpstreamBalanceChannelPrice(snapshot OpenAIUpstreamBalanceSnapshot) *float64 {
+	if snapshot.EffectiveRateMultiplier != nil && *snapshot.EffectiveRateMultiplier > 0 {
+		price := *snapshot.EffectiveRateMultiplier
+		return &price
+	}
+	if snapshot.GroupRateMultiplier != nil && *snapshot.GroupRateMultiplier > 0 {
+		price := *snapshot.GroupRateMultiplier
+		return &price
+	}
+	return nil
 }
 
 func accountSupportsUpstreamBalance(account *Account) bool {
@@ -203,10 +237,11 @@ func (s *OpenAIUpstreamBalanceService) probeSub2API(ctx context.Context, account
 		return OpenAIUpstreamBalanceSnapshot{}, fmt.Errorf("sub2api response missing remaining")
 	}
 	snapshot := OpenAIUpstreamBalanceSnapshot{
-		Remaining: remaining,
-		Unit:      strings.TrimSpace(getString(payload, "unit")),
-		Group:     getOpenAIUpstreamGroupName(payload),
-		GroupID:   getOpenAIUpstreamGroupID(payload),
+		Remaining:           remaining,
+		Unit:                strings.TrimSpace(getString(payload, "unit")),
+		Group:               getOpenAIUpstreamGroupName(payload),
+		GroupID:             getOpenAIUpstreamGroupID(payload),
+		GroupRateMultiplier: getOpenAIUpstreamGroupRateMultiplier(payload),
 	}
 	if strings.TrimSpace(snapshot.Group) == "" {
 		s.enrichSub2APIAdminMetadata(ctx, account, baseURL, apiKey, &snapshot)
@@ -710,6 +745,22 @@ func getOpenAIUpstreamGroupID(payload map[string]any) *int64 {
 	group, _ := payload["group"].(map[string]any)
 	if id, ok := getInt64(group, "id"); ok {
 		return &id
+	}
+	return nil
+}
+
+func getOpenAIUpstreamGroupRateMultiplier(payload map[string]any) *float64 {
+	if payload == nil {
+		return nil
+	}
+	for _, key := range []string{"upstream_group_rate_multiplier", "group_rate_multiplier", "rate_multiplier"} {
+		if rate, ok := getFloat64(payload, key); ok {
+			return &rate
+		}
+	}
+	group, _ := payload["group"].(map[string]any)
+	if rate, ok := getFloat64(group, "rate_multiplier"); ok {
+		return &rate
 	}
 	return nil
 }
