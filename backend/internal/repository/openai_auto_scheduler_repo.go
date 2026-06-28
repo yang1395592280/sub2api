@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"strings"
+	"unicode/utf8"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/group"
@@ -252,7 +253,11 @@ func truncateOpenAIAutoSchedulerMessage(message string) string {
 	if len(message) <= openAIAutoSchedulerMaxMessageLen {
 		return message
 	}
-	return message[:openAIAutoSchedulerMaxMessageLen]
+	message = message[:openAIAutoSchedulerMaxMessageLen]
+	for !utf8.ValidString(message) {
+		message = message[:len(message)-1]
+	}
+	return message
 }
 
 func clampOpenAIAutoSchedulerBasisPoints(score int) int {

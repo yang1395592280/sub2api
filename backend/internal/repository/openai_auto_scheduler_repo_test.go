@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/enttest"
@@ -188,6 +189,28 @@ func TestOpenAIAutoSchedulerRepository_InsertScoreEventTruncatesAndPersistsDetai
 	require.Len(t, got.Message, 1000)
 	require.Equal(t, strings.Repeat("x", 1000), got.Message)
 	require.WithinDuration(t, createdAt, got.CreatedAt, time.Second)
+}
+
+func TestOpenAIAutoSchedulerRepository_InsertScoreEventTruncatesMessageAtRuneBoundary(t *testing.T) {
+	ctx := context.Background()
+	repo, client := newOpenAIAutoSchedulerRepoSQLite(t)
+	message := strings.Repeat("x", 999) + "慢"
+
+	require.NoError(t, repo.InsertScoreEvent(ctx, service.OpenAIAutoSchedulerScoreEvent{
+		AccountID: 702,
+		GroupID:   802,
+		Model:     "gpt-5",
+		EventType: service.OpenAIAutoSchedulerEventError,
+		Message:   message,
+	}))
+
+	got, err := client.OpenAIAutoSchedulerScoreEvent.Query().
+		Where(openaiautoschedulerscoreevent.AccountIDEQ(702)).
+		Only(ctx)
+	require.NoError(t, err)
+	require.True(t, utf8.ValidString(got.Message))
+	require.LessOrEqual(t, len(got.Message), 1000)
+	require.Equal(t, strings.Repeat("x", 999), got.Message)
 }
 
 func TestOpenAIAutoSchedulerRepository_ListEnabledOpenAIGroupsFiltersActiveEnabledOpenAI(t *testing.T) {
