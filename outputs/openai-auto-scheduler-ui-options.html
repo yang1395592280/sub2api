@@ -1,0 +1,1182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenAI 自动调度 UI 设计稿</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --panel-2: #f9fafb;
+      --line: #d9dee7;
+      --line-soft: #e7ebf1;
+      --text: #172033;
+      --muted: #667085;
+      --soft: #8a94a6;
+      --green: #14804a;
+      --green-bg: #e9f7ef;
+      --blue: #2364aa;
+      --blue-bg: #eaf2fb;
+      --amber: #9a6700;
+      --amber-bg: #fff5d6;
+      --red: #b42318;
+      --red-bg: #fff1f0;
+      --violet: #6d3ac2;
+      --violet-bg: #f3efff;
+      --shadow: 0 10px 30px rgba(18, 25, 38, 0.08);
+      --radius: 8px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 232px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .nav {
+      border-right: 1px solid var(--line);
+      background: #111827;
+      color: #d1d5db;
+      padding: 18px 14px;
+    }
+
+    .brand {
+      color: #fff;
+      font-weight: 700;
+      font-size: 16px;
+      margin: 4px 8px 22px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 7px;
+      color: #c7ceda;
+      margin-bottom: 3px;
+    }
+
+    .nav-item.active {
+      background: #243044;
+      color: #fff;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: .75;
+    }
+
+    main {
+      padding: 22px;
+      min-width: 0;
+    }
+
+    .page-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 22px;
+      margin: 0 0 5px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 15px;
+      margin: 0;
+    }
+
+    h3 {
+      font-size: 14px;
+      margin: 0;
+    }
+
+    p { margin: 0; }
+
+    .sub {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 14px 0 18px;
+    }
+
+    .tab {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 7px;
+      padding: 9px 12px;
+      font-weight: 650;
+      color: #344054;
+    }
+
+    .tab.active {
+      border-color: #2f6fed;
+      color: #1f5fd6;
+      background: #edf4ff;
+    }
+
+    .mock {
+      margin-bottom: 28px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .mock-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid var(--line);
+      padding: 14px 16px;
+      background: #fcfcfd;
+    }
+
+    .mock-title strong {
+      display: block;
+      font-size: 15px;
+    }
+
+    .mock-title span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .tag.green { color: var(--green); background: var(--green-bg); }
+    .tag.blue { color: var(--blue); background: var(--blue-bg); }
+    .tag.amber { color: var(--amber); background: var(--amber-bg); }
+    .tag.red { color: var(--red); background: var(--red-bg); }
+    .tag.violet { color: var(--violet); background: var(--violet-bg); }
+    .tag.gray { color: #475467; background: #eef1f5; }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(230px, 330px) minmax(0, 1fr) auto;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line-soft);
+      align-items: center;
+    }
+
+    .select, .input, .btn {
+      height: 36px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 7px;
+      padding: 0 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: #344054;
+      font-weight: 560;
+    }
+
+    .input {
+      color: var(--muted);
+      font-weight: 500;
+      min-width: 170px;
+    }
+
+    .btn.primary {
+      border-color: #2f6fed;
+      background: #2f6fed;
+      color: #fff;
+    }
+
+    .btn.danger {
+      border-color: #fecdca;
+      background: #fff6f5;
+      color: var(--red);
+    }
+
+    .switch {
+      width: 34px;
+      height: 20px;
+      border-radius: 99px;
+      background: #2f6fed;
+      position: relative;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.04);
+    }
+
+    .switch::after {
+      content: "";
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      right: 2px;
+      top: 2px;
+      background: #fff;
+    }
+
+    .switch.off {
+      background: #98a2b3;
+    }
+
+    .switch.off::after {
+      left: 2px;
+      right: auto;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      padding: 14px 16px;
+      background: #fff;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .metric {
+      border: 1px solid var(--line-soft);
+      background: var(--panel-2);
+      border-radius: 7px;
+      padding: 10px;
+      min-height: 68px;
+    }
+
+    .metric label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 18px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric small {
+      display: block;
+      color: var(--soft);
+      margin-top: 2px;
+    }
+
+    .layout-a {
+      display: grid;
+      grid-template-columns: 290px minmax(0, 1fr);
+      min-height: 620px;
+    }
+
+    .group-panel {
+      border-right: 1px solid var(--line-soft);
+      padding: 14px;
+      background: #fbfcfe;
+    }
+
+    .group-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .group-card {
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+      padding: 10px;
+      background: #fff;
+    }
+
+    .group-card.active {
+      border-color: #8bb7ff;
+      background: #f3f8ff;
+    }
+
+    .group-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    .group-name {
+      font-weight: 700;
+      margin-bottom: 3px;
+    }
+
+    .group-meta {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .content {
+      min-width: 0;
+      background: #fff;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1130px;
+    }
+
+    th {
+      color: #667085;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line-soft);
+      background: #f8fafc;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 12px;
+      border-bottom: 1px solid var(--line-soft);
+      vertical-align: top;
+    }
+
+    .channel {
+      max-width: 275px;
+    }
+
+    .channel strong {
+      display: block;
+      font-size: 13px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .channel span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-top: 3px;
+    }
+
+    .score-main {
+      font-size: 20px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      margin-bottom: 6px;
+    }
+
+    .score-line {
+      width: 104px;
+      height: 7px;
+      border-radius: 999px;
+      background: #eef2f6;
+      overflow: hidden;
+    }
+
+    .score-line i {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: #27a063;
+    }
+
+    .score-line.amber i { background: #e4a72b; }
+    .score-line.red i { background: #e0564f; }
+
+    .formula {
+      display: grid;
+      grid-template-columns: repeat(5, max-content);
+      gap: 4px;
+      align-items: center;
+      font-size: 12px;
+      color: #344054;
+      white-space: nowrap;
+    }
+
+    .formula b {
+      border: 1px solid var(--line-soft);
+      background: #f8fafc;
+      border-radius: 5px;
+      padding: 2px 5px;
+      font-weight: 700;
+    }
+
+    .hint {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 12px;
+      max-width: 260px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 5px;
+      font-size: 12px;
+      color: #344054;
+    }
+
+    .kv {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      min-width: 120px;
+    }
+
+    .kv span { color: var(--muted); }
+    .kv strong { font-variant-numeric: tabular-nums; }
+
+    .error-pill {
+      display: inline-flex;
+      align-items: center;
+      max-width: 260px;
+      border: 1px solid #fecdca;
+      background: #fff6f5;
+      color: var(--red);
+      border-radius: 6px;
+      padding: 5px 7px;
+      font-size: 12px;
+      font-weight: 650;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 5px;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      min-height: 610px;
+    }
+
+    .list-panel {
+      padding: 14px;
+      background: #fff;
+    }
+
+    .row-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) 136px 160px 170px auto;
+      gap: 12px;
+      align-items: center;
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+      padding: 12px;
+      margin-bottom: 9px;
+    }
+
+    .row-card.selected {
+      border-color: #8bb7ff;
+      box-shadow: 0 0 0 3px #eaf2ff;
+    }
+
+    .drawer {
+      border-left: 1px solid var(--line-soft);
+      background: #fbfcfe;
+      padding: 14px;
+    }
+
+    .drawer-head {
+      border-bottom: 1px solid var(--line-soft);
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+    }
+
+    .score-breakdown {
+      display: grid;
+      gap: 8px;
+    }
+
+    .break-row {
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+      padding: 9px;
+      background: #fff;
+    }
+
+    .break-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-weight: 700;
+      margin-bottom: 7px;
+    }
+
+    .mini-bar {
+      height: 6px;
+      background: #eef2f6;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .mini-bar i {
+      display: block;
+      height: 100%;
+      background: #2f6fed;
+      border-radius: inherit;
+    }
+
+    .event {
+      border-left: 3px solid var(--line);
+      padding: 2px 0 10px 10px;
+      color: #344054;
+      font-size: 12px;
+    }
+
+    .event strong {
+      display: block;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .board {
+      padding: 14px;
+      background: #fff;
+    }
+
+    .board-grid {
+      display: grid;
+      grid-template-columns: 1.2fr .9fr .9fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .lane {
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fbfcfe;
+      min-height: 460px;
+    }
+
+    .lane-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line-soft);
+      background: #fff;
+      font-weight: 800;
+    }
+
+    .issue {
+      margin: 10px;
+      padding: 11px;
+      background: #fff;
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+    }
+
+    .issue.danger { border-color: #fecdca; }
+    .issue.warn { border-color: #fedf89; }
+    .issue.good { border-color: #abefc6; }
+
+    .issue-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .mini-kpis {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+      margin-top: 9px;
+    }
+
+    .mini-kpis div {
+      background: #f8fafc;
+      border-radius: 6px;
+      padding: 7px;
+      font-size: 12px;
+    }
+
+    .mini-kpis span {
+      display: block;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+
+    .callout {
+      border: 1px solid #b8d6ff;
+      background: #f4f8ff;
+      border-radius: 8px;
+      padding: 12px;
+      margin: 14px 16px 0;
+      color: #23456f;
+    }
+
+    .callout strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .annotation {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #111827;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      margin-right: 5px;
+    }
+
+    .mobile-note {
+      display: none;
+    }
+
+    @media (max-width: 1050px) {
+      .shell { grid-template-columns: 1fr; }
+      .nav { display: none; }
+      .toolbar { grid-template-columns: 1fr; }
+      .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .layout-a, .detail-grid, .board-grid { grid-template-columns: 1fr; }
+      .group-panel, .drawer { border: 0; border-bottom: 1px solid var(--line-soft); }
+      .row-card { grid-template-columns: 1fr; }
+      .mobile-note { display: block; color: var(--muted); font-size: 12px; margin-top: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="nav">
+      <div class="brand">sub2api Admin</div>
+      <div class="nav-item"><span class="dot"></span>仪表盘</div>
+      <div class="nav-item"><span class="dot"></span>分组管理</div>
+      <div class="nav-item"><span class="dot"></span>上游渠道</div>
+      <div class="nav-item active"><span class="dot"></span>OpenAI 自动调度</div>
+      <div class="nav-item"><span class="dot"></span>系统设置</div>
+    </aside>
+
+    <main>
+      <div class="page-head">
+        <div>
+          <h1>OpenAI 自动调度 UI 设计稿</h1>
+          <p class="sub">目标：先把“分组是否参与调度、健康分如何影响调度、价格如何修正、错误和探测结果如何展示”讲清楚。</p>
+        </div>
+        <span class="tag blue">仅设计稿，不是功能实现</span>
+      </div>
+
+      <div class="tabs">
+        <span class="tab active">方案 A：运维表格版（推荐）</span>
+        <span class="tab">方案 B：列表 + 详情抽屉</span>
+        <span class="tab">方案 C：异常优先看板</span>
+      </div>
+
+      <section class="mock">
+        <div class="mock-title">
+          <div>
+            <strong>方案 A：运维表格版（推荐）</strong>
+            <span>适合渠道多、需要快速比较和批量排障。默认把分组、模型、调度分、健康分、风险原因放在同一屏。</span>
+          </div>
+          <span class="tag green">推荐落地</span>
+        </div>
+
+        <div class="summary-grid">
+          <div class="metric">
+            <label><span class="annotation">1</span>全局自动调度</label>
+            <strong>已启用</strong>
+            <small>关闭后走系统原调度</small>
+          </div>
+          <div class="metric">
+            <label><span class="annotation">2</span>当前分组</label>
+            <strong style="font-size:15px;">plus特惠临时分组</strong>
+            <small>已参与 OpenAI 自动调度</small>
+          </div>
+          <div class="metric">
+            <label><span class="annotation">3</span>检测模型</label>
+            <strong>gpt-5.4</strong>
+            <small>可切换 gpt-5.5</small>
+          </div>
+          <div class="metric">
+            <label><span class="annotation">4</span>探测策略</label>
+            <strong>60s / 6000ms</strong>
+            <small>间隔 / 慢响应阈值</small>
+          </div>
+          <div class="metric">
+            <label><span class="annotation">5</span>成本权重</label>
+            <strong>20%</strong>
+            <small>价格越低，调度分修正越高</small>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div class="select">分组：plus特惠临时分组（0.1x）</div>
+          <div class="legend">
+            <span class="tag green">running 可调度</span>
+            <span class="tag violet">half-open 试恢复</span>
+            <span class="tag amber">observing 观察</span>
+            <span class="tag red">open 熔断</span>
+          </div>
+          <div style="display:flex; gap:8px; justify-content:flex-end;">
+            <span class="select">模型：gpt-5.4</span>
+            <span class="input">搜索渠道 / 错误</span>
+            <span class="btn">刷新</span>
+            <span class="btn primary">编辑调度配置</span>
+          </div>
+        </div>
+
+        <div class="layout-a">
+          <aside class="group-panel">
+            <h2>OpenAI 分组调度开关</h2>
+            <p class="sub" style="margin-top:5px;">选中分组默认来自分组管理排序后的第一个分组。每个分组必须单独开启，才会参与自动调度。</p>
+            <div class="group-list">
+              <div class="group-card active">
+                <div class="group-row">
+                  <div>
+                    <div class="group-name">plus特惠临时分组（0.1x）</div>
+                    <div class="group-meta">4 个渠道 · gpt-5.4 默认检测</div>
+                  </div>
+                  <span class="switch"></span>
+                </div>
+              </div>
+              <div class="group-card">
+                <div class="group-row">
+                  <div>
+                    <div class="group-name">plus备用组</div>
+                    <div class="group-meta">8 个渠道 · 未参与调度</div>
+                  </div>
+                  <span class="switch off"></span>
+                </div>
+              </div>
+              <div class="group-card">
+                <div class="group-row">
+                  <div>
+                    <div class="group-name">team高可用组</div>
+                    <div class="group-meta">12 个渠道 · gpt-5.5 检测</div>
+                  </div>
+                  <span class="switch"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="callout" style="margin:14px 0 0;">
+              <strong>标注说明</strong>
+              当前分组开关关闭时：只展示分数和探测结果，不参与自动调度选择。全局开关关闭时：所有分组都回退到系统自带调度。
+            </div>
+          </aside>
+
+          <section class="content">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>上游渠道</th>
+                    <th>状态</th>
+                    <th>实际调度分</th>
+                    <th>健康分拆解</th>
+                    <th>探测样本</th>
+                    <th>最近风险</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <div class="channel">
+                        <strong>寒鹤 · plus</strong>
+                        <span>https://api.hanhegefei.online · 价格 0.04</span>
+                      </div>
+                    </td>
+                    <td><span class="tag green">running</span><div class="note">当前优先候选</div></td>
+                    <td>
+                      <div class="score-main" style="color:var(--green);">1.0000</div>
+                      <div class="score-line"><i style="width:100%;"></i></div>
+                      <div class="hint">实际调度分 = 健康分 1.0000 + 价格修正 +0.008</div>
+                    </td>
+                    <td>
+                      <div class="formula">
+                        <b>基础 0.6000</b><span>+</span><b>延迟 +0.2400</b><span>+</span><b>恢复 +0.1600</b>
+                      </div>
+                      <div class="hint">基础分是新渠道默认起点；探测成功、低延迟会逐步拉高。</div>
+                    </td>
+                    <td>
+                      <div class="stack">
+                        <div class="kv"><span>请求样本</span><strong>28</strong></div>
+                        <div class="kv"><span>TTFB样本</span><strong>24</strong></div>
+                        <div class="kv"><span>最近延迟</span><strong>1280ms</strong></div>
+                      </div>
+                    </td>
+                    <td><span class="tag green">无异常</span><div class="note">最近检测 06/28 18:28</div></td>
+                    <td><span class="btn">探测</span></td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <div class="channel">
+                        <strong>乔燃</strong>
+                        <span>https://mdkj.lol · 价格 0.06</span>
+                      </div>
+                    </td>
+                    <td><span class="tag amber">observing</span><div class="note">慢响应观察</div></td>
+                    <td>
+                      <div class="score-main" style="color:var(--amber);">0.6820</div>
+                      <div class="score-line amber"><i style="width:68%;"></i></div>
+                      <div class="hint">同状态内按实际调度分排序。</div>
+                    </td>
+                    <td>
+                      <div class="formula">
+                        <b>基础 0.6000</b><span>-</span><b>延迟 0.1800</b><span>+</span><b>成本 +0.0120</b>
+                      </div>
+                      <div class="hint">连续慢响应 2 次，超过阈值 6000ms。</div>
+                    </td>
+                    <td>
+                      <div class="stack">
+                        <div class="kv"><span>请求样本</span><strong>17</strong></div>
+                        <div class="kv"><span>TTFB样本</span><strong>13</strong></div>
+                        <div class="kv"><span>最近TTFB</span><strong>8140ms</strong></div>
+                      </div>
+                    </td>
+                    <td><span class="tag amber">连续慢响应 2/3</span><div class="note">再慢 1 次将进入熔断</div></td>
+                    <td><span class="btn">探测</span></td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <div class="channel">
+                        <strong>超 · mouubox</strong>
+                        <span>https://api.mouubox.com · 价格 0.03</span>
+                      </div>
+                    </td>
+                    <td><span class="tag violet">half-open</span><div class="note">冷却后试探</div></td>
+                    <td>
+                      <div class="score-main" style="color:var(--blue);">0.7440</div>
+                      <div class="score-line"><i style="width:74%; background:#2f6fed;"></i></div>
+                      <div class="hint">half-open 状态会先试恢复，成功达标后回 running。</div>
+                    </td>
+                    <td>
+                      <div class="formula">
+                        <b>基础 0.6000</b><span>-</span><b>错误 0.2600</b><span>+</span><b>恢复 +0.4040</b>
+                      </div>
+                      <div class="hint">探测成功 2/3，距离恢复还差 1 次。</div>
+                    </td>
+                    <td>
+                      <div class="stack">
+                        <div class="kv"><span>请求样本</span><strong>11</strong></div>
+                        <div class="kv"><span>成功连续</span><strong>2</strong></div>
+                        <div class="kv"><span>冷却至</span><strong>06/28 18:29</strong></div>
+                      </div>
+                    </td>
+                    <td><span class="tag blue">恢复探测中</span><div class="note">最近探测 HTTP 200</div></td>
+                    <td><span class="btn">探测</span></td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <div class="channel">
+                        <strong>Walk AI Coding</strong>
+                        <span>https://walkcoding.top · tg · 价格 0.08</span>
+                      </div>
+                    </td>
+                    <td><span class="tag red">open</span><div class="note">熔断跳过</div></td>
+                    <td>
+                      <div class="score-main" style="color:var(--red);">0.2140</div>
+                      <div class="score-line red"><i style="width:21%;"></i></div>
+                      <div class="hint">冷却未结束前不进入候选。</div>
+                    </td>
+                    <td>
+                      <div class="formula">
+                        <b>基础 0.6000</b><span>-</span><b>错误 0.4200</b><span>-</span><b>延迟 0.0860</b>
+                      </div>
+                      <div class="hint">错误重罚，连续错误达到熔断阈值。</div>
+                    </td>
+                    <td>
+                      <div class="stack">
+                        <div class="kv"><span>请求样本</span><strong>9</strong></div>
+                        <div class="kv"><span>错误率</span><strong>66.7%</strong></div>
+                        <div class="kv"><span>冷却至</span><strong>06/28 18:29</strong></div>
+                      </div>
+                    </td>
+                    <td>
+                      <span class="error-pill">超时：context deadline exceeded</span>
+                      <div class="note">完整错误放入悬浮提示或展开详情，避免红字撑破页面。</div>
+                    </td>
+                    <td><span class="btn danger">重置</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="mock">
+        <div class="mock-title">
+          <div>
+            <strong>方案 B：主列表 + 详情抽屉</strong>
+            <span>适合希望列表清爽、点开单个渠道再看评分拆解和事件流水的场景。</span>
+          </div>
+          <span class="tag blue">排障体验强</span>
+        </div>
+
+        <div class="toolbar">
+          <div class="select">分组：plus特惠临时分组（0.1x） · 已参与调度</div>
+          <div class="legend">
+            <span>调度顺序：half-open &gt; running &gt; observing &gt; open</span>
+            <span>同状态再按实际调度分排序</span>
+          </div>
+          <div style="display:flex; gap:8px; justify-content:flex-end;">
+            <span class="select">模型：gpt-5.4</span>
+            <span class="btn">编辑配置</span>
+          </div>
+        </div>
+
+        <div class="detail-grid">
+          <div class="list-panel">
+            <div class="row-card">
+              <div class="channel"><strong>寒鹤 · plus</strong><span>https://api.hanhegefei.online · 价格 0.04</span></div>
+              <span class="tag green">running</span>
+              <div><div class="score-main" style="color:var(--green);">1.0000</div><div class="note">健康分</div></div>
+              <div><strong>+0.008</strong><div class="note">价格修正</div></div>
+              <span class="btn">查看</span>
+            </div>
+            <div class="row-card selected">
+              <div class="channel"><strong>Walk AI Coding</strong><span>https://walkcoding.top · tg · 价格 0.08</span></div>
+              <span class="tag red">open</span>
+              <div><div class="score-main" style="color:var(--red);">0.2140</div><div class="note">健康分</div></div>
+              <div><strong>-0.004</strong><div class="note">价格修正</div></div>
+              <span class="btn primary">已选中</span>
+            </div>
+            <div class="row-card">
+              <div class="channel"><strong>超 · mouubox</strong><span>https://api.mouubox.com · 价格 0.03</span></div>
+              <span class="tag violet">half-open</span>
+              <div><div class="score-main" style="color:var(--blue);">0.7440</div><div class="note">健康分</div></div>
+              <div><strong>+0.016</strong><div class="note">价格修正</div></div>
+              <span class="btn">查看</span>
+            </div>
+          </div>
+
+          <aside class="drawer">
+            <div class="drawer-head">
+              <span class="tag red">open · 熔断中</span>
+              <h2 style="margin-top:9px;">Walk AI Coding</h2>
+              <p class="sub">https://walkcoding.top · tg · 当前价格 0.08 · 检测模型 gpt-5.4</p>
+            </div>
+
+            <div class="metric" style="margin-bottom:10px;">
+              <label>实际调度分</label>
+              <strong style="color:var(--red);">0.2100</strong>
+              <small>健康分 0.2140 + 价格修正 -0.0040；熔断冷却未结束时仍会跳过。</small>
+            </div>
+
+            <h3 style="margin:12px 0 8px;">评分拆解</h3>
+            <div class="score-breakdown">
+              <div class="break-row">
+                <div class="break-top"><span>基础分</span><span>+0.6000</span></div>
+                <div class="mini-bar"><i style="width:60%;"></i></div>
+                <div class="note">新渠道或重置后的默认起点。</div>
+              </div>
+              <div class="break-row">
+                <div class="break-top"><span>错误惩罚</span><span style="color:var(--red);">-0.4200</span></div>
+                <div class="mini-bar"><i style="width:42%; background:#e0564f;"></i></div>
+                <div class="note">连续错误 2 次，触发 open 熔断。</div>
+              </div>
+              <div class="break-row">
+                <div class="break-top"><span>延迟惩罚</span><span style="color:var(--amber);">-0.0860</span></div>
+                <div class="mini-bar"><i style="width:18%; background:#e4a72b;"></i></div>
+                <div class="note">最近 TTFB 超过 6000ms 阈值。</div>
+              </div>
+              <div class="break-row">
+                <div class="break-top"><span>成本修正</span><span>-0.0040</span></div>
+                <div class="mini-bar"><i style="width:12%; background:#98a2b3;"></i></div>
+                <div class="note">当前价格高于同组低价渠道，调度分略降。</div>
+              </div>
+            </div>
+
+            <h3 style="margin:14px 0 8px;">最近事件</h3>
+            <div class="event"><strong>06/28 18:28 · 熔断</strong>连续错误达到 2/2，冷却至 06/28 18:29。</div>
+            <div class="event"><strong>06/28 18:27 · 探测失败</strong>超时：context deadline exceeded。</div>
+            <div class="event"><strong>06/28 18:26 · 慢响应</strong>TTFB 8140ms，超过阈值 6000ms。</div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="mock">
+        <div class="mock-title">
+          <div>
+            <strong>方案 C：异常优先看板</strong>
+            <span>适合值守场景：先看哪些渠道正在熔断、即将熔断、正在恢复，再回到完整列表。</span>
+          </div>
+          <span class="tag amber">适合作为二级视图</span>
+        </div>
+
+        <div class="toolbar">
+          <div class="select">分组：plus特惠临时分组（0.1x） · 模型：gpt-5.4</div>
+          <div class="legend">
+            <span class="tag red">需要处理 1</span>
+            <span class="tag amber">观察中 1</span>
+            <span class="tag violet">恢复中 1</span>
+            <span class="tag green">健康 1</span>
+          </div>
+          <div style="display:flex; gap:8px; justify-content:flex-end;">
+            <span class="btn">全部渠道表</span>
+            <span class="btn primary">一键探测当前分组</span>
+          </div>
+        </div>
+
+        <div class="board">
+          <div class="callout" style="margin:0 0 12px;">
+            <strong>调度判断说明</strong>
+            自动调度不是只看页面展示分。实际选择时会先判断全局开关、分组开关、原系统候选过滤和熔断冷却；通过后再按状态层级和实际调度分排序。
+          </div>
+
+          <div class="board-grid">
+            <div class="lane">
+              <div class="lane-title"><span>需要处理</span><span class="tag red">open</span></div>
+              <div class="issue danger">
+                <div class="issue-head">
+                  <div class="channel"><strong>Walk AI Coding</strong><span>https://walkcoding.top</span></div>
+                  <span class="score-main" style="color:var(--red); font-size:18px;">0.2140</span>
+                </div>
+                <span class="error-pill">超时：context deadline exceeded</span>
+                <div class="mini-kpis">
+                  <div><span>连续错误</span><strong>2/2</strong></div>
+                  <div><span>冷却至</span><strong>18:29</strong></div>
+                  <div><span>价格</span><strong>0.08</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="lane">
+              <div class="lane-title"><span>观察 / 恢复</span><span class="tag amber">2</span></div>
+              <div class="issue warn">
+                <div class="issue-head">
+                  <div class="channel"><strong>乔燃</strong><span>https://mdkj.lol</span></div>
+                  <span class="score-main" style="color:var(--amber); font-size:18px;">0.6820</span>
+                </div>
+                <span class="tag amber">连续慢响应 2/3</span>
+                <div class="mini-kpis">
+                  <div><span>最近TTFB</span><strong>8140ms</strong></div>
+                  <div><span>阈值</span><strong>6000ms</strong></div>
+                  <div><span>样本</span><strong>17</strong></div>
+                </div>
+              </div>
+              <div class="issue">
+                <div class="issue-head">
+                  <div class="channel"><strong>超 · mouubox</strong><span>https://api.mouubox.com</span></div>
+                  <span class="score-main" style="color:var(--blue); font-size:18px;">0.7440</span>
+                </div>
+                <span class="tag violet">half-open · 成功 2/3</span>
+                <div class="mini-kpis">
+                  <div><span>恢复加分</span><strong>+0.404</strong></div>
+                  <div><span>价格</span><strong>0.03</strong></div>
+                  <div><span>状态</span><strong>试探</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="lane">
+              <div class="lane-title"><span>健康候选</span><span class="tag green">running</span></div>
+              <div class="issue good">
+                <div class="issue-head">
+                  <div class="channel"><strong>寒鹤 · plus</strong><span>https://api.hanhegefei.online</span></div>
+                  <span class="score-main" style="color:var(--green); font-size:18px;">1.0000</span>
+                </div>
+                <span class="tag green">当前最优候选</span>
+                <div class="mini-kpis">
+                  <div><span>基础分</span><strong>0.6000</strong></div>
+                  <div><span>价格修正</span><strong>+0.008</strong></div>
+                  <div><span>延迟</span><strong>1280ms</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mock">
+        <div class="mock-title">
+          <div>
+            <strong>推荐结论</strong>
+            <span>我建议主页面采用方案 A，异常详情能力吸收方案 B，异常看板可以作为后续增强。</span>
+          </div>
+          <span class="tag green">A + B 局部结合</span>
+        </div>
+        <div style="padding:16px;">
+          <div class="summary-grid" style="padding:0; border:0;">
+            <div class="metric">
+              <label>主布局</label>
+              <strong>方案 A</strong>
+              <small>左侧分组开关，右侧高密度渠道表。</small>
+            </div>
+            <div class="metric">
+              <label>错误展示</label>
+              <strong>摘要 + 展开</strong>
+              <small>表格只显示“超时/HTTP/认证/限流”等摘要。</small>
+            </div>
+            <div class="metric">
+              <label>分数标注</label>
+              <strong>健康分 / 调度分分开</strong>
+              <small>健康分展示质量，实际调度分包含价格修正。</small>
+            </div>
+            <div class="metric">
+              <label>分组模型</label>
+              <strong>每组默认模型</strong>
+              <small>默认 gpt-5.4，可切 gpt-5.5。</small>
+            </div>
+            <div class="metric">
+              <label>调度说明</label>
+              <strong>状态优先 + 分数排序</strong>
+              <small>熔断冷却中的 open 直接跳过。</small>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
