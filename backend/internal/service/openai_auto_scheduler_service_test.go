@@ -1,0 +1,248 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+type fakeOpenAIAutoSchedulerSettingsProvider struct {
+	settings OpenAIAutoSchedulerSettings
+}
+
+func (p fakeOpenAIAutoSchedulerSettingsProvider) GetOpenAIAutoSchedulerSettings(context.Context) OpenAIAutoSchedulerSettings {
+	return p.settings
+}
+
+type fakeOpenAIAutoSchedulerRepo struct {
+	groups     map[int64]Group
+	states     map[string]OpenAIAutoSchedulerScoreState
+	events     []OpenAIAutoSchedulerScoreEvent
+	listStates []OpenAIAutoSchedulerScoreState
+	listTotal  int64
+	listParams OpenAIAutoSchedulerListParams
+	err        error
+}
+
+func (r *fakeOpenAIAutoSchedulerRepo) GetGroup(ctx context.Context, groupID int64) (*Group, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	group, ok := r.groups[groupID]
+	if !ok {
+		return nil, nil
+	}
+	return &group, nil
+}
+
+func (r *fakeOpenAIAutoSchedulerRepo) GetScoreState(ctx context.Context, accountID, groupID int64, model string) (*OpenAIAutoSchedulerScoreState, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	state, ok := r.states[openAIAutoSchedulerStateKey(accountID, groupID, model)]
+	if !ok {
+		return nil, nil
+	}
+	return &state, nil
+}
+
+func (r *fakeOpenAIAutoSchedulerRepo) UpsertScoreState(ctx context.Context, state OpenAIAutoSchedulerScoreState) error {
+	if r.err != nil {
+		return r.err
+	}
+	if r.states == nil {
+		r.states = map[string]OpenAIAutoSchedulerScoreState{}
+	}
+	r.states[openAIAutoSchedulerStateKey(state.AccountID, state.GroupID, state.Model)] = state
+	return nil
+}
+
+func (r *fakeOpenAIAutoSchedulerRepo) InsertScoreEvent(ctx context.Context, event OpenAIAutoSchedulerScoreEvent) error {
+	if r.err != nil {
+		return r.err
+	}
+	r.events = append(r.events, event)
+	return nil
+}
+
+func (r *fakeOpenAIAutoSchedulerRepo) ListScoreStates(ctx context.Context, params OpenAIAutoSchedulerListParams) ([]OpenAIAutoSchedulerScoreState, int64, error) {
+	if r.err != nil {
+		return nil, 0, r.err
+	}
+	r.listParams = params
+	return r.listStates, r.listTotal, nil
+}
+
+func (r *fakeOpenAIAutoSchedulerRepo) ListEnabledOpenAIGroups(ctx context.Context) ([]Group, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	var groups []Group
+	for _, group := range r.groups {
+		if group.Platform == PlatformOpenAI && group.Status == StatusActive && group.OpenAIAutoSchedulerEnabled {
+			groups = append(groups, group)
+		}
+	}
+	return groups, nil
+}
+
+func TestOpenAIAutoSchedulerService_IsEnabledForGroupRequiresGlobalAndGroup(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{
+			10: {ID: 10, Platform: PlatformOpenAI, OpenAIAutoSchedulerEnabled: true, Hydrated: true, Status: StatusActive},
+			11: {ID: 11, Platform: PlatformOpenAI, OpenAIAutoSchedulerEnabled: false, Hydrated: true, Status: StatusActive},
+		},
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+
+	require.True(t, svc.IsEnabledForGroup(context.Background(), ptrOpenAIAutoSchedulerInt64(10)))
+	require.False(t, svc.IsEnabledForGroup(context.Background(), ptrOpenAIAutoSchedulerInt64(11)))
+	require.False(t, svc.IsEnabledForGroup(context.Background(), nil))
+}
+
+func TestOpenAIAutoSchedulerService_IsEnabledForGroupDegradesToFalse(t *testing.T) {
+	t.Run("global disabled", func(t *testing.T) {
+		repo := &fakeOpenAIAutoSchedulerRepo{
+			groups: map[int64]Group{
+				10: {ID: 10, Platform: PlatformOpenAI, OpenAIAutoSchedulerEnabled: true, Hydrated: true, Status: StatusActive},
+			},
+		}
+		svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: DefaultOpenAIAutoSchedulerSettings()})
+
+		require.False(t, svc.IsEnabledForGroup(context.Background(), ptrOpenAIAutoSchedulerInt64(10)))
+	})
+
+	t.Run("repo error", func(t *testing.T) {
+		svc := NewOpenAIAutoSchedulerService(
+			&fakeOpenAIAutoSchedulerRepo{err: errors.New("database unavailable")},
+			fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()},
+		)
+
+		require.False(t, svc.IsEnabledForGroup(context.Background(), ptrOpenAIAutoSchedulerInt64(10)))
+	})
+
+	t.Run("non-openai or inactive group", func(t *testing.T) {
+		repo := &fakeOpenAIAutoSchedulerRepo{
+			groups: map[int64]Group{
+				10: {ID: 10, Platform: PlatformAnthropic, OpenAIAutoSchedulerEnabled: true, Hydrated: true, Status: StatusActive},
+				11: {ID: 11, Platform: PlatformOpenAI, OpenAIAutoSchedulerEnabled: true, Hydrated: true, Status: StatusDisabled},
+			},
+		}
+		svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+
+		require.False(t, svc.IsEnabledForGroup(context.Background(), ptrOpenAIAutoSchedulerInt64(10)))
+		require.False(t, svc.IsEnabledForGroup(context.Background(), ptrOpenAIAutoSchedulerInt64(11)))
+	})
+}
+
+func TestOpenAIAutoSchedulerService_RecordAppliesEventAndStoresAudit(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{
+			200: {ID: 200, Platform: PlatformOpenAI, OpenAIAutoSchedulerEnabled: true, Hydrated: true, Status: StatusActive},
+		},
+		states: map[string]OpenAIAutoSchedulerScoreState{},
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+
+	err := svc.Record(context.Background(), OpenAIAutoSchedulerRecordInput{
+		AccountID:  100,
+		GroupID:    200,
+		Model:      "  gpt-5  ",
+		EventType:  OpenAIAutoSchedulerEventSuccess,
+		LatencyMS:  ptrOpenAIAutoSchedulerInt(900),
+		StatusCode: ptrOpenAIAutoSchedulerInt(200),
+		Message:    "ok",
+		CostScore:  ptrOpenAIAutoSchedulerInt(500),
+	})
+
+	require.NoError(t, err)
+	state := repo.states[openAIAutoSchedulerStateKey(100, 200, "gpt-5")]
+	require.Equal(t, int64(100), state.AccountID)
+	require.Equal(t, int64(200), state.GroupID)
+	require.Equal(t, "gpt-5", state.Model)
+	require.Equal(t, OpenAIAutoSchedulerStateRunning, state.State)
+	require.Greater(t, state.FinalScore, state.BaseScore)
+	require.Len(t, repo.events, 1)
+	require.Equal(t, OpenAIAutoSchedulerEventSuccess, repo.events[0].EventType)
+	require.Equal(t, 6000, repo.events[0].ScoreBefore)
+	require.Equal(t, state.FinalScore, repo.events[0].ScoreAfter)
+}
+
+func TestOpenAIAutoSchedulerService_RecordSkipsWhenSettingsDisabled(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: DefaultOpenAIAutoSchedulerSettings()})
+
+	err := svc.Record(context.Background(), OpenAIAutoSchedulerRecordInput{
+		AccountID: 1,
+		GroupID:   2,
+		Model:     "gpt-5",
+		EventType: OpenAIAutoSchedulerEventError,
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, repo.states)
+	require.Empty(t, repo.events)
+}
+
+func TestOpenAIAutoSchedulerService_RecordSkipsWhenGroupDisabled(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{
+			2: {ID: 2, Platform: PlatformOpenAI, OpenAIAutoSchedulerEnabled: false, Hydrated: true, Status: StatusActive},
+		},
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+
+	err := svc.Record(context.Background(), OpenAIAutoSchedulerRecordInput{
+		AccountID: 1,
+		GroupID:   2,
+		Model:     "gpt-5",
+		EventType: OpenAIAutoSchedulerEventError,
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, repo.states)
+	require.Empty(t, repo.events)
+}
+
+func TestOpenAIAutoSchedulerService_ListScoresDelegatesToRepository(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		listStates: []OpenAIAutoSchedulerScoreState{
+			{AccountID: 1, GroupID: 2, Model: "gpt-5", FinalScore: 7000},
+		},
+		listTotal: 1,
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+
+	result, err := svc.ListScores(context.Background(), OpenAIAutoSchedulerListParams{
+		GroupID:  2,
+		Model:    " gpt-5 ",
+		Page:     2,
+		PageSize: 50,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.Total)
+	require.Len(t, result.Items, 1)
+	require.Equal(t, int64(2), repo.listParams.GroupID)
+	require.Equal(t, "gpt-5", repo.listParams.Model)
+	require.Equal(t, 2, repo.listParams.Page)
+	require.Equal(t, 50, repo.listParams.PageSize)
+}
+
+func enabledOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {
+	settings := DefaultOpenAIAutoSchedulerSettings()
+	settings.Enabled = true
+	return settings
+}
+
+func ptrOpenAIAutoSchedulerInt64(v int64) *int64 {
+	return &v
+}
+
+func openAIAutoSchedulerStateKey(accountID, groupID int64, model string) string {
+	return fmt.Sprintf("%d|%d|%s", accountID, groupID, strings.TrimSpace(model))
+}
