@@ -405,6 +405,9 @@ const (
 	// anthropic-beta header.
 	SettingKeyOpenAIFastPolicySettings = "openai_fast_policy_settings"
 
+	// SettingKeyOpenAIAutoSchedulerSettings stores JSON config for OpenAI auto scheduler scoring.
+	SettingKeyOpenAIAutoSchedulerSettings = "openai_auto_scheduler_settings"
+
 	// =========================
 	// Claude Code Version Check
 	// =========================

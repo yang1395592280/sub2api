@@ -5188,6 +5188,34 @@ func (s *SettingService) SetOpenAIFastPolicySettings(ctx context.Context, settin
 	return s.settingRepo.Set(ctx, SettingKeyOpenAIFastPolicySettings, string(data))
 }
 
+func (s *SettingService) GetOpenAIAutoSchedulerSettings(ctx context.Context) OpenAIAutoSchedulerSettings {
+	settings := DefaultOpenAIAutoSchedulerSettings()
+	if s == nil || s.settingRepo == nil {
+		return settings
+	}
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyOpenAIAutoSchedulerSettings)
+	if err != nil || strings.TrimSpace(raw) == "" {
+		return settings
+	}
+	var parsed OpenAIAutoSchedulerSettings
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		return settings
+	}
+	return normalizeOpenAIAutoSchedulerSettings(parsed)
+}
+
+func (s *SettingService) SetOpenAIAutoSchedulerSettings(ctx context.Context, settings OpenAIAutoSchedulerSettings) error {
+	if s == nil || s.settingRepo == nil {
+		return fmt.Errorf("setting repository is nil")
+	}
+	normalized := normalizeOpenAIAutoSchedulerSettings(settings)
+	data, err := json.Marshal(normalized)
+	if err != nil {
+		return fmt.Errorf("marshal openai auto scheduler settings: %w", err)
+	}
+	return s.settingRepo.Set(ctx, SettingKeyOpenAIAutoSchedulerSettings, string(data))
+}
+
 // SetStreamTimeoutSettings 设置流超时处理配置
 func (s *SettingService) SetStreamTimeoutSettings(ctx context.Context, settings *StreamTimeoutSettings) error {
 	if settings == nil {
