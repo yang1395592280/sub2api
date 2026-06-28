@@ -592,6 +592,7 @@ var ProviderSet = wire.NewSet(
 	ProvideOpenAIQuotaService,
 	ProvideOpenAIUpstreamBalanceService,
 	NewOpenAIAutoSchedulerService,
+	NewOpenAIAutoSchedulerProbeChecker,
 	ProvideOpenAIAutoSchedulerProbeRunner,
 	ProvideGrokQuotaService,
 	ProvideClaudeTokenProvider,

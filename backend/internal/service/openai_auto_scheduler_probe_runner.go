@@ -101,17 +101,21 @@ func (r *OpenAIAutoSchedulerProbeRunner) Stop() {
 }
 
 func (r *OpenAIAutoSchedulerProbeRunner) loop() {
-	r.runOnce(context.Background())
-	timer := time.NewTimer(openAIAutoSchedulerProbeInterval(r.settingsProvider, context.Background()))
+	ctx := r.parentCtx
+	r.runOnce(ctx)
+	timer := time.NewTimer(openAIAutoSchedulerProbeInterval(r.settingsProvider, ctx))
 	defer timer.Stop()
 
 	for {
 		select {
-		case <-r.parentCtx.Done():
+		case <-ctx.Done():
 			return
 		case <-timer.C:
-			r.runOnce(context.Background())
-			timer.Reset(openAIAutoSchedulerProbeInterval(r.settingsProvider, context.Background()))
+			r.runOnce(ctx)
+			if ctx.Err() != nil {
+				return
+			}
+			timer.Reset(openAIAutoSchedulerProbeInterval(r.settingsProvider, ctx))
 		}
 	}
 }
@@ -134,6 +138,12 @@ func (r *OpenAIAutoSchedulerProbeRunner) runOnce(ctx context.Context) {
 	if r.settingsProvider == nil {
 		return
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if ctx.Err() != nil {
+		return
+	}
 	settings := normalizeOpenAIAutoSchedulerSettings(r.settingsProvider.GetOpenAIAutoSchedulerSettings(ctx))
 	if !settings.Enabled {
 		return
@@ -148,6 +158,9 @@ func (r *OpenAIAutoSchedulerProbeRunner) runOnce(ctx context.Context) {
 	model := selectOpenAIAutoSchedulerProbeModel()
 	timeout := openAIAutoSchedulerProbeTimeout
 	for i := range groups {
+		if ctx.Err() != nil {
+			return
+		}
 		group := groups[i]
 		accounts, err := r.accountRepo.ListSchedulableByGroupIDAndPlatform(ctx, group.ID, PlatformOpenAI)
 		if err != nil {
@@ -155,6 +168,9 @@ func (r *OpenAIAutoSchedulerProbeRunner) runOnce(ctx context.Context) {
 			continue
 		}
 		for i := range accounts {
+			if ctx.Err() != nil {
+				return
+			}
 			account := accounts[i]
 			if account.ID <= 0 {
 				continue
