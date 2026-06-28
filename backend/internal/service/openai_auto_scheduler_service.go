@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +22,7 @@ type OpenAIAutoSchedulerRepository interface {
 	InsertScoreEvent(ctx context.Context, event OpenAIAutoSchedulerScoreEvent) error
 	ListScoreStates(ctx context.Context, params OpenAIAutoSchedulerListParams) ([]OpenAIAutoSchedulerScoreState, int64, error)
 	ListScoreEvents(ctx context.Context, params OpenAIAutoSchedulerListParams) ([]OpenAIAutoSchedulerScoreEvent, int64, error)
+	ListSchedulableOpenAIAccountsByGroup(ctx context.Context, groupID int64) ([]Account, error)
 	ListEnabledOpenAIGroups(ctx context.Context) ([]Group, error)
 }
 
@@ -219,11 +221,62 @@ func (s *OpenAIAutoSchedulerService) ListScores(ctx context.Context, params Open
 		return &OpenAIAutoSchedulerScoreListResult{}, nil
 	}
 	params.Model = strings.TrimSpace(params.Model)
+	if params.GroupID > 0 && params.Model != "" {
+		return s.listScoresWithGroupAccounts(ctx, params)
+	}
 	items, total, err := s.repo.ListScoreStates(ctx, params)
 	if err != nil {
 		return nil, err
 	}
 	return &OpenAIAutoSchedulerScoreListResult{Items: items, Total: total}, nil
+}
+
+func (s *OpenAIAutoSchedulerService) listScoresWithGroupAccounts(ctx context.Context, params OpenAIAutoSchedulerListParams) (*OpenAIAutoSchedulerScoreListResult, error) {
+	page, pageSize := normalizeOpenAIAutoSchedulerListPage(params.Page, params.PageSize)
+	scoreParams := params
+	scoreParams.Page = 1
+	scoreParams.PageSize = openAIAutoSchedulerListMaxPageSize
+	items, _, err := s.repo.ListScoreStates(ctx, scoreParams)
+	if err != nil {
+		return nil, err
+	}
+	accounts, err := s.repo.ListSchedulableOpenAIAccountsByGroup(ctx, params.GroupID)
+	if err != nil {
+		return nil, err
+	}
+
+	byAccountID := make(map[int64]OpenAIAutoSchedulerScoreState, len(items)+len(accounts))
+	for _, item := range items {
+		byAccountID[item.AccountID] = item
+	}
+	for _, account := range accounts {
+		if _, ok := byAccountID[account.ID]; ok {
+			continue
+		}
+		byAccountID[account.ID] = NewOpenAIAutoSchedulerScoreState(account.ID, params.GroupID, params.Model)
+	}
+
+	merged := make([]OpenAIAutoSchedulerScoreState, 0, len(byAccountID))
+	for _, item := range byAccountID {
+		merged = append(merged, item)
+	}
+	sort.SliceStable(merged, func(i, j int) bool {
+		if merged[i].FinalScore != merged[j].FinalScore {
+			return merged[i].FinalScore > merged[j].FinalScore
+		}
+		return merged[i].AccountID < merged[j].AccountID
+	})
+
+	total := len(merged)
+	start := (page - 1) * pageSize
+	if start >= total {
+		return &OpenAIAutoSchedulerScoreListResult{Items: []OpenAIAutoSchedulerScoreState{}, Total: int64(total)}, nil
+	}
+	end := start + pageSize
+	if end > total {
+		end = total
+	}
+	return &OpenAIAutoSchedulerScoreListResult{Items: merged[start:end], Total: int64(total)}, nil
 }
 
 func (s *OpenAIAutoSchedulerService) ListEvents(ctx context.Context, params OpenAIAutoSchedulerListParams) (*OpenAIAutoSchedulerEventListResult, error) {

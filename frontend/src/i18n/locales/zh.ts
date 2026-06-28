@@ -5002,6 +5002,11 @@ export default {
       failedToLoadUsages: '加载使用记录失败'
     },
 
+    openaiAutoScheduler: {
+      title: 'OpenAI 自动调度',
+      description: '查看 OpenAI 账号调度分数、风险信号和分组参与状态',
+    },
+
     // Usage Records
     usage: {
       title: '使用记录',

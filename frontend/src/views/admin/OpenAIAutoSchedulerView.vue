@@ -238,7 +238,7 @@ const actionKey = ref<string | null>(null)
 const pagination = reactive({ page: 1, page_size: getPersistedPageSize(), total: 0 })
 const filters = reactive<OpenAIAutoSchedulerListParams>({
   group_id: 0,
-  model: '',
+  model: 'gpt-5',
   state: '',
   search: '',
 })

@@ -75,6 +75,11 @@ type OpenAIAutoSchedulerProbeResult struct {
 	Err       error
 }
 
+const (
+	openAIAutoSchedulerListDefaultPageSize = 50
+	openAIAutoSchedulerListMaxPageSize     = 200
+)
+
 func DefaultOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {
 	return OpenAIAutoSchedulerSettings{
 		Enabled:                          false,
@@ -130,4 +135,17 @@ func normalizeOpenAIAutoSchedulerSettings(settings OpenAIAutoSchedulerSettings) 
 	}
 	settings.Enabled = enabled
 	return settings
+}
+
+func normalizeOpenAIAutoSchedulerListPage(page, pageSize int) (int, int) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = openAIAutoSchedulerListDefaultPageSize
+	}
+	if pageSize > openAIAutoSchedulerListMaxPageSize {
+		pageSize = openAIAutoSchedulerListMaxPageSize
+	}
+	return page, pageSize
 }

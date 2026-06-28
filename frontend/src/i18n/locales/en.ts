@@ -4849,6 +4849,11 @@ export default {
       failedToLoadUsages: 'Failed to load usage records'
     },
 
+    openaiAutoScheduler: {
+      title: 'OpenAI Auto Scheduler',
+      description: 'Review OpenAI account scheduling scores, risk signals and group participation',
+    },
+
     // Usage Records
     usage: {
       title: 'Usage Records',

@@ -220,7 +220,7 @@ describe('OpenAIAutoSchedulerView', () => {
     expect(getSettings).toHaveBeenCalled()
     expect(listGroups).toHaveBeenCalled()
     expect(listScores).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1 }),
+      expect.objectContaining({ page: 1, model: 'gpt-5' }),
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
     expect(wrapper.text()).toContain('openai-main')

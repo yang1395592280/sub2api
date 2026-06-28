@@ -3,9 +3,12 @@ package repository
 import (
 	"context"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	dbaccount "github.com/Wei-Shaw/sub2api/ent/account"
+	dbaccountgroup "github.com/Wei-Shaw/sub2api/ent/accountgroup"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscoreevent"
 	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscorestate"
@@ -144,6 +147,46 @@ func (r *openAIAutoSchedulerRepository) ListScoreStates(ctx context.Context, par
 		out = append(out, openAIAutoSchedulerScoreStateEntityToService(entity))
 	}
 	return out, int64(total), nil
+}
+
+func (r *openAIAutoSchedulerRepository) ListSchedulableOpenAIAccountsByGroup(ctx context.Context, groupID int64) ([]service.Account, error) {
+	now := time.Now()
+	joins, err := r.client.AccountGroup.Query().
+		Where(
+			dbaccountgroup.GroupIDEQ(groupID),
+			dbaccountgroup.HasAccountWith(
+				dbaccount.PlatformEQ(service.PlatformOpenAI),
+				dbaccount.StatusEQ(service.StatusActive),
+				dbaccount.SchedulableEQ(true),
+				dbaccount.DeletedAtIsNil(),
+				tempUnschedulablePredicate(),
+				notExpiredPredicate(now),
+				dbaccount.Or(dbaccount.OverloadUntilIsNil(), dbaccount.OverloadUntilLTE(now)),
+				dbaccount.Or(dbaccount.RateLimitResetAtIsNil(), dbaccount.RateLimitResetAtLTE(now)),
+			),
+		).
+		Order(
+			dbaccountgroup.ByPriority(),
+			dbaccountgroup.ByAccountField(dbaccount.FieldPriority),
+		).
+		WithAccount().
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]service.Account, 0, len(joins))
+	seen := make(map[int64]struct{}, len(joins))
+	for _, join := range joins {
+		if join.Edges.Account == nil {
+			continue
+		}
+		if _, ok := seen[join.AccountID]; ok {
+			continue
+		}
+		seen[join.AccountID] = struct{}{}
+		out = append(out, *accountEntityToService(join.Edges.Account))
+	}
+	return out, nil
 }
 
 func (r *openAIAutoSchedulerRepository) ListScoreEvents(ctx context.Context, params service.OpenAIAutoSchedulerListParams) ([]service.OpenAIAutoSchedulerScoreEvent, int64, error) {

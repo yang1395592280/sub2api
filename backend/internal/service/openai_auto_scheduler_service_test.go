@@ -25,6 +25,7 @@ type fakeOpenAIAutoSchedulerRepo struct {
 	groups     map[int64]Group
 	states     map[string]OpenAIAutoSchedulerScoreState
 	events     []OpenAIAutoSchedulerScoreEvent
+	accounts   map[int64][]Account
 	listStates []OpenAIAutoSchedulerScoreState
 	listEvents []OpenAIAutoSchedulerScoreEvent
 	listTotal  int64
@@ -99,6 +100,15 @@ func (r *fakeOpenAIAutoSchedulerRepo) ListScoreEvents(ctx context.Context, param
 	}
 	r.listParams = params
 	return r.listEvents, r.listTotal, nil
+}
+
+func (r *fakeOpenAIAutoSchedulerRepo) ListSchedulableOpenAIAccountsByGroup(ctx context.Context, groupID int64) ([]Account, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.accounts[groupID], nil
 }
 
 func (r *fakeOpenAIAutoSchedulerRepo) ListEnabledOpenAIGroups(ctx context.Context) ([]Group, error) {
@@ -314,7 +324,7 @@ func TestOpenAIAutoSchedulerService_RecordManualProbeStoresAuditOnSuccess(t *tes
 	require.Equal(t, OpenAIAutoSchedulerEventProbeSuccess, repo.events[0].EventType)
 }
 
-func TestOpenAIAutoSchedulerService_ListScoresDelegatesToRepository(t *testing.T) {
+func TestOpenAIAutoSchedulerService_ListScoresDelegatesToRepositoryWithoutScopedModel(t *testing.T) {
 	repo := &fakeOpenAIAutoSchedulerRepo{
 		listStates: []OpenAIAutoSchedulerScoreState{
 			{AccountID: 1, GroupID: 2, Model: "gpt-5", FinalScore: 7000},
@@ -325,7 +335,7 @@ func TestOpenAIAutoSchedulerService_ListScoresDelegatesToRepository(t *testing.T
 
 	result, err := svc.ListScores(context.Background(), OpenAIAutoSchedulerListParams{
 		GroupID:  2,
-		Model:    " gpt-5 ",
+		Model:    " ",
 		Page:     2,
 		PageSize: 50,
 	})
@@ -334,9 +344,42 @@ func TestOpenAIAutoSchedulerService_ListScoresDelegatesToRepository(t *testing.T
 	require.Equal(t, int64(1), result.Total)
 	require.Len(t, result.Items, 1)
 	require.Equal(t, int64(2), repo.listParams.GroupID)
-	require.Equal(t, "gpt-5", repo.listParams.Model)
+	require.Equal(t, "", repo.listParams.Model)
 	require.Equal(t, 2, repo.listParams.Page)
 	require.Equal(t, 50, repo.listParams.PageSize)
+}
+
+func TestOpenAIAutoSchedulerService_ListScoresIncludesDefaultStatesForUnscoredGroupAccounts(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		accounts: map[int64][]Account{
+			2: {
+				{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true},
+				{ID: 3, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true},
+			},
+		},
+		listStates: []OpenAIAutoSchedulerScoreState{
+			{AccountID: 1, GroupID: 2, Model: "gpt-5", FinalScore: 7200, State: OpenAIAutoSchedulerStateObserving},
+		},
+		listTotal: 1,
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+
+	result, err := svc.ListScores(context.Background(), OpenAIAutoSchedulerListParams{
+		GroupID:  2,
+		Model:    "gpt-5",
+		Page:     1,
+		PageSize: 50,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(2), result.Total)
+	require.Len(t, result.Items, 2)
+	require.Equal(t, int64(1), result.Items[0].AccountID)
+	require.Equal(t, 7200, result.Items[0].FinalScore)
+	require.Equal(t, int64(3), result.Items[1].AccountID)
+	require.Equal(t, "gpt-5", result.Items[1].Model)
+	require.Equal(t, OpenAIAutoSchedulerStateRunning, result.Items[1].State)
+	require.Equal(t, 6000, result.Items[1].FinalScore)
 }
 
 func TestOpenAIAutoSchedulerService_ListEventsDelegatesToRepository(t *testing.T) {
