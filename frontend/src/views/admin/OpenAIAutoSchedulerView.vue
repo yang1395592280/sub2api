@@ -592,7 +592,7 @@ function scoreTitle(score: OpenAIAutoSchedulerScore): string {
 }
 
 function dispatchScoreHint(score: OpenAIAutoSchedulerScore): string {
-  return `实际调度分 = 健康分 + 价格修正（健康分 ${formatScore(score.final_score)}，价格修正 ${formatSignedScore(score.cost_score)}）`
+  return `实际调度分 = 健康分 ${formatScore(score.final_score)} + 价格修正 ${formatSignedScore(score.cost_score)}`
 }
 
 function formatSignedScore(score: number): string {

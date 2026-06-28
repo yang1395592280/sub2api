@@ -133,7 +133,7 @@ const scores = [
     last_latency_ms: 22000,
     last_ttfb_ms: 1200,
     last_status_code: 500,
-    last_error: 'upstream error',
+    last_error: 'context deadline exceeded',
     reason: 'breaker open',
     last_checked_at: '2026-06-28T03:01:00Z',
   },
@@ -232,7 +232,7 @@ describe('OpenAIAutoSchedulerView', () => {
     expect(wrapper.text()).toContain('0.8200')
     expect(wrapper.get<HTMLSelectElement>('#scheduler-filter-model').element.value).toBe('gpt-5.4')
     expect(wrapper.text()).toContain('实际调度分')
-    expect(wrapper.text()).toContain('实际调度分 = 健康分 + 价格修正')
+    expect(wrapper.text()).toContain('实际调度分 = 健康分 0.8200 + 价格修正 +0.8000')
     expect(wrapper.text()).toContain('基础分 0.6000')
     expect(wrapper.text()).toContain('新渠道默认起点')
     expect(wrapper.text()).toContain('延迟修正')
@@ -241,6 +241,7 @@ describe('OpenAIAutoSchedulerView', () => {
     expect(wrapper.text()).toContain('成本修正')
     expect(wrapper.text()).toContain('请求样本')
     expect(wrapper.text()).toContain('TTFB样本')
+    expect(wrapper.text()).toContain('超时：context deadline exceeded')
   })
 
   it('updates selected group participation and applies group filter', async () => {
