@@ -29,6 +29,7 @@ type openAIAutoSchedulerService interface {
 	ListEvents(ctx context.Context, params service.OpenAIAutoSchedulerListParams) (*service.OpenAIAutoSchedulerEventListResult, error)
 	ResetScore(ctx context.Context, accountID, groupID int64, model string) error
 	Record(ctx context.Context, input service.OpenAIAutoSchedulerRecordInput) error
+	RecordManualProbe(ctx context.Context, input service.OpenAIAutoSchedulerRecordInput) error
 }
 
 type openAIAutoSchedulerAccountRepository interface {
@@ -204,7 +205,7 @@ func (h *OpenAIAutoSchedulerHandler) ListEvents(c *gin.Context) {
 }
 
 func (h *OpenAIAutoSchedulerHandler) ResetScore(c *gin.Context) {
-	accountID, ok := parsePositiveInt64Param(c, "id", "invalid account id")
+	accountID, ok := parsePositiveInt64Param(c, "account_id", "invalid account id")
 	if !ok {
 		return
 	}
@@ -224,7 +225,7 @@ func (h *OpenAIAutoSchedulerHandler) ResetScore(c *gin.Context) {
 }
 
 func (h *OpenAIAutoSchedulerHandler) ProbeScore(c *gin.Context) {
-	accountID, ok := parsePositiveInt64Param(c, "id", "invalid account id")
+	accountID, ok := parsePositiveInt64Param(c, "account_id", "invalid account id")
 	if !ok {
 		return
 	}
@@ -258,7 +259,7 @@ func (h *OpenAIAutoSchedulerHandler) ProbeScore(c *gin.Context) {
 	if result.Err != nil && message == "" {
 		message = result.Err.Error()
 	}
-	if err := h.scheduler.Record(c.Request.Context(), service.OpenAIAutoSchedulerRecordInput{
+	if err := h.scheduler.RecordManualProbe(c.Request.Context(), service.OpenAIAutoSchedulerRecordInput{
 		AccountID: accountID,
 		GroupID:   groupID,
 		Model:     model,

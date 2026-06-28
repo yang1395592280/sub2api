@@ -105,3 +105,57 @@ ok github.com/Wei-Shaw/sub2api/internal/repository 0.547s
 
 - Manual probe requires `group_id` and `model` query parameters because the score route only carries account ID. This matches the score identity used by existing reset/service APIs.
 - `go generate ./cmd/server` without `GOCACHE` failed in the sandbox due to lack of permission for `/Users/jaydenyang/Library/Caches/go-build`; rerunning with `GOCACHE=/tmp/sub2api-go-cache` succeeded.
+
+---
+
+## Review Fix Report - 2026-06-28 14:16:31 CST
+
+### What Changed
+
+- Added `OpenAIAutoSchedulerService.RecordManualProbe` for admin/manual probe writes. It returns normal application errors when the scheduler is disabled, group identity is missing/disabled/not OpenAI, model is missing, or repository persistence fails.
+- Kept hot-path `Record` best-effort by sharing the same internal record flow with `bestEffort=true`, so gateway/probe-runner degradation behavior remains unchanged.
+- Changed ambiguous mutation routes from `/scores/:id/reset` and `/scores/:id/probe` to explicit account identity routes:
+  - `POST /api/v1/admin/openai-auto-scheduler/scores/accounts/:account_id/reset`
+  - `POST /api/v1/admin/openai-auto-scheduler/scores/accounts/:account_id/probe`
+- Updated handler tests and API contract tests to document the explicit account route contract and required `group_id` + `model` query params.
+- Changed `ResetScore` to require an existing score state for `(account_id, group_id, model)` and return `OPENAI_AUTO_SCHEDULER_SCORE_NOT_FOUND` instead of creating a misleading new score row.
+- Added handler coverage for GET settings, GET groups, GET events, manual probe success/error recording, missing mutation query params, and non-OpenAI account rejection.
+
+### TDD / Regression Evidence
+
+RED checks before implementation:
+
+```text
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestOpenAIAutoSchedulerService_(RecordManualProbe|ResetScore)'
+FAIL: RecordManualProbe undefined
+
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/handler/admin -run 'TestOpenAIAutoSchedulerHandler_(Probe|Reset|GetSettings|ListGroups|ListEvents)'
+FAIL: explicit account_id route tests returned 400 with old :id param contract; manual probe did not call strict record path.
+```
+
+GREEN verification after implementation:
+
+```text
+GOCACHE=/tmp/sub2api-go-cache go test -count=1 ./internal/handler/admin -run TestOpenAIAutoScheduler
+ok github.com/Wei-Shaw/sub2api/internal/handler/admin 0.459s
+
+GOCACHE=/tmp/sub2api-go-cache go test -count=1 ./internal/service -run TestOpenAIAutoScheduler
+ok github.com/Wei-Shaw/sub2api/internal/service 0.970s
+
+GOCACHE=/tmp/sub2api-go-cache go test -count=1 ./internal/repository -run TestOpenAIAutoScheduler
+ok github.com/Wei-Shaw/sub2api/internal/repository 0.569s
+
+GOCACHE=/tmp/sub2api-go-cache go test -count=1 -tags unit ./internal/server -run TestAPIContracts
+ok github.com/Wei-Shaw/sub2api/internal/server 0.222s
+
+git diff --check
+PASS: no output
+```
+
+### Wire
+
+- Wire was not regenerated because provider signatures did not change.
+
+### Risks / Notes
+
+- The old ambiguous `/scores/:id/reset` and `/scores/:id/probe` routes are intentionally not preserved. Task 7 should use the explicit `/scores/accounts/:account_id/...` routes with `group_id` and `model`.

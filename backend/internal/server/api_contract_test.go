@@ -1270,6 +1270,60 @@ func TestAPIContracts(t *testing.T) {
 				]
 			}`,
 		},
+		{
+			name:       "GET /api/v1/admin/openai-auto-scheduler/scores",
+			method:     http.MethodGet,
+			path:       "/api/v1/admin/openai-auto-scheduler/scores?group_id=20&model=gpt-5",
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": {
+					"items": [],
+					"total": 0,
+					"page": 1,
+					"page_size": 20,
+					"pages": 1
+				}
+			}`,
+		},
+		{
+			name:       "GET /api/v1/admin/openai-auto-scheduler/events",
+			method:     http.MethodGet,
+			path:       "/api/v1/admin/openai-auto-scheduler/events?group_id=20&model=gpt-5",
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": {
+					"items": [],
+					"total": 0,
+					"page": 1,
+					"page_size": 20,
+					"pages": 1
+				}
+			}`,
+		},
+		{
+			name:       "POST /api/v1/admin/openai-auto-scheduler/scores/accounts/:account_id/reset requires model",
+			method:     http.MethodPost,
+			path:       "/api/v1/admin/openai-auto-scheduler/scores/accounts/101/reset?group_id=20",
+			wantStatus: http.StatusBadRequest,
+			wantJSON: `{
+				"code": 400,
+				"message": "model is required"
+			}`,
+		},
+		{
+			name:       "POST /api/v1/admin/openai-auto-scheduler/scores/accounts/:account_id/probe requires group_id",
+			method:     http.MethodPost,
+			path:       "/api/v1/admin/openai-auto-scheduler/scores/accounts/101/probe?model=gpt-5",
+			wantStatus: http.StatusBadRequest,
+			wantJSON: `{
+				"code": 400,
+				"message": "group_id must be > 0"
+			}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1409,6 +1463,10 @@ func newContractDeps(t *testing.T) *contractDeps {
 	v1Admin.POST("/accounts/bulk-update", adminAccountHandler.BulkUpdate)
 	v1Admin.GET("/openai-auto-scheduler/settings", openAIAutoSchedulerHandler.GetSettings)
 	v1Admin.GET("/openai-auto-scheduler/groups", openAIAutoSchedulerHandler.ListGroups)
+	v1Admin.GET("/openai-auto-scheduler/scores", openAIAutoSchedulerHandler.ListScores)
+	v1Admin.GET("/openai-auto-scheduler/events", openAIAutoSchedulerHandler.ListEvents)
+	v1Admin.POST("/openai-auto-scheduler/scores/accounts/:account_id/reset", openAIAutoSchedulerHandler.ResetScore)
+	v1Admin.POST("/openai-auto-scheduler/scores/accounts/:account_id/probe", openAIAutoSchedulerHandler.ProbeScore)
 
 	return &contractDeps{
 		now:         now,

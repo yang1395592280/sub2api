@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -36,10 +37,13 @@ type fakeOpenAIAutoSchedulerAdminService struct {
 }
 
 func (s *fakeOpenAIAutoSchedulerAdminService) GetAllGroupsByPlatform(_ context.Context, platform string) ([]service.Group, error) {
-	if platform != service.PlatformOpenAI {
-		return nil, nil
+	var groups []service.Group
+	for _, group := range s.groups {
+		if group.Platform == platform {
+			groups = append(groups, group)
+		}
 	}
-	return s.groups, nil
+	return groups, nil
 }
 
 func (s *fakeOpenAIAutoSchedulerAdminService) GetGroup(_ context.Context, id int64) (*service.Group, error) {
@@ -67,11 +71,14 @@ func (s *fakeOpenAIAutoSchedulerAdminService) UpdateGroup(_ context.Context, id 
 
 type fakeOpenAIAutoSchedulerService struct {
 	scores       []service.OpenAIAutoSchedulerScoreState
+	events       []service.OpenAIAutoSchedulerScoreEvent
 	total        int64
 	listParams   service.OpenAIAutoSchedulerListParams
 	resetAccount int64
 	resetGroup   int64
 	resetModel   string
+	recordInput  service.OpenAIAutoSchedulerRecordInput
+	recordErr    error
 }
 
 func (s *fakeOpenAIAutoSchedulerService) ListScores(_ context.Context, params service.OpenAIAutoSchedulerListParams) (*service.OpenAIAutoSchedulerScoreListResult, error) {
@@ -81,7 +88,7 @@ func (s *fakeOpenAIAutoSchedulerService) ListScores(_ context.Context, params se
 
 func (s *fakeOpenAIAutoSchedulerService) ListEvents(_ context.Context, params service.OpenAIAutoSchedulerListParams) (*service.OpenAIAutoSchedulerEventListResult, error) {
 	s.listParams = params
-	return &service.OpenAIAutoSchedulerEventListResult{}, nil
+	return &service.OpenAIAutoSchedulerEventListResult{Items: s.events, Total: s.total}, nil
 }
 
 func (s *fakeOpenAIAutoSchedulerService) ResetScore(_ context.Context, accountID, groupID int64, model string) error {
@@ -95,6 +102,31 @@ func (s *fakeOpenAIAutoSchedulerService) Record(_ context.Context, input service
 	return nil
 }
 
+func (s *fakeOpenAIAutoSchedulerService) RecordManualProbe(_ context.Context, input service.OpenAIAutoSchedulerRecordInput) error {
+	s.recordInput = input
+	return s.recordErr
+}
+
+type fakeOpenAIAutoSchedulerAccountRepo struct {
+	account *service.Account
+	err     error
+}
+
+func (r *fakeOpenAIAutoSchedulerAccountRepo) GetByID(context.Context, int64) (*service.Account, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.account, nil
+}
+
+type fakeOpenAIAutoSchedulerProbeChecker struct {
+	result service.OpenAIAutoSchedulerProbeResult
+}
+
+func (c fakeOpenAIAutoSchedulerProbeChecker) Check(context.Context, *service.Account, string, time.Duration) service.OpenAIAutoSchedulerProbeResult {
+	return c.result
+}
+
 func setupOpenAIAutoSchedulerHandlerRouter(
 	settingsSvc *fakeOpenAIAutoSchedulerSettingsService,
 	adminSvc *fakeOpenAIAutoSchedulerAdminService,
@@ -105,12 +137,45 @@ func setupOpenAIAutoSchedulerHandlerRouter(
 	h := NewOpenAIAutoSchedulerHandler(settingsSvc, adminSvc, schedulerSvc, nil, nil)
 	group := router.Group("/api/v1/admin/openai-auto-scheduler")
 	{
+		group.GET("/settings", h.GetSettings)
 		group.PUT("/settings", h.UpdateSettings)
+		group.GET("/groups", h.ListGroups)
 		group.PUT("/groups/:id", h.UpdateGroup)
 		group.GET("/scores", h.ListScores)
-		group.POST("/scores/:id/reset", h.ResetScore)
+		group.GET("/events", h.ListEvents)
+		group.POST("/scores/accounts/:account_id/reset", h.ResetScore)
 	}
 	return router
+}
+
+func setupOpenAIAutoSchedulerProbeRouter(
+	schedulerSvc *fakeOpenAIAutoSchedulerService,
+	accountRepo *fakeOpenAIAutoSchedulerAccountRepo,
+	checker service.OpenAIAutoSchedulerProbeChecker,
+) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	h := NewOpenAIAutoSchedulerHandler(nil, nil, schedulerSvc, accountRepo, checker)
+	group := router.Group("/api/v1/admin/openai-auto-scheduler")
+	{
+		group.POST("/scores/accounts/:account_id/probe", h.ProbeScore)
+	}
+	return router
+}
+
+func TestOpenAIAutoSchedulerHandler_GetSettingsReturnsCurrentSettings(t *testing.T) {
+	settings := service.DefaultOpenAIAutoSchedulerSettings()
+	settings.Enabled = true
+	settings.ProbeIntervalSeconds = 90
+	router := setupOpenAIAutoSchedulerHandlerRouter(&fakeOpenAIAutoSchedulerSettingsService{settings: settings}, &fakeOpenAIAutoSchedulerAdminService{}, &fakeOpenAIAutoSchedulerService{})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/openai-auto-scheduler/settings", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"enabled":true`)
+	require.Contains(t, rec.Body.String(), `"probe_interval_seconds":90`)
 }
 
 func TestOpenAIAutoSchedulerHandler_UpdateSettingsRejectsInvalidThresholds(t *testing.T) {
@@ -154,6 +219,22 @@ func TestOpenAIAutoSchedulerHandler_UpdateGroupRejectsNonOpenAIGroup(t *testing.
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	require.Nil(t, adminSvc.updatedInput)
 	require.Contains(t, rec.Body.String(), "OpenAI")
+}
+
+func TestOpenAIAutoSchedulerHandler_ListGroupsReturnsOnlyOpenAIGroups(t *testing.T) {
+	adminSvc := &fakeOpenAIAutoSchedulerAdminService{groups: []service.Group{
+		{ID: 20, Name: "openai", Platform: service.PlatformOpenAI, Status: service.StatusActive, OpenAIAutoSchedulerEnabled: true},
+		{ID: 30, Name: "anthropic", Platform: service.PlatformAnthropic, Status: service.StatusActive, OpenAIAutoSchedulerEnabled: true},
+	}}
+	router := setupOpenAIAutoSchedulerHandlerRouter(&fakeOpenAIAutoSchedulerSettingsService{}, adminSvc, &fakeOpenAIAutoSchedulerService{})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/openai-auto-scheduler/groups", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"name":"openai"`)
+	require.NotContains(t, rec.Body.String(), "anthropic")
 }
 
 func TestOpenAIAutoSchedulerHandler_UpdateGroupPersistsOpenAIGroupToggle(t *testing.T) {
@@ -214,16 +295,122 @@ func TestOpenAIAutoSchedulerHandler_ListScoresReturnsPaginatedRows(t *testing.T)
 	require.Equal(t, 87.5, resp.Data.Items[0].FinalScorePercent)
 }
 
+func TestOpenAIAutoSchedulerHandler_ListEventsReturnsPaginatedRows(t *testing.T) {
+	latency := 123
+	schedulerSvc := &fakeOpenAIAutoSchedulerService{
+		total: 1,
+		events: []service.OpenAIAutoSchedulerScoreEvent{
+			{AccountID: 101, GroupID: 20, Model: "gpt-5", EventType: service.OpenAIAutoSchedulerEventProbeSuccess, ScoreBefore: 6000, ScoreAfter: 6800, LatencyMS: &latency, Message: "ok", CreatedAt: time.Date(2026, 6, 28, 1, 2, 3, 0, time.UTC)},
+		},
+	}
+	router := setupOpenAIAutoSchedulerHandlerRouter(&fakeOpenAIAutoSchedulerSettingsService{}, &fakeOpenAIAutoSchedulerAdminService{}, schedulerSvc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/openai-auto-scheduler/events?page=2&page_size=1&group_id=20&model=gpt-5", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, service.OpenAIAutoSchedulerListParams{GroupID: 20, Model: "gpt-5", Page: 2, PageSize: 1}, schedulerSvc.listParams)
+	require.Contains(t, rec.Body.String(), `"event_type":"probe_success"`)
+	require.Contains(t, rec.Body.String(), `"created_at":"2026-06-28T01:02:03Z"`)
+}
+
 func TestOpenAIAutoSchedulerHandler_ResetInvokesService(t *testing.T) {
 	schedulerSvc := &fakeOpenAIAutoSchedulerService{}
 	router := setupOpenAIAutoSchedulerHandlerRouter(&fakeOpenAIAutoSchedulerSettingsService{}, &fakeOpenAIAutoSchedulerAdminService{}, schedulerSvc)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/openai-auto-scheduler/scores/101/reset?group_id=20&model=gpt-5", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/openai-auto-scheduler/scores/accounts/101/reset?group_id=20&model=gpt-5", nil)
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, int64(101), schedulerSvc.resetAccount)
 	require.Equal(t, int64(20), schedulerSvc.resetGroup)
 	require.Equal(t, "gpt-5", schedulerSvc.resetModel)
+}
+
+func TestOpenAIAutoSchedulerHandler_ResetRejectsMissingMutationQueryParams(t *testing.T) {
+	router := setupOpenAIAutoSchedulerHandlerRouter(&fakeOpenAIAutoSchedulerSettingsService{}, &fakeOpenAIAutoSchedulerAdminService{}, &fakeOpenAIAutoSchedulerService{})
+
+	for _, path := range []string{
+		"/api/v1/admin/openai-auto-scheduler/scores/accounts/101/reset?model=gpt-5",
+		"/api/v1/admin/openai-auto-scheduler/scores/accounts/101/reset?group_id=20",
+	} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		router.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusBadRequest, rec.Code)
+	}
+}
+
+func TestOpenAIAutoSchedulerHandler_ProbeRecordsSuccess(t *testing.T) {
+	latency := 88
+	schedulerSvc := &fakeOpenAIAutoSchedulerService{}
+	router := setupOpenAIAutoSchedulerProbeRouter(
+		schedulerSvc,
+		&fakeOpenAIAutoSchedulerAccountRepo{account: &service.Account{ID: 101, Platform: service.PlatformOpenAI}},
+		fakeOpenAIAutoSchedulerProbeChecker{result: service.OpenAIAutoSchedulerProbeResult{Success: true, LatencyMS: &latency, Message: "ok"}},
+	)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/openai-auto-scheduler/scores/accounts/101/probe?group_id=20&model=gpt-5", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(101), schedulerSvc.recordInput.AccountID)
+	require.Equal(t, int64(20), schedulerSvc.recordInput.GroupID)
+	require.Equal(t, "gpt-5", schedulerSvc.recordInput.Model)
+	require.Equal(t, service.OpenAIAutoSchedulerEventProbeSuccess, schedulerSvc.recordInput.EventType)
+	require.Contains(t, rec.Body.String(), `"success":true`)
+}
+
+func TestOpenAIAutoSchedulerHandler_ProbeSurfacesRecordError(t *testing.T) {
+	schedulerSvc := &fakeOpenAIAutoSchedulerService{recordErr: errors.New("record skipped")}
+	router := setupOpenAIAutoSchedulerProbeRouter(
+		schedulerSvc,
+		&fakeOpenAIAutoSchedulerAccountRepo{account: &service.Account{ID: 101, Platform: service.PlatformOpenAI}},
+		fakeOpenAIAutoSchedulerProbeChecker{result: service.OpenAIAutoSchedulerProbeResult{Success: true, Message: "ok"}},
+	)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/openai-auto-scheduler/scores/accounts/101/probe?group_id=20&model=gpt-5", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	require.Contains(t, rec.Body.String(), "internal error")
+}
+
+func TestOpenAIAutoSchedulerHandler_ProbeRejectsMissingMutationQueryParams(t *testing.T) {
+	router := setupOpenAIAutoSchedulerProbeRouter(
+		&fakeOpenAIAutoSchedulerService{},
+		&fakeOpenAIAutoSchedulerAccountRepo{account: &service.Account{ID: 101, Platform: service.PlatformOpenAI}},
+		fakeOpenAIAutoSchedulerProbeChecker{},
+	)
+
+	for _, path := range []string{
+		"/api/v1/admin/openai-auto-scheduler/scores/accounts/101/probe?model=gpt-5",
+		"/api/v1/admin/openai-auto-scheduler/scores/accounts/101/probe?group_id=20",
+	} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		router.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusBadRequest, rec.Code)
+	}
+}
+
+func TestOpenAIAutoSchedulerHandler_ProbeRejectsNonOpenAIAccount(t *testing.T) {
+	router := setupOpenAIAutoSchedulerProbeRouter(
+		&fakeOpenAIAutoSchedulerService{},
+		&fakeOpenAIAutoSchedulerAccountRepo{account: &service.Account{ID: 101, Platform: service.PlatformAnthropic}},
+		fakeOpenAIAutoSchedulerProbeChecker{},
+	)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/openai-auto-scheduler/scores/accounts/101/probe?group_id=20&model=gpt-5", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Contains(t, rec.Body.String(), "OpenAI")
 }

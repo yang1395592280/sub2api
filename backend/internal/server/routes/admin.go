@@ -135,8 +135,8 @@ func registerOpenAIAutoSchedulerRoutes(admin *gin.RouterGroup, h *handler.Handle
 		openAIAutoScheduler.PUT("/groups/:id", h.Admin.OpenAIAutoScheduler.UpdateGroup)
 		openAIAutoScheduler.GET("/scores", h.Admin.OpenAIAutoScheduler.ListScores)
 		openAIAutoScheduler.GET("/events", h.Admin.OpenAIAutoScheduler.ListEvents)
-		openAIAutoScheduler.POST("/scores/:id/reset", h.Admin.OpenAIAutoScheduler.ResetScore)
-		openAIAutoScheduler.POST("/scores/:id/probe", h.Admin.OpenAIAutoScheduler.ProbeScore)
+		openAIAutoScheduler.POST("/scores/accounts/:account_id/reset", h.Admin.OpenAIAutoScheduler.ResetScore)
+		openAIAutoScheduler.POST("/scores/accounts/:account_id/probe", h.Admin.OpenAIAutoScheduler.ProbeScore)
 	}
 }
 

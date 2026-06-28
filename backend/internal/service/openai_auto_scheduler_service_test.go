@@ -233,6 +233,86 @@ func TestOpenAIAutoSchedulerService_RecordSkipsWhenGroupDisabled(t *testing.T) {
 	require.Empty(t, repo.events)
 }
 
+func TestOpenAIAutoSchedulerService_RecordManualProbeSurfacesSkippedAndRepositoryErrors(t *testing.T) {
+	t.Run("settings disabled", func(t *testing.T) {
+		repo := &fakeOpenAIAutoSchedulerRepo{}
+		svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: DefaultOpenAIAutoSchedulerSettings()})
+
+		err := svc.RecordManualProbe(context.Background(), OpenAIAutoSchedulerRecordInput{
+			AccountID: 1,
+			GroupID:   2,
+			Model:     "gpt-5",
+			EventType: OpenAIAutoSchedulerEventProbeSuccess,
+		})
+
+		require.Error(t, err)
+		require.Empty(t, repo.states)
+		require.Empty(t, repo.events)
+	})
+
+	t.Run("group disabled", func(t *testing.T) {
+		repo := &fakeOpenAIAutoSchedulerRepo{
+			groups: map[int64]Group{
+				2: {ID: 2, Platform: PlatformOpenAI, OpenAIAutoSchedulerEnabled: false, Hydrated: true, Status: StatusActive},
+			},
+		}
+		svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+
+		err := svc.RecordManualProbe(context.Background(), OpenAIAutoSchedulerRecordInput{
+			AccountID: 1,
+			GroupID:   2,
+			Model:     "gpt-5",
+			EventType: OpenAIAutoSchedulerEventProbeSuccess,
+		})
+
+		require.Error(t, err)
+		require.Empty(t, repo.states)
+		require.Empty(t, repo.events)
+	})
+
+	t.Run("repo error", func(t *testing.T) {
+		repo := &fakeOpenAIAutoSchedulerRepo{
+			groups: map[int64]Group{
+				2: {ID: 2, Platform: PlatformOpenAI, OpenAIAutoSchedulerEnabled: true, Hydrated: true, Status: StatusActive},
+			},
+			err: errors.New("database unavailable"),
+		}
+		svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+
+		err := svc.RecordManualProbe(context.Background(), OpenAIAutoSchedulerRecordInput{
+			AccountID: 1,
+			GroupID:   2,
+			Model:     "gpt-5",
+			EventType: OpenAIAutoSchedulerEventProbeSuccess,
+		})
+
+		require.Error(t, err)
+	})
+}
+
+func TestOpenAIAutoSchedulerService_RecordManualProbeStoresAuditOnSuccess(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{
+			2: {ID: 2, Platform: PlatformOpenAI, OpenAIAutoSchedulerEnabled: true, Hydrated: true, Status: StatusActive},
+		},
+		states: map[string]OpenAIAutoSchedulerScoreState{},
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+
+	err := svc.RecordManualProbe(context.Background(), OpenAIAutoSchedulerRecordInput{
+		AccountID: 1,
+		GroupID:   2,
+		Model:     " gpt-5 ",
+		EventType: OpenAIAutoSchedulerEventProbeSuccess,
+		Message:   "ok",
+	})
+
+	require.NoError(t, err)
+	require.Contains(t, repo.states, openAIAutoSchedulerStateKey(1, 2, "gpt-5"))
+	require.Len(t, repo.events, 1)
+	require.Equal(t, OpenAIAutoSchedulerEventProbeSuccess, repo.events[0].EventType)
+}
+
 func TestOpenAIAutoSchedulerService_ListScoresDelegatesToRepository(t *testing.T) {
 	repo := &fakeOpenAIAutoSchedulerRepo{
 		listStates: []OpenAIAutoSchedulerScoreState{
@@ -282,6 +362,45 @@ func TestOpenAIAutoSchedulerService_ListEventsDelegatesToRepository(t *testing.T
 	require.Equal(t, "gpt-5", repo.listParams.Model)
 	require.Equal(t, 2, repo.listParams.Page)
 	require.Equal(t, 50, repo.listParams.PageSize)
+}
+
+func TestOpenAIAutoSchedulerService_ResetScoreRequiresExistingState(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		states: map[string]OpenAIAutoSchedulerScoreState{},
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+
+	err := svc.ResetScore(context.Background(), 1, 2, "gpt-5")
+
+	require.Error(t, err)
+	require.Empty(t, repo.states)
+	require.Empty(t, repo.events)
+}
+
+func TestOpenAIAutoSchedulerService_ResetScoreStoresAuditForExistingState(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		states: map[string]OpenAIAutoSchedulerScoreState{
+			openAIAutoSchedulerStateKey(1, 2, "gpt-5"): {
+				AccountID:  1,
+				GroupID:    2,
+				Model:      "gpt-5",
+				BaseScore:  6000,
+				FinalScore: 3000,
+				State:      OpenAIAutoSchedulerStateOpen,
+			},
+		},
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+
+	err := svc.ResetScore(context.Background(), 1, 2, " gpt-5 ")
+
+	require.NoError(t, err)
+	state := repo.states[openAIAutoSchedulerStateKey(1, 2, "gpt-5")]
+	require.Equal(t, 6000, state.FinalScore)
+	require.Len(t, repo.events, 1)
+	require.Equal(t, OpenAIAutoSchedulerEventManualReset, repo.events[0].EventType)
+	require.Equal(t, 3000, repo.events[0].ScoreBefore)
+	require.Equal(t, 6000, repo.events[0].ScoreAfter)
 }
 
 func enabledOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {

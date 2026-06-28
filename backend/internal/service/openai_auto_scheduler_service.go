@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"time"
+
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
 type OpenAIAutoSchedulerSettingsProvider interface {
@@ -92,22 +94,68 @@ func (s *OpenAIAutoSchedulerService) IsEnabledForGroup(ctx context.Context, grou
 }
 
 func (s *OpenAIAutoSchedulerService) Record(ctx context.Context, input OpenAIAutoSchedulerRecordInput) error {
+	return s.record(ctx, input, true)
+}
+
+func (s *OpenAIAutoSchedulerService) RecordManualProbe(ctx context.Context, input OpenAIAutoSchedulerRecordInput) error {
+	return s.record(ctx, input, false)
+}
+
+func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAutoSchedulerRecordInput, bestEffort bool) error {
 	if s == nil || s.repo == nil {
-		return nil
+		if bestEffort {
+			return nil
+		}
+		return infraerrors.BadRequest("OPENAI_AUTO_SCHEDULER_NOT_CONFIGURED", "openai auto scheduler service is not configured")
 	}
-	settings := s.settings(ctx)
-	if !settings.Enabled || input.AccountID <= 0 || input.GroupID <= 0 {
-		return nil
+	if input.AccountID <= 0 || input.GroupID <= 0 {
+		if bestEffort {
+			return nil
+		}
+		return infraerrors.BadRequest("OPENAI_AUTO_SCHEDULER_INVALID_IDENTITY", "account_id and group_id are required")
 	}
-	if !s.IsEnabledForGroup(ctx, &input.GroupID) {
-		return nil
+	model := strings.TrimSpace(input.Model)
+	if model == "" {
+		if bestEffort {
+			return nil
+		}
+		return infraerrors.BadRequest("OPENAI_AUTO_SCHEDULER_MODEL_REQUIRED", "model is required")
 	}
 
-	model := strings.TrimSpace(input.Model)
+	settings := s.settings(ctx)
+	if !settings.Enabled {
+		if bestEffort {
+			return nil
+		}
+		return infraerrors.BadRequest("OPENAI_AUTO_SCHEDULER_DISABLED", "openai auto scheduler is disabled")
+	}
+	group, err := s.repo.GetGroup(ctx, input.GroupID)
+	if err != nil {
+		if bestEffort {
+			return nil
+		}
+		return err
+	}
+	if group == nil {
+		if bestEffort {
+			return nil
+		}
+		return infraerrors.NotFound("OPENAI_AUTO_SCHEDULER_GROUP_NOT_FOUND", "group not found")
+	}
+	if group.Platform != PlatformOpenAI || group.Status != StatusActive || !group.OpenAIAutoSchedulerEnabled {
+		if bestEffort {
+			return nil
+		}
+		return infraerrors.BadRequest("OPENAI_AUTO_SCHEDULER_GROUP_DISABLED", "openai auto scheduler is not enabled for this group")
+	}
+
 	now := time.Now()
 	state, err := s.repo.GetScoreState(ctx, input.AccountID, input.GroupID, model)
 	if err != nil {
-		return nil
+		if bestEffort {
+			return nil
+		}
+		return err
 	}
 	if state == nil {
 		newState := NewOpenAIAutoSchedulerScoreState(input.AccountID, input.GroupID, model)
@@ -126,7 +174,10 @@ func (s *OpenAIAutoSchedulerService) Record(ctx context.Context, input OpenAIAut
 	next.GroupID = input.GroupID
 	next.Model = model
 	if err := s.repo.UpsertScoreState(ctx, next); err != nil {
-		return nil
+		if bestEffort {
+			return nil
+		}
+		return err
 	}
 	if err := s.repo.InsertScoreEvent(ctx, OpenAIAutoSchedulerScoreEvent{
 		AccountID:   input.AccountID,
@@ -141,7 +192,10 @@ func (s *OpenAIAutoSchedulerService) Record(ctx context.Context, input OpenAIAut
 		Message:     strings.TrimSpace(input.Message),
 		CreatedAt:   now,
 	}); err != nil {
-		return nil
+		if bestEffort {
+			return nil
+		}
+		return err
 	}
 	return nil
 }
@@ -179,17 +233,19 @@ func (s *OpenAIAutoSchedulerService) ListEvents(ctx context.Context, params Open
 
 func (s *OpenAIAutoSchedulerService) ResetScore(ctx context.Context, accountID, groupID int64, model string) error {
 	if s == nil || s.repo == nil || accountID <= 0 || groupID <= 0 {
-		return nil
+		return infraerrors.BadRequest("OPENAI_AUTO_SCHEDULER_INVALID_IDENTITY", "account_id and group_id are required")
 	}
 	model = strings.TrimSpace(model)
+	if model == "" {
+		return infraerrors.BadRequest("OPENAI_AUTO_SCHEDULER_MODEL_REQUIRED", "model is required")
+	}
 	now := time.Now()
 	state, err := s.repo.GetScoreState(ctx, accountID, groupID, model)
 	if err != nil {
 		return err
 	}
 	if state == nil {
-		newState := NewOpenAIAutoSchedulerScoreState(accountID, groupID, model)
-		state = &newState
+		return infraerrors.NotFound("OPENAI_AUTO_SCHEDULER_SCORE_NOT_FOUND", "score state not found")
 	}
 	before := state.FinalScore
 	next := ApplyOpenAIAutoSchedulerEvent(now, *state, OpenAIAutoSchedulerEventInput{
