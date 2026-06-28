@@ -177,14 +177,27 @@ func (r *openAIAutoSchedulerRepository) fillOpenAIAutoSchedulerScoreAccountNames
 	if err != nil {
 		return err
 	}
-	names := make(map[int64]string, len(accounts))
+	type accountScoreMeta struct {
+		name  string
+		price float64
+	}
+	metas := make(map[int64]accountScoreMeta, len(accounts))
 	for _, account := range accounts {
-		names[account.ID] = account.Name
+		serviceAccount := accountEntityToService(account)
+		metas[account.ID] = accountScoreMeta{
+			name:  account.Name,
+			price: serviceAccount.EffectiveChannelPrice(),
+		}
 	}
 	for i := range states {
-		if name := strings.TrimSpace(names[states[i].AccountID]); name != "" {
+		meta, ok := metas[states[i].AccountID]
+		if !ok {
+			continue
+		}
+		if name := strings.TrimSpace(meta.name); name != "" {
 			states[i].AccountName = name
 		}
+		states[i].ChannelPrice = meta.price
 	}
 	return nil
 }
@@ -232,6 +245,9 @@ func (r *openAIAutoSchedulerRepository) ListSchedulableOpenAIAccountsByGroup(ctx
 func (r *openAIAutoSchedulerRepository) ListScoreEvents(ctx context.Context, params service.OpenAIAutoSchedulerListParams) ([]service.OpenAIAutoSchedulerScoreEvent, int64, error) {
 	page, pageSize := normalizeOpenAIAutoSchedulerPage(params.Page, params.PageSize)
 	query := r.client.OpenAIAutoSchedulerScoreEvent.Query()
+	if params.AccountID > 0 {
+		query = query.Where(openaiautoschedulerscoreevent.AccountIDEQ(params.AccountID))
+	}
 	if params.GroupID > 0 {
 		query = query.Where(openaiautoschedulerscoreevent.GroupIDEQ(params.GroupID))
 	}

@@ -53,10 +53,11 @@ type OpenAIAutoSchedulerScoreEvent struct {
 }
 
 type OpenAIAutoSchedulerListParams struct {
-	GroupID  int64
-	Model    string
-	Page     int
-	PageSize int
+	AccountID int64
+	GroupID   int64
+	Model     string
+	Page      int
+	PageSize  int
 }
 
 type OpenAIAutoSchedulerScoreListResult struct {
@@ -252,11 +253,13 @@ func (s *OpenAIAutoSchedulerService) listScoresWithGroupAccounts(ctx context.Con
 	for _, account := range accounts {
 		if item, ok := byAccountID[account.ID]; ok {
 			item.AccountName = account.Name
+			item.ChannelPrice = account.EffectiveChannelPrice()
 			byAccountID[account.ID] = item
 			continue
 		}
 		state := NewOpenAIAutoSchedulerScoreState(account.ID, params.GroupID, params.Model)
 		state.AccountName = account.Name
+		state.ChannelPrice = account.EffectiveChannelPrice()
 		byAccountID[account.ID] = state
 	}
 

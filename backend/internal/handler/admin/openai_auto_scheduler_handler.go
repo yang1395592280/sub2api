@@ -288,6 +288,7 @@ type openAIAutoSchedulerGroupResponse struct {
 type openAIAutoSchedulerScoreResponse struct {
 	AccountID               int64   `json:"account_id"`
 	AccountName             string  `json:"account_name"`
+	ChannelPrice            float64 `json:"channel_price"`
 	GroupID                 int64   `json:"group_id"`
 	Model                   string  `json:"model"`
 	BaseScore               int     `json:"base_score"`
@@ -370,15 +371,20 @@ func parseOpenAIAutoSchedulerPagination(c *gin.Context) (int, int) {
 }
 
 func parseOpenAIAutoSchedulerListParams(c *gin.Context, page, pageSize int) (service.OpenAIAutoSchedulerListParams, bool) {
+	accountID, ok := parseOptionalPositiveInt64Query(c, "account_id")
+	if !ok {
+		return service.OpenAIAutoSchedulerListParams{}, false
+	}
 	groupID, ok := parseOptionalPositiveInt64Query(c, "group_id")
 	if !ok {
 		return service.OpenAIAutoSchedulerListParams{}, false
 	}
 	return service.OpenAIAutoSchedulerListParams{
-		GroupID:  groupID,
-		Model:    strings.TrimSpace(c.Query("model")),
-		Page:     page,
-		PageSize: pageSize,
+		AccountID: accountID,
+		GroupID:   groupID,
+		Model:     strings.TrimSpace(c.Query("model")),
+		Page:      page,
+		PageSize:  pageSize,
 	}, true
 }
 
@@ -439,6 +445,7 @@ func openAIAutoSchedulerScoreToResponse(state service.OpenAIAutoSchedulerScoreSt
 	return openAIAutoSchedulerScoreResponse{
 		AccountID:               state.AccountID,
 		AccountName:             state.AccountName,
+		ChannelPrice:            state.ChannelPrice,
 		GroupID:                 state.GroupID,
 		Model:                   state.Model,
 		BaseScore:               state.BaseScore,

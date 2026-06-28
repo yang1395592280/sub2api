@@ -147,6 +147,41 @@ func TestOpenAIAutoSchedulerRepository_ListScoreStatesOrdersAndCapsPageSize(t *t
 	require.Equal(t, "model-003", items[2].Model)
 }
 
+func TestOpenAIAutoSchedulerRepository_ListScoreStatesFillsEffectiveChannelPrice(t *testing.T) {
+	ctx := context.Background()
+	repo, client := newOpenAIAutoSchedulerRepoSQLite(t)
+
+	price := 0.08
+	account := client.Account.Create().
+		SetName("priced-openai").
+		SetPlatform(service.PlatformOpenAI).
+		SetType(service.AccountTypeOAuth).
+		SetCredentials(map[string]any{}).
+		SetExtra(map[string]any{}).
+		SetConcurrency(1).
+		SetPriority(50).
+		SetStatus(service.StatusActive).
+		SetSchedulable(true).
+		SetErrorMessage("").
+		SetChannelPrice(price).
+		SaveX(ctx)
+
+	state := service.NewOpenAIAutoSchedulerScoreState(account.ID, 300, "gpt-5.4")
+	require.NoError(t, repo.UpsertScoreState(ctx, state))
+
+	items, total, err := repo.ListScoreStates(ctx, service.OpenAIAutoSchedulerListParams{
+		GroupID:  300,
+		Model:    "gpt-5.4",
+		Page:     1,
+		PageSize: 20,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Len(t, items, 1)
+	require.Equal(t, "priced-openai", items[0].AccountName)
+	require.Equal(t, price, items[0].ChannelPrice)
+}
+
 func TestOpenAIAutoSchedulerRepository_InsertScoreEventTruncatesAndPersistsDetails(t *testing.T) {
 	ctx := context.Background()
 	repo, client := newOpenAIAutoSchedulerRepoSQLite(t)
@@ -189,6 +224,42 @@ func TestOpenAIAutoSchedulerRepository_InsertScoreEventTruncatesAndPersistsDetai
 	require.Len(t, got.Message, 1000)
 	require.Equal(t, strings.Repeat("x", 1000), got.Message)
 	require.WithinDuration(t, createdAt, got.CreatedAt, time.Second)
+}
+
+func TestOpenAIAutoSchedulerRepository_ListScoreEventsFiltersByAccountID(t *testing.T) {
+	ctx := context.Background()
+	repo, _ := newOpenAIAutoSchedulerRepoSQLite(t)
+
+	createdAt := time.Date(2026, 6, 28, 11, 12, 13, 0, time.UTC)
+	require.NoError(t, repo.InsertScoreEvent(ctx, service.OpenAIAutoSchedulerScoreEvent{
+		AccountID: 701,
+		GroupID:   801,
+		Model:     "gpt-5",
+		EventType: service.OpenAIAutoSchedulerEventProbeSuccess,
+		Message:   "selected account event",
+		CreatedAt: createdAt.Add(time.Minute),
+	}))
+	require.NoError(t, repo.InsertScoreEvent(ctx, service.OpenAIAutoSchedulerScoreEvent{
+		AccountID: 702,
+		GroupID:   801,
+		Model:     "gpt-5",
+		EventType: service.OpenAIAutoSchedulerEventError,
+		Message:   "other account event",
+		CreatedAt: createdAt,
+	}))
+
+	items, total, err := repo.ListScoreEvents(ctx, service.OpenAIAutoSchedulerListParams{
+		AccountID: 701,
+		GroupID:   801,
+		Model:     "gpt-5",
+		Page:      1,
+		PageSize:  20,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Len(t, items, 1)
+	require.Equal(t, int64(701), items[0].AccountID)
+	require.Equal(t, "selected account event", items[0].Message)
 }
 
 func TestOpenAIAutoSchedulerRepository_InsertScoreEventTruncatesMessageAtRuneBoundary(t *testing.T) {

@@ -75,6 +75,7 @@ const scores = [
   {
     account_id: 101,
     account_name: 'plus特惠临时分组渠道',
+    channel_price: 0.08,
     group_id: 20,
     model: 'gpt-5.4',
     base_score: 6000,
@@ -109,6 +110,7 @@ const scores = [
   {
     account_id: 102,
     account_name: 'codex-pro备用渠道',
+    channel_price: 0.12,
     group_id: 21,
     model: 'gpt-5.5',
     base_score: 10000,
@@ -253,6 +255,7 @@ describe('OpenAIAutoSchedulerView', () => {
     )
     expect(wrapper.text()).toContain('plus特惠临时分组')
     expect(wrapper.text()).toContain('plus特惠临时分组渠道')
+    expect(wrapper.text()).toContain('渠道价格 0.0800')
     expect(wrapper.text()).toContain('observing')
     expect(wrapper.text()).toContain('0.8200')
     expect(wrapper.get<HTMLSelectElement>('#scheduler-filter-model').element.value).toBe('gpt-5.4')
@@ -260,7 +263,7 @@ describe('OpenAIAutoSchedulerView', () => {
     expect(wrapper.text()).toContain('当前分数 0.8200（已含成本修正 +0.8000）；同状态选择时再叠加组内价格修正')
     expect(wrapper.text()).not.toContain('实际调度分 = 健康分 0.8200 + 价格修正 +0.8000')
     expect(wrapper.text()).toContain('基础分 0.6000')
-    expect(wrapper.text()).toContain('新渠道默认起点')
+    expect(wrapper.text()).not.toContain('新渠道默认起点')
     expect(wrapper.text()).toContain('延迟修正')
     expect(wrapper.text()).toContain('错误惩罚')
     expect(wrapper.text()).toContain('恢复加分')

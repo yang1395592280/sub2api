@@ -37,6 +37,7 @@ export interface OpenAIAutoSchedulerGroup {
 export interface OpenAIAutoSchedulerScore {
   account_id: number
   account_name?: string
+  channel_price?: number | null
   group_id: number
   model: string
   base_score: number
@@ -86,6 +87,7 @@ export interface OpenAIAutoSchedulerEvent {
 }
 
 export interface OpenAIAutoSchedulerListParams {
+  account_id?: number
   group_id?: number
   model?: string
   state?: OpenAIAutoSchedulerState | ''

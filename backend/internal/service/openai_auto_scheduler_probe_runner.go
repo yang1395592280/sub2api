@@ -300,22 +300,25 @@ func (c *openAIAutoSchedulerProbeHTTPChecker) Check(ctx context.Context, account
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
+	start := time.Now()
 	resp, err := c.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, c.resolveTLSProfile(account))
 	if err != nil {
-		return OpenAIAutoSchedulerProbeResult{Err: err}
+		latencyMS := int(time.Since(start).Milliseconds())
+		return OpenAIAutoSchedulerProbeResult{LatencyMS: &latencyMS, Err: err}
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, readErr := io.ReadAll(io.LimitReader(resp.Body, openAIAutoSchedulerProbeMaxBodyBytes))
+	latencyMS := int(time.Since(start).Milliseconds())
 	if readErr != nil {
-		return OpenAIAutoSchedulerProbeResult{Err: readErr}
+		return OpenAIAutoSchedulerProbeResult{LatencyMS: &latencyMS, Err: readErr}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return OpenAIAutoSchedulerProbeResult{Message: fmt.Sprintf("upstream HTTP %d", resp.StatusCode)}
+		return OpenAIAutoSchedulerProbeResult{LatencyMS: &latencyMS, Message: fmt.Sprintf("upstream HTTP %d", resp.StatusCode)}
 	}
 	if strings.TrimSpace(string(body)) == "" {
-		return OpenAIAutoSchedulerProbeResult{Err: errors.New("empty probe response")}
+		return OpenAIAutoSchedulerProbeResult{LatencyMS: &latencyMS, Err: errors.New("empty probe response")}
 	}
-	return OpenAIAutoSchedulerProbeResult{Success: true}
+	return OpenAIAutoSchedulerProbeResult{Success: true, LatencyMS: &latencyMS}
 }
 
 func (c *openAIAutoSchedulerProbeHTTPChecker) resolveTLSProfile(account *Account) *tlsfingerprint.Profile {

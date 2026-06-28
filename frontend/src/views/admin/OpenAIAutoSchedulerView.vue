@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="space-y-4 p-4 sm:p-6">
+    <div class="space-y-3 px-2 py-2 sm:px-4 sm:py-3">
       <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -197,22 +197,25 @@
               <EmptyState title="暂无调度分数" description="当前筛选条件下没有 OpenAI 自动调度分数。" />
             </div>
             <div v-else class="overflow-x-auto">
-              <table data-testid="scheduler-score-table" class="min-w-[1180px] divide-y divide-gray-200 dark:divide-dark-700">
+              <table data-testid="scheduler-score-table" class="min-w-[1260px] divide-y divide-gray-200 dark:divide-dark-700">
                 <thead class="bg-gray-50 dark:bg-dark-800/60">
                   <tr>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-dark-400">上游渠道</th>
+                    <th class="w-[360px] px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-dark-400">上游渠道</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-dark-400">状态</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-dark-400">实际调度分</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-dark-400">健康分拆解</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-dark-400">探测样本</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-dark-400">最近风险</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-dark-400">操作</th>
+                    <th class="w-[230px] px-3 py-3 text-right text-xs font-semibold text-gray-500 dark:text-dark-400">操作</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 dark:divide-dark-700">
                   <tr v-for="score in visibleScores" :key="scoreKey(score)">
-                    <td class="max-w-[260px] px-4 py-3">
-                      <div class="truncate text-sm font-semibold text-gray-900 dark:text-white">{{ scoreTitle(score) }}</div>
+                    <td class="w-[360px] px-4 py-3">
+                      <div class="line-clamp-2 text-sm font-semibold leading-5 text-gray-900 dark:text-white">{{ scoreTitle(score) }}</div>
+                      <div class="mt-1 text-xs font-medium text-gray-600 dark:text-dark-300">
+                        渠道价格 {{ formatChannelPrice(score.channel_price) }}
+                      </div>
                       <div class="mt-1 truncate text-xs text-gray-500 dark:text-dark-400">
                         #{{ score.account_id }} · Group #{{ score.group_id }} · {{ score.model }}
                       </div>
@@ -233,7 +236,7 @@
                       <div class="mt-1 max-w-[220px] text-xs text-gray-500 dark:text-dark-400">{{ dispatchScoreHint(score) }}</div>
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-600 dark:text-dark-300">
-                      <div>基础分 {{ formatScore(score.base_score) }}（新渠道默认起点）</div>
+                      <div>基础分 {{ formatScore(score.base_score) }}</div>
                       <div>延迟修正 {{ formatComponentScore(score.latency_score) }}</div>
                       <div>错误惩罚 {{ formatComponentScore(score.error_score) }}</div>
                       <div>恢复加分 {{ formatComponentScore(score.recovery_score) }}</div>
@@ -252,17 +255,17 @@
                       </div>
                       <div v-if="score.reason" class="mt-1 line-clamp-2 text-xs text-gray-500 dark:text-dark-400">{{ score.reason }}</div>
                     </td>
-                    <td class="px-4 py-3">
-                      <div class="flex justify-end gap-2">
-                        <button class="btn btn-secondary px-3 py-1.5 text-xs" @click="openScoreDrawer(score)">
+                    <td class="w-[230px] px-3 py-3">
+                      <div class="flex justify-end gap-1.5">
+                        <button class="scheduler-action-btn" @click="openScoreDrawer(score)">
                           <Icon name="eye" size="xs" />
                           <span>查看详情</span>
                         </button>
-                        <button class="btn btn-secondary px-3 py-1.5 text-xs" :disabled="actionKey === scoreKey(score)" @click="handleProbe(score)">
+                        <button class="scheduler-action-btn" :disabled="actionKey === scoreKey(score)" @click="handleProbe(score)">
                           <Icon name="beaker" size="xs" />
                           <span>探测</span>
                         </button>
-                        <button class="btn btn-secondary px-3 py-1.5 text-xs" :disabled="actionKey === scoreKey(score)" @click="handleReset(score)">
+                        <button class="scheduler-action-btn" :disabled="actionKey === scoreKey(score)" @click="handleReset(score)">
                           <Icon name="refresh" size="xs" />
                           <span>重置</span>
                         </button>
@@ -295,7 +298,7 @@
             <span :class="stateBadgeClass(selectedScore.state)">{{ stateLabel(selectedScore.state) }}</span>
             <h2 class="mt-3 truncate text-lg font-semibold text-gray-900 dark:text-white">{{ scoreTitle(selectedScore) }}</h2>
             <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-              #{{ selectedScore.account_id }} · Group #{{ selectedScore.group_id }} · {{ selectedScore.model }}
+              #{{ selectedScore.account_id }} · Group #{{ selectedScore.group_id }} · {{ selectedScore.model }} · 渠道价格 {{ formatChannelPrice(selectedScore.channel_price) }}
             </p>
           </div>
           <button class="btn btn-secondary px-3" @click="closeScoreDrawer">关闭</button>
@@ -312,7 +315,7 @@
         <section class="mt-4">
           <h3 class="text-sm font-semibold text-gray-900 dark:text-white">评分拆解</h3>
           <div class="mt-2 grid gap-2 text-sm text-gray-700 dark:text-dark-200">
-            <div>基础分 {{ formatScore(selectedScore.base_score) }}（新渠道默认起点）</div>
+            <div>基础分 {{ formatScore(selectedScore.base_score) }}</div>
             <div>延迟修正 {{ formatComponentScore(selectedScore.latency_score) }}</div>
             <div>错误惩罚 {{ formatComponentScore(selectedScore.error_score) }}</div>
             <div>恢复加分 {{ formatComponentScore(selectedScore.recovery_score) }}</div>
@@ -654,7 +657,7 @@ async function openScoreDrawer(score: OpenAIAutoSchedulerScore) {
         model: score.model,
         page: 1,
         page_size: 20,
-      } as OpenAIAutoSchedulerListParams & { account_id: number },
+      },
       { signal: ctrl.signal }
     )
     if (ctrl.signal.aborted || drawerAbortController !== ctrl) return
@@ -757,8 +760,13 @@ function formatComponentScore(score: number): string {
 }
 
 function formatMs(value?: number | null): string {
-  if (value == null) return '-'
+  if (value == null) return '未采样'
   return `${value}ms`
+}
+
+function formatChannelPrice(value?: number | null): string {
+  if (value == null || value <= 0) return '未配置'
+  return value.toFixed(4)
 }
 
 function formatSeconds(value?: number | null): string {
@@ -815,11 +823,52 @@ onUnmounted(() => {
   color: rgb(17 24 39);
 }
 
+.scheduler-action-btn {
+  display: inline-flex;
+  height: 2rem;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgb(209 213 219);
+  background: white;
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgb(55 65 81);
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.scheduler-action-btn:hover:not(:disabled) {
+  border-color: rgb(156 163 175);
+  background: rgb(249 250 251);
+  color: rgb(17 24 39);
+}
+
+.scheduler-action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 :global(.dark) .scheduler-stat-label {
   color: rgb(156 163 175);
 }
 
 :global(.dark) .scheduler-stat-value {
+  color: white;
+}
+
+:global(.dark) .scheduler-action-btn {
+  border-color: rgb(55 65 81);
+  background: rgb(17 24 39);
+  color: rgb(209 213 219);
+}
+
+:global(.dark) .scheduler-action-btn:hover:not(:disabled) {
+  border-color: rgb(75 85 99);
+  background: rgb(31 41 55);
   color: white;
 }
 
