@@ -427,11 +427,6 @@ function handleSearchInput() {
   searchTimeout = setTimeout(applyFilters, 300)
 }
 
-function handleGroupChange() {
-  filters.group_id = selectedGroupId.value
-  applyFilters()
-}
-
 function selectGroup(groupId: number) {
   if (selectedGroupId.value === groupId) return
   selectedGroupId.value = groupId
@@ -573,7 +568,7 @@ function scoreTitle(score: OpenAIAutoSchedulerScore): string {
 }
 
 function dispatchScoreHint(score: OpenAIAutoSchedulerScore): string {
-  return `实际调度分 = 健康分 ${formatScore(score.final_score)} + 价格修正 ${formatSignedScore(score.cost_score)}`
+  return `当前分数 ${formatScore(score.final_score)}（已含成本修正 ${formatSignedScore(score.cost_score)}）；同状态选择时再叠加组内价格修正`
 }
 
 function formatSignedScore(score: number): string {
