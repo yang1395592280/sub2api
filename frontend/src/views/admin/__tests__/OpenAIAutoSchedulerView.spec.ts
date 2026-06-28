@@ -9,6 +9,7 @@ const {
   listGroups,
   updateGroup,
   listScores,
+  listEvents,
   resetScore,
   probeScore,
   showError,
@@ -19,6 +20,7 @@ const {
   listGroups: vi.fn(),
   updateGroup: vi.fn(),
   listScores: vi.fn(),
+  listEvents: vi.fn(),
   resetScore: vi.fn(),
   probeScore: vi.fn(),
   showError: vi.fn(),
@@ -33,6 +35,7 @@ vi.mock('@/api/admin', () => ({
       listGroups,
       updateGroup,
       listScores,
+      listEvents,
       resetScore,
       probeScore,
     },
@@ -206,6 +209,29 @@ describe('OpenAIAutoSchedulerView', () => {
       page_size: 20,
       pages: 1,
     })
+    listEvents.mockResolvedValue({
+      items: [
+        {
+          account_id: 101,
+          group_id: 20,
+          model: 'gpt-5.4',
+          event_type: 'probe_error',
+          score_before: 6000,
+          score_before_percent: 60,
+          score_after: 2140,
+          score_after_percent: 21.4,
+          latency_ms: null,
+          ttfb_ms: null,
+          status_code: null,
+          message: 'Post "https://walkcoding.top": context deadline exceeded',
+          created_at: '2026-06-28T10:28:00Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
     resetScore.mockResolvedValue({ message: 'score reset' })
     probeScore.mockResolvedValue({
       event_type: 'probe_success',
@@ -257,6 +283,23 @@ describe('OpenAIAutoSchedulerView', () => {
     expect(wrapper.get('[data-testid="scheduler-score-table"]').text()).toContain('最近风险')
     expect(wrapper.text()).toContain('关闭后走系统原调度')
     expect(wrapper.text()).toContain('当前分组关闭时只展示分数，不参与自动调度')
+  })
+
+  it('opens a detail drawer with score breakdown, events and full error text', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text().includes('查看详情'))!.trigger('click')
+    await flushPromises()
+
+    expect(listEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ account_id: 101, group_id: 20, model: 'gpt-5.4', page: 1, page_size: 20 }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+    expect(wrapper.get('[data-testid="scheduler-score-drawer"]').text()).toContain('评分拆解')
+    expect(wrapper.get('[data-testid="scheduler-score-drawer"]').text()).toContain('完整错误')
+    expect(wrapper.get('[data-testid="scheduler-score-drawer"]').text()).toContain('Post "https://walkcoding.top": context deadline exceeded')
+    expect(wrapper.get('[data-testid="scheduler-score-drawer"]').text()).toContain('最近事件')
   })
 
   it('selects groups from the sidebar and keeps the filter in sync', async () => {

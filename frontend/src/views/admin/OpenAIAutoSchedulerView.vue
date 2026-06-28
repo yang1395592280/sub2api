@@ -254,6 +254,10 @@
                     </td>
                     <td class="px-4 py-3">
                       <div class="flex justify-end gap-2">
+                        <button class="btn btn-secondary px-3 py-1.5 text-xs" @click="openScoreDrawer(score)">
+                          <Icon name="eye" size="xs" />
+                          <span>查看详情</span>
+                        </button>
                         <button class="btn btn-secondary px-3 py-1.5 text-xs" :disabled="actionKey === scoreKey(score)" @click="handleProbe(score)">
                           <Icon name="beaker" size="xs" />
                           <span>探测</span>
@@ -280,6 +284,77 @@
           />
         </section>
       </div>
+
+      <aside
+        v-if="selectedScore"
+        data-testid="scheduler-score-drawer"
+        class="fixed inset-y-0 right-0 z-40 w-full max-w-xl overflow-y-auto border-l border-gray-200 bg-white p-5 shadow-xl dark:border-dark-700 dark:bg-dark-900"
+      >
+        <div class="mb-4 flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <span :class="stateBadgeClass(selectedScore.state)">{{ stateLabel(selectedScore.state) }}</span>
+            <h2 class="mt-3 truncate text-lg font-semibold text-gray-900 dark:text-white">{{ scoreTitle(selectedScore) }}</h2>
+            <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+              #{{ selectedScore.account_id }} · Group #{{ selectedScore.group_id }} · {{ selectedScore.model }}
+            </p>
+          </div>
+          <button class="btn btn-secondary px-3" @click="closeScoreDrawer">关闭</button>
+        </div>
+
+        <div class="rounded-md border border-gray-200 p-3 dark:border-dark-700">
+          <div class="text-xs text-gray-500 dark:text-dark-400">实际调度分</div>
+          <div :class="scoreTextClass(selectedScore.final_score)" class="mt-1 text-2xl font-semibold tabular-nums">
+            {{ formatScore(selectedScore.final_score) }}
+          </div>
+          <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ dispatchScoreHint(selectedScore) }}</p>
+        </div>
+
+        <section class="mt-4">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">评分拆解</h3>
+          <div class="mt-2 grid gap-2 text-sm text-gray-700 dark:text-dark-200">
+            <div>基础分 {{ formatScore(selectedScore.base_score) }}（新渠道默认起点）</div>
+            <div>延迟修正 {{ formatComponentScore(selectedScore.latency_score) }}</div>
+            <div>错误惩罚 {{ formatComponentScore(selectedScore.error_score) }}</div>
+            <div>恢复加分 {{ formatComponentScore(selectedScore.recovery_score) }}</div>
+            <div>成本修正 {{ formatComponentScore(selectedScore.cost_score) }}</div>
+          </div>
+        </section>
+
+        <section class="mt-4">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">探测样本</h3>
+          <div class="mt-2 grid grid-cols-2 gap-2 text-sm text-gray-700 dark:text-dark-200">
+            <div>请求样本 {{ selectedScore.request_count }}</div>
+            <div>TTFB样本 {{ selectedScore.ttfb_sample_count }}</div>
+            <div>慢响应率 {{ formatRate(selectedScore.slow_rate) }}</div>
+            <div>错误率 {{ formatRate(selectedScore.error_rate) }}</div>
+            <div>卡住率 {{ formatRate(selectedScore.stuck_rate) }}</div>
+            <div>最近延迟 {{ formatMs(selectedScore.last_latency_ms) }}</div>
+            <div>最近TTFB {{ formatMs(selectedScore.last_ttfb_ms) }}</div>
+            <div v-if="selectedScore.cooldown_until">冷却至 {{ formatDateTime(selectedScore.cooldown_until) }}</div>
+          </div>
+        </section>
+
+        <section class="mt-4">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">完整错误</h3>
+          <pre class="mt-2 whitespace-pre-wrap break-words rounded-md bg-gray-50 p-3 text-xs text-red-700 dark:bg-dark-800 dark:text-red-300">{{ selectedScore.last_error || '无异常' }}</pre>
+        </section>
+
+        <section class="mt-4">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">最近事件</h3>
+          <div v-if="drawerLoading" class="mt-2 text-sm text-gray-500 dark:text-dark-400">加载中...</div>
+          <div v-else-if="scoreEvents.length === 0" class="mt-2 text-sm text-gray-500 dark:text-dark-400">暂无事件</div>
+          <div v-else class="mt-2 space-y-2">
+            <div
+              v-for="event in scoreEvents"
+              :key="`${event.created_at}:${event.event_type}:${event.score_after}`"
+              class="rounded-md border border-gray-200 p-3 text-xs dark:border-dark-700"
+            >
+              <div class="font-semibold text-gray-900 dark:text-white">{{ event.event_type }} · {{ formatDateTime(event.created_at) }}</div>
+              <div class="mt-1 text-gray-600 dark:text-dark-300">{{ event.message || '无消息' }}</div>
+            </div>
+          </div>
+        </section>
+      </aside>
     </div>
   </AppLayout>
 </template>
@@ -288,6 +363,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { adminAPI } from '@/api/admin'
 import type {
+  OpenAIAutoSchedulerEvent,
   OpenAIAutoSchedulerGroup,
   OpenAIAutoSchedulerListParams,
   OpenAIAutoSchedulerScore,
@@ -313,6 +389,9 @@ const selectedGroupId = ref(0)
 const actionKey = ref<string | null>(null)
 const editingSettings = ref(false)
 const settingsSaving = ref(false)
+const selectedScore = ref<OpenAIAutoSchedulerScore | null>(null)
+const scoreEvents = ref<OpenAIAutoSchedulerEvent[]>([])
+const drawerLoading = ref(false)
 const pagination = reactive({ page: 1, page_size: getPersistedPageSize(), total: 0 })
 const schedulerModelOptions = ['gpt-5.4', 'gpt-5.5']
 const filters = reactive<OpenAIAutoSchedulerListParams>({
@@ -335,6 +414,7 @@ const settingsForm = reactive({
 })
 
 let abortController: AbortController | null = null
+let drawerAbortController: AbortController | null = null
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 const localFilterPageSize = 200
 
@@ -559,6 +639,47 @@ async function handleProbe(score: OpenAIAutoSchedulerScore) {
   }
 }
 
+async function openScoreDrawer(score: OpenAIAutoSchedulerScore) {
+  selectedScore.value = score
+  scoreEvents.value = []
+  drawerAbortController?.abort()
+  const ctrl = new AbortController()
+  drawerAbortController = ctrl
+  drawerLoading.value = true
+  try {
+    const result = await adminAPI.openaiAutoScheduler.listEvents(
+      {
+        account_id: score.account_id,
+        group_id: score.group_id,
+        model: score.model,
+        page: 1,
+        page_size: 20,
+      } as OpenAIAutoSchedulerListParams & { account_id: number },
+      { signal: ctrl.signal }
+    )
+    if (ctrl.signal.aborted || drawerAbortController !== ctrl) return
+    scoreEvents.value = result.items || []
+  } catch (err: unknown) {
+    const e = err as { name?: string; code?: string }
+    if (e?.name !== 'AbortError' && e?.code !== 'ERR_CANCELED') {
+      appStore.showError(extractApiErrorMessage(err, '加载调度事件失败'))
+    }
+  } finally {
+    if (drawerAbortController === ctrl) {
+      drawerLoading.value = false
+      drawerAbortController = null
+    }
+  }
+}
+
+function closeScoreDrawer() {
+  drawerAbortController?.abort()
+  drawerAbortController = null
+  selectedScore.value = null
+  scoreEvents.value = []
+  drawerLoading.value = false
+}
+
 function scoreKey(score: OpenAIAutoSchedulerScore): string {
   return `${score.account_id}:${score.group_id}:${score.model}`
 }
@@ -650,11 +771,6 @@ function formatPercent(value?: number | null): string {
   return `${Math.round(value * 100)}%`
 }
 
-function formatPercentFromBasis(value?: number | null): string {
-  if (value == null) return '-'
-  return `${Math.round(value)}%`
-}
-
 function formatRate(value: number): string {
   return `${Math.round(value * 100)}%`
 }
@@ -677,6 +793,7 @@ onMounted(reload)
 onUnmounted(() => {
   if (searchTimeout) clearTimeout(searchTimeout)
   abortController?.abort()
+  drawerAbortController?.abort()
 })
 </script>
 
