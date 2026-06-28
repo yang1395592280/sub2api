@@ -1,0 +1,270 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { defineComponent, h } from 'vue'
+import { flushPromises, mount } from '@vue/test-utils'
+import OpenAIAutoSchedulerView from '../OpenAIAutoSchedulerView.vue'
+
+const {
+  getSettings,
+  updateSettings,
+  listGroups,
+  updateGroup,
+  listScores,
+  resetScore,
+  probeScore,
+  showError,
+  showSuccess,
+} = vi.hoisted(() => ({
+  getSettings: vi.fn(),
+  updateSettings: vi.fn(),
+  listGroups: vi.fn(),
+  updateGroup: vi.fn(),
+  listScores: vi.fn(),
+  resetScore: vi.fn(),
+  probeScore: vi.fn(),
+  showError: vi.fn(),
+  showSuccess: vi.fn(),
+}))
+
+vi.mock('@/api/admin', () => ({
+  adminAPI: {
+    openaiAutoScheduler: {
+      getSettings,
+      updateSettings,
+      listGroups,
+      updateGroup,
+      listScores,
+      resetScore,
+      probeScore,
+    },
+  },
+}))
+
+vi.mock('@/stores/app', () => ({
+  useAppStore: () => ({
+    showError,
+    showSuccess,
+  }),
+}))
+
+vi.mock('@/utils/apiError', () => ({
+  extractApiErrorMessage: (_err: unknown, fallback: string) => fallback,
+}))
+
+const settings = {
+  enabled: true,
+  probe_interval_seconds: 60,
+  slow_threshold_ms: 10000,
+  severe_slow_threshold_ms: 20000,
+  consecutive_slow_breaker_threshold: 3,
+  consecutive_error_breaker_threshold: 2,
+  cooldown_seconds: 120,
+  half_open_success_threshold: 3,
+  cost_weight: 0.2,
+  recovery_step: 800,
+}
+
+const groups = [
+  { id: 20, name: 'openai-main', status: 'active', enabled: true },
+  { id: 21, name: 'openai-backup', status: 'active', enabled: false },
+]
+
+const scores = [
+  {
+    account_id: 101,
+    group_id: 20,
+    model: 'gpt-5',
+    base_score: 10000,
+    base_score_percent: 100,
+    final_score: 8200,
+    final_score_percent: 82,
+    latency_score: 7000,
+    latency_score_percent: 70,
+    error_score: 10000,
+    error_score_percent: 100,
+    recovery_score: 9000,
+    recovery_score_percent: 90,
+    cost_score: 8000,
+    cost_score_percent: 80,
+    state: 'observing',
+    consecutive_slow_count: 1,
+    consecutive_error_count: 0,
+    consecutive_success_count: 2,
+    request_count: 12,
+    ttfb_sample_count: 7,
+    slow_rate: 0.25,
+    error_rate: 0.05,
+    stuck_rate: 0,
+    cooldown_until: null,
+    last_latency_ms: 1200,
+    last_ttfb_ms: 420,
+    last_status_code: 200,
+    last_error: null,
+    reason: 'latency above target',
+    last_checked_at: '2026-06-28T03:00:00Z',
+  },
+  {
+    account_id: 102,
+    group_id: 21,
+    model: 'gpt-5-mini',
+    base_score: 10000,
+    base_score_percent: 100,
+    final_score: 3200,
+    final_score_percent: 32,
+    latency_score: 3000,
+    latency_score_percent: 30,
+    error_score: 4000,
+    error_score_percent: 40,
+    recovery_score: 2000,
+    recovery_score_percent: 20,
+    cost_score: 8000,
+    cost_score_percent: 80,
+    state: 'open',
+    consecutive_slow_count: 3,
+    consecutive_error_count: 2,
+    consecutive_success_count: 0,
+    request_count: 20,
+    ttfb_sample_count: 10,
+    slow_rate: 0.5,
+    error_rate: 0.35,
+    stuck_rate: 0.1,
+    cooldown_until: '2026-06-28T03:05:00Z',
+    last_latency_ms: 22000,
+    last_ttfb_ms: 1200,
+    last_status_code: 500,
+    last_error: 'upstream error',
+    reason: 'breaker open',
+    last_checked_at: '2026-06-28T03:01:00Z',
+  },
+]
+
+const AppLayoutStub = { template: '<div><slot /></div>' }
+const EmptyStateStub = defineComponent({
+  props: ['title', 'description'],
+  template: '<div>{{ title }} {{ description }}</div>',
+})
+const IconStub = defineComponent({
+  props: ['name'],
+  template: '<span>{{ name }}</span>',
+})
+const PaginationStub = defineComponent({
+  emits: ['update:page', 'update:pageSize'],
+  template: '<div data-testid="pagination"></div>',
+})
+const ToggleStub = defineComponent({
+  props: {
+    modelValue: {
+      type: Boolean,
+      required: true,
+    },
+  },
+  emits: ['update:modelValue'],
+  setup(props, { emit }) {
+    return () =>
+      h(
+        'button',
+        {
+          type: 'button',
+          role: 'switch',
+          'aria-checked': String(props.modelValue),
+          onClick: () => emit('update:modelValue', !props.modelValue),
+        },
+        String(props.modelValue)
+      )
+  },
+})
+
+function mountView() {
+  return mount(OpenAIAutoSchedulerView, {
+    global: {
+      stubs: {
+        AppLayout: AppLayoutStub,
+        EmptyState: EmptyStateStub,
+        Icon: IconStub,
+        Pagination: PaginationStub,
+        Toggle: ToggleStub,
+      },
+    },
+  })
+}
+
+describe('OpenAIAutoSchedulerView', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getSettings.mockResolvedValue({ ...settings })
+    updateSettings.mockResolvedValue({ ...settings, enabled: false })
+    listGroups.mockResolvedValue(groups.map((group) => ({ ...group })))
+    updateGroup.mockImplementation((id: number, payload: { enabled: boolean }) =>
+      Promise.resolve({ ...groups.find((group) => group.id === id), ...payload })
+    )
+    listScores.mockResolvedValue({
+      items: scores.map((score) => ({ ...score })),
+      total: scores.length,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    resetScore.mockResolvedValue({ message: 'score reset' })
+    probeScore.mockResolvedValue({
+      event_type: 'probe_success',
+      success: true,
+      message: 'ok',
+      latency_ms: 800,
+    })
+  })
+
+  it('loads settings, groups and score rows', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(getSettings).toHaveBeenCalled()
+    expect(listGroups).toHaveBeenCalled()
+    expect(listScores).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 1 }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+    expect(wrapper.text()).toContain('openai-main')
+    expect(wrapper.text()).toContain('Account #101')
+    expect(wrapper.text()).toContain('observing')
+  })
+
+  it('updates selected group participation and applies group filter', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const groupSelect = wrapper.get<HTMLSelectElement>('#scheduler-group')
+    await groupSelect.setValue('21')
+    await flushPromises()
+
+    expect(listScores).toHaveBeenLastCalledWith(
+      expect.objectContaining({ group_id: 21 }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+
+    const switches = wrapper.findAll('[role="switch"]')
+    await switches[1].trigger('click')
+    await flushPromises()
+
+    expect(updateGroup).toHaveBeenCalledWith(21, { enabled: true })
+    expect(showSuccess).toHaveBeenCalledWith('分组已加入自动调度')
+  })
+
+  it('uses row account, group and model identity for probe and reset actions', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const buttons = wrapper.findAll('button')
+    const probe = buttons.find((button) => button.text().includes('探测'))
+    const reset = buttons.find((button) => button.text().includes('重置'))
+
+    await probe!.trigger('click')
+    await flushPromises()
+
+    expect(probeScore).toHaveBeenCalledWith(101, { group_id: 20, model: 'gpt-5' })
+
+    const resetAfterProbe = wrapper.findAll('button').find((button) => button.text().includes('重置'))
+    await resetAfterProbe!.trigger('click')
+    await flushPromises()
+
+    expect(resetScore).toHaveBeenCalledWith(101, { group_id: 20, model: 'gpt-5' })
+  })
+})

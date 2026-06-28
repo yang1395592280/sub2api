@@ -416,6 +416,7 @@ export default {
     channelManagement: 'Channels',
     channelPricing: 'Channel Pricing',
     channelMonitor: 'Channel Monitor',
+    openaiAutoScheduler: 'OpenAI Auto Scheduler',
     channelStatus: 'Channel Status',
     riskControl: 'Risk Control',
     userSpendingRanking: 'User Spending Ranking',
@@ -7497,6 +7498,11 @@ export default {
         expired: 'Expired',
         revoked: 'Revoked',
       },
+    },
+
+    openaiAutoScheduler: {
+      title: 'OpenAI Auto Scheduler',
+      description: 'Review OpenAI account scheduling scores, risk signals and group participation',
     },
   },
 

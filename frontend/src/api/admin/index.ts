@@ -34,6 +34,7 @@ import affiliatesAPI from './affiliates'
 import riskControlAPI from './riskControl'
 import adminComplianceAPI from './compliance'
 import adminWorkbenchAPI from './workbench'
+import openaiAutoSchedulerAPI from './openaiAutoScheduler'
 
 /**
  * Unified admin API object for convenient access
@@ -69,7 +70,8 @@ export const adminAPI = {
   affiliates: affiliatesAPI,
   riskControl: riskControlAPI,
   compliance: adminComplianceAPI,
-  workbench: adminWorkbenchAPI
+  workbench: adminWorkbenchAPI,
+  openaiAutoScheduler: openaiAutoSchedulerAPI
 }
 
 export {
@@ -103,7 +105,8 @@ export {
   affiliatesAPI,
   riskControlAPI,
   adminComplianceAPI,
-  adminWorkbenchAPI
+  adminWorkbenchAPI,
+  openaiAutoSchedulerAPI
 }
 
 export default adminAPI
@@ -115,3 +118,14 @@ export type { BackupAgentHealth, DataManagementConfig } from './dataManagement'
 export type { TLSFingerprintProfile, CreateProfileRequest, UpdateProfileRequest } from './tlsFingerprintProfile'
 export type { ContentModerationConfig, ContentModerationLog, ModerationMode } from './riskControl'
 export type { AdminWorkbenchConversation, AdminWorkbenchStats, AdminWorkbenchConversationDetail } from './workbench'
+export type {
+  OpenAIAutoSchedulerEvent,
+  OpenAIAutoSchedulerEventType,
+  OpenAIAutoSchedulerGroup,
+  OpenAIAutoSchedulerListParams,
+  OpenAIAutoSchedulerListResponse,
+  OpenAIAutoSchedulerProbeResponse,
+  OpenAIAutoSchedulerScore,
+  OpenAIAutoSchedulerSettings,
+  OpenAIAutoSchedulerState,
+} from './openaiAutoScheduler'

@@ -608,6 +608,21 @@ const SignalIcon = {
     )
 }
 
+const BoltIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z'
+        })
+      ]
+    )
+}
+
 const ShieldIcon = {
   render: () =>
     h(
@@ -745,6 +760,7 @@ const adminNavItems = computed((): NavItem[] => {
       children: [
         { path: '/admin/channels/pricing', label: t('nav.channelPricing'), icon: PriceTagIcon },
         { path: '/admin/channels/monitor', label: t('nav.channelMonitor'), icon: SignalIcon, featureFlag: flagChannelMonitor },
+        { path: '/admin/openai-auto-scheduler', label: t('nav.openaiAutoScheduler'), icon: BoltIcon },
       ],
     },
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },

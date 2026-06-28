@@ -416,6 +416,7 @@ export default {
     channelManagement: '渠道管理',
     channelPricing: '渠道定价',
     channelMonitor: '渠道监控',
+    openaiAutoScheduler: 'OpenAI 自动调度',
     channelStatus: '渠道状态',
     riskControl: '风控中心',
     userSpendingRanking: '用户消费榜',
@@ -7676,6 +7677,11 @@ export default {
         expired: '已过期',
         revoked: '已撤销',
       },
+    },
+
+    openaiAutoScheduler: {
+      title: 'OpenAI 自动调度',
+      description: '查看 OpenAI 账号调度分数、风险信号和分组参与状态',
     },
   },
 
