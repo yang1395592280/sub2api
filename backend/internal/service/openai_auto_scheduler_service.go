@@ -16,6 +16,7 @@ type OpenAIAutoSchedulerRepository interface {
 	UpsertScoreState(ctx context.Context, state OpenAIAutoSchedulerScoreState) error
 	InsertScoreEvent(ctx context.Context, event OpenAIAutoSchedulerScoreEvent) error
 	ListScoreStates(ctx context.Context, params OpenAIAutoSchedulerListParams) ([]OpenAIAutoSchedulerScoreState, int64, error)
+	ListScoreEvents(ctx context.Context, params OpenAIAutoSchedulerListParams) ([]OpenAIAutoSchedulerScoreEvent, int64, error)
 	ListEnabledOpenAIGroups(ctx context.Context) ([]Group, error)
 }
 
@@ -54,6 +55,11 @@ type OpenAIAutoSchedulerListParams struct {
 
 type OpenAIAutoSchedulerScoreListResult struct {
 	Items []OpenAIAutoSchedulerScoreState
+	Total int64
+}
+
+type OpenAIAutoSchedulerEventListResult struct {
+	Items []OpenAIAutoSchedulerScoreEvent
 	Total int64
 }
 
@@ -157,6 +163,18 @@ func (s *OpenAIAutoSchedulerService) ListScores(ctx context.Context, params Open
 		return nil, err
 	}
 	return &OpenAIAutoSchedulerScoreListResult{Items: items, Total: total}, nil
+}
+
+func (s *OpenAIAutoSchedulerService) ListEvents(ctx context.Context, params OpenAIAutoSchedulerListParams) (*OpenAIAutoSchedulerEventListResult, error) {
+	if s == nil || s.repo == nil {
+		return &OpenAIAutoSchedulerEventListResult{}, nil
+	}
+	params.Model = strings.TrimSpace(params.Model)
+	items, total, err := s.repo.ListScoreEvents(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return &OpenAIAutoSchedulerEventListResult{Items: items, Total: total}, nil
 }
 
 func (s *OpenAIAutoSchedulerService) ResetScore(ctx context.Context, accountID, groupID int64, model string) error {

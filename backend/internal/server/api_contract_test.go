@@ -362,6 +362,7 @@ func TestAPIContracts(t *testing.T) {
 						"fallback_group_id_on_invalid_request": null,
 						"require_oauth_only": false,
 						"require_privacy_set": false,
+						"openai_auto_scheduler_enabled": false,
 						"rpm_limit": 0,
 						"created_at": "2025-01-02T03:04:05Z",
 						"updated_at": "2025-01-02T03:04:05Z"
@@ -825,7 +826,10 @@ func TestAPIContracts(t *testing.T) {
 						"identity_patch_prompt": "",
 						"invitation_code_enabled": false,
 						"home_content": "",
-					"hide_ccs_import_button": false,
+						"join_group_enabled": false,
+						"join_group_url": "",
+						"join_group_popup_image": "",
+						"hide_ccs_import_button": false,
 					"purchase_subscription_enabled": false,
 					"purchase_subscription_url": "",
 					"table_default_page_size": 20,
@@ -1044,6 +1048,9 @@ func TestAPIContracts(t *testing.T) {
 					"contact_info": "",
 					"doc_url": "",
 					"home_content": "",
+					"join_group_enabled": false,
+					"join_group_url": "",
+					"join_group_popup_image": "",
 					"hide_ccs_import_button": false,
 					"purchase_subscription_enabled": false,
 					"purchase_subscription_url": "",
@@ -1221,6 +1228,48 @@ func TestAPIContracts(t *testing.T) {
 				}
 			}`,
 		},
+		{
+			name:       "GET /api/v1/admin/openai-auto-scheduler/settings",
+			method:     http.MethodGet,
+			path:       "/api/v1/admin/openai-auto-scheduler/settings",
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": {
+					"enabled": false,
+					"probe_interval_seconds": 60,
+					"slow_threshold_ms": 10000,
+					"severe_slow_threshold_ms": 20000,
+					"consecutive_slow_breaker_threshold": 3,
+					"consecutive_error_breaker_threshold": 2,
+					"cooldown_seconds": 120,
+					"half_open_success_threshold": 3,
+					"cost_weight": 0.2,
+					"recovery_step": 800
+				}
+			}`,
+		},
+		{
+			name: "GET /api/v1/admin/openai-auto-scheduler/groups",
+			setup: func(t *testing.T, deps *contractDeps) {
+				t.Helper()
+				deps.groupRepo.SetActive([]service.Group{
+					{ID: 20, Name: "openai-main", Platform: service.PlatformOpenAI, Status: service.StatusActive, OpenAIAutoSchedulerEnabled: true},
+					{ID: 30, Name: "anthropic-main", Platform: service.PlatformAnthropic, Status: service.StatusActive, OpenAIAutoSchedulerEnabled: true},
+				})
+			},
+			method:     http.MethodGet,
+			path:       "/api/v1/admin/openai-auto-scheduler/groups",
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": [
+					{"id": 20, "name": "openai-main", "status": "active", "enabled": true}
+				]
+			}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1308,6 +1357,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, nil, nil)
 	adminSettingHandler := adminhandler.NewSettingHandler(settingService, nil, nil, nil, nil, nil, nil)
 	adminAccountHandler := adminhandler.NewAccountHandler(adminService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	openAIAutoSchedulerHandler := adminhandler.NewOpenAIAutoSchedulerHandler(settingService, adminService, service.NewOpenAIAutoSchedulerService(nil, settingService), nil, nil)
 
 	jwtAuth := func(c *gin.Context) {
 		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{
@@ -1357,6 +1407,8 @@ func newContractDeps(t *testing.T) *contractDeps {
 	v1Admin.Use(adminAuth)
 	v1Admin.GET("/settings", adminSettingHandler.GetSettings)
 	v1Admin.POST("/accounts/bulk-update", adminAccountHandler.BulkUpdate)
+	v1Admin.GET("/openai-auto-scheduler/settings", openAIAutoSchedulerHandler.GetSettings)
+	v1Admin.GET("/openai-auto-scheduler/groups", openAIAutoSchedulerHandler.ListGroups)
 
 	return &contractDeps{
 		now:         now,
@@ -1476,6 +1528,10 @@ func (r *stubUserRepo) ExistsByEmail(ctx context.Context, email string) (bool, e
 
 func (r *stubUserRepo) RemoveGroupFromAllowedGroups(ctx context.Context, groupID int64) (int64, error) {
 	return 0, errors.New("not implemented")
+}
+
+func (r *stubUserRepo) ListAllowedUsersByGroupID(ctx context.Context, groupID int64) ([]service.User, error) {
+	return nil, nil
 }
 
 func (r *stubUserRepo) RemoveGroupFromUserAllowedGroups(ctx context.Context, userID int64, groupID int64) error {
@@ -2244,6 +2300,10 @@ func (r *stubApiKeyRepo) ClearGroupIDByGroupID(ctx context.Context, groupID int6
 	return 0, errors.New("not implemented")
 }
 
+func (r *stubApiKeyRepo) ClearGroupIDByUserAndGroup(ctx context.Context, userID, groupID int64) (int64, error) {
+	return 0, nil
+}
+
 func (r *stubApiKeyRepo) UpdateGroupIDByUserAndGroup(ctx context.Context, userID, oldGroupID, newGroupID int64) (int64, error) {
 	var updated int64
 	for id, key := range r.byID {
@@ -2538,6 +2598,10 @@ func (r *stubUsageLogRepo) GetGlobalStats(ctx context.Context, startTime, endTim
 
 func (r *stubUsageLogRepo) GetAccountUsageStats(ctx context.Context, accountID int64, startTime, endTime time.Time) (*usagestats.AccountUsageStatsResponse, error) {
 	return nil, errors.New("not implemented")
+}
+
+func (r *stubUsageLogRepo) GetGroupUserDailyStatsBatch(ctx context.Context, groupID int64, userIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.AccountStats, error) {
+	return map[int64]*usagestats.AccountStats{}, nil
 }
 
 func (r *stubUsageLogRepo) GetStatsWithFilters(ctx context.Context, filters usagestats.UsageLogFilters) (*usagestats.UsageStats, error) {

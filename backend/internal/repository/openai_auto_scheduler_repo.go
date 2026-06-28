@@ -6,6 +6,7 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/group"
+	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscoreevent"
 	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscorestate"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -140,6 +141,47 @@ func (r *openAIAutoSchedulerRepository) ListScoreStates(ctx context.Context, par
 	out := make([]service.OpenAIAutoSchedulerScoreState, 0, len(entities))
 	for _, entity := range entities {
 		out = append(out, openAIAutoSchedulerScoreStateEntityToService(entity))
+	}
+	return out, int64(total), nil
+}
+
+func (r *openAIAutoSchedulerRepository) ListScoreEvents(ctx context.Context, params service.OpenAIAutoSchedulerListParams) ([]service.OpenAIAutoSchedulerScoreEvent, int64, error) {
+	page, pageSize := normalizeOpenAIAutoSchedulerPage(params.Page, params.PageSize)
+	query := r.client.OpenAIAutoSchedulerScoreEvent.Query()
+	if params.GroupID > 0 {
+		query = query.Where(openaiautoschedulerscoreevent.GroupIDEQ(params.GroupID))
+	}
+	if strings.TrimSpace(params.Model) != "" {
+		query = query.Where(openaiautoschedulerscoreevent.ModelEQ(strings.TrimSpace(params.Model)))
+	}
+
+	total, err := query.Clone().Count(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	entities, err := query.
+		Order(openaiautoschedulerscoreevent.ByCreatedAt(entsql.OrderDesc())).
+		Limit(pageSize).
+		Offset((page - 1) * pageSize).
+		All(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]service.OpenAIAutoSchedulerScoreEvent, 0, len(entities))
+	for _, entity := range entities {
+		out = append(out, service.OpenAIAutoSchedulerScoreEvent{
+			AccountID:   entity.AccountID,
+			GroupID:     entity.GroupID,
+			Model:       strings.TrimSpace(entity.Model),
+			EventType:   entity.EventType,
+			ScoreBefore: entity.ScoreBefore,
+			ScoreAfter:  entity.ScoreAfter,
+			LatencyMS:   entity.LatencyMs,
+			TtfbMS:      entity.TtfbMs,
+			StatusCode:  entity.StatusCode,
+			Message:     entity.Message,
+			CreatedAt:   entity.CreatedAt,
+		})
 	}
 	return out, int64(total), nil
 }

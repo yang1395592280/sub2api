@@ -104,6 +104,9 @@ func RegisterAdminRoutes(
 		// 渠道监控
 		registerChannelMonitorRoutes(admin, h)
 
+		// OpenAI 自动调度器
+		registerOpenAIAutoSchedulerRoutes(admin, h)
+
 		// 风控中心
 		registerContentModerationRoutes(admin, h)
 
@@ -120,6 +123,20 @@ func registerWorkbenchRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		workbench.GET("/conversations/:id", h.Admin.Workbench.GetConversation)
 		workbench.POST("/conversations/batch-delete", h.Admin.Workbench.BatchDeleteConversations)
 		workbench.POST("/conversations/cleanup-expired", h.Admin.Workbench.CleanupExpiredConversations)
+	}
+}
+
+func registerOpenAIAutoSchedulerRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	openAIAutoScheduler := admin.Group("/openai-auto-scheduler")
+	{
+		openAIAutoScheduler.GET("/settings", h.Admin.OpenAIAutoScheduler.GetSettings)
+		openAIAutoScheduler.PUT("/settings", h.Admin.OpenAIAutoScheduler.UpdateSettings)
+		openAIAutoScheduler.GET("/groups", h.Admin.OpenAIAutoScheduler.ListGroups)
+		openAIAutoScheduler.PUT("/groups/:id", h.Admin.OpenAIAutoScheduler.UpdateGroup)
+		openAIAutoScheduler.GET("/scores", h.Admin.OpenAIAutoScheduler.ListScores)
+		openAIAutoScheduler.GET("/events", h.Admin.OpenAIAutoScheduler.ListEvents)
+		openAIAutoScheduler.POST("/scores/:id/reset", h.Admin.OpenAIAutoScheduler.ResetScore)
+		openAIAutoScheduler.POST("/scores/:id/probe", h.Admin.OpenAIAutoScheduler.ProbeScore)
 	}
 }
 

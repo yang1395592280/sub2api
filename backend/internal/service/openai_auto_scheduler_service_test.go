@@ -25,6 +25,7 @@ type fakeOpenAIAutoSchedulerRepo struct {
 	states     map[string]OpenAIAutoSchedulerScoreState
 	events     []OpenAIAutoSchedulerScoreEvent
 	listStates []OpenAIAutoSchedulerScoreState
+	listEvents []OpenAIAutoSchedulerScoreEvent
 	listTotal  int64
 	listParams OpenAIAutoSchedulerListParams
 	err        error
@@ -87,6 +88,16 @@ func (r *fakeOpenAIAutoSchedulerRepo) ListScoreStates(ctx context.Context, param
 	}
 	r.listParams = params
 	return r.listStates, r.listTotal, nil
+}
+
+func (r *fakeOpenAIAutoSchedulerRepo) ListScoreEvents(ctx context.Context, params OpenAIAutoSchedulerListParams) ([]OpenAIAutoSchedulerScoreEvent, int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.err != nil {
+		return nil, 0, r.err
+	}
+	r.listParams = params
+	return r.listEvents, r.listTotal, nil
 }
 
 func (r *fakeOpenAIAutoSchedulerRepo) ListEnabledOpenAIGroups(ctx context.Context) ([]Group, error) {
@@ -241,6 +252,32 @@ func TestOpenAIAutoSchedulerService_ListScoresDelegatesToRepository(t *testing.T
 	require.NoError(t, err)
 	require.Equal(t, int64(1), result.Total)
 	require.Len(t, result.Items, 1)
+	require.Equal(t, int64(2), repo.listParams.GroupID)
+	require.Equal(t, "gpt-5", repo.listParams.Model)
+	require.Equal(t, 2, repo.listParams.Page)
+	require.Equal(t, 50, repo.listParams.PageSize)
+}
+
+func TestOpenAIAutoSchedulerService_ListEventsDelegatesToRepository(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		listEvents: []OpenAIAutoSchedulerScoreEvent{
+			{AccountID: 1, GroupID: 2, Model: "gpt-5", EventType: OpenAIAutoSchedulerEventSlow},
+		},
+		listTotal: 1,
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+
+	result, err := svc.ListEvents(context.Background(), OpenAIAutoSchedulerListParams{
+		GroupID:  2,
+		Model:    " gpt-5 ",
+		Page:     2,
+		PageSize: 50,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.Total)
+	require.Len(t, result.Items, 1)
+	require.Equal(t, OpenAIAutoSchedulerEventSlow, result.Items[0].EventType)
 	require.Equal(t, int64(2), repo.listParams.GroupID)
 	require.Equal(t, "gpt-5", repo.listParams.Model)
 	require.Equal(t, 2, repo.listParams.Page)
