@@ -64,7 +64,7 @@ const settings = {
 }
 
 const groups = [
-  { id: 20, name: 'openai-main', status: 'active', enabled: true },
+  { id: 20, name: 'plus特惠临时分组', status: 'active', enabled: true },
   { id: 21, name: 'openai-backup', status: 'active', enabled: false },
 ]
 
@@ -225,8 +225,7 @@ describe('OpenAIAutoSchedulerView', () => {
       expect.objectContaining({ page: 1, group_id: 20, model: 'gpt-5.4' }),
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
-    expect(wrapper.get<HTMLSelectElement>('#scheduler-group').element.value).toBe('20')
-    expect(wrapper.text()).toContain('openai-main')
+    expect(wrapper.text()).toContain('plus特惠临时分组')
     expect(wrapper.text()).toContain('plus特惠临时分组渠道')
     expect(wrapper.text()).toContain('observing')
     expect(wrapper.text()).toContain('0.8200')
@@ -244,12 +243,41 @@ describe('OpenAIAutoSchedulerView', () => {
     expect(wrapper.text()).toContain('超时：context deadline exceeded')
   })
 
+  it('renders the approved operations layout with group sidebar and channel table', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="scheduler-group-sidebar"]').text()).toContain('plus特惠临时分组')
+    expect(wrapper.get('[data-testid="scheduler-group-sidebar"]').text()).toContain('参与自动调度')
+    expect(wrapper.get('[data-testid="scheduler-score-table"]').text()).toContain('上游渠道')
+    expect(wrapper.get('[data-testid="scheduler-score-table"]').text()).toContain('实际调度分')
+    expect(wrapper.get('[data-testid="scheduler-score-table"]').text()).toContain('健康分拆解')
+    expect(wrapper.get('[data-testid="scheduler-score-table"]').text()).toContain('探测样本')
+    expect(wrapper.get('[data-testid="scheduler-score-table"]').text()).toContain('最近风险')
+    expect(wrapper.text()).toContain('关闭后走系统原调度')
+    expect(wrapper.text()).toContain('当前分组关闭时只展示分数，不参与自动调度')
+  })
+
+  it('selects groups from the sidebar and keeps the filter in sync', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="scheduler-group-card-21"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('openai-backup')
+    expect(wrapper.text()).toContain('不参与自动调度')
+    expect(listScores).toHaveBeenLastCalledWith(
+      expect.objectContaining({ group_id: 21, model: 'gpt-5.4' }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+  })
+
   it('updates selected group participation and applies group filter', async () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const groupSelect = wrapper.get<HTMLSelectElement>('#scheduler-group')
-    await groupSelect.setValue('21')
+    await wrapper.get('[data-testid="scheduler-group-card-21"]').trigger('click')
     await flushPromises()
 
     expect(listScores).toHaveBeenLastCalledWith(
@@ -257,8 +285,7 @@ describe('OpenAIAutoSchedulerView', () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
 
-    const switches = wrapper.findAll('[role="switch"]')
-    await switches[1].trigger('click')
+    await wrapper.get('[data-testid="scheduler-group-card-21"]').get('[role="switch"]').trigger('click')
     await flushPromises()
 
     expect(updateGroup).toHaveBeenCalledWith(21, { enabled: true })
@@ -361,7 +388,7 @@ describe('OpenAIAutoSchedulerView', () => {
 
     expect(wrapper.text()).toContain('openai-backup')
     expect(wrapper.text()).toContain('不参与自动调度')
-    expect(wrapper.findAll('[role="switch"]')[1].attributes('aria-checked')).toBe('false')
+    expect(wrapper.get('[data-testid="scheduler-group-card-21"]').get('[role="switch"]').attributes('aria-checked')).toBe('false')
     expect(listScores).toHaveBeenLastCalledWith(
       expect.objectContaining({ group_id: 21 }),
       expect.objectContaining({ signal: expect.any(AbortSignal) })

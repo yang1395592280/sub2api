@@ -10,6 +10,9 @@
                 <Toggle :modelValue="settings?.enabled || false" @update:modelValue="toggleGlobalEnabled" />
                 <span class="scheduler-stat-value">{{ settings?.enabled ? '已启用' : '已关闭' }}</span>
               </div>
+              <p class="mt-2 text-xs text-gray-500 dark:text-dark-400">
+                全局关闭后走系统原调度；自动调度开启时仍先经过系统原候选过滤。
+              </p>
             </div>
             <div class="scheduler-stat">
               <span class="scheduler-stat-label">探测间隔</span>
@@ -107,32 +110,44 @@
       </div>
 
       <div class="grid gap-4 lg:grid-cols-[minmax(260px,320px)_1fr]">
-        <section class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+        <section
+          data-testid="scheduler-group-sidebar"
+          class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
+        >
           <div class="mb-3 flex items-center justify-between gap-3">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">OpenAI 分组</h2>
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">OpenAI 分组调度</h2>
             <span class="text-xs text-gray-500 dark:text-dark-400">{{ groups.length }} 个</span>
           </div>
+          <p class="mb-3 text-xs text-gray-500 dark:text-dark-400">
+            当前分组关闭时只展示分数，不参与自动调度。
+          </p>
 
-          <label class="input-label" for="scheduler-group">当前分组</label>
-          <select id="scheduler-group" v-model.number="selectedGroupId" class="input mb-4" @change="handleGroupChange">
-            <option v-for="group in groups" :key="group.id" :value="group.id">
-              {{ group.name }}
-            </option>
-          </select>
-
-          <div v-if="selectedGroup" class="rounded-md border border-gray-200 p-3 dark:border-dark-700">
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <div class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ selectedGroup.name }}</div>
-                <div class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-                  {{ selectedGroup.enabled ? '参与自动调度' : '不参与自动调度' }}
+          <div class="space-y-2">
+            <button
+              v-for="group in groups"
+              :key="group.id"
+              type="button"
+              :data-testid="`scheduler-group-card-${group.id}`"
+              class="w-full rounded-md border p-3 text-left transition"
+              :class="group.id === selectedGroupId
+                ? 'border-primary-300 bg-primary-50 dark:border-primary-700 dark:bg-primary-500/10'
+                : 'border-gray-200 bg-white hover:border-gray-300 dark:border-dark-700 dark:bg-dark-900'"
+              @click="selectGroup(group.id)"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ group.name }}</div>
+                  <div class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+                    {{ group.enabled ? '参与自动调度' : '不参与自动调度' }} · 默认模型 {{ filters.model || 'gpt-5.4' }}
+                  </div>
                 </div>
+                <Toggle
+                  :modelValue="group.enabled"
+                  @click.stop
+                  @update:modelValue="group.id === selectedGroupId ? toggleSelectedGroup($event) : selectGroup(group.id)"
+                />
               </div>
-              <Toggle :modelValue="selectedGroup.enabled" @update:modelValue="toggleSelectedGroup" />
-            </div>
-          </div>
-          <div v-else class="rounded-md border border-dashed border-gray-200 p-3 text-xs text-gray-500 dark:border-dark-700 dark:text-dark-400">
-            选择一个分组后可控制该分组是否参与 OpenAI 自动调度。
+            </button>
           </div>
         </section>
 
@@ -181,118 +196,77 @@
             <div v-else-if="visibleScores.length === 0" class="p-8">
               <EmptyState title="暂无调度分数" description="当前筛选条件下没有 OpenAI 自动调度分数。" />
             </div>
-            <div v-else class="divide-y divide-gray-200 dark:divide-dark-700">
-              <article
-                v-for="score in visibleScores"
-                :key="scoreKey(score)"
-                class="grid gap-4 p-4 lg:grid-cols-[minmax(220px,1fr)_180px_minmax(360px,1.4fr)] lg:items-center"
-              >
-                <div class="min-w-0">
-                  <div class="flex items-center gap-2">
-                    <span class="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                      {{ scoreTitle(score) }}
-                    </span>
-                    <span :class="stateBadgeClass(score.state)">{{ stateLabel(score.state) }}</span>
-                  </div>
-                  <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-dark-400">
-                    <span>#{{ score.account_id }}</span>
-                    <span>Group #{{ score.group_id }}</span>
-                    <span class="max-w-full truncate">{{ score.model }}</span>
-                    <span>{{ formatDateTime(score.last_checked_at) }}</span>
-                  </div>
-                  <p v-if="score.reason" class="mt-2 line-clamp-2 text-xs text-gray-500 dark:text-dark-400">
-                    {{ score.reason }}
-                  </p>
-                </div>
-
-                <div>
-                  <div class="mb-1 text-xs text-gray-500 dark:text-dark-400">实际调度分</div>
-                  <div :class="scoreTextClass(score.final_score)" class="text-2xl font-semibold tabular-nums">
-                    {{ formatScore(score.final_score) }}
-                  </div>
-                  <div class="mt-1 h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-800">
-                    <div class="h-full rounded-full" :class="scoreBarClass(score.final_score)" :style="{ width: scoreWidth(score.final_score) }"></div>
-                  </div>
-                  <div class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-                    {{ dispatchScoreHint(score) }}
-                  </div>
-                  <div class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-                    基础分 {{ formatScore(score.base_score) }}（新渠道默认起点）
-                  </div>
-                </div>
-
-                <div class="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
-                  <div class="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
-                    <div class="scheduler-signal">
-                      <span>延迟修正</span>
-                      <strong>{{ formatComponentScore(score.latency_score) }}</strong>
-                      <small>{{ formatPercentFromBasis(score.latency_score_percent) }}</small>
-                    </div>
-                    <div class="scheduler-signal">
-                      <span>错误惩罚</span>
-                      <strong>{{ formatComponentScore(score.error_score) }}</strong>
-                      <small>{{ formatPercentFromBasis(score.error_score_percent) }}</small>
-                    </div>
-                    <div class="scheduler-signal">
-                      <span>恢复加分</span>
-                      <strong>{{ formatComponentScore(score.recovery_score) }}</strong>
-                      <small>{{ formatPercentFromBasis(score.recovery_score_percent) }}</small>
-                    </div>
-                    <div class="scheduler-signal">
-                      <span>成本修正</span>
-                      <strong>{{ formatComponentScore(score.cost_score) }}</strong>
-                      <small>{{ formatPercentFromBasis(score.cost_score_percent) }}</small>
-                    </div>
-                    <div class="scheduler-signal">
-                      <span>慢响应</span>
-                      <strong>{{ formatRate(score.slow_rate) }}</strong>
-                      <small>{{ score.consecutive_slow_count }} 连续</small>
-                    </div>
-                    <div class="scheduler-signal">
-                      <span>错误</span>
-                      <strong>{{ formatRate(score.error_rate) }}</strong>
-                      <small>{{ score.consecutive_error_count }} 连续</small>
-                    </div>
-                    <div class="scheduler-signal">
-                      <span>请求样本</span>
-                      <strong>{{ score.request_count }}</strong>
-                      <small>TTFB样本 {{ score.ttfb_sample_count }}</small>
-                    </div>
-                    <div class="scheduler-signal">
-                      <span>卡住率</span>
-                      <strong>{{ formatRate(score.stuck_rate) }}</strong>
-                      <small>成功 {{ score.consecutive_success_count }}</small>
-                    </div>
-                  </div>
-
-                  <div class="flex flex-wrap justify-end gap-2">
-                    <button
-                      class="btn btn-secondary px-3 py-1.5 text-xs"
-                      :disabled="actionKey === scoreKey(score)"
-                      @click="handleProbe(score)"
-                    >
-                      <Icon name="beaker" size="xs" />
-                      <span>探测</span>
-                    </button>
-                    <button
-                      class="btn btn-secondary px-3 py-1.5 text-xs"
-                      :disabled="actionKey === scoreKey(score)"
-                      @click="handleReset(score)"
-                    >
-                      <Icon name="refresh" size="xs" />
-                      <span>重置</span>
-                    </button>
-                  </div>
-
-                  <div class="md:col-span-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-dark-400">
-                    <span>latency {{ formatMs(score.last_latency_ms) }}</span>
-                    <span>ttfb {{ formatMs(score.last_ttfb_ms) }}</span>
-                    <span v-if="score.last_status_code">HTTP {{ score.last_status_code }}</span>
-                    <span v-if="score.cooldown_until">cooldown {{ formatDateTime(score.cooldown_until) }}</span>
-                    <span v-if="score.last_error" class="max-w-full truncate text-red-600 dark:text-red-400">{{ errorSummary(score.last_error) }}</span>
-                  </div>
-                </div>
-              </article>
+            <div v-else class="overflow-x-auto">
+              <table data-testid="scheduler-score-table" class="min-w-[1180px] divide-y divide-gray-200 dark:divide-dark-700">
+                <thead class="bg-gray-50 dark:bg-dark-800/60">
+                  <tr>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-dark-400">上游渠道</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-dark-400">状态</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-dark-400">实际调度分</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-dark-400">健康分拆解</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-dark-400">探测样本</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-dark-400">最近风险</th>
+                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-dark-400">操作</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-dark-700">
+                  <tr v-for="score in visibleScores" :key="scoreKey(score)">
+                    <td class="max-w-[260px] px-4 py-3">
+                      <div class="truncate text-sm font-semibold text-gray-900 dark:text-white">{{ scoreTitle(score) }}</div>
+                      <div class="mt-1 truncate text-xs text-gray-500 dark:text-dark-400">
+                        #{{ score.account_id }} · Group #{{ score.group_id }} · {{ score.model }}
+                      </div>
+                    </td>
+                    <td class="px-4 py-3">
+                      <span :class="stateBadgeClass(score.state)">{{ stateLabel(score.state) }}</span>
+                      <div v-if="score.cooldown_until" class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+                        冷却至 {{ formatDateTime(score.cooldown_until) }}
+                      </div>
+                    </td>
+                    <td class="px-4 py-3">
+                      <div :class="scoreTextClass(score.final_score)" class="text-xl font-semibold tabular-nums">
+                        {{ formatScore(score.final_score) }}
+                      </div>
+                      <div class="mt-1 h-2 w-28 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-800">
+                        <div class="h-full rounded-full" :class="scoreBarClass(score.final_score)" :style="{ width: scoreWidth(score.final_score) }"></div>
+                      </div>
+                      <div class="mt-1 max-w-[220px] text-xs text-gray-500 dark:text-dark-400">{{ dispatchScoreHint(score) }}</div>
+                    </td>
+                    <td class="px-4 py-3 text-xs text-gray-600 dark:text-dark-300">
+                      <div>基础分 {{ formatScore(score.base_score) }}（新渠道默认起点）</div>
+                      <div>延迟修正 {{ formatComponentScore(score.latency_score) }}</div>
+                      <div>错误惩罚 {{ formatComponentScore(score.error_score) }}</div>
+                      <div>恢复加分 {{ formatComponentScore(score.recovery_score) }}</div>
+                      <div>成本修正 {{ formatComponentScore(score.cost_score) }}</div>
+                    </td>
+                    <td class="px-4 py-3 text-xs text-gray-600 dark:text-dark-300">
+                      <div>请求样本 {{ score.request_count }}</div>
+                      <div>TTFB样本 {{ score.ttfb_sample_count }}</div>
+                      <div>最近延迟 {{ formatMs(score.last_latency_ms) }}</div>
+                      <div>最近TTFB {{ formatMs(score.last_ttfb_ms) }}</div>
+                      <div v-if="score.last_status_code">HTTP {{ score.last_status_code }}</div>
+                    </td>
+                    <td class="max-w-[260px] px-4 py-3">
+                      <div class="truncate text-xs" :class="score.last_error ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'">
+                        {{ errorSummary(score.last_error) }}
+                      </div>
+                      <div v-if="score.reason" class="mt-1 line-clamp-2 text-xs text-gray-500 dark:text-dark-400">{{ score.reason }}</div>
+                    </td>
+                    <td class="px-4 py-3">
+                      <div class="flex justify-end gap-2">
+                        <button class="btn btn-secondary px-3 py-1.5 text-xs" :disabled="actionKey === scoreKey(score)" @click="handleProbe(score)">
+                          <Icon name="beaker" size="xs" />
+                          <span>探测</span>
+                        </button>
+                        <button class="btn btn-secondary px-3 py-1.5 text-xs" :disabled="actionKey === scoreKey(score)" @click="handleReset(score)">
+                          <Icon name="refresh" size="xs" />
+                          <span>重置</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -455,6 +429,13 @@ function handleSearchInput() {
 
 function handleGroupChange() {
   filters.group_id = selectedGroupId.value
+  applyFilters()
+}
+
+function selectGroup(groupId: number) {
+  if (selectedGroupId.value === groupId) return
+  selectedGroupId.value = groupId
+  filters.group_id = groupId
   applyFilters()
 }
 
