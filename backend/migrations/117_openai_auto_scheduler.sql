@@ -31,7 +31,14 @@ CREATE TABLE IF NOT EXISTS openai_auto_scheduler_score_states (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT openai_auto_scheduler_score_states_score_check
-    CHECK (final_score >= 0 AND final_score <= 10000)
+    CHECK (
+      final_score >= 0 AND final_score <= 10000 AND
+      base_score >= 0 AND base_score <= 10000 AND
+      latency_score >= 0 AND latency_score <= 10000 AND
+      error_score >= 0 AND error_score <= 10000 AND
+      recovery_score >= 0 AND recovery_score <= 10000 AND
+      cost_score >= 0 AND cost_score <= 10000
+    )
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_openai_auto_scheduler_score_state_key
@@ -55,7 +62,12 @@ CREATE TABLE IF NOT EXISTS openai_auto_scheduler_score_events (
   ttfb_ms INTEGER NULL,
   status_code INTEGER NULL,
   message TEXT NOT NULL DEFAULT '',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT openai_auto_scheduler_score_events_score_check
+    CHECK (
+      score_before >= 0 AND score_before <= 10000 AND
+      score_after >= 0 AND score_after <= 10000
+    )
 );
 
 CREATE INDEX IF NOT EXISTS idx_openai_auto_scheduler_score_events_account_group_model_created

@@ -212,8 +212,18 @@ func (_c *OpenAIAutoSchedulerScoreEventCreate) check() error {
 	if _, ok := _c.mutation.ScoreBefore(); !ok {
 		return &ValidationError{Name: "score_before", err: errors.New(`ent: missing required field "OpenAIAutoSchedulerScoreEvent.score_before"`)}
 	}
+	if v, ok := _c.mutation.ScoreBefore(); ok {
+		if err := openaiautoschedulerscoreevent.ScoreBeforeValidator(v); err != nil {
+			return &ValidationError{Name: "score_before", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreEvent.score_before": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.ScoreAfter(); !ok {
 		return &ValidationError{Name: "score_after", err: errors.New(`ent: missing required field "OpenAIAutoSchedulerScoreEvent.score_after"`)}
+	}
+	if v, ok := _c.mutation.ScoreAfter(); ok {
+		if err := openaiautoschedulerscoreevent.ScoreAfterValidator(v); err != nil {
+			return &ValidationError{Name: "score_after", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreEvent.score_after": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.Message(); !ok {
 		return &ValidationError{Name: "message", err: errors.New(`ent: missing required field "OpenAIAutoSchedulerScoreEvent.message"`)}

@@ -966,6 +966,14 @@ func init() {
 	openaiautoschedulerscoreeventDescEventType := openaiautoschedulerscoreeventFields[3].Descriptor()
 	// openaiautoschedulerscoreevent.EventTypeValidator is a validator for the "event_type" field. It is called by the builders before save.
 	openaiautoschedulerscoreevent.EventTypeValidator = openaiautoschedulerscoreeventDescEventType.Validators[0].(func(string) error)
+	// openaiautoschedulerscoreeventDescScoreBefore is the schema descriptor for score_before field.
+	openaiautoschedulerscoreeventDescScoreBefore := openaiautoschedulerscoreeventFields[4].Descriptor()
+	// openaiautoschedulerscoreevent.ScoreBeforeValidator is a validator for the "score_before" field. It is called by the builders before save.
+	openaiautoschedulerscoreevent.ScoreBeforeValidator = openaiautoschedulerscoreeventDescScoreBefore.Validators[0].(func(int) error)
+	// openaiautoschedulerscoreeventDescScoreAfter is the schema descriptor for score_after field.
+	openaiautoschedulerscoreeventDescScoreAfter := openaiautoschedulerscoreeventFields[5].Descriptor()
+	// openaiautoschedulerscoreevent.ScoreAfterValidator is a validator for the "score_after" field. It is called by the builders before save.
+	openaiautoschedulerscoreevent.ScoreAfterValidator = openaiautoschedulerscoreeventDescScoreAfter.Validators[0].(func(int) error)
 	// openaiautoschedulerscoreeventDescMessage is the schema descriptor for message field.
 	openaiautoschedulerscoreeventDescMessage := openaiautoschedulerscoreeventFields[9].Descriptor()
 	// openaiautoschedulerscoreevent.DefaultMessage holds the default value on creation for the message field.
@@ -999,26 +1007,38 @@ func init() {
 	openaiautoschedulerscorestateDescFinalScore := openaiautoschedulerscorestateFields[3].Descriptor()
 	// openaiautoschedulerscorestate.DefaultFinalScore holds the default value on creation for the final_score field.
 	openaiautoschedulerscorestate.DefaultFinalScore = openaiautoschedulerscorestateDescFinalScore.Default.(int)
+	// openaiautoschedulerscorestate.FinalScoreValidator is a validator for the "final_score" field. It is called by the builders before save.
+	openaiautoschedulerscorestate.FinalScoreValidator = openaiautoschedulerscorestateDescFinalScore.Validators[0].(func(int) error)
 	// openaiautoschedulerscorestateDescBaseScore is the schema descriptor for base_score field.
 	openaiautoschedulerscorestateDescBaseScore := openaiautoschedulerscorestateFields[4].Descriptor()
 	// openaiautoschedulerscorestate.DefaultBaseScore holds the default value on creation for the base_score field.
 	openaiautoschedulerscorestate.DefaultBaseScore = openaiautoschedulerscorestateDescBaseScore.Default.(int)
+	// openaiautoschedulerscorestate.BaseScoreValidator is a validator for the "base_score" field. It is called by the builders before save.
+	openaiautoschedulerscorestate.BaseScoreValidator = openaiautoschedulerscorestateDescBaseScore.Validators[0].(func(int) error)
 	// openaiautoschedulerscorestateDescLatencyScore is the schema descriptor for latency_score field.
 	openaiautoschedulerscorestateDescLatencyScore := openaiautoschedulerscorestateFields[5].Descriptor()
 	// openaiautoschedulerscorestate.DefaultLatencyScore holds the default value on creation for the latency_score field.
 	openaiautoschedulerscorestate.DefaultLatencyScore = openaiautoschedulerscorestateDescLatencyScore.Default.(int)
+	// openaiautoschedulerscorestate.LatencyScoreValidator is a validator for the "latency_score" field. It is called by the builders before save.
+	openaiautoschedulerscorestate.LatencyScoreValidator = openaiautoschedulerscorestateDescLatencyScore.Validators[0].(func(int) error)
 	// openaiautoschedulerscorestateDescErrorScore is the schema descriptor for error_score field.
 	openaiautoschedulerscorestateDescErrorScore := openaiautoschedulerscorestateFields[6].Descriptor()
 	// openaiautoschedulerscorestate.DefaultErrorScore holds the default value on creation for the error_score field.
 	openaiautoschedulerscorestate.DefaultErrorScore = openaiautoschedulerscorestateDescErrorScore.Default.(int)
+	// openaiautoschedulerscorestate.ErrorScoreValidator is a validator for the "error_score" field. It is called by the builders before save.
+	openaiautoschedulerscorestate.ErrorScoreValidator = openaiautoschedulerscorestateDescErrorScore.Validators[0].(func(int) error)
 	// openaiautoschedulerscorestateDescRecoveryScore is the schema descriptor for recovery_score field.
 	openaiautoschedulerscorestateDescRecoveryScore := openaiautoschedulerscorestateFields[7].Descriptor()
 	// openaiautoschedulerscorestate.DefaultRecoveryScore holds the default value on creation for the recovery_score field.
 	openaiautoschedulerscorestate.DefaultRecoveryScore = openaiautoschedulerscorestateDescRecoveryScore.Default.(int)
+	// openaiautoschedulerscorestate.RecoveryScoreValidator is a validator for the "recovery_score" field. It is called by the builders before save.
+	openaiautoschedulerscorestate.RecoveryScoreValidator = openaiautoschedulerscorestateDescRecoveryScore.Validators[0].(func(int) error)
 	// openaiautoschedulerscorestateDescCostScore is the schema descriptor for cost_score field.
 	openaiautoschedulerscorestateDescCostScore := openaiautoschedulerscorestateFields[8].Descriptor()
 	// openaiautoschedulerscorestate.DefaultCostScore holds the default value on creation for the cost_score field.
 	openaiautoschedulerscorestate.DefaultCostScore = openaiautoschedulerscorestateDescCostScore.Default.(int)
+	// openaiautoschedulerscorestate.CostScoreValidator is a validator for the "cost_score" field. It is called by the builders before save.
+	openaiautoschedulerscorestate.CostScoreValidator = openaiautoschedulerscorestateDescCostScore.Validators[0].(func(int) error)
 	// openaiautoschedulerscorestateDescState is the schema descriptor for state field.
 	openaiautoschedulerscorestateDescState := openaiautoschedulerscorestateFields[9].Descriptor()
 	// openaiautoschedulerscorestate.DefaultState holds the default value on creation for the state field.

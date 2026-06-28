@@ -278,6 +278,16 @@ func (_u *OpenAIAutoSchedulerScoreEventUpdate) check() error {
 			return &ValidationError{Name: "event_type", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreEvent.event_type": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ScoreBefore(); ok {
+		if err := openaiautoschedulerscoreevent.ScoreBeforeValidator(v); err != nil {
+			return &ValidationError{Name: "score_before", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreEvent.score_before": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ScoreAfter(); ok {
+		if err := openaiautoschedulerscoreevent.ScoreAfterValidator(v); err != nil {
+			return &ValidationError{Name: "score_after", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreEvent.score_after": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -635,6 +645,16 @@ func (_u *OpenAIAutoSchedulerScoreEventUpdateOne) check() error {
 	if v, ok := _u.mutation.EventType(); ok {
 		if err := openaiautoschedulerscoreevent.EventTypeValidator(v); err != nil {
 			return &ValidationError{Name: "event_type", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreEvent.event_type": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ScoreBefore(); ok {
+		if err := openaiautoschedulerscoreevent.ScoreBeforeValidator(v); err != nil {
+			return &ValidationError{Name: "score_before", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreEvent.score_before": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ScoreAfter(); ok {
+		if err := openaiautoschedulerscoreevent.ScoreAfterValidator(v); err != nil {
+			return &ValidationError{Name: "score_after", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreEvent.score_after": %w`, err)}
 		}
 	}
 	return nil

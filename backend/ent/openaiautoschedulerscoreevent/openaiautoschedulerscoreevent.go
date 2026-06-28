@@ -72,6 +72,10 @@ var (
 	ModelValidator func(string) error
 	// EventTypeValidator is a validator for the "event_type" field. It is called by the builders before save.
 	EventTypeValidator func(string) error
+	// ScoreBeforeValidator is a validator for the "score_before" field. It is called by the builders before save.
+	ScoreBeforeValidator func(int) error
+	// ScoreAfterValidator is a validator for the "score_after" field. It is called by the builders before save.
+	ScoreAfterValidator func(int) error
 	// DefaultMessage holds the default value on creation for the "message" field.
 	DefaultMessage string
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.

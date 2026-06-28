@@ -3,6 +3,7 @@ package schema
 import (
 	"testing"
 
+	"entgo.io/ent"
 	"entgo.io/ent/entc/load"
 	"github.com/stretchr/testify/require"
 )
@@ -29,9 +30,44 @@ func TestOpenAIAutoSchedulerSchemas(t *testing.T) {
 		"last_latency_ms", "last_ttfb_ms", "last_status_code",
 		"last_error", "reason", "last_checked_at")
 	requireHasUniqueIndex(t, state, "account_id", "group_id", "model")
+	requireBasisPointValidators(t, OpenAIAutoSchedulerScoreState{}.Fields(),
+		"final_score", "base_score", "latency_score", "error_score",
+		"recovery_score", "cost_score")
 
 	event := requireSchema(t, schemas, "OpenAIAutoSchedulerScoreEvent")
 	requireSchemaFields(t, event,
 		"account_id", "group_id", "model", "event_type", "score_before",
 		"score_after", "latency_ms", "ttfb_ms", "status_code", "message")
+	requireBasisPointValidators(t, OpenAIAutoSchedulerScoreEvent{}.Fields(),
+		"score_before", "score_after")
+}
+
+func requireBasisPointValidators(t *testing.T, fields []ent.Field, names ...string) {
+	t.Helper()
+
+	for _, name := range names {
+		validator := requireIntFieldValidator(t, fields, name)
+		require.NoError(t, validator(0), "field %s should allow the lower basis-point bound", name)
+		require.NoError(t, validator(10000), "field %s should allow the upper basis-point bound", name)
+		require.Error(t, validator(-1), "field %s should reject negative basis points", name)
+		require.Error(t, validator(10001), "field %s should reject basis points above 10000", name)
+	}
+}
+
+func requireIntFieldValidator(t *testing.T, fields []ent.Field, name string) func(int) error {
+	t.Helper()
+
+	for _, entField := range fields {
+		descriptor := entField.Descriptor()
+		if descriptor.Name != name {
+			continue
+		}
+		require.NotEmpty(t, descriptor.Validators, "field %s should include a validator", name)
+		validator, ok := descriptor.Validators[0].(func(int) error)
+		require.True(t, ok, "field %s validator should be func(int) error", name)
+		return validator
+	}
+
+	require.Failf(t, "missing field validator", "schema should include field %s", name)
+	return nil
 }

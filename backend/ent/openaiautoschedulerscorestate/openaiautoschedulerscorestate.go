@@ -126,16 +126,28 @@ var (
 	ModelValidator func(string) error
 	// DefaultFinalScore holds the default value on creation for the "final_score" field.
 	DefaultFinalScore int
+	// FinalScoreValidator is a validator for the "final_score" field. It is called by the builders before save.
+	FinalScoreValidator func(int) error
 	// DefaultBaseScore holds the default value on creation for the "base_score" field.
 	DefaultBaseScore int
+	// BaseScoreValidator is a validator for the "base_score" field. It is called by the builders before save.
+	BaseScoreValidator func(int) error
 	// DefaultLatencyScore holds the default value on creation for the "latency_score" field.
 	DefaultLatencyScore int
+	// LatencyScoreValidator is a validator for the "latency_score" field. It is called by the builders before save.
+	LatencyScoreValidator func(int) error
 	// DefaultErrorScore holds the default value on creation for the "error_score" field.
 	DefaultErrorScore int
+	// ErrorScoreValidator is a validator for the "error_score" field. It is called by the builders before save.
+	ErrorScoreValidator func(int) error
 	// DefaultRecoveryScore holds the default value on creation for the "recovery_score" field.
 	DefaultRecoveryScore int
+	// RecoveryScoreValidator is a validator for the "recovery_score" field. It is called by the builders before save.
+	RecoveryScoreValidator func(int) error
 	// DefaultCostScore holds the default value on creation for the "cost_score" field.
 	DefaultCostScore int
+	// CostScoreValidator is a validator for the "cost_score" field. It is called by the builders before save.
+	CostScoreValidator func(int) error
 	// DefaultState holds the default value on creation for the "state" field.
 	DefaultState string
 	// StateValidator is a validator for the "state" field. It is called by the builders before save.

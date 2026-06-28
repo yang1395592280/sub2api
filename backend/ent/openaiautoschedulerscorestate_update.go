@@ -601,6 +601,36 @@ func (_u *OpenAIAutoSchedulerScoreStateUpdate) check() error {
 			return &ValidationError{Name: "model", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.model": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.FinalScore(); ok {
+		if err := openaiautoschedulerscorestate.FinalScoreValidator(v); err != nil {
+			return &ValidationError{Name: "final_score", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.final_score": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.BaseScore(); ok {
+		if err := openaiautoschedulerscorestate.BaseScoreValidator(v); err != nil {
+			return &ValidationError{Name: "base_score", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.base_score": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.LatencyScore(); ok {
+		if err := openaiautoschedulerscorestate.LatencyScoreValidator(v); err != nil {
+			return &ValidationError{Name: "latency_score", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.latency_score": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ErrorScore(); ok {
+		if err := openaiautoschedulerscorestate.ErrorScoreValidator(v); err != nil {
+			return &ValidationError{Name: "error_score", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.error_score": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.RecoveryScore(); ok {
+		if err := openaiautoschedulerscorestate.RecoveryScoreValidator(v); err != nil {
+			return &ValidationError{Name: "recovery_score", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.recovery_score": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.CostScore(); ok {
+		if err := openaiautoschedulerscorestate.CostScoreValidator(v); err != nil {
+			return &ValidationError{Name: "cost_score", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.cost_score": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.State(); ok {
 		if err := openaiautoschedulerscorestate.StateValidator(v); err != nil {
 			return &ValidationError{Name: "state", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.state": %w`, err)}
@@ -1378,6 +1408,36 @@ func (_u *OpenAIAutoSchedulerScoreStateUpdateOne) check() error {
 	if v, ok := _u.mutation.Model(); ok {
 		if err := openaiautoschedulerscorestate.ModelValidator(v); err != nil {
 			return &ValidationError{Name: "model", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.model": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.FinalScore(); ok {
+		if err := openaiautoschedulerscorestate.FinalScoreValidator(v); err != nil {
+			return &ValidationError{Name: "final_score", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.final_score": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.BaseScore(); ok {
+		if err := openaiautoschedulerscorestate.BaseScoreValidator(v); err != nil {
+			return &ValidationError{Name: "base_score", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.base_score": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.LatencyScore(); ok {
+		if err := openaiautoschedulerscorestate.LatencyScoreValidator(v); err != nil {
+			return &ValidationError{Name: "latency_score", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.latency_score": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ErrorScore(); ok {
+		if err := openaiautoschedulerscorestate.ErrorScoreValidator(v); err != nil {
+			return &ValidationError{Name: "error_score", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.error_score": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.RecoveryScore(); ok {
+		if err := openaiautoschedulerscorestate.RecoveryScoreValidator(v); err != nil {
+			return &ValidationError{Name: "recovery_score", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.recovery_score": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.CostScore(); ok {
+		if err := openaiautoschedulerscorestate.CostScoreValidator(v); err != nil {
+			return &ValidationError{Name: "cost_score", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.cost_score": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.State(); ok {

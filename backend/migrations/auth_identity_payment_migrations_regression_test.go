@@ -16,6 +16,26 @@ func TestMigration112UsesIdempotentAddColumn(t *testing.T) {
 	require.NotContains(t, sql, "ADD COLUMN provider_key VARCHAR(30);")
 }
 
+func TestMigration117ConstrainsOpenAIAutoSchedulerScoreBasisPoints(t *testing.T) {
+	content, err := FS.ReadFile("117_openai_auto_scheduler.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	for _, column := range []string{
+		"final_score",
+		"base_score",
+		"latency_score",
+		"error_score",
+		"recovery_score",
+		"cost_score",
+		"score_before",
+		"score_after",
+	} {
+		require.Contains(t, sql, column+" >= 0", "migration should constrain %s lower bound", column)
+		require.Contains(t, sql, column+" <= 10000", "migration should constrain %s upper bound", column)
+	}
+}
+
 func TestMigration118DoesNotForceOverwriteAuthSourceGrantDefaults(t *testing.T) {
 	content, err := FS.ReadFile("118_wechat_dual_mode_and_auth_source_defaults.sql")
 	require.NoError(t, err)
