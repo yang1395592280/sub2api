@@ -906,6 +906,119 @@ func TestOpenAISelectAccountWithLoadAwareness_PrefersLowerLoad(t *testing.T) {
 	}
 }
 
+func TestOpenAIGatewayService_SelectAccountWithScheduler_NonLoadAwareUsesAutoSchedulerRank(t *testing.T) {
+	groupID := int64(10)
+	repo := stubOpenAIAccountRepo{
+		accounts: []Account{
+			{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 1},
+			{ID: 2, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 2},
+		},
+	}
+	cache := &stubGatewayCache{}
+	selector := NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{
+		enabledGroups: map[int64]bool{10: true},
+		states: map[int64]OpenAIAutoSchedulerScoreState{
+			1: {AccountID: 1, GroupID: 10, Model: "gpt-5", FinalScore: 1000, State: OpenAIAutoSchedulerStateRunning},
+			2: {AccountID: 2, GroupID: 10, Model: "gpt-5", FinalScore: 9000, State: OpenAIAutoSchedulerStateRunning},
+		},
+	})
+
+	svc := &OpenAIGatewayService{
+		accountRepo: repo,
+		cache:       cache,
+	}
+	svc.SetOpenAIAutoScheduler(selector, nil)
+
+	acc, err := svc.SelectAccountForModelWithExclusions(context.Background(), &groupID, "", "gpt-5", nil)
+	if err != nil {
+		t.Fatalf("SelectAccountForModelWithExclusions error: %v", err)
+	}
+	if acc == nil || acc.ID != 2 {
+		t.Fatalf("expected auto scheduler to select account 2, got %+v", acc)
+	}
+}
+
+func TestOpenAIGatewayService_SelectAccountWithScheduler_LoadAwareUsesAutoSchedulerRank(t *testing.T) {
+	groupID := int64(10)
+	repo := stubOpenAIAccountRepo{
+		accounts: []Account{
+			{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 1},
+			{ID: 2, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 2},
+		},
+	}
+	cache := &stubGatewayCache{}
+	concurrencyCache := stubConcurrencyCache{
+		loadMap: map[int64]*AccountLoadInfo{
+			1: {AccountID: 1, LoadRate: 10},
+			2: {AccountID: 2, LoadRate: 10},
+		},
+	}
+	selector := NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{
+		enabledGroups: map[int64]bool{10: true},
+		states: map[int64]OpenAIAutoSchedulerScoreState{
+			1: {AccountID: 1, GroupID: 10, Model: "gpt-5", FinalScore: 1000, State: OpenAIAutoSchedulerStateRunning},
+			2: {AccountID: 2, GroupID: 10, Model: "gpt-5", FinalScore: 9000, State: OpenAIAutoSchedulerStateRunning},
+		},
+	})
+
+	svc := &OpenAIGatewayService{
+		accountRepo:        repo,
+		cache:              cache,
+		concurrencyService: NewConcurrencyService(concurrencyCache),
+	}
+	svc.SetOpenAIAutoScheduler(selector, nil)
+
+	selection, err := svc.SelectAccountWithLoadAwareness(context.Background(), &groupID, "auto-scheduler", "gpt-5", nil)
+	if err != nil {
+		t.Fatalf("SelectAccountWithLoadAwareness error: %v", err)
+	}
+	if selection == nil || selection.Account == nil || selection.Account.ID != 2 {
+		t.Fatalf("expected auto scheduler to select account 2, got %+v", selection)
+	}
+	if cache.sessionBindings["openai:auto-scheduler"] != 2 {
+		t.Fatalf("expected sticky session updated to auto-scheduled account")
+	}
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+}
+
+func TestOpenAIGatewayService_SelectAccountWithScheduler_RecordsOutcomeAsync(t *testing.T) {
+	groupID := int64(10)
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{
+			10: {ID: 10, Platform: PlatformOpenAI, OpenAIAutoSchedulerEnabled: true, Hydrated: true, Status: StatusActive},
+		},
+		states: map[string]OpenAIAutoSchedulerScoreState{},
+	}
+	schedulerSvc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+	svc := &OpenAIGatewayService{}
+	svc.SetOpenAIAutoScheduler(nil, schedulerSvc)
+	latencyMS := 123
+	statusCode := http.StatusOK
+
+	svc.recordOpenAIAutoSchedulerOutcome(context.Background(), &Account{ID: 1}, &groupID, " gpt-5 ", OpenAIAutoSchedulerRecordInput{
+		EventType:  OpenAIAutoSchedulerEventSuccess,
+		LatencyMS:  &latencyMS,
+		StatusCode: &statusCode,
+	})
+
+	require.Eventually(t, func() bool {
+		repo.mu.Lock()
+		defer repo.mu.Unlock()
+		return len(repo.events) == 1
+	}, time.Second, 10*time.Millisecond)
+	repo.mu.Lock()
+	event := repo.events[0]
+	repo.mu.Unlock()
+	require.Equal(t, int64(1), event.AccountID)
+	require.Equal(t, groupID, event.GroupID)
+	require.Equal(t, "gpt-5", event.Model)
+	require.Equal(t, OpenAIAutoSchedulerEventSuccess, event.EventType)
+	require.Equal(t, &latencyMS, event.LatencyMS)
+	require.Equal(t, &statusCode, event.StatusCode)
+}
+
 func TestOpenAISelectAccountForModelWithExclusions_StickyExcludedFallback(t *testing.T) {
 	sessionHash := "excluded"
 	repo := stubOpenAIAccountRepo{

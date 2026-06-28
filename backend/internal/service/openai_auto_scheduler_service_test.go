@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,6 +20,7 @@ func (p fakeOpenAIAutoSchedulerSettingsProvider) GetOpenAIAutoSchedulerSettings(
 }
 
 type fakeOpenAIAutoSchedulerRepo struct {
+	mu         sync.Mutex
 	groups     map[int64]Group
 	states     map[string]OpenAIAutoSchedulerScoreState
 	events     []OpenAIAutoSchedulerScoreEvent
@@ -29,6 +31,8 @@ type fakeOpenAIAutoSchedulerRepo struct {
 }
 
 func (r *fakeOpenAIAutoSchedulerRepo) GetGroup(ctx context.Context, groupID int64) (*Group, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -40,6 +44,8 @@ func (r *fakeOpenAIAutoSchedulerRepo) GetGroup(ctx context.Context, groupID int6
 }
 
 func (r *fakeOpenAIAutoSchedulerRepo) GetScoreState(ctx context.Context, accountID, groupID int64, model string) (*OpenAIAutoSchedulerScoreState, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -51,6 +57,8 @@ func (r *fakeOpenAIAutoSchedulerRepo) GetScoreState(ctx context.Context, account
 }
 
 func (r *fakeOpenAIAutoSchedulerRepo) UpsertScoreState(ctx context.Context, state OpenAIAutoSchedulerScoreState) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.err != nil {
 		return r.err
 	}
@@ -62,6 +70,8 @@ func (r *fakeOpenAIAutoSchedulerRepo) UpsertScoreState(ctx context.Context, stat
 }
 
 func (r *fakeOpenAIAutoSchedulerRepo) InsertScoreEvent(ctx context.Context, event OpenAIAutoSchedulerScoreEvent) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.err != nil {
 		return r.err
 	}
@@ -70,6 +80,8 @@ func (r *fakeOpenAIAutoSchedulerRepo) InsertScoreEvent(ctx context.Context, even
 }
 
 func (r *fakeOpenAIAutoSchedulerRepo) ListScoreStates(ctx context.Context, params OpenAIAutoSchedulerListParams) ([]OpenAIAutoSchedulerScoreState, int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.err != nil {
 		return nil, 0, r.err
 	}
@@ -78,6 +90,8 @@ func (r *fakeOpenAIAutoSchedulerRepo) ListScoreStates(ctx context.Context, param
 }
 
 func (r *fakeOpenAIAutoSchedulerRepo) ListEnabledOpenAIGroups(ctx context.Context) ([]Group, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.err != nil {
 		return nil, r.err
 	}

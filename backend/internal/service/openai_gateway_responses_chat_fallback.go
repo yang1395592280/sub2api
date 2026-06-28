@@ -147,6 +147,10 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 		// Transport-level failure (proxy/DNS/TCP/TLS — no HTTP response). Convert to
 		// a failover so the handler switches to a healthy account, and temporarily
 		// unschedule the account on durable faults (e.g. rejected proxy credentials).
+		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, OpenAIAutoSchedulerRecordInput{
+			EventType: OpenAIAutoSchedulerEventError,
+			Message:   sanitizeUpstreamErrorMessage(err.Error()),
+		})
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -178,19 +182,53 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 				Detail:             upstreamDetail,
 			})
 			s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
+			statusCode := resp.StatusCode
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, OpenAIAutoSchedulerRecordInput{
+				EventType:  openAIAutoSchedulerEventForStatus(statusCode),
+				StatusCode: &statusCode,
+				Message:    upstreamMsg,
+			})
 			return nil, &UpstreamFailoverError{
 				StatusCode:             resp.StatusCode,
 				ResponseBody:           respBody,
 				RetryableOnSameAccount: account.IsPoolMode() && (account.IsPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
 			}
 		}
+		statusCode := resp.StatusCode
+		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, OpenAIAutoSchedulerRecordInput{
+			EventType:  openAIAutoSchedulerEventForStatus(statusCode),
+			StatusCode: &statusCode,
+			Message:    upstreamMsg,
+		})
 		return s.handleErrorResponse(ctx, resp, c, account, chatBody, billingModel)
 	}
 
+	statusCode := resp.StatusCode
+	var result *OpenAIForwardResult
 	if clientStream {
-		return s.streamChatCompletionsAsResponses(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+		result, err = s.streamChatCompletionsAsResponses(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+	} else {
+		result, err = s.bufferChatCompletionsAsResponses(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 	}
-	return s.bufferChatCompletionsAsResponses(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+	if err != nil {
+		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, OpenAIAutoSchedulerRecordInput{
+			EventType: OpenAIAutoSchedulerEventError,
+			Message:   sanitizeUpstreamErrorMessage(err.Error()),
+		})
+		return nil, err
+	}
+	latencyMS := int(time.Since(startTime).Milliseconds())
+	var firstTokenMS *int
+	if result != nil {
+		firstTokenMS = result.FirstTokenMs
+	}
+	s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, OpenAIAutoSchedulerRecordInput{
+		EventType:  OpenAIAutoSchedulerEventSuccess,
+		LatencyMS:  &latencyMS,
+		TtfbMS:     firstTokenMS,
+		StatusCode: &statusCode,
+	})
+	return result, nil
 }
 
 func (s *OpenAIGatewayService) bufferChatCompletionsAsResponses(

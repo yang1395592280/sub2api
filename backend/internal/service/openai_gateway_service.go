@@ -333,31 +333,33 @@ var ErrNoAvailableCompactAccounts = errors.New("no available OpenAI accounts sup
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
-	accountRepo           AccountRepository
-	usageLogRepo          UsageLogRepository
-	usageBillingRepo      UsageBillingRepository
-	userRepo              UserRepository
-	userSubRepo           UserSubscriptionRepository
-	cache                 GatewayCache
-	cfg                   *config.Config
-	codexDetector         CodexClientRestrictionDetector
-	schedulerSnapshot     *SchedulerSnapshotService
-	concurrencyService    *ConcurrencyService
-	billingService        *BillingService
-	rateLimitService      *RateLimitService
-	billingCacheService   *BillingCacheService
-	userGroupRateResolver *userGroupRateResolver
-	httpUpstream          HTTPUpstream
-	deferredService       *DeferredService
-	openAITokenProvider   *OpenAITokenProvider
-	grokTokenProvider     *GrokTokenProvider
-	toolCorrector         *CodexToolCorrector
-	openaiWSResolver      OpenAIWSProtocolResolver
-	resolver              *ModelPricingResolver
-	channelService        *ChannelService
-	balanceNotifyService  *BalanceNotifyService
-	settingService        *SettingService
-	userPlatformQuotaRepo UserPlatformQuotaRepository
+	accountRepo                 AccountRepository
+	usageLogRepo                UsageLogRepository
+	usageBillingRepo            UsageBillingRepository
+	userRepo                    UserRepository
+	userSubRepo                 UserSubscriptionRepository
+	cache                       GatewayCache
+	cfg                         *config.Config
+	codexDetector               CodexClientRestrictionDetector
+	schedulerSnapshot           *SchedulerSnapshotService
+	concurrencyService          *ConcurrencyService
+	billingService              *BillingService
+	rateLimitService            *RateLimitService
+	billingCacheService         *BillingCacheService
+	userGroupRateResolver       *userGroupRateResolver
+	httpUpstream                HTTPUpstream
+	deferredService             *DeferredService
+	openAITokenProvider         *OpenAITokenProvider
+	grokTokenProvider           *GrokTokenProvider
+	toolCorrector               *CodexToolCorrector
+	openaiWSResolver            OpenAIWSProtocolResolver
+	resolver                    *ModelPricingResolver
+	channelService              *ChannelService
+	balanceNotifyService        *BalanceNotifyService
+	settingService              *SettingService
+	userPlatformQuotaRepo       UserPlatformQuotaRepository
+	openAIAutoSchedulerSelector *OpenAIAutoSchedulerSelector
+	openAIAutoSchedulerService  *OpenAIAutoSchedulerService
 
 	openaiWSPoolOnce              sync.Once
 	openaiWSStateStoreOnce        sync.Once
@@ -448,6 +450,14 @@ func NewOpenAIGatewayService(
 	}
 	svc.logOpenAIWSModeBootstrap()
 	return svc
+}
+
+func (s *OpenAIGatewayService) SetOpenAIAutoScheduler(selector *OpenAIAutoSchedulerSelector, svc *OpenAIAutoSchedulerService) {
+	if s == nil {
+		return
+	}
+	s.openAIAutoSchedulerSelector = selector
+	s.openAIAutoSchedulerService = svc
 }
 
 // ResolveChannelMapping 解析渠道级模型映射（代理到 ChannelService）
@@ -1846,6 +1856,7 @@ func (s *OpenAIGatewayService) selectBestAccount(ctx context.Context, groupID *i
 	selectedCompactTier := -1
 	compactBlocked := false
 	needsUpstreamCheck := s.needsUpstreamChannelRestrictionCheck(ctx, groupID)
+	candidates := make([]*Account, 0, len(accounts))
 
 	for i := range accounts {
 		acc := &accounts[i]
@@ -1876,6 +1887,11 @@ func (s *OpenAIGatewayService) selectBestAccount(ctx context.Context, groupID *i
 			}
 		}
 
+		candidates = append(candidates, fresh)
+		if s.openAIAutoSchedulerSelector != nil && platform == PlatformOpenAI {
+			continue
+		}
+
 		// 选择优先级最高且最久未使用的账号
 		// Select highest priority and least recently used
 		if selected == nil {
@@ -1897,6 +1913,13 @@ func (s *OpenAIGatewayService) selectBestAccount(ctx context.Context, groupID *i
 			selected = fresh
 			selectedCompactTier = compactTier
 		}
+	}
+
+	if ranked, used := s.rankOpenAIAutoSchedulerCandidates(ctx, groupID, platform, requestedModel, candidates); used {
+		if len(ranked) == 0 {
+			return nil, compactBlocked
+		}
+		return ranked[0], compactBlocked
 	}
 
 	return selected, compactBlocked
@@ -1933,6 +1956,45 @@ func (s *OpenAIGatewayService) isBetterAccount(candidate, current *Account) bool
 		// 都使用过，选择最久未使用的
 		return candidate.LastUsedAt.Before(*current.LastUsedAt)
 	}
+}
+
+func (s *OpenAIGatewayService) rankOpenAIAutoSchedulerCandidates(ctx context.Context, groupID *int64, platform string, requestedModel string, candidates []*Account) ([]*Account, bool) {
+	if s == nil || s.openAIAutoSchedulerSelector == nil || normalizeOpenAICompatiblePlatform(platform) != PlatformOpenAI {
+		return candidates, false
+	}
+	return s.openAIAutoSchedulerSelector.Rank(ctx, groupID, requestedModel, candidates)
+}
+
+func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerOutcome(ctx context.Context, account *Account, groupID *int64, requestedModel string, outcome OpenAIAutoSchedulerRecordInput) {
+	if s == nil || s.openAIAutoSchedulerService == nil || account == nil || groupID == nil {
+		return
+	}
+	outcome.AccountID = account.ID
+	outcome.GroupID = *groupID
+	outcome.Model = strings.TrimSpace(requestedModel)
+	go func() {
+		recordCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = s.openAIAutoSchedulerService.Record(recordCtx, outcome)
+	}()
+}
+
+func openAIAutoSchedulerGroupIDFromContext(c *gin.Context) *int64 {
+	groupID := getOpenAIGroupIDFromContext(c)
+	if groupID <= 0 {
+		return nil
+	}
+	return &groupID
+}
+
+func openAIAutoSchedulerEventForStatus(statusCode int) string {
+	if statusCode == http.StatusTooManyRequests {
+		return OpenAIAutoSchedulerEventRateLimited
+	}
+	if statusCode >= 400 {
+		return OpenAIAutoSchedulerEventError
+	}
+	return OpenAIAutoSchedulerEventSuccess
 }
 
 // SelectAccountWithLoadAwareness selects an account with load-awareness and wait plan.
@@ -2074,6 +2136,10 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 	if len(candidates) == 0 {
 		return nil, ErrNoAvailableAccounts
 	}
+	candidates, autoSchedulerRanked := s.rankOpenAIAutoSchedulerCandidates(ctx, groupID, platform, requestedModel, candidates)
+	if len(candidates) == 0 {
+		return nil, ErrNoAvailableAccounts
+	}
 
 	accountLoads := make([]AccountWithConcurrency, 0, len(candidates))
 	for _, acc := range candidates {
@@ -2102,26 +2168,28 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 			return nil, false, nil
 		}
 
-		sort.SliceStable(available, func(i, j int) bool {
-			a, b := available[i], available[j]
-			if a.account.Priority != b.account.Priority {
-				return a.account.Priority < b.account.Priority
-			}
-			if a.loadInfo.LoadRate != b.loadInfo.LoadRate {
-				return a.loadInfo.LoadRate < b.loadInfo.LoadRate
-			}
-			switch {
-			case a.account.LastUsedAt == nil && b.account.LastUsedAt != nil:
-				return true
-			case a.account.LastUsedAt != nil && b.account.LastUsedAt == nil:
-				return false
-			case a.account.LastUsedAt == nil && b.account.LastUsedAt == nil:
-				return false
-			default:
-				return a.account.LastUsedAt.Before(*b.account.LastUsedAt)
-			}
-		})
-		shuffleWithinSortGroups(available)
+		if !autoSchedulerRanked {
+			sort.SliceStable(available, func(i, j int) bool {
+				a, b := available[i], available[j]
+				if a.account.Priority != b.account.Priority {
+					return a.account.Priority < b.account.Priority
+				}
+				if a.loadInfo.LoadRate != b.loadInfo.LoadRate {
+					return a.loadInfo.LoadRate < b.loadInfo.LoadRate
+				}
+				switch {
+				case a.account.LastUsedAt == nil && b.account.LastUsedAt != nil:
+					return true
+				case a.account.LastUsedAt != nil && b.account.LastUsedAt == nil:
+					return false
+				case a.account.LastUsedAt == nil && b.account.LastUsedAt == nil:
+					return false
+				default:
+					return a.account.LastUsedAt.Before(*b.account.LastUsedAt)
+				}
+			})
+			shuffleWithinSortGroups(available)
+		}
 
 		selectionOrder := make([]accountWithLoad, 0, len(available))
 		if requireCompact {
@@ -2172,8 +2240,10 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 	loadMap, err := s.concurrencyService.GetAccountsLoadBatch(ctx, accountLoads)
 	if err != nil {
 		ordered := append([]*Account(nil), candidates...)
-		sortAccountsByPriorityAndLastUsed(ordered, false)
-		if requireCompact {
+		if !autoSchedulerRanked {
+			sortAccountsByPriorityAndLastUsed(ordered, false)
+		}
+		if requireCompact && !autoSchedulerRanked {
 			ordered = prioritizeOpenAICompactAccounts(ordered)
 		}
 		for _, acc := range ordered {
@@ -2217,8 +2287,10 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 	}
 
 	// ============ Layer 3: Fallback wait ============
-	sortAccountsByPriorityAndLastUsed(candidates, false)
-	if requireCompact {
+	if !autoSchedulerRanked {
+		sortAccountsByPriorityAndLastUsed(candidates, false)
+	}
+	if requireCompact && !autoSchedulerRanked {
 		candidates = prioritizeOpenAICompactAccounts(candidates)
 	}
 	for _, acc := range candidates {
@@ -3107,8 +3179,20 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				wsResult.ImageInputSize = imageInputSize
 				wsResult.BillingModel = imageBillingModel
 			}
+			statusCode := http.StatusOK
+			latencyMS := int(time.Since(startTime).Milliseconds())
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, OpenAIAutoSchedulerRecordInput{
+				EventType:  OpenAIAutoSchedulerEventSuccess,
+				LatencyMS:  &latencyMS,
+				TtfbMS:     wsResult.FirstTokenMs,
+				StatusCode: &statusCode,
+			})
 			return wsResult, nil
 		}
+		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, OpenAIAutoSchedulerRecordInput{
+			EventType: OpenAIAutoSchedulerEventError,
+			Message:   sanitizeUpstreamErrorMessage(wsErr.Error()),
+		})
 		s.writeOpenAIWSFallbackErrorResponse(c, account, wsErr)
 		return nil, wsErr
 	}
@@ -3137,6 +3221,10 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			// Transport-level failure (proxy/DNS/TCP/TLS — no HTTP response). Convert to
 			// a failover so the handler switches to a healthy account, and temporarily
 			// unschedule the account on durable faults (e.g. rejected proxy credentials).
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, OpenAIAutoSchedulerRecordInput{
+				EventType: OpenAIAutoSchedulerEventError,
+				Message:   sanitizeUpstreamErrorMessage(err.Error()),
+			})
 			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
 		}
 
@@ -3186,12 +3274,24 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				})
 
 				s.handleFailoverSideEffects(ctx, resp, account, respBody, upstreamModel)
+				statusCode := resp.StatusCode
+				s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, OpenAIAutoSchedulerRecordInput{
+					EventType:  openAIAutoSchedulerEventForStatus(statusCode),
+					StatusCode: &statusCode,
+					Message:    upstreamMsg,
+				})
 				return nil, &UpstreamFailoverError{
 					StatusCode:             resp.StatusCode,
 					ResponseBody:           respBody,
 					RetryableOnSameAccount: account.IsPoolMode() && (account.IsPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
 				}
 			}
+			statusCode := resp.StatusCode
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, OpenAIAutoSchedulerRecordInput{
+				EventType:  openAIAutoSchedulerEventForStatus(statusCode),
+				StatusCode: &statusCode,
+				Message:    upstreamMsg,
+			})
 			return s.handleErrorResponse(ctx, resp, c, account, body, billingModel)
 		}
 		defer func() { _ = resp.Body.Close() }()
@@ -3213,6 +3313,10 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		if reqStream {
 			streamResult, err := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, upstreamModel)
 			if err != nil {
+				s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, OpenAIAutoSchedulerRecordInput{
+					EventType: OpenAIAutoSchedulerEventError,
+					Message:   sanitizeUpstreamErrorMessage(err.Error()),
+				})
 				return nil, err
 			}
 			usage = streamResult.usage
@@ -3223,6 +3327,10 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		} else {
 			nonStreamResult, err := s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, upstreamModel)
 			if err != nil {
+				s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, OpenAIAutoSchedulerRecordInput{
+					EventType: OpenAIAutoSchedulerEventError,
+					Message:   sanitizeUpstreamErrorMessage(err.Error()),
+				})
 				return nil, err
 			}
 			usage = nonStreamResult.usage
@@ -3263,6 +3371,14 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			forwardResult.ImageOutputSizes = imageOutputSizes
 			forwardResult.BillingModel = imageBillingModel
 		}
+		statusCode := resp.StatusCode
+		latencyMS := int(forwardResult.Duration.Milliseconds())
+		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, OpenAIAutoSchedulerRecordInput{
+			EventType:  OpenAIAutoSchedulerEventSuccess,
+			LatencyMS:  &latencyMS,
+			TtfbMS:     firstTokenMs,
+			StatusCode: &statusCode,
+		})
 		return forwardResult, nil
 	}
 }
@@ -3427,6 +3543,10 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		// Transport-level failure (proxy/DNS/TCP/TLS — no HTTP response). Convert to
 		// a failover so the handler switches to a healthy account, and temporarily
 		// unschedule the account on durable faults (e.g. rejected proxy credentials).
+		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, OpenAIAutoSchedulerRecordInput{
+			EventType: OpenAIAutoSchedulerEventError,
+			Message:   sanitizeUpstreamErrorMessage(err.Error()),
+		})
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -3434,6 +3554,11 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	if resp.StatusCode >= 400 {
 		// 透传模式默认保持原样代理；但 429/529 属于网关必须兜底的
 		// 上游容量类错误，应先触发多账号 failover 以维持基础 SLA。
+		statusCode := resp.StatusCode
+		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, OpenAIAutoSchedulerRecordInput{
+			EventType:  openAIAutoSchedulerEventForStatus(statusCode),
+			StatusCode: &statusCode,
+		})
 		if shouldFailoverOpenAIPassthroughResponse(resp.StatusCode) {
 			return nil, s.handleFailoverErrorResponsePassthrough(ctx, resp, c, account, body)
 		}
@@ -3450,6 +3575,10 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	if reqStream {
 		result, err := s.handleStreamingResponsePassthrough(ctx, resp, c, account, startTime, reqModel, upstreamPassthroughModel)
 		if err != nil {
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, OpenAIAutoSchedulerRecordInput{
+				EventType: OpenAIAutoSchedulerEventError,
+				Message:   sanitizeUpstreamErrorMessage(err.Error()),
+			})
 			return nil, err
 		}
 		usage = result.usage
@@ -3460,6 +3589,10 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	} else {
 		result, err := s.handleNonStreamingResponsePassthrough(ctx, resp, c, reqModel, upstreamPassthroughModel)
 		if err != nil {
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, OpenAIAutoSchedulerRecordInput{
+				EventType: OpenAIAutoSchedulerEventError,
+				Message:   sanitizeUpstreamErrorMessage(err.Error()),
+			})
 			return nil, err
 		}
 		usage = result.usage
@@ -3497,6 +3630,14 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		forwardResult.ImageOutputSizes = imageOutputSizes
 		forwardResult.BillingModel = imageBillingModel
 	}
+	statusCode := resp.StatusCode
+	latencyMS := int(forwardResult.Duration.Milliseconds())
+	s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, OpenAIAutoSchedulerRecordInput{
+		EventType:  OpenAIAutoSchedulerEventSuccess,
+		LatencyMS:  &latencyMS,
+		TtfbMS:     firstTokenMs,
+		StatusCode: &statusCode,
+	})
 	return forwardResult, nil
 }
 
