@@ -287,6 +287,7 @@ type openAIAutoSchedulerGroupResponse struct {
 
 type openAIAutoSchedulerScoreResponse struct {
 	AccountID               int64   `json:"account_id"`
+	AccountName             string  `json:"account_name"`
 	GroupID                 int64   `json:"group_id"`
 	Model                   string  `json:"model"`
 	BaseScore               int     `json:"base_score"`
@@ -437,6 +438,7 @@ func openAIAutoSchedulerGroupToResponse(group service.Group) openAIAutoScheduler
 func openAIAutoSchedulerScoreToResponse(state service.OpenAIAutoSchedulerScoreState) openAIAutoSchedulerScoreResponse {
 	return openAIAutoSchedulerScoreResponse{
 		AccountID:               state.AccountID,
+		AccountName:             state.AccountName,
 		GroupID:                 state.GroupID,
 		Model:                   state.Model,
 		BaseScore:               state.BaseScore,

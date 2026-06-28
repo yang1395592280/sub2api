@@ -142,6 +142,11 @@ func TestOpenAIAutoSchedulerProbeRunner_ProbesEnabledOpenAIGroups(t *testing.T) 
 	require.Equal(t, OpenAIAutoSchedulerEventProbeSuccess, record.EventType)
 	require.Equal(t, int64(1), record.AccountID)
 	require.Equal(t, int64(10), record.GroupID)
+	require.Equal(t, "gpt-5.4", record.Model)
+}
+
+func TestOpenAIAutoSchedulerProbeRunner_DefaultProbeModel(t *testing.T) {
+	require.Equal(t, "gpt-5.4", selectOpenAIAutoSchedulerProbeModel())
 }
 
 func TestOpenAIAutoSchedulerProbeRunner_DedupesInFlightChecks(t *testing.T) {

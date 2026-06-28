@@ -33,6 +33,7 @@ type OpenAIAutoSchedulerSettings struct {
 
 type OpenAIAutoSchedulerScoreState struct {
 	AccountID               int64
+	AccountName             string
 	GroupID                 int64
 	Model                   string
 	BaseScore               int

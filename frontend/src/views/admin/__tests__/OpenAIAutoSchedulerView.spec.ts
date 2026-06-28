@@ -71,8 +71,9 @@ const groups = [
 const scores = [
   {
     account_id: 101,
+    account_name: 'plus特惠临时分组渠道',
     group_id: 20,
-    model: 'gpt-5',
+    model: 'gpt-5.4',
     base_score: 10000,
     base_score_percent: 100,
     final_score: 8200,
@@ -104,8 +105,9 @@ const scores = [
   },
   {
     account_id: 102,
+    account_name: 'codex-pro备用渠道',
     group_id: 21,
-    model: 'gpt-5-mini',
+    model: 'gpt-5.5',
     base_score: 10000,
     base_score_percent: 100,
     final_score: 3200,
@@ -220,13 +222,20 @@ describe('OpenAIAutoSchedulerView', () => {
     expect(getSettings).toHaveBeenCalled()
     expect(listGroups).toHaveBeenCalled()
     expect(listScores).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1, model: 'gpt-5' }),
+      expect.objectContaining({ page: 1, group_id: 20, model: 'gpt-5.4' }),
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
+    expect(wrapper.get<HTMLSelectElement>('#scheduler-group').element.value).toBe('20')
     expect(wrapper.text()).toContain('openai-main')
-    expect(wrapper.text()).toContain('Account #101')
+    expect(wrapper.text()).toContain('plus特惠临时分组渠道')
     expect(wrapper.text()).toContain('observing')
     expect(wrapper.text()).toContain('0.8200')
+    expect(wrapper.get<HTMLSelectElement>('#scheduler-filter-model').element.value).toBe('gpt-5.4')
+    expect(wrapper.text()).toContain('最终')
+    expect(wrapper.text()).toContain('延迟分')
+    expect(wrapper.text()).toContain('错误分')
+    expect(wrapper.text()).toContain('恢复分')
+    expect(wrapper.text()).toContain('成本分')
   })
 
   it('updates selected group participation and applies group filter', async () => {
@@ -256,31 +265,53 @@ describe('OpenAIAutoSchedulerView', () => {
 
     const buttons = wrapper.findAll('button')
     const probe = buttons.find((button) => button.text().includes('探测'))
-    const reset = buttons.find((button) => button.text().includes('重置'))
 
     await probe!.trigger('click')
     await flushPromises()
 
-    expect(probeScore).toHaveBeenCalledWith(101, { group_id: 20, model: 'gpt-5' })
+    expect(probeScore).toHaveBeenCalledWith(101, { group_id: 20, model: 'gpt-5.4' })
 
     const resetAfterProbe = wrapper.findAll('button').find((button) => button.text().includes('重置'))
     await resetAfterProbe!.trigger('click')
     await flushPromises()
 
-    expect(resetScore).toHaveBeenCalledWith(101, { group_id: 20, model: 'gpt-5' })
+    expect(resetScore).toHaveBeenCalledWith(101, { group_id: 20, model: 'gpt-5.4' })
+  })
+
+  it('edits scheduler settings from the configuration panel', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text().includes('编辑调度配置'))!.trigger('click')
+    await flushPromises()
+
+    await wrapper.get<HTMLInputElement>('#scheduler-settings-probe-interval').setValue('90')
+    await wrapper.get<HTMLInputElement>('#scheduler-settings-cost-weight').setValue('35')
+    await wrapper.find('form[data-testid="scheduler-settings-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        probe_interval_seconds: 90,
+        cost_weight: 0.35,
+      })
+    )
+    expect(showSuccess).toHaveBeenCalledWith('调度配置已更新')
   })
 
   it('locally filters before paginating and reports filtered total when state filter is active', async () => {
     const openScores = Array.from({ length: 22 }, (_, index) => ({
       ...scores[1],
       account_id: 200 + index,
-      model: `gpt-5-open-${index + 1}`,
+      account_name: `open渠道-${index + 1}`,
+      model: `gpt-5.5-open-${index + 1}`,
       state: 'open',
     }))
     const runningScores = Array.from({ length: 5 }, (_, index) => ({
       ...scores[0],
       account_id: 300 + index,
-      model: `gpt-5-running-${index + 1}`,
+      account_name: `running渠道-${index + 1}`,
+      model: `gpt-5.4-running-${index + 1}`,
       state: 'running',
     }))
     listScores.mockResolvedValueOnce({
@@ -308,10 +339,10 @@ describe('OpenAIAutoSchedulerView', () => {
       expect.objectContaining({ page: 1, page_size: 200 }),
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
-    expect(wrapper.text()).toContain('Account #200')
-    expect(wrapper.text()).toContain('Account #219')
-    expect(wrapper.text()).not.toContain('Account #220')
-    expect(wrapper.text()).not.toContain('gpt-5-running')
+    expect(wrapper.text()).toContain('open渠道-1')
+    expect(wrapper.text()).toContain('open渠道-20')
+    expect(wrapper.text()).not.toContain('open渠道-21')
+    expect(wrapper.text()).not.toContain('gpt-5.4-running')
     expect(wrapper.get('[data-testid="pagination"]').text()).toBe('1 / 20 / 22')
   })
 

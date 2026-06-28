@@ -259,23 +259,24 @@ func TestOpenAIAutoSchedulerHandler_ListScoresReturnsPaginatedRows(t *testing.T)
 	schedulerSvc := &fakeOpenAIAutoSchedulerService{
 		total: 2,
 		scores: []service.OpenAIAutoSchedulerScoreState{
-			{AccountID: 101, GroupID: 20, Model: "gpt-5", FinalScore: 8750, State: service.OpenAIAutoSchedulerStateRunning},
-			{AccountID: 102, GroupID: 20, Model: "gpt-5", FinalScore: 6400, State: service.OpenAIAutoSchedulerStateOpen},
+			{AccountID: 101, AccountName: "plus特惠临时分组渠道", GroupID: 20, Model: "gpt-5.4", FinalScore: 8750, State: service.OpenAIAutoSchedulerStateRunning},
+			{AccountID: 102, AccountName: "备用渠道", GroupID: 20, Model: "gpt-5.4", FinalScore: 6400, State: service.OpenAIAutoSchedulerStateOpen},
 		},
 	}
 	router := setupOpenAIAutoSchedulerHandlerRouter(&fakeOpenAIAutoSchedulerSettingsService{}, &fakeOpenAIAutoSchedulerAdminService{}, schedulerSvc)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/openai-auto-scheduler/scores?page=2&page_size=1&group_id=20&model=gpt-5", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/openai-auto-scheduler/scores?page=2&page_size=1&group_id=20&model=gpt-5.4", nil)
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, service.OpenAIAutoSchedulerListParams{GroupID: 20, Model: "gpt-5", Page: 2, PageSize: 1}, schedulerSvc.listParams)
+	require.Equal(t, service.OpenAIAutoSchedulerListParams{GroupID: 20, Model: "gpt-5.4", Page: 2, PageSize: 1}, schedulerSvc.listParams)
 
 	var resp struct {
 		Data struct {
 			Items []struct {
 				AccountID         int64   `json:"account_id"`
+				AccountName       string  `json:"account_name"`
 				GroupID           int64   `json:"group_id"`
 				Model             string  `json:"model"`
 				FinalScore        int     `json:"final_score"`
@@ -291,6 +292,7 @@ func TestOpenAIAutoSchedulerHandler_ListScoresReturnsPaginatedRows(t *testing.T)
 	require.Equal(t, 2, resp.Data.Page)
 	require.Len(t, resp.Data.Items, 2)
 	require.Equal(t, int64(101), resp.Data.Items[0].AccountID)
+	require.Equal(t, "plus特惠临时分组渠道", resp.Data.Items[0].AccountName)
 	require.Equal(t, 8750, resp.Data.Items[0].FinalScore)
 	require.Equal(t, 87.5, resp.Data.Items[0].FinalScorePercent)
 }

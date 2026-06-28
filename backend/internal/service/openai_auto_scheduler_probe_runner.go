@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/alitto/pond/v2"
 )
@@ -244,7 +243,7 @@ func openAIAutoSchedulerProbeKey(accountID, groupID int64, model string) string 
 }
 
 func selectOpenAIAutoSchedulerProbeModel() string {
-	return openai.DefaultTestModel
+	return "gpt-5.4"
 }
 
 type openAIAutoSchedulerProbeHTTPChecker struct {

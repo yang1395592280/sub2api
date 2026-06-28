@@ -36,6 +36,7 @@ export interface OpenAIAutoSchedulerGroup {
 
 export interface OpenAIAutoSchedulerScore {
   account_id: number
+  account_name?: string
   group_id: number
   model: string
   base_score: number

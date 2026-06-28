@@ -146,7 +146,47 @@ func (r *openAIAutoSchedulerRepository) ListScoreStates(ctx context.Context, par
 	for _, entity := range entities {
 		out = append(out, openAIAutoSchedulerScoreStateEntityToService(entity))
 	}
+	if err := r.fillOpenAIAutoSchedulerScoreAccountNames(ctx, out); err != nil {
+		return nil, 0, err
+	}
 	return out, int64(total), nil
+}
+
+func (r *openAIAutoSchedulerRepository) fillOpenAIAutoSchedulerScoreAccountNames(ctx context.Context, states []service.OpenAIAutoSchedulerScoreState) error {
+	if len(states) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(states))
+	seen := make(map[int64]struct{}, len(states))
+	for _, state := range states {
+		if state.AccountID <= 0 {
+			continue
+		}
+		if _, ok := seen[state.AccountID]; ok {
+			continue
+		}
+		seen[state.AccountID] = struct{}{}
+		ids = append(ids, state.AccountID)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	accounts, err := r.client.Account.Query().
+		Where(dbaccount.IDIn(ids...)).
+		All(ctx)
+	if err != nil {
+		return err
+	}
+	names := make(map[int64]string, len(accounts))
+	for _, account := range accounts {
+		names[account.ID] = account.Name
+	}
+	for i := range states {
+		if name := strings.TrimSpace(names[states[i].AccountID]); name != "" {
+			states[i].AccountName = name
+		}
+	}
+	return nil
 }
 
 func (r *openAIAutoSchedulerRepository) ListSchedulableOpenAIAccountsByGroup(ctx context.Context, groupID int64) ([]service.Account, error) {

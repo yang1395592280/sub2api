@@ -353,12 +353,12 @@ func TestOpenAIAutoSchedulerService_ListScoresIncludesDefaultStatesForUnscoredGr
 	repo := &fakeOpenAIAutoSchedulerRepo{
 		accounts: map[int64][]Account{
 			2: {
-				{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true},
-				{ID: 3, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true},
+				{ID: 1, Name: "已打分渠道", Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true},
+				{ID: 3, Name: "新渠道", Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true},
 			},
 		},
 		listStates: []OpenAIAutoSchedulerScoreState{
-			{AccountID: 1, GroupID: 2, Model: "gpt-5", FinalScore: 7200, State: OpenAIAutoSchedulerStateObserving},
+			{AccountID: 1, AccountName: "旧名称", GroupID: 2, Model: "gpt-5", FinalScore: 7200, State: OpenAIAutoSchedulerStateObserving},
 		},
 		listTotal: 1,
 	}
@@ -375,8 +375,10 @@ func TestOpenAIAutoSchedulerService_ListScoresIncludesDefaultStatesForUnscoredGr
 	require.Equal(t, int64(2), result.Total)
 	require.Len(t, result.Items, 2)
 	require.Equal(t, int64(1), result.Items[0].AccountID)
+	require.Equal(t, "已打分渠道", result.Items[0].AccountName)
 	require.Equal(t, 7200, result.Items[0].FinalScore)
 	require.Equal(t, int64(3), result.Items[1].AccountID)
+	require.Equal(t, "新渠道", result.Items[1].AccountName)
 	require.Equal(t, "gpt-5", result.Items[1].Model)
 	require.Equal(t, OpenAIAutoSchedulerStateRunning, result.Items[1].State)
 	require.Equal(t, 6000, result.Items[1].FinalScore)

@@ -250,10 +250,14 @@ func (s *OpenAIAutoSchedulerService) listScoresWithGroupAccounts(ctx context.Con
 		byAccountID[item.AccountID] = item
 	}
 	for _, account := range accounts {
-		if _, ok := byAccountID[account.ID]; ok {
+		if item, ok := byAccountID[account.ID]; ok {
+			item.AccountName = account.Name
+			byAccountID[account.ID] = item
 			continue
 		}
-		byAccountID[account.ID] = NewOpenAIAutoSchedulerScoreState(account.ID, params.GroupID, params.Model)
+		state := NewOpenAIAutoSchedulerScoreState(account.ID, params.GroupID, params.Model)
+		state.AccountName = account.Name
+		byAccountID[account.ID] = state
 	}
 
 	merged := make([]OpenAIAutoSchedulerScoreState, 0, len(byAccountID))

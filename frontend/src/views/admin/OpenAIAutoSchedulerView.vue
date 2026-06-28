@@ -28,11 +28,82 @@
               <span class="scheduler-stat-value">{{ formatPercent(settings?.cost_weight) }}</span>
             </div>
           </div>
-          <button class="btn btn-secondary shrink-0" :disabled="loading" @click="reload">
-            <Icon name="refresh" size="sm" />
-            <span>刷新</span>
-          </button>
+          <div class="flex shrink-0 flex-wrap gap-2">
+            <button class="btn btn-secondary" :disabled="!settings || loading" @click="openSettingsEditor">
+              <Icon name="cog" size="sm" />
+              <span>编辑调度配置</span>
+            </button>
+            <button class="btn btn-secondary" :disabled="loading" @click="reload">
+              <Icon name="refresh" size="sm" />
+              <span>刷新</span>
+            </button>
+          </div>
         </div>
+      </div>
+
+      <div
+        v-if="editingSettings"
+        class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
+      >
+        <form data-testid="scheduler-settings-form" class="space-y-4" @submit.prevent="saveSettings">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 class="text-sm font-semibold text-gray-900 dark:text-white">调度配置</h2>
+              <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">调整自动探测、熔断和成本评分参数。</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <Toggle :modelValue="settingsForm.enabled" @update:modelValue="settingsForm.enabled = $event" />
+              <span class="text-sm font-medium text-gray-900 dark:text-white">{{ settingsForm.enabled ? '已启用' : '已关闭' }}</span>
+            </div>
+          </div>
+
+          <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <div>
+              <label class="input-label" for="scheduler-settings-probe-interval">探测间隔（秒）</label>
+              <input id="scheduler-settings-probe-interval" v-model.number="settingsForm.probe_interval_seconds" type="number" min="1" class="input" />
+            </div>
+            <div>
+              <label class="input-label" for="scheduler-settings-slow-threshold">慢响应阈值（ms）</label>
+              <input id="scheduler-settings-slow-threshold" v-model.number="settingsForm.slow_threshold_ms" type="number" min="1" class="input" />
+            </div>
+            <div>
+              <label class="input-label" for="scheduler-settings-severe-threshold">重慢阈值（ms）</label>
+              <input id="scheduler-settings-severe-threshold" v-model.number="settingsForm.severe_slow_threshold_ms" type="number" min="1" class="input" />
+            </div>
+            <div>
+              <label class="input-label" for="scheduler-settings-cooldown">熔断冷却（秒）</label>
+              <input id="scheduler-settings-cooldown" v-model.number="settingsForm.cooldown_seconds" type="number" min="1" class="input" />
+            </div>
+            <div>
+              <label class="input-label" for="scheduler-settings-cost-weight">成本权重（%）</label>
+              <input id="scheduler-settings-cost-weight" v-model.number="settingsForm.cost_weight_percent" type="number" min="0" max="100" class="input" />
+            </div>
+            <div>
+              <label class="input-label" for="scheduler-settings-slow-breaker">连续慢响应熔断</label>
+              <input id="scheduler-settings-slow-breaker" v-model.number="settingsForm.consecutive_slow_breaker_threshold" type="number" min="1" class="input" />
+            </div>
+            <div>
+              <label class="input-label" for="scheduler-settings-error-breaker">连续错误熔断</label>
+              <input id="scheduler-settings-error-breaker" v-model.number="settingsForm.consecutive_error_breaker_threshold" type="number" min="1" class="input" />
+            </div>
+            <div>
+              <label class="input-label" for="scheduler-settings-half-open">半开成功阈值</label>
+              <input id="scheduler-settings-half-open" v-model.number="settingsForm.half_open_success_threshold" type="number" min="1" class="input" />
+            </div>
+            <div>
+              <label class="input-label" for="scheduler-settings-recovery">恢复步长</label>
+              <input id="scheduler-settings-recovery" v-model.number="settingsForm.recovery_step" type="number" min="1" class="input" />
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-2">
+            <button type="button" class="btn btn-secondary" :disabled="settingsSaving" @click="editingSettings = false">取消</button>
+            <button type="submit" class="btn btn-primary" :disabled="settingsSaving">
+              <Icon name="check" size="sm" />
+              <span>保存配置</span>
+            </button>
+          </div>
+        </form>
       </div>
 
       <div class="grid gap-4 lg:grid-cols-[minmax(260px,320px)_1fr]">
@@ -44,7 +115,6 @@
 
           <label class="input-label" for="scheduler-group">当前分组</label>
           <select id="scheduler-group" v-model.number="selectedGroupId" class="input mb-4" @change="handleGroupChange">
-            <option :value="0">全部 OpenAI 分组</option>
             <option v-for="group in groups" :key="group.id" :value="group.id">
               {{ group.name }}
             </option>
@@ -78,7 +148,9 @@
               </div>
               <div>
                 <label class="input-label" for="scheduler-filter-model">模型</label>
-                <input id="scheduler-filter-model" v-model="filters.model" class="input" placeholder="gpt-5" @keyup.enter="applyFilters" />
+                <select id="scheduler-filter-model" v-model="filters.model" class="input" @change="applyFilters">
+                  <option v-for="model in schedulerModelOptions" :key="model" :value="model">{{ model }}</option>
+                </select>
               </div>
               <div>
                 <label class="input-label" for="scheduler-filter-state">状态</label>
@@ -118,11 +190,12 @@
                 <div class="min-w-0">
                   <div class="flex items-center gap-2">
                     <span class="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                      Account #{{ score.account_id }}
+                      {{ scoreTitle(score) }}
                     </span>
                     <span :class="stateBadgeClass(score.state)">{{ stateLabel(score.state) }}</span>
                   </div>
                   <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-dark-400">
+                    <span>#{{ score.account_id }}</span>
                     <span>Group #{{ score.group_id }}</span>
                     <span class="max-w-full truncate">{{ score.model }}</span>
                     <span>{{ formatDateTime(score.last_checked_at) }}</span>
@@ -133,6 +206,7 @@
                 </div>
 
                 <div>
+                  <div class="mb-1 text-xs text-gray-500 dark:text-dark-400">最终</div>
                   <div :class="scoreTextClass(score.final_score)" class="text-2xl font-semibold tabular-nums">
                     {{ formatScore(score.final_score) }}
                   </div>
@@ -145,7 +219,27 @@
                 </div>
 
                 <div class="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
-                  <div class="grid gap-2 sm:grid-cols-3">
+                  <div class="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
+                    <div class="scheduler-signal">
+                      <span>延迟分</span>
+                      <strong>{{ formatComponentScore(score.latency_score) }}</strong>
+                      <small>{{ formatPercentFromBasis(score.latency_score_percent) }}</small>
+                    </div>
+                    <div class="scheduler-signal">
+                      <span>错误分</span>
+                      <strong>{{ formatComponentScore(score.error_score) }}</strong>
+                      <small>{{ formatPercentFromBasis(score.error_score_percent) }}</small>
+                    </div>
+                    <div class="scheduler-signal">
+                      <span>恢复分</span>
+                      <strong>{{ formatComponentScore(score.recovery_score) }}</strong>
+                      <small>{{ formatPercentFromBasis(score.recovery_score_percent) }}</small>
+                    </div>
+                    <div class="scheduler-signal">
+                      <span>成本分</span>
+                      <strong>{{ formatComponentScore(score.cost_score) }}</strong>
+                      <small>{{ formatPercentFromBasis(score.cost_score_percent) }}</small>
+                    </div>
                     <div class="scheduler-signal">
                       <span>慢响应</span>
                       <strong>{{ formatRate(score.slow_rate) }}</strong>
@@ -160,6 +254,11 @@
                       <span>样本</span>
                       <strong>{{ score.request_count }}</strong>
                       <small>TTFB {{ score.ttfb_sample_count }}</small>
+                    </div>
+                    <div class="scheduler-signal">
+                      <span>卡住率</span>
+                      <strong>{{ formatRate(score.stuck_rate) }}</strong>
+                      <small>成功 {{ score.consecutive_success_count }}</small>
                     </div>
                   </div>
 
@@ -235,12 +334,27 @@ const scores = ref<OpenAIAutoSchedulerScore[]>([])
 const loading = ref(false)
 const selectedGroupId = ref(0)
 const actionKey = ref<string | null>(null)
+const editingSettings = ref(false)
+const settingsSaving = ref(false)
 const pagination = reactive({ page: 1, page_size: getPersistedPageSize(), total: 0 })
+const schedulerModelOptions = ['gpt-5.4', 'gpt-5.5']
 const filters = reactive<OpenAIAutoSchedulerListParams>({
   group_id: 0,
-  model: 'gpt-5',
+  model: schedulerModelOptions[0],
   state: '',
   search: '',
+})
+const settingsForm = reactive({
+  enabled: false,
+  probe_interval_seconds: 60,
+  slow_threshold_ms: 10000,
+  severe_slow_threshold_ms: 20000,
+  consecutive_slow_breaker_threshold: 3,
+  consecutive_error_breaker_threshold: 2,
+  cooldown_seconds: 120,
+  half_open_success_threshold: 3,
+  cost_weight_percent: 20,
+  recovery_step: 800,
 })
 
 let abortController: AbortController | null = null
@@ -266,6 +380,7 @@ function filterScoresLocally(items: OpenAIAutoSchedulerScore[]): OpenAIAutoSched
     if (!search) return true
     return [
       String(score.account_id),
+      score.account_name || '',
       String(score.group_id),
       score.model,
       score.reason,
@@ -282,8 +397,12 @@ async function loadSettingsAndGroups() {
   ])
   settings.value = nextSettings
   groups.value = nextGroups
-  if (selectedGroupId.value && !nextGroups.some((group) => group.id === selectedGroupId.value)) {
-    selectedGroupId.value = 0
+  const firstGroupId = nextGroups[0]?.id || 0
+  if (!selectedGroupId.value || !nextGroups.some((group) => group.id === selectedGroupId.value)) {
+    selectedGroupId.value = firstGroupId
+  }
+  if (!filters.group_id || !nextGroups.some((group) => group.id === filters.group_id)) {
+    filters.group_id = firstGroupId
   }
 }
 
@@ -365,6 +484,52 @@ async function toggleGlobalEnabled(enabled: boolean) {
   }
 }
 
+function openSettingsEditor() {
+  if (!settings.value) return
+  syncSettingsForm(settings.value)
+  editingSettings.value = true
+}
+
+function syncSettingsForm(nextSettings: OpenAIAutoSchedulerSettings) {
+  settingsForm.enabled = nextSettings.enabled
+  settingsForm.probe_interval_seconds = nextSettings.probe_interval_seconds
+  settingsForm.slow_threshold_ms = nextSettings.slow_threshold_ms
+  settingsForm.severe_slow_threshold_ms = nextSettings.severe_slow_threshold_ms
+  settingsForm.consecutive_slow_breaker_threshold = nextSettings.consecutive_slow_breaker_threshold
+  settingsForm.consecutive_error_breaker_threshold = nextSettings.consecutive_error_breaker_threshold
+  settingsForm.cooldown_seconds = nextSettings.cooldown_seconds
+  settingsForm.half_open_success_threshold = nextSettings.half_open_success_threshold
+  settingsForm.cost_weight_percent = Math.round(nextSettings.cost_weight * 100)
+  settingsForm.recovery_step = nextSettings.recovery_step
+}
+
+async function saveSettings() {
+  if (!settings.value) return
+  settingsSaving.value = true
+  try {
+    const payload: OpenAIAutoSchedulerSettings = {
+      enabled: settingsForm.enabled,
+      probe_interval_seconds: Number(settingsForm.probe_interval_seconds),
+      slow_threshold_ms: Number(settingsForm.slow_threshold_ms),
+      severe_slow_threshold_ms: Number(settingsForm.severe_slow_threshold_ms),
+      consecutive_slow_breaker_threshold: Number(settingsForm.consecutive_slow_breaker_threshold),
+      consecutive_error_breaker_threshold: Number(settingsForm.consecutive_error_breaker_threshold),
+      cooldown_seconds: Number(settingsForm.cooldown_seconds),
+      half_open_success_threshold: Number(settingsForm.half_open_success_threshold),
+      cost_weight: Number(settingsForm.cost_weight_percent) / 100,
+      recovery_step: Number(settingsForm.recovery_step),
+    }
+    settings.value = await adminAPI.openaiAutoScheduler.updateSettings(payload)
+    syncSettingsForm(settings.value)
+    editingSettings.value = false
+    appStore.showSuccess('调度配置已更新')
+  } catch (err: unknown) {
+    appStore.showError(extractApiErrorMessage(err, '更新调度配置失败'))
+  } finally {
+    settingsSaving.value = false
+  }
+}
+
 async function toggleSelectedGroup(enabled: boolean) {
   if (!selectedGroup.value) return
   const group = selectedGroup.value
@@ -419,6 +584,10 @@ function scoreKey(score: OpenAIAutoSchedulerScore): string {
   return `${score.account_id}:${score.group_id}:${score.model}`
 }
 
+function scoreTitle(score: OpenAIAutoSchedulerScore): string {
+  return score.account_name?.trim() || `Account #${score.account_id}`
+}
+
 function stateLabel(state: OpenAIAutoSchedulerState): string {
   const labels: Record<OpenAIAutoSchedulerState, string> = {
     running: 'running',
@@ -462,6 +631,11 @@ function formatScore(score: number): string {
   return (Math.max(0, Math.min(10000, score)) / 10000).toFixed(4)
 }
 
+function formatComponentScore(score: number): string {
+  const bounded = Math.max(-10000, Math.min(10000, score))
+  return (bounded / 10000).toFixed(4)
+}
+
 function formatMs(value?: number | null): string {
   if (value == null) return '-'
   return `${value}ms`
@@ -475,6 +649,11 @@ function formatSeconds(value?: number | null): string {
 function formatPercent(value?: number | null): string {
   if (value == null) return '-'
   return `${Math.round(value * 100)}%`
+}
+
+function formatPercentFromBasis(value?: number | null): string {
+  if (value == null) return '-'
+  return `${Math.round(value)}%`
 }
 
 function formatRate(value: number): string {
