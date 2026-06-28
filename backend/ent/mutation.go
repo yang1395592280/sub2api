@@ -27,6 +27,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscoreevent"
+	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscorestate"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -77,6 +79,8 @@ const (
 	TypeGroup                         = "Group"
 	TypeIdempotencyRecord             = "IdempotencyRecord"
 	TypeIdentityAdoptionDecision      = "IdentityAdoptionDecision"
+	TypeOpenAIAutoSchedulerScoreEvent = "OpenAIAutoSchedulerScoreEvent"
+	TypeOpenAIAutoSchedulerScoreState = "OpenAIAutoSchedulerScoreState"
 	TypePaymentAuditLog               = "PaymentAuditLog"
 	TypePaymentOrder                  = "PaymentOrder"
 	TypePaymentProviderInstance       = "PaymentProviderInstance"
@@ -15207,6 +15211,7 @@ type GroupMutation struct {
 	default_mapped_model                    *string
 	messages_dispatch_model_config          *domain.OpenAIMessagesDispatchModelConfig
 	models_list_config                      *domain.GroupModelsListConfig
+	openai_auto_scheduler_enabled           *bool
 	rpm_limit                               *int
 	addrpm_limit                            *int
 	clearedFields                           map[string]struct{}
@@ -16961,6 +16966,42 @@ func (m *GroupMutation) ResetModelsListConfig() {
 	m.models_list_config = nil
 }
 
+// SetOpenaiAutoSchedulerEnabled sets the "openai_auto_scheduler_enabled" field.
+func (m *GroupMutation) SetOpenaiAutoSchedulerEnabled(b bool) {
+	m.openai_auto_scheduler_enabled = &b
+}
+
+// OpenaiAutoSchedulerEnabled returns the value of the "openai_auto_scheduler_enabled" field in the mutation.
+func (m *GroupMutation) OpenaiAutoSchedulerEnabled() (r bool, exists bool) {
+	v := m.openai_auto_scheduler_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOpenaiAutoSchedulerEnabled returns the old "openai_auto_scheduler_enabled" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldOpenaiAutoSchedulerEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOpenaiAutoSchedulerEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOpenaiAutoSchedulerEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOpenaiAutoSchedulerEnabled: %w", err)
+	}
+	return oldValue.OpenaiAutoSchedulerEnabled, nil
+}
+
+// ResetOpenaiAutoSchedulerEnabled resets all changes to the "openai_auto_scheduler_enabled" field.
+func (m *GroupMutation) ResetOpenaiAutoSchedulerEnabled() {
+	m.openai_auto_scheduler_enabled = nil
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (m *GroupMutation) SetRpmLimit(i int) {
 	m.rpm_limit = &i
@@ -17375,7 +17416,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 35)
+	fields := make([]string, 0, 36)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -17478,6 +17519,9 @@ func (m *GroupMutation) Fields() []string {
 	if m.models_list_config != nil {
 		fields = append(fields, group.FieldModelsListConfig)
 	}
+	if m.openai_auto_scheduler_enabled != nil {
+		fields = append(fields, group.FieldOpenaiAutoSchedulerEnabled)
+	}
 	if m.rpm_limit != nil {
 		fields = append(fields, group.FieldRpmLimit)
 	}
@@ -17557,6 +17601,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.MessagesDispatchModelConfig()
 	case group.FieldModelsListConfig:
 		return m.ModelsListConfig()
+	case group.FieldOpenaiAutoSchedulerEnabled:
+		return m.OpenaiAutoSchedulerEnabled()
 	case group.FieldRpmLimit:
 		return m.RpmLimit()
 	}
@@ -17636,6 +17682,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldMessagesDispatchModelConfig(ctx)
 	case group.FieldModelsListConfig:
 		return m.OldModelsListConfig(ctx)
+	case group.FieldOpenaiAutoSchedulerEnabled:
+		return m.OldOpenaiAutoSchedulerEnabled(ctx)
 	case group.FieldRpmLimit:
 		return m.OldRpmLimit(ctx)
 	}
@@ -17884,6 +17932,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetModelsListConfig(v)
+		return nil
+	case group.FieldOpenaiAutoSchedulerEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOpenaiAutoSchedulerEnabled(v)
 		return nil
 	case group.FieldRpmLimit:
 		v, ok := value.(int)
@@ -18270,6 +18325,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldModelsListConfig:
 		m.ResetModelsListConfig()
+		return nil
+	case group.FieldOpenaiAutoSchedulerEnabled:
+		m.ResetOpenaiAutoSchedulerEnabled()
 		return nil
 	case group.FieldRpmLimit:
 		m.ResetRpmLimit()
@@ -20247,6 +20305,3649 @@ func (m *IdentityAdoptionDecisionMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown IdentityAdoptionDecision edge %s", name)
+}
+
+// OpenAIAutoSchedulerScoreEventMutation represents an operation that mutates the OpenAIAutoSchedulerScoreEvent nodes in the graph.
+type OpenAIAutoSchedulerScoreEventMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *int64
+	account_id      *int64
+	addaccount_id   *int64
+	group_id        *int64
+	addgroup_id     *int64
+	model           *string
+	event_type      *string
+	score_before    *int
+	addscore_before *int
+	score_after     *int
+	addscore_after  *int
+	latency_ms      *int
+	addlatency_ms   *int
+	ttfb_ms         *int
+	addttfb_ms      *int
+	status_code     *int
+	addstatus_code  *int
+	message         *string
+	created_at      *time.Time
+	clearedFields   map[string]struct{}
+	done            bool
+	oldValue        func(context.Context) (*OpenAIAutoSchedulerScoreEvent, error)
+	predicates      []predicate.OpenAIAutoSchedulerScoreEvent
+}
+
+var _ ent.Mutation = (*OpenAIAutoSchedulerScoreEventMutation)(nil)
+
+// openaiautoschedulerscoreeventOption allows management of the mutation configuration using functional options.
+type openaiautoschedulerscoreeventOption func(*OpenAIAutoSchedulerScoreEventMutation)
+
+// newOpenAIAutoSchedulerScoreEventMutation creates new mutation for the OpenAIAutoSchedulerScoreEvent entity.
+func newOpenAIAutoSchedulerScoreEventMutation(c config, op Op, opts ...openaiautoschedulerscoreeventOption) *OpenAIAutoSchedulerScoreEventMutation {
+	m := &OpenAIAutoSchedulerScoreEventMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeOpenAIAutoSchedulerScoreEvent,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withOpenAIAutoSchedulerScoreEventID sets the ID field of the mutation.
+func withOpenAIAutoSchedulerScoreEventID(id int64) openaiautoschedulerscoreeventOption {
+	return func(m *OpenAIAutoSchedulerScoreEventMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *OpenAIAutoSchedulerScoreEvent
+		)
+		m.oldValue = func(ctx context.Context) (*OpenAIAutoSchedulerScoreEvent, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().OpenAIAutoSchedulerScoreEvent.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withOpenAIAutoSchedulerScoreEvent sets the old OpenAIAutoSchedulerScoreEvent of the mutation.
+func withOpenAIAutoSchedulerScoreEvent(node *OpenAIAutoSchedulerScoreEvent) openaiautoschedulerscoreeventOption {
+	return func(m *OpenAIAutoSchedulerScoreEventMutation) {
+		m.oldValue = func(context.Context) (*OpenAIAutoSchedulerScoreEvent, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m OpenAIAutoSchedulerScoreEventMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m OpenAIAutoSchedulerScoreEventMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().OpenAIAutoSchedulerScoreEvent.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetAccountID sets the "account_id" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) SetAccountID(i int64) {
+	m.account_id = &i
+	m.addaccount_id = nil
+}
+
+// AccountID returns the value of the "account_id" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AccountID() (r int64, exists bool) {
+	v := m.account_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccountID returns the old "account_id" field's value of the OpenAIAutoSchedulerScoreEvent entity.
+// If the OpenAIAutoSchedulerScoreEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreEventMutation) OldAccountID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccountID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccountID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccountID: %w", err)
+	}
+	return oldValue.AccountID, nil
+}
+
+// AddAccountID adds i to the "account_id" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddAccountID(i int64) {
+	if m.addaccount_id != nil {
+		*m.addaccount_id += i
+	} else {
+		m.addaccount_id = &i
+	}
+}
+
+// AddedAccountID returns the value that was added to the "account_id" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddedAccountID() (r int64, exists bool) {
+	v := m.addaccount_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAccountID resets all changes to the "account_id" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ResetAccountID() {
+	m.account_id = nil
+	m.addaccount_id = nil
+}
+
+// SetGroupID sets the "group_id" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) SetGroupID(i int64) {
+	m.group_id = &i
+	m.addgroup_id = nil
+}
+
+// GroupID returns the value of the "group_id" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) GroupID() (r int64, exists bool) {
+	v := m.group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGroupID returns the old "group_id" field's value of the OpenAIAutoSchedulerScoreEvent entity.
+// If the OpenAIAutoSchedulerScoreEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreEventMutation) OldGroupID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGroupID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGroupID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGroupID: %w", err)
+	}
+	return oldValue.GroupID, nil
+}
+
+// AddGroupID adds i to the "group_id" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddGroupID(i int64) {
+	if m.addgroup_id != nil {
+		*m.addgroup_id += i
+	} else {
+		m.addgroup_id = &i
+	}
+}
+
+// AddedGroupID returns the value that was added to the "group_id" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddedGroupID() (r int64, exists bool) {
+	v := m.addgroup_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetGroupID resets all changes to the "group_id" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ResetGroupID() {
+	m.group_id = nil
+	m.addgroup_id = nil
+}
+
+// SetModel sets the "model" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) SetModel(s string) {
+	m.model = &s
+}
+
+// Model returns the value of the "model" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) Model() (r string, exists bool) {
+	v := m.model
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldModel returns the old "model" field's value of the OpenAIAutoSchedulerScoreEvent entity.
+// If the OpenAIAutoSchedulerScoreEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreEventMutation) OldModel(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldModel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldModel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldModel: %w", err)
+	}
+	return oldValue.Model, nil
+}
+
+// ResetModel resets all changes to the "model" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ResetModel() {
+	m.model = nil
+}
+
+// SetEventType sets the "event_type" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) SetEventType(s string) {
+	m.event_type = &s
+}
+
+// EventType returns the value of the "event_type" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) EventType() (r string, exists bool) {
+	v := m.event_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEventType returns the old "event_type" field's value of the OpenAIAutoSchedulerScoreEvent entity.
+// If the OpenAIAutoSchedulerScoreEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreEventMutation) OldEventType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEventType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEventType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEventType: %w", err)
+	}
+	return oldValue.EventType, nil
+}
+
+// ResetEventType resets all changes to the "event_type" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ResetEventType() {
+	m.event_type = nil
+}
+
+// SetScoreBefore sets the "score_before" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) SetScoreBefore(i int) {
+	m.score_before = &i
+	m.addscore_before = nil
+}
+
+// ScoreBefore returns the value of the "score_before" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ScoreBefore() (r int, exists bool) {
+	v := m.score_before
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldScoreBefore returns the old "score_before" field's value of the OpenAIAutoSchedulerScoreEvent entity.
+// If the OpenAIAutoSchedulerScoreEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreEventMutation) OldScoreBefore(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldScoreBefore is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldScoreBefore requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldScoreBefore: %w", err)
+	}
+	return oldValue.ScoreBefore, nil
+}
+
+// AddScoreBefore adds i to the "score_before" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddScoreBefore(i int) {
+	if m.addscore_before != nil {
+		*m.addscore_before += i
+	} else {
+		m.addscore_before = &i
+	}
+}
+
+// AddedScoreBefore returns the value that was added to the "score_before" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddedScoreBefore() (r int, exists bool) {
+	v := m.addscore_before
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetScoreBefore resets all changes to the "score_before" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ResetScoreBefore() {
+	m.score_before = nil
+	m.addscore_before = nil
+}
+
+// SetScoreAfter sets the "score_after" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) SetScoreAfter(i int) {
+	m.score_after = &i
+	m.addscore_after = nil
+}
+
+// ScoreAfter returns the value of the "score_after" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ScoreAfter() (r int, exists bool) {
+	v := m.score_after
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldScoreAfter returns the old "score_after" field's value of the OpenAIAutoSchedulerScoreEvent entity.
+// If the OpenAIAutoSchedulerScoreEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreEventMutation) OldScoreAfter(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldScoreAfter is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldScoreAfter requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldScoreAfter: %w", err)
+	}
+	return oldValue.ScoreAfter, nil
+}
+
+// AddScoreAfter adds i to the "score_after" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddScoreAfter(i int) {
+	if m.addscore_after != nil {
+		*m.addscore_after += i
+	} else {
+		m.addscore_after = &i
+	}
+}
+
+// AddedScoreAfter returns the value that was added to the "score_after" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddedScoreAfter() (r int, exists bool) {
+	v := m.addscore_after
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetScoreAfter resets all changes to the "score_after" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ResetScoreAfter() {
+	m.score_after = nil
+	m.addscore_after = nil
+}
+
+// SetLatencyMs sets the "latency_ms" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) SetLatencyMs(i int) {
+	m.latency_ms = &i
+	m.addlatency_ms = nil
+}
+
+// LatencyMs returns the value of the "latency_ms" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) LatencyMs() (r int, exists bool) {
+	v := m.latency_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLatencyMs returns the old "latency_ms" field's value of the OpenAIAutoSchedulerScoreEvent entity.
+// If the OpenAIAutoSchedulerScoreEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreEventMutation) OldLatencyMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLatencyMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLatencyMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLatencyMs: %w", err)
+	}
+	return oldValue.LatencyMs, nil
+}
+
+// AddLatencyMs adds i to the "latency_ms" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddLatencyMs(i int) {
+	if m.addlatency_ms != nil {
+		*m.addlatency_ms += i
+	} else {
+		m.addlatency_ms = &i
+	}
+}
+
+// AddedLatencyMs returns the value that was added to the "latency_ms" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddedLatencyMs() (r int, exists bool) {
+	v := m.addlatency_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearLatencyMs clears the value of the "latency_ms" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ClearLatencyMs() {
+	m.latency_ms = nil
+	m.addlatency_ms = nil
+	m.clearedFields[openaiautoschedulerscoreevent.FieldLatencyMs] = struct{}{}
+}
+
+// LatencyMsCleared returns if the "latency_ms" field was cleared in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) LatencyMsCleared() bool {
+	_, ok := m.clearedFields[openaiautoschedulerscoreevent.FieldLatencyMs]
+	return ok
+}
+
+// ResetLatencyMs resets all changes to the "latency_ms" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ResetLatencyMs() {
+	m.latency_ms = nil
+	m.addlatency_ms = nil
+	delete(m.clearedFields, openaiautoschedulerscoreevent.FieldLatencyMs)
+}
+
+// SetTtfbMs sets the "ttfb_ms" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) SetTtfbMs(i int) {
+	m.ttfb_ms = &i
+	m.addttfb_ms = nil
+}
+
+// TtfbMs returns the value of the "ttfb_ms" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) TtfbMs() (r int, exists bool) {
+	v := m.ttfb_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTtfbMs returns the old "ttfb_ms" field's value of the OpenAIAutoSchedulerScoreEvent entity.
+// If the OpenAIAutoSchedulerScoreEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreEventMutation) OldTtfbMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTtfbMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTtfbMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTtfbMs: %w", err)
+	}
+	return oldValue.TtfbMs, nil
+}
+
+// AddTtfbMs adds i to the "ttfb_ms" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddTtfbMs(i int) {
+	if m.addttfb_ms != nil {
+		*m.addttfb_ms += i
+	} else {
+		m.addttfb_ms = &i
+	}
+}
+
+// AddedTtfbMs returns the value that was added to the "ttfb_ms" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddedTtfbMs() (r int, exists bool) {
+	v := m.addttfb_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearTtfbMs clears the value of the "ttfb_ms" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ClearTtfbMs() {
+	m.ttfb_ms = nil
+	m.addttfb_ms = nil
+	m.clearedFields[openaiautoschedulerscoreevent.FieldTtfbMs] = struct{}{}
+}
+
+// TtfbMsCleared returns if the "ttfb_ms" field was cleared in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) TtfbMsCleared() bool {
+	_, ok := m.clearedFields[openaiautoschedulerscoreevent.FieldTtfbMs]
+	return ok
+}
+
+// ResetTtfbMs resets all changes to the "ttfb_ms" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ResetTtfbMs() {
+	m.ttfb_ms = nil
+	m.addttfb_ms = nil
+	delete(m.clearedFields, openaiautoschedulerscoreevent.FieldTtfbMs)
+}
+
+// SetStatusCode sets the "status_code" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) SetStatusCode(i int) {
+	m.status_code = &i
+	m.addstatus_code = nil
+}
+
+// StatusCode returns the value of the "status_code" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) StatusCode() (r int, exists bool) {
+	v := m.status_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatusCode returns the old "status_code" field's value of the OpenAIAutoSchedulerScoreEvent entity.
+// If the OpenAIAutoSchedulerScoreEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreEventMutation) OldStatusCode(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatusCode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatusCode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatusCode: %w", err)
+	}
+	return oldValue.StatusCode, nil
+}
+
+// AddStatusCode adds i to the "status_code" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddStatusCode(i int) {
+	if m.addstatus_code != nil {
+		*m.addstatus_code += i
+	} else {
+		m.addstatus_code = &i
+	}
+}
+
+// AddedStatusCode returns the value that was added to the "status_code" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddedStatusCode() (r int, exists bool) {
+	v := m.addstatus_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearStatusCode clears the value of the "status_code" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ClearStatusCode() {
+	m.status_code = nil
+	m.addstatus_code = nil
+	m.clearedFields[openaiautoschedulerscoreevent.FieldStatusCode] = struct{}{}
+}
+
+// StatusCodeCleared returns if the "status_code" field was cleared in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) StatusCodeCleared() bool {
+	_, ok := m.clearedFields[openaiautoschedulerscoreevent.FieldStatusCode]
+	return ok
+}
+
+// ResetStatusCode resets all changes to the "status_code" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ResetStatusCode() {
+	m.status_code = nil
+	m.addstatus_code = nil
+	delete(m.clearedFields, openaiautoschedulerscoreevent.FieldStatusCode)
+}
+
+// SetMessage sets the "message" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) SetMessage(s string) {
+	m.message = &s
+}
+
+// Message returns the value of the "message" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) Message() (r string, exists bool) {
+	v := m.message
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMessage returns the old "message" field's value of the OpenAIAutoSchedulerScoreEvent entity.
+// If the OpenAIAutoSchedulerScoreEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreEventMutation) OldMessage(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMessage is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMessage requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMessage: %w", err)
+	}
+	return oldValue.Message, nil
+}
+
+// ResetMessage resets all changes to the "message" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ResetMessage() {
+	m.message = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the OpenAIAutoSchedulerScoreEvent entity.
+// If the OpenAIAutoSchedulerScoreEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreEventMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the OpenAIAutoSchedulerScoreEventMutation builder.
+func (m *OpenAIAutoSchedulerScoreEventMutation) Where(ps ...predicate.OpenAIAutoSchedulerScoreEvent) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the OpenAIAutoSchedulerScoreEventMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *OpenAIAutoSchedulerScoreEventMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.OpenAIAutoSchedulerScoreEvent, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *OpenAIAutoSchedulerScoreEventMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (OpenAIAutoSchedulerScoreEvent).
+func (m *OpenAIAutoSchedulerScoreEventMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *OpenAIAutoSchedulerScoreEventMutation) Fields() []string {
+	fields := make([]string, 0, 11)
+	if m.account_id != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldAccountID)
+	}
+	if m.group_id != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldGroupID)
+	}
+	if m.model != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldModel)
+	}
+	if m.event_type != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldEventType)
+	}
+	if m.score_before != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldScoreBefore)
+	}
+	if m.score_after != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldScoreAfter)
+	}
+	if m.latency_ms != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldLatencyMs)
+	}
+	if m.ttfb_ms != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldTtfbMs)
+	}
+	if m.status_code != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldStatusCode)
+	}
+	if m.message != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldMessage)
+	}
+	if m.created_at != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *OpenAIAutoSchedulerScoreEventMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case openaiautoschedulerscoreevent.FieldAccountID:
+		return m.AccountID()
+	case openaiautoschedulerscoreevent.FieldGroupID:
+		return m.GroupID()
+	case openaiautoschedulerscoreevent.FieldModel:
+		return m.Model()
+	case openaiautoschedulerscoreevent.FieldEventType:
+		return m.EventType()
+	case openaiautoschedulerscoreevent.FieldScoreBefore:
+		return m.ScoreBefore()
+	case openaiautoschedulerscoreevent.FieldScoreAfter:
+		return m.ScoreAfter()
+	case openaiautoschedulerscoreevent.FieldLatencyMs:
+		return m.LatencyMs()
+	case openaiautoschedulerscoreevent.FieldTtfbMs:
+		return m.TtfbMs()
+	case openaiautoschedulerscoreevent.FieldStatusCode:
+		return m.StatusCode()
+	case openaiautoschedulerscoreevent.FieldMessage:
+		return m.Message()
+	case openaiautoschedulerscoreevent.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *OpenAIAutoSchedulerScoreEventMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case openaiautoschedulerscoreevent.FieldAccountID:
+		return m.OldAccountID(ctx)
+	case openaiautoschedulerscoreevent.FieldGroupID:
+		return m.OldGroupID(ctx)
+	case openaiautoschedulerscoreevent.FieldModel:
+		return m.OldModel(ctx)
+	case openaiautoschedulerscoreevent.FieldEventType:
+		return m.OldEventType(ctx)
+	case openaiautoschedulerscoreevent.FieldScoreBefore:
+		return m.OldScoreBefore(ctx)
+	case openaiautoschedulerscoreevent.FieldScoreAfter:
+		return m.OldScoreAfter(ctx)
+	case openaiautoschedulerscoreevent.FieldLatencyMs:
+		return m.OldLatencyMs(ctx)
+	case openaiautoschedulerscoreevent.FieldTtfbMs:
+		return m.OldTtfbMs(ctx)
+	case openaiautoschedulerscoreevent.FieldStatusCode:
+		return m.OldStatusCode(ctx)
+	case openaiautoschedulerscoreevent.FieldMessage:
+		return m.OldMessage(ctx)
+	case openaiautoschedulerscoreevent.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown OpenAIAutoSchedulerScoreEvent field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OpenAIAutoSchedulerScoreEventMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case openaiautoschedulerscoreevent.FieldAccountID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountID(v)
+		return nil
+	case openaiautoschedulerscoreevent.FieldGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGroupID(v)
+		return nil
+	case openaiautoschedulerscoreevent.FieldModel:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetModel(v)
+		return nil
+	case openaiautoschedulerscoreevent.FieldEventType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEventType(v)
+		return nil
+	case openaiautoschedulerscoreevent.FieldScoreBefore:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetScoreBefore(v)
+		return nil
+	case openaiautoschedulerscoreevent.FieldScoreAfter:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetScoreAfter(v)
+		return nil
+	case openaiautoschedulerscoreevent.FieldLatencyMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLatencyMs(v)
+		return nil
+	case openaiautoschedulerscoreevent.FieldTtfbMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTtfbMs(v)
+		return nil
+	case openaiautoschedulerscoreevent.FieldStatusCode:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatusCode(v)
+		return nil
+	case openaiautoschedulerscoreevent.FieldMessage:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMessage(v)
+		return nil
+	case openaiautoschedulerscoreevent.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown OpenAIAutoSchedulerScoreEvent field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddedFields() []string {
+	var fields []string
+	if m.addaccount_id != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldAccountID)
+	}
+	if m.addgroup_id != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldGroupID)
+	}
+	if m.addscore_before != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldScoreBefore)
+	}
+	if m.addscore_after != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldScoreAfter)
+	}
+	if m.addlatency_ms != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldLatencyMs)
+	}
+	if m.addttfb_ms != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldTtfbMs)
+	}
+	if m.addstatus_code != nil {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldStatusCode)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case openaiautoschedulerscoreevent.FieldAccountID:
+		return m.AddedAccountID()
+	case openaiautoschedulerscoreevent.FieldGroupID:
+		return m.AddedGroupID()
+	case openaiautoschedulerscoreevent.FieldScoreBefore:
+		return m.AddedScoreBefore()
+	case openaiautoschedulerscoreevent.FieldScoreAfter:
+		return m.AddedScoreAfter()
+	case openaiautoschedulerscoreevent.FieldLatencyMs:
+		return m.AddedLatencyMs()
+	case openaiautoschedulerscoreevent.FieldTtfbMs:
+		return m.AddedTtfbMs()
+	case openaiautoschedulerscoreevent.FieldStatusCode:
+		return m.AddedStatusCode()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case openaiautoschedulerscoreevent.FieldAccountID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAccountID(v)
+		return nil
+	case openaiautoschedulerscoreevent.FieldGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGroupID(v)
+		return nil
+	case openaiautoschedulerscoreevent.FieldScoreBefore:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddScoreBefore(v)
+		return nil
+	case openaiautoschedulerscoreevent.FieldScoreAfter:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddScoreAfter(v)
+		return nil
+	case openaiautoschedulerscoreevent.FieldLatencyMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddLatencyMs(v)
+		return nil
+	case openaiautoschedulerscoreevent.FieldTtfbMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTtfbMs(v)
+		return nil
+	case openaiautoschedulerscoreevent.FieldStatusCode:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddStatusCode(v)
+		return nil
+	}
+	return fmt.Errorf("unknown OpenAIAutoSchedulerScoreEvent numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(openaiautoschedulerscoreevent.FieldLatencyMs) {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldLatencyMs)
+	}
+	if m.FieldCleared(openaiautoschedulerscoreevent.FieldTtfbMs) {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldTtfbMs)
+	}
+	if m.FieldCleared(openaiautoschedulerscoreevent.FieldStatusCode) {
+		fields = append(fields, openaiautoschedulerscoreevent.FieldStatusCode)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ClearField(name string) error {
+	switch name {
+	case openaiautoschedulerscoreevent.FieldLatencyMs:
+		m.ClearLatencyMs()
+		return nil
+	case openaiautoschedulerscoreevent.FieldTtfbMs:
+		m.ClearTtfbMs()
+		return nil
+	case openaiautoschedulerscoreevent.FieldStatusCode:
+		m.ClearStatusCode()
+		return nil
+	}
+	return fmt.Errorf("unknown OpenAIAutoSchedulerScoreEvent nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ResetField(name string) error {
+	switch name {
+	case openaiautoschedulerscoreevent.FieldAccountID:
+		m.ResetAccountID()
+		return nil
+	case openaiautoschedulerscoreevent.FieldGroupID:
+		m.ResetGroupID()
+		return nil
+	case openaiautoschedulerscoreevent.FieldModel:
+		m.ResetModel()
+		return nil
+	case openaiautoschedulerscoreevent.FieldEventType:
+		m.ResetEventType()
+		return nil
+	case openaiautoschedulerscoreevent.FieldScoreBefore:
+		m.ResetScoreBefore()
+		return nil
+	case openaiautoschedulerscoreevent.FieldScoreAfter:
+		m.ResetScoreAfter()
+		return nil
+	case openaiautoschedulerscoreevent.FieldLatencyMs:
+		m.ResetLatencyMs()
+		return nil
+	case openaiautoschedulerscoreevent.FieldTtfbMs:
+		m.ResetTtfbMs()
+		return nil
+	case openaiautoschedulerscoreevent.FieldStatusCode:
+		m.ResetStatusCode()
+		return nil
+	case openaiautoschedulerscoreevent.FieldMessage:
+		m.ResetMessage()
+		return nil
+	case openaiautoschedulerscoreevent.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown OpenAIAutoSchedulerScoreEvent field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *OpenAIAutoSchedulerScoreEventMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown OpenAIAutoSchedulerScoreEvent unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *OpenAIAutoSchedulerScoreEventMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown OpenAIAutoSchedulerScoreEvent edge %s", name)
+}
+
+// OpenAIAutoSchedulerScoreStateMutation represents an operation that mutates the OpenAIAutoSchedulerScoreState nodes in the graph.
+type OpenAIAutoSchedulerScoreStateMutation struct {
+	config
+	op                           Op
+	typ                          string
+	id                           *int64
+	created_at                   *time.Time
+	updated_at                   *time.Time
+	account_id                   *int64
+	addaccount_id                *int64
+	group_id                     *int64
+	addgroup_id                  *int64
+	model                        *string
+	final_score                  *int
+	addfinal_score               *int
+	base_score                   *int
+	addbase_score                *int
+	latency_score                *int
+	addlatency_score             *int
+	error_score                  *int
+	adderror_score               *int
+	recovery_score               *int
+	addrecovery_score            *int
+	cost_score                   *int
+	addcost_score                *int
+	state                        *string
+	consecutive_slow_count       *int
+	addconsecutive_slow_count    *int
+	consecutive_error_count      *int
+	addconsecutive_error_count   *int
+	consecutive_success_count    *int
+	addconsecutive_success_count *int
+	request_count                *int64
+	addrequest_count             *int64
+	ttfb_sample_count            *int64
+	addttfb_sample_count         *int64
+	slow_rate                    *float64
+	addslow_rate                 *float64
+	error_rate                   *float64
+	adderror_rate                *float64
+	stuck_rate                   *float64
+	addstuck_rate                *float64
+	cooldown_until               *time.Time
+	last_latency_ms              *int
+	addlast_latency_ms           *int
+	last_ttfb_ms                 *int
+	addlast_ttfb_ms              *int
+	last_status_code             *int
+	addlast_status_code          *int
+	last_error                   *string
+	reason                       *string
+	last_checked_at              *time.Time
+	clearedFields                map[string]struct{}
+	done                         bool
+	oldValue                     func(context.Context) (*OpenAIAutoSchedulerScoreState, error)
+	predicates                   []predicate.OpenAIAutoSchedulerScoreState
+}
+
+var _ ent.Mutation = (*OpenAIAutoSchedulerScoreStateMutation)(nil)
+
+// openaiautoschedulerscorestateOption allows management of the mutation configuration using functional options.
+type openaiautoschedulerscorestateOption func(*OpenAIAutoSchedulerScoreStateMutation)
+
+// newOpenAIAutoSchedulerScoreStateMutation creates new mutation for the OpenAIAutoSchedulerScoreState entity.
+func newOpenAIAutoSchedulerScoreStateMutation(c config, op Op, opts ...openaiautoschedulerscorestateOption) *OpenAIAutoSchedulerScoreStateMutation {
+	m := &OpenAIAutoSchedulerScoreStateMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeOpenAIAutoSchedulerScoreState,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withOpenAIAutoSchedulerScoreStateID sets the ID field of the mutation.
+func withOpenAIAutoSchedulerScoreStateID(id int64) openaiautoschedulerscorestateOption {
+	return func(m *OpenAIAutoSchedulerScoreStateMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *OpenAIAutoSchedulerScoreState
+		)
+		m.oldValue = func(ctx context.Context) (*OpenAIAutoSchedulerScoreState, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().OpenAIAutoSchedulerScoreState.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withOpenAIAutoSchedulerScoreState sets the old OpenAIAutoSchedulerScoreState of the mutation.
+func withOpenAIAutoSchedulerScoreState(node *OpenAIAutoSchedulerScoreState) openaiautoschedulerscorestateOption {
+	return func(m *OpenAIAutoSchedulerScoreStateMutation) {
+		m.oldValue = func(context.Context) (*OpenAIAutoSchedulerScoreState, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m OpenAIAutoSchedulerScoreStateMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m OpenAIAutoSchedulerScoreStateMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().OpenAIAutoSchedulerScoreState.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetAccountID sets the "account_id" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetAccountID(i int64) {
+	m.account_id = &i
+	m.addaccount_id = nil
+}
+
+// AccountID returns the value of the "account_id" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AccountID() (r int64, exists bool) {
+	v := m.account_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccountID returns the old "account_id" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldAccountID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccountID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccountID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccountID: %w", err)
+	}
+	return oldValue.AccountID, nil
+}
+
+// AddAccountID adds i to the "account_id" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddAccountID(i int64) {
+	if m.addaccount_id != nil {
+		*m.addaccount_id += i
+	} else {
+		m.addaccount_id = &i
+	}
+}
+
+// AddedAccountID returns the value that was added to the "account_id" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedAccountID() (r int64, exists bool) {
+	v := m.addaccount_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAccountID resets all changes to the "account_id" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetAccountID() {
+	m.account_id = nil
+	m.addaccount_id = nil
+}
+
+// SetGroupID sets the "group_id" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetGroupID(i int64) {
+	m.group_id = &i
+	m.addgroup_id = nil
+}
+
+// GroupID returns the value of the "group_id" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) GroupID() (r int64, exists bool) {
+	v := m.group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGroupID returns the old "group_id" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldGroupID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGroupID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGroupID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGroupID: %w", err)
+	}
+	return oldValue.GroupID, nil
+}
+
+// AddGroupID adds i to the "group_id" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddGroupID(i int64) {
+	if m.addgroup_id != nil {
+		*m.addgroup_id += i
+	} else {
+		m.addgroup_id = &i
+	}
+}
+
+// AddedGroupID returns the value that was added to the "group_id" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedGroupID() (r int64, exists bool) {
+	v := m.addgroup_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetGroupID resets all changes to the "group_id" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetGroupID() {
+	m.group_id = nil
+	m.addgroup_id = nil
+}
+
+// SetModel sets the "model" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetModel(s string) {
+	m.model = &s
+}
+
+// Model returns the value of the "model" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) Model() (r string, exists bool) {
+	v := m.model
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldModel returns the old "model" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldModel(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldModel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldModel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldModel: %w", err)
+	}
+	return oldValue.Model, nil
+}
+
+// ResetModel resets all changes to the "model" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetModel() {
+	m.model = nil
+}
+
+// SetFinalScore sets the "final_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetFinalScore(i int) {
+	m.final_score = &i
+	m.addfinal_score = nil
+}
+
+// FinalScore returns the value of the "final_score" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) FinalScore() (r int, exists bool) {
+	v := m.final_score
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFinalScore returns the old "final_score" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldFinalScore(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFinalScore is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFinalScore requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFinalScore: %w", err)
+	}
+	return oldValue.FinalScore, nil
+}
+
+// AddFinalScore adds i to the "final_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddFinalScore(i int) {
+	if m.addfinal_score != nil {
+		*m.addfinal_score += i
+	} else {
+		m.addfinal_score = &i
+	}
+}
+
+// AddedFinalScore returns the value that was added to the "final_score" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedFinalScore() (r int, exists bool) {
+	v := m.addfinal_score
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetFinalScore resets all changes to the "final_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetFinalScore() {
+	m.final_score = nil
+	m.addfinal_score = nil
+}
+
+// SetBaseScore sets the "base_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetBaseScore(i int) {
+	m.base_score = &i
+	m.addbase_score = nil
+}
+
+// BaseScore returns the value of the "base_score" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) BaseScore() (r int, exists bool) {
+	v := m.base_score
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBaseScore returns the old "base_score" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldBaseScore(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBaseScore is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBaseScore requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBaseScore: %w", err)
+	}
+	return oldValue.BaseScore, nil
+}
+
+// AddBaseScore adds i to the "base_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddBaseScore(i int) {
+	if m.addbase_score != nil {
+		*m.addbase_score += i
+	} else {
+		m.addbase_score = &i
+	}
+}
+
+// AddedBaseScore returns the value that was added to the "base_score" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedBaseScore() (r int, exists bool) {
+	v := m.addbase_score
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBaseScore resets all changes to the "base_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetBaseScore() {
+	m.base_score = nil
+	m.addbase_score = nil
+}
+
+// SetLatencyScore sets the "latency_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetLatencyScore(i int) {
+	m.latency_score = &i
+	m.addlatency_score = nil
+}
+
+// LatencyScore returns the value of the "latency_score" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) LatencyScore() (r int, exists bool) {
+	v := m.latency_score
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLatencyScore returns the old "latency_score" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldLatencyScore(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLatencyScore is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLatencyScore requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLatencyScore: %w", err)
+	}
+	return oldValue.LatencyScore, nil
+}
+
+// AddLatencyScore adds i to the "latency_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddLatencyScore(i int) {
+	if m.addlatency_score != nil {
+		*m.addlatency_score += i
+	} else {
+		m.addlatency_score = &i
+	}
+}
+
+// AddedLatencyScore returns the value that was added to the "latency_score" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedLatencyScore() (r int, exists bool) {
+	v := m.addlatency_score
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetLatencyScore resets all changes to the "latency_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetLatencyScore() {
+	m.latency_score = nil
+	m.addlatency_score = nil
+}
+
+// SetErrorScore sets the "error_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetErrorScore(i int) {
+	m.error_score = &i
+	m.adderror_score = nil
+}
+
+// ErrorScore returns the value of the "error_score" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ErrorScore() (r int, exists bool) {
+	v := m.error_score
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldErrorScore returns the old "error_score" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldErrorScore(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldErrorScore is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldErrorScore requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldErrorScore: %w", err)
+	}
+	return oldValue.ErrorScore, nil
+}
+
+// AddErrorScore adds i to the "error_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddErrorScore(i int) {
+	if m.adderror_score != nil {
+		*m.adderror_score += i
+	} else {
+		m.adderror_score = &i
+	}
+}
+
+// AddedErrorScore returns the value that was added to the "error_score" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedErrorScore() (r int, exists bool) {
+	v := m.adderror_score
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetErrorScore resets all changes to the "error_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetErrorScore() {
+	m.error_score = nil
+	m.adderror_score = nil
+}
+
+// SetRecoveryScore sets the "recovery_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetRecoveryScore(i int) {
+	m.recovery_score = &i
+	m.addrecovery_score = nil
+}
+
+// RecoveryScore returns the value of the "recovery_score" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) RecoveryScore() (r int, exists bool) {
+	v := m.recovery_score
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRecoveryScore returns the old "recovery_score" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldRecoveryScore(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRecoveryScore is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRecoveryScore requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRecoveryScore: %w", err)
+	}
+	return oldValue.RecoveryScore, nil
+}
+
+// AddRecoveryScore adds i to the "recovery_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddRecoveryScore(i int) {
+	if m.addrecovery_score != nil {
+		*m.addrecovery_score += i
+	} else {
+		m.addrecovery_score = &i
+	}
+}
+
+// AddedRecoveryScore returns the value that was added to the "recovery_score" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedRecoveryScore() (r int, exists bool) {
+	v := m.addrecovery_score
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRecoveryScore resets all changes to the "recovery_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetRecoveryScore() {
+	m.recovery_score = nil
+	m.addrecovery_score = nil
+}
+
+// SetCostScore sets the "cost_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetCostScore(i int) {
+	m.cost_score = &i
+	m.addcost_score = nil
+}
+
+// CostScore returns the value of the "cost_score" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) CostScore() (r int, exists bool) {
+	v := m.cost_score
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCostScore returns the old "cost_score" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldCostScore(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCostScore is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCostScore requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCostScore: %w", err)
+	}
+	return oldValue.CostScore, nil
+}
+
+// AddCostScore adds i to the "cost_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddCostScore(i int) {
+	if m.addcost_score != nil {
+		*m.addcost_score += i
+	} else {
+		m.addcost_score = &i
+	}
+}
+
+// AddedCostScore returns the value that was added to the "cost_score" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedCostScore() (r int, exists bool) {
+	v := m.addcost_score
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCostScore resets all changes to the "cost_score" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetCostScore() {
+	m.cost_score = nil
+	m.addcost_score = nil
+}
+
+// SetState sets the "state" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetState(s string) {
+	m.state = &s
+}
+
+// State returns the value of the "state" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) State() (r string, exists bool) {
+	v := m.state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldState returns the old "state" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldState(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldState: %w", err)
+	}
+	return oldValue.State, nil
+}
+
+// ResetState resets all changes to the "state" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetState() {
+	m.state = nil
+}
+
+// SetConsecutiveSlowCount sets the "consecutive_slow_count" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetConsecutiveSlowCount(i int) {
+	m.consecutive_slow_count = &i
+	m.addconsecutive_slow_count = nil
+}
+
+// ConsecutiveSlowCount returns the value of the "consecutive_slow_count" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ConsecutiveSlowCount() (r int, exists bool) {
+	v := m.consecutive_slow_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConsecutiveSlowCount returns the old "consecutive_slow_count" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldConsecutiveSlowCount(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConsecutiveSlowCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConsecutiveSlowCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConsecutiveSlowCount: %w", err)
+	}
+	return oldValue.ConsecutiveSlowCount, nil
+}
+
+// AddConsecutiveSlowCount adds i to the "consecutive_slow_count" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddConsecutiveSlowCount(i int) {
+	if m.addconsecutive_slow_count != nil {
+		*m.addconsecutive_slow_count += i
+	} else {
+		m.addconsecutive_slow_count = &i
+	}
+}
+
+// AddedConsecutiveSlowCount returns the value that was added to the "consecutive_slow_count" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedConsecutiveSlowCount() (r int, exists bool) {
+	v := m.addconsecutive_slow_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetConsecutiveSlowCount resets all changes to the "consecutive_slow_count" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetConsecutiveSlowCount() {
+	m.consecutive_slow_count = nil
+	m.addconsecutive_slow_count = nil
+}
+
+// SetConsecutiveErrorCount sets the "consecutive_error_count" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetConsecutiveErrorCount(i int) {
+	m.consecutive_error_count = &i
+	m.addconsecutive_error_count = nil
+}
+
+// ConsecutiveErrorCount returns the value of the "consecutive_error_count" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ConsecutiveErrorCount() (r int, exists bool) {
+	v := m.consecutive_error_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConsecutiveErrorCount returns the old "consecutive_error_count" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldConsecutiveErrorCount(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConsecutiveErrorCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConsecutiveErrorCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConsecutiveErrorCount: %w", err)
+	}
+	return oldValue.ConsecutiveErrorCount, nil
+}
+
+// AddConsecutiveErrorCount adds i to the "consecutive_error_count" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddConsecutiveErrorCount(i int) {
+	if m.addconsecutive_error_count != nil {
+		*m.addconsecutive_error_count += i
+	} else {
+		m.addconsecutive_error_count = &i
+	}
+}
+
+// AddedConsecutiveErrorCount returns the value that was added to the "consecutive_error_count" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedConsecutiveErrorCount() (r int, exists bool) {
+	v := m.addconsecutive_error_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetConsecutiveErrorCount resets all changes to the "consecutive_error_count" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetConsecutiveErrorCount() {
+	m.consecutive_error_count = nil
+	m.addconsecutive_error_count = nil
+}
+
+// SetConsecutiveSuccessCount sets the "consecutive_success_count" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetConsecutiveSuccessCount(i int) {
+	m.consecutive_success_count = &i
+	m.addconsecutive_success_count = nil
+}
+
+// ConsecutiveSuccessCount returns the value of the "consecutive_success_count" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ConsecutiveSuccessCount() (r int, exists bool) {
+	v := m.consecutive_success_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConsecutiveSuccessCount returns the old "consecutive_success_count" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldConsecutiveSuccessCount(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConsecutiveSuccessCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConsecutiveSuccessCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConsecutiveSuccessCount: %w", err)
+	}
+	return oldValue.ConsecutiveSuccessCount, nil
+}
+
+// AddConsecutiveSuccessCount adds i to the "consecutive_success_count" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddConsecutiveSuccessCount(i int) {
+	if m.addconsecutive_success_count != nil {
+		*m.addconsecutive_success_count += i
+	} else {
+		m.addconsecutive_success_count = &i
+	}
+}
+
+// AddedConsecutiveSuccessCount returns the value that was added to the "consecutive_success_count" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedConsecutiveSuccessCount() (r int, exists bool) {
+	v := m.addconsecutive_success_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetConsecutiveSuccessCount resets all changes to the "consecutive_success_count" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetConsecutiveSuccessCount() {
+	m.consecutive_success_count = nil
+	m.addconsecutive_success_count = nil
+}
+
+// SetRequestCount sets the "request_count" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetRequestCount(i int64) {
+	m.request_count = &i
+	m.addrequest_count = nil
+}
+
+// RequestCount returns the value of the "request_count" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) RequestCount() (r int64, exists bool) {
+	v := m.request_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestCount returns the old "request_count" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldRequestCount(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestCount: %w", err)
+	}
+	return oldValue.RequestCount, nil
+}
+
+// AddRequestCount adds i to the "request_count" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddRequestCount(i int64) {
+	if m.addrequest_count != nil {
+		*m.addrequest_count += i
+	} else {
+		m.addrequest_count = &i
+	}
+}
+
+// AddedRequestCount returns the value that was added to the "request_count" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedRequestCount() (r int64, exists bool) {
+	v := m.addrequest_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRequestCount resets all changes to the "request_count" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetRequestCount() {
+	m.request_count = nil
+	m.addrequest_count = nil
+}
+
+// SetTtfbSampleCount sets the "ttfb_sample_count" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetTtfbSampleCount(i int64) {
+	m.ttfb_sample_count = &i
+	m.addttfb_sample_count = nil
+}
+
+// TtfbSampleCount returns the value of the "ttfb_sample_count" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) TtfbSampleCount() (r int64, exists bool) {
+	v := m.ttfb_sample_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTtfbSampleCount returns the old "ttfb_sample_count" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldTtfbSampleCount(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTtfbSampleCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTtfbSampleCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTtfbSampleCount: %w", err)
+	}
+	return oldValue.TtfbSampleCount, nil
+}
+
+// AddTtfbSampleCount adds i to the "ttfb_sample_count" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddTtfbSampleCount(i int64) {
+	if m.addttfb_sample_count != nil {
+		*m.addttfb_sample_count += i
+	} else {
+		m.addttfb_sample_count = &i
+	}
+}
+
+// AddedTtfbSampleCount returns the value that was added to the "ttfb_sample_count" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedTtfbSampleCount() (r int64, exists bool) {
+	v := m.addttfb_sample_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTtfbSampleCount resets all changes to the "ttfb_sample_count" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetTtfbSampleCount() {
+	m.ttfb_sample_count = nil
+	m.addttfb_sample_count = nil
+}
+
+// SetSlowRate sets the "slow_rate" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetSlowRate(f float64) {
+	m.slow_rate = &f
+	m.addslow_rate = nil
+}
+
+// SlowRate returns the value of the "slow_rate" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SlowRate() (r float64, exists bool) {
+	v := m.slow_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSlowRate returns the old "slow_rate" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldSlowRate(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSlowRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSlowRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSlowRate: %w", err)
+	}
+	return oldValue.SlowRate, nil
+}
+
+// AddSlowRate adds f to the "slow_rate" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddSlowRate(f float64) {
+	if m.addslow_rate != nil {
+		*m.addslow_rate += f
+	} else {
+		m.addslow_rate = &f
+	}
+}
+
+// AddedSlowRate returns the value that was added to the "slow_rate" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedSlowRate() (r float64, exists bool) {
+	v := m.addslow_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSlowRate resets all changes to the "slow_rate" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetSlowRate() {
+	m.slow_rate = nil
+	m.addslow_rate = nil
+}
+
+// SetErrorRate sets the "error_rate" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetErrorRate(f float64) {
+	m.error_rate = &f
+	m.adderror_rate = nil
+}
+
+// ErrorRate returns the value of the "error_rate" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ErrorRate() (r float64, exists bool) {
+	v := m.error_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldErrorRate returns the old "error_rate" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldErrorRate(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldErrorRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldErrorRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldErrorRate: %w", err)
+	}
+	return oldValue.ErrorRate, nil
+}
+
+// AddErrorRate adds f to the "error_rate" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddErrorRate(f float64) {
+	if m.adderror_rate != nil {
+		*m.adderror_rate += f
+	} else {
+		m.adderror_rate = &f
+	}
+}
+
+// AddedErrorRate returns the value that was added to the "error_rate" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedErrorRate() (r float64, exists bool) {
+	v := m.adderror_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetErrorRate resets all changes to the "error_rate" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetErrorRate() {
+	m.error_rate = nil
+	m.adderror_rate = nil
+}
+
+// SetStuckRate sets the "stuck_rate" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetStuckRate(f float64) {
+	m.stuck_rate = &f
+	m.addstuck_rate = nil
+}
+
+// StuckRate returns the value of the "stuck_rate" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) StuckRate() (r float64, exists bool) {
+	v := m.stuck_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStuckRate returns the old "stuck_rate" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldStuckRate(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStuckRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStuckRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStuckRate: %w", err)
+	}
+	return oldValue.StuckRate, nil
+}
+
+// AddStuckRate adds f to the "stuck_rate" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddStuckRate(f float64) {
+	if m.addstuck_rate != nil {
+		*m.addstuck_rate += f
+	} else {
+		m.addstuck_rate = &f
+	}
+}
+
+// AddedStuckRate returns the value that was added to the "stuck_rate" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedStuckRate() (r float64, exists bool) {
+	v := m.addstuck_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetStuckRate resets all changes to the "stuck_rate" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetStuckRate() {
+	m.stuck_rate = nil
+	m.addstuck_rate = nil
+}
+
+// SetCooldownUntil sets the "cooldown_until" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetCooldownUntil(t time.Time) {
+	m.cooldown_until = &t
+}
+
+// CooldownUntil returns the value of the "cooldown_until" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) CooldownUntil() (r time.Time, exists bool) {
+	v := m.cooldown_until
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCooldownUntil returns the old "cooldown_until" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldCooldownUntil(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCooldownUntil is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCooldownUntil requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCooldownUntil: %w", err)
+	}
+	return oldValue.CooldownUntil, nil
+}
+
+// ClearCooldownUntil clears the value of the "cooldown_until" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ClearCooldownUntil() {
+	m.cooldown_until = nil
+	m.clearedFields[openaiautoschedulerscorestate.FieldCooldownUntil] = struct{}{}
+}
+
+// CooldownUntilCleared returns if the "cooldown_until" field was cleared in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) CooldownUntilCleared() bool {
+	_, ok := m.clearedFields[openaiautoschedulerscorestate.FieldCooldownUntil]
+	return ok
+}
+
+// ResetCooldownUntil resets all changes to the "cooldown_until" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetCooldownUntil() {
+	m.cooldown_until = nil
+	delete(m.clearedFields, openaiautoschedulerscorestate.FieldCooldownUntil)
+}
+
+// SetLastLatencyMs sets the "last_latency_ms" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetLastLatencyMs(i int) {
+	m.last_latency_ms = &i
+	m.addlast_latency_ms = nil
+}
+
+// LastLatencyMs returns the value of the "last_latency_ms" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) LastLatencyMs() (r int, exists bool) {
+	v := m.last_latency_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastLatencyMs returns the old "last_latency_ms" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldLastLatencyMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastLatencyMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastLatencyMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastLatencyMs: %w", err)
+	}
+	return oldValue.LastLatencyMs, nil
+}
+
+// AddLastLatencyMs adds i to the "last_latency_ms" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddLastLatencyMs(i int) {
+	if m.addlast_latency_ms != nil {
+		*m.addlast_latency_ms += i
+	} else {
+		m.addlast_latency_ms = &i
+	}
+}
+
+// AddedLastLatencyMs returns the value that was added to the "last_latency_ms" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedLastLatencyMs() (r int, exists bool) {
+	v := m.addlast_latency_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearLastLatencyMs clears the value of the "last_latency_ms" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ClearLastLatencyMs() {
+	m.last_latency_ms = nil
+	m.addlast_latency_ms = nil
+	m.clearedFields[openaiautoschedulerscorestate.FieldLastLatencyMs] = struct{}{}
+}
+
+// LastLatencyMsCleared returns if the "last_latency_ms" field was cleared in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) LastLatencyMsCleared() bool {
+	_, ok := m.clearedFields[openaiautoschedulerscorestate.FieldLastLatencyMs]
+	return ok
+}
+
+// ResetLastLatencyMs resets all changes to the "last_latency_ms" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetLastLatencyMs() {
+	m.last_latency_ms = nil
+	m.addlast_latency_ms = nil
+	delete(m.clearedFields, openaiautoschedulerscorestate.FieldLastLatencyMs)
+}
+
+// SetLastTtfbMs sets the "last_ttfb_ms" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetLastTtfbMs(i int) {
+	m.last_ttfb_ms = &i
+	m.addlast_ttfb_ms = nil
+}
+
+// LastTtfbMs returns the value of the "last_ttfb_ms" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) LastTtfbMs() (r int, exists bool) {
+	v := m.last_ttfb_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastTtfbMs returns the old "last_ttfb_ms" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldLastTtfbMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastTtfbMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastTtfbMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastTtfbMs: %w", err)
+	}
+	return oldValue.LastTtfbMs, nil
+}
+
+// AddLastTtfbMs adds i to the "last_ttfb_ms" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddLastTtfbMs(i int) {
+	if m.addlast_ttfb_ms != nil {
+		*m.addlast_ttfb_ms += i
+	} else {
+		m.addlast_ttfb_ms = &i
+	}
+}
+
+// AddedLastTtfbMs returns the value that was added to the "last_ttfb_ms" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedLastTtfbMs() (r int, exists bool) {
+	v := m.addlast_ttfb_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearLastTtfbMs clears the value of the "last_ttfb_ms" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ClearLastTtfbMs() {
+	m.last_ttfb_ms = nil
+	m.addlast_ttfb_ms = nil
+	m.clearedFields[openaiautoschedulerscorestate.FieldLastTtfbMs] = struct{}{}
+}
+
+// LastTtfbMsCleared returns if the "last_ttfb_ms" field was cleared in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) LastTtfbMsCleared() bool {
+	_, ok := m.clearedFields[openaiautoschedulerscorestate.FieldLastTtfbMs]
+	return ok
+}
+
+// ResetLastTtfbMs resets all changes to the "last_ttfb_ms" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetLastTtfbMs() {
+	m.last_ttfb_ms = nil
+	m.addlast_ttfb_ms = nil
+	delete(m.clearedFields, openaiautoschedulerscorestate.FieldLastTtfbMs)
+}
+
+// SetLastStatusCode sets the "last_status_code" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetLastStatusCode(i int) {
+	m.last_status_code = &i
+	m.addlast_status_code = nil
+}
+
+// LastStatusCode returns the value of the "last_status_code" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) LastStatusCode() (r int, exists bool) {
+	v := m.last_status_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastStatusCode returns the old "last_status_code" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldLastStatusCode(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastStatusCode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastStatusCode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastStatusCode: %w", err)
+	}
+	return oldValue.LastStatusCode, nil
+}
+
+// AddLastStatusCode adds i to the "last_status_code" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddLastStatusCode(i int) {
+	if m.addlast_status_code != nil {
+		*m.addlast_status_code += i
+	} else {
+		m.addlast_status_code = &i
+	}
+}
+
+// AddedLastStatusCode returns the value that was added to the "last_status_code" field in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedLastStatusCode() (r int, exists bool) {
+	v := m.addlast_status_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearLastStatusCode clears the value of the "last_status_code" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ClearLastStatusCode() {
+	m.last_status_code = nil
+	m.addlast_status_code = nil
+	m.clearedFields[openaiautoschedulerscorestate.FieldLastStatusCode] = struct{}{}
+}
+
+// LastStatusCodeCleared returns if the "last_status_code" field was cleared in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) LastStatusCodeCleared() bool {
+	_, ok := m.clearedFields[openaiautoschedulerscorestate.FieldLastStatusCode]
+	return ok
+}
+
+// ResetLastStatusCode resets all changes to the "last_status_code" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetLastStatusCode() {
+	m.last_status_code = nil
+	m.addlast_status_code = nil
+	delete(m.clearedFields, openaiautoschedulerscorestate.FieldLastStatusCode)
+}
+
+// SetLastError sets the "last_error" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetLastError(s string) {
+	m.last_error = &s
+}
+
+// LastError returns the value of the "last_error" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) LastError() (r string, exists bool) {
+	v := m.last_error
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastError returns the old "last_error" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldLastError(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastError is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastError requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastError: %w", err)
+	}
+	return oldValue.LastError, nil
+}
+
+// ClearLastError clears the value of the "last_error" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ClearLastError() {
+	m.last_error = nil
+	m.clearedFields[openaiautoschedulerscorestate.FieldLastError] = struct{}{}
+}
+
+// LastErrorCleared returns if the "last_error" field was cleared in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) LastErrorCleared() bool {
+	_, ok := m.clearedFields[openaiautoschedulerscorestate.FieldLastError]
+	return ok
+}
+
+// ResetLastError resets all changes to the "last_error" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetLastError() {
+	m.last_error = nil
+	delete(m.clearedFields, openaiautoschedulerscorestate.FieldLastError)
+}
+
+// SetReason sets the "reason" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetReason(s string) {
+	m.reason = &s
+}
+
+// Reason returns the value of the "reason" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) Reason() (r string, exists bool) {
+	v := m.reason
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReason returns the old "reason" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldReason(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReason is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReason requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReason: %w", err)
+	}
+	return oldValue.Reason, nil
+}
+
+// ResetReason resets all changes to the "reason" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetReason() {
+	m.reason = nil
+}
+
+// SetLastCheckedAt sets the "last_checked_at" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetLastCheckedAt(t time.Time) {
+	m.last_checked_at = &t
+}
+
+// LastCheckedAt returns the value of the "last_checked_at" field in the mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) LastCheckedAt() (r time.Time, exists bool) {
+	v := m.last_checked_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastCheckedAt returns the old "last_checked_at" field's value of the OpenAIAutoSchedulerScoreState entity.
+// If the OpenAIAutoSchedulerScoreState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldLastCheckedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastCheckedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastCheckedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastCheckedAt: %w", err)
+	}
+	return oldValue.LastCheckedAt, nil
+}
+
+// ClearLastCheckedAt clears the value of the "last_checked_at" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ClearLastCheckedAt() {
+	m.last_checked_at = nil
+	m.clearedFields[openaiautoschedulerscorestate.FieldLastCheckedAt] = struct{}{}
+}
+
+// LastCheckedAtCleared returns if the "last_checked_at" field was cleared in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) LastCheckedAtCleared() bool {
+	_, ok := m.clearedFields[openaiautoschedulerscorestate.FieldLastCheckedAt]
+	return ok
+}
+
+// ResetLastCheckedAt resets all changes to the "last_checked_at" field.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetLastCheckedAt() {
+	m.last_checked_at = nil
+	delete(m.clearedFields, openaiautoschedulerscorestate.FieldLastCheckedAt)
+}
+
+// Where appends a list predicates to the OpenAIAutoSchedulerScoreStateMutation builder.
+func (m *OpenAIAutoSchedulerScoreStateMutation) Where(ps ...predicate.OpenAIAutoSchedulerScoreState) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the OpenAIAutoSchedulerScoreStateMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *OpenAIAutoSchedulerScoreStateMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.OpenAIAutoSchedulerScoreState, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *OpenAIAutoSchedulerScoreStateMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (OpenAIAutoSchedulerScoreState).
+func (m *OpenAIAutoSchedulerScoreStateMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *OpenAIAutoSchedulerScoreStateMutation) Fields() []string {
+	fields := make([]string, 0, 27)
+	if m.created_at != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldUpdatedAt)
+	}
+	if m.account_id != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldAccountID)
+	}
+	if m.group_id != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldGroupID)
+	}
+	if m.model != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldModel)
+	}
+	if m.final_score != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldFinalScore)
+	}
+	if m.base_score != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldBaseScore)
+	}
+	if m.latency_score != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldLatencyScore)
+	}
+	if m.error_score != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldErrorScore)
+	}
+	if m.recovery_score != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldRecoveryScore)
+	}
+	if m.cost_score != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldCostScore)
+	}
+	if m.state != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldState)
+	}
+	if m.consecutive_slow_count != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldConsecutiveSlowCount)
+	}
+	if m.consecutive_error_count != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldConsecutiveErrorCount)
+	}
+	if m.consecutive_success_count != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldConsecutiveSuccessCount)
+	}
+	if m.request_count != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldRequestCount)
+	}
+	if m.ttfb_sample_count != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldTtfbSampleCount)
+	}
+	if m.slow_rate != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldSlowRate)
+	}
+	if m.error_rate != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldErrorRate)
+	}
+	if m.stuck_rate != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldStuckRate)
+	}
+	if m.cooldown_until != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldCooldownUntil)
+	}
+	if m.last_latency_ms != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldLastLatencyMs)
+	}
+	if m.last_ttfb_ms != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldLastTtfbMs)
+	}
+	if m.last_status_code != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldLastStatusCode)
+	}
+	if m.last_error != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldLastError)
+	}
+	if m.reason != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldReason)
+	}
+	if m.last_checked_at != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldLastCheckedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *OpenAIAutoSchedulerScoreStateMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case openaiautoschedulerscorestate.FieldCreatedAt:
+		return m.CreatedAt()
+	case openaiautoschedulerscorestate.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case openaiautoschedulerscorestate.FieldAccountID:
+		return m.AccountID()
+	case openaiautoschedulerscorestate.FieldGroupID:
+		return m.GroupID()
+	case openaiautoschedulerscorestate.FieldModel:
+		return m.Model()
+	case openaiautoschedulerscorestate.FieldFinalScore:
+		return m.FinalScore()
+	case openaiautoschedulerscorestate.FieldBaseScore:
+		return m.BaseScore()
+	case openaiautoschedulerscorestate.FieldLatencyScore:
+		return m.LatencyScore()
+	case openaiautoschedulerscorestate.FieldErrorScore:
+		return m.ErrorScore()
+	case openaiautoschedulerscorestate.FieldRecoveryScore:
+		return m.RecoveryScore()
+	case openaiautoschedulerscorestate.FieldCostScore:
+		return m.CostScore()
+	case openaiautoschedulerscorestate.FieldState:
+		return m.State()
+	case openaiautoschedulerscorestate.FieldConsecutiveSlowCount:
+		return m.ConsecutiveSlowCount()
+	case openaiautoschedulerscorestate.FieldConsecutiveErrorCount:
+		return m.ConsecutiveErrorCount()
+	case openaiautoschedulerscorestate.FieldConsecutiveSuccessCount:
+		return m.ConsecutiveSuccessCount()
+	case openaiautoschedulerscorestate.FieldRequestCount:
+		return m.RequestCount()
+	case openaiautoschedulerscorestate.FieldTtfbSampleCount:
+		return m.TtfbSampleCount()
+	case openaiautoschedulerscorestate.FieldSlowRate:
+		return m.SlowRate()
+	case openaiautoschedulerscorestate.FieldErrorRate:
+		return m.ErrorRate()
+	case openaiautoschedulerscorestate.FieldStuckRate:
+		return m.StuckRate()
+	case openaiautoschedulerscorestate.FieldCooldownUntil:
+		return m.CooldownUntil()
+	case openaiautoschedulerscorestate.FieldLastLatencyMs:
+		return m.LastLatencyMs()
+	case openaiautoschedulerscorestate.FieldLastTtfbMs:
+		return m.LastTtfbMs()
+	case openaiautoschedulerscorestate.FieldLastStatusCode:
+		return m.LastStatusCode()
+	case openaiautoschedulerscorestate.FieldLastError:
+		return m.LastError()
+	case openaiautoschedulerscorestate.FieldReason:
+		return m.Reason()
+	case openaiautoschedulerscorestate.FieldLastCheckedAt:
+		return m.LastCheckedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *OpenAIAutoSchedulerScoreStateMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case openaiautoschedulerscorestate.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case openaiautoschedulerscorestate.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case openaiautoschedulerscorestate.FieldAccountID:
+		return m.OldAccountID(ctx)
+	case openaiautoschedulerscorestate.FieldGroupID:
+		return m.OldGroupID(ctx)
+	case openaiautoschedulerscorestate.FieldModel:
+		return m.OldModel(ctx)
+	case openaiautoschedulerscorestate.FieldFinalScore:
+		return m.OldFinalScore(ctx)
+	case openaiautoschedulerscorestate.FieldBaseScore:
+		return m.OldBaseScore(ctx)
+	case openaiautoschedulerscorestate.FieldLatencyScore:
+		return m.OldLatencyScore(ctx)
+	case openaiautoschedulerscorestate.FieldErrorScore:
+		return m.OldErrorScore(ctx)
+	case openaiautoschedulerscorestate.FieldRecoveryScore:
+		return m.OldRecoveryScore(ctx)
+	case openaiautoschedulerscorestate.FieldCostScore:
+		return m.OldCostScore(ctx)
+	case openaiautoschedulerscorestate.FieldState:
+		return m.OldState(ctx)
+	case openaiautoschedulerscorestate.FieldConsecutiveSlowCount:
+		return m.OldConsecutiveSlowCount(ctx)
+	case openaiautoschedulerscorestate.FieldConsecutiveErrorCount:
+		return m.OldConsecutiveErrorCount(ctx)
+	case openaiautoschedulerscorestate.FieldConsecutiveSuccessCount:
+		return m.OldConsecutiveSuccessCount(ctx)
+	case openaiautoschedulerscorestate.FieldRequestCount:
+		return m.OldRequestCount(ctx)
+	case openaiautoschedulerscorestate.FieldTtfbSampleCount:
+		return m.OldTtfbSampleCount(ctx)
+	case openaiautoschedulerscorestate.FieldSlowRate:
+		return m.OldSlowRate(ctx)
+	case openaiautoschedulerscorestate.FieldErrorRate:
+		return m.OldErrorRate(ctx)
+	case openaiautoschedulerscorestate.FieldStuckRate:
+		return m.OldStuckRate(ctx)
+	case openaiautoschedulerscorestate.FieldCooldownUntil:
+		return m.OldCooldownUntil(ctx)
+	case openaiautoschedulerscorestate.FieldLastLatencyMs:
+		return m.OldLastLatencyMs(ctx)
+	case openaiautoschedulerscorestate.FieldLastTtfbMs:
+		return m.OldLastTtfbMs(ctx)
+	case openaiautoschedulerscorestate.FieldLastStatusCode:
+		return m.OldLastStatusCode(ctx)
+	case openaiautoschedulerscorestate.FieldLastError:
+		return m.OldLastError(ctx)
+	case openaiautoschedulerscorestate.FieldReason:
+		return m.OldReason(ctx)
+	case openaiautoschedulerscorestate.FieldLastCheckedAt:
+		return m.OldLastCheckedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown OpenAIAutoSchedulerScoreState field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OpenAIAutoSchedulerScoreStateMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case openaiautoschedulerscorestate.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldAccountID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountID(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGroupID(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldModel:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetModel(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldFinalScore:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFinalScore(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldBaseScore:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBaseScore(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldLatencyScore:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLatencyScore(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldErrorScore:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetErrorScore(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldRecoveryScore:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRecoveryScore(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldCostScore:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCostScore(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldState:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetState(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldConsecutiveSlowCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConsecutiveSlowCount(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldConsecutiveErrorCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConsecutiveErrorCount(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldConsecutiveSuccessCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConsecutiveSuccessCount(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldRequestCount:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestCount(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldTtfbSampleCount:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTtfbSampleCount(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldSlowRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSlowRate(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldErrorRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetErrorRate(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldStuckRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStuckRate(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldCooldownUntil:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCooldownUntil(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldLastLatencyMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastLatencyMs(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldLastTtfbMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastTtfbMs(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldLastStatusCode:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastStatusCode(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldLastError:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastError(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldReason:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReason(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldLastCheckedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastCheckedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown OpenAIAutoSchedulerScoreState field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedFields() []string {
+	var fields []string
+	if m.addaccount_id != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldAccountID)
+	}
+	if m.addgroup_id != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldGroupID)
+	}
+	if m.addfinal_score != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldFinalScore)
+	}
+	if m.addbase_score != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldBaseScore)
+	}
+	if m.addlatency_score != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldLatencyScore)
+	}
+	if m.adderror_score != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldErrorScore)
+	}
+	if m.addrecovery_score != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldRecoveryScore)
+	}
+	if m.addcost_score != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldCostScore)
+	}
+	if m.addconsecutive_slow_count != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldConsecutiveSlowCount)
+	}
+	if m.addconsecutive_error_count != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldConsecutiveErrorCount)
+	}
+	if m.addconsecutive_success_count != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldConsecutiveSuccessCount)
+	}
+	if m.addrequest_count != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldRequestCount)
+	}
+	if m.addttfb_sample_count != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldTtfbSampleCount)
+	}
+	if m.addslow_rate != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldSlowRate)
+	}
+	if m.adderror_rate != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldErrorRate)
+	}
+	if m.addstuck_rate != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldStuckRate)
+	}
+	if m.addlast_latency_ms != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldLastLatencyMs)
+	}
+	if m.addlast_ttfb_ms != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldLastTtfbMs)
+	}
+	if m.addlast_status_code != nil {
+		fields = append(fields, openaiautoschedulerscorestate.FieldLastStatusCode)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case openaiautoschedulerscorestate.FieldAccountID:
+		return m.AddedAccountID()
+	case openaiautoschedulerscorestate.FieldGroupID:
+		return m.AddedGroupID()
+	case openaiautoschedulerscorestate.FieldFinalScore:
+		return m.AddedFinalScore()
+	case openaiautoschedulerscorestate.FieldBaseScore:
+		return m.AddedBaseScore()
+	case openaiautoschedulerscorestate.FieldLatencyScore:
+		return m.AddedLatencyScore()
+	case openaiautoschedulerscorestate.FieldErrorScore:
+		return m.AddedErrorScore()
+	case openaiautoschedulerscorestate.FieldRecoveryScore:
+		return m.AddedRecoveryScore()
+	case openaiautoschedulerscorestate.FieldCostScore:
+		return m.AddedCostScore()
+	case openaiautoschedulerscorestate.FieldConsecutiveSlowCount:
+		return m.AddedConsecutiveSlowCount()
+	case openaiautoschedulerscorestate.FieldConsecutiveErrorCount:
+		return m.AddedConsecutiveErrorCount()
+	case openaiautoschedulerscorestate.FieldConsecutiveSuccessCount:
+		return m.AddedConsecutiveSuccessCount()
+	case openaiautoschedulerscorestate.FieldRequestCount:
+		return m.AddedRequestCount()
+	case openaiautoschedulerscorestate.FieldTtfbSampleCount:
+		return m.AddedTtfbSampleCount()
+	case openaiautoschedulerscorestate.FieldSlowRate:
+		return m.AddedSlowRate()
+	case openaiautoschedulerscorestate.FieldErrorRate:
+		return m.AddedErrorRate()
+	case openaiautoschedulerscorestate.FieldStuckRate:
+		return m.AddedStuckRate()
+	case openaiautoschedulerscorestate.FieldLastLatencyMs:
+		return m.AddedLastLatencyMs()
+	case openaiautoschedulerscorestate.FieldLastTtfbMs:
+		return m.AddedLastTtfbMs()
+	case openaiautoschedulerscorestate.FieldLastStatusCode:
+		return m.AddedLastStatusCode()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case openaiautoschedulerscorestate.FieldAccountID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAccountID(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGroupID(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldFinalScore:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddFinalScore(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldBaseScore:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBaseScore(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldLatencyScore:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddLatencyScore(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldErrorScore:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddErrorScore(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldRecoveryScore:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRecoveryScore(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldCostScore:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCostScore(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldConsecutiveSlowCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddConsecutiveSlowCount(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldConsecutiveErrorCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddConsecutiveErrorCount(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldConsecutiveSuccessCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddConsecutiveSuccessCount(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldRequestCount:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRequestCount(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldTtfbSampleCount:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTtfbSampleCount(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldSlowRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSlowRate(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldErrorRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddErrorRate(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldStuckRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddStuckRate(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldLastLatencyMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddLastLatencyMs(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldLastTtfbMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddLastTtfbMs(v)
+		return nil
+	case openaiautoschedulerscorestate.FieldLastStatusCode:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddLastStatusCode(v)
+		return nil
+	}
+	return fmt.Errorf("unknown OpenAIAutoSchedulerScoreState numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(openaiautoschedulerscorestate.FieldCooldownUntil) {
+		fields = append(fields, openaiautoschedulerscorestate.FieldCooldownUntil)
+	}
+	if m.FieldCleared(openaiautoschedulerscorestate.FieldLastLatencyMs) {
+		fields = append(fields, openaiautoschedulerscorestate.FieldLastLatencyMs)
+	}
+	if m.FieldCleared(openaiautoschedulerscorestate.FieldLastTtfbMs) {
+		fields = append(fields, openaiautoschedulerscorestate.FieldLastTtfbMs)
+	}
+	if m.FieldCleared(openaiautoschedulerscorestate.FieldLastStatusCode) {
+		fields = append(fields, openaiautoschedulerscorestate.FieldLastStatusCode)
+	}
+	if m.FieldCleared(openaiautoschedulerscorestate.FieldLastError) {
+		fields = append(fields, openaiautoschedulerscorestate.FieldLastError)
+	}
+	if m.FieldCleared(openaiautoschedulerscorestate.FieldLastCheckedAt) {
+		fields = append(fields, openaiautoschedulerscorestate.FieldLastCheckedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ClearField(name string) error {
+	switch name {
+	case openaiautoschedulerscorestate.FieldCooldownUntil:
+		m.ClearCooldownUntil()
+		return nil
+	case openaiautoschedulerscorestate.FieldLastLatencyMs:
+		m.ClearLastLatencyMs()
+		return nil
+	case openaiautoschedulerscorestate.FieldLastTtfbMs:
+		m.ClearLastTtfbMs()
+		return nil
+	case openaiautoschedulerscorestate.FieldLastStatusCode:
+		m.ClearLastStatusCode()
+		return nil
+	case openaiautoschedulerscorestate.FieldLastError:
+		m.ClearLastError()
+		return nil
+	case openaiautoschedulerscorestate.FieldLastCheckedAt:
+		m.ClearLastCheckedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown OpenAIAutoSchedulerScoreState nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetField(name string) error {
+	switch name {
+	case openaiautoschedulerscorestate.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case openaiautoschedulerscorestate.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case openaiautoschedulerscorestate.FieldAccountID:
+		m.ResetAccountID()
+		return nil
+	case openaiautoschedulerscorestate.FieldGroupID:
+		m.ResetGroupID()
+		return nil
+	case openaiautoschedulerscorestate.FieldModel:
+		m.ResetModel()
+		return nil
+	case openaiautoschedulerscorestate.FieldFinalScore:
+		m.ResetFinalScore()
+		return nil
+	case openaiautoschedulerscorestate.FieldBaseScore:
+		m.ResetBaseScore()
+		return nil
+	case openaiautoschedulerscorestate.FieldLatencyScore:
+		m.ResetLatencyScore()
+		return nil
+	case openaiautoschedulerscorestate.FieldErrorScore:
+		m.ResetErrorScore()
+		return nil
+	case openaiautoschedulerscorestate.FieldRecoveryScore:
+		m.ResetRecoveryScore()
+		return nil
+	case openaiautoschedulerscorestate.FieldCostScore:
+		m.ResetCostScore()
+		return nil
+	case openaiautoschedulerscorestate.FieldState:
+		m.ResetState()
+		return nil
+	case openaiautoschedulerscorestate.FieldConsecutiveSlowCount:
+		m.ResetConsecutiveSlowCount()
+		return nil
+	case openaiautoschedulerscorestate.FieldConsecutiveErrorCount:
+		m.ResetConsecutiveErrorCount()
+		return nil
+	case openaiautoschedulerscorestate.FieldConsecutiveSuccessCount:
+		m.ResetConsecutiveSuccessCount()
+		return nil
+	case openaiautoschedulerscorestate.FieldRequestCount:
+		m.ResetRequestCount()
+		return nil
+	case openaiautoschedulerscorestate.FieldTtfbSampleCount:
+		m.ResetTtfbSampleCount()
+		return nil
+	case openaiautoschedulerscorestate.FieldSlowRate:
+		m.ResetSlowRate()
+		return nil
+	case openaiautoschedulerscorestate.FieldErrorRate:
+		m.ResetErrorRate()
+		return nil
+	case openaiautoschedulerscorestate.FieldStuckRate:
+		m.ResetStuckRate()
+		return nil
+	case openaiautoschedulerscorestate.FieldCooldownUntil:
+		m.ResetCooldownUntil()
+		return nil
+	case openaiautoschedulerscorestate.FieldLastLatencyMs:
+		m.ResetLastLatencyMs()
+		return nil
+	case openaiautoschedulerscorestate.FieldLastTtfbMs:
+		m.ResetLastTtfbMs()
+		return nil
+	case openaiautoschedulerscorestate.FieldLastStatusCode:
+		m.ResetLastStatusCode()
+		return nil
+	case openaiautoschedulerscorestate.FieldLastError:
+		m.ResetLastError()
+		return nil
+	case openaiautoschedulerscorestate.FieldReason:
+		m.ResetReason()
+		return nil
+	case openaiautoschedulerscorestate.FieldLastCheckedAt:
+		m.ResetLastCheckedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown OpenAIAutoSchedulerScoreState field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *OpenAIAutoSchedulerScoreStateMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown OpenAIAutoSchedulerScoreState unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *OpenAIAutoSchedulerScoreStateMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown OpenAIAutoSchedulerScoreState edge %s", name)
 }
 
 // PaymentAuditLogMutation represents an operation that mutates the PaymentAuditLog nodes in the graph.

@@ -20,6 +20,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscoreevent"
+	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscorestate"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -882,8 +884,12 @@ func init() {
 	groupDescModelsListConfig := groupFields[30].Descriptor()
 	// group.DefaultModelsListConfig holds the default value on creation for the models_list_config field.
 	group.DefaultModelsListConfig = groupDescModelsListConfig.Default.(domain.GroupModelsListConfig)
+	// groupDescOpenaiAutoSchedulerEnabled is the schema descriptor for openai_auto_scheduler_enabled field.
+	groupDescOpenaiAutoSchedulerEnabled := groupFields[31].Descriptor()
+	// group.DefaultOpenaiAutoSchedulerEnabled holds the default value on creation for the openai_auto_scheduler_enabled field.
+	group.DefaultOpenaiAutoSchedulerEnabled = groupDescOpenaiAutoSchedulerEnabled.Default.(bool)
 	// groupDescRpmLimit is the schema descriptor for rpm_limit field.
-	groupDescRpmLimit := groupFields[31].Descriptor()
+	groupDescRpmLimit := groupFields[32].Descriptor()
 	// group.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	group.DefaultRpmLimit = groupDescRpmLimit.Default.(int)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()
@@ -948,6 +954,113 @@ func init() {
 	identityadoptiondecisionDescDecidedAt := identityadoptiondecisionFields[4].Descriptor()
 	// identityadoptiondecision.DefaultDecidedAt holds the default value on creation for the decided_at field.
 	identityadoptiondecision.DefaultDecidedAt = identityadoptiondecisionDescDecidedAt.Default.(func() time.Time)
+	openaiautoschedulerscoreeventFields := schema.OpenAIAutoSchedulerScoreEvent{}.Fields()
+	_ = openaiautoschedulerscoreeventFields
+	// openaiautoschedulerscoreeventDescModel is the schema descriptor for model field.
+	openaiautoschedulerscoreeventDescModel := openaiautoschedulerscoreeventFields[2].Descriptor()
+	// openaiautoschedulerscoreevent.DefaultModel holds the default value on creation for the model field.
+	openaiautoschedulerscoreevent.DefaultModel = openaiautoschedulerscoreeventDescModel.Default.(string)
+	// openaiautoschedulerscoreevent.ModelValidator is a validator for the "model" field. It is called by the builders before save.
+	openaiautoschedulerscoreevent.ModelValidator = openaiautoschedulerscoreeventDescModel.Validators[0].(func(string) error)
+	// openaiautoschedulerscoreeventDescEventType is the schema descriptor for event_type field.
+	openaiautoschedulerscoreeventDescEventType := openaiautoschedulerscoreeventFields[3].Descriptor()
+	// openaiautoschedulerscoreevent.EventTypeValidator is a validator for the "event_type" field. It is called by the builders before save.
+	openaiautoschedulerscoreevent.EventTypeValidator = openaiautoschedulerscoreeventDescEventType.Validators[0].(func(string) error)
+	// openaiautoschedulerscoreeventDescMessage is the schema descriptor for message field.
+	openaiautoschedulerscoreeventDescMessage := openaiautoschedulerscoreeventFields[9].Descriptor()
+	// openaiautoschedulerscoreevent.DefaultMessage holds the default value on creation for the message field.
+	openaiautoschedulerscoreevent.DefaultMessage = openaiautoschedulerscoreeventDescMessage.Default.(string)
+	// openaiautoschedulerscoreeventDescCreatedAt is the schema descriptor for created_at field.
+	openaiautoschedulerscoreeventDescCreatedAt := openaiautoschedulerscoreeventFields[10].Descriptor()
+	// openaiautoschedulerscoreevent.DefaultCreatedAt holds the default value on creation for the created_at field.
+	openaiautoschedulerscoreevent.DefaultCreatedAt = openaiautoschedulerscoreeventDescCreatedAt.Default.(func() time.Time)
+	openaiautoschedulerscorestateMixin := schema.OpenAIAutoSchedulerScoreState{}.Mixin()
+	openaiautoschedulerscorestateMixinFields0 := openaiautoschedulerscorestateMixin[0].Fields()
+	_ = openaiautoschedulerscorestateMixinFields0
+	openaiautoschedulerscorestateFields := schema.OpenAIAutoSchedulerScoreState{}.Fields()
+	_ = openaiautoschedulerscorestateFields
+	// openaiautoschedulerscorestateDescCreatedAt is the schema descriptor for created_at field.
+	openaiautoschedulerscorestateDescCreatedAt := openaiautoschedulerscorestateMixinFields0[0].Descriptor()
+	// openaiautoschedulerscorestate.DefaultCreatedAt holds the default value on creation for the created_at field.
+	openaiautoschedulerscorestate.DefaultCreatedAt = openaiautoschedulerscorestateDescCreatedAt.Default.(func() time.Time)
+	// openaiautoschedulerscorestateDescUpdatedAt is the schema descriptor for updated_at field.
+	openaiautoschedulerscorestateDescUpdatedAt := openaiautoschedulerscorestateMixinFields0[1].Descriptor()
+	// openaiautoschedulerscorestate.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	openaiautoschedulerscorestate.DefaultUpdatedAt = openaiautoschedulerscorestateDescUpdatedAt.Default.(func() time.Time)
+	// openaiautoschedulerscorestate.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	openaiautoschedulerscorestate.UpdateDefaultUpdatedAt = openaiautoschedulerscorestateDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// openaiautoschedulerscorestateDescModel is the schema descriptor for model field.
+	openaiautoschedulerscorestateDescModel := openaiautoschedulerscorestateFields[2].Descriptor()
+	// openaiautoschedulerscorestate.DefaultModel holds the default value on creation for the model field.
+	openaiautoschedulerscorestate.DefaultModel = openaiautoschedulerscorestateDescModel.Default.(string)
+	// openaiautoschedulerscorestate.ModelValidator is a validator for the "model" field. It is called by the builders before save.
+	openaiautoschedulerscorestate.ModelValidator = openaiautoschedulerscorestateDescModel.Validators[0].(func(string) error)
+	// openaiautoschedulerscorestateDescFinalScore is the schema descriptor for final_score field.
+	openaiautoschedulerscorestateDescFinalScore := openaiautoschedulerscorestateFields[3].Descriptor()
+	// openaiautoschedulerscorestate.DefaultFinalScore holds the default value on creation for the final_score field.
+	openaiautoschedulerscorestate.DefaultFinalScore = openaiautoschedulerscorestateDescFinalScore.Default.(int)
+	// openaiautoschedulerscorestateDescBaseScore is the schema descriptor for base_score field.
+	openaiautoschedulerscorestateDescBaseScore := openaiautoschedulerscorestateFields[4].Descriptor()
+	// openaiautoschedulerscorestate.DefaultBaseScore holds the default value on creation for the base_score field.
+	openaiautoschedulerscorestate.DefaultBaseScore = openaiautoschedulerscorestateDescBaseScore.Default.(int)
+	// openaiautoschedulerscorestateDescLatencyScore is the schema descriptor for latency_score field.
+	openaiautoschedulerscorestateDescLatencyScore := openaiautoschedulerscorestateFields[5].Descriptor()
+	// openaiautoschedulerscorestate.DefaultLatencyScore holds the default value on creation for the latency_score field.
+	openaiautoschedulerscorestate.DefaultLatencyScore = openaiautoschedulerscorestateDescLatencyScore.Default.(int)
+	// openaiautoschedulerscorestateDescErrorScore is the schema descriptor for error_score field.
+	openaiautoschedulerscorestateDescErrorScore := openaiautoschedulerscorestateFields[6].Descriptor()
+	// openaiautoschedulerscorestate.DefaultErrorScore holds the default value on creation for the error_score field.
+	openaiautoschedulerscorestate.DefaultErrorScore = openaiautoschedulerscorestateDescErrorScore.Default.(int)
+	// openaiautoschedulerscorestateDescRecoveryScore is the schema descriptor for recovery_score field.
+	openaiautoschedulerscorestateDescRecoveryScore := openaiautoschedulerscorestateFields[7].Descriptor()
+	// openaiautoschedulerscorestate.DefaultRecoveryScore holds the default value on creation for the recovery_score field.
+	openaiautoschedulerscorestate.DefaultRecoveryScore = openaiautoschedulerscorestateDescRecoveryScore.Default.(int)
+	// openaiautoschedulerscorestateDescCostScore is the schema descriptor for cost_score field.
+	openaiautoschedulerscorestateDescCostScore := openaiautoschedulerscorestateFields[8].Descriptor()
+	// openaiautoschedulerscorestate.DefaultCostScore holds the default value on creation for the cost_score field.
+	openaiautoschedulerscorestate.DefaultCostScore = openaiautoschedulerscorestateDescCostScore.Default.(int)
+	// openaiautoschedulerscorestateDescState is the schema descriptor for state field.
+	openaiautoschedulerscorestateDescState := openaiautoschedulerscorestateFields[9].Descriptor()
+	// openaiautoschedulerscorestate.DefaultState holds the default value on creation for the state field.
+	openaiautoschedulerscorestate.DefaultState = openaiautoschedulerscorestateDescState.Default.(string)
+	// openaiautoschedulerscorestate.StateValidator is a validator for the "state" field. It is called by the builders before save.
+	openaiautoschedulerscorestate.StateValidator = openaiautoschedulerscorestateDescState.Validators[0].(func(string) error)
+	// openaiautoschedulerscorestateDescConsecutiveSlowCount is the schema descriptor for consecutive_slow_count field.
+	openaiautoschedulerscorestateDescConsecutiveSlowCount := openaiautoschedulerscorestateFields[10].Descriptor()
+	// openaiautoschedulerscorestate.DefaultConsecutiveSlowCount holds the default value on creation for the consecutive_slow_count field.
+	openaiautoschedulerscorestate.DefaultConsecutiveSlowCount = openaiautoschedulerscorestateDescConsecutiveSlowCount.Default.(int)
+	// openaiautoschedulerscorestateDescConsecutiveErrorCount is the schema descriptor for consecutive_error_count field.
+	openaiautoschedulerscorestateDescConsecutiveErrorCount := openaiautoschedulerscorestateFields[11].Descriptor()
+	// openaiautoschedulerscorestate.DefaultConsecutiveErrorCount holds the default value on creation for the consecutive_error_count field.
+	openaiautoschedulerscorestate.DefaultConsecutiveErrorCount = openaiautoschedulerscorestateDescConsecutiveErrorCount.Default.(int)
+	// openaiautoschedulerscorestateDescConsecutiveSuccessCount is the schema descriptor for consecutive_success_count field.
+	openaiautoschedulerscorestateDescConsecutiveSuccessCount := openaiautoschedulerscorestateFields[12].Descriptor()
+	// openaiautoschedulerscorestate.DefaultConsecutiveSuccessCount holds the default value on creation for the consecutive_success_count field.
+	openaiautoschedulerscorestate.DefaultConsecutiveSuccessCount = openaiautoschedulerscorestateDescConsecutiveSuccessCount.Default.(int)
+	// openaiautoschedulerscorestateDescRequestCount is the schema descriptor for request_count field.
+	openaiautoschedulerscorestateDescRequestCount := openaiautoschedulerscorestateFields[13].Descriptor()
+	// openaiautoschedulerscorestate.DefaultRequestCount holds the default value on creation for the request_count field.
+	openaiautoschedulerscorestate.DefaultRequestCount = openaiautoschedulerscorestateDescRequestCount.Default.(int64)
+	// openaiautoschedulerscorestateDescTtfbSampleCount is the schema descriptor for ttfb_sample_count field.
+	openaiautoschedulerscorestateDescTtfbSampleCount := openaiautoschedulerscorestateFields[14].Descriptor()
+	// openaiautoschedulerscorestate.DefaultTtfbSampleCount holds the default value on creation for the ttfb_sample_count field.
+	openaiautoschedulerscorestate.DefaultTtfbSampleCount = openaiautoschedulerscorestateDescTtfbSampleCount.Default.(int64)
+	// openaiautoschedulerscorestateDescSlowRate is the schema descriptor for slow_rate field.
+	openaiautoschedulerscorestateDescSlowRate := openaiautoschedulerscorestateFields[15].Descriptor()
+	// openaiautoschedulerscorestate.DefaultSlowRate holds the default value on creation for the slow_rate field.
+	openaiautoschedulerscorestate.DefaultSlowRate = openaiautoschedulerscorestateDescSlowRate.Default.(float64)
+	// openaiautoschedulerscorestateDescErrorRate is the schema descriptor for error_rate field.
+	openaiautoschedulerscorestateDescErrorRate := openaiautoschedulerscorestateFields[16].Descriptor()
+	// openaiautoschedulerscorestate.DefaultErrorRate holds the default value on creation for the error_rate field.
+	openaiautoschedulerscorestate.DefaultErrorRate = openaiautoschedulerscorestateDescErrorRate.Default.(float64)
+	// openaiautoschedulerscorestateDescStuckRate is the schema descriptor for stuck_rate field.
+	openaiautoschedulerscorestateDescStuckRate := openaiautoschedulerscorestateFields[17].Descriptor()
+	// openaiautoschedulerscorestate.DefaultStuckRate holds the default value on creation for the stuck_rate field.
+	openaiautoschedulerscorestate.DefaultStuckRate = openaiautoschedulerscorestateDescStuckRate.Default.(float64)
+	// openaiautoschedulerscorestateDescReason is the schema descriptor for reason field.
+	openaiautoschedulerscorestateDescReason := openaiautoschedulerscorestateFields[23].Descriptor()
+	// openaiautoschedulerscorestate.DefaultReason holds the default value on creation for the reason field.
+	openaiautoschedulerscorestate.DefaultReason = openaiautoschedulerscorestateDescReason.Default.(string)
 	paymentauditlogFields := schema.PaymentAuditLog{}.Fields()
 	_ = paymentauditlogFields
 	// paymentauditlogDescOrderID is the schema descriptor for order_id field.

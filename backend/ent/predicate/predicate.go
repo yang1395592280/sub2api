@@ -51,6 +51,12 @@ type IdempotencyRecord func(*sql.Selector)
 // IdentityAdoptionDecision is the predicate function for identityadoptiondecision builders.
 type IdentityAdoptionDecision func(*sql.Selector)
 
+// OpenAIAutoSchedulerScoreEvent is the predicate function for openaiautoschedulerscoreevent builders.
+type OpenAIAutoSchedulerScoreEvent func(*sql.Selector)
+
+// OpenAIAutoSchedulerScoreState is the predicate function for openaiautoschedulerscorestate builders.
+type OpenAIAutoSchedulerScoreState func(*sql.Selector)
+
 // PaymentAuditLog is the predicate function for paymentauditlog builders.
 type PaymentAuditLog func(*sql.Selector)
 

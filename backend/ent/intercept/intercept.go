@@ -23,6 +23,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscoreevent"
+	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscorestate"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -507,6 +509,60 @@ func (f TraverseIdentityAdoptionDecision) Traverse(ctx context.Context, q ent.Qu
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.IdentityAdoptionDecisionQuery", q)
+}
+
+// The OpenAIAutoSchedulerScoreEventFunc type is an adapter to allow the use of ordinary function as a Querier.
+type OpenAIAutoSchedulerScoreEventFunc func(context.Context, *ent.OpenAIAutoSchedulerScoreEventQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f OpenAIAutoSchedulerScoreEventFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.OpenAIAutoSchedulerScoreEventQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.OpenAIAutoSchedulerScoreEventQuery", q)
+}
+
+// The TraverseOpenAIAutoSchedulerScoreEvent type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseOpenAIAutoSchedulerScoreEvent func(context.Context, *ent.OpenAIAutoSchedulerScoreEventQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseOpenAIAutoSchedulerScoreEvent) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseOpenAIAutoSchedulerScoreEvent) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.OpenAIAutoSchedulerScoreEventQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.OpenAIAutoSchedulerScoreEventQuery", q)
+}
+
+// The OpenAIAutoSchedulerScoreStateFunc type is an adapter to allow the use of ordinary function as a Querier.
+type OpenAIAutoSchedulerScoreStateFunc func(context.Context, *ent.OpenAIAutoSchedulerScoreStateQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f OpenAIAutoSchedulerScoreStateFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.OpenAIAutoSchedulerScoreStateQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.OpenAIAutoSchedulerScoreStateQuery", q)
+}
+
+// The TraverseOpenAIAutoSchedulerScoreState type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseOpenAIAutoSchedulerScoreState func(context.Context, *ent.OpenAIAutoSchedulerScoreStateQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseOpenAIAutoSchedulerScoreState) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseOpenAIAutoSchedulerScoreState) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.OpenAIAutoSchedulerScoreStateQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.OpenAIAutoSchedulerScoreStateQuery", q)
 }
 
 // The PaymentAuditLogFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -1136,6 +1192,10 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.IdempotencyRecordQuery, predicate.IdempotencyRecord, idempotencyrecord.OrderOption]{typ: ent.TypeIdempotencyRecord, tq: q}, nil
 	case *ent.IdentityAdoptionDecisionQuery:
 		return &query[*ent.IdentityAdoptionDecisionQuery, predicate.IdentityAdoptionDecision, identityadoptiondecision.OrderOption]{typ: ent.TypeIdentityAdoptionDecision, tq: q}, nil
+	case *ent.OpenAIAutoSchedulerScoreEventQuery:
+		return &query[*ent.OpenAIAutoSchedulerScoreEventQuery, predicate.OpenAIAutoSchedulerScoreEvent, openaiautoschedulerscoreevent.OrderOption]{typ: ent.TypeOpenAIAutoSchedulerScoreEvent, tq: q}, nil
+	case *ent.OpenAIAutoSchedulerScoreStateQuery:
+		return &query[*ent.OpenAIAutoSchedulerScoreStateQuery, predicate.OpenAIAutoSchedulerScoreState, openaiautoschedulerscorestate.OrderOption]{typ: ent.TypeOpenAIAutoSchedulerScoreState, tq: q}, nil
 	case *ent.PaymentAuditLogQuery:
 		return &query[*ent.PaymentAuditLogQuery, predicate.PaymentAuditLog, paymentauditlog.OrderOption]{typ: ent.TypePaymentAuditLog, tq: q}, nil
 	case *ent.PaymentOrderQuery:

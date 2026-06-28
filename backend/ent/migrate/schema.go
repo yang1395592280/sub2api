@@ -673,6 +673,7 @@ var (
 		{Name: "default_mapped_model", Type: field.TypeString, Size: 100, Default: ""},
 		{Name: "messages_dispatch_model_config", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
 		{Name: "models_list_config", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "openai_auto_scheduler_enabled", Type: field.TypeBool, Default: false},
 		{Name: "rpm_limit", Type: field.TypeInt, Default: 0},
 	}
 	// GroupsTable holds the schema information for the "groups" table.
@@ -791,6 +792,103 @@ var (
 				Name:    "identityadoptiondecision_identity_id",
 				Unique:  false,
 				Columns: []*schema.Column{IdentityAdoptionDecisionsColumns[6]},
+			},
+		},
+	}
+	// OpenaiAutoSchedulerScoreEventsColumns holds the columns for the "openai_auto_scheduler_score_events" table.
+	OpenaiAutoSchedulerScoreEventsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "account_id", Type: field.TypeInt64},
+		{Name: "group_id", Type: field.TypeInt64},
+		{Name: "model", Type: field.TypeString, Size: 200, Default: ""},
+		{Name: "event_type", Type: field.TypeString, Size: 40},
+		{Name: "score_before", Type: field.TypeInt},
+		{Name: "score_after", Type: field.TypeInt},
+		{Name: "latency_ms", Type: field.TypeInt, Nullable: true},
+		{Name: "ttfb_ms", Type: field.TypeInt, Nullable: true},
+		{Name: "status_code", Type: field.TypeInt, Nullable: true},
+		{Name: "message", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// OpenaiAutoSchedulerScoreEventsTable holds the schema information for the "openai_auto_scheduler_score_events" table.
+	OpenaiAutoSchedulerScoreEventsTable = &schema.Table{
+		Name:       "openai_auto_scheduler_score_events",
+		Columns:    OpenaiAutoSchedulerScoreEventsColumns,
+		PrimaryKey: []*schema.Column{OpenaiAutoSchedulerScoreEventsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "openaiautoschedulerscoreevent_account_id_group_id_model_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{OpenaiAutoSchedulerScoreEventsColumns[1], OpenaiAutoSchedulerScoreEventsColumns[2], OpenaiAutoSchedulerScoreEventsColumns[3], OpenaiAutoSchedulerScoreEventsColumns[11]},
+			},
+			{
+				Name:    "openaiautoschedulerscoreevent_group_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{OpenaiAutoSchedulerScoreEventsColumns[2], OpenaiAutoSchedulerScoreEventsColumns[11]},
+			},
+			{
+				Name:    "openaiautoschedulerscoreevent_event_type_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{OpenaiAutoSchedulerScoreEventsColumns[4], OpenaiAutoSchedulerScoreEventsColumns[11]},
+			},
+		},
+	}
+	// OpenaiAutoSchedulerScoreStatesColumns holds the columns for the "openai_auto_scheduler_score_states" table.
+	OpenaiAutoSchedulerScoreStatesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "account_id", Type: field.TypeInt64},
+		{Name: "group_id", Type: field.TypeInt64},
+		{Name: "model", Type: field.TypeString, Size: 200, Default: ""},
+		{Name: "final_score", Type: field.TypeInt, Default: 6000},
+		{Name: "base_score", Type: field.TypeInt, Default: 6000},
+		{Name: "latency_score", Type: field.TypeInt, Default: 0},
+		{Name: "error_score", Type: field.TypeInt, Default: 0},
+		{Name: "recovery_score", Type: field.TypeInt, Default: 0},
+		{Name: "cost_score", Type: field.TypeInt, Default: 0},
+		{Name: "state", Type: field.TypeString, Size: 20, Default: "running"},
+		{Name: "consecutive_slow_count", Type: field.TypeInt, Default: 0},
+		{Name: "consecutive_error_count", Type: field.TypeInt, Default: 0},
+		{Name: "consecutive_success_count", Type: field.TypeInt, Default: 0},
+		{Name: "request_count", Type: field.TypeInt64, Default: 0},
+		{Name: "ttfb_sample_count", Type: field.TypeInt64, Default: 0},
+		{Name: "slow_rate", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(8,4)"}},
+		{Name: "error_rate", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(8,4)"}},
+		{Name: "stuck_rate", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(8,4)"}},
+		{Name: "cooldown_until", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "last_latency_ms", Type: field.TypeInt, Nullable: true},
+		{Name: "last_ttfb_ms", Type: field.TypeInt, Nullable: true},
+		{Name: "last_status_code", Type: field.TypeInt, Nullable: true},
+		{Name: "last_error", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "reason", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "last_checked_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// OpenaiAutoSchedulerScoreStatesTable holds the schema information for the "openai_auto_scheduler_score_states" table.
+	OpenaiAutoSchedulerScoreStatesTable = &schema.Table{
+		Name:       "openai_auto_scheduler_score_states",
+		Columns:    OpenaiAutoSchedulerScoreStatesColumns,
+		PrimaryKey: []*schema.Column{OpenaiAutoSchedulerScoreStatesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "openaiautoschedulerscorestate_account_id_group_id_model",
+				Unique:  true,
+				Columns: []*schema.Column{OpenaiAutoSchedulerScoreStatesColumns[3], OpenaiAutoSchedulerScoreStatesColumns[4], OpenaiAutoSchedulerScoreStatesColumns[5]},
+			},
+			{
+				Name:    "openaiautoschedulerscorestate_group_id_final_score",
+				Unique:  false,
+				Columns: []*schema.Column{OpenaiAutoSchedulerScoreStatesColumns[4], OpenaiAutoSchedulerScoreStatesColumns[6]},
+			},
+			{
+				Name:    "openaiautoschedulerscorestate_group_id_state",
+				Unique:  false,
+				Columns: []*schema.Column{OpenaiAutoSchedulerScoreStatesColumns[4], OpenaiAutoSchedulerScoreStatesColumns[12]},
+			},
+			{
+				Name:    "openaiautoschedulerscorestate_cooldown_until",
+				Unique:  false,
+				Columns: []*schema.Column{OpenaiAutoSchedulerScoreStatesColumns[21]},
 			},
 		},
 	}
@@ -1900,6 +1998,8 @@ var (
 		GroupsTable,
 		IdempotencyRecordsTable,
 		IdentityAdoptionDecisionsTable,
+		OpenaiAutoSchedulerScoreEventsTable,
+		OpenaiAutoSchedulerScoreStatesTable,
 		PaymentAuditLogsTable,
 		PaymentOrdersTable,
 		PaymentProviderInstancesTable,
@@ -1984,6 +2084,12 @@ func init() {
 	IdentityAdoptionDecisionsTable.ForeignKeys[1].RefTable = PendingAuthSessionsTable
 	IdentityAdoptionDecisionsTable.Annotation = &entsql.Annotation{
 		Table: "identity_adoption_decisions",
+	}
+	OpenaiAutoSchedulerScoreEventsTable.Annotation = &entsql.Annotation{
+		Table: "openai_auto_scheduler_score_events",
+	}
+	OpenaiAutoSchedulerScoreStatesTable.Annotation = &entsql.Annotation{
+		Table: "openai_auto_scheduler_score_states",
 	}
 	PaymentAuditLogsTable.Annotation = &entsql.Annotation{
 		Table: "payment_audit_logs",

@@ -205,6 +205,11 @@ func DefaultMappedModel(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldDefaultMappedModel, v))
 }
 
+// OpenaiAutoSchedulerEnabled applies equality check predicate on the "openai_auto_scheduler_enabled" field. It's identical to OpenaiAutoSchedulerEnabledEQ.
+func OpenaiAutoSchedulerEnabled(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldOpenaiAutoSchedulerEnabled, v))
+}
+
 // RpmLimit applies equality check predicate on the "rpm_limit" field. It's identical to RpmLimitEQ.
 func RpmLimit(v int) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldRpmLimit, v))
@@ -1398,6 +1403,16 @@ func DefaultMappedModelEqualFold(v string) predicate.Group {
 // DefaultMappedModelContainsFold applies the ContainsFold predicate on the "default_mapped_model" field.
 func DefaultMappedModelContainsFold(v string) predicate.Group {
 	return predicate.Group(sql.FieldContainsFold(FieldDefaultMappedModel, v))
+}
+
+// OpenaiAutoSchedulerEnabledEQ applies the EQ predicate on the "openai_auto_scheduler_enabled" field.
+func OpenaiAutoSchedulerEnabledEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldOpenaiAutoSchedulerEnabled, v))
+}
+
+// OpenaiAutoSchedulerEnabledNEQ applies the NEQ predicate on the "openai_auto_scheduler_enabled" field.
+func OpenaiAutoSchedulerEnabledNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldOpenaiAutoSchedulerEnabled, v))
 }
 
 // RpmLimitEQ applies the EQ predicate on the "rpm_limit" field.

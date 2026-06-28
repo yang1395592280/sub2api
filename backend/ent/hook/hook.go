@@ -189,6 +189,30 @@ func (f IdentityAdoptionDecisionFunc) Mutate(ctx context.Context, m ent.Mutation
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IdentityAdoptionDecisionMutation", m)
 }
 
+// The OpenAIAutoSchedulerScoreEventFunc type is an adapter to allow the use of ordinary
+// function as OpenAIAutoSchedulerScoreEvent mutator.
+type OpenAIAutoSchedulerScoreEventFunc func(context.Context, *ent.OpenAIAutoSchedulerScoreEventMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f OpenAIAutoSchedulerScoreEventFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.OpenAIAutoSchedulerScoreEventMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.OpenAIAutoSchedulerScoreEventMutation", m)
+}
+
+// The OpenAIAutoSchedulerScoreStateFunc type is an adapter to allow the use of ordinary
+// function as OpenAIAutoSchedulerScoreState mutator.
+type OpenAIAutoSchedulerScoreStateFunc func(context.Context, *ent.OpenAIAutoSchedulerScoreStateMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f OpenAIAutoSchedulerScoreStateFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.OpenAIAutoSchedulerScoreStateMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.OpenAIAutoSchedulerScoreStateMutation", m)
+}
+
 // The PaymentAuditLogFunc type is an adapter to allow the use of ordinary
 // function as PaymentAuditLog mutator.
 type PaymentAuditLogFunc func(context.Context, *ent.PaymentAuditLogMutation) (ent.Value, error)

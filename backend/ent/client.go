@@ -30,6 +30,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscoreevent"
+	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscorestate"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -91,6 +93,10 @@ type Client struct {
 	IdempotencyRecord *IdempotencyRecordClient
 	// IdentityAdoptionDecision is the client for interacting with the IdentityAdoptionDecision builders.
 	IdentityAdoptionDecision *IdentityAdoptionDecisionClient
+	// OpenAIAutoSchedulerScoreEvent is the client for interacting with the OpenAIAutoSchedulerScoreEvent builders.
+	OpenAIAutoSchedulerScoreEvent *OpenAIAutoSchedulerScoreEventClient
+	// OpenAIAutoSchedulerScoreState is the client for interacting with the OpenAIAutoSchedulerScoreState builders.
+	OpenAIAutoSchedulerScoreState *OpenAIAutoSchedulerScoreStateClient
 	// PaymentAuditLog is the client for interacting with the PaymentAuditLog builders.
 	PaymentAuditLog *PaymentAuditLogClient
 	// PaymentOrder is the client for interacting with the PaymentOrder builders.
@@ -161,6 +167,8 @@ func (c *Client) init() {
 	c.Group = NewGroupClient(c.config)
 	c.IdempotencyRecord = NewIdempotencyRecordClient(c.config)
 	c.IdentityAdoptionDecision = NewIdentityAdoptionDecisionClient(c.config)
+	c.OpenAIAutoSchedulerScoreEvent = NewOpenAIAutoSchedulerScoreEventClient(c.config)
+	c.OpenAIAutoSchedulerScoreState = NewOpenAIAutoSchedulerScoreStateClient(c.config)
 	c.PaymentAuditLog = NewPaymentAuditLogClient(c.config)
 	c.PaymentOrder = NewPaymentOrderClient(c.config)
 	c.PaymentProviderInstance = NewPaymentProviderInstanceClient(c.config)
@@ -290,6 +298,8 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Group:                         NewGroupClient(cfg),
 		IdempotencyRecord:             NewIdempotencyRecordClient(cfg),
 		IdentityAdoptionDecision:      NewIdentityAdoptionDecisionClient(cfg),
+		OpenAIAutoSchedulerScoreEvent: NewOpenAIAutoSchedulerScoreEventClient(cfg),
+		OpenAIAutoSchedulerScoreState: NewOpenAIAutoSchedulerScoreStateClient(cfg),
 		PaymentAuditLog:               NewPaymentAuditLogClient(cfg),
 		PaymentOrder:                  NewPaymentOrderClient(cfg),
 		PaymentProviderInstance:       NewPaymentProviderInstanceClient(cfg),
@@ -346,6 +356,8 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Group:                         NewGroupClient(cfg),
 		IdempotencyRecord:             NewIdempotencyRecordClient(cfg),
 		IdentityAdoptionDecision:      NewIdentityAdoptionDecisionClient(cfg),
+		OpenAIAutoSchedulerScoreEvent: NewOpenAIAutoSchedulerScoreEventClient(cfg),
+		OpenAIAutoSchedulerScoreState: NewOpenAIAutoSchedulerScoreStateClient(cfg),
 		PaymentAuditLog:               NewPaymentAuditLogClient(cfg),
 		PaymentOrder:                  NewPaymentOrderClient(cfg),
 		PaymentProviderInstance:       NewPaymentProviderInstanceClient(cfg),
@@ -401,13 +413,14 @@ func (c *Client) Use(hooks ...Hook) {
 		c.AuthIdentity, c.AuthIdentityChannel, c.ChannelMonitor,
 		c.ChannelMonitorDailyRollup, c.ChannelMonitorHistory,
 		c.ChannelMonitorRequestTemplate, c.ErrorPassthroughRule, c.Group,
-		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.PaymentAuditLog,
-		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
-		c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting,
-		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
-		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserPlatformQuota, c.UserSubscription, c.WorkbenchConversation,
-		c.WorkbenchMessage,
+		c.IdempotencyRecord, c.IdentityAdoptionDecision,
+		c.OpenAIAutoSchedulerScoreEvent, c.OpenAIAutoSchedulerScoreState,
+		c.PaymentAuditLog, c.PaymentOrder, c.PaymentProviderInstance,
+		c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode,
+		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
+		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
+		c.UserAttributeDefinition, c.UserAttributeValue, c.UserPlatformQuota,
+		c.UserSubscription, c.WorkbenchConversation, c.WorkbenchMessage,
 	} {
 		n.Use(hooks...)
 	}
@@ -421,13 +434,14 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.AuthIdentity, c.AuthIdentityChannel, c.ChannelMonitor,
 		c.ChannelMonitorDailyRollup, c.ChannelMonitorHistory,
 		c.ChannelMonitorRequestTemplate, c.ErrorPassthroughRule, c.Group,
-		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.PaymentAuditLog,
-		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
-		c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting,
-		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
-		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserPlatformQuota, c.UserSubscription, c.WorkbenchConversation,
-		c.WorkbenchMessage,
+		c.IdempotencyRecord, c.IdentityAdoptionDecision,
+		c.OpenAIAutoSchedulerScoreEvent, c.OpenAIAutoSchedulerScoreState,
+		c.PaymentAuditLog, c.PaymentOrder, c.PaymentProviderInstance,
+		c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode,
+		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
+		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
+		c.UserAttributeDefinition, c.UserAttributeValue, c.UserPlatformQuota,
+		c.UserSubscription, c.WorkbenchConversation, c.WorkbenchMessage,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -466,6 +480,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.IdempotencyRecord.mutate(ctx, m)
 	case *IdentityAdoptionDecisionMutation:
 		return c.IdentityAdoptionDecision.mutate(ctx, m)
+	case *OpenAIAutoSchedulerScoreEventMutation:
+		return c.OpenAIAutoSchedulerScoreEvent.mutate(ctx, m)
+	case *OpenAIAutoSchedulerScoreStateMutation:
+		return c.OpenAIAutoSchedulerScoreState.mutate(ctx, m)
 	case *PaymentAuditLogMutation:
 		return c.PaymentAuditLog.mutate(ctx, m)
 	case *PaymentOrderMutation:
@@ -2976,6 +2994,272 @@ func (c *IdentityAdoptionDecisionClient) mutate(ctx context.Context, m *Identity
 		return (&IdentityAdoptionDecisionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown IdentityAdoptionDecision mutation op: %q", m.Op())
+	}
+}
+
+// OpenAIAutoSchedulerScoreEventClient is a client for the OpenAIAutoSchedulerScoreEvent schema.
+type OpenAIAutoSchedulerScoreEventClient struct {
+	config
+}
+
+// NewOpenAIAutoSchedulerScoreEventClient returns a client for the OpenAIAutoSchedulerScoreEvent from the given config.
+func NewOpenAIAutoSchedulerScoreEventClient(c config) *OpenAIAutoSchedulerScoreEventClient {
+	return &OpenAIAutoSchedulerScoreEventClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `openaiautoschedulerscoreevent.Hooks(f(g(h())))`.
+func (c *OpenAIAutoSchedulerScoreEventClient) Use(hooks ...Hook) {
+	c.hooks.OpenAIAutoSchedulerScoreEvent = append(c.hooks.OpenAIAutoSchedulerScoreEvent, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `openaiautoschedulerscoreevent.Intercept(f(g(h())))`.
+func (c *OpenAIAutoSchedulerScoreEventClient) Intercept(interceptors ...Interceptor) {
+	c.inters.OpenAIAutoSchedulerScoreEvent = append(c.inters.OpenAIAutoSchedulerScoreEvent, interceptors...)
+}
+
+// Create returns a builder for creating a OpenAIAutoSchedulerScoreEvent entity.
+func (c *OpenAIAutoSchedulerScoreEventClient) Create() *OpenAIAutoSchedulerScoreEventCreate {
+	mutation := newOpenAIAutoSchedulerScoreEventMutation(c.config, OpCreate)
+	return &OpenAIAutoSchedulerScoreEventCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of OpenAIAutoSchedulerScoreEvent entities.
+func (c *OpenAIAutoSchedulerScoreEventClient) CreateBulk(builders ...*OpenAIAutoSchedulerScoreEventCreate) *OpenAIAutoSchedulerScoreEventCreateBulk {
+	return &OpenAIAutoSchedulerScoreEventCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *OpenAIAutoSchedulerScoreEventClient) MapCreateBulk(slice any, setFunc func(*OpenAIAutoSchedulerScoreEventCreate, int)) *OpenAIAutoSchedulerScoreEventCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &OpenAIAutoSchedulerScoreEventCreateBulk{err: fmt.Errorf("calling to OpenAIAutoSchedulerScoreEventClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*OpenAIAutoSchedulerScoreEventCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &OpenAIAutoSchedulerScoreEventCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for OpenAIAutoSchedulerScoreEvent.
+func (c *OpenAIAutoSchedulerScoreEventClient) Update() *OpenAIAutoSchedulerScoreEventUpdate {
+	mutation := newOpenAIAutoSchedulerScoreEventMutation(c.config, OpUpdate)
+	return &OpenAIAutoSchedulerScoreEventUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *OpenAIAutoSchedulerScoreEventClient) UpdateOne(_m *OpenAIAutoSchedulerScoreEvent) *OpenAIAutoSchedulerScoreEventUpdateOne {
+	mutation := newOpenAIAutoSchedulerScoreEventMutation(c.config, OpUpdateOne, withOpenAIAutoSchedulerScoreEvent(_m))
+	return &OpenAIAutoSchedulerScoreEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *OpenAIAutoSchedulerScoreEventClient) UpdateOneID(id int64) *OpenAIAutoSchedulerScoreEventUpdateOne {
+	mutation := newOpenAIAutoSchedulerScoreEventMutation(c.config, OpUpdateOne, withOpenAIAutoSchedulerScoreEventID(id))
+	return &OpenAIAutoSchedulerScoreEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for OpenAIAutoSchedulerScoreEvent.
+func (c *OpenAIAutoSchedulerScoreEventClient) Delete() *OpenAIAutoSchedulerScoreEventDelete {
+	mutation := newOpenAIAutoSchedulerScoreEventMutation(c.config, OpDelete)
+	return &OpenAIAutoSchedulerScoreEventDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *OpenAIAutoSchedulerScoreEventClient) DeleteOne(_m *OpenAIAutoSchedulerScoreEvent) *OpenAIAutoSchedulerScoreEventDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *OpenAIAutoSchedulerScoreEventClient) DeleteOneID(id int64) *OpenAIAutoSchedulerScoreEventDeleteOne {
+	builder := c.Delete().Where(openaiautoschedulerscoreevent.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &OpenAIAutoSchedulerScoreEventDeleteOne{builder}
+}
+
+// Query returns a query builder for OpenAIAutoSchedulerScoreEvent.
+func (c *OpenAIAutoSchedulerScoreEventClient) Query() *OpenAIAutoSchedulerScoreEventQuery {
+	return &OpenAIAutoSchedulerScoreEventQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeOpenAIAutoSchedulerScoreEvent},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a OpenAIAutoSchedulerScoreEvent entity by its id.
+func (c *OpenAIAutoSchedulerScoreEventClient) Get(ctx context.Context, id int64) (*OpenAIAutoSchedulerScoreEvent, error) {
+	return c.Query().Where(openaiautoschedulerscoreevent.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *OpenAIAutoSchedulerScoreEventClient) GetX(ctx context.Context, id int64) *OpenAIAutoSchedulerScoreEvent {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *OpenAIAutoSchedulerScoreEventClient) Hooks() []Hook {
+	return c.hooks.OpenAIAutoSchedulerScoreEvent
+}
+
+// Interceptors returns the client interceptors.
+func (c *OpenAIAutoSchedulerScoreEventClient) Interceptors() []Interceptor {
+	return c.inters.OpenAIAutoSchedulerScoreEvent
+}
+
+func (c *OpenAIAutoSchedulerScoreEventClient) mutate(ctx context.Context, m *OpenAIAutoSchedulerScoreEventMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&OpenAIAutoSchedulerScoreEventCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&OpenAIAutoSchedulerScoreEventUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&OpenAIAutoSchedulerScoreEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&OpenAIAutoSchedulerScoreEventDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown OpenAIAutoSchedulerScoreEvent mutation op: %q", m.Op())
+	}
+}
+
+// OpenAIAutoSchedulerScoreStateClient is a client for the OpenAIAutoSchedulerScoreState schema.
+type OpenAIAutoSchedulerScoreStateClient struct {
+	config
+}
+
+// NewOpenAIAutoSchedulerScoreStateClient returns a client for the OpenAIAutoSchedulerScoreState from the given config.
+func NewOpenAIAutoSchedulerScoreStateClient(c config) *OpenAIAutoSchedulerScoreStateClient {
+	return &OpenAIAutoSchedulerScoreStateClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `openaiautoschedulerscorestate.Hooks(f(g(h())))`.
+func (c *OpenAIAutoSchedulerScoreStateClient) Use(hooks ...Hook) {
+	c.hooks.OpenAIAutoSchedulerScoreState = append(c.hooks.OpenAIAutoSchedulerScoreState, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `openaiautoschedulerscorestate.Intercept(f(g(h())))`.
+func (c *OpenAIAutoSchedulerScoreStateClient) Intercept(interceptors ...Interceptor) {
+	c.inters.OpenAIAutoSchedulerScoreState = append(c.inters.OpenAIAutoSchedulerScoreState, interceptors...)
+}
+
+// Create returns a builder for creating a OpenAIAutoSchedulerScoreState entity.
+func (c *OpenAIAutoSchedulerScoreStateClient) Create() *OpenAIAutoSchedulerScoreStateCreate {
+	mutation := newOpenAIAutoSchedulerScoreStateMutation(c.config, OpCreate)
+	return &OpenAIAutoSchedulerScoreStateCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of OpenAIAutoSchedulerScoreState entities.
+func (c *OpenAIAutoSchedulerScoreStateClient) CreateBulk(builders ...*OpenAIAutoSchedulerScoreStateCreate) *OpenAIAutoSchedulerScoreStateCreateBulk {
+	return &OpenAIAutoSchedulerScoreStateCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *OpenAIAutoSchedulerScoreStateClient) MapCreateBulk(slice any, setFunc func(*OpenAIAutoSchedulerScoreStateCreate, int)) *OpenAIAutoSchedulerScoreStateCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &OpenAIAutoSchedulerScoreStateCreateBulk{err: fmt.Errorf("calling to OpenAIAutoSchedulerScoreStateClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*OpenAIAutoSchedulerScoreStateCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &OpenAIAutoSchedulerScoreStateCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for OpenAIAutoSchedulerScoreState.
+func (c *OpenAIAutoSchedulerScoreStateClient) Update() *OpenAIAutoSchedulerScoreStateUpdate {
+	mutation := newOpenAIAutoSchedulerScoreStateMutation(c.config, OpUpdate)
+	return &OpenAIAutoSchedulerScoreStateUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *OpenAIAutoSchedulerScoreStateClient) UpdateOne(_m *OpenAIAutoSchedulerScoreState) *OpenAIAutoSchedulerScoreStateUpdateOne {
+	mutation := newOpenAIAutoSchedulerScoreStateMutation(c.config, OpUpdateOne, withOpenAIAutoSchedulerScoreState(_m))
+	return &OpenAIAutoSchedulerScoreStateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *OpenAIAutoSchedulerScoreStateClient) UpdateOneID(id int64) *OpenAIAutoSchedulerScoreStateUpdateOne {
+	mutation := newOpenAIAutoSchedulerScoreStateMutation(c.config, OpUpdateOne, withOpenAIAutoSchedulerScoreStateID(id))
+	return &OpenAIAutoSchedulerScoreStateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for OpenAIAutoSchedulerScoreState.
+func (c *OpenAIAutoSchedulerScoreStateClient) Delete() *OpenAIAutoSchedulerScoreStateDelete {
+	mutation := newOpenAIAutoSchedulerScoreStateMutation(c.config, OpDelete)
+	return &OpenAIAutoSchedulerScoreStateDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *OpenAIAutoSchedulerScoreStateClient) DeleteOne(_m *OpenAIAutoSchedulerScoreState) *OpenAIAutoSchedulerScoreStateDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *OpenAIAutoSchedulerScoreStateClient) DeleteOneID(id int64) *OpenAIAutoSchedulerScoreStateDeleteOne {
+	builder := c.Delete().Where(openaiautoschedulerscorestate.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &OpenAIAutoSchedulerScoreStateDeleteOne{builder}
+}
+
+// Query returns a query builder for OpenAIAutoSchedulerScoreState.
+func (c *OpenAIAutoSchedulerScoreStateClient) Query() *OpenAIAutoSchedulerScoreStateQuery {
+	return &OpenAIAutoSchedulerScoreStateQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeOpenAIAutoSchedulerScoreState},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a OpenAIAutoSchedulerScoreState entity by its id.
+func (c *OpenAIAutoSchedulerScoreStateClient) Get(ctx context.Context, id int64) (*OpenAIAutoSchedulerScoreState, error) {
+	return c.Query().Where(openaiautoschedulerscorestate.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *OpenAIAutoSchedulerScoreStateClient) GetX(ctx context.Context, id int64) *OpenAIAutoSchedulerScoreState {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *OpenAIAutoSchedulerScoreStateClient) Hooks() []Hook {
+	return c.hooks.OpenAIAutoSchedulerScoreState
+}
+
+// Interceptors returns the client interceptors.
+func (c *OpenAIAutoSchedulerScoreStateClient) Interceptors() []Interceptor {
+	return c.inters.OpenAIAutoSchedulerScoreState
+}
+
+func (c *OpenAIAutoSchedulerScoreStateClient) mutate(ctx context.Context, m *OpenAIAutoSchedulerScoreStateMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&OpenAIAutoSchedulerScoreStateCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&OpenAIAutoSchedulerScoreStateUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&OpenAIAutoSchedulerScoreStateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&OpenAIAutoSchedulerScoreStateDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown OpenAIAutoSchedulerScoreState mutation op: %q", m.Op())
 	}
 }
 
@@ -6596,7 +6880,8 @@ type (
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
 		AuthIdentityChannel, ChannelMonitor, ChannelMonitorDailyRollup,
 		ChannelMonitorHistory, ChannelMonitorRequestTemplate, ErrorPassthroughRule,
-		Group, IdempotencyRecord, IdentityAdoptionDecision, PaymentAuditLog,
+		Group, IdempotencyRecord, IdentityAdoptionDecision,
+		OpenAIAutoSchedulerScoreEvent, OpenAIAutoSchedulerScoreState, PaymentAuditLog,
 		PaymentOrder, PaymentProviderInstance, PendingAuthSession, PromoCode,
 		PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
 		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
@@ -6607,7 +6892,8 @@ type (
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
 		AuthIdentityChannel, ChannelMonitor, ChannelMonitorDailyRollup,
 		ChannelMonitorHistory, ChannelMonitorRequestTemplate, ErrorPassthroughRule,
-		Group, IdempotencyRecord, IdentityAdoptionDecision, PaymentAuditLog,
+		Group, IdempotencyRecord, IdentityAdoptionDecision,
+		OpenAIAutoSchedulerScoreEvent, OpenAIAutoSchedulerScoreState, PaymentAuditLog,
 		PaymentOrder, PaymentProviderInstance, PendingAuthSession, PromoCode,
 		PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
 		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,

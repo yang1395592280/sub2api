@@ -84,6 +84,8 @@ const (
 	FieldMessagesDispatchModelConfig = "messages_dispatch_model_config"
 	// FieldModelsListConfig holds the string denoting the models_list_config field in the database.
 	FieldModelsListConfig = "models_list_config"
+	// FieldOpenaiAutoSchedulerEnabled holds the string denoting the openai_auto_scheduler_enabled field in the database.
+	FieldOpenaiAutoSchedulerEnabled = "openai_auto_scheduler_enabled"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
@@ -195,6 +197,7 @@ var Columns = []string{
 	FieldDefaultMappedModel,
 	FieldMessagesDispatchModelConfig,
 	FieldModelsListConfig,
+	FieldOpenaiAutoSchedulerEnabled,
 	FieldRpmLimit,
 }
 
@@ -281,6 +284,8 @@ var (
 	DefaultMessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig
 	// DefaultModelsListConfig holds the default value on creation for the "models_list_config" field.
 	DefaultModelsListConfig domain.GroupModelsListConfig
+	// DefaultOpenaiAutoSchedulerEnabled holds the default value on creation for the "openai_auto_scheduler_enabled" field.
+	DefaultOpenaiAutoSchedulerEnabled bool
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 )
@@ -441,6 +446,11 @@ func ByRequirePrivacySet(opts ...sql.OrderTermOption) OrderOption {
 // ByDefaultMappedModel orders the results by the default_mapped_model field.
 func ByDefaultMappedModel(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDefaultMappedModel, opts...).ToFunc()
+}
+
+// ByOpenaiAutoSchedulerEnabled orders the results by the openai_auto_scheduler_enabled field.
+func ByOpenaiAutoSchedulerEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOpenaiAutoSchedulerEnabled, opts...).ToFunc()
 }
 
 // ByRpmLimit orders the results by the rpm_limit field.
