@@ -74,8 +74,8 @@ const scores = [
     account_name: 'plus特惠临时分组渠道',
     group_id: 20,
     model: 'gpt-5.4',
-    base_score: 10000,
-    base_score_percent: 100,
+    base_score: 6000,
+    base_score_percent: 60,
     final_score: 8200,
     final_score_percent: 82,
     latency_score: 7000,
@@ -231,11 +231,16 @@ describe('OpenAIAutoSchedulerView', () => {
     expect(wrapper.text()).toContain('observing')
     expect(wrapper.text()).toContain('0.8200')
     expect(wrapper.get<HTMLSelectElement>('#scheduler-filter-model').element.value).toBe('gpt-5.4')
-    expect(wrapper.text()).toContain('最终')
-    expect(wrapper.text()).toContain('延迟分')
-    expect(wrapper.text()).toContain('错误分')
-    expect(wrapper.text()).toContain('恢复分')
-    expect(wrapper.text()).toContain('成本分')
+    expect(wrapper.text()).toContain('实际调度分')
+    expect(wrapper.text()).toContain('实际调度分 = 健康分 + 价格修正')
+    expect(wrapper.text()).toContain('基础分 0.6000')
+    expect(wrapper.text()).toContain('新渠道默认起点')
+    expect(wrapper.text()).toContain('延迟修正')
+    expect(wrapper.text()).toContain('错误惩罚')
+    expect(wrapper.text()).toContain('恢复加分')
+    expect(wrapper.text()).toContain('成本修正')
+    expect(wrapper.text()).toContain('请求样本')
+    expect(wrapper.text()).toContain('TTFB样本')
   })
 
   it('updates selected group participation and applies group filter', async () => {

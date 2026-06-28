@@ -206,7 +206,7 @@
                 </div>
 
                 <div>
-                  <div class="mb-1 text-xs text-gray-500 dark:text-dark-400">最终</div>
+                  <div class="mb-1 text-xs text-gray-500 dark:text-dark-400">实际调度分</div>
                   <div :class="scoreTextClass(score.final_score)" class="text-2xl font-semibold tabular-nums">
                     {{ formatScore(score.final_score) }}
                   </div>
@@ -214,29 +214,32 @@
                     <div class="h-full rounded-full" :class="scoreBarClass(score.final_score)" :style="{ width: scoreWidth(score.final_score) }"></div>
                   </div>
                   <div class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-                    base {{ formatScore(score.base_score) }}
+                    {{ dispatchScoreHint(score) }}
+                  </div>
+                  <div class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+                    基础分 {{ formatScore(score.base_score) }}（新渠道默认起点）
                   </div>
                 </div>
 
                 <div class="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
                   <div class="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
                     <div class="scheduler-signal">
-                      <span>延迟分</span>
+                      <span>延迟修正</span>
                       <strong>{{ formatComponentScore(score.latency_score) }}</strong>
                       <small>{{ formatPercentFromBasis(score.latency_score_percent) }}</small>
                     </div>
                     <div class="scheduler-signal">
-                      <span>错误分</span>
+                      <span>错误惩罚</span>
                       <strong>{{ formatComponentScore(score.error_score) }}</strong>
                       <small>{{ formatPercentFromBasis(score.error_score_percent) }}</small>
                     </div>
                     <div class="scheduler-signal">
-                      <span>恢复分</span>
+                      <span>恢复加分</span>
                       <strong>{{ formatComponentScore(score.recovery_score) }}</strong>
                       <small>{{ formatPercentFromBasis(score.recovery_score_percent) }}</small>
                     </div>
                     <div class="scheduler-signal">
-                      <span>成本分</span>
+                      <span>成本修正</span>
                       <strong>{{ formatComponentScore(score.cost_score) }}</strong>
                       <small>{{ formatPercentFromBasis(score.cost_score_percent) }}</small>
                     </div>
@@ -251,9 +254,9 @@
                       <small>{{ score.consecutive_error_count }} 连续</small>
                     </div>
                     <div class="scheduler-signal">
-                      <span>样本</span>
+                      <span>请求样本</span>
                       <strong>{{ score.request_count }}</strong>
-                      <small>TTFB {{ score.ttfb_sample_count }}</small>
+                      <small>TTFB样本 {{ score.ttfb_sample_count }}</small>
                     </div>
                     <div class="scheduler-signal">
                       <span>卡住率</span>
@@ -286,7 +289,7 @@
                     <span>ttfb {{ formatMs(score.last_ttfb_ms) }}</span>
                     <span v-if="score.last_status_code">HTTP {{ score.last_status_code }}</span>
                     <span v-if="score.cooldown_until">cooldown {{ formatDateTime(score.cooldown_until) }}</span>
-                    <span v-if="score.last_error" class="max-w-full truncate text-red-600 dark:text-red-400">{{ score.last_error }}</span>
+                    <span v-if="score.last_error" class="max-w-full truncate text-red-600 dark:text-red-400">{{ errorSummary(score.last_error) }}</span>
                   </div>
                 </div>
               </article>
@@ -586,6 +589,26 @@ function scoreKey(score: OpenAIAutoSchedulerScore): string {
 
 function scoreTitle(score: OpenAIAutoSchedulerScore): string {
   return score.account_name?.trim() || `Account #${score.account_id}`
+}
+
+function dispatchScoreHint(score: OpenAIAutoSchedulerScore): string {
+  return `实际调度分 = 健康分 + 价格修正（健康分 ${formatScore(score.final_score)}，价格修正 ${formatSignedScore(score.cost_score)}）`
+}
+
+function formatSignedScore(score: number): string {
+  const formatted = formatComponentScore(score)
+  return score > 0 ? `+${formatted}` : formatted
+}
+
+function errorSummary(error?: string | null): string {
+  if (!error) return '无异常'
+  const text = error.trim()
+  if (!text) return '无异常'
+  if (text.includes('context deadline exceeded')) return '超时：context deadline exceeded'
+  if (/status\s*429|rate limit/i.test(text)) return '限流：请求被上游限制'
+  if (/status\s*401|unauthorized/i.test(text)) return '认证失败：上游拒绝授权'
+  if (/status\s*403|forbidden/i.test(text)) return '权限失败：上游拒绝访问'
+  return text.length > 48 ? `${text.slice(0, 48)}...` : text
 }
 
 function stateLabel(state: OpenAIAutoSchedulerState): string {
