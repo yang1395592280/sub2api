@@ -592,6 +592,7 @@ var ProviderSet = wire.NewSet(
 	ProvideOpenAIQuotaService,
 	ProvideOpenAIUpstreamBalanceService,
 	NewOpenAIAutoSchedulerService,
+	ProvideOpenAIAutoSchedulerProbeRunner,
 	ProvideGrokQuotaService,
 	ProvideClaudeTokenProvider,
 	NewAntigravityGatewayService,
@@ -710,6 +711,18 @@ func ProvideChannelMonitorService(
 func ProvideChannelMonitorRunner(svc *ChannelMonitorService, settingService *SettingService) *ChannelMonitorRunner {
 	r := NewChannelMonitorRunner(svc, settingService)
 	svc.SetScheduler(r)
+	r.Start()
+	return r
+}
+
+func ProvideOpenAIAutoSchedulerProbeRunner(
+	svc *OpenAIAutoSchedulerService,
+	settingsProvider OpenAIAutoSchedulerSettingsProvider,
+	accountRepo AccountRepository,
+	checker OpenAIAutoSchedulerProbeChecker,
+	tlsFPProfileService *TLSFingerprintProfileService,
+) *OpenAIAutoSchedulerProbeRunner {
+	r := NewOpenAIAutoSchedulerProbeRunner(svc, settingsProvider, accountRepo, checker, tlsFPProfileService)
 	r.Start()
 	return r
 }

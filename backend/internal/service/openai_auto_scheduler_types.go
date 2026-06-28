@@ -68,6 +68,13 @@ type OpenAIAutoSchedulerEventInput struct {
 	CostScore  *int
 }
 
+type OpenAIAutoSchedulerProbeResult struct {
+	Success   bool
+	LatencyMS *int
+	Message   string
+	Err       error
+}
+
 func DefaultOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {
 	return OpenAIAutoSchedulerSettings{
 		Enabled:                          false,

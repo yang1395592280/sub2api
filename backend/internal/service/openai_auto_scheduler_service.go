@@ -140,6 +140,13 @@ func (s *OpenAIAutoSchedulerService) Record(ctx context.Context, input OpenAIAut
 	return nil
 }
 
+func (s *OpenAIAutoSchedulerService) ListEnabledOpenAIGroups(ctx context.Context) ([]Group, error) {
+	if s == nil || s.repo == nil {
+		return nil, nil
+	}
+	return s.repo.ListEnabledOpenAIGroups(ctx)
+}
+
 func (s *OpenAIAutoSchedulerService) ListScores(ctx context.Context, params OpenAIAutoSchedulerListParams) (*OpenAIAutoSchedulerScoreListResult, error) {
 	if s == nil || s.repo == nil {
 		return &OpenAIAutoSchedulerScoreListResult{}, nil
