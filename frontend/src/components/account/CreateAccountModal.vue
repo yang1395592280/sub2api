@@ -1169,6 +1169,19 @@
               />
               <p class="input-hint">可填账号密码自动登录，也可直接填 sub2api 登录后的 Access Token</p>
             </div>
+            <div>
+              <label class="input-label">Refresh Token</label>
+              <input
+                v-model="upstreamAdminRefreshToken"
+                type="password"
+                class="input font-mono"
+                autocomplete="new-password"
+                data-1p-ignore
+                data-lpignore="true"
+                data-bwignore="true"
+              />
+              <p class="input-hint">Access Token 留空时，可用 Refresh Token 自动刷新后获取上游分组</p>
+            </div>
           </div>
         </div>
 
@@ -3516,6 +3529,7 @@ const newApiUserAccessToken = ref('')
 const upstreamAdminEmail = ref('')
 const upstreamAdminPassword = ref('')
 const upstreamAdminAccessToken = ref('')
+const upstreamAdminRefreshToken = ref('')
 
 const supportsUpstreamAdminSettings = computed(() =>
   form.type === 'apikey' && (form.platform === 'openai' || form.platform === 'anthropic')
@@ -4395,6 +4409,7 @@ const resetForm = () => {
   upstreamAdminEmail.value = ''
   upstreamAdminPassword.value = ''
   upstreamAdminAccessToken.value = ''
+  upstreamAdminRefreshToken.value = ''
   editQuotaLimit.value = null
   editQuotaDailyLimit.value = null
   editQuotaWeeklyLimit.value = null
@@ -4846,6 +4861,7 @@ const handleSubmit = async () => {
       const trimmedUpstreamAdminEmail = upstreamAdminEmail.value.trim()
       const trimmedUpstreamAdminPassword = upstreamAdminPassword.value.trim()
       const trimmedUpstreamAdminAccessToken = upstreamAdminAccessToken.value.trim()
+      const trimmedUpstreamAdminRefreshToken = upstreamAdminRefreshToken.value.trim()
       if (trimmedUpstreamAdminEmail) {
         credentials.upstream_admin_email = trimmedUpstreamAdminEmail
       }
@@ -4854,6 +4870,9 @@ const handleSubmit = async () => {
       }
       if (trimmedUpstreamAdminAccessToken) {
         credentials.upstream_admin_access_token = trimmedUpstreamAdminAccessToken
+      }
+      if (trimmedUpstreamAdminRefreshToken) {
+        credentials.upstream_admin_refresh_token = trimmedUpstreamAdminRefreshToken
       }
     }
   }

@@ -573,6 +573,7 @@ describe('EditAccountModal', () => {
     account.credentials_status = {
       has_api_key: true,
       has_upstream_admin_access_token: true,
+      has_upstream_admin_refresh_token: true,
       has_upstream_admin_password: true
     }
     updateAccountMock.mockReset()
@@ -588,14 +589,17 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_admin_type).toBe('sub2api')
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_admin_email).toBe('admin@example.com')
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('upstream_admin_access_token')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('upstream_admin_refresh_token')
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('upstream_admin_password')
 
     updateAccountMock.mockClear()
     await wrapper.get('[data-testid="upstream-admin-access-token-input"]').setValue(' new-token ')
+    await wrapper.get('[data-testid="upstream-admin-refresh-token-input"]').setValue(' new-refresh-token ')
     await wrapper.get('[data-testid="upstream-admin-password-input"]').setValue(' new-password ')
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
 
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_admin_access_token).toBe('new-token')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_admin_refresh_token).toBe('new-refresh-token')
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_admin_password).toBe('new-password')
   })
 
@@ -613,6 +617,7 @@ describe('EditAccountModal', () => {
       credentials_status: {
         has_api_key: true,
         has_upstream_admin_access_token: true,
+        has_upstream_admin_refresh_token: true,
         has_upstream_admin_password: true
       }
     }
@@ -632,6 +637,7 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_admin_type).toBe('sub2api')
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_admin_email).toBe('admin@example.com')
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('upstream_admin_access_token')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('upstream_admin_refresh_token')
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('upstream_admin_password')
   })
 
