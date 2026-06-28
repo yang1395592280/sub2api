@@ -147,8 +147,9 @@ const IconStub = defineComponent({
   template: '<span>{{ name }}</span>',
 })
 const PaginationStub = defineComponent({
+  props: ['page', 'total', 'pageSize'],
   emits: ['update:page', 'update:pageSize'],
-  template: '<div data-testid="pagination"></div>',
+  template: '<div data-testid="pagination">{{ page }} / {{ pageSize }} / {{ total }}</div>',
 })
 const ToggleStub = defineComponent({
   props: {
@@ -266,5 +267,66 @@ describe('OpenAIAutoSchedulerView', () => {
     await flushPromises()
 
     expect(resetScore).toHaveBeenCalledWith(101, { group_id: 20, model: 'gpt-5' })
+  })
+
+  it('locally filters before paginating and reports filtered total when state filter is active', async () => {
+    const openScores = Array.from({ length: 22 }, (_, index) => ({
+      ...scores[1],
+      account_id: 200 + index,
+      model: `gpt-5-open-${index + 1}`,
+      state: 'open',
+    }))
+    const runningScores = Array.from({ length: 5 }, (_, index) => ({
+      ...scores[0],
+      account_id: 300 + index,
+      model: `gpt-5-running-${index + 1}`,
+      state: 'running',
+    }))
+    listScores.mockResolvedValueOnce({
+      items: scores.map((score) => ({ ...score })),
+      total: scores.length,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    listScores.mockResolvedValueOnce({
+      items: [...openScores, ...runningScores],
+      total: 27,
+      page: 1,
+      page_size: 200,
+      pages: 1,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get<HTMLSelectElement>('#scheduler-filter-state').setValue('open')
+    await flushPromises()
+
+    expect(listScores).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, page_size: 200 }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+    expect(wrapper.text()).toContain('Account #200')
+    expect(wrapper.text()).toContain('Account #219')
+    expect(wrapper.text()).not.toContain('Account #220')
+    expect(wrapper.text()).not.toContain('gpt-5-running')
+    expect(wrapper.get('[data-testid="pagination"]').text()).toBe('1 / 20 / 22')
+  })
+
+  it('selecting the score group filter shows that group participation switch state', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get<HTMLSelectElement>('#scheduler-filter-group').setValue('21')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('openai-backup')
+    expect(wrapper.text()).toContain('不参与自动调度')
+    expect(wrapper.findAll('[role="switch"]')[1].attributes('aria-checked')).toBe('false')
+    expect(listScores).toHaveBeenLastCalledWith(
+      expect.objectContaining({ group_id: 21 }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
   })
 })

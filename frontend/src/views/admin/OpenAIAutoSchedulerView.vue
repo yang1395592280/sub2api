@@ -71,7 +71,7 @@
             <div class="grid gap-3 md:grid-cols-4">
               <div>
                 <label class="input-label" for="scheduler-filter-group">分组</label>
-                <select id="scheduler-filter-group" v-model.number="filters.group_id" class="input" @change="applyFilters">
+                <select id="scheduler-filter-group" v-model.number="filters.group_id" class="input" @change="handleScoreGroupFilterChange">
                   <option :value="0">全部</option>
                   <option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name }}</option>
                 </select>
@@ -106,12 +106,12 @@
             <div v-if="loading" class="space-y-3 p-4">
               <div v-for="i in 4" :key="i" class="h-20 animate-pulse rounded-md bg-gray-100 dark:bg-dark-800"></div>
             </div>
-            <div v-else-if="filteredScores.length === 0" class="p-8">
+            <div v-else-if="visibleScores.length === 0" class="p-8">
               <EmptyState title="暂无调度分数" description="当前筛选条件下没有 OpenAI 自动调度分数。" />
             </div>
             <div v-else class="divide-y divide-gray-200 dark:divide-dark-700">
               <article
-                v-for="score in filteredScores"
+                v-for="score in visibleScores"
                 :key="scoreKey(score)"
                 class="grid gap-4 p-4 lg:grid-cols-[minmax(220px,1fr)_180px_minmax(360px,1.4fr)] lg:items-center"
               >
@@ -245,13 +245,23 @@ const filters = reactive<OpenAIAutoSchedulerListParams>({
 
 let abortController: AbortController | null = null
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
+const localFilterPageSize = 200
 
 const selectedGroup = computed(() => groups.value.find((group) => group.id === selectedGroupId.value) || null)
+const hasLocalOnlyFilters = computed(() => Boolean(filters.state || String(filters.search || '').trim()))
 
-const filteredScores = computed(() => {
+const locallyFilteredScores = computed(() => filterScoresLocally(scores.value))
+
+const visibleScores = computed(() => {
+  if (!hasLocalOnlyFilters.value) return scores.value
+  const start = (pagination.page - 1) * pagination.page_size
+  return locallyFilteredScores.value.slice(start, start + pagination.page_size)
+})
+
+function filterScoresLocally(items: OpenAIAutoSchedulerScore[]): OpenAIAutoSchedulerScore[] {
   const state = filters.state
   const search = String(filters.search || '').trim().toLowerCase()
-  return scores.value.filter((score) => {
+  return items.filter((score) => {
     if (state && score.state !== state) return false
     if (!search) return true
     return [
@@ -263,7 +273,7 @@ const filteredScores = computed(() => {
       score.state,
     ].some((value) => value.toLowerCase().includes(search))
   })
-})
+}
 
 async function loadSettingsAndGroups() {
   const [nextSettings, nextGroups] = await Promise.all([
@@ -288,7 +298,7 @@ async function reload() {
     const result = await adminAPI.openaiAutoScheduler.listScores(params, { signal: ctrl.signal })
     if (ctrl.signal.aborted || abortController !== ctrl) return
     scores.value = result.items || []
-    pagination.total = result.total || 0
+    pagination.total = hasLocalOnlyFilters.value ? locallyFilteredScores.value.length : result.total || 0
   } catch (err: unknown) {
     const e = err as { name?: string; code?: string }
     if (e?.name === 'AbortError' || e?.code === 'ERR_CANCELED') return
@@ -303,8 +313,8 @@ async function reload() {
 
 function listParams(): OpenAIAutoSchedulerListParams {
   const params: OpenAIAutoSchedulerListParams = {
-    page: pagination.page,
-    page_size: pagination.page_size,
+    page: hasLocalOnlyFilters.value ? 1 : pagination.page,
+    page_size: hasLocalOnlyFilters.value ? localFilterPageSize : pagination.page_size,
   }
   if (filters.group_id) params.group_id = filters.group_id
   if (filters.model?.trim()) params.model = filters.model.trim()
@@ -335,6 +345,11 @@ function handlePageSizeChange(pageSize: number) {
   pagination.page_size = pageSize
   pagination.page = 1
   reload()
+}
+
+function handleScoreGroupFilterChange() {
+  if (selectedGroupId.value !== filters.group_id) selectedGroupId.value = Number(filters.group_id || 0)
+  applyFilters()
 }
 
 async function toggleGlobalEnabled(enabled: boolean) {
