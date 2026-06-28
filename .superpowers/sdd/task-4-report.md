@@ -122,3 +122,57 @@ ok github.com/Wei-Shaw/sub2api/internal/service 47.015s
 
 - No known blocking concerns.
 - The load-aware path still honors full-load filtering and acquisition behavior, but when auto scheduler ranking is active it intentionally uses scheduler score order among available candidates instead of re-sorting by priority/load.
+
+## Review Fix: Non-Load-Aware Selector Fallback (2026-06-28)
+
+### What I Fixed
+
+- Removed the premature `continue` in `selectBestAccount` after eligible candidates are appended for auto scheduler ranking.
+- Preserved existing priority/LRU fallback selection while still allowing auto scheduler ranking to override ordering only when `Rank` returns `used=true`.
+- Added focused non-load-aware regression coverage for:
+  - selector configured but group disabled;
+  - selector configured with nil group ID;
+  - selector configured but state lookup returns an error.
+
+### TDD Evidence
+
+RED command:
+
+```bash
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestOpenAIGatewayService_SelectAccountWithScheduler_NonLoadAware(DisabledGroup|NilGroup|SelectorError)FallsBackToBestAccount'
+```
+
+Relevant failing output:
+
+```text
+--- FAIL: TestOpenAIGatewayService_SelectAccountWithScheduler_NonLoadAwareDisabledGroupFallsBackToBestAccount
+    openai_gateway_service_test.go:958: SelectAccountForModelWithExclusions error: no available OpenAI accounts supporting model: gpt-5
+--- FAIL: TestOpenAIGatewayService_SelectAccountWithScheduler_NonLoadAwareNilGroupFallsBackToBestAccount
+    openai_gateway_service_test.go:981: SelectAccountForModelWithExclusions error: no available OpenAI accounts supporting model: gpt-5
+--- FAIL: TestOpenAIGatewayService_SelectAccountWithScheduler_NonLoadAwareSelectorErrorFallsBackToBestAccount
+    openai_gateway_service_test.go:1006: SelectAccountForModelWithExclusions error: no available OpenAI accounts supporting model: gpt-5
+FAIL
+```
+
+GREEN command:
+
+```bash
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestOpenAIGatewayService_SelectAccountWithScheduler_NonLoadAware(DisabledGroup|NilGroup|SelectorError)FallsBackToBestAccount'
+```
+
+Relevant passing output:
+
+```text
+ok  	github.com/Wei-Shaw/sub2api/internal/service	0.536s
+```
+
+### Verification
+
+- `GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestOpenAIAutoSchedulerSelector|TestOpenAIGatewayService_SelectAccountWithScheduler|TestOpenAI.*Scheduler'`
+  - PASS: `ok github.com/Wei-Shaw/sub2api/internal/service 0.556s`
+- `GOCACHE=/tmp/sub2api-go-cache go test -count=1 ./internal/service`
+  - PASS: `ok github.com/Wei-Shaw/sub2api/internal/service 47.539s`
+
+### Concerns
+
+- No known concerns.

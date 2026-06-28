@@ -938,6 +938,78 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NonLoadAwareUsesAutoSch
 	}
 }
 
+func TestOpenAIGatewayService_SelectAccountWithScheduler_NonLoadAwareDisabledGroupFallsBackToBestAccount(t *testing.T) {
+	groupID := int64(10)
+	repo := stubOpenAIAccountRepo{
+		accounts: []Account{
+			{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 3},
+			{ID: 2, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 1},
+		},
+	}
+	selector := NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{
+		enabledGroups: map[int64]bool{10: false},
+	})
+
+	svc := &OpenAIGatewayService{accountRepo: repo}
+	svc.SetOpenAIAutoScheduler(selector, nil)
+
+	acc, err := svc.SelectAccountForModelWithExclusions(context.Background(), &groupID, "", "gpt-5", nil)
+	if err != nil {
+		t.Fatalf("SelectAccountForModelWithExclusions error: %v", err)
+	}
+	if acc == nil || acc.ID != 2 {
+		t.Fatalf("expected fallback to select account 2, got %+v", acc)
+	}
+}
+
+func TestOpenAIGatewayService_SelectAccountWithScheduler_NonLoadAwareNilGroupFallsBackToBestAccount(t *testing.T) {
+	repo := stubOpenAIAccountRepo{
+		accounts: []Account{
+			{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 3},
+			{ID: 2, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 1},
+		},
+	}
+	selector := NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{
+		enabledGroups: map[int64]bool{10: true},
+	})
+
+	svc := &OpenAIGatewayService{accountRepo: repo}
+	svc.SetOpenAIAutoScheduler(selector, nil)
+
+	acc, err := svc.SelectAccountForModelWithExclusions(context.Background(), nil, "", "gpt-5", nil)
+	if err != nil {
+		t.Fatalf("SelectAccountForModelWithExclusions error: %v", err)
+	}
+	if acc == nil || acc.ID != 2 {
+		t.Fatalf("expected fallback to select account 2, got %+v", acc)
+	}
+}
+
+func TestOpenAIGatewayService_SelectAccountWithScheduler_NonLoadAwareSelectorErrorFallsBackToBestAccount(t *testing.T) {
+	groupID := int64(10)
+	repo := stubOpenAIAccountRepo{
+		accounts: []Account{
+			{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 3},
+			{ID: 2, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 1},
+		},
+	}
+	selector := NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{
+		enabledGroups: map[int64]bool{10: true},
+		err:           errors.New("score state unavailable"),
+	})
+
+	svc := &OpenAIGatewayService{accountRepo: repo}
+	svc.SetOpenAIAutoScheduler(selector, nil)
+
+	acc, err := svc.SelectAccountForModelWithExclusions(context.Background(), &groupID, "", "gpt-5", nil)
+	if err != nil {
+		t.Fatalf("SelectAccountForModelWithExclusions error: %v", err)
+	}
+	if acc == nil || acc.ID != 2 {
+		t.Fatalf("expected fallback to select account 2, got %+v", acc)
+	}
+}
+
 func TestOpenAIGatewayService_SelectAccountWithScheduler_LoadAwareUsesAutoSchedulerRank(t *testing.T) {
 	groupID := int64(10)
 	repo := stubOpenAIAccountRepo{

@@ -1888,9 +1888,6 @@ func (s *OpenAIGatewayService) selectBestAccount(ctx context.Context, groupID *i
 		}
 
 		candidates = append(candidates, fresh)
-		if s.openAIAutoSchedulerSelector != nil && platform == PlatformOpenAI {
-			continue
-		}
 
 		// 选择优先级最高且最久未使用的账号
 		// Select highest priority and least recently used
