@@ -33,5 +33,5 @@
 - RED: `cd frontend && pnpm test:run src/views/admin/__tests__/OpenAIAutoSchedulerView.spec.ts`，失败符合预期，旧实现缺少 `当前分数 0.8200（已含成本修正 +0.8000）；同状态选择时再叠加组内价格修正`。
 - GREEN: `cd frontend && pnpm test:run src/views/admin/__tests__/OpenAIAutoSchedulerView.spec.ts`，通过，8 tests passed。
 - Diff check: `git diff --check -- frontend/src/views/admin/OpenAIAutoSchedulerView.vue frontend/src/views/admin/__tests__/OpenAIAutoSchedulerView.spec.ts`，通过，无输出。
-- Commit Hash: `3c2f2af5`
+- Commit Hash: `da854c9b`
 - Concerns: 无。
