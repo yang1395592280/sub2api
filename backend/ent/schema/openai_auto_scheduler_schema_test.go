@@ -31,8 +31,9 @@ func TestOpenAIAutoSchedulerSchemas(t *testing.T) {
 		"last_error", "reason", "last_checked_at")
 	requireHasUniqueIndex(t, state, "account_id", "group_id", "model")
 	requireBasisPointValidators(t, OpenAIAutoSchedulerScoreState{}.Fields(),
-		"final_score", "base_score", "latency_score", "error_score",
-		"recovery_score", "cost_score")
+		"final_score", "base_score")
+	requireNoBasisPointValidators(t, OpenAIAutoSchedulerScoreState{}.Fields(),
+		"latency_score", "error_score", "recovery_score", "cost_score")
 
 	event := requireSchema(t, schemas, "OpenAIAutoSchedulerScoreEvent")
 	requireSchemaFields(t, event,
@@ -40,6 +41,20 @@ func TestOpenAIAutoSchedulerSchemas(t *testing.T) {
 		"score_after", "latency_ms", "ttfb_ms", "status_code", "message")
 	requireBasisPointValidators(t, OpenAIAutoSchedulerScoreEvent{}.Fields(),
 		"score_before", "score_after")
+}
+
+func requireNoBasisPointValidators(t *testing.T, fields []ent.Field, names ...string) {
+	t.Helper()
+
+	for _, name := range names {
+		for _, entField := range fields {
+			descriptor := entField.Descriptor()
+			if descriptor.Name == name {
+				require.Empty(t, descriptor.Validators, "field %s should allow signed scheduler components", name)
+				break
+			}
+		}
+	}
 }
 
 func requireBasisPointValidators(t *testing.T, fields []ent.Field, names ...string) {

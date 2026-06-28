@@ -67,10 +67,10 @@ func (r *openAIAutoSchedulerRepository) UpsertScoreState(ctx context.Context, st
 		SetModel(model).
 		SetFinalScore(clampOpenAIAutoSchedulerBasisPoints(state.FinalScore)).
 		SetBaseScore(clampOpenAIAutoSchedulerBasisPoints(state.BaseScore)).
-		SetLatencyScore(clampOpenAIAutoSchedulerBasisPoints(state.LatencyScore)).
-		SetErrorScore(clampOpenAIAutoSchedulerBasisPoints(state.ErrorScore)).
-		SetRecoveryScore(clampOpenAIAutoSchedulerBasisPoints(state.RecoveryScore)).
-		SetCostScore(clampOpenAIAutoSchedulerBasisPoints(state.CostScore)).
+		SetLatencyScore(clampOpenAIAutoSchedulerSignedComponentScore(state.LatencyScore)).
+		SetErrorScore(clampOpenAIAutoSchedulerSignedComponentScore(state.ErrorScore)).
+		SetRecoveryScore(clampOpenAIAutoSchedulerSignedComponentScore(state.RecoveryScore)).
+		SetCostScore(clampOpenAIAutoSchedulerSignedComponentScore(state.CostScore)).
 		SetState(state.State).
 		SetConsecutiveSlowCount(state.ConsecutiveSlowCount).
 		SetConsecutiveErrorCount(state.ConsecutiveErrorCount).
@@ -263,6 +263,16 @@ func truncateOpenAIAutoSchedulerMessage(message string) string {
 func clampOpenAIAutoSchedulerBasisPoints(score int) int {
 	if score < 0 {
 		return 0
+	}
+	if score > 10000 {
+		return 10000
+	}
+	return score
+}
+
+func clampOpenAIAutoSchedulerSignedComponentScore(score int) int {
+	if score < -10000 {
+		return -10000
 	}
 	if score > 10000 {
 		return 10000

@@ -226,6 +226,7 @@ describe('OpenAIAutoSchedulerView', () => {
     expect(wrapper.text()).toContain('openai-main')
     expect(wrapper.text()).toContain('Account #101')
     expect(wrapper.text()).toContain('observing')
+    expect(wrapper.text()).toContain('0.8200')
   })
 
   it('updates selected group participation and applies group filter', async () => {

@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -68,12 +70,15 @@ type OpenAIAutoSchedulerEventListResult struct {
 type OpenAIAutoSchedulerService struct {
 	repo             OpenAIAutoSchedulerRepository
 	settingsProvider OpenAIAutoSchedulerSettingsProvider
+	mu               sync.Mutex
+	keyLocks         map[string]*sync.Mutex
 }
 
 func NewOpenAIAutoSchedulerService(repo OpenAIAutoSchedulerRepository, settingsProvider OpenAIAutoSchedulerSettingsProvider) *OpenAIAutoSchedulerService {
 	return &OpenAIAutoSchedulerService{
 		repo:             repo,
 		settingsProvider: settingsProvider,
+		keyLocks:         map[string]*sync.Mutex{},
 	}
 }
 
@@ -150,6 +155,8 @@ func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAut
 	}
 
 	now := time.Now()
+	unlock := s.lockScoreState(input.AccountID, input.GroupID, model)
+	defer unlock()
 	state, err := s.repo.GetScoreState(ctx, input.AccountID, input.GroupID, model)
 	if err != nil {
 		if bestEffort {
@@ -240,6 +247,8 @@ func (s *OpenAIAutoSchedulerService) ResetScore(ctx context.Context, accountID, 
 		return infraerrors.BadRequest("OPENAI_AUTO_SCHEDULER_MODEL_REQUIRED", "model is required")
 	}
 	now := time.Now()
+	unlock := s.lockScoreState(accountID, groupID, model)
+	defer unlock()
 	state, err := s.repo.GetScoreState(ctx, accountID, groupID, model)
 	if err != nil {
 		return err
@@ -275,4 +284,24 @@ func (s *OpenAIAutoSchedulerService) settings(ctx context.Context) OpenAIAutoSch
 		return DefaultOpenAIAutoSchedulerSettings()
 	}
 	return normalizeOpenAIAutoSchedulerSettings(s.settingsProvider.GetOpenAIAutoSchedulerSettings(ctx))
+}
+
+func (s *OpenAIAutoSchedulerService) lockScoreState(accountID, groupID int64, model string) func() {
+	if s == nil {
+		return func() {}
+	}
+	key := fmt.Sprintf("%d|%d|%s", accountID, groupID, strings.TrimSpace(model))
+	s.mu.Lock()
+	if s.keyLocks == nil {
+		s.keyLocks = map[string]*sync.Mutex{}
+	}
+	lock := s.keyLocks[key]
+	if lock == nil {
+		lock = &sync.Mutex{}
+		s.keyLocks[key] = lock
+	}
+	s.mu.Unlock()
+
+	lock.Lock()
+	return lock.Unlock
 }

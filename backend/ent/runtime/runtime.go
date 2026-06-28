@@ -1019,26 +1019,18 @@ func init() {
 	openaiautoschedulerscorestateDescLatencyScore := openaiautoschedulerscorestateFields[5].Descriptor()
 	// openaiautoschedulerscorestate.DefaultLatencyScore holds the default value on creation for the latency_score field.
 	openaiautoschedulerscorestate.DefaultLatencyScore = openaiautoschedulerscorestateDescLatencyScore.Default.(int)
-	// openaiautoschedulerscorestate.LatencyScoreValidator is a validator for the "latency_score" field. It is called by the builders before save.
-	openaiautoschedulerscorestate.LatencyScoreValidator = openaiautoschedulerscorestateDescLatencyScore.Validators[0].(func(int) error)
 	// openaiautoschedulerscorestateDescErrorScore is the schema descriptor for error_score field.
 	openaiautoschedulerscorestateDescErrorScore := openaiautoschedulerscorestateFields[6].Descriptor()
 	// openaiautoschedulerscorestate.DefaultErrorScore holds the default value on creation for the error_score field.
 	openaiautoschedulerscorestate.DefaultErrorScore = openaiautoschedulerscorestateDescErrorScore.Default.(int)
-	// openaiautoschedulerscorestate.ErrorScoreValidator is a validator for the "error_score" field. It is called by the builders before save.
-	openaiautoschedulerscorestate.ErrorScoreValidator = openaiautoschedulerscorestateDescErrorScore.Validators[0].(func(int) error)
 	// openaiautoschedulerscorestateDescRecoveryScore is the schema descriptor for recovery_score field.
 	openaiautoschedulerscorestateDescRecoveryScore := openaiautoschedulerscorestateFields[7].Descriptor()
 	// openaiautoschedulerscorestate.DefaultRecoveryScore holds the default value on creation for the recovery_score field.
 	openaiautoschedulerscorestate.DefaultRecoveryScore = openaiautoschedulerscorestateDescRecoveryScore.Default.(int)
-	// openaiautoschedulerscorestate.RecoveryScoreValidator is a validator for the "recovery_score" field. It is called by the builders before save.
-	openaiautoschedulerscorestate.RecoveryScoreValidator = openaiautoschedulerscorestateDescRecoveryScore.Validators[0].(func(int) error)
 	// openaiautoschedulerscorestateDescCostScore is the schema descriptor for cost_score field.
 	openaiautoschedulerscorestateDescCostScore := openaiautoschedulerscorestateFields[8].Descriptor()
 	// openaiautoschedulerscorestate.DefaultCostScore holds the default value on creation for the cost_score field.
 	openaiautoschedulerscorestate.DefaultCostScore = openaiautoschedulerscorestateDescCostScore.Default.(int)
-	// openaiautoschedulerscorestate.CostScoreValidator is a validator for the "cost_score" field. It is called by the builders before save.
-	openaiautoschedulerscorestate.CostScoreValidator = openaiautoschedulerscorestateDescCostScore.Validators[0].(func(int) error)
 	// openaiautoschedulerscorestateDescState is the schema descriptor for state field.
 	openaiautoschedulerscorestateDescState := openaiautoschedulerscorestateFields[9].Descriptor()
 	// openaiautoschedulerscorestate.DefaultState holds the default value on creation for the state field.

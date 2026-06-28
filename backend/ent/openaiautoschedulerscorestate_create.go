@@ -538,34 +538,14 @@ func (_c *OpenAIAutoSchedulerScoreStateCreate) check() error {
 	if _, ok := _c.mutation.LatencyScore(); !ok {
 		return &ValidationError{Name: "latency_score", err: errors.New(`ent: missing required field "OpenAIAutoSchedulerScoreState.latency_score"`)}
 	}
-	if v, ok := _c.mutation.LatencyScore(); ok {
-		if err := openaiautoschedulerscorestate.LatencyScoreValidator(v); err != nil {
-			return &ValidationError{Name: "latency_score", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.latency_score": %w`, err)}
-		}
-	}
 	if _, ok := _c.mutation.ErrorScore(); !ok {
 		return &ValidationError{Name: "error_score", err: errors.New(`ent: missing required field "OpenAIAutoSchedulerScoreState.error_score"`)}
-	}
-	if v, ok := _c.mutation.ErrorScore(); ok {
-		if err := openaiautoschedulerscorestate.ErrorScoreValidator(v); err != nil {
-			return &ValidationError{Name: "error_score", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.error_score": %w`, err)}
-		}
 	}
 	if _, ok := _c.mutation.RecoveryScore(); !ok {
 		return &ValidationError{Name: "recovery_score", err: errors.New(`ent: missing required field "OpenAIAutoSchedulerScoreState.recovery_score"`)}
 	}
-	if v, ok := _c.mutation.RecoveryScore(); ok {
-		if err := openaiautoschedulerscorestate.RecoveryScoreValidator(v); err != nil {
-			return &ValidationError{Name: "recovery_score", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.recovery_score": %w`, err)}
-		}
-	}
 	if _, ok := _c.mutation.CostScore(); !ok {
 		return &ValidationError{Name: "cost_score", err: errors.New(`ent: missing required field "OpenAIAutoSchedulerScoreState.cost_score"`)}
-	}
-	if v, ok := _c.mutation.CostScore(); ok {
-		if err := openaiautoschedulerscorestate.CostScoreValidator(v); err != nil {
-			return &ValidationError{Name: "cost_score", err: fmt.Errorf(`ent: validator failed for field "OpenAIAutoSchedulerScoreState.cost_score": %w`, err)}
-		}
 	}
 	if _, ok := _c.mutation.State(); !ok {
 		return &ValidationError{Name: "state", err: errors.New(`ent: missing required field "OpenAIAutoSchedulerScoreState.state"`)}

@@ -2,12 +2,11 @@ package service
 
 import (
 	"context"
+	"math"
 	"sort"
 	"strings"
 	"time"
 )
-
-const openAIAutoSchedulerNeutralSelectionScore = 6000
 
 type OpenAIAutoSchedulerSelector struct {
 	service openAIAutoSchedulerSelectorService
@@ -16,6 +15,7 @@ type OpenAIAutoSchedulerSelector struct {
 type openAIAutoSchedulerSelectorService interface {
 	IsEnabledForGroup(ctx context.Context, groupID *int64) bool
 	GetStateForSelection(ctx context.Context, accountID, groupID int64, model string) (*OpenAIAutoSchedulerScoreState, error)
+	GetSettingsForSelection(ctx context.Context) OpenAIAutoSchedulerSettings
 }
 
 func NewOpenAIAutoSchedulerSelector(service openAIAutoSchedulerSelectorService) *OpenAIAutoSchedulerSelector {
@@ -31,6 +31,8 @@ func (s *OpenAIAutoSchedulerSelector) Rank(ctx context.Context, groupID *int64, 
 	}
 
 	now := time.Now()
+	settings := s.service.GetSettingsForSelection(ctx)
+	minPrice, maxPrice := openAIAutoSchedulerCandidatePriceRange(candidates)
 	ranked := make([]openAIAutoSchedulerRankedAccount, 0, len(candidates))
 	for index, account := range candidates {
 		if account == nil {
@@ -49,9 +51,10 @@ func (s *OpenAIAutoSchedulerSelector) Rank(ctx context.Context, groupID *int64, 
 			continue
 		}
 		ranked = append(ranked, openAIAutoSchedulerRankedAccount{
-			account: account,
-			state:   *state,
-			index:   index,
+			account:        account,
+			state:          *state,
+			effectiveScore: openAIAutoSchedulerEffectiveSelectionScore(*state, account, minPrice, maxPrice, settings),
+			index:          index,
 		})
 	}
 
@@ -60,8 +63,8 @@ func (s *OpenAIAutoSchedulerSelector) Rank(ctx context.Context, groupID *int64, 
 		if tierA, tierB := openAIAutoSchedulerStateTier(a.state), openAIAutoSchedulerStateTier(b.state); tierA != tierB {
 			return tierA < tierB
 		}
-		if a.state.FinalScore != b.state.FinalScore {
-			return a.state.FinalScore > b.state.FinalScore
+		if a.effectiveScore != b.effectiveScore {
+			return a.effectiveScore > b.effectiveScore
 		}
 		if a.account.Priority != b.account.Priority {
 			return a.account.Priority < b.account.Priority
@@ -86,9 +89,10 @@ func (s *OpenAIAutoSchedulerSelector) Rank(ctx context.Context, groupID *int64, 
 }
 
 type openAIAutoSchedulerRankedAccount struct {
-	account *Account
-	state   OpenAIAutoSchedulerScoreState
-	index   int
+	account        *Account
+	state          OpenAIAutoSchedulerScoreState
+	effectiveScore int
+	index          int
 }
 
 func openAIAutoSchedulerStateTier(state OpenAIAutoSchedulerScoreState) int {
@@ -111,4 +115,39 @@ func (s *OpenAIAutoSchedulerService) GetStateForSelection(ctx context.Context, a
 		return nil, nil
 	}
 	return s.repo.GetScoreState(ctx, accountID, groupID, strings.TrimSpace(model))
+}
+
+func (s *OpenAIAutoSchedulerService) GetSettingsForSelection(ctx context.Context) OpenAIAutoSchedulerSettings {
+	return s.settings(ctx)
+}
+
+func openAIAutoSchedulerCandidatePriceRange(candidates []*Account) (float64, float64) {
+	minPrice := math.Inf(1)
+	maxPrice := 0.0
+	for _, account := range candidates {
+		if account == nil {
+			continue
+		}
+		price := account.EffectiveChannelPrice()
+		if price < minPrice {
+			minPrice = price
+		}
+		if price > maxPrice {
+			maxPrice = price
+		}
+	}
+	if math.IsInf(minPrice, 1) {
+		return 1, 1
+	}
+	return minPrice, maxPrice
+}
+
+func openAIAutoSchedulerEffectiveSelectionScore(state OpenAIAutoSchedulerScoreState, account *Account, minPrice, maxPrice float64, settings OpenAIAutoSchedulerSettings) int {
+	if maxPrice <= minPrice {
+		return state.FinalScore
+	}
+	price := account.EffectiveChannelPrice()
+	cheapness := 1 - ((price - minPrice) / (maxPrice - minPrice))
+	costScore := int(math.Round((cheapness*2 - 1) * 1000))
+	return clampScore(state.FinalScore + int(float64(costScore)*normalizeOpenAIAutoSchedulerSettings(settings).CostWeight))
 }

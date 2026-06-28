@@ -28,10 +28,6 @@ func NewOpenAIAutoSchedulerScoreState(accountID, groupID int64, model string) Op
 
 func ApplyOpenAIAutoSchedulerEvent(now time.Time, state OpenAIAutoSchedulerScoreState, input OpenAIAutoSchedulerEventInput, settings OpenAIAutoSchedulerSettings) OpenAIAutoSchedulerScoreState {
 	settings = normalizeOpenAIAutoSchedulerSettings(settings)
-	if !settings.Enabled {
-		return state
-	}
-
 	state.State = normalizeOpenAIAutoSchedulerState(state.State)
 	state.LastCheckedAt = openAIAutoSchedulerTimePtr(now)
 	state.LastLatencyMS = copyOpenAIAutoSchedulerIntPtr(input.LatencyMS)
@@ -42,7 +38,7 @@ func ApplyOpenAIAutoSchedulerEvent(now time.Time, state OpenAIAutoSchedulerScore
 		state.LastError = &message
 	}
 	if input.CostScore != nil {
-		state.CostScore = clampScore(*input.CostScore)
+		state.CostScore = clampSignedOpenAIAutoSchedulerComponentScore(*input.CostScore)
 	}
 	if state.BaseScore == 0 {
 		state.BaseScore = 6000
@@ -51,6 +47,11 @@ func ApplyOpenAIAutoSchedulerEvent(now time.Time, state OpenAIAutoSchedulerScore
 	if input.EventType == OpenAIAutoSchedulerEventManualReset {
 		return resetOpenAIAutoSchedulerState(now, state)
 	}
+	if !settings.Enabled {
+		return state
+	}
+
+	state = updateOpenAIAutoSchedulerCounters(state, input)
 
 	if state.State == OpenAIAutoSchedulerStateOpen && openAIAutoSchedulerCooldownExpired(now, state.CooldownUntil) && isOpenAIAutoSchedulerSuccessEvent(input.EventType) {
 		state.State = OpenAIAutoSchedulerStateHalfOpen
@@ -108,6 +109,57 @@ func ApplyOpenAIAutoSchedulerEvent(now time.Time, state OpenAIAutoSchedulerScore
 
 	state.FinalScore = calculateOpenAIAutoSchedulerFinalScore(state, settings)
 	return state
+}
+
+func updateOpenAIAutoSchedulerCounters(state OpenAIAutoSchedulerScoreState, input OpenAIAutoSchedulerEventInput) OpenAIAutoSchedulerScoreState {
+	if !isOpenAIAutoSchedulerTrackedRequestEvent(input.EventType) {
+		return state
+	}
+	previousCount := state.RequestCount
+	state.RequestCount++
+	if input.TtfbMS != nil && *input.TtfbMS > 0 {
+		state.TtfbSampleCount++
+	}
+	state.SlowRate = updateOpenAIAutoSchedulerRate(state.SlowRate, previousCount, isOpenAIAutoSchedulerSlowEvent(input.EventType))
+	state.ErrorRate = updateOpenAIAutoSchedulerRate(state.ErrorRate, previousCount, isOpenAIAutoSchedulerErrorEvent(input.EventType))
+	state.StuckRate = updateOpenAIAutoSchedulerRate(state.StuckRate, previousCount, input.EventType == OpenAIAutoSchedulerEventSevereSlow)
+	return state
+}
+
+func updateOpenAIAutoSchedulerRate(previousRate float64, previousCount int64, hit bool) float64 {
+	value := 0.0
+	if hit {
+		value = 1
+	}
+	if previousCount <= 0 {
+		return value
+	}
+	return (previousRate*float64(previousCount) + value) / float64(previousCount+1)
+}
+
+func isOpenAIAutoSchedulerTrackedRequestEvent(eventType string) bool {
+	switch eventType {
+	case OpenAIAutoSchedulerEventSuccess,
+		OpenAIAutoSchedulerEventSlow,
+		OpenAIAutoSchedulerEventSevereSlow,
+		OpenAIAutoSchedulerEventError,
+		OpenAIAutoSchedulerEventRateLimited,
+		OpenAIAutoSchedulerEventProbeSuccess,
+		OpenAIAutoSchedulerEventProbeError:
+		return true
+	default:
+		return false
+	}
+}
+
+func isOpenAIAutoSchedulerSlowEvent(eventType string) bool {
+	return eventType == OpenAIAutoSchedulerEventSlow || eventType == OpenAIAutoSchedulerEventSevereSlow
+}
+
+func isOpenAIAutoSchedulerErrorEvent(eventType string) bool {
+	return eventType == OpenAIAutoSchedulerEventError ||
+		eventType == OpenAIAutoSchedulerEventRateLimited ||
+		eventType == OpenAIAutoSchedulerEventProbeError
 }
 
 func normalizeOpenAIAutoSchedulerState(state string) string {
@@ -187,6 +239,16 @@ func calculateOpenAIAutoSchedulerFinalScore(state OpenAIAutoSchedulerScoreState,
 	}
 	costAdjustment := int(float64(state.CostScore) * settings.CostWeight)
 	return clampScore(state.BaseScore + state.LatencyScore + state.ErrorScore + state.RecoveryScore + costAdjustment)
+}
+
+func clampSignedOpenAIAutoSchedulerComponentScore(score int) int {
+	if score < -10000 {
+		return -10000
+	}
+	if score > 10000 {
+		return 10000
+	}
+	return score
 }
 
 func copyOpenAIAutoSchedulerIntPtr(v *int) *int {

@@ -459,7 +459,7 @@ function scoreWidth(score: number): string {
 }
 
 function formatScore(score: number): string {
-  return Math.round(score / 100).toString()
+  return (Math.max(0, Math.min(10000, score)) / 10000).toFixed(4)
 }
 
 function formatMs(value?: number | null): string {

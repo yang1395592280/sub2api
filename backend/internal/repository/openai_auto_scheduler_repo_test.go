@@ -84,17 +84,17 @@ func TestOpenAIAutoSchedulerRepository_UpsertScoreStateConflictsOnScopeAndTrimsM
 	require.Equal(t, 2, count)
 }
 
-func TestOpenAIAutoSchedulerRepository_UpsertScoreStateClampsScores(t *testing.T) {
+func TestOpenAIAutoSchedulerRepository_UpsertScoreStateClampsBoundedScoresAndPreservesSignedComponents(t *testing.T) {
 	ctx := context.Background()
 	repo, _ := newOpenAIAutoSchedulerRepoSQLite(t)
 
 	state := service.NewOpenAIAutoSchedulerScoreState(102, 202, "gpt-5")
 	state.FinalScore = 12000
 	state.BaseScore = -100
-	state.LatencyScore = 11000
-	state.ErrorScore = -1
+	state.LatencyScore = -3500
+	state.ErrorScore = -6000
 	state.RecoveryScore = 10001
-	state.CostScore = -50
+	state.CostScore = -750
 	require.NoError(t, repo.UpsertScoreState(ctx, state))
 
 	got, err := repo.GetScoreState(ctx, 102, 202, "gpt-5")
@@ -102,10 +102,10 @@ func TestOpenAIAutoSchedulerRepository_UpsertScoreStateClampsScores(t *testing.T
 	require.NotNil(t, got)
 	require.Equal(t, 10000, got.FinalScore)
 	require.Equal(t, 0, got.BaseScore)
-	require.Equal(t, 10000, got.LatencyScore)
-	require.Equal(t, 0, got.ErrorScore)
+	require.Equal(t, -3500, got.LatencyScore)
+	require.Equal(t, -6000, got.ErrorScore)
 	require.Equal(t, 10000, got.RecoveryScore)
-	require.Equal(t, 0, got.CostScore)
+	require.Equal(t, -750, got.CostScore)
 }
 
 func TestOpenAIAutoSchedulerRepository_ListScoreStatesOrdersAndCapsPageSize(t *testing.T) {

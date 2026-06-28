@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -401,6 +402,68 @@ func TestOpenAIAutoSchedulerService_ResetScoreStoresAuditForExistingState(t *tes
 	require.Equal(t, OpenAIAutoSchedulerEventManualReset, repo.events[0].EventType)
 	require.Equal(t, 3000, repo.events[0].ScoreBefore)
 	require.Equal(t, 6000, repo.events[0].ScoreAfter)
+}
+
+func TestOpenAIAutoSchedulerService_ResetScoreWorksWhenGlobalSchedulerDisabled(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		states: map[string]OpenAIAutoSchedulerScoreState{
+			openAIAutoSchedulerStateKey(1, 2, "gpt-5"): {
+				AccountID:     1,
+				GroupID:       2,
+				Model:         "gpt-5",
+				BaseScore:     6000,
+				FinalScore:    500,
+				LatencyScore:  -3500,
+				ErrorScore:    -6000,
+				State:         OpenAIAutoSchedulerStateOpen,
+				CooldownUntil: ptrOpenAIAutoSchedulerTime(time.Now().Add(time.Minute)),
+			},
+		},
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: DefaultOpenAIAutoSchedulerSettings()})
+
+	err := svc.ResetScore(context.Background(), 1, 2, "gpt-5")
+
+	require.NoError(t, err)
+	state := repo.states[openAIAutoSchedulerStateKey(1, 2, "gpt-5")]
+	require.Equal(t, OpenAIAutoSchedulerStateRunning, state.State)
+	require.Equal(t, 6000, state.FinalScore)
+	require.Equal(t, 0, state.LatencyScore)
+	require.Equal(t, 0, state.ErrorScore)
+	require.Nil(t, state.CooldownUntil)
+	require.Len(t, repo.events, 1)
+}
+
+func TestOpenAIAutoSchedulerService_RecordConcurrentErrorsTripsBreaker(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{
+			2: {ID: 2, Platform: PlatformOpenAI, OpenAIAutoSchedulerEnabled: true, Hydrated: true, Status: StatusActive},
+		},
+		states: map[string]OpenAIAutoSchedulerScoreState{},
+	}
+	settings := enabledOpenAIAutoSchedulerSettings()
+	settings.ConsecutiveErrorBreakerThreshold = 2
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: settings})
+
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			require.NoError(t, svc.Record(context.Background(), OpenAIAutoSchedulerRecordInput{
+				AccountID: 1,
+				GroupID:   2,
+				Model:     "gpt-5",
+				EventType: OpenAIAutoSchedulerEventError,
+			}))
+		}()
+	}
+	wg.Wait()
+
+	state := repo.states[openAIAutoSchedulerStateKey(1, 2, "gpt-5")]
+	require.Equal(t, 2, state.ConsecutiveErrorCount)
+	require.Equal(t, OpenAIAutoSchedulerStateOpen, state.State)
+	require.Len(t, repo.events, 2)
 }
 
 func enabledOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {

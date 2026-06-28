@@ -11,6 +11,7 @@ import (
 
 type fakeAutoSchedulerSelectorService struct {
 	enabledGroups map[int64]bool
+	settings      OpenAIAutoSchedulerSettings
 	states        map[int64]OpenAIAutoSchedulerScoreState
 	err           error
 }
@@ -31,6 +32,18 @@ func (s *fakeAutoSchedulerSelectorService) GetStateForSelection(_ context.Contex
 		return nil, nil
 	}
 	return &state, nil
+}
+
+func (s *fakeAutoSchedulerSelectorService) GetSettingsForSelection(context.Context) OpenAIAutoSchedulerSettings {
+	if s == nil {
+		return enabledOpenAIAutoSchedulerSettings()
+	}
+	if s.settings.ProbeIntervalSeconds == 0 {
+		settings := enabledOpenAIAutoSchedulerSettings()
+		settings.CostWeight = 1
+		return settings
+	}
+	return s.settings
 }
 
 func TestOpenAIAutoSchedulerSelector_GroupGate(t *testing.T) {
@@ -96,6 +109,30 @@ func TestOpenAIAutoSchedulerSelector_ServiceErrorPreservesOriginalOrder(t *testi
 
 	require.False(t, used)
 	require.Equal(t, accounts, ranked)
+}
+
+func TestOpenAIAutoSchedulerSelector_ChannelPriceChangesRankingWithinCandidateSet(t *testing.T) {
+	groupID := int64(10)
+	settings := enabledOpenAIAutoSchedulerSettings()
+	settings.CostWeight = 1
+	cheapPrice := 0.25
+	expensivePrice := 2.0
+	selector := NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{
+		enabledGroups: map[int64]bool{10: true},
+		settings:      settings,
+		states: map[int64]OpenAIAutoSchedulerScoreState{
+			1: {AccountID: 1, GroupID: 10, Model: "gpt-5", FinalScore: 6000, State: OpenAIAutoSchedulerStateRunning},
+			2: {AccountID: 2, GroupID: 10, Model: "gpt-5", FinalScore: 6000, State: OpenAIAutoSchedulerStateRunning},
+		},
+	})
+
+	ranked, used := selector.Rank(context.Background(), &groupID, "gpt-5", []*Account{
+		{ID: 1, ChannelPrice: &expensivePrice},
+		{ID: 2, ChannelPrice: &cheapPrice},
+	})
+
+	require.True(t, used)
+	require.Equal(t, []int64{2, 1}, selectorAccountIDs(ranked))
 }
 
 func selectorAccountIDs(accounts []*Account) []int64 {
