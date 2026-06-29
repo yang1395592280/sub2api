@@ -285,6 +285,27 @@ describe('OpenAIAutoSchedulerView', () => {
     expect(wrapper.text()).toContain('当前分组关闭时只展示分数，不参与自动调度')
   })
 
+  it('uses viewport-filling responsive layout classes to avoid fixed blank space', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="scheduler-page"]').classes()).toEqual(
+      expect.arrayContaining(['flex', 'min-h-[calc(100vh-8rem)]', 'flex-col'])
+    )
+    expect(wrapper.get('[data-testid="scheduler-main-grid"]').classes()).toEqual(
+      expect.arrayContaining(['flex-1', 'min-h-0', 'xl:grid-cols-[clamp(260px,18vw,360px)_minmax(0,1fr)]'])
+    )
+    expect(wrapper.get('[data-testid="scheduler-score-panel"]').classes()).toEqual(
+      expect.arrayContaining(['flex', 'min-h-0', 'flex-1', 'flex-col'])
+    )
+    expect(wrapper.get('[data-testid="scheduler-score-card"]').classes()).toEqual(
+      expect.arrayContaining(['flex', 'min-h-[420px]', 'flex-1', 'flex-col'])
+    )
+    expect(wrapper.get('[data-testid="scheduler-score-table"]').classes()).toEqual(
+      expect.arrayContaining(['w-full', 'min-w-[1280px]'])
+    )
+  })
+
   it('opens a detail drawer with score breakdown, events and full error text', async () => {
     const wrapper = mountView()
     await flushPromises()

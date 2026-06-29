@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="space-y-4 p-4 sm:p-6">
+    <div data-testid="scheduler-page" class="flex min-h-[calc(100vh-8rem)] flex-col gap-4">
       <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -109,10 +109,13 @@
         </form>
       </div>
 
-      <div class="grid gap-4 lg:grid-cols-[minmax(260px,320px)_1fr]">
+      <div
+        data-testid="scheduler-main-grid"
+        class="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)] xl:grid-cols-[clamp(260px,18vw,360px)_minmax(0,1fr)]"
+      >
         <section
           data-testid="scheduler-group-sidebar"
-          class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
+          class="min-h-0 rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
         >
           <div class="mb-3 flex items-center justify-between gap-3">
             <h2 class="text-sm font-semibold text-gray-900 dark:text-white">OpenAI 分组调度</h2>
@@ -122,7 +125,7 @@
             当前分组关闭时只展示分数，不参与自动调度。
           </p>
 
-          <div class="space-y-2">
+          <div class="space-y-2 lg:max-h-[calc(100vh-22rem)] lg:overflow-y-auto lg:pr-1">
             <button
               v-for="group in groups"
               :key="group.id"
@@ -151,7 +154,7 @@
           </div>
         </section>
 
-        <section class="space-y-4">
+        <section data-testid="scheduler-score-panel" class="flex min-h-0 flex-1 flex-col gap-4">
           <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
             <div class="grid gap-3 md:grid-cols-4">
               <div>
@@ -189,15 +192,18 @@
             </div>
           </div>
 
-          <div class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-900">
+          <div
+            data-testid="scheduler-score-card"
+            class="flex min-h-[420px] flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-900"
+          >
             <div v-if="loading" class="space-y-3 p-4">
               <div v-for="i in 4" :key="i" class="h-20 animate-pulse rounded-md bg-gray-100 dark:bg-dark-800"></div>
             </div>
             <div v-else-if="visibleScores.length === 0" class="p-8">
               <EmptyState title="暂无调度分数" description="当前筛选条件下没有 OpenAI 自动调度分数。" />
             </div>
-            <div v-else class="overflow-x-auto">
-              <table data-testid="scheduler-score-table" class="min-w-[1180px] divide-y divide-gray-200 dark:divide-dark-700">
+            <div v-else class="min-h-0 flex-1 overflow-auto">
+              <table data-testid="scheduler-score-table" class="w-full min-w-[1280px] divide-y divide-gray-200 dark:divide-dark-700">
                 <thead class="bg-gray-50 dark:bg-dark-800/60">
                   <tr>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-dark-400">上游渠道</th>
