@@ -452,10 +452,10 @@ func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfResolvesGroupRate(t *
 			require.Equal(t, "935", r.Header.Get("New-Api-User"))
 			require.Equal(t, "upstream", r.URL.Query().Get("token"))
 			_, _ = w.Write([]byte(`{"success":true,"data":{"page":1,"page_size":10,"total":1,"items":[{"id":976,"user_id":935,"key":"sk-upstream","name":"正价pro","group":"Codex"}]}}`))
-		case "/api/pricing":
-			require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
+		case "/api/user/self/groups":
+			require.Equal(t, "new-api-session=abc", r.Header.Get("Cookie"))
 			require.Equal(t, "935", r.Header.Get("New-Api-User"))
-			_, _ = w.Write([]byte(`{"success":true,"group_ratio":{"Codex":0.18,"default":0.23},"usable_group":{"Codex":"Codex分组-0.18/刀","default":"默认分组-0.23/刀"}}`))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"Codex":{"desc":"Codex分组-0.18/刀","ratio":0.18},"default":{"desc":"默认分组-0.23/刀","ratio":0.23}}}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -476,6 +476,7 @@ func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfResolvesGroupRate(t *
 				"api_key":                   "sk-upstream",
 				"new_api_user_id":           "935",
 				"new_api_user_access_token": "user-access-token",
+				"new_api_session_cookie":    "new-api-session=abc",
 			},
 		},
 	}
@@ -490,6 +491,101 @@ func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfResolvesGroupRate(t *
 	require.Equal(t, "user_group_rate", repo.updatedExtra["upstream_rate_source"])
 	require.NotNil(t, repo.updatedChannelPrice)
 	require.Equal(t, 0.18, *repo.updatedChannelPrice)
+}
+
+func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfLogsInForGroupRateWhenCookieMissing(t *testing.T) {
+	loginCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/user/self":
+			require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
+			require.Equal(t, "935", r.Header.Get("New-Api-User"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"id":935,"group":"duijie","quota":49990794,"used_quota":9206}}`))
+		case "/api/token/search":
+			require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
+			require.Equal(t, "935", r.Header.Get("New-Api-User"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"items":[{"id":976,"key":"sk-upstream","name":"正价pro","group":"Codex"}]}}`))
+		case "/api/user/login":
+			loginCalls++
+			require.Equal(t, http.MethodPost, r.Method)
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			require.Equal(t, "owner@example.com", body["username"])
+			require.Equal(t, "login-secret", body["password"])
+			http.SetCookie(w, &http.Cookie{Name: "new-api-session", Value: "auto"})
+			_, _ = w.Write([]byte(`{"success":true}`))
+		case "/api/user/self/groups":
+			require.Equal(t, "new-api-session=auto", r.Header.Get("Cookie"))
+			require.Equal(t, "935", r.Header.Get("New-Api-User"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"Codex":{"desc":"Codex分组-0.18/刀","ratio":0.18}}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	repo := &openAIUpstreamBalanceRepoStub{
+		account: &Account{
+			ID:       25,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url":                  srv.URL + "/v1",
+				"api_key":                   "sk-upstream",
+				"new_api_user_id":           "935",
+				"new_api_user_access_token": "user-access-token",
+				"new_api_login_username":    "owner@example.com",
+				"new_api_login_password":    "login-secret",
+			},
+		},
+	}
+
+	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+	_, err := svc.Refresh(context.Background(), 25)
+	require.NoError(t, err)
+	require.Equal(t, 1, loginCalls)
+	require.Equal(t, "Codex", repo.updatedExtra["upstream_group"])
+	require.Equal(t, 0.18, repo.updatedExtra["upstream_effective_rate_multiplier"])
+	require.NotNil(t, repo.updatedChannelPrice)
+	require.Equal(t, 0.18, *repo.updatedChannelPrice)
+}
+
+func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfDoesNotUsePricingDefaultAsEffectiveRate(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/user/self":
+			_, _ = w.Write([]byte(`{"success":true,"data":{"id":935,"group":"duijie","quota":49990794,"used_quota":9206}}`))
+		case "/api/token/search":
+			_, _ = w.Write([]byte(`{"success":true,"data":{"items":[{"id":976,"key":"sk-upstream","name":"正价pro","group":"Codex"}]}}`))
+		case "/api/pricing":
+			t.Fatalf("pricing default group ratio must not be used as new-api effective rate")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	repo := &openAIUpstreamBalanceRepoStub{
+		account: &Account{
+			ID:       24,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url":                  srv.URL + "/v1",
+				"api_key":                   "sk-upstream",
+				"new_api_user_id":           "935",
+				"new_api_user_access_token": "user-access-token",
+			},
+		},
+	}
+
+	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+	_, err := svc.Refresh(context.Background(), 24)
+	require.NoError(t, err)
+	require.Equal(t, "new-api", repo.updatedExtra["upstream_balance_provider"])
+	require.Equal(t, "Codex", repo.updatedExtra["upstream_group"])
+	require.NotContains(t, repo.updatedExtra, "upstream_effective_rate_multiplier")
+	require.Nil(t, repo.updatedChannelPrice)
 }
 
 func TestOpenAIUpstreamBalanceServiceRefresh_NewAPINegativeTotalAvailableClampsToZero(t *testing.T) {

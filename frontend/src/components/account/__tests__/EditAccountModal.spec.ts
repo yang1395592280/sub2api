@@ -537,14 +537,17 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('api_key')
   })
 
-  it('saves trimmed new-api user id and keeps access token untouched when left blank', async () => {
+  it('saves trimmed new-api user id and keeps new-api secrets untouched when left blank', async () => {
     const account = buildAccount()
     account.credentials = {
       ...account.credentials,
-      new_api_user_id: '  738  '
+      new_api_user_id: '  738  ',
+      new_api_login_username: 'owner@example.com'
     }
     account.credentials_status = {
-      has_new_api_user_access_token: true
+      has_new_api_user_access_token: true,
+      has_new_api_session_cookie: true,
+      has_new_api_login_password: true
     }
     updateAccountMock.mockReset()
     checkMixedChannelRiskMock.mockReset()
@@ -560,7 +563,18 @@ describe('EditAccountModal', () => {
 
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.new_api_user_id).toBe('738')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.new_api_login_username).toBe('owner@example.com')
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('new_api_user_access_token')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('new_api_session_cookie')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('new_api_login_password')
+
+    updateAccountMock.mockClear()
+    await wrapper.get('[data-testid="new-api-session-cookie-input"]').setValue(' session=abc ')
+    await wrapper.get('[data-testid="new-api-login-password-input"]').setValue(' login-secret ')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.new_api_session_cookie).toBe('session=abc')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.new_api_login_password).toBe('login-secret')
   })
 
   it('preserves sub2api upstream admin secrets unless replacements are entered', async () => {

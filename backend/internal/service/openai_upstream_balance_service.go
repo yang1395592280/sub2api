@@ -356,13 +356,24 @@ func (s *OpenAIUpstreamBalanceService) doJSONGETWithHeaders(ctx context.Context,
 }
 
 func (s *OpenAIUpstreamBalanceService) doJSONPOSTWithHeaders(ctx context.Context, targetURL string, headers map[string]string, body any, dest any) error {
+	_, err := s.doJSONPOSTWithHeadersAndCookies(ctx, targetURL, headers, body, dest)
+	return err
+}
+
+func (s *OpenAIUpstreamBalanceService) doJSONPOSTForCookies(ctx context.Context, targetURL string, headers map[string]string, body any) (map[string]any, []*http.Cookie, error) {
+	payload := map[string]any{}
+	cookies, err := s.doJSONPOSTWithHeadersAndCookies(ctx, targetURL, headers, body, &payload)
+	return payload, cookies, err
+}
+
+func (s *OpenAIUpstreamBalanceService) doJSONPOSTWithHeadersAndCookies(ctx context.Context, targetURL string, headers map[string]string, body any, dest any) ([]*http.Cookie, error) {
 	payload, err := json.Marshal(body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(payload))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
@@ -376,17 +387,20 @@ func (s *OpenAIUpstreamBalanceService) doJSONPOSTWithHeaders(ctx context.Context
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("upstream returned %d", resp.StatusCode)
+		return nil, fmt.Errorf("upstream returned %d", resp.StatusCode)
 	}
 
 	decoder := json.NewDecoder(resp.Body)
 	decoder.UseNumber()
-	return decoder.Decode(dest)
+	if err := decoder.Decode(dest); err != nil {
+		return nil, err
+	}
+	return resp.Cookies(), nil
 }
 
 type sub2APIAdminAuth struct {
@@ -580,8 +594,11 @@ type newAPIUserToken struct {
 }
 
 type newAPIUserBalanceAuth struct {
-	UserID      string
-	AccessToken string
+	UserID        string
+	AccessToken   string
+	SessionCookie string
+	LoginUsername string
+	LoginPassword string
 }
 
 func (s *OpenAIUpstreamBalanceService) enrichNewAPIUserMetadata(ctx context.Context, baseURL, apiKey string, auth newAPIUserBalanceAuth, snapshot *OpenAIUpstreamBalanceSnapshot) {
@@ -601,7 +618,7 @@ func (s *OpenAIUpstreamBalanceService) enrichNewAPIUserMetadata(ctx context.Cont
 	if strings.TrimSpace(snapshot.Group) == "" {
 		return
 	}
-	rates, err := s.fetchNewAPIGroupRates(ctx, baseURL, auth)
+	rates, err := s.fetchNewAPIUserSelfGroupRates(ctx, baseURL, auth)
 	if err != nil {
 		return
 	}
@@ -678,19 +695,59 @@ func newAPIKeyMatchesAPIKey(tokenKey, apiKey string) bool {
 	return false
 }
 
-func (s *OpenAIUpstreamBalanceService) fetchNewAPIGroupRates(ctx context.Context, baseURL string, auth newAPIUserBalanceAuth) (map[string]float64, error) {
+func (s *OpenAIUpstreamBalanceService) fetchNewAPIUserSelfGroupRates(ctx context.Context, baseURL string, auth newAPIUserBalanceAuth) (map[string]float64, error) {
+	sessionCookie := strings.TrimSpace(auth.SessionCookie)
+	if sessionCookie == "" {
+		var err error
+		sessionCookie, err = s.loginNewAPIUserSession(ctx, baseURL, auth)
+		if err != nil {
+			return nil, err
+		}
+	}
 	var payload map[string]any
-	if err := s.doJSONGETWithHeaders(ctx, buildNewAPIPricingURL(baseURL), newAPIUserHeaders(auth), &payload); err != nil {
+	if err := s.doJSONGETWithHeaders(ctx, buildNewAPIUserSelfGroupsURL(baseURL), newAPIUserSessionHeaders(auth, sessionCookie), &payload); err != nil {
 		return nil, err
 	}
-	rawRates, _ := payload["group_ratio"].(map[string]any)
+	rawRates, _ := payload["data"].(map[string]any)
+	if rawRates == nil {
+		rawRates = payload
+	}
 	rates := make(map[string]float64, len(rawRates))
 	for group, raw := range rawRates {
 		if rate, ok := anyToFloat64(raw); ok {
 			rates[strings.TrimSpace(group)] = rate
+			continue
+		}
+		entry, _ := raw.(map[string]any)
+		if rate, ok := getFloat64(entry, "ratio"); ok {
+			rates[strings.TrimSpace(group)] = rate
 		}
 	}
 	return rates, nil
+}
+
+func (s *OpenAIUpstreamBalanceService) loginNewAPIUserSession(ctx context.Context, baseURL string, auth newAPIUserBalanceAuth) (string, error) {
+	username := strings.TrimSpace(auth.LoginUsername)
+	password := auth.LoginPassword
+	if username == "" || strings.TrimSpace(password) == "" {
+		return "", fmt.Errorf("new-api session cookie or login credentials are required for user group rates")
+	}
+
+	payload, cookies, err := s.doJSONPOSTForCookies(ctx, buildNewAPIUserLoginURL(baseURL), nil, map[string]string{
+		"username": username,
+		"password": password,
+	})
+	if err != nil {
+		return "", err
+	}
+	if success, ok := payload["success"].(bool); ok && !success {
+		return "", fmt.Errorf("new-api login failed")
+	}
+	cookieHeader := buildCookieHeader(cookies)
+	if cookieHeader == "" {
+		return "", fmt.Errorf("new-api login response missing session cookie")
+	}
+	return cookieHeader, nil
 }
 
 func newAPIUserHeaders(auth newAPIUserBalanceAuth) map[string]string {
@@ -700,13 +757,27 @@ func newAPIUserHeaders(auth newAPIUserBalanceAuth) map[string]string {
 	}
 }
 
+func newAPIUserSessionHeaders(auth newAPIUserBalanceAuth, sessionCookie string) map[string]string {
+	headers := map[string]string{
+		"New-Api-User": auth.UserID,
+		"Cookie":       sessionCookie,
+	}
+	if strings.TrimSpace(auth.AccessToken) != "" {
+		headers["Authorization"] = auth.AccessToken
+	}
+	return headers
+}
+
 func getNewAPIUserBalanceAuth(account *Account) (newAPIUserBalanceAuth, bool) {
 	if account == nil {
 		return newAPIUserBalanceAuth{}, false
 	}
 	auth := newAPIUserBalanceAuth{
-		UserID:      strings.TrimSpace(account.GetCredential("new_api_user_id")),
-		AccessToken: strings.TrimSpace(account.GetCredential("new_api_user_access_token")),
+		UserID:        strings.TrimSpace(account.GetCredential("new_api_user_id")),
+		AccessToken:   strings.TrimSpace(account.GetCredential("new_api_user_access_token")),
+		SessionCookie: strings.TrimSpace(account.GetCredential("new_api_session_cookie")),
+		LoginUsername: strings.TrimSpace(firstNonEmpty(account.GetCredential("new_api_login_username"), account.GetCredential("new_api_login_email"))),
+		LoginPassword: account.GetCredential("new_api_login_password"),
 	}
 	return auth, auth.UserID != "" && auth.AccessToken != ""
 }
@@ -720,8 +791,23 @@ func buildNewAPITokenSearchURL(baseURL, token string) string {
 	return buildUpstreamAdminURL(baseURL, "/api/token/search?token="+url.QueryEscape(strings.TrimSpace(token)))
 }
 
-func buildNewAPIPricingURL(baseURL string) string {
-	return buildUpstreamAdminURL(baseURL, "/api/pricing")
+func buildNewAPIUserSelfGroupsURL(baseURL string) string {
+	return buildUpstreamAdminURL(baseURL, "/api/user/self/groups")
+}
+
+func buildNewAPIUserLoginURL(baseURL string) string {
+	return buildUpstreamAdminURL(baseURL, "/api/user/login")
+}
+
+func buildCookieHeader(cookies []*http.Cookie) string {
+	parts := make([]string, 0, len(cookies))
+	for _, cookie := range cookies {
+		if cookie == nil || strings.TrimSpace(cookie.Name) == "" {
+			continue
+		}
+		parts = append(parts, strings.TrimSpace(cookie.Name)+"="+cookie.Value)
+	}
+	return strings.Join(parts, "; ")
 }
 
 func buildNewAPIUsageURL(baseURL string) string {

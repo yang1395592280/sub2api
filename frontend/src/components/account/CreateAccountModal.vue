@@ -1134,6 +1134,39 @@
               />
               <p class="input-hint">Access Token 可留空，填写后才会写入</p>
             </div>
+            <div>
+              <label class="input-label">new_api_session_cookie</label>
+              <input
+                v-model="newApiSessionCookie"
+                type="password"
+                class="input font-mono"
+                autocomplete="new-password"
+                data-1p-ignore
+                data-lpignore="true"
+                data-bwignore="true"
+              />
+              <p class="input-hint">用于读取 /api/user/self/groups 的用户专属倍率；填写浏览器登录后的 Cookie</p>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+              <div>
+                <label class="input-label">new_api_login_username</label>
+                <input v-model="newApiLoginUsername" type="text" class="input" placeholder="admin@example.com" />
+                <p class="input-hint">Cookie 留空时用于自动登录获取专属倍率</p>
+              </div>
+              <div>
+                <label class="input-label">new_api_login_password</label>
+                <input
+                  v-model="newApiLoginPassword"
+                  type="password"
+                  class="input"
+                  autocomplete="new-password"
+                  data-1p-ignore
+                  data-lpignore="true"
+                  data-bwignore="true"
+                />
+                <p class="input-hint">仅保存到凭据，接口返回时会脱敏</p>
+              </div>
+            </div>
           </div>
 
           <div v-if="upstreamAdminType === 'sub2api'" class="space-y-4">
@@ -3513,6 +3546,9 @@ const apiKeyValue = ref('')
 const upstreamAdminType = ref<'' | 'sub2api' | 'new-api'>('')
 const newApiUserId = ref('')
 const newApiUserAccessToken = ref('')
+const newApiSessionCookie = ref('')
+const newApiLoginUsername = ref('')
+const newApiLoginPassword = ref('')
 const upstreamAdminEmail = ref('')
 const upstreamAdminPassword = ref('')
 const upstreamAdminAccessToken = ref('')
@@ -4392,6 +4428,9 @@ const resetForm = () => {
   upstreamAdminType.value = ''
   newApiUserId.value = ''
   newApiUserAccessToken.value = ''
+  newApiSessionCookie.value = ''
+  newApiLoginUsername.value = ''
+  newApiLoginPassword.value = ''
   upstreamAdminEmail.value = ''
   upstreamAdminPassword.value = ''
   upstreamAdminAccessToken.value = ''
@@ -4835,11 +4874,23 @@ const handleSubmit = async () => {
     if (upstreamAdminType.value === 'new-api') {
       const trimmedNewApiUserId = newApiUserId.value.trim()
       const trimmedNewApiUserAccessToken = newApiUserAccessToken.value.trim()
+      const trimmedNewApiSessionCookie = newApiSessionCookie.value.trim()
+      const trimmedNewApiLoginUsername = newApiLoginUsername.value.trim()
+      const trimmedNewApiLoginPassword = newApiLoginPassword.value.trim()
       if (trimmedNewApiUserId) {
         credentials.new_api_user_id = trimmedNewApiUserId
       }
       if (trimmedNewApiUserAccessToken) {
         credentials.new_api_user_access_token = trimmedNewApiUserAccessToken
+      }
+      if (trimmedNewApiSessionCookie) {
+        credentials.new_api_session_cookie = trimmedNewApiSessionCookie
+      }
+      if (trimmedNewApiLoginUsername) {
+        credentials.new_api_login_username = trimmedNewApiLoginUsername
+      }
+      if (trimmedNewApiLoginPassword) {
+        credentials.new_api_login_password = trimmedNewApiLoginPassword
       }
     }
     if (upstreamAdminType.value === 'sub2api') {

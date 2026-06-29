@@ -107,6 +107,45 @@
               />
               <p class="input-hint">{{ t('admin.accounts.leaveEmptyToKeep') }}</p>
             </div>
+            <div>
+              <label class="input-label">new_api_session_cookie</label>
+              <input
+                v-model="editNewApiSessionCookie"
+                type="password"
+                class="input font-mono"
+                autocomplete="new-password"
+                data-testid="new-api-session-cookie-input"
+                data-1p-ignore
+                data-lpignore="true"
+                data-bwignore="true"
+              />
+              <p class="input-hint">{{ t('admin.accounts.leaveEmptyToKeep') }}；用于读取 /api/user/self/groups 的用户专属倍率</p>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+              <div>
+                <label class="input-label">new_api_login_username</label>
+                <input
+                  v-model="editNewApiLoginUsername"
+                  type="text"
+                  class="input"
+                  placeholder="admin@example.com"
+                />
+              </div>
+              <div>
+                <label class="input-label">new_api_login_password</label>
+                <input
+                  v-model="editNewApiLoginPassword"
+                  type="password"
+                  class="input"
+                  autocomplete="new-password"
+                  data-testid="new-api-login-password-input"
+                  data-1p-ignore
+                  data-lpignore="true"
+                  data-bwignore="true"
+                />
+                <p class="input-hint">{{ t('admin.accounts.leaveEmptyToKeep') }}</p>
+              </div>
+            </div>
           </div>
 
           <div v-if="editUpstreamAdminType === 'sub2api'" class="space-y-4">
@@ -2574,6 +2613,9 @@ const editApiKey = ref('')
 const editUpstreamAdminType = ref<'' | 'sub2api' | 'new-api'>('')
 const editNewApiUserId = ref('')
 const editNewApiUserAccessToken = ref('')
+const editNewApiSessionCookie = ref('')
+const editNewApiLoginUsername = ref('')
+const editNewApiLoginPassword = ref('')
 const editUpstreamAdminEmail = ref('')
 const editUpstreamAdminPassword = ref('')
 const editUpstreamAdminAccessToken = ref('')
@@ -3231,6 +3273,11 @@ const syncFormFromAccount = (newAccount: Account | null) => {
       ? String(credentials.new_api_user_id ?? '')
       : ''
     editNewApiUserAccessToken.value = ''
+    editNewApiSessionCookie.value = ''
+    editNewApiLoginUsername.value = supportsUpstreamAdminSettings.value
+      ? String(credentials.new_api_login_username ?? credentials.new_api_login_email ?? '')
+      : ''
+    editNewApiLoginPassword.value = ''
     editUpstreamAdminEmail.value = supportsUpstreamAdminSettings.value
       ? String(credentials.upstream_admin_email ?? credentials.upstream_admin_username ?? '')
       : ''
@@ -3322,6 +3369,9 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     editUpstreamAdminType.value = ''
     editNewApiUserId.value = ''
     editNewApiUserAccessToken.value = ''
+    editNewApiSessionCookie.value = ''
+    editNewApiLoginUsername.value = ''
+    editNewApiLoginPassword.value = ''
     editUpstreamAdminEmail.value = ''
     editUpstreamAdminPassword.value = ''
     editUpstreamAdminAccessToken.value = ''
@@ -3873,9 +3923,33 @@ const handleSubmit = async () => {
           } else {
             delete newCredentials.new_api_user_access_token
           }
+
+          if (editNewApiSessionCookie.value.trim()) {
+            newCredentials.new_api_session_cookie = editNewApiSessionCookie.value.trim()
+          } else {
+            delete newCredentials.new_api_session_cookie
+          }
+
+          const trimmedNewApiLoginUsername = editNewApiLoginUsername.value.trim()
+          if (trimmedNewApiLoginUsername) {
+            newCredentials.new_api_login_username = trimmedNewApiLoginUsername
+          } else {
+            delete newCredentials.new_api_login_username
+            delete newCredentials.new_api_login_email
+          }
+
+          if (editNewApiLoginPassword.value.trim()) {
+            newCredentials.new_api_login_password = editNewApiLoginPassword.value.trim()
+          } else {
+            delete newCredentials.new_api_login_password
+          }
         } else {
           delete newCredentials.new_api_user_id
           delete newCredentials.new_api_user_access_token
+          delete newCredentials.new_api_session_cookie
+          delete newCredentials.new_api_login_username
+          delete newCredentials.new_api_login_email
+          delete newCredentials.new_api_login_password
         }
 
         if (editUpstreamAdminType.value === 'sub2api') {
