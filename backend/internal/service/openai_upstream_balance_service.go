@@ -38,6 +38,7 @@ type OpenAIUpstreamBalanceSnapshot struct {
 	GroupRateMultiplier     *float64
 	EffectiveRateMultiplier *float64
 	RateSource              string
+	CredentialUpdates       map[string]any
 }
 
 type OpenAIUpstreamBalanceService struct {
@@ -92,6 +93,14 @@ func (s *OpenAIUpstreamBalanceService) Refresh(ctx context.Context, accountID in
 	for k, v := range updates {
 		account.Extra[k] = v
 	}
+	if len(snapshot.CredentialUpdates) > 0 {
+		if account.Credentials == nil {
+			account.Credentials = map[string]any{}
+		}
+		for k, v := range snapshot.CredentialUpdates {
+			account.Credentials[k] = v
+		}
+	}
 	if channelPrice := openAIUpstreamBalanceChannelPrice(snapshot); channelPrice != nil {
 		account.ChannelPrice = channelPrice
 	}
@@ -100,12 +109,13 @@ func (s *OpenAIUpstreamBalanceService) Refresh(ctx context.Context, accountID in
 
 func (s *OpenAIUpstreamBalanceService) persistRefreshUpdates(ctx context.Context, account *Account, updates map[string]any, snapshot OpenAIUpstreamBalanceSnapshot) error {
 	channelPrice := openAIUpstreamBalanceChannelPrice(snapshot)
-	if channelPrice == nil {
+	if channelPrice == nil && len(snapshot.CredentialUpdates) == 0 {
 		return s.accountRepo.UpdateExtra(ctx, account.ID, updates)
 	}
 
 	rows, err := s.accountRepo.BulkUpdate(ctx, []int64{account.ID}, AccountBulkUpdate{
 		ChannelPrice: channelPrice,
+		Credentials:  snapshot.CredentialUpdates,
 		Extra:        updates,
 	})
 	if err != nil {
@@ -404,10 +414,17 @@ func (s *OpenAIUpstreamBalanceService) doJSONPOSTWithHeadersAndCookies(ctx conte
 }
 
 type sub2APIAdminAuth struct {
-	AccessToken string
-	TokenType   string
-	Email       string
-	Password    string
+	AccessToken  string
+	RefreshToken string
+	TokenType    string
+	Email        string
+	Password     string
+}
+
+type sub2APIAdminToken struct {
+	AccessToken  string
+	RefreshToken string
+	TokenType    string
 }
 
 type sub2APIAdminKey struct {
@@ -427,10 +444,23 @@ func (s *OpenAIUpstreamBalanceService) enrichSub2APIAdminMetadata(ctx context.Co
 		return
 	}
 
-	token := strings.TrimSpace(auth.AccessToken)
 	tokenType := strings.TrimSpace(auth.TokenType)
 	if tokenType == "" {
 		tokenType = "Bearer"
+	}
+	var token string
+	if strings.TrimSpace(auth.RefreshToken) != "" {
+		refreshed, err := s.refreshSub2APIAdminToken(ctx, baseURL, auth.RefreshToken)
+		if err == nil {
+			token = refreshed.AccessToken
+			if strings.TrimSpace(refreshed.TokenType) != "" {
+				tokenType = refreshed.TokenType
+			}
+			snapshot.CredentialUpdates = buildSub2APIAdminTokenCredentialUpdates(refreshed)
+		}
+	}
+	if token == "" && strings.TrimSpace(auth.AccessToken) != "" {
+		token = strings.TrimSpace(auth.AccessToken)
 	}
 	if token == "" && strings.TrimSpace(auth.Email) != "" && strings.TrimSpace(auth.Password) != "" {
 		loginToken, loginTokenType, err := s.loginSub2APIAdmin(ctx, baseURL, auth.Email, auth.Password)
@@ -494,12 +524,13 @@ func getSub2APIAdminAuth(account *Account) (sub2APIAdminAuth, bool) {
 		return sub2APIAdminAuth{}, false
 	}
 	auth := sub2APIAdminAuth{
-		AccessToken: strings.TrimSpace(account.GetCredential("upstream_admin_access_token")),
-		TokenType:   strings.TrimSpace(account.GetCredential("upstream_admin_token_type")),
-		Email:       strings.TrimSpace(firstNonEmpty(account.GetCredential("upstream_admin_email"), account.GetCredential("upstream_admin_username"))),
-		Password:    strings.TrimSpace(account.GetCredential("upstream_admin_password")),
+		AccessToken:  strings.TrimSpace(account.GetCredential("upstream_admin_access_token")),
+		RefreshToken: strings.TrimSpace(account.GetCredential("upstream_admin_refresh_token")),
+		TokenType:    strings.TrimSpace(account.GetCredential("upstream_admin_token_type")),
+		Email:        strings.TrimSpace(firstNonEmpty(account.GetCredential("upstream_admin_email"), account.GetCredential("upstream_admin_username"))),
+		Password:     strings.TrimSpace(account.GetCredential("upstream_admin_password")),
 	}
-	return auth, auth.AccessToken != "" || (auth.Email != "" && auth.Password != "")
+	return auth, auth.AccessToken != "" || auth.RefreshToken != "" || (auth.Email != "" && auth.Password != "")
 }
 
 func (s *OpenAIUpstreamBalanceService) loginSub2APIAdmin(ctx context.Context, baseURL, email, password string) (string, string, error) {
@@ -520,6 +551,43 @@ func (s *OpenAIUpstreamBalanceService) loginSub2APIAdmin(ctx context.Context, ba
 		return "", "", fmt.Errorf("sub2api login response missing access_token")
 	}
 	return token, strings.TrimSpace(getString(data, "token_type")), nil
+}
+
+func (s *OpenAIUpstreamBalanceService) refreshSub2APIAdminToken(ctx context.Context, baseURL, refreshToken string) (sub2APIAdminToken, error) {
+	var payload map[string]any
+	err := s.doJSONPOSTWithHeaders(ctx, buildSub2APIAuthRefreshURL(baseURL), nil, map[string]string{
+		"refresh_token": strings.TrimSpace(refreshToken),
+	}, &payload)
+	if err != nil {
+		return sub2APIAdminToken{}, err
+	}
+	data, _ := payload["data"].(map[string]any)
+	if data == nil {
+		data = payload
+	}
+	token := strings.TrimSpace(getString(data, "access_token"))
+	if token == "" {
+		return sub2APIAdminToken{}, fmt.Errorf("sub2api refresh response missing access_token")
+	}
+	return sub2APIAdminToken{
+		AccessToken:  token,
+		RefreshToken: strings.TrimSpace(getString(data, "refresh_token")),
+		TokenType:    strings.TrimSpace(getString(data, "token_type")),
+	}, nil
+}
+
+func buildSub2APIAdminTokenCredentialUpdates(token sub2APIAdminToken) map[string]any {
+	updates := map[string]any{}
+	if token.AccessToken != "" {
+		updates["upstream_admin_access_token"] = token.AccessToken
+	}
+	if token.RefreshToken != "" {
+		updates["upstream_admin_refresh_token"] = token.RefreshToken
+	}
+	if token.TokenType != "" {
+		updates["upstream_admin_token_type"] = token.TokenType
+	}
+	return updates
 }
 
 func (s *OpenAIUpstreamBalanceService) fetchSub2APIAdminKeys(ctx context.Context, baseURL, authorization string) ([]sub2APIAdminKey, error) {
@@ -850,6 +918,10 @@ func buildNewAPIUserSelfURL(baseURL string) string {
 
 func buildSub2APIAuthLoginURL(baseURL string) string {
 	return buildUpstreamAdminURL(baseURL, "/api/v1/auth/login")
+}
+
+func buildSub2APIAuthRefreshURL(baseURL string) string {
+	return buildUpstreamAdminURL(baseURL, "/api/v1/auth/refresh")
 }
 
 func buildSub2APIKeysURL(baseURL string) string {

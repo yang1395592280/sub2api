@@ -15,6 +15,7 @@ type openAIUpstreamBalanceRepoStub struct {
 	AccountRepository
 	account             *Account
 	updatedExtra        map[string]any
+	updatedCredentials  map[string]any
 	updatedChannelPrice *float64
 }
 
@@ -53,6 +54,18 @@ func (r *openAIUpstreamBalanceRepoStub) BulkUpdate(_ context.Context, ids []int6
 		}
 		for k, v := range updates.Extra {
 			r.account.Extra[k] = v
+		}
+	}
+	if len(updates.Credentials) > 0 {
+		if r.account.Credentials == nil {
+			r.account.Credentials = map[string]any{}
+		}
+		for k, v := range updates.Credentials {
+			r.account.Credentials[k] = v
+		}
+		r.updatedCredentials = make(map[string]any, len(r.account.Credentials))
+		for k, v := range r.account.Credentials {
+			r.updatedCredentials[k] = v
 		}
 	}
 	if updates.ChannelPrice != nil {
@@ -254,6 +267,108 @@ func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminPasswordLogsInForEffect
 	_, err := svc.Refresh(context.Background(), 21)
 	require.NoError(t, err)
 	require.Equal(t, "额度模式 - 标准", repo.updatedExtra["upstream_group"])
+	require.Equal(t, 0.09, repo.updatedExtra["upstream_effective_rate_multiplier"])
+	require.Equal(t, "user_group_rate", repo.updatedExtra["upstream_rate_source"])
+}
+
+func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminRefreshTokenPersistsRotatedTokens(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/usage":
+			_, _ = w.Write([]byte(`{"remaining":3,"unit":"USD"}`))
+		case "/api/v1/auth/refresh":
+			require.Equal(t, http.MethodPost, r.Method)
+			var payload map[string]string
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&payload))
+			require.Equal(t, "rt-admin", payload["refresh_token"])
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"access_token":"refreshed-token","refresh_token":"rt-new","token_type":"Bearer","expires_in":3600}}`))
+		case "/api/v1/keys":
+			require.Equal(t, "Bearer refreshed-token", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"items":[{"id":88,"name":"plus","key":"sk-upstream","group_id":4,"group":{"id":4,"name":"额度模式 - 标准","rate_multiplier":0.4}}]}}`))
+		case "/api/v1/groups/rates":
+			require.Equal(t, "Bearer refreshed-token", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"4":0.09}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	repo := &openAIUpstreamBalanceRepoStub{
+		account: &Account{
+			ID:       24,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url":                     srv.URL + "/v1",
+				"api_key":                      "sk-upstream",
+				"upstream_admin_type":          "sub2api",
+				"upstream_admin_access_token":  "stale-token",
+				"upstream_admin_refresh_token": "rt-admin",
+				"custom":                       "kept",
+			},
+		},
+	}
+
+	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+	_, err := svc.Refresh(context.Background(), 24)
+	require.NoError(t, err)
+	require.Equal(t, "额度模式 - 标准", repo.updatedExtra["upstream_group"])
+	require.Equal(t, "refreshed-token", repo.updatedCredentials["upstream_admin_access_token"])
+	require.Equal(t, "rt-new", repo.updatedCredentials["upstream_admin_refresh_token"])
+	require.Equal(t, "Bearer", repo.updatedCredentials["upstream_admin_token_type"])
+	require.Equal(t, "kept", repo.updatedCredentials["custom"])
+	require.Equal(t, "sk-upstream", repo.updatedCredentials["api_key"])
+}
+
+func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminRefreshTokenResolvesEffectiveRate(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/usage":
+			_, _ = w.Write([]byte(`{"remaining":3,"unit":"USD"}`))
+		case "/api/v1/auth/login":
+			t.Fatalf("login endpoint should not be called when refresh token is configured")
+		case "/api/v1/auth/refresh":
+			require.Equal(t, http.MethodPost, r.Method)
+			var payload map[string]string
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&payload))
+			require.Equal(t, "rt-admin", payload["refresh_token"])
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"access_token":"refreshed-token","refresh_token":"rt-new","token_type":"Bearer","expires_in":3600}}`))
+		case "/api/v1/keys":
+			require.Equal(t, "Bearer refreshed-token", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"items":[{"id":88,"name":"plus","key":"sk-upstream","group_id":4,"group":{"id":4,"name":"额度模式 - 标准","rate_multiplier":0.4}}]}}`))
+		case "/api/v1/groups/rates":
+			require.Equal(t, "Bearer refreshed-token", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"4":0.09}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	repo := &openAIUpstreamBalanceRepoStub{
+		account: &Account{
+			ID:       23,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url":                     srv.URL + "/v1",
+				"api_key":                      "sk-upstream",
+				"upstream_admin_type":          "sub2api",
+				"upstream_admin_refresh_token": "rt-admin",
+				"upstream_admin_email":         "admin@example.com",
+				"upstream_admin_password":      "secret",
+			},
+		},
+	}
+
+	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+	_, err := svc.Refresh(context.Background(), 23)
+	require.NoError(t, err)
+	require.Equal(t, "额度模式 - 标准", repo.updatedExtra["upstream_group"])
+	require.Equal(t, int64(4), repo.updatedExtra["upstream_group_id"])
+	require.Equal(t, int64(88), repo.updatedExtra["upstream_key_id"])
+	require.Equal(t, 0.4, repo.updatedExtra["upstream_group_rate_multiplier"])
 	require.Equal(t, 0.09, repo.updatedExtra["upstream_effective_rate_multiplier"])
 	require.Equal(t, "user_group_rate", repo.updatedExtra["upstream_rate_source"])
 }

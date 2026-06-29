@@ -189,6 +189,20 @@
               />
               <p class="input-hint">可填账号密码自动登录，也可直接填 sub2api 登录后的 Access Token；留空保留</p>
             </div>
+            <div>
+              <label class="input-label">Refresh Token</label>
+              <input
+                v-model="editUpstreamAdminRefreshToken"
+                type="password"
+                class="input font-mono"
+                autocomplete="new-password"
+                data-testid="upstream-admin-refresh-token-input"
+                data-1p-ignore
+                data-lpignore="true"
+                data-bwignore="true"
+              />
+              <p class="input-hint">Access Token 留空时，可用 Refresh Token 自动刷新后获取上游分组；留空保留</p>
+            </div>
           </div>
         </div>
 
@@ -2619,6 +2633,7 @@ const editNewApiLoginPassword = ref('')
 const editUpstreamAdminEmail = ref('')
 const editUpstreamAdminPassword = ref('')
 const editUpstreamAdminAccessToken = ref('')
+const editUpstreamAdminRefreshToken = ref('')
 const supportsUpstreamAdminSettings = computed(() =>
   props.account?.type === 'apikey' &&
   (props.account.platform === 'openai' || props.account.platform === 'anthropic')
@@ -3283,6 +3298,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
       : ''
     editUpstreamAdminPassword.value = ''
     editUpstreamAdminAccessToken.value = ''
+    editUpstreamAdminRefreshToken.value = ''
 
     // Load model mappings and detect mode
     loadModelRestrictionFromMapping(credentials.model_mapping as Record<string, unknown> | undefined)
@@ -3375,6 +3391,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     editUpstreamAdminEmail.value = ''
     editUpstreamAdminPassword.value = ''
     editUpstreamAdminAccessToken.value = ''
+    editUpstreamAdminRefreshToken.value = ''
   }
   editApiKey.value = ''
 }
@@ -3970,6 +3987,12 @@ const handleSubmit = async () => {
             newCredentials.upstream_admin_access_token = editUpstreamAdminAccessToken.value.trim()
           } else {
             delete newCredentials.upstream_admin_access_token
+          }
+
+          if (editUpstreamAdminRefreshToken.value.trim()) {
+            newCredentials.upstream_admin_refresh_token = editUpstreamAdminRefreshToken.value.trim()
+          } else {
+            delete newCredentials.upstream_admin_refresh_token
           }
         } else {
           delete newCredentials.upstream_admin_email
