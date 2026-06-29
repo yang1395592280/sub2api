@@ -34,6 +34,7 @@ type OpenAIAutoSchedulerSettings struct {
 type OpenAIAutoSchedulerScoreState struct {
 	AccountID               int64
 	AccountName             string
+	ChannelPrice            *float64
 	GroupID                 int64
 	Model                   string
 	BaseScore               int
@@ -72,8 +73,16 @@ type OpenAIAutoSchedulerEventInput struct {
 type OpenAIAutoSchedulerProbeResult struct {
 	Success   bool
 	LatencyMS *int
+	TtfbMS    *int
 	Message   string
 	Err       error
+}
+
+type OpenAIAutoSchedulerDailySample struct {
+	AccountID       int64
+	RequestCount    int64
+	TtfbSampleCount int64
+	LastTtfbMS      *int
 }
 
 const (

@@ -265,6 +265,7 @@ func (h *OpenAIAutoSchedulerHandler) ProbeScore(c *gin.Context) {
 		Model:     model,
 		EventType: eventType,
 		LatencyMS: result.LatencyMS,
+		TtfbMS:    result.TtfbMS,
 		Message:   message,
 	}); err != nil {
 		response.ErrorFrom(c, err)
@@ -275,6 +276,7 @@ func (h *OpenAIAutoSchedulerHandler) ProbeScore(c *gin.Context) {
 		"success":    eventType == service.OpenAIAutoSchedulerEventProbeSuccess,
 		"message":    message,
 		"latency_ms": result.LatencyMS,
+		"ttfb_ms":    result.TtfbMS,
 	})
 }
 
@@ -286,38 +288,39 @@ type openAIAutoSchedulerGroupResponse struct {
 }
 
 type openAIAutoSchedulerScoreResponse struct {
-	AccountID               int64   `json:"account_id"`
-	AccountName             string  `json:"account_name"`
-	GroupID                 int64   `json:"group_id"`
-	Model                   string  `json:"model"`
-	BaseScore               int     `json:"base_score"`
-	BaseScorePercent        float64 `json:"base_score_percent"`
-	FinalScore              int     `json:"final_score"`
-	FinalScorePercent       float64 `json:"final_score_percent"`
-	LatencyScore            int     `json:"latency_score"`
-	LatencyScorePercent     float64 `json:"latency_score_percent"`
-	ErrorScore              int     `json:"error_score"`
-	ErrorScorePercent       float64 `json:"error_score_percent"`
-	RecoveryScore           int     `json:"recovery_score"`
-	RecoveryScorePercent    float64 `json:"recovery_score_percent"`
-	CostScore               int     `json:"cost_score"`
-	CostScorePercent        float64 `json:"cost_score_percent"`
-	State                   string  `json:"state"`
-	ConsecutiveSlowCount    int     `json:"consecutive_slow_count"`
-	ConsecutiveErrorCount   int     `json:"consecutive_error_count"`
-	ConsecutiveSuccessCount int     `json:"consecutive_success_count"`
-	RequestCount            int64   `json:"request_count"`
-	TtfbSampleCount         int64   `json:"ttfb_sample_count"`
-	SlowRate                float64 `json:"slow_rate"`
-	ErrorRate               float64 `json:"error_rate"`
-	StuckRate               float64 `json:"stuck_rate"`
-	CooldownUntil           *string `json:"cooldown_until"`
-	LastLatencyMS           *int    `json:"last_latency_ms"`
-	LastTtfbMS              *int    `json:"last_ttfb_ms"`
-	LastStatusCode          *int    `json:"last_status_code"`
-	LastError               *string `json:"last_error"`
-	Reason                  string  `json:"reason"`
-	LastCheckedAt           *string `json:"last_checked_at"`
+	AccountID               int64    `json:"account_id"`
+	AccountName             string   `json:"account_name"`
+	ChannelPrice            *float64 `json:"channel_price"`
+	GroupID                 int64    `json:"group_id"`
+	Model                   string   `json:"model"`
+	BaseScore               int      `json:"base_score"`
+	BaseScorePercent        float64  `json:"base_score_percent"`
+	FinalScore              int      `json:"final_score"`
+	FinalScorePercent       float64  `json:"final_score_percent"`
+	LatencyScore            int      `json:"latency_score"`
+	LatencyScorePercent     float64  `json:"latency_score_percent"`
+	ErrorScore              int      `json:"error_score"`
+	ErrorScorePercent       float64  `json:"error_score_percent"`
+	RecoveryScore           int      `json:"recovery_score"`
+	RecoveryScorePercent    float64  `json:"recovery_score_percent"`
+	CostScore               int      `json:"cost_score"`
+	CostScorePercent        float64  `json:"cost_score_percent"`
+	State                   string   `json:"state"`
+	ConsecutiveSlowCount    int      `json:"consecutive_slow_count"`
+	ConsecutiveErrorCount   int      `json:"consecutive_error_count"`
+	ConsecutiveSuccessCount int      `json:"consecutive_success_count"`
+	RequestCount            int64    `json:"request_count"`
+	TtfbSampleCount         int64    `json:"ttfb_sample_count"`
+	SlowRate                float64  `json:"slow_rate"`
+	ErrorRate               float64  `json:"error_rate"`
+	StuckRate               float64  `json:"stuck_rate"`
+	CooldownUntil           *string  `json:"cooldown_until"`
+	LastLatencyMS           *int     `json:"last_latency_ms"`
+	LastTtfbMS              *int     `json:"last_ttfb_ms"`
+	LastStatusCode          *int     `json:"last_status_code"`
+	LastError               *string  `json:"last_error"`
+	Reason                  string   `json:"reason"`
+	LastCheckedAt           *string  `json:"last_checked_at"`
 }
 
 type openAIAutoSchedulerEventResponse struct {
@@ -439,6 +442,7 @@ func openAIAutoSchedulerScoreToResponse(state service.OpenAIAutoSchedulerScoreSt
 	return openAIAutoSchedulerScoreResponse{
 		AccountID:               state.AccountID,
 		AccountName:             state.AccountName,
+		ChannelPrice:            state.ChannelPrice,
 		GroupID:                 state.GroupID,
 		Model:                   state.Model,
 		BaseScore:               state.BaseScore,

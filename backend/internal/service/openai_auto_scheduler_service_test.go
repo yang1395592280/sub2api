@@ -21,16 +21,17 @@ func (p fakeOpenAIAutoSchedulerSettingsProvider) GetOpenAIAutoSchedulerSettings(
 }
 
 type fakeOpenAIAutoSchedulerRepo struct {
-	mu         sync.Mutex
-	groups     map[int64]Group
-	states     map[string]OpenAIAutoSchedulerScoreState
-	events     []OpenAIAutoSchedulerScoreEvent
-	accounts   map[int64][]Account
-	listStates []OpenAIAutoSchedulerScoreState
-	listEvents []OpenAIAutoSchedulerScoreEvent
-	listTotal  int64
-	listParams OpenAIAutoSchedulerListParams
-	err        error
+	mu           sync.Mutex
+	groups       map[int64]Group
+	states       map[string]OpenAIAutoSchedulerScoreState
+	events       []OpenAIAutoSchedulerScoreEvent
+	accounts     map[int64][]Account
+	dailySamples map[int64]OpenAIAutoSchedulerDailySample
+	listStates   []OpenAIAutoSchedulerScoreState
+	listEvents   []OpenAIAutoSchedulerScoreEvent
+	listTotal    int64
+	listParams   OpenAIAutoSchedulerListParams
+	err          error
 }
 
 func (r *fakeOpenAIAutoSchedulerRepo) GetGroup(ctx context.Context, groupID int64) (*Group, error) {
@@ -100,6 +101,19 @@ func (r *fakeOpenAIAutoSchedulerRepo) ListScoreEvents(ctx context.Context, param
 	}
 	r.listParams = params
 	return r.listEvents, r.listTotal, nil
+}
+
+func (r *fakeOpenAIAutoSchedulerRepo) ListScoreDailySamples(ctx context.Context, params OpenAIAutoSchedulerListParams, since time.Time) (map[int64]OpenAIAutoSchedulerDailySample, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.err != nil {
+		return nil, r.err
+	}
+	out := make(map[int64]OpenAIAutoSchedulerDailySample, len(r.dailySamples))
+	for accountID, sample := range r.dailySamples {
+		out[accountID] = sample
+	}
+	return out, nil
 }
 
 func (r *fakeOpenAIAutoSchedulerRepo) ListSchedulableOpenAIAccountsByGroup(ctx context.Context, groupID int64) ([]Account, error) {
@@ -382,6 +396,50 @@ func TestOpenAIAutoSchedulerService_ListScoresIncludesDefaultStatesForUnscoredGr
 	require.Equal(t, "gpt-5", result.Items[1].Model)
 	require.Equal(t, OpenAIAutoSchedulerStateRunning, result.Items[1].State)
 	require.Equal(t, 6000, result.Items[1].FinalScore)
+}
+
+func TestOpenAIAutoSchedulerService_ListScoresUsesDailySamplesAndChannelPriceForDisplay(t *testing.T) {
+	channelPrice := 0.15
+	lastTtfb := 456
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		accounts: map[int64][]Account{
+			2: {
+				{ID: 1, Name: "带价格渠道", Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, ChannelPrice: &channelPrice},
+			},
+		},
+		dailySamples: map[int64]OpenAIAutoSchedulerDailySample{
+			1: {AccountID: 1, RequestCount: 2, TtfbSampleCount: 1, LastTtfbMS: &lastTtfb},
+		},
+		listStates: []OpenAIAutoSchedulerScoreState{
+			{
+				AccountID:       1,
+				AccountName:     "旧名称",
+				GroupID:         2,
+				Model:           "gpt-5",
+				FinalScore:      7200,
+				State:           OpenAIAutoSchedulerStateObserving,
+				RequestCount:    99,
+				TtfbSampleCount: 40,
+			},
+		},
+		listTotal: 1,
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+
+	result, err := svc.ListScores(context.Background(), OpenAIAutoSchedulerListParams{
+		GroupID:  2,
+		Model:    "gpt-5",
+		Page:     1,
+		PageSize: 50,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, result.Items, 1)
+	require.Equal(t, "带价格渠道", result.Items[0].AccountName)
+	require.Equal(t, &channelPrice, result.Items[0].ChannelPrice)
+	require.Equal(t, int64(2), result.Items[0].RequestCount)
+	require.Equal(t, int64(1), result.Items[0].TtfbSampleCount)
+	require.Equal(t, &lastTtfb, result.Items[0].LastTtfbMS)
 }
 
 func TestOpenAIAutoSchedulerService_ListScoresHidesStatesForAccountsNoLongerInGroup(t *testing.T) {

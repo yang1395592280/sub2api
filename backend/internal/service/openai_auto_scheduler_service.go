@@ -22,6 +22,7 @@ type OpenAIAutoSchedulerRepository interface {
 	InsertScoreEvent(ctx context.Context, event OpenAIAutoSchedulerScoreEvent) error
 	ListScoreStates(ctx context.Context, params OpenAIAutoSchedulerListParams) ([]OpenAIAutoSchedulerScoreState, int64, error)
 	ListScoreEvents(ctx context.Context, params OpenAIAutoSchedulerListParams) ([]OpenAIAutoSchedulerScoreEvent, int64, error)
+	ListScoreDailySamples(ctx context.Context, params OpenAIAutoSchedulerListParams, since time.Time) (map[int64]OpenAIAutoSchedulerDailySample, error)
 	ListSchedulableOpenAIAccountsByGroup(ctx context.Context, groupID int64) ([]Account, error)
 	ListEnabledOpenAIGroups(ctx context.Context) ([]Group, error)
 }
@@ -251,22 +252,32 @@ func (s *OpenAIAutoSchedulerService) listScoresWithGroupAccounts(ctx context.Con
 	}
 
 	byAccountID := make(map[int64]OpenAIAutoSchedulerScoreState, len(accounts))
+	dailySamples, err := s.repo.ListScoreDailySamples(ctx, params, openAIAutoSchedulerTodayStart(time.Now()))
+	if err != nil {
+		return nil, err
+	}
 	for _, item := range items {
 		account, ok := currentAccounts[item.AccountID]
 		if !ok {
 			continue
 		}
 		item.AccountName = account.Name
+		item.ChannelPrice = copyOpenAIAutoSchedulerFloatPtr(account.ChannelPrice)
+		item = applyOpenAIAutoSchedulerDailySample(item, dailySamples[item.AccountID])
 		byAccountID[item.AccountID] = item
 	}
 	for _, account := range accounts {
 		if item, ok := byAccountID[account.ID]; ok {
 			item.AccountName = account.Name
+			item.ChannelPrice = copyOpenAIAutoSchedulerFloatPtr(account.ChannelPrice)
+			item = applyOpenAIAutoSchedulerDailySample(item, dailySamples[item.AccountID])
 			byAccountID[account.ID] = item
 			continue
 		}
 		state := NewOpenAIAutoSchedulerScoreState(account.ID, params.GroupID, params.Model)
 		state.AccountName = account.Name
+		state.ChannelPrice = copyOpenAIAutoSchedulerFloatPtr(account.ChannelPrice)
+		state = applyOpenAIAutoSchedulerDailySample(state, dailySamples[state.AccountID])
 		byAccountID[account.ID] = state
 	}
 
@@ -351,6 +362,35 @@ func (s *OpenAIAutoSchedulerService) settings(ctx context.Context) OpenAIAutoSch
 		return DefaultOpenAIAutoSchedulerSettings()
 	}
 	return normalizeOpenAIAutoSchedulerSettings(s.settingsProvider.GetOpenAIAutoSchedulerSettings(ctx))
+}
+
+func openAIAutoSchedulerTodayStart(now time.Time) time.Time {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	local := now.In(time.Local)
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, local.Location())
+}
+
+func applyOpenAIAutoSchedulerDailySample(state OpenAIAutoSchedulerScoreState, sample OpenAIAutoSchedulerDailySample) OpenAIAutoSchedulerScoreState {
+	if sample.AccountID <= 0 {
+		state.RequestCount = 0
+		state.TtfbSampleCount = 0
+		state.LastTtfbMS = nil
+		return state
+	}
+	state.RequestCount = sample.RequestCount
+	state.TtfbSampleCount = sample.TtfbSampleCount
+	state.LastTtfbMS = copyOpenAIAutoSchedulerIntPtr(sample.LastTtfbMS)
+	return state
+}
+
+func copyOpenAIAutoSchedulerFloatPtr(v *float64) *float64 {
+	if v == nil {
+		return nil
+	}
+	copied := *v
+	return &copied
 }
 
 func (s *OpenAIAutoSchedulerService) lockScoreState(accountID, groupID int64, model string) func() {

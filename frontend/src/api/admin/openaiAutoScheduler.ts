@@ -37,6 +37,7 @@ export interface OpenAIAutoSchedulerGroup {
 export interface OpenAIAutoSchedulerScore {
   account_id: number
   account_name?: string
+  channel_price?: number | null
   group_id: number
   model: string
   base_score: number
@@ -112,6 +113,7 @@ export interface OpenAIAutoSchedulerProbeResponse {
   success: boolean
   message: string
   latency_ms: number | null
+  ttfb_ms: number | null
 }
 
 export async function getSettings(): Promise<OpenAIAutoSchedulerSettings> {

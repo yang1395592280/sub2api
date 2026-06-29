@@ -270,6 +270,42 @@ func (r *openAIAutoSchedulerRepository) ListScoreEvents(ctx context.Context, par
 	return out, int64(total), nil
 }
 
+func (r *openAIAutoSchedulerRepository) ListScoreDailySamples(ctx context.Context, params service.OpenAIAutoSchedulerListParams, since time.Time) (map[int64]service.OpenAIAutoSchedulerDailySample, error) {
+	query := r.client.OpenAIAutoSchedulerScoreEvent.Query().
+		Where(openaiautoschedulerscoreevent.CreatedAtGTE(since))
+	if params.GroupID > 0 {
+		query = query.Where(openaiautoschedulerscoreevent.GroupIDEQ(params.GroupID))
+	}
+	if strings.TrimSpace(params.Model) != "" {
+		query = query.Where(openaiautoschedulerscoreevent.ModelEQ(strings.TrimSpace(params.Model)))
+	}
+
+	entities, err := query.
+		Order(openaiautoschedulerscoreevent.ByCreatedAt(entsql.OrderDesc())).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(map[int64]service.OpenAIAutoSchedulerDailySample)
+	for _, entity := range entities {
+		if !isOpenAIAutoSchedulerDailySampleEvent(entity.EventType) {
+			continue
+		}
+		sample := out[entity.AccountID]
+		sample.AccountID = entity.AccountID
+		sample.RequestCount++
+		if entity.TtfbMs != nil && *entity.TtfbMs > 0 {
+			sample.TtfbSampleCount++
+			if sample.LastTtfbMS == nil {
+				sample.LastTtfbMS = entity.TtfbMs
+			}
+		}
+		out[entity.AccountID] = sample
+	}
+	return out, nil
+}
+
 func (r *openAIAutoSchedulerRepository) ListEnabledOpenAIGroups(ctx context.Context) ([]service.Group, error) {
 	entities, err := r.client.Group.Query().
 		Where(
@@ -286,6 +322,21 @@ func (r *openAIAutoSchedulerRepository) ListEnabledOpenAIGroups(ctx context.Cont
 		out = append(out, *groupEntityToService(entity))
 	}
 	return out, nil
+}
+
+func isOpenAIAutoSchedulerDailySampleEvent(eventType string) bool {
+	switch eventType {
+	case service.OpenAIAutoSchedulerEventSuccess,
+		service.OpenAIAutoSchedulerEventSlow,
+		service.OpenAIAutoSchedulerEventSevereSlow,
+		service.OpenAIAutoSchedulerEventError,
+		service.OpenAIAutoSchedulerEventRateLimited,
+		service.OpenAIAutoSchedulerEventProbeSuccess,
+		service.OpenAIAutoSchedulerEventProbeError:
+		return true
+	default:
+		return false
+	}
 }
 
 func openAIAutoSchedulerScoreStateEntityToService(entity *dbent.OpenAIAutoSchedulerScoreState) service.OpenAIAutoSchedulerScoreState {

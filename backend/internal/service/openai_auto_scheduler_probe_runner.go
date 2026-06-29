@@ -209,6 +209,7 @@ func (r *OpenAIAutoSchedulerProbeRunner) runProbe(ctx context.Context, account *
 		Model:     model,
 		EventType: eventType,
 		LatencyMS: result.LatencyMS,
+		TtfbMS:    result.TtfbMS,
 		Message:   strings.TrimSpace(result.Message),
 	}
 	if result.Err != nil && input.Message == "" {
@@ -300,22 +301,33 @@ func (c *openAIAutoSchedulerProbeHTTPChecker) Check(ctx context.Context, account
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
+	startedAt := time.Now()
 	resp, err := c.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, c.resolveTLSProfile(account))
 	if err != nil {
 		return OpenAIAutoSchedulerProbeResult{Err: err}
 	}
+	ttfbMS := openAIAutoSchedulerDurationMS(time.Since(startedAt))
 	defer func() { _ = resp.Body.Close() }()
 	body, readErr := io.ReadAll(io.LimitReader(resp.Body, openAIAutoSchedulerProbeMaxBodyBytes))
+	latencyMS := openAIAutoSchedulerDurationMS(time.Since(startedAt))
 	if readErr != nil {
-		return OpenAIAutoSchedulerProbeResult{Err: readErr}
+		return OpenAIAutoSchedulerProbeResult{LatencyMS: &latencyMS, TtfbMS: &ttfbMS, Err: readErr}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return OpenAIAutoSchedulerProbeResult{Message: fmt.Sprintf("upstream HTTP %d", resp.StatusCode)}
+		return OpenAIAutoSchedulerProbeResult{LatencyMS: &latencyMS, TtfbMS: &ttfbMS, Message: fmt.Sprintf("upstream HTTP %d", resp.StatusCode)}
 	}
 	if strings.TrimSpace(string(body)) == "" {
-		return OpenAIAutoSchedulerProbeResult{Err: errors.New("empty probe response")}
+		return OpenAIAutoSchedulerProbeResult{LatencyMS: &latencyMS, TtfbMS: &ttfbMS, Err: errors.New("empty probe response")}
 	}
-	return OpenAIAutoSchedulerProbeResult{Success: true}
+	return OpenAIAutoSchedulerProbeResult{Success: true, LatencyMS: &latencyMS, TtfbMS: &ttfbMS}
+}
+
+func openAIAutoSchedulerDurationMS(duration time.Duration) int {
+	ms := int(duration / time.Millisecond)
+	if ms <= 0 {
+		return 1
+	}
+	return ms
 }
 
 func (c *openAIAutoSchedulerProbeHTTPChecker) resolveTLSProfile(account *Account) *tlsfingerprint.Profile {

@@ -213,6 +213,63 @@ func TestOpenAIAutoSchedulerRepository_InsertScoreEventTruncatesMessageAtRuneBou
 	require.Equal(t, strings.Repeat("x", 999), got.Message)
 }
 
+func TestOpenAIAutoSchedulerRepository_ListScoreDailySamplesAggregatesSinceStart(t *testing.T) {
+	ctx := context.Background()
+	repo, _ := newOpenAIAutoSchedulerRepoSQLite(t)
+	since := time.Date(2026, 6, 29, 0, 0, 0, 0, time.Local)
+	oldTTFB := 111
+	firstTTFB := 222
+	lastTTFB := 333
+
+	require.NoError(t, repo.InsertScoreEvent(ctx, service.OpenAIAutoSchedulerScoreEvent{
+		AccountID: 1,
+		GroupID:   2,
+		Model:     "gpt-5",
+		EventType: service.OpenAIAutoSchedulerEventProbeSuccess,
+		TtfbMS:    &oldTTFB,
+		CreatedAt: since.Add(-time.Second),
+	}))
+	require.NoError(t, repo.InsertScoreEvent(ctx, service.OpenAIAutoSchedulerScoreEvent{
+		AccountID: 1,
+		GroupID:   2,
+		Model:     "gpt-5",
+		EventType: service.OpenAIAutoSchedulerEventProbeSuccess,
+		TtfbMS:    &firstTTFB,
+		CreatedAt: since.Add(time.Hour),
+	}))
+	require.NoError(t, repo.InsertScoreEvent(ctx, service.OpenAIAutoSchedulerScoreEvent{
+		AccountID: 1,
+		GroupID:   2,
+		Model:     "gpt-5",
+		EventType: service.OpenAIAutoSchedulerEventProbeError,
+		CreatedAt: since.Add(2 * time.Hour),
+	}))
+	require.NoError(t, repo.InsertScoreEvent(ctx, service.OpenAIAutoSchedulerScoreEvent{
+		AccountID: 1,
+		GroupID:   2,
+		Model:     "gpt-5",
+		EventType: service.OpenAIAutoSchedulerEventSuccess,
+		TtfbMS:    &lastTTFB,
+		CreatedAt: since.Add(3 * time.Hour),
+	}))
+	require.NoError(t, repo.InsertScoreEvent(ctx, service.OpenAIAutoSchedulerScoreEvent{
+		AccountID: 1,
+		GroupID:   3,
+		Model:     "gpt-5",
+		EventType: service.OpenAIAutoSchedulerEventSuccess,
+		TtfbMS:    &lastTTFB,
+		CreatedAt: since.Add(4 * time.Hour),
+	}))
+
+	samples, err := repo.ListScoreDailySamples(ctx, service.OpenAIAutoSchedulerListParams{GroupID: 2, Model: "gpt-5"}, since)
+
+	require.NoError(t, err)
+	require.Len(t, samples, 1)
+	require.Equal(t, int64(3), samples[1].RequestCount)
+	require.Equal(t, int64(2), samples[1].TtfbSampleCount)
+	require.Equal(t, &lastTTFB, samples[1].LastTtfbMS)
+}
+
 func TestOpenAIAutoSchedulerRepository_ListEnabledOpenAIGroupsFiltersActiveEnabledOpenAI(t *testing.T) {
 	ctx := context.Background()
 	repo, client := newOpenAIAutoSchedulerRepoSQLite(t)

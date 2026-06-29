@@ -221,6 +221,46 @@ func TestOpenAIAutoSchedulerProbeRunner_RecordsProbeError(t *testing.T) {
 	require.Equal(t, ptr(123), record.LatencyMS)
 }
 
+func TestOpenAIAutoSchedulerProbeRunner_RecordsProbeTTFB(t *testing.T) {
+	settings := DefaultOpenAIAutoSchedulerSettings()
+	settings.Enabled = true
+	svc := &fakeOpenAIAutoSchedulerProbeService{
+		settings: settings,
+		groups: []Group{
+			{ID: 10, Platform: PlatformOpenAI, Status: StatusActive, OpenAIAutoSchedulerEnabled: true, Hydrated: true},
+		},
+	}
+	repo := &fakeOpenAIAutoSchedulerProbeAccountRepo{
+		accounts: map[int64][]Account{
+			10: {{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true}},
+		},
+	}
+	checker := &fakeOpenAIAutoSchedulerProbeChecker{
+		results: map[string]OpenAIAutoSchedulerProbeResult{
+			openAIAutoSchedulerProbeKey(1, 10, selectOpenAIAutoSchedulerProbeModel()): {
+				Success:   true,
+				LatencyMS: ptr(300),
+				TtfbMS:    ptr(120),
+			},
+		},
+	}
+	runner := newOpenAIAutoSchedulerProbeRunner(svc, svc, repo, checker, nil)
+
+	runner.runOnce(context.Background())
+
+	require.Eventually(t, func() bool {
+		svc.mu.Lock()
+		defer svc.mu.Unlock()
+		return len(svc.records) == 1
+	}, time.Second, 10*time.Millisecond)
+	svc.mu.Lock()
+	record := svc.records[0]
+	svc.mu.Unlock()
+	require.Equal(t, OpenAIAutoSchedulerEventProbeSuccess, record.EventType)
+	require.Equal(t, ptr(300), record.LatencyMS)
+	require.Equal(t, ptr(120), record.TtfbMS)
+}
+
 func TestOpenAIAutoSchedulerProbeRunner_StopCancelsInFlightProbe(t *testing.T) {
 	settings := DefaultOpenAIAutoSchedulerSettings()
 	settings.Enabled = true

@@ -348,11 +348,12 @@ func TestOpenAIAutoSchedulerHandler_ResetRejectsMissingMutationQueryParams(t *te
 
 func TestOpenAIAutoSchedulerHandler_ProbeRecordsSuccess(t *testing.T) {
 	latency := 88
+	ttfb := 32
 	schedulerSvc := &fakeOpenAIAutoSchedulerService{}
 	router := setupOpenAIAutoSchedulerProbeRouter(
 		schedulerSvc,
 		&fakeOpenAIAutoSchedulerAccountRepo{account: &service.Account{ID: 101, Platform: service.PlatformOpenAI}},
-		fakeOpenAIAutoSchedulerProbeChecker{result: service.OpenAIAutoSchedulerProbeResult{Success: true, LatencyMS: &latency, Message: "ok"}},
+		fakeOpenAIAutoSchedulerProbeChecker{result: service.OpenAIAutoSchedulerProbeResult{Success: true, LatencyMS: &latency, TtfbMS: &ttfb, Message: "ok"}},
 	)
 
 	rec := httptest.NewRecorder()
@@ -364,7 +365,9 @@ func TestOpenAIAutoSchedulerHandler_ProbeRecordsSuccess(t *testing.T) {
 	require.Equal(t, int64(20), schedulerSvc.recordInput.GroupID)
 	require.Equal(t, "gpt-5", schedulerSvc.recordInput.Model)
 	require.Equal(t, service.OpenAIAutoSchedulerEventProbeSuccess, schedulerSvc.recordInput.EventType)
+	require.Equal(t, &ttfb, schedulerSvc.recordInput.TtfbMS)
 	require.Contains(t, rec.Body.String(), `"success":true`)
+	require.Contains(t, rec.Body.String(), `"ttfb_ms":32`)
 }
 
 func TestOpenAIAutoSchedulerHandler_ProbeSurfacesRecordError(t *testing.T) {

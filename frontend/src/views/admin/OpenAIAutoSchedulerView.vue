@@ -174,10 +174,10 @@
                 <label class="input-label" for="scheduler-filter-state">状态</label>
                 <select id="scheduler-filter-state" v-model="filters.state" class="input" @change="applyFilters">
                   <option value="">全部状态</option>
-                  <option value="running">running</option>
-                  <option value="observing">observing</option>
-                  <option value="open">open</option>
-                  <option value="half_open">half_open</option>
+                  <option value="running">正常</option>
+                  <option value="observing">观察中</option>
+                  <option value="open">熔断中</option>
+                  <option value="half_open">半开探测</option>
                 </select>
               </div>
               <div>
@@ -221,6 +221,9 @@
                       <div class="truncate text-sm font-semibold text-gray-900 dark:text-white">{{ scoreTitle(score) }}</div>
                       <div class="mt-1 truncate text-xs text-gray-500 dark:text-dark-400">
                         #{{ score.account_id }} · Group #{{ score.group_id }} · {{ score.model }}
+                      </div>
+                      <div class="mt-1 truncate text-xs text-gray-500 dark:text-dark-400">
+                        价格 {{ formatChannelPrice(score.channel_price) }}
                       </div>
                     </td>
                     <td class="px-4 py-3">
@@ -716,12 +719,17 @@ function errorSummary(error?: string | null): string {
 
 function stateLabel(state: OpenAIAutoSchedulerState): string {
   const labels: Record<OpenAIAutoSchedulerState, string> = {
-    running: 'running',
-    observing: 'observing',
-    open: 'open',
-    half_open: 'half-open',
+    running: '正常',
+    observing: '观察中',
+    open: '熔断中',
+    half_open: '半开探测',
   }
   return labels[state] || state
+}
+
+function formatChannelPrice(value?: number | null): string {
+  if (value == null || value <= 0) return '默认 1.0x'
+  return `${Number(value.toFixed(4)).toString()}x`
 }
 
 function stateBadgeClass(state: OpenAIAutoSchedulerState): string {

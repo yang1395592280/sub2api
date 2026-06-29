@@ -75,6 +75,7 @@ const scores = [
   {
     account_id: 101,
     account_name: 'plus特惠临时分组渠道',
+    channel_price: 0.1,
     group_id: 20,
     model: 'gpt-5.4',
     base_score: 6000,
@@ -109,6 +110,7 @@ const scores = [
   {
     account_id: 102,
     account_name: 'codex-pro备用渠道',
+    channel_price: null,
     group_id: 21,
     model: 'gpt-5.5',
     base_score: 10000,
@@ -253,7 +255,9 @@ describe('OpenAIAutoSchedulerView', () => {
     )
     expect(wrapper.text()).toContain('plus特惠临时分组')
     expect(wrapper.text()).toContain('plus特惠临时分组渠道')
-    expect(wrapper.text()).toContain('observing')
+    expect(wrapper.text()).toContain('观察中')
+    expect(wrapper.text()).not.toContain('observing')
+    expect(wrapper.text()).toContain('价格 0.1x')
     expect(wrapper.text()).toContain('0.8200')
     expect(wrapper.get<HTMLSelectElement>('#scheduler-filter-model').element.value).toBe('gpt-5.4')
     expect(wrapper.text()).toContain('实际调度分')
