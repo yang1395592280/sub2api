@@ -251,7 +251,11 @@ func (s *OpenAIUpstreamBalanceService) probeSub2API(ctx context.Context, account
 
 func (s *OpenAIUpstreamBalanceService) probeNewAPI(ctx context.Context, account *Account, baseURL, apiKey string) (OpenAIUpstreamBalanceSnapshot, error) {
 	if auth, ok := getNewAPIUserBalanceAuth(account); ok {
-		return s.probeNewAPIUserSelf(ctx, baseURL, auth)
+		snapshot, err := s.probeNewAPIUserSelf(ctx, baseURL, auth)
+		if err == nil {
+			s.enrichNewAPIUserMetadata(ctx, baseURL, apiKey, auth, &snapshot)
+		}
+		return snapshot, err
 	}
 	var payload map[string]any
 	if err := s.doJSONGET(ctx, buildNewAPIUsageURL(baseURL), apiKey, &payload); err != nil {
@@ -568,9 +572,132 @@ func (s *OpenAIUpstreamBalanceService) fetchSub2APIUserGroupRates(ctx context.Co
 	return rates, nil
 }
 
+type newAPIUserToken struct {
+	ID    int64
+	Key   string
+	Name  string
+	Group string
+}
+
 type newAPIUserBalanceAuth struct {
 	UserID      string
 	AccessToken string
+}
+
+func (s *OpenAIUpstreamBalanceService) enrichNewAPIUserMetadata(ctx context.Context, baseURL, apiKey string, auth newAPIUserBalanceAuth, snapshot *OpenAIUpstreamBalanceSnapshot) {
+	if snapshot == nil {
+		return
+	}
+	token, err := s.fetchNewAPIUserToken(ctx, baseURL, apiKey, auth)
+	if err != nil || token == nil {
+		return
+	}
+	if token.ID != 0 {
+		snapshot.UpstreamKeyID = &token.ID
+	}
+	if strings.TrimSpace(token.Group) != "" {
+		snapshot.Group = strings.TrimSpace(token.Group)
+	}
+	if strings.TrimSpace(snapshot.Group) == "" {
+		return
+	}
+	rates, err := s.fetchNewAPIGroupRates(ctx, baseURL, auth)
+	if err != nil {
+		return
+	}
+	if rate, ok := rates[strings.TrimSpace(snapshot.Group)]; ok {
+		snapshot.EffectiveRateMultiplier = &rate
+		snapshot.RateSource = "user_group_rate"
+	}
+}
+
+func (s *OpenAIUpstreamBalanceService) fetchNewAPIUserToken(ctx context.Context, baseURL, apiKey string, auth newAPIUserBalanceAuth) (*newAPIUserToken, error) {
+	queryKey := strings.TrimSpace(apiKey)
+	if strings.HasPrefix(queryKey, "sk-") {
+		queryKey = strings.TrimPrefix(queryKey, "sk-")
+	}
+	var payload map[string]any
+	if err := s.doJSONGETWithHeaders(ctx, buildNewAPITokenSearchURL(baseURL, queryKey), newAPIUserHeaders(auth), &payload); err != nil {
+		return nil, err
+	}
+	data, _ := payload["data"].(map[string]any)
+	if data == nil {
+		data = payload
+	}
+	rawItems, _ := data["items"].([]any)
+	for _, raw := range rawItems {
+		item, _ := raw.(map[string]any)
+		if item == nil {
+			continue
+		}
+		token := parseNewAPIUserToken(item)
+		if token == nil {
+			continue
+		}
+		if newAPIKeyMatchesAPIKey(token.Key, apiKey) || len(rawItems) == 1 {
+			return token, nil
+		}
+	}
+	return nil, fmt.Errorf("new-api token not found")
+}
+
+func parseNewAPIUserToken(item map[string]any) *newAPIUserToken {
+	token := &newAPIUserToken{
+		Key:   strings.TrimSpace(getString(item, "key")),
+		Name:  strings.TrimSpace(getString(item, "name")),
+		Group: strings.TrimSpace(getString(item, "group")),
+	}
+	if id, ok := getInt64(item, "id"); ok {
+		token.ID = id
+	}
+	if token.Key == "" && token.Name == "" && token.Group == "" && token.ID == 0 {
+		return nil
+	}
+	return token
+}
+
+func newAPIKeyMatchesAPIKey(tokenKey, apiKey string) bool {
+	normalizedTokenKey := strings.TrimSpace(tokenKey)
+	normalizedAPIKey := strings.TrimSpace(apiKey)
+	if normalizedTokenKey == "" || normalizedAPIKey == "" {
+		return false
+	}
+	if normalizedTokenKey == normalizedAPIKey {
+		return true
+	}
+	if !strings.HasPrefix(normalizedTokenKey, "sk-") && "sk-"+normalizedTokenKey == normalizedAPIKey {
+		return true
+	}
+	if strings.Contains(normalizedTokenKey, "*") {
+		prefix, suffix, ok := strings.Cut(normalizedTokenKey, "*")
+		if ok {
+			return strings.HasPrefix(strings.TrimPrefix(normalizedAPIKey, "sk-"), strings.TrimPrefix(prefix, "sk-")) &&
+				strings.HasSuffix(normalizedAPIKey, suffix)
+		}
+	}
+	return false
+}
+
+func (s *OpenAIUpstreamBalanceService) fetchNewAPIGroupRates(ctx context.Context, baseURL string, auth newAPIUserBalanceAuth) (map[string]float64, error) {
+	var payload map[string]any
+	if err := s.doJSONGETWithHeaders(ctx, buildNewAPIPricingURL(baseURL), newAPIUserHeaders(auth), &payload); err != nil {
+		return nil, err
+	}
+	rawRates, _ := payload["group_ratio"].(map[string]any)
+	rates := make(map[string]float64, len(rawRates))
+	for group, raw := range rawRates {
+		if rate, ok := anyToFloat64(raw); ok {
+			rates[strings.TrimSpace(group)] = rate
+		}
+	}
+	return rates, nil
+}
+
+func newAPIUserHeaders(auth newAPIUserBalanceAuth) map[string]string {
+	return map[string]string{
+		"Authorization": auth.AccessToken,
+		"New-Api-User":  auth.UserID,
+	}
 }
 
 func getNewAPIUserBalanceAuth(account *Account) (newAPIUserBalanceAuth, bool) {
@@ -587,6 +714,14 @@ func getNewAPIUserBalanceAuth(account *Account) (newAPIUserBalanceAuth, bool) {
 func hasNewAPIUserBalanceCredentials(account *Account) bool {
 	_, ok := getNewAPIUserBalanceAuth(account)
 	return ok
+}
+
+func buildNewAPITokenSearchURL(baseURL, token string) string {
+	return buildUpstreamAdminURL(baseURL, "/api/token/search?token="+url.QueryEscape(strings.TrimSpace(token)))
+}
+
+func buildNewAPIPricingURL(baseURL string) string {
+	return buildUpstreamAdminURL(baseURL, "/api/pricing")
 }
 
 func buildNewAPIUsageURL(baseURL string) string {
@@ -673,6 +808,10 @@ func getFloat64(m map[string]any, key string) (float64, bool) {
 	if !ok || raw == nil {
 		return 0, false
 	}
+	return anyToFloat64(raw)
+}
+
+func anyToFloat64(raw any) (float64, bool) {
 	switch v := raw.(type) {
 	case float64:
 		return v, true

@@ -46,8 +46,7 @@ func (s *OpenAIAutoSchedulerSelector) Rank(ctx context.Context, groupID *int64, 
 			neutral := NewOpenAIAutoSchedulerScoreState(account.ID, *groupID, requestedModel)
 			state = &neutral
 		}
-		if state.State == OpenAIAutoSchedulerStateOpen &&
-			(state.CooldownUntil == nil || state.CooldownUntil.After(now)) {
+		if isOpenAIAutoSchedulerStateInActiveCooldown(*state, now) {
 			continue
 		}
 		ranked = append(ranked, openAIAutoSchedulerRankedAccount{
@@ -86,6 +85,22 @@ func (s *OpenAIAutoSchedulerSelector) Rank(ctx context.Context, groupID *int64, 
 		out = append(out, item.account)
 	}
 	return out, true
+}
+
+func (s *OpenAIAutoSchedulerSelector) IsAccountTemporarilyBlocked(ctx context.Context, groupID *int64, requestedModel string, accountID int64) bool {
+	if s == nil || s.service == nil || groupID == nil || accountID <= 0 || !s.service.IsEnabledForGroup(ctx, groupID) {
+		return false
+	}
+	state, err := s.service.GetStateForSelection(ctx, accountID, *groupID, strings.TrimSpace(requestedModel))
+	if err != nil || state == nil {
+		return false
+	}
+	return isOpenAIAutoSchedulerStateInActiveCooldown(*state, time.Now())
+}
+
+func isOpenAIAutoSchedulerStateInActiveCooldown(state OpenAIAutoSchedulerScoreState, now time.Time) bool {
+	return state.State == OpenAIAutoSchedulerStateOpen &&
+		(state.CooldownUntil == nil || state.CooldownUntil.After(now))
 }
 
 type openAIAutoSchedulerRankedAccount struct {

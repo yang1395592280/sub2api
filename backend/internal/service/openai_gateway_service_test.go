@@ -635,6 +635,47 @@ func TestOpenAISelectAccountForModelWithExclusions_StickyOutsideGroupClearsSessi
 	}
 }
 
+func TestOpenAISelectAccountForModelWithExclusions_StickyOpenCircuitClearsSession(t *testing.T) {
+	sessionHash := "session-open-circuit"
+	groupID := int64(1003)
+	repo := stubOpenAIAccountRepo{
+		accounts: []Account{
+			{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, AccountGroups: []AccountGroup{{GroupID: groupID}}},
+			{ID: 2, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, AccountGroups: []AccountGroup{{GroupID: groupID}}},
+		},
+	}
+	cache := &stubGatewayCache{
+		sessionBindings: map[string]int64{"openai:" + sessionHash: 1},
+	}
+	selector := NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{
+		enabledGroups: map[int64]bool{groupID: true},
+		states: map[int64]OpenAIAutoSchedulerScoreState{
+			1: {AccountID: 1, GroupID: groupID, Model: "gpt-5", FinalScore: 500, State: OpenAIAutoSchedulerStateOpen, CooldownUntil: ptrSelectorTime(time.Now().Add(time.Minute))},
+			2: {AccountID: 2, GroupID: groupID, Model: "gpt-5", FinalScore: 9000, State: OpenAIAutoSchedulerStateRunning},
+		},
+	})
+
+	svc := &OpenAIGatewayService{
+		accountRepo: repo,
+		cache:       cache,
+	}
+	svc.SetOpenAIAutoScheduler(selector, nil)
+
+	acc, err := svc.SelectAccountForModelWithExclusions(context.Background(), &groupID, sessionHash, "gpt-5", nil)
+	if err != nil {
+		t.Fatalf("SelectAccountForModelWithExclusions error: %v", err)
+	}
+	if acc == nil || acc.ID != 2 {
+		t.Fatalf("expected account 2, got %+v", acc)
+	}
+	if cache.deletedSessions["openai:"+sessionHash] != 1 {
+		t.Fatalf("expected sticky session to be deleted")
+	}
+	if cache.sessionBindings["openai:"+sessionHash] != 2 {
+		t.Fatalf("expected sticky session to bind to account 2")
+	}
+}
+
 func TestOpenAISelectAccountWithLoadAwareness_StickyUnschedulableClearsSession(t *testing.T) {
 	sessionHash := "session-2"
 	groupID := int64(1)
@@ -694,6 +735,51 @@ func TestOpenAISelectAccountWithLoadAwareness_StickyOutsideGroupClearsSession(t 
 	}
 
 	selection, err := svc.SelectAccountWithLoadAwareness(context.Background(), &groupID, sessionHash, "gpt-4", nil)
+	if err != nil {
+		t.Fatalf("SelectAccountWithLoadAwareness error: %v", err)
+	}
+	if selection == nil || selection.Account == nil || selection.Account.ID != 2 {
+		t.Fatalf("expected account 2, got %+v", selection)
+	}
+	if cache.deletedSessions["openai:"+sessionHash] != 1 {
+		t.Fatalf("expected sticky session to be deleted")
+	}
+	if cache.sessionBindings["openai:"+sessionHash] != 2 {
+		t.Fatalf("expected sticky session to bind to account 2")
+	}
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+}
+
+func TestOpenAISelectAccountWithLoadAwareness_StickyOpenCircuitClearsSession(t *testing.T) {
+	sessionHash := "session-load-open-circuit"
+	groupID := int64(1004)
+	repo := stubOpenAIAccountRepo{
+		accounts: []Account{
+			{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, AccountGroups: []AccountGroup{{GroupID: groupID}}},
+			{ID: 2, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, AccountGroups: []AccountGroup{{GroupID: groupID}}},
+		},
+	}
+	cache := &stubGatewayCache{
+		sessionBindings: map[string]int64{"openai:" + sessionHash: 1},
+	}
+	selector := NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{
+		enabledGroups: map[int64]bool{groupID: true},
+		states: map[int64]OpenAIAutoSchedulerScoreState{
+			1: {AccountID: 1, GroupID: groupID, Model: "gpt-5", FinalScore: 500, State: OpenAIAutoSchedulerStateOpen, CooldownUntil: ptrSelectorTime(time.Now().Add(time.Minute))},
+			2: {AccountID: 2, GroupID: groupID, Model: "gpt-5", FinalScore: 9000, State: OpenAIAutoSchedulerStateRunning},
+		},
+	})
+
+	svc := &OpenAIGatewayService{
+		accountRepo:        repo,
+		cache:              cache,
+		concurrencyService: NewConcurrencyService(stubConcurrencyCache{}),
+	}
+	svc.SetOpenAIAutoScheduler(selector, nil)
+
+	selection, err := svc.SelectAccountWithLoadAwareness(context.Background(), &groupID, sessionHash, "gpt-5", nil)
 	if err != nil {
 		t.Fatalf("SelectAccountWithLoadAwareness error: %v", err)
 	}

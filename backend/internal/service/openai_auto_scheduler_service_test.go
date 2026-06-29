@@ -384,6 +384,35 @@ func TestOpenAIAutoSchedulerService_ListScoresIncludesDefaultStatesForUnscoredGr
 	require.Equal(t, 6000, result.Items[1].FinalScore)
 }
 
+func TestOpenAIAutoSchedulerService_ListScoresHidesStatesForAccountsNoLongerInGroup(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		accounts: map[int64][]Account{
+			2: {
+				{ID: 1, Name: "仍在分组", Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true},
+			},
+		},
+		listStates: []OpenAIAutoSchedulerScoreState{
+			{AccountID: 1, AccountName: "旧名称", GroupID: 2, Model: "gpt-5", FinalScore: 7200, State: OpenAIAutoSchedulerStateObserving},
+			{AccountID: 9, AccountName: "已移出分组", GroupID: 2, Model: "gpt-5", FinalScore: 9900, State: OpenAIAutoSchedulerStateRunning},
+		},
+		listTotal: 2,
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+
+	result, err := svc.ListScores(context.Background(), OpenAIAutoSchedulerListParams{
+		GroupID:  2,
+		Model:    "gpt-5",
+		Page:     1,
+		PageSize: 50,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.Total)
+	require.Len(t, result.Items, 1)
+	require.Equal(t, int64(1), result.Items[0].AccountID)
+	require.Equal(t, "仍在分组", result.Items[0].AccountName)
+}
+
 func TestOpenAIAutoSchedulerService_ListEventsDelegatesToRepository(t *testing.T) {
 	repo := &fakeOpenAIAutoSchedulerRepo{
 		listEvents: []OpenAIAutoSchedulerScoreEvent{

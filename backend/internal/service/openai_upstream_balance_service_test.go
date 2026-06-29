@@ -401,10 +401,18 @@ func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfQuota(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		require.Equal(t, "/api/user/self", r.URL.Path)
-		require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
-		require.Equal(t, "738", r.Header.Get("New-Api-User"))
-		_, _ = w.Write([]byte(`{"success":true,"data":{"id":738,"group":"vip","quota":4557913,"used_quota":990499351,"request_count":9777}}`))
+		switch r.URL.Path {
+		case "/api/user/self":
+			require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
+			require.Equal(t, "738", r.Header.Get("New-Api-User"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"id":738,"group":"vip","quota":4557913,"used_quota":990499351,"request_count":9777}}`))
+		case "/api/token/search":
+			require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
+			require.Equal(t, "738", r.Header.Get("New-Api-User"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"items":[]}}`))
+		default:
+			http.NotFound(w, r)
+		}
 	}))
 	defer srv.Close()
 
@@ -425,11 +433,63 @@ func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfQuota(t *testing.T) {
 	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
 	_, err := svc.Refresh(context.Background(), 18)
 	require.NoError(t, err)
-	require.Equal(t, 1, calls)
+	require.Equal(t, 2, calls)
 	require.Equal(t, "new-api", repo.updatedExtra["upstream_balance_provider"])
 	require.InDelta(t, 9.115826, repo.updatedExtra["upstream_balance_remaining"], 0.000001)
 	require.Equal(t, "USD", repo.updatedExtra["upstream_balance_unit"])
 	require.Equal(t, "vip", repo.updatedExtra["upstream_group"])
+}
+
+func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfResolvesGroupRate(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/user/self":
+			require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
+			require.Equal(t, "935", r.Header.Get("New-Api-User"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"id":935,"group":"duijie","quota":49990794,"used_quota":9206}}`))
+		case "/api/token/search":
+			require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
+			require.Equal(t, "935", r.Header.Get("New-Api-User"))
+			require.Equal(t, "upstream", r.URL.Query().Get("token"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"page":1,"page_size":10,"total":1,"items":[{"id":976,"user_id":935,"key":"sk-upstream","name":"正价pro","group":"Codex"}]}}`))
+		case "/api/pricing":
+			require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
+			require.Equal(t, "935", r.Header.Get("New-Api-User"))
+			_, _ = w.Write([]byte(`{"success":true,"group_ratio":{"Codex":0.18,"default":0.23},"usable_group":{"Codex":"Codex分组-0.18/刀","default":"默认分组-0.23/刀"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	repo := &openAIUpstreamBalanceRepoStub{
+		account: &Account{
+			ID:       23,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			ChannelPrice: func() *float64 {
+				price := 1.23
+				return &price
+			}(),
+			Credentials: map[string]any{
+				"base_url":                  srv.URL + "/v1",
+				"api_key":                   "sk-upstream",
+				"new_api_user_id":           "935",
+				"new_api_user_access_token": "user-access-token",
+			},
+		},
+	}
+
+	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+	_, err := svc.Refresh(context.Background(), 23)
+	require.NoError(t, err)
+	require.Equal(t, "new-api", repo.updatedExtra["upstream_balance_provider"])
+	require.Equal(t, "Codex", repo.updatedExtra["upstream_group"])
+	require.Equal(t, int64(976), repo.updatedExtra["upstream_key_id"])
+	require.Equal(t, 0.18, repo.updatedExtra["upstream_effective_rate_multiplier"])
+	require.Equal(t, "user_group_rate", repo.updatedExtra["upstream_rate_source"])
+	require.NotNil(t, repo.updatedChannelPrice)
+	require.Equal(t, 0.18, *repo.updatedChannelPrice)
 }
 
 func TestOpenAIUpstreamBalanceServiceRefresh_NewAPINegativeTotalAvailableClampsToZero(t *testing.T) {

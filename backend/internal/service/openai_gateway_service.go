@@ -1826,6 +1826,10 @@ func (s *OpenAIGatewayService) tryStickySessionHit(ctx context.Context, groupID 
 		_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 		return nil
 	}
+	if s.isOpenAIAutoSchedulerAccountTemporarilyBlocked(ctx, groupID, requestedModel, account.ID) {
+		_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
+		return nil
+	}
 	account = s.recheckSelectedOpenAIAccountFromDB(ctx, account, platform, requestedModel, requireCompact, requiredCapability)
 	if account == nil || !openAIStickyAccountMatchesGroup(account, groupID) {
 		_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
@@ -1962,6 +1966,13 @@ func (s *OpenAIGatewayService) rankOpenAIAutoSchedulerCandidates(ctx context.Con
 	return s.openAIAutoSchedulerSelector.Rank(ctx, groupID, requestedModel, candidates)
 }
 
+func (s *OpenAIGatewayService) isOpenAIAutoSchedulerAccountTemporarilyBlocked(ctx context.Context, groupID *int64, requestedModel string, accountID int64) bool {
+	if s == nil || s.openAIAutoSchedulerSelector == nil {
+		return false
+	}
+	return s.openAIAutoSchedulerSelector.IsAccountTemporarilyBlocked(ctx, groupID, requestedModel, accountID)
+}
+
 func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerOutcome(ctx context.Context, account *Account, groupID *int64, requestedModel string, outcome OpenAIAutoSchedulerRecordInput) {
 	if s == nil || s.openAIAutoSchedulerService == nil || account == nil || groupID == nil {
 		return
@@ -2077,6 +2088,8 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 					} else if !openAIStickyAccountMatchesGroup(account, groupID) {
 						_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 					} else if s.isOpenAIAccountRuntimeBlocked(account) {
+						_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
+					} else if s.isOpenAIAutoSchedulerAccountTemporarilyBlocked(ctx, groupID, requestedModel, account.ID) {
 						_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 					} else if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, account, requestedModel, requireCompact) {
 						_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)

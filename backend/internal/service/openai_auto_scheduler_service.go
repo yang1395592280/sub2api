@@ -245,8 +245,18 @@ func (s *OpenAIAutoSchedulerService) listScoresWithGroupAccounts(ctx context.Con
 		return nil, err
 	}
 
-	byAccountID := make(map[int64]OpenAIAutoSchedulerScoreState, len(items)+len(accounts))
+	currentAccounts := make(map[int64]Account, len(accounts))
+	for _, account := range accounts {
+		currentAccounts[account.ID] = account
+	}
+
+	byAccountID := make(map[int64]OpenAIAutoSchedulerScoreState, len(accounts))
 	for _, item := range items {
+		account, ok := currentAccounts[item.AccountID]
+		if !ok {
+			continue
+		}
+		item.AccountName = account.Name
 		byAccountID[item.AccountID] = item
 	}
 	for _, account := range accounts {
