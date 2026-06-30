@@ -105,8 +105,23 @@
                 class="-mx-2 -my-1 flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-dark-700"
                 :title="t('keys.clickToChangeGroup')"
               >
+                <div v-if="row.group_select_mode === 'openai_auto_cheapest'" class="flex flex-col items-start gap-1">
+                  <GroupBadge
+                    name="自动最优惠"
+                    platform="openai"
+                    subscription-type="standard"
+                    :rate-multiplier="0"
+                  />
+                  <span class="text-xs text-gray-500 dark:text-gray-400">
+                    {{
+                      row.last_effective_group
+                        ? `最近生效：${row.last_effective_group.name}`
+                        : '等待首次调用'
+                    }}
+                  </span>
+                </div>
                 <GroupBadge
-                  v-if="row.group"
+                  v-else-if="row.group"
                   :name="row.group.name"
                   :platform="row.group.platform"
                   :subscription-type="row.group.subscription_type"
@@ -407,7 +422,7 @@
         <div>
           <label class="input-label">{{ t('keys.groupLabel') }}</label>
           <Select
-            v-model="formData.group_id"
+            v-model="selectedGroupOptionValue"
             :options="groupOptions"
             :placeholder="t('keys.selectGroup')"
             :searchable="true"
@@ -416,11 +431,18 @@
           >
             <template #selected="{ option }">
               <GroupBadge
-                v-if="option"
+                v-if="(option as unknown as GroupOption)?.kind === 'openai_auto_cheapest'"
+                name="OpenAI 自动选择最优惠分组"
+                platform="openai"
+                subscription-type="standard"
+                :show-rate="false"
+              />
+              <GroupBadge
+                v-else-if="option"
                 :name="(option as unknown as GroupOption).label"
                 :platform="(option as unknown as GroupOption).platform"
                 :subscription-type="(option as unknown as GroupOption).subscriptionType"
-                :rate-multiplier="(option as unknown as GroupOption).rate"
+                :rate-multiplier="(option as unknown as GroupOption).rate ?? undefined"
                 :user-rate-multiplier="(option as unknown as GroupOption).userRate"
               />
               <span v-else class="text-gray-400">{{ t('keys.selectGroup') }}</span>
@@ -430,7 +452,7 @@
                 :name="(option as unknown as GroupOption).label"
                 :platform="(option as unknown as GroupOption).platform"
                 :subscription-type="(option as unknown as GroupOption).subscriptionType"
-                :rate-multiplier="(option as unknown as GroupOption).rate"
+                :rate-multiplier="(option as unknown as GroupOption).rate ?? undefined"
                 :user-rate-multiplier="(option as unknown as GroupOption).userRate"
                 :description="(option as unknown as GroupOption).description"
                 :selected="selected"
@@ -925,8 +947,8 @@
       :show="showUseKeyModal"
       :api-key="selectedKey?.key || ''"
       :base-url="publicSettings?.api_base_url || ''"
-      :platform="selectedKey?.group?.platform || null"
-      :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
+      :platform="selectedKey ? resolveKeyPlatform(selectedKey) : null"
+      :allow-messages-dispatch="selectedKey?.group_select_mode === 'openai_auto_cheapest' || selectedKey?.group?.allow_messages_dispatch || false"
       @close="closeUseKeyModal"
     />
 
@@ -1025,7 +1047,7 @@
               :name="option.label"
               :platform="option.platform"
               :subscription-type="option.subscriptionType"
-              :rate-multiplier="option.rate"
+              :rate-multiplier="option.rate ?? undefined"
               :user-rate-multiplier="option.userRate"
               :description="option.description"
               :selected="
@@ -1068,12 +1090,17 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
-	import type { ApiKey, Group, PublicSettings } from '@/types'
+	import type { ApiKey, ApiKeyGroupSelectMode, Group, PublicSettings } from '@/types'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
-import { buildKeyGroupOptions, type KeyGroupOption } from './keyGroupOptions'
+import {
+  buildKeyGroupOptions,
+  OPENAI_AUTO_CHEAPEST_GROUP_VALUE,
+  type KeyGroupOption,
+  type KeyGroupOptionValue
+} from './keyGroupOptions'
 import {
   buildCcSwitchImportDeeplink,
   type CcSwitchClientType
@@ -1164,6 +1191,7 @@ const setGroupButtonRef = (keyId: number, el: Element | ComponentPublicInstance 
 const formData = ref({
   name: '',
   group_id: null as number | null,
+  group_select_mode: 'fixed' as ApiKeyGroupSelectMode,
   status: 'active' as 'active' | 'inactive',
   use_custom_key: false,
   custom_key: '',
@@ -1236,15 +1264,36 @@ const onStatusFilterChange = (value: string | number | boolean | null) => {
 
 // Convert groups to Select options format with rate multiplier and subscription type
 const groupOptions = computed(() =>
+  buildKeyGroupOptions(groups.value, userGroupRates.value, { includeOpenAIAutoCheapest: true })
+)
+
+const fixedGroupOptions = computed(() =>
   buildKeyGroupOptions(groups.value, userGroupRates.value)
 )
+
+const selectedGroupOptionValue = computed<KeyGroupOptionValue | null>({
+  get() {
+    return formData.value.group_select_mode === 'openai_auto_cheapest'
+      ? OPENAI_AUTO_CHEAPEST_GROUP_VALUE
+      : formData.value.group_id
+  },
+  set(value) {
+    if (value === OPENAI_AUTO_CHEAPEST_GROUP_VALUE) {
+      formData.value.group_select_mode = 'openai_auto_cheapest'
+      formData.value.group_id = null
+      return
+    }
+    formData.value.group_select_mode = 'fixed'
+    formData.value.group_id = typeof value === 'number' ? value : null
+  }
+})
 
 // Group dropdown search
 const groupSearchQuery = ref('')
 const filteredGroupOptions = computed(() => {
   const query = groupSearchQuery.value.trim().toLowerCase()
-  if (!query) return groupOptions.value
-  return groupOptions.value.filter((opt) => {
+  if (!query) return fixedGroupOptions.value
+  return fixedGroupOptions.value.filter((opt) => {
     return opt.label.toLowerCase().includes(query) ||
       (opt.description && opt.description.toLowerCase().includes(query))
   })
@@ -1376,9 +1425,11 @@ const editKey = (key: ApiKey) => {
   selectedKey.value = key
   const hasIPRestriction = (key.ip_whitelist?.length > 0) || (key.ip_blacklist?.length > 0)
   const hasExpiration = !!key.expires_at
+  const groupSelectMode = key.group_select_mode ?? 'fixed'
   formData.value = {
     name: key.name,
-    group_id: key.group_id,
+    group_id: groupSelectMode === 'openai_auto_cheapest' ? null : key.group_id,
+    group_select_mode: groupSelectMode,
     status: key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status,
     use_custom_key: false,
     custom_key: '',
@@ -1442,13 +1493,14 @@ const openGroupSelector = (key: ApiKey) => {
   }
 }
 
-const changeGroup = async (key: ApiKey, newGroupId: number | null) => {
+const changeGroup = async (key: ApiKey, newGroupId: KeyGroupOptionValue | null) => {
   groupSelectorKeyId.value = null
   dropdownPosition.value = null
-  if (key.group_id === newGroupId) return
+  if (newGroupId === OPENAI_AUTO_CHEAPEST_GROUP_VALUE) return
+  if (key.group_select_mode !== 'openai_auto_cheapest' && key.group_id === newGroupId) return
 
   try {
-    await keysAPI.update(key.id, { group_id: newGroupId })
+    await keysAPI.update(key.id, { group_id: newGroupId, group_select_mode: 'fixed' })
     appStore.showSuccess(t('keys.groupChangedSuccess'))
     loadApiKeys()
   } catch (error) {
@@ -1472,7 +1524,7 @@ const confirmDelete = (key: ApiKey) => {
 
 const handleSubmit = async () => {
   // Validate group_id is required
-  if (formData.value.group_id === null) {
+  if (formData.value.group_select_mode === 'fixed' && formData.value.group_id === null) {
     appStore.showError(t('keys.groupRequired'))
     return
   }
@@ -1530,6 +1582,7 @@ const handleSubmit = async () => {
       await keysAPI.update(selectedKey.value.id, {
         name: formData.value.name,
         group_id: formData.value.group_id,
+        group_select_mode: formData.value.group_select_mode,
         status: formData.value.status,
         ip_whitelist: ipWhitelist,
         ip_blacklist: ipBlacklist,
@@ -1550,7 +1603,8 @@ const handleSubmit = async () => {
         ipBlacklist,
         quota,
         expiresInDays,
-        rateLimitData
+        rateLimitData,
+        formData.value.group_select_mode
       )
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
       // Only advance tour if active, on submit step, and creation succeeded
@@ -1596,6 +1650,7 @@ const closeModals = () => {
   formData.value = {
     name: '',
     group_id: null,
+    group_select_mode: 'fixed',
     status: 'active',
     use_custom_key: false,
     custom_key: '',
@@ -1675,8 +1730,13 @@ const resetRateLimitUsage = async () => {
   }
 }
 
+const resolveKeyPlatform = (key: ApiKey) => {
+  if (key.group_select_mode === 'openai_auto_cheapest') return 'openai'
+  return key.group?.platform || 'anthropic'
+}
+
 const importToCcswitch = (row: ApiKey) => {
-  const platform = row.group?.platform || 'anthropic'
+  const platform = resolveKeyPlatform(row)
 
   // For antigravity platform, show client selection dialog
   if (platform === 'antigravity') {
@@ -1691,7 +1751,7 @@ const importToCcswitch = (row: ApiKey) => {
 
 const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
   const baseUrl = publicSettings.value?.api_base_url || window.location.origin
-  const platform = row.group?.platform || 'anthropic'
+  const platform = resolveKeyPlatform(row)
 
   const usageScript = `({
     request: {

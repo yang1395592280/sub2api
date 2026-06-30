@@ -1,80 +1,41 @@
-# Task 5 Report: Periodic Probe Runner
+### Task 5 Report: Frontend Automatic Group Option and Submission
 
-## What I implemented
-- Added `OpenAIAutoSchedulerProbeRunner` with `Start()`, `Stop()`, and `runOnce()`.
-- Runner reads OpenAI auto scheduler settings each tick, skips work when disabled, loads enabled OpenAI groups, loads schedulable OpenAI accounts per group, and dedupes in-flight `(account, group, model)` checks.
-- Added `OpenAIAutoSchedulerProbeChecker` and a minimal OpenAI HTTP checker implementation for non-stream probe calls.
-- Added `OpenAIAutoSchedulerProbeResult` for checker return values.
-- Added `OpenAIAutoSchedulerService.ListEnabledOpenAIGroups()` so the runner can use the existing authoritative group filter.
-- Wired the runner and checker into service provider setup and app cleanup/startup.
+Status: DONE_WITH_CONCERNS
 
-## What I tested and results
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test -tags unit ./internal/service -run TestOpenAIAutoSchedulerProbeRunner`
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test -tags unit ./internal/service -run 'Test(OpenAIAutoSchedulerProbeRunner|OpenAIAutoSchedulerService_IsEnabledForGroupRequiresGlobalAndGroup|OpenAIAutoSchedulerScore_SlowResponsesDegradeThenRecover|OpenAIAutoSchedulerSelector_GroupGate)'`
-- Both passed.
+Changed files:
+- `frontend/src/types/index.ts`
+- `frontend/src/api/keys.ts`
+- `frontend/src/views/user/keyGroupOptions.ts`
+- `frontend/src/views/user/KeysView.vue`
+- `frontend/src/views/user/__tests__/keyGroupOptions.spec.ts`
+- `frontend/src/views/user/__tests__/KeysView.autoGroup.spec.ts`
 
-## TDD Evidence
-### RED
-- Command: `cd backend && GOCACHE=/tmp/sub2api-go-cache go test -tags unit ./internal/service -run TestOpenAIAutoSchedulerProbeRunner`
-- Relevant failure: compile errors for missing probe runner/result types and constructor wiring before implementation.
-- Why expected: the runner had not been implemented yet.
+Summary:
+- Added frontend API key group selection mode types and last effective group fields.
+- Added the `openai_auto_cheapest` sentinel option to the key group option builder.
+- Updated key creation and update flows to send `group_select_mode`.
+- Added a computed selected group value in `KeysView.vue` so automatic mode maps to `group_id: null`.
+- Added automatic mode display in the key table with the latest effective group name when present.
+- Kept inline row group switching fixed-group only and made it force `group_select_mode: fixed`.
+- Treated automatic-mode keys as OpenAI when opening key usage/import flows that otherwise infer platform from `row.group`.
 
-### GREEN
-- Command: `cd backend && GOCACHE=/tmp/sub2api-go-cache go test -tags unit ./internal/service -run TestOpenAIAutoSchedulerProbeRunner`
-- Result: `ok github.com/Wei-Shaw/sub2api/internal/service (cached)`
-- Command: `cd backend && GOCACHE=/tmp/sub2api-go-cache go test -tags unit ./internal/service -run 'Test(OpenAIAutoSchedulerProbeRunner|OpenAIAutoSchedulerService_IsEnabledForGroupRequiresGlobalAndGroup|OpenAIAutoSchedulerScore_SlowResponsesDegradeThenRecover|OpenAIAutoSchedulerSelector_GroupGate)'`
-- Result: `ok github.com/Wei-Shaw/sub2api/internal/service (cached)`
+Tests run:
+- `cd frontend && pnpm test:run src/views/user/__tests__/keyGroupOptions.spec.ts`
+  - Passed, 2 tests.
+- `cd frontend && pnpm test:run src/views/user/__tests__/KeysView.autoGroup.spec.ts`
+  - First run failed because the test layout stub did not render named slots; fixed the test stub.
+  - Passed, 1 test.
+- `cd frontend && pnpm test:run src/views/user/__tests__/keyGroupOptions.spec.ts src/views/user/__tests__/KeysView.autoGroup.spec.ts`
+  - Passed, 2 files / 3 tests.
+- `cd frontend && pnpm typecheck`
+  - Passed.
+- After local review fix, re-ran:
+  - `cd frontend && pnpm test:run src/views/user/__tests__/keyGroupOptions.spec.ts src/views/user/__tests__/KeysView.autoGroup.spec.ts`
+  - `cd frontend && pnpm typecheck`
+  - Both passed.
+- `git diff --check -- frontend/src/api/keys.ts frontend/src/types/index.ts frontend/src/views/user/KeysView.vue frontend/src/views/user/keyGroupOptions.ts frontend/src/views/user/__tests__/keyGroupOptions.spec.ts frontend/src/views/user/__tests__/KeysView.autoGroup.spec.ts`
+  - Passed with no output.
 
-## Files changed
-- `backend/internal/service/openai_auto_scheduler_probe_runner.go`
-- `backend/internal/service/openai_auto_scheduler_probe_runner_test.go`
-- `backend/internal/service/openai_auto_scheduler_service.go`
-- `backend/internal/service/openai_auto_scheduler_types.go`
-- `backend/internal/service/wire.go`
-- `backend/cmd/server/wire.go`
-- `backend/cmd/server/wire_gen.go`
-
-## Self-review findings
-- The runner is intentionally scoped to OpenAI only.
-- `runOnce()` does safe gating on settings and repo errors.
-- In-flight dedupe is keyed by account/group/model.
-- The HTTP checker is minimal and non-stream, with a bounded response body read.
-
-## Issues or concerns
-- `backend/cmd/server/wire_gen.go` was updated directly so the app startup wires the new runner immediately; this file is generated, so a future wire regeneration may rewrite it.
-- The probe model is currently the shared OpenAI test model path used by existing code.
-
----
-
-## Review Fix Report - 2026-06-28 13:42:29 CST
-
-### What I fixed
-- Threaded the runner's cancelable `parentCtx` through `loop()`, interval settings reads, `runOnce()`, group/account listing, and worker probe checks so `Stop()` cancels in-flight probe work instead of leaving checks on `context.Background()`.
-- Added runner tests for `probe_error` recording and `Start()`/`Stop()` cancellation of an active probe.
-- Added the missing `NewOpenAIAutoSchedulerProbeChecker` provider to `service.ProviderSet`.
-- Regenerated `backend/cmd/server/wire_gen.go` from `backend/cmd/server/wire.go` with the repo's `go generate ./cmd/server` path.
-- Updated `backend/cmd/server/wire_gen_test.go` for the new cleanup dependency signature.
-
-### TDD / failure evidence
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test -tags unit ./internal/service -run TestOpenAIAutoSchedulerProbeRunner`
-  - RED result before implementation: `TestOpenAIAutoSchedulerProbeRunner_StopCancelsInFlightProbe` failed because the checker never observed context cancellation.
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go generate ./cmd/server`
-  - Initial failure before Wire provider fix: Wire reported no provider for `service.OpenAIAutoSchedulerProbeChecker`.
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./cmd/server`
-  - Initial failure after regeneration: `wire_gen_test.go` had an outdated `provideCleanup` call signature.
-
-### Verification commands and results
-- `cd backend && gofmt -w internal/service/openai_auto_scheduler_probe_runner.go internal/service/openai_auto_scheduler_probe_runner_test.go cmd/server/wire_gen_test.go`
-  - Result: completed.
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go generate ./cmd/server`
-  - Result: Wire wrote `backend/cmd/server/wire_gen.go` successfully.
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test -tags unit ./internal/service -run TestOpenAIAutoSchedulerProbeRunner`
-  - Result: `ok github.com/Wei-Shaw/sub2api/internal/service`.
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test -tags unit ./internal/service -run 'Test(OpenAIAutoSchedulerProbeRunner|OpenAIAutoSchedulerService_IsEnabledForGroupRequiresGlobalAndGroup|OpenAIAutoSchedulerScore_SlowResponsesDegradeThenRecover|OpenAIAutoSchedulerSelector_GroupGate)'`
-  - Result: `ok github.com/Wei-Shaw/sub2api/internal/service`.
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./cmd/server`
-  - Result: `ok github.com/Wei-Shaw/sub2api/cmd/server`.
-
-### Risks or notes
-- `Stop()` now cancels the runner context before waiting for the worker pool, so cooperative checker/list implementations can terminate promptly.
-- Wire generation now constructs `OpenAIAutoSchedulerProbeChecker` from the existing `HTTPUpstream` provider rather than a hand-edited generated file.
+Concerns:
+- The specified key group option test was already green when resuming because `keyGroupOptions.ts` had partial production changes before this handoff.
+- Subagent review/explorer attempt failed with upstream `502 Bad Gateway`, so Task 5 review must be handled locally or retried later.
