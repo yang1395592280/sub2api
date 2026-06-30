@@ -33,6 +33,38 @@ GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestOpenAIAutoChe
 
 结果：通过。
 
+## Third Review Fix
+
+修复 Task 4 第三轮 review 中的入口与兼容问题：
+
+- 自动分组 API Key 会绕过未分组 Key 拦截，并在路由平台判断中被识别为 OpenAI，从而进入 OpenAI handler。
+- 固定 nil-group API Key 在 effective wrapper 中直接回落原有选择函数，保留 legacy nil group 行为。
+- `/v1/messages` 自动模式 failover 后每轮都从原始 `reqModel` 重新按候选组解析 dispatch model，不复用上一轮 effective mapped model 作为下一轮输入。
+- 补齐 middleware 测试 fake repo 的 `UpdateLastEffectiveGroup` 方法，保持 server 包测试可编译。
+
+复跑验证：
+
+```bash
+cd backend
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestOpenAIAutoCheapestSelection|TestOpenAIGatewayService_SelectAccount' -count=1
+```
+
+结果：通过。
+
+```bash
+cd backend
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/handler -run 'TestOpenAI|Test.*Responses|Test.*ChatCompletions|Test.*Embeddings|Test.*Images' -count=1
+```
+
+结果：通过。
+
+```bash
+cd backend
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/server/middleware ./internal/server/routes -run 'Test.*Group|Test.*Gateway|Test.*Route|Test.*APIKey' -count=1
+```
+
+结果：通过。
+
 ## Second Review Fix
 
 修复 Task 4 第二轮 review 中的阻塞问题：

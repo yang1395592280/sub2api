@@ -2053,6 +2053,13 @@ func (s *OpenAIGatewayService) recordLastEffectiveGroupBestEffort(ctx context.Co
 	_ = s.apiKeyEffectiveGroupUpdater.UpdateLastEffectiveGroup(ctx, apiKey.ID, *apiKey.GroupID, time.Now())
 }
 
+func apiKeyGroupID(apiKey *APIKey) *int64 {
+	if apiKey == nil {
+		return nil
+	}
+	return apiKey.GroupID
+}
+
 func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithLoadAwareness(
 	ctx context.Context,
 	apiKey *APIKey,
@@ -2061,22 +2068,25 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithLoadAwareness(
 	excludedIDs map[int64]struct{},
 	requiredCapability OpenAIEndpointCapability,
 ) (*APIKey, *AccountSelectionResult, error) {
+	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
+		selection, err := s.selectAccountWithLoadAwareness(s.withOpenAIQuotaAutoPauseContext(ctx), apiKeyGroupID(apiKey), PlatformOpenAI, sessionHash, requestedModel, excludedIDs, false, requiredCapability)
+		return apiKey, selection, err
+	}
 	keys, err := s.resolveEffectiveOpenAIAPIKeys(ctx, apiKey)
 	if err != nil {
 		return nil, nil, err
 	}
-	autoMode := apiKey != nil && apiKey.UsesOpenAIAutoCheapestGroup()
 	var lastErr error
 	for _, effectiveKey := range keys {
 		if effectiveKey == nil || effectiveKey.GroupID == nil {
 			continue
 		}
 		selection, err := s.selectAccountWithLoadAwareness(s.withOpenAIQuotaAutoPauseContext(ctx), effectiveKey.GroupID, PlatformOpenAI, sessionHash, requestedModel, excludedIDs, false, requiredCapability)
-		if err == nil && selection != nil && selection.Account != nil && (!autoMode || selection.Acquired) {
+		if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
 			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
 			return effectiveKey, selection, nil
 		}
-		if autoMode && err == nil && selection != nil && selection.Account != nil {
+		if err == nil && selection != nil && selection.Account != nil {
 			lastErr = ErrNoAvailableAccounts
 			continue
 		}
@@ -2116,6 +2126,16 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapab
 	requestPlatform string,
 	modelResolver func(*APIKey, string) string,
 ) (*APIKey, string, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
+		routingModel := requestedModel
+		if modelResolver != nil {
+			if resolved := strings.TrimSpace(modelResolver(apiKey, requestedModel)); resolved != "" {
+				routingModel = resolved
+			}
+		}
+		selection, decision, err := s.SelectAccountWithSchedulerForCapability(ctx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredCapability, requireCompact, requestPlatform)
+		return apiKey, routingModel, selection, decision, err
+	}
 	effectiveKey, selection, decision, err := s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredCapability, requireCompact, requestPlatform, modelResolver)
 	if effectiveKey == nil {
 		return nil, requestedModel, selection, decision, err
@@ -2137,11 +2157,14 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImage
 	excludedIDs map[int64]struct{},
 	requiredCapability OpenAIImagesCapability,
 ) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
+		selection, decision, err := s.SelectAccountWithSchedulerForImages(ctx, apiKeyGroupID(apiKey), sessionHash, requestedModel, excludedIDs, requiredCapability)
+		return apiKey, selection, decision, err
+	}
 	keys, err := s.resolveEffectiveOpenAIAPIKeys(ctx, apiKey)
 	if err != nil {
 		return nil, nil, OpenAIAccountScheduleDecision{}, err
 	}
-	autoMode := apiKey != nil && apiKey.UsesOpenAIAutoCheapestGroup()
 	var lastDecision OpenAIAccountScheduleDecision
 	var lastErr error
 	for _, effectiveKey := range keys {
@@ -2150,11 +2173,11 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImage
 		}
 		selection, decision, err := s.SelectAccountWithSchedulerForImages(ctx, effectiveKey.GroupID, sessionHash, requestedModel, excludedIDs, requiredCapability)
 		lastDecision = decision
-		if err == nil && selection != nil && selection.Account != nil && (!autoMode || selection.Acquired) {
+		if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
 			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
 			return effectiveKey, selection, decision, nil
 		}
-		if autoMode && err == nil && selection != nil && selection.Account != nil {
+		if err == nil && selection != nil && selection.Account != nil {
 			lastErr = ErrNoAvailableAccounts
 			continue
 		}
@@ -2179,11 +2202,20 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 	requestPlatform string,
 	modelResolver func(*APIKey, string) string,
 ) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
+		routingModel := requestedModel
+		if modelResolver != nil {
+			if resolved := strings.TrimSpace(modelResolver(apiKey, requestedModel)); resolved != "" {
+				routingModel = resolved
+			}
+		}
+		selection, decision, err := s.SelectAccountWithSchedulerForCapability(ctx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredCapability, requireCompact, requestPlatform)
+		return apiKey, selection, decision, err
+	}
 	keys, err := s.resolveEffectiveOpenAIAPIKeys(ctx, apiKey)
 	if err != nil {
 		return nil, nil, OpenAIAccountScheduleDecision{}, err
 	}
-	autoMode := apiKey != nil && apiKey.UsesOpenAIAutoCheapestGroup()
 	var lastDecision OpenAIAccountScheduleDecision
 	var lastErr error
 	for _, effectiveKey := range keys {
@@ -2209,11 +2241,11 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 			requestPlatform,
 		)
 		lastDecision = decision
-		if err == nil && selection != nil && selection.Account != nil && (!autoMode || selection.Acquired) {
+		if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
 			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
 			return effectiveKey, selection, decision, nil
 		}
-		if autoMode && err == nil && selection != nil && selection.Account != nil {
+		if err == nil && selection != nil && selection.Account != nil {
 			lastErr = ErrNoAvailableAccounts
 			continue
 		}

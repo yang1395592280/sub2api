@@ -101,6 +101,9 @@ func (f fakeAPIKeyRepo) UpdateLastUsed(ctx context.Context, id int64, usedAt tim
 	}
 	return nil
 }
+func (f fakeAPIKeyRepo) UpdateLastEffectiveGroup(ctx context.Context, apiKeyID int64, groupID int64, at time.Time) error {
+	return nil
+}
 func (f fakeAPIKeyRepo) IncrementRateLimitUsage(ctx context.Context, id int64, cost float64) error {
 	return nil
 }

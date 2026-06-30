@@ -790,7 +790,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 
 	for {
 		currentRoutingModel := routingModel
-		if effectiveMappedModel != "" {
+		if !autoGroupModeMsg && effectiveMappedModel != "" {
 			currentRoutingModel = effectiveMappedModel
 		}
 		reqLog.Debug("openai_messages.account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))
