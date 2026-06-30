@@ -99,6 +99,48 @@ func (_c *APIKeyCreate) SetNillableGroupID(v *int64) *APIKeyCreate {
 	return _c
 }
 
+// SetGroupSelectMode sets the "group_select_mode" field.
+func (_c *APIKeyCreate) SetGroupSelectMode(v string) *APIKeyCreate {
+	_c.mutation.SetGroupSelectMode(v)
+	return _c
+}
+
+// SetNillableGroupSelectMode sets the "group_select_mode" field if the given value is not nil.
+func (_c *APIKeyCreate) SetNillableGroupSelectMode(v *string) *APIKeyCreate {
+	if v != nil {
+		_c.SetGroupSelectMode(*v)
+	}
+	return _c
+}
+
+// SetLastEffectiveGroupID sets the "last_effective_group_id" field.
+func (_c *APIKeyCreate) SetLastEffectiveGroupID(v int64) *APIKeyCreate {
+	_c.mutation.SetLastEffectiveGroupID(v)
+	return _c
+}
+
+// SetNillableLastEffectiveGroupID sets the "last_effective_group_id" field if the given value is not nil.
+func (_c *APIKeyCreate) SetNillableLastEffectiveGroupID(v *int64) *APIKeyCreate {
+	if v != nil {
+		_c.SetLastEffectiveGroupID(*v)
+	}
+	return _c
+}
+
+// SetLastEffectiveGroupAt sets the "last_effective_group_at" field.
+func (_c *APIKeyCreate) SetLastEffectiveGroupAt(v time.Time) *APIKeyCreate {
+	_c.mutation.SetLastEffectiveGroupAt(v)
+	return _c
+}
+
+// SetNillableLastEffectiveGroupAt sets the "last_effective_group_at" field if the given value is not nil.
+func (_c *APIKeyCreate) SetNillableLastEffectiveGroupAt(v *time.Time) *APIKeyCreate {
+	if v != nil {
+		_c.SetLastEffectiveGroupAt(*v)
+	}
+	return _c
+}
+
 // SetStatus sets the "status" field.
 func (_c *APIKeyCreate) SetStatus(v string) *APIKeyCreate {
 	_c.mutation.SetStatus(v)
@@ -383,6 +425,10 @@ func (_c *APIKeyCreate) defaults() error {
 		v := apikey.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
+	if _, ok := _c.mutation.GroupSelectMode(); !ok {
+		v := apikey.DefaultGroupSelectMode
+		_c.mutation.SetGroupSelectMode(v)
+	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := apikey.DefaultStatus
 		_c.mutation.SetStatus(v)
@@ -447,6 +493,14 @@ func (_c *APIKeyCreate) check() error {
 	if v, ok := _c.mutation.Name(); ok {
 		if err := apikey.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "APIKey.name": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.GroupSelectMode(); !ok {
+		return &ValidationError{Name: "group_select_mode", err: errors.New(`ent: missing required field "APIKey.group_select_mode"`)}
+	}
+	if v, ok := _c.mutation.GroupSelectMode(); ok {
+		if err := apikey.GroupSelectModeValidator(v); err != nil {
+			return &ValidationError{Name: "group_select_mode", err: fmt.Errorf(`ent: validator failed for field "APIKey.group_select_mode": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.Status(); !ok {
@@ -530,6 +584,18 @@ func (_c *APIKeyCreate) createSpec() (*APIKey, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Name(); ok {
 		_spec.SetField(apikey.FieldName, field.TypeString, value)
 		_node.Name = value
+	}
+	if value, ok := _c.mutation.GroupSelectMode(); ok {
+		_spec.SetField(apikey.FieldGroupSelectMode, field.TypeString, value)
+		_node.GroupSelectMode = value
+	}
+	if value, ok := _c.mutation.LastEffectiveGroupID(); ok {
+		_spec.SetField(apikey.FieldLastEffectiveGroupID, field.TypeInt64, value)
+		_node.LastEffectiveGroupID = &value
+	}
+	if value, ok := _c.mutation.LastEffectiveGroupAt(); ok {
+		_spec.SetField(apikey.FieldLastEffectiveGroupAt, field.TypeTime, value)
+		_node.LastEffectiveGroupAt = &value
 	}
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(apikey.FieldStatus, field.TypeString, value)
@@ -778,6 +844,60 @@ func (u *APIKeyUpsert) UpdateGroupID() *APIKeyUpsert {
 // ClearGroupID clears the value of the "group_id" field.
 func (u *APIKeyUpsert) ClearGroupID() *APIKeyUpsert {
 	u.SetNull(apikey.FieldGroupID)
+	return u
+}
+
+// SetGroupSelectMode sets the "group_select_mode" field.
+func (u *APIKeyUpsert) SetGroupSelectMode(v string) *APIKeyUpsert {
+	u.Set(apikey.FieldGroupSelectMode, v)
+	return u
+}
+
+// UpdateGroupSelectMode sets the "group_select_mode" field to the value that was provided on create.
+func (u *APIKeyUpsert) UpdateGroupSelectMode() *APIKeyUpsert {
+	u.SetExcluded(apikey.FieldGroupSelectMode)
+	return u
+}
+
+// SetLastEffectiveGroupID sets the "last_effective_group_id" field.
+func (u *APIKeyUpsert) SetLastEffectiveGroupID(v int64) *APIKeyUpsert {
+	u.Set(apikey.FieldLastEffectiveGroupID, v)
+	return u
+}
+
+// UpdateLastEffectiveGroupID sets the "last_effective_group_id" field to the value that was provided on create.
+func (u *APIKeyUpsert) UpdateLastEffectiveGroupID() *APIKeyUpsert {
+	u.SetExcluded(apikey.FieldLastEffectiveGroupID)
+	return u
+}
+
+// AddLastEffectiveGroupID adds v to the "last_effective_group_id" field.
+func (u *APIKeyUpsert) AddLastEffectiveGroupID(v int64) *APIKeyUpsert {
+	u.Add(apikey.FieldLastEffectiveGroupID, v)
+	return u
+}
+
+// ClearLastEffectiveGroupID clears the value of the "last_effective_group_id" field.
+func (u *APIKeyUpsert) ClearLastEffectiveGroupID() *APIKeyUpsert {
+	u.SetNull(apikey.FieldLastEffectiveGroupID)
+	return u
+}
+
+// SetLastEffectiveGroupAt sets the "last_effective_group_at" field.
+func (u *APIKeyUpsert) SetLastEffectiveGroupAt(v time.Time) *APIKeyUpsert {
+	u.Set(apikey.FieldLastEffectiveGroupAt, v)
+	return u
+}
+
+// UpdateLastEffectiveGroupAt sets the "last_effective_group_at" field to the value that was provided on create.
+func (u *APIKeyUpsert) UpdateLastEffectiveGroupAt() *APIKeyUpsert {
+	u.SetExcluded(apikey.FieldLastEffectiveGroupAt)
+	return u
+}
+
+// ClearLastEffectiveGroupAt clears the value of the "last_effective_group_at" field.
+func (u *APIKeyUpsert) ClearLastEffectiveGroupAt() *APIKeyUpsert {
+	u.SetNull(apikey.FieldLastEffectiveGroupAt)
 	return u
 }
 
@@ -1203,6 +1323,69 @@ func (u *APIKeyUpsertOne) UpdateGroupID() *APIKeyUpsertOne {
 func (u *APIKeyUpsertOne) ClearGroupID() *APIKeyUpsertOne {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.ClearGroupID()
+	})
+}
+
+// SetGroupSelectMode sets the "group_select_mode" field.
+func (u *APIKeyUpsertOne) SetGroupSelectMode(v string) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetGroupSelectMode(v)
+	})
+}
+
+// UpdateGroupSelectMode sets the "group_select_mode" field to the value that was provided on create.
+func (u *APIKeyUpsertOne) UpdateGroupSelectMode() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateGroupSelectMode()
+	})
+}
+
+// SetLastEffectiveGroupID sets the "last_effective_group_id" field.
+func (u *APIKeyUpsertOne) SetLastEffectiveGroupID(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetLastEffectiveGroupID(v)
+	})
+}
+
+// AddLastEffectiveGroupID adds v to the "last_effective_group_id" field.
+func (u *APIKeyUpsertOne) AddLastEffectiveGroupID(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddLastEffectiveGroupID(v)
+	})
+}
+
+// UpdateLastEffectiveGroupID sets the "last_effective_group_id" field to the value that was provided on create.
+func (u *APIKeyUpsertOne) UpdateLastEffectiveGroupID() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateLastEffectiveGroupID()
+	})
+}
+
+// ClearLastEffectiveGroupID clears the value of the "last_effective_group_id" field.
+func (u *APIKeyUpsertOne) ClearLastEffectiveGroupID() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.ClearLastEffectiveGroupID()
+	})
+}
+
+// SetLastEffectiveGroupAt sets the "last_effective_group_at" field.
+func (u *APIKeyUpsertOne) SetLastEffectiveGroupAt(v time.Time) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetLastEffectiveGroupAt(v)
+	})
+}
+
+// UpdateLastEffectiveGroupAt sets the "last_effective_group_at" field to the value that was provided on create.
+func (u *APIKeyUpsertOne) UpdateLastEffectiveGroupAt() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateLastEffectiveGroupAt()
+	})
+}
+
+// ClearLastEffectiveGroupAt clears the value of the "last_effective_group_at" field.
+func (u *APIKeyUpsertOne) ClearLastEffectiveGroupAt() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.ClearLastEffectiveGroupAt()
 	})
 }
 
@@ -1841,6 +2024,69 @@ func (u *APIKeyUpsertBulk) UpdateGroupID() *APIKeyUpsertBulk {
 func (u *APIKeyUpsertBulk) ClearGroupID() *APIKeyUpsertBulk {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.ClearGroupID()
+	})
+}
+
+// SetGroupSelectMode sets the "group_select_mode" field.
+func (u *APIKeyUpsertBulk) SetGroupSelectMode(v string) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetGroupSelectMode(v)
+	})
+}
+
+// UpdateGroupSelectMode sets the "group_select_mode" field to the value that was provided on create.
+func (u *APIKeyUpsertBulk) UpdateGroupSelectMode() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateGroupSelectMode()
+	})
+}
+
+// SetLastEffectiveGroupID sets the "last_effective_group_id" field.
+func (u *APIKeyUpsertBulk) SetLastEffectiveGroupID(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetLastEffectiveGroupID(v)
+	})
+}
+
+// AddLastEffectiveGroupID adds v to the "last_effective_group_id" field.
+func (u *APIKeyUpsertBulk) AddLastEffectiveGroupID(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddLastEffectiveGroupID(v)
+	})
+}
+
+// UpdateLastEffectiveGroupID sets the "last_effective_group_id" field to the value that was provided on create.
+func (u *APIKeyUpsertBulk) UpdateLastEffectiveGroupID() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateLastEffectiveGroupID()
+	})
+}
+
+// ClearLastEffectiveGroupID clears the value of the "last_effective_group_id" field.
+func (u *APIKeyUpsertBulk) ClearLastEffectiveGroupID() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.ClearLastEffectiveGroupID()
+	})
+}
+
+// SetLastEffectiveGroupAt sets the "last_effective_group_at" field.
+func (u *APIKeyUpsertBulk) SetLastEffectiveGroupAt(v time.Time) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetLastEffectiveGroupAt(v)
+	})
+}
+
+// UpdateLastEffectiveGroupAt sets the "last_effective_group_at" field to the value that was provided on create.
+func (u *APIKeyUpsertBulk) UpdateLastEffectiveGroupAt() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateLastEffectiveGroupAt()
+	})
+}
+
+// ClearLastEffectiveGroupAt clears the value of the "last_effective_group_at" field.
+func (u *APIKeyUpsertBulk) ClearLastEffectiveGroupAt() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.ClearLastEffectiveGroupAt()
 	})
 }
 

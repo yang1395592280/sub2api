@@ -108,51 +108,55 @@ const (
 // APIKeyMutation represents an operation that mutates the APIKey nodes in the graph.
 type APIKeyMutation struct {
 	config
-	op                 Op
-	typ                string
-	id                 *int64
-	created_at         *time.Time
-	updated_at         *time.Time
-	deleted_at         *time.Time
-	key                *string
-	name               *string
-	status             *string
-	last_used_at       *time.Time
-	ip_whitelist       *[]string
-	appendip_whitelist []string
-	ip_blacklist       *[]string
-	appendip_blacklist []string
-	quota              *float64
-	addquota           *float64
-	quota_used         *float64
-	addquota_used      *float64
-	expires_at         *time.Time
-	rate_limit_5h      *float64
-	addrate_limit_5h   *float64
-	rate_limit_1d      *float64
-	addrate_limit_1d   *float64
-	rate_limit_7d      *float64
-	addrate_limit_7d   *float64
-	usage_5h           *float64
-	addusage_5h        *float64
-	usage_1d           *float64
-	addusage_1d        *float64
-	usage_7d           *float64
-	addusage_7d        *float64
-	window_5h_start    *time.Time
-	window_1d_start    *time.Time
-	window_7d_start    *time.Time
-	clearedFields      map[string]struct{}
-	user               *int64
-	cleareduser        bool
-	group              *int64
-	clearedgroup       bool
-	usage_logs         map[int64]struct{}
-	removedusage_logs  map[int64]struct{}
-	clearedusage_logs  bool
-	done               bool
-	oldValue           func(context.Context) (*APIKey, error)
-	predicates         []predicate.APIKey
+	op                         Op
+	typ                        string
+	id                         *int64
+	created_at                 *time.Time
+	updated_at                 *time.Time
+	deleted_at                 *time.Time
+	key                        *string
+	name                       *string
+	group_select_mode          *string
+	last_effective_group_id    *int64
+	addlast_effective_group_id *int64
+	last_effective_group_at    *time.Time
+	status                     *string
+	last_used_at               *time.Time
+	ip_whitelist               *[]string
+	appendip_whitelist         []string
+	ip_blacklist               *[]string
+	appendip_blacklist         []string
+	quota                      *float64
+	addquota                   *float64
+	quota_used                 *float64
+	addquota_used              *float64
+	expires_at                 *time.Time
+	rate_limit_5h              *float64
+	addrate_limit_5h           *float64
+	rate_limit_1d              *float64
+	addrate_limit_1d           *float64
+	rate_limit_7d              *float64
+	addrate_limit_7d           *float64
+	usage_5h                   *float64
+	addusage_5h                *float64
+	usage_1d                   *float64
+	addusage_1d                *float64
+	usage_7d                   *float64
+	addusage_7d                *float64
+	window_5h_start            *time.Time
+	window_1d_start            *time.Time
+	window_7d_start            *time.Time
+	clearedFields              map[string]struct{}
+	user                       *int64
+	cleareduser                bool
+	group                      *int64
+	clearedgroup               bool
+	usage_logs                 map[int64]struct{}
+	removedusage_logs          map[int64]struct{}
+	clearedusage_logs          bool
+	done                       bool
+	oldValue                   func(context.Context) (*APIKey, error)
+	predicates                 []predicate.APIKey
 }
 
 var _ ent.Mutation = (*APIKeyMutation)(nil)
@@ -529,6 +533,161 @@ func (m *APIKeyMutation) GroupIDCleared() bool {
 func (m *APIKeyMutation) ResetGroupID() {
 	m.group = nil
 	delete(m.clearedFields, apikey.FieldGroupID)
+}
+
+// SetGroupSelectMode sets the "group_select_mode" field.
+func (m *APIKeyMutation) SetGroupSelectMode(s string) {
+	m.group_select_mode = &s
+}
+
+// GroupSelectMode returns the value of the "group_select_mode" field in the mutation.
+func (m *APIKeyMutation) GroupSelectMode() (r string, exists bool) {
+	v := m.group_select_mode
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGroupSelectMode returns the old "group_select_mode" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldGroupSelectMode(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGroupSelectMode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGroupSelectMode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGroupSelectMode: %w", err)
+	}
+	return oldValue.GroupSelectMode, nil
+}
+
+// ResetGroupSelectMode resets all changes to the "group_select_mode" field.
+func (m *APIKeyMutation) ResetGroupSelectMode() {
+	m.group_select_mode = nil
+}
+
+// SetLastEffectiveGroupID sets the "last_effective_group_id" field.
+func (m *APIKeyMutation) SetLastEffectiveGroupID(i int64) {
+	m.last_effective_group_id = &i
+	m.addlast_effective_group_id = nil
+}
+
+// LastEffectiveGroupID returns the value of the "last_effective_group_id" field in the mutation.
+func (m *APIKeyMutation) LastEffectiveGroupID() (r int64, exists bool) {
+	v := m.last_effective_group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastEffectiveGroupID returns the old "last_effective_group_id" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldLastEffectiveGroupID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastEffectiveGroupID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastEffectiveGroupID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastEffectiveGroupID: %w", err)
+	}
+	return oldValue.LastEffectiveGroupID, nil
+}
+
+// AddLastEffectiveGroupID adds i to the "last_effective_group_id" field.
+func (m *APIKeyMutation) AddLastEffectiveGroupID(i int64) {
+	if m.addlast_effective_group_id != nil {
+		*m.addlast_effective_group_id += i
+	} else {
+		m.addlast_effective_group_id = &i
+	}
+}
+
+// AddedLastEffectiveGroupID returns the value that was added to the "last_effective_group_id" field in this mutation.
+func (m *APIKeyMutation) AddedLastEffectiveGroupID() (r int64, exists bool) {
+	v := m.addlast_effective_group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearLastEffectiveGroupID clears the value of the "last_effective_group_id" field.
+func (m *APIKeyMutation) ClearLastEffectiveGroupID() {
+	m.last_effective_group_id = nil
+	m.addlast_effective_group_id = nil
+	m.clearedFields[apikey.FieldLastEffectiveGroupID] = struct{}{}
+}
+
+// LastEffectiveGroupIDCleared returns if the "last_effective_group_id" field was cleared in this mutation.
+func (m *APIKeyMutation) LastEffectiveGroupIDCleared() bool {
+	_, ok := m.clearedFields[apikey.FieldLastEffectiveGroupID]
+	return ok
+}
+
+// ResetLastEffectiveGroupID resets all changes to the "last_effective_group_id" field.
+func (m *APIKeyMutation) ResetLastEffectiveGroupID() {
+	m.last_effective_group_id = nil
+	m.addlast_effective_group_id = nil
+	delete(m.clearedFields, apikey.FieldLastEffectiveGroupID)
+}
+
+// SetLastEffectiveGroupAt sets the "last_effective_group_at" field.
+func (m *APIKeyMutation) SetLastEffectiveGroupAt(t time.Time) {
+	m.last_effective_group_at = &t
+}
+
+// LastEffectiveGroupAt returns the value of the "last_effective_group_at" field in the mutation.
+func (m *APIKeyMutation) LastEffectiveGroupAt() (r time.Time, exists bool) {
+	v := m.last_effective_group_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastEffectiveGroupAt returns the old "last_effective_group_at" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldLastEffectiveGroupAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastEffectiveGroupAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastEffectiveGroupAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastEffectiveGroupAt: %w", err)
+	}
+	return oldValue.LastEffectiveGroupAt, nil
+}
+
+// ClearLastEffectiveGroupAt clears the value of the "last_effective_group_at" field.
+func (m *APIKeyMutation) ClearLastEffectiveGroupAt() {
+	m.last_effective_group_at = nil
+	m.clearedFields[apikey.FieldLastEffectiveGroupAt] = struct{}{}
+}
+
+// LastEffectiveGroupAtCleared returns if the "last_effective_group_at" field was cleared in this mutation.
+func (m *APIKeyMutation) LastEffectiveGroupAtCleared() bool {
+	_, ok := m.clearedFields[apikey.FieldLastEffectiveGroupAt]
+	return ok
+}
+
+// ResetLastEffectiveGroupAt resets all changes to the "last_effective_group_at" field.
+func (m *APIKeyMutation) ResetLastEffectiveGroupAt() {
+	m.last_effective_group_at = nil
+	delete(m.clearedFields, apikey.FieldLastEffectiveGroupAt)
 }
 
 // SetStatus sets the "status" field.
@@ -1532,7 +1691,7 @@ func (m *APIKeyMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *APIKeyMutation) Fields() []string {
-	fields := make([]string, 0, 23)
+	fields := make([]string, 0, 26)
 	if m.created_at != nil {
 		fields = append(fields, apikey.FieldCreatedAt)
 	}
@@ -1553,6 +1712,15 @@ func (m *APIKeyMutation) Fields() []string {
 	}
 	if m.group != nil {
 		fields = append(fields, apikey.FieldGroupID)
+	}
+	if m.group_select_mode != nil {
+		fields = append(fields, apikey.FieldGroupSelectMode)
+	}
+	if m.last_effective_group_id != nil {
+		fields = append(fields, apikey.FieldLastEffectiveGroupID)
+	}
+	if m.last_effective_group_at != nil {
+		fields = append(fields, apikey.FieldLastEffectiveGroupAt)
 	}
 	if m.status != nil {
 		fields = append(fields, apikey.FieldStatus)
@@ -1624,6 +1792,12 @@ func (m *APIKeyMutation) Field(name string) (ent.Value, bool) {
 		return m.Name()
 	case apikey.FieldGroupID:
 		return m.GroupID()
+	case apikey.FieldGroupSelectMode:
+		return m.GroupSelectMode()
+	case apikey.FieldLastEffectiveGroupID:
+		return m.LastEffectiveGroupID()
+	case apikey.FieldLastEffectiveGroupAt:
+		return m.LastEffectiveGroupAt()
 	case apikey.FieldStatus:
 		return m.Status()
 	case apikey.FieldLastUsedAt:
@@ -1679,6 +1853,12 @@ func (m *APIKeyMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldName(ctx)
 	case apikey.FieldGroupID:
 		return m.OldGroupID(ctx)
+	case apikey.FieldGroupSelectMode:
+		return m.OldGroupSelectMode(ctx)
+	case apikey.FieldLastEffectiveGroupID:
+		return m.OldLastEffectiveGroupID(ctx)
+	case apikey.FieldLastEffectiveGroupAt:
+		return m.OldLastEffectiveGroupAt(ctx)
 	case apikey.FieldStatus:
 		return m.OldStatus(ctx)
 	case apikey.FieldLastUsedAt:
@@ -1768,6 +1948,27 @@ func (m *APIKeyMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetGroupID(v)
+		return nil
+	case apikey.FieldGroupSelectMode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGroupSelectMode(v)
+		return nil
+	case apikey.FieldLastEffectiveGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastEffectiveGroupID(v)
+		return nil
+	case apikey.FieldLastEffectiveGroupAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastEffectiveGroupAt(v)
 		return nil
 	case apikey.FieldStatus:
 		v, ok := value.(string)
@@ -1889,6 +2090,9 @@ func (m *APIKeyMutation) SetField(name string, value ent.Value) error {
 // this mutation.
 func (m *APIKeyMutation) AddedFields() []string {
 	var fields []string
+	if m.addlast_effective_group_id != nil {
+		fields = append(fields, apikey.FieldLastEffectiveGroupID)
+	}
 	if m.addquota != nil {
 		fields = append(fields, apikey.FieldQuota)
 	}
@@ -1921,6 +2125,8 @@ func (m *APIKeyMutation) AddedFields() []string {
 // was not set, or was not defined in the schema.
 func (m *APIKeyMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
+	case apikey.FieldLastEffectiveGroupID:
+		return m.AddedLastEffectiveGroupID()
 	case apikey.FieldQuota:
 		return m.AddedQuota()
 	case apikey.FieldQuotaUsed:
@@ -1946,6 +2152,13 @@ func (m *APIKeyMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *APIKeyMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case apikey.FieldLastEffectiveGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddLastEffectiveGroupID(v)
+		return nil
 	case apikey.FieldQuota:
 		v, ok := value.(float64)
 		if !ok {
@@ -2016,6 +2229,12 @@ func (m *APIKeyMutation) ClearedFields() []string {
 	if m.FieldCleared(apikey.FieldGroupID) {
 		fields = append(fields, apikey.FieldGroupID)
 	}
+	if m.FieldCleared(apikey.FieldLastEffectiveGroupID) {
+		fields = append(fields, apikey.FieldLastEffectiveGroupID)
+	}
+	if m.FieldCleared(apikey.FieldLastEffectiveGroupAt) {
+		fields = append(fields, apikey.FieldLastEffectiveGroupAt)
+	}
 	if m.FieldCleared(apikey.FieldLastUsedAt) {
 		fields = append(fields, apikey.FieldLastUsedAt)
 	}
@@ -2056,6 +2275,12 @@ func (m *APIKeyMutation) ClearField(name string) error {
 		return nil
 	case apikey.FieldGroupID:
 		m.ClearGroupID()
+		return nil
+	case apikey.FieldLastEffectiveGroupID:
+		m.ClearLastEffectiveGroupID()
+		return nil
+	case apikey.FieldLastEffectiveGroupAt:
+		m.ClearLastEffectiveGroupAt()
 		return nil
 	case apikey.FieldLastUsedAt:
 		m.ClearLastUsedAt()
@@ -2106,6 +2331,15 @@ func (m *APIKeyMutation) ResetField(name string) error {
 		return nil
 	case apikey.FieldGroupID:
 		m.ResetGroupID()
+		return nil
+	case apikey.FieldGroupSelectMode:
+		m.ResetGroupSelectMode()
+		return nil
+	case apikey.FieldLastEffectiveGroupID:
+		m.ResetLastEffectiveGroupID()
+		return nil
+	case apikey.FieldLastEffectiveGroupAt:
+		m.ResetLastEffectiveGroupAt()
 		return nil
 	case apikey.FieldStatus:
 		m.ResetStatus()
