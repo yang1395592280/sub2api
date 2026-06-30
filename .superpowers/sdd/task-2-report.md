@@ -1,37 +1,122 @@
 # Task 2 Report
 
-## 变更摘要
-- 新增 OpenAI 自动调度主页面分组侧栏，支持点击分组卡片切换当前分组并同步分数筛选。
-- 将调度分数列表从卡片布局改为运维表格布局，展示上游渠道、状态、实际调度分、健康分拆解、探测样本、最近风险和操作。
-- 在全局调度状态区补充系统原调度 fallback 说明文案。
-- 补充并更新 focused tests 覆盖 approved layout、侧栏分组选择和新布局下的分组开关定位。
+## Summary
 
-## 修改文件
-- `frontend/src/views/admin/OpenAIAutoSchedulerView.vue`
-- `frontend/src/views/admin/__tests__/OpenAIAutoSchedulerView.spec.ts`
+已完成 Task 2 指定范围内的 API Key `group_select_mode` 暴露与联动：
+
+- service create/update request 增加 `group_select_mode`
+- create/update 校验支持 `fixed` / `openai_auto_cheapest`
+- handler request DTO 映射透传 `group_select_mode`
+- handler response DTO 增加：
+  - `group_select_mode`
+  - `last_effective_group_id`
+  - `last_effective_group_at`
+  - `last_effective_group`
+- auth cache snapshot 增加：
+  - `group_select_mode`
+  - `last_effective_group_id`
+  - `last_effective_group_at`
+- auth cache snapshot version 从 `12` 提升到 `13`
+
+未实现内容保持不动：
+
+- 未实现自动候选分组 resolver
+- 未接入 OpenAI 网关自动选组
+- 未修改前端
+
+## TDD Notes
+
+### Red
+
+先新增并运行以下失败测试：
+
+- `TestAPIKeyServiceCreate_OpenAIAutoCheapestAllowsNilGroup`
+- `TestAPIKeyServiceUpdate_FixedRequiresGroupWhenSwitchingFromAuto`
+
+首次运行结果为编译失败，缺失点与 brief 一致：
+
+- `CreateAPIKeyRequest` 缺少 `GroupSelectMode`
+- `UpdateAPIKeyRequest` 缺少 `GroupSelectMode`
+- `ErrGroupRequired` 未定义
+
+### Green
+
+按最小实现补充：
+
+- `backend/internal/service/api_key_service.go`
+  - 新增 `ErrGroupRequired`
+  - 新增 `normalizeAPIKeyGroupSelectMode`
+  - create:
+    - 默认归一化到 `fixed`
+    - `fixed` 且 `group_id == nil` 返回 `ErrGroupRequired`
+    - `openai_auto_cheapest` 时清空 `group_id`
+  - update:
+    - 支持更新 `group_select_mode`
+    - 切回 `fixed` 且无分组时返回 `ErrGroupRequired`
+    - auto mode 时清空 `GroupID` / `Group`
+- `backend/internal/handler/api_key_handler.go`
+  - create/update request 新增 `group_select_mode`
+  - 映射到 service request
+- `backend/internal/handler/dto/types.go`
+  - APIKey DTO 新增 group mode / last effective group 字段
+- `backend/internal/handler/dto/mappers.go`
+  - 新增 DTO 字段映射
+- `backend/internal/service/api_key_auth_cache.go`
+  - snapshot 新增 group mode / last effective group 字段
+- `backend/internal/service/api_key_auth_cache_impl.go`
+  - snapshot version bump to `13`
+  - snapshot round-trip 映射新字段
+
+### Additional Test Coverage
+
+补充了字段落地验证：
+
+- `backend/internal/service/api_key_service_cache_test.go`
+  - `TestAPIKeyAuthSnapshotRoundTrip_PreservesGroupSelectionMetadata`
+- `backend/internal/handler/dto/api_key_mapper_last_used_test.go`
+  - `TestAPIKeyFromService_MapsGroupSelectionFields`
+
+## Verification
+
+执行过的命令：
+
+```bash
+cd /Volumes/workspace/中转站/sub2api/backend
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestAPIKeyServiceCreate_OpenAIAutoCheapestAllowsNilGroup|TestAPIKeyServiceUpdate_FixedRequiresGroupWhenSwitchingFromAuto' -count=1
+```
+
+结果：
+
+- 预期 RED，编译失败，提示缺少 `GroupSelectMode` 与 `ErrGroupRequired`
+
+执行过的格式化与最终验证：
+
+```bash
+cd /Volumes/workspace/中转站/sub2api/backend
+gofmt -w internal/service/api_key_service.go internal/service/api_key_auth_cache.go internal/service/api_key_auth_cache_impl.go internal/service/api_key_service_test.go internal/service/api_key_service_cache_test.go internal/handler/api_key_handler.go internal/handler/dto/types.go internal/handler/dto/mappers.go internal/handler/dto/api_key_mapper_last_used_test.go
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestAPIKeyServiceCreate_OpenAIAutoCheapestAllowsNilGroup|TestAPIKeyServiceUpdate_FixedRequiresGroupWhenSwitchingFromAuto|TestAPIKeyAuth' -count=1
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/handler/dto -count=1
+```
+
+结果：
+
+- `ok   github.com/Wei-Shaw/sub2api/internal/service`
+- `ok   github.com/Wei-Shaw/sub2api/internal/handler/dto`
+
+## Files Changed
+
+- `backend/internal/service/api_key_service.go`
+- `backend/internal/service/api_key_auth_cache.go`
+- `backend/internal/service/api_key_auth_cache_impl.go`
+- `backend/internal/service/api_key_service_test.go`
+- `backend/internal/service/api_key_service_cache_test.go`
+- `backend/internal/handler/api_key_handler.go`
+- `backend/internal/handler/dto/types.go`
+- `backend/internal/handler/dto/mappers.go`
+- `backend/internal/handler/dto/api_key_mapper_last_used_test.go`
 - `.superpowers/sdd/task-2-report.md`
 
-## 测试命令与结果
-- RED: `cd frontend && pnpm test:run src/views/admin/__tests__/OpenAIAutoSchedulerView.spec.ts`，失败符合预期，缺少 `scheduler-group-sidebar` / `scheduler-group-card-21` 等新布局节点。
-- GREEN: `cd frontend && pnpm test:run src/views/admin/__tests__/OpenAIAutoSchedulerView.spec.ts`，通过，8 tests passed。
-- Diff check: `git diff --check -- frontend/src/views/admin/OpenAIAutoSchedulerView.vue frontend/src/views/admin/__tests__/OpenAIAutoSchedulerView.spec.ts`，通过，无输出。
+## Notes / Risks
 
-## Commit Hash
-- `040bc83b`
-
-## 自检结论
-- 已自检 diff，仅包含 Task 2 要求的分组侧栏、`selectGroup` helper、运维表格布局、全局 fallback copy 和对应测试更新。
-- 未实现 Task 3 的详情抽屉或事件加载。
-
-## Concerns
-- 无。
-
-## Fix 记录 - 2026-06-28 dispatchScoreHint reviewer Important
-- 修复 `dispatchScoreHint` 文案：不再把 `final_score` 同时描述为表格主分和“健康分”，改为说明当前分数已含成本修正，选择阶段同状态再叠加组内价格修正。
-- 删除未被模板引用的 `handleGroupChange()` 死代码。
-- 更新 focused test 断言，锁定新文案，并保留旧矛盾文案的反向断言。
-- RED: `cd frontend && pnpm test:run src/views/admin/__tests__/OpenAIAutoSchedulerView.spec.ts`，失败符合预期，旧实现缺少 `当前分数 0.8200（已含成本修正 +0.8000）；同状态选择时再叠加组内价格修正`。
-- GREEN: `cd frontend && pnpm test:run src/views/admin/__tests__/OpenAIAutoSchedulerView.spec.ts`，通过，8 tests passed。
-- Diff check: `git diff --check -- frontend/src/views/admin/OpenAIAutoSchedulerView.vue frontend/src/views/admin/__tests__/OpenAIAutoSchedulerView.spec.ts`，通过，无输出。
-- Commit Hash: `da854c9b`
-- Concerns: 无。
+- 当前阶段只做 API Key mode 字段与校验，不区分平台触发额外逻辑；OpenAI 自动选组解析仍留给 Task 3/4。
+- 本次未触碰 `frontend/pnpm-lock.yaml`、`.pnpm-store/`、`frontend/pnpm-workspace.yaml`。

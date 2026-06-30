@@ -240,13 +240,18 @@ func TestAPIKeyService_GetByKey_UsesL2Cache(t *testing.T) {
 func TestAPIKeyService_SnapshotRoundTrip_PreservesMessagesDispatchModelConfig(t *testing.T) {
 	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
 	groupID := int64(9)
+	lastEffectiveGroupID := int64(11)
+	lastEffectiveGroupAt := time.Unix(1710000100, 0).UTC()
 	apiKey := &APIKey{
-		ID:      1,
-		UserID:  2,
-		GroupID: &groupID,
-		Key:     "k-roundtrip",
-		Name:    "Audit Key",
-		Status:  StatusActive,
+		ID:                   1,
+		UserID:               2,
+		GroupID:              &groupID,
+		Key:                  "k-roundtrip",
+		Name:                 "Audit Key",
+		GroupSelectMode:      APIKeyGroupSelectModeOpenAIAutoCheapest,
+		Status:               StatusActive,
+		LastEffectiveGroupID: &lastEffectiveGroupID,
+		LastEffectiveGroupAt: &lastEffectiveGroupAt,
 		User: &User{
 			ID:          2,
 			Status:      StatusActive,
@@ -279,8 +284,48 @@ func TestAPIKeyService_SnapshotRoundTrip_PreservesMessagesDispatchModelConfig(t 
 
 	require.NotNil(t, roundTrip)
 	require.Equal(t, apiKey.Name, roundTrip.Name)
+	require.Equal(t, apiKey.NormalizedGroupSelectMode(), roundTrip.NormalizedGroupSelectMode())
+	require.Equal(t, apiKey.LastEffectiveGroupID, roundTrip.LastEffectiveGroupID)
+	require.Equal(t, apiKey.LastEffectiveGroupAt, roundTrip.LastEffectiveGroupAt)
 	require.NotNil(t, roundTrip.Group)
 	require.Equal(t, apiKey.Group.MessagesDispatchModelConfig, roundTrip.Group.MessagesDispatchModelConfig)
+}
+
+func TestAPIKeyAuthSnapshotRoundTrip_PreservesGroupSelectionMetadata(t *testing.T) {
+	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
+	groupID := int64(9)
+	lastEffectiveGroupID := int64(12)
+	lastEffectiveGroupAt := time.Unix(1710000200, 0).UTC()
+
+	snapshot := svc.snapshotFromAPIKey(context.Background(), &APIKey{
+		ID:                   10,
+		UserID:               20,
+		GroupID:              &groupID,
+		Key:                  "k-meta",
+		Name:                 "Meta Key",
+		GroupSelectMode:      APIKeyGroupSelectModeOpenAIAutoCheapest,
+		Status:               StatusActive,
+		LastEffectiveGroupID: &lastEffectiveGroupID,
+		LastEffectiveGroupAt: &lastEffectiveGroupAt,
+		User: &User{
+			ID:          20,
+			Status:      StatusActive,
+			Role:        RoleUser,
+			Balance:     10,
+			Concurrency: 3,
+		},
+	})
+
+	require.NotNil(t, snapshot)
+	require.Equal(t, APIKeyGroupSelectModeOpenAIAutoCheapest, snapshot.GroupSelectMode)
+	require.Equal(t, &lastEffectiveGroupID, snapshot.LastEffectiveGroupID)
+	require.Equal(t, &lastEffectiveGroupAt, snapshot.LastEffectiveGroupAt)
+
+	roundTrip := svc.snapshotToAPIKey("k-meta", snapshot)
+	require.NotNil(t, roundTrip)
+	require.Equal(t, APIKeyGroupSelectModeOpenAIAutoCheapest, roundTrip.NormalizedGroupSelectMode())
+	require.Equal(t, &lastEffectiveGroupID, roundTrip.LastEffectiveGroupID)
+	require.Equal(t, &lastEffectiveGroupAt, roundTrip.LastEffectiveGroupAt)
 }
 
 func TestAPIKeyService_GetByKey_IgnoresLegacyAuthCacheSnapshotWithoutMessagesDispatchConfig(t *testing.T) {
