@@ -5,10 +5,16 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/stretchr/testify/require"
 )
 
@@ -97,6 +103,39 @@ func (c *fakeOpenAIAutoSchedulerProbeChecker) Check(ctx context.Context, account
 	return result
 }
 
+type recordingOpenAIAutoSchedulerProbeUpstream struct {
+	mu      sync.Mutex
+	req     *http.Request
+	body    string
+	profile *tlsfingerprint.Profile
+	resp    *http.Response
+	err     error
+}
+
+func (u *recordingOpenAIAutoSchedulerProbeUpstream) Do(_ *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
+	return nil, fmt.Errorf("unexpected Do call")
+}
+
+func (u *recordingOpenAIAutoSchedulerProbeUpstream) DoWithTLS(req *http.Request, _ string, _ int64, _ int, profile *tlsfingerprint.Profile) (*http.Response, error) {
+	bodyBytes, _ := io.ReadAll(req.Body)
+	_ = req.Body.Close()
+	u.mu.Lock()
+	u.req = req
+	u.body = string(bodyBytes)
+	u.profile = profile
+	resp := u.resp
+	err := u.err
+	u.mu.Unlock()
+	if resp == nil {
+		resp = &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(`{"id":"ok"}`)),
+		}
+	}
+	return resp, err
+}
+
 func TestOpenAIAutoSchedulerProbeRunner_SkipsWhenDisabled(t *testing.T) {
 	svc := &fakeOpenAIAutoSchedulerProbeService{settings: DefaultOpenAIAutoSchedulerSettings()}
 	runner := newOpenAIAutoSchedulerProbeRunner(svc, svc, &fakeOpenAIAutoSchedulerProbeAccountRepo{}, &fakeOpenAIAutoSchedulerProbeChecker{}, nil)
@@ -147,6 +186,34 @@ func TestOpenAIAutoSchedulerProbeRunner_ProbesEnabledOpenAIGroups(t *testing.T) 
 
 func TestOpenAIAutoSchedulerProbeRunner_DefaultProbeModel(t *testing.T) {
 	require.Equal(t, "gpt-5.4", selectOpenAIAutoSchedulerProbeModel())
+}
+
+func TestOpenAIAutoSchedulerProbeChecker_UsesChatCompletionsWhenAPIKeyResponsesUnsupported(t *testing.T) {
+	upstream := &recordingOpenAIAutoSchedulerProbeUpstream{}
+	checker := NewOpenAIAutoSchedulerProbeChecker(upstream, nil)
+	account := &Account{
+		ID:       1,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Extra: map[string]any{
+			openai_compat.ExtraKeyResponsesSupported: false,
+		},
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://compat-upstream.example",
+			"model_mapping": map[string]any{
+				"gpt-5.4": "compat-model",
+			},
+		},
+	}
+
+	result := checker.Check(context.Background(), account, "gpt-5.4", time.Second)
+
+	require.True(t, result.Success)
+	require.NoError(t, result.Err)
+	require.NotNil(t, upstream.req)
+	require.Equal(t, "https://compat-upstream.example/v1/chat/completions", upstream.req.URL.String())
+	require.JSONEq(t, `{"model":"compat-model","messages":[{"role":"user","content":"probe"}],"stream":true}`, upstream.body)
 }
 
 func TestOpenAIAutoSchedulerProbeRunner_DedupesInFlightChecks(t *testing.T) {

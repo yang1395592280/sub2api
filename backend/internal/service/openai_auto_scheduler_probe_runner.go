@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/alitto/pond/v2"
 )
@@ -271,14 +272,8 @@ func (c *openAIAutoSchedulerProbeHTTPChecker) Check(ctx context.Context, account
 	if baseURL == "" {
 		baseURL = "https://api.openai.com"
 	}
-	targetURL := buildOpenAIResponsesURL(baseURL)
 	upstreamModel := normalizeOpenAIModelForUpstream(account, account.GetMappedModel(model))
-	payload, _ := json.Marshal(map[string]any{
-		"model":             upstreamModel,
-		"input":             "probe",
-		"max_output_tokens": 1,
-		"stream":            false,
-	})
+	targetURL, payload := openAIAutoSchedulerProbeRequest(baseURL, upstreamModel, account)
 
 	callCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -320,6 +315,29 @@ func (c *openAIAutoSchedulerProbeHTTPChecker) Check(ctx context.Context, account
 		return OpenAIAutoSchedulerProbeResult{LatencyMS: &latencyMS, TtfbMS: &ttfbMS, Err: errors.New("empty probe response")}
 	}
 	return OpenAIAutoSchedulerProbeResult{Success: true, LatencyMS: &latencyMS, TtfbMS: &ttfbMS}
+}
+
+func openAIAutoSchedulerProbeRequest(baseURL string, upstreamModel string, account *Account) (string, []byte) {
+	if account != nil && account.Type == AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {
+		payload, _ := json.Marshal(map[string]any{
+			"model": upstreamModel,
+			"messages": []map[string]any{
+				{
+					"role":    "user",
+					"content": "probe",
+				},
+			},
+			"stream": true,
+		})
+		return buildOpenAIChatCompletionsURL(baseURL), payload
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"model":             upstreamModel,
+		"input":             "probe",
+		"max_output_tokens": 1,
+		"stream":            false,
+	})
+	return buildOpenAIResponsesURL(baseURL), payload
 }
 
 func openAIAutoSchedulerDurationMS(duration time.Duration) int {
