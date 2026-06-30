@@ -2071,9 +2071,13 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithLoadAwareness(
 			continue
 		}
 		selection, err := s.selectAccountWithLoadAwareness(s.withOpenAIQuotaAutoPauseContext(ctx), effectiveKey.GroupID, PlatformOpenAI, sessionHash, requestedModel, excludedIDs, false, requiredCapability)
-		if err == nil && selection != nil && selection.Account != nil {
+		if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
 			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
 			return effectiveKey, selection, nil
+		}
+		if err == nil && selection != nil && selection.Account != nil {
+			lastErr = ErrNoAvailableAccounts
+			continue
 		}
 		lastErr = err
 	}
@@ -2095,6 +2099,48 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapab
 	requireCompact bool,
 	requestPlatform string,
 ) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	return s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredCapability, requireCompact, requestPlatform, nil)
+}
+
+func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
+	ctx context.Context,
+	apiKey *APIKey,
+	previousResponseID string,
+	sessionHash string,
+	requestedModel string,
+	excludedIDs map[int64]struct{},
+	transport OpenAIUpstreamTransport,
+	requiredCapability OpenAIEndpointCapability,
+	requireCompact bool,
+	requestPlatform string,
+	modelResolver func(*APIKey, string) string,
+) (*APIKey, string, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	effectiveKey, selection, decision, err := s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredCapability, requireCompact, requestPlatform, modelResolver)
+	if effectiveKey == nil {
+		return nil, requestedModel, selection, decision, err
+	}
+	routingModel := strings.TrimSpace(requestedModel)
+	if modelResolver != nil {
+		if resolved := strings.TrimSpace(modelResolver(effectiveKey, requestedModel)); resolved != "" {
+			routingModel = resolved
+		}
+	}
+	return effectiveKey, routingModel, selection, decision, err
+}
+
+func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapability(
+	ctx context.Context,
+	apiKey *APIKey,
+	previousResponseID string,
+	sessionHash string,
+	requestedModel string,
+	excludedIDs map[int64]struct{},
+	transport OpenAIUpstreamTransport,
+	requiredCapability OpenAIEndpointCapability,
+	requireCompact bool,
+	requestPlatform string,
+	modelResolver func(*APIKey, string) string,
+) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
 	keys, err := s.resolveEffectiveOpenAIAPIKeys(ctx, apiKey)
 	if err != nil {
 		return nil, nil, OpenAIAccountScheduleDecision{}, err
@@ -2105,12 +2151,18 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapab
 		if effectiveKey == nil || effectiveKey.GroupID == nil {
 			continue
 		}
+		routingModel := requestedModel
+		if modelResolver != nil {
+			if resolved := strings.TrimSpace(modelResolver(effectiveKey, requestedModel)); resolved != "" {
+				routingModel = resolved
+			}
+		}
 		selection, decision, err := s.SelectAccountWithSchedulerForCapability(
 			ctx,
 			effectiveKey.GroupID,
 			previousResponseID,
 			sessionHash,
-			requestedModel,
+			routingModel,
 			excludedIDs,
 			transport,
 			requiredCapability,
@@ -2118,9 +2170,13 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapab
 			requestPlatform,
 		)
 		lastDecision = decision
-		if err == nil && selection != nil && selection.Account != nil {
+		if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
 			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
 			return effectiveKey, selection, decision, nil
+		}
+		if err == nil && selection != nil && selection.Account != nil {
+			lastErr = ErrNoAvailableAccounts
+			continue
 		}
 		lastErr = err
 	}

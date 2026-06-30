@@ -43,4 +43,27 @@ GOCACHE=/tmp/sub2api-go-cache go test ./internal/handler -run 'TestOpenAI.*Gatew
 ## Concerns
 
 - 当前 handler 级测试主要验证编译和既有路径回归；尚未新增完整 HTTP 级自动分组 E2E 用例。
-- `wire_gen.go` 是生成文件，本次按现有项目结构直接补了 resolver 注入；如果项目后续重新跑 Wire，需要同步维护 provider 图。
+
+## Review Fix
+
+修复 Task 4 review 中的阻塞问题：
+
+- `/v1/messages` 自动模式现在按每个候选 effective group 解析 `ResolveMessagesDispatchModel` 后再进入组内 scheduler，避免 Claude family 请求在选组前以原始模型被误判不可用。
+- 自动跨组 wrapper 只把已获得并发槽位的 `selection.Acquired` 视为成功；如果最低价组只返回 `WaitPlan`，会继续尝试下一个候选组。
+- 在 `backend/internal/service/wire.go` 增加 `ProvideOpenAIGatewayService`，把 resolver/updater 注入放回 Wire source-of-truth；`wire_gen.go` 保持对应生成结果。
+
+复跑验证：
+
+```bash
+cd backend
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestOpenAIAutoCheapestSelection|TestOpenAIGatewayService_SelectAccount' -count=1
+```
+
+结果：通过。
+
+```bash
+cd backend
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/handler -run 'TestOpenAI.*Gateway|Test.*Responses|Test.*ChatCompletions' -count=1
+```
+
+结果：通过。

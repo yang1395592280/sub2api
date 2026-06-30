@@ -794,7 +794,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			currentRoutingModel = effectiveMappedModel
 		}
 		reqLog.Debug("openai_messages.account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))
-		effectiveAPIKey, selection, scheduleDecision, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
+		effectiveAPIKey, selectedRoutingModel, selection, scheduleDecision, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
 			c.Request.Context(),
 			apiKey,
 			"", // no previous_response_id
@@ -805,6 +805,15 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			service.OpenAIEndpointCapabilityChatCompletions,
 			false,
 			requestPlatform,
+			func(candidate *service.APIKey, model string) string {
+				if candidate == nil || candidate.Group == nil {
+					return service.NormalizeOpenAICompatRequestedModel(model)
+				}
+				if mapped := strings.TrimSpace(candidate.Group.ResolveMessagesDispatchModel(model)); mapped != "" {
+					return mapped
+				}
+				return service.NormalizeOpenAICompatRequestedModel(model)
+			},
 		)
 		if err != nil {
 			reqLog.Warn("openai_messages.account_select_failed",
@@ -848,7 +857,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 				return
 			}
 			channelMappingMsg, _ = h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKeyForRequest.GroupID, reqModel)
-			effectiveMappedModel = strings.TrimSpace(apiKeyForRequest.Group.ResolveMessagesDispatchModel(reqModel))
+			effectiveMappedModel = strings.TrimSpace(selectedRoutingModel)
 			if effectiveMappedModel == "" {
 				effectiveMappedModel = channelMappingMsg.MappedModel
 			}
