@@ -1373,10 +1373,6 @@ const groupOptions = computed(() =>
   })
 )
 
-const fixedGroupOptions = computed(() =>
-  buildKeyGroupOptions(groups.value, userGroupRates.value)
-)
-
 const selectedGroupOptionValue = computed<KeyGroupOptionValue | null>({
   get() {
     return formData.value.group_select_mode === 'openai_auto_cheapest'
@@ -1398,8 +1394,8 @@ const selectedGroupOptionValue = computed<KeyGroupOptionValue | null>({
 const groupSearchQuery = ref('')
 const filteredGroupOptions = computed(() => {
   const query = groupSearchQuery.value.trim().toLowerCase()
-  if (!query) return fixedGroupOptions.value
-  return fixedGroupOptions.value.filter((opt) => {
+  if (!query) return groupOptions.value
+  return groupOptions.value.filter((opt) => {
     return opt.label.toLowerCase().includes(query) ||
       (opt.description && opt.description.toLowerCase().includes(query))
   })
@@ -1602,7 +1598,17 @@ const openGroupSelector = (key: ApiKey) => {
 const changeGroup = async (key: ApiKey, newGroupId: KeyGroupOptionValue | null) => {
   groupSelectorKeyId.value = null
   dropdownPosition.value = null
-  if (newGroupId === OPENAI_AUTO_CHEAPEST_GROUP_VALUE) return
+  if (newGroupId === OPENAI_AUTO_CHEAPEST_GROUP_VALUE) {
+    if (key.group_select_mode === 'openai_auto_cheapest') return
+    try {
+      await keysAPI.update(key.id, { group_id: null, group_select_mode: 'openai_auto_cheapest' })
+      appStore.showSuccess(t('keys.groupChangedSuccess'))
+      loadApiKeys()
+    } catch (error) {
+      appStore.showError(t('keys.failedToChangeGroup'))
+    }
+    return
+  }
   if (key.group_select_mode !== 'openai_auto_cheapest' && key.group_id === newGroupId) return
 
   try {
