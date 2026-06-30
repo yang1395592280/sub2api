@@ -37,7 +37,8 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => key
+      t: (key: string, params?: Record<string, unknown>) =>
+        params?.count !== undefined ? `${key}:${params.count}` : key
     })
   }
 })
@@ -58,6 +59,7 @@ const createDashboardStats = (): DashboardStats => ({
   stats_stale: false,
   total_api_keys: 0,
   active_api_keys: 0,
+  openai_auto_cheapest_users: 0,
   total_accounts: 0,
   normal_accounts: 0,
   error_accounts: 0,
@@ -142,5 +144,38 @@ describe('admin DashboardView', () => {
       end_date: today,
       granularity: 'hour'
     }))
+  })
+
+  it('shows OpenAI auto cheapest user count in API key card', async () => {
+    getSnapshotV2.mockResolvedValue({
+      stats: {
+        ...createDashboardStats(),
+        total_api_keys: 16,
+        active_api_keys: 9,
+        openai_auto_cheapest_users: 12
+      },
+      trend: [],
+      models: []
+    })
+
+    const wrapper = mount(DashboardView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          LoadingSpinner: true,
+          Icon: true,
+          DateRangePicker: true,
+          Select: true,
+          TopUsersLeaderboard: true,
+          ModelDistributionChart: true,
+          TokenUsageTrend: true,
+          Line: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.dashboard.openaiAutoCheapestUsers:12')
   })
 })

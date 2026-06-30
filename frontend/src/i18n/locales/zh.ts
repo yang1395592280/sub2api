@@ -1543,6 +1543,7 @@ export default {
       apiKeys: 'API 密钥',
       totalApiKeys: 'API 密钥总数',
       activeApiKeys: '活跃密钥',
+      openaiAutoCheapestUsers: '自动最优惠用户：{count}',
       users: '用户',
       totalUsers: '用户总数',
       activeUsers: '活跃用户',

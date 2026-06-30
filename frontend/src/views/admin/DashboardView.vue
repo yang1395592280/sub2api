@@ -15,7 +15,7 @@
               <div class="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
                 <Icon name="key" size="md" class="text-blue-600 dark:text-blue-400" :stroke-width="2" />
               </div>
-              <div>
+              <div class="min-w-0 flex-1">
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.apiKeys') }}
                 </p>
@@ -25,6 +25,15 @@
                 <p class="text-xs text-green-600 dark:text-green-400">
                   {{ stats.active_api_keys }} {{ t('common.active') }}
                 </p>
+                <div
+                  class="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-emerald-200/80 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 shadow-sm shadow-emerald-900/5 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300 dark:shadow-none"
+                  :title="t('admin.dashboard.openaiAutoCheapestUsers', { count: stats.openai_auto_cheapest_users || 0 })"
+                >
+                  <Icon name="sparkles" size="xs" class="shrink-0" :stroke-width="2" />
+                  <span class="min-w-0 whitespace-normal leading-tight">
+                    {{ t('admin.dashboard.openaiAutoCheapestUsers', { count: stats.openai_auto_cheapest_users || 0 }) }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>

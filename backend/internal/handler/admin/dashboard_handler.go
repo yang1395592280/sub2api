@@ -83,8 +83,9 @@ func (h *DashboardHandler) GetStats(c *gin.Context) {
 		"active_users":    stats.ActiveUsers,
 
 		// API Key 统计
-		"total_api_keys":  stats.TotalAPIKeys,
-		"active_api_keys": stats.ActiveAPIKeys,
+		"total_api_keys":             stats.TotalAPIKeys,
+		"active_api_keys":            stats.ActiveAPIKeys,
+		"openai_auto_cheapest_users": stats.OpenAIAutoCheapestUsers,
 
 		// 账户统计
 		"total_accounts":     stats.TotalAccounts,

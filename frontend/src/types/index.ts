@@ -1455,6 +1455,7 @@ export interface DashboardStats {
   // API Key 统计
   total_api_keys: number
   active_api_keys: number // 状态为 active 的 API Key 数
+  openai_auto_cheapest_users: number // 选择 OpenAI 自动最优惠分组的去重用户数
 
   // 账户统计
   total_accounts: number

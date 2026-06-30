@@ -1598,7 +1598,8 @@ func (r *usageLogRepository) fillDashboardEntityStats(ctx context.Context, stats
 	apiKeyStatsQuery := `
 		SELECT
 			COUNT(*) as total_api_keys,
-			COUNT(CASE WHEN status = $1 THEN 1 END) as active_api_keys
+			COUNT(CASE WHEN status = $1 THEN 1 END) as active_api_keys,
+			COUNT(DISTINCT CASE WHEN group_select_mode = $2 THEN user_id END) as openai_auto_cheapest_users
 		FROM api_keys
 		WHERE deleted_at IS NULL
 	`
@@ -1606,9 +1607,10 @@ func (r *usageLogRepository) fillDashboardEntityStats(ctx context.Context, stats
 		ctx,
 		r.sql,
 		apiKeyStatsQuery,
-		[]any{service.StatusActive},
+		[]any{service.StatusActive, service.APIKeyGroupSelectModeOpenAIAutoCheapest},
 		&stats.TotalAPIKeys,
 		&stats.ActiveAPIKeys,
+		&stats.OpenAIAutoCheapestUsers,
 	); err != nil {
 		return err
 	}

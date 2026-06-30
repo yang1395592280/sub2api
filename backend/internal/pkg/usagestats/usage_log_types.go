@@ -62,8 +62,9 @@ type DashboardStats struct {
 	StatsStale     bool   `json:"stats_stale"`
 
 	// API Key 统计
-	TotalAPIKeys  int64 `json:"total_api_keys"`
-	ActiveAPIKeys int64 `json:"active_api_keys"` // 状态为 active 的 API Key 数
+	TotalAPIKeys            int64 `json:"total_api_keys"`
+	ActiveAPIKeys           int64 `json:"active_api_keys"`            // 状态为 active 的 API Key 数
+	OpenAIAutoCheapestUsers int64 `json:"openai_auto_cheapest_users"` // 选择 OpenAI 自动最优惠分组的去重用户数
 
 	// 账户统计
 	TotalAccounts     int64 `json:"total_accounts"`

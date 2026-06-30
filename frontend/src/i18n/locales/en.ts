@@ -1537,6 +1537,7 @@ export default {
       title: 'Admin Dashboard',
       description: 'System overview and real-time statistics',
       apiKeys: 'API Keys',
+      openaiAutoCheapestUsers: 'Auto cheapest users: {count}',
       accounts: 'Accounts',
       users: 'Users',
       todayRequests: 'Today Requests',
