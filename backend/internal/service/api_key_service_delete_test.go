@@ -165,6 +165,10 @@ func (s *apiKeyRepoStub) UpdateLastUsed(ctx context.Context, id int64, usedAt ti
 	return nil
 }
 
+func (s *apiKeyRepoStub) UpdateLastEffectiveGroup(context.Context, int64, int64, time.Time) error {
+	panic("unexpected UpdateLastEffectiveGroup call")
+}
+
 func (s *apiKeyRepoStub) IncrementRateLimitUsage(ctx context.Context, id int64, cost float64) error {
 	panic("unexpected IncrementRateLimitUsage call")
 }

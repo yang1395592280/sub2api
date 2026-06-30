@@ -191,6 +191,9 @@ func (s *apiKeyRepoStubForGroupUpdate) IncrementQuotaUsed(context.Context, int64
 func (s *apiKeyRepoStubForGroupUpdate) UpdateLastUsed(context.Context, int64, time.Time) error {
 	panic("unexpected")
 }
+func (s *apiKeyRepoStubForGroupUpdate) UpdateLastEffectiveGroup(context.Context, int64, int64, time.Time) error {
+	panic("unexpected")
+}
 func (s *apiKeyRepoStubForGroupUpdate) IncrementRateLimitUsage(context.Context, int64, float64) error {
 	panic("unexpected")
 }

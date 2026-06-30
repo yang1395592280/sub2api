@@ -76,6 +76,7 @@ type APIKeyRepository interface {
 	// Quota methods
 	IncrementQuotaUsed(ctx context.Context, id int64, amount float64) (float64, error)
 	UpdateLastUsed(ctx context.Context, id int64, usedAt time.Time) error
+	UpdateLastEffectiveGroup(ctx context.Context, apiKeyID int64, groupID int64, at time.Time) error
 
 	// Rate limit methods
 	IncrementRateLimitUsage(ctx context.Context, id int64, cost float64) error

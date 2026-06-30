@@ -146,6 +146,9 @@ func (s *quotaBaseAPIKeyRepoStub) IncrementQuotaUsed(context.Context, int64, flo
 func (s *quotaBaseAPIKeyRepoStub) UpdateLastUsed(context.Context, int64, time.Time) error {
 	panic("unexpected UpdateLastUsed call")
 }
+func (s *quotaBaseAPIKeyRepoStub) UpdateLastEffectiveGroup(context.Context, int64, int64, time.Time) error {
+	panic("unexpected UpdateLastEffectiveGroup call")
+}
 func (s *quotaBaseAPIKeyRepoStub) IncrementRateLimitUsage(context.Context, int64, float64) error {
 	panic("unexpected IncrementRateLimitUsage call")
 }

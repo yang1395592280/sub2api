@@ -116,6 +116,9 @@ func (s *authRepoStub) IncrementQuotaUsed(ctx context.Context, id int64, amount 
 func (s *authRepoStub) UpdateLastUsed(ctx context.Context, id int64, usedAt time.Time) error {
 	panic("unexpected UpdateLastUsed call")
 }
+func (s *authRepoStub) UpdateLastEffectiveGroup(context.Context, int64, int64, time.Time) error {
+	panic("unexpected UpdateLastEffectiveGroup call")
+}
 func (s *authRepoStub) IncrementRateLimitUsage(ctx context.Context, id int64, cost float64) error {
 	panic("unexpected IncrementRateLimitUsage call")
 }
