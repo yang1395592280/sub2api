@@ -33,6 +33,31 @@ GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestOpenAIAutoChe
 
 结果：通过。
 
+## Second Review Fix
+
+修复 Task 4 第二轮 review 中的阻塞问题：
+
+- 固定 API Key 的 WaitPlan 行为恢复：只有自动模式才要求 `selection.Acquired == true` 才算当前组成功；固定模式仍保留原有等待逻辑。
+- OpenAI `/v1/chat/completions` 接入 effective group，自动模式成功后使用实际分组做 channel mapping、billing、account slot、cyber usage 和 RecordUsage。
+- OpenAI `/v1/embeddings` 接入 effective group，自动模式成功后使用实际分组做 channel mapping、billing、account slot 和 RecordUsage。
+- OpenAI Images 接入 effective group，并通过 images 专用 wrapper 保留 native/basic capability fallback。
+
+复跑验证：
+
+```bash
+cd backend
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestOpenAIAutoCheapestSelection|TestOpenAIGatewayService_SelectAccount' -count=1
+```
+
+结果：通过。
+
+```bash
+cd backend
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/handler -run 'TestOpenAI|Test.*Responses|Test.*ChatCompletions|Test.*Embeddings|Test.*Images' -count=1
+```
+
+结果：通过。
+
 ```bash
 cd backend
 GOCACHE=/tmp/sub2api-go-cache go test ./internal/handler -run 'TestOpenAI.*Gateway|Test.*Responses|Test.*ChatCompletions' -count=1
