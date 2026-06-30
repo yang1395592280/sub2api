@@ -804,6 +804,13 @@ export default {
     namePlaceholder: '我的 API 密钥',
     groupLabel: '分组',
     selectGroup: '选择分组',
+    openaiAutoCheapest: {
+      label: 'OpenAI 自动选择最优惠分组',
+      shortLabel: '自动最优惠',
+      description: '按当前可用账号池自动使用最低倍率 OpenAI 分组',
+      currentEffective: '最近生效：{name}',
+      waitingFirstUse: '等待首次调用'
+    },
     statusLabel: '状态',
     selectStatus: '选择状态',
     saving: '保存中...',

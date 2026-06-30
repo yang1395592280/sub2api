@@ -1,13 +1,18 @@
 import type { Group, GroupPlatform, SubscriptionType } from "@/types";
 
+export const OPENAI_AUTO_CHEAPEST_GROUP_VALUE = "openai_auto_cheapest" as const;
+
+export type KeyGroupOptionValue = number | typeof OPENAI_AUTO_CHEAPEST_GROUP_VALUE;
+
 export interface KeyGroupOption {
-  value: number;
+  value: KeyGroupOptionValue;
   label: string;
   description: string | null;
-  rate: number;
+  rate: number | null;
   userRate: number | null;
   subscriptionType: SubscriptionType;
   platform: GroupPlatform;
+  kind?: "openai_auto_cheapest";
   [key: string]: unknown;
 }
 
@@ -15,8 +20,13 @@ export interface KeyGroupOption {
 export function buildKeyGroupOptions(
   groups: Group[],
   userGroupRates: Record<number, number>,
+  options: {
+    includeOpenAIAutoCheapest?: boolean
+    openAIAutoCheapestLabel?: string
+    openAIAutoCheapestDescription?: string
+  } = {},
 ): KeyGroupOption[] {
-  return groups.map((group) => ({
+  const result: KeyGroupOption[] = groups.map((group) => ({
     value: group.id,
     label: group.name,
     description: group.description,
@@ -25,4 +35,19 @@ export function buildKeyGroupOptions(
     subscriptionType: group.subscription_type,
     platform: group.platform,
   }));
+  if (options.includeOpenAIAutoCheapest && groups.some((group) => group.platform === "openai")) {
+    result.unshift({
+      value: OPENAI_AUTO_CHEAPEST_GROUP_VALUE,
+      label: options.openAIAutoCheapestLabel ?? "OpenAI 自动选择最优惠分组",
+      description:
+        options.openAIAutoCheapestDescription ??
+        "按当前可用账号池自动使用最低倍率 OpenAI 分组",
+      rate: null,
+      userRate: null,
+      subscriptionType: "standard",
+      platform: "openai",
+      kind: "openai_auto_cheapest",
+    });
+  }
+  return result;
 }

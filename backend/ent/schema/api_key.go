@@ -44,6 +44,15 @@ func (APIKey) Fields() []ent.Field {
 		field.Int64("group_id").
 			Optional().
 			Nillable(),
+		field.String("group_select_mode").
+			MaxLen(32).
+			Default("fixed"),
+		field.Int64("last_effective_group_id").
+			Optional().
+			Nillable(),
+		field.Time("last_effective_group_at").
+			Optional().
+			Nillable(),
 		field.String("status").
 			MaxLen(20).
 			Default(domain.StatusActive),

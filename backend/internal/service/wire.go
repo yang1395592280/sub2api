@@ -548,6 +548,60 @@ func ProvideAPIKeyService(
 	return svc
 }
 
+func ProvideOpenAIGatewayService(
+	accountRepo AccountRepository,
+	usageLogRepo UsageLogRepository,
+	usageBillingRepo UsageBillingRepository,
+	userRepo UserRepository,
+	userSubRepo UserSubscriptionRepository,
+	userGroupRateRepo UserGroupRateRepository,
+	cache GatewayCache,
+	cfg *config.Config,
+	schedulerSnapshot *SchedulerSnapshotService,
+	concurrencyService *ConcurrencyService,
+	billingService *BillingService,
+	rateLimitService *RateLimitService,
+	billingCacheService *BillingCacheService,
+	httpUpstream HTTPUpstream,
+	deferredService *DeferredService,
+	openAITokenProvider *OpenAITokenProvider,
+	grokTokenProvider *GrokTokenProvider,
+	resolver *ModelPricingResolver,
+	channelService *ChannelService,
+	balanceNotifyService *BalanceNotifyService,
+	settingService *SettingService,
+	userPlatformQuotaRepo UserPlatformQuotaRepository,
+	apiKeyService *APIKeyService,
+	apiKeyRepo APIKeyRepository,
+) *OpenAIGatewayService {
+	svc := NewOpenAIGatewayService(
+		accountRepo,
+		usageLogRepo,
+		usageBillingRepo,
+		userRepo,
+		userSubRepo,
+		userGroupRateRepo,
+		cache,
+		cfg,
+		schedulerSnapshot,
+		concurrencyService,
+		billingService,
+		rateLimitService,
+		billingCacheService,
+		httpUpstream,
+		deferredService,
+		openAITokenProvider,
+		grokTokenProvider,
+		resolver,
+		channelService,
+		balanceNotifyService,
+		settingService,
+		userPlatformQuotaRepo,
+	)
+	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(apiKeyService), apiKeyRepo)
+	return svc
+}
+
 func ProvideWorkbenchService(repo WorkbenchRepository, apiKeyService *APIKeyService, gatewayService *GatewayService, cfg *config.Config) *WorkbenchService {
 	return NewWorkbenchServiceWithModels(repo, apiKeyService, NewHTTPWorkbenchGatewayClient(cfg), gatewayService)
 }
@@ -572,7 +626,7 @@ var ProviderSet = wire.NewSet(
 	NewAnnouncementService,
 	NewAdminService,
 	NewGatewayService,
-	NewOpenAIGatewayService,
+	ProvideOpenAIGatewayService,
 	wire.Bind(new(AccountRuntimeBlocker), new(*OpenAIGatewayService)),
 	wire.Bind(new(OpenAIAccountScheduleResultReporter), new(*OpenAIGatewayService)),
 	NewOAuthService,

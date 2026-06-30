@@ -96,6 +96,44 @@ func TestAPIKeyRepository_UpdateLastUsed(t *testing.T) {
 	require.WithinDuration(t, target, after.UpdatedAt, time.Second)
 }
 
+func TestAPIKeyRepository_UpdateLastEffectiveGroup(t *testing.T) {
+	repo, client := newAPIKeyRepoSQLite(t)
+	ctx := context.Background()
+	user := mustCreateAPIKeyRepoUser(t, ctx, client, "update-last-effective-group@test.com")
+	group, err := client.Group.Create().
+		SetName("update-last-effective-group").
+		SetPlatform(service.PlatformOpenAI).
+		SetStatus(service.StatusActive).
+		SetSubscriptionType(service.SubscriptionTypeStandard).
+		SetRateMultiplier(1).
+		Save(ctx)
+	require.NoError(t, err)
+
+	key := &service.APIKey{
+		UserID: user.ID,
+		Key:    "sk-update-last-effective-group",
+		Name:   "UpdateLastEffectiveGroup",
+		Status: service.StatusActive,
+	}
+	require.NoError(t, repo.Create(ctx, key))
+
+	before, err := repo.GetByID(ctx, key.ID)
+	require.NoError(t, err)
+	require.Nil(t, before.LastEffectiveGroupID)
+	require.Nil(t, before.LastEffectiveGroupAt)
+
+	target := time.Now().UTC().Add(3 * time.Minute).Truncate(time.Second)
+	require.NoError(t, repo.UpdateLastEffectiveGroup(ctx, key.ID, group.ID, target))
+
+	after, err := repo.GetByID(ctx, key.ID)
+	require.NoError(t, err)
+	require.NotNil(t, after.LastEffectiveGroupID)
+	require.Equal(t, group.ID, *after.LastEffectiveGroupID)
+	require.NotNil(t, after.LastEffectiveGroupAt)
+	require.WithinDuration(t, target, *after.LastEffectiveGroupAt, time.Second)
+	require.WithinDuration(t, target, after.UpdatedAt, time.Second)
+}
+
 func TestAPIKeyRepository_UpdateLastUsedDeletedKey(t *testing.T) {
 	repo, client := newAPIKeyRepoSQLite(t)
 	ctx := context.Background()
@@ -111,6 +149,32 @@ func TestAPIKeyRepository_UpdateLastUsedDeletedKey(t *testing.T) {
 	require.NoError(t, repo.Delete(ctx, key.ID))
 
 	err := repo.UpdateLastUsed(ctx, key.ID, time.Now().UTC())
+	require.ErrorIs(t, err, service.ErrAPIKeyNotFound)
+}
+
+func TestAPIKeyRepository_UpdateLastEffectiveGroupDeletedKey(t *testing.T) {
+	repo, client := newAPIKeyRepoSQLite(t)
+	ctx := context.Background()
+	user := mustCreateAPIKeyRepoUser(t, ctx, client, "deleted-last-effective-group@test.com")
+	group, err := client.Group.Create().
+		SetName("deleted-last-effective-group").
+		SetPlatform(service.PlatformOpenAI).
+		SetStatus(service.StatusActive).
+		SetSubscriptionType(service.SubscriptionTypeStandard).
+		SetRateMultiplier(1).
+		Save(ctx)
+	require.NoError(t, err)
+
+	key := &service.APIKey{
+		UserID: user.ID,
+		Key:    "sk-update-last-effective-group-deleted",
+		Name:   "UpdateLastEffectiveGroupDeleted",
+		Status: service.StatusActive,
+	}
+	require.NoError(t, repo.Create(ctx, key))
+	require.NoError(t, repo.Delete(ctx, key.ID))
+
+	err = repo.UpdateLastEffectiveGroup(ctx, key.ID, group.ID, time.Now().UTC())
 	require.ErrorIs(t, err, service.ErrAPIKeyNotFound)
 }
 

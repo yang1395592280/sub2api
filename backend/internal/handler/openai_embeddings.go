@@ -74,7 +74,11 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 	setOpsRequestContext(c, reqModel, false)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeSync))
 
+	autoGroupMode := apiKey.UsesOpenAIAutoCheapestGroup()
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
+	if autoGroupMode {
+		channelMapping = service.ChannelMappingResult{MappedModel: reqModel}
+	}
 
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
@@ -87,14 +91,16 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 		defer userReleaseFunc()
 	}
 
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
-		reqLog.Info("openai_embeddings.billing_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
-		if retryAfter > 0 {
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
+	if !autoGroupMode {
+		if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
+			reqLog.Info("openai_embeddings.billing_check_failed", zap.Error(err))
+			status, code, message, retryAfter := billingErrorDetails(err)
+			if retryAfter > 0 {
+				c.Header("Retry-After", strconv.Itoa(retryAfter))
+			}
+			h.errorResponse(c, status, code, message)
+			return
 		}
-		h.errorResponse(c, status, code, message)
-		return
 	}
 
 	failedAccountIDs := make(map[int64]struct{})
@@ -107,9 +113,9 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 	routingStart := time.Now()
 
 	for {
-		selection, _, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
+		effectiveAPIKey, selection, _, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
 			c.Request.Context(),
-			apiKey.GroupID,
+			apiKey,
 			"",
 			"",
 			reqModel,
@@ -117,6 +123,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 			service.OpenAIUpstreamTransportHTTPSSE,
 			service.OpenAIEndpointCapabilityEmbeddings,
 			false,
+			service.PlatformOpenAI,
 		)
 		if err != nil {
 			reqLog.Warn("openai_embeddings.account_select_failed",
@@ -147,9 +154,26 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 			return
 		}
 		account := selection.Account
+		apiKeyForRequest := effectiveAPIKey
+		if apiKeyForRequest == nil {
+			apiKeyForRequest = apiKey
+		}
+		if autoGroupMode {
+			channelMapping, _ = h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKeyForRequest.GroupID, reqModel)
+			if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKeyForRequest.User, apiKeyForRequest, apiKeyForRequest.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKeyForRequest)); err != nil {
+				reqLog.Info("openai_embeddings.billing_check_failed", zap.Error(err))
+				status, code, message, retryAfter := billingErrorDetails(err)
+				if retryAfter > 0 {
+					c.Header("Retry-After", strconv.Itoa(retryAfter))
+				}
+				h.errorResponse(c, status, code, message)
+				return
+			}
+		}
+		c.Set("api_key", apiKeyForRequest)
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
-		accountReleaseFunc, accountAcquired := h.acquireResponsesAccountSlot(c, apiKey.GroupID, "", selection, false, &streamStarted, reqLog)
+		accountReleaseFunc, accountAcquired := h.acquireResponsesAccountSlot(c, apiKeyForRequest.GroupID, "", selection, false, &streamStarted, reqLog)
 		if !accountAcquired {
 			return
 		}
@@ -224,8 +248,8 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 		h.submitOpenAIUsageRecordTask(c.Request.Context(), result, func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
 				Result:             result,
-				APIKey:             apiKey,
-				User:               apiKey.User,
+				APIKey:             apiKeyForRequest,
+				User:               apiKeyForRequest.User,
 				Account:            account,
 				Subscription:       subscription,
 				InboundEndpoint:    inboundEndpoint,
@@ -239,8 +263,8 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 				logger.L().With(
 					zap.String("component", "handler.openai_gateway.embeddings"),
 					zap.Int64("user_id", subject.UserID),
-					zap.Int64("api_key_id", apiKey.ID),
-					zap.Any("group_id", apiKey.GroupID),
+					zap.Int64("api_key_id", apiKeyForRequest.ID),
+					zap.Any("group_id", apiKeyForRequest.GroupID),
 					zap.String("model", reqModel),
 					zap.Int64("account_id", account.ID),
 				).Error("openai_embeddings.record_usage_failed", zap.Error(err))

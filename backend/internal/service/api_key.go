@@ -14,6 +14,11 @@ const (
 	StatusAPIKeyExpired        = "expired"
 )
 
+const (
+	APIKeyGroupSelectModeFixed              = "fixed"
+	APIKeyGroupSelectModeOpenAIAutoCheapest = "openai_auto_cheapest"
+)
+
 // Rate limit window durations
 const (
 	RateLimitWindow5h = 5 * time.Hour
@@ -28,22 +33,26 @@ func IsWindowExpired(windowStart *time.Time, duration time.Duration) bool {
 }
 
 type APIKey struct {
-	ID          int64
-	UserID      int64
-	Key         string
-	Name        string
-	GroupID     *int64
-	Status      string
-	IPWhitelist []string
-	IPBlacklist []string
+	ID              int64
+	UserID          int64
+	Key             string
+	Name            string
+	GroupID         *int64
+	GroupSelectMode string
+	Status          string
+	IPWhitelist     []string
+	IPBlacklist     []string
 	// 预编译的 IP 规则，用于认证热路径避免重复 ParseIP/ParseCIDR。
-	CompiledIPWhitelist *ip.CompiledIPRules `json:"-"`
-	CompiledIPBlacklist *ip.CompiledIPRules `json:"-"`
-	LastUsedAt          *time.Time
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
-	User                *User
-	Group               *Group
+	CompiledIPWhitelist  *ip.CompiledIPRules `json:"-"`
+	CompiledIPBlacklist  *ip.CompiledIPRules `json:"-"`
+	LastUsedAt           *time.Time
+	LastEffectiveGroupID *int64
+	LastEffectiveGroupAt *time.Time
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	User                 *User
+	Group                *Group
+	LastEffectiveGroup   *Group
 
 	// Quota fields
 	Quota     float64    // Quota limit in USD (0 = unlimited)
@@ -64,6 +73,22 @@ type APIKey struct {
 
 func (k *APIKey) IsActive() bool {
 	return k.Status == StatusActive
+}
+
+func (k *APIKey) NormalizedGroupSelectMode() string {
+	if k == nil {
+		return APIKeyGroupSelectModeFixed
+	}
+	switch k.GroupSelectMode {
+	case APIKeyGroupSelectModeOpenAIAutoCheapest:
+		return APIKeyGroupSelectModeOpenAIAutoCheapest
+	default:
+		return APIKeyGroupSelectModeFixed
+	}
+}
+
+func (k *APIKey) UsesOpenAIAutoCheapestGroup() bool {
+	return k != nil && k.NormalizedGroupSelectMode() == APIKeyGroupSelectModeOpenAIAutoCheapest
 }
 
 // HasRateLimits returns true if any rate limit window is configured

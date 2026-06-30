@@ -34,6 +34,12 @@ type APIKey struct {
 	Name string `json:"name,omitempty"`
 	// GroupID holds the value of the "group_id" field.
 	GroupID *int64 `json:"group_id,omitempty"`
+	// GroupSelectMode holds the value of the "group_select_mode" field.
+	GroupSelectMode string `json:"group_select_mode,omitempty"`
+	// LastEffectiveGroupID holds the value of the "last_effective_group_id" field.
+	LastEffectiveGroupID *int64 `json:"last_effective_group_id,omitempty"`
+	// LastEffectiveGroupAt holds the value of the "last_effective_group_at" field.
+	LastEffectiveGroupAt *time.Time `json:"last_effective_group_at,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
 	// Last usage time of this API key
@@ -125,11 +131,11 @@ func (*APIKey) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case apikey.FieldQuota, apikey.FieldQuotaUsed, apikey.FieldRateLimit5h, apikey.FieldRateLimit1d, apikey.FieldRateLimit7d, apikey.FieldUsage5h, apikey.FieldUsage1d, apikey.FieldUsage7d:
 			values[i] = new(sql.NullFloat64)
-		case apikey.FieldID, apikey.FieldUserID, apikey.FieldGroupID:
+		case apikey.FieldID, apikey.FieldUserID, apikey.FieldGroupID, apikey.FieldLastEffectiveGroupID:
 			values[i] = new(sql.NullInt64)
-		case apikey.FieldKey, apikey.FieldName, apikey.FieldStatus:
+		case apikey.FieldKey, apikey.FieldName, apikey.FieldGroupSelectMode, apikey.FieldStatus:
 			values[i] = new(sql.NullString)
-		case apikey.FieldCreatedAt, apikey.FieldUpdatedAt, apikey.FieldDeletedAt, apikey.FieldLastUsedAt, apikey.FieldExpiresAt, apikey.FieldWindow5hStart, apikey.FieldWindow1dStart, apikey.FieldWindow7dStart:
+		case apikey.FieldCreatedAt, apikey.FieldUpdatedAt, apikey.FieldDeletedAt, apikey.FieldLastEffectiveGroupAt, apikey.FieldLastUsedAt, apikey.FieldExpiresAt, apikey.FieldWindow5hStart, apikey.FieldWindow1dStart, apikey.FieldWindow7dStart:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -195,6 +201,26 @@ func (_m *APIKey) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.GroupID = new(int64)
 				*_m.GroupID = value.Int64
+			}
+		case apikey.FieldGroupSelectMode:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field group_select_mode", values[i])
+			} else if value.Valid {
+				_m.GroupSelectMode = value.String
+			}
+		case apikey.FieldLastEffectiveGroupID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field last_effective_group_id", values[i])
+			} else if value.Valid {
+				_m.LastEffectiveGroupID = new(int64)
+				*_m.LastEffectiveGroupID = value.Int64
+			}
+		case apikey.FieldLastEffectiveGroupAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field last_effective_group_at", values[i])
+			} else if value.Valid {
+				_m.LastEffectiveGroupAt = new(time.Time)
+				*_m.LastEffectiveGroupAt = value.Time
 			}
 		case apikey.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -375,6 +401,19 @@ func (_m *APIKey) String() string {
 	if v := _m.GroupID; v != nil {
 		builder.WriteString("group_id=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("group_select_mode=")
+	builder.WriteString(_m.GroupSelectMode)
+	builder.WriteString(", ")
+	if v := _m.LastEffectiveGroupID; v != nil {
+		builder.WriteString("last_effective_group_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.LastEffectiveGroupAt; v != nil {
+		builder.WriteString("last_effective_group_at=")
+		builder.WriteString(v.Format(time.ANSIC))
 	}
 	builder.WriteString(", ")
 	builder.WriteString("status=")

@@ -34,4 +34,21 @@ describe("buildKeyGroupOptions", () => {
       userRate: 0.8,
     });
   });
+
+  it("prepends OpenAI auto cheapest option before OpenAI groups", () => {
+    const groups = [
+      group({ id: 1, name: "Claude", platform: "anthropic" }),
+      group({ id: 2, name: "OpenAI Cheap", platform: "openai", rate_multiplier: 0.1 }),
+    ];
+
+    const options = buildKeyGroupOptions(groups, {}, { includeOpenAIAutoCheapest: true });
+
+    expect(options[0]).toMatchObject({
+      value: "openai_auto_cheapest",
+      label: "OpenAI 自动选择最优惠分组",
+      platform: "openai",
+      kind: "openai_auto_cheapest",
+    });
+    expect(options.map((option) => option.value)).toEqual(["openai_auto_cheapest", 1, 2]);
+  });
 });

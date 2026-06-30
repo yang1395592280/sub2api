@@ -49,20 +49,23 @@ type AdminUser struct {
 }
 
 type APIKey struct {
-	ID          int64      `json:"id"`
-	UserID      int64      `json:"user_id"`
-	Key         string     `json:"key"`
-	Name        string     `json:"name"`
-	GroupID     *int64     `json:"group_id"`
-	Status      string     `json:"status"`
-	IPWhitelist []string   `json:"ip_whitelist"`
-	IPBlacklist []string   `json:"ip_blacklist"`
-	LastUsedAt  *time.Time `json:"last_used_at"`
-	Quota       float64    `json:"quota"`      // Quota limit in USD (0 = unlimited)
-	QuotaUsed   float64    `json:"quota_used"` // Used quota amount in USD
-	ExpiresAt   *time.Time `json:"expires_at"` // Expiration time (nil = never expires)
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID                   int64      `json:"id"`
+	UserID               int64      `json:"user_id"`
+	Key                  string     `json:"key"`
+	Name                 string     `json:"name"`
+	GroupID              *int64     `json:"group_id"`
+	GroupSelectMode      string     `json:"group_select_mode"`
+	Status               string     `json:"status"`
+	IPWhitelist          []string   `json:"ip_whitelist"`
+	IPBlacklist          []string   `json:"ip_blacklist"`
+	LastUsedAt           *time.Time `json:"last_used_at"`
+	LastEffectiveGroupID *int64     `json:"last_effective_group_id"`
+	LastEffectiveGroupAt *time.Time `json:"last_effective_group_at"`
+	Quota                float64    `json:"quota"`      // Quota limit in USD (0 = unlimited)
+	QuotaUsed            float64    `json:"quota_used"` // Used quota amount in USD
+	ExpiresAt            *time.Time `json:"expires_at"` // Expiration time (nil = never expires)
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
 
 	// Rate limit fields
 	RateLimit5h   float64    `json:"rate_limit_5h"`
@@ -78,8 +81,9 @@ type APIKey struct {
 	Reset1dAt     *time.Time `json:"reset_1d_at,omitempty"`
 	Reset7dAt     *time.Time `json:"reset_7d_at,omitempty"`
 
-	User  *User  `json:"user,omitempty"`
-	Group *Group `json:"group,omitempty"`
+	User               *User  `json:"user,omitempty"`
+	Group              *Group `json:"group,omitempty"`
+	LastEffectiveGroup *Group `json:"last_effective_group,omitempty"`
 }
 
 type Group struct {

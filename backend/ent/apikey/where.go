@@ -90,6 +90,21 @@ func GroupID(v int64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldGroupID, v))
 }
 
+// GroupSelectMode applies equality check predicate on the "group_select_mode" field. It's identical to GroupSelectModeEQ.
+func GroupSelectMode(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldGroupSelectMode, v))
+}
+
+// LastEffectiveGroupID applies equality check predicate on the "last_effective_group_id" field. It's identical to LastEffectiveGroupIDEQ.
+func LastEffectiveGroupID(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldLastEffectiveGroupID, v))
+}
+
+// LastEffectiveGroupAt applies equality check predicate on the "last_effective_group_at" field. It's identical to LastEffectiveGroupAtEQ.
+func LastEffectiveGroupAt(v time.Time) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldLastEffectiveGroupAt, v))
+}
+
 // Status applies equality check predicate on the "status" field. It's identical to StatusEQ.
 func Status(v string) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldStatus, v))
@@ -468,6 +483,171 @@ func GroupIDIsNil() predicate.APIKey {
 // GroupIDNotNil applies the NotNil predicate on the "group_id" field.
 func GroupIDNotNil() predicate.APIKey {
 	return predicate.APIKey(sql.FieldNotNull(FieldGroupID))
+}
+
+// GroupSelectModeEQ applies the EQ predicate on the "group_select_mode" field.
+func GroupSelectModeEQ(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldGroupSelectMode, v))
+}
+
+// GroupSelectModeNEQ applies the NEQ predicate on the "group_select_mode" field.
+func GroupSelectModeNEQ(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldGroupSelectMode, v))
+}
+
+// GroupSelectModeIn applies the In predicate on the "group_select_mode" field.
+func GroupSelectModeIn(vs ...string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldGroupSelectMode, vs...))
+}
+
+// GroupSelectModeNotIn applies the NotIn predicate on the "group_select_mode" field.
+func GroupSelectModeNotIn(vs ...string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldGroupSelectMode, vs...))
+}
+
+// GroupSelectModeGT applies the GT predicate on the "group_select_mode" field.
+func GroupSelectModeGT(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldGroupSelectMode, v))
+}
+
+// GroupSelectModeGTE applies the GTE predicate on the "group_select_mode" field.
+func GroupSelectModeGTE(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldGroupSelectMode, v))
+}
+
+// GroupSelectModeLT applies the LT predicate on the "group_select_mode" field.
+func GroupSelectModeLT(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldGroupSelectMode, v))
+}
+
+// GroupSelectModeLTE applies the LTE predicate on the "group_select_mode" field.
+func GroupSelectModeLTE(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldGroupSelectMode, v))
+}
+
+// GroupSelectModeContains applies the Contains predicate on the "group_select_mode" field.
+func GroupSelectModeContains(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldContains(FieldGroupSelectMode, v))
+}
+
+// GroupSelectModeHasPrefix applies the HasPrefix predicate on the "group_select_mode" field.
+func GroupSelectModeHasPrefix(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldHasPrefix(FieldGroupSelectMode, v))
+}
+
+// GroupSelectModeHasSuffix applies the HasSuffix predicate on the "group_select_mode" field.
+func GroupSelectModeHasSuffix(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldHasSuffix(FieldGroupSelectMode, v))
+}
+
+// GroupSelectModeEqualFold applies the EqualFold predicate on the "group_select_mode" field.
+func GroupSelectModeEqualFold(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEqualFold(FieldGroupSelectMode, v))
+}
+
+// GroupSelectModeContainsFold applies the ContainsFold predicate on the "group_select_mode" field.
+func GroupSelectModeContainsFold(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldContainsFold(FieldGroupSelectMode, v))
+}
+
+// LastEffectiveGroupIDEQ applies the EQ predicate on the "last_effective_group_id" field.
+func LastEffectiveGroupIDEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldLastEffectiveGroupID, v))
+}
+
+// LastEffectiveGroupIDNEQ applies the NEQ predicate on the "last_effective_group_id" field.
+func LastEffectiveGroupIDNEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldLastEffectiveGroupID, v))
+}
+
+// LastEffectiveGroupIDIn applies the In predicate on the "last_effective_group_id" field.
+func LastEffectiveGroupIDIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldLastEffectiveGroupID, vs...))
+}
+
+// LastEffectiveGroupIDNotIn applies the NotIn predicate on the "last_effective_group_id" field.
+func LastEffectiveGroupIDNotIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldLastEffectiveGroupID, vs...))
+}
+
+// LastEffectiveGroupIDGT applies the GT predicate on the "last_effective_group_id" field.
+func LastEffectiveGroupIDGT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldLastEffectiveGroupID, v))
+}
+
+// LastEffectiveGroupIDGTE applies the GTE predicate on the "last_effective_group_id" field.
+func LastEffectiveGroupIDGTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldLastEffectiveGroupID, v))
+}
+
+// LastEffectiveGroupIDLT applies the LT predicate on the "last_effective_group_id" field.
+func LastEffectiveGroupIDLT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldLastEffectiveGroupID, v))
+}
+
+// LastEffectiveGroupIDLTE applies the LTE predicate on the "last_effective_group_id" field.
+func LastEffectiveGroupIDLTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldLastEffectiveGroupID, v))
+}
+
+// LastEffectiveGroupIDIsNil applies the IsNil predicate on the "last_effective_group_id" field.
+func LastEffectiveGroupIDIsNil() predicate.APIKey {
+	return predicate.APIKey(sql.FieldIsNull(FieldLastEffectiveGroupID))
+}
+
+// LastEffectiveGroupIDNotNil applies the NotNil predicate on the "last_effective_group_id" field.
+func LastEffectiveGroupIDNotNil() predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotNull(FieldLastEffectiveGroupID))
+}
+
+// LastEffectiveGroupAtEQ applies the EQ predicate on the "last_effective_group_at" field.
+func LastEffectiveGroupAtEQ(v time.Time) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldLastEffectiveGroupAt, v))
+}
+
+// LastEffectiveGroupAtNEQ applies the NEQ predicate on the "last_effective_group_at" field.
+func LastEffectiveGroupAtNEQ(v time.Time) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldLastEffectiveGroupAt, v))
+}
+
+// LastEffectiveGroupAtIn applies the In predicate on the "last_effective_group_at" field.
+func LastEffectiveGroupAtIn(vs ...time.Time) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldLastEffectiveGroupAt, vs...))
+}
+
+// LastEffectiveGroupAtNotIn applies the NotIn predicate on the "last_effective_group_at" field.
+func LastEffectiveGroupAtNotIn(vs ...time.Time) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldLastEffectiveGroupAt, vs...))
+}
+
+// LastEffectiveGroupAtGT applies the GT predicate on the "last_effective_group_at" field.
+func LastEffectiveGroupAtGT(v time.Time) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldLastEffectiveGroupAt, v))
+}
+
+// LastEffectiveGroupAtGTE applies the GTE predicate on the "last_effective_group_at" field.
+func LastEffectiveGroupAtGTE(v time.Time) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldLastEffectiveGroupAt, v))
+}
+
+// LastEffectiveGroupAtLT applies the LT predicate on the "last_effective_group_at" field.
+func LastEffectiveGroupAtLT(v time.Time) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldLastEffectiveGroupAt, v))
+}
+
+// LastEffectiveGroupAtLTE applies the LTE predicate on the "last_effective_group_at" field.
+func LastEffectiveGroupAtLTE(v time.Time) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldLastEffectiveGroupAt, v))
+}
+
+// LastEffectiveGroupAtIsNil applies the IsNil predicate on the "last_effective_group_at" field.
+func LastEffectiveGroupAtIsNil() predicate.APIKey {
+	return predicate.APIKey(sql.FieldIsNull(FieldLastEffectiveGroupAt))
+}
+
+// LastEffectiveGroupAtNotNil applies the NotNil predicate on the "last_effective_group_at" field.
+func LastEffectiveGroupAtNotNil() predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotNull(FieldLastEffectiveGroupAt))
 }
 
 // StatusEQ applies the EQ predicate on the "status" field.

@@ -334,33 +334,35 @@ var ErrNoAvailableCompactAccounts = errors.New("no available OpenAI accounts sup
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
-	accountRepo                 AccountRepository
-	usageLogRepo                UsageLogRepository
-	usageBillingRepo            UsageBillingRepository
-	userRepo                    UserRepository
-	userSubRepo                 UserSubscriptionRepository
-	cache                       GatewayCache
-	cfg                         *config.Config
-	codexDetector               CodexClientRestrictionDetector
-	schedulerSnapshot           *SchedulerSnapshotService
-	concurrencyService          *ConcurrencyService
-	billingService              *BillingService
-	rateLimitService            *RateLimitService
-	billingCacheService         *BillingCacheService
-	userGroupRateResolver       *userGroupRateResolver
-	httpUpstream                HTTPUpstream
-	deferredService             *DeferredService
-	openAITokenProvider         *OpenAITokenProvider
-	grokTokenProvider           *GrokTokenProvider
-	toolCorrector               *CodexToolCorrector
-	openaiWSResolver            OpenAIWSProtocolResolver
-	resolver                    *ModelPricingResolver
-	channelService              *ChannelService
-	balanceNotifyService        *BalanceNotifyService
-	settingService              *SettingService
-	userPlatformQuotaRepo       UserPlatformQuotaRepository
-	openAIAutoSchedulerSelector *OpenAIAutoSchedulerSelector
-	openAIAutoSchedulerService  *OpenAIAutoSchedulerService
+	accountRepo                     AccountRepository
+	usageLogRepo                    UsageLogRepository
+	usageBillingRepo                UsageBillingRepository
+	userRepo                        UserRepository
+	userSubRepo                     UserSubscriptionRepository
+	cache                           GatewayCache
+	cfg                             *config.Config
+	codexDetector                   CodexClientRestrictionDetector
+	schedulerSnapshot               *SchedulerSnapshotService
+	concurrencyService              *ConcurrencyService
+	billingService                  *BillingService
+	rateLimitService                *RateLimitService
+	billingCacheService             *BillingCacheService
+	userGroupRateResolver           *userGroupRateResolver
+	httpUpstream                    HTTPUpstream
+	deferredService                 *DeferredService
+	openAITokenProvider             *OpenAITokenProvider
+	grokTokenProvider               *GrokTokenProvider
+	toolCorrector                   *CodexToolCorrector
+	openaiWSResolver                OpenAIWSProtocolResolver
+	resolver                        *ModelPricingResolver
+	channelService                  *ChannelService
+	balanceNotifyService            *BalanceNotifyService
+	settingService                  *SettingService
+	userPlatformQuotaRepo           UserPlatformQuotaRepository
+	openAIAutoSchedulerSelector     *OpenAIAutoSchedulerSelector
+	openAIAutoSchedulerService      *OpenAIAutoSchedulerService
+	openAIAutoCheapestGroupResolver *OpenAIAutoCheapestGroupResolver
+	apiKeyEffectiveGroupUpdater     LastEffectiveGroupUpdater
 
 	openaiWSPoolOnce              sync.Once
 	openaiWSStateStoreOnce        sync.Once
@@ -459,6 +461,14 @@ func (s *OpenAIGatewayService) SetOpenAIAutoScheduler(selector *OpenAIAutoSchedu
 	}
 	s.openAIAutoSchedulerSelector = selector
 	s.openAIAutoSchedulerService = svc
+}
+
+func (s *OpenAIGatewayService) SetOpenAIAutoCheapestGroupResolver(resolver *OpenAIAutoCheapestGroupResolver, updater LastEffectiveGroupUpdater) {
+	if s == nil {
+		return
+	}
+	s.openAIAutoCheapestGroupResolver = resolver
+	s.apiKeyEffectiveGroupUpdater = updater
 }
 
 // ResolveChannelMapping 解析渠道级模型映射（代理到 ChannelService）
@@ -2054,6 +2064,243 @@ func openAIAutoSchedulerEventForStatus(statusCode int) string {
 // SelectAccountWithLoadAwareness selects an account with load-awareness and wait plan.
 func (s *OpenAIGatewayService) SelectAccountWithLoadAwareness(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*AccountSelectionResult, error) {
 	return s.selectAccountWithLoadAwareness(s.withOpenAIQuotaAutoPauseContext(ctx), groupID, PlatformOpenAI, sessionHash, requestedModel, excludedIDs, false, "")
+}
+
+func (s *OpenAIGatewayService) resolveEffectiveOpenAIAPIKeys(ctx context.Context, apiKey *APIKey) ([]*APIKey, error) {
+	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
+		return []*APIKey{apiKey}, nil
+	}
+	if s == nil || s.openAIAutoCheapestGroupResolver == nil {
+		return nil, ErrNoAvailableAccounts
+	}
+	groups, err := s.openAIAutoCheapestGroupResolver.CandidateGroups(ctx, apiKey.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if len(groups) == 0 {
+		return nil, ErrNoAvailableAccounts
+	}
+	keys := make([]*APIKey, 0, len(groups))
+	for i := range groups {
+		if effectiveKey := CloneAPIKeyForEffectiveGroup(apiKey, &groups[i]); effectiveKey != nil && effectiveKey.GroupID != nil {
+			keys = append(keys, effectiveKey)
+		}
+	}
+	if len(keys) == 0 {
+		return nil, ErrNoAvailableAccounts
+	}
+	return keys, nil
+}
+
+func (s *OpenAIGatewayService) recordLastEffectiveGroupBestEffort(ctx context.Context, apiKey *APIKey) {
+	if s == nil || s.apiKeyEffectiveGroupUpdater == nil || apiKey == nil || apiKey.GroupID == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
+		return
+	}
+	_ = s.apiKeyEffectiveGroupUpdater.UpdateLastEffectiveGroup(ctx, apiKey.ID, *apiKey.GroupID, time.Now())
+}
+
+func apiKeyGroupID(apiKey *APIKey) *int64 {
+	if apiKey == nil {
+		return nil
+	}
+	return apiKey.GroupID
+}
+
+func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithLoadAwareness(
+	ctx context.Context,
+	apiKey *APIKey,
+	sessionHash string,
+	requestedModel string,
+	excludedIDs map[int64]struct{},
+	requiredCapability OpenAIEndpointCapability,
+) (*APIKey, *AccountSelectionResult, error) {
+	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
+		selection, err := s.selectAccountWithLoadAwareness(s.withOpenAIQuotaAutoPauseContext(ctx), apiKeyGroupID(apiKey), PlatformOpenAI, sessionHash, requestedModel, excludedIDs, false, requiredCapability)
+		return apiKey, selection, err
+	}
+	keys, err := s.resolveEffectiveOpenAIAPIKeys(ctx, apiKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	var lastErr error
+	for _, effectiveKey := range keys {
+		if effectiveKey == nil || effectiveKey.GroupID == nil {
+			continue
+		}
+		selection, err := s.selectAccountWithLoadAwareness(s.withOpenAIQuotaAutoPauseContext(ctx), effectiveKey.GroupID, PlatformOpenAI, sessionHash, requestedModel, excludedIDs, false, requiredCapability)
+		if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
+			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
+			return effectiveKey, selection, nil
+		}
+		if err == nil && selection != nil && selection.Account != nil {
+			lastErr = ErrNoAvailableAccounts
+			continue
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return nil, nil, lastErr
+	}
+	return nil, nil, ErrNoAvailableAccounts
+}
+
+func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapability(
+	ctx context.Context,
+	apiKey *APIKey,
+	previousResponseID string,
+	sessionHash string,
+	requestedModel string,
+	excludedIDs map[int64]struct{},
+	transport OpenAIUpstreamTransport,
+	requiredCapability OpenAIEndpointCapability,
+	requireCompact bool,
+	requestPlatform string,
+) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	return s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredCapability, requireCompact, requestPlatform, nil)
+}
+
+func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
+	ctx context.Context,
+	apiKey *APIKey,
+	previousResponseID string,
+	sessionHash string,
+	requestedModel string,
+	excludedIDs map[int64]struct{},
+	transport OpenAIUpstreamTransport,
+	requiredCapability OpenAIEndpointCapability,
+	requireCompact bool,
+	requestPlatform string,
+	modelResolver func(*APIKey, string) string,
+) (*APIKey, string, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
+		routingModel := requestedModel
+		if modelResolver != nil {
+			if resolved := strings.TrimSpace(modelResolver(apiKey, requestedModel)); resolved != "" {
+				routingModel = resolved
+			}
+		}
+		selection, decision, err := s.SelectAccountWithSchedulerForCapability(ctx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredCapability, requireCompact, requestPlatform)
+		return apiKey, routingModel, selection, decision, err
+	}
+	effectiveKey, selection, decision, err := s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredCapability, requireCompact, requestPlatform, modelResolver)
+	if effectiveKey == nil {
+		return nil, requestedModel, selection, decision, err
+	}
+	routingModel := strings.TrimSpace(requestedModel)
+	if modelResolver != nil {
+		if resolved := strings.TrimSpace(modelResolver(effectiveKey, requestedModel)); resolved != "" {
+			routingModel = resolved
+		}
+	}
+	return effectiveKey, routingModel, selection, decision, err
+}
+
+func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImages(
+	ctx context.Context,
+	apiKey *APIKey,
+	sessionHash string,
+	requestedModel string,
+	excludedIDs map[int64]struct{},
+	requiredCapability OpenAIImagesCapability,
+) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
+		selection, decision, err := s.SelectAccountWithSchedulerForImages(ctx, apiKeyGroupID(apiKey), sessionHash, requestedModel, excludedIDs, requiredCapability)
+		return apiKey, selection, decision, err
+	}
+	keys, err := s.resolveEffectiveOpenAIAPIKeys(ctx, apiKey)
+	if err != nil {
+		return nil, nil, OpenAIAccountScheduleDecision{}, err
+	}
+	var lastDecision OpenAIAccountScheduleDecision
+	var lastErr error
+	for _, effectiveKey := range keys {
+		if effectiveKey == nil || effectiveKey.GroupID == nil {
+			continue
+		}
+		selection, decision, err := s.SelectAccountWithSchedulerForImages(ctx, effectiveKey.GroupID, sessionHash, requestedModel, excludedIDs, requiredCapability)
+		lastDecision = decision
+		if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
+			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
+			return effectiveKey, selection, decision, nil
+		}
+		if err == nil && selection != nil && selection.Account != nil {
+			lastErr = ErrNoAvailableAccounts
+			continue
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return nil, nil, lastDecision, lastErr
+	}
+	return nil, nil, lastDecision, ErrNoAvailableAccounts
+}
+
+func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapability(
+	ctx context.Context,
+	apiKey *APIKey,
+	previousResponseID string,
+	sessionHash string,
+	requestedModel string,
+	excludedIDs map[int64]struct{},
+	transport OpenAIUpstreamTransport,
+	requiredCapability OpenAIEndpointCapability,
+	requireCompact bool,
+	requestPlatform string,
+	modelResolver func(*APIKey, string) string,
+) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
+		routingModel := requestedModel
+		if modelResolver != nil {
+			if resolved := strings.TrimSpace(modelResolver(apiKey, requestedModel)); resolved != "" {
+				routingModel = resolved
+			}
+		}
+		selection, decision, err := s.SelectAccountWithSchedulerForCapability(ctx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredCapability, requireCompact, requestPlatform)
+		return apiKey, selection, decision, err
+	}
+	keys, err := s.resolveEffectiveOpenAIAPIKeys(ctx, apiKey)
+	if err != nil {
+		return nil, nil, OpenAIAccountScheduleDecision{}, err
+	}
+	var lastDecision OpenAIAccountScheduleDecision
+	var lastErr error
+	for _, effectiveKey := range keys {
+		if effectiveKey == nil || effectiveKey.GroupID == nil {
+			continue
+		}
+		routingModel := requestedModel
+		if modelResolver != nil {
+			if resolved := strings.TrimSpace(modelResolver(effectiveKey, requestedModel)); resolved != "" {
+				routingModel = resolved
+			}
+		}
+		selection, decision, err := s.SelectAccountWithSchedulerForCapability(
+			ctx,
+			effectiveKey.GroupID,
+			previousResponseID,
+			sessionHash,
+			routingModel,
+			excludedIDs,
+			transport,
+			requiredCapability,
+			requireCompact,
+			requestPlatform,
+		)
+		lastDecision = decision
+		if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
+			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
+			return effectiveKey, selection, decision, nil
+		}
+		if err == nil && selection != nil && selection.Account != nil {
+			lastErr = ErrNoAvailableAccounts
+			continue
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return nil, nil, lastDecision, lastErr
+	}
+	return nil, nil, lastDecision, ErrNoAvailableAccounts
 }
 
 func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, requireCompact bool, requiredCapability OpenAIEndpointCapability) (*AccountSelectionResult, error) {

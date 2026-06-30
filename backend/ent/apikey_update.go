@@ -120,6 +120,67 @@ func (_u *APIKeyUpdate) ClearGroupID() *APIKeyUpdate {
 	return _u
 }
 
+// SetGroupSelectMode sets the "group_select_mode" field.
+func (_u *APIKeyUpdate) SetGroupSelectMode(v string) *APIKeyUpdate {
+	_u.mutation.SetGroupSelectMode(v)
+	return _u
+}
+
+// SetNillableGroupSelectMode sets the "group_select_mode" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableGroupSelectMode(v *string) *APIKeyUpdate {
+	if v != nil {
+		_u.SetGroupSelectMode(*v)
+	}
+	return _u
+}
+
+// SetLastEffectiveGroupID sets the "last_effective_group_id" field.
+func (_u *APIKeyUpdate) SetLastEffectiveGroupID(v int64) *APIKeyUpdate {
+	_u.mutation.ResetLastEffectiveGroupID()
+	_u.mutation.SetLastEffectiveGroupID(v)
+	return _u
+}
+
+// SetNillableLastEffectiveGroupID sets the "last_effective_group_id" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableLastEffectiveGroupID(v *int64) *APIKeyUpdate {
+	if v != nil {
+		_u.SetLastEffectiveGroupID(*v)
+	}
+	return _u
+}
+
+// AddLastEffectiveGroupID adds value to the "last_effective_group_id" field.
+func (_u *APIKeyUpdate) AddLastEffectiveGroupID(v int64) *APIKeyUpdate {
+	_u.mutation.AddLastEffectiveGroupID(v)
+	return _u
+}
+
+// ClearLastEffectiveGroupID clears the value of the "last_effective_group_id" field.
+func (_u *APIKeyUpdate) ClearLastEffectiveGroupID() *APIKeyUpdate {
+	_u.mutation.ClearLastEffectiveGroupID()
+	return _u
+}
+
+// SetLastEffectiveGroupAt sets the "last_effective_group_at" field.
+func (_u *APIKeyUpdate) SetLastEffectiveGroupAt(v time.Time) *APIKeyUpdate {
+	_u.mutation.SetLastEffectiveGroupAt(v)
+	return _u
+}
+
+// SetNillableLastEffectiveGroupAt sets the "last_effective_group_at" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableLastEffectiveGroupAt(v *time.Time) *APIKeyUpdate {
+	if v != nil {
+		_u.SetLastEffectiveGroupAt(*v)
+	}
+	return _u
+}
+
+// ClearLastEffectiveGroupAt clears the value of the "last_effective_group_at" field.
+func (_u *APIKeyUpdate) ClearLastEffectiveGroupAt() *APIKeyUpdate {
+	_u.mutation.ClearLastEffectiveGroupAt()
+	return _u
+}
+
 // SetStatus sets the "status" field.
 func (_u *APIKeyUpdate) SetStatus(v string) *APIKeyUpdate {
 	_u.mutation.SetStatus(v)
@@ -555,6 +616,11 @@ func (_u *APIKeyUpdate) check() error {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "APIKey.name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.GroupSelectMode(); ok {
+		if err := apikey.GroupSelectModeValidator(v); err != nil {
+			return &ValidationError{Name: "group_select_mode", err: fmt.Errorf(`ent: validator failed for field "APIKey.group_select_mode": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Status(); ok {
 		if err := apikey.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "APIKey.status": %w`, err)}
@@ -592,6 +658,24 @@ func (_u *APIKeyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(apikey.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.GroupSelectMode(); ok {
+		_spec.SetField(apikey.FieldGroupSelectMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.LastEffectiveGroupID(); ok {
+		_spec.SetField(apikey.FieldLastEffectiveGroupID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedLastEffectiveGroupID(); ok {
+		_spec.AddField(apikey.FieldLastEffectiveGroupID, field.TypeInt64, value)
+	}
+	if _u.mutation.LastEffectiveGroupIDCleared() {
+		_spec.ClearField(apikey.FieldLastEffectiveGroupID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.LastEffectiveGroupAt(); ok {
+		_spec.SetField(apikey.FieldLastEffectiveGroupAt, field.TypeTime, value)
+	}
+	if _u.mutation.LastEffectiveGroupAtCleared() {
+		_spec.ClearField(apikey.FieldLastEffectiveGroupAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(apikey.FieldStatus, field.TypeString, value)
@@ -904,6 +988,67 @@ func (_u *APIKeyUpdateOne) SetNillableGroupID(v *int64) *APIKeyUpdateOne {
 // ClearGroupID clears the value of the "group_id" field.
 func (_u *APIKeyUpdateOne) ClearGroupID() *APIKeyUpdateOne {
 	_u.mutation.ClearGroupID()
+	return _u
+}
+
+// SetGroupSelectMode sets the "group_select_mode" field.
+func (_u *APIKeyUpdateOne) SetGroupSelectMode(v string) *APIKeyUpdateOne {
+	_u.mutation.SetGroupSelectMode(v)
+	return _u
+}
+
+// SetNillableGroupSelectMode sets the "group_select_mode" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableGroupSelectMode(v *string) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetGroupSelectMode(*v)
+	}
+	return _u
+}
+
+// SetLastEffectiveGroupID sets the "last_effective_group_id" field.
+func (_u *APIKeyUpdateOne) SetLastEffectiveGroupID(v int64) *APIKeyUpdateOne {
+	_u.mutation.ResetLastEffectiveGroupID()
+	_u.mutation.SetLastEffectiveGroupID(v)
+	return _u
+}
+
+// SetNillableLastEffectiveGroupID sets the "last_effective_group_id" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableLastEffectiveGroupID(v *int64) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetLastEffectiveGroupID(*v)
+	}
+	return _u
+}
+
+// AddLastEffectiveGroupID adds value to the "last_effective_group_id" field.
+func (_u *APIKeyUpdateOne) AddLastEffectiveGroupID(v int64) *APIKeyUpdateOne {
+	_u.mutation.AddLastEffectiveGroupID(v)
+	return _u
+}
+
+// ClearLastEffectiveGroupID clears the value of the "last_effective_group_id" field.
+func (_u *APIKeyUpdateOne) ClearLastEffectiveGroupID() *APIKeyUpdateOne {
+	_u.mutation.ClearLastEffectiveGroupID()
+	return _u
+}
+
+// SetLastEffectiveGroupAt sets the "last_effective_group_at" field.
+func (_u *APIKeyUpdateOne) SetLastEffectiveGroupAt(v time.Time) *APIKeyUpdateOne {
+	_u.mutation.SetLastEffectiveGroupAt(v)
+	return _u
+}
+
+// SetNillableLastEffectiveGroupAt sets the "last_effective_group_at" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableLastEffectiveGroupAt(v *time.Time) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetLastEffectiveGroupAt(*v)
+	}
+	return _u
+}
+
+// ClearLastEffectiveGroupAt clears the value of the "last_effective_group_at" field.
+func (_u *APIKeyUpdateOne) ClearLastEffectiveGroupAt() *APIKeyUpdateOne {
+	_u.mutation.ClearLastEffectiveGroupAt()
 	return _u
 }
 
@@ -1355,6 +1500,11 @@ func (_u *APIKeyUpdateOne) check() error {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "APIKey.name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.GroupSelectMode(); ok {
+		if err := apikey.GroupSelectModeValidator(v); err != nil {
+			return &ValidationError{Name: "group_select_mode", err: fmt.Errorf(`ent: validator failed for field "APIKey.group_select_mode": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Status(); ok {
 		if err := apikey.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "APIKey.status": %w`, err)}
@@ -1409,6 +1559,24 @@ func (_u *APIKeyUpdateOne) sqlSave(ctx context.Context) (_node *APIKey, err erro
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(apikey.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.GroupSelectMode(); ok {
+		_spec.SetField(apikey.FieldGroupSelectMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.LastEffectiveGroupID(); ok {
+		_spec.SetField(apikey.FieldLastEffectiveGroupID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedLastEffectiveGroupID(); ok {
+		_spec.AddField(apikey.FieldLastEffectiveGroupID, field.TypeInt64, value)
+	}
+	if _u.mutation.LastEffectiveGroupIDCleared() {
+		_spec.ClearField(apikey.FieldLastEffectiveGroupID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.LastEffectiveGroupAt(); ok {
+		_spec.SetField(apikey.FieldLastEffectiveGroupAt, field.TypeTime, value)
+	}
+	if _u.mutation.LastEffectiveGroupAtCleared() {
+		_spec.ClearField(apikey.FieldLastEffectiveGroupAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(apikey.FieldStatus, field.TypeString, value)

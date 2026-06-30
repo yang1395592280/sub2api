@@ -29,6 +29,12 @@ const (
 	FieldName = "name"
 	// FieldGroupID holds the string denoting the group_id field in the database.
 	FieldGroupID = "group_id"
+	// FieldGroupSelectMode holds the string denoting the group_select_mode field in the database.
+	FieldGroupSelectMode = "group_select_mode"
+	// FieldLastEffectiveGroupID holds the string denoting the last_effective_group_id field in the database.
+	FieldLastEffectiveGroupID = "last_effective_group_id"
+	// FieldLastEffectiveGroupAt holds the string denoting the last_effective_group_at field in the database.
+	FieldLastEffectiveGroupAt = "last_effective_group_at"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
 	// FieldLastUsedAt holds the string denoting the last_used_at field in the database.
@@ -102,6 +108,9 @@ var Columns = []string{
 	FieldKey,
 	FieldName,
 	FieldGroupID,
+	FieldGroupSelectMode,
+	FieldLastEffectiveGroupID,
+	FieldLastEffectiveGroupAt,
 	FieldStatus,
 	FieldLastUsedAt,
 	FieldIPWhitelist,
@@ -148,6 +157,10 @@ var (
 	KeyValidator func(string) error
 	// NameValidator is a validator for the "name" field. It is called by the builders before save.
 	NameValidator func(string) error
+	// DefaultGroupSelectMode holds the default value on creation for the "group_select_mode" field.
+	DefaultGroupSelectMode string
+	// GroupSelectModeValidator is a validator for the "group_select_mode" field. It is called by the builders before save.
+	GroupSelectModeValidator func(string) error
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
@@ -211,6 +224,21 @@ func ByName(opts ...sql.OrderTermOption) OrderOption {
 // ByGroupID orders the results by the group_id field.
 func ByGroupID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldGroupID, opts...).ToFunc()
+}
+
+// ByGroupSelectMode orders the results by the group_select_mode field.
+func ByGroupSelectMode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGroupSelectMode, opts...).ToFunc()
+}
+
+// ByLastEffectiveGroupID orders the results by the last_effective_group_id field.
+func ByLastEffectiveGroupID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLastEffectiveGroupID, opts...).ToFunc()
+}
+
+// ByLastEffectiveGroupAt orders the results by the last_effective_group_at field.
+func ByLastEffectiveGroupAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLastEffectiveGroupAt, opts...).ToFunc()
 }
 
 // ByStatus orders the results by the status field.
