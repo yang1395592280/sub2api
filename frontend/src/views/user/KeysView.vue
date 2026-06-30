@@ -107,7 +107,7 @@
               >
                 <div v-if="row.group_select_mode === 'openai_auto_cheapest'" class="flex flex-col items-start gap-1">
                   <GroupBadge
-                    name="自动最优惠"
+                    :name="t('keys.openaiAutoCheapest.shortLabel')"
                     platform="openai"
                     subscription-type="standard"
                     :rate-multiplier="0"
@@ -115,8 +115,8 @@
                   <span class="text-xs text-gray-500 dark:text-gray-400">
                     {{
                       row.last_effective_group
-                        ? `最近生效：${row.last_effective_group.name}`
-                        : '等待首次调用'
+                        ? t('keys.openaiAutoCheapest.currentEffective', { name: row.last_effective_group.name })
+                        : t('keys.openaiAutoCheapest.waitingFirstUse')
                     }}
                   </span>
                 </div>
@@ -432,7 +432,7 @@
             <template #selected="{ option }">
               <GroupBadge
                 v-if="(option as unknown as GroupOption)?.kind === 'openai_auto_cheapest'"
-                name="OpenAI 自动选择最优惠分组"
+                :name="t('keys.openaiAutoCheapest.label')"
                 platform="openai"
                 subscription-type="standard"
                 :show-rate="false"
@@ -1264,7 +1264,11 @@ const onStatusFilterChange = (value: string | number | boolean | null) => {
 
 // Convert groups to Select options format with rate multiplier and subscription type
 const groupOptions = computed(() =>
-  buildKeyGroupOptions(groups.value, userGroupRates.value, { includeOpenAIAutoCheapest: true })
+  buildKeyGroupOptions(groups.value, userGroupRates.value, {
+    includeOpenAIAutoCheapest: true,
+    openAIAutoCheapestLabel: t('keys.openaiAutoCheapest.label'),
+    openAIAutoCheapestDescription: t('keys.openaiAutoCheapest.description')
+  })
 )
 
 const fixedGroupOptions = computed(() =>

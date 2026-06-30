@@ -803,6 +803,13 @@ export default {
     namePlaceholder: 'My API Key',
     groupLabel: 'Group',
     selectGroup: 'Select a group',
+    openaiAutoCheapest: {
+      label: 'OpenAI Auto-select cheapest group',
+      shortLabel: 'Auto cheapest',
+      description: 'Automatically use the lowest-rate OpenAI group with an available account pool',
+      currentEffective: 'Current effective: {name}',
+      waitingFirstUse: 'Waiting for first use'
+    },
     statusLabel: 'Status',
     selectStatus: 'Select status',
     saving: 'Saving...',

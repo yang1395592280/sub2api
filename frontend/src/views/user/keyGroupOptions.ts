@@ -20,7 +20,11 @@ export interface KeyGroupOption {
 export function buildKeyGroupOptions(
   groups: Group[],
   userGroupRates: Record<number, number>,
-  options: { includeOpenAIAutoCheapest?: boolean } = {},
+  options: {
+    includeOpenAIAutoCheapest?: boolean
+    openAIAutoCheapestLabel?: string
+    openAIAutoCheapestDescription?: string
+  } = {},
 ): KeyGroupOption[] {
   const result: KeyGroupOption[] = groups.map((group) => ({
     value: group.id,
@@ -34,8 +38,10 @@ export function buildKeyGroupOptions(
   if (options.includeOpenAIAutoCheapest && groups.some((group) => group.platform === "openai")) {
     result.unshift({
       value: OPENAI_AUTO_CHEAPEST_GROUP_VALUE,
-      label: "OpenAI 自动选择最优惠分组",
-      description: "按当前可用账号池自动使用最低倍率 OpenAI 分组",
+      label: options.openAIAutoCheapestLabel ?? "OpenAI 自动选择最优惠分组",
+      description:
+        options.openAIAutoCheapestDescription ??
+        "按当前可用账号池自动使用最低倍率 OpenAI 分组",
       rate: null,
       userRate: null,
       subscriptionType: "standard",
