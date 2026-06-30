@@ -46,6 +46,28 @@ func CloneAPIKeyForEffectiveGroup(apiKey *APIKey, group *Group) *APIKey {
 	return &cp
 }
 
+func SelectFirstEffectiveOpenAIGroupForTest(apiKey *APIKey, groups []Group, try func(*APIKey) error) (*APIKey, error) {
+	if apiKey == nil {
+		return nil, ErrNoAvailableAccounts
+	}
+	var lastErr error
+	for i := range groups {
+		effectiveKey := CloneAPIKeyForEffectiveGroup(apiKey, &groups[i])
+		if try == nil {
+			return effectiveKey, nil
+		}
+		if err := try(effectiveKey); err != nil {
+			lastErr = err
+			continue
+		}
+		return effectiveKey, nil
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, ErrNoAvailableAccounts
+}
+
 func (r *OpenAIAutoCheapestGroupResolver) CandidateGroups(ctx context.Context, userID int64) ([]Group, error) {
 	if r == nil || r.provider == nil || userID <= 0 {
 		return nil, nil

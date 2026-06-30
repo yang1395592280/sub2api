@@ -33,6 +33,30 @@ func TestCloneAPIKeyForEffectiveGroup_UsesActualGroup(t *testing.T) {
 	require.Equal(t, APIKeyGroupSelectModeOpenAIAutoCheapest, got.GroupSelectMode)
 }
 
+func TestOpenAIAutoCheapestSelection_TriesNextGroupWhenCheapestUnavailable(t *testing.T) {
+	cheapID := int64(10)
+	nextID := int64(20)
+	apiKey := &APIKey{ID: 1, UserID: 9, GroupSelectMode: APIKeyGroupSelectModeOpenAIAutoCheapest}
+	groups := []Group{
+		{ID: cheapID, Name: "cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1},
+		{ID: nextID, Name: "next", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.2},
+	}
+	var attempted []int64
+	got, err := SelectFirstEffectiveOpenAIGroupForTest(apiKey, groups, func(effective *APIKey) error {
+		require.NotNil(t, effective.GroupID)
+		attempted = append(attempted, *effective.GroupID)
+		if *effective.GroupID == cheapID {
+			return ErrNoAvailableAccounts
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Equal(t, []int64{cheapID, nextID}, attempted)
+	require.Equal(t, &nextID, got.GroupID)
+	require.Nil(t, apiKey.GroupID)
+}
+
 func TestCandidateGroups_FiltersOpenAIAndSortsByEffectiveRate(t *testing.T) {
 	provider := &fakeAvailableOpenAIGroupsProvider{
 		groups: []Group{
