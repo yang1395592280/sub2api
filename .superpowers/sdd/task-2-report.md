@@ -120,3 +120,45 @@ GOCACHE=/tmp/sub2api-go-cache go test ./internal/handler/dto -count=1
 
 - 当前阶段只做 API Key mode 字段与校验，不区分平台触发额外逻辑；OpenAI 自动选组解析仍留给 Task 3/4。
 - 本次未触碰 `frontend/pnpm-lock.yaml`、`.pnpm-store/`、`frontend/pnpm-workspace.yaml`。
+
+## Fix Review
+
+### Reviewer Important 修复
+
+- 修正 `backend/internal/service/api_key_service.go` 中 `Update` 的分组处理顺序：
+  - 当最终 `group_select_mode` 为 `openai_auto_cheapest` 时，先清空 `req.GroupID`、`apiKey.GroupID`、`apiKey.Group`
+  - 避免继续按请求中的固定 `group_id` 走 `GetByID` 和权限校验
+- 新增回归测试：
+  - `TestAPIKeyServiceUpdate_OpenAIAutoCheapestIgnoresRequestedInvalidGroup`
+  - 覆盖 `GroupSelectMode=openai_auto_cheapest` 且请求携带无效 `GroupID` 时仍成功更新，并验证 repo capture 中 `GroupID == nil`、`Group == nil`、`GroupSelectMode == openai_auto_cheapest`
+
+### TDD Evidence
+
+先运行：
+
+```bash
+cd /Volumes/workspace/中转站/sub2api/backend
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestAPIKeyServiceUpdate_.*Auto|TestAPIKeyServiceCreate_OpenAIAutoCheapestAllowsNilGroup|TestAPIKeyServiceUpdate_FixedRequiresGroupWhenSwitchingFromAuto' -count=1
+```
+
+结果：
+
+- `TestAPIKeyServiceUpdate_OpenAIAutoCheapestIgnoresRequestedInvalidGroup` 失败
+- 失败原因为当前实现先执行 `get group`，返回 `GROUP_NOT_FOUND`
+
+修复后再次运行：
+
+```bash
+cd /Volumes/workspace/中转站/sub2api/backend
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestAPIKeyServiceUpdate_.*Auto|TestAPIKeyServiceCreate_OpenAIAutoCheapestAllowsNilGroup|TestAPIKeyServiceUpdate_FixedRequiresGroupWhenSwitchingFromAuto|TestAPIKeyAuth' -count=1
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/handler/dto -count=1
+```
+
+结果：
+
+- `ok   github.com/Wei-Shaw/sub2api/internal/service`
+- `ok   github.com/Wei-Shaw/sub2api/internal/handler/dto`
+
+### Commit
+
+- `c09ef0e5` `fix: ignore fixed group when api key uses auto mode`

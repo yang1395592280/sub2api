@@ -571,6 +571,12 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 		apiKey.GroupSelectMode = normalizeAPIKeyGroupSelectMode(*req.GroupSelectMode)
 	}
 
+	if apiKey.UsesOpenAIAutoCheapestGroup() {
+		apiKey.GroupID = nil
+		apiKey.Group = nil
+		req.GroupID = nil
+	}
+
 	if req.GroupID != nil {
 		// 验证分组权限
 		user, err := s.userRepo.GetByID(ctx, userID)
@@ -592,10 +598,6 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 
 	if apiKey.NormalizedGroupSelectMode() == APIKeyGroupSelectModeFixed && apiKey.GroupID == nil && req.GroupID == nil {
 		return nil, ErrGroupRequired
-	}
-	if apiKey.UsesOpenAIAutoCheapestGroup() {
-		apiKey.GroupID = nil
-		apiKey.Group = nil
 	}
 
 	if req.Status != nil {

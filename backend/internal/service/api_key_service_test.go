@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -131,6 +132,130 @@ func (s *apiKeyCreateUpdateRepoStub) GetRateLimitData(context.Context, int64) (*
 
 type apiKeyServiceUserRepoStub struct {
 	user *User
+}
+
+type apiKeyServiceGroupRepoStub struct {
+	getByID func(ctx context.Context, id int64) (*Group, error)
+}
+
+func (s *apiKeyServiceGroupRepoStub) Create(context.Context, *Group) error {
+	panic("unexpected Create call")
+}
+func (s *apiKeyServiceGroupRepoStub) GetByID(ctx context.Context, id int64) (*Group, error) {
+	if s.getByID == nil {
+		panic("unexpected GetByID call")
+	}
+	return s.getByID(ctx, id)
+}
+func (s *apiKeyServiceGroupRepoStub) GetByIDLite(context.Context, int64) (*Group, error) {
+	panic("unexpected GetByIDLite call")
+}
+func (s *apiKeyServiceGroupRepoStub) Update(context.Context, *Group) error {
+	panic("unexpected Update call")
+}
+func (s *apiKeyServiceGroupRepoStub) Delete(context.Context, int64) error {
+	panic("unexpected Delete call")
+}
+func (s *apiKeyServiceGroupRepoStub) DeleteCascade(context.Context, int64) ([]int64, error) {
+	panic("unexpected DeleteCascade call")
+}
+func (s *apiKeyServiceGroupRepoStub) List(context.Context, pagination.PaginationParams) ([]Group, *pagination.PaginationResult, error) {
+	panic("unexpected List call")
+}
+func (s *apiKeyServiceGroupRepoStub) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, *bool) ([]Group, *pagination.PaginationResult, error) {
+	panic("unexpected ListWithFilters call")
+}
+func (s *apiKeyServiceGroupRepoStub) ListActive(context.Context) ([]Group, error) {
+	panic("unexpected ListActive call")
+}
+func (s *apiKeyServiceGroupRepoStub) ListActiveByPlatform(context.Context, string) ([]Group, error) {
+	panic("unexpected ListActiveByPlatform call")
+}
+func (s *apiKeyServiceGroupRepoStub) ExistsByName(context.Context, string) (bool, error) {
+	panic("unexpected ExistsByName call")
+}
+func (s *apiKeyServiceGroupRepoStub) GetAccountCount(context.Context, int64) (int64, int64, error) {
+	panic("unexpected GetAccountCount call")
+}
+func (s *apiKeyServiceGroupRepoStub) DeleteAccountGroupsByGroupID(context.Context, int64) (int64, error) {
+	panic("unexpected DeleteAccountGroupsByGroupID call")
+}
+func (s *apiKeyServiceGroupRepoStub) GetAccountIDsByGroupIDs(context.Context, []int64) ([]int64, error) {
+	panic("unexpected GetAccountIDsByGroupIDs call")
+}
+func (s *apiKeyServiceGroupRepoStub) BindAccountsToGroup(context.Context, int64, []int64) error {
+	panic("unexpected BindAccountsToGroup call")
+}
+func (s *apiKeyServiceGroupRepoStub) UpdateSortOrders(context.Context, []GroupSortOrderUpdate) error {
+	panic("unexpected UpdateSortOrders call")
+}
+
+type apiKeyServiceUserSubRepoStub struct {
+	getActiveByUserIDAndGroupID func(ctx context.Context, userID, groupID int64) (*UserSubscription, error)
+}
+
+func (s *apiKeyServiceUserSubRepoStub) Create(context.Context, *UserSubscription) error {
+	panic("unexpected Create call")
+}
+func (s *apiKeyServiceUserSubRepoStub) GetByID(context.Context, int64) (*UserSubscription, error) {
+	panic("unexpected GetByID call")
+}
+func (s *apiKeyServiceUserSubRepoStub) GetByUserIDAndGroupID(context.Context, int64, int64) (*UserSubscription, error) {
+	panic("unexpected GetByUserIDAndGroupID call")
+}
+func (s *apiKeyServiceUserSubRepoStub) GetActiveByUserIDAndGroupID(ctx context.Context, userID, groupID int64) (*UserSubscription, error) {
+	if s.getActiveByUserIDAndGroupID == nil {
+		panic("unexpected GetActiveByUserIDAndGroupID call")
+	}
+	return s.getActiveByUserIDAndGroupID(ctx, userID, groupID)
+}
+func (s *apiKeyServiceUserSubRepoStub) Update(context.Context, *UserSubscription) error {
+	panic("unexpected Update call")
+}
+func (s *apiKeyServiceUserSubRepoStub) Delete(context.Context, int64) error {
+	panic("unexpected Delete call")
+}
+func (s *apiKeyServiceUserSubRepoStub) ListByUserID(context.Context, int64) ([]UserSubscription, error) {
+	panic("unexpected ListByUserID call")
+}
+func (s *apiKeyServiceUserSubRepoStub) ListActiveByUserID(context.Context, int64) ([]UserSubscription, error) {
+	panic("unexpected ListActiveByUserID call")
+}
+func (s *apiKeyServiceUserSubRepoStub) ListByGroupID(context.Context, int64, pagination.PaginationParams) ([]UserSubscription, *pagination.PaginationResult, error) {
+	panic("unexpected ListByGroupID call")
+}
+func (s *apiKeyServiceUserSubRepoStub) List(context.Context, pagination.PaginationParams, *int64, *int64, string, string, string, string) ([]UserSubscription, *pagination.PaginationResult, error) {
+	panic("unexpected List call")
+}
+func (s *apiKeyServiceUserSubRepoStub) ExistsByUserIDAndGroupID(context.Context, int64, int64) (bool, error) {
+	panic("unexpected ExistsByUserIDAndGroupID call")
+}
+func (s *apiKeyServiceUserSubRepoStub) ExtendExpiry(context.Context, int64, time.Time) error {
+	panic("unexpected ExtendExpiry call")
+}
+func (s *apiKeyServiceUserSubRepoStub) UpdateStatus(context.Context, int64, string) error {
+	panic("unexpected UpdateStatus call")
+}
+func (s *apiKeyServiceUserSubRepoStub) UpdateNotes(context.Context, int64, string) error {
+	panic("unexpected UpdateNotes call")
+}
+func (s *apiKeyServiceUserSubRepoStub) ActivateWindows(context.Context, int64, time.Time) error {
+	panic("unexpected ActivateWindows call")
+}
+func (s *apiKeyServiceUserSubRepoStub) ResetDailyUsage(context.Context, int64, time.Time) error {
+	panic("unexpected ResetDailyUsage call")
+}
+func (s *apiKeyServiceUserSubRepoStub) ResetWeeklyUsage(context.Context, int64, time.Time) error {
+	panic("unexpected ResetWeeklyUsage call")
+}
+func (s *apiKeyServiceUserSubRepoStub) ResetMonthlyUsage(context.Context, int64, time.Time) error {
+	panic("unexpected ResetMonthlyUsage call")
+}
+func (s *apiKeyServiceUserSubRepoStub) IncrementUsage(context.Context, int64, float64) error {
+	panic("unexpected IncrementUsage call")
+}
+func (s *apiKeyServiceUserSubRepoStub) BatchUpdateExpiredStatus(context.Context) (int64, error) {
+	panic("unexpected BatchUpdateExpiredStatus call")
 }
 
 func (s *apiKeyServiceUserRepoStub) Create(context.Context, *User) error {
@@ -286,4 +411,54 @@ func TestAPIKeyServiceUpdate_FixedRequiresGroupWhenSwitchingFromAuto(t *testing.
 	_, err := svc.Update(context.Background(), 7, 42, req)
 
 	require.ErrorIs(t, err, ErrGroupRequired)
+}
+
+func TestAPIKeyServiceUpdate_OpenAIAutoCheapestIgnoresRequestedInvalidGroup(t *testing.T) {
+	req := UpdateAPIKeyRequest{
+		GroupSelectMode: ptrString(APIKeyGroupSelectModeOpenAIAutoCheapest),
+		GroupID:         ptrInt64(999),
+	}
+	repo := &apiKeyCreateUpdateRepoStub{
+		current: &APIKey{
+			ID:              7,
+			UserID:          42,
+			GroupSelectMode: APIKeyGroupSelectModeFixed,
+			GroupID:         ptrInt64(12),
+			Group:           &Group{ID: 12, Name: "fixed"},
+			Status:          StatusActive,
+			Key:             "sk-test",
+		},
+	}
+	svc := NewAPIKeyService(
+		repo,
+		&apiKeyServiceUserRepoStub{
+			user: &User{ID: 42, Status: StatusActive, Role: RoleUser},
+		},
+		&apiKeyServiceGroupRepoStub{
+			getByID: func(context.Context, int64) (*Group, error) {
+				return nil, ErrGroupNotFound
+			},
+		},
+		&apiKeyServiceUserSubRepoStub{
+			getActiveByUserIDAndGroupID: func(context.Context, int64, int64) (*UserSubscription, error) {
+				return nil, errors.New("unexpected subscription lookup")
+			},
+		},
+		nil,
+		nil,
+		&config.Config{},
+	)
+
+	got, err := svc.Update(context.Background(), 7, 42, req)
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.NotNil(t, repo.updated)
+	require.Equal(t, APIKeyGroupSelectModeOpenAIAutoCheapest, repo.updated.GroupSelectMode)
+	require.Nil(t, repo.updated.GroupID)
+	require.Nil(t, repo.updated.Group)
+}
+
+func ptrInt64(value int64) *int64 {
+	return &value
 }
