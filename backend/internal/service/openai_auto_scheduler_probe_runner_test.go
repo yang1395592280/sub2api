@@ -16,6 +16,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 type fakeOpenAIAutoSchedulerProbeSettingsProvider struct {
@@ -214,6 +215,35 @@ func TestOpenAIAutoSchedulerProbeChecker_UsesChatCompletionsWhenAPIKeyResponsesU
 	require.NotNil(t, upstream.req)
 	require.Equal(t, "https://compat-upstream.example/v1/chat/completions", upstream.req.URL.String())
 	require.JSONEq(t, `{"model":"compat-model","messages":[{"role":"user","content":"probe"}],"stream":true}`, upstream.body)
+}
+
+func TestOpenAIAutoSchedulerProbeChecker_UsesConnectionTestResponsesPayload(t *testing.T) {
+	upstream := &recordingOpenAIAutoSchedulerProbeUpstream{}
+	checker := NewOpenAIAutoSchedulerProbeChecker(upstream, nil)
+	account := &Account{
+		ID:       2,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Extra: map[string]any{
+			openai_compat.ExtraKeyResponsesSupported: true,
+		},
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://responses-upstream.example",
+		},
+	}
+
+	result := checker.Check(context.Background(), account, "gpt-5.4", time.Second)
+
+	require.True(t, result.Success)
+	require.NoError(t, result.Err)
+	require.NotNil(t, upstream.req)
+	require.Equal(t, "https://responses-upstream.example/v1/responses", upstream.req.URL.String())
+	require.Equal(t, "gpt-5.4", gjson.Get(upstream.body, "model").String())
+	require.True(t, gjson.Get(upstream.body, "stream").Bool())
+	require.Equal(t, "hi", gjson.Get(upstream.body, "input.0.content.0.text").String())
+	require.True(t, gjson.Get(upstream.body, "instructions").Exists())
+	require.False(t, gjson.Get(upstream.body, "max_output_tokens").Exists())
 }
 
 func TestOpenAIAutoSchedulerProbeRunner_DedupesInFlightChecks(t *testing.T) {

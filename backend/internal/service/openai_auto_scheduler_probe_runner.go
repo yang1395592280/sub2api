@@ -273,7 +273,7 @@ func (c *openAIAutoSchedulerProbeHTTPChecker) Check(ctx context.Context, account
 		baseURL = "https://api.openai.com"
 	}
 	upstreamModel := normalizeOpenAIModelForUpstream(account, account.GetMappedModel(model))
-	targetURL, payload := openAIAutoSchedulerProbeRequest(baseURL, upstreamModel, account)
+	targetURL, payload, accept := openAIAutoSchedulerProbeRequest(baseURL, upstreamModel, account)
 
 	callCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -282,7 +282,9 @@ func (c *openAIAutoSchedulerProbeHTTPChecker) Check(ctx context.Context, account
 		return OpenAIAutoSchedulerProbeResult{Err: err}
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
+	if accept != "" {
+		req.Header.Set("Accept", accept)
+	}
 	token := account.GetOpenAIAccessToken()
 	if token == "" {
 		token = account.GetOpenAIApiKey()
@@ -317,7 +319,7 @@ func (c *openAIAutoSchedulerProbeHTTPChecker) Check(ctx context.Context, account
 	return OpenAIAutoSchedulerProbeResult{Success: true, LatencyMS: &latencyMS, TtfbMS: &ttfbMS}
 }
 
-func openAIAutoSchedulerProbeRequest(baseURL string, upstreamModel string, account *Account) (string, []byte) {
+func openAIAutoSchedulerProbeRequest(baseURL string, upstreamModel string, account *Account) (string, []byte, string) {
 	if account != nil && account.Type == AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {
 		payload, _ := json.Marshal(map[string]any{
 			"model": upstreamModel,
@@ -329,15 +331,11 @@ func openAIAutoSchedulerProbeRequest(baseURL string, upstreamModel string, accou
 			},
 			"stream": true,
 		})
-		return buildOpenAIChatCompletionsURL(baseURL), payload
+		return buildOpenAIChatCompletionsURL(baseURL), payload, "text/event-stream"
 	}
-	payload, _ := json.Marshal(map[string]any{
-		"model":             upstreamModel,
-		"input":             "probe",
-		"max_output_tokens": 1,
-		"stream":            false,
-	})
-	return buildOpenAIResponsesURL(baseURL), payload
+	isOAuth := account != nil && account.IsOAuth()
+	payload, _ := json.Marshal(createOpenAITestPayload(upstreamModel, isOAuth))
+	return buildOpenAIResponsesURL(baseURL), payload, "text/event-stream"
 }
 
 func openAIAutoSchedulerDurationMS(duration time.Duration) int {
