@@ -224,11 +224,15 @@ describe('BusinessAnalyticsView', () => {
     await flushPromises()
     expect(getGroups).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('Team A')
+    expect(wrapper.text()).toContain('admin.businessAnalytics.columns.averageRate')
+    expect(wrapper.text()).toContain('admin.businessAnalytics.notProvidedByApi')
 
     await wrapper.get('[data-test="tab-channels"]').trigger('click')
     await flushPromises()
     expect(getChannels).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('Channel A')
+    expect(wrapper.text()).toContain('admin.businessAnalytics.columns.averagePrice')
+    expect(wrapper.text()).toContain('admin.businessAnalytics.notProvidedByApi')
 
     await wrapper.get('[data-test="tab-records"]').trigger('click')
     await flushPromises()
@@ -239,6 +243,26 @@ describe('BusinessAnalyticsView', () => {
     await flushPromises()
     expect(getPriceChangeImpact).toHaveBeenCalledTimes(1)
     expect(wrapper.get('[data-test="price-impact-delta"]').text()).toContain('$12.00')
+  })
+
+  it('selects a loaded group before querying price impact', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-test="tab-priceImpact"]').trigger('click')
+    await flushPromises()
+
+    const groupSelect = wrapper.get('[data-test="price-impact-group-select"]')
+    expect(groupSelect.text()).toContain('Team A')
+
+    await groupSelect.setValue('10')
+    await flushPromises()
+
+    expect(getPriceChangeImpact).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        group_id: 10,
+      })
+    )
   })
 
   it('renders records empty and approximate snapshot states', async () => {
@@ -290,8 +314,21 @@ describe('BusinessAnalyticsView', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-test="records-empty"]').exists()).toBe(false)
-    expect(wrapper.get('[data-test="record-approximate-2"]').text()).toContain(
+    expect(wrapper.get('[data-test="records-approx-summary"]').text()).toContain(
       'admin.businessAnalytics.historicalApproximation'
     )
+    expect(wrapper.find('[data-test="record-approximate-2"]').exists()).toBe(false)
+  })
+
+  it('hides records approximation hint when no channel price records are missing', async () => {
+    getOverview.mockResolvedValue({ ...overview, missing_channel_price_records: 0 })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-test="tab-records"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="records-approx-summary"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('admin.businessAnalytics.recordsApproxHint')
   })
 })

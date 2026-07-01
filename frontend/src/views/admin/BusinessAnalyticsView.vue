@@ -121,6 +121,7 @@
                   <th class="analytics-th">{{ t('admin.businessAnalytics.columns.group') }}</th>
                   <th class="analytics-th">{{ t('admin.businessAnalytics.columns.platform') }}</th>
                   <th class="analytics-th text-right">{{ t('admin.businessAnalytics.columns.currentRate') }}</th>
+                  <th class="analytics-th text-right">{{ t('admin.businessAnalytics.columns.averageRate') }}</th>
                   <th class="analytics-th text-right">{{ t('admin.businessAnalytics.columns.activeUsers') }}</th>
                   <th class="analytics-th text-right">{{ t('admin.businessAnalytics.columns.requests') }}</th>
                   <th class="analytics-th text-right">{{ t('admin.businessAnalytics.columns.revenue') }}</th>
@@ -135,6 +136,7 @@
                   <td class="analytics-td font-medium">{{ row.group_name }}</td>
                   <td class="analytics-td">{{ row.platform || '-' }}</td>
                   <td class="analytics-td text-right">{{ formatRate(row.current_rate_multiplier) }}</td>
+                  <td class="analytics-td text-right text-gray-500 dark:text-dark-400">{{ t('admin.businessAnalytics.notProvidedByApi') }}</td>
                   <td class="analytics-td text-right">{{ formatNumber(row.active_users) }}</td>
                   <td class="analytics-td text-right">{{ formatNumber(row.requests) }}</td>
                   <td class="analytics-td text-right">{{ formatMoney(row.revenue) }}</td>
@@ -156,6 +158,7 @@
                   <th class="analytics-th">{{ t('admin.businessAnalytics.columns.platform') }}</th>
                   <th class="analytics-th">{{ t('admin.businessAnalytics.columns.status') }}</th>
                   <th class="analytics-th text-right">{{ t('admin.businessAnalytics.columns.currentPrice') }}</th>
+                  <th class="analytics-th text-right">{{ t('admin.businessAnalytics.columns.averagePrice') }}</th>
                   <th class="analytics-th text-right">{{ t('admin.businessAnalytics.columns.activeUsers') }}</th>
                   <th class="analytics-th text-right">{{ t('admin.businessAnalytics.columns.requests') }}</th>
                   <th class="analytics-th text-right">{{ t('admin.businessAnalytics.columns.revenue') }}</th>
@@ -171,6 +174,7 @@
                   <td class="analytics-td">{{ row.platform || '-' }}</td>
                   <td class="analytics-td">{{ row.status || '-' }}</td>
                   <td class="analytics-td text-right">{{ formatRate(row.current_channel_price) }}</td>
+                  <td class="analytics-td text-right text-gray-500 dark:text-dark-400">{{ t('admin.businessAnalytics.notProvidedByApi') }}</td>
                   <td class="analytics-td text-right">{{ formatNumber(row.active_users) }}</td>
                   <td class="analytics-td text-right">{{ formatNumber(row.requests) }}</td>
                   <td class="analytics-td text-right">{{ formatMoney(row.revenue) }}</td>
@@ -187,8 +191,22 @@
           <div v-else-if="activeTab === 'priceImpact'" class="space-y-4">
             <div class="grid gap-3 md:grid-cols-3 xl:grid-cols-[180px_180px_220px_1fr] xl:items-end">
               <div>
-                <label class="input-label" for="price-impact-group">{{ t('admin.businessAnalytics.groupId') }}</label>
-                <input id="price-impact-group" v-model.number="priceImpactFilters.group_id" type="number" min="1" class="input" @keyup.enter="loadPriceImpact" />
+                <label class="input-label" for="price-impact-group">{{ t('admin.businessAnalytics.group') }}</label>
+                <select
+                  id="price-impact-group"
+                  v-model.number="priceImpactFilters.group_id"
+                  data-test="price-impact-group-select"
+                  class="input"
+                  :disabled="!groups.length || loading"
+                  @change="loadPriceImpact"
+                >
+                  <option v-if="!groups.length" :value="0">
+                    {{ t('admin.businessAnalytics.noGroupsForSelection') }}
+                  </option>
+                  <option v-for="group in groups" :key="group.group_id" :value="group.group_id">
+                    {{ group.group_name || `#${group.group_id}` }}
+                  </option>
+                </select>
               </div>
               <div>
                 <label class="input-label" for="price-impact-date">{{ t('admin.businessAnalytics.changeDate') }}</label>
@@ -249,9 +267,13 @@
 
           <div v-else class="space-y-3">
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <p class="text-xs text-gray-500 dark:text-dark-400">
+              <p
+                v-if="missingChannelPriceRecordCount > 0"
+                data-test="records-approx-summary"
+                class="text-xs text-gray-500 dark:text-dark-400"
+              >
                 {{ t('admin.businessAnalytics.recordsApproxHint', { count: overview?.missing_channel_price_records || 0 }) }}
-                <span v-if="hasApproximateRecords" class="ml-2 rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30">
+                <span class="ml-2 rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30">
                   {{ t('admin.businessAnalytics.historicalApproximation') }}
                 </span>
               </p>
@@ -389,7 +411,7 @@ const filters = reactive<BusinessAnalyticsFilter>({
 })
 
 const priceImpactFilters = reactive({
-  group_id: 1,
+  group_id: 0,
   change_date: formatLocalDate(defaultEnd),
   days: 7,
 })
@@ -410,9 +432,9 @@ const overviewMetrics = computed(() => [
   { key: 'profitPerActiveUser', label: t('admin.businessAnalytics.metrics.profitPerActiveUser'), value: formatMoney(overview.value?.profit_per_active_user) },
 ])
 
-const hasApproximateRecords = computed(() =>
-  (overview.value?.missing_channel_price_records || 0) > 0 || records.items.some(isApproximateRecord)
-)
+const missingChannelPriceRecordCount = computed(() => overview.value?.missing_channel_price_records || 0)
+
+const priceImpactGroupOptions = computed(() => groups.value.map((group) => group.group_id))
 
 function normalizedFilters(): BusinessAnalyticsFilter {
   return {
@@ -455,7 +477,7 @@ function recordProfitMargin(row: BusinessRecordRow): number | null {
 }
 
 function isApproximateRecord(row: BusinessRecordRow): boolean {
-  return row.channel_cost === 0 || (overview.value?.missing_channel_price_records || 0) > 0
+  return Boolean((row as BusinessRecordRow & { channel_price_snapshot_missing?: boolean }).channel_price_snapshot_missing)
 }
 
 async function withLoading(work: () => Promise<void>): Promise<void> {
@@ -479,6 +501,9 @@ async function loadOverview(): Promise<void> {
 async function loadGroups(): Promise<void> {
   await withLoading(async () => {
     groups.value = await adminAPI.businessAnalytics.getGroups(normalizedFilters())
+    if (!priceImpactGroupOptions.value.includes(priceImpactFilters.group_id)) {
+      priceImpactFilters.group_id = groups.value[0]?.group_id || 0
+    }
   })
 }
 
@@ -489,9 +514,16 @@ async function loadChannels(): Promise<void> {
 }
 
 async function loadPriceImpact(): Promise<void> {
+  if (!groups.value.length) {
+    await loadGroups()
+  }
+  if (!priceImpactFilters.group_id) {
+    priceImpact.value = null
+    return
+  }
   await withLoading(async () => {
     priceImpact.value = await adminAPI.businessAnalytics.getPriceChangeImpact({
-      group_id: Number(priceImpactFilters.group_id) || 1,
+      group_id: Number(priceImpactFilters.group_id),
       change_date: priceImpactFilters.change_date,
       days: priceImpactFilters.days,
       timezone: filters.timezone,
