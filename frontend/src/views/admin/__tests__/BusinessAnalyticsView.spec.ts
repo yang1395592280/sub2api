@@ -326,6 +326,19 @@ describe('BusinessAnalyticsView', () => {
     expect(wrapper.find('[data-test="record-approximate-2"]').exists()).toBe(true)
   })
 
+  it('renders record channel price snapshot when present', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-test="tab-records"]').trigger('click')
+    await flushPromises()
+
+    const snapshot = wrapper.get('[data-test="record-channel-price-snapshot-1"]')
+    expect(snapshot.text()).toContain('0.8750')
+    expect(snapshot.text()).not.toContain('admin.businessAnalytics.snapshotUnavailable')
+    expect(wrapper.find('[data-test="record-approximate-1"]').exists()).toBe(false)
+  })
+
   it('hides records approximation hint when no channel price records are missing', async () => {
     getOverview.mockResolvedValue({ ...overview, missing_channel_price_records: 0 })
 

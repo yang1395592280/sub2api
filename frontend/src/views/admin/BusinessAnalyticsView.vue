@@ -318,6 +318,9 @@
                       <span v-if="isApproximateRecord(row)" :data-test="`record-approximate-${row.id}`" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30">
                         {{ t('admin.businessAnalytics.historicalApproximation') }}
                       </span>
+                      <span v-else-if="typeof row.channel_price_snapshot === 'number'" :data-test="`record-channel-price-snapshot-${row.id}`">
+                        {{ formatRate(row.channel_price_snapshot) }}
+                      </span>
                       <span v-else class="text-gray-500 dark:text-dark-400">{{ t('admin.businessAnalytics.snapshotUnavailable') }}</span>
                     </td>
                     <td class="analytics-td text-right">{{ formatMoney(row.revenue) }}</td>

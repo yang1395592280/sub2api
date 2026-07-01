@@ -352,6 +352,8 @@ SELECT ` + selectCols + ` FROM usage_totals, active_users, active_api_keys`, arg
 func buildBusinessGroupsQuery(current, previous service.BusinessAnalyticsFilter) (string, []any) {
 	currentTableName := "business_usage_daily"
 	currentDateColumn := "bucket_date"
+	weightedGroupRateExpr := "SUM(b.avg_group_rate_multiplier * GREATEST(b.revenue, 0.000000001)) FILTER (WHERE b.avg_group_rate_multiplier IS NOT NULL) / NULLIF(SUM(GREATEST(b.revenue, 0.000000001)) FILTER (WHERE b.avg_group_rate_multiplier IS NOT NULL), 0)"
+	weightedSourceGroupRateExpr := "SUM(avg_group_rate_multiplier * GREATEST(revenue, 0.000000001)) FILTER (WHERE avg_group_rate_multiplier IS NOT NULL) / NULLIF(SUM(GREATEST(revenue, 0.000000001)) FILTER (WHERE avg_group_rate_multiplier IS NOT NULL), 0)"
 	if isWeeklyGranularity(current) && !includesToday(current) {
 		currentTableName = "business_usage_weekly"
 		currentDateColumn = "week_start"
@@ -371,7 +373,10 @@ func buildBusinessGroupsQuery(current, previous service.BusinessAnalyticsFilter)
 				COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) AS channel_cost,
 				COALESCE(SUM(ul.actual_cost), 0) - COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) AS gross_profit,
 				AVG(ul.rate_multiplier) AS avg_group_rate_multiplier
-			FROM usage_logs ul ` + currentWhere + `
+			FROM usage_logs ul
+			LEFT JOIN groups g ON g.id = ul.group_id
+			LEFT JOIN accounts a ON a.id = ul.account_id
+			` + currentWhere + `
 			GROUP BY 1
 		) current_usage`
 	}
@@ -383,7 +388,7 @@ func buildBusinessGroupsQuery(current, previous service.BusinessAnalyticsFilter)
 		currentUsageWhere, _ := buildUsageLogsWhere(current)
 		return `
 WITH current_usage AS (
-	SELECT group_id, SUM(requests) requests, SUM(total_tokens) total_tokens, SUM(revenue) revenue, SUM(channel_cost) channel_cost, SUM(gross_profit) gross_profit, AVG(b.avg_group_rate_multiplier) avg_group_rate_multiplier
+	SELECT group_id, SUM(requests) requests, SUM(total_tokens) total_tokens, SUM(revenue) revenue, SUM(channel_cost) channel_cost, SUM(gross_profit) gross_profit, ` + weightedGroupRateExpr + ` avg_group_rate_multiplier
 	FROM ` + currentTableName + ` b ` + currentAggregateWhere + ` GROUP BY group_id
 ), active_users AS (
 	SELECT bu.group_id, COUNT(DISTINCT bu.user_id) active_users
@@ -426,7 +431,7 @@ ORDER BY cp.revenue DESC, cp.group_id`, args
 	}
 	return `
 WITH current_period AS (
-	SELECT group_id, SUM(requests) requests, SUM(active_users) active_users, SUM(active_api_keys) active_api_keys, SUM(total_tokens) total_tokens, SUM(revenue) revenue, SUM(channel_cost) channel_cost, SUM(gross_profit) gross_profit, AVG(avg_group_rate_multiplier) avg_group_rate_multiplier
+	SELECT group_id, SUM(requests) requests, SUM(active_users) active_users, SUM(active_api_keys) active_api_keys, SUM(total_tokens) total_tokens, SUM(revenue) revenue, SUM(channel_cost) channel_cost, SUM(gross_profit) gross_profit, ` + weightedSourceGroupRateExpr + ` avg_group_rate_multiplier
 	FROM ` + currentSource + ` GROUP BY group_id
 ), previous_period AS (
 	SELECT group_id, SUM(revenue) previous_revenue, SUM(gross_profit) previous_gross_profit
@@ -490,6 +495,7 @@ ORDER BY SUM(ul.actual_cost) DESC, COALESCE(ul.account_id, 0)`, args
 	aggregateWhere, args := buildBusinessDailyWhere(filter, "b."+dateColumn)
 	dailyWhere, _ := buildBusinessDailyWhere(filter, "b.bucket_date")
 	usageWhere, _ := buildUsageLogsWhere(filter)
+	weightedChannelPriceExpr := "SUM(b.avg_channel_price * GREATEST(b.requests - b.missing_channel_price_records, 0)) FILTER (WHERE b.avg_channel_price IS NOT NULL) / NULLIF(SUM(GREATEST(b.requests - b.missing_channel_price_records, 0)) FILTER (WHERE b.avg_channel_price IS NOT NULL), 0)"
 	return `
 WITH account_usage AS (
 	SELECT
@@ -501,7 +507,7 @@ WITH account_usage AS (
 		COALESCE(SUM(b.revenue), 0) revenue,
 		COALESCE(SUM(b.channel_cost), 0) channel_cost,
 		COALESCE(SUM(b.gross_profit), 0) gross_profit,
-		AVG(b.avg_channel_price) avg_channel_price,
+		` + weightedChannelPriceExpr + ` avg_channel_price,
 		COALESCE(SUM(b.missing_channel_price_records), 0) missing_channel_price_records
 	FROM ` + tableName + ` b
 	` + aggregateWhere + `
@@ -591,9 +597,13 @@ func buildUsageLogsWhere(filter service.BusinessAnalyticsFilter) (string, []any)
 func buildUsageLogAggregateQuery(filter service.BusinessAnalyticsFilter, trend bool) (string, []any) {
 	where, args := buildUsageLogsWhere(filter)
 	if trend {
+		bucketExpr := "ul.created_at::date"
+		if isWeeklyGranularity(filter) {
+			bucketExpr = "date_trunc('week', ul.created_at)::date"
+		}
 		return `
 SELECT
-	ul.created_at::date::text,
+	` + bucketExpr + `::text,
 	COUNT(*),
 	COUNT(DISTINCT ul.user_id),
 	COALESCE(SUM(ul.actual_cost), 0),
@@ -603,8 +613,8 @@ FROM usage_logs ul
 LEFT JOIN groups g ON g.id = ul.group_id
 LEFT JOIN accounts a ON a.id = ul.account_id
 ` + where + `
-GROUP BY ul.created_at::date
-ORDER BY ul.created_at::date`, args
+GROUP BY ` + bucketExpr + `
+ORDER BY ` + bucketExpr, args
 	}
 	return `
 SELECT
