@@ -85,9 +85,7 @@ type Config struct {
 	SubscriptionMaintenance SubscriptionMaintenanceConfig `mapstructure:"subscription_maintenance"`
 	Dashboard               DashboardCacheConfig          `mapstructure:"dashboard_cache"`
 	DashboardAgg            DashboardAggregationConfig    `mapstructure:"dashboard_aggregation"`
-	BusinessAnalytics       BusinessAnalyticsConfig       `mapstructure:"business_analytics"`
 	UsageCleanup            UsageCleanupConfig            `mapstructure:"usage_cleanup"`
-	ChannelPriceRefresh     ChannelPriceRefreshConfig     `mapstructure:"channel_price_refresh"`
 	Concurrency             ConcurrencyConfig             `mapstructure:"concurrency"`
 	TokenRefresh            TokenRefreshConfig            `mapstructure:"token_refresh"`
 	RunMode                 string                        `mapstructure:"run_mode" yaml:"run_mode"`
@@ -1346,15 +1344,6 @@ type DashboardAggregationRetentionConfig struct {
 	DailyDays             int `mapstructure:"daily_days"`
 }
 
-// BusinessAnalyticsConfig 经营分析聚合配置。
-type BusinessAnalyticsConfig struct {
-	Enabled                    bool `mapstructure:"enabled" yaml:"enabled"`
-	AggregationIntervalSeconds int  `mapstructure:"aggregation_interval_seconds" yaml:"aggregation_interval_seconds"`
-	LookbackSeconds            int  `mapstructure:"lookback_seconds" yaml:"lookback_seconds"`
-	BackfillEnabled            bool `mapstructure:"backfill_enabled" yaml:"backfill_enabled"`
-	BackfillMaxDays            int  `mapstructure:"backfill_max_days" yaml:"backfill_max_days"`
-}
-
 // UsageCleanupConfig 使用记录清理任务配置
 type UsageCleanupConfig struct {
 	// Enabled: 是否启用清理任务执行器
@@ -1367,13 +1356,6 @@ type UsageCleanupConfig struct {
 	WorkerIntervalSeconds int `mapstructure:"worker_interval_seconds"`
 	// TaskTimeoutSeconds: 单次任务最大执行时长（秒）
 	TaskTimeoutSeconds int `mapstructure:"task_timeout_seconds"`
-}
-
-type ChannelPriceRefreshConfig struct {
-	Enabled         bool `mapstructure:"enabled" yaml:"enabled"`
-	IntervalSeconds int  `mapstructure:"interval_seconds" yaml:"interval_seconds"`
-	Concurrency     int  `mapstructure:"concurrency" yaml:"concurrency"`
-	TimeoutSeconds  int  `mapstructure:"timeout_seconds" yaml:"timeout_seconds"`
 }
 
 func NormalizeRunMode(value string) string {
@@ -1836,25 +1818,12 @@ func setDefaults() {
 	viper.SetDefault("dashboard_aggregation.retention.daily_days", 730)
 	viper.SetDefault("dashboard_aggregation.recompute_days", 2)
 
-	// Business analytics aggregation
-	viper.SetDefault("business_analytics.enabled", true)
-	viper.SetDefault("business_analytics.aggregation_interval_seconds", 300)
-	viper.SetDefault("business_analytics.lookback_seconds", 7200)
-	viper.SetDefault("business_analytics.backfill_enabled", true)
-	viper.SetDefault("business_analytics.backfill_max_days", 90)
-
 	// Usage cleanup task
 	viper.SetDefault("usage_cleanup.enabled", true)
 	viper.SetDefault("usage_cleanup.max_range_days", 31)
 	viper.SetDefault("usage_cleanup.batch_size", 5000)
 	viper.SetDefault("usage_cleanup.worker_interval_seconds", 10)
 	viper.SetDefault("usage_cleanup.task_timeout_seconds", 1800)
-
-	// Channel price refresh
-	viper.SetDefault("channel_price_refresh.enabled", false)
-	viper.SetDefault("channel_price_refresh.interval_seconds", 600)
-	viper.SetDefault("channel_price_refresh.concurrency", 3)
-	viper.SetDefault("channel_price_refresh.timeout_seconds", 30)
 
 	// Idempotency
 	viper.SetDefault("idempotency.observe_only", true)
@@ -2450,30 +2419,6 @@ func (c *Config) Validate() error {
 		}
 		if c.DashboardAgg.RecomputeDays < 0 {
 			return fmt.Errorf("dashboard_aggregation.recompute_days must be non-negative")
-		}
-	}
-	if c.BusinessAnalytics.Enabled {
-		if c.BusinessAnalytics.AggregationIntervalSeconds <= 0 {
-			return fmt.Errorf("business_analytics.aggregation_interval_seconds must be positive")
-		}
-		if c.BusinessAnalytics.LookbackSeconds < 0 {
-			return fmt.Errorf("business_analytics.lookback_seconds must be non-negative")
-		}
-		if c.BusinessAnalytics.BackfillMaxDays < 0 {
-			return fmt.Errorf("business_analytics.backfill_max_days must be non-negative")
-		}
-		if c.BusinessAnalytics.BackfillEnabled && c.BusinessAnalytics.BackfillMaxDays == 0 {
-			return fmt.Errorf("business_analytics.backfill_max_days must be positive")
-		}
-	} else {
-		if c.BusinessAnalytics.AggregationIntervalSeconds < 0 {
-			return fmt.Errorf("business_analytics.aggregation_interval_seconds must be non-negative")
-		}
-		if c.BusinessAnalytics.LookbackSeconds < 0 {
-			return fmt.Errorf("business_analytics.lookback_seconds must be non-negative")
-		}
-		if c.BusinessAnalytics.BackfillMaxDays < 0 {
-			return fmt.Errorf("business_analytics.backfill_max_days must be non-negative")
 		}
 	}
 	if c.UsageCleanup.Enabled {

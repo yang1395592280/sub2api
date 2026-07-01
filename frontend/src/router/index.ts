@@ -489,18 +489,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/admin/business-analytics',
-    name: 'AdminBusinessAnalytics',
-    component: () => import('@/views/admin/BusinessAnalyticsView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Business Analytics',
-      titleKey: 'admin.businessAnalytics.title',
-      descriptionKey: 'admin.businessAnalytics.description'
-    }
-  },
-  {
     path: '/monitor',
     name: 'ChannelStatus',
     component: () => import('@/views/user/ChannelStatusView.vue'),

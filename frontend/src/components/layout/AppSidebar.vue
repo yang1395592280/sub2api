@@ -797,7 +797,6 @@ const adminNavItems = computed((): NavItem[] => {
       ],
     },
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },
-    { path: '/admin/business-analytics', label: t('nav.businessAnalytics'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/admin/workbench', label: t('nav.adminWorkbench'), icon: SparklesIcon },
     { path: '/admin/user-spending-ranking', label: t('nav.userSpendingRanking'), icon: OrderIcon, hideInSimpleMode: true }
   ]

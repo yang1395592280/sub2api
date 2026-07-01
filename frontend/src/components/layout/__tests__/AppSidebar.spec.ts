@@ -30,10 +30,3 @@ describe('AppSidebar header styles', () => {
     expect(sidebarBrandBlockMatch?.[0]).not.toContain('overflow: hidden;')
   })
 })
-
-describe('AppSidebar admin navigation', () => {
-  it('links to business analytics from the admin menu', () => {
-    expect(componentSource).toContain("path: '/admin/business-analytics'")
-    expect(componentSource).toContain("t('nav.businessAnalytics')")
-  })
-})
