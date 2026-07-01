@@ -1157,8 +1157,8 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_AdvancedSkipsAccountWhe
 		},
 	}
 	selector := NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{
-		enabledGroups:  map[int64]bool{groupID: true},
-		activeCooldown: map[int64]bool{1: true},
+		enabledGroups: map[int64]bool{groupID: true},
+		openCircuit:   map[int64]bool{1: true},
 		statesByKey: map[string]OpenAIAutoSchedulerScoreState{
 			selectorStateKey(1, "gpt-5.5"): {AccountID: 1, GroupID: groupID, Model: "gpt-5.5", FinalScore: 9000, State: OpenAIAutoSchedulerStateRunning},
 			selectorStateKey(2, "gpt-5.5"): {AccountID: 2, GroupID: groupID, Model: "gpt-5.5", FinalScore: 6000, State: OpenAIAutoSchedulerStateRunning},

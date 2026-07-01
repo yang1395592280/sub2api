@@ -88,6 +88,46 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_QuotaAutoPausedM
 	require.Equal(t, account.ID, boundAccountID)
 }
 
+func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_AutoSchedulerOpenCircuitMiss(t *testing.T) {
+	ctx := context.Background()
+	groupID := int64(23)
+	account := Account{
+		ID:          78,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Status:      StatusActive,
+		Schedulable: true,
+		Concurrency: 2,
+		Extra: map[string]any{
+			"openai_apikey_responses_websockets_v2_enabled": true,
+		},
+	}
+	cache := &stubGatewayCache{}
+	store := NewOpenAIWSStateStore(cache)
+	cfg := newOpenAIWSV2TestConfig()
+	svc := &OpenAIGatewayService{
+		accountRepo:        stubOpenAIAccountRepo{accounts: []Account{account}},
+		cache:              cache,
+		cfg:                cfg,
+		concurrencyService: NewConcurrencyService(stubConcurrencyCache{}),
+		openaiWSStateStore: store,
+		openAIAutoSchedulerSelector: NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{
+			enabledGroups: map[int64]bool{groupID: true},
+			openCircuit:   map[int64]bool{account.ID: true},
+		}),
+	}
+
+	require.NoError(t, store.BindResponseAccount(ctx, groupID, "resp_prev_open", account.ID, time.Hour))
+
+	selection, err := svc.SelectAccountByPreviousResponseID(ctx, &groupID, "resp_prev_open", "gpt-5.1", nil, false)
+	require.NoError(t, err)
+	require.Nil(t, selection, "自动调度器熔断中的账号不应继续命中 previous_response_id 粘连")
+
+	boundAccountID, getErr := store.GetResponseAccount(ctx, groupID, "resp_prev_open")
+	require.NoError(t, getErr)
+	require.Equal(t, account.ID, boundAccountID)
+}
+
 func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_RateLimitedMiss(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(23)

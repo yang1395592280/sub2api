@@ -60,7 +60,7 @@ func (r *fakeOpenAIAutoSchedulerRepo) GetScoreState(ctx context.Context, account
 	return &state, nil
 }
 
-func (r *fakeOpenAIAutoSchedulerRepo) HasActiveCooldownScoreState(ctx context.Context, accountID, groupID int64, now time.Time) (bool, error) {
+func (r *fakeOpenAIAutoSchedulerRepo) HasOpenCircuitScoreState(ctx context.Context, accountID, groupID int64) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.err != nil {
@@ -70,7 +70,7 @@ func (r *fakeOpenAIAutoSchedulerRepo) HasActiveCooldownScoreState(ctx context.Co
 		if state.AccountID != accountID || state.GroupID != groupID {
 			continue
 		}
-		if isOpenAIAutoSchedulerStateInActiveCooldown(state, now) {
+		if state.State == OpenAIAutoSchedulerStateOpen {
 			return true, nil
 		}
 	}

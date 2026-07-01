@@ -4340,6 +4340,9 @@ func (s *OpenAIGatewayService) selectAccountByPreviousResponseIDForCapability(
 	if paused, _ := shouldAutoPauseOpenAIAccountByQuota(ctx, account); paused {
 		return nil, nil
 	}
+	if s.isOpenAIAutoSchedulerAccountTemporarilyBlocked(ctx, groupID, requestedModel, account.ID) {
+		return nil, nil
+	}
 	if s.schedulerSnapshot != nil && s.accountRepo != nil {
 		latest, latestErr := s.accountRepo.GetByID(ctx, account.ID)
 		if latestErr != nil || latest == nil {
@@ -4361,6 +4364,9 @@ func (s *OpenAIGatewayService) selectAccountByPreviousResponseIDForCapability(
 		}
 		if s.isOpenAIAccountRuntimeBlocked(latest) {
 			_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
+			return nil, nil
+		}
+		if s.isOpenAIAutoSchedulerAccountTemporarilyBlocked(ctx, groupID, requestedModel, latest.ID) {
 			return nil, nil
 		}
 		account = latest

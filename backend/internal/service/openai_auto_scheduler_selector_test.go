@@ -11,12 +11,12 @@ import (
 )
 
 type fakeAutoSchedulerSelectorService struct {
-	enabledGroups  map[int64]bool
-	settings       OpenAIAutoSchedulerSettings
-	states         map[int64]OpenAIAutoSchedulerScoreState
-	statesByKey    map[string]OpenAIAutoSchedulerScoreState
-	activeCooldown map[int64]bool
-	err            error
+	enabledGroups map[int64]bool
+	settings      OpenAIAutoSchedulerSettings
+	states        map[int64]OpenAIAutoSchedulerScoreState
+	statesByKey   map[string]OpenAIAutoSchedulerScoreState
+	openCircuit   map[int64]bool
+	err           error
 }
 
 func (s *fakeAutoSchedulerSelectorService) IsEnabledForGroup(_ context.Context, groupID *int64) bool {
@@ -42,11 +42,11 @@ func (s *fakeAutoSchedulerSelectorService) GetStateForSelection(_ context.Contex
 	return &state, nil
 }
 
-func (s *fakeAutoSchedulerSelectorService) HasActiveCooldownForSelection(_ context.Context, accountID, _ int64) (bool, error) {
+func (s *fakeAutoSchedulerSelectorService) HasOpenCircuitForSelection(_ context.Context, accountID, _ int64) (bool, error) {
 	if s != nil && s.err != nil {
 		return false, s.err
 	}
-	return s != nil && s.activeCooldown[accountID], nil
+	return s != nil && s.openCircuit[accountID], nil
 }
 
 func (s *fakeAutoSchedulerSelectorService) GetSettingsForSelection(context.Context) OpenAIAutoSchedulerSettings {
@@ -93,8 +93,8 @@ func TestOpenAIAutoSchedulerSelector_SkipsOpenCircuitAndSortsByScore(t *testing.
 func TestOpenAIAutoSchedulerSelector_SkipsAccountWhenAnyModelHasOpenCircuit(t *testing.T) {
 	groupID := int64(10)
 	selector := NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{
-		enabledGroups:  map[int64]bool{10: true},
-		activeCooldown: map[int64]bool{1: true},
+		enabledGroups: map[int64]bool{10: true},
+		openCircuit:   map[int64]bool{1: true},
 		statesByKey: map[string]OpenAIAutoSchedulerScoreState{
 			selectorStateKey(1, "gpt-5.5"): {AccountID: 1, GroupID: 10, Model: "gpt-5.5", FinalScore: 9000, State: OpenAIAutoSchedulerStateRunning},
 			selectorStateKey(2, "gpt-5.5"): {AccountID: 2, GroupID: 10, Model: "gpt-5.5", FinalScore: 6000, State: OpenAIAutoSchedulerStateRunning},

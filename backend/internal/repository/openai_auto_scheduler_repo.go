@@ -62,16 +62,12 @@ func (r *openAIAutoSchedulerRepository) GetScoreState(ctx context.Context, accou
 	return &out, nil
 }
 
-func (r *openAIAutoSchedulerRepository) HasActiveCooldownScoreState(ctx context.Context, accountID, groupID int64, now time.Time) (bool, error) {
+func (r *openAIAutoSchedulerRepository) HasOpenCircuitScoreState(ctx context.Context, accountID, groupID int64) (bool, error) {
 	return r.client.OpenAIAutoSchedulerScoreState.Query().
 		Where(
 			openaiautoschedulerscorestate.AccountIDEQ(accountID),
 			openaiautoschedulerscorestate.GroupIDEQ(groupID),
 			openaiautoschedulerscorestate.StateEQ(service.OpenAIAutoSchedulerStateOpen),
-			openaiautoschedulerscorestate.Or(
-				openaiautoschedulerscorestate.CooldownUntilIsNil(),
-				openaiautoschedulerscorestate.CooldownUntilGT(now),
-			),
 		).
 		Exist(ctx)
 }

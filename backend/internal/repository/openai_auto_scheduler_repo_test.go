@@ -147,6 +147,23 @@ func TestOpenAIAutoSchedulerRepository_ListScoreStatesOrdersAndCapsPageSize(t *t
 	require.Equal(t, "model-003", items[2].Model)
 }
 
+func TestOpenAIAutoSchedulerRepository_HasOpenCircuitScoreStateIgnoresExpiredCooldown(t *testing.T) {
+	ctx := context.Background()
+	repo, _ := newOpenAIAutoSchedulerRepoSQLite(t)
+	now := time.Date(2026, 7, 1, 22, 5, 0, 0, time.UTC)
+	expiredCooldown := now.Add(-8 * time.Minute)
+
+	state := service.NewOpenAIAutoSchedulerScoreState(19001, 82, "gpt-5.4")
+	state.State = service.OpenAIAutoSchedulerStateOpen
+	state.CooldownUntil = &expiredCooldown
+	require.NoError(t, repo.UpsertScoreState(ctx, state))
+
+	blocked, err := repo.HasOpenCircuitScoreState(ctx, 19001, 82)
+
+	require.NoError(t, err)
+	require.True(t, blocked)
+}
+
 func TestOpenAIAutoSchedulerRepository_InsertScoreEventTruncatesAndPersistsDetails(t *testing.T) {
 	ctx := context.Background()
 	repo, client := newOpenAIAutoSchedulerRepoSQLite(t)
