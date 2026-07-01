@@ -90,6 +90,9 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // billing_tier
 			sqlmock.AnyArg(), // billing_mode
 			sqlmock.AnyArg(), // account_stats_cost
+			sqlmock.AnyArg(), // channel_price_snapshot
+			sqlmock.AnyArg(), // channel_price_source
+			sqlmock.AnyArg(), // channel_price_refreshed_at
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), createdAt))
@@ -192,6 +195,9 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // billing_tier
 			sqlmock.AnyArg(), // billing_mode
 			sqlmock.AnyArg(), // account_stats_cost
+			sqlmock.AnyArg(), // channel_price_snapshot
+			sqlmock.AnyArg(), // channel_price_source
+			sqlmock.AnyArg(), // channel_price_refreshed_at
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(100), createdAt))
@@ -285,6 +291,106 @@ func TestPrepareUsageLogInsert_PersistsImageSizeMetadata(t *testing.T) {
 	breakdownJSON, ok := prepared.args[38].(string)
 	require.True(t, ok)
 	require.JSONEq(t, `{"1K":1,"4K":1}`, breakdownJSON)
+}
+
+func TestPrepareUsageLogInsert_PersistsChannelPriceSnapshot(t *testing.T) {
+	price := 0.123456
+	source := "upstream_balance"
+	refreshedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	prepared := prepareUsageLogInsert(&service.UsageLog{
+		UserID:                  1,
+		APIKeyID:                2,
+		AccountID:               3,
+		RequestID:               "req-channel-price",
+		Model:                   "gpt-5",
+		RequestedModel:          "gpt-5",
+		ChannelPriceSnapshot:    &price,
+		ChannelPriceSource:      &source,
+		ChannelPriceRefreshedAt: &refreshedAt,
+		CreatedAt:               time.Date(2026, 1, 2, 3, 5, 0, 0, time.UTC),
+	})
+
+	require.Contains(t, usageLogSelectColumns, "channel_price_snapshot")
+	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
+	require.Equal(t, &price, prepared.args[49])
+	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[50])
+	require.Equal(t, sql.NullTime{Time: refreshedAt, Valid: true}, prepared.args[51])
+}
+
+func TestScanUsageLog_ChannelPriceSnapshot(t *testing.T) {
+	price := 0.123456
+	source := "upstream_balance"
+	refreshedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	createdAt := time.Date(2026, 1, 2, 3, 5, 0, 0, time.UTC)
+
+	rowValues := []any{
+		int64(99), int64(1), int64(2), int64(3), "req-channel-price", "gpt-5", "gpt-5", nil,
+		nil, nil, 10, 20, 0, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.5, 1.5,
+		nil, int16(service.BillingTypeBalance), int16(service.RequestTypeSync), false, false,
+		nil, nil, nil, nil, 0, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, nil,
+		nil, nil, nil, nil, price, source, refreshedAt, createdAt,
+	}
+
+	got, err := scanUsageLog(scanStub(rowValues))
+	require.NoError(t, err)
+	require.NotNil(t, got.ChannelPriceSnapshot)
+	require.InDelta(t, price, *got.ChannelPriceSnapshot, 0.000001)
+	require.NotNil(t, got.ChannelPriceSource)
+	require.Equal(t, source, *got.ChannelPriceSource)
+	require.NotNil(t, got.ChannelPriceRefreshedAt)
+	require.WithinDuration(t, refreshedAt, *got.ChannelPriceRefreshedAt, time.Second)
+}
+
+type scanStub []any
+
+func (s scanStub) Scan(dest ...any) error {
+	for i := range dest {
+		ptr := dest[i]
+		value := s[i]
+		switch d := ptr.(type) {
+		case *int:
+			*d = value.(int)
+		case *int16:
+			*d = value.(int16)
+		case *int64:
+			*d = value.(int64)
+		case *float64:
+			*d = value.(float64)
+		case *bool:
+			*d = value.(bool)
+		case *string:
+			*d = value.(string)
+		case *time.Time:
+			*d = value.(time.Time)
+		case *sql.NullString:
+			if value == nil {
+				*d = sql.NullString{}
+			} else {
+				*d = sql.NullString{String: value.(string), Valid: true}
+			}
+		case *sql.NullInt64:
+			if value == nil {
+				*d = sql.NullInt64{}
+			} else {
+				*d = sql.NullInt64{Int64: value.(int64), Valid: true}
+			}
+		case *sql.NullFloat64:
+			if value == nil {
+				*d = sql.NullFloat64{}
+			} else {
+				*d = sql.NullFloat64{Float64: value.(float64), Valid: true}
+			}
+		case *sql.NullTime:
+			if value == nil {
+				*d = sql.NullTime{}
+			} else {
+				*d = sql.NullTime{Time: value.(time.Time), Valid: true}
+			}
+		default:
+			return fmt.Errorf("unsupported scan target %T", ptr)
+		}
+	}
+	return nil
 }
 
 func TestCoalesceTrimmedString(t *testing.T) {
@@ -813,6 +919,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			sql.NullFloat64{},
+			sql.NullFloat64{},
+			sql.NullString{},
+			sql.NullTime{},
 			now,
 		}})
 		require.NoError(t, err)
@@ -881,6 +990,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // billing_tier
 			sql.NullString{},  // billing_mode
 			sql.NullFloat64{}, // account_stats_cost
+			sql.NullFloat64{}, // channel_price_snapshot
+			sql.NullString{},  // channel_price_source
+			sql.NullTime{},    // channel_price_refreshed_at
 			now,
 		}})
 		require.NoError(t, err)
@@ -933,6 +1045,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // billing_tier
 			sql.NullString{},  // billing_mode
 			sql.NullFloat64{}, // account_stats_cost
+			sql.NullFloat64{}, // channel_price_snapshot
+			sql.NullString{},  // channel_price_source
+			sql.NullTime{},    // channel_price_refreshed_at
 			now,
 		}})
 		require.NoError(t, err)
@@ -985,6 +1100,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // billing_tier
 			sql.NullString{},  // billing_mode
 			sql.NullFloat64{}, // account_stats_cost
+			sql.NullFloat64{}, // channel_price_snapshot
+			sql.NullString{},  // channel_price_source
+			sql.NullTime{},    // channel_price_refreshed_at
 			now,
 		}})
 		require.NoError(t, err)

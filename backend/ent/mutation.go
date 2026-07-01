@@ -39165,6 +39165,10 @@ type UsageLogMutation struct {
 	addrate_multiplier          *float64
 	account_rate_multiplier     *float64
 	addaccount_rate_multiplier  *float64
+	channel_price_snapshot      *float64
+	addchannel_price_snapshot   *float64
+	channel_price_source        *string
+	channel_price_refreshed_at  *time.Time
 	billing_type                *int8
 	addbilling_type             *int8
 	stream                      *bool
@@ -40688,6 +40692,174 @@ func (m *UsageLogMutation) ResetAccountRateMultiplier() {
 	delete(m.clearedFields, usagelog.FieldAccountRateMultiplier)
 }
 
+// SetChannelPriceSnapshot sets the "channel_price_snapshot" field.
+func (m *UsageLogMutation) SetChannelPriceSnapshot(f float64) {
+	m.channel_price_snapshot = &f
+	m.addchannel_price_snapshot = nil
+}
+
+// ChannelPriceSnapshot returns the value of the "channel_price_snapshot" field in the mutation.
+func (m *UsageLogMutation) ChannelPriceSnapshot() (r float64, exists bool) {
+	v := m.channel_price_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChannelPriceSnapshot returns the old "channel_price_snapshot" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldChannelPriceSnapshot(ctx context.Context) (v *float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChannelPriceSnapshot is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChannelPriceSnapshot requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChannelPriceSnapshot: %w", err)
+	}
+	return oldValue.ChannelPriceSnapshot, nil
+}
+
+// AddChannelPriceSnapshot adds f to the "channel_price_snapshot" field.
+func (m *UsageLogMutation) AddChannelPriceSnapshot(f float64) {
+	if m.addchannel_price_snapshot != nil {
+		*m.addchannel_price_snapshot += f
+	} else {
+		m.addchannel_price_snapshot = &f
+	}
+}
+
+// AddedChannelPriceSnapshot returns the value that was added to the "channel_price_snapshot" field in this mutation.
+func (m *UsageLogMutation) AddedChannelPriceSnapshot() (r float64, exists bool) {
+	v := m.addchannel_price_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearChannelPriceSnapshot clears the value of the "channel_price_snapshot" field.
+func (m *UsageLogMutation) ClearChannelPriceSnapshot() {
+	m.channel_price_snapshot = nil
+	m.addchannel_price_snapshot = nil
+	m.clearedFields[usagelog.FieldChannelPriceSnapshot] = struct{}{}
+}
+
+// ChannelPriceSnapshotCleared returns if the "channel_price_snapshot" field was cleared in this mutation.
+func (m *UsageLogMutation) ChannelPriceSnapshotCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldChannelPriceSnapshot]
+	return ok
+}
+
+// ResetChannelPriceSnapshot resets all changes to the "channel_price_snapshot" field.
+func (m *UsageLogMutation) ResetChannelPriceSnapshot() {
+	m.channel_price_snapshot = nil
+	m.addchannel_price_snapshot = nil
+	delete(m.clearedFields, usagelog.FieldChannelPriceSnapshot)
+}
+
+// SetChannelPriceSource sets the "channel_price_source" field.
+func (m *UsageLogMutation) SetChannelPriceSource(s string) {
+	m.channel_price_source = &s
+}
+
+// ChannelPriceSource returns the value of the "channel_price_source" field in the mutation.
+func (m *UsageLogMutation) ChannelPriceSource() (r string, exists bool) {
+	v := m.channel_price_source
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChannelPriceSource returns the old "channel_price_source" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldChannelPriceSource(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChannelPriceSource is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChannelPriceSource requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChannelPriceSource: %w", err)
+	}
+	return oldValue.ChannelPriceSource, nil
+}
+
+// ClearChannelPriceSource clears the value of the "channel_price_source" field.
+func (m *UsageLogMutation) ClearChannelPriceSource() {
+	m.channel_price_source = nil
+	m.clearedFields[usagelog.FieldChannelPriceSource] = struct{}{}
+}
+
+// ChannelPriceSourceCleared returns if the "channel_price_source" field was cleared in this mutation.
+func (m *UsageLogMutation) ChannelPriceSourceCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldChannelPriceSource]
+	return ok
+}
+
+// ResetChannelPriceSource resets all changes to the "channel_price_source" field.
+func (m *UsageLogMutation) ResetChannelPriceSource() {
+	m.channel_price_source = nil
+	delete(m.clearedFields, usagelog.FieldChannelPriceSource)
+}
+
+// SetChannelPriceRefreshedAt sets the "channel_price_refreshed_at" field.
+func (m *UsageLogMutation) SetChannelPriceRefreshedAt(t time.Time) {
+	m.channel_price_refreshed_at = &t
+}
+
+// ChannelPriceRefreshedAt returns the value of the "channel_price_refreshed_at" field in the mutation.
+func (m *UsageLogMutation) ChannelPriceRefreshedAt() (r time.Time, exists bool) {
+	v := m.channel_price_refreshed_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChannelPriceRefreshedAt returns the old "channel_price_refreshed_at" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldChannelPriceRefreshedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChannelPriceRefreshedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChannelPriceRefreshedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChannelPriceRefreshedAt: %w", err)
+	}
+	return oldValue.ChannelPriceRefreshedAt, nil
+}
+
+// ClearChannelPriceRefreshedAt clears the value of the "channel_price_refreshed_at" field.
+func (m *UsageLogMutation) ClearChannelPriceRefreshedAt() {
+	m.channel_price_refreshed_at = nil
+	m.clearedFields[usagelog.FieldChannelPriceRefreshedAt] = struct{}{}
+}
+
+// ChannelPriceRefreshedAtCleared returns if the "channel_price_refreshed_at" field was cleared in this mutation.
+func (m *UsageLogMutation) ChannelPriceRefreshedAtCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldChannelPriceRefreshedAt]
+	return ok
+}
+
+// ResetChannelPriceRefreshedAt resets all changes to the "channel_price_refreshed_at" field.
+func (m *UsageLogMutation) ResetChannelPriceRefreshedAt() {
+	m.channel_price_refreshed_at = nil
+	delete(m.clearedFields, usagelog.FieldChannelPriceRefreshedAt)
+}
+
 // SetBillingType sets the "billing_type" field.
 func (m *UsageLogMutation) SetBillingType(i int8) {
 	m.billing_type = &i
@@ -41560,7 +41732,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 41)
+	fields := make([]string, 0, 44)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -41641,6 +41813,15 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.account_rate_multiplier != nil {
 		fields = append(fields, usagelog.FieldAccountRateMultiplier)
+	}
+	if m.channel_price_snapshot != nil {
+		fields = append(fields, usagelog.FieldChannelPriceSnapshot)
+	}
+	if m.channel_price_source != nil {
+		fields = append(fields, usagelog.FieldChannelPriceSource)
+	}
+	if m.channel_price_refreshed_at != nil {
+		fields = append(fields, usagelog.FieldChannelPriceRefreshedAt)
 	}
 	if m.billing_type != nil {
 		fields = append(fields, usagelog.FieldBillingType)
@@ -41746,6 +41927,12 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.RateMultiplier()
 	case usagelog.FieldAccountRateMultiplier:
 		return m.AccountRateMultiplier()
+	case usagelog.FieldChannelPriceSnapshot:
+		return m.ChannelPriceSnapshot()
+	case usagelog.FieldChannelPriceSource:
+		return m.ChannelPriceSource()
+	case usagelog.FieldChannelPriceRefreshedAt:
+		return m.ChannelPriceRefreshedAt()
 	case usagelog.FieldBillingType:
 		return m.BillingType()
 	case usagelog.FieldStream:
@@ -41837,6 +42024,12 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldRateMultiplier(ctx)
 	case usagelog.FieldAccountRateMultiplier:
 		return m.OldAccountRateMultiplier(ctx)
+	case usagelog.FieldChannelPriceSnapshot:
+		return m.OldChannelPriceSnapshot(ctx)
+	case usagelog.FieldChannelPriceSource:
+		return m.OldChannelPriceSource(ctx)
+	case usagelog.FieldChannelPriceRefreshedAt:
+		return m.OldChannelPriceRefreshedAt(ctx)
 	case usagelog.FieldBillingType:
 		return m.OldBillingType(ctx)
 	case usagelog.FieldStream:
@@ -42063,6 +42256,27 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetAccountRateMultiplier(v)
 		return nil
+	case usagelog.FieldChannelPriceSnapshot:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChannelPriceSnapshot(v)
+		return nil
+	case usagelog.FieldChannelPriceSource:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChannelPriceSource(v)
+		return nil
+	case usagelog.FieldChannelPriceRefreshedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChannelPriceRefreshedAt(v)
+		return nil
 	case usagelog.FieldBillingType:
 		v, ok := value.(int8)
 		if !ok {
@@ -42214,6 +42428,9 @@ func (m *UsageLogMutation) AddedFields() []string {
 	if m.addaccount_rate_multiplier != nil {
 		fields = append(fields, usagelog.FieldAccountRateMultiplier)
 	}
+	if m.addchannel_price_snapshot != nil {
+		fields = append(fields, usagelog.FieldChannelPriceSnapshot)
+	}
 	if m.addbilling_type != nil {
 		fields = append(fields, usagelog.FieldBillingType)
 	}
@@ -42264,6 +42481,8 @@ func (m *UsageLogMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedRateMultiplier()
 	case usagelog.FieldAccountRateMultiplier:
 		return m.AddedAccountRateMultiplier()
+	case usagelog.FieldChannelPriceSnapshot:
+		return m.AddedChannelPriceSnapshot()
 	case usagelog.FieldBillingType:
 		return m.AddedBillingType()
 	case usagelog.FieldDurationMs:
@@ -42386,6 +42605,13 @@ func (m *UsageLogMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddAccountRateMultiplier(v)
 		return nil
+	case usagelog.FieldChannelPriceSnapshot:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddChannelPriceSnapshot(v)
+		return nil
 	case usagelog.FieldBillingType:
 		v, ok := value.(int8)
 		if !ok {
@@ -42448,6 +42674,15 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(usagelog.FieldAccountRateMultiplier) {
 		fields = append(fields, usagelog.FieldAccountRateMultiplier)
+	}
+	if m.FieldCleared(usagelog.FieldChannelPriceSnapshot) {
+		fields = append(fields, usagelog.FieldChannelPriceSnapshot)
+	}
+	if m.FieldCleared(usagelog.FieldChannelPriceSource) {
+		fields = append(fields, usagelog.FieldChannelPriceSource)
+	}
+	if m.FieldCleared(usagelog.FieldChannelPriceRefreshedAt) {
+		fields = append(fields, usagelog.FieldChannelPriceRefreshedAt)
 	}
 	if m.FieldCleared(usagelog.FieldDurationMs) {
 		fields = append(fields, usagelog.FieldDurationMs)
@@ -42516,6 +42751,15 @@ func (m *UsageLogMutation) ClearField(name string) error {
 		return nil
 	case usagelog.FieldAccountRateMultiplier:
 		m.ClearAccountRateMultiplier()
+		return nil
+	case usagelog.FieldChannelPriceSnapshot:
+		m.ClearChannelPriceSnapshot()
+		return nil
+	case usagelog.FieldChannelPriceSource:
+		m.ClearChannelPriceSource()
+		return nil
+	case usagelog.FieldChannelPriceRefreshedAt:
+		m.ClearChannelPriceRefreshedAt()
 		return nil
 	case usagelog.FieldDurationMs:
 		m.ClearDurationMs()
@@ -42632,6 +42876,15 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldAccountRateMultiplier:
 		m.ResetAccountRateMultiplier()
+		return nil
+	case usagelog.FieldChannelPriceSnapshot:
+		m.ResetChannelPriceSnapshot()
+		return nil
+	case usagelog.FieldChannelPriceSource:
+		m.ResetChannelPriceSource()
+		return nil
+	case usagelog.FieldChannelPriceRefreshedAt:
+		m.ResetChannelPriceRefreshedAt()
 		return nil
 	case usagelog.FieldBillingType:
 		m.ResetBillingType()

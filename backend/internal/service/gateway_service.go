@@ -9725,6 +9725,7 @@ func (s *GatewayService) buildRecordUsageLog(
 		usageLog.TotalCost = cost.TotalCost
 		usageLog.ActualCost = cost.ActualCost
 	}
+	applyChannelPriceSnapshot(usageLog, account)
 
 	return usageLog
 }

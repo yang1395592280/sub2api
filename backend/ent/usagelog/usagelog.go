@@ -68,6 +68,12 @@ const (
 	FieldRateMultiplier = "rate_multiplier"
 	// FieldAccountRateMultiplier holds the string denoting the account_rate_multiplier field in the database.
 	FieldAccountRateMultiplier = "account_rate_multiplier"
+	// FieldChannelPriceSnapshot holds the string denoting the channel_price_snapshot field in the database.
+	FieldChannelPriceSnapshot = "channel_price_snapshot"
+	// FieldChannelPriceSource holds the string denoting the channel_price_source field in the database.
+	FieldChannelPriceSource = "channel_price_source"
+	// FieldChannelPriceRefreshedAt holds the string denoting the channel_price_refreshed_at field in the database.
+	FieldChannelPriceRefreshedAt = "channel_price_refreshed_at"
 	// FieldBillingType holds the string denoting the billing_type field in the database.
 	FieldBillingType = "billing_type"
 	// FieldStream holds the string denoting the stream field in the database.
@@ -175,6 +181,9 @@ var Columns = []string{
 	FieldActualCost,
 	FieldRateMultiplier,
 	FieldAccountRateMultiplier,
+	FieldChannelPriceSnapshot,
+	FieldChannelPriceSource,
+	FieldChannelPriceRefreshedAt,
 	FieldBillingType,
 	FieldStream,
 	FieldDurationMs,
@@ -242,6 +251,8 @@ var (
 	DefaultActualCost float64
 	// DefaultRateMultiplier holds the default value on creation for the "rate_multiplier" field.
 	DefaultRateMultiplier float64
+	// ChannelPriceSourceValidator is a validator for the "channel_price_source" field. It is called by the builders before save.
+	ChannelPriceSourceValidator func(string) error
 	// DefaultBillingType holds the default value on creation for the "billing_type" field.
 	DefaultBillingType int8
 	// DefaultStream holds the default value on creation for the "stream" field.
@@ -407,6 +418,21 @@ func ByRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
 // ByAccountRateMultiplier orders the results by the account_rate_multiplier field.
 func ByAccountRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAccountRateMultiplier, opts...).ToFunc()
+}
+
+// ByChannelPriceSnapshot orders the results by the channel_price_snapshot field.
+func ByChannelPriceSnapshot(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldChannelPriceSnapshot, opts...).ToFunc()
+}
+
+// ByChannelPriceSource orders the results by the channel_price_source field.
+func ByChannelPriceSource(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldChannelPriceSource, opts...).ToFunc()
+}
+
+// ByChannelPriceRefreshedAt orders the results by the channel_price_refreshed_at field.
+func ByChannelPriceRefreshedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldChannelPriceRefreshedAt, opts...).ToFunc()
 }
 
 // ByBillingType orders the results by the billing_type field.

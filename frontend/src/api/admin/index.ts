@@ -35,6 +35,7 @@ import riskControlAPI from './riskControl'
 import adminComplianceAPI from './compliance'
 import adminWorkbenchAPI from './workbench'
 import openaiAutoSchedulerAPI from './openaiAutoScheduler'
+import businessAnalyticsAPI from './businessAnalytics'
 
 /**
  * Unified admin API object for convenient access
@@ -71,7 +72,8 @@ export const adminAPI = {
   riskControl: riskControlAPI,
   compliance: adminComplianceAPI,
   workbench: adminWorkbenchAPI,
-  openaiAutoScheduler: openaiAutoSchedulerAPI
+  openaiAutoScheduler: openaiAutoSchedulerAPI,
+  businessAnalytics: businessAnalyticsAPI
 }
 
 export {
@@ -106,7 +108,8 @@ export {
   riskControlAPI,
   adminComplianceAPI,
   adminWorkbenchAPI,
-  openaiAutoSchedulerAPI
+  openaiAutoSchedulerAPI,
+  businessAnalyticsAPI
 }
 
 export default adminAPI
@@ -129,3 +132,16 @@ export type {
   OpenAIAutoSchedulerSettings,
   OpenAIAutoSchedulerState,
 } from './openaiAutoScheduler'
+export type {
+  BusinessAnalyticsFilter,
+  BusinessChannelRow,
+  BusinessGroupRow,
+  BusinessMetricSummary,
+  BusinessOverview,
+  BusinessPriceChangeImpact,
+  BusinessPriceChangeImpactParams,
+  BusinessRecordRow,
+  BusinessRecordsParams,
+  BusinessRecordsResponse,
+  BusinessTrendPoint,
+} from './businessAnalytics'

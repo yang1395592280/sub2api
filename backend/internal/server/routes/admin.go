@@ -112,6 +112,23 @@ func RegisterAdminRoutes(
 
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
+
+		// 经营分析
+		registerBusinessAnalyticsRoutes(admin, h)
+	}
+}
+
+func registerBusinessAnalyticsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	analytics := admin.Group("/business-analytics")
+	{
+		analytics.GET("/overview", h.Admin.BusinessAnalytics.GetOverview)
+		analytics.GET("/groups", h.Admin.BusinessAnalytics.GetGroups)
+		analytics.GET("/groups/:id/channels", h.Admin.BusinessAnalytics.GetGroupChannels)
+		analytics.GET("/channels", h.Admin.BusinessAnalytics.GetChannels)
+		analytics.GET("/channels/:id/groups", h.Admin.BusinessAnalytics.GetChannelGroups)
+		analytics.GET("/price-change-impact", h.Admin.BusinessAnalytics.GetPriceChangeImpact)
+		analytics.GET("/records", h.Admin.BusinessAnalytics.GetRecords)
+		analytics.GET("/export", h.Admin.BusinessAnalytics.Export)
 	}
 }
 

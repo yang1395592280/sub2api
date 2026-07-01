@@ -106,6 +106,21 @@ func (UsageLog) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}),
+		field.Float("channel_price_snapshot").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "decimal(12,6)"}).
+			Comment("渠道价格快照：本次请求发生时账号的渠道进价"),
+		field.String("channel_price_source").
+			MaxLen(32).
+			Optional().
+			Nillable().
+			Comment("渠道价格来源：manual/upstream_balance/fallback"),
+		field.Time("channel_price_refreshed_at").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}).
+			Comment("渠道价格最近刷新时间快照"),
 
 		// 其他字段
 		field.Int8("billing_type").

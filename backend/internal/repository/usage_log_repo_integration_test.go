@@ -494,6 +494,47 @@ func (s *UsageLogRepoSuite) TestGetByID_ReturnsAccountRateMultiplier() {
 	s.Require().InEpsilon(0.5, *got.AccountRateMultiplier, 0.0001)
 }
 
+func (s *UsageLogRepoSuite) TestCreateAndGetByID_ReturnsChannelPriceSnapshot() {
+	user := mustCreateUser(s.T(), s.client, &service.User{Email: "getbyid-channel-price@test.com"})
+	apiKey := mustCreateApiKey(s.T(), s.client, &service.APIKey{UserID: user.ID, Key: "sk-getbyid-channel-price", Name: "k"})
+	account := mustCreateAccount(s.T(), s.client, &service.Account{Name: "acc-getbyid-channel-price"})
+
+	price := 0.123456
+	source := "upstream_balance"
+	refreshedAt := time.Now().UTC().Truncate(time.Second)
+	log := &service.UsageLog{
+		UserID:                  user.ID,
+		APIKeyID:                apiKey.ID,
+		AccountID:               account.ID,
+		RequestID:               uuid.New().String(),
+		Model:                   "gpt-5",
+		RequestedModel:          "gpt-5",
+		InputTokens:             10,
+		OutputTokens:            20,
+		TotalCost:               1,
+		ActualCost:              1.5,
+		RateMultiplier:          1.5,
+		ChannelPriceSnapshot:    &price,
+		ChannelPriceSource:      &source,
+		ChannelPriceRefreshedAt: &refreshedAt,
+		CreatedAt:               time.Now().UTC(),
+	}
+
+	inserted, err := s.repo.Create(s.ctx, log)
+	s.Require().NoError(err)
+	s.Require().True(inserted)
+	s.Require().NotZero(log.ID)
+
+	got, err := s.repo.GetByID(s.ctx, log.ID)
+	s.Require().NoError(err)
+	s.Require().NotNil(got.ChannelPriceSnapshot)
+	s.Require().InDelta(price, *got.ChannelPriceSnapshot, 0.000001)
+	s.Require().NotNil(got.ChannelPriceSource)
+	s.Require().Equal(source, *got.ChannelPriceSource)
+	s.Require().NotNil(got.ChannelPriceRefreshedAt)
+	s.Require().WithinDuration(refreshedAt, *got.ChannelPriceRefreshedAt, time.Second)
+}
+
 func (s *UsageLogRepoSuite) TestGetByID_ReturnsOpenAIWSMode() {
 	user := mustCreateUser(s.T(), s.client, &service.User{Email: "getbyid-ws@test.com"})
 	apiKey := mustCreateApiKey(s.T(), s.client, &service.APIKey{UserID: user.ID, Key: "sk-getbyid-ws", Name: "k"})

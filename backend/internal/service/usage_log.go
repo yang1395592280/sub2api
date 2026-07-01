@@ -153,6 +153,12 @@ type UsageLog struct {
 	AccountRateMultiplier *float64
 	// AccountStatsCost 账号统计定价预计算费用（nil = 使用默认公式 total_cost × account_rate_multiplier）
 	AccountStatsCost *float64
+	// ChannelPriceSnapshot records the account channel price observed when this usage was written.
+	ChannelPriceSnapshot *float64
+	// ChannelPriceSource records where ChannelPriceSnapshot came from.
+	ChannelPriceSource *string
+	// ChannelPriceRefreshedAt records when the source channel price was last refreshed.
+	ChannelPriceRefreshedAt *time.Time
 
 	BillingType  int8
 	RequestType  RequestType

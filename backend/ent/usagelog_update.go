@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -569,6 +570,73 @@ func (_u *UsageLogUpdate) ClearAccountRateMultiplier() *UsageLogUpdate {
 	return _u
 }
 
+// SetChannelPriceSnapshot sets the "channel_price_snapshot" field.
+func (_u *UsageLogUpdate) SetChannelPriceSnapshot(v float64) *UsageLogUpdate {
+	_u.mutation.ResetChannelPriceSnapshot()
+	_u.mutation.SetChannelPriceSnapshot(v)
+	return _u
+}
+
+// SetNillableChannelPriceSnapshot sets the "channel_price_snapshot" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableChannelPriceSnapshot(v *float64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetChannelPriceSnapshot(*v)
+	}
+	return _u
+}
+
+// AddChannelPriceSnapshot adds value to the "channel_price_snapshot" field.
+func (_u *UsageLogUpdate) AddChannelPriceSnapshot(v float64) *UsageLogUpdate {
+	_u.mutation.AddChannelPriceSnapshot(v)
+	return _u
+}
+
+// ClearChannelPriceSnapshot clears the value of the "channel_price_snapshot" field.
+func (_u *UsageLogUpdate) ClearChannelPriceSnapshot() *UsageLogUpdate {
+	_u.mutation.ClearChannelPriceSnapshot()
+	return _u
+}
+
+// SetChannelPriceSource sets the "channel_price_source" field.
+func (_u *UsageLogUpdate) SetChannelPriceSource(v string) *UsageLogUpdate {
+	_u.mutation.SetChannelPriceSource(v)
+	return _u
+}
+
+// SetNillableChannelPriceSource sets the "channel_price_source" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableChannelPriceSource(v *string) *UsageLogUpdate {
+	if v != nil {
+		_u.SetChannelPriceSource(*v)
+	}
+	return _u
+}
+
+// ClearChannelPriceSource clears the value of the "channel_price_source" field.
+func (_u *UsageLogUpdate) ClearChannelPriceSource() *UsageLogUpdate {
+	_u.mutation.ClearChannelPriceSource()
+	return _u
+}
+
+// SetChannelPriceRefreshedAt sets the "channel_price_refreshed_at" field.
+func (_u *UsageLogUpdate) SetChannelPriceRefreshedAt(v time.Time) *UsageLogUpdate {
+	_u.mutation.SetChannelPriceRefreshedAt(v)
+	return _u
+}
+
+// SetNillableChannelPriceRefreshedAt sets the "channel_price_refreshed_at" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableChannelPriceRefreshedAt(v *time.Time) *UsageLogUpdate {
+	if v != nil {
+		_u.SetChannelPriceRefreshedAt(*v)
+	}
+	return _u
+}
+
+// ClearChannelPriceRefreshedAt clears the value of the "channel_price_refreshed_at" field.
+func (_u *UsageLogUpdate) ClearChannelPriceRefreshedAt() *UsageLogUpdate {
+	_u.mutation.ClearChannelPriceRefreshedAt()
+	return _u
+}
+
 // SetBillingType sets the "billing_type" field.
 func (_u *UsageLogUpdate) SetBillingType(v int8) *UsageLogUpdate {
 	_u.mutation.ResetBillingType()
@@ -949,6 +1017,11 @@ func (_u *UsageLogUpdate) check() error {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ChannelPriceSource(); ok {
+		if err := usagelog.ChannelPriceSourceValidator(v); err != nil {
+			return &ValidationError{Name: "channel_price_source", err: fmt.Errorf(`ent: validator failed for field "UsageLog.channel_price_source": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.UserAgent(); ok {
 		if err := usagelog.UserAgentValidator(v); err != nil {
 			return &ValidationError{Name: "user_agent", err: fmt.Errorf(`ent: validator failed for field "UsageLog.user_agent": %w`, err)}
@@ -1134,6 +1207,27 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.AccountRateMultiplierCleared() {
 		_spec.ClearField(usagelog.FieldAccountRateMultiplier, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.ChannelPriceSnapshot(); ok {
+		_spec.SetField(usagelog.FieldChannelPriceSnapshot, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedChannelPriceSnapshot(); ok {
+		_spec.AddField(usagelog.FieldChannelPriceSnapshot, field.TypeFloat64, value)
+	}
+	if _u.mutation.ChannelPriceSnapshotCleared() {
+		_spec.ClearField(usagelog.FieldChannelPriceSnapshot, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.ChannelPriceSource(); ok {
+		_spec.SetField(usagelog.FieldChannelPriceSource, field.TypeString, value)
+	}
+	if _u.mutation.ChannelPriceSourceCleared() {
+		_spec.ClearField(usagelog.FieldChannelPriceSource, field.TypeString)
+	}
+	if value, ok := _u.mutation.ChannelPriceRefreshedAt(); ok {
+		_spec.SetField(usagelog.FieldChannelPriceRefreshedAt, field.TypeTime, value)
+	}
+	if _u.mutation.ChannelPriceRefreshedAtCleared() {
+		_spec.ClearField(usagelog.FieldChannelPriceRefreshedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.BillingType(); ok {
 		_spec.SetField(usagelog.FieldBillingType, field.TypeInt8, value)
@@ -1915,6 +2009,73 @@ func (_u *UsageLogUpdateOne) ClearAccountRateMultiplier() *UsageLogUpdateOne {
 	return _u
 }
 
+// SetChannelPriceSnapshot sets the "channel_price_snapshot" field.
+func (_u *UsageLogUpdateOne) SetChannelPriceSnapshot(v float64) *UsageLogUpdateOne {
+	_u.mutation.ResetChannelPriceSnapshot()
+	_u.mutation.SetChannelPriceSnapshot(v)
+	return _u
+}
+
+// SetNillableChannelPriceSnapshot sets the "channel_price_snapshot" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableChannelPriceSnapshot(v *float64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetChannelPriceSnapshot(*v)
+	}
+	return _u
+}
+
+// AddChannelPriceSnapshot adds value to the "channel_price_snapshot" field.
+func (_u *UsageLogUpdateOne) AddChannelPriceSnapshot(v float64) *UsageLogUpdateOne {
+	_u.mutation.AddChannelPriceSnapshot(v)
+	return _u
+}
+
+// ClearChannelPriceSnapshot clears the value of the "channel_price_snapshot" field.
+func (_u *UsageLogUpdateOne) ClearChannelPriceSnapshot() *UsageLogUpdateOne {
+	_u.mutation.ClearChannelPriceSnapshot()
+	return _u
+}
+
+// SetChannelPriceSource sets the "channel_price_source" field.
+func (_u *UsageLogUpdateOne) SetChannelPriceSource(v string) *UsageLogUpdateOne {
+	_u.mutation.SetChannelPriceSource(v)
+	return _u
+}
+
+// SetNillableChannelPriceSource sets the "channel_price_source" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableChannelPriceSource(v *string) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetChannelPriceSource(*v)
+	}
+	return _u
+}
+
+// ClearChannelPriceSource clears the value of the "channel_price_source" field.
+func (_u *UsageLogUpdateOne) ClearChannelPriceSource() *UsageLogUpdateOne {
+	_u.mutation.ClearChannelPriceSource()
+	return _u
+}
+
+// SetChannelPriceRefreshedAt sets the "channel_price_refreshed_at" field.
+func (_u *UsageLogUpdateOne) SetChannelPriceRefreshedAt(v time.Time) *UsageLogUpdateOne {
+	_u.mutation.SetChannelPriceRefreshedAt(v)
+	return _u
+}
+
+// SetNillableChannelPriceRefreshedAt sets the "channel_price_refreshed_at" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableChannelPriceRefreshedAt(v *time.Time) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetChannelPriceRefreshedAt(*v)
+	}
+	return _u
+}
+
+// ClearChannelPriceRefreshedAt clears the value of the "channel_price_refreshed_at" field.
+func (_u *UsageLogUpdateOne) ClearChannelPriceRefreshedAt() *UsageLogUpdateOne {
+	_u.mutation.ClearChannelPriceRefreshedAt()
+	return _u
+}
+
 // SetBillingType sets the "billing_type" field.
 func (_u *UsageLogUpdateOne) SetBillingType(v int8) *UsageLogUpdateOne {
 	_u.mutation.ResetBillingType()
@@ -2308,6 +2469,11 @@ func (_u *UsageLogUpdateOne) check() error {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ChannelPriceSource(); ok {
+		if err := usagelog.ChannelPriceSourceValidator(v); err != nil {
+			return &ValidationError{Name: "channel_price_source", err: fmt.Errorf(`ent: validator failed for field "UsageLog.channel_price_source": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.UserAgent(); ok {
 		if err := usagelog.UserAgentValidator(v); err != nil {
 			return &ValidationError{Name: "user_agent", err: fmt.Errorf(`ent: validator failed for field "UsageLog.user_agent": %w`, err)}
@@ -2510,6 +2676,27 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if _u.mutation.AccountRateMultiplierCleared() {
 		_spec.ClearField(usagelog.FieldAccountRateMultiplier, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.ChannelPriceSnapshot(); ok {
+		_spec.SetField(usagelog.FieldChannelPriceSnapshot, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedChannelPriceSnapshot(); ok {
+		_spec.AddField(usagelog.FieldChannelPriceSnapshot, field.TypeFloat64, value)
+	}
+	if _u.mutation.ChannelPriceSnapshotCleared() {
+		_spec.ClearField(usagelog.FieldChannelPriceSnapshot, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.ChannelPriceSource(); ok {
+		_spec.SetField(usagelog.FieldChannelPriceSource, field.TypeString, value)
+	}
+	if _u.mutation.ChannelPriceSourceCleared() {
+		_spec.ClearField(usagelog.FieldChannelPriceSource, field.TypeString)
+	}
+	if value, ok := _u.mutation.ChannelPriceRefreshedAt(); ok {
+		_spec.SetField(usagelog.FieldChannelPriceRefreshedAt, field.TypeTime, value)
+	}
+	if _u.mutation.ChannelPriceRefreshedAtCleared() {
+		_spec.ClearField(usagelog.FieldChannelPriceRefreshedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.BillingType(); ok {
 		_spec.SetField(usagelog.FieldBillingType, field.TypeInt8, value)

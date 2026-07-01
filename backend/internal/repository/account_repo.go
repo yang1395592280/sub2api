@@ -736,6 +736,27 @@ func (r *accountRepository) ListOAuthRefreshCandidates(ctx context.Context) ([]s
 	return out, nil
 }
 
+func (r *accountRepository) ListUpstreamBalanceRefreshCandidates(ctx context.Context, limit int) ([]service.Account, error) {
+	query := r.client.Account.Query().
+		Where(
+			dbaccount.StatusEQ(service.StatusActive),
+			dbaccount.TypeEQ(service.AccountTypeAPIKey),
+			dbaccount.PlatformIn(service.PlatformOpenAI, service.PlatformAnthropic),
+			dbpredicate.Account(func(s *entsql.Selector) {
+				s.Where(sqljson.HasKey(dbaccount.FieldCredentials, sqljson.Path("api_key")))
+			}),
+		).
+		Order(dbent.Asc(dbaccount.FieldPriority), dbent.Asc(dbaccount.FieldID))
+	if limit > 0 {
+		query.Limit(limit)
+	}
+	accounts, err := query.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return r.accountsToService(ctx, accounts)
+}
+
 func (r *accountRepository) ListByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
 	accounts, err := r.client.Account.Query().
 		Where(
