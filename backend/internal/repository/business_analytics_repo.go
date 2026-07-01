@@ -311,7 +311,7 @@ func buildBusinessGroupsQuery(current, previous service.BusinessAnalyticsFilter)
 			GROUP BY 1
 		) current_usage`
 	}
-	previousWhere, prevArgs := buildBusinessDailyWhereFrom(previous, "bucket_date", len(args)+1)
+	previousWhere, prevArgs := buildBusinessDailyWhereFrom(previous, "p.bucket_date", len(args)+1)
 	args = append(args, prevArgs...)
 	if !includesToday(current) {
 		currentDailyWhere, _ := buildBusinessDailyWhere(current, "b.bucket_date")
@@ -335,7 +335,7 @@ WITH current_usage AS (
 	GROUP BY COALESCE(ul.group_id, 0)
 ), previous_period AS (
 	SELECT group_id, SUM(revenue) previous_revenue, SUM(gross_profit) previous_gross_profit
-	FROM business_usage_daily ` + previousWhere + ` GROUP BY group_id
+	FROM business_usage_daily p ` + previousWhere + ` GROUP BY group_id
 )
 SELECT
 	cp.group_id,
@@ -474,17 +474,21 @@ func buildBusinessDailyWhere(filter service.BusinessAnalyticsFilter, dateColumn 
 func buildBusinessDailyWhereFrom(filter service.BusinessAnalyticsFilter, dateColumn string, startIndex int) (string, []any) {
 	conditions := []string{fmt.Sprintf("%s >= $%d::date", dateColumn, startIndex), fmt.Sprintf("%s < $%d::date", dateColumn, startIndex+1)}
 	args := []any{filter.StartDate, filter.EndDate}
+	columnPrefix := ""
+	if dot := strings.LastIndex(dateColumn, "."); dot >= 0 {
+		columnPrefix = dateColumn[:dot+1]
+	}
 	if filter.GroupID > 0 {
 		args = append(args, filter.GroupID)
-		conditions = append(conditions, fmt.Sprintf("group_id = $%d", startIndex+len(args)-1))
+		conditions = append(conditions, fmt.Sprintf("%sgroup_id = $%d", columnPrefix, startIndex+len(args)-1))
 	}
 	if filter.AccountID > 0 {
 		args = append(args, filter.AccountID)
-		conditions = append(conditions, fmt.Sprintf("account_id = $%d", startIndex+len(args)-1))
+		conditions = append(conditions, fmt.Sprintf("%saccount_id = $%d", columnPrefix, startIndex+len(args)-1))
 	}
 	if filter.Platform != "" {
 		args = append(args, filter.Platform)
-		conditions = append(conditions, fmt.Sprintf("platform = $%d", startIndex+len(args)-1))
+		conditions = append(conditions, fmt.Sprintf("%splatform = $%d", columnPrefix, startIndex+len(args)-1))
 	}
 	return "WHERE " + strings.Join(conditions, " AND "), args
 }

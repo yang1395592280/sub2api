@@ -58,10 +58,18 @@ func TestBusinessAnalyticsRepository_GetOverviewHistoricalCountsDistinctUsersAnd
 	mock.ExpectQuery(containsAllRegexp(
 		"WITH usage_totals AS",
 		"FROM business_usage_daily b",
+		"b.bucket_date < $2::date",
+		"b.group_id = $3",
+		"b.account_id = $4",
+		"b.platform = $5",
 		"active_users AS",
 		"COUNT(DISTINCT bu.user_id)",
 		"FROM business_usage_daily_users bu",
 		"JOIN business_usage_daily b ON b.bucket_date = bu.bucket_date AND b.group_id = bu.group_id AND b.account_id = bu.account_id",
+		"b.bucket_date < $2::date",
+		"b.group_id = $3",
+		"b.account_id = $4",
+		"b.platform = $5",
 		"active_api_keys AS",
 		"COUNT(DISTINCT ul.api_key_id)",
 		"FROM usage_logs ul",
@@ -123,9 +131,15 @@ func TestBusinessAnalyticsRepository_GetGroupsHistoricalCountsDistinctUsersAcros
 	mock.ExpectQuery(containsAllRegexp(
 		"WITH current_usage AS",
 		"SUM(requests) requests",
+		"b.bucket_date < $2::date",
+		"b.account_id = $3",
+		"b.platform = $4",
 		"active_users AS",
 		"SELECT bu.group_id, COUNT(DISTINCT bu.user_id) active_users",
 		"JOIN business_usage_daily b ON b.bucket_date = bu.bucket_date AND b.group_id = bu.group_id AND b.account_id = bu.account_id",
+		"b.bucket_date < $2::date",
+		"b.account_id = $3",
+		"b.platform = $4",
 		"active_api_keys AS",
 		"SELECT COALESCE(ul.group_id, 0) AS group_id, COUNT(DISTINCT ul.api_key_id) active_api_keys",
 		"COALESCE("+usageLogEffectivePlatformExpr+", '') = $4",
@@ -141,6 +155,86 @@ func TestBusinessAnalyticsRepository_GetGroupsHistoricalCountsDistinctUsersAcros
 	require.Equal(t, int64(3), got[0].ActiveUsers)
 	require.Equal(t, int64(2), got[0].ActiveAPIKeys)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBusinessAnalyticsRepository_GetChannelsHistoricalQualifiesDailyFiltersInActiveUserCTE(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	repo := newBusinessAnalyticsRepositoryWithSQL(db)
+	filter := service.BusinessAnalyticsFilter{
+		StartDate: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 6, 4, 0, 0, 0, 0, time.UTC),
+		GroupID:   7,
+		AccountID: 11,
+		Platform:  "openai",
+	}
+
+	mock.ExpectQuery(containsAllRegexp(
+		"WITH account_usage AS",
+		"FROM business_usage_daily b",
+		"b.bucket_date < $2::date",
+		"b.group_id = $3",
+		"b.account_id = $4",
+		"b.platform = $5",
+		"active_users AS",
+		"SELECT bu.account_id, COUNT(DISTINCT bu.user_id) active_users",
+		"JOIN business_usage_daily b ON b.bucket_date = bu.bucket_date AND b.group_id = bu.group_id AND b.account_id = bu.account_id",
+		"b.bucket_date < $2::date",
+		"b.group_id = $3",
+		"b.account_id = $4",
+		"b.platform = $5",
+		"active_api_keys AS",
+		"COALESCE("+usageLogEffectivePlatformExpr+", '') = $5",
+	)).
+		WithArgs(filter.StartDate, filter.EndDate, filter.GroupID, filter.AccountID, filter.Platform).
+		WillReturnRows(sqlmock.NewRows([]string{"account_id", "account_name", "channel_id", "platform", "status", "channel_price", "balance_status", "requests", "active_users", "active_api_keys", "total_tokens", "revenue", "channel_cost", "gross_profit", "missing"}).
+			AddRow(11, "account", 3, "openai", "normal", 1.0, "", 10, 3, 2, 99, 10.0, 6.0, 4.0, 0))
+
+	got, err := repo.GetChannels(context.Background(), filter)
+
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, int64(3), got[0].ActiveUsers)
+	require.Equal(t, int64(2), got[0].ActiveAPIKeys)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBusinessAnalyticsRepository_HistoricalQueriesDoNotUseBareDailyFilterColumns(t *testing.T) {
+	filter := service.BusinessAnalyticsFilter{
+		StartDate: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 6, 4, 0, 0, 0, 0, time.UTC),
+		GroupID:   7,
+		AccountID: 11,
+		Platform:  "openai",
+	}
+	previous := service.BusinessAnalyticsFilter{
+		StartDate: filter.StartDate.AddDate(0, 0, -3),
+		EndDate:   filter.StartDate,
+		GroupID:   filter.GroupID,
+		AccountID: filter.AccountID,
+		Platform:  filter.Platform,
+	}
+
+	overviewSQL, _ := buildBusinessAggregateQuery(filter, "", false)
+	groupsSQL, _ := buildBusinessGroupsQuery(filter, previous)
+	channelsSQL, _ := buildBusinessChannelsQuery(filter)
+
+	for name, query := range map[string]string{
+		"overview": overviewSQL,
+		"groups":   groupsSQL,
+		"channels": channelsSQL,
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.NotContains(t, query, " group_id =")
+			require.NotContains(t, query, " account_id =")
+			require.NotContains(t, query, " platform =")
+			require.Contains(t, query, "b.group_id =")
+			require.Contains(t, query, "b.account_id =")
+			require.Contains(t, query, "b.platform =")
+		})
+	}
 }
 
 func TestBusinessAnalyticsRepository_GetRecordsUsesHistoricalCostSnapshot(t *testing.T) {
