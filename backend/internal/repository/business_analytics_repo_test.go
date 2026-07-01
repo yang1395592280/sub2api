@@ -179,6 +179,17 @@ func TestBusinessAnalyticsRepository_GetTrendIncludingTodayWeeklyUsesWeeklyBucke
 	require.NotContains(t, query, "GROUP BY ul.created_at::date")
 }
 
+func TestBusinessAnalyticsRepository_GetOverviewIncludingTodayUsesChannelPriceSnapshotCost(t *testing.T) {
+	todayStart := time.Now().UTC().Truncate(24 * time.Hour)
+	query, _ := buildBusinessAggregateQuery(service.BusinessAnalyticsFilter{
+		StartDate: todayStart,
+		EndDate:   todayStart.AddDate(0, 0, 1),
+	}, "", false)
+
+	require.Contains(t, query, "COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.channel_price_snapshot, COALESCE(ul.account_rate_multiplier, 1))), 0)")
+	require.NotContains(t, query, "COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0)")
+}
+
 func TestBusinessAnalyticsRepository_GetOverviewEndDateAtTodayStartReadsAggregateTables(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -289,6 +300,8 @@ func TestBusinessAnalyticsRepository_GetGroupsIncludingTodayAliasesPreviousPerio
 	mock.ExpectQuery(containsAllRegexp(
 		"WITH current_period AS",
 		"COALESCE(ul.group_id, 0) AS group_id",
+		"COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.channel_price_snapshot, COALESCE(ul.account_rate_multiplier, 1))), 0) AS channel_cost",
+		"COALESCE(SUM(ul.actual_cost), 0) - COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.channel_price_snapshot, COALESCE(ul.account_rate_multiplier, 1))), 0) AS gross_profit",
 		"SUM(ul.rate_multiplier * GREATEST(ul.actual_cost, 0.000000001)) FILTER (WHERE ul.rate_multiplier IS NOT NULL)",
 		"NULLIF(SUM(GREATEST(ul.actual_cost, 0.000000001)) FILTER (WHERE ul.rate_multiplier IS NOT NULL), 0) AS avg_group_rate_multiplier",
 		"FROM usage_logs ul",
@@ -409,7 +422,9 @@ func TestBusinessAnalyticsRepository_GetChannelsIncludingTodayUsesSnapshotCountW
 	require.Contains(t, query, "SUM(ul.channel_price_snapshot) FILTER (WHERE ul.channel_price_snapshot IS NOT NULL)")
 	require.Contains(t, query, "NULLIF(COUNT(*) FILTER (WHERE ul.channel_price_snapshot IS NOT NULL), 0)")
 	require.Contains(t, query, "COUNT(*) FILTER (WHERE ul.channel_price_snapshot IS NOT NULL)")
+	require.Contains(t, query, "COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.channel_price_snapshot, COALESCE(ul.account_rate_multiplier, 1))), 0)")
 	require.NotContains(t, query, "AVG(ul.channel_price_snapshot)")
+	require.NotContains(t, query, "COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0)")
 }
 
 func TestBusinessAnalyticsRepository_GetPriceChangeImpactReturnsExpandedMetrics(t *testing.T) {
@@ -528,8 +543,8 @@ func TestBusinessAnalyticsRepository_GetRecordsUsesHistoricalCostSnapshot(t *tes
 		WithArgs(filter.StartDate, filter.EndDate).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery(containsAllRegexp(
-		"COALESCE(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1), 0) AS channel_cost",
-		"COALESCE(ul.actual_cost, 0) - COALESCE(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1), 0) AS gross_profit",
+		"COALESCE(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.channel_price_snapshot, COALESCE(ul.account_rate_multiplier, 1)), 0) AS channel_cost",
+		"COALESCE(ul.actual_cost, 0) - COALESCE(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.channel_price_snapshot, COALESCE(ul.account_rate_multiplier, 1)), 0) AS gross_profit",
 		"ul.rate_multiplier",
 		"ul.channel_price_snapshot",
 		"ul.channel_price_snapshot IS NULL AS channel_price_snapshot_missing",

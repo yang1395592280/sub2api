@@ -14,6 +14,16 @@ type businessAnalyticsRepository struct {
 	sql sqlExecutor
 }
 
+const (
+	businessUsageBaseCostExpr              = "COALESCE(ul.account_stats_cost, ul.total_cost)"
+	businessUsageChannelPriceFactorExpr    = "COALESCE(ul.channel_price_snapshot, COALESCE(ul.account_rate_multiplier, 1))"
+	businessUsageChannelCostExpr           = businessUsageBaseCostExpr + " * " + businessUsageChannelPriceFactorExpr
+	businessUsageChannelCostSumExpr        = "COALESCE(SUM(" + businessUsageChannelCostExpr + "), 0)"
+	businessUsageChannelGrossProfitSumExpr = "COALESCE(SUM(ul.actual_cost), 0) - " + businessUsageChannelCostSumExpr
+	businessUsageRecordChannelCostExpr     = "COALESCE(" + businessUsageChannelCostExpr + ", 0)"
+	businessUsageRecordGrossProfitExpr     = "COALESCE(ul.actual_cost, 0) - " + businessUsageRecordChannelCostExpr
+)
+
 func NewBusinessAnalyticsRepository(sqlDB *sql.DB) service.BusinessAnalyticsRepository {
 	if sqlDB == nil {
 		return nil
@@ -255,8 +265,8 @@ SELECT
 	1::bigint AS requests,
 	COALESCE(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens + ul.cache_creation_5m_tokens + ul.cache_creation_1h_tokens, 0) AS total_tokens,
 	COALESCE(ul.actual_cost, 0) AS revenue,
-	COALESCE(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1), 0) AS channel_cost,
-	COALESCE(ul.actual_cost, 0) - COALESCE(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1), 0) AS gross_profit,
+	` + businessUsageRecordChannelCostExpr + ` AS channel_cost,
+	` + businessUsageRecordGrossProfitExpr + ` AS gross_profit,
 	ul.rate_multiplier,
 	ul.channel_price_snapshot,
 	ul.channel_price_snapshot IS NULL AS channel_price_snapshot_missing
@@ -413,8 +423,8 @@ func buildBusinessGroupsQuery(current, previous service.BusinessAnalyticsFilter)
 				COUNT(DISTINCT ul.api_key_id) AS active_api_keys,
 				COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens + ul.cache_creation_5m_tokens + ul.cache_creation_1h_tokens), 0) AS total_tokens,
 				COALESCE(SUM(ul.actual_cost), 0) AS revenue,
-				COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) AS channel_cost,
-				COALESCE(SUM(ul.actual_cost), 0) - COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) AS gross_profit,
+				` + businessUsageChannelCostSumExpr + ` AS channel_cost,
+				` + businessUsageChannelGrossProfitSumExpr + ` AS gross_profit,
 				SUM(ul.rate_multiplier * GREATEST(ul.actual_cost, 0.000000001)) FILTER (WHERE ul.rate_multiplier IS NOT NULL)
 					/ NULLIF(SUM(GREATEST(ul.actual_cost, 0.000000001)) FILTER (WHERE ul.rate_multiplier IS NOT NULL), 0) AS avg_group_rate_multiplier
 			FROM usage_logs ul
@@ -521,8 +531,8 @@ SELECT
 	COUNT(DISTINCT ul.api_key_id),
 	COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens + ul.cache_creation_5m_tokens + ul.cache_creation_1h_tokens), 0),
 	COALESCE(SUM(ul.actual_cost), 0),
-	COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0),
-	COALESCE(SUM(ul.actual_cost), 0) - COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0),
+	` + businessUsageChannelCostSumExpr + `,
+	` + businessUsageChannelGrossProfitSumExpr + `,
 	COUNT(*) FILTER (WHERE ul.channel_price_snapshot IS NULL)
 FROM usage_logs ul
 LEFT JOIN groups g ON g.id = ul.group_id
@@ -648,8 +658,8 @@ SELECT
 	COUNT(*),
 	COUNT(DISTINCT ul.user_id),
 	COALESCE(SUM(ul.actual_cost), 0),
-	COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0),
-	COALESCE(SUM(ul.actual_cost), 0) - COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0)
+	` + businessUsageChannelCostSumExpr + `,
+	` + businessUsageChannelGrossProfitSumExpr + `
 FROM usage_logs ul
 LEFT JOIN groups g ON g.id = ul.group_id
 LEFT JOIN accounts a ON a.id = ul.account_id
@@ -664,8 +674,8 @@ SELECT
 	COUNT(DISTINCT ul.api_key_id),
 	COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens + ul.cache_creation_5m_tokens + ul.cache_creation_1h_tokens), 0),
 	COALESCE(SUM(ul.actual_cost), 0),
-	COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0),
-	COALESCE(SUM(ul.actual_cost), 0) - COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0),
+	` + businessUsageChannelCostSumExpr + `,
+	` + businessUsageChannelGrossProfitSumExpr + `,
 	COUNT(*) FILTER (WHERE ul.channel_price_snapshot IS NULL)
 FROM usage_logs ul
 LEFT JOIN groups g ON g.id = ul.group_id

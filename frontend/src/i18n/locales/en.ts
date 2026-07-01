@@ -419,6 +419,7 @@ export default {
     openaiAutoScheduler: 'OpenAI Auto Scheduler',
     channelStatus: 'Channel Status',
     riskControl: 'Risk Control',
+    businessAnalytics: 'Business Analytics',
     userSpendingRanking: 'User Spending Ranking',
   },
 

@@ -419,6 +419,7 @@ export default {
     openaiAutoScheduler: 'OpenAI 自动调度',
     channelStatus: '渠道状态',
     riskControl: '风控中心',
+    businessAnalytics: '业务分析',
     userSpendingRanking: '用户消费榜',
   },
 

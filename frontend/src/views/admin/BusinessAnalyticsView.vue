@@ -609,7 +609,7 @@ const formatLocalDate = (date: Date): string =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 
 const defaultEnd = new Date()
-const defaultStart = new Date(defaultEnd.getTime() - 6 * 24 * 60 * 60 * 1000)
+const defaultStart = new Date(defaultEnd)
 
 const filters = reactive<BusinessAnalyticsFilter>({
   start_date: formatLocalDate(defaultStart),

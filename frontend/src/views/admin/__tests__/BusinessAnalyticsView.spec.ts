@@ -81,6 +81,13 @@ const overview = {
   ],
 }
 
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function mountView() {
   return mount(BusinessAnalyticsView, {
     global: {
@@ -236,10 +243,17 @@ describe('BusinessAnalyticsView', () => {
 
   it('loads overview by default', async () => {
     const wrapper = mountView()
+    const today = formatLocalDate(new Date())
 
     await flushPromises()
 
     expect(getOverview).toHaveBeenCalledTimes(1)
+    expect(getOverview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        start_date: today,
+        end_date: today,
+      })
+    )
     expect(wrapper.get('[data-test="business-analytics-page"]').exists()).toBe(true)
     expect(wrapper.get('[data-test="metric-revenue"]').text()).toContain('$120.00')
     expect(wrapper.text()).toContain('admin.businessAnalytics.tabs.overview')

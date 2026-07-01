@@ -105,8 +105,8 @@ const insertBusinessUsageDailyUsersSQL = `
 		ul.user_id,
 		COUNT(*) AS requests,
 		COALESCE(SUM(ul.actual_cost), 0) AS revenue,
-		COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) AS channel_cost,
-		COALESCE(SUM(ul.actual_cost), 0) - COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) AS gross_profit
+		` + businessUsageChannelCostSumExpr + ` AS channel_cost,
+		` + businessUsageChannelGrossProfitSumExpr + ` AS gross_profit
 	FROM usage_logs ul
 	WHERE ul.created_at >= $1 AND ul.created_at < $2
 	GROUP BY 1, 2, 3, 4
@@ -142,8 +142,8 @@ const insertBusinessUsageDailySQL = `
 		COUNT(DISTINCT ul.api_key_id) AS active_api_keys,
 		COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens + ul.cache_creation_5m_tokens + ul.cache_creation_1h_tokens), 0) AS total_tokens,
 		COALESCE(SUM(ul.actual_cost), 0) AS revenue,
-		COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) AS channel_cost,
-		COALESCE(SUM(ul.actual_cost), 0) - COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) AS gross_profit,
+		` + businessUsageChannelCostSumExpr + ` AS channel_cost,
+		` + businessUsageChannelGrossProfitSumExpr + ` AS gross_profit,
 		CASE WHEN COUNT(*) > 0 THEN SUM(ul.rate_multiplier * GREATEST(ul.actual_cost, 0.000000001)) / SUM(GREATEST(ul.actual_cost, 0.000000001)) END AS avg_group_rate_multiplier,
 		AVG(ul.channel_price_snapshot) FILTER (WHERE ul.channel_price_snapshot IS NOT NULL) AS avg_channel_price,
 		COUNT(*) FILTER (WHERE ul.channel_price_snapshot IS NULL) AS missing_channel_price_records,
@@ -185,8 +185,8 @@ const insertBusinessUsageWeeklySQL = `
 		COUNT(DISTINCT ul.api_key_id) AS active_api_keys,
 		COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens + ul.cache_creation_5m_tokens + ul.cache_creation_1h_tokens), 0) AS total_tokens,
 		COALESCE(SUM(ul.actual_cost), 0) AS revenue,
-		COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) AS channel_cost,
-		COALESCE(SUM(ul.actual_cost), 0) - COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) AS gross_profit,
+		` + businessUsageChannelCostSumExpr + ` AS channel_cost,
+		` + businessUsageChannelGrossProfitSumExpr + ` AS gross_profit,
 		CASE WHEN COUNT(*) > 0 THEN SUM(ul.rate_multiplier * GREATEST(ul.actual_cost, 0.000000001)) / SUM(GREATEST(ul.actual_cost, 0.000000001)) END AS avg_group_rate_multiplier,
 		AVG(ul.channel_price_snapshot) FILTER (WHERE ul.channel_price_snapshot IS NOT NULL) AS avg_channel_price,
 		COUNT(*) FILTER (WHERE ul.channel_price_snapshot IS NULL) AS missing_channel_price_records,
