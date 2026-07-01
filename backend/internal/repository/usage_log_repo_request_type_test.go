@@ -305,6 +305,7 @@ func TestPrepareUsageLogInsert_PersistsChannelPriceSnapshot(t *testing.T) {
 	})
 
 	require.Contains(t, usageLogSelectColumns, "channel_price_snapshot")
+	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
 	require.Equal(t, &price, prepared.args[49])
 	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[50])
 	require.Equal(t, sql.NullTime{Time: refreshedAt, Valid: true}, prepared.args[51])
@@ -912,6 +913,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			sql.NullFloat64{},
+			sql.NullFloat64{},
+			sql.NullString{},
+			sql.NullTime{},
 			now,
 		}})
 		require.NoError(t, err)
@@ -980,6 +984,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // billing_tier
 			sql.NullString{},  // billing_mode
 			sql.NullFloat64{}, // account_stats_cost
+			sql.NullFloat64{}, // channel_price_snapshot
+			sql.NullString{},  // channel_price_source
+			sql.NullTime{},    // channel_price_refreshed_at
 			now,
 		}})
 		require.NoError(t, err)
@@ -1032,6 +1039,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // billing_tier
 			sql.NullString{},  // billing_mode
 			sql.NullFloat64{}, // account_stats_cost
+			sql.NullFloat64{}, // channel_price_snapshot
+			sql.NullString{},  // channel_price_source
+			sql.NullTime{},    // channel_price_refreshed_at
 			now,
 		}})
 		require.NoError(t, err)
@@ -1084,6 +1094,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // billing_tier
 			sql.NullString{},  // billing_mode
 			sql.NullFloat64{}, // account_stats_cost
+			sql.NullFloat64{}, // channel_price_snapshot
+			sql.NullString{},  // channel_price_source
+			sql.NullTime{},    // channel_price_refreshed_at
 			now,
 		}})
 		require.NoError(t, err)
