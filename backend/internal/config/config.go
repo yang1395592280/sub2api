@@ -86,6 +86,7 @@ type Config struct {
 	Dashboard               DashboardCacheConfig          `mapstructure:"dashboard_cache"`
 	DashboardAgg            DashboardAggregationConfig    `mapstructure:"dashboard_aggregation"`
 	UsageCleanup            UsageCleanupConfig            `mapstructure:"usage_cleanup"`
+	ChannelPriceRefresh     ChannelPriceRefreshConfig     `mapstructure:"channel_price_refresh"`
 	Concurrency             ConcurrencyConfig             `mapstructure:"concurrency"`
 	TokenRefresh            TokenRefreshConfig            `mapstructure:"token_refresh"`
 	RunMode                 string                        `mapstructure:"run_mode" yaml:"run_mode"`
@@ -1358,6 +1359,13 @@ type UsageCleanupConfig struct {
 	TaskTimeoutSeconds int `mapstructure:"task_timeout_seconds"`
 }
 
+type ChannelPriceRefreshConfig struct {
+	Enabled         bool `mapstructure:"enabled" yaml:"enabled"`
+	IntervalSeconds int  `mapstructure:"interval_seconds" yaml:"interval_seconds"`
+	Concurrency     int  `mapstructure:"concurrency" yaml:"concurrency"`
+	TimeoutSeconds  int  `mapstructure:"timeout_seconds" yaml:"timeout_seconds"`
+}
+
 func NormalizeRunMode(value string) string {
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	switch normalized {
@@ -1824,6 +1832,12 @@ func setDefaults() {
 	viper.SetDefault("usage_cleanup.batch_size", 5000)
 	viper.SetDefault("usage_cleanup.worker_interval_seconds", 10)
 	viper.SetDefault("usage_cleanup.task_timeout_seconds", 1800)
+
+	// Channel price refresh
+	viper.SetDefault("channel_price_refresh.enabled", false)
+	viper.SetDefault("channel_price_refresh.interval_seconds", 600)
+	viper.SetDefault("channel_price_refresh.concurrency", 3)
+	viper.SetDefault("channel_price_refresh.timeout_seconds", 30)
 
 	// Idempotency
 	viper.SetDefault("idempotency.observe_only", true)

@@ -188,6 +188,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	accountTestService := service.NewAccountTestService(accountRepository, geminiTokenProvider, claudeTokenProvider, grokTokenProvider, antigravityGatewayService, openAIGatewayService, httpUpstream, configConfig, tlsFingerprintProfileService)
 	crsSyncService := service.NewCRSSyncService(accountRepository, proxyRepository, oAuthService, openAIOAuthService, geminiOAuthService, configConfig)
 	openAIUpstreamBalanceService := service.ProvideOpenAIUpstreamBalanceService(accountRepository)
+	service.ProvideChannelPriceRefreshJob(accountRepository, openAIUpstreamBalanceService, timingWheelService, configConfig)
 	accountHandler := admin.NewAccountHandler(adminService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, rateLimitService, accountUsageService, accountTestService, concurrencyService, crsSyncService, sessionLimitCache, rpmCache, compositeTokenCacheInvalidator, openAIUpstreamBalanceService)
 	adminAnnouncementHandler := admin.NewAnnouncementHandler(announcementService)
 	dataManagementService := service.NewDataManagementService()
