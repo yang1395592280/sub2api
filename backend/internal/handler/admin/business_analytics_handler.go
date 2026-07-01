@@ -62,7 +62,7 @@ func (h *BusinessAnalyticsHandler) GetGroupChannels(c *gin.Context) {
 	if !ok {
 		return
 	}
-	groupID, ok := parsePathID(c, "id", "Invalid group id")
+	groupID, ok := parsePathID(c, "id", "分组 ID 无效")
 	if !ok {
 		return
 	}
@@ -93,7 +93,7 @@ func (h *BusinessAnalyticsHandler) GetChannelGroups(c *gin.Context) {
 	if !ok {
 		return
 	}
-	accountID, ok := parsePathID(c, "id", "Invalid channel account id")
+	accountID, ok := parsePathID(c, "id", "渠道账号 ID 无效")
 	if !ok {
 		return
 	}
@@ -108,25 +108,25 @@ func (h *BusinessAnalyticsHandler) GetChannelGroups(c *gin.Context) {
 }
 
 func (h *BusinessAnalyticsHandler) GetPriceChangeImpact(c *gin.Context) {
-	groupID, ok := parseRequiredInt64Query(c, "group_id", "Invalid group_id")
+	groupID, ok := parseRequiredInt64Query(c, "group_id", "group_id 无效")
 	if !ok {
 		return
 	}
 	changeDateRaw := strings.TrimSpace(c.Query("change_date"))
 	if changeDateRaw == "" {
-		response.BadRequest(c, "change_date is required")
+		response.BadRequest(c, "change_date 为必填项")
 		return
 	}
 	changeDate, err := timezone.ParseInUserLocation("2006-01-02", changeDateRaw, c.Query("timezone"))
 	if err != nil {
-		response.BadRequest(c, "Invalid change_date format, use YYYY-MM-DD")
+		response.BadRequest(c, "change_date 格式无效，请使用 YYYY-MM-DD")
 		return
 	}
 	days := 7
 	if raw := strings.TrimSpace(c.Query("days")); raw != "" {
 		parsed, err := strconv.Atoi(raw)
 		if err != nil || parsed <= 0 || parsed > 90 {
-			response.BadRequest(c, "Invalid days")
+			response.BadRequest(c, "days 无效")
 			return
 		}
 		days = parsed
@@ -205,23 +205,23 @@ func parseBusinessAnalyticsFilter(c *gin.Context) (service.BusinessAnalyticsFilt
 	startRaw := strings.TrimSpace(c.Query("start_date"))
 	endRaw := strings.TrimSpace(c.Query("end_date"))
 	if startRaw == "" || endRaw == "" {
-		response.BadRequest(c, "start_date and end_date are required")
+		response.BadRequest(c, "start_date 和 end_date 为必填项")
 		return service.BusinessAnalyticsFilter{}, false
 	}
 	userTZ := c.Query("timezone")
 	start, err := timezone.ParseInUserLocation("2006-01-02", startRaw, userTZ)
 	if err != nil {
-		response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD")
+		response.BadRequest(c, "start_date 格式无效，请使用 YYYY-MM-DD")
 		return service.BusinessAnalyticsFilter{}, false
 	}
 	end, err := timezone.ParseInUserLocation("2006-01-02", endRaw, userTZ)
 	if err != nil {
-		response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD")
+		response.BadRequest(c, "end_date 格式无效，请使用 YYYY-MM-DD")
 		return service.BusinessAnalyticsFilter{}, false
 	}
 	end = end.AddDate(0, 0, 1)
 	if !end.After(start) {
-		response.BadRequest(c, "end_date must be greater than or equal to start_date")
+		response.BadRequest(c, "end_date 必须大于或等于 start_date")
 		return service.BusinessAnalyticsFilter{}, false
 	}
 	filter := service.BusinessAnalyticsFilter{
@@ -232,7 +232,7 @@ func parseBusinessAnalyticsFilter(c *gin.Context) (service.BusinessAnalyticsFilt
 	if raw := strings.TrimSpace(c.Query("group_id")); raw != "" {
 		id, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || id < 0 {
-			response.BadRequest(c, "Invalid group_id")
+			response.BadRequest(c, "group_id 无效")
 			return service.BusinessAnalyticsFilter{}, false
 		}
 		filter.GroupID = id
@@ -240,7 +240,7 @@ func parseBusinessAnalyticsFilter(c *gin.Context) (service.BusinessAnalyticsFilt
 	if raw := strings.TrimSpace(c.Query("account_id")); raw != "" {
 		id, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || id < 0 {
-			response.BadRequest(c, "Invalid account_id")
+			response.BadRequest(c, "account_id 无效")
 			return service.BusinessAnalyticsFilter{}, false
 		}
 		filter.AccountID = id
@@ -251,7 +251,7 @@ func parseBusinessAnalyticsFilter(c *gin.Context) (service.BusinessAnalyticsFilt
 func parseRequiredInt64Query(c *gin.Context, key, invalidMessage string) (int64, bool) {
 	raw := strings.TrimSpace(c.Query(key))
 	if raw == "" {
-		response.BadRequest(c, key+" is required")
+		response.BadRequest(c, key+" 为必填项")
 		return 0, false
 	}
 	id, err := strconv.ParseInt(raw, 10, 64)

@@ -51,17 +51,24 @@ func (s *stubBusinessAnalyticsService) GetRecords(context.Context, service.Busin
 func TestBusinessAnalyticsHandler_OverviewRequiresValidDateRange(t *testing.T) {
 	router := businessAnalyticsTestRouter(&stubBusinessAnalyticsService{})
 
-	for _, target := range []string{
-		"/overview",
-		"/overview?start_date=bad&end_date=2026-06-02",
-		"/overview?start_date=2026-06-03&end_date=2026-06-02",
+	for _, tt := range []struct {
+		target  string
+		message string
+	}{
+		{"/overview", "start_date 和 end_date 为必填项"},
+		{"/overview?start_date=bad&end_date=2026-06-02", "start_date 格式无效，请使用 YYYY-MM-DD"},
+		{"/overview?start_date=2026-06-01&end_date=bad", "end_date 格式无效，请使用 YYYY-MM-DD"},
+		{"/overview?start_date=2026-06-03&end_date=2026-06-02", "end_date 必须大于或等于 start_date"},
+		{"/overview?start_date=2026-06-01&end_date=2026-06-02&group_id=abc", "group_id 无效"},
+		{"/overview?start_date=2026-06-01&end_date=2026-06-02&account_id=abc", "account_id 无效"},
 	} {
-		req := httptest.NewRequest(http.MethodGet, target, nil)
+		req := httptest.NewRequest(http.MethodGet, tt.target, nil)
 		rec := httptest.NewRecorder()
 
 		router.ServeHTTP(rec, req)
 
-		require.Equal(t, http.StatusBadRequest, rec.Code, target)
+		require.Equal(t, http.StatusBadRequest, rec.Code, tt.target)
+		require.Equal(t, tt.message, responseMessage(t, rec.Body.Bytes()), tt.target)
 	}
 }
 
@@ -121,17 +128,43 @@ func TestBusinessAnalyticsHandler_ChannelGroupsPathIDIsAccountID(t *testing.T) {
 func TestBusinessAnalyticsHandler_PriceChangeImpactRequiresGroupAndChangeDate(t *testing.T) {
 	router := businessAnalyticsTestRouter(&stubBusinessAnalyticsService{})
 
-	for _, target := range []string{
-		"/price-change-impact?change_date=2026-06-01",
-		"/price-change-impact?group_id=1",
-		"/price-change-impact?group_id=1&change_date=bad",
+	for _, tt := range []struct {
+		target  string
+		message string
+	}{
+		{"/price-change-impact?change_date=2026-06-01", "group_id 为必填项"},
+		{"/price-change-impact?group_id=bad&change_date=2026-06-01", "group_id 无效"},
+		{"/price-change-impact?group_id=1", "change_date 为必填项"},
+		{"/price-change-impact?group_id=1&change_date=bad", "change_date 格式无效，请使用 YYYY-MM-DD"},
+		{"/price-change-impact?group_id=1&change_date=2026-06-01&days=0", "days 无效"},
 	} {
-		req := httptest.NewRequest(http.MethodGet, target, nil)
+		req := httptest.NewRequest(http.MethodGet, tt.target, nil)
 		rec := httptest.NewRecorder()
 
 		router.ServeHTTP(rec, req)
 
-		require.Equal(t, http.StatusBadRequest, rec.Code, target)
+		require.Equal(t, http.StatusBadRequest, rec.Code, tt.target)
+		require.Equal(t, tt.message, responseMessage(t, rec.Body.Bytes()), tt.target)
+	}
+}
+
+func TestBusinessAnalyticsHandler_PathIDsReturnChineseBadRequestMessages(t *testing.T) {
+	router := businessAnalyticsTestRouter(&stubBusinessAnalyticsService{})
+
+	for _, tt := range []struct {
+		target  string
+		message string
+	}{
+		{"/groups/bad/channels?start_date=2026-06-01&end_date=2026-06-02", "分组 ID 无效"},
+		{"/channels/bad/groups?start_date=2026-06-01&end_date=2026-06-02", "渠道账号 ID 无效"},
+	} {
+		req := httptest.NewRequest(http.MethodGet, tt.target, nil)
+		rec := httptest.NewRecorder()
+
+		router.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusBadRequest, rec.Code, tt.target)
+		require.Equal(t, tt.message, responseMessage(t, rec.Body.Bytes()), tt.target)
 	}
 }
 
@@ -167,6 +200,7 @@ func businessAnalyticsTestRouter(svc businessAnalyticsService) *gin.Engine {
 	h := NewBusinessAnalyticsHandler(svc)
 	router := gin.New()
 	router.GET("/overview", h.GetOverview)
+	router.GET("/groups/:id/channels", h.GetGroupChannels)
 	router.GET("/channels/:id/groups", h.GetChannelGroups)
 	router.GET("/price-change-impact", h.GetPriceChangeImpact)
 	return router
@@ -174,4 +208,13 @@ func businessAnalyticsTestRouter(svc businessAnalyticsService) *gin.Engine {
 
 func float64Ptr(v float64) *float64 {
 	return &v
+}
+
+func responseMessage(t *testing.T, body []byte) string {
+	t.Helper()
+	var envelope struct {
+		Message string `json:"message"`
+	}
+	require.NoError(t, json.Unmarshal(body, &envelope))
+	return envelope.Message
 }
