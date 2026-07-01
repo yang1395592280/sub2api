@@ -4,10 +4,11 @@ import { flushPromises, mount } from '@vue/test-utils'
 import type { DashboardStats } from '@/types'
 import DashboardView from '../DashboardView.vue'
 
-const { getSnapshotV2, getUserUsageTrend, getUserSpendingRanking } = vi.hoisted(() => ({
+const { getSnapshotV2, getUserUsageTrend, getUserSpendingRanking, listOpenAIAutoCheapestUsers } = vi.hoisted(() => ({
   getSnapshotV2: vi.fn(),
   getUserUsageTrend: vi.fn(),
-  getUserSpendingRanking: vi.fn()
+  getUserSpendingRanking: vi.fn(),
+  listOpenAIAutoCheapestUsers: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -15,7 +16,8 @@ vi.mock('@/api/admin', () => ({
     dashboard: {
       getSnapshotV2,
       getUserUsageTrend,
-      getUserSpendingRanking
+      getUserSpendingRanking,
+      listOpenAIAutoCheapestUsers
     }
   }
 }))
@@ -94,6 +96,7 @@ describe('admin DashboardView', () => {
     getSnapshotV2.mockReset()
     getUserUsageTrend.mockReset()
     getUserSpendingRanking.mockReset()
+    listOpenAIAutoCheapestUsers.mockReset()
 
     getSnapshotV2.mockResolvedValue({
       stats: createDashboardStats(),
@@ -114,6 +117,13 @@ describe('admin DashboardView', () => {
       start_date: '',
       end_date: ''
     })
+    listOpenAIAutoCheapestUsers.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 10,
+      pages: 0
+    })
   })
 
   it('uses today as default dashboard range', async () => {
@@ -128,7 +138,9 @@ describe('admin DashboardView', () => {
           TopUsersLeaderboard: true,
           ModelDistributionChart: true,
           TokenUsageTrend: true,
-          Line: true
+          Line: true,
+          BaseDialog: { template: '<div v-if="show"><h2>{{ title }}</h2><slot /><slot name="footer" /></div>', props: ['show', 'title'] },
+          Pagination: true
         }
       }
     })
@@ -169,7 +181,9 @@ describe('admin DashboardView', () => {
           TopUsersLeaderboard: true,
           ModelDistributionChart: true,
           TokenUsageTrend: true,
-          Line: true
+          Line: true,
+          BaseDialog: { template: '<div v-if="show"><h2>{{ title }}</h2><slot /><slot name="footer" /></div>', props: ['show', 'title'] },
+          Pagination: true
         }
       }
     })
@@ -177,5 +191,64 @@ describe('admin DashboardView', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('admin.dashboard.openaiAutoCheapestUsers:12')
+  })
+
+  it('opens paginated OpenAI auto cheapest users dialog from API key card', async () => {
+    getSnapshotV2.mockResolvedValue({
+      stats: {
+        ...createDashboardStats(),
+        openai_auto_cheapest_users: 2
+      },
+      trend: [],
+      models: []
+    })
+    listOpenAIAutoCheapestUsers.mockResolvedValue({
+      items: [
+        {
+          id: 11,
+          email: 'auto@example.com',
+          username: 'auto-user',
+          role: 'user',
+          balance: 0,
+          concurrency: 0,
+          status: 'active',
+          allowed_groups: [],
+          created_at: '2026-06-30T00:00:00Z',
+          updated_at: '2026-06-30T00:00:00Z',
+          notes: '',
+          last_used_at: '2026-06-30T01:00:00Z'
+        }
+      ],
+      total: 1,
+      page: 1,
+      page_size: 10,
+      pages: 1
+    })
+
+    const wrapper = mount(DashboardView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          LoadingSpinner: true,
+          Icon: true,
+          DateRangePicker: true,
+          Select: true,
+          TopUsersLeaderboard: true,
+          ModelDistributionChart: true,
+          TokenUsageTrend: true,
+          Line: true,
+          BaseDialog: { template: '<div v-if="show"><h2>{{ title }}</h2><slot /><slot name="footer" /></div>', props: ['show', 'title'] },
+          Pagination: true
+        }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.get('button[title="admin.dashboard.openaiAutoCheapestUsers:2"]').trigger('click')
+    await flushPromises()
+
+    expect(listOpenAIAutoCheapestUsers).toHaveBeenCalledWith({ page: 1, page_size: 10 })
+    expect(wrapper.text()).toContain('admin.dashboard.openaiAutoCheapestUsersDialogTitle')
+    expect(wrapper.text()).toContain('auto@example.com')
   })
 })

@@ -25,15 +25,17 @@
                 <p class="text-xs text-green-600 dark:text-green-400">
                   {{ stats.active_api_keys }} {{ t('common.active') }}
                 </p>
-                <div
-                  class="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-emerald-200/80 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 shadow-sm shadow-emerald-900/5 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300 dark:shadow-none"
+                <button
+                  type="button"
+                  class="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-emerald-200/80 bg-emerald-50 px-2 py-1 text-left text-xs font-medium text-emerald-700 shadow-sm shadow-emerald-900/5 transition-colors hover:border-emerald-300 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-400/40 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300 dark:shadow-none dark:hover:border-emerald-700 dark:hover:bg-emerald-900/50"
                   :title="t('admin.dashboard.openaiAutoCheapestUsers', { count: stats.openai_auto_cheapest_users || 0 })"
+                  @click="openAutoCheapestUsersDialog"
                 >
                   <Icon name="sparkles" size="xs" class="shrink-0" :stroke-width="2" />
                   <span class="min-w-0 whitespace-normal leading-tight">
                     {{ t('admin.dashboard.openaiAutoCheapestUsers', { count: stats.openai_auto_cheapest_users || 0 }) }}
                   </span>
-                </div>
+                </button>
               </div>
             </div>
           </div>
@@ -310,6 +312,58 @@
       </template>
     </div>
   </AppLayout>
+
+  <BaseDialog
+    :show="showAutoCheapestUsersDialog"
+    :title="t('admin.dashboard.openaiAutoCheapestUsersDialogTitle')"
+    width="wide"
+    @close="closeAutoCheapestUsersDialog"
+  >
+    <div class="space-y-4">
+      <div class="rounded-lg border border-emerald-200/70 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200">
+        {{ t('admin.dashboard.openaiAutoCheapestUsersDialogHint', { count: autoCheapestUsersTotal }) }}
+      </div>
+
+      <div v-if="autoCheapestUsersLoading" class="flex justify-center py-10">
+        <LoadingSpinner size="md" />
+      </div>
+      <div
+        v-else-if="autoCheapestUsers.length === 0"
+        class="rounded-lg border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400"
+      >
+        {{ t('admin.dashboard.openaiAutoCheapestUsersEmpty') }}
+      </div>
+      <div v-else class="overflow-hidden rounded-lg border border-gray-200 dark:border-dark-700">
+        <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-dark-700">
+          <thead class="bg-gray-50 dark:bg-dark-800">
+            <tr>
+              <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">{{ t('admin.users.email') }}</th>
+              <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">{{ t('admin.users.username') }}</th>
+              <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">{{ t('common.status') }}</th>
+              <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">{{ t('admin.users.lastUsedAt') }}</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 bg-white dark:divide-dark-700 dark:bg-dark-900">
+            <tr v-for="user in autoCheapestUsers" :key="user.id">
+              <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ user.email }}</td>
+              <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ user.username || '-' }}</td>
+              <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ user.status }}</td>
+              <td class="px-4 py-3 text-gray-500 dark:text-gray-400">{{ formatDateTime(user.last_used_at) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <Pagination
+        v-if="autoCheapestUsersTotal > autoCheapestUsersPageSize"
+        :page="autoCheapestUsersPage"
+        :total="autoCheapestUsersTotal"
+        :page-size="autoCheapestUsersPageSize"
+        @update:page="loadAutoCheapestUsers"
+        @update:pageSize="handleAutoCheapestUsersPageSizeChange"
+      />
+    </div>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
@@ -325,10 +379,13 @@ import type {
   TrendDataPoint,
   ModelStat,
   UserUsageTrendPoint,
-  UserSpendingRankingItem
+  UserSpendingRankingItem,
+  AdminUser
 } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
+import Pagination from '@/components/common/Pagination.vue'
 import Icon from '@/components/icons/Icon.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Select from '@/components/common/Select.vue'
@@ -367,6 +424,12 @@ const chartsLoading = ref(false)
 const userTrendLoading = ref(false)
 const rankingLoading = ref(false)
 const rankingError = ref(false)
+const showAutoCheapestUsersDialog = ref(false)
+const autoCheapestUsers = ref<AdminUser[]>([])
+const autoCheapestUsersLoading = ref(false)
+const autoCheapestUsersPage = ref(1)
+const autoCheapestUsersPageSize = ref(10)
+const autoCheapestUsersTotal = ref(0)
 
 // Chart data
 const trendData = ref<TrendDataPoint[]>([])
@@ -579,6 +642,45 @@ const formatDuration = (ms: number): string => {
     return `${(ms / 1000).toFixed(2)}s`
   }
   return `${Math.round(ms)}ms`
+}
+
+const formatDateTime = (value?: string | null): string => {
+  if (!value) return '-'
+  return new Date(value).toLocaleString()
+}
+
+const loadAutoCheapestUsers = async (page = autoCheapestUsersPage.value) => {
+  autoCheapestUsersLoading.value = true
+  try {
+    const response = await adminAPI.dashboard.listOpenAIAutoCheapestUsers({
+      page,
+      page_size: autoCheapestUsersPageSize.value
+    })
+    autoCheapestUsers.value = response.items || []
+    autoCheapestUsersTotal.value = response.total || 0
+    autoCheapestUsersPage.value = response.page || page
+  } catch (error) {
+    console.error('Error loading OpenAI auto cheapest users:', error)
+    appStore.showError(t('admin.dashboard.failedToLoad'))
+    autoCheapestUsers.value = []
+    autoCheapestUsersTotal.value = 0
+  } finally {
+    autoCheapestUsersLoading.value = false
+  }
+}
+
+const openAutoCheapestUsersDialog = () => {
+  showAutoCheapestUsersDialog.value = true
+  void loadAutoCheapestUsers(1)
+}
+
+const closeAutoCheapestUsersDialog = () => {
+  showAutoCheapestUsersDialog.value = false
+}
+
+const handleAutoCheapestUsersPageSizeChange = (pageSize: number) => {
+  autoCheapestUsersPageSize.value = pageSize
+  void loadAutoCheapestUsers(1)
 }
 
 const goToUserUsage = (item: { user_id: number }) => {

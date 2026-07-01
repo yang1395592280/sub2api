@@ -63,7 +63,13 @@ vi.mock('@/composables/useClipboard', () => ({
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
-  return { ...actual, useI18n: () => ({ t: (key: string) => key }) }
+  return {
+    ...actual,
+    useI18n: () => ({
+      t: (key: string, params?: Record<string, unknown>) =>
+        params?.name !== undefined ? `${key}:${params.name}` : key,
+    }),
+  }
 })
 
 const Passthrough = defineComponent({
@@ -257,5 +263,129 @@ describe('KeysView OpenAI auto cheapest group', () => {
     })
 
     wrapper.unmount()
+  })
+
+  it('shows last effective group name from last_effective_group_id', async () => {
+    listKeys.mockResolvedValue({
+      items: [
+        {
+          id: 8,
+          key: 'sk-auto',
+          name: 'auto-key',
+          group_id: null,
+          group_select_mode: 'openai_auto_cheapest',
+          group: null,
+          status: 'active',
+          ip_whitelist: [],
+          ip_blacklist: [],
+          quota: 0,
+          quota_used: 0,
+          rate_limit_5h: 0,
+          rate_limit_1d: 0,
+          rate_limit_7d: 0,
+          usage_5h: 0,
+          usage_1d: 0,
+          usage_7d: 0,
+          reset_5h_at: null,
+          reset_1d_at: null,
+          reset_7d_at: null,
+          created_at: '2026-06-30T00:00:00Z',
+          updated_at: '2026-06-30T00:00:00Z',
+          last_used_at: null,
+          expires_at: null,
+          last_effective_group_id: 2,
+          last_effective_group_at: '2026-06-30T01:00:00Z',
+          last_effective_group: null,
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 10,
+      pages: 1,
+    })
+
+    const wrapper = mount(KeysView, {
+      global: {
+        stubs: {
+          AppLayout: Passthrough,
+          TablePageLayout: TablePageLayoutStub,
+          DataTable: DataTableStub,
+          Pagination: true,
+          BaseDialog: BaseDialogStub,
+          ConfirmDialog: true,
+          EmptyState: true,
+          SearchInput: true,
+          EndpointPopover: true,
+          UseKeyModal: true,
+          Icon: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('keys.openaiAutoCheapest.currentEffective')
+    expect(wrapper.text()).toContain('OpenAI Cheap')
+    expect(wrapper.text()).not.toContain('keys.openaiAutoCheapest.waitingFirstUse')
+  })
+
+  it('shows waiting text when auto cheapest key has no last effective group id', async () => {
+    listKeys.mockResolvedValue({
+      items: [
+        {
+          id: 9,
+          key: 'sk-auto-waiting',
+          name: 'auto-key-waiting',
+          group_id: null,
+          group_select_mode: 'openai_auto_cheapest',
+          group: null,
+          status: 'active',
+          ip_whitelist: [],
+          ip_blacklist: [],
+          quota: 0,
+          quota_used: 0,
+          rate_limit_5h: 0,
+          rate_limit_1d: 0,
+          rate_limit_7d: 0,
+          usage_5h: 0,
+          usage_1d: 0,
+          usage_7d: 0,
+          reset_5h_at: null,
+          reset_1d_at: null,
+          reset_7d_at: null,
+          created_at: '2026-06-30T00:00:00Z',
+          updated_at: '2026-06-30T00:00:00Z',
+          last_used_at: null,
+          expires_at: null,
+          last_effective_group_id: null,
+          last_effective_group_at: null,
+          last_effective_group: null,
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 10,
+      pages: 1,
+    })
+
+    const wrapper = mount(KeysView, {
+      global: {
+        stubs: {
+          AppLayout: Passthrough,
+          TablePageLayout: TablePageLayoutStub,
+          DataTable: DataTableStub,
+          Pagination: true,
+          BaseDialog: BaseDialogStub,
+          ConfirmDialog: true,
+          EmptyState: true,
+          SearchInput: true,
+          EndpointPopover: true,
+          UseKeyModal: true,
+          Icon: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('keys.openaiAutoCheapest.waitingFirstUse')
   })
 })

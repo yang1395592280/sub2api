@@ -146,8 +146,8 @@
                   />
                   <span class="text-xs text-gray-500 dark:text-gray-400">
                     {{
-                      row.last_effective_group
-                        ? t('keys.openaiAutoCheapest.currentEffective', { name: row.last_effective_group.name })
+                      getLastEffectiveGroupName(row)
+                        ? t('keys.openaiAutoCheapest.currentEffective', { name: getLastEffectiveGroupName(row) })
                         : t('keys.openaiAutoCheapest.waitingFirstUse')
                     }}
                   </span>
@@ -1372,6 +1372,17 @@ const groupOptions = computed(() =>
     openAIAutoCheapestDescription: t('keys.openaiAutoCheapest.description')
   })
 )
+
+const getLastEffectiveGroupName = (key: ApiKey): string => {
+  if (key.last_effective_group?.name) {
+    return key.last_effective_group.name
+  }
+  const groupID = key.last_effective_group_id
+  if (groupID == null) {
+    return ''
+  }
+  return groups.value.find((group) => group.id === groupID)?.name || ''
+}
 
 const selectedGroupOptionValue = computed<KeyGroupOptionValue | null>({
   get() {

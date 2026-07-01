@@ -13,6 +13,8 @@ import type {
   UserUsageTrendPoint,
   UserSpendingRankingResponse,
   UserBreakdownItem,
+  AdminUser,
+  PaginatedResponse,
   UsageRequestType
 } from '@/types'
 
@@ -270,6 +272,16 @@ export async function getUserSpendingRanking(
   return data
 }
 
+export async function listOpenAIAutoCheapestUsers(params?: {
+  page?: number
+  page_size?: number
+}): Promise<PaginatedResponse<AdminUser>> {
+  const { data } = await apiClient.get<PaginatedResponse<AdminUser>>('/admin/users/openai-auto-cheapest', {
+    params
+  })
+  return data
+}
+
 export interface PlatformUsage {
   platform: string
   today_actual_cost: number
@@ -336,6 +348,7 @@ export const dashboardAPI = {
   getApiKeyUsageTrend,
   getUserUsageTrend,
   getUserSpendingRanking,
+  listOpenAIAutoCheapestUsers,
   getBatchUsersUsage,
   getBatchApiKeysUsage
 }

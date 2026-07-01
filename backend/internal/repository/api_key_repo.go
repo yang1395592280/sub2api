@@ -488,6 +488,90 @@ func (r *apiKeyRepository) ListByGroupID(ctx context.Context, groupID int64, par
 	return outKeys, paginationResultFromTotal(int64(total), params), nil
 }
 
+func (r *apiKeyRepository) ListUsersByGroupSelectMode(ctx context.Context, mode string, params pagination.PaginationParams) ([]service.User, *pagination.PaginationResult, error) {
+	normalizedMode := strings.TrimSpace(mode)
+	if normalizedMode == "" {
+		return []service.User{}, paginationResultFromTotal(0, params), nil
+	}
+
+	countRows, err := r.sql.QueryContext(ctx, `
+		SELECT COUNT(DISTINCT u.id)
+		FROM users u
+		INNER JOIN api_keys ak ON ak.user_id = u.id
+		WHERE u.deleted_at IS NULL
+		  AND ak.deleted_at IS NULL
+		  AND ak.group_select_mode = $1
+	`, normalizedMode)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer countRows.Close()
+	var total int64
+	if countRows.Next() {
+		if err := countRows.Scan(&total); err != nil {
+			return nil, nil, err
+		}
+	}
+	if err := countRows.Err(); err != nil {
+		return nil, nil, err
+	}
+	if total == 0 {
+		return []service.User{}, paginationResultFromTotal(0, params), nil
+	}
+
+	rows, err := r.sql.QueryContext(ctx, `
+		SELECT
+			u.id,
+			u.email,
+			u.username,
+			u.notes,
+			u.role,
+			u.balance,
+			u.concurrency,
+			u.status,
+			u.created_at,
+			u.updated_at,
+			MAX(ak.last_used_at) AS last_used_at
+		FROM users u
+		INNER JOIN api_keys ak ON ak.user_id = u.id
+		WHERE u.deleted_at IS NULL
+		  AND ak.deleted_at IS NULL
+		  AND ak.group_select_mode = $1
+		GROUP BY u.id, u.email, u.username, u.notes, u.role, u.balance, u.concurrency, u.status, u.created_at, u.updated_at
+		ORDER BY u.id DESC
+		LIMIT $2 OFFSET $3
+	`, normalizedMode, params.Limit(), params.Offset())
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	out := make([]service.User, 0, params.Limit())
+	for rows.Next() {
+		var u service.User
+		if err := rows.Scan(
+			&u.ID,
+			&u.Email,
+			&u.Username,
+			&u.Notes,
+			&u.Role,
+			&u.Balance,
+			&u.Concurrency,
+			&u.Status,
+			&u.CreatedAt,
+			&u.UpdatedAt,
+			&u.LastUsedAt,
+		); err != nil {
+			return nil, nil, err
+		}
+		out = append(out, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	return out, paginationResultFromTotal(total, params), nil
+}
+
 func apiKeyListOrder(params pagination.PaginationParams) []func(*entsql.Selector) {
 	sortBy := strings.ToLower(strings.TrimSpace(params.SortBy))
 	sortOrder := params.NormalizedSortOrder(pagination.SortOrderDesc)

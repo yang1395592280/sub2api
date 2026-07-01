@@ -11,6 +11,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/handler/quotaview"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -29,6 +30,7 @@ type UserHandler struct {
 	concurrencyService    *service.ConcurrencyService
 	userPlatformQuotaRepo service.UserPlatformQuotaRepository // T13 admin quota view
 	billingCache          service.BillingCache                // T17/T18 缓存失效（PUT/POST 路径）
+	apiKeyRepo            service.APIKeyRepository
 }
 
 // NewUserHandler creates a new admin user handler
@@ -37,13 +39,18 @@ func NewUserHandler(
 	concurrencyService *service.ConcurrencyService,
 	userPlatformQuotaRepo service.UserPlatformQuotaRepository,
 	billingCache service.BillingCache,
+	apiKeyRepo ...service.APIKeyRepository,
 ) *UserHandler {
-	return &UserHandler{
+	h := &UserHandler{
 		adminService:          adminService,
 		concurrencyService:    concurrencyService,
 		userPlatformQuotaRepo: userPlatformQuotaRepo,
 		billingCache:          billingCache,
 	}
+	if len(apiKeyRepo) > 0 {
+		h.apiKeyRepo = apiKeyRepo[0]
+	}
+	return h
 }
 
 // CreateUserRequest represents admin create user request
@@ -184,6 +191,34 @@ func (h *UserHandler) List(c *gin.Context) {
 	}
 
 	response.Paginated(c, out, total, page, pageSize)
+}
+
+// ListOpenAIAutoCheapestUsers handles listing users who selected OpenAI auto cheapest group.
+// GET /api/v1/admin/users/openai-auto-cheapest
+func (h *UserHandler) ListOpenAIAutoCheapestUsers(c *gin.Context) {
+	page, pageSize := response.ParsePagination(c)
+	reader, ok := h.apiKeyRepo.(interface {
+		ListUsersByGroupSelectMode(ctx context.Context, mode string, params pagination.PaginationParams) ([]service.User, *pagination.PaginationResult, error)
+	})
+	if !ok {
+		response.Error(c, 500, "API key repository does not support group select mode user listing")
+		return
+	}
+	users, result, err := reader.ListUsersByGroupSelectMode(
+		c.Request.Context(),
+		service.APIKeyGroupSelectModeOpenAIAutoCheapest,
+		pagination.PaginationParams{Page: page, PageSize: pageSize},
+	)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	out := make([]*dto.AdminUser, 0, len(users))
+	for i := range users {
+		out = append(out, dto.UserFromServiceAdmin(&users[i]))
+	}
+	response.Paginated(c, out, result.Total, page, pageSize)
 }
 
 // parseAttributeFilters extracts attribute filters from query params
