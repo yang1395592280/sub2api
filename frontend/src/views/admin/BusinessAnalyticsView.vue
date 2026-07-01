@@ -11,10 +11,22 @@
               {{ t('admin.businessAnalytics.description') }}
             </p>
           </div>
-          <button type="button" class="btn btn-secondary shrink-0" :disabled="loading" @click="reloadActiveTab">
-            <Icon name="refresh" size="sm" />
-            <span>{{ t('common.refresh') }}</span>
-          </button>
+          <div class="flex flex-wrap gap-2 xl:justify-end">
+            <button
+              data-test="channel-price-refresh-open"
+              type="button"
+              class="btn btn-secondary shrink-0"
+              :disabled="refreshSettingsLoading"
+              @click="openChannelPriceRefreshDrawer"
+            >
+              <Icon name="cog" size="sm" />
+              <span>{{ t('admin.businessAnalytics.channelPriceRefresh.title') }}</span>
+            </button>
+            <button type="button" class="btn btn-secondary shrink-0" :disabled="loading" @click="reloadActiveTab">
+              <Icon name="refresh" size="sm" />
+              <span>{{ t('common.refresh') }}</span>
+            </button>
+          </div>
         </div>
       </section>
 
@@ -395,6 +407,133 @@
           </div>
         </div>
       </section>
+
+      <div
+        v-if="channelPriceRefreshDrawerOpen"
+        class="fixed inset-0 z-50 flex justify-end bg-black/30"
+        data-test="channel-price-refresh-drawer"
+        @click.self="channelPriceRefreshDrawerOpen = false"
+      >
+        <aside class="flex h-full w-full max-w-md flex-col bg-white shadow-xl dark:bg-dark-900">
+          <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-dark-700">
+            <div>
+              <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+                {{ t('admin.businessAnalytics.channelPriceRefresh.title') }}
+              </h2>
+              <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+                {{ t('admin.businessAnalytics.channelPriceRefresh.subtitle') }}
+              </p>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" @click="channelPriceRefreshDrawerOpen = false">
+              {{ t('common.close') }}
+            </button>
+          </div>
+
+          <div class="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+            <label class="flex items-center justify-between gap-3 rounded-md border border-gray-200 px-3 py-2 dark:border-dark-700">
+              <span class="text-sm font-medium text-gray-700 dark:text-dark-200">
+                {{ t('admin.businessAnalytics.channelPriceRefresh.enabled') }}
+              </span>
+              <input
+                v-model="channelPriceRefreshForm.enabled"
+                data-test="channel-price-refresh-enabled"
+                type="checkbox"
+                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+            </label>
+
+            <div class="grid gap-3 sm:grid-cols-3">
+              <div>
+                <label class="input-label" for="channel-price-refresh-interval">
+                  {{ t('admin.businessAnalytics.channelPriceRefresh.intervalSeconds') }}
+                </label>
+                <input
+                  id="channel-price-refresh-interval"
+                  v-model.number="channelPriceRefreshForm.interval_seconds"
+                  data-test="channel-price-refresh-interval"
+                  type="number"
+                  min="1"
+                  class="input"
+                />
+              </div>
+              <div>
+                <label class="input-label" for="channel-price-refresh-concurrency">
+                  {{ t('admin.businessAnalytics.channelPriceRefresh.concurrency') }}
+                </label>
+                <input
+                  id="channel-price-refresh-concurrency"
+                  v-model.number="channelPriceRefreshForm.concurrency"
+                  data-test="channel-price-refresh-concurrency"
+                  type="number"
+                  min="1"
+                  max="5"
+                  class="input"
+                />
+              </div>
+              <div>
+                <label class="input-label" for="channel-price-refresh-timeout">
+                  {{ t('admin.businessAnalytics.channelPriceRefresh.timeoutSeconds') }}
+                </label>
+                <input
+                  id="channel-price-refresh-timeout"
+                  v-model.number="channelPriceRefreshForm.timeout_seconds"
+                  data-test="channel-price-refresh-timeout"
+                  type="number"
+                  min="1"
+                  class="input"
+                />
+              </div>
+            </div>
+
+            <div class="rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-dark-700 dark:bg-dark-800/60">
+              <div class="text-xs font-medium text-gray-500 dark:text-dark-400">
+                {{ t('admin.businessAnalytics.channelPriceRefresh.lastRun') }}
+              </div>
+              <div class="mt-2 text-sm text-gray-700 dark:text-dark-200">
+                {{ formatOptionalDateTime(channelPriceRefreshForm.last_run_at) }}
+              </div>
+              <div
+                data-test="channel-price-refresh-last-result"
+                class="mt-3 grid grid-cols-3 gap-2 text-sm"
+              >
+                <div>
+                  <div class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.businessAnalytics.channelPriceRefresh.attempted') }}</div>
+                  <div class="font-semibold text-gray-900 dark:text-white">{{ channelPriceRefreshForm.last_result?.attempted || 0 }}</div>
+                </div>
+                <div>
+                  <div class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.businessAnalytics.channelPriceRefresh.success') }}</div>
+                  <div class="font-semibold text-gray-900 dark:text-white">{{ channelPriceRefreshForm.last_result?.success || 0 }}</div>
+                </div>
+                <div>
+                  <div class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.businessAnalytics.channelPriceRefresh.failed') }}</div>
+                  <div class="font-semibold text-gray-900 dark:text-white">{{ channelPriceRefreshForm.last_result?.failed || 0 }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-dark-700">
+            <button
+              data-test="channel-price-refresh-run"
+              type="button"
+              class="btn btn-secondary"
+              :disabled="refreshSettingsLoading || refreshRunning"
+              @click="runChannelPriceRefresh"
+            >
+              {{ t('admin.businessAnalytics.channelPriceRefresh.runNow') }}
+            </button>
+            <button
+              data-test="channel-price-refresh-save"
+              type="button"
+              class="btn btn-primary"
+              :disabled="refreshSettingsLoading"
+              @click="saveChannelPriceRefreshSettings"
+            >
+              {{ t('common.save') }}
+            </button>
+          </div>
+        </aside>
+      </div>
     </div>
   </AppLayout>
 </template>
@@ -406,6 +545,8 @@ import { adminAPI } from '@/api/admin'
 import type {
   BusinessAnalyticsFilter,
   BusinessChannelRow,
+  BusinessChannelPriceRefreshResult,
+  BusinessChannelPriceRefreshSettings,
   BusinessGroupRow,
   BusinessOverview,
   BusinessPriceChangeImpact,
@@ -442,6 +583,9 @@ const appStore = useAppStore()
 const tabs: TabKey[] = ['overview', 'groups', 'channels', 'priceImpact', 'records']
 const activeTab = ref<TabKey>('overview')
 const loading = ref(false)
+const refreshSettingsLoading = ref(false)
+const refreshRunning = ref(false)
+const channelPriceRefreshDrawerOpen = ref(false)
 const overview = ref<BusinessOverview | null>(null)
 const groups = ref<BusinessGroupRow[]>([])
 const channels = ref<BusinessChannelRow[]>([])
@@ -451,6 +595,14 @@ const records = reactive<BusinessRecordsResponse>({
   total: 0,
   page: 1,
   page_size: getPersistedPageSize(),
+})
+const channelPriceRefreshForm = reactive<BusinessChannelPriceRefreshSettings>({
+  enabled: false,
+  interval_seconds: 600,
+  concurrency: 3,
+  timeout_seconds: 30,
+  last_run_at: null,
+  last_result: null,
 })
 
 const formatLocalDate = (date: Date): string =>
@@ -544,6 +696,11 @@ function formatDateTime(value: string): string {
   return date.toLocaleString()
 }
 
+function formatOptionalDateTime(value: string | null | undefined): string {
+  if (!value) return '-'
+  return formatDateTime(value)
+}
+
 function recordProfitMargin(row: BusinessRecordRow): number | null {
   if (!row.revenue) return null
   return row.gross_profit / row.revenue
@@ -616,6 +773,66 @@ async function loadRecords(): Promise<void> {
     records.page = response.page || records.page
     records.page_size = response.page_size || records.page_size
   })
+}
+
+function assignChannelPriceRefreshSettings(settings: BusinessChannelPriceRefreshSettings): void {
+  channelPriceRefreshForm.enabled = Boolean(settings.enabled)
+  channelPriceRefreshForm.interval_seconds = Number(settings.interval_seconds || 600)
+  channelPriceRefreshForm.concurrency = Number(settings.concurrency || 3)
+  channelPriceRefreshForm.timeout_seconds = Number(settings.timeout_seconds || 30)
+  channelPriceRefreshForm.last_run_at = settings.last_run_at || null
+  channelPriceRefreshForm.last_result = settings.last_result || null
+}
+
+async function loadChannelPriceRefreshSettings(): Promise<void> {
+  refreshSettingsLoading.value = true
+  try {
+    assignChannelPriceRefreshSettings(await adminAPI.businessAnalytics.getChannelPriceRefreshSettings())
+  } catch (error) {
+    console.error('Failed to load channel price refresh settings:', error)
+    appStore.showError(t('admin.businessAnalytics.channelPriceRefresh.loadFailed'))
+  } finally {
+    refreshSettingsLoading.value = false
+  }
+}
+
+function openChannelPriceRefreshDrawer(): void {
+  channelPriceRefreshDrawerOpen.value = true
+  void loadChannelPriceRefreshSettings()
+}
+
+async function saveChannelPriceRefreshSettings(): Promise<void> {
+  refreshSettingsLoading.value = true
+  try {
+    const settings = await adminAPI.businessAnalytics.updateChannelPriceRefreshSettings({
+      enabled: channelPriceRefreshForm.enabled,
+      interval_seconds: Number(channelPriceRefreshForm.interval_seconds),
+      concurrency: Number(channelPriceRefreshForm.concurrency),
+      timeout_seconds: Number(channelPriceRefreshForm.timeout_seconds),
+      last_run_at: channelPriceRefreshForm.last_run_at,
+      last_result: channelPriceRefreshForm.last_result,
+    })
+    assignChannelPriceRefreshSettings(settings)
+  } catch (error) {
+    console.error('Failed to save channel price refresh settings:', error)
+    appStore.showError(t('admin.businessAnalytics.channelPriceRefresh.saveFailed'))
+  } finally {
+    refreshSettingsLoading.value = false
+  }
+}
+
+async function runChannelPriceRefresh(): Promise<void> {
+  refreshRunning.value = true
+  try {
+    const result: BusinessChannelPriceRefreshResult = await adminAPI.businessAnalytics.runChannelPriceRefresh()
+    channelPriceRefreshForm.last_run_at = new Date().toISOString()
+    channelPriceRefreshForm.last_result = result
+  } catch (error) {
+    console.error('Failed to run channel price refresh:', error)
+    appStore.showError(t('admin.businessAnalytics.channelPriceRefresh.runFailed'))
+  } finally {
+    refreshRunning.value = false
+  }
 }
 
 function reloadActiveTab(): void {

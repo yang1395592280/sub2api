@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { get } = vi.hoisted(() => ({
+const { get, put, post } = vi.hoisted(() => ({
   get: vi.fn(),
+  put: vi.fn(),
+  post: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => ({
   apiClient: {
     get,
+    put,
+    post,
   },
 }))
 
@@ -18,7 +22,11 @@ import businessAnalyticsAPI, {
 describe('business analytics admin api', () => {
   beforeEach(() => {
     get.mockReset()
+    put.mockReset()
+    post.mockReset()
     get.mockResolvedValue({ data: {} })
+    put.mockResolvedValue({ data: {} })
+    post.mockResolvedValue({ data: {} })
   })
 
   it('loads overview through the business analytics overview endpoint', async () => {
@@ -182,5 +190,42 @@ describe('business analytics admin api', () => {
       params,
       responseType: 'blob',
     })
+  })
+
+  it('manages channel price refresh runtime settings', async () => {
+    const settings = {
+      enabled: true,
+      interval_seconds: 600,
+      concurrency: 3,
+      timeout_seconds: 30,
+      last_result: { attempted: 2, success: 2, failed: 0 },
+    }
+    get.mockResolvedValueOnce({ data: settings })
+    put.mockResolvedValueOnce({ data: { ...settings, interval_seconds: 900 } })
+    post.mockResolvedValueOnce({ data: { attempted: 4, success: 3, failed: 1 } })
+
+    await expect(businessAnalyticsAPI.getChannelPriceRefreshSettings()).resolves.toEqual(settings)
+    await expect(
+      businessAnalyticsAPI.updateChannelPriceRefreshSettings({
+        enabled: true,
+        interval_seconds: 900,
+        concurrency: 3,
+        timeout_seconds: 30,
+      })
+    ).resolves.toEqual({ ...settings, interval_seconds: 900 })
+    await expect(businessAnalyticsAPI.runChannelPriceRefresh()).resolves.toEqual({
+      attempted: 4,
+      success: 3,
+      failed: 1,
+    })
+
+    expect(get).toHaveBeenCalledWith('/admin/business-analytics/channel-price-refresh')
+    expect(put).toHaveBeenCalledWith('/admin/business-analytics/channel-price-refresh', {
+      enabled: true,
+      interval_seconds: 900,
+      concurrency: 3,
+      timeout_seconds: 30,
+    })
+    expect(post).toHaveBeenCalledWith('/admin/business-analytics/channel-price-refresh/run')
   })
 })

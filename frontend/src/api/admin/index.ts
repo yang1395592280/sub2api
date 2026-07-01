@@ -134,6 +134,8 @@ export type {
 } from './openaiAutoScheduler'
 export type {
   BusinessAnalyticsFilter,
+  BusinessChannelPriceRefreshResult,
+  BusinessChannelPriceRefreshSettings,
   BusinessChannelRow,
   BusinessGroupRow,
   BusinessMetricSummary,

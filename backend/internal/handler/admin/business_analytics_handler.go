@@ -23,12 +23,19 @@ type businessAnalyticsService interface {
 	GetRecords(ctx context.Context, filter service.BusinessRecordsFilter) (*service.BusinessRecordsResponse, error)
 }
 
-type BusinessAnalyticsHandler struct {
-	service businessAnalyticsService
+type channelPriceRefreshSettingsService interface {
+	GetSettings(ctx context.Context) service.ChannelPriceRefreshSettings
+	UpdateSettings(ctx context.Context, settings service.ChannelPriceRefreshSettings) (service.ChannelPriceRefreshSettings, error)
+	RunOnce(ctx context.Context) service.ChannelPriceRefreshResult
 }
 
-func NewBusinessAnalyticsHandler(service businessAnalyticsService) *BusinessAnalyticsHandler {
-	return &BusinessAnalyticsHandler{service: service}
+type BusinessAnalyticsHandler struct {
+	service             businessAnalyticsService
+	channelPriceRefresh channelPriceRefreshSettingsService
+}
+
+func NewBusinessAnalyticsHandler(service businessAnalyticsService, channelPriceRefresh channelPriceRefreshSettingsService) *BusinessAnalyticsHandler {
+	return &BusinessAnalyticsHandler{service: service, channelPriceRefresh: channelPriceRefresh}
 }
 
 func (h *BusinessAnalyticsHandler) GetOverview(c *gin.Context) {
@@ -210,6 +217,40 @@ func (h *BusinessAnalyticsHandler) Export(c *gin.Context) {
 		})
 	}
 	w.Flush()
+}
+
+func (h *BusinessAnalyticsHandler) GetChannelPriceRefreshSettings(c *gin.Context) {
+	if h.channelPriceRefresh == nil {
+		response.Success(c, service.ChannelPriceRefreshSettings{})
+		return
+	}
+	response.Success(c, h.channelPriceRefresh.GetSettings(c.Request.Context()))
+}
+
+func (h *BusinessAnalyticsHandler) UpdateChannelPriceRefreshSettings(c *gin.Context) {
+	var input service.ChannelPriceRefreshSettings
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.BadRequest(c, "渠道价格自动刷新设置格式无效")
+		return
+	}
+	if h.channelPriceRefresh == nil {
+		response.Success(c, input)
+		return
+	}
+	settings, err := h.channelPriceRefresh.UpdateSettings(c.Request.Context(), input)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, settings)
+}
+
+func (h *BusinessAnalyticsHandler) RunChannelPriceRefresh(c *gin.Context) {
+	if h.channelPriceRefresh == nil {
+		response.Success(c, service.ChannelPriceRefreshResult{})
+		return
+	}
+	response.Success(c, h.channelPriceRefresh.RunOnce(c.Request.Context()))
 }
 
 func parseBusinessAnalyticsFilter(c *gin.Context) (service.BusinessAnalyticsFilter, bool) {

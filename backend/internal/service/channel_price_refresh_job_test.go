@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
@@ -16,6 +17,72 @@ type channelPriceRefreshAccountRepoStub struct {
 
 func (s *channelPriceRefreshAccountRepoStub) ListActive(ctx context.Context) ([]Account, error) {
 	return append([]Account(nil), s.accounts...), nil
+}
+
+type channelPriceRefreshSettingRepoStub struct {
+	values map[string]string
+}
+
+func (s *channelPriceRefreshSettingRepoStub) Get(ctx context.Context, key string) (*Setting, error) {
+	if s.values == nil {
+		return nil, ErrSettingNotFound
+	}
+	value, ok := s.values[key]
+	if !ok {
+		return nil, ErrSettingNotFound
+	}
+	return &Setting{Key: key, Value: value}, nil
+}
+
+func (s *channelPriceRefreshSettingRepoStub) GetValue(ctx context.Context, key string) (string, error) {
+	setting, err := s.Get(ctx, key)
+	if err != nil {
+		return "", err
+	}
+	return setting.Value, nil
+}
+
+func (s *channelPriceRefreshSettingRepoStub) Set(ctx context.Context, key, value string) error {
+	if s.values == nil {
+		s.values = map[string]string{}
+	}
+	s.values[key] = value
+	return nil
+}
+
+func (s *channelPriceRefreshSettingRepoStub) GetMultiple(ctx context.Context, keys []string) (map[string]string, error) {
+	out := map[string]string{}
+	for _, key := range keys {
+		if s.values != nil {
+			if value, ok := s.values[key]; ok {
+				out[key] = value
+			}
+		}
+	}
+	return out, nil
+}
+
+func (s *channelPriceRefreshSettingRepoStub) SetMultiple(ctx context.Context, settings map[string]string) error {
+	if s.values == nil {
+		s.values = map[string]string{}
+	}
+	for key, value := range settings {
+		s.values[key] = value
+	}
+	return nil
+}
+
+func (s *channelPriceRefreshSettingRepoStub) GetAll(ctx context.Context) (map[string]string, error) {
+	out := map[string]string{}
+	for key, value := range s.values {
+		out[key] = value
+	}
+	return out, nil
+}
+
+func (s *channelPriceRefreshSettingRepoStub) Delete(ctx context.Context, key string) error {
+	delete(s.values, key)
+	return nil
 }
 
 type upstreamBalanceRefresherStub struct {
@@ -140,6 +207,77 @@ func TestChannelPriceRefreshJob_UsesConcurrencyLimit(t *testing.T) {
 	}
 	if got := refresher.observedMaxInFlight(); got > 2 {
 		t.Fatalf("expected max in-flight <= 2, got %d", got)
+	}
+}
+
+func TestChannelPriceRefreshJob_GetSettingsFallsBackToConfigDefaults(t *testing.T) {
+	job := NewChannelPriceRefreshJob(nil, nil, nil, &config.Config{
+		ChannelPriceRefresh: config.ChannelPriceRefreshConfig{
+			Enabled:         true,
+			IntervalSeconds: 900,
+			Concurrency:     4,
+			TimeoutSeconds:  45,
+		},
+	})
+
+	settings := job.GetSettings(context.Background())
+
+	if !settings.Enabled || settings.IntervalSeconds != 900 || settings.Concurrency != 4 || settings.TimeoutSeconds != 45 {
+		t.Fatalf("unexpected settings: %+v", settings)
+	}
+}
+
+func TestChannelPriceRefreshJob_UpdateSettingsPersistsNormalizedRuntimeConfig(t *testing.T) {
+	settingsRepo := &channelPriceRefreshSettingRepoStub{}
+	job := NewChannelPriceRefreshJob(nil, nil, nil, &config.Config{})
+	job.SetSettingRepository(settingsRepo)
+
+	updated, err := job.UpdateSettings(context.Background(), ChannelPriceRefreshSettings{
+		Enabled:         true,
+		IntervalSeconds: 0,
+		Concurrency:     99,
+		TimeoutSeconds:  0,
+	})
+
+	if err != nil {
+		t.Fatalf("UpdateSettings error = %v", err)
+	}
+	if !updated.Enabled || updated.IntervalSeconds != defaultChannelPriceRefreshSeconds || updated.Concurrency != maxChannelPriceRefreshWorkers || updated.TimeoutSeconds != defaultChannelPriceRefreshTimeout {
+		t.Fatalf("unexpected normalized settings: %+v", updated)
+	}
+	var saved ChannelPriceRefreshSettings
+	if err := json.Unmarshal([]byte(settingsRepo.values[SettingKeyChannelPriceRefreshSettings]), &saved); err != nil {
+		t.Fatalf("unmarshal saved settings: %v", err)
+	}
+	if saved.Concurrency != maxChannelPriceRefreshWorkers {
+		t.Fatalf("expected persisted concurrency %d, got %+v", maxChannelPriceRefreshWorkers, saved)
+	}
+}
+
+func TestChannelPriceRefreshJob_RunOnceRecordsLastResultForSettings(t *testing.T) {
+	repo := &channelPriceRefreshAccountRepoStub{accounts: []Account{
+		{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeAPIKey},
+	}}
+	refresher := &upstreamBalanceRefresherStub{}
+	job := NewChannelPriceRefreshJob(repo, refresher, nil, &config.Config{
+		ChannelPriceRefresh: config.ChannelPriceRefreshConfig{
+			Enabled:        true,
+			Concurrency:    1,
+			TimeoutSeconds: 1,
+		},
+	})
+
+	result := job.RunOnce(context.Background())
+	settings := job.GetSettings(context.Background())
+
+	if result.Attempted != 1 || result.Success != 1 || result.Failed != 0 {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	if settings.LastRunAt == nil || settings.LastResult == nil {
+		t.Fatalf("expected last run settings, got %+v", settings)
+	}
+	if settings.LastResult.Attempted != 1 || settings.LastResult.Success != 1 || settings.LastResult.Failed != 0 {
+		t.Fatalf("unexpected last result: %+v", settings.LastResult)
 	}
 }
 

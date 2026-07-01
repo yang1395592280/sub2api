@@ -1564,6 +1564,22 @@ export default {
       recordsApproxHint: '当前区间有 {count} 条记录缺少渠道价格快照，相关成本按历史明细近似展示。',
       priceImpactUserGap: '当前 API 暂未返回用户新增/流失数量，本页仅展示收入与毛利的前后对比。',
       loadFailed: '加载业务分析数据失败',
+      channelPriceRefresh: {
+        title: '渠道价格自动刷新',
+        subtitle: '按固定间隔批量刷新支持余额查询的渠道账号价格。',
+        enabled: '启用自动刷新',
+        intervalSeconds: '间隔秒数',
+        concurrency: '并发',
+        timeoutSeconds: '超时秒数',
+        lastRun: '最近执行',
+        attempted: '尝试',
+        success: '成功',
+        failed: '失败',
+        runNow: '立即执行一次',
+        loadFailed: '加载渠道价格自动刷新设置失败',
+        saveFailed: '保存渠道价格自动刷新设置失败',
+        runFailed: '执行渠道价格刷新失败'
+      },
       tabs: {
         overview: '总览',
         groups: '分组',
