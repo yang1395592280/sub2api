@@ -364,7 +364,7 @@ WITH current_period AS (
 	FROM ` + currentSource + ` GROUP BY group_id
 ), previous_period AS (
 	SELECT group_id, SUM(revenue) previous_revenue, SUM(gross_profit) previous_gross_profit
-	FROM business_usage_daily ` + previousWhere + ` GROUP BY group_id
+	FROM business_usage_daily p ` + previousWhere + ` GROUP BY group_id
 )
 SELECT
 	cp.group_id,
