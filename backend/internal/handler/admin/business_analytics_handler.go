@@ -93,10 +93,11 @@ func (h *BusinessAnalyticsHandler) GetChannelGroups(c *gin.Context) {
 	if !ok {
 		return
 	}
-	accountID, ok := parsePathID(c, "id", "Invalid channel id")
+	accountID, ok := parsePathID(c, "id", "Invalid channel account id")
 	if !ok {
 		return
 	}
+	// The channels view is keyed by account rows, so :id is the channel account id.
 	filter.AccountID = accountID
 	rows, err := h.service.GetGroups(c.Request.Context(), filter)
 	if err != nil {

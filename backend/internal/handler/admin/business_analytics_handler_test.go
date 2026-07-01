@@ -17,6 +17,7 @@ type stubBusinessAnalyticsService struct {
 	overview        *service.BusinessOverviewResponse
 	impact          *service.PriceChangeImpactResponse
 	overviewFilters []service.BusinessAnalyticsFilter
+	groupFilters    []service.BusinessAnalyticsFilter
 }
 
 func (s *stubBusinessAnalyticsService) GetOverview(_ context.Context, filter service.BusinessAnalyticsFilter) (*service.BusinessOverviewResponse, error) {
@@ -27,7 +28,8 @@ func (s *stubBusinessAnalyticsService) GetOverview(_ context.Context, filter ser
 	return &service.BusinessOverviewResponse{}, nil
 }
 
-func (s *stubBusinessAnalyticsService) GetGroups(context.Context, service.BusinessAnalyticsFilter) ([]service.BusinessGroupRow, error) {
+func (s *stubBusinessAnalyticsService) GetGroups(_ context.Context, filter service.BusinessAnalyticsFilter) ([]service.BusinessGroupRow, error) {
+	s.groupFilters = append(s.groupFilters, filter)
 	return nil, nil
 }
 
@@ -102,6 +104,20 @@ func TestBusinessAnalyticsHandler_OverviewPassesEndDateAsExclusiveNextDay(t *tes
 	require.Equal(t, time.Date(2026, 6, 3, 0, 0, 0, 0, time.Local), svc.overviewFilters[0].EndDate)
 }
 
+func TestBusinessAnalyticsHandler_ChannelGroupsPathIDIsAccountID(t *testing.T) {
+	svc := &stubBusinessAnalyticsService{}
+	router := businessAnalyticsTestRouter(svc)
+	req := httptest.NewRequest(http.MethodGet, "/channels/123/groups?start_date=2026-06-01&end_date=2026-06-02", nil)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, svc.groupFilters, 1)
+	require.Equal(t, int64(123), svc.groupFilters[0].AccountID)
+	require.Zero(t, svc.groupFilters[0].GroupID)
+}
+
 func TestBusinessAnalyticsHandler_PriceChangeImpactRequiresGroupAndChangeDate(t *testing.T) {
 	router := businessAnalyticsTestRouter(&stubBusinessAnalyticsService{})
 
@@ -151,6 +167,7 @@ func businessAnalyticsTestRouter(svc businessAnalyticsService) *gin.Engine {
 	h := NewBusinessAnalyticsHandler(svc)
 	router := gin.New()
 	router.GET("/overview", h.GetOverview)
+	router.GET("/channels/:id/groups", h.GetChannelGroups)
 	router.GET("/price-change-impact", h.GetPriceChangeImpact)
 	return router
 }

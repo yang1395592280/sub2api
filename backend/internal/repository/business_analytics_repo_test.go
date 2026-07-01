@@ -41,6 +41,44 @@ func TestBusinessAnalyticsRepository_GetOverviewReadsAggregateTables(t *testing.
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestBusinessAnalyticsRepository_GetOverviewHistoricalCountsDistinctUsersAndAPIKeysAcrossRange(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	repo := newBusinessAnalyticsRepositoryWithSQL(db)
+	filter := service.BusinessAnalyticsFilter{
+		StartDate: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 6, 4, 0, 0, 0, 0, time.UTC),
+		GroupID:   7,
+		AccountID: 11,
+		Platform:  "openai",
+	}
+
+	mock.ExpectQuery(containsAllRegexp(
+		"WITH usage_totals AS",
+		"FROM business_usage_daily b",
+		"active_users AS",
+		"COUNT(DISTINCT bu.user_id)",
+		"FROM business_usage_daily_users bu",
+		"JOIN business_usage_daily b ON b.bucket_date = bu.bucket_date AND b.group_id = bu.group_id AND b.account_id = bu.account_id",
+		"active_api_keys AS",
+		"COUNT(DISTINCT ul.api_key_id)",
+		"FROM usage_logs ul",
+		"COALESCE("+usageLogEffectivePlatformExpr+", '') = $5",
+	)).
+		WithArgs(filter.StartDate, filter.EndDate, filter.GroupID, filter.AccountID, filter.Platform).
+		WillReturnRows(sqlmock.NewRows([]string{"requests", "active_users", "active_api_keys", "total_tokens", "revenue", "channel_cost", "gross_profit", "missing"}).
+			AddRow(10, 3, 2, 99, 10.0, 6.0, 4.0, 0))
+
+	got, err := repo.GetOverview(context.Background(), filter)
+
+	require.NoError(t, err)
+	require.Equal(t, int64(3), got.ActiveUsers)
+	require.Equal(t, int64(2), got.ActiveAPIKeys)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestBusinessAnalyticsRepository_GetOverviewEndDateAtTodayStartReadsAggregateTables(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -66,6 +104,42 @@ func TestBusinessAnalyticsRepository_GetOverviewEndDateAtTodayStartReadsAggregat
 
 	require.NoError(t, err)
 	require.Equal(t, int64(2), got.Requests)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBusinessAnalyticsRepository_GetGroupsHistoricalCountsDistinctUsersAcrossRange(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	repo := newBusinessAnalyticsRepositoryWithSQL(db)
+	filter := service.BusinessAnalyticsFilter{
+		StartDate: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 6, 4, 0, 0, 0, 0, time.UTC),
+		AccountID: 11,
+		Platform:  "openai",
+	}
+
+	mock.ExpectQuery(containsAllRegexp(
+		"WITH current_usage AS",
+		"SUM(requests) requests",
+		"active_users AS",
+		"SELECT bu.group_id, COUNT(DISTINCT bu.user_id) active_users",
+		"JOIN business_usage_daily b ON b.bucket_date = bu.bucket_date AND b.group_id = bu.group_id AND b.account_id = bu.account_id",
+		"active_api_keys AS",
+		"SELECT COALESCE(ul.group_id, 0) AS group_id, COUNT(DISTINCT ul.api_key_id) active_api_keys",
+		"COALESCE("+usageLogEffectivePlatformExpr+", '') = $4",
+	)).
+		WithArgs(filter.StartDate, filter.EndDate, filter.AccountID, filter.Platform, filter.StartDate.AddDate(0, 0, -3), filter.StartDate, filter.AccountID, filter.Platform).
+		WillReturnRows(sqlmock.NewRows([]string{"group_id", "group_name", "platform", "rate", "requests", "active_users", "active_api_keys", "total_tokens", "revenue", "channel_cost", "gross_profit", "previous_revenue", "previous_gross_profit"}).
+			AddRow(7, "group", "openai", 1.0, 10, 3, 2, 99, 10.0, 6.0, 4.0, 1.0, 0.5))
+
+	got, err := repo.GetGroups(context.Background(), filter)
+
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, int64(3), got[0].ActiveUsers)
+	require.Equal(t, int64(2), got[0].ActiveAPIKeys)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

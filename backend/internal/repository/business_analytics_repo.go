@@ -252,11 +252,44 @@ func buildBusinessAggregateQuery(filter service.BusinessAnalyticsFilter, groupBy
 		return buildUsageLogAggregateQuery(filter, trend)
 	}
 	where, args := buildBusinessDailyWhere(filter, "bucket_date")
+	dailyWhereWithAlias, _ := buildBusinessDailyWhere(filter, "b.bucket_date")
+	usageWhereWithAlias, _ := buildUsageLogsWhere(filter)
 	selectCols := "COALESCE(SUM(requests), 0), COALESCE(SUM(active_users), 0), COALESCE(SUM(active_api_keys), 0), COALESCE(SUM(total_tokens), 0), COALESCE(SUM(revenue), 0), COALESCE(SUM(channel_cost), 0), COALESCE(SUM(gross_profit), 0), COALESCE(SUM(missing_channel_price_records), 0)"
 	if trend {
 		return "SELECT bucket_date::text, COALESCE(SUM(requests), 0), COALESCE(SUM(active_users), 0), COALESCE(SUM(revenue), 0), COALESCE(SUM(channel_cost), 0), COALESCE(SUM(gross_profit), 0) FROM business_usage_daily " + where + " GROUP BY " + groupBy + " ORDER BY " + groupBy, args
 	}
-	return "SELECT " + selectCols + " FROM business_usage_daily " + where, args
+	selectCols = `
+COALESCE(usage_totals.requests, 0),
+COALESCE(active_users.active_users, 0),
+COALESCE(active_api_keys.active_api_keys, 0),
+COALESCE(usage_totals.total_tokens, 0),
+COALESCE(usage_totals.revenue, 0),
+COALESCE(usage_totals.channel_cost, 0),
+COALESCE(usage_totals.gross_profit, 0),
+COALESCE(usage_totals.missing_channel_price_records, 0)`
+	return `
+WITH usage_totals AS (
+	SELECT
+		COALESCE(SUM(requests), 0) requests,
+		COALESCE(SUM(total_tokens), 0) total_tokens,
+		COALESCE(SUM(revenue), 0) revenue,
+		COALESCE(SUM(channel_cost), 0) channel_cost,
+		COALESCE(SUM(gross_profit), 0) gross_profit,
+		COALESCE(SUM(missing_channel_price_records), 0) missing_channel_price_records
+	FROM business_usage_daily b ` + dailyWhereWithAlias + `
+), active_users AS (
+	SELECT COUNT(DISTINCT bu.user_id) active_users
+	FROM business_usage_daily_users bu
+	JOIN business_usage_daily b ON b.bucket_date = bu.bucket_date AND b.group_id = bu.group_id AND b.account_id = bu.account_id
+	` + dailyWhereWithAlias + `
+), active_api_keys AS (
+	SELECT COUNT(DISTINCT ul.api_key_id) active_api_keys
+	FROM usage_logs ul
+	LEFT JOIN groups g ON g.id = ul.group_id
+	LEFT JOIN accounts a ON a.id = ul.account_id
+	` + usageWhereWithAlias + `
+)
+SELECT ` + selectCols + ` FROM usage_totals, active_users, active_api_keys`, args
 }
 
 func buildBusinessGroupsQuery(current, previous service.BusinessAnalyticsFilter) (string, []any) {
@@ -280,6 +313,51 @@ func buildBusinessGroupsQuery(current, previous service.BusinessAnalyticsFilter)
 	}
 	previousWhere, prevArgs := buildBusinessDailyWhereFrom(previous, "bucket_date", len(args)+1)
 	args = append(args, prevArgs...)
+	if !includesToday(current) {
+		currentDailyWhere, _ := buildBusinessDailyWhere(current, "b.bucket_date")
+		currentUsageWhere, _ := buildUsageLogsWhere(current)
+		return `
+WITH current_usage AS (
+	SELECT group_id, SUM(requests) requests, SUM(total_tokens) total_tokens, SUM(revenue) revenue, SUM(channel_cost) channel_cost, SUM(gross_profit) gross_profit
+	FROM business_usage_daily b ` + currentDailyWhere + ` GROUP BY group_id
+), active_users AS (
+	SELECT bu.group_id, COUNT(DISTINCT bu.user_id) active_users
+	FROM business_usage_daily_users bu
+	JOIN business_usage_daily b ON b.bucket_date = bu.bucket_date AND b.group_id = bu.group_id AND b.account_id = bu.account_id
+	` + currentDailyWhere + `
+	GROUP BY bu.group_id
+), active_api_keys AS (
+	SELECT COALESCE(ul.group_id, 0) AS group_id, COUNT(DISTINCT ul.api_key_id) active_api_keys
+	FROM usage_logs ul
+	LEFT JOIN groups g ON g.id = ul.group_id
+	LEFT JOIN accounts a ON a.id = ul.account_id
+	` + currentUsageWhere + `
+	GROUP BY COALESCE(ul.group_id, 0)
+), previous_period AS (
+	SELECT group_id, SUM(revenue) previous_revenue, SUM(gross_profit) previous_gross_profit
+	FROM business_usage_daily ` + previousWhere + ` GROUP BY group_id
+)
+SELECT
+	cp.group_id,
+	COALESCE(g.name, ''),
+	COALESCE(g.platform, ''),
+	g.rate_multiplier,
+	COALESCE(cp.requests, 0),
+	COALESCE(au.active_users, 0),
+	COALESCE(aak.active_api_keys, 0),
+	COALESCE(cp.total_tokens, 0),
+	COALESCE(cp.revenue, 0),
+	COALESCE(cp.channel_cost, 0),
+	COALESCE(cp.gross_profit, 0),
+	COALESCE(pp.previous_revenue, 0),
+	COALESCE(pp.previous_gross_profit, 0)
+FROM current_usage cp
+LEFT JOIN active_users au ON au.group_id = cp.group_id
+LEFT JOIN active_api_keys aak ON aak.group_id = cp.group_id
+LEFT JOIN previous_period pp ON pp.group_id = cp.group_id
+LEFT JOIN groups g ON g.id = cp.group_id
+ORDER BY cp.revenue DESC, cp.group_id`, args
+	}
 	return `
 WITH current_period AS (
 	SELECT group_id, SUM(requests) requests, SUM(active_users) active_users, SUM(active_api_keys) active_api_keys, SUM(total_tokens) total_tokens, SUM(revenue) revenue, SUM(channel_cost) channel_cost, SUM(gross_profit) gross_profit
@@ -336,28 +414,57 @@ GROUP BY COALESCE(ul.account_id, 0), a.name, a.platform, a.status, a.channel_pri
 ORDER BY SUM(ul.actual_cost) DESC, COALESCE(ul.account_id, 0)`, args
 	}
 	where, args := buildBusinessDailyWhere(filter, "b.bucket_date")
+	usageWhere, _ := buildUsageLogsWhere(filter)
 	return `
+WITH account_usage AS (
+	SELECT
+		b.account_id,
+		COALESCE(MAX(b.channel_id), 0) channel_id,
+		COALESCE(MAX(NULLIF(b.platform, '')), '') platform,
+		COALESCE(SUM(b.requests), 0) requests,
+		COALESCE(SUM(b.total_tokens), 0) total_tokens,
+		COALESCE(SUM(b.revenue), 0) revenue,
+		COALESCE(SUM(b.channel_cost), 0) channel_cost,
+		COALESCE(SUM(b.gross_profit), 0) gross_profit,
+		COALESCE(SUM(b.missing_channel_price_records), 0) missing_channel_price_records
+	FROM business_usage_daily b
+	` + where + `
+	GROUP BY b.account_id
+), active_users AS (
+	SELECT bu.account_id, COUNT(DISTINCT bu.user_id) active_users
+	FROM business_usage_daily_users bu
+	JOIN business_usage_daily b ON b.bucket_date = bu.bucket_date AND b.group_id = bu.group_id AND b.account_id = bu.account_id
+	` + where + `
+	GROUP BY bu.account_id
+), active_api_keys AS (
+	SELECT COALESCE(ul.account_id, 0) AS account_id, COUNT(DISTINCT ul.api_key_id) active_api_keys
+	FROM usage_logs ul
+	LEFT JOIN groups g ON g.id = ul.group_id
+	LEFT JOIN accounts a ON a.id = ul.account_id
+	` + usageWhere + `
+	GROUP BY COALESCE(ul.account_id, 0)
+)
 SELECT
-	b.account_id,
+	au.account_id,
 	COALESCE(a.name, ''),
-	COALESCE(MAX(b.channel_id), 0),
-	COALESCE(MAX(NULLIF(b.platform, '')), COALESCE(a.platform, '')),
+	COALESCE(au.channel_id, 0),
+	COALESCE(NULLIF(au.platform, ''), COALESCE(a.platform, '')),
 	COALESCE(a.status, ''),
 	a.channel_price,
 	COALESCE(a.extra->>'balance_status', ''),
-	COALESCE(SUM(b.requests), 0),
-	COALESCE(SUM(b.active_users), 0),
-	COALESCE(SUM(b.active_api_keys), 0),
-	COALESCE(SUM(b.total_tokens), 0),
-	COALESCE(SUM(b.revenue), 0),
-	COALESCE(SUM(b.channel_cost), 0),
-	COALESCE(SUM(b.gross_profit), 0),
-	COALESCE(SUM(b.missing_channel_price_records), 0)
-FROM business_usage_daily b
-LEFT JOIN accounts a ON a.id = b.account_id
-` + where + `
-GROUP BY b.account_id, a.name, a.platform, a.status, a.channel_price, a.extra
-ORDER BY SUM(b.revenue) DESC, b.account_id`, args
+	COALESCE(au.requests, 0),
+	COALESCE(active_users.active_users, 0),
+	COALESCE(active_api_keys.active_api_keys, 0),
+	COALESCE(au.total_tokens, 0),
+	COALESCE(au.revenue, 0),
+	COALESCE(au.channel_cost, 0),
+	COALESCE(au.gross_profit, 0),
+	COALESCE(au.missing_channel_price_records, 0)
+FROM account_usage au
+LEFT JOIN active_users ON active_users.account_id = au.account_id
+LEFT JOIN active_api_keys ON active_api_keys.account_id = au.account_id
+LEFT JOIN accounts a ON a.id = au.account_id
+ORDER BY au.revenue DESC, au.account_id`, args
 }
 
 func buildBusinessDailyWhere(filter service.BusinessAnalyticsFilter, dateColumn string) (string, []any) {
