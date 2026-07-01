@@ -85,6 +85,7 @@ type Config struct {
 	SubscriptionMaintenance SubscriptionMaintenanceConfig `mapstructure:"subscription_maintenance"`
 	Dashboard               DashboardCacheConfig          `mapstructure:"dashboard_cache"`
 	DashboardAgg            DashboardAggregationConfig    `mapstructure:"dashboard_aggregation"`
+	BusinessAnalytics       BusinessAnalyticsConfig       `mapstructure:"business_analytics"`
 	UsageCleanup            UsageCleanupConfig            `mapstructure:"usage_cleanup"`
 	ChannelPriceRefresh     ChannelPriceRefreshConfig     `mapstructure:"channel_price_refresh"`
 	Concurrency             ConcurrencyConfig             `mapstructure:"concurrency"`
@@ -1345,6 +1346,15 @@ type DashboardAggregationRetentionConfig struct {
 	DailyDays             int `mapstructure:"daily_days"`
 }
 
+// BusinessAnalyticsConfig 经营分析聚合配置。
+type BusinessAnalyticsConfig struct {
+	Enabled                    bool `mapstructure:"enabled" yaml:"enabled"`
+	AggregationIntervalSeconds int  `mapstructure:"aggregation_interval_seconds" yaml:"aggregation_interval_seconds"`
+	LookbackSeconds            int  `mapstructure:"lookback_seconds" yaml:"lookback_seconds"`
+	BackfillEnabled            bool `mapstructure:"backfill_enabled" yaml:"backfill_enabled"`
+	BackfillMaxDays            int  `mapstructure:"backfill_max_days" yaml:"backfill_max_days"`
+}
+
 // UsageCleanupConfig 使用记录清理任务配置
 type UsageCleanupConfig struct {
 	// Enabled: 是否启用清理任务执行器
@@ -1825,6 +1835,13 @@ func setDefaults() {
 	viper.SetDefault("dashboard_aggregation.retention.hourly_days", 180)
 	viper.SetDefault("dashboard_aggregation.retention.daily_days", 730)
 	viper.SetDefault("dashboard_aggregation.recompute_days", 2)
+
+	// Business analytics aggregation
+	viper.SetDefault("business_analytics.enabled", true)
+	viper.SetDefault("business_analytics.aggregation_interval_seconds", 300)
+	viper.SetDefault("business_analytics.lookback_seconds", 7200)
+	viper.SetDefault("business_analytics.backfill_enabled", true)
+	viper.SetDefault("business_analytics.backfill_max_days", 90)
 
 	// Usage cleanup task
 	viper.SetDefault("usage_cleanup.enabled", true)
@@ -2433,6 +2450,30 @@ func (c *Config) Validate() error {
 		}
 		if c.DashboardAgg.RecomputeDays < 0 {
 			return fmt.Errorf("dashboard_aggregation.recompute_days must be non-negative")
+		}
+	}
+	if c.BusinessAnalytics.Enabled {
+		if c.BusinessAnalytics.AggregationIntervalSeconds <= 0 {
+			return fmt.Errorf("business_analytics.aggregation_interval_seconds must be positive")
+		}
+		if c.BusinessAnalytics.LookbackSeconds < 0 {
+			return fmt.Errorf("business_analytics.lookback_seconds must be non-negative")
+		}
+		if c.BusinessAnalytics.BackfillMaxDays < 0 {
+			return fmt.Errorf("business_analytics.backfill_max_days must be non-negative")
+		}
+		if c.BusinessAnalytics.BackfillEnabled && c.BusinessAnalytics.BackfillMaxDays == 0 {
+			return fmt.Errorf("business_analytics.backfill_max_days must be positive")
+		}
+	} else {
+		if c.BusinessAnalytics.AggregationIntervalSeconds < 0 {
+			return fmt.Errorf("business_analytics.aggregation_interval_seconds must be non-negative")
+		}
+		if c.BusinessAnalytics.LookbackSeconds < 0 {
+			return fmt.Errorf("business_analytics.lookback_seconds must be non-negative")
+		}
+		if c.BusinessAnalytics.BackfillMaxDays < 0 {
+			return fmt.Errorf("business_analytics.backfill_max_days must be non-negative")
 		}
 	}
 	if c.UsageCleanup.Enabled {
