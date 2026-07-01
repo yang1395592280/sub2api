@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -10,10 +11,12 @@ import (
 )
 
 type fakeAutoSchedulerSelectorService struct {
-	enabledGroups map[int64]bool
-	settings      OpenAIAutoSchedulerSettings
-	states        map[int64]OpenAIAutoSchedulerScoreState
-	err           error
+	enabledGroups  map[int64]bool
+	settings       OpenAIAutoSchedulerSettings
+	states         map[int64]OpenAIAutoSchedulerScoreState
+	statesByKey    map[string]OpenAIAutoSchedulerScoreState
+	activeCooldown map[int64]bool
+	err            error
 }
 
 func (s *fakeAutoSchedulerSelectorService) IsEnabledForGroup(_ context.Context, groupID *int64) bool {
@@ -23,15 +26,27 @@ func (s *fakeAutoSchedulerSelectorService) IsEnabledForGroup(_ context.Context, 
 	return s.enabledGroups[*groupID]
 }
 
-func (s *fakeAutoSchedulerSelectorService) GetStateForSelection(_ context.Context, accountID, _ int64, _ string) (*OpenAIAutoSchedulerScoreState, error) {
+func (s *fakeAutoSchedulerSelectorService) GetStateForSelection(_ context.Context, accountID, _ int64, model string) (*OpenAIAutoSchedulerScoreState, error) {
 	if s != nil && s.err != nil {
 		return nil, s.err
+	}
+	if s.statesByKey != nil {
+		if state, ok := s.statesByKey[selectorStateKey(accountID, model)]; ok {
+			return &state, nil
+		}
 	}
 	state, ok := s.states[accountID]
 	if !ok {
 		return nil, nil
 	}
 	return &state, nil
+}
+
+func (s *fakeAutoSchedulerSelectorService) HasActiveCooldownForSelection(_ context.Context, accountID, _ int64) (bool, error) {
+	if s != nil && s.err != nil {
+		return false, s.err
+	}
+	return s != nil && s.activeCooldown[accountID], nil
 }
 
 func (s *fakeAutoSchedulerSelectorService) GetSettingsForSelection(context.Context) OpenAIAutoSchedulerSettings {
@@ -73,6 +88,23 @@ func TestOpenAIAutoSchedulerSelector_SkipsOpenCircuitAndSortsByScore(t *testing.
 	ranked, used := selector.Rank(context.Background(), &groupID, "gpt-5", []*Account{{ID: 1}, {ID: 3}, {ID: 2}})
 	require.True(t, used)
 	require.Equal(t, []int64{2, 3}, selectorAccountIDs(ranked))
+}
+
+func TestOpenAIAutoSchedulerSelector_SkipsAccountWhenAnyModelHasOpenCircuit(t *testing.T) {
+	groupID := int64(10)
+	selector := NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{
+		enabledGroups:  map[int64]bool{10: true},
+		activeCooldown: map[int64]bool{1: true},
+		statesByKey: map[string]OpenAIAutoSchedulerScoreState{
+			selectorStateKey(1, "gpt-5.5"): {AccountID: 1, GroupID: 10, Model: "gpt-5.5", FinalScore: 9000, State: OpenAIAutoSchedulerStateRunning},
+			selectorStateKey(2, "gpt-5.5"): {AccountID: 2, GroupID: 10, Model: "gpt-5.5", FinalScore: 6000, State: OpenAIAutoSchedulerStateRunning},
+		},
+	})
+
+	ranked, used := selector.Rank(context.Background(), &groupID, "gpt-5.5", []*Account{{ID: 1}, {ID: 2}})
+
+	require.True(t, used)
+	require.Equal(t, []int64{2}, selectorAccountIDs(ranked))
 }
 
 func TestOpenAIAutoSchedulerSelector_MissingStateUsesNeutralScoreAndStableFallbacks(t *testing.T) {
@@ -145,4 +177,8 @@ func selectorAccountIDs(accounts []*Account) []int64 {
 
 func ptrSelectorTime(value time.Time) *time.Time {
 	return &value
+}
+
+func selectorStateKey(accountID int64, model string) string {
+	return fmt.Sprintf("%d:%s", accountID, model)
 }

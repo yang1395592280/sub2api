@@ -1141,6 +1141,60 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_LoadAwareUsesAutoSchedu
 	}
 }
 
+func TestOpenAIGatewayService_SelectAccountWithScheduler_AdvancedSkipsAccountWhenAnyModelHasOpenCircuit(t *testing.T) {
+	groupID := int64(10)
+	repo := stubOpenAIAccountRepo{
+		accounts: []Account{
+			{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 1, AccountGroups: []AccountGroup{{GroupID: groupID}}},
+			{ID: 2, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 2, AccountGroups: []AccountGroup{{GroupID: groupID}}},
+		},
+	}
+	cache := &stubGatewayCache{}
+	concurrencyCache := stubConcurrencyCache{
+		loadMap: map[int64]*AccountLoadInfo{
+			1: {AccountID: 1, LoadRate: 10},
+			2: {AccountID: 2, LoadRate: 10},
+		},
+	}
+	selector := NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{
+		enabledGroups:  map[int64]bool{groupID: true},
+		activeCooldown: map[int64]bool{1: true},
+		statesByKey: map[string]OpenAIAutoSchedulerScoreState{
+			selectorStateKey(1, "gpt-5.5"): {AccountID: 1, GroupID: groupID, Model: "gpt-5.5", FinalScore: 9000, State: OpenAIAutoSchedulerStateRunning},
+			selectorStateKey(2, "gpt-5.5"): {AccountID: 2, GroupID: groupID, Model: "gpt-5.5", FinalScore: 6000, State: OpenAIAutoSchedulerStateRunning},
+		},
+	})
+
+	svc := &OpenAIGatewayService{
+		accountRepo:        repo,
+		cache:              cache,
+		concurrencyService: NewConcurrencyService(concurrencyCache),
+		rateLimitService:   newOpenAIAdvancedSchedulerRateLimitService("true"),
+	}
+	svc.SetOpenAIAutoScheduler(selector, nil)
+
+	selection, decision, err := svc.SelectAccountWithScheduler(
+		context.Background(),
+		&groupID,
+		"",
+		"advanced-open-circuit",
+		"gpt-5.5",
+		nil,
+		OpenAIUpstreamTransportHTTPSSE,
+		false,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, int64(2), selection.Account.ID)
+	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+	require.Equal(t, int64(2), cache.sessionBindings["openai:advanced-open-circuit"])
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+}
+
 func TestOpenAIGatewayService_SelectAccountWithScheduler_RecordsOutcomeAsync(t *testing.T) {
 	groupID := int64(10)
 	repo := &fakeOpenAIAutoSchedulerRepo{

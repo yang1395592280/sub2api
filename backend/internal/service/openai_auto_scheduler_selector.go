@@ -15,6 +15,7 @@ type OpenAIAutoSchedulerSelector struct {
 type openAIAutoSchedulerSelectorService interface {
 	IsEnabledForGroup(ctx context.Context, groupID *int64) bool
 	GetStateForSelection(ctx context.Context, accountID, groupID int64, model string) (*OpenAIAutoSchedulerScoreState, error)
+	HasActiveCooldownForSelection(ctx context.Context, accountID, groupID int64) (bool, error)
 	GetSettingsForSelection(ctx context.Context) OpenAIAutoSchedulerSettings
 }
 
@@ -47,6 +48,13 @@ func (s *OpenAIAutoSchedulerSelector) Rank(ctx context.Context, groupID *int64, 
 			state = &neutral
 		}
 		if isOpenAIAutoSchedulerStateInActiveCooldown(*state, now) {
+			continue
+		}
+		activeCooldown, err := s.service.HasActiveCooldownForSelection(ctx, account.ID, *groupID)
+		if err != nil {
+			return candidates, false
+		}
+		if activeCooldown {
 			continue
 		}
 		ranked = append(ranked, openAIAutoSchedulerRankedAccount{
@@ -92,10 +100,18 @@ func (s *OpenAIAutoSchedulerSelector) IsAccountTemporarilyBlocked(ctx context.Co
 		return false
 	}
 	state, err := s.service.GetStateForSelection(ctx, accountID, *groupID, strings.TrimSpace(requestedModel))
-	if err != nil || state == nil {
+	if err != nil {
 		return false
 	}
-	return isOpenAIAutoSchedulerStateInActiveCooldown(*state, time.Now())
+	if state == nil {
+		activeCooldown, activeErr := s.service.HasActiveCooldownForSelection(ctx, accountID, *groupID)
+		return activeErr == nil && activeCooldown
+	}
+	if isOpenAIAutoSchedulerStateInActiveCooldown(*state, time.Now()) {
+		return true
+	}
+	activeCooldown, activeErr := s.service.HasActiveCooldownForSelection(ctx, accountID, *groupID)
+	return activeErr == nil && activeCooldown
 }
 
 func isOpenAIAutoSchedulerStateInActiveCooldown(state OpenAIAutoSchedulerScoreState, now time.Time) bool {
@@ -130,6 +146,13 @@ func (s *OpenAIAutoSchedulerService) GetStateForSelection(ctx context.Context, a
 		return nil, nil
 	}
 	return s.repo.GetScoreState(ctx, accountID, groupID, strings.TrimSpace(model))
+}
+
+func (s *OpenAIAutoSchedulerService) HasActiveCooldownForSelection(ctx context.Context, accountID, groupID int64) (bool, error) {
+	if s == nil || s.repo == nil || accountID <= 0 || groupID <= 0 {
+		return false, nil
+	}
+	return s.repo.HasActiveCooldownScoreState(ctx, accountID, groupID, time.Now())
 }
 
 func (s *OpenAIAutoSchedulerService) GetSettingsForSelection(ctx context.Context) OpenAIAutoSchedulerSettings {
