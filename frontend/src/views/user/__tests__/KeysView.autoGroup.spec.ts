@@ -180,8 +180,55 @@ describe('KeysView OpenAI auto cheapest group', () => {
       undefined,
       { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 },
       'openai_auto_cheapest',
+      null,
     )
     expect(showError).not.toHaveBeenCalledWith('keys.groupRequired')
+  })
+
+  it('submits max rate multiplier for auto cheapest mode', async () => {
+    const wrapper = mount(KeysView, {
+      global: {
+        stubs: {
+          AppLayout: Passthrough,
+          TablePageLayout: TablePageLayoutStub,
+          DataTable: DataTableStub,
+          Pagination: true,
+          BaseDialog: BaseDialogStub,
+          ConfirmDialog: true,
+          EmptyState: true,
+          SearchInput: true,
+          EndpointPopover: true,
+          UseKeyModal: true,
+          Icon: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    await wrapper.get('[data-tour="keys-create-btn"]').trigger('click')
+    await wrapper.get('[data-tour="key-form-name"]').setValue('auto-budget')
+    const groupSelect = wrapper
+      .findAllComponents({ name: 'Select' })
+      .find((select) => select.attributes('data-tour') === 'key-form-group')
+    expect(groupSelect).toBeTruthy()
+    groupSelect.vm.$emit('update:modelValue', 'openai_auto_cheapest')
+    await flushPromises()
+    await wrapper.get('[data-tour="key-form-openai-auto-max-rate"]').setValue('0.8')
+    await wrapper.get('form#key-form').trigger('submit')
+    await flushPromises()
+
+    expect(createKey).toHaveBeenCalledWith(
+      'auto-budget',
+      null,
+      undefined,
+      [],
+      [],
+      0,
+      undefined,
+      { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 },
+      'openai_auto_cheapest',
+      0.8,
+    )
   })
 
   it('allows changing an existing key to auto cheapest from the row group dropdown', async () => {
@@ -296,6 +343,7 @@ describe('KeysView OpenAI auto cheapest group', () => {
           last_effective_group_id: 2,
           last_effective_group_at: '2026-06-30T01:00:00Z',
           last_effective_group: null,
+          openai_auto_group_max_rate_multiplier: 0.8,
         },
       ],
       total: 1,
@@ -325,6 +373,7 @@ describe('KeysView OpenAI auto cheapest group', () => {
 
     expect(wrapper.text()).toContain('keys.openaiAutoCheapest.currentEffective')
     expect(wrapper.text()).toContain('OpenAI Cheap')
+    expect(wrapper.text()).toContain('keys.openaiAutoCheapest.maxRateCurrent')
     expect(wrapper.text()).not.toContain('keys.openaiAutoCheapest.waitingFirstUse')
   })
 

@@ -809,7 +809,12 @@ export default {
       shortLabel: '自动最优惠',
       description: '按当前可用账号池自动使用最低倍率 OpenAI 分组',
       currentEffective: '最近生效：{name}',
-      waitingFirstUse: '等待首次调用'
+      waitingFirstUse: '等待首次调用',
+      maxRateLabel: '最高倍率限制',
+      maxRatePlaceholder: '不填表示不限制',
+      maxRateHint: '自动选择只会使用不高于该倍率的 OpenAI 分组；按用户专属倍率优先判断。',
+      maxRateCurrent: '最高倍率：≤ {rate}',
+      maxRateUnlimited: '最高倍率：不限制'
     },
     statusLabel: '状态',
     selectStatus: '选择状态',

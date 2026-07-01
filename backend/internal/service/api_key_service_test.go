@@ -395,6 +395,23 @@ func TestAPIKeyServiceCreate_OpenAIAutoCheapestAllowsNilGroup(t *testing.T) {
 	require.Nil(t, repo.created.GroupID)
 }
 
+func TestAPIKeyServiceCreate_OpenAIAutoCheapestStoresMaxRateMultiplier(t *testing.T) {
+	maxRate := 0.8
+	req := CreateAPIKeyRequest{
+		Name:                             "auto-budget",
+		GroupSelectMode:                  APIKeyGroupSelectModeOpenAIAutoCheapest,
+		OpenAIAutoGroupMaxRateMultiplier: &maxRate,
+	}
+	svc, repo := newAPIKeyServiceCreateTestHarness(t)
+
+	got, err := svc.Create(context.Background(), 42, req)
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.NotNil(t, repo.created.OpenAIAutoGroupMaxRateMultiplier)
+	require.Equal(t, maxRate, *repo.created.OpenAIAutoGroupMaxRateMultiplier)
+}
+
 func TestAPIKeyServiceUpdate_FixedRequiresGroupWhenSwitchingFromAuto(t *testing.T) {
 	req := UpdateAPIKeyRequest{
 		GroupSelectMode: ptrString(APIKeyGroupSelectModeFixed),
@@ -411,6 +428,72 @@ func TestAPIKeyServiceUpdate_FixedRequiresGroupWhenSwitchingFromAuto(t *testing.
 	_, err := svc.Update(context.Background(), 7, 42, req)
 
 	require.ErrorIs(t, err, ErrGroupRequired)
+}
+
+func TestAPIKeyServiceUpdate_FixedGroupClearsMaxRateMultiplier(t *testing.T) {
+	groupID := int64(12)
+	existingMaxRate := 0.8
+	req := UpdateAPIKeyRequest{
+		GroupSelectMode: ptrString(APIKeyGroupSelectModeFixed),
+		GroupID:         &groupID,
+	}
+	repo := &apiKeyCreateUpdateRepoStub{
+		current: &APIKey{
+			ID:                               7,
+			UserID:                           42,
+			GroupSelectMode:                  APIKeyGroupSelectModeOpenAIAutoCheapest,
+			OpenAIAutoGroupMaxRateMultiplier: &existingMaxRate,
+			Status:                           StatusActive,
+			Key:                              "sk-test",
+		},
+	}
+	svc := NewAPIKeyService(
+		repo,
+		&apiKeyServiceUserRepoStub{
+			user: &User{ID: 42, Status: StatusActive, Role: RoleUser},
+		},
+		&apiKeyServiceGroupRepoStub{
+			getByID: func(context.Context, int64) (*Group, error) {
+				return &Group{ID: groupID, Status: StatusActive}, nil
+			},
+		},
+		&apiKeyServiceUserSubRepoStub{
+			getActiveByUserIDAndGroupID: func(context.Context, int64, int64) (*UserSubscription, error) {
+				return nil, errors.New("unexpected subscription lookup")
+			},
+		},
+		nil,
+		nil,
+		&config.Config{},
+	)
+
+	got, err := svc.Update(context.Background(), 7, 42, req)
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Nil(t, repo.updated.OpenAIAutoGroupMaxRateMultiplier)
+}
+
+func TestAPIKeyServiceUpdate_OpenAIAutoCheapestStoresMaxRateMultiplier(t *testing.T) {
+	maxRate := 0.5
+	req := UpdateAPIKeyRequest{
+		GroupSelectMode:                  ptrString(APIKeyGroupSelectModeOpenAIAutoCheapest),
+		OpenAIAutoGroupMaxRateMultiplier: &maxRate,
+	}
+	svc := newAPIKeyServiceUpdateTestHarness(t, &APIKey{
+		ID:              7,
+		UserID:          42,
+		GroupSelectMode: APIKeyGroupSelectModeOpenAIAutoCheapest,
+		Status:          StatusActive,
+		Key:             "sk-test",
+	})
+
+	got, err := svc.Update(context.Background(), 7, 42, req)
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.NotNil(t, got.OpenAIAutoGroupMaxRateMultiplier)
+	require.Equal(t, maxRate, *got.OpenAIAutoGroupMaxRateMultiplier)
 }
 
 func TestAPIKeyServiceUpdate_OpenAIAutoCheapestIgnoresRequestedInvalidGroup(t *testing.T) {

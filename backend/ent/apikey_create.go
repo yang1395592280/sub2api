@@ -141,6 +141,20 @@ func (_c *APIKeyCreate) SetNillableLastEffectiveGroupAt(v *time.Time) *APIKeyCre
 	return _c
 }
 
+// SetOpenaiAutoGroupMaxRateMultiplier sets the "openai_auto_group_max_rate_multiplier" field.
+func (_c *APIKeyCreate) SetOpenaiAutoGroupMaxRateMultiplier(v float64) *APIKeyCreate {
+	_c.mutation.SetOpenaiAutoGroupMaxRateMultiplier(v)
+	return _c
+}
+
+// SetNillableOpenaiAutoGroupMaxRateMultiplier sets the "openai_auto_group_max_rate_multiplier" field if the given value is not nil.
+func (_c *APIKeyCreate) SetNillableOpenaiAutoGroupMaxRateMultiplier(v *float64) *APIKeyCreate {
+	if v != nil {
+		_c.SetOpenaiAutoGroupMaxRateMultiplier(*v)
+	}
+	return _c
+}
+
 // SetStatus sets the "status" field.
 func (_c *APIKeyCreate) SetStatus(v string) *APIKeyCreate {
 	_c.mutation.SetStatus(v)
@@ -597,6 +611,10 @@ func (_c *APIKeyCreate) createSpec() (*APIKey, *sqlgraph.CreateSpec) {
 		_spec.SetField(apikey.FieldLastEffectiveGroupAt, field.TypeTime, value)
 		_node.LastEffectiveGroupAt = &value
 	}
+	if value, ok := _c.mutation.OpenaiAutoGroupMaxRateMultiplier(); ok {
+		_spec.SetField(apikey.FieldOpenaiAutoGroupMaxRateMultiplier, field.TypeFloat64, value)
+		_node.OpenaiAutoGroupMaxRateMultiplier = &value
+	}
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(apikey.FieldStatus, field.TypeString, value)
 		_node.Status = value
@@ -898,6 +916,30 @@ func (u *APIKeyUpsert) UpdateLastEffectiveGroupAt() *APIKeyUpsert {
 // ClearLastEffectiveGroupAt clears the value of the "last_effective_group_at" field.
 func (u *APIKeyUpsert) ClearLastEffectiveGroupAt() *APIKeyUpsert {
 	u.SetNull(apikey.FieldLastEffectiveGroupAt)
+	return u
+}
+
+// SetOpenaiAutoGroupMaxRateMultiplier sets the "openai_auto_group_max_rate_multiplier" field.
+func (u *APIKeyUpsert) SetOpenaiAutoGroupMaxRateMultiplier(v float64) *APIKeyUpsert {
+	u.Set(apikey.FieldOpenaiAutoGroupMaxRateMultiplier, v)
+	return u
+}
+
+// UpdateOpenaiAutoGroupMaxRateMultiplier sets the "openai_auto_group_max_rate_multiplier" field to the value that was provided on create.
+func (u *APIKeyUpsert) UpdateOpenaiAutoGroupMaxRateMultiplier() *APIKeyUpsert {
+	u.SetExcluded(apikey.FieldOpenaiAutoGroupMaxRateMultiplier)
+	return u
+}
+
+// AddOpenaiAutoGroupMaxRateMultiplier adds v to the "openai_auto_group_max_rate_multiplier" field.
+func (u *APIKeyUpsert) AddOpenaiAutoGroupMaxRateMultiplier(v float64) *APIKeyUpsert {
+	u.Add(apikey.FieldOpenaiAutoGroupMaxRateMultiplier, v)
+	return u
+}
+
+// ClearOpenaiAutoGroupMaxRateMultiplier clears the value of the "openai_auto_group_max_rate_multiplier" field.
+func (u *APIKeyUpsert) ClearOpenaiAutoGroupMaxRateMultiplier() *APIKeyUpsert {
+	u.SetNull(apikey.FieldOpenaiAutoGroupMaxRateMultiplier)
 	return u
 }
 
@@ -1386,6 +1428,34 @@ func (u *APIKeyUpsertOne) UpdateLastEffectiveGroupAt() *APIKeyUpsertOne {
 func (u *APIKeyUpsertOne) ClearLastEffectiveGroupAt() *APIKeyUpsertOne {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.ClearLastEffectiveGroupAt()
+	})
+}
+
+// SetOpenaiAutoGroupMaxRateMultiplier sets the "openai_auto_group_max_rate_multiplier" field.
+func (u *APIKeyUpsertOne) SetOpenaiAutoGroupMaxRateMultiplier(v float64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetOpenaiAutoGroupMaxRateMultiplier(v)
+	})
+}
+
+// AddOpenaiAutoGroupMaxRateMultiplier adds v to the "openai_auto_group_max_rate_multiplier" field.
+func (u *APIKeyUpsertOne) AddOpenaiAutoGroupMaxRateMultiplier(v float64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddOpenaiAutoGroupMaxRateMultiplier(v)
+	})
+}
+
+// UpdateOpenaiAutoGroupMaxRateMultiplier sets the "openai_auto_group_max_rate_multiplier" field to the value that was provided on create.
+func (u *APIKeyUpsertOne) UpdateOpenaiAutoGroupMaxRateMultiplier() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateOpenaiAutoGroupMaxRateMultiplier()
+	})
+}
+
+// ClearOpenaiAutoGroupMaxRateMultiplier clears the value of the "openai_auto_group_max_rate_multiplier" field.
+func (u *APIKeyUpsertOne) ClearOpenaiAutoGroupMaxRateMultiplier() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.ClearOpenaiAutoGroupMaxRateMultiplier()
 	})
 }
 
@@ -2087,6 +2157,34 @@ func (u *APIKeyUpsertBulk) UpdateLastEffectiveGroupAt() *APIKeyUpsertBulk {
 func (u *APIKeyUpsertBulk) ClearLastEffectiveGroupAt() *APIKeyUpsertBulk {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.ClearLastEffectiveGroupAt()
+	})
+}
+
+// SetOpenaiAutoGroupMaxRateMultiplier sets the "openai_auto_group_max_rate_multiplier" field.
+func (u *APIKeyUpsertBulk) SetOpenaiAutoGroupMaxRateMultiplier(v float64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetOpenaiAutoGroupMaxRateMultiplier(v)
+	})
+}
+
+// AddOpenaiAutoGroupMaxRateMultiplier adds v to the "openai_auto_group_max_rate_multiplier" field.
+func (u *APIKeyUpsertBulk) AddOpenaiAutoGroupMaxRateMultiplier(v float64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddOpenaiAutoGroupMaxRateMultiplier(v)
+	})
+}
+
+// UpdateOpenaiAutoGroupMaxRateMultiplier sets the "openai_auto_group_max_rate_multiplier" field to the value that was provided on create.
+func (u *APIKeyUpsertBulk) UpdateOpenaiAutoGroupMaxRateMultiplier() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateOpenaiAutoGroupMaxRateMultiplier()
+	})
+}
+
+// ClearOpenaiAutoGroupMaxRateMultiplier clears the value of the "openai_auto_group_max_rate_multiplier" field.
+func (u *APIKeyUpsertBulk) ClearOpenaiAutoGroupMaxRateMultiplier() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.ClearOpenaiAutoGroupMaxRateMultiplier()
 	})
 }
 

@@ -296,17 +296,19 @@ func TestAPIKeyAuthSnapshotRoundTrip_PreservesGroupSelectionMetadata(t *testing.
 	groupID := int64(9)
 	lastEffectiveGroupID := int64(12)
 	lastEffectiveGroupAt := time.Unix(1710000200, 0).UTC()
+	maxRate := 0.8
 
 	snapshot := svc.snapshotFromAPIKey(context.Background(), &APIKey{
-		ID:                   10,
-		UserID:               20,
-		GroupID:              &groupID,
-		Key:                  "k-meta",
-		Name:                 "Meta Key",
-		GroupSelectMode:      APIKeyGroupSelectModeOpenAIAutoCheapest,
-		Status:               StatusActive,
-		LastEffectiveGroupID: &lastEffectiveGroupID,
-		LastEffectiveGroupAt: &lastEffectiveGroupAt,
+		ID:                               10,
+		UserID:                           20,
+		GroupID:                          &groupID,
+		Key:                              "k-meta",
+		Name:                             "Meta Key",
+		GroupSelectMode:                  APIKeyGroupSelectModeOpenAIAutoCheapest,
+		Status:                           StatusActive,
+		LastEffectiveGroupID:             &lastEffectiveGroupID,
+		LastEffectiveGroupAt:             &lastEffectiveGroupAt,
+		OpenAIAutoGroupMaxRateMultiplier: &maxRate,
 		User: &User{
 			ID:          20,
 			Status:      StatusActive,
@@ -320,12 +322,14 @@ func TestAPIKeyAuthSnapshotRoundTrip_PreservesGroupSelectionMetadata(t *testing.
 	require.Equal(t, APIKeyGroupSelectModeOpenAIAutoCheapest, snapshot.GroupSelectMode)
 	require.Equal(t, &lastEffectiveGroupID, snapshot.LastEffectiveGroupID)
 	require.Equal(t, &lastEffectiveGroupAt, snapshot.LastEffectiveGroupAt)
+	require.Equal(t, &maxRate, snapshot.OpenAIAutoGroupMaxRateMultiplier)
 
 	roundTrip := svc.snapshotToAPIKey("k-meta", snapshot)
 	require.NotNil(t, roundTrip)
 	require.Equal(t, APIKeyGroupSelectModeOpenAIAutoCheapest, roundTrip.NormalizedGroupSelectMode())
 	require.Equal(t, &lastEffectiveGroupID, roundTrip.LastEffectiveGroupID)
 	require.Equal(t, &lastEffectiveGroupAt, roundTrip.LastEffectiveGroupAt)
+	require.Equal(t, &maxRate, roundTrip.OpenAIAutoGroupMaxRateMultiplier)
 }
 
 func TestAPIKeyService_GetByKey_IgnoresLegacyAuthCacheSnapshotWithoutMessagesDispatchConfig(t *testing.T) {

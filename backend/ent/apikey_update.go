@@ -181,6 +181,33 @@ func (_u *APIKeyUpdate) ClearLastEffectiveGroupAt() *APIKeyUpdate {
 	return _u
 }
 
+// SetOpenaiAutoGroupMaxRateMultiplier sets the "openai_auto_group_max_rate_multiplier" field.
+func (_u *APIKeyUpdate) SetOpenaiAutoGroupMaxRateMultiplier(v float64) *APIKeyUpdate {
+	_u.mutation.ResetOpenaiAutoGroupMaxRateMultiplier()
+	_u.mutation.SetOpenaiAutoGroupMaxRateMultiplier(v)
+	return _u
+}
+
+// SetNillableOpenaiAutoGroupMaxRateMultiplier sets the "openai_auto_group_max_rate_multiplier" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableOpenaiAutoGroupMaxRateMultiplier(v *float64) *APIKeyUpdate {
+	if v != nil {
+		_u.SetOpenaiAutoGroupMaxRateMultiplier(*v)
+	}
+	return _u
+}
+
+// AddOpenaiAutoGroupMaxRateMultiplier adds value to the "openai_auto_group_max_rate_multiplier" field.
+func (_u *APIKeyUpdate) AddOpenaiAutoGroupMaxRateMultiplier(v float64) *APIKeyUpdate {
+	_u.mutation.AddOpenaiAutoGroupMaxRateMultiplier(v)
+	return _u
+}
+
+// ClearOpenaiAutoGroupMaxRateMultiplier clears the value of the "openai_auto_group_max_rate_multiplier" field.
+func (_u *APIKeyUpdate) ClearOpenaiAutoGroupMaxRateMultiplier() *APIKeyUpdate {
+	_u.mutation.ClearOpenaiAutoGroupMaxRateMultiplier()
+	return _u
+}
+
 // SetStatus sets the "status" field.
 func (_u *APIKeyUpdate) SetStatus(v string) *APIKeyUpdate {
 	_u.mutation.SetStatus(v)
@@ -677,6 +704,15 @@ func (_u *APIKeyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.LastEffectiveGroupAtCleared() {
 		_spec.ClearField(apikey.FieldLastEffectiveGroupAt, field.TypeTime)
 	}
+	if value, ok := _u.mutation.OpenaiAutoGroupMaxRateMultiplier(); ok {
+		_spec.SetField(apikey.FieldOpenaiAutoGroupMaxRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedOpenaiAutoGroupMaxRateMultiplier(); ok {
+		_spec.AddField(apikey.FieldOpenaiAutoGroupMaxRateMultiplier, field.TypeFloat64, value)
+	}
+	if _u.mutation.OpenaiAutoGroupMaxRateMultiplierCleared() {
+		_spec.ClearField(apikey.FieldOpenaiAutoGroupMaxRateMultiplier, field.TypeFloat64)
+	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(apikey.FieldStatus, field.TypeString, value)
 	}
@@ -1049,6 +1085,33 @@ func (_u *APIKeyUpdateOne) SetNillableLastEffectiveGroupAt(v *time.Time) *APIKey
 // ClearLastEffectiveGroupAt clears the value of the "last_effective_group_at" field.
 func (_u *APIKeyUpdateOne) ClearLastEffectiveGroupAt() *APIKeyUpdateOne {
 	_u.mutation.ClearLastEffectiveGroupAt()
+	return _u
+}
+
+// SetOpenaiAutoGroupMaxRateMultiplier sets the "openai_auto_group_max_rate_multiplier" field.
+func (_u *APIKeyUpdateOne) SetOpenaiAutoGroupMaxRateMultiplier(v float64) *APIKeyUpdateOne {
+	_u.mutation.ResetOpenaiAutoGroupMaxRateMultiplier()
+	_u.mutation.SetOpenaiAutoGroupMaxRateMultiplier(v)
+	return _u
+}
+
+// SetNillableOpenaiAutoGroupMaxRateMultiplier sets the "openai_auto_group_max_rate_multiplier" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableOpenaiAutoGroupMaxRateMultiplier(v *float64) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetOpenaiAutoGroupMaxRateMultiplier(*v)
+	}
+	return _u
+}
+
+// AddOpenaiAutoGroupMaxRateMultiplier adds value to the "openai_auto_group_max_rate_multiplier" field.
+func (_u *APIKeyUpdateOne) AddOpenaiAutoGroupMaxRateMultiplier(v float64) *APIKeyUpdateOne {
+	_u.mutation.AddOpenaiAutoGroupMaxRateMultiplier(v)
+	return _u
+}
+
+// ClearOpenaiAutoGroupMaxRateMultiplier clears the value of the "openai_auto_group_max_rate_multiplier" field.
+func (_u *APIKeyUpdateOne) ClearOpenaiAutoGroupMaxRateMultiplier() *APIKeyUpdateOne {
+	_u.mutation.ClearOpenaiAutoGroupMaxRateMultiplier()
 	return _u
 }
 
@@ -1577,6 +1640,15 @@ func (_u *APIKeyUpdateOne) sqlSave(ctx context.Context) (_node *APIKey, err erro
 	}
 	if _u.mutation.LastEffectiveGroupAtCleared() {
 		_spec.ClearField(apikey.FieldLastEffectiveGroupAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.OpenaiAutoGroupMaxRateMultiplier(); ok {
+		_spec.SetField(apikey.FieldOpenaiAutoGroupMaxRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedOpenaiAutoGroupMaxRateMultiplier(); ok {
+		_spec.AddField(apikey.FieldOpenaiAutoGroupMaxRateMultiplier, field.TypeFloat64, value)
+	}
+	if _u.mutation.OpenaiAutoGroupMaxRateMultiplierCleared() {
+		_spec.ClearField(apikey.FieldOpenaiAutoGroupMaxRateMultiplier, field.TypeFloat64)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(apikey.FieldStatus, field.TypeString, value)

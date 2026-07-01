@@ -40,6 +40,8 @@ type APIKey struct {
 	LastEffectiveGroupID *int64 `json:"last_effective_group_id,omitempty"`
 	// LastEffectiveGroupAt holds the value of the "last_effective_group_at" field.
 	LastEffectiveGroupAt *time.Time `json:"last_effective_group_at,omitempty"`
+	// Maximum effective group rate multiplier for OpenAI auto cheapest selection (null/0 = unlimited)
+	OpenaiAutoGroupMaxRateMultiplier *float64 `json:"openai_auto_group_max_rate_multiplier,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
 	// Last usage time of this API key
@@ -129,7 +131,7 @@ func (*APIKey) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case apikey.FieldIPWhitelist, apikey.FieldIPBlacklist:
 			values[i] = new([]byte)
-		case apikey.FieldQuota, apikey.FieldQuotaUsed, apikey.FieldRateLimit5h, apikey.FieldRateLimit1d, apikey.FieldRateLimit7d, apikey.FieldUsage5h, apikey.FieldUsage1d, apikey.FieldUsage7d:
+		case apikey.FieldOpenaiAutoGroupMaxRateMultiplier, apikey.FieldQuota, apikey.FieldQuotaUsed, apikey.FieldRateLimit5h, apikey.FieldRateLimit1d, apikey.FieldRateLimit7d, apikey.FieldUsage5h, apikey.FieldUsage1d, apikey.FieldUsage7d:
 			values[i] = new(sql.NullFloat64)
 		case apikey.FieldID, apikey.FieldUserID, apikey.FieldGroupID, apikey.FieldLastEffectiveGroupID:
 			values[i] = new(sql.NullInt64)
@@ -221,6 +223,13 @@ func (_m *APIKey) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.LastEffectiveGroupAt = new(time.Time)
 				*_m.LastEffectiveGroupAt = value.Time
+			}
+		case apikey.FieldOpenaiAutoGroupMaxRateMultiplier:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field openai_auto_group_max_rate_multiplier", values[i])
+			} else if value.Valid {
+				_m.OpenaiAutoGroupMaxRateMultiplier = new(float64)
+				*_m.OpenaiAutoGroupMaxRateMultiplier = value.Float64
 			}
 		case apikey.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -414,6 +423,11 @@ func (_m *APIKey) String() string {
 	if v := _m.LastEffectiveGroupAt; v != nil {
 		builder.WriteString("last_effective_group_at=")
 		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	if v := _m.OpenaiAutoGroupMaxRateMultiplier; v != nil {
+		builder.WriteString("openai_auto_group_max_rate_multiplier=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")
 	builder.WriteString("status=")

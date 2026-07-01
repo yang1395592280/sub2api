@@ -39,6 +39,7 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	requireColumn(t, tx, "api_keys", "group_select_mode", "character varying", 32, false)
 	requireColumn(t, tx, "api_keys", "last_effective_group_id", "bigint", 0, true)
 	requireColumn(t, tx, "api_keys", "last_effective_group_at", "timestamp with time zone", 0, true)
+	requireColumn(t, tx, "api_keys", "openai_auto_group_max_rate_multiplier", "numeric", 0, true)
 
 	// redeem_codes: subscription fields
 	requireColumn(t, tx, "redeem_codes", "group_id", "bigint", 0, true)

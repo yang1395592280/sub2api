@@ -586,6 +586,7 @@ export interface ApiKey {
   last_effective_group_id: number | null
   last_effective_group_at: string | null
   last_effective_group?: Group | null
+  openai_auto_group_max_rate_multiplier?: number | null
   rate_limit_5h: number
   rate_limit_1d: number
   rate_limit_7d: number
@@ -606,6 +607,7 @@ export interface CreateApiKeyRequest {
   name: string
   group_id?: number | null
   group_select_mode?: ApiKeyGroupSelectMode
+  openai_auto_group_max_rate_multiplier?: number | null
   custom_key?: string // Optional custom API Key
   ip_whitelist?: string[]
   ip_blacklist?: string[]
@@ -620,6 +622,7 @@ export interface UpdateApiKeyRequest {
   name?: string
   group_id?: number | null
   group_select_mode?: ApiKeyGroupSelectMode
+  openai_auto_group_max_rate_multiplier?: number | null
   status?: 'active' | 'inactive'
   ip_whitelist?: string[]
   ip_blacklist?: string[]

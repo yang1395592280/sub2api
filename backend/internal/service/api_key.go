@@ -48,11 +48,13 @@ type APIKey struct {
 	LastUsedAt           *time.Time
 	LastEffectiveGroupID *int64
 	LastEffectiveGroupAt *time.Time
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-	User                 *User
-	Group                *Group
-	LastEffectiveGroup   *Group
+	// nil or 0 means unlimited.
+	OpenAIAutoGroupMaxRateMultiplier *float64
+	CreatedAt                        time.Time
+	UpdatedAt                        time.Time
+	User                             *User
+	Group                            *Group
+	LastEffectiveGroup               *Group
 
 	// Quota fields
 	Quota     float64    // Quota limit in USD (0 = unlimited)

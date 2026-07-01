@@ -68,7 +68,7 @@ func SelectFirstEffectiveOpenAIGroupForTest(apiKey *APIKey, groups []Group, try 
 	return nil, ErrNoAvailableAccounts
 }
 
-func (r *OpenAIAutoCheapestGroupResolver) CandidateGroups(ctx context.Context, userID int64) ([]Group, error) {
+func (r *OpenAIAutoCheapestGroupResolver) CandidateGroups(ctx context.Context, userID int64, maxRateMultiplier *float64) ([]Group, error) {
 	if r == nil || r.provider == nil || userID <= 0 {
 		return nil, nil
 	}
@@ -89,6 +89,9 @@ func (r *OpenAIAutoCheapestGroupResolver) CandidateGroups(ctx context.Context, u
 			continue
 		}
 		if group.Status != StatusActive {
+			continue
+		}
+		if maxRateMultiplier != nil && *maxRateMultiplier > 0 && EffectiveOpenAIGroupRate(group, userRates) > *maxRateMultiplier {
 			continue
 		}
 		candidates = append(candidates, group)

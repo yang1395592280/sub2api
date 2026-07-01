@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 13 // v13: include api key group selection and last effective group fields
+const apiKeyAuthSnapshotVersion = 14 // v14: include OpenAI auto cheapest max rate multiplier
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -206,23 +206,24 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 		return nil
 	}
 	snapshot := &APIKeyAuthSnapshot{
-		Version:              apiKeyAuthSnapshotVersion,
-		APIKeyID:             apiKey.ID,
-		UserID:               apiKey.UserID,
-		GroupID:              apiKey.GroupID,
-		GroupSelectMode:      apiKey.NormalizedGroupSelectMode(),
-		Name:                 apiKey.Name,
-		Status:               apiKey.Status,
-		IPWhitelist:          apiKey.IPWhitelist,
-		IPBlacklist:          apiKey.IPBlacklist,
-		LastEffectiveGroupID: apiKey.LastEffectiveGroupID,
-		LastEffectiveGroupAt: apiKey.LastEffectiveGroupAt,
-		Quota:                apiKey.Quota,
-		QuotaUsed:            apiKey.QuotaUsed,
-		ExpiresAt:            apiKey.ExpiresAt,
-		RateLimit5h:          apiKey.RateLimit5h,
-		RateLimit1d:          apiKey.RateLimit1d,
-		RateLimit7d:          apiKey.RateLimit7d,
+		Version:                          apiKeyAuthSnapshotVersion,
+		APIKeyID:                         apiKey.ID,
+		UserID:                           apiKey.UserID,
+		GroupID:                          apiKey.GroupID,
+		GroupSelectMode:                  apiKey.NormalizedGroupSelectMode(),
+		Name:                             apiKey.Name,
+		Status:                           apiKey.Status,
+		IPWhitelist:                      apiKey.IPWhitelist,
+		IPBlacklist:                      apiKey.IPBlacklist,
+		LastEffectiveGroupID:             apiKey.LastEffectiveGroupID,
+		LastEffectiveGroupAt:             apiKey.LastEffectiveGroupAt,
+		OpenAIAutoGroupMaxRateMultiplier: apiKey.OpenAIAutoGroupMaxRateMultiplier,
+		Quota:                            apiKey.Quota,
+		QuotaUsed:                        apiKey.QuotaUsed,
+		ExpiresAt:                        apiKey.ExpiresAt,
+		RateLimit5h:                      apiKey.RateLimit5h,
+		RateLimit1d:                      apiKey.RateLimit1d,
+		RateLimit7d:                      apiKey.RateLimit7d,
 		User: APIKeyAuthUserSnapshot{
 			ID:                         apiKey.User.ID,
 			Status:                     apiKey.User.Status,
@@ -289,23 +290,24 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 		return nil
 	}
 	apiKey := &APIKey{
-		ID:                   snapshot.APIKeyID,
-		UserID:               snapshot.UserID,
-		GroupID:              snapshot.GroupID,
-		Key:                  key,
-		Name:                 snapshot.Name,
-		GroupSelectMode:      snapshot.GroupSelectMode,
-		Status:               snapshot.Status,
-		IPWhitelist:          snapshot.IPWhitelist,
-		IPBlacklist:          snapshot.IPBlacklist,
-		LastEffectiveGroupID: snapshot.LastEffectiveGroupID,
-		LastEffectiveGroupAt: snapshot.LastEffectiveGroupAt,
-		Quota:                snapshot.Quota,
-		QuotaUsed:            snapshot.QuotaUsed,
-		ExpiresAt:            snapshot.ExpiresAt,
-		RateLimit5h:          snapshot.RateLimit5h,
-		RateLimit1d:          snapshot.RateLimit1d,
-		RateLimit7d:          snapshot.RateLimit7d,
+		ID:                               snapshot.APIKeyID,
+		UserID:                           snapshot.UserID,
+		GroupID:                          snapshot.GroupID,
+		Key:                              key,
+		Name:                             snapshot.Name,
+		GroupSelectMode:                  snapshot.GroupSelectMode,
+		Status:                           snapshot.Status,
+		IPWhitelist:                      snapshot.IPWhitelist,
+		IPBlacklist:                      snapshot.IPBlacklist,
+		LastEffectiveGroupID:             snapshot.LastEffectiveGroupID,
+		LastEffectiveGroupAt:             snapshot.LastEffectiveGroupAt,
+		OpenAIAutoGroupMaxRateMultiplier: snapshot.OpenAIAutoGroupMaxRateMultiplier,
+		Quota:                            snapshot.Quota,
+		QuotaUsed:                        snapshot.QuotaUsed,
+		ExpiresAt:                        snapshot.ExpiresAt,
+		RateLimit5h:                      snapshot.RateLimit5h,
+		RateLimit1d:                      snapshot.RateLimit1d,
+		RateLimit7d:                      snapshot.RateLimit7d,
 		User: &User{
 			ID:                         snapshot.User.ID,
 			Status:                     snapshot.User.Status,

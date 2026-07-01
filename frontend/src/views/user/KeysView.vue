@@ -151,6 +151,9 @@
                         : t('keys.openaiAutoCheapest.waitingFirstUse')
                     }}
                   </span>
+                  <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20">
+                    {{ getOpenAIAutoMaxRateLabel(row) }}
+                  </span>
                 </div>
                 <GroupBadge
                   v-else-if="row.group"
@@ -491,6 +494,27 @@
               />
             </template>
           </Select>
+        </div>
+
+        <div
+          v-if="formData.group_select_mode === 'openai_auto_cheapest'"
+          class="rounded-lg border border-emerald-100 bg-emerald-50/70 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/10"
+        >
+          <label class="input-label text-emerald-900 dark:text-emerald-100">
+            {{ t('keys.openaiAutoCheapest.maxRateLabel') }}
+          </label>
+          <input
+            v-model.number="formData.openai_auto_group_max_rate_multiplier"
+            type="number"
+            min="0"
+            step="0.000001"
+            class="input border-emerald-200 bg-white/90 focus:border-emerald-500 focus:ring-emerald-500 dark:border-emerald-500/30 dark:bg-dark-800"
+            :placeholder="t('keys.openaiAutoCheapest.maxRatePlaceholder')"
+            data-tour="key-form-openai-auto-max-rate"
+          />
+          <p class="mt-2 text-xs leading-5 text-emerald-700 dark:text-emerald-300">
+            {{ t('keys.openaiAutoCheapest.maxRateHint') }}
+          </p>
         </div>
 
         <!-- Custom Key Section (only for create) -->
@@ -1287,6 +1311,7 @@ const formData = ref({
   name: '',
   group_id: null as number | null,
   group_select_mode: 'fixed' as ApiKeyGroupSelectMode,
+  openai_auto_group_max_rate_multiplier: null as number | null,
   status: 'active' as 'active' | 'inactive',
   use_custom_key: false,
   custom_key: '',
@@ -1382,6 +1407,14 @@ const getLastEffectiveGroupName = (key: ApiKey): string => {
     return ''
   }
   return groups.value.find((group) => group.id === groupID)?.name || ''
+}
+
+const getOpenAIAutoMaxRateLabel = (key: ApiKey): string => {
+  const maxRate = key.openai_auto_group_max_rate_multiplier
+  if (typeof maxRate === 'number' && Number.isFinite(maxRate) && maxRate > 0) {
+    return t('keys.openaiAutoCheapest.maxRateCurrent', { rate: maxRate })
+  }
+  return t('keys.openaiAutoCheapest.maxRateUnlimited')
 }
 
 const selectedGroupOptionValue = computed<KeyGroupOptionValue | null>({
@@ -1543,6 +1576,7 @@ const editKey = (key: ApiKey) => {
     name: key.name,
     group_id: groupSelectMode === 'openai_auto_cheapest' ? null : key.group_id,
     group_select_mode: groupSelectMode,
+    openai_auto_group_max_rate_multiplier: key.openai_auto_group_max_rate_multiplier ?? null,
     status: key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status,
     use_custom_key: false,
     custom_key: '',
@@ -1701,6 +1735,12 @@ const handleSubmit = async () => {
     rate_limit_1d: formData.value.rate_limit_1d && formData.value.rate_limit_1d > 0 ? formData.value.rate_limit_1d : 0,
     rate_limit_7d: formData.value.rate_limit_7d && formData.value.rate_limit_7d > 0 ? formData.value.rate_limit_7d : 0,
   } : { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 }
+  const openAIAutoMaxRate =
+    formData.value.group_select_mode === 'openai_auto_cheapest' &&
+    formData.value.openai_auto_group_max_rate_multiplier &&
+    formData.value.openai_auto_group_max_rate_multiplier > 0
+      ? formData.value.openai_auto_group_max_rate_multiplier
+      : null
 
   submitting.value = true
   try {
@@ -1709,6 +1749,7 @@ const handleSubmit = async () => {
         name: formData.value.name,
         group_id: formData.value.group_id,
         group_select_mode: formData.value.group_select_mode,
+        openai_auto_group_max_rate_multiplier: openAIAutoMaxRate,
         ip_whitelist: ipWhitelist,
         ip_blacklist: ipBlacklist,
         quota: quota,
@@ -1733,7 +1774,8 @@ const handleSubmit = async () => {
         quota,
         expiresInDays,
         rateLimitData,
-        formData.value.group_select_mode
+        formData.value.group_select_mode,
+        openAIAutoMaxRate
       )
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
       // Only advance tour if active, on submit step, and creation succeeded
@@ -1780,6 +1822,7 @@ const closeModals = () => {
     name: '',
     group_id: null,
     group_select_mode: 'fixed',
+    openai_auto_group_max_rate_multiplier: null,
     status: 'active',
     use_custom_key: false,
     custom_key: '',

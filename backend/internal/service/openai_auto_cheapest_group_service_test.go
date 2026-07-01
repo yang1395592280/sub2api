@@ -69,10 +69,44 @@ func TestCandidateGroups_FiltersOpenAIAndSortsByEffectiveRate(t *testing.T) {
 	}
 	resolver := NewOpenAIAutoCheapestGroupResolver(provider)
 
-	got, err := resolver.CandidateGroups(context.Background(), 42)
+	got, err := resolver.CandidateGroups(context.Background(), 42, nil)
 
 	require.NoError(t, err)
 	require.Equal(t, []int64{2, 3}, groupIDsForTest(got))
+}
+
+func TestCandidateGroups_FiltersByMaxEffectiveRateMultiplier(t *testing.T) {
+	provider := &fakeAvailableOpenAIGroupsProvider{
+		groups: []Group{
+			{ID: 1, Name: "cheap-default", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1},
+			{ID: 2, Name: "override-cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 1.5},
+			{ID: 3, Name: "too-expensive", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.9},
+		},
+		rates: map[int64]float64{2: 0.2},
+	}
+	resolver := NewOpenAIAutoCheapestGroupResolver(provider)
+	maxRate := 0.2
+
+	got, err := resolver.CandidateGroups(context.Background(), 42, &maxRate)
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{1, 2}, groupIDsForTest(got))
+}
+
+func TestCandidateGroups_ZeroMaxRateMultiplierMeansUnlimited(t *testing.T) {
+	provider := &fakeAvailableOpenAIGroupsProvider{
+		groups: []Group{
+			{ID: 1, Name: "cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1},
+			{ID: 2, Name: "expensive", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 1.5},
+		},
+	}
+	resolver := NewOpenAIAutoCheapestGroupResolver(provider)
+	maxRate := 0.0
+
+	got, err := resolver.CandidateGroups(context.Background(), 42, &maxRate)
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{1, 2}, groupIDsForTest(got))
 }
 
 func TestCandidateGroups_TieBreaksBySortOrderThenID(t *testing.T) {
@@ -85,7 +119,7 @@ func TestCandidateGroups_TieBreaksBySortOrderThenID(t *testing.T) {
 	}
 	resolver := NewOpenAIAutoCheapestGroupResolver(provider)
 
-	got, err := resolver.CandidateGroups(context.Background(), 42)
+	got, err := resolver.CandidateGroups(context.Background(), 42, nil)
 
 	require.NoError(t, err)
 	require.Equal(t, []int64{5, 6, 7}, groupIDsForTest(got))

@@ -2073,7 +2073,7 @@ func (s *OpenAIGatewayService) resolveEffectiveOpenAIAPIKeys(ctx context.Context
 	if s == nil || s.openAIAutoCheapestGroupResolver == nil {
 		return nil, ErrNoAvailableAccounts
 	}
-	groups, err := s.openAIAutoCheapestGroupResolver.CandidateGroups(ctx, apiKey.UserID)
+	groups, err := s.openAIAutoCheapestGroupResolver.CandidateGroups(ctx, apiKey.UserID, apiKey.OpenAIAutoGroupMaxRateMultiplier)
 	if err != nil {
 		return nil, err
 	}

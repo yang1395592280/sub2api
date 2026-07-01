@@ -35,6 +35,8 @@ const (
 	FieldLastEffectiveGroupID = "last_effective_group_id"
 	// FieldLastEffectiveGroupAt holds the string denoting the last_effective_group_at field in the database.
 	FieldLastEffectiveGroupAt = "last_effective_group_at"
+	// FieldOpenaiAutoGroupMaxRateMultiplier holds the string denoting the openai_auto_group_max_rate_multiplier field in the database.
+	FieldOpenaiAutoGroupMaxRateMultiplier = "openai_auto_group_max_rate_multiplier"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
 	// FieldLastUsedAt holds the string denoting the last_used_at field in the database.
@@ -111,6 +113,7 @@ var Columns = []string{
 	FieldGroupSelectMode,
 	FieldLastEffectiveGroupID,
 	FieldLastEffectiveGroupAt,
+	FieldOpenaiAutoGroupMaxRateMultiplier,
 	FieldStatus,
 	FieldLastUsedAt,
 	FieldIPWhitelist,
@@ -239,6 +242,11 @@ func ByLastEffectiveGroupID(opts ...sql.OrderTermOption) OrderOption {
 // ByLastEffectiveGroupAt orders the results by the last_effective_group_at field.
 func ByLastEffectiveGroupAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldLastEffectiveGroupAt, opts...).ToFunc()
+}
+
+// ByOpenaiAutoGroupMaxRateMultiplier orders the results by the openai_auto_group_max_rate_multiplier field.
+func ByOpenaiAutoGroupMaxRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOpenaiAutoGroupMaxRateMultiplier, opts...).ToFunc()
 }
 
 // ByStatus orders the results by the status field.

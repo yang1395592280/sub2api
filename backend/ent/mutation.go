@@ -108,55 +108,57 @@ const (
 // APIKeyMutation represents an operation that mutates the APIKey nodes in the graph.
 type APIKeyMutation struct {
 	config
-	op                         Op
-	typ                        string
-	id                         *int64
-	created_at                 *time.Time
-	updated_at                 *time.Time
-	deleted_at                 *time.Time
-	key                        *string
-	name                       *string
-	group_select_mode          *string
-	last_effective_group_id    *int64
-	addlast_effective_group_id *int64
-	last_effective_group_at    *time.Time
-	status                     *string
-	last_used_at               *time.Time
-	ip_whitelist               *[]string
-	appendip_whitelist         []string
-	ip_blacklist               *[]string
-	appendip_blacklist         []string
-	quota                      *float64
-	addquota                   *float64
-	quota_used                 *float64
-	addquota_used              *float64
-	expires_at                 *time.Time
-	rate_limit_5h              *float64
-	addrate_limit_5h           *float64
-	rate_limit_1d              *float64
-	addrate_limit_1d           *float64
-	rate_limit_7d              *float64
-	addrate_limit_7d           *float64
-	usage_5h                   *float64
-	addusage_5h                *float64
-	usage_1d                   *float64
-	addusage_1d                *float64
-	usage_7d                   *float64
-	addusage_7d                *float64
-	window_5h_start            *time.Time
-	window_1d_start            *time.Time
-	window_7d_start            *time.Time
-	clearedFields              map[string]struct{}
-	user                       *int64
-	cleareduser                bool
-	group                      *int64
-	clearedgroup               bool
-	usage_logs                 map[int64]struct{}
-	removedusage_logs          map[int64]struct{}
-	clearedusage_logs          bool
-	done                       bool
-	oldValue                   func(context.Context) (*APIKey, error)
-	predicates                 []predicate.APIKey
+	op                                       Op
+	typ                                      string
+	id                                       *int64
+	created_at                               *time.Time
+	updated_at                               *time.Time
+	deleted_at                               *time.Time
+	key                                      *string
+	name                                     *string
+	group_select_mode                        *string
+	last_effective_group_id                  *int64
+	addlast_effective_group_id               *int64
+	last_effective_group_at                  *time.Time
+	openai_auto_group_max_rate_multiplier    *float64
+	addopenai_auto_group_max_rate_multiplier *float64
+	status                                   *string
+	last_used_at                             *time.Time
+	ip_whitelist                             *[]string
+	appendip_whitelist                       []string
+	ip_blacklist                             *[]string
+	appendip_blacklist                       []string
+	quota                                    *float64
+	addquota                                 *float64
+	quota_used                               *float64
+	addquota_used                            *float64
+	expires_at                               *time.Time
+	rate_limit_5h                            *float64
+	addrate_limit_5h                         *float64
+	rate_limit_1d                            *float64
+	addrate_limit_1d                         *float64
+	rate_limit_7d                            *float64
+	addrate_limit_7d                         *float64
+	usage_5h                                 *float64
+	addusage_5h                              *float64
+	usage_1d                                 *float64
+	addusage_1d                              *float64
+	usage_7d                                 *float64
+	addusage_7d                              *float64
+	window_5h_start                          *time.Time
+	window_1d_start                          *time.Time
+	window_7d_start                          *time.Time
+	clearedFields                            map[string]struct{}
+	user                                     *int64
+	cleareduser                              bool
+	group                                    *int64
+	clearedgroup                             bool
+	usage_logs                               map[int64]struct{}
+	removedusage_logs                        map[int64]struct{}
+	clearedusage_logs                        bool
+	done                                     bool
+	oldValue                                 func(context.Context) (*APIKey, error)
+	predicates                               []predicate.APIKey
 }
 
 var _ ent.Mutation = (*APIKeyMutation)(nil)
@@ -688,6 +690,76 @@ func (m *APIKeyMutation) LastEffectiveGroupAtCleared() bool {
 func (m *APIKeyMutation) ResetLastEffectiveGroupAt() {
 	m.last_effective_group_at = nil
 	delete(m.clearedFields, apikey.FieldLastEffectiveGroupAt)
+}
+
+// SetOpenaiAutoGroupMaxRateMultiplier sets the "openai_auto_group_max_rate_multiplier" field.
+func (m *APIKeyMutation) SetOpenaiAutoGroupMaxRateMultiplier(f float64) {
+	m.openai_auto_group_max_rate_multiplier = &f
+	m.addopenai_auto_group_max_rate_multiplier = nil
+}
+
+// OpenaiAutoGroupMaxRateMultiplier returns the value of the "openai_auto_group_max_rate_multiplier" field in the mutation.
+func (m *APIKeyMutation) OpenaiAutoGroupMaxRateMultiplier() (r float64, exists bool) {
+	v := m.openai_auto_group_max_rate_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOpenaiAutoGroupMaxRateMultiplier returns the old "openai_auto_group_max_rate_multiplier" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldOpenaiAutoGroupMaxRateMultiplier(ctx context.Context) (v *float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOpenaiAutoGroupMaxRateMultiplier is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOpenaiAutoGroupMaxRateMultiplier requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOpenaiAutoGroupMaxRateMultiplier: %w", err)
+	}
+	return oldValue.OpenaiAutoGroupMaxRateMultiplier, nil
+}
+
+// AddOpenaiAutoGroupMaxRateMultiplier adds f to the "openai_auto_group_max_rate_multiplier" field.
+func (m *APIKeyMutation) AddOpenaiAutoGroupMaxRateMultiplier(f float64) {
+	if m.addopenai_auto_group_max_rate_multiplier != nil {
+		*m.addopenai_auto_group_max_rate_multiplier += f
+	} else {
+		m.addopenai_auto_group_max_rate_multiplier = &f
+	}
+}
+
+// AddedOpenaiAutoGroupMaxRateMultiplier returns the value that was added to the "openai_auto_group_max_rate_multiplier" field in this mutation.
+func (m *APIKeyMutation) AddedOpenaiAutoGroupMaxRateMultiplier() (r float64, exists bool) {
+	v := m.addopenai_auto_group_max_rate_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearOpenaiAutoGroupMaxRateMultiplier clears the value of the "openai_auto_group_max_rate_multiplier" field.
+func (m *APIKeyMutation) ClearOpenaiAutoGroupMaxRateMultiplier() {
+	m.openai_auto_group_max_rate_multiplier = nil
+	m.addopenai_auto_group_max_rate_multiplier = nil
+	m.clearedFields[apikey.FieldOpenaiAutoGroupMaxRateMultiplier] = struct{}{}
+}
+
+// OpenaiAutoGroupMaxRateMultiplierCleared returns if the "openai_auto_group_max_rate_multiplier" field was cleared in this mutation.
+func (m *APIKeyMutation) OpenaiAutoGroupMaxRateMultiplierCleared() bool {
+	_, ok := m.clearedFields[apikey.FieldOpenaiAutoGroupMaxRateMultiplier]
+	return ok
+}
+
+// ResetOpenaiAutoGroupMaxRateMultiplier resets all changes to the "openai_auto_group_max_rate_multiplier" field.
+func (m *APIKeyMutation) ResetOpenaiAutoGroupMaxRateMultiplier() {
+	m.openai_auto_group_max_rate_multiplier = nil
+	m.addopenai_auto_group_max_rate_multiplier = nil
+	delete(m.clearedFields, apikey.FieldOpenaiAutoGroupMaxRateMultiplier)
 }
 
 // SetStatus sets the "status" field.
@@ -1691,7 +1763,7 @@ func (m *APIKeyMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *APIKeyMutation) Fields() []string {
-	fields := make([]string, 0, 26)
+	fields := make([]string, 0, 27)
 	if m.created_at != nil {
 		fields = append(fields, apikey.FieldCreatedAt)
 	}
@@ -1721,6 +1793,9 @@ func (m *APIKeyMutation) Fields() []string {
 	}
 	if m.last_effective_group_at != nil {
 		fields = append(fields, apikey.FieldLastEffectiveGroupAt)
+	}
+	if m.openai_auto_group_max_rate_multiplier != nil {
+		fields = append(fields, apikey.FieldOpenaiAutoGroupMaxRateMultiplier)
 	}
 	if m.status != nil {
 		fields = append(fields, apikey.FieldStatus)
@@ -1798,6 +1873,8 @@ func (m *APIKeyMutation) Field(name string) (ent.Value, bool) {
 		return m.LastEffectiveGroupID()
 	case apikey.FieldLastEffectiveGroupAt:
 		return m.LastEffectiveGroupAt()
+	case apikey.FieldOpenaiAutoGroupMaxRateMultiplier:
+		return m.OpenaiAutoGroupMaxRateMultiplier()
 	case apikey.FieldStatus:
 		return m.Status()
 	case apikey.FieldLastUsedAt:
@@ -1859,6 +1936,8 @@ func (m *APIKeyMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldLastEffectiveGroupID(ctx)
 	case apikey.FieldLastEffectiveGroupAt:
 		return m.OldLastEffectiveGroupAt(ctx)
+	case apikey.FieldOpenaiAutoGroupMaxRateMultiplier:
+		return m.OldOpenaiAutoGroupMaxRateMultiplier(ctx)
 	case apikey.FieldStatus:
 		return m.OldStatus(ctx)
 	case apikey.FieldLastUsedAt:
@@ -1969,6 +2048,13 @@ func (m *APIKeyMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetLastEffectiveGroupAt(v)
+		return nil
+	case apikey.FieldOpenaiAutoGroupMaxRateMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOpenaiAutoGroupMaxRateMultiplier(v)
 		return nil
 	case apikey.FieldStatus:
 		v, ok := value.(string)
@@ -2093,6 +2179,9 @@ func (m *APIKeyMutation) AddedFields() []string {
 	if m.addlast_effective_group_id != nil {
 		fields = append(fields, apikey.FieldLastEffectiveGroupID)
 	}
+	if m.addopenai_auto_group_max_rate_multiplier != nil {
+		fields = append(fields, apikey.FieldOpenaiAutoGroupMaxRateMultiplier)
+	}
 	if m.addquota != nil {
 		fields = append(fields, apikey.FieldQuota)
 	}
@@ -2127,6 +2216,8 @@ func (m *APIKeyMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case apikey.FieldLastEffectiveGroupID:
 		return m.AddedLastEffectiveGroupID()
+	case apikey.FieldOpenaiAutoGroupMaxRateMultiplier:
+		return m.AddedOpenaiAutoGroupMaxRateMultiplier()
 	case apikey.FieldQuota:
 		return m.AddedQuota()
 	case apikey.FieldQuotaUsed:
@@ -2158,6 +2249,13 @@ func (m *APIKeyMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddLastEffectiveGroupID(v)
+		return nil
+	case apikey.FieldOpenaiAutoGroupMaxRateMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddOpenaiAutoGroupMaxRateMultiplier(v)
 		return nil
 	case apikey.FieldQuota:
 		v, ok := value.(float64)
@@ -2235,6 +2333,9 @@ func (m *APIKeyMutation) ClearedFields() []string {
 	if m.FieldCleared(apikey.FieldLastEffectiveGroupAt) {
 		fields = append(fields, apikey.FieldLastEffectiveGroupAt)
 	}
+	if m.FieldCleared(apikey.FieldOpenaiAutoGroupMaxRateMultiplier) {
+		fields = append(fields, apikey.FieldOpenaiAutoGroupMaxRateMultiplier)
+	}
 	if m.FieldCleared(apikey.FieldLastUsedAt) {
 		fields = append(fields, apikey.FieldLastUsedAt)
 	}
@@ -2281,6 +2382,9 @@ func (m *APIKeyMutation) ClearField(name string) error {
 		return nil
 	case apikey.FieldLastEffectiveGroupAt:
 		m.ClearLastEffectiveGroupAt()
+		return nil
+	case apikey.FieldOpenaiAutoGroupMaxRateMultiplier:
+		m.ClearOpenaiAutoGroupMaxRateMultiplier()
 		return nil
 	case apikey.FieldLastUsedAt:
 		m.ClearLastUsedAt()
@@ -2340,6 +2444,9 @@ func (m *APIKeyMutation) ResetField(name string) error {
 		return nil
 	case apikey.FieldLastEffectiveGroupAt:
 		m.ResetLastEffectiveGroupAt()
+		return nil
+	case apikey.FieldOpenaiAutoGroupMaxRateMultiplier:
+		m.ResetOpenaiAutoGroupMaxRateMultiplier()
 		return nil
 	case apikey.FieldStatus:
 		m.ResetStatus()

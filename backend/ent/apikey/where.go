@@ -105,6 +105,11 @@ func LastEffectiveGroupAt(v time.Time) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldLastEffectiveGroupAt, v))
 }
 
+// OpenaiAutoGroupMaxRateMultiplier applies equality check predicate on the "openai_auto_group_max_rate_multiplier" field. It's identical to OpenaiAutoGroupMaxRateMultiplierEQ.
+func OpenaiAutoGroupMaxRateMultiplier(v float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldOpenaiAutoGroupMaxRateMultiplier, v))
+}
+
 // Status applies equality check predicate on the "status" field. It's identical to StatusEQ.
 func Status(v string) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldStatus, v))
@@ -648,6 +653,56 @@ func LastEffectiveGroupAtIsNil() predicate.APIKey {
 // LastEffectiveGroupAtNotNil applies the NotNil predicate on the "last_effective_group_at" field.
 func LastEffectiveGroupAtNotNil() predicate.APIKey {
 	return predicate.APIKey(sql.FieldNotNull(FieldLastEffectiveGroupAt))
+}
+
+// OpenaiAutoGroupMaxRateMultiplierEQ applies the EQ predicate on the "openai_auto_group_max_rate_multiplier" field.
+func OpenaiAutoGroupMaxRateMultiplierEQ(v float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldOpenaiAutoGroupMaxRateMultiplier, v))
+}
+
+// OpenaiAutoGroupMaxRateMultiplierNEQ applies the NEQ predicate on the "openai_auto_group_max_rate_multiplier" field.
+func OpenaiAutoGroupMaxRateMultiplierNEQ(v float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldOpenaiAutoGroupMaxRateMultiplier, v))
+}
+
+// OpenaiAutoGroupMaxRateMultiplierIn applies the In predicate on the "openai_auto_group_max_rate_multiplier" field.
+func OpenaiAutoGroupMaxRateMultiplierIn(vs ...float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldOpenaiAutoGroupMaxRateMultiplier, vs...))
+}
+
+// OpenaiAutoGroupMaxRateMultiplierNotIn applies the NotIn predicate on the "openai_auto_group_max_rate_multiplier" field.
+func OpenaiAutoGroupMaxRateMultiplierNotIn(vs ...float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldOpenaiAutoGroupMaxRateMultiplier, vs...))
+}
+
+// OpenaiAutoGroupMaxRateMultiplierGT applies the GT predicate on the "openai_auto_group_max_rate_multiplier" field.
+func OpenaiAutoGroupMaxRateMultiplierGT(v float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldOpenaiAutoGroupMaxRateMultiplier, v))
+}
+
+// OpenaiAutoGroupMaxRateMultiplierGTE applies the GTE predicate on the "openai_auto_group_max_rate_multiplier" field.
+func OpenaiAutoGroupMaxRateMultiplierGTE(v float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldOpenaiAutoGroupMaxRateMultiplier, v))
+}
+
+// OpenaiAutoGroupMaxRateMultiplierLT applies the LT predicate on the "openai_auto_group_max_rate_multiplier" field.
+func OpenaiAutoGroupMaxRateMultiplierLT(v float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldOpenaiAutoGroupMaxRateMultiplier, v))
+}
+
+// OpenaiAutoGroupMaxRateMultiplierLTE applies the LTE predicate on the "openai_auto_group_max_rate_multiplier" field.
+func OpenaiAutoGroupMaxRateMultiplierLTE(v float64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldOpenaiAutoGroupMaxRateMultiplier, v))
+}
+
+// OpenaiAutoGroupMaxRateMultiplierIsNil applies the IsNil predicate on the "openai_auto_group_max_rate_multiplier" field.
+func OpenaiAutoGroupMaxRateMultiplierIsNil() predicate.APIKey {
+	return predicate.APIKey(sql.FieldIsNull(FieldOpenaiAutoGroupMaxRateMultiplier))
+}
+
+// OpenaiAutoGroupMaxRateMultiplierNotNil applies the NotNil predicate on the "openai_auto_group_max_rate_multiplier" field.
+func OpenaiAutoGroupMaxRateMultiplierNotNil() predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotNull(FieldOpenaiAutoGroupMaxRateMultiplier))
 }
 
 // StatusEQ applies the EQ predicate on the "status" field.

@@ -42,15 +42,17 @@ func TestAPIKeyFromService_MapsNilLastUsedAt(t *testing.T) {
 func TestAPIKeyFromService_MapsGroupSelectionFields(t *testing.T) {
 	lastEffectiveGroupID := int64(9)
 	lastEffectiveGroupAt := time.Now().UTC().Truncate(time.Second)
+	maxRate := 0.8
 	src := &service.APIKey{
-		ID:                   1,
-		UserID:               2,
-		Key:                  "sk-map-group-mode",
-		Name:                 "MapperMode",
-		Status:               service.StatusActive,
-		GroupSelectMode:      service.APIKeyGroupSelectModeOpenAIAutoCheapest,
-		LastEffectiveGroupID: &lastEffectiveGroupID,
-		LastEffectiveGroupAt: &lastEffectiveGroupAt,
+		ID:                               1,
+		UserID:                           2,
+		Key:                              "sk-map-group-mode",
+		Name:                             "MapperMode",
+		Status:                           service.StatusActive,
+		GroupSelectMode:                  service.APIKeyGroupSelectModeOpenAIAutoCheapest,
+		OpenAIAutoGroupMaxRateMultiplier: &maxRate,
+		LastEffectiveGroupID:             &lastEffectiveGroupID,
+		LastEffectiveGroupAt:             &lastEffectiveGroupAt,
 		LastEffectiveGroup: &service.Group{
 			ID:       lastEffectiveGroupID,
 			Name:     "openai-auto",
@@ -62,6 +64,7 @@ func TestAPIKeyFromService_MapsGroupSelectionFields(t *testing.T) {
 	out := APIKeyFromService(src)
 	require.NotNil(t, out)
 	require.Equal(t, service.APIKeyGroupSelectModeOpenAIAutoCheapest, out.GroupSelectMode)
+	require.Equal(t, &maxRate, out.OpenAIAutoGroupMaxRateMultiplier)
 	require.Equal(t, &lastEffectiveGroupID, out.LastEffectiveGroupID)
 	require.NotNil(t, out.LastEffectiveGroupAt)
 	require.WithinDuration(t, lastEffectiveGroupAt, *out.LastEffectiveGroupAt, time.Second)
