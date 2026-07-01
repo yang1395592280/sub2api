@@ -100,10 +100,12 @@ func (s *BusinessAnalyticsAggregationService) TriggerRecomputeRange(start, end t
 		}
 	}
 
+	recomputeStart := truncateToDayUTC(start)
+	recomputeEnd := truncateToDayUTC(end).AddDate(0, 0, 1)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultBusinessAnalyticsRunTimeout)
 		defer cancel()
-		if err := s.recomputeRange(ctx, start, end); err != nil {
+		if err := s.recomputeRange(ctx, recomputeStart, recomputeEnd); err != nil {
 			logger.LegacyPrintf("service.business_analytics_aggregation", "[BusinessAnalyticsAggregation] 手动重算失败: %v", err)
 		}
 	}()

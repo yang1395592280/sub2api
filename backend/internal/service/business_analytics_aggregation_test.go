@@ -273,6 +273,45 @@ func TestBusinessAnalyticsAggregationService_TriggerRecomputeRangeRecomputesAllW
 	}
 }
 
+func TestBusinessAnalyticsAggregationService_TriggerRecomputeRangeUsesFullUTCDayRangeForDaily(t *testing.T) {
+	repo := &businessAnalyticsAggregationRepoSpy{}
+	svc := NewBusinessAnalyticsAggregationService(repo, nil, &config.Config{
+		BusinessAnalytics: config.BusinessAnalyticsConfig{
+			Enabled:         true,
+			BackfillEnabled: true,
+			BackfillMaxDays: 90,
+		},
+	})
+
+	start := time.Date(2026, 7, 1, 10, 30, 0, 0, time.FixedZone("UTC+8", 8*60*60))
+	end := time.Date(2026, 7, 3, 2, 15, 0, 0, time.FixedZone("UTC+8", 8*60*60))
+	if err := svc.TriggerRecomputeRange(start, end); err != nil {
+		t.Fatalf("TriggerRecomputeRange returned error: %v", err)
+	}
+
+	wantStart := truncateToDayUTC(start)
+	wantEnd := truncateToDayUTC(end).AddDate(0, 0, 1)
+	deadline := time.After(time.Second)
+	for {
+		daily, _ := repo.snapshot()
+		if len(daily) == 1 {
+			if !daily[0].start.Equal(wantStart) {
+				t.Fatalf("daily start = %s, want %s", daily[0].start, wantStart)
+			}
+			if !daily[0].end.Equal(wantEnd) {
+				t.Fatalf("daily end = %s, want %s", daily[0].end, wantEnd)
+			}
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("daily calls did not complete, want 1")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
 func TestBusinessAnalyticsAggregationService_TriggerRecomputeRangeRejectsWhenBackfillDisabled(t *testing.T) {
 	repo := &businessAnalyticsAggregationRepoSpy{}
 	svc := NewBusinessAnalyticsAggregationService(repo, nil, &config.Config{
