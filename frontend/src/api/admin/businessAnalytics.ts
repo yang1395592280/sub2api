@@ -135,6 +135,21 @@ export interface BusinessRecordsResponse {
   page_size: number
 }
 
+export interface BusinessChannelPriceRefreshResult {
+  attempted: number
+  success: number
+  failed: number
+}
+
+export interface BusinessChannelPriceRefreshSettings {
+  enabled: boolean
+  interval_seconds: number
+  concurrency: number
+  timeout_seconds: number
+  last_run_at?: string | null
+  last_result?: BusinessChannelPriceRefreshResult | null
+}
+
 export async function getOverview(params: BusinessAnalyticsFilter): Promise<BusinessOverview> {
   const { data } = await apiClient.get<BusinessOverview>(`${basePath}/overview`, { params })
   return data
@@ -197,6 +212,30 @@ export async function exportCsv(params: BusinessAnalyticsFilter): Promise<Blob> 
   return data
 }
 
+export async function getChannelPriceRefreshSettings(): Promise<BusinessChannelPriceRefreshSettings> {
+  const { data } = await apiClient.get<BusinessChannelPriceRefreshSettings>(
+    `${basePath}/channel-price-refresh`
+  )
+  return data
+}
+
+export async function updateChannelPriceRefreshSettings(
+  settings: BusinessChannelPriceRefreshSettings
+): Promise<BusinessChannelPriceRefreshSettings> {
+  const { data } = await apiClient.put<BusinessChannelPriceRefreshSettings>(
+    `${basePath}/channel-price-refresh`,
+    settings
+  )
+  return data
+}
+
+export async function runChannelPriceRefresh(): Promise<BusinessChannelPriceRefreshResult> {
+  const { data } = await apiClient.post<BusinessChannelPriceRefreshResult>(
+    `${basePath}/channel-price-refresh/run`
+  )
+  return data
+}
+
 export const businessAnalyticsAPI = {
   getOverview,
   getGroups,
@@ -206,6 +245,9 @@ export const businessAnalyticsAPI = {
   getPriceChangeImpact,
   getRecords,
   exportCsv,
+  getChannelPriceRefreshSettings,
+  updateChannelPriceRefreshSettings,
+  runChannelPriceRefresh,
 }
 
 export default businessAnalyticsAPI

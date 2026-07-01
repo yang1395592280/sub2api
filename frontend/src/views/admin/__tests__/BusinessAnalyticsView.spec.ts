@@ -9,12 +9,18 @@ const {
   getChannels,
   getPriceChangeImpact,
   getRecords,
+  getChannelPriceRefreshSettings,
+  updateChannelPriceRefreshSettings,
+  runChannelPriceRefresh,
 } = vi.hoisted(() => ({
   getOverview: vi.fn(),
   getGroups: vi.fn(),
   getChannels: vi.fn(),
   getPriceChangeImpact: vi.fn(),
   getRecords: vi.fn(),
+  getChannelPriceRefreshSettings: vi.fn(),
+  updateChannelPriceRefreshSettings: vi.fn(),
+  runChannelPriceRefresh: vi.fn(),
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -25,6 +31,9 @@ vi.mock('@/api/admin', () => ({
       getChannels,
       getPriceChangeImpact,
       getRecords,
+      getChannelPriceRefreshSettings,
+      updateChannelPriceRefreshSettings,
+      runChannelPriceRefresh,
     },
   },
 }))
@@ -105,6 +114,9 @@ describe('BusinessAnalyticsView', () => {
     getChannels.mockReset()
     getPriceChangeImpact.mockReset()
     getRecords.mockReset()
+    getChannelPriceRefreshSettings.mockReset()
+    updateChannelPriceRefreshSettings.mockReset()
+    runChannelPriceRefresh.mockReset()
 
     getOverview.mockResolvedValue(overview)
     getGroups.mockResolvedValue([
@@ -204,6 +216,22 @@ describe('BusinessAnalyticsView', () => {
       page: 1,
       page_size: 20,
     })
+    getChannelPriceRefreshSettings.mockResolvedValue({
+      enabled: false,
+      interval_seconds: 600,
+      concurrency: 3,
+      timeout_seconds: 30,
+      last_run_at: '2026-06-06T08:00:00Z',
+      last_result: { attempted: 2, success: 2, failed: 0 },
+    })
+    updateChannelPriceRefreshSettings.mockResolvedValue({
+      enabled: true,
+      interval_seconds: 900,
+      concurrency: 2,
+      timeout_seconds: 45,
+      last_result: { attempted: 2, success: 2, failed: 0 },
+    })
+    runChannelPriceRefresh.mockResolvedValue({ attempted: 4, success: 3, failed: 1 })
   })
 
   it('loads overview by default', async () => {
@@ -366,5 +394,42 @@ describe('BusinessAnalyticsView', () => {
 
     expect(wrapper.find('[data-test="records-approx-summary"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('admin.businessAnalytics.recordsApproxHint')
+  })
+
+  it('opens channel price refresh settings, saves changes, and runs once', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-test="channel-price-refresh-open"]').trigger('click')
+    await flushPromises()
+
+    expect(getChannelPriceRefreshSettings).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-test="channel-price-refresh-drawer"]').text()).toContain(
+      'admin.businessAnalytics.channelPriceRefresh.title'
+    )
+    expect(wrapper.get('[data-test="channel-price-refresh-last-result"]').text()).toContain('2')
+
+    await wrapper.get('[data-test="channel-price-refresh-enabled"]').setValue(true)
+    await wrapper.get('[data-test="channel-price-refresh-interval"]').setValue('900')
+    await wrapper.get('[data-test="channel-price-refresh-concurrency"]').setValue('2')
+    await wrapper.get('[data-test="channel-price-refresh-timeout"]').setValue('45')
+    await wrapper.get('[data-test="channel-price-refresh-save"]').trigger('click')
+    await flushPromises()
+
+    expect(updateChannelPriceRefreshSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enabled: true,
+        interval_seconds: 900,
+        concurrency: 2,
+        timeout_seconds: 45,
+      })
+    )
+
+    await wrapper.get('[data-test="channel-price-refresh-run"]').trigger('click')
+    await flushPromises()
+
+    expect(runChannelPriceRefresh).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-test="channel-price-refresh-last-result"]').text()).toContain('4')
+    expect(wrapper.get('[data-test="channel-price-refresh-last-result"]').text()).toContain('1')
   })
 })

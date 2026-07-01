@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -17,8 +18,11 @@ type stubBusinessAnalyticsService struct {
 	overview        *service.BusinessOverviewResponse
 	impact          *service.PriceChangeImpactResponse
 	records         *service.BusinessRecordsResponse
+	refreshSettings service.ChannelPriceRefreshSettings
+	refreshResult   service.ChannelPriceRefreshResult
 	overviewFilters []service.BusinessAnalyticsFilter
 	groupFilters    []service.BusinessAnalyticsFilter
+	updatedRefresh  []service.ChannelPriceRefreshSettings
 }
 
 func (s *stubBusinessAnalyticsService) GetOverview(_ context.Context, filter service.BusinessAnalyticsFilter) (*service.BusinessOverviewResponse, error) {
@@ -50,6 +54,23 @@ func (s *stubBusinessAnalyticsService) GetRecords(context.Context, service.Busin
 		return s.records, nil
 	}
 	return &service.BusinessRecordsResponse{}, nil
+}
+
+func (s *stubBusinessAnalyticsService) GetSettings(context.Context) service.ChannelPriceRefreshSettings {
+	return s.refreshSettings
+}
+
+func (s *stubBusinessAnalyticsService) UpdateSettings(_ context.Context, settings service.ChannelPriceRefreshSettings) (service.ChannelPriceRefreshSettings, error) {
+	s.updatedRefresh = append(s.updatedRefresh, settings)
+	s.refreshSettings = settings
+	return settings, nil
+}
+
+func (s *stubBusinessAnalyticsService) RunOnce(context.Context) service.ChannelPriceRefreshResult {
+	if s.refreshResult != (service.ChannelPriceRefreshResult{}) {
+		return s.refreshResult
+	}
+	return service.ChannelPriceRefreshResult{Attempted: 3, Success: 2, Failed: 1}
 }
 
 func TestBusinessAnalyticsHandler_OverviewRequiresValidDateRange(t *testing.T) {
@@ -274,15 +295,79 @@ func TestBusinessAnalyticsHandler_ExportIncludesSnapshotAndRateMultiplierColumns
 	require.Contains(t, body, "0.8750000000")
 }
 
+func TestBusinessAnalyticsHandler_ChannelPriceRefreshSettingsEndpoints(t *testing.T) {
+	svc := &stubBusinessAnalyticsService{
+		refreshSettings: service.ChannelPriceRefreshSettings{
+			Enabled:         true,
+			IntervalSeconds: 600,
+			Concurrency:     3,
+			TimeoutSeconds:  30,
+		},
+		refreshResult: service.ChannelPriceRefreshResult{Attempted: 4, Success: 4, Failed: 0},
+	}
+	router := businessAnalyticsTestRouter(svc)
+
+	getReq := httptest.NewRequest(http.MethodGet, "/channel-price-refresh", nil)
+	getRec := httptest.NewRecorder()
+	router.ServeHTTP(getRec, getReq)
+
+	require.Equal(t, http.StatusOK, getRec.Code)
+	var getEnvelope struct {
+		Data service.ChannelPriceRefreshSettings `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(getRec.Body.Bytes(), &getEnvelope))
+	require.True(t, getEnvelope.Data.Enabled)
+	require.Equal(t, 600, getEnvelope.Data.IntervalSeconds)
+
+	putBody := []byte(`{"enabled":true,"interval_seconds":900,"concurrency":2,"timeout_seconds":45}`)
+	putReq := httptest.NewRequest(http.MethodPut, "/channel-price-refresh", bytes.NewReader(putBody))
+	putReq.Header.Set("Content-Type", "application/json")
+	putRec := httptest.NewRecorder()
+	router.ServeHTTP(putRec, putReq)
+
+	require.Equal(t, http.StatusOK, putRec.Code)
+	require.Len(t, svc.updatedRefresh, 1)
+	require.Equal(t, 900, svc.updatedRefresh[0].IntervalSeconds)
+	require.Equal(t, 2, svc.updatedRefresh[0].Concurrency)
+
+	runReq := httptest.NewRequest(http.MethodPost, "/channel-price-refresh/run", nil)
+	runRec := httptest.NewRecorder()
+	router.ServeHTTP(runRec, runReq)
+
+	require.Equal(t, http.StatusOK, runRec.Code)
+	var runEnvelope struct {
+		Data service.ChannelPriceRefreshResult `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(runRec.Body.Bytes(), &runEnvelope))
+	require.Equal(t, 4, runEnvelope.Data.Attempted)
+	require.Equal(t, 4, runEnvelope.Data.Success)
+}
+
+func TestBusinessAnalyticsHandler_ChannelPriceRefreshRejectsInvalidJSON(t *testing.T) {
+	router := businessAnalyticsTestRouter(&stubBusinessAnalyticsService{})
+	req := httptest.NewRequest(http.MethodPut, "/channel-price-refresh", bytes.NewReader([]byte(`{"enabled":`)))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, "渠道价格自动刷新设置格式无效", responseMessage(t, rec.Body.Bytes()))
+}
+
 func businessAnalyticsTestRouter(svc businessAnalyticsService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
-	h := NewBusinessAnalyticsHandler(svc)
+	refresh, _ := svc.(channelPriceRefreshSettingsService)
+	h := NewBusinessAnalyticsHandler(svc, refresh)
 	router := gin.New()
 	router.GET("/overview", h.GetOverview)
 	router.GET("/groups/:id/channels", h.GetGroupChannels)
 	router.GET("/channels/:id/groups", h.GetChannelGroups)
 	router.GET("/price-change-impact", h.GetPriceChangeImpact)
 	router.GET("/export", h.Export)
+	router.GET("/channel-price-refresh", h.GetChannelPriceRefreshSettings)
+	router.PUT("/channel-price-refresh", h.UpdateChannelPriceRefreshSettings)
+	router.POST("/channel-price-refresh/run", h.RunChannelPriceRefresh)
 	return router
 }
 

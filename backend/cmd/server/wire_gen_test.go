@@ -78,6 +78,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // openAIGateway
 		nil, // openAIAutoSchedulerProbeRunner
 		nil, // scheduledTestRunner
+		nil, // businessAnalyticsAggregation
 		nil, // backupSvc
 		nil, // paymentOrderExpiry
 		nil, // channelMonitorRunner

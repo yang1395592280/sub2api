@@ -129,6 +129,9 @@ func registerBusinessAnalyticsRoutes(admin *gin.RouterGroup, h *handler.Handlers
 		analytics.GET("/price-change-impact", h.Admin.BusinessAnalytics.GetPriceChangeImpact)
 		analytics.GET("/records", h.Admin.BusinessAnalytics.GetRecords)
 		analytics.GET("/export", h.Admin.BusinessAnalytics.Export)
+		analytics.GET("/channel-price-refresh", h.Admin.BusinessAnalytics.GetChannelPriceRefreshSettings)
+		analytics.PUT("/channel-price-refresh", h.Admin.BusinessAnalytics.UpdateChannelPriceRefreshSettings)
+		analytics.POST("/channel-price-refresh/run", h.Admin.BusinessAnalytics.RunChannelPriceRefresh)
 	}
 }
 
