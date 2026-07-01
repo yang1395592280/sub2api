@@ -48,7 +48,7 @@ describe('business analytics admin api', () => {
   })
 
   it('loads groups with analytics filters', async () => {
-    const groups = [{ group_id: 10, group_name: 'paid', revenue: 100 }]
+    const groups = [{ group_id: 10, group_name: 'paid', revenue: 100, avg_rate_multiplier: 1.125 }]
     const params: BusinessAnalyticsFilter = {
       start_date: '2026-06-01',
       end_date: '2026-06-30',
@@ -61,6 +61,35 @@ describe('business analytics admin api', () => {
     await expect(businessAnalyticsAPI.getGroups(params)).resolves.toEqual(groups)
 
     expect(get).toHaveBeenCalledWith('/admin/business-analytics/groups', { params })
+  })
+
+  it('preserves aggregate average price fields and row snapshot flags', async () => {
+    const groups = [{ group_id: 10, group_name: 'paid', avg_rate_multiplier: 1.125 }]
+    const channels = [{ account_id: 20, account_name: 'main', avg_channel_price: 0.875 }]
+    const records = {
+      items: [
+        {
+          id: 1,
+          channel_price_snapshot: 0.875,
+          channel_price_snapshot_missing: false,
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    }
+    const params: BusinessAnalyticsFilter = {
+      start_date: '2026-06-01',
+      end_date: '2026-06-30',
+      granularity: 'week',
+    }
+    get.mockResolvedValueOnce({ data: groups })
+    get.mockResolvedValueOnce({ data: channels })
+    get.mockResolvedValueOnce({ data: records })
+
+    await expect(businessAnalyticsAPI.getGroups(params)).resolves.toEqual(groups)
+    await expect(businessAnalyticsAPI.getChannels(params)).resolves.toEqual(channels)
+    await expect(businessAnalyticsAPI.getRecords(params)).resolves.toEqual(records)
   })
 
   it('loads records with pagination params', async () => {

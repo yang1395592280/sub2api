@@ -136,7 +136,9 @@
                   <td class="analytics-td font-medium">{{ row.group_name }}</td>
                   <td class="analytics-td">{{ row.platform || '-' }}</td>
                   <td class="analytics-td text-right">{{ formatRate(row.current_rate_multiplier) }}</td>
-                  <td class="analytics-td text-right text-gray-500 dark:text-dark-400">{{ t('admin.businessAnalytics.notProvidedByApi') }}</td>
+                  <td class="analytics-td text-right" :class="row.avg_rate_multiplier == null ? 'text-gray-500 dark:text-dark-400' : ''">
+                    {{ row.avg_rate_multiplier == null ? t('admin.businessAnalytics.notProvidedByApi') : formatRate(row.avg_rate_multiplier) }}
+                  </td>
                   <td class="analytics-td text-right">{{ formatNumber(row.active_users) }}</td>
                   <td class="analytics-td text-right">{{ formatNumber(row.requests) }}</td>
                   <td class="analytics-td text-right">{{ formatMoney(row.revenue) }}</td>
@@ -174,7 +176,9 @@
                   <td class="analytics-td">{{ row.platform || '-' }}</td>
                   <td class="analytics-td">{{ row.status || '-' }}</td>
                   <td class="analytics-td text-right">{{ formatRate(row.current_channel_price) }}</td>
-                  <td class="analytics-td text-right text-gray-500 dark:text-dark-400">{{ t('admin.businessAnalytics.notProvidedByApi') }}</td>
+                  <td class="analytics-td text-right" :class="row.avg_channel_price == null ? 'text-gray-500 dark:text-dark-400' : ''">
+                    {{ row.avg_channel_price == null ? t('admin.businessAnalytics.notProvidedByApi') : formatRate(row.avg_channel_price) }}
+                  </td>
                   <td class="analytics-td text-right">{{ formatNumber(row.active_users) }}</td>
                   <td class="analytics-td text-right">{{ formatNumber(row.requests) }}</td>
                   <td class="analytics-td text-right">{{ formatMoney(row.revenue) }}</td>

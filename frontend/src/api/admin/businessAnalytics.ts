@@ -47,6 +47,7 @@ export interface BusinessGroupRow extends BusinessMetricSummary {
   group_name: string
   platform: string
   current_rate_multiplier?: number | null
+  avg_rate_multiplier?: number | null
   active_api_keys: number
   total_tokens: number
   previous_revenue: number
@@ -62,6 +63,7 @@ export interface BusinessChannelRow extends BusinessMetricSummary {
   platform: string
   status: string
   current_channel_price?: number | null
+  avg_channel_price?: number | null
   balance_status?: string
   active_api_keys: number
   total_tokens: number
@@ -109,6 +111,8 @@ export interface BusinessRecordRow {
   revenue: number
   channel_cost: number
   gross_profit: number
+  channel_price_snapshot?: number | null
+  channel_price_snapshot_missing: boolean
 }
 
 export interface BusinessRecordsResponse {

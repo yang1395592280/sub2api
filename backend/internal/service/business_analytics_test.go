@@ -12,6 +12,7 @@ type businessAnalyticsRepoStub struct {
 	overview BusinessOverviewData
 	trend    []BusinessTrendPoint
 	groups   []BusinessGroupRow
+	channels []BusinessChannelRow
 }
 
 func (r *businessAnalyticsRepoStub) GetOverview(context.Context, BusinessAnalyticsFilter) (*BusinessOverviewData, error) {
@@ -27,7 +28,7 @@ func (r *businessAnalyticsRepoStub) GetGroups(context.Context, BusinessAnalytics
 }
 
 func (r *businessAnalyticsRepoStub) GetChannels(context.Context, BusinessAnalyticsFilter) ([]BusinessChannelRow, error) {
-	return nil, nil
+	return r.channels, nil
 }
 
 func (r *businessAnalyticsRepoStub) GetPriceChangeImpact(context.Context, PriceChangeImpactInput) (*PriceChangeImpactResponse, error) {
@@ -97,4 +98,40 @@ func TestBusinessAnalyticsService_GetGroupsAddsComparisonMetrics(t *testing.T) {
 	require.InDelta(t, 0.5, *rows[0].ProfitMargin, 0.000001)
 	require.InDelta(t, 0.5, *rows[0].RevenueChangeRate, 0.000001)
 	require.InDelta(t, 1, *rows[0].GrossProfitChangeRate, 0.000001)
+}
+
+func TestBusinessAnalyticsService_GetGroupsPreservesAverageRateMultiplier(t *testing.T) {
+	avg := 1.2345
+	svc := NewBusinessAnalyticsService(&businessAnalyticsRepoStub{
+		groups: []BusinessGroupRow{{
+			AverageRateMultiplier: &avg,
+			Revenue:               12,
+			GrossProfit:           6,
+		}},
+	})
+
+	rows, err := svc.GetGroups(context.Background(), BusinessAnalyticsFilter{})
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.NotNil(t, rows[0].AverageRateMultiplier)
+	require.InDelta(t, avg, *rows[0].AverageRateMultiplier, 0.000001)
+}
+
+func TestBusinessAnalyticsService_GetChannelsPreservesAverageChannelPrice(t *testing.T) {
+	avg := 0.3456
+	svc := NewBusinessAnalyticsService(&businessAnalyticsRepoStub{
+		channels: []BusinessChannelRow{{
+			AverageChannelPrice: &avg,
+			Revenue:             12,
+			GrossProfit:         6,
+		}},
+	})
+
+	rows, err := svc.GetChannels(context.Background(), BusinessAnalyticsFilter{})
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.NotNil(t, rows[0].AverageChannelPrice)
+	require.InDelta(t, avg, *rows[0].AverageChannelPrice, 0.000001)
 }

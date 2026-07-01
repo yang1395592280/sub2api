@@ -113,6 +113,7 @@ describe('BusinessAnalyticsView', () => {
         group_name: 'Team A',
         platform: 'openai',
         current_rate_multiplier: 1.2,
+        avg_rate_multiplier: 1.125,
         revenue: 80,
         channel_cost: 50,
         gross_profit: 30,
@@ -137,6 +138,7 @@ describe('BusinessAnalyticsView', () => {
         platform: 'openai',
         status: 'active',
         current_channel_price: 0.7,
+        avg_channel_price: 0.875,
         balance_status: 'ok',
         revenue: 90,
         channel_cost: 45,
@@ -181,6 +183,8 @@ describe('BusinessAnalyticsView', () => {
           revenue: 1.2,
           channel_cost: 0.7,
           gross_profit: 0.5,
+          channel_price_snapshot: 0.875,
+          channel_price_snapshot_missing: false,
         },
       ],
       total: 1,
@@ -225,14 +229,14 @@ describe('BusinessAnalyticsView', () => {
     expect(getGroups).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('Team A')
     expect(wrapper.text()).toContain('admin.businessAnalytics.columns.averageRate')
-    expect(wrapper.text()).toContain('admin.businessAnalytics.notProvidedByApi')
+    expect(wrapper.text()).toContain('1.1250')
 
     await wrapper.get('[data-test="tab-channels"]').trigger('click')
     await flushPromises()
     expect(getChannels).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('Channel A')
     expect(wrapper.text()).toContain('admin.businessAnalytics.columns.averagePrice')
-    expect(wrapper.text()).toContain('admin.businessAnalytics.notProvidedByApi')
+    expect(wrapper.text()).toContain('0.8750')
 
     await wrapper.get('[data-test="tab-records"]').trigger('click')
     await flushPromises()
@@ -303,6 +307,8 @@ describe('BusinessAnalyticsView', () => {
           revenue: 0.8,
           channel_cost: 0,
           gross_profit: 0.8,
+          channel_price_snapshot: null,
+          channel_price_snapshot_missing: true,
         },
       ],
       total: 1,
@@ -317,7 +323,7 @@ describe('BusinessAnalyticsView', () => {
     expect(wrapper.get('[data-test="records-approx-summary"]').text()).toContain(
       'admin.businessAnalytics.historicalApproximation'
     )
-    expect(wrapper.find('[data-test="record-approximate-2"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="record-approximate-2"]').exists()).toBe(true)
   })
 
   it('hides records approximation hint when no channel price records are missing', async () => {

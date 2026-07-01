@@ -61,6 +61,7 @@ func TestBusinessAnalyticsHandler_OverviewRequiresValidDateRange(t *testing.T) {
 		{"/overview?start_date=2026-06-03&end_date=2026-06-02", "end_date 必须大于或等于 start_date"},
 		{"/overview?start_date=2026-06-01&end_date=2026-06-02&group_id=abc", "group_id 无效"},
 		{"/overview?start_date=2026-06-01&end_date=2026-06-02&account_id=abc", "account_id 无效"},
+		{"/overview?start_date=2026-06-01&end_date=2026-06-02&granularity=month", "granularity 无效，仅支持 day 或 week"},
 	} {
 		req := httptest.NewRequest(http.MethodGet, tt.target, nil)
 		rec := httptest.NewRecorder()
@@ -70,6 +71,19 @@ func TestBusinessAnalyticsHandler_OverviewRequiresValidDateRange(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, rec.Code, tt.target)
 		require.Equal(t, tt.message, responseMessage(t, rec.Body.Bytes()), tt.target)
 	}
+}
+
+func TestBusinessAnalyticsHandler_OverviewPassesGranularity(t *testing.T) {
+	svc := &stubBusinessAnalyticsService{}
+	router := businessAnalyticsTestRouter(svc)
+	req := httptest.NewRequest(http.MethodGet, "/overview?start_date=2026-06-01&end_date=2026-06-07&granularity=week", nil)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, svc.overviewFilters, 1)
+	require.Equal(t, "week", svc.overviewFilters[0].Granularity)
 }
 
 func TestBusinessAnalyticsHandler_OverviewReturnsProfitMetrics(t *testing.T) {

@@ -23,11 +23,12 @@ type BusinessAnalyticsRepository interface {
 
 // BusinessAnalyticsFilter 是经营分析汇总接口的公共过滤条件。
 type BusinessAnalyticsFilter struct {
-	StartDate time.Time
-	EndDate   time.Time
-	GroupID   int64
-	AccountID int64
-	Platform  string
+	StartDate   time.Time
+	EndDate     time.Time
+	Granularity string
+	GroupID     int64
+	AccountID   int64
+	Platform    string
 }
 
 // BusinessRecordsFilter 是经营分析明细接口过滤条件。
@@ -81,6 +82,7 @@ type BusinessGroupRow struct {
 	GroupName             string   `json:"group_name"`
 	Platform              string   `json:"platform"`
 	CurrentRateMultiplier *float64 `json:"current_rate_multiplier,omitempty"`
+	AverageRateMultiplier *float64 `json:"avg_rate_multiplier,omitempty"`
 	Requests              int64    `json:"requests"`
 	ActiveUsers           int64    `json:"active_users"`
 	ActiveAPIKeys         int64    `json:"active_api_keys"`
@@ -102,6 +104,7 @@ type BusinessChannelRow struct {
 	Platform            string   `json:"platform"`
 	Status              string   `json:"status"`
 	CurrentChannelPrice *float64 `json:"current_channel_price,omitempty"`
+	AverageChannelPrice *float64 `json:"avg_channel_price,omitempty"`
 	BalanceStatus       string   `json:"balance_status,omitempty"`
 	Requests            int64    `json:"requests"`
 	ActiveUsers         int64    `json:"active_users"`
@@ -133,22 +136,24 @@ type PriceChangeImpactResponse struct {
 }
 
 type BusinessRecordRow struct {
-	ID          int64     `json:"id"`
-	CreatedAt   time.Time `json:"created_at"`
-	UserID      int64     `json:"user_id"`
-	UserEmail   string    `json:"user_email"`
-	APIKeyID    int64     `json:"api_key_id"`
-	APIKeyName  string    `json:"api_key_name"`
-	GroupID     int64     `json:"group_id"`
-	GroupName   string    `json:"group_name"`
-	AccountID   int64     `json:"account_id"`
-	AccountName string    `json:"account_name"`
-	Model       string    `json:"model"`
-	Requests    int64     `json:"requests"`
-	TotalTokens int64     `json:"total_tokens"`
-	Revenue     float64   `json:"revenue"`
-	ChannelCost float64   `json:"channel_cost"`
-	GrossProfit float64   `json:"gross_profit"`
+	ID                          int64     `json:"id"`
+	CreatedAt                   time.Time `json:"created_at"`
+	UserID                      int64     `json:"user_id"`
+	UserEmail                   string    `json:"user_email"`
+	APIKeyID                    int64     `json:"api_key_id"`
+	APIKeyName                  string    `json:"api_key_name"`
+	GroupID                     int64     `json:"group_id"`
+	GroupName                   string    `json:"group_name"`
+	AccountID                   int64     `json:"account_id"`
+	AccountName                 string    `json:"account_name"`
+	Model                       string    `json:"model"`
+	Requests                    int64     `json:"requests"`
+	TotalTokens                 int64     `json:"total_tokens"`
+	Revenue                     float64   `json:"revenue"`
+	ChannelCost                 float64   `json:"channel_cost"`
+	GrossProfit                 float64   `json:"gross_profit"`
+	ChannelPriceSnapshot        *float64  `json:"channel_price_snapshot,omitempty"`
+	ChannelPriceSnapshotMissing bool      `json:"channel_price_snapshot_missing"`
 }
 
 type BusinessRecordsResponse struct {

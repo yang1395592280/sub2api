@@ -224,10 +224,16 @@ func parseBusinessAnalyticsFilter(c *gin.Context) (service.BusinessAnalyticsFilt
 		response.BadRequest(c, "end_date 必须大于或等于 start_date")
 		return service.BusinessAnalyticsFilter{}, false
 	}
+	granularity := strings.TrimSpace(c.Query("granularity"))
+	if granularity != "" && granularity != "day" && granularity != "week" {
+		response.BadRequest(c, "granularity 无效，仅支持 day 或 week")
+		return service.BusinessAnalyticsFilter{}, false
+	}
 	filter := service.BusinessAnalyticsFilter{
-		StartDate: start,
-		EndDate:   end,
-		Platform:  strings.TrimSpace(c.Query("platform")),
+		StartDate:   start,
+		EndDate:     end,
+		Granularity: granularity,
+		Platform:    strings.TrimSpace(c.Query("platform")),
 	}
 	if raw := strings.TrimSpace(c.Query("group_id")); raw != "" {
 		id, err := strconv.ParseInt(raw, 10, 64)
