@@ -15,9 +15,8 @@ type businessAnalyticsRepository struct {
 }
 
 const (
-	businessUsageBaseCostExpr              = "COALESCE(ul.account_stats_cost, ul.total_cost)"
-	businessUsageChannelPriceFactorExpr    = "COALESCE(ul.channel_price_snapshot, COALESCE(ul.account_rate_multiplier, 1))"
-	businessUsageChannelCostExpr           = businessUsageBaseCostExpr + " * " + businessUsageChannelPriceFactorExpr
+	businessUsageBaseCostExpr              = "COALESCE(COALESCE(ul.actual_cost, 0) / NULLIF(ul.rate_multiplier, 0), COALESCE(ul.account_stats_cost, ul.total_cost, 0))"
+	businessUsageChannelCostExpr           = businessUsageBaseCostExpr + " * COALESCE(ul.account_rate_multiplier, 1)"
 	businessUsageChannelCostSumExpr        = "COALESCE(SUM(" + businessUsageChannelCostExpr + "), 0)"
 	businessUsageChannelGrossProfitSumExpr = "COALESCE(SUM(ul.actual_cost), 0) - " + businessUsageChannelCostSumExpr
 	businessUsageRecordChannelCostExpr     = "COALESCE(" + businessUsageChannelCostExpr + ", 0)"

@@ -1562,7 +1562,7 @@ export default {
       snapshotUnavailable: 'API 暂未返回快照',
       notProvidedByApi: '接口暂未返回',
       noGroupsForSelection: '暂无可选分组，请先加载分组数据',
-      recordsApproxHint: '当前区间有 {count} 条记录缺少渠道价格快照，相关成本按历史明细近似展示。',
+      recordsApproxHint: '当前区间有 {count} 条记录缺少渠道价格快照，渠道价格列可能显示为历史近似；成本和毛利按分组倍率与渠道账号倍率计算。',
       priceImpactUserGap: '当前 API 暂未返回用户新增/流失数量，本页仅展示收入与毛利的前后对比。',
       loadFailed: '加载业务分析数据失败',
       channelPriceRefresh: {
