@@ -41,6 +41,34 @@ func TestBusinessAnalyticsRepository_GetOverviewReadsAggregateTables(t *testing.
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestBusinessAnalyticsRepository_GetOverviewEndDateAtTodayStartReadsAggregateTables(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	todayStart := time.Now().UTC().Truncate(24 * time.Hour)
+	repo := newBusinessAnalyticsRepositoryWithSQL(db)
+	filter := service.BusinessAnalyticsFilter{
+		StartDate: todayStart.AddDate(0, 0, -1),
+		EndDate:   todayStart,
+	}
+
+	mock.ExpectQuery(containsAllRegexp(
+		"FROM business_usage_daily",
+		"bucket_date >= $1::date",
+		"bucket_date < $2::date",
+	)).
+		WithArgs(filter.StartDate, filter.EndDate).
+		WillReturnRows(sqlmock.NewRows([]string{"requests", "active_users", "active_api_keys", "total_tokens", "revenue", "channel_cost", "gross_profit", "missing"}).
+			AddRow(2, 1, 1, 42, 8.0, 5.0, 3.0, 0))
+
+	got, err := repo.GetOverview(context.Background(), filter)
+
+	require.NoError(t, err)
+	require.Equal(t, int64(2), got.Requests)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestBusinessAnalyticsRepository_GetRecordsUsesHistoricalCostSnapshot(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)

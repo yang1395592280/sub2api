@@ -66,6 +66,20 @@ func TestBusinessAnalyticsService_GetOverviewDerivedMetrics(t *testing.T) {
 	require.InDelta(t, 0.2, *got.Trend[0].ProfitMargin, 0.000001)
 }
 
+func TestBusinessAnalyticsService_GetOverviewReturnsInclusiveEndDate(t *testing.T) {
+	svc := NewBusinessAnalyticsService(&businessAnalyticsRepoStub{})
+	filter := BusinessAnalyticsFilter{
+		StartDate: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC),
+	}
+
+	got, err := svc.GetOverview(context.Background(), filter)
+
+	require.NoError(t, err)
+	require.Equal(t, "2026-06-01", got.StartDate)
+	require.Equal(t, "2026-06-02", got.EndDate)
+}
+
 func TestBusinessAnalyticsService_GetGroupsAddsComparisonMetrics(t *testing.T) {
 	svc := NewBusinessAnalyticsService(&businessAnalyticsRepoStub{
 		groups: []BusinessGroupRow{{

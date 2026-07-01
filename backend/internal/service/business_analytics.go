@@ -180,7 +180,7 @@ func (s *BusinessAnalyticsService) GetOverview(ctx context.Context, filter Busin
 	}
 	return &BusinessOverviewResponse{
 		StartDate:            filter.StartDate.Format("2006-01-02"),
-		EndDate:              filter.EndDate.Format("2006-01-02"),
+		EndDate:              filter.EndDate.AddDate(0, 0, -1).Format("2006-01-02"),
 		Requests:             data.Requests,
 		ActiveUsers:          data.ActiveUsers,
 		ActiveAPIKeys:        data.ActiveAPIKeys,

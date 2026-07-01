@@ -437,5 +437,5 @@ LEFT JOIN accounts a ON a.id = ul.account_id
 func includesToday(filter service.BusinessAnalyticsFilter) bool {
 	now := time.Now().In(filter.EndDate.Location())
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, filter.EndDate.Location())
-	return !filter.EndDate.Before(today)
+	return filter.EndDate.After(today)
 }

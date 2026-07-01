@@ -14,11 +14,13 @@ import (
 )
 
 type stubBusinessAnalyticsService struct {
-	overview *service.BusinessOverviewResponse
-	impact   *service.PriceChangeImpactResponse
+	overview        *service.BusinessOverviewResponse
+	impact          *service.PriceChangeImpactResponse
+	overviewFilters []service.BusinessAnalyticsFilter
 }
 
-func (s *stubBusinessAnalyticsService) GetOverview(context.Context, service.BusinessAnalyticsFilter) (*service.BusinessOverviewResponse, error) {
+func (s *stubBusinessAnalyticsService) GetOverview(_ context.Context, filter service.BusinessAnalyticsFilter) (*service.BusinessOverviewResponse, error) {
+	s.overviewFilters = append(s.overviewFilters, filter)
 	if s.overview != nil {
 		return s.overview, nil
 	}
@@ -84,6 +86,20 @@ func TestBusinessAnalyticsHandler_OverviewReturnsProfitMetrics(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &envelope))
 	require.Equal(t, float64(4), envelope.Data["gross_profit"])
 	require.Equal(t, float64(0.4), envelope.Data["profit_margin"])
+}
+
+func TestBusinessAnalyticsHandler_OverviewPassesEndDateAsExclusiveNextDay(t *testing.T) {
+	svc := &stubBusinessAnalyticsService{}
+	router := businessAnalyticsTestRouter(svc)
+	req := httptest.NewRequest(http.MethodGet, "/overview?start_date=2026-06-01&end_date=2026-06-02", nil)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, svc.overviewFilters, 1)
+	require.Equal(t, time.Date(2026, 6, 1, 0, 0, 0, 0, time.Local), svc.overviewFilters[0].StartDate)
+	require.Equal(t, time.Date(2026, 6, 3, 0, 0, 0, 0, time.Local), svc.overviewFilters[0].EndDate)
 }
 
 func TestBusinessAnalyticsHandler_PriceChangeImpactRequiresGroupAndChangeDate(t *testing.T) {
