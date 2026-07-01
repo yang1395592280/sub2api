@@ -58,6 +58,41 @@ func TestOpenAIGatewayServiceRecordUsage_RejectsNilInput(t *testing.T) {
 	require.Error(t, svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{}))
 }
 
+func TestOpenAIGatewayServiceRecordUsage_AppliesChannelPriceSnapshot(t *testing.T) {
+	price := 0.234567
+	refreshedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID: "openai_channel_price_snapshot",
+			Model:     "gpt-5",
+			Usage:     OpenAIUsage{InputTokens: 10, OutputTokens: 6},
+			Duration:  time.Second,
+		},
+		APIKey: &APIKey{ID: 501, Quota: 100},
+		User:   &User{ID: 601},
+		Account: &Account{
+			ID:           701,
+			ChannelPrice: &price,
+			Extra: map[string]any{
+				"upstream_balance_status":     "ok",
+				"upstream_balance_updated_at": refreshedAt.Format(time.RFC3339),
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.NotNil(t, usageRepo.lastLog.ChannelPriceSnapshot)
+	require.InDelta(t, price, *usageRepo.lastLog.ChannelPriceSnapshot, 0.000001)
+	require.NotNil(t, usageRepo.lastLog.ChannelPriceSource)
+	require.Equal(t, "upstream_balance", *usageRepo.lastLog.ChannelPriceSource)
+	require.NotNil(t, usageRepo.lastLog.ChannelPriceRefreshedAt)
+	require.WithinDuration(t, refreshedAt, *usageRepo.lastLog.ChannelPriceRefreshedAt, time.Second)
+}
+
 func TestRecordCyberPolicyUsageLog_BillsRealUpstreamTokens(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}

@@ -1,6 +1,29 @@
 package service
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
+
+func applyChannelPriceSnapshot(log *UsageLog, account *Account) {
+	if log == nil || account == nil || account.ChannelPrice == nil {
+		return
+	}
+	price := *account.ChannelPrice
+	log.ChannelPriceSnapshot = &price
+
+	source := "manual"
+	if status := account.getExtraString("upstream_balance_status"); status != "" {
+		source = "upstream_balance"
+	}
+	log.ChannelPriceSource = &source
+
+	if updatedAt := account.getExtraString("upstream_balance_updated_at"); updatedAt != "" {
+		if ts, err := time.Parse(time.RFC3339, updatedAt); err == nil {
+			log.ChannelPriceRefreshedAt = &ts
+		}
+	}
+}
 
 func optionalTrimmedStringPtr(raw string) *string {
 	trimmed := strings.TrimSpace(raw)

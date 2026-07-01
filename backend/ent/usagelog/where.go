@@ -190,6 +190,21 @@ func AccountRateMultiplier(v float64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldAccountRateMultiplier, v))
 }
 
+// ChannelPriceSnapshot applies equality check predicate on the "channel_price_snapshot" field. It's identical to ChannelPriceSnapshotEQ.
+func ChannelPriceSnapshot(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldChannelPriceSnapshot, v))
+}
+
+// ChannelPriceSource applies equality check predicate on the "channel_price_source" field. It's identical to ChannelPriceSourceEQ.
+func ChannelPriceSource(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldChannelPriceSource, v))
+}
+
+// ChannelPriceRefreshedAt applies equality check predicate on the "channel_price_refreshed_at" field. It's identical to ChannelPriceRefreshedAtEQ.
+func ChannelPriceRefreshedAt(v time.Time) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldChannelPriceRefreshedAt, v))
+}
+
 // BillingType applies equality check predicate on the "billing_type" field. It's identical to BillingTypeEQ.
 func BillingType(v int8) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldBillingType, v))
@@ -1498,6 +1513,181 @@ func AccountRateMultiplierIsNil() predicate.UsageLog {
 // AccountRateMultiplierNotNil applies the NotNil predicate on the "account_rate_multiplier" field.
 func AccountRateMultiplierNotNil() predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldNotNull(FieldAccountRateMultiplier))
+}
+
+// ChannelPriceSnapshotEQ applies the EQ predicate on the "channel_price_snapshot" field.
+func ChannelPriceSnapshotEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldChannelPriceSnapshot, v))
+}
+
+// ChannelPriceSnapshotNEQ applies the NEQ predicate on the "channel_price_snapshot" field.
+func ChannelPriceSnapshotNEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldChannelPriceSnapshot, v))
+}
+
+// ChannelPriceSnapshotIn applies the In predicate on the "channel_price_snapshot" field.
+func ChannelPriceSnapshotIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldChannelPriceSnapshot, vs...))
+}
+
+// ChannelPriceSnapshotNotIn applies the NotIn predicate on the "channel_price_snapshot" field.
+func ChannelPriceSnapshotNotIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldChannelPriceSnapshot, vs...))
+}
+
+// ChannelPriceSnapshotGT applies the GT predicate on the "channel_price_snapshot" field.
+func ChannelPriceSnapshotGT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldChannelPriceSnapshot, v))
+}
+
+// ChannelPriceSnapshotGTE applies the GTE predicate on the "channel_price_snapshot" field.
+func ChannelPriceSnapshotGTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldChannelPriceSnapshot, v))
+}
+
+// ChannelPriceSnapshotLT applies the LT predicate on the "channel_price_snapshot" field.
+func ChannelPriceSnapshotLT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldChannelPriceSnapshot, v))
+}
+
+// ChannelPriceSnapshotLTE applies the LTE predicate on the "channel_price_snapshot" field.
+func ChannelPriceSnapshotLTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldChannelPriceSnapshot, v))
+}
+
+// ChannelPriceSnapshotIsNil applies the IsNil predicate on the "channel_price_snapshot" field.
+func ChannelPriceSnapshotIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldChannelPriceSnapshot))
+}
+
+// ChannelPriceSnapshotNotNil applies the NotNil predicate on the "channel_price_snapshot" field.
+func ChannelPriceSnapshotNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldChannelPriceSnapshot))
+}
+
+// ChannelPriceSourceEQ applies the EQ predicate on the "channel_price_source" field.
+func ChannelPriceSourceEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldChannelPriceSource, v))
+}
+
+// ChannelPriceSourceNEQ applies the NEQ predicate on the "channel_price_source" field.
+func ChannelPriceSourceNEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldChannelPriceSource, v))
+}
+
+// ChannelPriceSourceIn applies the In predicate on the "channel_price_source" field.
+func ChannelPriceSourceIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldChannelPriceSource, vs...))
+}
+
+// ChannelPriceSourceNotIn applies the NotIn predicate on the "channel_price_source" field.
+func ChannelPriceSourceNotIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldChannelPriceSource, vs...))
+}
+
+// ChannelPriceSourceGT applies the GT predicate on the "channel_price_source" field.
+func ChannelPriceSourceGT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldChannelPriceSource, v))
+}
+
+// ChannelPriceSourceGTE applies the GTE predicate on the "channel_price_source" field.
+func ChannelPriceSourceGTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldChannelPriceSource, v))
+}
+
+// ChannelPriceSourceLT applies the LT predicate on the "channel_price_source" field.
+func ChannelPriceSourceLT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldChannelPriceSource, v))
+}
+
+// ChannelPriceSourceLTE applies the LTE predicate on the "channel_price_source" field.
+func ChannelPriceSourceLTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldChannelPriceSource, v))
+}
+
+// ChannelPriceSourceContains applies the Contains predicate on the "channel_price_source" field.
+func ChannelPriceSourceContains(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContains(FieldChannelPriceSource, v))
+}
+
+// ChannelPriceSourceHasPrefix applies the HasPrefix predicate on the "channel_price_source" field.
+func ChannelPriceSourceHasPrefix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasPrefix(FieldChannelPriceSource, v))
+}
+
+// ChannelPriceSourceHasSuffix applies the HasSuffix predicate on the "channel_price_source" field.
+func ChannelPriceSourceHasSuffix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasSuffix(FieldChannelPriceSource, v))
+}
+
+// ChannelPriceSourceIsNil applies the IsNil predicate on the "channel_price_source" field.
+func ChannelPriceSourceIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldChannelPriceSource))
+}
+
+// ChannelPriceSourceNotNil applies the NotNil predicate on the "channel_price_source" field.
+func ChannelPriceSourceNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldChannelPriceSource))
+}
+
+// ChannelPriceSourceEqualFold applies the EqualFold predicate on the "channel_price_source" field.
+func ChannelPriceSourceEqualFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEqualFold(FieldChannelPriceSource, v))
+}
+
+// ChannelPriceSourceContainsFold applies the ContainsFold predicate on the "channel_price_source" field.
+func ChannelPriceSourceContainsFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContainsFold(FieldChannelPriceSource, v))
+}
+
+// ChannelPriceRefreshedAtEQ applies the EQ predicate on the "channel_price_refreshed_at" field.
+func ChannelPriceRefreshedAtEQ(v time.Time) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldChannelPriceRefreshedAt, v))
+}
+
+// ChannelPriceRefreshedAtNEQ applies the NEQ predicate on the "channel_price_refreshed_at" field.
+func ChannelPriceRefreshedAtNEQ(v time.Time) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldChannelPriceRefreshedAt, v))
+}
+
+// ChannelPriceRefreshedAtIn applies the In predicate on the "channel_price_refreshed_at" field.
+func ChannelPriceRefreshedAtIn(vs ...time.Time) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldChannelPriceRefreshedAt, vs...))
+}
+
+// ChannelPriceRefreshedAtNotIn applies the NotIn predicate on the "channel_price_refreshed_at" field.
+func ChannelPriceRefreshedAtNotIn(vs ...time.Time) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldChannelPriceRefreshedAt, vs...))
+}
+
+// ChannelPriceRefreshedAtGT applies the GT predicate on the "channel_price_refreshed_at" field.
+func ChannelPriceRefreshedAtGT(v time.Time) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldChannelPriceRefreshedAt, v))
+}
+
+// ChannelPriceRefreshedAtGTE applies the GTE predicate on the "channel_price_refreshed_at" field.
+func ChannelPriceRefreshedAtGTE(v time.Time) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldChannelPriceRefreshedAt, v))
+}
+
+// ChannelPriceRefreshedAtLT applies the LT predicate on the "channel_price_refreshed_at" field.
+func ChannelPriceRefreshedAtLT(v time.Time) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldChannelPriceRefreshedAt, v))
+}
+
+// ChannelPriceRefreshedAtLTE applies the LTE predicate on the "channel_price_refreshed_at" field.
+func ChannelPriceRefreshedAtLTE(v time.Time) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldChannelPriceRefreshedAt, v))
+}
+
+// ChannelPriceRefreshedAtIsNil applies the IsNil predicate on the "channel_price_refreshed_at" field.
+func ChannelPriceRefreshedAtIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldChannelPriceRefreshedAt))
+}
+
+// ChannelPriceRefreshedAtNotNil applies the NotNil predicate on the "channel_price_refreshed_at" field.
+func ChannelPriceRefreshedAtNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldChannelPriceRefreshedAt))
 }
 
 // BillingTypeEQ applies the EQ predicate on the "billing_type" field.

@@ -365,6 +365,48 @@ func (_c *UsageLogCreate) SetNillableAccountRateMultiplier(v *float64) *UsageLog
 	return _c
 }
 
+// SetChannelPriceSnapshot sets the "channel_price_snapshot" field.
+func (_c *UsageLogCreate) SetChannelPriceSnapshot(v float64) *UsageLogCreate {
+	_c.mutation.SetChannelPriceSnapshot(v)
+	return _c
+}
+
+// SetNillableChannelPriceSnapshot sets the "channel_price_snapshot" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableChannelPriceSnapshot(v *float64) *UsageLogCreate {
+	if v != nil {
+		_c.SetChannelPriceSnapshot(*v)
+	}
+	return _c
+}
+
+// SetChannelPriceSource sets the "channel_price_source" field.
+func (_c *UsageLogCreate) SetChannelPriceSource(v string) *UsageLogCreate {
+	_c.mutation.SetChannelPriceSource(v)
+	return _c
+}
+
+// SetNillableChannelPriceSource sets the "channel_price_source" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableChannelPriceSource(v *string) *UsageLogCreate {
+	if v != nil {
+		_c.SetChannelPriceSource(*v)
+	}
+	return _c
+}
+
+// SetChannelPriceRefreshedAt sets the "channel_price_refreshed_at" field.
+func (_c *UsageLogCreate) SetChannelPriceRefreshedAt(v time.Time) *UsageLogCreate {
+	_c.mutation.SetChannelPriceRefreshedAt(v)
+	return _c
+}
+
+// SetNillableChannelPriceRefreshedAt sets the "channel_price_refreshed_at" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableChannelPriceRefreshedAt(v *time.Time) *UsageLogCreate {
+	if v != nil {
+		_c.SetChannelPriceRefreshedAt(*v)
+	}
+	return _c
+}
+
 // SetBillingType sets the "billing_type" field.
 func (_c *UsageLogCreate) SetBillingType(v int8) *UsageLogCreate {
 	_c.mutation.SetBillingType(v)
@@ -778,6 +820,11 @@ func (_c *UsageLogCreate) check() error {
 	if _, ok := _c.mutation.RateMultiplier(); !ok {
 		return &ValidationError{Name: "rate_multiplier", err: errors.New(`ent: missing required field "UsageLog.rate_multiplier"`)}
 	}
+	if v, ok := _c.mutation.ChannelPriceSource(); ok {
+		if err := usagelog.ChannelPriceSourceValidator(v); err != nil {
+			return &ValidationError{Name: "channel_price_source", err: fmt.Errorf(`ent: validator failed for field "UsageLog.channel_price_source": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.BillingType(); !ok {
 		return &ValidationError{Name: "billing_type", err: errors.New(`ent: missing required field "UsageLog.billing_type"`)}
 	}
@@ -946,6 +993,18 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.AccountRateMultiplier(); ok {
 		_spec.SetField(usagelog.FieldAccountRateMultiplier, field.TypeFloat64, value)
 		_node.AccountRateMultiplier = &value
+	}
+	if value, ok := _c.mutation.ChannelPriceSnapshot(); ok {
+		_spec.SetField(usagelog.FieldChannelPriceSnapshot, field.TypeFloat64, value)
+		_node.ChannelPriceSnapshot = &value
+	}
+	if value, ok := _c.mutation.ChannelPriceSource(); ok {
+		_spec.SetField(usagelog.FieldChannelPriceSource, field.TypeString, value)
+		_node.ChannelPriceSource = &value
+	}
+	if value, ok := _c.mutation.ChannelPriceRefreshedAt(); ok {
+		_spec.SetField(usagelog.FieldChannelPriceRefreshedAt, field.TypeTime, value)
+		_node.ChannelPriceRefreshedAt = &value
 	}
 	if value, ok := _c.mutation.BillingType(); ok {
 		_spec.SetField(usagelog.FieldBillingType, field.TypeInt8, value)
@@ -1605,6 +1664,66 @@ func (u *UsageLogUpsert) AddAccountRateMultiplier(v float64) *UsageLogUpsert {
 // ClearAccountRateMultiplier clears the value of the "account_rate_multiplier" field.
 func (u *UsageLogUpsert) ClearAccountRateMultiplier() *UsageLogUpsert {
 	u.SetNull(usagelog.FieldAccountRateMultiplier)
+	return u
+}
+
+// SetChannelPriceSnapshot sets the "channel_price_snapshot" field.
+func (u *UsageLogUpsert) SetChannelPriceSnapshot(v float64) *UsageLogUpsert {
+	u.Set(usagelog.FieldChannelPriceSnapshot, v)
+	return u
+}
+
+// UpdateChannelPriceSnapshot sets the "channel_price_snapshot" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateChannelPriceSnapshot() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldChannelPriceSnapshot)
+	return u
+}
+
+// AddChannelPriceSnapshot adds v to the "channel_price_snapshot" field.
+func (u *UsageLogUpsert) AddChannelPriceSnapshot(v float64) *UsageLogUpsert {
+	u.Add(usagelog.FieldChannelPriceSnapshot, v)
+	return u
+}
+
+// ClearChannelPriceSnapshot clears the value of the "channel_price_snapshot" field.
+func (u *UsageLogUpsert) ClearChannelPriceSnapshot() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldChannelPriceSnapshot)
+	return u
+}
+
+// SetChannelPriceSource sets the "channel_price_source" field.
+func (u *UsageLogUpsert) SetChannelPriceSource(v string) *UsageLogUpsert {
+	u.Set(usagelog.FieldChannelPriceSource, v)
+	return u
+}
+
+// UpdateChannelPriceSource sets the "channel_price_source" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateChannelPriceSource() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldChannelPriceSource)
+	return u
+}
+
+// ClearChannelPriceSource clears the value of the "channel_price_source" field.
+func (u *UsageLogUpsert) ClearChannelPriceSource() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldChannelPriceSource)
+	return u
+}
+
+// SetChannelPriceRefreshedAt sets the "channel_price_refreshed_at" field.
+func (u *UsageLogUpsert) SetChannelPriceRefreshedAt(v time.Time) *UsageLogUpsert {
+	u.Set(usagelog.FieldChannelPriceRefreshedAt, v)
+	return u
+}
+
+// UpdateChannelPriceRefreshedAt sets the "channel_price_refreshed_at" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateChannelPriceRefreshedAt() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldChannelPriceRefreshedAt)
+	return u
+}
+
+// ClearChannelPriceRefreshedAt clears the value of the "channel_price_refreshed_at" field.
+func (u *UsageLogUpsert) ClearChannelPriceRefreshedAt() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldChannelPriceRefreshedAt)
 	return u
 }
 
@@ -2430,6 +2549,76 @@ func (u *UsageLogUpsertOne) UpdateAccountRateMultiplier() *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) ClearAccountRateMultiplier() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearAccountRateMultiplier()
+	})
+}
+
+// SetChannelPriceSnapshot sets the "channel_price_snapshot" field.
+func (u *UsageLogUpsertOne) SetChannelPriceSnapshot(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetChannelPriceSnapshot(v)
+	})
+}
+
+// AddChannelPriceSnapshot adds v to the "channel_price_snapshot" field.
+func (u *UsageLogUpsertOne) AddChannelPriceSnapshot(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddChannelPriceSnapshot(v)
+	})
+}
+
+// UpdateChannelPriceSnapshot sets the "channel_price_snapshot" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateChannelPriceSnapshot() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateChannelPriceSnapshot()
+	})
+}
+
+// ClearChannelPriceSnapshot clears the value of the "channel_price_snapshot" field.
+func (u *UsageLogUpsertOne) ClearChannelPriceSnapshot() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearChannelPriceSnapshot()
+	})
+}
+
+// SetChannelPriceSource sets the "channel_price_source" field.
+func (u *UsageLogUpsertOne) SetChannelPriceSource(v string) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetChannelPriceSource(v)
+	})
+}
+
+// UpdateChannelPriceSource sets the "channel_price_source" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateChannelPriceSource() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateChannelPriceSource()
+	})
+}
+
+// ClearChannelPriceSource clears the value of the "channel_price_source" field.
+func (u *UsageLogUpsertOne) ClearChannelPriceSource() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearChannelPriceSource()
+	})
+}
+
+// SetChannelPriceRefreshedAt sets the "channel_price_refreshed_at" field.
+func (u *UsageLogUpsertOne) SetChannelPriceRefreshedAt(v time.Time) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetChannelPriceRefreshedAt(v)
+	})
+}
+
+// UpdateChannelPriceRefreshedAt sets the "channel_price_refreshed_at" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateChannelPriceRefreshedAt() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateChannelPriceRefreshedAt()
+	})
+}
+
+// ClearChannelPriceRefreshedAt clears the value of the "channel_price_refreshed_at" field.
+func (u *UsageLogUpsertOne) ClearChannelPriceRefreshedAt() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearChannelPriceRefreshedAt()
 	})
 }
 
@@ -3460,6 +3649,76 @@ func (u *UsageLogUpsertBulk) UpdateAccountRateMultiplier() *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) ClearAccountRateMultiplier() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearAccountRateMultiplier()
+	})
+}
+
+// SetChannelPriceSnapshot sets the "channel_price_snapshot" field.
+func (u *UsageLogUpsertBulk) SetChannelPriceSnapshot(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetChannelPriceSnapshot(v)
+	})
+}
+
+// AddChannelPriceSnapshot adds v to the "channel_price_snapshot" field.
+func (u *UsageLogUpsertBulk) AddChannelPriceSnapshot(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddChannelPriceSnapshot(v)
+	})
+}
+
+// UpdateChannelPriceSnapshot sets the "channel_price_snapshot" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateChannelPriceSnapshot() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateChannelPriceSnapshot()
+	})
+}
+
+// ClearChannelPriceSnapshot clears the value of the "channel_price_snapshot" field.
+func (u *UsageLogUpsertBulk) ClearChannelPriceSnapshot() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearChannelPriceSnapshot()
+	})
+}
+
+// SetChannelPriceSource sets the "channel_price_source" field.
+func (u *UsageLogUpsertBulk) SetChannelPriceSource(v string) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetChannelPriceSource(v)
+	})
+}
+
+// UpdateChannelPriceSource sets the "channel_price_source" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateChannelPriceSource() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateChannelPriceSource()
+	})
+}
+
+// ClearChannelPriceSource clears the value of the "channel_price_source" field.
+func (u *UsageLogUpsertBulk) ClearChannelPriceSource() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearChannelPriceSource()
+	})
+}
+
+// SetChannelPriceRefreshedAt sets the "channel_price_refreshed_at" field.
+func (u *UsageLogUpsertBulk) SetChannelPriceRefreshedAt(v time.Time) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetChannelPriceRefreshedAt(v)
+	})
+}
+
+// UpdateChannelPriceRefreshedAt sets the "channel_price_refreshed_at" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateChannelPriceRefreshedAt() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateChannelPriceRefreshedAt()
+	})
+}
+
+// ClearChannelPriceRefreshedAt clears the value of the "channel_price_refreshed_at" field.
+func (u *UsageLogUpsertBulk) ClearChannelPriceRefreshedAt() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearChannelPriceRefreshedAt()
 	})
 }
 

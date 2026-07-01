@@ -193,6 +193,41 @@ func TestGatewayServiceRecordUsage_PreservesRequestedAndUpstreamModels(t *testin
 	require.Equal(t, mappedModel, *usageRepo.lastLog.UpstreamModel)
 }
 
+func TestGatewayServiceRecordUsage_AppliesChannelPriceSnapshot(t *testing.T) {
+	price := 0.123456
+	refreshedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	svc := newGatewayRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID: "gateway_channel_price_snapshot",
+			Usage:     ClaudeUsage{InputTokens: 10, OutputTokens: 6},
+			Model:     "claude-sonnet-4",
+			Duration:  time.Second,
+		},
+		APIKey: &APIKey{ID: 501, Quota: 100},
+		User:   &User{ID: 601},
+		Account: &Account{
+			ID:           701,
+			ChannelPrice: &price,
+			Extra: map[string]any{
+				"upstream_balance_status":     "ok",
+				"upstream_balance_updated_at": refreshedAt.Format(time.RFC3339),
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.NotNil(t, usageRepo.lastLog.ChannelPriceSnapshot)
+	require.InDelta(t, price, *usageRepo.lastLog.ChannelPriceSnapshot, 0.000001)
+	require.NotNil(t, usageRepo.lastLog.ChannelPriceSource)
+	require.Equal(t, "upstream_balance", *usageRepo.lastLog.ChannelPriceSource)
+	require.NotNil(t, usageRepo.lastLog.ChannelPriceRefreshedAt)
+	require.WithinDuration(t, refreshedAt, *usageRepo.lastLog.ChannelPriceRefreshedAt, time.Second)
+}
+
 func TestGatewayServiceRecordUsage_EmptyImageSizeDefaultsBeforeBillingAndPersistence(t *testing.T) {
 	imagePrice2K := 0.19
 	groupID := int64(901)
