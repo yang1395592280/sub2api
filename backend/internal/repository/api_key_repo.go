@@ -18,6 +18,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 
 	entsql "entgo.io/ent/dialect/sql"
+	"github.com/lib/pq"
 )
 
 type apiKeyRepository struct {
@@ -495,9 +496,21 @@ func (r *apiKeyRepository) ListByGroupID(ctx context.Context, groupID int64, par
 }
 
 func (r *apiKeyRepository) ListUsersByGroupSelectMode(ctx context.Context, mode string, params pagination.PaginationParams) ([]service.User, *pagination.PaginationResult, error) {
+	users, result, err := r.ListOpenAIAutoCheapestUsers(ctx, mode, params)
+	if err != nil {
+		return nil, nil, err
+	}
+	out := make([]service.User, 0, len(users))
+	for i := range users {
+		out = append(out, users[i].User)
+	}
+	return out, result, nil
+}
+
+func (r *apiKeyRepository) ListOpenAIAutoCheapestUsers(ctx context.Context, mode string, params pagination.PaginationParams) ([]service.OpenAIAutoCheapestUser, *pagination.PaginationResult, error) {
 	normalizedMode := strings.TrimSpace(mode)
 	if normalizedMode == "" {
-		return []service.User{}, paginationResultFromTotal(0, params), nil
+		return []service.OpenAIAutoCheapestUser{}, paginationResultFromTotal(0, params), nil
 	}
 
 	countRows, err := r.sql.QueryContext(ctx, `
@@ -522,7 +535,7 @@ func (r *apiKeyRepository) ListUsersByGroupSelectMode(ctx context.Context, mode 
 		return nil, nil, err
 	}
 	if total == 0 {
-		return []service.User{}, paginationResultFromTotal(0, params), nil
+		return []service.OpenAIAutoCheapestUser{}, paginationResultFromTotal(0, params), nil
 	}
 
 	rows, err := r.sql.QueryContext(ctx, `
@@ -537,7 +550,13 @@ func (r *apiKeyRepository) ListUsersByGroupSelectMode(ctx context.Context, mode 
 			u.status,
 			u.created_at,
 			u.updated_at,
-			MAX(ak.last_used_at) AS last_used_at
+			MAX(ak.last_used_at) AS last_used_at,
+			COALESCE(
+				array_agg(DISTINCT ak.openai_auto_group_max_rate_multiplier::double precision ORDER BY ak.openai_auto_group_max_rate_multiplier::double precision)
+					FILTER (WHERE ak.openai_auto_group_max_rate_multiplier IS NOT NULL AND ak.openai_auto_group_max_rate_multiplier > 0),
+				ARRAY[]::double precision[]
+			) AS auto_group_max_rate_multipliers,
+			BOOL_OR(ak.openai_auto_group_max_rate_multiplier IS NULL OR ak.openai_auto_group_max_rate_multiplier <= 0) AS has_unlimited_auto_group_max_rate
 		FROM users u
 		INNER JOIN api_keys ak ON ak.user_id = u.id
 		WHERE u.deleted_at IS NULL
@@ -552,9 +571,11 @@ func (r *apiKeyRepository) ListUsersByGroupSelectMode(ctx context.Context, mode 
 	}
 	defer rows.Close()
 
-	out := make([]service.User, 0, params.Limit())
+	out := make([]service.OpenAIAutoCheapestUser, 0, params.Limit())
 	for rows.Next() {
 		var u service.User
+		var rateMultipliers []float64
+		var hasUnlimited bool
 		if err := rows.Scan(
 			&u.ID,
 			&u.Email,
@@ -567,10 +588,16 @@ func (r *apiKeyRepository) ListUsersByGroupSelectMode(ctx context.Context, mode 
 			&u.CreatedAt,
 			&u.UpdatedAt,
 			&u.LastUsedAt,
+			pq.Array(&rateMultipliers),
+			&hasUnlimited,
 		); err != nil {
 			return nil, nil, err
 		}
-		out = append(out, u)
+		out = append(out, service.OpenAIAutoCheapestUser{
+			User:                         u,
+			AutoGroupMaxRateMultipliers:  rateMultipliers,
+			HasUnlimitedAutoGroupMaxRate: hasUnlimited,
+		})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, nil, err

@@ -340,6 +340,7 @@
               <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">{{ t('admin.users.email') }}</th>
               <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">{{ t('admin.users.username') }}</th>
               <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">{{ t('common.status') }}</th>
+              <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">{{ t('admin.dashboard.openaiAutoCheapestMaxRate') }}</th>
               <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">{{ t('admin.users.lastUsedAt') }}</th>
             </tr>
           </thead>
@@ -348,6 +349,7 @@
               <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ user.email }}</td>
               <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ user.username || '-' }}</td>
               <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ user.status }}</td>
+              <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ formatAutoCheapestMaxRate(user) }}</td>
               <td class="px-4 py-3 text-gray-500 dark:text-gray-400">{{ formatDateTime(user.last_used_at) }}</td>
             </tr>
           </tbody>
@@ -676,6 +678,17 @@ const openAutoCheapestUsersDialog = () => {
 
 const closeAutoCheapestUsersDialog = () => {
   showAutoCheapestUsersDialog.value = false
+}
+
+const formatAutoCheapestMaxRate = (user: AdminUser) => {
+  const rates = Array.isArray(user.auto_group_max_rate_multipliers)
+    ? user.auto_group_max_rate_multipliers.filter((rate) => Number.isFinite(rate) && rate > 0)
+    : []
+  const labels = rates.map((rate) => `≤ ${rate}`)
+  if (user.has_unlimited_auto_group_max_rate) {
+    labels.unshift(t('admin.dashboard.openaiAutoCheapestMaxRateUnlimited'))
+  }
+  return labels.length > 0 ? labels.join(', ') : t('admin.dashboard.openaiAutoCheapestMaxRateUnlimited')
 }
 
 const handleAutoCheapestUsersPageSizeChange = (pageSize: number) => {

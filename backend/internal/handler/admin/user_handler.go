@@ -24,6 +24,12 @@ type UserWithConcurrency struct {
 	CurrentConcurrency int `json:"current_concurrency"`
 }
 
+type OpenAIAutoCheapestUser struct {
+	dto.AdminUser
+	AutoGroupMaxRateMultipliers  []float64 `json:"auto_group_max_rate_multipliers"`
+	HasUnlimitedAutoGroupMaxRate bool      `json:"has_unlimited_auto_group_max_rate"`
+}
+
 // UserHandler handles admin user management
 type UserHandler struct {
 	adminService          service.AdminService
@@ -198,13 +204,13 @@ func (h *UserHandler) List(c *gin.Context) {
 func (h *UserHandler) ListOpenAIAutoCheapestUsers(c *gin.Context) {
 	page, pageSize := response.ParsePagination(c)
 	reader, ok := h.apiKeyRepo.(interface {
-		ListUsersByGroupSelectMode(ctx context.Context, mode string, params pagination.PaginationParams) ([]service.User, *pagination.PaginationResult, error)
+		ListOpenAIAutoCheapestUsers(ctx context.Context, mode string, params pagination.PaginationParams) ([]service.OpenAIAutoCheapestUser, *pagination.PaginationResult, error)
 	})
 	if !ok {
 		response.Error(c, 500, "API key repository does not support group select mode user listing")
 		return
 	}
-	users, result, err := reader.ListUsersByGroupSelectMode(
+	users, result, err := reader.ListOpenAIAutoCheapestUsers(
 		c.Request.Context(),
 		service.APIKeyGroupSelectModeOpenAIAutoCheapest,
 		pagination.PaginationParams{Page: page, PageSize: pageSize},
@@ -214,9 +220,17 @@ func (h *UserHandler) ListOpenAIAutoCheapestUsers(c *gin.Context) {
 		return
 	}
 
-	out := make([]*dto.AdminUser, 0, len(users))
+	out := make([]OpenAIAutoCheapestUser, 0, len(users))
 	for i := range users {
-		out = append(out, dto.UserFromServiceAdmin(&users[i]))
+		base := dto.UserFromServiceAdmin(&users[i].User)
+		if base == nil {
+			continue
+		}
+		out = append(out, OpenAIAutoCheapestUser{
+			AdminUser:                    *base,
+			AutoGroupMaxRateMultipliers:  users[i].AutoGroupMaxRateMultipliers,
+			HasUnlimitedAutoGroupMaxRate: users[i].HasUnlimitedAutoGroupMaxRate,
+		})
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
 }

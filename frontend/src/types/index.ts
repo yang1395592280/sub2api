@@ -108,6 +108,8 @@ export interface AdminUser extends User {
   group_rates?: Record<number, number>
   // 当前并发数（仅管理员列表接口返回）
   current_concurrency?: number
+  auto_group_max_rate_multipliers?: number[]
+  has_unlimited_auto_group_max_rate?: boolean
 }
 
 export interface LoginRequest {

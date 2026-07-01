@@ -216,7 +216,9 @@ describe('admin DashboardView', () => {
           created_at: '2026-06-30T00:00:00Z',
           updated_at: '2026-06-30T00:00:00Z',
           notes: '',
-          last_used_at: '2026-06-30T01:00:00Z'
+          last_used_at: '2026-06-30T01:00:00Z',
+          auto_group_max_rate_multipliers: [0.8],
+          has_unlimited_auto_group_max_rate: false
         }
       ],
       total: 1,
@@ -249,6 +251,9 @@ describe('admin DashboardView', () => {
 
     expect(listOpenAIAutoCheapestUsers).toHaveBeenCalledWith({ page: 1, page_size: 10 })
     expect(wrapper.text()).toContain('admin.dashboard.openaiAutoCheapestUsersDialogTitle')
+    expect(wrapper.text()).toContain('admin.dashboard.openaiAutoCheapestMaxRate')
+    expect(wrapper.text()).toContain('admin.users.lastUsedAt')
     expect(wrapper.text()).toContain('auto@example.com')
+    expect(wrapper.text()).toContain('≤ 0.8')
   })
 })

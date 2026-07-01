@@ -63,6 +63,12 @@ type User struct {
 	Subscriptions []UserSubscription
 }
 
+type OpenAIAutoCheapestUser struct {
+	User
+	AutoGroupMaxRateMultipliers  []float64
+	HasUnlimitedAutoGroupMaxRate bool
+}
+
 func (u *User) IsAdmin() bool {
 	return u.Role == RoleAdmin
 }
