@@ -250,16 +250,58 @@
                 </thead>
                 <tbody class="divide-y divide-gray-200 dark:divide-dark-700">
                   <tr>
+                    <td class="analytics-td font-medium">{{ t('admin.businessAnalytics.columns.requests') }}</td>
+                    <td class="analytics-td text-right">{{ formatNumber(priceImpact?.before_requests) }}</td>
+                    <td class="analytics-td text-right">{{ formatNumber(priceImpact?.after_requests) }}</td>
+                    <td class="analytics-td text-right">{{ formatDeltaNumber(priceImpact?.after_requests, priceImpact?.before_requests) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="analytics-td font-medium">{{ t('admin.businessAnalytics.columns.activeUsers') }}</td>
+                    <td class="analytics-td text-right">{{ formatNumber(priceImpact?.before_active_users) }}</td>
+                    <td class="analytics-td text-right">{{ formatNumber(priceImpact?.after_active_users) }}</td>
+                    <td class="analytics-td text-right">{{ formatDeltaNumber(priceImpact?.after_active_users, priceImpact?.before_active_users) }}</td>
+                  </tr>
+                  <tr>
                     <td class="analytics-td font-medium">{{ t('admin.businessAnalytics.columns.revenue') }}</td>
                     <td class="analytics-td text-right">{{ formatMoney(priceImpact?.before_revenue) }}</td>
                     <td class="analytics-td text-right">{{ formatMoney(priceImpact?.after_revenue) }}</td>
                     <td data-test="price-impact-delta" class="analytics-td text-right">{{ formatMoney(priceImpact?.revenue_delta) }}</td>
                   </tr>
                   <tr>
+                    <td class="analytics-td font-medium">{{ t('admin.businessAnalytics.columns.channelCost') }}</td>
+                    <td class="analytics-td text-right">{{ formatMoney(priceImpact?.before_channel_cost) }}</td>
+                    <td class="analytics-td text-right">{{ formatMoney(priceImpact?.after_channel_cost) }}</td>
+                    <td class="analytics-td text-right">{{ formatMoney(delta(priceImpact?.after_channel_cost, priceImpact?.before_channel_cost)) }}</td>
+                  </tr>
+                  <tr>
                     <td class="analytics-td font-medium">{{ t('admin.businessAnalytics.columns.grossProfit') }}</td>
                     <td class="analytics-td text-right">{{ formatMoney(priceImpact?.before_gross_profit) }}</td>
                     <td class="analytics-td text-right">{{ formatMoney(priceImpact?.after_gross_profit) }}</td>
                     <td class="analytics-td text-right">{{ formatMoney(priceImpact?.gross_profit_delta) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="analytics-td font-medium">{{ t('admin.businessAnalytics.columns.profitMargin') }}</td>
+                    <td class="analytics-td text-right">{{ formatPercent(priceImpact?.before_profit_margin) }}</td>
+                    <td class="analytics-td text-right">{{ formatPercent(priceImpact?.after_profit_margin) }}</td>
+                    <td class="analytics-td text-right">{{ formatPercent(delta(priceImpact?.after_profit_margin, priceImpact?.before_profit_margin)) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="analytics-td font-medium">{{ t('admin.businessAnalytics.columns.averageRate') }}</td>
+                    <td class="analytics-td text-right">{{ formatRate(priceImpact?.before_avg_rate_multiplier) }}</td>
+                    <td class="analytics-td text-right">{{ formatRate(priceImpact?.after_avg_rate_multiplier) }}</td>
+                    <td class="analytics-td text-right">{{ formatRate(delta(priceImpact?.after_avg_rate_multiplier, priceImpact?.before_avg_rate_multiplier)) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="analytics-td font-medium">{{ t('admin.businessAnalytics.columns.newUsers') }}</td>
+                    <td class="analytics-td text-right">-</td>
+                    <td class="analytics-td text-right">{{ formatNumber(priceImpact?.new_users) }}</td>
+                    <td class="analytics-td text-right">{{ formatNumber(priceImpact?.new_users) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="analytics-td font-medium">{{ t('admin.businessAnalytics.columns.lostUsers') }}</td>
+                    <td class="analytics-td text-right">{{ formatNumber(priceImpact?.lost_users) }}</td>
+                    <td class="analytics-td text-right">-</td>
+                    <td class="analytics-td text-right">{{ formatNegativeNumber(priceImpact?.lost_users) }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -313,7 +355,15 @@
                     <td class="analytics-td">{{ row.account_name || `#${row.account_id}` }}</td>
                     <td class="analytics-td">{{ row.model || '-' }}</td>
                     <td class="analytics-td text-right">{{ formatNumber(row.total_tokens) }} / {{ formatNumber(row.requests) }}</td>
-                    <td class="analytics-td text-gray-500 dark:text-dark-400">{{ t('admin.businessAnalytics.snapshotUnavailable') }}</td>
+                    <td
+                      class="analytics-td"
+                      :class="typeof row.rate_multiplier === 'number' ? '' : 'text-gray-500 dark:text-dark-400'"
+                    >
+                      <span v-if="typeof row.rate_multiplier === 'number'" :data-test="`record-rate-multiplier-${row.id}`">
+                        {{ formatRate(row.rate_multiplier) }}
+                      </span>
+                      <span v-else>{{ t('admin.businessAnalytics.snapshotUnavailable') }}</span>
+                    </td>
                     <td class="analytics-td">
                       <span v-if="isApproximateRecord(row)" :data-test="`record-approximate-${row.id}`" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30">
                         {{ t('admin.businessAnalytics.historicalApproximation') }}
@@ -469,6 +519,22 @@ function formatPercent(value: number | null | undefined): string {
 function formatRate(value: number | null | undefined): string {
   if (value == null || Number.isNaN(Number(value))) return '-'
   return Number(value).toFixed(4)
+}
+
+function delta(afterValue: number | null | undefined, beforeValue: number | null | undefined): number | null {
+  if (afterValue == null || beforeValue == null) return null
+  return Number(afterValue) - Number(beforeValue)
+}
+
+function formatDeltaNumber(afterValue: number | null | undefined, beforeValue: number | null | undefined): string {
+  const value = delta(afterValue, beforeValue)
+  if (value == null) return '-'
+  return value > 0 ? `+${formatNumber(value)}` : formatNumber(value)
+}
+
+function formatNegativeNumber(value: number | null | undefined): string {
+  if (value == null) return '-'
+  return `-${formatNumber(value)}`
 }
 
 function formatDateTime(value: string): string {

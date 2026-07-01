@@ -180,8 +180,16 @@ func (h *BusinessAnalyticsHandler) Export(c *gin.Context) {
 	c.Header("Content-Disposition", "attachment; filename=business-analytics.csv")
 	c.Status(http.StatusOK)
 	w := csv.NewWriter(c.Writer)
-	_ = w.Write([]string{"created_at", "user_id", "user_email", "api_key_id", "api_key_name", "group_id", "group_name", "account_id", "account_name", "model", "revenue", "channel_cost", "gross_profit"})
+	_ = w.Write([]string{"created_at", "user_id", "user_email", "api_key_id", "api_key_name", "group_id", "group_name", "account_id", "account_name", "model", "revenue", "channel_cost", "gross_profit", "rate_multiplier", "channel_price_snapshot", "channel_price_snapshot_missing"})
 	for _, row := range result.Items {
+		rateMultiplier := ""
+		if row.RateMultiplier != nil {
+			rateMultiplier = fmt.Sprintf("%.10f", *row.RateMultiplier)
+		}
+		channelPriceSnapshot := ""
+		if row.ChannelPriceSnapshot != nil {
+			channelPriceSnapshot = fmt.Sprintf("%.10f", *row.ChannelPriceSnapshot)
+		}
 		_ = w.Write([]string{
 			row.CreatedAt.Format(time.RFC3339),
 			strconv.FormatInt(row.UserID, 10),
@@ -196,6 +204,9 @@ func (h *BusinessAnalyticsHandler) Export(c *gin.Context) {
 			fmt.Sprintf("%.10f", row.Revenue),
 			fmt.Sprintf("%.10f", row.ChannelCost),
 			fmt.Sprintf("%.10f", row.GrossProfit),
+			rateMultiplier,
+			channelPriceSnapshot,
+			strconv.FormatBool(row.ChannelPriceSnapshotMissing),
 		})
 	}
 	w.Flush()

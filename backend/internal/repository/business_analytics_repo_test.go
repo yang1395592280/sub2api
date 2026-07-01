@@ -87,7 +87,7 @@ func TestBusinessAnalyticsRepository_GetOverviewHistoricalCountsDistinctUsersAnd
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestBusinessAnalyticsRepository_GetOverviewWeeklyHistoricalReadsWeeklyTable(t *testing.T) {
+func TestBusinessAnalyticsRepository_GetOverviewWeeklyHistoricalAggregatesFromDailyBuckets(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
@@ -101,9 +101,9 @@ func TestBusinessAnalyticsRepository_GetOverviewWeeklyHistoricalReadsWeeklyTable
 	}
 
 	mock.ExpectQuery(containsAllRegexp(
-		"FROM business_usage_weekly b",
-		"b.week_start >= $1::date",
-		"b.week_start < $2::date",
+		"FROM business_usage_daily b",
+		"b.bucket_date >= $1::date",
+		"b.bucket_date < $2::date",
 		"b.group_id = $3",
 	)).
 		WithArgs(filter.StartDate, filter.EndDate, filter.GroupID).
@@ -118,7 +118,7 @@ func TestBusinessAnalyticsRepository_GetOverviewWeeklyHistoricalReadsWeeklyTable
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestBusinessAnalyticsRepository_GetTrendWeeklyHistoricalReadsWeeklyTableAndDistinctUsers(t *testing.T) {
+func TestBusinessAnalyticsRepository_GetTrendWeeklyHistoricalAggregatesDailyBucketsAndDistinctUsers(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
@@ -126,15 +126,18 @@ func TestBusinessAnalyticsRepository_GetTrendWeeklyHistoricalReadsWeeklyTableAnd
 	repo := newBusinessAnalyticsRepositoryWithSQL(db)
 	filter := service.BusinessAnalyticsFilter{
 		StartDate:   time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		EndDate:     time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC),
+		EndDate:     time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC),
 		Granularity: "week",
 		GroupID:     7,
 	}
 
 	mock.ExpectQuery(containsAllRegexp(
 		"WITH usage_totals AS",
-		"FROM business_usage_weekly b",
-		"b.week_start >= $1::date",
+		"date_trunc('week', b.bucket_date)::date::text date",
+		"FROM business_usage_daily b",
+		"b.bucket_date >= $1::date",
+		"b.bucket_date < $2::date",
+		"GROUP BY date_trunc('week', b.bucket_date)::date",
 		"active_users AS",
 		"COUNT(DISTINCT bu.user_id)",
 		"date_trunc('week', bu.bucket_date)::date",
@@ -286,7 +289,8 @@ func TestBusinessAnalyticsRepository_GetGroupsIncludingTodayAliasesPreviousPerio
 	mock.ExpectQuery(containsAllRegexp(
 		"WITH current_period AS",
 		"COALESCE(ul.group_id, 0) AS group_id",
-		"AVG(ul.rate_multiplier) AS avg_group_rate_multiplier",
+		"SUM(ul.rate_multiplier * GREATEST(ul.actual_cost, 0.000000001)) FILTER (WHERE ul.rate_multiplier IS NOT NULL)",
+		"NULLIF(SUM(GREATEST(ul.actual_cost, 0.000000001)) FILTER (WHERE ul.rate_multiplier IS NOT NULL), 0) AS avg_group_rate_multiplier",
 		"FROM usage_logs ul",
 		"LEFT JOIN groups g ON g.id = ul.group_id",
 		"LEFT JOIN accounts a ON a.id = ul.account_id",
@@ -330,6 +334,9 @@ func TestBusinessAnalyticsRepository_GetGroupsIncludingTodayPlatformFilterJoinsP
 	require.Contains(t, query, "LEFT JOIN groups g ON g.id = ul.group_id")
 	require.Contains(t, query, "LEFT JOIN accounts a ON a.id = ul.account_id")
 	require.Contains(t, query, "COALESCE("+usageLogEffectivePlatformExpr+", '') = $3")
+	require.Contains(t, query, "SUM(ul.rate_multiplier * GREATEST(ul.actual_cost, 0.000000001)) FILTER (WHERE ul.rate_multiplier IS NOT NULL)")
+	require.Contains(t, query, "NULLIF(SUM(GREATEST(ul.actual_cost, 0.000000001)) FILTER (WHERE ul.rate_multiplier IS NOT NULL), 0)")
+	require.NotContains(t, query, "AVG(ul.rate_multiplier)")
 	require.Equal(t, []any{filter.StartDate, filter.EndDate, filter.Platform, previous.StartDate, previous.EndDate, previous.Platform}, args)
 }
 
@@ -392,6 +399,80 @@ func TestBusinessAnalyticsRepository_GetChannelsHistoricalUsesSnapshotWeightedAv
 	require.NotContains(t, query, "AVG(b.avg_channel_price)")
 }
 
+func TestBusinessAnalyticsRepository_GetChannelsIncludingTodayUsesSnapshotCountWeightedAveragePrice(t *testing.T) {
+	todayStart := time.Now().UTC().Truncate(24 * time.Hour)
+	query, _ := buildBusinessChannelsQuery(service.BusinessAnalyticsFilter{
+		StartDate: todayStart,
+		EndDate:   todayStart.AddDate(0, 0, 1),
+	})
+
+	require.Contains(t, query, "SUM(ul.channel_price_snapshot) FILTER (WHERE ul.channel_price_snapshot IS NOT NULL)")
+	require.Contains(t, query, "NULLIF(COUNT(*) FILTER (WHERE ul.channel_price_snapshot IS NOT NULL), 0)")
+	require.Contains(t, query, "COUNT(*) FILTER (WHERE ul.channel_price_snapshot IS NOT NULL)")
+	require.NotContains(t, query, "AVG(ul.channel_price_snapshot)")
+}
+
+func TestBusinessAnalyticsRepository_GetPriceChangeImpactReturnsExpandedMetrics(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	repo := newBusinessAnalyticsRepositoryWithSQL(db)
+	changeDate := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
+	input := service.PriceChangeImpactInput{
+		GroupID:    7,
+		ChangeDate: changeDate,
+		Days:       7,
+	}
+
+	query, _ := buildPriceChangeImpactQuery(input)
+	require.Contains(t, query, "before_period AS")
+	require.Contains(t, query, "after_period AS")
+	require.Contains(t, query, "before_users AS")
+	require.Contains(t, query, "after_users AS")
+	require.Contains(t, query, "AS before_requests")
+	require.Contains(t, query, "AS after_requests")
+	require.Contains(t, query, "AS before_active_users")
+	require.Contains(t, query, "AS after_active_users")
+	require.Contains(t, query, "AS before_channel_cost")
+	require.Contains(t, query, "AS after_channel_cost")
+	require.Contains(t, query, "AS before_avg_rate_multiplier")
+	require.Contains(t, query, "AS after_avg_rate_multiplier")
+	require.Contains(t, query, "AS new_users")
+	require.Contains(t, query, "AS lost_users")
+
+	mock.ExpectQuery(regexp.QuoteMeta(query)).
+		WithArgs(changeDate.AddDate(0, 0, -7), changeDate, changeDate, changeDate.AddDate(0, 0, 7), input.GroupID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"before_requests", "after_requests",
+			"before_active_users", "after_active_users",
+			"before_revenue", "after_revenue", "revenue_delta",
+			"before_channel_cost", "after_channel_cost",
+			"before_gross_profit", "after_gross_profit", "gross_profit_delta",
+			"before_avg_rate_multiplier", "after_avg_rate_multiplier",
+			"new_users", "lost_users",
+		}).AddRow(
+			10, 12,
+			4, 5,
+			8.0, 12.0, 4.0,
+			5.0, 6.0,
+			3.0, 6.0, 3.0,
+			1.2, 1.4,
+			2, 1,
+		))
+
+	got, err := repo.GetPriceChangeImpact(context.Background(), input)
+
+	require.NoError(t, err)
+	require.Equal(t, int64(10), got.BeforeRequests)
+	require.Equal(t, int64(12), got.AfterRequests)
+	require.Equal(t, int64(2), got.NewUsers)
+	require.Equal(t, int64(1), got.LostUsers)
+	require.NotNil(t, got.BeforeAvgRateMultiplier)
+	require.InDelta(t, 1.2, *got.BeforeAvgRateMultiplier, 0.000001)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestBusinessAnalyticsRepository_HistoricalQueriesDoNotUseBareDailyFilterColumns(t *testing.T) {
 	filter := service.BusinessAnalyticsFilter{
 		StartDate: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
@@ -449,14 +530,15 @@ func TestBusinessAnalyticsRepository_GetRecordsUsesHistoricalCostSnapshot(t *tes
 	mock.ExpectQuery(containsAllRegexp(
 		"COALESCE(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1), 0) AS channel_cost",
 		"COALESCE(ul.actual_cost, 0) - COALESCE(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1), 0) AS gross_profit",
+		"ul.rate_multiplier",
 		"ul.channel_price_snapshot",
 		"ul.channel_price_snapshot IS NULL AS channel_price_snapshot_missing",
 		"FROM usage_logs ul",
 		"ORDER BY ul.created_at DESC, ul.id DESC",
 	)).
 		WithArgs(filter.StartDate, filter.EndDate, filter.PageSize, 0).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "user_id", "user_email", "api_key_id", "api_key_name", "group_id", "group_name", "account_id", "account_name", "model", "requests", "total_tokens", "revenue", "channel_cost", "gross_profit", "channel_price_snapshot", "channel_price_snapshot_missing"}).
-			AddRow(1, filter.StartDate, 2, "u@example.com", 3, "key", 4, "group", 5, "account", "model", 1, 10, 10.0, 6.0, 4.0, 0.75, false))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "user_id", "user_email", "api_key_id", "api_key_name", "group_id", "group_name", "account_id", "account_name", "model", "requests", "total_tokens", "revenue", "channel_cost", "gross_profit", "rate_multiplier", "channel_price_snapshot", "channel_price_snapshot_missing"}).
+			AddRow(1, filter.StartDate, 2, "u@example.com", 3, "key", 4, "group", 5, "account", "model", 1, 10, 10.0, 6.0, 4.0, 1.125, 0.75, false))
 
 	got, err := repo.GetRecords(context.Background(), filter)
 
@@ -464,6 +546,8 @@ func TestBusinessAnalyticsRepository_GetRecordsUsesHistoricalCostSnapshot(t *tes
 	require.Equal(t, int64(1), got.Total)
 	require.Len(t, got.Items, 1)
 	require.InDelta(t, 4, got.Items[0].GrossProfit, 0.000001)
+	require.NotNil(t, got.Items[0].RateMultiplier)
+	require.InDelta(t, 1.125, *got.Items[0].RateMultiplier, 0.000001)
 	require.NotNil(t, got.Items[0].ChannelPriceSnapshot)
 	require.InDelta(t, 0.75, *got.Items[0].ChannelPriceSnapshot, 0.000001)
 	require.False(t, got.Items[0].ChannelPriceSnapshotMissing)

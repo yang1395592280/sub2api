@@ -80,12 +80,24 @@ export interface BusinessPriceChangeImpactParams {
 export interface BusinessPriceChangeImpact {
   group_id: number
   change_date: string
+  before_requests: number
+  after_requests: number
+  before_active_users: number
+  after_active_users: number
   before_revenue: number
   after_revenue: number
   revenue_delta: number
+  before_channel_cost: number
+  after_channel_cost: number
   before_gross_profit: number
   after_gross_profit: number
   gross_profit_delta: number
+  before_profit_margin?: number | null
+  after_profit_margin?: number | null
+  before_avg_rate_multiplier?: number | null
+  after_avg_rate_multiplier?: number | null
+  new_users: number
+  lost_users: number
   change_at?: string
 }
 
@@ -111,6 +123,7 @@ export interface BusinessRecordRow {
   revenue: number
   channel_cost: number
   gross_profit: number
+  rate_multiplier?: number | null
   channel_price_snapshot?: number | null
   channel_price_snapshot_missing: boolean
 }

@@ -136,44 +136,93 @@ func (r *businessAnalyticsRepository) GetPriceChangeImpact(ctx context.Context, 
 	if days <= 0 {
 		days = 7
 	}
+	query, args := buildPriceChangeImpactQuery(input)
+	var resp service.PriceChangeImpactResponse
+	resp.GroupID = input.GroupID
+	resp.ChangeDate = input.ChangeDate.Format("2006-01-02")
+	resp.ChangeAt = input.ChangeDate
+	err := scanSingleRow(ctx, r.sql, query, args,
+		&resp.BeforeRequests,
+		&resp.AfterRequests,
+		&resp.BeforeActiveUsers,
+		&resp.AfterActiveUsers,
+		&resp.BeforeRevenue,
+		&resp.AfterRevenue,
+		&resp.RevenueDelta,
+		&resp.BeforeChannelCost,
+		&resp.AfterChannelCost,
+		&resp.BeforeGrossProfit,
+		&resp.AfterGrossProfit,
+		&resp.GrossProfitDelta,
+		&resp.BeforeAvgRateMultiplier,
+		&resp.AfterAvgRateMultiplier,
+		&resp.NewUsers,
+		&resp.LostUsers,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func buildPriceChangeImpactQuery(input service.PriceChangeImpactInput) (string, []any) {
+	days := input.Days
+	if days <= 0 {
+		days = 7
+	}
 	beforeStart := input.ChangeDate.AddDate(0, 0, -days)
 	beforeEnd := input.ChangeDate
 	afterStart := input.ChangeDate
 	afterEnd := input.ChangeDate.AddDate(0, 0, days)
 	query := `
 WITH before_period AS (
-	SELECT COALESCE(SUM(revenue), 0) AS revenue, COALESCE(SUM(gross_profit), 0) AS gross_profit
+	SELECT
+		COALESCE(SUM(requests), 0) AS requests,
+		COALESCE(SUM(revenue), 0) AS revenue,
+		COALESCE(SUM(channel_cost), 0) AS channel_cost,
+		COALESCE(SUM(gross_profit), 0) AS gross_profit,
+		SUM(avg_group_rate_multiplier * GREATEST(revenue, 0.000000001)) FILTER (WHERE avg_group_rate_multiplier IS NOT NULL)
+			/ NULLIF(SUM(GREATEST(revenue, 0.000000001)) FILTER (WHERE avg_group_rate_multiplier IS NOT NULL), 0) AS avg_rate_multiplier
 	FROM business_usage_daily
 	WHERE bucket_date >= $1::date AND bucket_date < $2::date AND group_id = $5
 ), after_period AS (
-	SELECT COALESCE(SUM(revenue), 0) AS revenue, COALESCE(SUM(gross_profit), 0) AS gross_profit
+	SELECT
+		COALESCE(SUM(requests), 0) AS requests,
+		COALESCE(SUM(revenue), 0) AS revenue,
+		COALESCE(SUM(channel_cost), 0) AS channel_cost,
+		COALESCE(SUM(gross_profit), 0) AS gross_profit,
+		SUM(avg_group_rate_multiplier * GREATEST(revenue, 0.000000001)) FILTER (WHERE avg_group_rate_multiplier IS NOT NULL)
+			/ NULLIF(SUM(GREATEST(revenue, 0.000000001)) FILTER (WHERE avg_group_rate_multiplier IS NOT NULL), 0) AS avg_rate_multiplier
 	FROM business_usage_daily
+	WHERE bucket_date >= $3::date AND bucket_date < $4::date AND group_id = $5
+), before_users AS (
+	SELECT DISTINCT user_id
+	FROM business_usage_daily_users
+	WHERE bucket_date >= $1::date AND bucket_date < $2::date AND group_id = $5
+), after_users AS (
+	SELECT DISTINCT user_id
+	FROM business_usage_daily_users
 	WHERE bucket_date >= $3::date AND bucket_date < $4::date AND group_id = $5
 )
 SELECT
-	before_period.revenue,
-	after_period.revenue,
-	after_period.revenue - before_period.revenue,
-	before_period.gross_profit,
-	after_period.gross_profit,
-	after_period.gross_profit - before_period.gross_profit
+	before_period.requests AS before_requests,
+	after_period.requests AS after_requests,
+	(SELECT COUNT(*) FROM before_users) AS before_active_users,
+	(SELECT COUNT(*) FROM after_users) AS after_active_users,
+	before_period.revenue AS before_revenue,
+	after_period.revenue AS after_revenue,
+	after_period.revenue - before_period.revenue AS revenue_delta,
+	before_period.channel_cost AS before_channel_cost,
+	after_period.channel_cost AS after_channel_cost,
+	before_period.gross_profit AS before_gross_profit,
+	after_period.gross_profit AS after_gross_profit,
+	after_period.gross_profit - before_period.gross_profit AS gross_profit_delta,
+	before_period.avg_rate_multiplier AS before_avg_rate_multiplier,
+	after_period.avg_rate_multiplier AS after_avg_rate_multiplier,
+	(SELECT COUNT(*) FROM after_users au LEFT JOIN before_users bu ON bu.user_id = au.user_id WHERE bu.user_id IS NULL) AS new_users,
+	(SELECT COUNT(*) FROM before_users bu LEFT JOIN after_users au ON au.user_id = bu.user_id WHERE au.user_id IS NULL) AS lost_users
 FROM before_period, after_period`
-	var resp service.PriceChangeImpactResponse
-	resp.GroupID = input.GroupID
-	resp.ChangeDate = input.ChangeDate.Format("2006-01-02")
-	resp.ChangeAt = input.ChangeDate
-	err := scanSingleRow(ctx, r.sql, query, []any{beforeStart, beforeEnd, afterStart, afterEnd, input.GroupID},
-		&resp.BeforeRevenue,
-		&resp.AfterRevenue,
-		&resp.RevenueDelta,
-		&resp.BeforeGrossProfit,
-		&resp.AfterGrossProfit,
-		&resp.GrossProfitDelta,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &resp, nil
+	return query, []any{beforeStart, beforeEnd, afterStart, afterEnd, input.GroupID}
 }
 
 func (r *businessAnalyticsRepository) GetRecords(ctx context.Context, filter service.BusinessRecordsFilter) (*service.BusinessRecordsResponse, error) {
@@ -208,6 +257,7 @@ SELECT
 	COALESCE(ul.actual_cost, 0) AS revenue,
 	COALESCE(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1), 0) AS channel_cost,
 	COALESCE(ul.actual_cost, 0) - COALESCE(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1), 0) AS gross_profit,
+	ul.rate_multiplier,
 	ul.channel_price_snapshot,
 	ul.channel_price_snapshot IS NULL AS channel_price_snapshot_missing
 FROM usage_logs ul
@@ -243,6 +293,7 @@ LIMIT $` + fmt.Sprint(len(args)-1) + ` OFFSET $` + fmt.Sprint(len(args))
 			&row.Revenue,
 			&row.ChannelCost,
 			&row.GrossProfit,
+			&row.RateMultiplier,
 			&row.ChannelPriceSnapshot,
 			&row.ChannelPriceSnapshotMissing,
 		); err != nil {
@@ -259,10 +310,6 @@ func buildBusinessAggregateQuery(filter service.BusinessAnalyticsFilter, groupBy
 	}
 	tableName := "business_usage_daily"
 	dateColumn := "bucket_date"
-	if isWeeklyGranularity(filter) {
-		tableName = "business_usage_weekly"
-		dateColumn = "week_start"
-	}
 	_, args := buildBusinessDailyWhere(filter, dateColumn)
 	dailyWhereWithAlias, _ := buildBusinessDailyWhere(filter, "b.bucket_date")
 	aggregateWhereWithAlias, _ := buildBusinessDailyWhere(filter, "b."+dateColumn)
@@ -272,13 +319,13 @@ func buildBusinessAggregateQuery(filter service.BusinessAnalyticsFilter, groupBy
 			return `
 WITH usage_totals AS (
 	SELECT
-		b.week_start::text date,
+		date_trunc('week', b.bucket_date)::date::text date,
 		COALESCE(SUM(b.requests), 0) requests,
 		COALESCE(SUM(b.revenue), 0) revenue,
 		COALESCE(SUM(b.channel_cost), 0) channel_cost,
 		COALESCE(SUM(b.gross_profit), 0) gross_profit
-	FROM business_usage_weekly b ` + aggregateWhereWithAlias + `
-	GROUP BY b.week_start
+	FROM business_usage_daily b ` + aggregateWhereWithAlias + `
+	GROUP BY date_trunc('week', b.bucket_date)::date
 ), active_users AS (
 	SELECT
 		date_trunc('week', bu.bucket_date)::date::text date,
@@ -354,10 +401,6 @@ func buildBusinessGroupsQuery(current, previous service.BusinessAnalyticsFilter)
 	currentDateColumn := "bucket_date"
 	weightedGroupRateExpr := "SUM(b.avg_group_rate_multiplier * GREATEST(b.revenue, 0.000000001)) FILTER (WHERE b.avg_group_rate_multiplier IS NOT NULL) / NULLIF(SUM(GREATEST(b.revenue, 0.000000001)) FILTER (WHERE b.avg_group_rate_multiplier IS NOT NULL), 0)"
 	weightedSourceGroupRateExpr := "SUM(avg_group_rate_multiplier * GREATEST(revenue, 0.000000001)) FILTER (WHERE avg_group_rate_multiplier IS NOT NULL) / NULLIF(SUM(GREATEST(revenue, 0.000000001)) FILTER (WHERE avg_group_rate_multiplier IS NOT NULL), 0)"
-	if isWeeklyGranularity(current) && !includesToday(current) {
-		currentTableName = "business_usage_weekly"
-		currentDateColumn = "week_start"
-	}
 	currentWhere, args := buildBusinessDailyWhere(current, currentDateColumn)
 	currentSource := currentTableName + " " + currentWhere
 	if includesToday(current) {
@@ -372,7 +415,8 @@ func buildBusinessGroupsQuery(current, previous service.BusinessAnalyticsFilter)
 				COALESCE(SUM(ul.actual_cost), 0) AS revenue,
 				COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) AS channel_cost,
 				COALESCE(SUM(ul.actual_cost), 0) - COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) AS gross_profit,
-				AVG(ul.rate_multiplier) AS avg_group_rate_multiplier
+				SUM(ul.rate_multiplier * GREATEST(ul.actual_cost, 0.000000001)) FILTER (WHERE ul.rate_multiplier IS NOT NULL)
+					/ NULLIF(SUM(GREATEST(ul.actual_cost, 0.000000001)) FILTER (WHERE ul.rate_multiplier IS NOT NULL), 0) AS avg_group_rate_multiplier
 			FROM usage_logs ul
 			LEFT JOIN groups g ON g.id = ul.group_id
 			LEFT JOIN accounts a ON a.id = ul.account_id
@@ -470,7 +514,8 @@ SELECT
 	COALESCE(a.status, ''),
 	a.channel_price,
 	COALESCE(a.extra->>'balance_status', ''),
-	AVG(ul.channel_price_snapshot) FILTER (WHERE ul.channel_price_snapshot IS NOT NULL),
+	SUM(ul.channel_price_snapshot) FILTER (WHERE ul.channel_price_snapshot IS NOT NULL)
+		/ NULLIF(COUNT(*) FILTER (WHERE ul.channel_price_snapshot IS NOT NULL), 0),
 	COUNT(*),
 	COUNT(DISTINCT ul.user_id),
 	COUNT(DISTINCT ul.api_key_id),
@@ -484,14 +529,10 @@ LEFT JOIN groups g ON g.id = ul.group_id
 LEFT JOIN accounts a ON a.id = ul.account_id
 ` + where + `
 	GROUP BY COALESCE(ul.account_id, 0), a.name, a.platform, a.status, a.channel_price, a.extra
-ORDER BY SUM(ul.actual_cost) DESC, COALESCE(ul.account_id, 0)`, args
+	ORDER BY SUM(ul.actual_cost) DESC, COALESCE(ul.account_id, 0)`, args
 	}
 	tableName := "business_usage_daily"
 	dateColumn := "bucket_date"
-	if isWeeklyGranularity(filter) {
-		tableName = "business_usage_weekly"
-		dateColumn = "week_start"
-	}
 	aggregateWhere, args := buildBusinessDailyWhere(filter, "b."+dateColumn)
 	dailyWhere, _ := buildBusinessDailyWhere(filter, "b.bucket_date")
 	usageWhere, _ := buildUsageLogsWhere(filter)

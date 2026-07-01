@@ -13,6 +13,8 @@ type businessAnalyticsRepoStub struct {
 	trend    []BusinessTrendPoint
 	groups   []BusinessGroupRow
 	channels []BusinessChannelRow
+	impact   *PriceChangeImpactResponse
+	records  *BusinessRecordsResponse
 }
 
 func (r *businessAnalyticsRepoStub) GetOverview(context.Context, BusinessAnalyticsFilter) (*BusinessOverviewData, error) {
@@ -32,11 +34,11 @@ func (r *businessAnalyticsRepoStub) GetChannels(context.Context, BusinessAnalyti
 }
 
 func (r *businessAnalyticsRepoStub) GetPriceChangeImpact(context.Context, PriceChangeImpactInput) (*PriceChangeImpactResponse, error) {
-	return nil, nil
+	return r.impact, nil
 }
 
 func (r *businessAnalyticsRepoStub) GetRecords(context.Context, BusinessRecordsFilter) (*BusinessRecordsResponse, error) {
-	return nil, nil
+	return r.records, nil
 }
 
 func TestProfitMargin(t *testing.T) {
@@ -134,4 +136,41 @@ func TestBusinessAnalyticsService_GetChannelsPreservesAverageChannelPrice(t *tes
 	require.Len(t, rows, 1)
 	require.NotNil(t, rows[0].AverageChannelPrice)
 	require.InDelta(t, avg, *rows[0].AverageChannelPrice, 0.000001)
+}
+
+func TestBusinessAnalyticsService_GetPriceChangeImpactAddsProfitMargins(t *testing.T) {
+	beforeAvg := 1.2
+	afterAvg := 1.4
+	svc := NewBusinessAnalyticsService(&businessAnalyticsRepoStub{
+		impact: &PriceChangeImpactResponse{
+			GroupID:                 7,
+			ChangeDate:              "2026-06-08",
+			BeforeRequests:          10,
+			AfterRequests:           12,
+			BeforeActiveUsers:       4,
+			AfterActiveUsers:        5,
+			BeforeRevenue:           8,
+			AfterRevenue:            12,
+			RevenueDelta:            4,
+			BeforeChannelCost:       5,
+			AfterChannelCost:        6,
+			BeforeGrossProfit:       3,
+			AfterGrossProfit:        6,
+			GrossProfitDelta:        3,
+			BeforeAvgRateMultiplier: &beforeAvg,
+			AfterAvgRateMultiplier:  &afterAvg,
+			NewUsers:                2,
+			LostUsers:               1,
+		},
+	})
+
+	got, err := svc.GetPriceChangeImpact(context.Background(), PriceChangeImpactInput{})
+
+	require.NoError(t, err)
+	require.NotNil(t, got.BeforeProfitMargin)
+	require.NotNil(t, got.AfterProfitMargin)
+	require.InDelta(t, 0.375, *got.BeforeProfitMargin, 0.000001)
+	require.InDelta(t, 0.5, *got.AfterProfitMargin, 0.000001)
+	require.Equal(t, int64(2), got.NewUsers)
+	require.Equal(t, int64(1), got.LostUsers)
 }

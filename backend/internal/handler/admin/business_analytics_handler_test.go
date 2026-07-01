@@ -16,6 +16,7 @@ import (
 type stubBusinessAnalyticsService struct {
 	overview        *service.BusinessOverviewResponse
 	impact          *service.PriceChangeImpactResponse
+	records         *service.BusinessRecordsResponse
 	overviewFilters []service.BusinessAnalyticsFilter
 	groupFilters    []service.BusinessAnalyticsFilter
 }
@@ -45,6 +46,9 @@ func (s *stubBusinessAnalyticsService) GetPriceChangeImpact(context.Context, ser
 }
 
 func (s *stubBusinessAnalyticsService) GetRecords(context.Context, service.BusinessRecordsFilter) (*service.BusinessRecordsResponse, error) {
+	if s.records != nil {
+		return s.records, nil
+	}
 	return &service.BusinessRecordsResponse{}, nil
 }
 
@@ -186,12 +190,27 @@ func TestBusinessAnalyticsHandler_PriceChangeImpactReturnsImpact(t *testing.T) {
 	changeDate := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	router := businessAnalyticsTestRouter(&stubBusinessAnalyticsService{
 		impact: &service.PriceChangeImpactResponse{
-			GroupID:       1,
-			ChangeDate:    "2026-06-01",
-			BeforeRevenue: 8,
-			AfterRevenue:  12,
-			RevenueDelta:  4,
-			ChangeAt:      changeDate,
+			GroupID:                 1,
+			ChangeDate:              "2026-06-01",
+			BeforeRequests:          8,
+			AfterRequests:           12,
+			BeforeActiveUsers:       3,
+			AfterActiveUsers:        4,
+			BeforeRevenue:           8,
+			AfterRevenue:            12,
+			RevenueDelta:            4,
+			BeforeChannelCost:       5,
+			AfterChannelCost:        6,
+			BeforeGrossProfit:       3,
+			AfterGrossProfit:        6,
+			GrossProfitDelta:        3,
+			BeforeProfitMargin:      float64Ptr(0.375),
+			AfterProfitMargin:       float64Ptr(0.5),
+			BeforeAvgRateMultiplier: float64Ptr(1.25),
+			AfterAvgRateMultiplier:  float64Ptr(1.5),
+			NewUsers:                2,
+			LostUsers:               1,
+			ChangeAt:                changeDate,
 		},
 	})
 	req := httptest.NewRequest(http.MethodGet, "/price-change-impact?group_id=1&change_date=2026-06-01", nil)
@@ -207,6 +226,52 @@ func TestBusinessAnalyticsHandler_PriceChangeImpactReturnsImpact(t *testing.T) {
 	require.Equal(t, float64(1), envelope.Data["group_id"])
 	require.Equal(t, "2026-06-01", envelope.Data["change_date"])
 	require.Equal(t, float64(4), envelope.Data["revenue_delta"])
+	require.Equal(t, float64(8), envelope.Data["before_requests"])
+	require.Equal(t, float64(4), envelope.Data["after_active_users"])
+	require.Equal(t, float64(6), envelope.Data["after_channel_cost"])
+	require.Equal(t, float64(0.375), envelope.Data["before_profit_margin"])
+	require.Equal(t, float64(1.25), envelope.Data["before_avg_rate_multiplier"])
+	require.Equal(t, float64(2), envelope.Data["new_users"])
+	require.Equal(t, float64(1), envelope.Data["lost_users"])
+}
+
+func TestBusinessAnalyticsHandler_ExportIncludesSnapshotAndRateMultiplierColumns(t *testing.T) {
+	router := businessAnalyticsTestRouter(&stubBusinessAnalyticsService{
+		records: &service.BusinessRecordsResponse{
+			Items: []service.BusinessRecordRow{
+				{
+					CreatedAt:                   time.Date(2026, 6, 6, 8, 0, 0, 0, time.UTC),
+					UserID:                      3,
+					UserEmail:                   "u@example.com",
+					APIKeyID:                    4,
+					APIKeyName:                  "prod-key",
+					GroupID:                     10,
+					GroupName:                   "Team A",
+					AccountID:                   20,
+					AccountName:                 "Channel A",
+					Model:                       "gpt-5-mini",
+					Revenue:                     1.2,
+					ChannelCost:                 0.7,
+					GrossProfit:                 0.5,
+					RateMultiplier:              float64Ptr(1.125),
+					ChannelPriceSnapshot:        float64Ptr(0.875),
+					ChannelPriceSnapshotMissing: false,
+				},
+			},
+		},
+	})
+	req := httptest.NewRequest(http.MethodGet, "/export?start_date=2026-06-01&end_date=2026-06-02", nil)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	require.Contains(t, body, "rate_multiplier")
+	require.Contains(t, body, "channel_price_snapshot")
+	require.Contains(t, body, "channel_price_snapshot_missing")
+	require.Contains(t, body, "1.1250000000")
+	require.Contains(t, body, "0.8750000000")
 }
 
 func businessAnalyticsTestRouter(svc businessAnalyticsService) *gin.Engine {
@@ -217,6 +282,7 @@ func businessAnalyticsTestRouter(svc businessAnalyticsService) *gin.Engine {
 	router.GET("/groups/:id/channels", h.GetGroupChannels)
 	router.GET("/channels/:id/groups", h.GetChannelGroups)
 	router.GET("/price-change-impact", h.GetPriceChangeImpact)
+	router.GET("/export", h.Export)
 	return router
 }
 

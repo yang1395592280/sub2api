@@ -70,6 +70,7 @@ describe('business analytics admin api', () => {
       items: [
         {
           id: 1,
+          rate_multiplier: 1.125,
           channel_price_snapshot: 0.875,
           channel_price_snapshot_missing: false,
         },
@@ -90,6 +91,39 @@ describe('business analytics admin api', () => {
     await expect(businessAnalyticsAPI.getGroups(params)).resolves.toEqual(groups)
     await expect(businessAnalyticsAPI.getChannels(params)).resolves.toEqual(channels)
     await expect(businessAnalyticsAPI.getRecords(params)).resolves.toEqual(records)
+  })
+
+  it('preserves expanded price impact metrics', async () => {
+    const impact = {
+      group_id: 10,
+      change_date: '2026-06-05',
+      before_requests: 10,
+      after_requests: 12,
+      before_active_users: 3,
+      after_active_users: 4,
+      before_revenue: 30,
+      after_revenue: 42,
+      revenue_delta: 12,
+      before_channel_cost: 18,
+      after_channel_cost: 21,
+      before_gross_profit: 12,
+      after_gross_profit: 21,
+      gross_profit_delta: 9,
+      before_profit_margin: 0.4,
+      after_profit_margin: 0.5,
+      before_avg_rate_multiplier: 1.25,
+      after_avg_rate_multiplier: 1.5,
+      new_users: 2,
+      lost_users: 1,
+    }
+    get.mockResolvedValueOnce({ data: impact })
+
+    await expect(
+      businessAnalyticsAPI.getPriceChangeImpact({
+        group_id: 10,
+        change_date: '2026-06-05',
+      })
+    ).resolves.toEqual(impact)
   })
 
   it('loads records with pagination params', async () => {

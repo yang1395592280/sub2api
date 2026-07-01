@@ -124,15 +124,27 @@ type PriceChangeImpactInput struct {
 }
 
 type PriceChangeImpactResponse struct {
-	GroupID           int64     `json:"group_id"`
-	ChangeDate        string    `json:"change_date"`
-	BeforeRevenue     float64   `json:"before_revenue"`
-	AfterRevenue      float64   `json:"after_revenue"`
-	RevenueDelta      float64   `json:"revenue_delta"`
-	BeforeGrossProfit float64   `json:"before_gross_profit"`
-	AfterGrossProfit  float64   `json:"after_gross_profit"`
-	GrossProfitDelta  float64   `json:"gross_profit_delta"`
-	ChangeAt          time.Time `json:"change_at,omitempty"`
+	GroupID                 int64     `json:"group_id"`
+	ChangeDate              string    `json:"change_date"`
+	BeforeRequests          int64     `json:"before_requests"`
+	AfterRequests           int64     `json:"after_requests"`
+	BeforeActiveUsers       int64     `json:"before_active_users"`
+	AfterActiveUsers        int64     `json:"after_active_users"`
+	BeforeRevenue           float64   `json:"before_revenue"`
+	AfterRevenue            float64   `json:"after_revenue"`
+	RevenueDelta            float64   `json:"revenue_delta"`
+	BeforeChannelCost       float64   `json:"before_channel_cost"`
+	AfterChannelCost        float64   `json:"after_channel_cost"`
+	BeforeGrossProfit       float64   `json:"before_gross_profit"`
+	AfterGrossProfit        float64   `json:"after_gross_profit"`
+	GrossProfitDelta        float64   `json:"gross_profit_delta"`
+	BeforeProfitMargin      *float64  `json:"before_profit_margin,omitempty"`
+	AfterProfitMargin       *float64  `json:"after_profit_margin,omitempty"`
+	BeforeAvgRateMultiplier *float64  `json:"before_avg_rate_multiplier,omitempty"`
+	AfterAvgRateMultiplier  *float64  `json:"after_avg_rate_multiplier,omitempty"`
+	NewUsers                int64     `json:"new_users"`
+	LostUsers               int64     `json:"lost_users"`
+	ChangeAt                time.Time `json:"change_at,omitempty"`
 }
 
 type BusinessRecordRow struct {
@@ -152,6 +164,7 @@ type BusinessRecordRow struct {
 	Revenue                     float64   `json:"revenue"`
 	ChannelCost                 float64   `json:"channel_cost"`
 	GrossProfit                 float64   `json:"gross_profit"`
+	RateMultiplier              *float64  `json:"rate_multiplier,omitempty"`
 	ChannelPriceSnapshot        *float64  `json:"channel_price_snapshot,omitempty"`
 	ChannelPriceSnapshotMissing bool      `json:"channel_price_snapshot_missing"`
 }
@@ -226,7 +239,13 @@ func (s *BusinessAnalyticsService) GetChannels(ctx context.Context, filter Busin
 }
 
 func (s *BusinessAnalyticsService) GetPriceChangeImpact(ctx context.Context, input PriceChangeImpactInput) (*PriceChangeImpactResponse, error) {
-	return s.repo.GetPriceChangeImpact(ctx, input)
+	resp, err := s.repo.GetPriceChangeImpact(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	resp.BeforeProfitMargin = ProfitMargin(resp.BeforeRevenue, resp.BeforeGrossProfit)
+	resp.AfterProfitMargin = ProfitMargin(resp.AfterRevenue, resp.AfterGrossProfit)
+	return resp, nil
 }
 
 func (s *BusinessAnalyticsService) GetRecords(ctx context.Context, filter BusinessRecordsFilter) (*BusinessRecordsResponse, error) {

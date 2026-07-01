@@ -156,12 +156,24 @@ describe('BusinessAnalyticsView', () => {
     getPriceChangeImpact.mockResolvedValue({
       group_id: 10,
       change_date: '2026-06-05',
+      before_requests: 30,
+      after_requests: 42,
+      before_active_users: 4,
+      after_active_users: 6,
       before_revenue: 30,
       after_revenue: 42,
       revenue_delta: 12,
+      before_channel_cost: 18,
+      after_channel_cost: 21,
       before_gross_profit: 10,
       after_gross_profit: 18,
       gross_profit_delta: 8,
+      before_profit_margin: 0.3333,
+      after_profit_margin: 0.4286,
+      before_avg_rate_multiplier: 1.25,
+      after_avg_rate_multiplier: 1.5,
+      new_users: 3,
+      lost_users: 1,
       change_at: '2026-06-05T00:00:00Z',
     })
     getRecords.mockResolvedValue({
@@ -183,6 +195,7 @@ describe('BusinessAnalyticsView', () => {
           revenue: 1.2,
           channel_cost: 0.7,
           gross_profit: 0.5,
+          rate_multiplier: 1.125,
           channel_price_snapshot: 0.875,
           channel_price_snapshot_missing: false,
         },
@@ -247,6 +260,9 @@ describe('BusinessAnalyticsView', () => {
     await flushPromises()
     expect(getPriceChangeImpact).toHaveBeenCalledTimes(1)
     expect(wrapper.get('[data-test="price-impact-delta"]').text()).toContain('$12.00')
+    expect(wrapper.text()).toContain('30')
+    expect(wrapper.text()).toContain('1.2500')
+    expect(wrapper.text()).toContain('3')
   })
 
   it('selects a loaded group before querying price impact', async () => {
@@ -336,6 +352,7 @@ describe('BusinessAnalyticsView', () => {
     const snapshot = wrapper.get('[data-test="record-channel-price-snapshot-1"]')
     expect(snapshot.text()).toContain('0.8750')
     expect(snapshot.text()).not.toContain('admin.businessAnalytics.snapshotUnavailable')
+    expect(wrapper.text()).toContain('1.1250')
     expect(wrapper.find('[data-test="record-approximate-1"]').exists()).toBe(false)
   })
 
