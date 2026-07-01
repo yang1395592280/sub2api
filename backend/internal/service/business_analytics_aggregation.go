@@ -87,10 +87,13 @@ func (s *BusinessAnalyticsAggregationService) TriggerRecomputeRange(start, end t
 	if !s.cfg.Enabled {
 		return ErrBusinessAnalyticsRecomputeDisabled
 	}
+	if !s.cfg.BackfillEnabled {
+		return ErrBusinessAnalyticsRecomputeDisabled
+	}
 	if !end.After(start) {
 		return errors.New("经营分析聚合时间范围无效")
 	}
-	if s.cfg.BackfillEnabled && s.cfg.BackfillMaxDays > 0 {
+	if s.cfg.BackfillMaxDays > 0 {
 		maxRange := time.Duration(s.cfg.BackfillMaxDays) * 24 * time.Hour
 		if end.Sub(start) > maxRange {
 			return ErrBusinessAnalyticsRecomputeTooLarge
@@ -116,9 +119,11 @@ func (s *BusinessAnalyticsAggregationService) runScheduledAggregation() {
 	if lookback < 0 {
 		lookback = 0
 	}
+	start := truncateToDayUTC(now.Add(-lookback))
+	end := truncateToDayUTC(now).AddDate(0, 0, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), defaultBusinessAnalyticsRunTimeout)
 	defer cancel()
-	if err := s.recomputeRange(ctx, now.Add(-lookback), now); err != nil && !errors.Is(err, errBusinessAnalyticsAggregationRunning) {
+	if err := s.recomputeRange(ctx, start, end); err != nil && !errors.Is(err, errBusinessAnalyticsAggregationRunning) {
 		logger.LegacyPrintf("service.business_analytics_aggregation", "[BusinessAnalyticsAggregation] 定时聚合失败: %v", err)
 	}
 }
@@ -132,8 +137,10 @@ func (s *BusinessAnalyticsAggregationService) recomputeRange(ctx context.Context
 	if err := s.repo.RecomputeDaily(ctx, start.UTC(), end.UTC()); err != nil {
 		return err
 	}
-	if err := s.repo.RecomputeWeekly(ctx, currentWeekStartUTC(end)); err != nil {
-		return err
+	for _, weekStart := range weekStartsInRangeUTC(start, end) {
+		if err := s.repo.RecomputeWeekly(ctx, weekStart); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -155,4 +162,17 @@ func currentWeekStartUTC(t time.Time) time.Time {
 	day := truncateToDayUTC(t)
 	offset := (int(day.Weekday()) + 6) % 7
 	return day.AddDate(0, 0, -offset)
+}
+
+func weekStartsInRangeUTC(start, end time.Time) []time.Time {
+	if !end.After(start) {
+		return nil
+	}
+	first := currentWeekStartUTC(start)
+	last := currentWeekStartUTC(end.Add(-time.Nanosecond))
+	weeks := make([]time.Time, 0, int(last.Sub(first)/(7*24*time.Hour))+1)
+	for weekStart := first; !weekStart.After(last); weekStart = weekStart.AddDate(0, 0, 7) {
+		weeks = append(weeks, weekStart)
+	}
+	return weeks
 }

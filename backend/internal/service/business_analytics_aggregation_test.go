@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -154,7 +155,7 @@ func TestBusinessAnalyticsAggregationService_TriggerRecomputeRangeRejectsInvalid
 	}
 }
 
-func TestBusinessAnalyticsAggregationService_ScheduledAggregationRecomputesRecentDailyAndCurrentWeek(t *testing.T) {
+func TestBusinessAnalyticsAggregationService_ScheduledAggregationRecomputesDailyDateRangeAndCurrentWeek(t *testing.T) {
 	repo := &businessAnalyticsAggregationRepoSpy{}
 	scheduler := &businessAnalyticsSchedulerSpy{}
 	svc := NewBusinessAnalyticsAggregationService(repo, nil, &config.Config{
@@ -187,15 +188,110 @@ func TestBusinessAnalyticsAggregationService_ScheduledAggregationRecomputesRecen
 	if len(weekly) != 1 {
 		t.Fatalf("weekly calls = %d, want 1", len(weekly))
 	}
-	if daily[0].start.Before(before.Add(-2*time.Hour-2*time.Second)) || daily[0].start.After(after.Add(-2*time.Hour+2*time.Second)) {
-		t.Fatalf("daily start = %s, want about now-2h", daily[0].start)
+	wantDailyStart := truncateToDayUTC(before.Add(-2 * time.Hour))
+	wantDailyEnd := truncateToDayUTC(after).AddDate(0, 0, 1)
+	if !daily[0].start.Equal(wantDailyStart) {
+		t.Fatalf("daily start = %s, want %s", daily[0].start, wantDailyStart)
 	}
-	if daily[0].end.Before(before.Add(-2*time.Second)) || daily[0].end.After(after.Add(2*time.Second)) {
-		t.Fatalf("daily end = %s, want about now", daily[0].end)
+	if !daily[0].end.Equal(wantDailyEnd) {
+		t.Fatalf("daily end = %s, want %s", daily[0].end, wantDailyEnd)
 	}
 	wantWeekStart := currentWeekStartUTC(after)
 	if !weekly[0].Equal(wantWeekStart) {
 		t.Fatalf("weekly start = %s, want %s", weekly[0], wantWeekStart)
+	}
+}
+
+func TestBusinessAnalyticsAggregationService_ScheduledAggregationUsesUTCDateRangeForDaily(t *testing.T) {
+	repo := &businessAnalyticsAggregationRepoSpy{}
+	svc := NewBusinessAnalyticsAggregationService(repo, nil, &config.Config{
+		BusinessAnalytics: config.BusinessAnalyticsConfig{
+			Enabled:                    true,
+			AggregationIntervalSeconds: 300,
+			LookbackSeconds:            7200,
+			BackfillEnabled:            true,
+			BackfillMaxDays:            90,
+		},
+	})
+
+	before := time.Now().UTC()
+	svc.runScheduledAggregation()
+	after := time.Now().UTC()
+
+	daily, _ := repo.snapshot()
+	if len(daily) != 1 {
+		t.Fatalf("daily calls = %d, want 1", len(daily))
+	}
+	wantStart := truncateToDayUTC(before.Add(-2 * time.Hour))
+	wantEnd := truncateToDayUTC(after).AddDate(0, 0, 1)
+	if !daily[0].start.Equal(wantStart) {
+		t.Fatalf("daily start = %s, want UTC day boundary %s", daily[0].start, wantStart)
+	}
+	if !daily[0].end.Equal(wantEnd) {
+		t.Fatalf("daily end = %s, want next UTC day boundary %s", daily[0].end, wantEnd)
+	}
+}
+
+func TestBusinessAnalyticsAggregationService_TriggerRecomputeRangeRecomputesAllWeeksInRange(t *testing.T) {
+	repo := &businessAnalyticsAggregationRepoSpy{}
+	svc := NewBusinessAnalyticsAggregationService(repo, nil, &config.Config{
+		BusinessAnalytics: config.BusinessAnalyticsConfig{
+			Enabled:         true,
+			BackfillEnabled: true,
+			BackfillMaxDays: 90,
+		},
+	})
+
+	start := time.Date(2026, 6, 28, 18, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 7, 8, 9, 0, 0, 0, time.UTC)
+	if err := svc.TriggerRecomputeRange(start, end); err != nil {
+		t.Fatalf("TriggerRecomputeRange returned error: %v", err)
+	}
+
+	wantWeeks := []time.Time{
+		time.Date(2026, 6, 22, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 6, 29, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC),
+	}
+	deadline := time.After(time.Second)
+	for {
+		_, weekly := repo.snapshot()
+		if len(weekly) == len(wantWeeks) {
+			for i := range wantWeeks {
+				if !weekly[i].Equal(wantWeeks[i]) {
+					t.Fatalf("weekly[%d] = %s, want %s", i, weekly[i], wantWeeks[i])
+				}
+			}
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("weekly calls did not complete, want %d", len(wantWeeks))
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+func TestBusinessAnalyticsAggregationService_TriggerRecomputeRangeRejectsWhenBackfillDisabled(t *testing.T) {
+	repo := &businessAnalyticsAggregationRepoSpy{}
+	svc := NewBusinessAnalyticsAggregationService(repo, nil, &config.Config{
+		BusinessAnalytics: config.BusinessAnalyticsConfig{
+			Enabled:         true,
+			BackfillEnabled: false,
+			BackfillMaxDays: 90,
+		},
+	})
+
+	start := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	if err := svc.TriggerRecomputeRange(start, end); !errors.Is(err, ErrBusinessAnalyticsRecomputeDisabled) {
+		t.Fatalf("TriggerRecomputeRange error = %v, want %v", err, ErrBusinessAnalyticsRecomputeDisabled)
+	}
+
+	daily, weekly := repo.snapshot()
+	if len(daily) != 0 || len(weekly) != 0 {
+		t.Fatalf("disabled manual recompute should not call repo: daily=%d weekly=%d", len(daily), len(weekly))
 	}
 }
 
