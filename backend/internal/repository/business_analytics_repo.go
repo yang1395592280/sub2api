@@ -1,0 +1,441 @@
+package repository
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/service"
+)
+
+type businessAnalyticsRepository struct {
+	sql sqlExecutor
+}
+
+func NewBusinessAnalyticsRepository(sqlDB *sql.DB) service.BusinessAnalyticsRepository {
+	if sqlDB == nil {
+		return nil
+	}
+	return newBusinessAnalyticsRepositoryWithSQL(sqlDB)
+}
+
+func newBusinessAnalyticsRepositoryWithSQL(sqlq sqlExecutor) *businessAnalyticsRepository {
+	return &businessAnalyticsRepository{sql: sqlq}
+}
+
+func (r *businessAnalyticsRepository) GetOverview(ctx context.Context, filter service.BusinessAnalyticsFilter) (*service.BusinessOverviewData, error) {
+	query, args := buildBusinessAggregateQuery(filter, "", false)
+	var data service.BusinessOverviewData
+	if err := scanSingleRow(ctx, r.sql, query, args, &data.Requests, &data.ActiveUsers, &data.ActiveAPIKeys, &data.TotalTokens, &data.Revenue, &data.ChannelCost, &data.GrossProfit, &data.MissingPrice); err != nil {
+		return nil, err
+	}
+	return &data, nil
+}
+
+func (r *businessAnalyticsRepository) GetTrend(ctx context.Context, filter service.BusinessAnalyticsFilter) ([]service.BusinessTrendPoint, error) {
+	query, args := buildBusinessAggregateQuery(filter, "bucket_date", true)
+	rows, err := r.sql.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []service.BusinessTrendPoint
+	for rows.Next() {
+		var point service.BusinessTrendPoint
+		if err := rows.Scan(&point.Date, &point.Requests, &point.ActiveUsers, &point.Revenue, &point.ChannelCost, &point.GrossProfit); err != nil {
+			return nil, err
+		}
+		out = append(out, point)
+	}
+	return out, rows.Err()
+}
+
+func (r *businessAnalyticsRepository) GetGroups(ctx context.Context, filter service.BusinessAnalyticsFilter) ([]service.BusinessGroupRow, error) {
+	periodDays := int(filter.EndDate.Sub(filter.StartDate).Hours() / 24)
+	if periodDays <= 0 {
+		periodDays = 1
+	}
+	previous := filter
+	previous.EndDate = filter.StartDate
+	previous.StartDate = filter.StartDate.AddDate(0, 0, -periodDays)
+
+	query, args := buildBusinessGroupsQuery(filter, previous)
+	rows, err := r.sql.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []service.BusinessGroupRow
+	for rows.Next() {
+		var row service.BusinessGroupRow
+		if err := rows.Scan(
+			&row.GroupID,
+			&row.GroupName,
+			&row.Platform,
+			&row.CurrentRateMultiplier,
+			&row.Requests,
+			&row.ActiveUsers,
+			&row.ActiveAPIKeys,
+			&row.TotalTokens,
+			&row.Revenue,
+			&row.ChannelCost,
+			&row.GrossProfit,
+			&row.PreviousRevenue,
+			&row.PreviousGrossProfit,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
+func (r *businessAnalyticsRepository) GetChannels(ctx context.Context, filter service.BusinessAnalyticsFilter) ([]service.BusinessChannelRow, error) {
+	query, args := buildBusinessChannelsQuery(filter)
+	rows, err := r.sql.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []service.BusinessChannelRow
+	for rows.Next() {
+		var row service.BusinessChannelRow
+		if err := rows.Scan(
+			&row.AccountID,
+			&row.AccountName,
+			&row.ChannelID,
+			&row.Platform,
+			&row.Status,
+			&row.CurrentChannelPrice,
+			&row.BalanceStatus,
+			&row.Requests,
+			&row.ActiveUsers,
+			&row.ActiveAPIKeys,
+			&row.TotalTokens,
+			&row.Revenue,
+			&row.ChannelCost,
+			&row.GrossProfit,
+			&row.MissingPriceRecords,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
+func (r *businessAnalyticsRepository) GetPriceChangeImpact(ctx context.Context, input service.PriceChangeImpactInput) (*service.PriceChangeImpactResponse, error) {
+	days := input.Days
+	if days <= 0 {
+		days = 7
+	}
+	beforeStart := input.ChangeDate.AddDate(0, 0, -days)
+	beforeEnd := input.ChangeDate
+	afterStart := input.ChangeDate
+	afterEnd := input.ChangeDate.AddDate(0, 0, days)
+	query := `
+WITH before_period AS (
+	SELECT COALESCE(SUM(revenue), 0) AS revenue, COALESCE(SUM(gross_profit), 0) AS gross_profit
+	FROM business_usage_daily
+	WHERE bucket_date >= $1::date AND bucket_date < $2::date AND group_id = $5
+), after_period AS (
+	SELECT COALESCE(SUM(revenue), 0) AS revenue, COALESCE(SUM(gross_profit), 0) AS gross_profit
+	FROM business_usage_daily
+	WHERE bucket_date >= $3::date AND bucket_date < $4::date AND group_id = $5
+)
+SELECT
+	before_period.revenue,
+	after_period.revenue,
+	after_period.revenue - before_period.revenue,
+	before_period.gross_profit,
+	after_period.gross_profit,
+	after_period.gross_profit - before_period.gross_profit
+FROM before_period, after_period`
+	var resp service.PriceChangeImpactResponse
+	resp.GroupID = input.GroupID
+	resp.ChangeDate = input.ChangeDate.Format("2006-01-02")
+	resp.ChangeAt = input.ChangeDate
+	err := scanSingleRow(ctx, r.sql, query, []any{beforeStart, beforeEnd, afterStart, afterEnd, input.GroupID},
+		&resp.BeforeRevenue,
+		&resp.AfterRevenue,
+		&resp.RevenueDelta,
+		&resp.BeforeGrossProfit,
+		&resp.AfterGrossProfit,
+		&resp.GrossProfitDelta,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (r *businessAnalyticsRepository) GetRecords(ctx context.Context, filter service.BusinessRecordsFilter) (*service.BusinessRecordsResponse, error) {
+	if filter.Page <= 0 {
+		filter.Page = 1
+	}
+	if filter.PageSize <= 0 {
+		filter.PageSize = 20
+	}
+	where, args := buildUsageLogsWhere(filter.BusinessAnalyticsFilter)
+	countQuery := "SELECT COUNT(*) FROM usage_logs ul LEFT JOIN groups g ON g.id = ul.group_id LEFT JOIN accounts a ON a.id = ul.account_id " + where
+	var total int64
+	if err := scanSingleRow(ctx, r.sql, countQuery, args, &total); err != nil {
+		return nil, err
+	}
+	args = append(args, filter.PageSize, (filter.Page-1)*filter.PageSize)
+	query := `
+SELECT
+	ul.id,
+	ul.created_at,
+	ul.user_id,
+	COALESCE(u.email, ''),
+	ul.api_key_id,
+	COALESCE(ak.name, ''),
+	COALESCE(ul.group_id, 0),
+	COALESCE(g.name, ''),
+	COALESCE(ul.account_id, 0),
+	COALESCE(a.name, ''),
+	ul.model,
+	1::bigint AS requests,
+	COALESCE(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens + ul.cache_creation_5m_tokens + ul.cache_creation_1h_tokens, 0) AS total_tokens,
+	COALESCE(ul.actual_cost, 0) AS revenue,
+	COALESCE(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1), 0) AS channel_cost,
+	COALESCE(ul.actual_cost, 0) - COALESCE(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1), 0) AS gross_profit
+FROM usage_logs ul
+LEFT JOIN users u ON u.id = ul.user_id
+LEFT JOIN api_keys ak ON ak.id = ul.api_key_id
+LEFT JOIN groups g ON g.id = ul.group_id
+LEFT JOIN accounts a ON a.id = ul.account_id
+` + where + `
+ORDER BY ul.created_at DESC, ul.id DESC
+LIMIT $` + fmt.Sprint(len(args)-1) + ` OFFSET $` + fmt.Sprint(len(args))
+	rows, err := r.sql.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := &service.BusinessRecordsResponse{Total: total, Page: filter.Page, PageSize: filter.PageSize}
+	for rows.Next() {
+		var row service.BusinessRecordRow
+		if err := rows.Scan(
+			&row.ID,
+			&row.CreatedAt,
+			&row.UserID,
+			&row.UserEmail,
+			&row.APIKeyID,
+			&row.APIKeyName,
+			&row.GroupID,
+			&row.GroupName,
+			&row.AccountID,
+			&row.AccountName,
+			&row.Model,
+			&row.Requests,
+			&row.TotalTokens,
+			&row.Revenue,
+			&row.ChannelCost,
+			&row.GrossProfit,
+		); err != nil {
+			return nil, err
+		}
+		out.Items = append(out.Items, row)
+	}
+	return out, rows.Err()
+}
+
+func buildBusinessAggregateQuery(filter service.BusinessAnalyticsFilter, groupBy string, trend bool) (string, []any) {
+	if includesToday(filter) {
+		return buildUsageLogAggregateQuery(filter, trend)
+	}
+	where, args := buildBusinessDailyWhere(filter, "bucket_date")
+	selectCols := "COALESCE(SUM(requests), 0), COALESCE(SUM(active_users), 0), COALESCE(SUM(active_api_keys), 0), COALESCE(SUM(total_tokens), 0), COALESCE(SUM(revenue), 0), COALESCE(SUM(channel_cost), 0), COALESCE(SUM(gross_profit), 0), COALESCE(SUM(missing_channel_price_records), 0)"
+	if trend {
+		return "SELECT bucket_date::text, COALESCE(SUM(requests), 0), COALESCE(SUM(active_users), 0), COALESCE(SUM(revenue), 0), COALESCE(SUM(channel_cost), 0), COALESCE(SUM(gross_profit), 0) FROM business_usage_daily " + where + " GROUP BY " + groupBy + " ORDER BY " + groupBy, args
+	}
+	return "SELECT " + selectCols + " FROM business_usage_daily " + where, args
+}
+
+func buildBusinessGroupsQuery(current, previous service.BusinessAnalyticsFilter) (string, []any) {
+	currentWhere, args := buildBusinessDailyWhere(current, "bucket_date")
+	currentSource := "business_usage_daily " + currentWhere
+	if includesToday(current) {
+		currentWhere, args = buildUsageLogsWhere(current)
+		currentSource = `(
+			SELECT
+				COALESCE(ul.group_id, 0) AS group_id,
+				COUNT(*) AS requests,
+				COUNT(DISTINCT ul.user_id) AS active_users,
+				COUNT(DISTINCT ul.api_key_id) AS active_api_keys,
+				COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens + ul.cache_creation_5m_tokens + ul.cache_creation_1h_tokens), 0) AS total_tokens,
+				COALESCE(SUM(ul.actual_cost), 0) AS revenue,
+				COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) AS channel_cost,
+				COALESCE(SUM(ul.actual_cost), 0) - COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) AS gross_profit
+			FROM usage_logs ul ` + currentWhere + `
+			GROUP BY 1
+		) current_usage`
+	}
+	previousWhere, prevArgs := buildBusinessDailyWhereFrom(previous, "bucket_date", len(args)+1)
+	args = append(args, prevArgs...)
+	return `
+WITH current_period AS (
+	SELECT group_id, SUM(requests) requests, SUM(active_users) active_users, SUM(active_api_keys) active_api_keys, SUM(total_tokens) total_tokens, SUM(revenue) revenue, SUM(channel_cost) channel_cost, SUM(gross_profit) gross_profit
+	FROM ` + currentSource + ` GROUP BY group_id
+), previous_period AS (
+	SELECT group_id, SUM(revenue) previous_revenue, SUM(gross_profit) previous_gross_profit
+	FROM business_usage_daily ` + previousWhere + ` GROUP BY group_id
+)
+SELECT
+	cp.group_id,
+	COALESCE(g.name, ''),
+	COALESCE(g.platform, ''),
+	g.rate_multiplier,
+	COALESCE(cp.requests, 0),
+	COALESCE(cp.active_users, 0),
+	COALESCE(cp.active_api_keys, 0),
+	COALESCE(cp.total_tokens, 0),
+	COALESCE(cp.revenue, 0),
+	COALESCE(cp.channel_cost, 0),
+	COALESCE(cp.gross_profit, 0),
+	COALESCE(pp.previous_revenue, 0),
+	COALESCE(pp.previous_gross_profit, 0)
+FROM current_period cp
+LEFT JOIN previous_period pp ON pp.group_id = cp.group_id
+LEFT JOIN groups g ON g.id = cp.group_id
+ORDER BY cp.revenue DESC, cp.group_id`, args
+}
+
+func buildBusinessChannelsQuery(filter service.BusinessAnalyticsFilter) (string, []any) {
+	if includesToday(filter) {
+		where, args := buildUsageLogsWhere(filter)
+		return `
+SELECT
+	COALESCE(ul.account_id, 0),
+	COALESCE(a.name, ''),
+	COALESCE(MAX(ul.channel_id), 0),
+	COALESCE(MAX(` + usageLogEffectivePlatformExpr + `), COALESCE(a.platform, '')),
+	COALESCE(a.status, ''),
+	a.channel_price,
+	COALESCE(a.extra->>'balance_status', ''),
+	COUNT(*),
+	COUNT(DISTINCT ul.user_id),
+	COUNT(DISTINCT ul.api_key_id),
+	COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens + ul.cache_creation_5m_tokens + ul.cache_creation_1h_tokens), 0),
+	COALESCE(SUM(ul.actual_cost), 0),
+	COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0),
+	COALESCE(SUM(ul.actual_cost), 0) - COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0),
+	COUNT(*) FILTER (WHERE ul.channel_price_snapshot IS NULL)
+FROM usage_logs ul
+LEFT JOIN groups g ON g.id = ul.group_id
+LEFT JOIN accounts a ON a.id = ul.account_id
+` + where + `
+GROUP BY COALESCE(ul.account_id, 0), a.name, a.platform, a.status, a.channel_price, a.extra
+ORDER BY SUM(ul.actual_cost) DESC, COALESCE(ul.account_id, 0)`, args
+	}
+	where, args := buildBusinessDailyWhere(filter, "b.bucket_date")
+	return `
+SELECT
+	b.account_id,
+	COALESCE(a.name, ''),
+	COALESCE(MAX(b.channel_id), 0),
+	COALESCE(MAX(NULLIF(b.platform, '')), COALESCE(a.platform, '')),
+	COALESCE(a.status, ''),
+	a.channel_price,
+	COALESCE(a.extra->>'balance_status', ''),
+	COALESCE(SUM(b.requests), 0),
+	COALESCE(SUM(b.active_users), 0),
+	COALESCE(SUM(b.active_api_keys), 0),
+	COALESCE(SUM(b.total_tokens), 0),
+	COALESCE(SUM(b.revenue), 0),
+	COALESCE(SUM(b.channel_cost), 0),
+	COALESCE(SUM(b.gross_profit), 0),
+	COALESCE(SUM(b.missing_channel_price_records), 0)
+FROM business_usage_daily b
+LEFT JOIN accounts a ON a.id = b.account_id
+` + where + `
+GROUP BY b.account_id, a.name, a.platform, a.status, a.channel_price, a.extra
+ORDER BY SUM(b.revenue) DESC, b.account_id`, args
+}
+
+func buildBusinessDailyWhere(filter service.BusinessAnalyticsFilter, dateColumn string) (string, []any) {
+	return buildBusinessDailyWhereFrom(filter, dateColumn, 1)
+}
+
+func buildBusinessDailyWhereFrom(filter service.BusinessAnalyticsFilter, dateColumn string, startIndex int) (string, []any) {
+	conditions := []string{fmt.Sprintf("%s >= $%d::date", dateColumn, startIndex), fmt.Sprintf("%s < $%d::date", dateColumn, startIndex+1)}
+	args := []any{filter.StartDate, filter.EndDate}
+	if filter.GroupID > 0 {
+		args = append(args, filter.GroupID)
+		conditions = append(conditions, fmt.Sprintf("group_id = $%d", startIndex+len(args)-1))
+	}
+	if filter.AccountID > 0 {
+		args = append(args, filter.AccountID)
+		conditions = append(conditions, fmt.Sprintf("account_id = $%d", startIndex+len(args)-1))
+	}
+	if filter.Platform != "" {
+		args = append(args, filter.Platform)
+		conditions = append(conditions, fmt.Sprintf("platform = $%d", startIndex+len(args)-1))
+	}
+	return "WHERE " + strings.Join(conditions, " AND "), args
+}
+
+func buildUsageLogsWhere(filter service.BusinessAnalyticsFilter) (string, []any) {
+	conditions := []string{"ul.created_at >= $1", "ul.created_at < $2"}
+	args := []any{filter.StartDate, filter.EndDate}
+	if filter.GroupID > 0 {
+		args = append(args, filter.GroupID)
+		conditions = append(conditions, fmt.Sprintf("ul.group_id = $%d", len(args)))
+	}
+	if filter.AccountID > 0 {
+		args = append(args, filter.AccountID)
+		conditions = append(conditions, fmt.Sprintf("ul.account_id = $%d", len(args)))
+	}
+	if filter.Platform != "" {
+		args = append(args, filter.Platform)
+		conditions = append(conditions, fmt.Sprintf("COALESCE(%s, '') = $%d", usageLogEffectivePlatformExpr, len(args)))
+	}
+	return "WHERE " + strings.Join(conditions, " AND "), args
+}
+
+func buildUsageLogAggregateQuery(filter service.BusinessAnalyticsFilter, trend bool) (string, []any) {
+	where, args := buildUsageLogsWhere(filter)
+	if trend {
+		return `
+SELECT
+	ul.created_at::date::text,
+	COUNT(*),
+	COUNT(DISTINCT ul.user_id),
+	COALESCE(SUM(ul.actual_cost), 0),
+	COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0),
+	COALESCE(SUM(ul.actual_cost), 0) - COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0)
+FROM usage_logs ul
+LEFT JOIN groups g ON g.id = ul.group_id
+LEFT JOIN accounts a ON a.id = ul.account_id
+` + where + `
+GROUP BY ul.created_at::date
+ORDER BY ul.created_at::date`, args
+	}
+	return `
+SELECT
+	COUNT(*),
+	COUNT(DISTINCT ul.user_id),
+	COUNT(DISTINCT ul.api_key_id),
+	COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens + ul.cache_creation_5m_tokens + ul.cache_creation_1h_tokens), 0),
+	COALESCE(SUM(ul.actual_cost), 0),
+	COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0),
+	COALESCE(SUM(ul.actual_cost), 0) - COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0),
+	COUNT(*) FILTER (WHERE ul.channel_price_snapshot IS NULL)
+FROM usage_logs ul
+LEFT JOIN groups g ON g.id = ul.group_id
+LEFT JOIN accounts a ON a.id = ul.account_id
+` + where, args
+}
+
+func includesToday(filter service.BusinessAnalyticsFilter) bool {
+	now := time.Now().In(filter.EndDate.Location())
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, filter.EndDate.Location())
+	return !filter.EndDate.Before(today)
+}
