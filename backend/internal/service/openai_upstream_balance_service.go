@@ -439,46 +439,12 @@ func (s *OpenAIUpstreamBalanceService) enrichSub2APIAdminMetadata(ctx context.Co
 	if snapshot == nil {
 		return
 	}
-	auth, ok := getSub2APIAdminAuth(account)
-	if !ok {
+	authHeader, credentialUpdates, err := s.resolveSub2APIAdminAuthorization(ctx, account, baseURL)
+	if err != nil {
 		return
 	}
-
-	tokenType := strings.TrimSpace(auth.TokenType)
-	if tokenType == "" {
-		tokenType = "Bearer"
-	}
-	var token string
-	if strings.TrimSpace(auth.RefreshToken) != "" {
-		refreshed, err := s.refreshSub2APIAdminToken(ctx, baseURL, auth.RefreshToken)
-		if err == nil {
-			token = refreshed.AccessToken
-			if strings.TrimSpace(refreshed.TokenType) != "" {
-				tokenType = refreshed.TokenType
-			}
-			snapshot.CredentialUpdates = buildSub2APIAdminTokenCredentialUpdates(refreshed)
-		}
-	}
-	if token == "" && strings.TrimSpace(auth.AccessToken) != "" {
-		token = strings.TrimSpace(auth.AccessToken)
-	}
-	if token == "" && strings.TrimSpace(auth.Email) != "" && strings.TrimSpace(auth.Password) != "" {
-		loginToken, loginTokenType, err := s.loginSub2APIAdmin(ctx, baseURL, auth.Email, auth.Password)
-		if err != nil {
-			return
-		}
-		token = loginToken
-		if strings.TrimSpace(loginTokenType) != "" {
-			tokenType = loginTokenType
-		}
-	}
-	if token == "" {
-		return
-	}
-
-	authHeader := token
-	if !strings.Contains(token, " ") {
-		authHeader = strings.TrimSpace(tokenType) + " " + token
+	if len(credentialUpdates) > 0 {
+		snapshot.CredentialUpdates = credentialUpdates
 	}
 	keys, err := s.fetchSub2APIAdminKeys(ctx, baseURL, authHeader)
 	if err != nil {
@@ -516,21 +482,54 @@ func (s *OpenAIUpstreamBalanceService) enrichSub2APIAdminMetadata(ctx context.Co
 	}
 }
 
-func getSub2APIAdminAuth(account *Account) (sub2APIAdminAuth, bool) {
-	if account == nil {
-		return sub2APIAdminAuth{}, false
+func (s *OpenAIUpstreamBalanceService) resolveSub2APIAdminAuthorization(ctx context.Context, account *Account, baseURL string) (string, map[string]any, error) {
+	auth, ok := getSub2APIAdminAuth(account)
+	if !ok {
+		return "", nil, fmt.Errorf("sub2api admin credentials are required")
 	}
-	if provider := strings.TrimSpace(account.GetCredential("upstream_admin_type")); provider != UpstreamBalanceProviderSub2API {
-		return sub2APIAdminAuth{}, false
+
+	tokenType := strings.TrimSpace(auth.TokenType)
+	if tokenType == "" {
+		tokenType = "Bearer"
 	}
-	auth := sub2APIAdminAuth{
-		AccessToken:  strings.TrimSpace(account.GetCredential("upstream_admin_access_token")),
-		RefreshToken: strings.TrimSpace(account.GetCredential("upstream_admin_refresh_token")),
-		TokenType:    strings.TrimSpace(account.GetCredential("upstream_admin_token_type")),
-		Email:        strings.TrimSpace(firstNonEmpty(account.GetCredential("upstream_admin_email"), account.GetCredential("upstream_admin_username"))),
-		Password:     strings.TrimSpace(account.GetCredential("upstream_admin_password")),
+	if strings.TrimSpace(auth.RefreshToken) != "" {
+		refreshed, err := s.refreshSub2APIAdminToken(ctx, baseURL, auth.RefreshToken)
+		if err == nil && strings.TrimSpace(refreshed.AccessToken) != "" {
+			if strings.TrimSpace(refreshed.TokenType) != "" {
+				tokenType = refreshed.TokenType
+			}
+			return formatSub2APIAuthorizationHeader(tokenType, refreshed.AccessToken), buildSub2APIAdminTokenCredentialUpdates(refreshed), nil
+		}
 	}
-	return auth, auth.AccessToken != "" || auth.RefreshToken != "" || (auth.Email != "" && auth.Password != "")
+	if strings.TrimSpace(auth.AccessToken) != "" {
+		return formatSub2APIAuthorizationHeader(tokenType, auth.AccessToken), nil, nil
+	}
+	if strings.TrimSpace(auth.Email) != "" && strings.TrimSpace(auth.Password) != "" {
+		loginToken, loginTokenType, err := s.loginSub2APIAdmin(ctx, baseURL, auth.Email, auth.Password)
+		if err != nil {
+			return "", nil, err
+		}
+		if strings.TrimSpace(loginTokenType) != "" {
+			tokenType = loginTokenType
+		}
+		return formatSub2APIAuthorizationHeader(tokenType, loginToken), nil, nil
+	}
+	return "", nil, fmt.Errorf("sub2api admin credentials are required")
+}
+
+func formatSub2APIAuthorizationHeader(tokenType, token string) string {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return ""
+	}
+	if strings.Contains(token, " ") {
+		return token
+	}
+	tokenType = strings.TrimSpace(tokenType)
+	if tokenType == "" {
+		tokenType = "Bearer"
+	}
+	return tokenType + " " + token
 }
 
 func (s *OpenAIUpstreamBalanceService) loginSub2APIAdmin(ctx context.Context, baseURL, email, password string) (string, string, error) {
