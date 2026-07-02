@@ -3259,6 +3259,37 @@ const isAllowedUpstreamCheckinUrl = (value: string, baseUrl: string): boolean =>
   }
 }
 
+const upstreamCheckinTimePattern = /^([01]\d|2[0-3]):([0-5]\d)$/
+
+const validateUpstreamCheckinSchedule = (
+  enabled: boolean,
+  startTime: string,
+  endTime: string
+): string | null => {
+  if (!enabled) {
+    return null
+  }
+
+  if (!startTime || !endTime) {
+    return '启用自动签到时必须填写开始时间和结束时间'
+  }
+
+  if (!upstreamCheckinTimePattern.test(startTime) || !upstreamCheckinTimePattern.test(endTime)) {
+    return '签到时间格式必须为 HH:mm'
+  }
+
+  const [startHour, startMinute] = startTime.split(':').map(Number)
+  const [endHour, endMinute] = endTime.split(':').map(Number)
+  const startTotalMinutes = startHour * 60 + startMinute
+  const endTotalMinutes = endHour * 60 + endMinute
+
+  if (endTotalMinutes <= startTotalMinutes) {
+    return '签到结束时间必须晚于开始时间'
+  }
+
+  return null
+}
+
 const syncFormFromAccount = (newAccount: Account | null) => {
   if (!newAccount) {
     return
@@ -4201,14 +4232,25 @@ const handleSubmit = async () => {
           }
 
           const trimmedUpstreamCheckinUrl = editUpstreamCheckinUrl.value.trim()
+          const trimmedUpstreamCheckinStartTime = editUpstreamCheckinStartTime.value.trim()
+          const trimmedUpstreamCheckinEndTime = editUpstreamCheckinEndTime.value.trim()
+          const upstreamCheckinScheduleValidationError = validateUpstreamCheckinSchedule(
+            editUpstreamCheckinEnabled.value,
+            trimmedUpstreamCheckinStartTime,
+            trimmedUpstreamCheckinEndTime
+          )
+          if (upstreamCheckinScheduleValidationError) {
+            appStore.showError(upstreamCheckinScheduleValidationError)
+            return
+          }
           if (!isAllowedUpstreamCheckinUrl(trimmedUpstreamCheckinUrl, newBaseUrl)) {
             appStore.showError('签到 URL 仅支持相对路径或与 Base URL 同源的完整 URL')
             return
           }
           newCredentials.upstream_checkin_enabled = editUpstreamCheckinEnabled.value
           newCredentials.upstream_checkin_url = trimmedUpstreamCheckinUrl
-          newCredentials.upstream_checkin_start_time = editUpstreamCheckinStartTime.value
-          newCredentials.upstream_checkin_end_time = editUpstreamCheckinEndTime.value
+          newCredentials.upstream_checkin_start_time = trimmedUpstreamCheckinStartTime
+          newCredentials.upstream_checkin_end_time = trimmedUpstreamCheckinEndTime
         } else {
           delete newCredentials.upstream_admin_email
           delete newCredentials.upstream_admin_username

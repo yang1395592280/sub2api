@@ -2,18 +2,29 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 
-const { updateAccountMock, checkMixedChannelRiskMock, testUpstreamCheckinMock, authIsSimpleMode } = vi.hoisted(() => ({
+const {
+  updateAccountMock,
+  checkMixedChannelRiskMock,
+  testUpstreamCheckinMock,
+  showErrorMock,
+  showSuccessMock,
+  showInfoMock,
+  authIsSimpleMode
+} = vi.hoisted(() => ({
   updateAccountMock: vi.fn(),
   checkMixedChannelRiskMock: vi.fn(),
   testUpstreamCheckinMock: vi.fn(),
+  showErrorMock: vi.fn(),
+  showSuccessMock: vi.fn(),
+  showInfoMock: vi.fn(),
   authIsSimpleMode: { value: true }
 }))
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
-    showError: vi.fn(),
-    showSuccess: vi.fn(),
-    showInfo: vi.fn()
+    showError: showErrorMock,
+    showSuccess: showSuccessMock,
+    showInfo: showInfoMock
   })
 }))
 
@@ -268,7 +279,12 @@ function mountModal(account = buildAccount()) {
 describe('EditAccountModal', () => {
   beforeEach(() => {
     authIsSimpleMode.value = true
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
     testUpstreamCheckinMock.mockReset()
+    showErrorMock.mockReset()
+    showSuccessMock.mockReset()
+    showInfoMock.mockReset()
   })
 
   it('only shows new-api user balance fields for OpenAI API key accounts', () => {
@@ -816,6 +832,85 @@ describe('EditAccountModal', () => {
     expect(testUpstreamCheckinMock).toHaveBeenCalledWith(1)
     expect(wrapper.get('[data-testid="sub2api-checkin-status"]').text()).toContain('error')
     expect(wrapper.get('[data-testid="sub2api-checkin-status"]').text()).toContain('token expired')
+  })
+
+  it('blocks sub2api check-in save when enabled but schedule times are empty', async () => {
+    const account = buildAccount()
+    account.credentials = {
+      ...account.credentials,
+      upstream_admin_type: 'sub2api',
+      upstream_checkin_enabled: true,
+      upstream_checkin_url: '/api/v1/user/checkin',
+      upstream_checkin_start_time: '08:00',
+      upstream_checkin_end_time: '10:30'
+    }
+    account.credentials_status = {
+      has_api_key: true
+    }
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+
+    const wrapper = mountModal(account)
+
+    await wrapper.get('[data-testid="sub2api-checkin-start-time"]').setValue('')
+    await wrapper.get('[data-testid="sub2api-checkin-end-time"]').setValue('')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).not.toHaveBeenCalled()
+    expect(showErrorMock).toHaveBeenCalledWith('启用自动签到时必须填写开始时间和结束时间')
+  })
+
+  it('blocks sub2api check-in save when enabled and end time is not later than start time', async () => {
+    const account = buildAccount()
+    account.credentials = {
+      ...account.credentials,
+      upstream_admin_type: 'sub2api',
+      upstream_checkin_enabled: true,
+      upstream_checkin_url: '/api/v1/user/checkin',
+      upstream_checkin_start_time: '08:00',
+      upstream_checkin_end_time: '10:30'
+    }
+    account.credentials_status = {
+      has_api_key: true
+    }
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+
+    const wrapper = mountModal(account)
+
+    await wrapper.get('[data-testid="sub2api-checkin-start-time"]').setValue('10:30')
+    await wrapper.get('[data-testid="sub2api-checkin-end-time"]').setValue('10:30')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).not.toHaveBeenCalled()
+    expect(showErrorMock).toHaveBeenCalledWith('签到结束时间必须晚于开始时间')
+  })
+
+  it('does not require sub2api check-in schedule when auto check-in is disabled', async () => {
+    const account = buildAccount()
+    account.credentials = {
+      ...account.credentials,
+      upstream_admin_type: 'sub2api',
+      upstream_checkin_enabled: false,
+      upstream_checkin_url: '/api/v1/user/checkin',
+      upstream_checkin_start_time: '08:00',
+      upstream_checkin_end_time: '10:30'
+    }
+    account.credentials_status = {
+      has_api_key: true
+    }
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    await wrapper.get('[data-testid="sub2api-checkin-enabled"]').setValue(false)
+    await wrapper.get('[data-testid="sub2api-checkin-start-time"]').setValue('')
+    await wrapper.get('[data-testid="sub2api-checkin-end-time"]').setValue('')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_checkin_enabled).toBe(false)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_checkin_start_time).toBe('')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_checkin_end_time).toBe('')
   })
 
   it('allows saving apikey account against legacy backend without credentials_status', async () => {
