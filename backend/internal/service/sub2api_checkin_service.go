@@ -152,6 +152,10 @@ func (s *Sub2APICheckinService) reconcileAccount(ctx context.Context, account *A
 	}
 
 	successToday := account.GetExtraString("upstream_checkin_last_success_date") == today
+	if successToday || reachedRetryCapForLocalDate(account, today) {
+		return nil
+	}
+
 	nextRun := parseRFC3339String(account.GetExtraString("upstream_checkin_next_run_at"))
 	plannedToday := sameLocalDate(nextRun, localNow, s.location())
 	if !successToday && (!plannedToday || nextRun.Before(start) || nextRun.After(end)) {
@@ -168,10 +172,6 @@ func (s *Sub2APICheckinService) reconcileAccount(ctx context.Context, account *A
 		if err != nil {
 			return err
 		}
-	}
-
-	if successToday {
-		return nil
 	}
 
 	if localNow.After(end) || (!nextRun.IsZero() && !localNow.Before(nextRun)) {
@@ -585,4 +585,14 @@ func parseRFC3339String(value string) time.Time {
 		return time.Time{}
 	}
 	return parsed
+}
+
+func reachedRetryCapForLocalDate(account *Account, date string) bool {
+	if account == nil || strings.TrimSpace(date) == "" {
+		return false
+	}
+	if account.GetExtraString("upstream_checkin_retry_date") != date {
+		return false
+	}
+	return account.getExtraInt("upstream_checkin_retry_count") >= sub2APICheckinRetryMaxCount
 }

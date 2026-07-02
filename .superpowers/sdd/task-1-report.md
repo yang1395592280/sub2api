@@ -75,3 +75,24 @@
 
 ## Concerns
 - 当前只完成 Task 1 要求的后端 service 层与测试；未在 server/wire 中接入后台启动生命周期，这部分应由后续任务按整体集成范围处理。
+
+---
+
+## 2026-07-02 Task 1 review fix follow-up
+
+### 改了什么
+- 在 `backend/internal/service/sub2api_checkin_service.go` 增加同日本地日期重试上限判断：当 `upstream_checkin_retry_date` 为当天且 `upstream_checkin_retry_count >= 3` 时，`reconcileAccount()` 直接停止，不再重新生成或补写 `upstream_checkin_next_run_at`。
+- 保留跨天行为：只有同一天命中上限才停止调度；本地日期进入下一天后，仍按原逻辑重新规划并在失败时从 `retry_count=1` 开始累计。
+- 在 `backend/internal/service/sub2api_checkin_service_test.go` 新增 `TestSub2APICheckinServiceReconcileSkipsSchedulingAfterRetryCapSameDay`，覆盖“同日已到 3 次且 `next_run_at` 为空时，再次 reconcile 不应重新计划/执行”。
+
+### 根因说明
+- 现有 `buildFailureUpdates()` 在同日达到最大重试次数后会把 `upstream_checkin_next_run_at` 清空。
+- 但 `reconcileAccount()` 之前只按“今天是否成功”和“next_run_at 是否有效/落在窗口内”决定是否重新排程，没有把“今天是否已经达到重试上限”作为停止条件。
+- 因此下一轮扫描会把空的 `next_run_at` 视为缺失，再次给当天补一个新时间，破坏“失败每天最多重试 3 次”约束。
+
+### 测试命令和结果
+- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinServiceReconcileSkipsSchedulingAfterRetryCapSameDay' -v`
+  - 首次结果：失败，`reconcileAccount()` 仍然写入新的调度更新
+  - 修复后结果：通过
+- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinService|TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveRate' -v`
+  - 结果：通过，相关 check-in 与 sub2api admin 回归均为绿色
