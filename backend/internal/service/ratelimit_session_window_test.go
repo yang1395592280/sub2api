@@ -96,6 +96,9 @@ func (m *sessionWindowMockRepo) ListActive(context.Context) ([]Account, error) {
 func (m *sessionWindowMockRepo) ListOAuthRefreshCandidates(context.Context) ([]Account, error) {
 	panic("unexpected")
 }
+func (m *sessionWindowMockRepo) ListSub2APICheckinCandidates(context.Context, int) ([]Account, error) {
+	panic("unexpected")
+}
 func (m *sessionWindowMockRepo) ListByPlatform(context.Context, string) ([]Account, error) {
 	panic("unexpected")
 }

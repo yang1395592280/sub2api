@@ -776,6 +776,64 @@ func (r *accountRepository) ListUpstreamBalanceRefreshCandidates(ctx context.Con
 	return r.accountsToService(ctx, accounts)
 }
 
+func (r *accountRepository) ListSub2APICheckinCandidates(ctx context.Context, limit int) ([]service.Account, error) {
+	if r.sql == nil {
+		return nil, errors.New("account repository SQL executor not configured")
+	}
+
+	query := `
+		SELECT id
+		FROM accounts
+		WHERE deleted_at IS NULL
+			AND status = 'active'
+			AND type = 'apikey'
+			AND credentials @> '{"upstream_admin_type":"sub2api"}'::jsonb
+			AND credentials @> '{"upstream_checkin_enabled":true}'::jsonb
+		ORDER BY priority ASC, id ASC
+	`
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if limit > 0 {
+		query += " LIMIT $1"
+		rows, err = r.sql.QueryContext(ctx, query, limit)
+	} else {
+		rows, err = r.sql.QueryContext(ctx, query)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return []service.Account{}, nil
+	}
+
+	accounts, err := r.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]service.Account, 0, len(accounts))
+	for _, account := range accounts {
+		if account != nil {
+			out = append(out, *account)
+		}
+	}
+	return out, nil
+}
+
 func (r *accountRepository) ListByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
 	accounts, err := r.client.Account.Query().
 		Where(

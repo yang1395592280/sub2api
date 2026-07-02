@@ -47,6 +47,10 @@ func (r *tokenRefreshCandidateRepo) ListOAuthRefreshCandidates(context.Context) 
 	return candidates, nil
 }
 
+func (r *tokenRefreshCandidateRepo) ListSub2APICheckinCandidates(context.Context, int) ([]Account, error) {
+	panic("unexpected ListSub2APICheckinCandidates call")
+}
+
 func (r *tokenRefreshCandidateRepo) UpdateCredentials(_ context.Context, id int64, _ map[string]any) error {
 	r.updatedCredentialIDs = append(r.updatedCredentialIDs, id)
 	return nil
