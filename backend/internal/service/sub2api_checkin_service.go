@@ -152,13 +152,19 @@ func (s *Sub2APICheckinService) reconcileAccount(ctx context.Context, account *A
 	}
 
 	successToday := account.GetExtraString("upstream_checkin_last_success_date") == today
-	if successToday || reachedRetryCapForLocalDate(account, today) {
+	if successToday {
 		return nil
 	}
 
 	nextRun := parseRFC3339String(account.GetExtraString("upstream_checkin_next_run_at"))
 	plannedToday := sameLocalDate(nextRun, localNow, s.location())
+	if reachedRetryCapForLocalDate(account, today) && !plannedToday {
+		return nil
+	}
 	if !successToday && (!plannedToday || nextRun.Before(start) || nextRun.After(end)) {
+		if reachedRetryCapForLocalDate(account, today) {
+			return nil
+		}
 		planned, planErr := s.planNextRunForDate(localNow, startHHMM, endHHMM)
 		if planErr != nil {
 			return planErr

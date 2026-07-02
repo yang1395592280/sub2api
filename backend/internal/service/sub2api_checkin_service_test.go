@@ -124,6 +124,7 @@ func TestSub2APICheckinServiceTreatsAlreadyCheckedInAsSuccess(t *testing.T) {
 				"api_key":                     "sk-upstream",
 				"upstream_admin_type":         "sub2api",
 				"upstream_admin_access_token": "admin-token",
+				"upstream_checkin_enabled":    true,
 				"upstream_checkin_url":        "/api/v1/user/checkin",
 			},
 		},
@@ -164,6 +165,7 @@ func TestSub2APICheckinServiceRetryCountResetsPerDay(t *testing.T) {
 				"api_key":                     "sk-upstream",
 				"upstream_admin_type":         "sub2api",
 				"upstream_admin_access_token": "admin-token",
+				"upstream_checkin_enabled":    true,
 				"upstream_checkin_url":        "/api/v1/user/checkin",
 			},
 			Extra: map[string]any{
@@ -224,6 +226,98 @@ func TestSub2APICheckinServiceReconcileSkipsSchedulingAfterRetryCapSameDay(t *te
 	require.Nil(t, repo.updatedExtra)
 	require.Equal(t, "", repo.account.GetExtraString("upstream_checkin_next_run_at"))
 	require.Equal(t, 3, repo.account.getExtraInt("upstream_checkin_retry_count"))
+}
+
+func TestSub2APICheckinServiceReconcileExecutesPlannedFinalRetryWhenDue(t *testing.T) {
+	loc := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 7, 2, 9, 30, 0, 0, loc)
+	requestCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/api/v1/user/checkin", r.URL.Path)
+		require.Equal(t, "Bearer admin-token", r.Header.Get("Authorization"))
+		_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"checked_in":true}}`))
+	}))
+	defer srv.Close()
+
+	repo := &sub2APICheckinRepoStub{
+		account: &Account{
+			ID:       47,
+			Status:   StatusActive,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url":                    srv.URL + "/v1",
+				"api_key":                     "sk-upstream",
+				"upstream_admin_type":         "sub2api",
+				"upstream_admin_access_token": "admin-token",
+				"upstream_checkin_enabled":    true,
+				"upstream_checkin_url":        "/api/v1/user/checkin",
+				"upstream_checkin_start_time": "08:00",
+				"upstream_checkin_end_time":   "10:30",
+			},
+			Extra: map[string]any{
+				"upstream_checkin_retry_date":  "2026-07-02",
+				"upstream_checkin_retry_count": 3,
+				"upstream_checkin_next_run_at": now.Add(-5 * time.Minute).Format(time.RFC3339),
+			},
+		},
+	}
+
+	svc := NewSub2APICheckinService(repo, nil, loc)
+	svc.client = srv.Client()
+	svc.clock = func() time.Time { return now }
+
+	err := svc.reconcileAccount(context.Background(), repo.account, now)
+	require.NoError(t, err)
+	require.Equal(t, 1, requestCount)
+	require.Equal(t, Sub2APICheckinStatusSuccess, repo.updatedExtra["upstream_checkin_status"])
+}
+
+func TestSub2APICheckinServiceFinalRetryFailureDoesNotScheduleNewRun(t *testing.T) {
+	loc := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 7, 2, 9, 30, 0, 0, loc)
+	requestCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		require.Equal(t, http.MethodPost, r.Method)
+		http.Error(w, "boom", http.StatusBadGateway)
+	}))
+	defer srv.Close()
+
+	repo := &sub2APICheckinRepoStub{
+		account: &Account{
+			ID:       48,
+			Status:   StatusActive,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url":                    srv.URL + "/v1",
+				"api_key":                     "sk-upstream",
+				"upstream_admin_type":         "sub2api",
+				"upstream_admin_access_token": "admin-token",
+				"upstream_checkin_enabled":    true,
+				"upstream_checkin_url":        "/api/v1/user/checkin",
+			},
+			Extra: map[string]any{
+				"upstream_checkin_retry_date":  "2026-07-02",
+				"upstream_checkin_retry_count": 3,
+				"upstream_checkin_next_run_at": now.Add(-5 * time.Minute).Format(time.RFC3339),
+			},
+		},
+	}
+
+	svc := NewSub2APICheckinService(repo, nil, loc)
+	svc.client = srv.Client()
+	svc.clock = func() time.Time { return now }
+
+	err := svc.reconcileAccount(context.Background(), repo.account, now)
+	require.NoError(t, err)
+	require.Equal(t, 1, requestCount)
+	require.Equal(t, Sub2APICheckinStatusError, repo.updatedExtra["upstream_checkin_status"])
+	require.Equal(t, 3, repo.updatedExtra["upstream_checkin_retry_count"])
+	require.Equal(t, "", repo.updatedExtra["upstream_checkin_next_run_at"])
 }
 
 func TestSub2APICheckinServiceAuthFallbackOrder(t *testing.T) {

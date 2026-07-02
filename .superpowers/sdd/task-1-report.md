@@ -96,3 +96,29 @@
   - 修复后结果：通过
 - `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinService|TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveRate' -v`
   - 结果：通过，相关 check-in 与 sub2api admin 回归均为绿色
+
+---
+
+## 2026-07-02 Task 1 retry-cap follow-up 2
+
+### 改了什么
+- 调整 `backend/internal/service/sub2api_checkin_service.go` 的 `reconcileAccount()` 顺序：先解析并判断 `upstream_checkin_next_run_at` 是否还是“同日本地日期的有效既有计划”，再决定当天是否因 `retry_count >= 3` 停止。
+- 现在同日 `retry_count == 3` 时分两种处理：
+  - 若已有同日本地日期的有效 `next_run_at`，则保留该计划；一旦到点，仍执行这一次已计划的第 3 次重试。
+  - 若没有同日本地日期的有效 `next_run_at`，则直接停止当天调度，不再重新规划。
+- 保持失败后封顶行为：第 3 次重试失败后，`buildFailureUpdates()` 继续只写回 `retry_count=3` 且清空 `upstream_checkin_next_run_at`，不再补新的当天时间。
+- 在 `backend/internal/service/sub2api_checkin_service_test.go` 新增：
+  - `TestSub2APICheckinServiceReconcileExecutesPlannedFinalRetryWhenDue`
+  - `TestSub2APICheckinServiceFinalRetryFailureDoesNotScheduleNewRun`
+- 保留上一轮 `TestSub2APICheckinServiceReconcileSkipsSchedulingAfterRetryCapSameDay`，覆盖“已封顶且无同日有效计划时不再重新计划”。
+
+### 根因说明
+- 上一轮把“同日达到上限且没有计划”与“同日达到上限但已经排好了最后一次计划”都归入 `reachedRetryCapForLocalDate()` 的统一短路分支。
+- 结果是 `retry_count == 3` 且 `next_run_at` 已经到了时，`reconcileAccount()` 还没来得及比较 `now >= next_run_at`，就先 `return nil`，导致最后一次已计划重试永远不会真的发请求。
+
+### 测试命令和结果
+- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinService(ReconcileExecutesPlannedFinalRetryWhenDue|FinalRetryFailureDoesNotScheduleNewRun|ReconcileSkipsSchedulingAfterRetryCapSameDay)' -v`
+  - 首次结果：失败，`TestSub2APICheckinServiceReconcileExecutesPlannedFinalRetryWhenDue` 未发出请求
+  - 修复后结果：通过
+- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinService|TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveRate' -v`
+  - 结果：通过
