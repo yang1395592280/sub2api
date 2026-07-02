@@ -16,7 +16,8 @@ import (
 
 type sub2APICheckinAccountRepoStub struct {
 	service.AccountRepository
-	account *service.Account
+	account          *service.Account
+	updateExtraCalls int
 }
 
 func (r *sub2APICheckinAccountRepoStub) GetByID(context.Context, int64) (*service.Account, error) {
@@ -27,6 +28,7 @@ func (r *sub2APICheckinAccountRepoStub) GetByID(context.Context, int64) (*servic
 }
 
 func (r *sub2APICheckinAccountRepoStub) UpdateExtra(_ context.Context, _ int64, updates map[string]any) error {
+	r.updateExtraCalls++
 	if r.account.Extra == nil {
 		r.account.Extra = map[string]any{}
 	}
@@ -92,4 +94,37 @@ func TestAccountHandler_TestUpstreamCheckinReturnsUpdatedAccount(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), `"upstream_checkin_status":"success"`)
 	require.Contains(t, w.Body.String(), `"upstream_checkin_reward_amount":3.5`)
+}
+
+func TestAccountHandler_TestUpstreamCheckinRejectsNonSub2APIAccount(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &sub2APICheckinAccountRepoStub{
+		account: &service.Account{
+			ID:       10,
+			Name:     "new-api-checkin",
+			Platform: service.PlatformOpenAI,
+			Type:     service.AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url":             "https://up.example/v1",
+				"api_key":              "sk-upstream",
+				"upstream_admin_type":  "new-api",
+				"upstream_checkin_url": "/api/v1/user/checkin",
+			},
+		},
+	}
+	checkinSvc := service.NewSub2APICheckinService(repo, nil, time.FixedZone("CST", 8*3600))
+
+	h := NewAccountHandler(newStubAdminService(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, checkinSvc)
+	r := gin.New()
+	r.POST("/accounts/:id/upstream-checkin/test", h.TestUpstreamCheckin)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/accounts/10/upstream-checkin/test", nil)
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Contains(t, w.Body.String(), "SUB2API_CHECKIN_INVALID_ACCOUNT")
+	require.Equal(t, 0, repo.updateExtraCalls)
+	require.Empty(t, repo.account.Extra)
 }

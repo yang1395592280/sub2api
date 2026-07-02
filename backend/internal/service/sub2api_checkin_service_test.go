@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -160,6 +161,58 @@ func TestSub2APICheckinServiceTreatsAlreadyCheckedInAsSuccess(t *testing.T) {
 	require.Equal(t, "", repo.updatedExtra["upstream_checkin_error"])
 	require.Equal(t, 0, repo.updatedExtra["upstream_checkin_retry_count"])
 	require.Equal(t, "2026-07-02", account.GetExtraString("upstream_checkin_last_success_date"))
+}
+
+func TestSub2APICheckinServiceRefreshNowRejectsNonSub2APIAccountWithoutPersisting(t *testing.T) {
+	repo := &sub2APICheckinRepoStub{
+		account: &Account{
+			ID:       52,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url":             "https://ai.example/v1",
+				"api_key":              "sk-upstream",
+				"upstream_admin_type":  "new-api",
+				"upstream_checkin_url": "/api/v1/user/checkin",
+			},
+		},
+	}
+	svc := NewSub2APICheckinService(repo, nil, time.FixedZone("CST", 8*3600))
+
+	account, err := svc.RefreshNow(context.Background(), 52)
+
+	require.Nil(t, account)
+	require.Error(t, err)
+	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+	require.Equal(t, "SUB2API_CHECKIN_INVALID_ACCOUNT", infraerrors.Reason(err))
+	require.Equal(t, 0, repo.updateExtraCalls)
+	require.Nil(t, repo.updatedExtra)
+}
+
+func TestSub2APICheckinServiceRefreshNowRejectsMissingSub2APIAdminCredentialsWithoutPersisting(t *testing.T) {
+	repo := &sub2APICheckinRepoStub{
+		account: &Account{
+			ID:       53,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url":             "https://ai.example/v1",
+				"api_key":              "sk-upstream",
+				"upstream_admin_type":  "sub2api",
+				"upstream_checkin_url": "/api/v1/user/checkin",
+			},
+		},
+	}
+	svc := NewSub2APICheckinService(repo, nil, time.FixedZone("CST", 8*3600))
+
+	account, err := svc.RefreshNow(context.Background(), 53)
+
+	require.Nil(t, account)
+	require.Error(t, err)
+	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+	require.Equal(t, "SUB2API_CHECKIN_MISSING_ADMIN_CREDENTIALS", infraerrors.Reason(err))
+	require.Equal(t, 0, repo.updateExtraCalls)
+	require.Nil(t, repo.updatedExtra)
 }
 
 func TestSub2APICheckinServiceRetryCountResetsPerDay(t *testing.T) {

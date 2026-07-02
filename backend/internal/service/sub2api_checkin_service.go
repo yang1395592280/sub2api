@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
 const (
@@ -92,6 +94,9 @@ func (s *Sub2APICheckinService) RefreshNow(ctx context.Context, accountID int64)
 	}
 	if account == nil {
 		return nil, ErrAccountNotFound
+	}
+	if err := validateManualSub2APICheckinTarget(account); err != nil {
+		return nil, err
 	}
 	now := s.now()
 	return s.executeCheckin(ctx, account, now)
@@ -429,6 +434,28 @@ func isSub2APICheckinEnabled(account *Account) bool {
 	default:
 		return false
 	}
+}
+
+func validateManualSub2APICheckinTarget(account *Account) error {
+	if account == nil {
+		return ErrAccountNotFound
+	}
+	if !accountSupportsUpstreamBalance(account) ||
+		strings.TrimSpace(account.GetCredential("upstream_admin_type")) != UpstreamBalanceProviderSub2API {
+		return infraerrors.New(http.StatusBadRequest, "SUB2API_CHECKIN_INVALID_ACCOUNT", "only OpenAI and Anthropic API Key accounts with sub2api upstream admin support check-in")
+	}
+
+	baseURL := strings.TrimSpace(getUpstreamBalanceBaseURL(account))
+	if baseURL == "" {
+		return infraerrors.New(http.StatusBadRequest, "SUB2API_CHECKIN_MISSING_BASE_URL", "base_url is required")
+	}
+	if _, err := buildSub2APICheckinURL(baseURL, account.GetCredential("upstream_checkin_url")); err != nil {
+		return infraerrors.New(http.StatusBadRequest, "SUB2API_CHECKIN_INVALID_URL", err.Error())
+	}
+	if _, ok := getSub2APIAdminAuth(account); !ok {
+		return infraerrors.New(http.StatusBadRequest, "SUB2API_CHECKIN_MISSING_ADMIN_CREDENTIALS", "sub2api admin credentials are required")
+	}
+	return nil
 }
 
 func checkinWindowForDate(now time.Time, startHHMM, endHHMM string, loc *time.Location) (time.Time, time.Time, error) {
