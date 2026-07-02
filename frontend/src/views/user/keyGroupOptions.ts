@@ -10,6 +10,10 @@ export interface KeyGroupOption {
   description: string | null;
   rate: number | null;
   userRate: number | null;
+  peakRateEnabled?: boolean;
+  peakStart?: string;
+  peakEnd?: string;
+  peakRateMultiplier?: number;
   subscriptionType: SubscriptionType;
   platform: GroupPlatform;
   kind?: "openai_auto_cheapest";
@@ -32,6 +36,10 @@ export function buildKeyGroupOptions(
     description: group.description,
     rate: group.rate_multiplier,
     userRate: userGroupRates[group.id] ?? null,
+    peakRateEnabled: group.peak_rate_enabled,
+    peakStart: group.peak_start,
+    peakEnd: group.peak_end,
+    peakRateMultiplier: group.peak_rate_multiplier,
     subscriptionType: group.subscription_type,
     platform: group.platform,
   }));
