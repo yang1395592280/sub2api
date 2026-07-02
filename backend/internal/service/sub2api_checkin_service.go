@@ -21,12 +21,11 @@ const (
 	Sub2APICheckinStatusError       = "error"
 	Sub2APICheckinStatusUnsupported = "unsupported"
 
-	sub2APICheckinDefaultURL     = "/api/v1/user/checkin"
-	sub2APICheckinHTTPTimeout    = 15 * time.Second
-	sub2APICheckinScanInterval   = time.Minute
-	sub2APICheckinCandidateLimit = 200
-	sub2APICheckinRetryMaxCount  = 3
-	sub2APICheckinErrorMaxText   = 180
+	sub2APICheckinDefaultURL    = "/api/v1/user/checkin"
+	sub2APICheckinHTTPTimeout   = 15 * time.Second
+	sub2APICheckinScanInterval  = time.Minute
+	sub2APICheckinRetryMaxCount = 3
+	sub2APICheckinErrorMaxText  = 180
 )
 
 type Sub2APICheckinService struct {
@@ -118,7 +117,7 @@ func (s *Sub2APICheckinService) scanLoop() {
 
 func (s *Sub2APICheckinService) processDueCheckins() {
 	ctx := context.Background()
-	accounts, err := s.accountRepo.ListSub2APICheckinCandidates(ctx, sub2APICheckinCandidateLimit)
+	accounts, err := s.accountRepo.ListSub2APICheckinCandidates(ctx, 0)
 	if err != nil {
 		slog.Error("sub2api.checkin_list_candidates_failed", "error", err)
 		return
@@ -139,7 +138,7 @@ func (s *Sub2APICheckinService) reconcileAccount(ctx context.Context, account *A
 	localNow := now.In(s.location())
 	today := localNow.Format("2006-01-02")
 	startHHMM, endHHMM := sub2APICheckinWindow(account)
-	_, end, err := checkinWindowForDate(localNow, startHHMM, endHHMM, s.location())
+	start, end, err := checkinWindowForDate(localNow, startHHMM, endHHMM, s.location())
 	if err != nil {
 		_, persistErr := s.persistAccountUpdates(ctx, account, map[string]any{
 			"upstream_checkin_status": Sub2APICheckinStatusUnsupported,
@@ -158,10 +157,21 @@ func (s *Sub2APICheckinService) reconcileAccount(ctx context.Context, account *A
 
 	nextRun := parseRFC3339String(account.GetExtraString("upstream_checkin_next_run_at"))
 	plannedToday := sameLocalDate(nextRun, localNow, s.location())
+	retryScheduledToday := plannedToday &&
+		account.GetExtraString("upstream_checkin_retry_date") == today &&
+		account.getExtraInt("upstream_checkin_retry_count") > 0
+	plannedWithinWindow := plannedToday && isWithinCheckinWindow(nextRun, start, end)
 	if reachedRetryCapForLocalDate(account, today) && !plannedToday {
 		return nil
 	}
-	if !plannedToday {
+	if retryScheduledToday {
+		if !nextRun.IsZero() && !localNow.Before(nextRun) {
+			_, err = s.executeCheckin(ctx, account, now)
+			return err
+		}
+		return nil
+	}
+	if !plannedWithinWindow {
 		if localNow.After(end) {
 			_, err = s.executeCheckin(ctx, account, now)
 			return err
@@ -186,6 +196,13 @@ func (s *Sub2APICheckinService) reconcileAccount(ctx context.Context, account *A
 		return err
 	}
 	return nil
+}
+
+func isWithinCheckinWindow(ts, start, end time.Time) bool {
+	if ts.IsZero() || start.IsZero() || end.IsZero() {
+		return false
+	}
+	return !ts.Before(start) && !ts.After(end)
 }
 
 func (s *Sub2APICheckinService) executeCheckin(ctx context.Context, account *Account, now time.Time) (*Account, error) {

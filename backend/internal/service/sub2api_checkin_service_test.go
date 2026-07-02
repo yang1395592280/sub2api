@@ -14,10 +14,13 @@ import (
 type sub2APICheckinRepoStub struct {
 	AccountRepository
 	account             *Account
+	candidateAccounts   []Account
 	updatedExtra        map[string]any
 	updatedCredentials  map[string]any
 	updatedChannelPrice *float64
 	updateExtraCalls    int
+	listCandidatesCalls int
+	listCandidateLimit  int
 }
 
 func (r *sub2APICheckinRepoStub) GetByID(context.Context, int64) (*Account, error) {
@@ -25,6 +28,18 @@ func (r *sub2APICheckinRepoStub) GetByID(context.Context, int64) (*Account, erro
 		return nil, ErrAccountNotFound
 	}
 	return r.account, nil
+}
+
+func (r *sub2APICheckinRepoStub) ListSub2APICheckinCandidates(_ context.Context, limit int) ([]Account, error) {
+	r.listCandidatesCalls++
+	r.listCandidateLimit = limit
+	if r.candidateAccounts != nil {
+		return r.candidateAccounts, nil
+	}
+	if r.account == nil {
+		return []Account{}, nil
+	}
+	return []Account{*r.account}, nil
 }
 
 func (r *sub2APICheckinRepoStub) UpdateExtra(_ context.Context, _ int64, updates map[string]any) error {
@@ -235,6 +250,110 @@ func TestSub2APICheckinServiceReconcileWaitsForPlannedRetryAfterWindow(t *testin
 	require.Equal(t, 0, requestCount)
 	require.Equal(t, 0, repo.updateExtraCalls)
 	require.Equal(t, nextRetryAt.Format(time.RFC3339), repo.account.GetExtraString("upstream_checkin_next_run_at"))
+}
+
+func TestSub2APICheckinServiceProcessDueCheckinsUsesUnlimitedCandidateQuery(t *testing.T) {
+	loc := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 7, 2, 9, 0, 0, 0, loc)
+	repo := &sub2APICheckinRepoStub{
+		candidateAccounts: []Account{
+			{
+				ID:       49,
+				Status:   StatusActive,
+				Platform: PlatformOpenAI,
+				Type:     AccountTypeAPIKey,
+				Credentials: map[string]any{
+					"upstream_admin_type":         "sub2api",
+					"upstream_checkin_enabled":    true,
+					"upstream_checkin_start_time": "08:00",
+					"upstream_checkin_end_time":   "10:30",
+				},
+				Extra: map[string]any{
+					"upstream_checkin_last_success_date": "2026-07-02",
+				},
+			},
+		},
+	}
+
+	svc := NewSub2APICheckinService(repo, nil, loc)
+	svc.clock = func() time.Time { return now }
+
+	svc.processDueCheckins()
+
+	require.Equal(t, 1, repo.listCandidatesCalls)
+	require.Equal(t, 0, repo.listCandidateLimit)
+}
+
+func TestSub2APICheckinServiceReconcileReschedulesTodayPlanWhenOutsideNewWindow(t *testing.T) {
+	loc := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 7, 2, 9, 0, 0, 0, loc)
+	repo := &sub2APICheckinRepoStub{
+		account: &Account{
+			ID:       50,
+			Status:   StatusActive,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url":                    "https://ai.clol.site",
+				"api_key":                     "sk-upstream",
+				"upstream_admin_type":         "sub2api",
+				"upstream_admin_access_token": "admin-token",
+				"upstream_checkin_enabled":    true,
+				"upstream_checkin_start_time": "09:30",
+				"upstream_checkin_end_time":   "10:30",
+			},
+			Extra: map[string]any{
+				"upstream_checkin_next_run_at": time.Date(2026, 7, 2, 8, 15, 0, 0, loc).Format(time.RFC3339),
+			},
+		},
+	}
+
+	svc := NewSub2APICheckinService(repo, nil, loc)
+	svc.clock = func() time.Time { return now }
+
+	err := svc.reconcileAccount(context.Background(), repo.account, now)
+	require.NoError(t, err)
+	require.Equal(t, 1, repo.updateExtraCalls)
+	require.Equal(t, Sub2APICheckinStatusPending, repo.updatedExtra["upstream_checkin_status"])
+	nextRun, err := time.Parse(time.RFC3339, repo.updatedExtra["upstream_checkin_next_run_at"].(string))
+	require.NoError(t, err)
+	require.False(t, nextRun.Before(time.Date(2026, 7, 2, 9, 30, 0, 0, loc)))
+	require.True(t, nextRun.Before(time.Date(2026, 7, 2, 10, 30, 1, 0, loc)))
+}
+
+func TestSub2APICheckinServiceReconcileKeepsTodayPlanWhenInsideWindow(t *testing.T) {
+	loc := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 7, 2, 9, 0, 0, 0, loc)
+	nextRunAt := time.Date(2026, 7, 2, 9, 45, 0, 0, loc)
+	repo := &sub2APICheckinRepoStub{
+		account: &Account{
+			ID:       51,
+			Status:   StatusActive,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url":                    "https://ai.clol.site",
+				"api_key":                     "sk-upstream",
+				"upstream_admin_type":         "sub2api",
+				"upstream_admin_access_token": "admin-token",
+				"upstream_checkin_enabled":    true,
+				"upstream_checkin_start_time": "08:00",
+				"upstream_checkin_end_time":   "10:30",
+			},
+			Extra: map[string]any{
+				"upstream_checkin_next_run_at": nextRunAt.Format(time.RFC3339),
+			},
+		},
+	}
+
+	svc := NewSub2APICheckinService(repo, nil, loc)
+	svc.clock = func() time.Time { return now }
+
+	err := svc.reconcileAccount(context.Background(), repo.account, now)
+	require.NoError(t, err)
+	require.Equal(t, 0, repo.updateExtraCalls)
+	require.Nil(t, repo.updatedExtra)
+	require.Equal(t, nextRunAt.Format(time.RFC3339), repo.account.GetExtraString("upstream_checkin_next_run_at"))
 }
 
 func TestSub2APICheckinServiceReconcileExecutesPlannedRetryAfterWindowWhenDue(t *testing.T) {
