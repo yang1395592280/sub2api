@@ -556,6 +556,11 @@ func ProvideAPIKeyService(
 	return svc
 }
 
+// ProvideOpenAIAutoSchedulerSelector wires the scheduler service into the OpenAI gateway selector.
+func ProvideOpenAIAutoSchedulerSelector(svc *OpenAIAutoSchedulerService) *OpenAIAutoSchedulerSelector {
+	return NewOpenAIAutoSchedulerSelector(svc)
+}
+
 func ProvideOpenAIGatewayService(
 	accountRepo AccountRepository,
 	usageLogRepo UsageLogRepository,
@@ -579,6 +584,8 @@ func ProvideOpenAIGatewayService(
 	balanceNotifyService *BalanceNotifyService,
 	settingService *SettingService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
+	openAIAutoSchedulerSelector *OpenAIAutoSchedulerSelector,
+	openAIAutoSchedulerService *OpenAIAutoSchedulerService,
 	apiKeyService *APIKeyService,
 	apiKeyRepo APIKeyRepository,
 ) *OpenAIGatewayService {
@@ -606,6 +613,7 @@ func ProvideOpenAIGatewayService(
 		settingService,
 		userPlatformQuotaRepo,
 	)
+	svc.SetOpenAIAutoScheduler(openAIAutoSchedulerSelector, openAIAutoSchedulerService)
 	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(apiKeyService), apiKeyRepo)
 	return svc
 }
@@ -655,6 +663,7 @@ var ProviderSet = wire.NewSet(
 	ProvideOpenAIUpstreamBalanceService,
 	ProvideSub2APICheckinService,
 	NewOpenAIAutoSchedulerService,
+	ProvideOpenAIAutoSchedulerSelector,
 	NewOpenAIAutoSchedulerProbeChecker,
 	ProvideOpenAIAutoSchedulerProbeRunner,
 	ProvideGrokQuotaService,
