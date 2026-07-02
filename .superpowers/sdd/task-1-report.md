@@ -122,3 +122,36 @@
   - 修复后结果：通过
 - `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinService|TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveRate' -v`
   - 结果：通过
+
+---
+
+## 2026-07-02 Task 1 window backoff follow-up
+
+### 改了什么
+- 调整 `backend/internal/service/sub2api_checkin_service.go` 的 `reconcileAccount()` 执行门槛：
+  - 只要 `upstream_checkin_next_run_at` 仍是“同一本地日期的有效计划”，就只按 `now >= next_run_at` 决定是否执行。
+  - 不再因为 `localNow.After(end)` 就无条件触发已失败账号的再次请求。
+- 把“过窗后的当天第一次补签”和“失败后已写入 next_run_at 的重试”拆开处理：
+  - 当天未成功、且没有同日有效 `next_run_at` 时，若当前已过窗口，立即补签。
+  - 已有同日有效 `next_run_at` 时，即使已经过了窗口结束时间，也继续等待到该时间点。
+- 保持 retry cap 语义不变：
+  - 第 3 次已计划重试到点仍可执行。
+  - 第 3 次失败后继续清空 `next_run_at`，不再计划新的当天重试。
+  - `retry_count=3` 且无同日有效 `next_run_at` 时，当天停止。
+- 在 `backend/internal/service/sub2api_checkin_service_test.go` 新增：
+  - `TestSub2APICheckinServiceReconcileWaitsForPlannedRetryAfterWindow`
+  - `TestSub2APICheckinServiceReconcileExecutesPlannedRetryAfterWindowWhenDue`
+
+### 根因说明
+- 之前的执行条件是 `localNow.After(end) || now >= next_run_at`。
+- 这会让“窗口结束后的补签失败重试”退化成“只要过了 10:30，下一轮扫描就立刻再试”，从而绕过失败后已写入的 10-30 分钟退避。
+- 真实需要区分的是：
+  - 还没为今天失败写过有效 `next_run_at`：说明只是第一次错过窗口，可以立即补签。
+  - 已经写入同日有效 `next_run_at`：说明这是明确排队的失败重试，必须等到点再跑。
+
+### 测试命令和结果
+- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinService(ReconcileWaitsForPlannedRetryAfterWindow|ReconcileExecutesPlannedRetryAfterWindowWhenDue)' -v`
+  - 首次结果：失败，`TestSub2APICheckinServiceReconcileWaitsForPlannedRetryAfterWindow` 在 10:32 提前发起了请求
+  - 修复后结果：通过
+- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinService|TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveRate' -v`
+  - 结果：通过

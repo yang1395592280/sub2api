@@ -139,7 +139,7 @@ func (s *Sub2APICheckinService) reconcileAccount(ctx context.Context, account *A
 	localNow := now.In(s.location())
 	today := localNow.Format("2006-01-02")
 	startHHMM, endHHMM := sub2APICheckinWindow(account)
-	start, end, err := checkinWindowForDate(localNow, startHHMM, endHHMM, s.location())
+	_, end, err := checkinWindowForDate(localNow, startHHMM, endHHMM, s.location())
 	if err != nil {
 		_, persistErr := s.persistAccountUpdates(ctx, account, map[string]any{
 			"upstream_checkin_status": Sub2APICheckinStatusUnsupported,
@@ -161,9 +161,10 @@ func (s *Sub2APICheckinService) reconcileAccount(ctx context.Context, account *A
 	if reachedRetryCapForLocalDate(account, today) && !plannedToday {
 		return nil
 	}
-	if !successToday && (!plannedToday || nextRun.Before(start) || nextRun.After(end)) {
-		if reachedRetryCapForLocalDate(account, today) {
-			return nil
+	if !plannedToday {
+		if localNow.After(end) {
+			_, err = s.executeCheckin(ctx, account, now)
+			return err
 		}
 		planned, planErr := s.planNextRunForDate(localNow, startHHMM, endHHMM)
 		if planErr != nil {
@@ -180,7 +181,7 @@ func (s *Sub2APICheckinService) reconcileAccount(ctx context.Context, account *A
 		}
 	}
 
-	if localNow.After(end) || (!nextRun.IsZero() && !localNow.Before(nextRun)) {
+	if !nextRun.IsZero() && !localNow.Before(nextRun) {
 		_, err = s.executeCheckin(ctx, account, now)
 		return err
 	}
