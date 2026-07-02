@@ -836,6 +836,16 @@ export interface TempUnschedulableStatus {
   state?: TempUnschedulableState
 }
 
+export interface UpstreamCheckinStatusSnapshot {
+  upstream_checkin_status?: string
+  upstream_checkin_last_run_at?: string
+  upstream_checkin_last_success_date?: string
+  upstream_checkin_next_run_at?: string
+  upstream_checkin_reward_amount?: number
+  upstream_checkin_balance?: number
+  upstream_checkin_error?: string
+}
+
 export interface Account {
   id: number
   name: string
@@ -849,7 +859,7 @@ export interface Account {
   credentials?: Record<string, unknown>
   credentials_status?: Record<string, boolean>
   // Extra fields including Codex usage, OpenAI compact capability, and model-level rate limits.
-  extra?: (CodexUsageSnapshot & OpenAICompactState & {
+  extra?: (CodexUsageSnapshot & OpenAICompactState & UpstreamCheckinStatusSnapshot & {
     model_rate_limits?: Record<string, { rate_limited_at: string; rate_limit_reset_at: string }>
     antigravity_credits_overages?: Record<string, { activated_at: string; active_until: string }>
     upstream_balance_provider?: 'sub2api' | 'new-api' | string

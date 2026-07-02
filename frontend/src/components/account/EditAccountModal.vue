@@ -203,6 +203,88 @@
               />
               <p class="input-hint">Access Token 留空时，可用 Refresh Token 自动刷新后获取上游分组；留空保留</p>
             </div>
+
+            <div class="space-y-4 rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <label class="input-label mb-0">自动签到</label>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    仅支持 sub2api 上游管理凭据；签到配置写入 credentials，运行状态来自 extra
+                  </p>
+                </div>
+                <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <input
+                    v-model="editUpstreamCheckinEnabled"
+                    type="checkbox"
+                    class="h-4 w-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-500"
+                    data-testid="sub2api-checkin-enabled"
+                  />
+                  <span>启用</span>
+                </label>
+              </div>
+
+              <div class="grid gap-4 md:grid-cols-[minmax(0,1fr),auto]">
+                <div>
+                  <label class="input-label">签到 URL</label>
+                  <input
+                    v-model="editUpstreamCheckinUrl"
+                    type="text"
+                    class="input font-mono"
+                    placeholder="/api/v1/user/checkin"
+                    data-testid="sub2api-checkin-url"
+                  />
+                  <p class="input-hint">支持相对路径，或与 Base URL 同源的完整 URL</p>
+                </div>
+                <div class="flex items-end">
+                  <button
+                    type="button"
+                    class="btn btn-secondary w-full md:w-auto"
+                    :disabled="checkinTesting"
+                    data-testid="sub2api-checkin-test"
+                    @click="handleTestUpstreamCheckin"
+                  >
+                    {{ checkinTesting ? '测试中...' : '测试签到' }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label class="input-label">签到开始时间</label>
+                  <input
+                    v-model="editUpstreamCheckinStartTime"
+                    type="time"
+                    class="input"
+                    data-testid="sub2api-checkin-start-time"
+                  />
+                </div>
+                <div>
+                  <label class="input-label">签到结束时间</label>
+                  <input
+                    v-model="editUpstreamCheckinEndTime"
+                    type="time"
+                    class="input"
+                    data-testid="sub2api-checkin-end-time"
+                  />
+                </div>
+              </div>
+
+              <div
+                v-if="checkinStatusSnapshot"
+                class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+                data-testid="sub2api-checkin-status"
+              >
+                <div class="grid gap-x-4 gap-y-1 md:grid-cols-2">
+                  <div v-if="checkinStatusSnapshot.status"><span class="font-medium">状态：</span>{{ checkinStatusSnapshot.status }}</div>
+                  <div v-if="checkinStatusSnapshot.last_run_at"><span class="font-medium">最近执行：</span>{{ checkinStatusSnapshot.last_run_at }}</div>
+                  <div v-if="checkinStatusSnapshot.last_success_date"><span class="font-medium">最近成功日期：</span>{{ checkinStatusSnapshot.last_success_date }}</div>
+                  <div v-if="checkinStatusSnapshot.next_run_at"><span class="font-medium">下次执行：</span>{{ checkinStatusSnapshot.next_run_at }}</div>
+                  <div v-if="checkinStatusSnapshot.reward_amount != null"><span class="font-medium">奖励：</span>{{ checkinStatusSnapshot.reward_amount }}</div>
+                  <div v-if="checkinStatusSnapshot.balance != null"><span class="font-medium">余额：</span>{{ checkinStatusSnapshot.balance }}</div>
+                  <div v-if="checkinStatusSnapshot.error" class="md:col-span-2"><span class="font-medium">错误：</span>{{ checkinStatusSnapshot.error }}</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2624,6 +2706,16 @@ interface TempUnschedRuleForm {
   description: string
 }
 
+interface UpstreamCheckinStatusSnapshot {
+  status?: string
+  last_run_at?: string
+  last_success_date?: string
+  next_run_at?: string
+  reward_amount?: number
+  balance?: number
+  error?: string
+}
+
 // State
 const submitting = ref(false)
 const editBaseUrl = ref('https://api.anthropic.com')
@@ -2638,6 +2730,12 @@ const editUpstreamAdminEmail = ref('')
 const editUpstreamAdminPassword = ref('')
 const editUpstreamAdminAccessToken = ref('')
 const editUpstreamAdminRefreshToken = ref('')
+const editUpstreamCheckinEnabled = ref(false)
+const editUpstreamCheckinUrl = ref('/api/v1/user/checkin')
+const editUpstreamCheckinStartTime = ref('08:00')
+const editUpstreamCheckinEndTime = ref('10:30')
+const checkinTesting = ref(false)
+const checkinStatusSnapshot = ref<UpstreamCheckinStatusSnapshot | null>(null)
 const supportsUpstreamAdminSettings = computed(() =>
   props.account?.type === 'apikey' &&
   (props.account.platform === 'openai' || props.account.platform === 'anthropic')
@@ -3113,6 +3211,54 @@ const applyOpenAIModelMappingCredentials = (credentials: Record<string, unknown>
   }
 }
 
+const readUpstreamCheckinStatusSnapshot = (extra?: Record<string, unknown>): UpstreamCheckinStatusSnapshot | null => {
+  if (!extra) {
+    return null
+  }
+
+  const snapshot: UpstreamCheckinStatusSnapshot = {}
+  if (typeof extra.upstream_checkin_status === 'string' && extra.upstream_checkin_status.trim()) {
+    snapshot.status = extra.upstream_checkin_status.trim()
+  }
+  if (typeof extra.upstream_checkin_last_run_at === 'string' && extra.upstream_checkin_last_run_at.trim()) {
+    snapshot.last_run_at = extra.upstream_checkin_last_run_at.trim()
+  }
+  if (typeof extra.upstream_checkin_last_success_date === 'string' && extra.upstream_checkin_last_success_date.trim()) {
+    snapshot.last_success_date = extra.upstream_checkin_last_success_date.trim()
+  }
+  if (typeof extra.upstream_checkin_next_run_at === 'string' && extra.upstream_checkin_next_run_at.trim()) {
+    snapshot.next_run_at = extra.upstream_checkin_next_run_at.trim()
+  }
+  if (typeof extra.upstream_checkin_reward_amount === 'number') {
+    snapshot.reward_amount = extra.upstream_checkin_reward_amount
+  }
+  if (typeof extra.upstream_checkin_balance === 'number') {
+    snapshot.balance = extra.upstream_checkin_balance
+  }
+  if (typeof extra.upstream_checkin_error === 'string' && extra.upstream_checkin_error.trim()) {
+    snapshot.error = extra.upstream_checkin_error.trim()
+  }
+
+  return Object.keys(snapshot).length > 0 ? snapshot : null
+}
+
+const isAllowedUpstreamCheckinUrl = (value: string, baseUrl: string): boolean => {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return false
+  }
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
+    return true
+  }
+  try {
+    const parsed = new URL(trimmed)
+    const parsedBaseUrl = new URL(baseUrl.trim())
+    return parsed.origin === parsedBaseUrl.origin
+  } catch {
+    return false
+  }
+}
+
 const syncFormFromAccount = (newAccount: Account | null) => {
   if (!newAccount) {
     return
@@ -3296,6 +3442,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   loadQuotaControlSettings(newAccount)
 
   loadTempUnschedRules(credentials)
+  checkinStatusSnapshot.value = readUpstreamCheckinStatusSnapshot(extra)
 
   // Initialize API Key fields for apikey type
   if (newAccount.type === 'apikey' && newAccount.credentials) {
@@ -3325,6 +3472,16 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     editUpstreamAdminPassword.value = ''
     editUpstreamAdminAccessToken.value = ''
     editUpstreamAdminRefreshToken.value = ''
+    editUpstreamCheckinEnabled.value = supportsUpstreamAdminSettings.value && credentials.upstream_checkin_enabled === true
+    editUpstreamCheckinUrl.value = supportsUpstreamAdminSettings.value
+      ? String(credentials.upstream_checkin_url ?? '/api/v1/user/checkin')
+      : '/api/v1/user/checkin'
+    editUpstreamCheckinStartTime.value = supportsUpstreamAdminSettings.value
+      ? String(credentials.upstream_checkin_start_time ?? '08:00')
+      : '08:00'
+    editUpstreamCheckinEndTime.value = supportsUpstreamAdminSettings.value
+      ? String(credentials.upstream_checkin_end_time ?? '10:30')
+      : '10:30'
 
     // Load model mappings and detect mode
     loadModelRestrictionFromMapping(credentials.model_mapping as Record<string, unknown> | undefined)
@@ -3418,6 +3575,10 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     editUpstreamAdminPassword.value = ''
     editUpstreamAdminAccessToken.value = ''
     editUpstreamAdminRefreshToken.value = ''
+    editUpstreamCheckinEnabled.value = false
+    editUpstreamCheckinUrl.value = '/api/v1/user/checkin'
+    editUpstreamCheckinStartTime.value = '08:00'
+    editUpstreamCheckinEndTime.value = '10:30'
   }
   editApiKey.value = ''
 }
@@ -3875,6 +4036,24 @@ const handleClose = () => {
   emit('close')
 }
 
+const handleTestUpstreamCheckin = async () => {
+  if (!props.account?.id) return
+
+  checkinTesting.value = true
+  try {
+    const updatedAccount = await adminAPI.accounts.testUpstreamCheckin(props.account.id)
+    checkinStatusSnapshot.value = readUpstreamCheckinStatusSnapshot(
+      updatedAccount.extra as Record<string, unknown> | undefined
+    )
+    emit('updated', updatedAccount)
+    appStore.showSuccess('签到测试已完成')
+  } catch (error: any) {
+    appStore.showError(error.message || '签到测试失败')
+  } finally {
+    checkinTesting.value = false
+  }
+}
+
 const submitUpdateAccount = async (accountID: number, updatePayload: Record<string, unknown>) => {
   submitting.value = true
   try {
@@ -4020,12 +4199,26 @@ const handleSubmit = async () => {
           } else {
             delete newCredentials.upstream_admin_refresh_token
           }
+
+          const trimmedUpstreamCheckinUrl = editUpstreamCheckinUrl.value.trim()
+          if (!isAllowedUpstreamCheckinUrl(trimmedUpstreamCheckinUrl, newBaseUrl)) {
+            appStore.showError('签到 URL 仅支持相对路径或与 Base URL 同源的完整 URL')
+            return
+          }
+          newCredentials.upstream_checkin_enabled = editUpstreamCheckinEnabled.value
+          newCredentials.upstream_checkin_url = trimmedUpstreamCheckinUrl
+          newCredentials.upstream_checkin_start_time = editUpstreamCheckinStartTime.value
+          newCredentials.upstream_checkin_end_time = editUpstreamCheckinEndTime.value
         } else {
           delete newCredentials.upstream_admin_email
           delete newCredentials.upstream_admin_username
           delete newCredentials.upstream_admin_password
           delete newCredentials.upstream_admin_access_token
           delete newCredentials.upstream_admin_refresh_token
+          delete newCredentials.upstream_checkin_enabled
+          delete newCredentials.upstream_checkin_url
+          delete newCredentials.upstream_checkin_start_time
+          delete newCredentials.upstream_checkin_end_time
         }
       }
 

@@ -210,6 +210,11 @@ export async function refreshUpstreamBalance(id: number): Promise<Account> {
   return data
 }
 
+export async function testUpstreamCheckin(id: number): Promise<Account> {
+  const { data } = await apiClient.post<Account>(`/admin/accounts/${id}/upstream-checkin/test`)
+  return data
+}
+
 /**
  * Apply OAuth credentials after re-authorization.
  *
@@ -810,6 +815,7 @@ export const accountsAPI = {
   testAccount,
   refreshCredentials,
   refreshUpstreamBalance,
+  testUpstreamCheckin,
   applyOAuthCredentials,
   getStats,
   clearError,

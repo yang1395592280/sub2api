@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 
-const { updateAccountMock, checkMixedChannelRiskMock, authIsSimpleMode } = vi.hoisted(() => ({
+const { updateAccountMock, checkMixedChannelRiskMock, testUpstreamCheckinMock, authIsSimpleMode } = vi.hoisted(() => ({
   updateAccountMock: vi.fn(),
   checkMixedChannelRiskMock: vi.fn(),
+  testUpstreamCheckinMock: vi.fn(),
   authIsSimpleMode: { value: true }
 }))
 
@@ -28,7 +29,8 @@ vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
       update: updateAccountMock,
-      checkMixedChannelRisk: checkMixedChannelRiskMock
+      checkMixedChannelRisk: checkMixedChannelRiskMock,
+      testUpstreamCheckin: testUpstreamCheckinMock
     },
     settings: {
       getWebSearchEmulationConfig: vi.fn().mockResolvedValue({ enabled: false, providers: [] }),
@@ -266,6 +268,7 @@ function mountModal(account = buildAccount()) {
 describe('EditAccountModal', () => {
   beforeEach(() => {
     authIsSimpleMode.value = true
+    testUpstreamCheckinMock.mockReset()
   })
 
   it('only shows new-api user balance fields for OpenAI API key accounts', () => {
@@ -732,6 +735,87 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('upstream_admin_access_token')
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('upstream_admin_refresh_token')
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('upstream_admin_password')
+  })
+
+  it('shows sub2api check-in controls, loads status, and saves check-in config', async () => {
+    const account = buildAccount()
+    account.credentials = {
+      ...account.credentials,
+      upstream_admin_type: 'sub2api',
+      upstream_admin_email: 'admin@example.com',
+      upstream_checkin_enabled: true,
+      upstream_checkin_url: '/api/v1/user/checkin',
+      upstream_checkin_start_time: '08:00',
+      upstream_checkin_end_time: '10:30'
+    }
+    account.extra = {
+      upstream_checkin_status: 'success',
+      upstream_checkin_last_run_at: '2026-07-02T01:00:00Z',
+      upstream_checkin_last_success_date: '2026-07-02',
+      upstream_checkin_next_run_at: '2026-07-03T01:00:00Z',
+      upstream_checkin_reward_amount: 1.25,
+      upstream_checkin_balance: 88.5
+    }
+    account.credentials_status = {
+      has_api_key: true
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    expect(wrapper.find('[data-testid="sub2api-checkin-enabled"]').exists()).toBe(true)
+    expect(wrapper.get<HTMLInputElement>('[data-testid="sub2api-checkin-enabled"]').element.checked).toBe(true)
+    expect(wrapper.get<HTMLInputElement>('[data-testid="sub2api-checkin-url"]').element.value).toBe('/api/v1/user/checkin')
+    expect(wrapper.get<HTMLInputElement>('[data-testid="sub2api-checkin-start-time"]').element.value).toBe('08:00')
+    expect(wrapper.get<HTMLInputElement>('[data-testid="sub2api-checkin-end-time"]').element.value).toBe('10:30')
+    expect(wrapper.get('[data-testid="sub2api-checkin-status"]').text()).toContain('success')
+    expect(wrapper.get('[data-testid="sub2api-checkin-status"]').text()).toContain('2026-07-02')
+
+    await wrapper.get<HTMLInputElement>('[data-testid="sub2api-checkin-url"]').setValue(' https://api.openai.com/api/v1/user/checkin ')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_admin_type).toBe('sub2api')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_admin_email).toBe('admin@example.com')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_checkin_enabled).toBe(true)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_checkin_url).toBe('https://api.openai.com/api/v1/user/checkin')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_checkin_start_time).toBe('08:00')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.upstream_checkin_end_time).toBe('10:30')
+  })
+
+  it('tests sub2api check-in manually and refreshes latest status snapshot', async () => {
+    const account = buildAccount()
+    account.credentials = {
+      ...account.credentials,
+      upstream_admin_type: 'sub2api',
+      upstream_checkin_enabled: true,
+      upstream_checkin_url: '/api/v1/user/checkin',
+      upstream_checkin_start_time: '08:00',
+      upstream_checkin_end_time: '10:30'
+    }
+    account.credentials_status = {
+      has_api_key: true
+    }
+    testUpstreamCheckinMock.mockResolvedValue({
+      ...account,
+      extra: {
+        upstream_checkin_status: 'error',
+        upstream_checkin_last_run_at: '2026-07-02T02:00:00Z',
+        upstream_checkin_error: 'token expired'
+      }
+    })
+
+    const wrapper = mountModal(account)
+
+    await wrapper.get('[data-testid="sub2api-checkin-test"]').trigger('click')
+
+    expect(testUpstreamCheckinMock).toHaveBeenCalledTimes(1)
+    expect(testUpstreamCheckinMock).toHaveBeenCalledWith(1)
+    expect(wrapper.get('[data-testid="sub2api-checkin-status"]').text()).toContain('error')
+    expect(wrapper.get('[data-testid="sub2api-checkin-status"]').text()).toContain('token expired')
   })
 
   it('allows saving apikey account against legacy backend without credentials_status', async () => {
