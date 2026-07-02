@@ -61,6 +61,7 @@ type AccountHandler struct {
 	rpmCache                service.RPMCache
 	tokenCacheInvalidator   service.TokenCacheInvalidator
 	upstreamBalanceService  *service.OpenAIUpstreamBalanceService
+	sub2APICheckinService   *service.Sub2APICheckinService
 }
 
 // NewAccountHandler creates a new admin account handler
@@ -79,6 +80,7 @@ func NewAccountHandler(
 	rpmCache service.RPMCache,
 	tokenCacheInvalidator service.TokenCacheInvalidator,
 	upstreamBalanceService *service.OpenAIUpstreamBalanceService,
+	sub2APICheckinService *service.Sub2APICheckinService,
 ) *AccountHandler {
 	return &AccountHandler{
 		adminService:            adminService,
@@ -95,6 +97,7 @@ func NewAccountHandler(
 		rpmCache:                rpmCache,
 		tokenCacheInvalidator:   tokenCacheInvalidator,
 		upstreamBalanceService:  upstreamBalanceService,
+		sub2APICheckinService:   sub2APICheckinService,
 	}
 }
 
@@ -1016,6 +1019,28 @@ func (h *AccountHandler) RefreshUpstreamBalance(c *gin.Context) {
 	}
 
 	account, err := h.upstreamBalanceService.Refresh(c.Request.Context(), accountID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
+}
+
+// TestUpstreamCheckin handles manually triggering a sub2api upstream check-in.
+// POST /api/v1/admin/accounts/:id/upstream-checkin/test
+func (h *AccountHandler) TestUpstreamCheckin(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	if h.sub2APICheckinService == nil {
+		response.BadRequest(c, "sub2api check-in service is not enabled")
+		return
+	}
+
+	account, err := h.sub2APICheckinService.RefreshNow(c.Request.Context(), accountID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

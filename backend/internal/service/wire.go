@@ -10,6 +10,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/google/wire"
 	"github.com/redis/go-redis/v9"
 )
@@ -128,6 +129,13 @@ func ProvideOpenAIQuotaService(
 // ProvideOpenAIUpstreamBalanceService wires the OpenAI upstream balance refresh service.
 func ProvideOpenAIUpstreamBalanceService(accountRepo AccountRepository) *OpenAIUpstreamBalanceService {
 	return NewOpenAIUpstreamBalanceService(accountRepo, nil)
+}
+
+// ProvideSub2APICheckinService wires and starts the sub2api check-in worker.
+func ProvideSub2APICheckinService(accountRepo AccountRepository, upstreamBalanceService *OpenAIUpstreamBalanceService) *Sub2APICheckinService {
+	svc := NewSub2APICheckinService(accountRepo, upstreamBalanceService, timezone.Location())
+	svc.Start()
+	return svc
 }
 
 func ProvideGrokQuotaService(
@@ -645,6 +653,7 @@ var ProviderSet = wire.NewSet(
 	ProvideOpenAITokenProvider,
 	ProvideOpenAIQuotaService,
 	ProvideOpenAIUpstreamBalanceService,
+	ProvideSub2APICheckinService,
 	NewOpenAIAutoSchedulerService,
 	NewOpenAIAutoSchedulerProbeChecker,
 	ProvideOpenAIAutoSchedulerProbeRunner,
