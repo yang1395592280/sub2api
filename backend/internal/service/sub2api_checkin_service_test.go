@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -303,6 +304,57 @@ func TestSub2APICheckinServiceReconcileWaitsForPlannedRetryAfterWindow(t *testin
 	require.Equal(t, 0, requestCount)
 	require.Equal(t, 0, repo.updateExtraCalls)
 	require.Equal(t, nextRetryAt.Format(time.RFC3339), repo.account.GetExtraString("upstream_checkin_next_run_at"))
+}
+
+func TestSub2APICheckinServiceReconcileSkipsUnsupportedPlatformWithoutPersisting(t *testing.T) {
+	loc := time.FixedZone("CST", 8*3600)
+	now := time.Date(2026, 7, 2, 9, 0, 0, 0, loc)
+	repo := &sub2APICheckinRepoStub{
+		account: &Account{
+			ID:       54,
+			Status:   StatusActive,
+			Platform: PlatformGemini,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url":                    "https://ai.example/v1",
+				"api_key":                     "sk-upstream",
+				"upstream_admin_type":         "sub2api",
+				"upstream_admin_access_token": "admin-token",
+				"upstream_checkin_enabled":    true,
+				"upstream_checkin_start_time": "08:00",
+				"upstream_checkin_end_time":   "10:30",
+			},
+		},
+	}
+	svc := NewSub2APICheckinService(repo, nil, loc)
+	svc.clock = func() time.Time { return now }
+
+	err := svc.reconcileAccount(context.Background(), repo.account, now)
+
+	require.NoError(t, err)
+	require.Equal(t, 0, repo.updateExtraCalls)
+	require.Nil(t, repo.updatedExtra)
+	require.Empty(t, repo.account.Extra)
+}
+
+func TestSub2APICheckinServiceRandomSchedulingIsRaceSafe(t *testing.T) {
+	loc := time.FixedZone("CST", 8*3600)
+	svc := NewSub2APICheckinService(&sub2APICheckinRepoStub{}, nil, loc)
+	day := time.Date(2026, 7, 2, 0, 0, 0, 0, loc)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 24; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 200; j++ {
+				_, err := svc.planNextRunForDate(day, "08:00", "10:30")
+				require.NoError(t, err)
+				_ = svc.randomRetryDelay()
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func TestSub2APICheckinServiceProcessDueCheckinsUsesUnlimitedCandidateQuery(t *testing.T) {

@@ -28,6 +28,7 @@ func TestListSub2APICheckinCandidates(t *testing.T) {
 	require.Contains(t, normalized, "deleted_at IS NULL")
 	require.Contains(t, normalized, "status = 'active'")
 	require.Contains(t, normalized, "type = 'apikey'")
+	require.Contains(t, normalized, "platform IN ('openai', 'anthropic')")
 	require.Contains(t, normalized, `credentials @> '{"upstream_admin_type":"sub2api"}'::jsonb`)
 	require.Contains(t, normalized, `credentials @> '{"upstream_checkin_enabled":true}'::jsonb`)
 	require.Contains(t, normalized, "ORDER BY priority ASC, id ASC")

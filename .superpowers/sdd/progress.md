@@ -20,3 +20,4 @@ Task 1: complete (commits 1093ca0..e88fb61; review clean after retry cap/final r
 Task 2: complete (commit 746d694; review clean; route/handler/provider/cleanup tests passed)
 Task 4: verification sweep passed (backend focused service/handler/route/wire tests; frontend EditAccountModal spec 27 passed)
 Final review fix: manual check-in test now rejects non-sub2api or missing-admin-credential accounts before persisting scheduler state; focused backend and EditAccountModal specs passed.
+Final review fix 2: scheduler candidate/platform rules now match manual check-in validation, random scheduling holds rng lock through Int63n, focused backend tests/race test/EditAccountModal spec passed.

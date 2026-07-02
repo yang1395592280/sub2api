@@ -787,6 +787,7 @@ func (r *accountRepository) ListSub2APICheckinCandidates(ctx context.Context, li
 		WHERE deleted_at IS NULL
 			AND status = 'active'
 			AND type = 'apikey'
+			AND platform IN ('openai', 'anthropic')
 			AND credentials @> '{"upstream_admin_type":"sub2api"}'::jsonb
 			AND credentials @> '{"upstream_checkin_enabled":true}'::jsonb
 		ORDER BY priority ASC, id ASC

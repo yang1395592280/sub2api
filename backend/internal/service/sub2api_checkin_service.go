@@ -345,7 +345,7 @@ func (s *Sub2APICheckinService) planNextRunForDate(day time.Time, startHHMM, end
 	if err != nil {
 		return time.Time{}, err
 	}
-	return randomTimeBetween(start, end, s.randomSource()), nil
+	return s.randomTimeBetween(start, end), nil
 }
 
 func (s *Sub2APICheckinService) postCheckin(ctx context.Context, targetURL, authorization string) ([]byte, error) {
@@ -398,21 +398,21 @@ func (s *Sub2APICheckinService) location() *time.Location {
 	return s.loc
 }
 
-func (s *Sub2APICheckinService) randomSource() *rand.Rand {
+func (s *Sub2APICheckinService) randomTimeBetween(start, end time.Time) time.Time {
 	s.rngMu.Lock()
 	defer s.rngMu.Unlock()
-	return s.rng
+	return randomTimeBetween(start, end, s.rng)
 }
 
 func (s *Sub2APICheckinService) randomRetryDelay() time.Duration {
 	start := time.Unix(0, 0)
 	end := start.Add(20 * time.Minute)
-	random := randomTimeBetween(start, end, s.randomSource())
+	random := s.randomTimeBetween(start, end)
 	return 10*time.Minute + random.Sub(start)
 }
 
 func isSub2APICheckinEnabled(account *Account) bool {
-	if account == nil || account.Status != StatusActive || account.Type != AccountTypeAPIKey {
+	if account == nil || account.Status != StatusActive || !accountSupportsUpstreamBalance(account) {
 		return false
 	}
 	if strings.TrimSpace(account.GetCredential("upstream_admin_type")) != UpstreamBalanceProviderSub2API {

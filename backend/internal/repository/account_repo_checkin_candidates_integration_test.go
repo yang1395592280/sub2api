@@ -17,6 +17,7 @@ func TestListSub2APICheckinCandidates_Integration(t *testing.T) {
 
 	mustCreateAccount(t, tx.Client(), &service.Account{
 		Name:     "inactive",
+		Platform: service.PlatformOpenAI,
 		Type:     service.AccountTypeAPIKey,
 		Status:   service.StatusDisabled,
 		Priority: 1,
@@ -28,6 +29,7 @@ func TestListSub2APICheckinCandidates_Integration(t *testing.T) {
 	})
 	mustCreateAccount(t, tx.Client(), &service.Account{
 		Name:     "wrong-provider",
+		Platform: service.PlatformOpenAI,
 		Type:     service.AccountTypeAPIKey,
 		Status:   service.StatusActive,
 		Priority: 2,
@@ -39,6 +41,7 @@ func TestListSub2APICheckinCandidates_Integration(t *testing.T) {
 	})
 	mustCreateAccount(t, tx.Client(), &service.Account{
 		Name:     "non-apikey",
+		Platform: service.PlatformOpenAI,
 		Type:     service.AccountTypeOAuth,
 		Status:   service.StatusActive,
 		Priority: 3,
@@ -50,6 +53,7 @@ func TestListSub2APICheckinCandidates_Integration(t *testing.T) {
 	})
 	mustCreateAccount(t, tx.Client(), &service.Account{
 		Name:     "checkin-disabled",
+		Platform: service.PlatformOpenAI,
 		Type:     service.AccountTypeAPIKey,
 		Status:   service.StatusActive,
 		Priority: 4,
@@ -59,8 +63,21 @@ func TestListSub2APICheckinCandidates_Integration(t *testing.T) {
 			"upstream_checkin_enabled": false,
 		},
 	})
+	mustCreateAccount(t, tx.Client(), &service.Account{
+		Name:     "unsupported-platform",
+		Platform: service.PlatformGemini,
+		Type:     service.AccountTypeAPIKey,
+		Status:   service.StatusActive,
+		Priority: 5,
+		Credentials: map[string]any{
+			"api_key":                  "sk-gemini",
+			"upstream_admin_type":      "sub2api",
+			"upstream_checkin_enabled": true,
+		},
+	})
 	first := mustCreateAccount(t, tx.Client(), &service.Account{
 		Name:     "candidate-priority-5",
+		Platform: service.PlatformOpenAI,
 		Type:     service.AccountTypeAPIKey,
 		Status:   service.StatusActive,
 		Priority: 5,
@@ -72,6 +89,7 @@ func TestListSub2APICheckinCandidates_Integration(t *testing.T) {
 	})
 	second := mustCreateAccount(t, tx.Client(), &service.Account{
 		Name:     "candidate-priority-20",
+		Platform: service.PlatformAnthropic,
 		Type:     service.AccountTypeAPIKey,
 		Status:   service.StatusActive,
 		Priority: 20,
