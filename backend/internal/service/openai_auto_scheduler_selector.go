@@ -71,6 +71,16 @@ func (s *OpenAIAutoSchedulerSelector) Rank(ctx context.Context, groupID *int64, 
 		if tierA, tierB := openAIAutoSchedulerStateTier(a.state), openAIAutoSchedulerStateTier(b.state); tierA != tierB {
 			return tierA < tierB
 		}
+		if openAIAutoSchedulerStateTier(a.state) == openAIAutoSchedulerStateTier(OpenAIAutoSchedulerScoreState{State: OpenAIAutoSchedulerStateRunning}) {
+			speedA, okA := openAIAutoSchedulerSpeedMS(a.state)
+			speedB, okB := openAIAutoSchedulerSpeedMS(b.state)
+			if okA != okB {
+				return okA
+			}
+			if okA && speedA != speedB {
+				return speedA < speedB
+			}
+		}
 		if a.effectiveScore != b.effectiveScore {
 			return a.effectiveScore > b.effectiveScore
 		}

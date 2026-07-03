@@ -151,6 +151,27 @@ func TestOpenAIAutoSchedulerSelector_MissingStateUsesNeutralScoreAndStableFallba
 	require.Equal(t, []int64{1, 3, 2}, selectorAccountIDs(ranked))
 }
 
+func TestOpenAIAutoSchedulerSelector_RunningAccountsPreferLowerTTFB(t *testing.T) {
+	groupID := int64(10)
+	settings := enabledOpenAIAutoSchedulerSettings()
+	settings.ProbeModel = "gpt-5.5"
+	slow := 1200
+	fast := 220
+	selector := NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{
+		enabledGroups: map[int64]bool{10: true},
+		settings:      settings,
+		statesByKey: map[string]OpenAIAutoSchedulerScoreState{
+			selectorStateKey(1, "gpt-5.5"): {AccountID: 1, GroupID: 10, Model: "gpt-5.5", FinalScore: 9000, State: OpenAIAutoSchedulerStateRunning, LastTtfbMS: &slow},
+			selectorStateKey(2, "gpt-5.5"): {AccountID: 2, GroupID: 10, Model: "gpt-5.5", FinalScore: 6000, State: OpenAIAutoSchedulerStateRunning, LastTtfbMS: &fast},
+		},
+	})
+
+	ranked, used := selector.Rank(context.Background(), &groupID, "gpt-4o", []*Account{{ID: 1}, {ID: 2}})
+
+	require.True(t, used)
+	require.Equal(t, []int64{2, 1}, selectorAccountIDs(ranked))
+}
+
 func TestOpenAIAutoSchedulerSelector_ServiceErrorPreservesOriginalOrder(t *testing.T) {
 	groupID := int64(10)
 	selector := NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{

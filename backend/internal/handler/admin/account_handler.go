@@ -62,6 +62,11 @@ type AccountHandler struct {
 	tokenCacheInvalidator   service.TokenCacheInvalidator
 	upstreamBalanceService  *service.OpenAIUpstreamBalanceService
 	sub2APICheckinService   *service.Sub2APICheckinService
+	openAIAutoScheduler     openAIAutoSchedulerAccountSummaryService
+}
+
+type openAIAutoSchedulerAccountSummaryService interface {
+	ListAccountSummaries(ctx context.Context, groupID int64, accountIDs []int64) (map[int64]service.OpenAIAutoSchedulerAccountSummary, error)
 }
 
 // NewAccountHandler creates a new admin account handler
@@ -99,6 +104,13 @@ func NewAccountHandler(
 		upstreamBalanceService:  upstreamBalanceService,
 		sub2APICheckinService:   sub2APICheckinService,
 	}
+}
+
+func (h *AccountHandler) SetOpenAIAutoSchedulerAccountSummaryService(svc openAIAutoSchedulerAccountSummaryService) {
+	if h == nil {
+		return
+	}
+	h.openAIAutoScheduler = svc
 }
 
 // CreateAccountRequest represents create account request
@@ -279,19 +291,30 @@ func (h *AccountHandler) List(c *gin.Context) {
 
 	// Get current concurrency counts for all accounts
 	accountIDs := make([]int64, len(accounts))
+	openAIAccountIDs := make([]int64, 0, len(accounts))
 	for i, acc := range accounts {
 		accountIDs[i] = acc.ID
+		if acc.IsOpenAI() {
+			openAIAccountIDs = append(openAIAccountIDs, acc.ID)
+		}
 	}
 
 	concurrencyCounts := make(map[int64]int)
 	var windowCosts map[int64]float64
 	var activeSessions map[int64]int
 	var rpmCounts map[int64]int
+	var openAIAutoSchedulerSummaries map[int64]service.OpenAIAutoSchedulerAccountSummary
 
 	// 始终获取并发数（Redis ZCARD，极低开销）
 	if h.concurrencyService != nil {
 		if cc, ccErr := h.concurrencyService.GetAccountConcurrencyBatch(c.Request.Context(), accountIDs); ccErr == nil && cc != nil {
 			concurrencyCounts = cc
+		}
+	}
+
+	if groupID > 0 && len(openAIAccountIDs) > 0 && h.openAIAutoScheduler != nil {
+		if summaries, summaryErr := h.openAIAutoScheduler.ListAccountSummaries(c.Request.Context(), groupID, openAIAccountIDs); summaryErr == nil {
+			openAIAutoSchedulerSummaries = summaries
 		}
 	}
 
@@ -367,6 +390,11 @@ func (h *AccountHandler) List(c *gin.Context) {
 		item := AccountWithConcurrency{
 			Account:            dto.AccountFromService(acc),
 			CurrentConcurrency: concurrencyCounts[acc.ID],
+		}
+		if openAIAutoSchedulerSummaries != nil {
+			if summary, ok := openAIAutoSchedulerSummaries[acc.ID]; ok && item.Account != nil {
+				item.Account.OpenAIAutoScheduler = dto.OpenAIAutoSchedulerAccountSummaryFromService(summary)
+			}
 		}
 
 		// 添加窗口费用（仅当启用时）

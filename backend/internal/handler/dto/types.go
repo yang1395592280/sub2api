@@ -271,6 +271,8 @@ type Account struct {
 	ParentAccountID *int64 `json:"parent_account_id,omitempty"`
 	QuotaDimension  string `json:"quota_dimension,omitempty"`
 
+	OpenAIAutoScheduler *OpenAIAutoSchedulerAccountSummary `json:"openai_auto_scheduler,omitempty"`
+
 	// 影子账号回填的母账号信息（仅影子非空，源自母账号 Credentials/Extra）
 	ParentEmail                 string `json:"parent_email,omitempty"`
 	ParentPlanType              string `json:"parent_plan_type,omitempty"`
@@ -283,6 +285,18 @@ type Account struct {
 
 	GroupIDs []int64  `json:"group_ids,omitempty"`
 	Groups   []*Group `json:"groups,omitempty"`
+}
+
+type OpenAIAutoSchedulerAccountSummary struct {
+	State         string     `json:"state"`
+	SpeedPriority int        `json:"speed_priority"`
+	SpeedMS       *int       `json:"speed_ms,omitempty"`
+	ProbeModel    string     `json:"probe_model"`
+	LastTtfbMS    *int       `json:"last_ttfb_ms,omitempty"`
+	LastLatencyMS *int       `json:"last_latency_ms,omitempty"`
+	LastError     *string    `json:"last_error,omitempty"`
+	Reason        string     `json:"reason,omitempty"`
+	LastCheckedAt *time.Time `json:"last_checked_at,omitempty"`
 }
 
 type AccountGroup struct {

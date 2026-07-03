@@ -615,6 +615,27 @@ func TestOpenAIAutoSchedulerService_RecordConcurrentErrorsTripsBreaker(t *testin
 	require.Len(t, repo.events, 2)
 }
 
+func TestOpenAIAutoSchedulerService_ListAccountSummariesRanksBySpeed(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		states: map[string]OpenAIAutoSchedulerScoreState{},
+	}
+	settings := enabledOpenAIAutoSchedulerSettings()
+	settings.ProbeModel = "gpt-5.5"
+	fast := 200
+	slow := 900
+	repo.states[openAIAutoSchedulerStateKey(1, 10, "gpt-5.5")] = OpenAIAutoSchedulerScoreState{AccountID: 1, GroupID: 10, Model: "gpt-5.5", State: OpenAIAutoSchedulerStateRunning, FinalScore: 6000, LastTtfbMS: &slow}
+	repo.states[openAIAutoSchedulerStateKey(2, 10, "gpt-5.5")] = OpenAIAutoSchedulerScoreState{AccountID: 2, GroupID: 10, Model: "gpt-5.5", State: OpenAIAutoSchedulerStateRunning, FinalScore: 6000, LastTtfbMS: &fast}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: settings})
+
+	summaries, err := svc.ListAccountSummaries(context.Background(), 10, []int64{1, 2})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, summaries[1].SpeedPriority)
+	require.Equal(t, 1, summaries[2].SpeedPriority)
+	require.Equal(t, "gpt-5.5", summaries[1].ProbeModel)
+	require.Equal(t, &slow, summaries[1].SpeedMS)
+}
+
 func enabledOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {
 	settings := DefaultOpenAIAutoSchedulerSettings()
 	settings.Enabled = true

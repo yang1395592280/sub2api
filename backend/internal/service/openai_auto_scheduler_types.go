@@ -91,6 +91,18 @@ type OpenAIAutoSchedulerDailySample struct {
 	LastTtfbMS      *int
 }
 
+type OpenAIAutoSchedulerAccountSummary struct {
+	State         string
+	SpeedPriority int
+	SpeedMS       *int
+	ProbeModel    string
+	LastTtfbMS    *int
+	LastLatencyMS *int
+	LastError     *string
+	Reason        string
+	LastCheckedAt *time.Time
+}
+
 const (
 	openAIAutoSchedulerListDefaultPageSize = 50
 	openAIAutoSchedulerListMaxPageSize     = 200
@@ -169,4 +181,14 @@ func normalizeOpenAIAutoSchedulerListPage(page, pageSize int) (int, int) {
 		pageSize = openAIAutoSchedulerListMaxPageSize
 	}
 	return page, pageSize
+}
+
+func openAIAutoSchedulerSpeedMS(state OpenAIAutoSchedulerScoreState) (int, bool) {
+	if state.LastTtfbMS != nil && *state.LastTtfbMS > 0 {
+		return *state.LastTtfbMS, true
+	}
+	if state.LastLatencyMS != nil && *state.LastLatencyMS > 0 {
+		return *state.LastLatencyMS, true
+	}
+	return 0, false
 }
