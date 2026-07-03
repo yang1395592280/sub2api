@@ -11,12 +11,15 @@ import (
 )
 
 type fakeAutoSchedulerSelectorService struct {
-	enabledGroups map[int64]bool
-	settings      OpenAIAutoSchedulerSettings
-	states        map[int64]OpenAIAutoSchedulerScoreState
-	statesByKey   map[string]OpenAIAutoSchedulerScoreState
-	openCircuit   map[int64]bool
-	err           error
+	enabledGroups    map[int64]bool
+	settings         OpenAIAutoSchedulerSettings
+	states           map[int64]OpenAIAutoSchedulerScoreState
+	statesByKey      map[string]OpenAIAutoSchedulerScoreState
+	openCircuit      map[int64]bool
+	openCircuitByKey map[string]bool
+	stateLookups     []string
+	circuitLookups   []string
+	err              error
 }
 
 func (s *fakeAutoSchedulerSelectorService) IsEnabledForGroup(_ context.Context, groupID *int64) bool {
@@ -30,6 +33,9 @@ func (s *fakeAutoSchedulerSelectorService) GetStateForSelection(_ context.Contex
 	if s != nil && s.err != nil {
 		return nil, s.err
 	}
+	if s != nil {
+		s.stateLookups = append(s.stateLookups, selectorStateKey(accountID, model))
+	}
 	if s.statesByKey != nil {
 		if state, ok := s.statesByKey[selectorStateKey(accountID, model)]; ok {
 			return &state, nil
@@ -42,9 +48,16 @@ func (s *fakeAutoSchedulerSelectorService) GetStateForSelection(_ context.Contex
 	return &state, nil
 }
 
-func (s *fakeAutoSchedulerSelectorService) HasOpenCircuitForSelection(_ context.Context, accountID, _ int64) (bool, error) {
+func (s *fakeAutoSchedulerSelectorService) HasOpenCircuitForSelection(_ context.Context, accountID, _ int64, model string) (bool, error) {
 	if s != nil && s.err != nil {
 		return false, s.err
+	}
+	if s != nil {
+		key := selectorStateKey(accountID, model)
+		s.circuitLookups = append(s.circuitLookups, key)
+		if s.openCircuitByKey != nil {
+			return s.openCircuitByKey[key], nil
+		}
 	}
 	return s != nil && s.openCircuit[accountID], nil
 }
@@ -90,21 +103,30 @@ func TestOpenAIAutoSchedulerSelector_SkipsOpenCircuitAndSortsByScore(t *testing.
 	require.Equal(t, []int64{2, 3}, selectorAccountIDs(ranked))
 }
 
-func TestOpenAIAutoSchedulerSelector_SkipsAccountWhenAnyModelHasOpenCircuit(t *testing.T) {
+func TestOpenAIAutoSchedulerSelector_UsesProbeModelForStateAndCircuit(t *testing.T) {
 	groupID := int64(10)
-	selector := NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{
+	settings := enabledOpenAIAutoSchedulerSettings()
+	settings.ProbeModel = "gpt-5.5"
+	svc := &fakeAutoSchedulerSelectorService{
 		enabledGroups: map[int64]bool{10: true},
-		openCircuit:   map[int64]bool{1: true},
+		settings:      settings,
 		statesByKey: map[string]OpenAIAutoSchedulerScoreState{
+			selectorStateKey(1, "gpt-5.4"): {AccountID: 1, GroupID: 10, Model: "gpt-5.4", FinalScore: 9000, State: OpenAIAutoSchedulerStateOpen},
 			selectorStateKey(1, "gpt-5.5"): {AccountID: 1, GroupID: 10, Model: "gpt-5.5", FinalScore: 9000, State: OpenAIAutoSchedulerStateRunning},
 			selectorStateKey(2, "gpt-5.5"): {AccountID: 2, GroupID: 10, Model: "gpt-5.5", FinalScore: 6000, State: OpenAIAutoSchedulerStateRunning},
 		},
-	})
+		openCircuitByKey: map[string]bool{
+			selectorStateKey(1, "gpt-5.4"): true,
+		},
+	}
+	selector := NewOpenAIAutoSchedulerSelector(svc)
 
-	ranked, used := selector.Rank(context.Background(), &groupID, "gpt-5.5", []*Account{{ID: 1}, {ID: 2}})
+	ranked, used := selector.Rank(context.Background(), &groupID, "gpt-4o", []*Account{{ID: 1}, {ID: 2}})
 
 	require.True(t, used)
-	require.Equal(t, []int64{2}, selectorAccountIDs(ranked))
+	require.Equal(t, []int64{1, 2}, selectorAccountIDs(ranked))
+	require.Contains(t, svc.stateLookups, selectorStateKey(1, "gpt-5.5"))
+	require.Contains(t, svc.circuitLookups, selectorStateKey(1, "gpt-5.5"))
 }
 
 func TestOpenAIAutoSchedulerSelector_MissingStateUsesNeutralScoreAndStableFallbacks(t *testing.T) {

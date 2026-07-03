@@ -158,7 +158,11 @@ func TestOpenAIAutoSchedulerRepository_HasOpenCircuitScoreStateIgnoresExpiredCoo
 	state.CooldownUntil = &expiredCooldown
 	require.NoError(t, repo.UpsertScoreState(ctx, state))
 
-	blocked, err := repo.HasOpenCircuitScoreState(ctx, 19001, 82)
+	blocked, err := repo.HasOpenCircuitScoreState(ctx, 19001, 82, "gpt-5.5")
+	require.NoError(t, err)
+	require.False(t, blocked)
+
+	blocked, err = repo.HasOpenCircuitScoreState(ctx, 19001, 82, "gpt-5.4")
 
 	require.NoError(t, err)
 	require.True(t, blocked)

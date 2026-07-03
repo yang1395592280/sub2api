@@ -155,7 +155,7 @@ func (r *OpenAIAutoSchedulerProbeRunner) runOnce(ctx context.Context) {
 		return
 	}
 
-	model := selectOpenAIAutoSchedulerProbeModel()
+	model := selectOpenAIAutoSchedulerProbeModel(settings)
 	timeout := openAIAutoSchedulerProbeTimeout
 	for i := range groups {
 		if ctx.Err() != nil {
@@ -244,8 +244,8 @@ func openAIAutoSchedulerProbeKey(accountID, groupID int64, model string) string 
 	return fmt.Sprintf("%d:%d:%s", accountID, groupID, strings.TrimSpace(model))
 }
 
-func selectOpenAIAutoSchedulerProbeModel() string {
-	return "gpt-5.4"
+func selectOpenAIAutoSchedulerProbeModel(settings OpenAIAutoSchedulerSettings) string {
+	return normalizeOpenAIAutoSchedulerSettings(settings).ProbeModel
 }
 
 type openAIAutoSchedulerProbeHTTPChecker struct {

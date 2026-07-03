@@ -149,6 +149,7 @@ func TestOpenAIAutoSchedulerProbeRunner_SkipsWhenDisabled(t *testing.T) {
 func TestOpenAIAutoSchedulerProbeRunner_ProbesEnabledOpenAIGroups(t *testing.T) {
 	settings := DefaultOpenAIAutoSchedulerSettings()
 	settings.Enabled = true
+	settings.ProbeModel = "gpt-5.5"
 	svc := &fakeOpenAIAutoSchedulerProbeService{
 		settings: settings,
 		groups: []Group{
@@ -162,7 +163,7 @@ func TestOpenAIAutoSchedulerProbeRunner_ProbesEnabledOpenAIGroups(t *testing.T) 
 	}
 	checker := &fakeOpenAIAutoSchedulerProbeChecker{
 		results: map[string]OpenAIAutoSchedulerProbeResult{
-			openAIAutoSchedulerProbeKey(1, 10, selectOpenAIAutoSchedulerProbeModel()): {Success: true},
+			openAIAutoSchedulerProbeKey(1, 10, "gpt-5.5"): {Success: true},
 		},
 	}
 	runner := newOpenAIAutoSchedulerProbeRunner(svc, svc, repo, checker, nil)
@@ -182,11 +183,11 @@ func TestOpenAIAutoSchedulerProbeRunner_ProbesEnabledOpenAIGroups(t *testing.T) 
 	require.Equal(t, OpenAIAutoSchedulerEventProbeSuccess, record.EventType)
 	require.Equal(t, int64(1), record.AccountID)
 	require.Equal(t, int64(10), record.GroupID)
-	require.Equal(t, "gpt-5.4", record.Model)
+	require.Equal(t, "gpt-5.5", record.Model)
 }
 
 func TestOpenAIAutoSchedulerProbeRunner_DefaultProbeModel(t *testing.T) {
-	require.Equal(t, "gpt-5.4", selectOpenAIAutoSchedulerProbeModel())
+	require.Equal(t, "gpt-5.4", selectOpenAIAutoSchedulerProbeModel(OpenAIAutoSchedulerSettings{}))
 }
 
 func TestOpenAIAutoSchedulerProbeChecker_UsesChatCompletionsWhenAPIKeyResponsesUnsupported(t *testing.T) {
@@ -263,7 +264,7 @@ func TestOpenAIAutoSchedulerProbeRunner_DedupesInFlightChecks(t *testing.T) {
 	checker := &fakeOpenAIAutoSchedulerProbeChecker{
 		block: make(chan struct{}),
 		results: map[string]OpenAIAutoSchedulerProbeResult{
-			openAIAutoSchedulerProbeKey(1, 10, selectOpenAIAutoSchedulerProbeModel()): {Success: true},
+			openAIAutoSchedulerProbeKey(1, 10, selectOpenAIAutoSchedulerProbeModel(DefaultOpenAIAutoSchedulerSettings())): {Success: true},
 		},
 	}
 	runner := newOpenAIAutoSchedulerProbeRunner(svc, svc, repo, checker, nil)
@@ -295,7 +296,7 @@ func TestOpenAIAutoSchedulerProbeRunner_RecordsProbeError(t *testing.T) {
 	}
 	checker := &fakeOpenAIAutoSchedulerProbeChecker{
 		results: map[string]OpenAIAutoSchedulerProbeResult{
-			openAIAutoSchedulerProbeKey(1, 10, selectOpenAIAutoSchedulerProbeModel()): {
+			openAIAutoSchedulerProbeKey(1, 10, selectOpenAIAutoSchedulerProbeModel(DefaultOpenAIAutoSchedulerSettings())): {
 				Err:       errors.New("upstream refused probe"),
 				LatencyMS: ptr(123),
 			},
@@ -334,7 +335,7 @@ func TestOpenAIAutoSchedulerProbeRunner_RecordsProbeTTFB(t *testing.T) {
 	}
 	checker := &fakeOpenAIAutoSchedulerProbeChecker{
 		results: map[string]OpenAIAutoSchedulerProbeResult{
-			openAIAutoSchedulerProbeKey(1, 10, selectOpenAIAutoSchedulerProbeModel()): {
+			openAIAutoSchedulerProbeKey(1, 10, selectOpenAIAutoSchedulerProbeModel(DefaultOpenAIAutoSchedulerSettings())): {
 				Success:   true,
 				LatencyMS: ptr(300),
 				TtfbMS:    ptr(120),
@@ -378,7 +379,7 @@ func TestOpenAIAutoSchedulerProbeRunner_StopCancelsInFlightProbe(t *testing.T) {
 		started:  make(chan struct{}),
 		canceled: make(chan struct{}),
 		results: map[string]OpenAIAutoSchedulerProbeResult{
-			openAIAutoSchedulerProbeKey(1, 10, selectOpenAIAutoSchedulerProbeModel()): {Success: true},
+			openAIAutoSchedulerProbeKey(1, 10, selectOpenAIAutoSchedulerProbeModel(DefaultOpenAIAutoSchedulerSettings())): {Success: true},
 		},
 	}
 	runner := newOpenAIAutoSchedulerProbeRunner(svc, svc, repo, checker, nil)

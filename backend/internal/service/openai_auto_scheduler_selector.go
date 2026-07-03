@@ -15,7 +15,7 @@ type OpenAIAutoSchedulerSelector struct {
 type openAIAutoSchedulerSelectorService interface {
 	IsEnabledForGroup(ctx context.Context, groupID *int64) bool
 	GetStateForSelection(ctx context.Context, accountID, groupID int64, model string) (*OpenAIAutoSchedulerScoreState, error)
-	HasOpenCircuitForSelection(ctx context.Context, accountID, groupID int64) (bool, error)
+	HasOpenCircuitForSelection(ctx context.Context, accountID, groupID int64, model string) (bool, error)
 	GetSettingsForSelection(ctx context.Context) OpenAIAutoSchedulerSettings
 }
 
@@ -33,24 +33,25 @@ func (s *OpenAIAutoSchedulerSelector) Rank(ctx context.Context, groupID *int64, 
 
 	now := time.Now()
 	settings := s.service.GetSettingsForSelection(ctx)
+	probeModel := normalizeOpenAIAutoSchedulerSettings(settings).ProbeModel
 	minPrice, maxPrice := openAIAutoSchedulerCandidatePriceRange(candidates)
 	ranked := make([]openAIAutoSchedulerRankedAccount, 0, len(candidates))
 	for index, account := range candidates {
 		if account == nil {
 			continue
 		}
-		state, err := s.service.GetStateForSelection(ctx, account.ID, *groupID, strings.TrimSpace(requestedModel))
+		state, err := s.service.GetStateForSelection(ctx, account.ID, *groupID, probeModel)
 		if err != nil {
 			return candidates, false
 		}
 		if state == nil {
-			neutral := NewOpenAIAutoSchedulerScoreState(account.ID, *groupID, requestedModel)
+			neutral := NewOpenAIAutoSchedulerScoreState(account.ID, *groupID, probeModel)
 			state = &neutral
 		}
 		if isOpenAIAutoSchedulerStateInActiveCooldown(*state, now) {
 			continue
 		}
-		openCircuit, err := s.service.HasOpenCircuitForSelection(ctx, account.ID, *groupID)
+		openCircuit, err := s.service.HasOpenCircuitForSelection(ctx, account.ID, *groupID, probeModel)
 		if err != nil {
 			return candidates, false
 		}
@@ -99,18 +100,20 @@ func (s *OpenAIAutoSchedulerSelector) IsAccountTemporarilyBlocked(ctx context.Co
 	if s == nil || s.service == nil || groupID == nil || accountID <= 0 || !s.service.IsEnabledForGroup(ctx, groupID) {
 		return false
 	}
-	state, err := s.service.GetStateForSelection(ctx, accountID, *groupID, strings.TrimSpace(requestedModel))
+	settings := s.service.GetSettingsForSelection(ctx)
+	probeModel := normalizeOpenAIAutoSchedulerSettings(settings).ProbeModel
+	state, err := s.service.GetStateForSelection(ctx, accountID, *groupID, probeModel)
 	if err != nil {
 		return false
 	}
 	if state == nil {
-		openCircuit, activeErr := s.service.HasOpenCircuitForSelection(ctx, accountID, *groupID)
+		openCircuit, activeErr := s.service.HasOpenCircuitForSelection(ctx, accountID, *groupID, probeModel)
 		return activeErr == nil && openCircuit
 	}
 	if isOpenAIAutoSchedulerStateInActiveCooldown(*state, time.Now()) {
 		return true
 	}
-	openCircuit, activeErr := s.service.HasOpenCircuitForSelection(ctx, accountID, *groupID)
+	openCircuit, activeErr := s.service.HasOpenCircuitForSelection(ctx, accountID, *groupID, probeModel)
 	return activeErr == nil && openCircuit
 }
 
@@ -148,11 +151,11 @@ func (s *OpenAIAutoSchedulerService) GetStateForSelection(ctx context.Context, a
 	return s.repo.GetScoreState(ctx, accountID, groupID, strings.TrimSpace(model))
 }
 
-func (s *OpenAIAutoSchedulerService) HasOpenCircuitForSelection(ctx context.Context, accountID, groupID int64) (bool, error) {
+func (s *OpenAIAutoSchedulerService) HasOpenCircuitForSelection(ctx context.Context, accountID, groupID int64, model string) (bool, error) {
 	if s == nil || s.repo == nil || accountID <= 0 || groupID <= 0 {
 		return false, nil
 	}
-	return s.repo.HasOpenCircuitScoreState(ctx, accountID, groupID)
+	return s.repo.HasOpenCircuitScoreState(ctx, accountID, groupID, strings.TrimSpace(model))
 }
 
 func (s *OpenAIAutoSchedulerService) GetSettingsForSelection(ctx context.Context) OpenAIAutoSchedulerSettings {

@@ -62,11 +62,16 @@ func (r *openAIAutoSchedulerRepository) GetScoreState(ctx context.Context, accou
 	return &out, nil
 }
 
-func (r *openAIAutoSchedulerRepository) HasOpenCircuitScoreState(ctx context.Context, accountID, groupID int64) (bool, error) {
+func (r *openAIAutoSchedulerRepository) HasOpenCircuitScoreState(ctx context.Context, accountID, groupID int64, model string) (bool, error) {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return false, nil
+	}
 	return r.client.OpenAIAutoSchedulerScoreState.Query().
 		Where(
 			openaiautoschedulerscorestate.AccountIDEQ(accountID),
 			openaiautoschedulerscorestate.GroupIDEQ(groupID),
+			openaiautoschedulerscorestate.ModelEQ(model),
 			openaiautoschedulerscorestate.StateEQ(service.OpenAIAutoSchedulerStateOpen),
 		).
 		Exist(ctx)
