@@ -96,7 +96,7 @@ func (c *HTTPWorkbenchGatewayClient) GenerateImage(ctx context.Context, authoriz
 	if scheme := strings.TrimSpace(req.PublicScheme); scheme != "" {
 		headers["X-Forwarded-Proto"] = strings.TrimRight(scheme, ":/")
 	}
-	if err := c.postJSONWithHeaders(ctx, "/v1/images/generations", authorization, payload, headers, &resp); err != nil {
+	if err := c.postJSONWithHeaders(ctx, workbenchImageGatewayPath(req), authorization, payload, headers, &resp); err != nil {
 		return WorkbenchGatewayImageResponse{}, err
 	}
 
@@ -111,6 +111,32 @@ func (c *HTTPWorkbenchGatewayClient) GenerateImage(ctx context.Context, authoriz
 		Images:   images,
 		Metadata: map[string]any{"created": resp.Created, "image_count": len(images)},
 	}, nil
+}
+
+func workbenchImageGatewayPath(req WorkbenchGatewayImageRequest) string {
+	switch req.Endpoint {
+	case WorkbenchEndpointImagesEdits:
+		return "/v1/images/edits"
+	case WorkbenchEndpointImagesGenerations:
+		return "/v1/images/generations"
+	}
+	if workbenchImageOptionsHasInputs(req.Options) {
+		return "/v1/images/edits"
+	}
+	return "/v1/images/generations"
+}
+
+func workbenchImageOptionsHasInputs(options map[string]any) bool {
+	if len(options) == 0 {
+		return false
+	}
+	if value, ok := options["images"]; ok && value != nil {
+		return true
+	}
+	if value, ok := options["image"]; ok && value != nil {
+		return true
+	}
+	return false
 }
 
 func (c *HTTPWorkbenchGatewayClient) postJSON(ctx context.Context, path, authorization string, payload any, out any) error {

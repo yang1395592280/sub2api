@@ -355,6 +355,7 @@ func (s *WorkbenchService) completeImageMessage(apiKeySecret, input, model strin
 	defer cancel()
 
 	resp, sendErr := s.gateway.GenerateImage(ctx, "Bearer "+apiKeySecret, WorkbenchGatewayImageRequest{
+		Endpoint:     assistantMessage.Endpoint,
 		Model:        model,
 		Prompt:       input,
 		Options:      options,
@@ -512,7 +513,7 @@ func validateWorkbenchModeEndpoint(mode, endpoint string) error {
 			return ErrWorkbenchInvalidEndpoint
 		}
 	case WorkbenchModeImage:
-		if endpoint != WorkbenchEndpointImagesGenerations {
+		if endpoint != WorkbenchEndpointImagesGenerations && endpoint != WorkbenchEndpointImagesEdits {
 			return ErrWorkbenchInvalidEndpoint
 		}
 	default:

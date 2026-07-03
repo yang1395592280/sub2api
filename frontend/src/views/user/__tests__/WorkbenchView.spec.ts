@@ -198,6 +198,47 @@ describe('WorkbenchView', () => {
     expect(wrapper.find('img[src="https://img.example/1.png"]').exists()).toBe(true)
   })
 
+  it('switches image mode to edit and sends uploaded reference image options', async () => {
+    send.mockResolvedValue({
+      user_message: { id: 10, role: 'user', content: '把背景换成雪山', status: 'success' },
+      assistant_message: { id: 11, role: 'assistant', content: '已生成图片', status: 'success', image_outputs: [{ url: 'https://img.example/edit.png' }] },
+      conversation: { id: 1, title: '把背景换成雪山', mode: 'image', message_count: 2 },
+    })
+    const wrapper = mount(WorkbenchView, { global: { stubs: { AppLayout: AppLayoutStub } } })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="workbench-mode-image"]').trigger('click')
+    await wrapper.get('[data-testid="workbench-image-mode-edit"]').trigger('click')
+    const file = new File(['fake-image'], 'source.png', { type: 'image/png' })
+    const fileInput = wrapper.get('[data-testid="workbench-reference-image-input"]')
+    Object.defineProperty(fileInput.element, 'files', {
+      value: [file],
+      configurable: true,
+    })
+    await fileInput.trigger('change')
+    await flushPromises()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await flushPromises()
+
+    await wrapper.get('[data-testid="workbench-input"]').setValue('把背景换成雪山')
+    await wrapper.get('[data-testid="workbench-send"]').trigger('click')
+    await flushPromises()
+
+    expect(send).toHaveBeenCalledWith(1, expect.objectContaining({
+      mode: 'image',
+      endpoint: 'images_edits',
+      options: expect.objectContaining({
+        input_fidelity: 'high',
+        images: [
+          expect.objectContaining({
+            image_url: expect.stringMatching(/^data:image\/png;base64,/),
+          }),
+        ],
+      }),
+    }))
+    expect(wrapper.find('img[src="https://img.example/edit.png"]').exists()).toBe(true)
+  })
+
   it('uses the default image model when only chat models are listed', async () => {
     send.mockResolvedValue({
       user_message: { id: 10, role: 'user', content: '画一张图', status: 'success' },

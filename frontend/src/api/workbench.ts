@@ -2,7 +2,7 @@ import { apiClient } from './client'
 import type { PaginatedResponse } from '@/types'
 
 export type WorkbenchMode = 'chat' | 'image'
-export type WorkbenchEndpoint = 'chat_completions' | 'images_generations'
+export type WorkbenchEndpoint = 'chat_completions' | 'images_generations' | 'images_edits'
 export type WorkbenchRole = 'user' | 'assistant' | 'system'
 export type WorkbenchMessageStatus = 'pending' | 'success' | 'error'
 
