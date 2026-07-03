@@ -679,10 +679,31 @@ func TestHTTPWorkbenchGatewayClientGenerateImageForwardsPublicOrigin(t *testing.
 
 func TestHTTPWorkbenchGatewayClientGenerateImageWithInputImagesUsesEditsEndpoint(t *testing.T) {
 	var gotPath string
-	var got map[string]any
+	var gotContentType string
+	var gotFields map[string]string
+	var gotImage []byte
+	var gotImageFilename string
 	httpClient := &http.Client{Transport: workbenchRoundTripFunc(func(r *http.Request) (*http.Response, error) {
 		gotPath = r.URL.Path
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&got))
+		gotContentType = r.Header.Get("Content-Type")
+		gotFields = map[string]string{}
+		reader, err := r.MultipartReader()
+		require.NoError(t, err)
+		for {
+			part, err := reader.NextPart()
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			require.NoError(t, err)
+			body, err := io.ReadAll(part)
+			require.NoError(t, err)
+			if part.FormName() == "image" {
+				gotImage = body
+				gotImageFilename = part.FileName()
+				continue
+			}
+			gotFields[part.FormName()] = string(body)
+		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -697,14 +718,22 @@ func TestHTTPWorkbenchGatewayClientGenerateImageWithInputImagesUsesEditsEndpoint
 		Model:    "gpt-image-2",
 		Prompt:   "replace background",
 		Options: map[string]any{
-			"images": []any{map[string]any{"image_url": "data:image/png;base64,ZmFrZQ=="}},
+			"images":         []any{map[string]any{"image_url": "data:image/png;base64,ZmFrZQ=="}},
+			"input_fidelity": "high",
+			"size":           "1536x1024",
 		},
 	})
 
 	require.NoError(t, err)
 	require.Equal(t, "/v1/images/edits", gotPath)
-	require.Equal(t, "replace background", got["prompt"])
-	require.NotEmpty(t, got["images"])
+	require.Contains(t, gotContentType, "multipart/form-data")
+	require.Equal(t, "gpt-image-2", gotFields["model"])
+	require.Equal(t, "replace background", gotFields["prompt"])
+	require.Equal(t, "high", gotFields["input_fidelity"])
+	require.Equal(t, "1536x1024", gotFields["size"])
+	require.NotContains(t, gotFields, "images")
+	require.Equal(t, []byte("fake"), gotImage)
+	require.Equal(t, "reference-1.png", gotImageFilename)
 }
 
 func TestNewHTTPWorkbenchGatewayClientUsesLongTimeoutForAsyncImages(t *testing.T) {
