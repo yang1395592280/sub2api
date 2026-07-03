@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -362,15 +363,66 @@ func (s *Sub2APICheckinService) postCheckin(ctx context.Context, targetURL, auth
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("upstream returned %d", resp.StatusCode)
-	}
-
 	var body bytes.Buffer
 	if _, err := body.ReadFrom(resp.Body); err != nil {
 		return nil, err
 	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("%s", formatSub2APICheckinHTTPError(resp.StatusCode, body.Bytes()))
+	}
+
 	return body.Bytes(), nil
+}
+
+func formatSub2APICheckinHTTPError(statusCode int, body []byte) string {
+	base := fmt.Sprintf("upstream returned %d", statusCode)
+	text := strings.TrimSpace(string(body))
+	if text == "" {
+		return base
+	}
+
+	var payload map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payload); err == nil {
+		parts := make([]string, 0, 4)
+		if message := strings.TrimSpace(getString(payload, "message")); message != "" {
+			parts = append(parts, message)
+		}
+		if reason := strings.TrimSpace(getString(payload, "reason")); reason != "" {
+			parts = append(parts, reason)
+		}
+		if metadata, _ := payload["metadata"].(map[string]any); len(metadata) > 0 {
+			keys := make([]string, 0, len(metadata))
+			for key := range metadata {
+				keys = append(keys, key)
+			}
+			sort.Strings(keys)
+			for _, key := range keys {
+				parts = append(parts, fmt.Sprintf("%s=%s", key, sub2APICheckinErrorValue(metadata[key])))
+			}
+		}
+		if len(parts) > 0 {
+			return base + ": " + strings.Join(parts, "; ")
+		}
+	}
+
+	return base + ": " + truncate(text, sub2APICheckinErrorMaxText)
+}
+
+func sub2APICheckinErrorValue(value any) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return v
+	case json.Number:
+		return v.String()
+	case fmt.Stringer:
+		return v.String()
+	default:
+		return fmt.Sprint(v)
+	}
 }
 
 func (s *Sub2APICheckinService) authResolver() *OpenAIUpstreamBalanceService {

@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -93,6 +95,12 @@ func cloneAnyMap(in map[string]any) map[string]any {
 		out[k] = v
 	}
 	return out
+}
+
+type sub2APICheckinRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f sub2APICheckinRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func TestSub2APICheckinServiceScheduleWithinWindow(t *testing.T) {
@@ -258,6 +266,49 @@ func TestSub2APICheckinServiceRetryCountResetsPerDay(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, nextRun.Before(now.Add(10*time.Minute)))
 	require.True(t, nextRun.Before(now.Add(30*time.Minute+time.Second)))
+}
+
+func TestSub2APICheckinServiceIncludesUpstreamCheckinErrorBody(t *testing.T) {
+	loc := time.FixedZone("CST", 8*3600)
+	repo := &sub2APICheckinRepoStub{
+		account: &Account{
+			ID:       55,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url":                    "https://ai.clol.site/v1",
+				"api_key":                     "sk-upstream",
+				"upstream_admin_type":         "sub2api",
+				"upstream_admin_access_token": "admin-token",
+				"upstream_checkin_url":        "/api/v1/user/checkin",
+			},
+		},
+	}
+	svc := NewSub2APICheckinService(repo, nil, loc)
+	svc.client = &http.Client{Transport: sub2APICheckinRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "https://ai.clol.site/api/v1/user/checkin", r.URL.String())
+		require.Equal(t, "Bearer admin-token", r.Header.Get("Authorization"))
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"code":400,"message":"daily usage is less than required","reason":"DAILY_CHECKIN_USAGE_NOT_ENOUGH","metadata":{"required_usage_usd":"5.00","today_usage_usd":"4.7862"}}`)),
+		}, nil
+	})}
+	svc.clock = func() time.Time {
+		return time.Date(2026, 7, 3, 9, 51, 24, 0, loc)
+	}
+
+	_, err := svc.RefreshNow(context.Background(), 55)
+
+	require.NoError(t, err)
+	require.Equal(t, Sub2APICheckinStatusError, repo.updatedExtra["upstream_checkin_status"])
+	checkinError := repo.updatedExtra["upstream_checkin_error"].(string)
+	require.Contains(t, checkinError, "upstream returned 400")
+	require.Contains(t, checkinError, "daily usage is less than required")
+	require.Contains(t, checkinError, "DAILY_CHECKIN_USAGE_NOT_ENOUGH")
+	require.Contains(t, checkinError, "required_usage_usd=5.00")
+	require.Contains(t, checkinError, "today_usage_usd=4.7862")
 }
 
 func TestSub2APICheckinServiceReconcileWaitsForPlannedRetryAfterWindow(t *testing.T) {
