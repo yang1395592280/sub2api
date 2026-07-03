@@ -92,10 +92,18 @@
         </template>
 
         <template #cell-group="{ row }">
-          <span v-if="row.group" class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
-            {{ row.group.name }}
-          </span>
-          <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span v-if="row.group" class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+              {{ row.group.name }}
+            </span>
+            <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
+            <span
+              v-if="isOpenAIAutoCheapestUsage(row)"
+              class="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/30"
+            >
+              {{ t('keys.openaiAutoCheapest.shortLabel') }}
+            </span>
+          </div>
         </template>
 
         <template #cell-stream="{ row }">
@@ -476,6 +484,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import IpGeoCell from '@/components/common/IpGeoCell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { fetchBatch, getEntry } from '@/utils/ipGeoLookup'
+import { OPENAI_AUTO_CHEAPEST_GROUP_VALUE } from '@/views/user/keyGroupOptions'
 import type { AdminUsageLog } from '@/types'
 import type { Column } from '@/components/common/types'
 
@@ -521,6 +530,9 @@ const pendingIpCount = computed(() => {
     return status === 'idle' || status === 'error'
   }).length
 })
+
+const isOpenAIAutoCheapestUsage = (row: AdminUsageLog) =>
+  row.api_key?.group_select_mode === OPENAI_AUTO_CHEAPEST_GROUP_VALUE
 
 const handleBatchFetchIpGeo = async () => {
   ipGeoBatchLoading.value = true

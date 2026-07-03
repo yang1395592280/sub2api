@@ -173,6 +173,7 @@ import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import type { SimpleApiKey, SimpleUser } from '@/api/admin/usage'
+import { OPENAI_AUTO_CHEAPEST_GROUP_VALUE } from '@/views/user/keyGroupOptions'
 
 type ModelValue = Record<string, any>
 
@@ -182,11 +183,13 @@ interface Props {
   startDate: string
   endDate: string
   showActions?: boolean
+  showAutoCheapestGroup?: boolean
   modelOptions?: string[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  showActions: true
+  showActions: true,
+  showAutoCheapestGroup: true
 })
 const emit = defineEmits([
   'update:modelValue',
@@ -227,7 +230,11 @@ const modelOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('admin.usage.allModels') },
   ...(props.modelOptions ?? []).map((m) => ({ value: m, label: m })),
 ])
-const groupOptions = ref<SelectOption[]>([{ value: null, label: t('admin.usage.allGroups') }])
+const initialGroupOptions: SelectOption[] = [{ value: null, label: t('admin.usage.allGroups') }]
+if (props.showAutoCheapestGroup) {
+  initialGroupOptions.push({ value: OPENAI_AUTO_CHEAPEST_GROUP_VALUE, label: t('keys.openaiAutoCheapest.shortLabel') })
+}
+const groupOptions = ref<SelectOption[]>(initialGroupOptions)
 
 const requestTypeOptions = ref<SelectOption[]>([
   { value: null, label: t('admin.usage.allTypes') },

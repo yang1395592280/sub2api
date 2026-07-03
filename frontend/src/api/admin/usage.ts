@@ -4,7 +4,7 @@
  */
 
 import { apiClient } from '../client'
-import type { AdminUsageLog, UsageQueryParams, PaginatedResponse, UsageRequestType } from '@/types'
+import type { AdminUsageLog, UsageQueryParams, PaginatedResponse, UsageRequestType, ApiKeyGroupSelectMode } from '@/types'
 import type { EndpointStat } from '@/types'
 
 // ==================== Types ====================
@@ -116,6 +116,7 @@ export async function getStats(params: {
   api_key_id?: number
   account_id?: number
   group_id?: number
+  api_key_group_select_mode?: ApiKeyGroupSelectMode
   model?: string
   request_type?: UsageRequestType
   stream?: boolean

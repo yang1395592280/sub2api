@@ -500,6 +500,31 @@ func TestUsageLogRepositoryListWithFiltersRequestedModelSource(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestUsageLogRepositoryListWithFiltersAPIKeyGroupSelectMode(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	filters := usagestats.UsageLogFilters{
+		APIKeyGroupSelectMode: service.APIKeyGroupSelectModeOpenAIAutoCheapest,
+		ExactTotal:            true,
+	}
+
+	modeCondition := "EXISTS \\(SELECT 1 FROM api_keys ak WHERE ak.id = usage_logs.api_key_id AND ak.group_select_mode = \\$1\\)"
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM usage_logs WHERE " + modeCondition).
+		WithArgs(service.APIKeyGroupSelectModeOpenAIAutoCheapest).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(0)))
+	mock.ExpectQuery("SELECT .* FROM usage_logs WHERE "+modeCondition+" ORDER BY id DESC LIMIT \\$2 OFFSET \\$3").
+		WithArgs(service.APIKeyGroupSelectModeOpenAIAutoCheapest, 20, 0).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	logs, page, err := repo.ListWithFilters(context.Background(), pagination.PaginationParams{Page: 1, PageSize: 20}, filters)
+	require.NoError(t, err)
+	require.Empty(t, logs)
+	require.NotNil(t, page)
+	require.Equal(t, int64(0), page.Total)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestUsageLogRepositoryGetUsageTrendWithFiltersRequestTypePriority(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := &usageLogRepository{sql: db}

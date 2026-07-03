@@ -30,6 +30,7 @@ const messages: Record<string, string> = {
   'admin.usage.billingModeImage': 'Image',
   'admin.usage.group': 'Group',
   'admin.usage.allGroups': 'All Groups',
+  'keys.openaiAutoCheapest.shortLabel': 'Auto cheapest',
   'common.refresh': 'Refresh',
   'common.reset': 'Reset',
   'admin.usage.cleanup.button': 'Cleanup',
@@ -191,5 +192,27 @@ describe('UsageFilters — model options come from prop (no dup request)', () =>
 
     const opts = (wrapper.vm as any).modelOptions as Array<{ value: string | null; label: string }>
     expect(opts.map((o) => o.value)).toEqual([null, 'claude-3', 'gpt-4o'])
+  })
+})
+
+describe('UsageFilters — group options', () => {
+  beforeEach(() => {
+    mockGroupsList.mockReset()
+  })
+
+  it('adds the OpenAI auto cheapest option before concrete groups', async () => {
+    mockGroupsList.mockResolvedValue({
+      items: [
+        { id: 10, name: '0.1 group' },
+        { id: 15, name: '0.15 group' },
+      ],
+    })
+
+    const wrapper = mountFilters()
+    await flushPromises()
+
+    const options = (wrapper.vm as any).groupOptions as Array<{ value: string | number | null; label: string }>
+    expect(options.map((o) => o.value)).toEqual([null, 'openai_auto_cheapest', 10, 15])
+    expect(options[1].label).toBe('Auto cheapest')
   })
 })

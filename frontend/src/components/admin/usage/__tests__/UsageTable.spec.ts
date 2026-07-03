@@ -51,6 +51,7 @@ const messages: Record<string, string> = {
   'admin.usage.billingModeToken': 'Token',
   'admin.usage.billingModePerRequest': 'Per request',
   'admin.usage.billingModeImage': 'Image',
+  'keys.openaiAutoCheapest.shortLabel': 'Auto cheapest',
 }
 
 vi.mock('vue-i18n', async () => {
@@ -69,6 +70,7 @@ const DataTableStub = {
     <div>
       <div v-for="row in data" :key="row.request_id">
         <slot name="cell-model" :row="row" :value="row.model" />
+        <slot name="cell-group" :row="row" />
         <slot name="cell-billing_mode" :row="row" />
         <slot name="cell-tokens" :row="row" />
         <slot name="cell-cost" :row="row" />
@@ -118,6 +120,40 @@ describe('admin UsageTable tooltip', () => {
       height: 20,
       toJSON: () => ({}),
     } as DOMRect)
+  })
+
+  it('marks group cells for rows produced by OpenAI auto cheapest API keys', () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [{
+          request_id: 'req-auto-cheapest-1',
+          model: 'gpt-5.5',
+          group: { id: 10, name: '0.1 group' },
+          api_key: { id: 7, name: 'auto key', group_select_mode: 'openai_auto_cheapest' },
+          actual_cost: 0,
+          total_cost: 0,
+          input_cost: 0,
+          output_cost: 0,
+          cache_creation_cost: 0,
+          cache_read_cost: 0,
+          input_tokens: 0,
+          output_tokens: 0,
+        }],
+        loading: false,
+        columns: [],
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('0.1 group')
+    expect(wrapper.text()).toContain('Auto cheapest')
   })
 
   it('shows service tier and billing breakdown in cost tooltip', async () => {
