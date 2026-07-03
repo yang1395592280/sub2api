@@ -31,6 +31,7 @@ describe('openai auto scheduler admin api', () => {
   it('loads and updates settings through the scheduler settings endpoint', async () => {
     const settings: OpenAIAutoSchedulerSettings = {
       enabled: true,
+      probe_model: 'gpt-5.4',
       probe_interval_seconds: 60,
       slow_threshold_ms: 10000,
       severe_slow_threshold_ms: 20000,

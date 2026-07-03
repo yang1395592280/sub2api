@@ -3,7 +3,7 @@
     <div data-testid="scheduler-page" class="flex min-h-[calc(100vh-8rem)] flex-col gap-4">
       <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             <div class="scheduler-stat">
               <span class="scheduler-stat-label">全局调度</span>
               <div class="flex items-center gap-2">
@@ -17,6 +17,10 @@
             <div class="scheduler-stat">
               <span class="scheduler-stat-label">探测间隔</span>
               <span class="scheduler-stat-value">{{ formatSeconds(settings?.probe_interval_seconds) }}</span>
+            </div>
+            <div class="scheduler-stat">
+              <span class="scheduler-stat-label">检测模型</span>
+              <span class="scheduler-stat-value">{{ configuredProbeModel }}</span>
             </div>
             <div class="scheduler-stat">
               <span class="scheduler-stat-label">慢响应阈值</span>
@@ -61,6 +65,10 @@
           </div>
 
           <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <div>
+              <label class="input-label" for="scheduler-settings-probe-model">检测模型</label>
+              <input id="scheduler-settings-probe-model" v-model.trim="settingsForm.probe_model" class="input" />
+            </div>
             <div>
               <label class="input-label" for="scheduler-settings-probe-interval">探测间隔（秒）</label>
               <input id="scheduler-settings-probe-interval" v-model.number="settingsForm.probe_interval_seconds" type="number" min="1" class="input" />
@@ -141,7 +149,7 @@
                 <div class="min-w-0">
                   <div class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ group.name }}</div>
                   <div class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-                    {{ group.enabled ? '参与自动调度' : '不参与自动调度' }} · 默认模型 {{ filters.model || 'gpt-5.4' }}
+                    {{ group.enabled ? '参与自动调度' : '不参与自动调度' }} · 检测模型 {{ configuredProbeModel }}
                   </div>
                 </div>
                 <Toggle
@@ -402,15 +410,16 @@ const selectedScore = ref<OpenAIAutoSchedulerScore | null>(null)
 const scoreEvents = ref<OpenAIAutoSchedulerEvent[]>([])
 const drawerLoading = ref(false)
 const pagination = reactive({ page: 1, page_size: getPersistedPageSize(), total: 0 })
-const schedulerModelOptions = ['gpt-5.4', 'gpt-5.5']
+const defaultOpenAIAutoSchedulerProbeModel = 'gpt-5.4'
 const filters = reactive<OpenAIAutoSchedulerListParams>({
   group_id: 0,
-  model: schedulerModelOptions[0],
+  model: defaultOpenAIAutoSchedulerProbeModel,
   state: '',
   search: '',
 })
 const settingsForm = reactive({
   enabled: false,
+  probe_model: defaultOpenAIAutoSchedulerProbeModel,
   probe_interval_seconds: 60,
   slow_threshold_ms: 10000,
   severe_slow_threshold_ms: 20000,
@@ -429,6 +438,11 @@ const localFilterPageSize = 200
 
 const selectedGroup = computed(() => groups.value.find((group) => group.id === selectedGroupId.value) || null)
 const hasLocalOnlyFilters = computed(() => Boolean(filters.state || String(filters.search || '').trim()))
+const configuredProbeModel = computed(() => settings.value?.probe_model?.trim() || defaultOpenAIAutoSchedulerProbeModel)
+const schedulerModelOptions = computed(() => {
+  const models = [configuredProbeModel.value, defaultOpenAIAutoSchedulerProbeModel, 'gpt-5.5']
+  return [...new Set(models.map((model) => model.trim()).filter(Boolean))]
+})
 
 const locallyFilteredScores = computed(() => filterScoresLocally(scores.value))
 
@@ -469,6 +483,9 @@ async function loadSettingsAndGroups() {
   }
   if (!filters.group_id || !nextGroups.some((group) => group.id === filters.group_id)) {
     filters.group_id = firstGroupId
+  }
+  if (!filters.model || filters.model === defaultOpenAIAutoSchedulerProbeModel) {
+    filters.model = configuredProbeModel.value
   }
 }
 
@@ -560,6 +577,7 @@ function openSettingsEditor() {
 
 function syncSettingsForm(nextSettings: OpenAIAutoSchedulerSettings) {
   settingsForm.enabled = nextSettings.enabled
+  settingsForm.probe_model = nextSettings.probe_model || defaultOpenAIAutoSchedulerProbeModel
   settingsForm.probe_interval_seconds = nextSettings.probe_interval_seconds
   settingsForm.slow_threshold_ms = nextSettings.slow_threshold_ms
   settingsForm.severe_slow_threshold_ms = nextSettings.severe_slow_threshold_ms
@@ -577,6 +595,7 @@ async function saveSettings() {
   try {
     const payload: OpenAIAutoSchedulerSettings = {
       enabled: settingsForm.enabled,
+      probe_model: String(settingsForm.probe_model || '').trim() || defaultOpenAIAutoSchedulerProbeModel,
       probe_interval_seconds: Number(settingsForm.probe_interval_seconds),
       slow_threshold_ms: Number(settingsForm.slow_threshold_ms),
       severe_slow_threshold_ms: Number(settingsForm.severe_slow_threshold_ms),
@@ -589,6 +608,7 @@ async function saveSettings() {
     }
     settings.value = await adminAPI.openaiAutoScheduler.updateSettings(payload)
     syncSettingsForm(settings.value)
+    filters.model = configuredProbeModel.value
     editingSettings.value = false
     appStore.showSuccess('调度配置已更新')
   } catch (err: unknown) {
