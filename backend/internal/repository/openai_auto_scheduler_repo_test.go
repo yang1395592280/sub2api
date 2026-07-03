@@ -158,8 +158,32 @@ func TestOpenAIAutoSchedulerRepository_HasOpenCircuitScoreStateIgnoresExpiredCoo
 	state.CooldownUntil = &expiredCooldown
 	require.NoError(t, repo.UpsertScoreState(ctx, state))
 
-	blocked, err := repo.HasOpenCircuitScoreState(ctx, 19001, 82)
+	blocked, err := repo.HasOpenCircuitScoreState(ctx, 19001, 82, []string{"gpt-5.4", "gpt-5.5"})
 
+	require.NoError(t, err)
+	require.False(t, blocked)
+}
+
+func TestOpenAIAutoSchedulerRepository_HasOpenCircuitScoreStateOnlyChecksRequestedModels(t *testing.T) {
+	ctx := context.Background()
+	repo, _ := newOpenAIAutoSchedulerRepoSQLite(t)
+	futureCooldown := time.Now().Add(8 * time.Minute)
+
+	miniState := service.NewOpenAIAutoSchedulerScoreState(19002, 82, "gpt-5.4-mini")
+	miniState.State = service.OpenAIAutoSchedulerStateOpen
+	miniState.CooldownUntil = &futureCooldown
+	require.NoError(t, repo.UpsertScoreState(ctx, miniState))
+
+	blocked, err := repo.HasOpenCircuitScoreState(ctx, 19002, 82, []string{"gpt-5.4", "gpt-5.5"})
+	require.NoError(t, err)
+	require.False(t, blocked)
+
+	primaryState := service.NewOpenAIAutoSchedulerScoreState(19002, 82, "gpt-5.5")
+	primaryState.State = service.OpenAIAutoSchedulerStateOpen
+	primaryState.CooldownUntil = &futureCooldown
+	require.NoError(t, repo.UpsertScoreState(ctx, primaryState))
+
+	blocked, err = repo.HasOpenCircuitScoreState(ctx, 19002, 82, []string{"gpt-5.4", "gpt-5.5"})
 	require.NoError(t, err)
 	require.True(t, blocked)
 }

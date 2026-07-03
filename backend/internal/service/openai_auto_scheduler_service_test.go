@@ -60,15 +60,27 @@ func (r *fakeOpenAIAutoSchedulerRepo) GetScoreState(ctx context.Context, account
 	return &state, nil
 }
 
-func (r *fakeOpenAIAutoSchedulerRepo) HasOpenCircuitScoreState(ctx context.Context, accountID, groupID int64) (bool, error) {
+func (r *fakeOpenAIAutoSchedulerRepo) HasOpenCircuitScoreState(ctx context.Context, accountID, groupID int64, models []string) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.err != nil {
 		return false, r.err
 	}
+	allowedModels := make(map[string]struct{}, len(models))
+	for _, model := range models {
+		model = strings.TrimSpace(model)
+		if model != "" {
+			allowedModels[model] = struct{}{}
+		}
+	}
 	for _, state := range r.states {
 		if state.AccountID != accountID || state.GroupID != groupID {
 			continue
+		}
+		if len(allowedModels) > 0 {
+			if _, ok := allowedModels[state.Model]; !ok {
+				continue
+			}
 		}
 		if state.State == OpenAIAutoSchedulerStateOpen {
 			return true, nil
