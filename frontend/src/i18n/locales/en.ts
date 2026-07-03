@@ -3455,6 +3455,7 @@ export default {
         weight: 'Weight',
         status: 'Status',
         schedulable: 'Schedulable',
+        openaiAutoScheduler: 'Auto Scheduler',
         todayStats: 'Today Stats',
         groups: 'Groups',
         upstreamGroup: 'Upstream Group',

@@ -272,6 +272,20 @@
               <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="[row.schedulable ? 'translate-x-4' : 'translate-x-0']" />
             </button>
           </template>
+          <template #cell-openai_auto_scheduler="{ row }">
+            <div v-if="row.openai_auto_scheduler" class="flex min-w-[9rem] flex-col gap-1">
+              <span :class="openAIAutoSchedulerStateClass(row.openai_auto_scheduler.state)">
+                {{ openAIAutoSchedulerStateLabel(row.openai_auto_scheduler.state) }}
+              </span>
+              <span class="text-xs text-gray-600 dark:text-gray-300">
+                #{{ row.openai_auto_scheduler.speed_priority || '-' }} · {{ formatOpenAIAutoSchedulerSpeed(row.openai_auto_scheduler.speed_ms) }}
+              </span>
+              <span class="text-xs text-gray-500 dark:text-dark-400">
+                {{ row.openai_auto_scheduler.probe_model }}
+              </span>
+            </div>
+            <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
+          </template>
           <template #cell-today_stats="{ row }">
             <AccountTodayStatsCell
               :stats="todayStatsByAccountId[String(row.id)] ?? null"
@@ -1223,6 +1237,37 @@ function supportsUpstreamBalanceRefresh(account: Account): boolean {
   return account.type === 'apikey' && (account.platform === 'openai' || account.platform === 'anthropic')
 }
 
+function openAIAutoSchedulerStateLabel(state: string): string {
+  const labels: Record<string, string> = {
+    running: '正常',
+    observing: '观察中',
+    open: '熔断中',
+    half_open: '半开探测'
+  }
+  return labels[state] || state || '-'
+}
+
+function openAIAutoSchedulerStateClass(state: string): string {
+  const base = 'inline-flex w-fit rounded px-2 py-0.5 text-xs font-medium'
+  switch (state) {
+    case 'running':
+      return `${base} bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300`
+    case 'observing':
+      return `${base} bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300`
+    case 'open':
+      return `${base} bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300`
+    case 'half_open':
+      return `${base} bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300`
+    default:
+      return `${base} bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-dark-300`
+  }
+}
+
+function formatOpenAIAutoSchedulerSpeed(value?: number | null): string {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return '-'
+  return `${Math.round(value)}ms`
+}
+
 // All available columns
 const allColumns = computed(() => {
   const c = [
@@ -1233,6 +1278,7 @@ const allColumns = computed(() => {
     { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
     { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
     { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },
+    { key: 'openai_auto_scheduler', label: t('admin.accounts.columns.openaiAutoScheduler'), sortable: false },
     { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false }
   ]
   if (!authStore.isSimpleMode) {
