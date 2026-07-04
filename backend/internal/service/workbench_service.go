@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -362,6 +363,9 @@ func (s *WorkbenchService) completeImageMessage(apiKeySecret, input, model strin
 		PublicHost:   strings.TrimSpace(publicHost),
 		PublicScheme: strings.TrimSpace(publicScheme),
 	})
+	if sendErr == nil && len(resp.Images) == 0 {
+		sendErr = fmt.Errorf("未返回图片")
+	}
 
 	completed := WorkbenchMessageUpdate{
 		UserID:           assistantMessage.UserID,
@@ -548,15 +552,18 @@ func sanitizeWorkbenchError(message, secret string) string {
 	if message == "" {
 		return fallback
 	}
-	if strings.HasPrefix(message, "gateway returned ") {
-		fields := strings.Fields(message)
-		if len(fields) >= 3 {
-			return truncateWorkbenchText(strings.TrimSuffix(strings.Join(fields[:3], " "), ":"), workbenchErrorMessageMax)
-		}
-		return fallback
-	}
 	if secret != "" {
 		message = strings.ReplaceAll(message, secret, "[redacted]")
+	}
+	message = sanitizeWorkbenchGatewayErrorMessage(message)
+	if message == "" {
+		return fallback
+	}
+	if message == "未返回图片" {
+		return message
+	}
+	if strings.HasPrefix(message, "gateway returned ") {
+		return truncateWorkbenchText(message, workbenchErrorMessageMax)
 	}
 	return fallback
 }

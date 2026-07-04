@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import AdminWorkbenchView from '../AdminWorkbenchView.vue'
 
@@ -48,6 +48,10 @@ vi.mock('vue-i18n', async () => {
 const AppLayoutStub = { template: '<div><slot /></div>' }
 
 describe('AdminWorkbenchView', () => {
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     getStats.mockResolvedValue({
@@ -114,7 +118,62 @@ describe('AdminWorkbenchView', () => {
     await flushPromises()
 
     expect(getConversation).toHaveBeenCalledWith(2)
-    expect(wrapper.text()).toContain('done')
+    expect(document.body.textContent).toContain('done')
+  })
+
+  it('opens conversation detail inside a modal and closes it without removing the list', async () => {
+    getConversation.mockResolvedValueOnce({
+      conversation: { id: 2, title: 'image', mode: 'image', user_email: 'b@example.com' },
+      messages: [{ id: 20, role: 'assistant', content: 'done', status: 'success', image_outputs: [] }],
+    })
+    const wrapper = mount(AdminWorkbenchView, {
+      attachTo: document.body,
+      global: { stubs: { AppLayout: AppLayoutStub } },
+    })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="admin-workbench-open-2"]').trigger('click')
+    await flushPromises()
+
+    expect(getConversation).toHaveBeenCalledWith(2)
+    expect(document.body.querySelector('[data-testid="admin-workbench-detail-modal"]')?.textContent).toContain('done')
+    expect(wrapper.text()).toContain('a@example.com')
+
+    const close = document.body.querySelector('[data-testid="admin-workbench-detail-close"]') as HTMLButtonElement
+    close.click()
+    await wrapper.vm.$nextTick()
+
+    expect(document.body.querySelector('[data-testid="admin-workbench-detail-modal"]')).toBeNull()
+    wrapper.unmount()
+  })
+
+  it('opens a lightbox when an admin detail image is clicked', async () => {
+    getConversation.mockResolvedValueOnce({
+      conversation: { id: 2, title: 'image', mode: 'image', user_email: 'b@example.com' },
+      messages: [{
+        id: 20,
+        role: 'assistant',
+        content: 'done',
+        status: 'success',
+        image_outputs: [{ b64_json: 'ZmFrZQ==', mime_type: 'image/png' }],
+      }],
+    })
+    const wrapper = mount(AdminWorkbenchView, {
+      attachTo: document.body,
+      global: { stubs: { AppLayout: AppLayoutStub } },
+    })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="admin-workbench-open-2"]').trigger('click')
+    await flushPromises()
+
+    const thumbnail = document.body.querySelector('[data-testid="admin-workbench-detail-image-20-0"]') as HTMLImageElement
+    thumbnail.click()
+    await wrapper.vm.$nextTick()
+
+    const lightbox = document.body.querySelector('[data-testid="admin-workbench-image-lightbox"]')
+    expect(lightbox?.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,ZmFrZQ==')
+    wrapper.unmount()
   })
 
   it('deletes selected conversations and cleans expired records', async () => {

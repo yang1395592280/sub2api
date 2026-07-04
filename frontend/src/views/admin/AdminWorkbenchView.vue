@@ -134,38 +134,99 @@
         </div>
       </div>
 
-      <div v-if="detail" class="card p-4">
-        <div class="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ detail.conversation.title || t('workbench.untitled') }}</h2>
-            <p class="mt-1 text-sm text-gray-500">{{ detail.conversation.user_email || `#${detail.conversation.user_id}` }}</p>
-          </div>
-          <button type="button" class="btn btn-secondary px-3 py-1.5 text-xs" @click="detail = null">{{ t('common.close') }}</button>
-        </div>
-        <div class="space-y-3">
-          <div
-            v-for="message in detail.messages"
-            :key="message.id"
-            class="rounded-lg border border-gray-200 p-3 dark:border-dark-700"
-          >
-            <div class="mb-2 flex items-center gap-2 text-xs text-gray-500">
-              <span class="font-semibold uppercase">{{ message.role }}</span>
-              <span>{{ message.status }}</span>
-              <span>{{ message.model }}</span>
+      <Teleport to="body">
+        <div
+          v-if="detailOpen"
+          class="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4"
+          data-testid="admin-workbench-detail-modal"
+          @click.self="closeDetail"
+        >
+          <div class="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-dark-900">
+            <div class="flex items-start justify-between gap-3 border-b border-gray-200 px-5 py-4 dark:border-dark-700">
+              <div class="min-w-0">
+                <h2 class="truncate text-base font-semibold text-gray-900 dark:text-white">
+                  {{ detail?.conversation.title || t('workbench.untitled') }}
+                </h2>
+                <p class="mt-1 text-sm text-gray-500">
+                  {{ detail?.conversation.user_email || (detail ? `#${detail.conversation.user_id}` : '') }}
+                </p>
+              </div>
+              <button
+                type="button"
+                class="btn btn-secondary px-3 py-1.5 text-xs"
+                data-testid="admin-workbench-detail-close"
+                @click="closeDetail"
+              >
+                {{ t('common.close') }}
+              </button>
             </div>
-            <p class="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">{{ message.content || message.error_message || '-' }}</p>
-            <div v-if="message.image_outputs?.length" class="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
-              <img
-                v-for="(image, index) in message.image_outputs"
-                :key="index"
-                class="aspect-square rounded-lg border border-gray-200 object-cover dark:border-dark-700"
-                :src="image.url || `data:${image.mime_type || 'image/png'};base64,${image.b64_json}`"
-                :alt="`image-${index + 1}`"
-              />
+
+            <div class="min-h-0 flex-1 overflow-y-auto p-5">
+              <div v-if="detailLoading" class="px-4 py-8 text-center text-sm text-gray-500">
+                {{ t('common.loading') }}
+              </div>
+              <div v-else-if="detail" class="space-y-3">
+                <div
+                  v-for="message in detail.messages"
+                  :key="message.id"
+                  class="rounded-lg border border-gray-200 p-3 dark:border-dark-700"
+                >
+                  <div class="mb-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                    <span class="font-semibold uppercase">{{ message.role }}</span>
+                    <span>{{ message.status }}</span>
+                    <span>{{ message.model }}</span>
+                  </div>
+                  <p class="whitespace-pre-wrap break-words text-sm text-gray-800 dark:text-gray-200">{{ message.content || message.error_message || '-' }}</p>
+                  <div v-if="message.image_outputs?.length" class="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+                    <button
+                      v-for="(image, index) in message.image_outputs"
+                      :key="index"
+                      type="button"
+                      class="group overflow-hidden rounded-lg border border-gray-200 bg-gray-100 text-left dark:border-dark-700 dark:bg-dark-800"
+                      @click="openLightbox(imageURL(image))"
+                    >
+                      <img
+                        class="aspect-square w-full cursor-zoom-in object-cover transition-transform duration-200 group-hover:scale-105"
+                        :src="imageURL(image)"
+                        :alt="`image-${index + 1}`"
+                        :data-testid="`admin-workbench-detail-image-${message.id}-${index}`"
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="px-4 py-8 text-center text-sm text-gray-500">
+                {{ t('common.noData') }}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </Teleport>
+
+      <Teleport to="body">
+        <div
+          v-if="lightboxImage"
+          class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          data-testid="admin-workbench-image-lightbox"
+          @click="closeLightbox"
+        >
+          <div class="relative max-h-full max-w-full">
+            <img
+              :src="lightboxImage"
+              alt="preview"
+              class="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
+              @click.stop
+            />
+            <button
+              type="button"
+              class="absolute -right-3 -top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg transition hover:bg-gray-100"
+              @click="closeLightbox"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      </Teleport>
     </div>
   </AppLayout>
 </template>
@@ -176,7 +237,7 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import { adminAPI } from '@/api/admin'
 import type { AdminWorkbenchConversation, AdminWorkbenchConversationDetail } from '@/api/admin/workbench'
-import type { WorkbenchMode } from '@/api/workbench'
+import type { WorkbenchImageOutput, WorkbenchMode } from '@/api/workbench'
 import { useAppStore } from '@/stores/app'
 
 type StatusFilter = '' | 'pending' | 'success' | 'error'
@@ -196,6 +257,9 @@ const stats = ref({
 })
 const conversations = ref<AdminWorkbenchConversation[]>([])
 const detail = ref<AdminWorkbenchConversationDetail | null>(null)
+const detailOpen = ref(false)
+const detailLoading = ref(false)
+const lightboxImage = ref('')
 const selectedIds = ref<number[]>([])
 
 const filters = reactive<{
@@ -234,6 +298,30 @@ function formatDateTime(value?: string): string {
   return new Date(value).toLocaleString()
 }
 
+function imageURL(image: WorkbenchImageOutput): string {
+  if (image.url) return image.url
+  if (image.b64_json) {
+    return `data:${image.mime_type || 'image/png'};base64,${image.b64_json}`
+  }
+  return ''
+}
+
+function openLightbox(url: string): void {
+  if (url) {
+    lightboxImage.value = url
+  }
+}
+
+function closeLightbox(): void {
+  lightboxImage.value = ''
+}
+
+function closeDetail(): void {
+  detailOpen.value = false
+  detail.value = null
+  detailLoading.value = false
+}
+
 function listParams() {
   return {
     page: 1,
@@ -257,14 +345,19 @@ async function loadConversations(): Promise<void> {
 
 async function reload(): Promise<void> {
   loading.value = true
+  const statsPromise = loadStats().catch((error) => {
+    console.error(error)
+    appStore.showError(t('admin.workbench.loadFailed'))
+  })
   try {
-    await Promise.all([loadStats(), loadConversations()])
+    await loadConversations()
   } catch (error) {
     console.error(error)
     appStore.showError(t('admin.workbench.loadFailed'))
   } finally {
     loading.value = false
   }
+  await statsPromise
 }
 
 function resetFilters(): void {
@@ -284,11 +377,16 @@ function toggleCurrentPage(event: Event): void {
 }
 
 async function openDetail(conversationId: number): Promise<void> {
+  detailOpen.value = true
+  detail.value = null
+  detailLoading.value = true
   try {
     detail.value = await adminAPI.workbench.getConversation(conversationId)
   } catch (error) {
     console.error(error)
     appStore.showError(t('admin.workbench.detailLoadFailed'))
+  } finally {
+    detailLoading.value = false
   }
 }
 
@@ -297,7 +395,7 @@ async function deleteSelected(): Promise<void> {
   try {
     const result = await adminAPI.workbench.batchDeleteConversations(selectedIds.value)
     selectedIds.value = []
-    detail.value = null
+    closeDetail()
     await reload()
     appStore.showSuccess(t('admin.workbench.deleteSelectedSuccess', { count: result.deleted }))
   } catch (error) {
@@ -310,7 +408,7 @@ async function cleanupExpired(): Promise<void> {
   try {
     const result = await adminAPI.workbench.cleanupExpiredConversations(retentionDays)
     selectedIds.value = []
-    detail.value = null
+    closeDetail()
     await reload()
     appStore.showSuccess(t('admin.workbench.cleanupSuccess', { count: result.deleted }))
   } catch (error) {

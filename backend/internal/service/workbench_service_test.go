@@ -280,8 +280,45 @@ func TestWorkbenchServiceSendImageAsyncFailureUpdatesPendingMessage(t *testing.T
 	require.Len(t, messages, 2)
 	require.Equal(t, WorkbenchMessageStatusError, messages[1].Status)
 	require.NotNil(t, messages[1].ErrorMessage)
-	require.Equal(t, "gateway returned 502", *messages[1].ErrorMessage)
+	require.Equal(t, "gateway returned 502: provider failure secret [redacted]", *messages[1].ErrorMessage)
 	require.NotContains(t, *messages[1].ErrorMessage, "sk-test")
+}
+
+func TestWorkbenchServiceSendImageAsyncEmptyResponseMarksMessageError(t *testing.T) {
+	ctx := context.Background()
+	repo := newWorkbenchMemoryRepo()
+	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
+		7: {ID: 7, UserID: 42, Key: "sk-test", Status: StatusAPIKeyActive, Name: "main"},
+	}}
+	gateway := &workbenchGatewayStub{image: WorkbenchGatewayImageResponse{
+		Images:   nil,
+		Metadata: map[string]any{"image_count": float64(0)},
+	}}
+	svc := NewWorkbenchService(repo, apiKeys, gateway)
+	svc.asyncRunner = func(fn func()) { fn() }
+
+	conv, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{Mode: WorkbenchModeImage})
+	require.NoError(t, err)
+
+	_, err = svc.Send(ctx, 42, conv.ID, WorkbenchSendRequest{
+		Mode:     WorkbenchModeImage,
+		APIKeyID: 7,
+		Endpoint: WorkbenchEndpointImagesEdits,
+		Model:    "gpt-image-2",
+		Input:    "replace background",
+		Options: map[string]any{
+			"images": []any{map[string]any{"image_url": "data:image/png;base64,ZmFrZQ=="}},
+		},
+	})
+	require.NoError(t, err)
+
+	messages, err := repo.ListMessages(ctx, 42, conv.ID)
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, WorkbenchMessageStatusError, messages[1].Status)
+	require.NotNil(t, messages[1].ErrorMessage)
+	require.Equal(t, "未返回图片", *messages[1].ErrorMessage)
+	require.Empty(t, messages[1].ImageOutputs)
 }
 
 func TestWorkbenchServiceSendStoresErrorMessageWhenGatewayFails(t *testing.T) {
@@ -305,10 +342,9 @@ func TestWorkbenchServiceSendStoresErrorMessageWhenGatewayFails(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Equal(t, WorkbenchMessageStatusError, result.AssistantMessage.Status)
-	require.Equal(t, "gateway returned 502", *result.AssistantMessage.ErrorMessage)
+	require.Equal(t, "gateway returned 502: provider failure secret [redacted]", *result.AssistantMessage.ErrorMessage)
 	require.Len(t, repo.messages[conv.ID], 2)
 	require.NotContains(t, *result.AssistantMessage.ErrorMessage, "sk-test")
-	require.NotContains(t, *result.AssistantMessage.ErrorMessage, "provider failure")
 	require.NotContains(t, repo.messages[conv.ID][1].Content, "provider failure")
 }
 
@@ -755,10 +791,28 @@ func TestHTTPWorkbenchGatewayClientPostJSONDoesNotLeakRawBody(t *testing.T) {
 
 	err := client.postJSON(context.Background(), "/v1/chat/completions", "Bearer sk-test", map[string]any{"model": "gpt"}, &map[string]any{})
 
-	require.EqualError(t, err, "gateway returned 502")
+	require.EqualError(t, err, "gateway returned 502: provider exploded")
 	require.NotContains(t, err.Error(), "sk-secret")
-	require.NotContains(t, err.Error(), "provider exploded")
+	require.NotContains(t, err.Error(), `"secret"`)
+	require.NotContains(t, err.Error(), `"provider"`)
 	require.NotContains(t, err.Error(), "openai")
+}
+
+func TestHTTPWorkbenchGatewayClientPostJSONReturnsSanitizedUpstreamMessage(t *testing.T) {
+	httpClient := &http.Client{Transport: workbenchRoundTripFunc(func(_ *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"image is required for edits with key sk-secret"}}`)),
+		}, nil
+	})}
+
+	client := &HTTPWorkbenchGatewayClient{client: httpClient, baseURL: "https://workbench.local"}
+
+	err := client.postJSON(context.Background(), "/v1/images/edits", "Bearer sk-test", map[string]any{"model": "gpt-image-2"}, &map[string]any{})
+
+	require.EqualError(t, err, "gateway returned 400: image is required for edits with key [redacted]")
+	require.NotContains(t, err.Error(), "sk-secret")
 }
 
 type workbenchGatewayStub struct {

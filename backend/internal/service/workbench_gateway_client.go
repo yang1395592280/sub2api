@@ -10,12 +10,14 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/tidwall/gjson"
 )
 
 type HTTPWorkbenchGatewayClient struct {
@@ -34,6 +36,11 @@ type workbenchImageUpload struct {
 	ContentType string
 	FileName    string
 }
+
+var (
+	workbenchGatewaySecretPattern = regexp.MustCompile(`\bsk-[A-Za-z0-9_-]+\b`)
+	workbenchGatewayBearerPattern = regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._-]+\b`)
+)
 
 func NewHTTPWorkbenchGatewayClient(cfg *config.Config) WorkbenchGatewayClient {
 	host := "127.0.0.1"
@@ -371,8 +378,29 @@ func (c *HTTPWorkbenchGatewayClient) postBodyWithHeaders(ctx context.Context, pa
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		_, _ = io.ReadAll(io.LimitReader(resp.Body, 2048))
-		return fmt.Errorf("gateway returned %d", resp.StatusCode)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return workbenchGatewayError(resp.StatusCode, body)
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+func workbenchGatewayError(statusCode int, body []byte) error {
+	message := strings.TrimSpace(gjson.GetBytes(body, "error.message").String())
+	message = sanitizeWorkbenchGatewayErrorMessage(message)
+	if message == "" {
+		return fmt.Errorf("gateway returned %d", statusCode)
+	}
+	return fmt.Errorf("gateway returned %d: %s", statusCode, message)
+}
+
+func sanitizeWorkbenchGatewayErrorMessage(message string) string {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return ""
+	}
+	message = strings.ReplaceAll(message, "\n", " ")
+	message = strings.ReplaceAll(message, "\r", " ")
+	message = workbenchGatewaySecretPattern.ReplaceAllString(message, "[redacted]")
+	message = workbenchGatewayBearerPattern.ReplaceAllString(message, "Bearer [redacted]")
+	return truncateWorkbenchText(message, workbenchErrorMessageMax)
 }
