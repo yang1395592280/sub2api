@@ -57,6 +57,7 @@ func TestSettingService_OpenAIAutoSchedulerSettingsDefaultsAndNormalization(t *t
 	settings := svc.GetOpenAIAutoSchedulerSettings(context.Background())
 
 	require.True(t, settings.Enabled)
+	require.Equal(t, OpenAIAutoSchedulerDefaultProbeModel, settings.ProbeModel)
 	require.Equal(t, 60, settings.ProbeIntervalSeconds)
 	require.Equal(t, 10000, settings.SlowThresholdMS)
 	require.Equal(t, 10000, settings.SevereSlowThresholdMS)
@@ -74,6 +75,7 @@ func TestSettingService_SetOpenAIAutoSchedulerSettingsPersistsNormalizedJSON(t *
 
 	require.NoError(t, svc.SetOpenAIAutoSchedulerSettings(context.Background(), OpenAIAutoSchedulerSettings{
 		Enabled:                          true,
+		ProbeModel:                       "  gpt-5.5  ",
 		ProbeIntervalSeconds:             -10,
 		SlowThresholdMS:                  5000,
 		SevereSlowThresholdMS:            4000,
@@ -88,6 +90,7 @@ func TestSettingService_SetOpenAIAutoSchedulerSettingsPersistsNormalizedJSON(t *
 	var saved OpenAIAutoSchedulerSettings
 	require.NoError(t, json.Unmarshal([]byte(repo.values[SettingKeyOpenAIAutoSchedulerSettings]), &saved))
 	require.True(t, saved.Enabled)
+	require.Equal(t, "gpt-5.5", saved.ProbeModel)
 	require.Equal(t, 60, saved.ProbeIntervalSeconds)
 	require.Equal(t, 5000, saved.SlowThresholdMS)
 	require.Equal(t, 5000, saved.SevereSlowThresholdMS)

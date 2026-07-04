@@ -193,6 +193,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	openAIUpstreamBalanceService := service.ProvideOpenAIUpstreamBalanceService(accountRepository)
 	sub2APICheckinService := service.ProvideSub2APICheckinService(accountRepository, openAIUpstreamBalanceService)
 	accountHandler := admin.NewAccountHandler(adminService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, rateLimitService, accountUsageService, accountTestService, concurrencyService, crsSyncService, sessionLimitCache, rpmCache, compositeTokenCacheInvalidator, openAIUpstreamBalanceService, sub2APICheckinService)
+	accountHandler.SetOpenAIAutoSchedulerAccountSummaryService(openAIAutoSchedulerService)
 	adminAnnouncementHandler := admin.NewAnnouncementHandler(announcementService)
 	dataManagementService := service.NewDataManagementService()
 	dataManagementHandler := admin.NewDataManagementHandler(dataManagementService)

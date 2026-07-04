@@ -158,7 +158,11 @@ func TestOpenAIAutoSchedulerRepository_HasOpenCircuitScoreStateIgnoresExpiredCoo
 	state.CooldownUntil = &expiredCooldown
 	require.NoError(t, repo.UpsertScoreState(ctx, state))
 
-	blocked, err := repo.HasOpenCircuitScoreState(ctx, 19001, 82, []string{"gpt-5.4", "gpt-5.5"})
+	blocked, err := repo.HasOpenCircuitScoreState(ctx, 19001, 82, "gpt-5.5")
+	require.NoError(t, err)
+	require.False(t, blocked)
+
+	blocked, err = repo.HasOpenCircuitScoreState(ctx, 19001, 82, "gpt-5.4")
 
 	require.NoError(t, err)
 	require.False(t, blocked)
@@ -174,7 +178,7 @@ func TestOpenAIAutoSchedulerRepository_HasOpenCircuitScoreStateOnlyChecksRequest
 	miniState.CooldownUntil = &futureCooldown
 	require.NoError(t, repo.UpsertScoreState(ctx, miniState))
 
-	blocked, err := repo.HasOpenCircuitScoreState(ctx, 19002, 82, []string{"gpt-5.4", "gpt-5.5"})
+	blocked, err := repo.HasOpenCircuitScoreState(ctx, 19002, 82, "gpt-5.5")
 	require.NoError(t, err)
 	require.False(t, blocked)
 
@@ -183,7 +187,7 @@ func TestOpenAIAutoSchedulerRepository_HasOpenCircuitScoreStateOnlyChecksRequest
 	primaryState.CooldownUntil = &futureCooldown
 	require.NoError(t, repo.UpsertScoreState(ctx, primaryState))
 
-	blocked, err = repo.HasOpenCircuitScoreState(ctx, 19002, 82, []string{"gpt-5.4", "gpt-5.5"})
+	blocked, err = repo.HasOpenCircuitScoreState(ctx, 19002, 82, "gpt-5.5")
 	require.NoError(t, err)
 	require.True(t, blocked)
 }

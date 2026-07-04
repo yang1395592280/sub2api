@@ -62,9 +62,9 @@ func (r *openAIAutoSchedulerRepository) GetScoreState(ctx context.Context, accou
 	return &out, nil
 }
 
-func (r *openAIAutoSchedulerRepository) HasOpenCircuitScoreState(ctx context.Context, accountID, groupID int64, models []string) (bool, error) {
-	models = normalizeOpenAIAutoSchedulerCircuitModels(models)
-	if len(models) == 0 {
+func (r *openAIAutoSchedulerRepository) HasOpenCircuitScoreState(ctx context.Context, accountID, groupID int64, model string) (bool, error) {
+	model = strings.TrimSpace(model)
+	if model == "" {
 		return false, nil
 	}
 	now := time.Now()
@@ -72,7 +72,7 @@ func (r *openAIAutoSchedulerRepository) HasOpenCircuitScoreState(ctx context.Con
 		Where(
 			openaiautoschedulerscorestate.AccountIDEQ(accountID),
 			openaiautoschedulerscorestate.GroupIDEQ(groupID),
-			openaiautoschedulerscorestate.ModelIn(models...),
+			openaiautoschedulerscorestate.ModelEQ(model),
 			openaiautoschedulerscorestate.StateEQ(service.OpenAIAutoSchedulerStateOpen),
 			openaiautoschedulerscorestate.Or(
 				openaiautoschedulerscorestate.CooldownUntilIsNil(),
@@ -82,21 +82,25 @@ func (r *openAIAutoSchedulerRepository) HasOpenCircuitScoreState(ctx context.Con
 		Exist(ctx)
 }
 
-func normalizeOpenAIAutoSchedulerCircuitModels(models []string) []string {
-	out := make([]string, 0, len(models))
-	seen := make(map[string]struct{}, len(models))
-	for _, model := range models {
-		model = strings.TrimSpace(model)
-		if model == "" {
-			continue
-		}
-		if _, ok := seen[model]; ok {
-			continue
-		}
-		seen[model] = struct{}{}
-		out = append(out, model)
+func (r *openAIAutoSchedulerRepository) ListScoreStatesForSummary(ctx context.Context, groupID int64, model string) ([]service.OpenAIAutoSchedulerScoreState, error) {
+	model = strings.TrimSpace(model)
+	if groupID <= 0 || model == "" {
+		return nil, nil
 	}
-	return out
+	entities, err := r.client.OpenAIAutoSchedulerScoreState.Query().
+		Where(
+			openaiautoschedulerscorestate.GroupIDEQ(groupID),
+			openaiautoschedulerscorestate.ModelEQ(model),
+		).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]service.OpenAIAutoSchedulerScoreState, 0, len(entities))
+	for _, entity := range entities {
+		out = append(out, openAIAutoSchedulerScoreStateEntityToService(entity))
+	}
+	return out, nil
 }
 
 func (r *openAIAutoSchedulerRepository) UpsertScoreState(ctx context.Context, state service.OpenAIAutoSchedulerScoreState) error {

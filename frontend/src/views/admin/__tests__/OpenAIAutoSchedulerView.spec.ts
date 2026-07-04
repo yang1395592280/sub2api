@@ -55,6 +55,7 @@ vi.mock('@/utils/apiError', () => ({
 
 const settings = {
   enabled: true,
+  probe_model: 'gpt-5.4',
   probe_interval_seconds: 60,
   slow_threshold_ms: 10000,
   severe_slow_threshold_ms: 20000,
@@ -272,6 +273,21 @@ describe('OpenAIAutoSchedulerView', () => {
     expect(wrapper.text()).toContain('请求样本')
     expect(wrapper.text()).toContain('TTFB样本')
     expect(wrapper.text()).toContain('超时：context deadline exceeded')
+  })
+
+  it('uses configured probe model for default filter and labels', async () => {
+    getSettings.mockResolvedValueOnce({ ...settings, probe_model: 'gpt-5.5' })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(listScores).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 1, group_id: 20, model: 'gpt-5.5' }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+    expect(wrapper.get<HTMLSelectElement>('#scheduler-filter-model').element.value).toBe('gpt-5.5')
+    expect(wrapper.text()).toContain('检测模型')
+    expect(wrapper.get('[data-testid="scheduler-group-card-20"]').text()).toContain('检测模型 gpt-5.5')
   })
 
   it('renders the approved operations layout with group sidebar and channel table', async () => {

@@ -16,6 +16,7 @@ export type OpenAIAutoSchedulerEventType =
 
 export interface OpenAIAutoSchedulerSettings {
   enabled: boolean
+  probe_model: string
   probe_interval_seconds: number
   slow_threshold_ms: number
   severe_slow_threshold_ms: number

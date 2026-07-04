@@ -155,7 +155,7 @@ func (r *OpenAIAutoSchedulerProbeRunner) runOnce(ctx context.Context) {
 		return
 	}
 
-	models := selectOpenAIAutoSchedulerProbeModels()
+	model := selectOpenAIAutoSchedulerProbeModel(settings)
 	timeout := openAIAutoSchedulerProbeTimeout
 	for i := range groups {
 		if ctx.Err() != nil {
@@ -175,24 +175,22 @@ func (r *OpenAIAutoSchedulerProbeRunner) runOnce(ctx context.Context) {
 			if account.ID <= 0 {
 				continue
 			}
-			for _, model := range models {
-				key := openAIAutoSchedulerProbeKey(account.ID, group.ID, model)
-				if !r.tryAcquireInFlight(key) {
-					continue
-				}
-				accountCopy := account
-				groupID := group.ID
-				probeModel := model
-				if r.pool == nil || r.pool.Stopped() {
-					r.releaseInFlight(key)
-					continue
-				}
-				if _, ok := r.pool.TrySubmit(func() {
-					defer r.releaseInFlight(key)
-					r.runProbe(ctx, &accountCopy, groupID, probeModel, timeout)
-				}); !ok {
-					r.releaseInFlight(key)
-				}
+			key := openAIAutoSchedulerProbeKey(account.ID, group.ID, model)
+			if !r.tryAcquireInFlight(key) {
+				continue
+			}
+			accountCopy := account
+			groupID := group.ID
+			probeModel := model
+			if r.pool == nil || r.pool.Stopped() {
+				r.releaseInFlight(key)
+				continue
+			}
+			if _, ok := r.pool.TrySubmit(func() {
+				defer r.releaseInFlight(key)
+				r.runProbe(ctx, &accountCopy, groupID, probeModel, timeout)
+			}); !ok {
+				r.releaseInFlight(key)
 			}
 		}
 	}
@@ -247,8 +245,8 @@ func openAIAutoSchedulerProbeKey(accountID, groupID int64, model string) string 
 	return fmt.Sprintf("%d:%d:%s", accountID, groupID, strings.TrimSpace(model))
 }
 
-func selectOpenAIAutoSchedulerProbeModels() []string {
-	return []string{"gpt-5.4", "gpt-5.5"}
+func selectOpenAIAutoSchedulerProbeModel(settings OpenAIAutoSchedulerSettings) string {
+	return normalizeOpenAIAutoSchedulerSettings(settings).ProbeModel
 }
 
 type openAIAutoSchedulerProbeHTTPChecker struct {

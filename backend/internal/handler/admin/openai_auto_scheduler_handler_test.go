@@ -166,6 +166,7 @@ func setupOpenAIAutoSchedulerProbeRouter(
 func TestOpenAIAutoSchedulerHandler_GetSettingsReturnsCurrentSettings(t *testing.T) {
 	settings := service.DefaultOpenAIAutoSchedulerSettings()
 	settings.Enabled = true
+	settings.ProbeModel = "gpt-5.5"
 	settings.ProbeIntervalSeconds = 90
 	router := setupOpenAIAutoSchedulerHandlerRouter(&fakeOpenAIAutoSchedulerSettingsService{settings: settings}, &fakeOpenAIAutoSchedulerAdminService{}, &fakeOpenAIAutoSchedulerService{})
 
@@ -175,6 +176,7 @@ func TestOpenAIAutoSchedulerHandler_GetSettingsReturnsCurrentSettings(t *testing
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `"enabled":true`)
+	require.Contains(t, rec.Body.String(), `"probe_model":"gpt-5.5"`)
 	require.Contains(t, rec.Body.String(), `"probe_interval_seconds":90`)
 }
 

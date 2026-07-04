@@ -62,6 +62,11 @@ type AccountHandler struct {
 	tokenCacheInvalidator   service.TokenCacheInvalidator
 	upstreamBalanceService  *service.OpenAIUpstreamBalanceService
 	sub2APICheckinService   *service.Sub2APICheckinService
+	openAIAutoScheduler     openAIAutoSchedulerAccountSummaryService
+}
+
+type openAIAutoSchedulerAccountSummaryService interface {
+	ListAccountSummaries(ctx context.Context, groupID int64, accountIDs []int64) (map[int64]service.OpenAIAutoSchedulerAccountSummary, error)
 }
 
 // NewAccountHandler creates a new admin account handler
@@ -99,6 +104,13 @@ func NewAccountHandler(
 		upstreamBalanceService:  upstreamBalanceService,
 		sub2APICheckinService:   sub2APICheckinService,
 	}
+}
+
+func (h *AccountHandler) SetOpenAIAutoSchedulerAccountSummaryService(svc openAIAutoSchedulerAccountSummaryService) {
+	if h == nil {
+		return
+	}
+	h.openAIAutoScheduler = svc
 }
 
 // CreateAccountRequest represents create account request
@@ -279,19 +291,37 @@ func (h *AccountHandler) List(c *gin.Context) {
 
 	// Get current concurrency counts for all accounts
 	accountIDs := make([]int64, len(accounts))
+	openAIAutoSchedulerAccountIDsByGroup := make(map[int64][]int64)
 	for i, acc := range accounts {
 		accountIDs[i] = acc.ID
+		if acc.IsOpenAI() {
+			if schedulerGroupID := accountOpenAIAutoSchedulerGroupID(acc, groupID); schedulerGroupID > 0 {
+				openAIAutoSchedulerAccountIDsByGroup[schedulerGroupID] = append(openAIAutoSchedulerAccountIDsByGroup[schedulerGroupID], acc.ID)
+			}
+		}
 	}
 
 	concurrencyCounts := make(map[int64]int)
 	var windowCosts map[int64]float64
 	var activeSessions map[int64]int
 	var rpmCounts map[int64]int
+	var openAIAutoSchedulerSummaries map[int64]service.OpenAIAutoSchedulerAccountSummary
 
 	// 始终获取并发数（Redis ZCARD，极低开销）
 	if h.concurrencyService != nil {
 		if cc, ccErr := h.concurrencyService.GetAccountConcurrencyBatch(c.Request.Context(), accountIDs); ccErr == nil && cc != nil {
 			concurrencyCounts = cc
+		}
+	}
+
+	if len(openAIAutoSchedulerAccountIDsByGroup) > 0 && h.openAIAutoScheduler != nil {
+		openAIAutoSchedulerSummaries = make(map[int64]service.OpenAIAutoSchedulerAccountSummary)
+		for schedulerGroupID, schedulerAccountIDs := range openAIAutoSchedulerAccountIDsByGroup {
+			if summaries, summaryErr := h.openAIAutoScheduler.ListAccountSummaries(c.Request.Context(), schedulerGroupID, schedulerAccountIDs); summaryErr == nil {
+				for accountID, summary := range summaries {
+					openAIAutoSchedulerSummaries[accountID] = summary
+				}
+			}
 		}
 	}
 
@@ -368,6 +398,11 @@ func (h *AccountHandler) List(c *gin.Context) {
 			Account:            dto.AccountFromService(acc),
 			CurrentConcurrency: concurrencyCounts[acc.ID],
 		}
+		if openAIAutoSchedulerSummaries != nil {
+			if summary, ok := openAIAutoSchedulerSummaries[acc.ID]; ok && item.Account != nil {
+				item.Account.OpenAIAutoScheduler = dto.OpenAIAutoSchedulerAccountSummaryFromService(summary)
+			}
+		}
 
 		// 添加窗口费用（仅当启用时）
 		if windowCosts != nil {
@@ -406,6 +441,18 @@ func (h *AccountHandler) List(c *gin.Context) {
 	}
 
 	response.Paginated(c, result, total, page, pageSize)
+}
+
+func accountOpenAIAutoSchedulerGroupID(account service.Account, requestedGroupID int64) int64 {
+	if requestedGroupID > 0 {
+		return requestedGroupID
+	}
+	for _, groupID := range account.GroupIDs {
+		if groupID > 0 {
+			return groupID
+		}
+	}
+	return 0
 }
 
 func buildAccountsListETag(

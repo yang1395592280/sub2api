@@ -3495,6 +3495,7 @@ export default {
         weight: '权重',
         status: '状态',
         schedulable: '调度',
+        openaiAutoScheduler: '自动调度',
         todayStats: '今日统计',
         groups: '分组',
         upstreamGroup: '上游分组',

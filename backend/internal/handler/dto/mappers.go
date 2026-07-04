@@ -400,6 +400,20 @@ func AccountFromService(a *service.Account) *Account {
 	return out
 }
 
+func OpenAIAutoSchedulerAccountSummaryFromService(s service.OpenAIAutoSchedulerAccountSummary) *OpenAIAutoSchedulerAccountSummary {
+	return &OpenAIAutoSchedulerAccountSummary{
+		State:         s.State,
+		SpeedPriority: s.SpeedPriority,
+		SpeedMS:       s.SpeedMS,
+		ProbeModel:    s.ProbeModel,
+		LastTtfbMS:    s.LastTtfbMS,
+		LastLatencyMS: s.LastLatencyMS,
+		LastError:     s.LastError,
+		Reason:        s.Reason,
+		LastCheckedAt: s.LastCheckedAt,
+	}
+}
+
 func timeToUnixSeconds(value *time.Time) *int64 {
 	if value == nil {
 		return nil

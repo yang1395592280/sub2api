@@ -1,8 +1,13 @@
 package service
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 const (
+	OpenAIAutoSchedulerDefaultProbeModel = "gpt-5.4"
+
 	OpenAIAutoSchedulerStateRunning   = "running"
 	OpenAIAutoSchedulerStateObserving = "observing"
 	OpenAIAutoSchedulerStateOpen      = "open"
@@ -20,6 +25,7 @@ const (
 
 type OpenAIAutoSchedulerSettings struct {
 	Enabled                          bool    `json:"enabled"`
+	ProbeModel                       string  `json:"probe_model"`
 	ProbeIntervalSeconds             int     `json:"probe_interval_seconds"`
 	SlowThresholdMS                  int     `json:"slow_threshold_ms"`
 	SevereSlowThresholdMS            int     `json:"severe_slow_threshold_ms"`
@@ -85,6 +91,18 @@ type OpenAIAutoSchedulerDailySample struct {
 	LastTtfbMS      *int
 }
 
+type OpenAIAutoSchedulerAccountSummary struct {
+	State         string
+	SpeedPriority int
+	SpeedMS       *int
+	ProbeModel    string
+	LastTtfbMS    *int
+	LastLatencyMS *int
+	LastError     *string
+	Reason        string
+	LastCheckedAt *time.Time
+}
+
 const (
 	openAIAutoSchedulerListDefaultPageSize = 50
 	openAIAutoSchedulerListMaxPageSize     = 200
@@ -93,6 +111,7 @@ const (
 func DefaultOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {
 	return OpenAIAutoSchedulerSettings{
 		Enabled:                          false,
+		ProbeModel:                       OpenAIAutoSchedulerDefaultProbeModel,
 		ProbeIntervalSeconds:             60,
 		SlowThresholdMS:                  10000,
 		SevereSlowThresholdMS:            20000,
@@ -108,6 +127,10 @@ func DefaultOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {
 func normalizeOpenAIAutoSchedulerSettings(settings OpenAIAutoSchedulerSettings) OpenAIAutoSchedulerSettings {
 	defaults := DefaultOpenAIAutoSchedulerSettings()
 	enabled := settings.Enabled
+	settings.ProbeModel = strings.TrimSpace(settings.ProbeModel)
+	if settings.ProbeModel == "" {
+		settings.ProbeModel = defaults.ProbeModel
+	}
 	if settings.ProbeIntervalSeconds <= 0 {
 		settings.ProbeIntervalSeconds = defaults.ProbeIntervalSeconds
 	}
@@ -158,4 +181,14 @@ func normalizeOpenAIAutoSchedulerListPage(page, pageSize int) (int, int) {
 		pageSize = openAIAutoSchedulerListMaxPageSize
 	}
 	return page, pageSize
+}
+
+func openAIAutoSchedulerSpeedMS(state OpenAIAutoSchedulerScoreState) (int, bool) {
+	if state.LastTtfbMS != nil && *state.LastTtfbMS > 0 {
+		return *state.LastTtfbMS, true
+	}
+	if state.LastLatencyMS != nil && *state.LastLatencyMS > 0 {
+		return *state.LastLatencyMS, true
+	}
+	return 0, false
 }

@@ -863,6 +863,18 @@ export interface UpstreamCheckinStatusSnapshot {
   upstream_checkin_error?: string
 }
 
+export interface OpenAIAutoSchedulerAccountSummary {
+  state: 'running' | 'observing' | 'open' | 'half_open'
+  speed_priority: number
+  speed_ms?: number | null
+  probe_model: string
+  last_ttfb_ms?: number | null
+  last_latency_ms?: number | null
+  last_error?: string | null
+  reason?: string
+  last_checked_at?: string | null
+}
+
 export interface Account {
   id: number
   name: string
@@ -901,6 +913,7 @@ export interface Account {
   priority: number
   rate_multiplier?: number // Account billing multiplier (>=0, 0 means free)
   channel_price?: number | null // Upstream channel price used by OpenAI scheduler
+  openai_auto_scheduler?: OpenAIAutoSchedulerAccountSummary | null
   status: 'active' | 'inactive' | 'error'
   error_message: string | null
   last_used_at: string | null

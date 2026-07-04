@@ -18,7 +18,8 @@ type OpenAIAutoSchedulerSettingsProvider interface {
 type OpenAIAutoSchedulerRepository interface {
 	GetGroup(ctx context.Context, groupID int64) (*Group, error)
 	GetScoreState(ctx context.Context, accountID, groupID int64, model string) (*OpenAIAutoSchedulerScoreState, error)
-	HasOpenCircuitScoreState(ctx context.Context, accountID, groupID int64, models []string) (bool, error)
+	HasOpenCircuitScoreState(ctx context.Context, accountID, groupID int64, model string) (bool, error)
+	ListScoreStatesForSummary(ctx context.Context, groupID int64, model string) ([]OpenAIAutoSchedulerScoreState, error)
 	UpsertScoreState(ctx context.Context, state OpenAIAutoSchedulerScoreState) error
 	InsertScoreEvent(ctx context.Context, event OpenAIAutoSchedulerScoreEvent) error
 	ListScoreStates(ctx context.Context, params OpenAIAutoSchedulerListParams) ([]OpenAIAutoSchedulerScoreState, int64, error)
@@ -317,6 +318,101 @@ func (s *OpenAIAutoSchedulerService) ListEvents(ctx context.Context, params Open
 	return &OpenAIAutoSchedulerEventListResult{Items: items, Total: total}, nil
 }
 
+func (s *OpenAIAutoSchedulerService) ListAccountSummaries(ctx context.Context, groupID int64, accountIDs []int64) (map[int64]OpenAIAutoSchedulerAccountSummary, error) {
+	out := make(map[int64]OpenAIAutoSchedulerAccountSummary, len(accountIDs))
+	if s == nil || s.repo == nil || groupID <= 0 || len(accountIDs) == 0 {
+		return out, nil
+	}
+	settings := s.settings(ctx)
+	probeModel := settings.ProbeModel
+	schedulableAccounts, err := s.repo.ListSchedulableOpenAIAccountsByGroup(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	schedulable := make(map[int64]struct{}, len(schedulableAccounts))
+	for _, account := range schedulableAccounts {
+		if account.ID > 0 {
+			schedulable[account.ID] = struct{}{}
+		}
+	}
+	if len(schedulable) == 0 {
+		return out, nil
+	}
+	requested := make(map[int64]struct{}, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if accountID <= 0 {
+			continue
+		}
+		if _, ok := schedulable[accountID]; !ok {
+			continue
+		}
+		requested[accountID] = struct{}{}
+	}
+	if len(requested) == 0 {
+		return out, nil
+	}
+	states, err := s.repo.ListScoreStatesForSummary(ctx, groupID, probeModel)
+	if err != nil {
+		return nil, err
+	}
+	rankable := make([]OpenAIAutoSchedulerScoreState, 0, len(states))
+	for _, state := range states {
+		if _, ok := schedulable[state.AccountID]; !ok {
+			continue
+		}
+		speedMS, hasSpeed := openAIAutoSchedulerSpeedMS(state)
+		summary := OpenAIAutoSchedulerAccountSummary{
+			State:         normalizeOpenAIAutoSchedulerState(state.State),
+			ProbeModel:    probeModel,
+			LastTtfbMS:    copyOpenAIAutoSchedulerIntPtr(state.LastTtfbMS),
+			LastLatencyMS: copyOpenAIAutoSchedulerIntPtr(state.LastLatencyMS),
+			LastError:     copyOpenAIAutoSchedulerStringPtr(state.LastError),
+			Reason:        state.Reason,
+			LastCheckedAt: copyOpenAIAutoSchedulerTimePtr(state.LastCheckedAt),
+		}
+		if hasSpeed {
+			summary.SpeedMS = &speedMS
+		}
+		if _, ok := requested[state.AccountID]; ok {
+			out[state.AccountID] = summary
+		}
+		if summary.State != OpenAIAutoSchedulerStateRunning {
+			continue
+		}
+		rankable = append(rankable, state)
+	}
+
+	sort.SliceStable(rankable, func(i, j int) bool {
+		speedI, okI := openAIAutoSchedulerSpeedMS(rankable[i])
+		speedJ, okJ := openAIAutoSchedulerSpeedMS(rankable[j])
+		if okI != okJ {
+			return okI
+		}
+		if okI && speedI != speedJ {
+			return speedI < speedJ
+		}
+		if rankable[i].FinalScore != rankable[j].FinalScore {
+			return rankable[i].FinalScore > rankable[j].FinalScore
+		}
+		return rankable[i].AccountID < rankable[j].AccountID
+	})
+	priority := 1
+	for _, state := range rankable {
+		if _, ok := openAIAutoSchedulerSpeedMS(state); !ok {
+			continue
+		}
+		if _, ok := requested[state.AccountID]; !ok {
+			priority++
+			continue
+		}
+		summary := out[state.AccountID]
+		summary.SpeedPriority = priority
+		out[state.AccountID] = summary
+		priority++
+	}
+	return out, nil
+}
+
 func (s *OpenAIAutoSchedulerService) ResetScore(ctx context.Context, accountID, groupID int64, model string) error {
 	if s == nil || s.repo == nil || accountID <= 0 || groupID <= 0 {
 		return infraerrors.BadRequest("OPENAI_AUTO_SCHEDULER_INVALID_IDENTITY", "account_id and group_id are required")
@@ -387,6 +483,22 @@ func applyOpenAIAutoSchedulerDailySample(state OpenAIAutoSchedulerScoreState, sa
 }
 
 func copyOpenAIAutoSchedulerFloatPtr(v *float64) *float64 {
+	if v == nil {
+		return nil
+	}
+	copied := *v
+	return &copied
+}
+
+func copyOpenAIAutoSchedulerStringPtr(v *string) *string {
+	if v == nil {
+		return nil
+	}
+	copied := *v
+	return &copied
+}
+
+func copyOpenAIAutoSchedulerTimePtr(v *time.Time) *time.Time {
 	if v == nil {
 		return nil
 	}
