@@ -291,11 +291,13 @@ func (h *AccountHandler) List(c *gin.Context) {
 
 	// Get current concurrency counts for all accounts
 	accountIDs := make([]int64, len(accounts))
-	openAIAccountIDs := make([]int64, 0, len(accounts))
+	openAIAutoSchedulerAccountIDsByGroup := make(map[int64][]int64)
 	for i, acc := range accounts {
 		accountIDs[i] = acc.ID
 		if acc.IsOpenAI() {
-			openAIAccountIDs = append(openAIAccountIDs, acc.ID)
+			if schedulerGroupID := accountOpenAIAutoSchedulerGroupID(acc, groupID); schedulerGroupID > 0 {
+				openAIAutoSchedulerAccountIDsByGroup[schedulerGroupID] = append(openAIAutoSchedulerAccountIDsByGroup[schedulerGroupID], acc.ID)
+			}
 		}
 	}
 
@@ -312,9 +314,14 @@ func (h *AccountHandler) List(c *gin.Context) {
 		}
 	}
 
-	if groupID > 0 && len(openAIAccountIDs) > 0 && h.openAIAutoScheduler != nil {
-		if summaries, summaryErr := h.openAIAutoScheduler.ListAccountSummaries(c.Request.Context(), groupID, openAIAccountIDs); summaryErr == nil {
-			openAIAutoSchedulerSummaries = summaries
+	if len(openAIAutoSchedulerAccountIDsByGroup) > 0 && h.openAIAutoScheduler != nil {
+		openAIAutoSchedulerSummaries = make(map[int64]service.OpenAIAutoSchedulerAccountSummary)
+		for schedulerGroupID, schedulerAccountIDs := range openAIAutoSchedulerAccountIDsByGroup {
+			if summaries, summaryErr := h.openAIAutoScheduler.ListAccountSummaries(c.Request.Context(), schedulerGroupID, schedulerAccountIDs); summaryErr == nil {
+				for accountID, summary := range summaries {
+					openAIAutoSchedulerSummaries[accountID] = summary
+				}
+			}
 		}
 	}
 
@@ -434,6 +441,18 @@ func (h *AccountHandler) List(c *gin.Context) {
 	}
 
 	response.Paginated(c, result, total, page, pageSize)
+}
+
+func accountOpenAIAutoSchedulerGroupID(account service.Account, requestedGroupID int64) int64 {
+	if requestedGroupID > 0 {
+		return requestedGroupID
+	}
+	for _, groupID := range account.GroupIDs {
+		if groupID > 0 {
+			return groupID
+		}
+	}
+	return 0
 }
 
 func buildAccountsListETag(

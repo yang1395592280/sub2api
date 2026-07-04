@@ -98,3 +98,35 @@ func TestAccountHandlerListIncludesOpenAIAutoSchedulerSummaryForGroup(t *testing
 	require.Contains(t, rec.Body.String(), `"speed_priority":1`)
 	require.Contains(t, rec.Body.String(), `"probe_model":"gpt-5.5"`)
 }
+
+func TestAccountHandlerListUsesFirstAccountGroupForOpenAIAutoSchedulerSummary(t *testing.T) {
+	router, adminSvc := setupAccountListRouter()
+	now := time.Now().UTC()
+	adminSvc.accounts = []service.Account{
+		{ID: 7, Name: "openai-account", Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth, Status: service.StatusActive, GroupIDs: []int64{10}, CreatedAt: now, UpdatedAt: now},
+	}
+	speed := 220
+	summarySvc := &stubOpenAIAutoSchedulerAccountSummaryService{
+		summaries: map[int64]service.OpenAIAutoSchedulerAccountSummary{
+			7: {
+				State:         service.OpenAIAutoSchedulerStateRunning,
+				SpeedPriority: 1,
+				SpeedMS:       &speed,
+				ProbeModel:    "gpt-5.5",
+			},
+		},
+	}
+	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	handler.SetOpenAIAutoSchedulerAccountSummaryService(summarySvc)
+	router = gin.New()
+	router.GET("/api/v1/admin/accounts", handler.List)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts?page=1&page_size=20", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(10), summarySvc.groupID)
+	require.Equal(t, []int64{7}, summarySvc.accountIDs)
+	require.Contains(t, rec.Body.String(), `"openai_auto_scheduler"`)
+}
