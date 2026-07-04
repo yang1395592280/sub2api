@@ -638,6 +638,9 @@ func TestOpenAIAutoSchedulerService_RecordConcurrentErrorsTripsBreaker(t *testin
 func TestOpenAIAutoSchedulerService_ListAccountSummariesRanksBySpeed(t *testing.T) {
 	repo := &fakeOpenAIAutoSchedulerRepo{
 		states: map[string]OpenAIAutoSchedulerScoreState{},
+		accounts: map[int64][]Account{
+			10: {{ID: 1}, {ID: 2}},
+		},
 	}
 	settings := enabledOpenAIAutoSchedulerSettings()
 	settings.ProbeModel = "gpt-5.5"
@@ -659,6 +662,9 @@ func TestOpenAIAutoSchedulerService_ListAccountSummariesRanksBySpeed(t *testing.
 func TestOpenAIAutoSchedulerService_ListAccountSummariesRanksRunningAccountsOnly(t *testing.T) {
 	repo := &fakeOpenAIAutoSchedulerRepo{
 		states: map[string]OpenAIAutoSchedulerScoreState{},
+		accounts: map[int64][]Account{
+			10: {{ID: 1}, {ID: 2}},
+		},
 	}
 	settings := enabledOpenAIAutoSchedulerSettings()
 	settings.ProbeModel = "gpt-5.5"
@@ -678,6 +684,9 @@ func TestOpenAIAutoSchedulerService_ListAccountSummariesRanksRunningAccountsOnly
 func TestOpenAIAutoSchedulerService_ListAccountSummariesRanksWithinWholeGroup(t *testing.T) {
 	repo := &fakeOpenAIAutoSchedulerRepo{
 		states: map[string]OpenAIAutoSchedulerScoreState{},
+		accounts: map[int64][]Account{
+			10: {{ID: 1}, {ID: 2}},
+		},
 	}
 	settings := enabledOpenAIAutoSchedulerSettings()
 	settings.ProbeModel = "gpt-5.5"
@@ -696,6 +705,28 @@ func TestOpenAIAutoSchedulerService_ListAccountSummariesRanksWithinWholeGroup(t 
 	require.Zero(t, repo.getStateCalls)
 	require.Len(t, summaries, 1)
 	require.Equal(t, 2, summaries[2].SpeedPriority)
+}
+
+func TestOpenAIAutoSchedulerService_ListAccountSummariesIgnoresUnschedulableStateRanks(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		states: map[string]OpenAIAutoSchedulerScoreState{},
+		accounts: map[int64][]Account{
+			10: {{ID: 2}},
+		},
+	}
+	settings := enabledOpenAIAutoSchedulerSettings()
+	settings.ProbeModel = "gpt-5.5"
+	unschedulableFast := 100
+	schedulableSlow := 400
+	repo.states[openAIAutoSchedulerStateKey(1, 10, "gpt-5.5")] = OpenAIAutoSchedulerScoreState{AccountID: 1, GroupID: 10, Model: "gpt-5.5", State: OpenAIAutoSchedulerStateRunning, FinalScore: 6000, LastTtfbMS: &unschedulableFast}
+	repo.states[openAIAutoSchedulerStateKey(2, 10, "gpt-5.5")] = OpenAIAutoSchedulerScoreState{AccountID: 2, GroupID: 10, Model: "gpt-5.5", State: OpenAIAutoSchedulerStateRunning, FinalScore: 6000, LastTtfbMS: &schedulableSlow}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: settings})
+
+	summaries, err := svc.ListAccountSummaries(context.Background(), 10, []int64{1, 2})
+
+	require.NoError(t, err)
+	require.NotContains(t, summaries, int64(1))
+	require.Equal(t, 1, summaries[2].SpeedPriority)
 }
 
 func enabledOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {

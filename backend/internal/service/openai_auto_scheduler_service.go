@@ -325,12 +325,31 @@ func (s *OpenAIAutoSchedulerService) ListAccountSummaries(ctx context.Context, g
 	}
 	settings := s.settings(ctx)
 	probeModel := settings.ProbeModel
+	schedulableAccounts, err := s.repo.ListSchedulableOpenAIAccountsByGroup(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	schedulable := make(map[int64]struct{}, len(schedulableAccounts))
+	for _, account := range schedulableAccounts {
+		if account.ID > 0 {
+			schedulable[account.ID] = struct{}{}
+		}
+	}
+	if len(schedulable) == 0 {
+		return out, nil
+	}
 	requested := make(map[int64]struct{}, len(accountIDs))
 	for _, accountID := range accountIDs {
 		if accountID <= 0 {
 			continue
 		}
+		if _, ok := schedulable[accountID]; !ok {
+			continue
+		}
 		requested[accountID] = struct{}{}
+	}
+	if len(requested) == 0 {
+		return out, nil
 	}
 	states, err := s.repo.ListScoreStatesForSummary(ctx, groupID, probeModel)
 	if err != nil {
@@ -338,6 +357,9 @@ func (s *OpenAIAutoSchedulerService) ListAccountSummaries(ctx context.Context, g
 	}
 	rankable := make([]OpenAIAutoSchedulerScoreState, 0, len(states))
 	for _, state := range states {
+		if _, ok := schedulable[state.AccountID]; !ok {
+			continue
+		}
 		speedMS, hasSpeed := openAIAutoSchedulerSpeedMS(state)
 		summary := OpenAIAutoSchedulerAccountSummary{
 			State:         normalizeOpenAIAutoSchedulerState(state.State),
