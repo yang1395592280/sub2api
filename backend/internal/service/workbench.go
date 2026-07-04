@@ -16,6 +16,7 @@ const (
 
 	WorkbenchEndpointChatCompletions   = "chat_completions"
 	WorkbenchEndpointImagesGenerations = "images_generations"
+	WorkbenchEndpointImagesEdits       = "images_edits"
 
 	WorkbenchRoleUser      = "user"
 	WorkbenchRoleAssistant = "assistant"
@@ -181,6 +182,7 @@ type WorkbenchGatewayChatResponse struct {
 }
 
 type WorkbenchGatewayImageRequest struct {
+	Endpoint     string         `json:"-"`
 	Model        string         `json:"model"`
 	Prompt       string         `json:"prompt"`
 	Options      map[string]any `json:"options"`

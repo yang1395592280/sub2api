@@ -260,7 +260,7 @@
                   type="button"
                   class="btn btn-primary inline-flex items-center gap-2"
                   data-testid="workbench-send"
-                  :disabled="sending || !prompt.trim() || !selectedApiKeyId || !selectedModel"
+                  :disabled="!canSend"
                   @click="handleSend"
                 >
                   <svg v-if="sending" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -306,6 +306,79 @@
             </div>
 
             <template v-if="currentMode === 'image'">
+              <div class="space-y-2">
+                <label class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ t('workbench.imageWorkflow') }}</label>
+                <div class="inline-flex w-full rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-dark-600 dark:bg-dark-800">
+                  <button
+                    type="button"
+                    class="flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition"
+                    :class="imageWorkflow === 'generate'
+                      ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
+                      : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'"
+                    data-testid="workbench-image-mode-generate"
+                    @click="setImageWorkflow('generate')"
+                  >
+                    {{ t('workbench.imageWorkflowGenerate') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition"
+                    :class="imageWorkflow === 'edit'
+                      ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
+                      : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'"
+                    data-testid="workbench-image-mode-edit"
+                    @click="setImageWorkflow('edit')"
+                  >
+                    {{ t('workbench.imageWorkflowEdit') }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="imageWorkflow === 'edit'" class="space-y-3">
+                <div class="space-y-2">
+                  <label class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ t('workbench.referenceImage') }}</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    class="input"
+                    data-testid="workbench-reference-image-input"
+                    :disabled="referenceImages.length >= maxReferenceImageCount"
+                    @change="handleReferenceImageChange"
+                  />
+                  <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('workbench.referenceImageHint') }}</p>
+                </div>
+
+                <div v-if="referenceImages.length" class="grid grid-cols-2 gap-2">
+                  <div
+                    v-for="image in referenceImages"
+                    :key="image.id"
+                    class="group relative overflow-hidden rounded-lg border border-gray-200 bg-gray-100 dark:border-dark-600 dark:bg-dark-700"
+                  >
+                    <img :src="image.dataUrl" :alt="image.name" class="h-24 w-full object-cover" />
+                    <button
+                      type="button"
+                      class="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-gray-600 shadow-sm transition hover:bg-white hover:text-red-600 dark:bg-dark-800/90 dark:text-gray-300 dark:hover:text-red-300"
+                      :aria-label="t('workbench.removeReferenceImage')"
+                      @click="removeReferenceImage(image.id)"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                    <p class="truncate px-2 py-1 text-[11px] text-gray-500 dark:text-gray-300">{{ image.name }}</p>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ t('workbench.inputFidelity') }}</label>
+                  <select v-model="imageEditOptions.input_fidelity" class="input">
+                    <option value="high">high</option>
+                    <option value="low">low</option>
+                  </select>
+                </div>
+              </div>
+
               <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
                 <div class="space-y-2">
                   <label class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ t('workbench.imageSize') }}</label>
@@ -430,6 +503,7 @@ import {
   workbenchAPI,
   type WorkbenchConversation,
   type WorkbenchImageOutput,
+  type WorkbenchEndpoint,
   type WorkbenchMessage,
   type WorkbenchModel,
   type WorkbenchMode,
@@ -443,6 +517,14 @@ interface ApiKeyListItem {
   id: number
   name: string
   status?: string
+}
+
+type WorkbenchImageWorkflow = 'generate' | 'edit'
+
+interface WorkbenchReferenceImage {
+  id: number
+  name: string
+  dataUrl: string
 }
 
 const SparklesIcon = defineComponent({
@@ -501,9 +583,14 @@ const modelSelectionReady = ref(false)
 const messageContainerRef = ref<HTMLElement | null>(null)
 const lightboxImage = ref<string>('')
 let optimisticIdCounter = -1
+let referenceImageIdCounter = 1
 let pendingImagePollTimer: ReturnType<typeof setInterval> | null = null
 const defaultImageModel = 'gpt-image-2'
 const pendingImagePollIntervalMs = 2000
+const maxReferenceImageCount = 4
+
+const imageWorkflow = ref<WorkbenchImageWorkflow>('generate')
+const referenceImages = ref<WorkbenchReferenceImage[]>([])
 
 const imageOptions = ref({
   size: '1024x1024',
@@ -512,6 +599,10 @@ const imageOptions = ref({
   output_format: 'png',
   output_compression: 100,
   n: 1,
+})
+
+const imageEditOptions = ref({
+  input_fidelity: 'high',
 })
 
 const activeKeys = computed(() => keys.value.filter((item) => item.status === 'active' || !item.status))
@@ -532,7 +623,20 @@ const availableModels = computed<WorkbenchModel[]>(() => {
   return [...imageModels, { name: defaultImageModel }]
 })
 
-const currentEndpoint = computed(() => currentMode.value === 'image' ? 'images_generations' : 'chat_completions')
+const currentEndpoint = computed<WorkbenchEndpoint>(() => {
+  if (currentMode.value !== 'image') {
+    return 'chat_completions'
+  }
+  return imageWorkflow.value === 'edit' ? 'images_edits' : 'images_generations'
+})
+
+const canSend = computed(() =>
+  !sending.value &&
+  Boolean(prompt.value.trim()) &&
+  Boolean(selectedApiKeyId.value) &&
+  Boolean(selectedModel.value) &&
+  !(currentMode.value === 'image' && imageWorkflow.value === 'edit' && referenceImages.value.length === 0)
+)
 
 const activeConversationTitle = computed(() => {
   const current = conversations.value.find((item) => item.id === activeConversationId.value)
@@ -545,6 +649,71 @@ function openLightbox(url: string): void {
 
 function closeLightbox(): void {
   lightboxImage.value = ''
+}
+
+function setImageWorkflow(next: WorkbenchImageWorkflow): void {
+  imageWorkflow.value = next
+}
+
+function syncImageWorkflowFromEndpoint(endpoint?: WorkbenchEndpoint): void {
+  imageWorkflow.value = endpoint === 'images_edits' ? 'edit' : 'generate'
+}
+
+function readFileAsDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result)
+        return
+      }
+      reject(new Error('invalid file result'))
+    }
+    reader.onerror = () => reject(reader.error || new Error('failed to read file'))
+    reader.readAsDataURL(file)
+  })
+}
+
+async function handleReferenceImageChange(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files || [])
+    .filter((file) => file.type.startsWith('image/'))
+    .slice(0, Math.max(0, maxReferenceImageCount - referenceImages.value.length))
+
+  if (files.length === 0) {
+    input.value = ''
+    return
+  }
+
+  try {
+    const loaded = await Promise.all(files.map(async (file) => ({
+      id: referenceImageIdCounter++,
+      name: file.name,
+      dataUrl: await readFileAsDataURL(file),
+    })))
+    referenceImages.value = [...referenceImages.value, ...loaded]
+  } catch (error: unknown) {
+    console.error(error)
+    appStore.showError(t('workbench.referenceImageReadFailed'))
+  } finally {
+    input.value = ''
+  }
+}
+
+function removeReferenceImage(imageId: number): void {
+  referenceImages.value = referenceImages.value.filter((image) => image.id !== imageId)
+}
+
+function buildImageRequestOptions(): Record<string, unknown> {
+  const options: Record<string, unknown> = { ...imageOptions.value }
+  if (imageWorkflow.value !== 'edit') {
+    return options
+  }
+  return {
+    ...options,
+    ...imageEditOptions.value,
+    images: referenceImages.value.map((image) => ({ image_url: image.dataUrl })),
+  }
 }
 
 async function downloadImage(url: string, name: string): Promise<void> {
@@ -748,6 +917,7 @@ async function loadConversations(): Promise<void> {
     if (!activeConversationId.value && conversations.value.length > 0) {
       activeConversationId.value = conversations.value[0].id
       currentMode.value = conversations.value[0].mode
+      syncImageWorkflowFromEndpoint(conversations.value[0].endpoint)
       await loadMessages(activeConversationId.value)
     }
   } finally {
@@ -771,6 +941,7 @@ async function selectConversation(conversationId: number): Promise<void> {
   activeConversationId.value = conversationId
   if (target?.mode) {
     currentMode.value = target.mode
+    syncImageWorkflowFromEndpoint(target.endpoint)
   }
   await loadMessages(conversationId)
 }
@@ -862,6 +1033,10 @@ async function handleSend(): Promise<void> {
     appStore.showError(t('workbench.modelRequired'))
     return
   }
+  if (currentMode.value === 'image' && imageWorkflow.value === 'edit' && referenceImages.value.length === 0) {
+    appStore.showError(t('workbench.referenceImageRequired'))
+    return
+  }
 
   const inputText = prompt.value.trim()
 
@@ -901,7 +1076,7 @@ async function handleSend(): Promise<void> {
     endpoint: currentEndpoint.value,
     model: selectedModel.value,
     input: inputText,
-    options: currentMode.value === 'image' ? { ...imageOptions.value } : undefined,
+    options: currentMode.value === 'image' ? buildImageRequestOptions() : undefined,
   }
 
   sending.value = true

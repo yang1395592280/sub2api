@@ -136,7 +136,7 @@
   <UsageExportProgress :show="exportProgress.show" :progress="exportProgress.progress" :current="exportProgress.current" :total="exportProgress.total" :estimated-time="exportProgress.estimatedTime" @cancel="cancelExport" />
   <UsageCleanupDialog
     :show="cleanupDialogVisible"
-    :filters="filters"
+    :filters="cleanupDialogFilters"
     :start-date="startDate"
     :end-date="endDate"
     @close="cleanupDialogVisible = false"
@@ -172,12 +172,15 @@ import ModelDistributionChart from '@/components/charts/ModelDistributionChart.v
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { AdminUsageLog, TrendDataPoint, ModelStat, GroupStat, EndpointStat, AdminUser } from '@/types'; import type { AdminUsageStatsResponse, AdminUsageQueryParams } from '@/api/admin/usage'
+import { OPENAI_AUTO_CHEAPEST_GROUP_VALUE } from '@/views/user/keyGroupOptions'
 
 const { t } = useI18n()
 const appStore = useAppStore()
 type DistributionMetric = 'tokens' | 'actual_cost'
 type EndpointSource = 'inbound' | 'upstream' | 'path'
 type ModelDistributionSource = 'requested' | 'upstream' | 'mapping'
+type UsageGroupFilterValue = number | typeof OPENAI_AUTO_CHEAPEST_GROUP_VALUE | null | undefined
+type UsageFiltersState = Omit<AdminUsageQueryParams, 'group_id'> & { group_id?: UsageGroupFilterValue }
 const route = useRoute()
 const usageStats = ref<AdminUsageStatsResponse | null>(null); const usageLogs = ref<AdminUsageLog[]>([]); const loading = ref(false); const exporting = ref(false)
 const trendData = ref<TrendDataPoint[]>([]); const requestedModelStats = ref<ModelStat[]>([]); const upstreamModelStats = ref<ModelStat[]>([]); const mappingModelStats = ref<ModelStat[]>([]); const groupStats = ref<GroupStat[]>([]); const chartsLoading = ref(false); const modelStatsLoading = ref(false); const granularity = ref<'day' | 'hour'>('hour')
@@ -210,7 +213,7 @@ const breakdownFilters = computed(() => {
   if (filters.value.user_id) f.user_id = filters.value.user_id
   if (filters.value.api_key_id) f.api_key_id = filters.value.api_key_id
   if (filters.value.account_id) f.account_id = filters.value.account_id
-  if (filters.value.group_id) f.group_id = filters.value.group_id
+  if (typeof filters.value.group_id === 'number') f.group_id = filters.value.group_id
   if (filters.value.request_type != null) f.request_type = filters.value.request_type
   if (filters.value.billing_type != null) f.billing_type = filters.value.billing_type
   return f
@@ -254,7 +257,7 @@ const getGranularityForRange = (start: string, end: string): 'day' | 'hour' => {
 }
 const defaultRange = getLast24HoursRangeDates()
 const startDate = ref(defaultRange.start); const endDate = ref(defaultRange.end)
-const filters = ref<AdminUsageQueryParams>({ user_id: undefined, model: undefined, group_id: undefined, request_type: undefined, billing_type: null, start_date: startDate.value, end_date: endDate.value })
+const filters = ref<UsageFiltersState>({ user_id: undefined, model: undefined, group_id: undefined, request_type: undefined, billing_type: null, start_date: startDate.value, end_date: endDate.value })
 const pagination = reactive({ page: 1, page_size: getPersistedPageSize(), total: 0 })
 const sortState = reactive({
   sort_by: 'created_at',
@@ -306,6 +309,19 @@ const onDateRangeChange = (range: { startDate: string; endDate: string; preset: 
   applyFilters()
 }
 
+const buildUsageFilterParams = (): AdminUsageQueryParams => {
+  const { group_id, ...rest } = filters.value
+  const params: AdminUsageQueryParams = { ...rest }
+  if (typeof group_id === 'number') {
+    params.group_id = group_id
+  } else if (group_id === OPENAI_AUTO_CHEAPEST_GROUP_VALUE) {
+    params.api_key_group_select_mode = OPENAI_AUTO_CHEAPEST_GROUP_VALUE
+  }
+  return params
+}
+
+const cleanupDialogFilters = computed<AdminUsageQueryParams>(() => buildUsageFilterParams())
+
 const buildUsageListParams = (
   page: number,
   pageSize: number,
@@ -317,7 +333,7 @@ const buildUsageListParams = (
     page,
     page_size: pageSize,
     exact_total: exactTotal,
-    ...filters.value,
+    ...buildUsageFilterParams(),
     stream: legacyStream === null ? undefined : legacyStream,
     sort_by: sortState.sort_by,
     sort_order: sortState.sort_order
@@ -341,7 +357,7 @@ const loadStats = async (force = false) => {
     const requestType = filters.value.request_type
     const legacyStream = requestType ? requestTypeToLegacyStream(requestType) : filters.value.stream
     const s = await adminAPI.usage.getStats({
-      ...filters.value,
+      ...buildUsageFilterParams(),
       stream: legacyStream === null ? undefined : legacyStream,
       ...(force ? { nocache: 1 } : {}),
     })
@@ -385,7 +401,7 @@ const loadModelStats = async (source: ModelDistributionSource, force = false) =>
       model: filters.value.model,
       api_key_id: filters.value.api_key_id,
       account_id: filters.value.account_id,
-      group_id: filters.value.group_id,
+      group_id: typeof filters.value.group_id === 'number' ? filters.value.group_id : undefined,
       request_type: requestType,
       stream: legacyStream === null ? undefined : legacyStream,
       billing_type: filters.value.billing_type,
@@ -434,7 +450,7 @@ const loadChartData = async () => {
       model: filters.value.model,
       api_key_id: filters.value.api_key_id,
       account_id: filters.value.account_id,
-      group_id: filters.value.group_id,
+      group_id: typeof filters.value.group_id === 'number' ? filters.value.group_id : undefined,
       request_type: requestType,
       stream: legacyStream === null ? undefined : legacyStream,
       billing_type: filters.value.billing_type,
@@ -654,7 +670,7 @@ const loadAdminErrors = async () => {
       user_id: filters.value.user_id ?? undefined,
       api_key_id: filters.value.api_key_id ?? undefined,
       account_id: filters.value.account_id ?? undefined,
-      group_id: filters.value.group_id ?? undefined,
+      group_id: typeof filters.value.group_id === 'number' ? filters.value.group_id : undefined,
       model: filters.value.model || undefined,
     })
     errRows.value = resp.items

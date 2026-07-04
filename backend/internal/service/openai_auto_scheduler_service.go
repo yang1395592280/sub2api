@@ -18,7 +18,7 @@ type OpenAIAutoSchedulerSettingsProvider interface {
 type OpenAIAutoSchedulerRepository interface {
 	GetGroup(ctx context.Context, groupID int64) (*Group, error)
 	GetScoreState(ctx context.Context, accountID, groupID int64, model string) (*OpenAIAutoSchedulerScoreState, error)
-	HasOpenCircuitScoreState(ctx context.Context, accountID, groupID int64) (bool, error)
+	HasOpenCircuitScoreState(ctx context.Context, accountID, groupID int64, models []string) (bool, error)
 	UpsertScoreState(ctx context.Context, state OpenAIAutoSchedulerScoreState) error
 	InsertScoreEvent(ctx context.Context, event OpenAIAutoSchedulerScoreEvent) error
 	ListScoreStates(ctx context.Context, params OpenAIAutoSchedulerListParams) ([]OpenAIAutoSchedulerScoreState, int64, error)

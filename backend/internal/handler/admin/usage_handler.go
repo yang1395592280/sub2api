@@ -57,6 +57,18 @@ type CreateUsageCleanupTaskRequest struct {
 	Timezone    string  `json:"timezone"`
 }
 
+func parseUsageAPIKeyGroupSelectMode(c *gin.Context) (string, bool) {
+	mode := strings.TrimSpace(c.Query("api_key_group_select_mode"))
+	if mode == "" {
+		return "", true
+	}
+	if mode != service.APIKeyGroupSelectModeOpenAIAutoCheapest {
+		response.BadRequest(c, "Invalid api_key_group_select_mode")
+		return "", false
+	}
+	return mode, true
+}
+
 // List handles listing all usage records with filters
 // GET /api/v1/admin/usage
 func (h *UsageHandler) List(c *gin.Context) {
@@ -111,6 +123,10 @@ func (h *UsageHandler) List(c *gin.Context) {
 
 	model := c.Query("model")
 	billingMode := strings.TrimSpace(c.Query("billing_mode"))
+	apiKeyGroupSelectMode, ok := parseUsageAPIKeyGroupSelectMode(c)
+	if !ok {
+		return
+	}
 
 	var requestType *int16
 	var stream *bool
@@ -172,18 +188,19 @@ func (h *UsageHandler) List(c *gin.Context) {
 		SortOrder: c.DefaultQuery("sort_order", "desc"),
 	}
 	filters := usagestats.UsageLogFilters{
-		UserID:      userID,
-		APIKeyID:    apiKeyID,
-		AccountID:   accountID,
-		GroupID:     groupID,
-		Model:       model,
-		RequestType: requestType,
-		Stream:      stream,
-		BillingType: billingType,
-		BillingMode: billingMode,
-		StartTime:   startTime,
-		EndTime:     endTime,
-		ExactTotal:  exactTotal,
+		UserID:                userID,
+		APIKeyID:              apiKeyID,
+		AccountID:             accountID,
+		GroupID:               groupID,
+		APIKeyGroupSelectMode: apiKeyGroupSelectMode,
+		Model:                 model,
+		RequestType:           requestType,
+		Stream:                stream,
+		BillingType:           billingType,
+		BillingMode:           billingMode,
+		StartTime:             startTime,
+		EndTime:               endTime,
+		ExactTotal:            exactTotal,
 	}
 
 	records, result, err := h.usageService.ListWithFilters(c.Request.Context(), params, filters)
@@ -242,6 +259,10 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 
 	model := c.Query("model")
 	billingMode := strings.TrimSpace(c.Query("billing_mode"))
+	apiKeyGroupSelectMode, ok := parseUsageAPIKeyGroupSelectMode(c)
+	if !ok {
+		return
+	}
 
 	var requestType *int16
 	var stream *bool
@@ -312,17 +333,18 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 
 	// Build filters and call GetStatsWithFilters
 	filters := usagestats.UsageLogFilters{
-		UserID:      userID,
-		APIKeyID:    apiKeyID,
-		AccountID:   accountID,
-		GroupID:     groupID,
-		Model:       model,
-		RequestType: requestType,
-		Stream:      stream,
-		BillingType: billingType,
-		BillingMode: billingMode,
-		StartTime:   &startTime,
-		EndTime:     &endTime,
+		UserID:                userID,
+		APIKeyID:              apiKeyID,
+		AccountID:             accountID,
+		GroupID:               groupID,
+		APIKeyGroupSelectMode: apiKeyGroupSelectMode,
+		Model:                 model,
+		RequestType:           requestType,
+		Stream:                stream,
+		BillingType:           billingType,
+		BillingMode:           billingMode,
+		StartTime:             &startTime,
+		EndTime:               &endTime,
 	}
 
 	var stats *usagestats.UsageStats

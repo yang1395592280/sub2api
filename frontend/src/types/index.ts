@@ -1775,6 +1775,7 @@ export interface UsageQueryParams {
   user_id?: number
   account_id?: number
   group_id?: number
+  api_key_group_select_mode?: ApiKeyGroupSelectMode
   model?: string
   request_type?: UsageRequestType
   stream?: boolean

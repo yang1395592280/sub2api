@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
-	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -127,6 +128,39 @@ func TestWorkbenchServiceSendImagePassesPublicOriginToAsyncGateway(t *testing.T)
 	require.NoError(t, err)
 	require.Equal(t, "www.loomex.site", gateway.lastImage.PublicHost)
 	require.Equal(t, "https", gateway.lastImage.PublicScheme)
+}
+
+func TestWorkbenchServiceSendImageEditAllowsImagesEndpoint(t *testing.T) {
+	ctx := context.Background()
+	repo := newWorkbenchMemoryRepo()
+	apiKeys := &workbenchAPIKeyLookupStub{keys: map[int64]*APIKey{
+		7: {ID: 7, UserID: 42, Key: "sk-test", Status: StatusAPIKeyActive, Name: "main"},
+	}}
+	gateway := &workbenchGatewayStub{image: WorkbenchGatewayImageResponse{
+		Images: []WorkbenchImageOutput{{URL: "https://img.example/edit.png", MimeType: "image/png"}},
+	}}
+	svc := NewWorkbenchService(repo, apiKeys, gateway)
+	svc.asyncRunner = func(fn func()) { fn() }
+
+	conv, err := svc.CreateConversation(ctx, 42, CreateWorkbenchConversationRequest{Mode: WorkbenchModeImage})
+	require.NoError(t, err)
+
+	_, err = svc.Send(ctx, 42, conv.ID, WorkbenchSendRequest{
+		Mode:     WorkbenchModeImage,
+		APIKeyID: 7,
+		Endpoint: "images_edits",
+		Model:    "gpt-image-2",
+		Input:    "replace background",
+		Options: map[string]any{
+			"images": []any{map[string]any{"image_url": "data:image/png;base64,ZmFrZQ=="}},
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "images_edits", repo.messages[conv.ID][0].Endpoint)
+	require.Equal(t, "images_edits", repo.messages[conv.ID][1].Endpoint)
+	require.Equal(t, "images_edits", gateway.lastImage.Endpoint)
+	require.Equal(t, "data:image/png;base64,ZmFrZQ==", gateway.lastImage.Options["images"].([]any)[0].(map[string]any)["image_url"])
 }
 
 func TestWorkbenchServiceSendImageReturnsPendingBeforeGatewayCompletes(t *testing.T) {
@@ -590,16 +624,18 @@ func TestWorkbenchServiceSendChatHistoryIsBoundedAndDoesNotDuplicateCurrentInput
 
 func TestHTTPWorkbenchGatewayClientSendChatIncludesStreamFalse(t *testing.T) {
 	var got map[string]any
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	httpClient := &http.Client{Transport: workbenchRoundTripFunc(func(r *http.Request) (*http.Response, error) {
 		require.Equal(t, "/v1/chat/completions", r.URL.Path)
 		require.Equal(t, "Bearer sk-test", r.Header.Get("Authorization"))
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&got))
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"chatcmpl_1","choices":[{"message":{"content":"hello"}}]}`))
-	}))
-	defer server.Close()
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"id":"chatcmpl_1","choices":[{"message":{"content":"hello"}}]}`)),
+		}, nil
+	})}
 
-	client := &HTTPWorkbenchGatewayClient{client: server.Client(), baseURL: server.URL}
+	client := &HTTPWorkbenchGatewayClient{client: httpClient, baseURL: "https://workbench.local"}
 
 	resp, err := client.SendChat(context.Background(), "Bearer sk-test", WorkbenchGatewayChatRequest{
 		Model:    "gpt-5.5",
@@ -616,16 +652,18 @@ func TestHTTPWorkbenchGatewayClientSendChatIncludesStreamFalse(t *testing.T) {
 func TestHTTPWorkbenchGatewayClientGenerateImageForwardsPublicOrigin(t *testing.T) {
 	var gotHost string
 	var gotProto string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	httpClient := &http.Client{Transport: workbenchRoundTripFunc(func(r *http.Request) (*http.Response, error) {
 		require.Equal(t, "/v1/images/generations", r.URL.Path)
 		gotHost = r.Header.Get("X-Forwarded-Host")
 		gotProto = r.Header.Get("X-Forwarded-Proto")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"created":1,"data":[{"url":"https://www.loomex.site/v1/images/files/1.png"}]}`))
-	}))
-	defer server.Close()
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"created":1,"data":[{"url":"https://www.loomex.site/v1/images/files/1.png"}]}`)),
+		}, nil
+	})}
 
-	client := &HTTPWorkbenchGatewayClient{client: server.Client(), baseURL: server.URL}
+	client := &HTTPWorkbenchGatewayClient{client: httpClient, baseURL: "https://workbench.local"}
 
 	_, err := client.GenerateImage(context.Background(), "Bearer sk-test", WorkbenchGatewayImageRequest{
 		Model:        "gpt-image-2",
@@ -639,6 +677,65 @@ func TestHTTPWorkbenchGatewayClientGenerateImageForwardsPublicOrigin(t *testing.
 	require.Equal(t, "https", gotProto)
 }
 
+func TestHTTPWorkbenchGatewayClientGenerateImageWithInputImagesUsesEditsEndpoint(t *testing.T) {
+	var gotPath string
+	var gotContentType string
+	var gotFields map[string]string
+	var gotImage []byte
+	var gotImageFilename string
+	httpClient := &http.Client{Transport: workbenchRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		gotPath = r.URL.Path
+		gotContentType = r.Header.Get("Content-Type")
+		gotFields = map[string]string{}
+		reader, err := r.MultipartReader()
+		require.NoError(t, err)
+		for {
+			part, err := reader.NextPart()
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			require.NoError(t, err)
+			body, err := io.ReadAll(part)
+			require.NoError(t, err)
+			if part.FormName() == "image" {
+				gotImage = body
+				gotImageFilename = part.FileName()
+				continue
+			}
+			gotFields[part.FormName()] = string(body)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"created":1,"data":[{"url":"https://img.example/edit.png"}]}`)),
+		}, nil
+	})}
+
+	client := &HTTPWorkbenchGatewayClient{client: httpClient, baseURL: "https://workbench.local"}
+
+	_, err := client.GenerateImage(context.Background(), "Bearer sk-test", WorkbenchGatewayImageRequest{
+		Endpoint: WorkbenchEndpointImagesEdits,
+		Model:    "gpt-image-2",
+		Prompt:   "replace background",
+		Options: map[string]any{
+			"images":         []any{map[string]any{"image_url": "data:image/png;base64,ZmFrZQ=="}},
+			"input_fidelity": "high",
+			"size":           "1536x1024",
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "/v1/images/edits", gotPath)
+	require.Contains(t, gotContentType, "multipart/form-data")
+	require.Equal(t, "gpt-image-2", gotFields["model"])
+	require.Equal(t, "replace background", gotFields["prompt"])
+	require.Equal(t, "high", gotFields["input_fidelity"])
+	require.Equal(t, "1536x1024", gotFields["size"])
+	require.NotContains(t, gotFields, "images")
+	require.Equal(t, []byte("fake"), gotImage)
+	require.Equal(t, "reference-1.png", gotImageFilename)
+}
+
 func TestNewHTTPWorkbenchGatewayClientUsesLongTimeoutForAsyncImages(t *testing.T) {
 	client, ok := NewHTTPWorkbenchGatewayClient(nil).(*HTTPWorkbenchGatewayClient)
 	require.True(t, ok)
@@ -646,13 +743,15 @@ func TestNewHTTPWorkbenchGatewayClientUsesLongTimeoutForAsyncImages(t *testing.T
 }
 
 func TestHTTPWorkbenchGatewayClientPostJSONDoesNotLeakRawBody(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusBadGateway)
-		_, _ = w.Write([]byte(`{"error":{"message":"provider exploded","secret":"sk-secret","provider":"openai"}}`))
-	}))
-	defer server.Close()
+	httpClient := &http.Client{Transport: workbenchRoundTripFunc(func(_ *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusBadGateway,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"provider exploded","secret":"sk-secret","provider":"openai"}}`)),
+		}, nil
+	})}
 
-	client := &HTTPWorkbenchGatewayClient{client: server.Client(), baseURL: server.URL}
+	client := &HTTPWorkbenchGatewayClient{client: httpClient, baseURL: "https://workbench.local"}
 
 	err := client.postJSON(context.Background(), "/v1/chat/completions", "Bearer sk-test", map[string]any{"model": "gpt"}, &map[string]any{})
 
@@ -669,6 +768,12 @@ type workbenchGatewayStub struct {
 	lastAuthorization string
 	lastChat          WorkbenchGatewayChatRequest
 	lastImage         WorkbenchGatewayImageRequest
+}
+
+type workbenchRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f workbenchRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func (g *workbenchGatewayStub) SendChat(_ context.Context, authorization string, req WorkbenchGatewayChatRequest) (WorkbenchGatewayChatResponse, error) {

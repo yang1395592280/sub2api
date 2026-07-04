@@ -7,6 +7,7 @@
         v-model:endDate="localEndDate"
         :exporting="false"
         :show-actions="false"
+        :show-auto-cheapest-group="false"
         @change="noop"
       />
 
