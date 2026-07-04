@@ -19,6 +19,7 @@ type OpenAIAutoSchedulerRepository interface {
 	GetGroup(ctx context.Context, groupID int64) (*Group, error)
 	GetScoreState(ctx context.Context, accountID, groupID int64, model string) (*OpenAIAutoSchedulerScoreState, error)
 	HasOpenCircuitScoreState(ctx context.Context, accountID, groupID int64, model string) (bool, error)
+	ListScoreStatesForSummary(ctx context.Context, groupID int64, model string) ([]OpenAIAutoSchedulerScoreState, error)
 	UpsertScoreState(ctx context.Context, state OpenAIAutoSchedulerScoreState) error
 	InsertScoreEvent(ctx context.Context, event OpenAIAutoSchedulerScoreEvent) error
 	ListScoreStates(ctx context.Context, params OpenAIAutoSchedulerListParams) ([]OpenAIAutoSchedulerScoreState, int64, error)
@@ -324,25 +325,20 @@ func (s *OpenAIAutoSchedulerService) ListAccountSummaries(ctx context.Context, g
 	}
 	settings := s.settings(ctx)
 	probeModel := settings.ProbeModel
-	states := make([]OpenAIAutoSchedulerScoreState, 0, len(accountIDs))
-	seen := make(map[int64]struct{}, len(accountIDs))
+	requested := make(map[int64]struct{}, len(accountIDs))
 	for _, accountID := range accountIDs {
 		if accountID <= 0 {
 			continue
 		}
-		if _, ok := seen[accountID]; ok {
-			continue
-		}
-		seen[accountID] = struct{}{}
-		state, err := s.repo.GetScoreState(ctx, accountID, groupID, probeModel)
-		if err != nil {
-			return nil, err
-		}
-		if state == nil {
-			continue
-		}
-		states = append(states, *state)
-		speedMS, hasSpeed := openAIAutoSchedulerSpeedMS(*state)
+		requested[accountID] = struct{}{}
+	}
+	states, err := s.repo.ListScoreStatesForSummary(ctx, groupID, probeModel)
+	if err != nil {
+		return nil, err
+	}
+	rankable := make([]OpenAIAutoSchedulerScoreState, 0, len(states))
+	for _, state := range states {
+		speedMS, hasSpeed := openAIAutoSchedulerSpeedMS(state)
 		summary := OpenAIAutoSchedulerAccountSummary{
 			State:         normalizeOpenAIAutoSchedulerState(state.State),
 			ProbeModel:    probeModel,
@@ -355,26 +351,36 @@ func (s *OpenAIAutoSchedulerService) ListAccountSummaries(ctx context.Context, g
 		if hasSpeed {
 			summary.SpeedMS = &speedMS
 		}
-		out[accountID] = summary
+		if _, ok := requested[state.AccountID]; ok {
+			out[state.AccountID] = summary
+		}
+		if summary.State != OpenAIAutoSchedulerStateRunning {
+			continue
+		}
+		rankable = append(rankable, state)
 	}
 
-	sort.SliceStable(states, func(i, j int) bool {
-		speedI, okI := openAIAutoSchedulerSpeedMS(states[i])
-		speedJ, okJ := openAIAutoSchedulerSpeedMS(states[j])
+	sort.SliceStable(rankable, func(i, j int) bool {
+		speedI, okI := openAIAutoSchedulerSpeedMS(rankable[i])
+		speedJ, okJ := openAIAutoSchedulerSpeedMS(rankable[j])
 		if okI != okJ {
 			return okI
 		}
 		if okI && speedI != speedJ {
 			return speedI < speedJ
 		}
-		if states[i].FinalScore != states[j].FinalScore {
-			return states[i].FinalScore > states[j].FinalScore
+		if rankable[i].FinalScore != rankable[j].FinalScore {
+			return rankable[i].FinalScore > rankable[j].FinalScore
 		}
-		return states[i].AccountID < states[j].AccountID
+		return rankable[i].AccountID < rankable[j].AccountID
 	})
 	priority := 1
-	for _, state := range states {
+	for _, state := range rankable {
 		if _, ok := openAIAutoSchedulerSpeedMS(state); !ok {
+			continue
+		}
+		if _, ok := requested[state.AccountID]; !ok {
+			priority++
 			continue
 		}
 		summary := out[state.AccountID]

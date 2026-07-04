@@ -77,6 +77,27 @@ func (r *openAIAutoSchedulerRepository) HasOpenCircuitScoreState(ctx context.Con
 		Exist(ctx)
 }
 
+func (r *openAIAutoSchedulerRepository) ListScoreStatesForSummary(ctx context.Context, groupID int64, model string) ([]service.OpenAIAutoSchedulerScoreState, error) {
+	model = strings.TrimSpace(model)
+	if groupID <= 0 || model == "" {
+		return nil, nil
+	}
+	entities, err := r.client.OpenAIAutoSchedulerScoreState.Query().
+		Where(
+			openaiautoschedulerscorestate.GroupIDEQ(groupID),
+			openaiautoschedulerscorestate.ModelEQ(model),
+		).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]service.OpenAIAutoSchedulerScoreState, 0, len(entities))
+	for _, entity := range entities {
+		out = append(out, openAIAutoSchedulerScoreStateEntityToService(entity))
+	}
+	return out, nil
+}
+
 func (r *openAIAutoSchedulerRepository) UpsertScoreState(ctx context.Context, state service.OpenAIAutoSchedulerScoreState) error {
 	model := strings.TrimSpace(state.Model)
 	return r.client.OpenAIAutoSchedulerScoreState.Create().
