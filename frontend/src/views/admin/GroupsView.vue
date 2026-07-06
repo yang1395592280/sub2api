@@ -334,6 +334,7 @@
               <button
                 @click="handleEdit(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                data-test="group-edit-button"
               >
                 <Icon name="edit" size="sm" />
                 <span class="text-xs">{{ t("common.edit") }}</span>
@@ -559,10 +560,12 @@
               class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               data-test="group-upstream-refresh-enabled"
             />
-            <span>启用上游余额自动刷新</span>
+            <span>{{ t("admin.groups.form.upstreamBalanceRefreshEnabled") }}</span>
           </label>
           <div>
-            <label class="input-label">刷新间隔（秒）</label>
+            <label class="input-label">
+              {{ t("admin.groups.form.upstreamBalanceRefreshIntervalSeconds") }}
+            </label>
             <input
               v-model.number="createForm.upstream_balance_refresh_interval_seconds"
               type="number"
@@ -573,7 +576,9 @@
             />
           </div>
           <div>
-            <label class="input-label">价格倍率上限</label>
+            <label class="input-label">
+              {{ t("admin.groups.form.upstreamPriceMaxMultiplier") }}
+            </label>
             <input
               v-model.number="createForm.upstream_price_max_multiplier"
               type="number"
@@ -1927,27 +1932,34 @@
               v-model="editForm.upstream_balance_refresh_enabled"
               type="checkbox"
               class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              data-test="edit-group-upstream-refresh-enabled"
             />
-            <span>启用上游余额自动刷新</span>
+            <span>{{ t("admin.groups.form.upstreamBalanceRefreshEnabled") }}</span>
           </label>
           <div>
-            <label class="input-label">刷新间隔（秒）</label>
+            <label class="input-label">
+              {{ t("admin.groups.form.upstreamBalanceRefreshIntervalSeconds") }}
+            </label>
             <input
               v-model.number="editForm.upstream_balance_refresh_interval_seconds"
               type="number"
               min="60"
               class="input"
               :disabled="!editForm.upstream_balance_refresh_enabled"
+              data-test="edit-group-upstream-refresh-interval"
             />
           </div>
           <div>
-            <label class="input-label">价格倍率上限</label>
+            <label class="input-label">
+              {{ t("admin.groups.form.upstreamPriceMaxMultiplier") }}
+            </label>
             <input
               v-model.number="editForm.upstream_price_max_multiplier"
               type="number"
               min="0"
               step="0.0001"
               class="input"
+              data-test="edit-group-upstream-price-max-multiplier"
             />
           </div>
         </div>
@@ -4361,10 +4373,10 @@ const getUpstreamSettingsValidationErrors = (
     form.upstream_balance_refresh_enabled &&
     Number(form.upstream_balance_refresh_interval_seconds) < 60
   ) {
-    errors.push("上游余额自动刷新间隔不能小于 60 秒");
+    errors.push(t("admin.groups.validation.upstreamBalanceRefreshIntervalMin"));
   }
   if (Number(form.upstream_price_max_multiplier) < 0) {
-    errors.push("价格倍率上限不能小于 0");
+    errors.push(t("admin.groups.validation.upstreamPriceMaxMultiplierMin"));
   }
   return errors;
 };

@@ -21,8 +21,17 @@ export function getUpstreamPriceGuardLabel(extra: PriceGuardExtra | null | undef
   const actual = extra ? getNumber(extra, 'upstream_price_guard_actual_multiplier') : null
   const max = extra ? getNumber(extra, 'upstream_price_guard_max_multiplier') : null
 
-  if (status === 'blocked' && actual != null && max != null) {
-    return `价格超限 ${formatRate(actual)} > ${formatRate(max)}`
+  if (status === 'blocked') {
+    if (actual != null && max != null) {
+      return `价格超限 ${formatRate(actual)} > ${formatRate(max)}`
+    }
+    if (actual != null) {
+      return `价格超限 ${formatRate(actual)}`
+    }
+    if (max != null) {
+      return `价格超限 > ${formatRate(max)}`
+    }
+    return '价格超限'
   }
   if (status === 'unsupported') return '价格未知'
   if (status === 'error') return '价格检查失败'

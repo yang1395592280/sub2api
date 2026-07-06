@@ -347,6 +347,10 @@ describe('admin AccountsView bulk edit scope', () => {
     expect(wrapper.text()).toContain('价格超限 0.12x > 0.08x')
     const badge = wrapper.get('[data-test="upstream-group-badge"]')
     expect(badge.classes()).toEqual(expect.arrayContaining(['rounded-xl', 'bg-blue-50', 'border-blue-200', 'text-blue-950']))
+    const priceGuardLabel = wrapper.findAll('span').find(node => node.text() === '价格超限 0.12x > 0.08x')
+    expect(priceGuardLabel?.classes()).toEqual(
+      expect.arrayContaining(['text-red-600', 'dark:text-red-300'])
+    )
   })
 
   it('opens batch account test modal with selected accounts', async () => {

@@ -6,6 +6,7 @@ import GroupsView from '../GroupsView.vue'
 
 const {
   createGroup,
+  updateGroup,
   listGroups,
   getAllGroups,
   getModelsListCandidates,
@@ -18,6 +19,7 @@ const {
   nextStep
 } = vi.hoisted(() => ({
   createGroup: vi.fn(),
+  updateGroup: vi.fn(),
   listGroups: vi.fn(),
   getAllGroups: vi.fn(),
   getModelsListCandidates: vi.fn(),
@@ -37,8 +39,16 @@ const messages: Record<string, string> = {
   'admin.groups.form.platform': '平台',
   'admin.groups.form.rateMultiplier': '倍率',
   'admin.groups.form.rpmLimit': 'RPM 限制',
+  'admin.groups.form.upstreamBalanceRefreshEnabled': '启用上游余额自动刷新',
+  'admin.groups.form.upstreamBalanceRefreshIntervalSeconds': '刷新间隔（秒）',
+  'admin.groups.form.upstreamPriceMaxMultiplier': '价格倍率上限',
   'admin.groups.nameRequired': '请输入分组名称',
   'admin.groups.groupCreated': '分组创建成功',
+  'admin.groups.groupUpdated': '分组更新成功',
+  'admin.groups.validation.upstreamBalanceRefreshIntervalMin': '上游余额自动刷新间隔不能小于 60 秒',
+  'admin.groups.validation.upstreamPriceMaxMultiplierMin': '价格倍率上限不能小于 0',
+  'common.edit': '编辑',
+  'common.update': '更新',
   'common.create': '创建'
 }
 
@@ -51,7 +61,7 @@ vi.mock('@/api/admin', () => ({
       getModelsListCandidates,
       getUsageSummary,
       getCapacitySummary,
-      update: vi.fn(),
+      update: updateGroup,
       delete: vi.fn(),
       updateSortOrder: vi.fn()
     },
@@ -104,6 +114,9 @@ const createAdminGroup = (overrides: Partial<AdminGroup> = {}): AdminGroup => ({
   image_price_1k: null,
   image_price_2k: null,
   image_price_4k: null,
+  upstream_balance_refresh_enabled: false,
+  upstream_balance_refresh_interval_seconds: 600,
+  upstream_price_max_multiplier: 0,
   peak_rate_enabled: false,
   peak_start: '',
   peak_end: '',
@@ -140,7 +153,13 @@ const TablePageLayoutStub = {
 
 const DataTableStub = {
   props: ['columns', 'data'],
-  template: '<div data-test="groups-table">{{ data.length }}</div>'
+  template: `
+    <div data-test="groups-table">
+      <div v-for="row in data" :key="row.id">
+        <slot name="cell-actions" :row="row" />
+      </div>
+    </div>
+  `
 }
 
 const SelectStub = {
@@ -194,6 +213,7 @@ describe('admin GroupsView upstream price guard settings', () => {
     localStorage.clear()
 
     createGroup.mockReset()
+    updateGroup.mockReset()
     listGroups.mockReset()
     getAllGroups.mockReset()
     getModelsListCandidates.mockReset()
@@ -206,6 +226,7 @@ describe('admin GroupsView upstream price guard settings', () => {
     nextStep.mockReset()
 
     createGroup.mockResolvedValue(createAdminGroup())
+    updateGroup.mockResolvedValue(createAdminGroup())
     listGroups.mockResolvedValue({
       items: [createAdminGroup()],
       total: 1,
@@ -245,5 +266,78 @@ describe('admin GroupsView upstream price guard settings', () => {
       upstream_balance_refresh_interval_seconds: 600,
       upstream_price_max_multiplier: 0.08
     })
+  })
+
+  it('hydrates and submits upstream settings in edit payload', async () => {
+    const existingGroup = createAdminGroup({
+      upstream_balance_refresh_enabled: true,
+      upstream_balance_refresh_interval_seconds: 900,
+      upstream_price_max_multiplier: 0.12
+    })
+    listGroups.mockResolvedValueOnce({
+      items: [existingGroup],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-test="group-edit-button"]').trigger('click')
+    await flushPromises()
+
+    expect((wrapper.get('[data-test="edit-group-upstream-refresh-enabled"]').element as HTMLInputElement).checked).toBe(true)
+    expect((wrapper.get('[data-test="edit-group-upstream-refresh-interval"]').element as HTMLInputElement).value).toBe('900')
+    expect((wrapper.get('[data-test="edit-group-upstream-price-max-multiplier"]').element as HTMLInputElement).value).toBe('0.12')
+
+    await wrapper.get('[data-test="edit-group-upstream-refresh-interval"]').setValue('120')
+    await wrapper.get('[data-test="edit-group-upstream-price-max-multiplier"]').setValue('0.05')
+
+    await wrapper.get('#edit-group-form').trigger('submit')
+    await flushPromises()
+
+    expect(updateGroup).toHaveBeenCalledTimes(1)
+    expect(updateGroup).toHaveBeenCalledWith(
+      existingGroup.id,
+      expect.objectContaining({
+        upstream_balance_refresh_enabled: true,
+        upstream_balance_refresh_interval_seconds: 120,
+        upstream_price_max_multiplier: 0.05
+      })
+    )
+  })
+
+  it('blocks create when upstream refresh interval is below 60 seconds', async () => {
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-tour="groups-create-btn"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-tour="group-form-name"]').setValue('OpenAI 池')
+    await wrapper.get('[data-test="group-upstream-refresh-enabled"]').setValue(true)
+    await wrapper.get('[data-test="group-upstream-refresh-interval"]').setValue('59')
+
+    await wrapper.get('#create-group-form').trigger('submit')
+    await flushPromises()
+
+    expect(createGroup).not.toHaveBeenCalled()
+    expect(showError).toHaveBeenCalledWith('上游余额自动刷新间隔不能小于 60 秒')
+  })
+
+  it('blocks create when upstream price max multiplier is negative', async () => {
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-tour="groups-create-btn"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-tour="group-form-name"]').setValue('OpenAI 池')
+    await wrapper.get('[data-test="group-upstream-price-max-multiplier"]').setValue('-0.01')
+
+    await wrapper.get('#create-group-form').trigger('submit')
+    await flushPromises()
+
+    expect(createGroup).not.toHaveBeenCalled()
+    expect(showError).toHaveBeenCalledWith('价格倍率上限不能小于 0')
   })
 })
