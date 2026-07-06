@@ -119,7 +119,7 @@ func (r *GroupUpstreamBalanceRefreshRunner) refreshGroup(ctx context.Context, gr
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			completed = false
-			stopBatch = true
+			stopBatch = false
 			slog.Error(
 				"group_upstream_balance_refresh.group_panic",
 				"group_id", group.ID,

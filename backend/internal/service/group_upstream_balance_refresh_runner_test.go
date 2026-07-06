@@ -184,6 +184,42 @@ func TestGroupUpstreamBalanceRefreshRunner_RecoversFromPanicAndContinuesNextRun(
 	require.Equal(t, "ok", accountRepo.extraUpdates[20]["upstream_price_guard_status"])
 }
 
+func TestGroupUpstreamBalanceRefreshRunner_PanicInOneGroupContinuesLaterGroupsAndRetriesPanickedGroup(t *testing.T) {
+	groupRepo := &groupUpstreamRefreshGroupRepoStub{
+		groups: []Group{
+			{ID: 10, Status: StatusActive, UpstreamBalanceRefreshEnabled: true, UpstreamBalanceRefreshIntervalSeconds: 600},
+			{ID: 11, Status: StatusActive, UpstreamBalanceRefreshEnabled: true, UpstreamBalanceRefreshIntervalSeconds: 600},
+		},
+	}
+	accountRepo := &groupUpstreamRefreshAccountRepoStub{
+		accounts: map[int64][]Account{
+			10: {{ID: 20, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}},
+			11: {{ID: 30, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}},
+		},
+	}
+	balance := &groupUpstreamBalanceStub{
+		refreshed: map[int64]*Account{
+			20: {ID: 20, Platform: PlatformOpenAI, Type: AccountTypeAPIKey},
+			30: {ID: 30, Platform: PlatformOpenAI, Type: AccountTypeAPIKey},
+		},
+		panicIDs: map[int64]bool{20: true},
+	}
+	runner := NewGroupUpstreamBalanceRefreshRunner(groupRepo, accountRepo, balance)
+	now := time.Date(2026, 7, 6, 9, 0, 0, 0, time.UTC)
+
+	require.NotPanics(t, func() {
+		runner.runOnce(context.Background(), now)
+	})
+	require.Equal(t, []int64{20, 30}, balance.calls)
+
+	delete(balance.panicIDs, 20)
+	balance.calls = nil
+
+	runner.runOnce(context.Background(), now.Add(time.Minute))
+
+	require.Equal(t, []int64{20}, balance.calls)
+}
+
 func TestGroupUpstreamBalanceRefreshRunner_RefreshErrorStillContinuesSameGroup(t *testing.T) {
 	group := Group{
 		ID:                                    10,

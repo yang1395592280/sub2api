@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -29,7 +30,7 @@ func ApplyGroupUpstreamPriceGuard(ctx context.Context, repo AccountRepository, a
 		if err := repo.UpdateExtra(ctx, account.ID, updates); err != nil {
 			return err
 		}
-		if strings.HasPrefix(strings.TrimSpace(account.TempUnschedulableReason), UpstreamPriceGuardReasonPrefix) {
+		if isPriceGuardReasonForGroup(account.TempUnschedulableReason, group.ID) {
 			return repo.ClearTempUnschedulable(ctx, account.ID)
 		}
 		return nil
@@ -58,8 +59,24 @@ func ApplyGroupUpstreamPriceGuard(ctx context.Context, repo AccountRepository, a
 	if err := repo.UpdateExtra(ctx, account.ID, updates); err != nil {
 		return err
 	}
-	if strings.HasPrefix(strings.TrimSpace(account.TempUnschedulableReason), UpstreamPriceGuardReasonPrefix) {
+	if isPriceGuardReasonForGroup(account.TempUnschedulableReason, group.ID) {
 		return repo.ClearTempUnschedulable(ctx, account.ID)
 	}
 	return nil
+}
+
+func isPriceGuardReasonForGroup(reason string, groupID int64) bool {
+	reason = strings.TrimSpace(reason)
+	if !strings.HasPrefix(reason, UpstreamPriceGuardReasonPrefix) {
+		return false
+	}
+	for _, field := range strings.Fields(strings.TrimSpace(strings.TrimPrefix(reason, UpstreamPriceGuardReasonPrefix))) {
+		value, ok := strings.CutPrefix(field, "group_id=")
+		if !ok {
+			continue
+		}
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		return err == nil && parsed == groupID
+	}
+	return false
 }

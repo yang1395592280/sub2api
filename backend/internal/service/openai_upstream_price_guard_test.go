@@ -64,6 +64,19 @@ func TestApplyGroupUpstreamPriceGuard_ClearsOnlyOwnReasonWhenPriceRecovers(t *te
 	require.Equal(t, "ok", repo.updates["upstream_price_guard_status"])
 }
 
+func TestApplyGroupUpstreamPriceGuard_DoesNotClearOtherGroupReasonWhenPriceRecovers(t *testing.T) {
+	price := 0.06
+	account := &Account{ID: 7, ChannelPrice: &price, TempUnschedulableReason: UpstreamPriceGuardReasonPrefix + " group_id=3 actual=0.120000 max=0.080000"}
+	group := Group{ID: 4, UpstreamPriceMaxMultiplier: 0.08}
+	repo := &upstreamPriceGuardRepoStub{}
+
+	err := ApplyGroupUpstreamPriceGuard(context.Background(), repo, account, group, time.Now())
+
+	require.NoError(t, err)
+	require.False(t, repo.clearCalled)
+	require.Equal(t, "ok", repo.updates["upstream_price_guard_status"])
+}
+
 func TestApplyGroupUpstreamPriceGuard_DoesNotClearOtherTempReason(t *testing.T) {
 	price := 0.06
 	account := &Account{ID: 7, ChannelPrice: &price, TempUnschedulableReason: "token refresh retry exhausted"}
@@ -86,6 +99,19 @@ func TestApplyGroupUpstreamPriceGuard_ClearsOwnReasonWhenGuardDisabled(t *testin
 
 	require.NoError(t, err)
 	require.True(t, repo.clearCalled)
+	require.Equal(t, "ok", repo.updates["upstream_price_guard_status"])
+}
+
+func TestApplyGroupUpstreamPriceGuard_DoesNotClearOtherGroupReasonWhenGuardDisabled(t *testing.T) {
+	price := 0.06
+	account := &Account{ID: 7, ChannelPrice: &price, TempUnschedulableReason: UpstreamPriceGuardReasonPrefix + " group_id=3 actual=0.120000 max=0.080000"}
+	group := Group{ID: 4, UpstreamPriceMaxMultiplier: 0}
+	repo := &upstreamPriceGuardRepoStub{}
+
+	err := ApplyGroupUpstreamPriceGuard(context.Background(), repo, account, group, time.Now())
+
+	require.NoError(t, err)
+	require.False(t, repo.clearCalled)
 	require.Equal(t, "ok", repo.updates["upstream_price_guard_status"])
 }
 

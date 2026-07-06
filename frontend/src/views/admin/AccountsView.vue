@@ -298,12 +298,12 @@
           </template>
           <template #cell-upstream_group="{ row }">
             <div
-              v-if="getUpstreamGroup(row)"
+              v-if="getUpstreamGroup(row) || getUpstreamPriceGuardText(row)"
               data-test="upstream-group-badge"
               class="inline-flex max-w-[12rem] flex-col gap-1 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-blue-950 dark:border-blue-800/60 dark:bg-blue-950/35 dark:text-blue-100"
               :title="getUpstreamGroupTitle(row)"
             >
-              <span class="truncate text-sm font-semibold leading-4">{{ getUpstreamGroup(row) }}</span>
+              <span v-if="getUpstreamGroup(row)" class="truncate text-sm font-semibold leading-4">{{ getUpstreamGroup(row) }}</span>
               <span v-if="getUpstreamRateLabel(row)" class="text-xs font-semibold leading-4 text-slate-700 dark:text-slate-200">
                 {{ getUpstreamRateLabel(row) }}
               </span>
