@@ -2165,8 +2165,9 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapab
 	requiredCapability OpenAIEndpointCapability,
 	requireCompact bool,
 	requestPlatform string,
+	schedulerHints ...string,
 ) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-	return s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredCapability, requireCompact, requestPlatform, nil)
+	return s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredCapability, requireCompact, requestPlatform, schedulerHints, nil)
 }
 
 func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
@@ -2192,7 +2193,7 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapab
 		selection, decision, err := s.SelectAccountWithSchedulerForCapability(ctx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredCapability, requireCompact, requestPlatform)
 		return apiKey, routingModel, selection, decision, err
 	}
-	effectiveKey, selection, decision, err := s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredCapability, requireCompact, requestPlatform, modelResolver)
+	effectiveKey, selection, decision, err := s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredCapability, requireCompact, requestPlatform, nil, modelResolver)
 	if effectiveKey == nil {
 		return nil, requestedModel, selection, decision, err
 	}
@@ -2256,8 +2257,10 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 	requiredCapability OpenAIEndpointCapability,
 	requireCompact bool,
 	requestPlatform string,
+	schedulerHints []string,
 	modelResolver func(*APIKey, string) string,
 ) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	platformOverrides := append([]string{requestPlatform}, schedulerHints...)
 	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
 		routingModel := requestedModel
 		if modelResolver != nil {
@@ -2265,7 +2268,7 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 				routingModel = resolved
 			}
 		}
-		selection, decision, err := s.SelectAccountWithSchedulerForCapability(ctx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredCapability, requireCompact, requestPlatform)
+		selection, decision, err := s.SelectAccountWithSchedulerForCapability(ctx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredCapability, requireCompact, platformOverrides...)
 		return apiKey, selection, decision, err
 	}
 	keys, err := s.resolveEffectiveOpenAIAPIKeys(ctx, apiKey)
@@ -2294,7 +2297,7 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 			transport,
 			requiredCapability,
 			requireCompact,
-			requestPlatform,
+			platformOverrides...,
 		)
 		lastDecision = decision
 		if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
