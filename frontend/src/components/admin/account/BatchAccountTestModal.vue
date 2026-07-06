@@ -55,9 +55,26 @@
 
         <div
           v-if="status !== 'idle'"
-          class="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300"
+          class="space-y-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300"
         >
-          {{ t('admin.accounts.bulkTestProgress', { current: progressCurrent, total: accounts.length }) }}
+          <div>
+            {{ t('admin.accounts.bulkTestProgress', { current: progressCurrent, total: accounts.length }) }}
+          </div>
+          <div v-if="progressCurrent > 0" class="font-medium">
+            {{ t('admin.accounts.bulkTestSummary', { success: successCount, failed: failedCount }) }}
+          </div>
+          <div v-if="failureBreakdown.length > 0" class="space-y-1">
+            <div class="font-medium">
+              {{ t('admin.accounts.bulkTestFailureBreakdownTitle') }}
+            </div>
+            <div
+              v-for="item in failureBreakdown"
+              :key="item.category"
+              class="text-xs"
+            >
+              {{ t('admin.accounts.bulkTestFailureCategory', { category: item.category, count: item.count }) }}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -189,7 +206,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -235,6 +252,9 @@ const availableModels = ref<ClaudeModel[]>([])
 const selectedModelId = ref('')
 const loadingModels = ref(false)
 const progressCurrent = ref(0)
+const successCount = ref(0)
+const failedCount = ref(0)
+const failureCategories = ref<Record<string, number>>({})
 const successEmails = ref<string[]>([])
 const failedEmails = ref<string[]>([])
 const selectedConcurrency = ref(20)
@@ -244,6 +264,13 @@ const formatConnectDuration = (durationMs: number) => {
   const seconds = Math.max(0, durationMs) / 1000
   return seconds.toFixed(2)
 }
+
+const failureBreakdown = computed(() => Object.entries(failureCategories.value)
+  .map(([category, count]) => ({ category, count }))
+  .sort((left, right) => {
+    if (right.count !== left.count) return right.count - left.count
+    return left.category.localeCompare(right.category)
+  }))
 
 const getTestEndpoint = (account: Account) => `/api/v1/admin/accounts/${account.id}/test`
 
@@ -302,6 +329,9 @@ const resetState = () => {
   testEntries.value = []
   errorMessage.value = ''
   progressCurrent.value = 0
+  successCount.value = 0
+  failedCount.value = 0
+  failureCategories.value = {}
   successEmails.value = []
   failedEmails.value = []
 }
@@ -318,6 +348,27 @@ const extractEmail = (account: Account): string => {
   return typeof account.name === 'string' && account.name.includes('@')
     ? account.name.trim()
     : ''
+}
+
+const getFailureCategory = (statusCode: number, message: string) => {
+  if (statusCode >= 400) {
+    return `HTTP ${statusCode}`
+  }
+
+  const match = message.match(/\b(?:HTTP\s*)?([45]\d{2})\b/i)
+  if (match) {
+    return `HTTP ${match[1]}`
+  }
+
+  const trimmed = message.trim()
+  return trimmed || t('common.unknown')
+}
+
+const recordFailureCategory = (category: string) => {
+  failureCategories.value = {
+    ...failureCategories.value,
+    [category]: (failureCategories.value[category] || 0) + 1
+  }
 }
 
 const parseSSEOutput = (body: string) => {
@@ -403,10 +454,12 @@ const testSingleAccount = async (account: Account) => {
     if (!response.ok || result.error) {
       const email = extractEmail(account)
       if (email) failedEmails.value.push(email)
+      const failureMessage = result.error || `HTTP ${response.status}`
+      recordFailureCategory(getFailureCategory(response.status, failureMessage))
       if (typeof result.connectDurationMs === 'number') {
         addEntryLine(entry, `连接耗时 ${formatConnectDuration(result.connectDurationMs)}s`, 'rounded-md bg-amber-300/20 px-2 py-1 font-semibold text-amber-300 ring-1 ring-amber-300/40')
       }
-      addEntryLine(entry, `ERROR: ${result.error || `HTTP ${response.status}`}`, 'text-red-400')
+      addEntryLine(entry, `ERROR: ${failureMessage}`, 'text-red-400')
       setEntryStatus(entry, 'error')
       return false
     }
@@ -426,6 +479,7 @@ const testSingleAccount = async (account: Account) => {
     const email = extractEmail(account)
     if (email) failedEmails.value.push(email)
     const message = error instanceof Error ? error.message : 'Unknown error'
+    recordFailureCategory(getFailureCategory(0, message))
     addEntryLine(entry, `ERROR: ${message}`, 'text-red-400')
     setEntryStatus(entry, 'error')
     return false
@@ -437,8 +491,6 @@ const testSingleAccount = async (account: Account) => {
 const runWithConcurrency = async () => {
   const concurrency = Math.max(1, Math.min(selectedConcurrency.value, props.accounts.length))
   let nextIndex = 0
-  let successCount = 0
-  let failedCount = 0
 
   const worker = async () => {
     while (nextIndex < props.accounts.length) {
@@ -446,15 +498,14 @@ const runWithConcurrency = async () => {
       nextIndex += 1
       const success = await testSingleAccount(account)
       if (success) {
-        successCount += 1
+        successCount.value += 1
       } else {
-        failedCount += 1
+        failedCount.value += 1
       }
     }
   }
 
   await Promise.all(Array.from({ length: concurrency }, () => worker()))
-  return { successCount, failedCount }
 }
 
 const startBatchTest = async () => {
@@ -463,10 +514,10 @@ const startBatchTest = async () => {
   resetState()
   status.value = 'connecting'
 
-  const { failedCount } = await runWithConcurrency()
+  await runWithConcurrency()
 
-  status.value = failedCount > 0 ? 'error' : 'success'
-  errorMessage.value = failedCount > 0 ? t('admin.accounts.bulkTestHasFailures') : ''
+  status.value = failedCount.value > 0 ? 'error' : 'success'
+  errorMessage.value = failedCount.value > 0 ? t('admin.accounts.bulkTestHasFailures') : ''
 }
 
 const downloadEmails = (emails: string[], filename: string) => {

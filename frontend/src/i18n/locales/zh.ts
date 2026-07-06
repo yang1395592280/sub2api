@@ -4598,6 +4598,8 @@ export default {
       bulkTestConcurrency: '并发数',
       bulkTestConcurrencyHint: '当前并发数：{count}',
       bulkTestSummary: '测试完成：成功 {success} 个，失败 {failed} 个',
+      bulkTestFailureBreakdownTitle: '失败分类',
+      bulkTestFailureCategory: '{category}：{count} 个',
       bulkTestHasFailures: '部分账号测试失败。',
       bulkDownloadSuccessEmails: '下载成功邮箱',
       bulkDownloadFailedEmails: '下载失败邮箱',

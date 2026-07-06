@@ -4443,6 +4443,8 @@ export default {
       bulkTestConcurrency: 'Concurrency',
       bulkTestConcurrencyHint: 'Running with concurrency: {count}',
       bulkTestSummary: 'Completed: {success} succeeded, {failed} failed',
+      bulkTestFailureBreakdownTitle: 'Failure categories',
+      bulkTestFailureCategory: '{category}: {count}',
       bulkTestHasFailures: 'Some accounts failed the test.',
       bulkDownloadSuccessEmails: 'Download Success Emails',
       bulkDownloadFailedEmails: 'Download Failed Emails',

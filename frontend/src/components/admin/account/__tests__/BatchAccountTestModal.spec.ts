@@ -301,6 +301,60 @@ describe('BatchAccountTestModal', () => {
     expect(clickMock).toHaveBeenCalledTimes(2)
   })
 
+  it('summarizes successes, failures, and failure categories while testing accounts', async () => {
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: vi.fn().mockResolvedValue('data: {"type":"content","text":"ok"}\n')
+      } as any)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        text: vi.fn().mockResolvedValue('data: {"type":"error","error":"rate limited"}\n')
+      } as any)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: vi.fn().mockResolvedValue('data: {"type":"error","error":"unauthorized"}\n')
+      } as any)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        text: vi.fn().mockResolvedValue('data: {"type":"error","error":"too many requests"}\n')
+      } as any)
+
+    const wrapper = mount(BatchAccountTestModal, {
+      props: {
+        show: false,
+        accounts: [
+          buildAccount(1, 'A'),
+          buildAccount(2, 'B'),
+          buildAccount(3, 'C'),
+          buildAccount(4, 'D')
+        ]
+      },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          Select: SelectStub,
+          Icon: true
+        }
+      }
+    })
+
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    await wrapper.findAll('button').at(-1)?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.accounts.bulkTestProgress:4,4')
+    expect(wrapper.text()).toContain('admin.accounts.bulkTestSummary:1,3')
+    expect(wrapper.text()).toContain('admin.accounts.bulkTestFailureBreakdownTitle')
+    expect(wrapper.text()).toContain('admin.accounts.bulkTestFailureCategory:HTTP 429,2')
+    expect(wrapper.text()).toContain('admin.accounts.bulkTestFailureCategory:HTTP 401,1')
+  })
+
   it('falls back to account name when extra.email_address is missing', async () => {
     const wrapper = mount(BatchAccountTestModal, {
       props: {
