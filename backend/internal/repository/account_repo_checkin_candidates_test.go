@@ -57,7 +57,7 @@ func TestListUpstreamBalanceRefreshCandidatesByGroupID(t *testing.T) {
 	require.Contains(t, normalized, "JOIN account_groups ag ON ag.account_id = a.id")
 	require.Contains(t, normalized, "ag.group_id = $1")
 	require.Contains(t, normalized, "a.deleted_at IS NULL")
-	require.Contains(t, normalized, "ag.deleted_at IS NULL")
+	require.NotContains(t, normalized, "ag.deleted_at")
 	require.Contains(t, normalized, "a.status = 'active'")
 	require.Contains(t, normalized, "a.type = 'apikey'")
 	require.Contains(t, normalized, "a.platform IN ('openai', 'anthropic')")

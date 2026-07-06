@@ -893,7 +893,6 @@ func (r *accountRepository) ListUpstreamBalanceRefreshCandidatesByGroupID(ctx co
 		FROM accounts a
 		JOIN account_groups ag ON ag.account_id = a.id
 		WHERE a.deleted_at IS NULL
-			AND ag.deleted_at IS NULL
 			AND ag.group_id = $1
 			AND a.status = 'active'
 			AND a.type = 'apikey'
