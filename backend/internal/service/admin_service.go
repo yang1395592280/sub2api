@@ -251,13 +251,16 @@ type CreateGroupInput struct {
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes []string
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
-	AllowMessagesDispatch       bool
-	DefaultMappedModel          string
-	RequireOAuthOnly            bool
-	RequirePrivacySet           bool
-	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig
-	ModelsListConfig            GroupModelsListConfig
-	OpenAIAutoSchedulerEnabled  bool
+	AllowMessagesDispatch                 bool
+	DefaultMappedModel                    string
+	RequireOAuthOnly                      bool
+	RequirePrivacySet                     bool
+	MessagesDispatchModelConfig           OpenAIMessagesDispatchModelConfig
+	ModelsListConfig                      GroupModelsListConfig
+	OpenAIAutoSchedulerEnabled            bool
+	UpstreamBalanceRefreshEnabled         bool
+	UpstreamBalanceRefreshIntervalSeconds int
+	UpstreamPriceMaxMultiplier            float64
 	// RPMLimit 分组 RPM 上限（0 = 不限制）
 	RPMLimit int
 	// 从指定分组复制账号（创建分组后在同一事务内绑定）
@@ -298,13 +301,16 @@ type UpdateGroupInput struct {
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes *[]string
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
-	AllowMessagesDispatch       *bool
-	DefaultMappedModel          *string
-	RequireOAuthOnly            *bool
-	RequirePrivacySet           *bool
-	MessagesDispatchModelConfig *OpenAIMessagesDispatchModelConfig
-	ModelsListConfig            *GroupModelsListConfig
-	OpenAIAutoSchedulerEnabled  *bool
+	AllowMessagesDispatch                 *bool
+	DefaultMappedModel                    *string
+	RequireOAuthOnly                      *bool
+	RequirePrivacySet                     *bool
+	MessagesDispatchModelConfig           *OpenAIMessagesDispatchModelConfig
+	ModelsListConfig                      *GroupModelsListConfig
+	OpenAIAutoSchedulerEnabled            *bool
+	UpstreamBalanceRefreshEnabled         *bool
+	UpstreamBalanceRefreshIntervalSeconds *int
+	UpstreamPriceMaxMultiplier            *float64
 	// RPMLimit 分组 RPM 上限（0 = 不限制），nil 表示未提供不改动。
 	RPMLimit *int
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
@@ -2060,6 +2066,17 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	}
 
 	allowImageGeneration := input.AllowImageGeneration || defaultAllowImageGenerationForPlatform(platform)
+	upstreamBalanceRefreshIntervalSeconds := input.UpstreamBalanceRefreshIntervalSeconds
+	if !input.UpstreamBalanceRefreshEnabled && upstreamBalanceRefreshIntervalSeconds == 0 {
+		upstreamBalanceRefreshIntervalSeconds = DefaultUpstreamBalanceRefreshIntervalSeconds
+	}
+	if err := ValidateGroupUpstreamPriceGuardConfig(
+		input.UpstreamBalanceRefreshEnabled,
+		upstreamBalanceRefreshIntervalSeconds,
+		input.UpstreamPriceMaxMultiplier,
+	); err != nil {
+		return nil, err
+	}
 
 	// 如果指定了复制账号的源分组，先获取账号 ID 列表
 	var accountIDsToCopy []int64
@@ -2094,40 +2111,43 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	}
 
 	group := &Group{
-		Name:                            input.Name,
-		Description:                     input.Description,
-		Platform:                        platform,
-		RateMultiplier:                  input.RateMultiplier,
-		IsExclusive:                     input.IsExclusive,
-		Status:                          StatusActive,
-		SubscriptionType:                subscriptionType,
-		DailyLimitUSD:                   dailyLimit,
-		WeeklyLimitUSD:                  weeklyLimit,
-		MonthlyLimitUSD:                 monthlyLimit,
-		AllowImageGeneration:            allowImageGeneration,
-		ImageRateIndependent:            input.ImageRateIndependent,
-		ImageRateMultiplier:             imageRateMultiplier,
-		PeakRateEnabled:                 peakRateEnabled,
-		PeakStart:                       peakStart,
-		PeakEnd:                         peakEnd,
-		PeakRateMultiplier:              peakRateMultiplier,
-		ImagePrice1K:                    imagePrice1K,
-		ImagePrice2K:                    imagePrice2K,
-		ImagePrice4K:                    imagePrice4K,
-		ClaudeCodeOnly:                  input.ClaudeCodeOnly,
-		FallbackGroupID:                 input.FallbackGroupID,
-		FallbackGroupIDOnInvalidRequest: fallbackOnInvalidRequest,
-		ModelRouting:                    input.ModelRouting,
-		MCPXMLInject:                    mcpXMLInject,
-		SupportedModelScopes:            input.SupportedModelScopes,
-		AllowMessagesDispatch:           input.AllowMessagesDispatch,
-		RequireOAuthOnly:                input.RequireOAuthOnly,
-		RequirePrivacySet:               input.RequirePrivacySet,
-		DefaultMappedModel:              input.DefaultMappedModel,
-		MessagesDispatchModelConfig:     normalizeOpenAIMessagesDispatchModelConfig(input.MessagesDispatchModelConfig),
-		ModelsListConfig:                normalizeGroupModelsListConfig(input.ModelsListConfig),
-		OpenAIAutoSchedulerEnabled:      input.OpenAIAutoSchedulerEnabled,
-		RPMLimit:                        input.RPMLimit,
+		Name:                                  input.Name,
+		Description:                           input.Description,
+		Platform:                              platform,
+		RateMultiplier:                        input.RateMultiplier,
+		IsExclusive:                           input.IsExclusive,
+		Status:                                StatusActive,
+		SubscriptionType:                      subscriptionType,
+		DailyLimitUSD:                         dailyLimit,
+		WeeklyLimitUSD:                        weeklyLimit,
+		MonthlyLimitUSD:                       monthlyLimit,
+		AllowImageGeneration:                  allowImageGeneration,
+		ImageRateIndependent:                  input.ImageRateIndependent,
+		ImageRateMultiplier:                   imageRateMultiplier,
+		PeakRateEnabled:                       peakRateEnabled,
+		PeakStart:                             peakStart,
+		PeakEnd:                               peakEnd,
+		PeakRateMultiplier:                    peakRateMultiplier,
+		ImagePrice1K:                          imagePrice1K,
+		ImagePrice2K:                          imagePrice2K,
+		ImagePrice4K:                          imagePrice4K,
+		ClaudeCodeOnly:                        input.ClaudeCodeOnly,
+		FallbackGroupID:                       input.FallbackGroupID,
+		FallbackGroupIDOnInvalidRequest:       fallbackOnInvalidRequest,
+		ModelRouting:                          input.ModelRouting,
+		MCPXMLInject:                          mcpXMLInject,
+		SupportedModelScopes:                  input.SupportedModelScopes,
+		AllowMessagesDispatch:                 input.AllowMessagesDispatch,
+		RequireOAuthOnly:                      input.RequireOAuthOnly,
+		RequirePrivacySet:                     input.RequirePrivacySet,
+		DefaultMappedModel:                    input.DefaultMappedModel,
+		MessagesDispatchModelConfig:           normalizeOpenAIMessagesDispatchModelConfig(input.MessagesDispatchModelConfig),
+		ModelsListConfig:                      normalizeGroupModelsListConfig(input.ModelsListConfig),
+		OpenAIAutoSchedulerEnabled:            input.OpenAIAutoSchedulerEnabled,
+		UpstreamBalanceRefreshEnabled:         input.UpstreamBalanceRefreshEnabled,
+		UpstreamBalanceRefreshIntervalSeconds: upstreamBalanceRefreshIntervalSeconds,
+		UpstreamPriceMaxMultiplier:            input.UpstreamPriceMaxMultiplier,
+		RPMLimit:                              input.RPMLimit,
 	}
 	sanitizeGroupMessagesDispatchFields(group)
 	if err := s.groupRepo.Create(ctx, group); err != nil {
@@ -2398,6 +2418,22 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if input.OpenAIAutoSchedulerEnabled != nil {
 		group.OpenAIAutoSchedulerEnabled = *input.OpenAIAutoSchedulerEnabled
+	}
+	if input.UpstreamBalanceRefreshEnabled != nil {
+		group.UpstreamBalanceRefreshEnabled = *input.UpstreamBalanceRefreshEnabled
+	}
+	if input.UpstreamBalanceRefreshIntervalSeconds != nil {
+		group.UpstreamBalanceRefreshIntervalSeconds = *input.UpstreamBalanceRefreshIntervalSeconds
+	}
+	if input.UpstreamPriceMaxMultiplier != nil {
+		group.UpstreamPriceMaxMultiplier = *input.UpstreamPriceMaxMultiplier
+	}
+	if err := ValidateGroupUpstreamPriceGuardConfig(
+		group.UpstreamBalanceRefreshEnabled,
+		group.UpstreamBalanceRefreshIntervalSeconds,
+		group.UpstreamPriceMaxMultiplier,
+	); err != nil {
+		return nil, err
 	}
 	if input.RPMLimit != nil {
 		group.RPMLimit = *input.RPMLimit

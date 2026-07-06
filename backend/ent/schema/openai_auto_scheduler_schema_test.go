@@ -43,6 +43,23 @@ func TestOpenAIAutoSchedulerSchemas(t *testing.T) {
 		"score_before", "score_after")
 }
 
+func TestGroupUpstreamPriceGuardSchemaFields(t *testing.T) {
+	spec, err := (&load.Config{Path: "."}).Load()
+	require.NoError(t, err)
+
+	schemas := map[string]*load.Schema{}
+	for _, schema := range spec.Schemas {
+		schemas[schema.Name] = schema
+	}
+
+	group := requireSchema(t, schemas, "Group")
+	requireSchemaFields(t, group,
+		"upstream_balance_refresh_enabled",
+		"upstream_balance_refresh_interval_seconds",
+		"upstream_price_max_multiplier",
+	)
+}
+
 func requireNoBasisPointValidators(t *testing.T, fields []ent.Field, names ...string) {
 	t.Helper()
 

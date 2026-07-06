@@ -68,6 +68,9 @@ func (r *groupRepository) Create(ctx context.Context, groupIn *service.Group) er
 		SetMessagesDispatchModelConfig(groupIn.MessagesDispatchModelConfig).
 		SetModelsListConfig(groupIn.ModelsListConfig).
 		SetOpenaiAutoSchedulerEnabled(groupIn.OpenAIAutoSchedulerEnabled).
+		SetUpstreamBalanceRefreshEnabled(groupIn.UpstreamBalanceRefreshEnabled).
+		SetUpstreamBalanceRefreshIntervalSeconds(groupIn.UpstreamBalanceRefreshIntervalSeconds).
+		SetUpstreamPriceMaxMultiplier(groupIn.UpstreamPriceMaxMultiplier).
 		SetRpmLimit(groupIn.RPMLimit).
 		SetPeakRateEnabled(groupIn.PeakRateEnabled).
 		SetPeakStart(groupIn.PeakStart).
@@ -149,6 +152,9 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetMessagesDispatchModelConfig(groupIn.MessagesDispatchModelConfig).
 		SetModelsListConfig(groupIn.ModelsListConfig).
 		SetOpenaiAutoSchedulerEnabled(groupIn.OpenAIAutoSchedulerEnabled).
+		SetUpstreamBalanceRefreshEnabled(groupIn.UpstreamBalanceRefreshEnabled).
+		SetUpstreamBalanceRefreshIntervalSeconds(groupIn.UpstreamBalanceRefreshIntervalSeconds).
+		SetUpstreamPriceMaxMultiplier(groupIn.UpstreamPriceMaxMultiplier).
 		SetRpmLimit(groupIn.RPMLimit).
 		SetPeakRateEnabled(groupIn.PeakRateEnabled).
 		SetPeakStart(groupIn.PeakStart).

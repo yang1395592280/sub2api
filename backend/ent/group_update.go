@@ -707,6 +707,62 @@ func (_u *GroupUpdate) SetNillableOpenaiAutoSchedulerEnabled(v *bool) *GroupUpda
 	return _u
 }
 
+// SetUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field.
+func (_u *GroupUpdate) SetUpstreamBalanceRefreshEnabled(v bool) *GroupUpdate {
+	_u.mutation.SetUpstreamBalanceRefreshEnabled(v)
+	return _u
+}
+
+// SetNillableUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableUpstreamBalanceRefreshEnabled(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetUpstreamBalanceRefreshEnabled(*v)
+	}
+	return _u
+}
+
+// SetUpstreamBalanceRefreshIntervalSeconds sets the "upstream_balance_refresh_interval_seconds" field.
+func (_u *GroupUpdate) SetUpstreamBalanceRefreshIntervalSeconds(v int) *GroupUpdate {
+	_u.mutation.ResetUpstreamBalanceRefreshIntervalSeconds()
+	_u.mutation.SetUpstreamBalanceRefreshIntervalSeconds(v)
+	return _u
+}
+
+// SetNillableUpstreamBalanceRefreshIntervalSeconds sets the "upstream_balance_refresh_interval_seconds" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableUpstreamBalanceRefreshIntervalSeconds(v *int) *GroupUpdate {
+	if v != nil {
+		_u.SetUpstreamBalanceRefreshIntervalSeconds(*v)
+	}
+	return _u
+}
+
+// AddUpstreamBalanceRefreshIntervalSeconds adds value to the "upstream_balance_refresh_interval_seconds" field.
+func (_u *GroupUpdate) AddUpstreamBalanceRefreshIntervalSeconds(v int) *GroupUpdate {
+	_u.mutation.AddUpstreamBalanceRefreshIntervalSeconds(v)
+	return _u
+}
+
+// SetUpstreamPriceMaxMultiplier sets the "upstream_price_max_multiplier" field.
+func (_u *GroupUpdate) SetUpstreamPriceMaxMultiplier(v float64) *GroupUpdate {
+	_u.mutation.ResetUpstreamPriceMaxMultiplier()
+	_u.mutation.SetUpstreamPriceMaxMultiplier(v)
+	return _u
+}
+
+// SetNillableUpstreamPriceMaxMultiplier sets the "upstream_price_max_multiplier" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableUpstreamPriceMaxMultiplier(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetUpstreamPriceMaxMultiplier(*v)
+	}
+	return _u
+}
+
+// AddUpstreamPriceMaxMultiplier adds value to the "upstream_price_max_multiplier" field.
+func (_u *GroupUpdate) AddUpstreamPriceMaxMultiplier(v float64) *GroupUpdate {
+	_u.mutation.AddUpstreamPriceMaxMultiplier(v)
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdate) SetRpmLimit(v int) *GroupUpdate {
 	_u.mutation.ResetRpmLimit()
@@ -1233,6 +1289,21 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.OpenaiAutoSchedulerEnabled(); ok {
 		_spec.SetField(group.FieldOpenaiAutoSchedulerEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.UpstreamBalanceRefreshEnabled(); ok {
+		_spec.SetField(group.FieldUpstreamBalanceRefreshEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.UpstreamBalanceRefreshIntervalSeconds(); ok {
+		_spec.SetField(group.FieldUpstreamBalanceRefreshIntervalSeconds, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamBalanceRefreshIntervalSeconds(); ok {
+		_spec.AddField(group.FieldUpstreamBalanceRefreshIntervalSeconds, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.UpstreamPriceMaxMultiplier(); ok {
+		_spec.SetField(group.FieldUpstreamPriceMaxMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamPriceMaxMultiplier(); ok {
+		_spec.AddField(group.FieldUpstreamPriceMaxMultiplier, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -2225,6 +2296,62 @@ func (_u *GroupUpdateOne) SetNillableOpenaiAutoSchedulerEnabled(v *bool) *GroupU
 	return _u
 }
 
+// SetUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field.
+func (_u *GroupUpdateOne) SetUpstreamBalanceRefreshEnabled(v bool) *GroupUpdateOne {
+	_u.mutation.SetUpstreamBalanceRefreshEnabled(v)
+	return _u
+}
+
+// SetNillableUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableUpstreamBalanceRefreshEnabled(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetUpstreamBalanceRefreshEnabled(*v)
+	}
+	return _u
+}
+
+// SetUpstreamBalanceRefreshIntervalSeconds sets the "upstream_balance_refresh_interval_seconds" field.
+func (_u *GroupUpdateOne) SetUpstreamBalanceRefreshIntervalSeconds(v int) *GroupUpdateOne {
+	_u.mutation.ResetUpstreamBalanceRefreshIntervalSeconds()
+	_u.mutation.SetUpstreamBalanceRefreshIntervalSeconds(v)
+	return _u
+}
+
+// SetNillableUpstreamBalanceRefreshIntervalSeconds sets the "upstream_balance_refresh_interval_seconds" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableUpstreamBalanceRefreshIntervalSeconds(v *int) *GroupUpdateOne {
+	if v != nil {
+		_u.SetUpstreamBalanceRefreshIntervalSeconds(*v)
+	}
+	return _u
+}
+
+// AddUpstreamBalanceRefreshIntervalSeconds adds value to the "upstream_balance_refresh_interval_seconds" field.
+func (_u *GroupUpdateOne) AddUpstreamBalanceRefreshIntervalSeconds(v int) *GroupUpdateOne {
+	_u.mutation.AddUpstreamBalanceRefreshIntervalSeconds(v)
+	return _u
+}
+
+// SetUpstreamPriceMaxMultiplier sets the "upstream_price_max_multiplier" field.
+func (_u *GroupUpdateOne) SetUpstreamPriceMaxMultiplier(v float64) *GroupUpdateOne {
+	_u.mutation.ResetUpstreamPriceMaxMultiplier()
+	_u.mutation.SetUpstreamPriceMaxMultiplier(v)
+	return _u
+}
+
+// SetNillableUpstreamPriceMaxMultiplier sets the "upstream_price_max_multiplier" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableUpstreamPriceMaxMultiplier(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetUpstreamPriceMaxMultiplier(*v)
+	}
+	return _u
+}
+
+// AddUpstreamPriceMaxMultiplier adds value to the "upstream_price_max_multiplier" field.
+func (_u *GroupUpdateOne) AddUpstreamPriceMaxMultiplier(v float64) *GroupUpdateOne {
+	_u.mutation.AddUpstreamPriceMaxMultiplier(v)
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdateOne) SetRpmLimit(v int) *GroupUpdateOne {
 	_u.mutation.ResetRpmLimit()
@@ -2781,6 +2908,21 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.OpenaiAutoSchedulerEnabled(); ok {
 		_spec.SetField(group.FieldOpenaiAutoSchedulerEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.UpstreamBalanceRefreshEnabled(); ok {
+		_spec.SetField(group.FieldUpstreamBalanceRefreshEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.UpstreamBalanceRefreshIntervalSeconds(); ok {
+		_spec.SetField(group.FieldUpstreamBalanceRefreshIntervalSeconds, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamBalanceRefreshIntervalSeconds(); ok {
+		_spec.AddField(group.FieldUpstreamBalanceRefreshIntervalSeconds, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.UpstreamPriceMaxMultiplier(); ok {
+		_spec.SetField(group.FieldUpstreamPriceMaxMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamPriceMaxMultiplier(); ok {
+		_spec.AddField(group.FieldUpstreamPriceMaxMultiplier, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)

@@ -94,6 +94,12 @@ const (
 	FieldModelsListConfig = "models_list_config"
 	// FieldOpenaiAutoSchedulerEnabled holds the string denoting the openai_auto_scheduler_enabled field in the database.
 	FieldOpenaiAutoSchedulerEnabled = "openai_auto_scheduler_enabled"
+	// FieldUpstreamBalanceRefreshEnabled holds the string denoting the upstream_balance_refresh_enabled field in the database.
+	FieldUpstreamBalanceRefreshEnabled = "upstream_balance_refresh_enabled"
+	// FieldUpstreamBalanceRefreshIntervalSeconds holds the string denoting the upstream_balance_refresh_interval_seconds field in the database.
+	FieldUpstreamBalanceRefreshIntervalSeconds = "upstream_balance_refresh_interval_seconds"
+	// FieldUpstreamPriceMaxMultiplier holds the string denoting the upstream_price_max_multiplier field in the database.
+	FieldUpstreamPriceMaxMultiplier = "upstream_price_max_multiplier"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
@@ -210,6 +216,9 @@ var Columns = []string{
 	FieldMessagesDispatchModelConfig,
 	FieldModelsListConfig,
 	FieldOpenaiAutoSchedulerEnabled,
+	FieldUpstreamBalanceRefreshEnabled,
+	FieldUpstreamBalanceRefreshIntervalSeconds,
+	FieldUpstreamPriceMaxMultiplier,
 	FieldRpmLimit,
 }
 
@@ -310,6 +319,12 @@ var (
 	DefaultModelsListConfig domain.GroupModelsListConfig
 	// DefaultOpenaiAutoSchedulerEnabled holds the default value on creation for the "openai_auto_scheduler_enabled" field.
 	DefaultOpenaiAutoSchedulerEnabled bool
+	// DefaultUpstreamBalanceRefreshEnabled holds the default value on creation for the "upstream_balance_refresh_enabled" field.
+	DefaultUpstreamBalanceRefreshEnabled bool
+	// DefaultUpstreamBalanceRefreshIntervalSeconds holds the default value on creation for the "upstream_balance_refresh_interval_seconds" field.
+	DefaultUpstreamBalanceRefreshIntervalSeconds int
+	// DefaultUpstreamPriceMaxMultiplier holds the default value on creation for the "upstream_price_max_multiplier" field.
+	DefaultUpstreamPriceMaxMultiplier float64
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 )
@@ -495,6 +510,21 @@ func ByDefaultMappedModel(opts ...sql.OrderTermOption) OrderOption {
 // ByOpenaiAutoSchedulerEnabled orders the results by the openai_auto_scheduler_enabled field.
 func ByOpenaiAutoSchedulerEnabled(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldOpenaiAutoSchedulerEnabled, opts...).ToFunc()
+}
+
+// ByUpstreamBalanceRefreshEnabled orders the results by the upstream_balance_refresh_enabled field.
+func ByUpstreamBalanceRefreshEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamBalanceRefreshEnabled, opts...).ToFunc()
+}
+
+// ByUpstreamBalanceRefreshIntervalSeconds orders the results by the upstream_balance_refresh_interval_seconds field.
+func ByUpstreamBalanceRefreshIntervalSeconds(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamBalanceRefreshIntervalSeconds, opts...).ToFunc()
+}
+
+// ByUpstreamPriceMaxMultiplier orders the results by the upstream_price_max_multiplier field.
+func ByUpstreamPriceMaxMultiplier(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamPriceMaxMultiplier, opts...).ToFunc()
 }
 
 // ByRpmLimit orders the results by the rpm_limit field.
