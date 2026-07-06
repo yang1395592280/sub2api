@@ -288,7 +288,10 @@ describe('admin AccountsView bulk edit scope', () => {
             upstream_group: '额度模式 - 标准',
             upstream_group_rate_multiplier: 0.4,
             upstream_effective_rate_multiplier: 0.09,
-            upstream_rate_source: 'user_group_rate'
+            upstream_rate_source: 'user_group_rate',
+            upstream_price_guard_status: 'blocked',
+            upstream_price_guard_actual_multiplier: 0.12,
+            upstream_price_guard_max_multiplier: 0.08
           }
         }
       ],
@@ -341,6 +344,7 @@ describe('admin AccountsView bulk edit scope', () => {
     expect(wrapper.text()).toContain('额度模式 - 标准')
     expect(wrapper.text()).toContain('真实 0.09x')
     expect(wrapper.text()).toContain('基础 0.4x')
+    expect(wrapper.text()).toContain('价格超限 0.12x > 0.08x')
     const badge = wrapper.get('[data-test="upstream-group-badge"]')
     expect(badge.classes()).toEqual(expect.arrayContaining(['rounded-xl', 'bg-blue-50', 'border-blue-200', 'text-blue-950']))
   })
