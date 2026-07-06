@@ -2427,6 +2427,9 @@ export default {
         rateMultiplier: '费率倍数',
         status: '状态',
         exclusive: '专属分组',
+        upstreamBalanceRefreshEnabled: '启用上游余额自动刷新',
+        upstreamBalanceRefreshIntervalSeconds: '刷新间隔（秒）',
+        upstreamPriceMaxMultiplier: '价格倍率上限',
         nameLabel: '分组名称',
         namePlaceholder: '请输入分组名称',
         descriptionLabel: '描述',
@@ -2445,6 +2448,10 @@ export default {
         priorityLabel: '优先级',
         priorityHint: '数值越小优先级越高，用于账号调度',
         statusLabel: '状态'
+      },
+      validation: {
+        upstreamBalanceRefreshIntervalMin: '上游余额自动刷新间隔不能小于 60 秒',
+        upstreamPriceMaxMultiplierMin: '价格倍率上限不能小于 0'
       },
       exclusiveObj: {
         yes: '是',

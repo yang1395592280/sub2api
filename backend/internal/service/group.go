@@ -13,6 +13,9 @@ import (
 type OpenAIMessagesDispatchModelConfig = domain.OpenAIMessagesDispatchModelConfig
 type GroupModelsListConfig = domain.GroupModelsListConfig
 
+const DefaultUpstreamBalanceRefreshIntervalSeconds = 600
+const MinUpstreamBalanceRefreshIntervalSeconds = 60
+
 type Group struct {
 	ID             int64
 	Name           string
@@ -66,13 +69,16 @@ type Group struct {
 	SortOrder int
 
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
-	AllowMessagesDispatch       bool
-	RequireOAuthOnly            bool // 仅允许非 apikey 类型账号关联（OpenAI/Antigravity/Anthropic/Gemini）
-	RequirePrivacySet           bool // 调度时仅允许 privacy 已成功设置的账号（OpenAI/Antigravity/Anthropic/Gemini）
-	DefaultMappedModel          string
-	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig
-	ModelsListConfig            GroupModelsListConfig
-	OpenAIAutoSchedulerEnabled  bool
+	AllowMessagesDispatch                 bool
+	RequireOAuthOnly                      bool // 仅允许非 apikey 类型账号关联（OpenAI/Antigravity/Anthropic/Gemini）
+	RequirePrivacySet                     bool // 调度时仅允许 privacy 已成功设置的账号（OpenAI/Antigravity/Anthropic/Gemini）
+	DefaultMappedModel                    string
+	MessagesDispatchModelConfig           OpenAIMessagesDispatchModelConfig
+	ModelsListConfig                      GroupModelsListConfig
+	OpenAIAutoSchedulerEnabled            bool
+	UpstreamBalanceRefreshEnabled         bool
+	UpstreamBalanceRefreshIntervalSeconds int
+	UpstreamPriceMaxMultiplier            float64
 
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制）。
 	// 一旦设置即接管该分组用户的限流（覆盖用户级 rpm_limit），可被 user-group rpm_override 进一步覆盖。
@@ -257,6 +263,19 @@ func ValidatePeakRateConfig(subscriptionType string, enabled bool, start, end st
 	}
 	if multiplier < 0 {
 		return errors.New("peak_rate_multiplier 不能为负")
+	}
+	return nil
+}
+
+func ValidateGroupUpstreamPriceGuardConfig(enabled bool, intervalSeconds int, maxMultiplier float64) error {
+	if maxMultiplier < 0 {
+		return errors.New("upstream_price_max_multiplier must be >= 0")
+	}
+	if !enabled {
+		return nil
+	}
+	if intervalSeconds < MinUpstreamBalanceRefreshIntervalSeconds {
+		return fmt.Errorf("upstream_balance_refresh_interval_seconds must be >= %d", MinUpstreamBalanceRefreshIntervalSeconds)
 	}
 	return nil
 }

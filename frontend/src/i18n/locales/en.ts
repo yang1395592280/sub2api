@@ -2385,9 +2385,16 @@ export default {
         rateMultiplier: 'Rate Multiplier',
         status: 'Status',
         exclusive: 'Exclusive Group',
+        upstreamBalanceRefreshEnabled: 'Enable upstream balance auto refresh',
+        upstreamBalanceRefreshIntervalSeconds: 'Refresh interval (seconds)',
+        upstreamPriceMaxMultiplier: 'Price multiplier cap',
         rpmLimit: 'Requests Per Minute (RPM)',
         rpmLimitPlaceholder: '0 = unlimited',
         rpmLimitHint: 'Max requests per minute for each user in this group; 0 = unlimited. Once set, it takes over per-user rate limiting in this group (overrides the user-level rpm_limit fallback).'
+      },
+      validation: {
+        upstreamBalanceRefreshIntervalMin: 'Upstream balance auto refresh interval cannot be less than 60 seconds',
+        upstreamPriceMaxMultiplierMin: 'Price multiplier cap cannot be less than 0'
       },
       enterGroupName: 'Enter group name',
       optionalDescription: 'Optional description',

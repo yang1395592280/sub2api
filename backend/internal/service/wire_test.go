@@ -14,6 +14,29 @@ type sub2APICheckinProviderRepoStub struct {
 	called chan struct{}
 }
 
+type groupUpstreamBalanceProviderGroupRepoStub struct {
+	GroupRepository
+	called chan struct{}
+}
+
+func (r *groupUpstreamBalanceProviderGroupRepoStub) ListUpstreamBalanceRefreshEnabled(context.Context) ([]Group, error) {
+	select {
+	case r.called <- struct{}{}:
+	default:
+	}
+	return nil, nil
+}
+
+type groupUpstreamBalanceProviderAccountRepoStub struct {
+	AccountRepository
+}
+
+type groupUpstreamBalanceProviderRefreshStub struct{}
+
+func (s *groupUpstreamBalanceProviderRefreshStub) Refresh(context.Context, int64) (*Account, error) {
+	return nil, nil
+}
+
 func (r *sub2APICheckinProviderRepoStub) ListSub2APICheckinCandidates(context.Context, int) ([]Account, error) {
 	select {
 	case r.called <- struct{}{}:
@@ -63,6 +86,24 @@ func TestProvideSub2APICheckinService_StartsWorker(t *testing.T) {
 	case <-repo.called:
 	case <-time.After(2 * time.Second):
 		t.Fatal("expected check-in worker to query candidates after provider start")
+	}
+}
+
+func TestProvideGroupUpstreamBalanceRefreshRunner_StartsWorker(t *testing.T) {
+	groupRepo := &groupUpstreamBalanceProviderGroupRepoStub{called: make(chan struct{}, 1)}
+	accountRepo := &groupUpstreamBalanceProviderAccountRepoStub{}
+	balance := &groupUpstreamBalanceProviderRefreshStub{}
+
+	svc := ProvideGroupUpstreamBalanceRefreshRunner(groupRepo, accountRepo, balance)
+	requireNotNil(t, svc)
+	t.Cleanup(func() {
+		svc.Stop()
+	})
+
+	select {
+	case <-groupRepo.called:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected group upstream balance worker to query groups after provider start")
 	}
 }
 

@@ -914,8 +914,20 @@ func init() {
 	groupDescOpenaiAutoSchedulerEnabled := groupFields[35].Descriptor()
 	// group.DefaultOpenaiAutoSchedulerEnabled holds the default value on creation for the openai_auto_scheduler_enabled field.
 	group.DefaultOpenaiAutoSchedulerEnabled = groupDescOpenaiAutoSchedulerEnabled.Default.(bool)
+	// groupDescUpstreamBalanceRefreshEnabled is the schema descriptor for upstream_balance_refresh_enabled field.
+	groupDescUpstreamBalanceRefreshEnabled := groupFields[36].Descriptor()
+	// group.DefaultUpstreamBalanceRefreshEnabled holds the default value on creation for the upstream_balance_refresh_enabled field.
+	group.DefaultUpstreamBalanceRefreshEnabled = groupDescUpstreamBalanceRefreshEnabled.Default.(bool)
+	// groupDescUpstreamBalanceRefreshIntervalSeconds is the schema descriptor for upstream_balance_refresh_interval_seconds field.
+	groupDescUpstreamBalanceRefreshIntervalSeconds := groupFields[37].Descriptor()
+	// group.DefaultUpstreamBalanceRefreshIntervalSeconds holds the default value on creation for the upstream_balance_refresh_interval_seconds field.
+	group.DefaultUpstreamBalanceRefreshIntervalSeconds = groupDescUpstreamBalanceRefreshIntervalSeconds.Default.(int)
+	// groupDescUpstreamPriceMaxMultiplier is the schema descriptor for upstream_price_max_multiplier field.
+	groupDescUpstreamPriceMaxMultiplier := groupFields[38].Descriptor()
+	// group.DefaultUpstreamPriceMaxMultiplier holds the default value on creation for the upstream_price_max_multiplier field.
+	group.DefaultUpstreamPriceMaxMultiplier = groupDescUpstreamPriceMaxMultiplier.Default.(float64)
 	// groupDescRpmLimit is the schema descriptor for rpm_limit field.
-	groupDescRpmLimit := groupFields[36].Descriptor()
+	groupDescRpmLimit := groupFields[39].Descriptor()
 	// group.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	group.DefaultRpmLimit = groupDescRpmLimit.Default.(int)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()

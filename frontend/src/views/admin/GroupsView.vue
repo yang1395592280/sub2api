@@ -334,6 +334,7 @@
               <button
                 @click="handleEdit(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                data-test="group-edit-button"
               >
                 <Icon name="edit" size="sm" />
                 <span class="text-xs">{{ t("common.edit") }}</span>
@@ -550,6 +551,43 @@
             :placeholder="t('admin.groups.form.rpmLimitPlaceholder')"
           />
           <p class="input-hint">{{ t("admin.groups.form.rpmLimitHint") }}</p>
+        </div>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <input
+              v-model="createForm.upstream_balance_refresh_enabled"
+              type="checkbox"
+              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              data-test="group-upstream-refresh-enabled"
+            />
+            <span>{{ t("admin.groups.form.upstreamBalanceRefreshEnabled") }}</span>
+          </label>
+          <div>
+            <label class="input-label">
+              {{ t("admin.groups.form.upstreamBalanceRefreshIntervalSeconds") }}
+            </label>
+            <input
+              v-model.number="createForm.upstream_balance_refresh_interval_seconds"
+              type="number"
+              min="60"
+              class="input"
+              :disabled="!createForm.upstream_balance_refresh_enabled"
+              data-test="group-upstream-refresh-interval"
+            />
+          </div>
+          <div>
+            <label class="input-label">
+              {{ t("admin.groups.form.upstreamPriceMaxMultiplier") }}
+            </label>
+            <input
+              v-model.number="createForm.upstream_price_max_multiplier"
+              type="number"
+              min="0"
+              step="0.0001"
+              class="input"
+              data-test="group-upstream-price-max-multiplier"
+            />
+          </div>
         </div>
         <div
           v-if="createForm.subscription_type !== 'subscription'"
@@ -1887,6 +1925,43 @@
             :placeholder="t('admin.groups.form.rpmLimitPlaceholder')"
           />
           <p class="input-hint">{{ t("admin.groups.form.rpmLimitHint") }}</p>
+        </div>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <input
+              v-model="editForm.upstream_balance_refresh_enabled"
+              type="checkbox"
+              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              data-test="edit-group-upstream-refresh-enabled"
+            />
+            <span>{{ t("admin.groups.form.upstreamBalanceRefreshEnabled") }}</span>
+          </label>
+          <div>
+            <label class="input-label">
+              {{ t("admin.groups.form.upstreamBalanceRefreshIntervalSeconds") }}
+            </label>
+            <input
+              v-model.number="editForm.upstream_balance_refresh_interval_seconds"
+              type="number"
+              min="60"
+              class="input"
+              :disabled="!editForm.upstream_balance_refresh_enabled"
+              data-test="edit-group-upstream-refresh-interval"
+            />
+          </div>
+          <div>
+            <label class="input-label">
+              {{ t("admin.groups.form.upstreamPriceMaxMultiplier") }}
+            </label>
+            <input
+              v-model.number="editForm.upstream_price_max_multiplier"
+              type="number"
+              min="0"
+              step="0.0001"
+              class="input"
+              data-test="edit-group-upstream-price-max-multiplier"
+            />
+          </div>
         </div>
         <div v-if="editForm.subscription_type !== 'subscription'">
           <div class="mb-1.5 flex items-center gap-1">
@@ -3629,6 +3704,9 @@ const createForm = reactive({
   copy_accounts_from_group_ids: [] as number[],
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
+  upstream_balance_refresh_enabled: false,
+  upstream_balance_refresh_interval_seconds: 600,
+  upstream_price_max_multiplier: 0,
 });
 
 // 简单账号类型（用于模型路由选择）
@@ -3966,6 +4044,9 @@ const editForm = reactive({
   copy_accounts_from_group_ids: [] as number[],
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
+  upstream_balance_refresh_enabled: false,
+  upstream_balance_refresh_interval_seconds: 600,
+  upstream_price_max_multiplier: 0,
 });
 
 type ImagePricingFormState = {
@@ -4224,6 +4305,9 @@ const closeCreateModal = () => {
   createForm.mcp_xml_inject = true;
   createForm.copy_accounts_from_group_ids = [];
   createForm.rpm_limit = 0;
+  createForm.upstream_balance_refresh_enabled = false;
+  createForm.upstream_balance_refresh_interval_seconds = 600;
+  createForm.upstream_price_max_multiplier = 0;
   resetModelsListState(createModelsListState);
   createModelRoutingRules.value = [];
 };
@@ -4257,9 +4341,54 @@ const normalizeRateMultiplier = (
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 1;
 };
 
+const normalizeUpstreamRefreshInterval = (
+  value: number | string | null | undefined,
+): number => {
+  if (value === null || value === undefined || value === "") {
+    return 600;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 600;
+};
+
+const normalizeUpstreamPriceMaxMultiplier = (
+  value: number | string | null | undefined,
+): number => {
+  if (value === null || value === undefined || value === "") {
+    return 0;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getUpstreamSettingsValidationErrors = (
+  form: {
+    upstream_balance_refresh_enabled: boolean;
+    upstream_balance_refresh_interval_seconds: number | string;
+    upstream_price_max_multiplier: number | string;
+  },
+) => {
+  const errors: string[] = [];
+  if (
+    form.upstream_balance_refresh_enabled &&
+    Number(form.upstream_balance_refresh_interval_seconds) < 60
+  ) {
+    errors.push(t("admin.groups.validation.upstreamBalanceRefreshIntervalMin"));
+  }
+  if (Number(form.upstream_price_max_multiplier) < 0) {
+    errors.push(t("admin.groups.validation.upstreamPriceMaxMultiplierMin"));
+  }
+  return errors;
+};
+
 const handleCreateGroup = async () => {
   if (!createForm.name.trim()) {
     appStore.showError(t("admin.groups.nameRequired"));
+    return;
+  }
+  const validationErrors = getUpstreamSettingsValidationErrors(createForm);
+  if (validationErrors.length > 0) {
+    appStore.showError(validationErrors[0]);
     return;
   }
   submitting.value = true;
@@ -4283,6 +4412,15 @@ const handleCreateGroup = async () => {
       supported_model_scopes: normalizeSupportedModelScopesForPlatform(
         createForm.platform,
         createForm.supported_model_scopes,
+      ),
+      upstream_balance_refresh_enabled:
+        createForm.upstream_balance_refresh_enabled,
+      upstream_balance_refresh_interval_seconds:
+        normalizeUpstreamRefreshInterval(
+          createForm.upstream_balance_refresh_interval_seconds,
+        ),
+      upstream_price_max_multiplier: normalizeUpstreamPriceMaxMultiplier(
+        createForm.upstream_price_max_multiplier,
       ),
       messages_dispatch_model_config:
         createForm.platform === "openai"
@@ -4376,6 +4514,12 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.mcp_xml_inject = group.mcp_xml_inject ?? true;
   editForm.copy_accounts_from_group_ids = []; // 复制账号字段每次编辑时重置为空
   editForm.rpm_limit = group.rpm_limit ?? 0;
+  editForm.upstream_balance_refresh_enabled =
+    group.upstream_balance_refresh_enabled ?? false;
+  editForm.upstream_balance_refresh_interval_seconds =
+    group.upstream_balance_refresh_interval_seconds ?? 600;
+  editForm.upstream_price_max_multiplier =
+    group.upstream_price_max_multiplier ?? 0;
   resetModelsListState(editModelsListState, group.models_list_config);
   // 加载模型路由规则（异步加载账号名称）
   editModelRoutingRules.value = await convertApiFormatToRoutingRules(
@@ -4408,6 +4552,11 @@ const handleUpdateGroup = async () => {
     appStore.showError(t("admin.groups.nameRequired"));
     return;
   }
+  const validationErrors = getUpstreamSettingsValidationErrors(editForm);
+  if (validationErrors.length > 0) {
+    appStore.showError(validationErrors[0]);
+    return;
+  }
 
   submitting.value = true;
   try {
@@ -4436,6 +4585,15 @@ const handleUpdateGroup = async () => {
       supported_model_scopes: normalizeSupportedModelScopesForPlatform(
         editForm.platform,
         editForm.supported_model_scopes,
+      ),
+      upstream_balance_refresh_enabled:
+        editForm.upstream_balance_refresh_enabled,
+      upstream_balance_refresh_interval_seconds:
+        normalizeUpstreamRefreshInterval(
+          editForm.upstream_balance_refresh_interval_seconds,
+        ),
+      upstream_price_max_multiplier: normalizeUpstreamPriceMaxMultiplier(
+        editForm.upstream_price_max_multiplier,
       ),
       messages_dispatch_model_config:
         editForm.platform === "openai"

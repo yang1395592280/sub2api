@@ -551,6 +551,48 @@ func (_c *GroupCreate) SetNillableOpenaiAutoSchedulerEnabled(v *bool) *GroupCrea
 	return _c
 }
 
+// SetUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field.
+func (_c *GroupCreate) SetUpstreamBalanceRefreshEnabled(v bool) *GroupCreate {
+	_c.mutation.SetUpstreamBalanceRefreshEnabled(v)
+	return _c
+}
+
+// SetNillableUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableUpstreamBalanceRefreshEnabled(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetUpstreamBalanceRefreshEnabled(*v)
+	}
+	return _c
+}
+
+// SetUpstreamBalanceRefreshIntervalSeconds sets the "upstream_balance_refresh_interval_seconds" field.
+func (_c *GroupCreate) SetUpstreamBalanceRefreshIntervalSeconds(v int) *GroupCreate {
+	_c.mutation.SetUpstreamBalanceRefreshIntervalSeconds(v)
+	return _c
+}
+
+// SetNillableUpstreamBalanceRefreshIntervalSeconds sets the "upstream_balance_refresh_interval_seconds" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableUpstreamBalanceRefreshIntervalSeconds(v *int) *GroupCreate {
+	if v != nil {
+		_c.SetUpstreamBalanceRefreshIntervalSeconds(*v)
+	}
+	return _c
+}
+
+// SetUpstreamPriceMaxMultiplier sets the "upstream_price_max_multiplier" field.
+func (_c *GroupCreate) SetUpstreamPriceMaxMultiplier(v float64) *GroupCreate {
+	_c.mutation.SetUpstreamPriceMaxMultiplier(v)
+	return _c
+}
+
+// SetNillableUpstreamPriceMaxMultiplier sets the "upstream_price_max_multiplier" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableUpstreamPriceMaxMultiplier(v *float64) *GroupCreate {
+	if v != nil {
+		_c.SetUpstreamPriceMaxMultiplier(*v)
+	}
+	return _c
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_c *GroupCreate) SetRpmLimit(v int) *GroupCreate {
 	_c.mutation.SetRpmLimit(v)
@@ -806,6 +848,18 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultOpenaiAutoSchedulerEnabled
 		_c.mutation.SetOpenaiAutoSchedulerEnabled(v)
 	}
+	if _, ok := _c.mutation.UpstreamBalanceRefreshEnabled(); !ok {
+		v := group.DefaultUpstreamBalanceRefreshEnabled
+		_c.mutation.SetUpstreamBalanceRefreshEnabled(v)
+	}
+	if _, ok := _c.mutation.UpstreamBalanceRefreshIntervalSeconds(); !ok {
+		v := group.DefaultUpstreamBalanceRefreshIntervalSeconds
+		_c.mutation.SetUpstreamBalanceRefreshIntervalSeconds(v)
+	}
+	if _, ok := _c.mutation.UpstreamPriceMaxMultiplier(); !ok {
+		v := group.DefaultUpstreamPriceMaxMultiplier
+		_c.mutation.SetUpstreamPriceMaxMultiplier(v)
+	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		v := group.DefaultRpmLimit
 		_c.mutation.SetRpmLimit(v)
@@ -933,6 +987,15 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.OpenaiAutoSchedulerEnabled(); !ok {
 		return &ValidationError{Name: "openai_auto_scheduler_enabled", err: errors.New(`ent: missing required field "Group.openai_auto_scheduler_enabled"`)}
+	}
+	if _, ok := _c.mutation.UpstreamBalanceRefreshEnabled(); !ok {
+		return &ValidationError{Name: "upstream_balance_refresh_enabled", err: errors.New(`ent: missing required field "Group.upstream_balance_refresh_enabled"`)}
+	}
+	if _, ok := _c.mutation.UpstreamBalanceRefreshIntervalSeconds(); !ok {
+		return &ValidationError{Name: "upstream_balance_refresh_interval_seconds", err: errors.New(`ent: missing required field "Group.upstream_balance_refresh_interval_seconds"`)}
+	}
+	if _, ok := _c.mutation.UpstreamPriceMaxMultiplier(); !ok {
+		return &ValidationError{Name: "upstream_price_max_multiplier", err: errors.New(`ent: missing required field "Group.upstream_price_max_multiplier"`)}
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		return &ValidationError{Name: "rpm_limit", err: errors.New(`ent: missing required field "Group.rpm_limit"`)}
@@ -1119,6 +1182,18 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.OpenaiAutoSchedulerEnabled(); ok {
 		_spec.SetField(group.FieldOpenaiAutoSchedulerEnabled, field.TypeBool, value)
 		_node.OpenaiAutoSchedulerEnabled = value
+	}
+	if value, ok := _c.mutation.UpstreamBalanceRefreshEnabled(); ok {
+		_spec.SetField(group.FieldUpstreamBalanceRefreshEnabled, field.TypeBool, value)
+		_node.UpstreamBalanceRefreshEnabled = value
+	}
+	if value, ok := _c.mutation.UpstreamBalanceRefreshIntervalSeconds(); ok {
+		_spec.SetField(group.FieldUpstreamBalanceRefreshIntervalSeconds, field.TypeInt, value)
+		_node.UpstreamBalanceRefreshIntervalSeconds = value
+	}
+	if value, ok := _c.mutation.UpstreamPriceMaxMultiplier(); ok {
+		_spec.SetField(group.FieldUpstreamPriceMaxMultiplier, field.TypeFloat64, value)
+		_node.UpstreamPriceMaxMultiplier = value
 	}
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -1877,6 +1952,54 @@ func (u *GroupUpsert) SetOpenaiAutoSchedulerEnabled(v bool) *GroupUpsert {
 // UpdateOpenaiAutoSchedulerEnabled sets the "openai_auto_scheduler_enabled" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateOpenaiAutoSchedulerEnabled() *GroupUpsert {
 	u.SetExcluded(group.FieldOpenaiAutoSchedulerEnabled)
+	return u
+}
+
+// SetUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field.
+func (u *GroupUpsert) SetUpstreamBalanceRefreshEnabled(v bool) *GroupUpsert {
+	u.Set(group.FieldUpstreamBalanceRefreshEnabled, v)
+	return u
+}
+
+// UpdateUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateUpstreamBalanceRefreshEnabled() *GroupUpsert {
+	u.SetExcluded(group.FieldUpstreamBalanceRefreshEnabled)
+	return u
+}
+
+// SetUpstreamBalanceRefreshIntervalSeconds sets the "upstream_balance_refresh_interval_seconds" field.
+func (u *GroupUpsert) SetUpstreamBalanceRefreshIntervalSeconds(v int) *GroupUpsert {
+	u.Set(group.FieldUpstreamBalanceRefreshIntervalSeconds, v)
+	return u
+}
+
+// UpdateUpstreamBalanceRefreshIntervalSeconds sets the "upstream_balance_refresh_interval_seconds" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateUpstreamBalanceRefreshIntervalSeconds() *GroupUpsert {
+	u.SetExcluded(group.FieldUpstreamBalanceRefreshIntervalSeconds)
+	return u
+}
+
+// AddUpstreamBalanceRefreshIntervalSeconds adds v to the "upstream_balance_refresh_interval_seconds" field.
+func (u *GroupUpsert) AddUpstreamBalanceRefreshIntervalSeconds(v int) *GroupUpsert {
+	u.Add(group.FieldUpstreamBalanceRefreshIntervalSeconds, v)
+	return u
+}
+
+// SetUpstreamPriceMaxMultiplier sets the "upstream_price_max_multiplier" field.
+func (u *GroupUpsert) SetUpstreamPriceMaxMultiplier(v float64) *GroupUpsert {
+	u.Set(group.FieldUpstreamPriceMaxMultiplier, v)
+	return u
+}
+
+// UpdateUpstreamPriceMaxMultiplier sets the "upstream_price_max_multiplier" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateUpstreamPriceMaxMultiplier() *GroupUpsert {
+	u.SetExcluded(group.FieldUpstreamPriceMaxMultiplier)
+	return u
+}
+
+// AddUpstreamPriceMaxMultiplier adds v to the "upstream_price_max_multiplier" field.
+func (u *GroupUpsert) AddUpstreamPriceMaxMultiplier(v float64) *GroupUpsert {
+	u.Add(group.FieldUpstreamPriceMaxMultiplier, v)
 	return u
 }
 
@@ -2640,6 +2763,62 @@ func (u *GroupUpsertOne) SetOpenaiAutoSchedulerEnabled(v bool) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateOpenaiAutoSchedulerEnabled() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateOpenaiAutoSchedulerEnabled()
+	})
+}
+
+// SetUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field.
+func (u *GroupUpsertOne) SetUpstreamBalanceRefreshEnabled(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetUpstreamBalanceRefreshEnabled(v)
+	})
+}
+
+// UpdateUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateUpstreamBalanceRefreshEnabled() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateUpstreamBalanceRefreshEnabled()
+	})
+}
+
+// SetUpstreamBalanceRefreshIntervalSeconds sets the "upstream_balance_refresh_interval_seconds" field.
+func (u *GroupUpsertOne) SetUpstreamBalanceRefreshIntervalSeconds(v int) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetUpstreamBalanceRefreshIntervalSeconds(v)
+	})
+}
+
+// AddUpstreamBalanceRefreshIntervalSeconds adds v to the "upstream_balance_refresh_interval_seconds" field.
+func (u *GroupUpsertOne) AddUpstreamBalanceRefreshIntervalSeconds(v int) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddUpstreamBalanceRefreshIntervalSeconds(v)
+	})
+}
+
+// UpdateUpstreamBalanceRefreshIntervalSeconds sets the "upstream_balance_refresh_interval_seconds" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateUpstreamBalanceRefreshIntervalSeconds() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateUpstreamBalanceRefreshIntervalSeconds()
+	})
+}
+
+// SetUpstreamPriceMaxMultiplier sets the "upstream_price_max_multiplier" field.
+func (u *GroupUpsertOne) SetUpstreamPriceMaxMultiplier(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetUpstreamPriceMaxMultiplier(v)
+	})
+}
+
+// AddUpstreamPriceMaxMultiplier adds v to the "upstream_price_max_multiplier" field.
+func (u *GroupUpsertOne) AddUpstreamPriceMaxMultiplier(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddUpstreamPriceMaxMultiplier(v)
+	})
+}
+
+// UpdateUpstreamPriceMaxMultiplier sets the "upstream_price_max_multiplier" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateUpstreamPriceMaxMultiplier() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateUpstreamPriceMaxMultiplier()
 	})
 }
 
@@ -3572,6 +3751,62 @@ func (u *GroupUpsertBulk) SetOpenaiAutoSchedulerEnabled(v bool) *GroupUpsertBulk
 func (u *GroupUpsertBulk) UpdateOpenaiAutoSchedulerEnabled() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateOpenaiAutoSchedulerEnabled()
+	})
+}
+
+// SetUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field.
+func (u *GroupUpsertBulk) SetUpstreamBalanceRefreshEnabled(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetUpstreamBalanceRefreshEnabled(v)
+	})
+}
+
+// UpdateUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateUpstreamBalanceRefreshEnabled() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateUpstreamBalanceRefreshEnabled()
+	})
+}
+
+// SetUpstreamBalanceRefreshIntervalSeconds sets the "upstream_balance_refresh_interval_seconds" field.
+func (u *GroupUpsertBulk) SetUpstreamBalanceRefreshIntervalSeconds(v int) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetUpstreamBalanceRefreshIntervalSeconds(v)
+	})
+}
+
+// AddUpstreamBalanceRefreshIntervalSeconds adds v to the "upstream_balance_refresh_interval_seconds" field.
+func (u *GroupUpsertBulk) AddUpstreamBalanceRefreshIntervalSeconds(v int) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddUpstreamBalanceRefreshIntervalSeconds(v)
+	})
+}
+
+// UpdateUpstreamBalanceRefreshIntervalSeconds sets the "upstream_balance_refresh_interval_seconds" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateUpstreamBalanceRefreshIntervalSeconds() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateUpstreamBalanceRefreshIntervalSeconds()
+	})
+}
+
+// SetUpstreamPriceMaxMultiplier sets the "upstream_price_max_multiplier" field.
+func (u *GroupUpsertBulk) SetUpstreamPriceMaxMultiplier(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetUpstreamPriceMaxMultiplier(v)
+	})
+}
+
+// AddUpstreamPriceMaxMultiplier adds v to the "upstream_price_max_multiplier" field.
+func (u *GroupUpsertBulk) AddUpstreamPriceMaxMultiplier(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddUpstreamPriceMaxMultiplier(v)
+	})
+}
+
+// UpdateUpstreamPriceMaxMultiplier sets the "upstream_price_max_multiplier" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateUpstreamPriceMaxMultiplier() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateUpstreamPriceMaxMultiplier()
 	})
 }
 

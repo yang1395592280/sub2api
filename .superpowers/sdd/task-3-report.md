@@ -1,104 +1,71 @@
-## Task 3 Report
+# Task 3 Report
 
-### 变更结论
+## What you implemented
 
-已完成 Task 3 所需前端改动：
+- 新增 `GroupUpstreamBalanceRefreshRunner`，按分组扫描开启了上游余额刷新的活跃分组。
+- 为每个分组按 `UpstreamBalanceRefreshIntervalSeconds` 做本地节流；未配置时回落到 `DefaultUpstreamBalanceRefreshIntervalSeconds`。
+- 每轮对当前分组下支持上游余额刷新的账号执行 `OpenAIUpstreamBalanceService.Refresh(ctx, accountID)`。
+- 刷新完成后调用 `ApplyGroupUpstreamPriceGuard(ctx, repo, account, group, now)`，把 Task 2 的价格保护策略接上。
+- 新增账号仓储方法 `ListUpstreamBalanceRefreshCandidatesByGroupID`，按分组筛选 active / apikey / openai|anthropic / 含 `api_key` 的账号，并复用 `GetByIDs` 保持 hydration 一致。
+- 新增分组仓储方法 `ListUpstreamBalanceRefreshEnabled`，只返回开启了 `upstream_balance_refresh_enabled` 的活跃分组，按 `sort_order, id` 排序。
 
-- 账号编辑弹窗新增 `sub2api` 自动签到配置 UI。
-- 新增前端 `testUpstreamCheckin` API 包装。
-- 为 `Account.extra` 补充签到状态类型。
-- 为编辑弹窗补充签到配置读写与手动测试的回归测试。
+## Files changed
 
-### 实际修改文件
+- `backend/internal/service/group_upstream_balance_refresh_runner.go`
+- `backend/internal/service/group_upstream_balance_refresh_runner_test.go`
+- `backend/internal/service/group_upstream_balance_refresh_runner_compat_test.go`
+- `backend/internal/service/account_service.go`
+- `backend/internal/service/group_service.go`
+- `backend/internal/repository/account_repo.go`
+- `backend/internal/repository/account_repo_checkin_candidates_test.go`
+- `backend/internal/repository/group_repo.go`
 
-- `frontend/src/components/account/EditAccountModal.vue`
-- `frontend/src/api/admin/accounts.ts`
-- `frontend/src/types/index.ts`
-- `frontend/src/components/account/__tests__/EditAccountModal.spec.ts`
+## TDD Evidence
 
-### 实现内容
+### RED
 
-1. `EditAccountModal.vue`
-   - 仅在 `upstream_admin_type === 'sub2api'` 时显示自动签到配置。
-   - 新增字段：
-     - `upstream_checkin_enabled`
-     - `upstream_checkin_url`
-     - `upstream_checkin_start_time`
-     - `upstream_checkin_end_time`
-   - 以上字段从 `credentials` 读取并写回 `credentials`。
-   - 新增“测试签到”按钮，调用 `adminAPI.accounts.testUpstreamCheckin(account.id)`。
-   - 从 `extra` 读取并展示最新签到状态快照：
-     - `upstream_checkin_status`
-     - `upstream_checkin_last_run_at`
-     - `upstream_checkin_last_success_date`
-     - `upstream_checkin_next_run_at`
-     - `upstream_checkin_reward_amount`
-     - `upstream_checkin_balance`
-     - `upstream_checkin_error`
-   - 敏感字段继续沿用“留空保留”逻辑，未覆盖既有 `sub2api` 密码 / token 保留行为。
-   - 签到 URL 做前端约束：仅允许相对路径，或与 Base URL 同源的完整 URL。
-
-2. `frontend/src/api/admin/accounts.ts`
-   - 新增：
-
-```ts
-export async function testUpstreamCheckin(id: number): Promise<Account> {
-  const { data } = await apiClient.post<Account>(`/admin/accounts/${id}/upstream-checkin/test`)
-  return data
-}
-```
-
-   - 并挂到 `accountsAPI` 导出对象。
-
-3. `frontend/src/types/index.ts`
-   - 新增 `UpstreamCheckinStatusSnapshot`。
-   - 将签到状态字段并入 `Account.extra` 类型。
-
-4. `EditAccountModal.spec.ts`
-   - 新增“显示并保存 sub2api 签到配置”测试。
-   - 新增“手动测试签到并刷新状态快照”测试。
-
-### TDD 过程
-
-1. 先补测试：
-   - `shows sub2api check-in controls, loads status, and saves check-in config`
-   - `tests sub2api check-in manually and refreshes latest status snapshot`
-
-2. 首轮按 brief 命令执行：
+Command:
 
 ```bash
-cd frontend && pnpm test -- EditAccountModal
+cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service ./internal/repository -run 'TestGroupUpstreamBalanceRefreshRunner|TestListUpstreamBalanceRefreshCandidatesByGroupID'
 ```
 
-结果：
-- 新增签到测试先失败，符合 RED 预期。
+Relevant failing output before implementation:
 
-3. 实现后重新验证：
-   - 精确文件测试通过。
+```text
+# github.com/Wei-Shaw/sub2api/internal/repository [github.com/Wei-Shaw/sub2api/internal/repository.test]
+internal/repository/account_repo_checkin_candidates_test.go:51:24: repo.ListUpstreamBalanceRefreshCandidatesByGroupID undefined (type *accountRepository has no field or method ListUpstreamBalanceRefreshCandidatesByGroupID)
+# github.com/Wei-Shaw/sub2api/internal/service [github.com/Wei-Shaw/sub2api/internal/service.test]
+internal/service/group_upstream_balance_refresh_runner_test.go:75:12: undefined: NewGroupUpstreamBalanceRefreshRunner
+internal/service/group_upstream_balance_refresh_runner_test.go:97:12: undefined: NewGroupUpstreamBalanceRefreshRunner
+FAIL
+```
 
-### 验证命令
+Why failure was expected:
 
-1. RED
+- RED 阶段先写了 runner 测试和 repository 测试，此时生产代码与接口都还不存在，所以应当以“缺少方法/构造器”失败。
+
+### GREEN
+
+Command:
 
 ```bash
-cd frontend && pnpm test -- EditAccountModal
+cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service ./internal/repository -run 'TestGroupUpstreamBalanceRefreshRunner|TestListUpstreamBalanceRefreshCandidatesByGroupID'
 ```
 
-结果：
-- 新增签到用例失败，证明测试先行生效。
+Passing output after implementation:
 
-2. GREEN（针对本任务文件精确验证）
-
-```bash
-cd frontend && pnpm exec vitest run src/components/account/__tests__/EditAccountModal.spec.ts
+```text
+ok  	github.com/Wei-Shaw/sub2api/internal/service	3.307s
+ok  	github.com/Wei-Shaw/sub2api/internal/repository	(cached)
 ```
 
-结果：
-- `27 passed`
+## Self-review findings
 
-### 风险与注意事项
+- runner 只负责分组扫描、按组限频、逐账号 refresh 和价格 guard，不提前做 Task 4 的 wire/startup 接入。
+- 仓储筛选条件与 brief 对齐，且复用了 `GetByIDs`，避免返回轻量 SQL 结果时丢失现有 hydration 逻辑。
+- 由于 `AccountRepository` / `GroupRepository` 新增方法，补了一个很小的 `group_upstream_balance_refresh_runner_compat_test.go` 来给默认测试构建里的旧 stub 补空实现，避免扩大无关测试改动面。
 
-- `pnpm test -- EditAccountModal` 在当前仓库会额外匹配到 `BulkEditAccountModal.spec.ts`，其现存失败为：
-  - `BulkEditAccountModal > antigravity 映射预设包含图片映射并过滤 OpenAI 预设`
-- 该失败与本次 Task 3 改动无关，本次未触碰对应文件，未擅自修复。
-- 当前第一版仅支持 `sub2api` 上游管理凭据，符合任务约束。
+## Concerns, if any
+
+- `group_upstream_balance_refresh_runner_compat_test.go` 只是为默认测试构建补齐接口方法集，不影响生产行为；后续如果仓库继续给这些大接口加方法，测试桩维护成本会继续增长。

@@ -73,3 +73,37 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_S
 	require.NotNil(t, got.Group)
 	require.Equal(t, group.MessagesDispatchModelConfig, got.Group.MessagesDispatchModelConfig)
 }
+
+func TestAPIKeyRepository_GetByKeyForAuth_PreservesUpstreamPriceGuardConfig_SQLite(t *testing.T) {
+	repo, client := newAPIKeyRepoSQLite(t)
+	ctx := context.Background()
+	user := mustCreateAPIKeyRepoUser(t, ctx, client, "getbykey-auth-price-guard-unit@test.com")
+
+	group, err := client.Group.Create().
+		SetName("g-auth-price-guard-unit").
+		SetPlatform(service.PlatformOpenAI).
+		SetStatus(service.StatusActive).
+		SetSubscriptionType(service.SubscriptionTypeStandard).
+		SetRateMultiplier(1).
+		SetUpstreamBalanceRefreshEnabled(true).
+		SetUpstreamBalanceRefreshIntervalSeconds(777).
+		SetUpstreamPriceMaxMultiplier(2.75).
+		Save(ctx)
+	require.NoError(t, err)
+
+	key := &service.APIKey{
+		UserID:  user.ID,
+		Key:     "sk-getbykey-auth-price-guard-unit",
+		Name:    "Price Guard Key Unit",
+		GroupID: &group.ID,
+		Status:  service.StatusActive,
+	}
+	require.NoError(t, repo.Create(ctx, key))
+
+	got, err := repo.GetByKeyForAuth(ctx, key.Key)
+	require.NoError(t, err)
+	require.NotNil(t, got.Group)
+	require.True(t, got.Group.UpstreamBalanceRefreshEnabled)
+	require.Equal(t, 777, got.Group.UpstreamBalanceRefreshIntervalSeconds)
+	require.Equal(t, 2.75, got.Group.UpstreamPriceMaxMultiplier)
+}

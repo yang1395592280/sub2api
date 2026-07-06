@@ -10,11 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func ptrString[T ~string](v T) *string {
-	s := string(v)
-	return &s
-}
-
 // groupRepoStubForAdmin 用于测试 AdminService 的 GroupRepository Stub
 type groupRepoStubForAdmin struct {
 	created *Group // 记录 Create 调用的参数
@@ -230,6 +225,13 @@ func TestAdminService_CreateGroup_PreservesNonGrokImageGenerationDisabled(t *tes
 	require.NotNil(t, repo.created)
 	require.False(t, repo.created.AllowImageGeneration)
 	require.False(t, group.AllowImageGeneration)
+}
+
+func TestValidateGroupUpstreamPriceGuardConfig(t *testing.T) {
+	require.NoError(t, ValidateGroupUpstreamPriceGuardConfig(false, 0, 0))
+	require.NoError(t, ValidateGroupUpstreamPriceGuardConfig(true, 600, 0.08))
+	require.ErrorContains(t, ValidateGroupUpstreamPriceGuardConfig(true, 59, 0), "upstream_balance_refresh_interval_seconds")
+	require.ErrorContains(t, ValidateGroupUpstreamPriceGuardConfig(false, 600, -0.1), "upstream_price_max_multiplier")
 }
 
 // TestAdminService_UpdateGroup_WithImagePricing 测试更新分组时 ImagePrice 字段正确更新

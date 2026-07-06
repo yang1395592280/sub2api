@@ -288,7 +288,10 @@ describe('admin AccountsView bulk edit scope', () => {
             upstream_group: '额度模式 - 标准',
             upstream_group_rate_multiplier: 0.4,
             upstream_effective_rate_multiplier: 0.09,
-            upstream_rate_source: 'user_group_rate'
+            upstream_rate_source: 'user_group_rate',
+            upstream_price_guard_status: 'blocked',
+            upstream_price_guard_actual_multiplier: 0.12,
+            upstream_price_guard_max_multiplier: 0.08
           }
         }
       ],
@@ -341,8 +344,83 @@ describe('admin AccountsView bulk edit scope', () => {
     expect(wrapper.text()).toContain('额度模式 - 标准')
     expect(wrapper.text()).toContain('真实 0.09x')
     expect(wrapper.text()).toContain('基础 0.4x')
+    expect(wrapper.text()).toContain('价格超限 0.12x > 0.08x')
     const badge = wrapper.get('[data-test="upstream-group-badge"]')
     expect(badge.classes()).toEqual(expect.arrayContaining(['rounded-xl', 'bg-blue-50', 'border-blue-200', 'text-blue-950']))
+    const priceGuardLabel = wrapper.findAll('span').find(node => node.text() === '价格超限 0.12x > 0.08x')
+    expect(priceGuardLabel?.classes()).toEqual(
+      expect.arrayContaining(['text-red-600', 'dark:text-red-300'])
+    )
+  })
+
+  it('renders price guard status without upstream group text', async () => {
+    listAccounts.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          name: 'openai-sub2api',
+          platform: 'openai',
+          type: 'apikey',
+          status: 'active',
+          schedulable: true,
+          created_at: '2026-03-07T10:00:00Z',
+          updated_at: '2026-03-07T10:00:00Z',
+          extra: {
+            upstream_group: '',
+            upstream_price_guard_status: 'blocked',
+            upstream_price_guard_actual_multiplier: 0.12,
+            upstream_price_guard_max_multiplier: 0.08
+          }
+        }
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+
+    const wrapper = mount(AccountsView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: {
+            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+          },
+          DataTable: DataTableStub,
+          Pagination: true,
+          ConfirmDialog: true,
+          AccountTableActions: { template: '<div><slot name="beforeCreate" /><slot name="after" /></div>' },
+          AccountTableFilters: { template: '<div></div>' },
+          AccountBulkActionsBar: AccountBulkActionsBarStub,
+          AccountActionMenu: true,
+          ImportDataModal: true,
+          ReAuthAccountModal: true,
+          AccountTestModal: true,
+          AccountStatsModal: true,
+          ScheduledTestsPanel: true,
+          SyncFromCrsModal: true,
+          TempUnschedStatusModal: true,
+          ErrorPassthroughRulesModal: true,
+          TLSFingerprintProfilesModal: true,
+          CreateAccountModal: true,
+          EditAccountModal: true,
+          BulkEditAccountModal: BulkEditAccountModalStub,
+          BatchAccountTestModal: BatchAccountTestModalStub,
+          PlatformTypeBadge: true,
+          AccountCapacityCell: true,
+          AccountStatusIndicator: true,
+          AccountTodayStatsCell: true,
+          AccountGroupsCell: true,
+          AccountUsageCell: true,
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('价格超限 0.12x > 0.08x')
+    expect(wrapper.find('[data-test="upstream-group-badge"]').exists()).toBe(true)
   })
 
   it('opens batch account test modal with selected accounts', async () => {

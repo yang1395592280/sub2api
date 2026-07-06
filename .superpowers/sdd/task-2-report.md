@@ -1,92 +1,47 @@
 # Task 2 Report
 
-时间：2026-07-02
+## 时间
+- 2026-07-06
 
-## 结论
+## 任务结论
+- 已完成 Task 2：新增上游价格守卫策略 helper 与聚焦单测。
+- 未实现 group refresh runner、repository candidate query、wire startup、frontend，保持在任务边界内。
 
-已完成 Task 2 的后端实现：
+## 修改文件
+- `backend/internal/service/openai_upstream_price_guard.go`
+- `backend/internal/service/openai_upstream_price_guard_test.go`
 
-- 新增管理端手动签到接口 `POST /api/v1/admin/accounts/:id/upstream-checkin/test`
-- 将 `Sub2APICheckinService` 注入 `AccountHandler`
-- 将 `Sub2APICheckinService` 接入 Wire provider 与 server cleanup 生命周期
-- 补充路由、handler、provider/cleanup 相关测试
+## 核心变更
+- 新增 `ApplyGroupUpstreamPriceGuard(ctx, repo, account, group, now)`：
+  - 当 `upstream_price_max_multiplier <= 0` 时，仅回写 `upstream_price_guard_status=ok`，表示不做价格拦截。
+  - 当账号缺失 `ChannelPrice` 或有效价格不可用时，回写 `unsupported` 与错误信息，不做 temp unschedulable 封禁。
+  - 当实际上游倍率高于分组阈值时：
+    - 回写 `upstream_price_guard_*` 观测字段；
+    - 以 `upstream_price_guard:` 前缀写入 `temp_unschedulable_reason`；
+    - 设置 24 小时临时不可调度。
+  - 当价格恢复正常时：
+    - 回写 `upstream_price_guard_status=ok`；
+    - 仅当现有 `temp_unschedulable_reason` 以 `upstream_price_guard:` 开头时才清理临时不可调度状态；
+    - 其他原因（如 token refresh retry exhausted）保持不动。
 
-## 关键改动
+## TDD / 验证过程
+1. 先新增 `openai_upstream_price_guard_test.go`。
+2. 运行：
+   - `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestApplyGroupUpstreamPriceGuard'`
+   - 结果：失败，报 `ApplyGroupUpstreamPriceGuard` 与 `UpstreamPriceGuardReasonPrefix` 未定义，符合预期红灯。
+3. 新增 `openai_upstream_price_guard.go` 最小实现。
+4. 运行：
+   - `gofmt -w internal/service/openai_upstream_price_guard.go internal/service/openai_upstream_price_guard_test.go`
+   - `GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestApplyGroupUpstreamPriceGuard'`
+   - 结果：通过。
 
-### 1. 管理端手动签到接口
+## 边界与说明
+- 本次未修改 `backend/internal/service/account.go`：该文件已存在 `EffectiveChannelPrice()`，且其语义已满足 helper 使用，无需额外改动。
+- 未改动用户计费倍率、API Key 配额、usage billing 相关逻辑。
+- 未触碰其他开发者已有变更；工作区中原有 `.superpowers/sdd/progress.md` 改动保持原样。
 
-文件：
+## 风险点
+- 当前 helper 仅完成策略判断与 repo 写入，尚未接入实际 group refresh 调度流程；必须等待后续任务把调用链串起来，策略才会真正生效。
 
-- `backend/internal/handler/admin/account_handler.go`
-- `backend/internal/server/routes/admin.go`
-
-改动：
-
-- 在 `AccountHandler` 中新增 `sub2APICheckinService` 依赖
-- 新增 `TestUpstreamCheckin` handler
-- 在 admin accounts 路由下暴露 `POST /:id/upstream-checkin/test`
-- 复用 `buildAccountResponseWithRuntime` 返回更新后的账号响应
-
-### 2. Wire 与生命周期接线
-
-文件：
-
-- `backend/internal/service/wire.go`
-- `backend/cmd/server/wire.go`
-- `backend/cmd/server/wire_gen.go`
-
-改动：
-
-- 新增 `ProvideSub2APICheckinService`
-- provider 内使用现有 `OpenAIUpstreamBalanceService` 复用 HTTP client/鉴权逻辑
-- provider 创建后立即 `Start()`
-- 在 `provideCleanup` 中新增 `Sub2APICheckinService.Stop()`
-
-### 3. 测试
-
-新增：
-
-- `backend/internal/server/routes/admin_checkin_test.go`
-- `backend/internal/handler/admin/account_handler_checkin_test.go`
-
-补充：
-
-- `backend/internal/service/wire_test.go`
-- `backend/cmd/server/wire_gen_test.go`
-
-兼容性调整：
-
-- 若干 `NewAccountHandler(...)` 测试调用补齐新参数
-
-## 风险与约束核对
-
-- 第一版仅走现有 sub2api 上游管理凭据链路，未扩展其他 provider
-- 未新增数据库表
-- handler 未主动记录敏感凭据
-- 返回仍复用既有 account DTO/response 逻辑
-
-## 实际执行的验证
-
-1. 任务说明要求测试
-
-```bash
-cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/server/routes ./internal/handler/admin -run 'TestRegisterAdminRoutes_ExposesUpstreamCheckinTest|TestAccountHandler_TestUpstreamCheckinReturnsUpdatedAccount' -v
-```
-
-结果：通过
-
-2. 生命周期相关补充测试
-
-```bash
-cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./cmd/server ./internal/service ./internal/server/routes ./internal/handler/admin -run 'TestProvideCleanup_WithMinimalDependencies_NoPanic|TestProvideSub2APICheckinService_StartsWorker|TestRegisterAdminRoutes_ExposesUpstreamCheckinTest|TestAccountHandler_TestUpstreamCheckinReturnsUpdatedAccount' -v
-```
-
-结果：通过
-
-## 提交建议
-
-按任务说明使用：
-
-```bash
-git commit -m "feat: expose sub2api checkin endpoint"
-```
+## 提交信息
+- `feat: add upstream price guard policy`

@@ -230,6 +230,21 @@ func OpenaiAutoSchedulerEnabled(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldOpenaiAutoSchedulerEnabled, v))
 }
 
+// UpstreamBalanceRefreshEnabled applies equality check predicate on the "upstream_balance_refresh_enabled" field. It's identical to UpstreamBalanceRefreshEnabledEQ.
+func UpstreamBalanceRefreshEnabled(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldUpstreamBalanceRefreshEnabled, v))
+}
+
+// UpstreamBalanceRefreshIntervalSeconds applies equality check predicate on the "upstream_balance_refresh_interval_seconds" field. It's identical to UpstreamBalanceRefreshIntervalSecondsEQ.
+func UpstreamBalanceRefreshIntervalSeconds(v int) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldUpstreamBalanceRefreshIntervalSeconds, v))
+}
+
+// UpstreamPriceMaxMultiplier applies equality check predicate on the "upstream_price_max_multiplier" field. It's identical to UpstreamPriceMaxMultiplierEQ.
+func UpstreamPriceMaxMultiplier(v float64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldUpstreamPriceMaxMultiplier, v))
+}
+
 // RpmLimit applies equality check predicate on the "rpm_limit" field. It's identical to RpmLimitEQ.
 func RpmLimit(v int) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldRpmLimit, v))
@@ -1613,6 +1628,96 @@ func OpenaiAutoSchedulerEnabledEQ(v bool) predicate.Group {
 // OpenaiAutoSchedulerEnabledNEQ applies the NEQ predicate on the "openai_auto_scheduler_enabled" field.
 func OpenaiAutoSchedulerEnabledNEQ(v bool) predicate.Group {
 	return predicate.Group(sql.FieldNEQ(FieldOpenaiAutoSchedulerEnabled, v))
+}
+
+// UpstreamBalanceRefreshEnabledEQ applies the EQ predicate on the "upstream_balance_refresh_enabled" field.
+func UpstreamBalanceRefreshEnabledEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldUpstreamBalanceRefreshEnabled, v))
+}
+
+// UpstreamBalanceRefreshEnabledNEQ applies the NEQ predicate on the "upstream_balance_refresh_enabled" field.
+func UpstreamBalanceRefreshEnabledNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldUpstreamBalanceRefreshEnabled, v))
+}
+
+// UpstreamBalanceRefreshIntervalSecondsEQ applies the EQ predicate on the "upstream_balance_refresh_interval_seconds" field.
+func UpstreamBalanceRefreshIntervalSecondsEQ(v int) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldUpstreamBalanceRefreshIntervalSeconds, v))
+}
+
+// UpstreamBalanceRefreshIntervalSecondsNEQ applies the NEQ predicate on the "upstream_balance_refresh_interval_seconds" field.
+func UpstreamBalanceRefreshIntervalSecondsNEQ(v int) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldUpstreamBalanceRefreshIntervalSeconds, v))
+}
+
+// UpstreamBalanceRefreshIntervalSecondsIn applies the In predicate on the "upstream_balance_refresh_interval_seconds" field.
+func UpstreamBalanceRefreshIntervalSecondsIn(vs ...int) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldUpstreamBalanceRefreshIntervalSeconds, vs...))
+}
+
+// UpstreamBalanceRefreshIntervalSecondsNotIn applies the NotIn predicate on the "upstream_balance_refresh_interval_seconds" field.
+func UpstreamBalanceRefreshIntervalSecondsNotIn(vs ...int) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldUpstreamBalanceRefreshIntervalSeconds, vs...))
+}
+
+// UpstreamBalanceRefreshIntervalSecondsGT applies the GT predicate on the "upstream_balance_refresh_interval_seconds" field.
+func UpstreamBalanceRefreshIntervalSecondsGT(v int) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldUpstreamBalanceRefreshIntervalSeconds, v))
+}
+
+// UpstreamBalanceRefreshIntervalSecondsGTE applies the GTE predicate on the "upstream_balance_refresh_interval_seconds" field.
+func UpstreamBalanceRefreshIntervalSecondsGTE(v int) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldUpstreamBalanceRefreshIntervalSeconds, v))
+}
+
+// UpstreamBalanceRefreshIntervalSecondsLT applies the LT predicate on the "upstream_balance_refresh_interval_seconds" field.
+func UpstreamBalanceRefreshIntervalSecondsLT(v int) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldUpstreamBalanceRefreshIntervalSeconds, v))
+}
+
+// UpstreamBalanceRefreshIntervalSecondsLTE applies the LTE predicate on the "upstream_balance_refresh_interval_seconds" field.
+func UpstreamBalanceRefreshIntervalSecondsLTE(v int) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldUpstreamBalanceRefreshIntervalSeconds, v))
+}
+
+// UpstreamPriceMaxMultiplierEQ applies the EQ predicate on the "upstream_price_max_multiplier" field.
+func UpstreamPriceMaxMultiplierEQ(v float64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldUpstreamPriceMaxMultiplier, v))
+}
+
+// UpstreamPriceMaxMultiplierNEQ applies the NEQ predicate on the "upstream_price_max_multiplier" field.
+func UpstreamPriceMaxMultiplierNEQ(v float64) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldUpstreamPriceMaxMultiplier, v))
+}
+
+// UpstreamPriceMaxMultiplierIn applies the In predicate on the "upstream_price_max_multiplier" field.
+func UpstreamPriceMaxMultiplierIn(vs ...float64) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldUpstreamPriceMaxMultiplier, vs...))
+}
+
+// UpstreamPriceMaxMultiplierNotIn applies the NotIn predicate on the "upstream_price_max_multiplier" field.
+func UpstreamPriceMaxMultiplierNotIn(vs ...float64) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldUpstreamPriceMaxMultiplier, vs...))
+}
+
+// UpstreamPriceMaxMultiplierGT applies the GT predicate on the "upstream_price_max_multiplier" field.
+func UpstreamPriceMaxMultiplierGT(v float64) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldUpstreamPriceMaxMultiplier, v))
+}
+
+// UpstreamPriceMaxMultiplierGTE applies the GTE predicate on the "upstream_price_max_multiplier" field.
+func UpstreamPriceMaxMultiplierGTE(v float64) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldUpstreamPriceMaxMultiplier, v))
+}
+
+// UpstreamPriceMaxMultiplierLT applies the LT predicate on the "upstream_price_max_multiplier" field.
+func UpstreamPriceMaxMultiplierLT(v float64) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldUpstreamPriceMaxMultiplier, v))
+}
+
+// UpstreamPriceMaxMultiplierLTE applies the LTE predicate on the "upstream_price_max_multiplier" field.
+func UpstreamPriceMaxMultiplierLTE(v float64) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldUpstreamPriceMaxMultiplier, v))
 }
 
 // RpmLimitEQ applies the EQ predicate on the "rpm_limit" field.

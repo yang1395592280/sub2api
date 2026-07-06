@@ -124,7 +124,10 @@ type Group struct {
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch"`
 
 	// OpenAI 自动评分调度开关（需配合全局开关生效）。
-	OpenAIAutoSchedulerEnabled bool `json:"openai_auto_scheduler_enabled"`
+	OpenAIAutoSchedulerEnabled            bool    `json:"openai_auto_scheduler_enabled"`
+	UpstreamBalanceRefreshEnabled         bool    `json:"upstream_balance_refresh_enabled"`
+	UpstreamBalanceRefreshIntervalSeconds int     `json:"upstream_balance_refresh_interval_seconds"`
+	UpstreamPriceMaxMultiplier            float64 `json:"upstream_price_max_multiplier"`
 
 	// 账号过滤控制（仅 OpenAI/Antigravity 平台有效）
 	RequireOAuthOnly  bool `json:"require_oauth_only"`

@@ -178,6 +178,16 @@ func (Group) Fields() []ent.Field {
 		field.Bool("openai_auto_scheduler_enabled").
 			Default(false).
 			Comment("Enable OpenAI automatic score-based scheduling for this group."),
+		field.Bool("upstream_balance_refresh_enabled").
+			Default(false).
+			Comment("是否启用分组级上游余额定时刷新"),
+		field.Int("upstream_balance_refresh_interval_seconds").
+			Default(600).
+			Comment("分组级上游余额刷新间隔秒数"),
+		field.Float("upstream_price_max_multiplier").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
+			Default(0).
+			Comment("分组级上游价格倍率上限，0 表示不限制"),
 
 		// 分组级每分钟请求数上限（0 = 不限制）。设置后优先于用户级兜底生效。
 		field.Int("rpm_limit").

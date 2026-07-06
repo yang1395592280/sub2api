@@ -127,6 +127,9 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 
 	// user_allowed_groups: created_at should be timestamptz
 	requireColumn(t, tx, "user_allowed_groups", "created_at", "timestamp with time zone", 0, false)
+	requireColumn(t, tx, "groups", "upstream_balance_refresh_enabled", "boolean", 0, false)
+	requireColumn(t, tx, "groups", "upstream_balance_refresh_interval_seconds", "integer", 0, false)
+	requireColumn(t, tx, "groups", "upstream_price_max_multiplier", "numeric", 0, false)
 }
 
 func TestMigrationsRunner_AuthIdentityAndPaymentSchemaStayAligned(t *testing.T) {

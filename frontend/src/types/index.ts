@@ -543,6 +543,9 @@ export interface Group {
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   require_oauth_only: boolean
   require_privacy_set: boolean
+  upstream_balance_refresh_enabled: boolean
+  upstream_balance_refresh_interval_seconds: number
+  upstream_price_max_multiplier: number
   created_at: string
   updated_at: string
 }
@@ -681,6 +684,9 @@ export interface CreateGroupRequest {
   rpm_limit?: number
   require_oauth_only?: boolean
   require_privacy_set?: boolean
+  upstream_balance_refresh_enabled?: boolean
+  upstream_balance_refresh_interval_seconds?: number
+  upstream_price_max_multiplier?: number
   // 从指定分组复制账号
   copy_accounts_from_group_ids?: number[]
 }
@@ -721,6 +727,9 @@ export interface UpdateGroupRequest {
   rpm_limit?: number
   require_oauth_only?: boolean
   require_privacy_set?: boolean
+  upstream_balance_refresh_enabled?: boolean
+  upstream_balance_refresh_interval_seconds?: number
+  upstream_price_max_multiplier?: number
   copy_accounts_from_group_ids?: number[]
 }
 
@@ -903,6 +912,12 @@ export interface Account {
     upstream_group_rate_multiplier?: number
     upstream_effective_rate_multiplier?: number
     upstream_rate_source?: 'user_group_rate' | 'group_rate' | string
+    upstream_price_guard_status?: 'ok' | 'blocked' | 'unsupported' | 'error' | string
+    upstream_price_guard_group_id?: number
+    upstream_price_guard_max_multiplier?: number
+    upstream_price_guard_actual_multiplier?: number
+    upstream_price_guard_checked_at?: string
+    upstream_price_guard_error?: string
   } & Record<string, unknown>)
   proxy_id: number | null
   proxy_fallback_origin_id?: number | null

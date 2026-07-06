@@ -298,17 +298,24 @@
           </template>
           <template #cell-upstream_group="{ row }">
             <div
-              v-if="getUpstreamGroup(row)"
+              v-if="getUpstreamGroup(row) || getUpstreamPriceGuardText(row)"
               data-test="upstream-group-badge"
               class="inline-flex max-w-[12rem] flex-col gap-1 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-blue-950 dark:border-blue-800/60 dark:bg-blue-950/35 dark:text-blue-100"
               :title="getUpstreamGroupTitle(row)"
             >
-              <span class="truncate text-sm font-semibold leading-4">{{ getUpstreamGroup(row) }}</span>
+              <span v-if="getUpstreamGroup(row)" class="truncate text-sm font-semibold leading-4">{{ getUpstreamGroup(row) }}</span>
               <span v-if="getUpstreamRateLabel(row)" class="text-xs font-semibold leading-4 text-slate-700 dark:text-slate-200">
                 {{ getUpstreamRateLabel(row) }}
               </span>
               <span v-if="getUpstreamBaseRateLabel(row)" class="text-[11px] font-medium leading-3 text-sky-600 dark:text-sky-300">
                 {{ getUpstreamBaseRateLabel(row) }}
+              </span>
+              <span
+                v-if="getUpstreamPriceGuardText(row)"
+                :class="getUpstreamPriceGuardClass(row)"
+                class="text-[11px] font-medium leading-3"
+              >
+                {{ getUpstreamPriceGuardText(row) }}
               </span>
             </div>
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
@@ -483,6 +490,7 @@ import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfil
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { formatDateTime, formatRelativeTime } from '@/utils/format'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
+import { getUpstreamPriceGuardLabel } from '@/utils/upstreamPriceGuard'
 import type { Account, AccountPlatform, AccountType, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
 
 const { t } = useI18n()
@@ -1228,9 +1236,25 @@ function getUpstreamBaseRateLabel(row: Account): string | null {
 }
 
 function getUpstreamGroupTitle(row: Account): string {
-  const labels = [getUpstreamGroup(row), getUpstreamRateLabel(row), getUpstreamBaseRateLabel(row)]
+  const labels = [
+    getUpstreamGroup(row),
+    getUpstreamRateLabel(row),
+    getUpstreamBaseRateLabel(row),
+    getUpstreamPriceGuardText(row)
+  ]
     .filter((value): value is string => Boolean(value))
   return labels.join(' | ')
+}
+
+function getUpstreamPriceGuardText(row: Account): string {
+  return getUpstreamPriceGuardLabel(row.extra)
+}
+
+function getUpstreamPriceGuardClass(row: Account): string {
+  if (getUpstreamPriceGuardText(row).startsWith('价格超限')) {
+    return 'text-red-600 dark:text-red-300'
+  }
+  return 'text-amber-600 dark:text-amber-300'
 }
 
 function supportsUpstreamBalanceRefresh(account: Account): boolean {

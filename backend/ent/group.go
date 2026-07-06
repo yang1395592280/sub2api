@@ -33,9 +33,9 @@ type Group struct {
 	RateMultiplier float64 `json:"rate_multiplier,omitempty"`
 	// 是否启用高峰时段倍率
 	PeakRateEnabled bool `json:"peak_rate_enabled,omitempty"`
-	// 高峰开始时间 HH:MM（含），如 14:00；空表示未配置
+	// 高峰开始时间 HH:MM（含），如 14:00；空表示未配置；不支持跨天
 	PeakStart string `json:"peak_start,omitempty"`
-	// 高峰结束时间 HH:MM（不含），如 18:00
+	// 高峰结束时间 HH:MM（不含），必须大于 peak_start；不支持跨天，如 22:00-02:00
 	PeakEnd string `json:"peak_end,omitempty"`
 	// 高峰时段叠加倍率，仅在 peak_rate_enabled 且处于 [peak_start, peak_end) 时乘入文本倍率
 	PeakRateMultiplier float64 `json:"peak_rate_multiplier,omitempty"`
@@ -97,6 +97,12 @@ type Group struct {
 	ModelsListConfig domain.GroupModelsListConfig `json:"models_list_config,omitempty"`
 	// Enable OpenAI automatic score-based scheduling for this group.
 	OpenaiAutoSchedulerEnabled bool `json:"openai_auto_scheduler_enabled,omitempty"`
+	// 是否启用分组级上游余额定时刷新
+	UpstreamBalanceRefreshEnabled bool `json:"upstream_balance_refresh_enabled,omitempty"`
+	// 分组级上游余额刷新间隔秒数
+	UpstreamBalanceRefreshIntervalSeconds int `json:"upstream_balance_refresh_interval_seconds,omitempty"`
+	// 分组级上游价格倍率上限，0 表示不限制
+	UpstreamPriceMaxMultiplier float64 `json:"upstream_price_max_multiplier,omitempty"`
 	// 分组 RPM 上限，0 表示不限制；设置后接管该分组用户的限流
 	RpmLimit int `json:"rpm_limit,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -207,11 +213,11 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelsListConfig:
 			values[i] = new([]byte)
-		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldImageRateIndependent, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldOpenaiAutoSchedulerEnabled:
+		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldImageRateIndependent, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldOpenaiAutoSchedulerEnabled, group.FieldUpstreamBalanceRefreshEnabled:
 			values[i] = new(sql.NullBool)
-		case group.FieldRateMultiplier, group.FieldPeakRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k:
+		case group.FieldRateMultiplier, group.FieldPeakRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k, group.FieldUpstreamPriceMaxMultiplier:
 			values[i] = new(sql.NullFloat64)
-		case group.FieldID, group.FieldDefaultValidityDays, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldSortOrder, group.FieldRpmLimit:
+		case group.FieldID, group.FieldDefaultValidityDays, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldSortOrder, group.FieldUpstreamBalanceRefreshIntervalSeconds, group.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
 		case group.FieldName, group.FieldDescription, group.FieldPeakStart, group.FieldPeakEnd, group.FieldStatus, group.FieldPlatform, group.FieldSubscriptionType, group.FieldDefaultMappedModel:
 			values[i] = new(sql.NullString)
@@ -490,6 +496,24 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.OpenaiAutoSchedulerEnabled = value.Bool
 			}
+		case group.FieldUpstreamBalanceRefreshEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field upstream_balance_refresh_enabled", values[i])
+			} else if value.Valid {
+				_m.UpstreamBalanceRefreshEnabled = value.Bool
+			}
+		case group.FieldUpstreamBalanceRefreshIntervalSeconds:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field upstream_balance_refresh_interval_seconds", values[i])
+			} else if value.Valid {
+				_m.UpstreamBalanceRefreshIntervalSeconds = int(value.Int64)
+			}
+		case group.FieldUpstreamPriceMaxMultiplier:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field upstream_price_max_multiplier", values[i])
+			} else if value.Valid {
+				_m.UpstreamPriceMaxMultiplier = value.Float64
+			}
 		case group.FieldRpmLimit:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field rpm_limit", values[i])
@@ -708,6 +732,15 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("openai_auto_scheduler_enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.OpenaiAutoSchedulerEnabled))
+	builder.WriteString(", ")
+	builder.WriteString("upstream_balance_refresh_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.UpstreamBalanceRefreshEnabled))
+	builder.WriteString(", ")
+	builder.WriteString("upstream_balance_refresh_interval_seconds=")
+	builder.WriteString(fmt.Sprintf("%v", _m.UpstreamBalanceRefreshIntervalSeconds))
+	builder.WriteString(", ")
+	builder.WriteString("upstream_price_max_multiplier=")
+	builder.WriteString(fmt.Sprintf("%v", _m.UpstreamPriceMaxMultiplier))
 	builder.WriteString(", ")
 	builder.WriteString("rpm_limit=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RpmLimit))

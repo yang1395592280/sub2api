@@ -4551,7 +4551,7 @@ func (m *AccountMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AccountMutation) Fields() []string {
-	fields := make([]string, 0, 31)
+	fields := make([]string, 0, 32)
 	if m.created_at != nil {
 		fields = append(fields, account.FieldCreatedAt)
 	}
@@ -15771,86 +15771,91 @@ func (m *ErrorPassthroughRuleMutation) ResetEdge(name string) error {
 // GroupMutation represents an operation that mutates the Group nodes in the graph.
 type GroupMutation struct {
 	config
-	op                                      Op
-	typ                                     string
-	id                                      *int64
-	created_at                              *time.Time
-	updated_at                              *time.Time
-	deleted_at                              *time.Time
-	name                                    *string
-	description                             *string
-	rate_multiplier                         *float64
-	addrate_multiplier                      *float64
-	peak_rate_enabled                       *bool
-	peak_start                              *string
-	peak_end                                *string
-	peak_rate_multiplier                    *float64
-	addpeak_rate_multiplier                 *float64
-	is_exclusive                            *bool
-	status                                  *string
-	platform                                *string
-	subscription_type                       *string
-	daily_limit_usd                         *float64
-	adddaily_limit_usd                      *float64
-	weekly_limit_usd                        *float64
-	addweekly_limit_usd                     *float64
-	monthly_limit_usd                       *float64
-	addmonthly_limit_usd                    *float64
-	default_validity_days                   *int
-	adddefault_validity_days                *int
-	allow_image_generation                  *bool
-	image_rate_independent                  *bool
-	image_rate_multiplier                   *float64
-	addimage_rate_multiplier                *float64
-	image_price_1k                          *float64
-	addimage_price_1k                       *float64
-	image_price_2k                          *float64
-	addimage_price_2k                       *float64
-	image_price_4k                          *float64
-	addimage_price_4k                       *float64
-	claude_code_only                        *bool
-	fallback_group_id                       *int64
-	addfallback_group_id                    *int64
-	fallback_group_id_on_invalid_request    *int64
-	addfallback_group_id_on_invalid_request *int64
-	model_routing                           *map[string][]int64
-	model_routing_enabled                   *bool
-	mcp_xml_inject                          *bool
-	supported_model_scopes                  *[]string
-	appendsupported_model_scopes            []string
-	sort_order                              *int
-	addsort_order                           *int
-	allow_messages_dispatch                 *bool
-	require_oauth_only                      *bool
-	require_privacy_set                     *bool
-	default_mapped_model                    *string
-	messages_dispatch_model_config          *domain.OpenAIMessagesDispatchModelConfig
-	models_list_config                      *domain.GroupModelsListConfig
-	openai_auto_scheduler_enabled           *bool
-	rpm_limit                               *int
-	addrpm_limit                            *int
-	clearedFields                           map[string]struct{}
-	api_keys                                map[int64]struct{}
-	removedapi_keys                         map[int64]struct{}
-	clearedapi_keys                         bool
-	redeem_codes                            map[int64]struct{}
-	removedredeem_codes                     map[int64]struct{}
-	clearedredeem_codes                     bool
-	subscriptions                           map[int64]struct{}
-	removedsubscriptions                    map[int64]struct{}
-	clearedsubscriptions                    bool
-	usage_logs                              map[int64]struct{}
-	removedusage_logs                       map[int64]struct{}
-	clearedusage_logs                       bool
-	accounts                                map[int64]struct{}
-	removedaccounts                         map[int64]struct{}
-	clearedaccounts                         bool
-	allowed_users                           map[int64]struct{}
-	removedallowed_users                    map[int64]struct{}
-	clearedallowed_users                    bool
-	done                                    bool
-	oldValue                                func(context.Context) (*Group, error)
-	predicates                              []predicate.Group
+	op                                           Op
+	typ                                          string
+	id                                           *int64
+	created_at                                   *time.Time
+	updated_at                                   *time.Time
+	deleted_at                                   *time.Time
+	name                                         *string
+	description                                  *string
+	rate_multiplier                              *float64
+	addrate_multiplier                           *float64
+	peak_rate_enabled                            *bool
+	peak_start                                   *string
+	peak_end                                     *string
+	peak_rate_multiplier                         *float64
+	addpeak_rate_multiplier                      *float64
+	is_exclusive                                 *bool
+	status                                       *string
+	platform                                     *string
+	subscription_type                            *string
+	daily_limit_usd                              *float64
+	adddaily_limit_usd                           *float64
+	weekly_limit_usd                             *float64
+	addweekly_limit_usd                          *float64
+	monthly_limit_usd                            *float64
+	addmonthly_limit_usd                         *float64
+	default_validity_days                        *int
+	adddefault_validity_days                     *int
+	allow_image_generation                       *bool
+	image_rate_independent                       *bool
+	image_rate_multiplier                        *float64
+	addimage_rate_multiplier                     *float64
+	image_price_1k                               *float64
+	addimage_price_1k                            *float64
+	image_price_2k                               *float64
+	addimage_price_2k                            *float64
+	image_price_4k                               *float64
+	addimage_price_4k                            *float64
+	claude_code_only                             *bool
+	fallback_group_id                            *int64
+	addfallback_group_id                         *int64
+	fallback_group_id_on_invalid_request         *int64
+	addfallback_group_id_on_invalid_request      *int64
+	model_routing                                *map[string][]int64
+	model_routing_enabled                        *bool
+	mcp_xml_inject                               *bool
+	supported_model_scopes                       *[]string
+	appendsupported_model_scopes                 []string
+	sort_order                                   *int
+	addsort_order                                *int
+	allow_messages_dispatch                      *bool
+	require_oauth_only                           *bool
+	require_privacy_set                          *bool
+	default_mapped_model                         *string
+	messages_dispatch_model_config               *domain.OpenAIMessagesDispatchModelConfig
+	models_list_config                           *domain.GroupModelsListConfig
+	openai_auto_scheduler_enabled                *bool
+	upstream_balance_refresh_enabled             *bool
+	upstream_balance_refresh_interval_seconds    *int
+	addupstream_balance_refresh_interval_seconds *int
+	upstream_price_max_multiplier                *float64
+	addupstream_price_max_multiplier             *float64
+	rpm_limit                                    *int
+	addrpm_limit                                 *int
+	clearedFields                                map[string]struct{}
+	api_keys                                     map[int64]struct{}
+	removedapi_keys                              map[int64]struct{}
+	clearedapi_keys                              bool
+	redeem_codes                                 map[int64]struct{}
+	removedredeem_codes                          map[int64]struct{}
+	clearedredeem_codes                          bool
+	subscriptions                                map[int64]struct{}
+	removedsubscriptions                         map[int64]struct{}
+	clearedsubscriptions                         bool
+	usage_logs                                   map[int64]struct{}
+	removedusage_logs                            map[int64]struct{}
+	clearedusage_logs                            bool
+	accounts                                     map[int64]struct{}
+	removedaccounts                              map[int64]struct{}
+	clearedaccounts                              bool
+	allowed_users                                map[int64]struct{}
+	removedallowed_users                         map[int64]struct{}
+	clearedallowed_users                         bool
+	done                                         bool
+	oldValue                                     func(context.Context) (*Group, error)
+	predicates                                   []predicate.Group
 }
 
 var _ ent.Mutation = (*GroupMutation)(nil)
@@ -17781,6 +17786,154 @@ func (m *GroupMutation) ResetOpenaiAutoSchedulerEnabled() {
 	m.openai_auto_scheduler_enabled = nil
 }
 
+// SetUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field.
+func (m *GroupMutation) SetUpstreamBalanceRefreshEnabled(b bool) {
+	m.upstream_balance_refresh_enabled = &b
+}
+
+// UpstreamBalanceRefreshEnabled returns the value of the "upstream_balance_refresh_enabled" field in the mutation.
+func (m *GroupMutation) UpstreamBalanceRefreshEnabled() (r bool, exists bool) {
+	v := m.upstream_balance_refresh_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamBalanceRefreshEnabled returns the old "upstream_balance_refresh_enabled" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldUpstreamBalanceRefreshEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamBalanceRefreshEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamBalanceRefreshEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamBalanceRefreshEnabled: %w", err)
+	}
+	return oldValue.UpstreamBalanceRefreshEnabled, nil
+}
+
+// ResetUpstreamBalanceRefreshEnabled resets all changes to the "upstream_balance_refresh_enabled" field.
+func (m *GroupMutation) ResetUpstreamBalanceRefreshEnabled() {
+	m.upstream_balance_refresh_enabled = nil
+}
+
+// SetUpstreamBalanceRefreshIntervalSeconds sets the "upstream_balance_refresh_interval_seconds" field.
+func (m *GroupMutation) SetUpstreamBalanceRefreshIntervalSeconds(i int) {
+	m.upstream_balance_refresh_interval_seconds = &i
+	m.addupstream_balance_refresh_interval_seconds = nil
+}
+
+// UpstreamBalanceRefreshIntervalSeconds returns the value of the "upstream_balance_refresh_interval_seconds" field in the mutation.
+func (m *GroupMutation) UpstreamBalanceRefreshIntervalSeconds() (r int, exists bool) {
+	v := m.upstream_balance_refresh_interval_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamBalanceRefreshIntervalSeconds returns the old "upstream_balance_refresh_interval_seconds" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldUpstreamBalanceRefreshIntervalSeconds(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamBalanceRefreshIntervalSeconds is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamBalanceRefreshIntervalSeconds requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamBalanceRefreshIntervalSeconds: %w", err)
+	}
+	return oldValue.UpstreamBalanceRefreshIntervalSeconds, nil
+}
+
+// AddUpstreamBalanceRefreshIntervalSeconds adds i to the "upstream_balance_refresh_interval_seconds" field.
+func (m *GroupMutation) AddUpstreamBalanceRefreshIntervalSeconds(i int) {
+	if m.addupstream_balance_refresh_interval_seconds != nil {
+		*m.addupstream_balance_refresh_interval_seconds += i
+	} else {
+		m.addupstream_balance_refresh_interval_seconds = &i
+	}
+}
+
+// AddedUpstreamBalanceRefreshIntervalSeconds returns the value that was added to the "upstream_balance_refresh_interval_seconds" field in this mutation.
+func (m *GroupMutation) AddedUpstreamBalanceRefreshIntervalSeconds() (r int, exists bool) {
+	v := m.addupstream_balance_refresh_interval_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUpstreamBalanceRefreshIntervalSeconds resets all changes to the "upstream_balance_refresh_interval_seconds" field.
+func (m *GroupMutation) ResetUpstreamBalanceRefreshIntervalSeconds() {
+	m.upstream_balance_refresh_interval_seconds = nil
+	m.addupstream_balance_refresh_interval_seconds = nil
+}
+
+// SetUpstreamPriceMaxMultiplier sets the "upstream_price_max_multiplier" field.
+func (m *GroupMutation) SetUpstreamPriceMaxMultiplier(f float64) {
+	m.upstream_price_max_multiplier = &f
+	m.addupstream_price_max_multiplier = nil
+}
+
+// UpstreamPriceMaxMultiplier returns the value of the "upstream_price_max_multiplier" field in the mutation.
+func (m *GroupMutation) UpstreamPriceMaxMultiplier() (r float64, exists bool) {
+	v := m.upstream_price_max_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamPriceMaxMultiplier returns the old "upstream_price_max_multiplier" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldUpstreamPriceMaxMultiplier(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamPriceMaxMultiplier is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamPriceMaxMultiplier requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamPriceMaxMultiplier: %w", err)
+	}
+	return oldValue.UpstreamPriceMaxMultiplier, nil
+}
+
+// AddUpstreamPriceMaxMultiplier adds f to the "upstream_price_max_multiplier" field.
+func (m *GroupMutation) AddUpstreamPriceMaxMultiplier(f float64) {
+	if m.addupstream_price_max_multiplier != nil {
+		*m.addupstream_price_max_multiplier += f
+	} else {
+		m.addupstream_price_max_multiplier = &f
+	}
+}
+
+// AddedUpstreamPriceMaxMultiplier returns the value that was added to the "upstream_price_max_multiplier" field in this mutation.
+func (m *GroupMutation) AddedUpstreamPriceMaxMultiplier() (r float64, exists bool) {
+	v := m.addupstream_price_max_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUpstreamPriceMaxMultiplier resets all changes to the "upstream_price_max_multiplier" field.
+func (m *GroupMutation) ResetUpstreamPriceMaxMultiplier() {
+	m.upstream_price_max_multiplier = nil
+	m.addupstream_price_max_multiplier = nil
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (m *GroupMutation) SetRpmLimit(i int) {
 	m.rpm_limit = &i
@@ -18195,7 +18348,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 40)
+	fields := make([]string, 0, 43)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -18313,6 +18466,15 @@ func (m *GroupMutation) Fields() []string {
 	if m.openai_auto_scheduler_enabled != nil {
 		fields = append(fields, group.FieldOpenaiAutoSchedulerEnabled)
 	}
+	if m.upstream_balance_refresh_enabled != nil {
+		fields = append(fields, group.FieldUpstreamBalanceRefreshEnabled)
+	}
+	if m.upstream_balance_refresh_interval_seconds != nil {
+		fields = append(fields, group.FieldUpstreamBalanceRefreshIntervalSeconds)
+	}
+	if m.upstream_price_max_multiplier != nil {
+		fields = append(fields, group.FieldUpstreamPriceMaxMultiplier)
+	}
 	if m.rpm_limit != nil {
 		fields = append(fields, group.FieldRpmLimit)
 	}
@@ -18402,6 +18564,12 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.ModelsListConfig()
 	case group.FieldOpenaiAutoSchedulerEnabled:
 		return m.OpenaiAutoSchedulerEnabled()
+	case group.FieldUpstreamBalanceRefreshEnabled:
+		return m.UpstreamBalanceRefreshEnabled()
+	case group.FieldUpstreamBalanceRefreshIntervalSeconds:
+		return m.UpstreamBalanceRefreshIntervalSeconds()
+	case group.FieldUpstreamPriceMaxMultiplier:
+		return m.UpstreamPriceMaxMultiplier()
 	case group.FieldRpmLimit:
 		return m.RpmLimit()
 	}
@@ -18491,6 +18659,12 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldModelsListConfig(ctx)
 	case group.FieldOpenaiAutoSchedulerEnabled:
 		return m.OldOpenaiAutoSchedulerEnabled(ctx)
+	case group.FieldUpstreamBalanceRefreshEnabled:
+		return m.OldUpstreamBalanceRefreshEnabled(ctx)
+	case group.FieldUpstreamBalanceRefreshIntervalSeconds:
+		return m.OldUpstreamBalanceRefreshIntervalSeconds(ctx)
+	case group.FieldUpstreamPriceMaxMultiplier:
+		return m.OldUpstreamPriceMaxMultiplier(ctx)
 	case group.FieldRpmLimit:
 		return m.OldRpmLimit(ctx)
 	}
@@ -18775,6 +18949,27 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetOpenaiAutoSchedulerEnabled(v)
 		return nil
+	case group.FieldUpstreamBalanceRefreshEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamBalanceRefreshEnabled(v)
+		return nil
+	case group.FieldUpstreamBalanceRefreshIntervalSeconds:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamBalanceRefreshIntervalSeconds(v)
+		return nil
+	case group.FieldUpstreamPriceMaxMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamPriceMaxMultiplier(v)
+		return nil
 	case group.FieldRpmLimit:
 		v, ok := value.(int)
 		if !ok {
@@ -18829,6 +19024,12 @@ func (m *GroupMutation) AddedFields() []string {
 	if m.addsort_order != nil {
 		fields = append(fields, group.FieldSortOrder)
 	}
+	if m.addupstream_balance_refresh_interval_seconds != nil {
+		fields = append(fields, group.FieldUpstreamBalanceRefreshIntervalSeconds)
+	}
+	if m.addupstream_price_max_multiplier != nil {
+		fields = append(fields, group.FieldUpstreamPriceMaxMultiplier)
+	}
 	if m.addrpm_limit != nil {
 		fields = append(fields, group.FieldRpmLimit)
 	}
@@ -18866,6 +19067,10 @@ func (m *GroupMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedFallbackGroupIDOnInvalidRequest()
 	case group.FieldSortOrder:
 		return m.AddedSortOrder()
+	case group.FieldUpstreamBalanceRefreshIntervalSeconds:
+		return m.AddedUpstreamBalanceRefreshIntervalSeconds()
+	case group.FieldUpstreamPriceMaxMultiplier:
+		return m.AddedUpstreamPriceMaxMultiplier()
 	case group.FieldRpmLimit:
 		return m.AddedRpmLimit()
 	}
@@ -18967,6 +19172,20 @@ func (m *GroupMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddSortOrder(v)
+		return nil
+	case group.FieldUpstreamBalanceRefreshIntervalSeconds:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUpstreamBalanceRefreshIntervalSeconds(v)
+		return nil
+	case group.FieldUpstreamPriceMaxMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUpstreamPriceMaxMultiplier(v)
 		return nil
 	case group.FieldRpmLimit:
 		v, ok := value.(int)
@@ -19187,6 +19406,15 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldOpenaiAutoSchedulerEnabled:
 		m.ResetOpenaiAutoSchedulerEnabled()
+		return nil
+	case group.FieldUpstreamBalanceRefreshEnabled:
+		m.ResetUpstreamBalanceRefreshEnabled()
+		return nil
+	case group.FieldUpstreamBalanceRefreshIntervalSeconds:
+		m.ResetUpstreamBalanceRefreshIntervalSeconds()
+		return nil
+	case group.FieldUpstreamPriceMaxMultiplier:
+		m.ResetUpstreamPriceMaxMultiplier()
 		return nil
 	case group.FieldRpmLimit:
 		m.ResetRpmLimit()

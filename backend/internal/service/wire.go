@@ -138,6 +138,13 @@ func ProvideSub2APICheckinService(accountRepo AccountRepository, upstreamBalance
 	return svc
 }
 
+// ProvideGroupUpstreamBalanceRefreshRunner wires and starts the group upstream balance refresh runner.
+func ProvideGroupUpstreamBalanceRefreshRunner(groupRepo GroupRepository, accountRepo AccountRepository, refresher groupUpstreamBalanceRefresher) *GroupUpstreamBalanceRefreshRunner {
+	svc := NewGroupUpstreamBalanceRefreshRunner(groupRepo, accountRepo, refresher)
+	svc.Start()
+	return svc
+}
+
 func ProvideGrokQuotaService(
 	accountRepo AccountRepository,
 	proxyRepo ProxyRepository,
@@ -661,7 +668,9 @@ var ProviderSet = wire.NewSet(
 	ProvideOpenAITokenProvider,
 	ProvideOpenAIQuotaService,
 	ProvideOpenAIUpstreamBalanceService,
+	wire.Bind(new(groupUpstreamBalanceRefresher), new(*OpenAIUpstreamBalanceService)),
 	ProvideSub2APICheckinService,
+	ProvideGroupUpstreamBalanceRefreshRunner,
 	NewOpenAIAutoSchedulerService,
 	ProvideOpenAIAutoSchedulerSelector,
 	NewOpenAIAutoSchedulerProbeChecker,

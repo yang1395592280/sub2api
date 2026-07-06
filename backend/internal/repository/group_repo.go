@@ -68,6 +68,9 @@ func (r *groupRepository) Create(ctx context.Context, groupIn *service.Group) er
 		SetMessagesDispatchModelConfig(groupIn.MessagesDispatchModelConfig).
 		SetModelsListConfig(groupIn.ModelsListConfig).
 		SetOpenaiAutoSchedulerEnabled(groupIn.OpenAIAutoSchedulerEnabled).
+		SetUpstreamBalanceRefreshEnabled(groupIn.UpstreamBalanceRefreshEnabled).
+		SetUpstreamBalanceRefreshIntervalSeconds(groupIn.UpstreamBalanceRefreshIntervalSeconds).
+		SetUpstreamPriceMaxMultiplier(groupIn.UpstreamPriceMaxMultiplier).
 		SetRpmLimit(groupIn.RPMLimit).
 		SetPeakRateEnabled(groupIn.PeakRateEnabled).
 		SetPeakStart(groupIn.PeakStart).
@@ -149,6 +152,9 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetMessagesDispatchModelConfig(groupIn.MessagesDispatchModelConfig).
 		SetModelsListConfig(groupIn.ModelsListConfig).
 		SetOpenaiAutoSchedulerEnabled(groupIn.OpenAIAutoSchedulerEnabled).
+		SetUpstreamBalanceRefreshEnabled(groupIn.UpstreamBalanceRefreshEnabled).
+		SetUpstreamBalanceRefreshIntervalSeconds(groupIn.UpstreamBalanceRefreshIntervalSeconds).
+		SetUpstreamPriceMaxMultiplier(groupIn.UpstreamPriceMaxMultiplier).
 		SetRpmLimit(groupIn.RPMLimit).
 		SetPeakRateEnabled(groupIn.PeakRateEnabled).
 		SetPeakStart(groupIn.PeakStart).
@@ -495,6 +501,26 @@ func (r *groupRepository) ListActiveByPlatform(ctx context.Context, platform str
 		}
 	}
 
+	return outGroups, nil
+}
+
+func (r *groupRepository) ListUpstreamBalanceRefreshEnabled(ctx context.Context) ([]service.Group, error) {
+	groups, err := r.client.Group.Query().
+		Where(
+			group.StatusEQ(service.StatusActive),
+			group.UpstreamBalanceRefreshEnabledEQ(true),
+		).
+		Order(dbent.Asc(group.FieldSortOrder), dbent.Asc(group.FieldID)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	outGroups := make([]service.Group, 0, len(groups))
+	for i := range groups {
+		g := groupEntityToService(groups[i])
+		outGroups = append(outGroups, *g)
+	}
 	return outGroups, nil
 }
 
