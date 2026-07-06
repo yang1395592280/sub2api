@@ -48,6 +48,22 @@ func TestWireGenInjectsOpenAIAutoSchedulerIntoGateway(t *testing.T) {
 	require.Contains(t, providerSource, "svc.SetOpenAIAutoScheduler(openAIAutoSchedulerSelector, openAIAutoSchedulerService)")
 }
 
+func TestWireGenInjectsGroupUpstreamBalanceRefreshRunnerIntoStartupAndCleanup(t *testing.T) {
+	body, err := os.ReadFile("wire_gen.go")
+	require.NoError(t, err)
+
+	source := string(body)
+	runnerIndex := strings.Index(source, "groupUpstreamBalanceRefreshRunner := service.ProvideGroupUpstreamBalanceRefreshRunner(groupRepository, accountRepository, openAIUpstreamBalanceService)")
+	cleanupCallIndex := strings.Index(source, "provideCleanup(client, redisClient")
+	cleanupStepIndex := strings.Index(source, "{\"GroupUpstreamBalanceRefreshRunner\", func() error {")
+	require.NotEqual(t, -1, runnerIndex, "production wire must construct group upstream balance refresh runner")
+	require.NotEqual(t, -1, cleanupCallIndex, "production wire must continue to build cleanup")
+	require.NotEqual(t, -1, cleanupStepIndex, "cleanup must stop the group upstream balance refresh runner")
+	require.Contains(t, source, "sub2APICheckinService, groupUpstreamBalanceRefreshRunner, openAIGatewayService")
+	require.Less(t, runnerIndex, cleanupCallIndex, "runner must be constructed before cleanup wiring")
+	require.Less(t, cleanupCallIndex, cleanupStepIndex, "cleanup wiring should remain before cleanup steps")
+}
+
 func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 	cfg := &config.Config{}
 
@@ -76,6 +92,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 	idempotencyCleanupSvc := service.NewIdempotencyCleanupService(nil, cfg)
 	schedulerSnapshotSvc := service.NewSchedulerSnapshotService(nil, nil, nil, nil, cfg)
 	opsSystemLogSinkSvc := service.NewOpsSystemLogSink(nil)
+	groupUpstreamBalanceRefreshRunner := service.NewGroupUpstreamBalanceRefreshRunner(nil, nil, nil)
 
 	cleanup := provideCleanup(
 		nil, // entClient
@@ -104,6 +121,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		antigravityOAuthSvc,
 		nil, // grokOAuth
 		nil, // sub2apiCheckin
+		groupUpstreamBalanceRefreshRunner,
 		nil, // openAIGateway
 		nil, // openAIAutoSchedulerProbeRunner
 		nil, // scheduledTestRunner

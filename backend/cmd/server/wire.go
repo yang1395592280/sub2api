@@ -96,6 +96,7 @@ func provideCleanup(
 	antigravityOAuth *service.AntigravityOAuthService,
 	grokOAuth *service.GrokOAuthService,
 	sub2APICheckin *service.Sub2APICheckinService,
+	groupUpstreamBalanceRefreshRunner *service.GroupUpstreamBalanceRefreshRunner,
 	openAIGateway *service.OpenAIGatewayService,
 	openAIAutoSchedulerProbeRunner *service.OpenAIAutoSchedulerProbeRunner,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
@@ -234,6 +235,12 @@ func provideCleanup(
 			{"Sub2APICheckinService", func() error {
 				if sub2APICheckin != nil {
 					sub2APICheckin.Stop()
+				}
+				return nil
+			}},
+			{"GroupUpstreamBalanceRefreshRunner", func() error {
+				if groupUpstreamBalanceRefreshRunner != nil {
+					groupUpstreamBalanceRefreshRunner.Stop()
 				}
 				return nil
 			}},
