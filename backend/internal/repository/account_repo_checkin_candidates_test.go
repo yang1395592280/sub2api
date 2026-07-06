@@ -62,6 +62,8 @@ func TestListUpstreamBalanceRefreshCandidatesByGroupID(t *testing.T) {
 	require.Contains(t, normalized, "a.type = 'apikey'")
 	require.Contains(t, normalized, "a.platform IN ('openai', 'anthropic')")
 	require.Contains(t, normalized, "a.credentials ? 'api_key'")
+	require.Contains(t, normalized, "a.credentials ? 'base_url'")
+	require.Contains(t, normalized, "btrim(a.credentials->>'base_url') <> ''")
 	require.Contains(t, normalized, "ORDER BY a.priority ASC, a.id ASC")
 	require.Contains(t, normalized, "LIMIT $2")
 	require.NoError(t, mock.ExpectationsWereMet())

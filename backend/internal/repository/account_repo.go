@@ -851,6 +851,8 @@ func (r *accountRepository) ListUpstreamBalanceRefreshCandidatesByGroupID(ctx co
 			AND a.type = 'apikey'
 			AND a.platform IN ('openai', 'anthropic')
 			AND a.credentials ? 'api_key'
+			AND a.credentials ? 'base_url'
+			AND btrim(a.credentials->>'base_url') <> ''
 		ORDER BY a.priority ASC, a.id ASC
 	`
 	var (

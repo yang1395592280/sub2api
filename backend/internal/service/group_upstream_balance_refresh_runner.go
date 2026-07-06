@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -82,6 +83,9 @@ func (r *GroupUpstreamBalanceRefreshRunner) runOnce(ctx context.Context, now tim
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if ctx.Err() != nil {
+		return
+	}
 
 	groups, err := r.groupRepo.ListUpstreamBalanceRefreshEnabled(ctx)
 	if err != nil {
@@ -89,6 +93,9 @@ func (r *GroupUpstreamBalanceRefreshRunner) runOnce(ctx context.Context, now tim
 		return
 	}
 	for i := range groups {
+		if ctx.Err() != nil {
+			return
+		}
 		group := groups[i]
 		interval := time.Duration(group.UpstreamBalanceRefreshIntervalSeconds) * time.Second
 		if interval <= 0 {
@@ -97,18 +104,41 @@ func (r *GroupUpstreamBalanceRefreshRunner) runOnce(ctx context.Context, now tim
 		if lastRunAt, ok := r.lastRun[group.ID]; ok && now.Sub(lastRunAt) < interval {
 			continue
 		}
-		r.lastRun[group.ID] = now
-		r.refreshGroup(ctx, group, now)
+		completed, stopBatch := r.refreshGroup(ctx, group, now)
+		if completed {
+			r.lastRun[group.ID] = now
+		}
+		if stopBatch {
+			return
+		}
 	}
 }
 
-func (r *GroupUpstreamBalanceRefreshRunner) refreshGroup(ctx context.Context, group Group, now time.Time) {
+func (r *GroupUpstreamBalanceRefreshRunner) refreshGroup(ctx context.Context, group Group, now time.Time) (completed bool, stopBatch bool) {
+	completed = true
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			completed = false
+			stopBatch = true
+			slog.Error(
+				"group_upstream_balance_refresh.group_panic",
+				"group_id", group.ID,
+				"panic", fmt.Sprint(recovered),
+			)
+		}
+	}()
+	if ctx.Err() != nil {
+		return false, true
+	}
 	accounts, err := r.accountRepo.ListUpstreamBalanceRefreshCandidatesByGroupID(ctx, group.ID, groupUpstreamBalanceRefreshCandidateLimit)
 	if err != nil {
 		slog.Warn("group_upstream_balance_refresh.list_accounts_failed", "group_id", group.ID, "error", err)
-		return
+		return true, false
 	}
 	for i := range accounts {
+		if ctx.Err() != nil {
+			return false, true
+		}
 		accountID := accounts[i].ID
 		refreshed, err := r.refresher.Refresh(ctx, accountID)
 		if err != nil {
@@ -118,8 +148,12 @@ func (r *GroupUpstreamBalanceRefreshRunner) refreshGroup(ctx context.Context, gr
 		if refreshed == nil {
 			continue
 		}
+		if ctx.Err() != nil {
+			return false, true
+		}
 		if err := ApplyGroupUpstreamPriceGuard(ctx, r.accountRepo, refreshed, group, now); err != nil {
 			slog.Warn("group_upstream_balance_refresh.price_guard_failed", "group_id", group.ID, "account_id", accountID, "error", err)
 		}
 	}
+	return true, false
 }
