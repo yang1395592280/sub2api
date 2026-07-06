@@ -1,157 +1,185 @@
-# Task 1 Report
+# Task 1 Report: Persist Group-Level Refresh And Price Guard Config
 
 ## 任务结论
-- 已完成 Task 1 后端 service 层实现：
-  - 新增 `Sub2APICheckinService`
-  - 落地签到状态、调度、补签、失败重试
-  - 复用 sub2api 上游管理鉴权链路
-  - 补充相关 service 测试
-- 未改前端、未新增表。
-- `account_credentials_redact.go` 本次未改：`upstream_admin_access_token` / `upstream_admin_refresh_token` / `upstream_admin_password` 已在现有敏感字段清单内。
+
+已完成 Task 1 要求范围：为 group 增加上游余额刷新与上游价格倍率上限的持久化字段、迁移、service 校验、repository 映射、DTO 输出、admin handler 入参透传。未实现 runner，也未实现价格拦截策略本身。
 
 ## 实际修改文件
-- `backend/internal/service/openai_upstream_balance_service.go`
-- `backend/internal/service/sub2api_checkin_service.go`
-- `backend/internal/service/sub2api_checkin_service_test.go`
+
+- 新增：`backend/migrations/160_group_upstream_price_guard.sql`
+- 修改：`backend/ent/schema/group.go`
+- 修改：`backend/ent/group.go`
+- 修改：`backend/ent/group/group.go`
+- 修改：`backend/ent/group/where.go`
+- 修改：`backend/ent/group_create.go`
+- 修改：`backend/ent/group_update.go`
+- 修改：`backend/ent/migrate/schema.go`
+- 修改：`backend/ent/mutation.go`
+- 修改：`backend/ent/runtime/runtime.go`
+- 修改：`backend/internal/service/group.go`
+- 修改：`backend/internal/service/admin_service.go`
+- 修改：`backend/internal/repository/group_repo.go`
+- 修改：`backend/internal/repository/api_key_repo.go`
+- 修改：`backend/internal/handler/dto/types.go`
+- 修改：`backend/internal/handler/dto/mappers.go`
+- 修改：`backend/internal/handler/admin/group_handler.go`
+- 修改：`backend/ent/schema/openai_auto_scheduler_schema_test.go`
+- 修改：`backend/internal/repository/migrations_schema_integration_test.go`
+- 修改：`backend/internal/service/admin_service_group_test.go`
+- 修改：`backend/internal/service/payment_config_plans_validation_test.go`
 
 ## 核心实现说明
-- 在 `sub2api_checkin_service.go` 新增：
-  - `Sub2APICheckinService`
-  - `Start()` / `Stop()` / `RefreshNow()`
-  - `isSub2APICheckinEnabled`
-  - `checkinWindowForDate`
-  - `randomTimeBetween`
-  - `parseHHMM`
-  - `buildSub2APICheckinURL`
-  - `classifySub2APICheckinResponse`
-  - 运行状态写回 `extra` 的成功/失败更新逻辑
-- 调度行为：
-  - 使用 `ListSub2APICheckinCandidates(ctx, limit)` 获取候选账号
-  - 使用服务器本地时区（构造器传入，测试使用 `UTC+8`）
-  - 当天无计划时生成窗口内随机执行时间
-  - 错过窗口且当天未成功时立即补签
-  - 失败后按 10-30 分钟随机延迟重试
-  - `retry_count` 按本地日期隔离，跨天自动归零
-- 鉴权复用：
-  - 从 `OpenAIUpstreamBalanceService` 提取共享的 `resolveSub2APIAdminAuthorization`
-  - 回退顺序为：`refresh token -> access token -> email/password login`
-  - 刷新到的新 token 通过 `BulkUpdate` 回写 `credentials`
-- 安全性：
-  - 未把敏感凭据写入日志或 `extra`
-  - check-in URL 仅允许相对路径或与 base URL 同源的绝对地址
 
-## TDD / 执行记录
-1. 先新增 `backend/internal/service/sub2api_checkin_service_test.go`
-2. 执行 RED：
-   - `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinService|TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveRate' -v`
-   - 结果：失败，缺少 `NewSub2APICheckinService` 和签到状态常量
-3. 实现 `Sub2APICheckinService` 与共享 sub2api admin 鉴权 helper
-4. 执行 `gofmt`
-5. 执行 GREEN：
-   - `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinService|TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveRate' -v`
-   - 结果：通过
-6. 扩大相关回归范围：
-   - `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestOpenAIUpstreamBalanceServiceRefresh|TestSub2APICheckinService' -v`
-   - 结果：通过
+### 1. 数据库迁移
 
-## 执行过的命令与结果
-- `gofmt -w backend/internal/service/sub2api_checkin_service.go backend/internal/service/sub2api_checkin_service_test.go backend/internal/service/openai_upstream_balance_service.go`
-  - 结果：成功
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinService|TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveRate' -v`
-  - 首次结果：失败（RED），缺少新 service / 常量
-  - 再次结果：通过
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestOpenAIUpstreamBalanceServiceRefresh|TestSub2APICheckinService' -v`
-  - 结果：通过，`ok github.com/Wei-Shaw/sub2api/internal/service 0.549s`
+新增迁移 `160_group_upstream_price_guard.sql`，给 `groups` 表增加：
 
-## 测试覆盖点
-- 窗口内计划时间生成
-- “今日已签到” 视为成功
-- 重试次数按天重置
-- sub2api admin 鉴权回退顺序
-- upstream balance 既有 sub2api admin 刷新路径回归
+- `upstream_balance_refresh_enabled BOOLEAN NOT NULL DEFAULT FALSE`
+- `upstream_balance_refresh_interval_seconds INTEGER NOT NULL DEFAULT 600`
+- `upstream_price_max_multiplier DECIMAL(10,4) NOT NULL DEFAULT 0`
 
-## Commit
-- Commit message: `feat: add sub2api checkin service`
+并补充中文注释。默认值满足“默认关闭 / 默认不限价”，保证历史分组行为不变。
 
-## Concerns
-- 当前只完成 Task 1 要求的后端 service 层与测试；未在 server/wire 中接入后台启动生命周期，这部分应由后续任务按整体集成范围处理。
+### 2. Ent Schema 与生成代码
+
+在 `backend/ent/schema/group.go` 为 `Group` 增加三个字段：
+
+- `upstream_balance_refresh_enabled`
+- `upstream_balance_refresh_interval_seconds`
+- `upstream_price_max_multiplier`
+
+随后执行 `go generate ./ent` 同步生成代码，确保 repository 可以直接使用新的 setter / getter。
+
+### 3. Service 层模型与校验
+
+在 `backend/internal/service/group.go`：
+
+- `Group` 增加：
+  - `UpstreamBalanceRefreshEnabled`
+  - `UpstreamBalanceRefreshIntervalSeconds`
+  - `UpstreamPriceMaxMultiplier`
+- 增加常量：
+  - `DefaultUpstreamBalanceRefreshIntervalSeconds = 600`
+  - `MinUpstreamBalanceRefreshIntervalSeconds = 60`
+- 增加统一校验函数：
+  - `ValidateGroupUpstreamPriceGuardConfig(enabled, intervalSeconds, maxMultiplier)`
+
+校验规则按 brief 落地：
+
+- `upstream_price_max_multiplier < 0` 拒绝
+- `upstream_price_max_multiplier = 0` 表示不限价
+- 仅当 `enabled=true` 时要求 `intervalSeconds >= 60`
+
+### 4. AdminService 写路径接入
+
+在 `backend/internal/service/admin_service.go`：
+
+- `CreateGroupInput` / `UpdateGroupInput` 增加三个字段
+- `CreateGroup` 中接入统一校验
+- `UpdateGroup` 中对合并后的最终值做统一校验
+- `CreateGroup` 额外按 brief 处理：
+  - 当 `enabled=false` 且 `interval=0` 时，自动回填 `600`
+
+这样可以保证 create/update 入口都在 service 层统一兜住约束。
+
+### 5. Repository 持久化与实体映射
+
+在 `backend/internal/repository/group_repo.go`：
+
+- `Create` / `Update` builder 增加三个字段的 `Set...`
+
+在 `backend/internal/repository/api_key_repo.go` 的 `groupEntityToService`：
+
+- 将 Ent entity 上的新字段映射回 `service.Group`
+
+### 6. DTO 与 Handler 入参
+
+在 `backend/internal/handler/dto/types.go` 与 `mappers.go`：
+
+- group DTO 增加三个 JSON 字段并输出
+
+在 `backend/internal/handler/admin/group_handler.go`：
+
+- `CreateGroupRequest` 增加：
+  - `upstream_balance_refresh_enabled`
+  - `upstream_balance_refresh_interval_seconds`
+  - `upstream_price_max_multiplier`
+- `UpdateGroupRequest` 增加对应指针字段
+- Create / Update 时透传给 service input
+
+## 测试与验证
+
+### TDD / RED 阶段
+
+先补充了以下测试断言：
+
+- `backend/ent/schema/openai_auto_scheduler_schema_test.go`
+- `backend/internal/repository/migrations_schema_integration_test.go`
+- `backend/internal/service/admin_service_group_test.go`
+
+在尝试按 brief 原命令执行时发现两点仓库现实情况：
+
+1. `internal/service` 与 `internal/repository` 的目标测试分别带有 `unit` / `integration` build tags，原命令不带 tags 时不会真正命中这些测试。
+2. `internal/service` 现有测试中存在一个历史性的 helper 重名问题，导致 package 编译失败，阻塞本任务校验。
+
+### 为验证做的最小额外修正
+
+为不影响业务逻辑、又能完成本任务验证，我做了一个最小测试修正：
+
+- `backend/internal/service/payment_config_plans_validation_test.go`
+  - 将局部测试 helper `ptrInt64` 重命名为 `ptrPlanInt64`
+
+这只是测试侧命名去冲突，不涉及生产代码行为。
+
+### 最终实际执行并通过的命令
+
+```bash
+cd /Volumes/workspace/中转站/sub2api/backend
+GOPATH=/tmp/sub2api-go GOCACHE=/tmp/sub2api-go-cache GOMODCACHE=/tmp/sub2api-go-modcache go generate ./ent
+GOPATH=/tmp/sub2api-go GOCACHE=/tmp/sub2api-go-cache GOMODCACHE=/tmp/sub2api-go-modcache go test ./ent/schema -run '^TestGroupUpstreamPriceGuardSchemaFields$'
+GOPATH=/tmp/sub2api-go GOCACHE=/tmp/sub2api-go-cache GOMODCACHE=/tmp/sub2api-go-modcache go test -tags integration ./internal/repository -run '^TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate$'
+GOPATH=/tmp/sub2api-go GOCACHE=/tmp/sub2api-go-cache GOMODCACHE=/tmp/sub2api-go-modcache go test -tags unit ./internal/service -run '^(TestValidateGroupUpstreamPriceGuardConfig|TestAdminService.*Group)$'
+GOPATH=/tmp/sub2api-go GOCACHE=/tmp/sub2api-go-cache GOMODCACHE=/tmp/sub2api-go-modcache go test -tags 'unit integration' ./ent/schema ./internal/repository ./internal/service -run 'TestGroupUpstreamPriceGuardSchemaFields|TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate|TestValidateGroupUpstreamPriceGuardConfig|TestAdminService.*Group'
+```
+
+结果：
+
+- `github.com/Wei-Shaw/sub2api/ent/schema` 通过
+- `github.com/Wei-Shaw/sub2api/internal/repository` 通过
+- `github.com/Wei-Shaw/sub2api/internal/service` 通过
+
+## 风险与注意事项
+
+1. 本任务只完成“配置落库、校验、读写链路接通”，没有实现真正的刷新执行器和价格拦截策略。
+2. `upstream_balance_refresh_enabled=false` 时，校验允许 interval 保留任意非负值；create 入口仅在 `enabled=false && interval=0` 时回填 600，符合 brief 要求。
+3. 为完成 service 测试验证，额外修复了一个现有测试 helper 重名问题；这不是业务变更，但会体现在本次 commit 中。
+
+## 提交信息
+
+按 brief 要求使用：
+
+```bash
+feat: add group upstream price guard config
+```
 
 ---
 
-## 2026-07-02 Task 1 review fix follow-up
+## Task 1 Review Fix Append
 
-### 改了什么
-- 在 `backend/internal/service/sub2api_checkin_service.go` 增加同日本地日期重试上限判断：当 `upstream_checkin_retry_date` 为当天且 `upstream_checkin_retry_count >= 3` 时，`reconcileAccount()` 直接停止，不再重新生成或补写 `upstream_checkin_next_run_at`。
-- 保留跨天行为：只有同一天命中上限才停止调度；本地日期进入下一天后，仍按原逻辑重新规划并在失败时从 `retry_count=1` 开始累计。
-- 在 `backend/internal/service/sub2api_checkin_service_test.go` 新增 `TestSub2APICheckinServiceReconcileSkipsSchedulingAfterRetryCapSameDay`，覆盖“同日已到 3 次且 `next_run_at` 为空时，再次 reconcile 不应重新计划/执行”。
+### 修改内容
 
-### 根因说明
-- 现有 `buildFailureUpdates()` 在同日达到最大重试次数后会把 `upstream_checkin_next_run_at` 清空。
-- 但 `reconcileAccount()` 之前只按“今天是否成功”和“next_run_at 是否有效/落在窗口内”决定是否重新排程，没有把“今天是否已经达到重试上限”作为停止条件。
-- 因此下一轮扫描会把空的 `next_run_at` 视为缺失，再次给当天补一个新时间，破坏“失败每天最多重试 3 次”约束。
+- 在 `backend/internal/repository/api_key_repo.go` 的 `GetByKeyForAuth` 中补充了 group 的三个白名单字段：
+  - `group.FieldUpstreamBalanceRefreshEnabled`
+  - `group.FieldUpstreamBalanceRefreshIntervalSeconds`
+  - `group.FieldUpstreamPriceMaxMultiplier`
+- 在 `backend/internal/repository/api_key_repo_messages_dispatch_unit_test.go` 新增 SQLite 回归测试，验证 auth 查询能保留这三个 group 字段的非默认值。
 
-### 测试命令和结果
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinServiceReconcileSkipsSchedulingAfterRetryCapSameDay' -v`
-  - 首次结果：失败，`reconcileAccount()` 仍然写入新的调度更新
-  - 修复后结果：通过
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinService|TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveRate' -v`
-  - 结果：通过，相关 check-in 与 sub2api admin 回归均为绿色
+### 验证命令
 
----
+```bash
+cd /Volumes/workspace/中转站/sub2api/backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/repository -run 'TestAPIKeyRepository_GetByKeyForAuth_(PreservesMessagesDispatchModelConfig|PreservesUpstreamPriceGuardConfig)_SQLite'
+```
 
-## 2026-07-02 Task 1 retry-cap follow-up 2
+### 结果
 
-### 改了什么
-- 调整 `backend/internal/service/sub2api_checkin_service.go` 的 `reconcileAccount()` 顺序：先解析并判断 `upstream_checkin_next_run_at` 是否还是“同日本地日期的有效既有计划”，再决定当天是否因 `retry_count >= 3` 停止。
-- 现在同日 `retry_count == 3` 时分两种处理：
-  - 若已有同日本地日期的有效 `next_run_at`，则保留该计划；一旦到点，仍执行这一次已计划的第 3 次重试。
-  - 若没有同日本地日期的有效 `next_run_at`，则直接停止当天调度，不再重新规划。
-- 保持失败后封顶行为：第 3 次重试失败后，`buildFailureUpdates()` 继续只写回 `retry_count=3` 且清空 `upstream_checkin_next_run_at`，不再补新的当天时间。
-- 在 `backend/internal/service/sub2api_checkin_service_test.go` 新增：
-  - `TestSub2APICheckinServiceReconcileExecutesPlannedFinalRetryWhenDue`
-  - `TestSub2APICheckinServiceFinalRetryFailureDoesNotScheduleNewRun`
-- 保留上一轮 `TestSub2APICheckinServiceReconcileSkipsSchedulingAfterRetryCapSameDay`，覆盖“已封顶且无同日有效计划时不再重新计划”。
-
-### 根因说明
-- 上一轮把“同日达到上限且没有计划”与“同日达到上限但已经排好了最后一次计划”都归入 `reachedRetryCapForLocalDate()` 的统一短路分支。
-- 结果是 `retry_count == 3` 且 `next_run_at` 已经到了时，`reconcileAccount()` 还没来得及比较 `now >= next_run_at`，就先 `return nil`，导致最后一次已计划重试永远不会真的发请求。
-
-### 测试命令和结果
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinService(ReconcileExecutesPlannedFinalRetryWhenDue|FinalRetryFailureDoesNotScheduleNewRun|ReconcileSkipsSchedulingAfterRetryCapSameDay)' -v`
-  - 首次结果：失败，`TestSub2APICheckinServiceReconcileExecutesPlannedFinalRetryWhenDue` 未发出请求
-  - 修复后结果：通过
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinService|TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveRate' -v`
-  - 结果：通过
-
----
-
-## 2026-07-02 Task 1 window backoff follow-up
-
-### 改了什么
-- 调整 `backend/internal/service/sub2api_checkin_service.go` 的 `reconcileAccount()` 执行门槛：
-  - 只要 `upstream_checkin_next_run_at` 仍是“同一本地日期的有效计划”，就只按 `now >= next_run_at` 决定是否执行。
-  - 不再因为 `localNow.After(end)` 就无条件触发已失败账号的再次请求。
-- 把“过窗后的当天第一次补签”和“失败后已写入 next_run_at 的重试”拆开处理：
-  - 当天未成功、且没有同日有效 `next_run_at` 时，若当前已过窗口，立即补签。
-  - 已有同日有效 `next_run_at` 时，即使已经过了窗口结束时间，也继续等待到该时间点。
-- 保持 retry cap 语义不变：
-  - 第 3 次已计划重试到点仍可执行。
-  - 第 3 次失败后继续清空 `next_run_at`，不再计划新的当天重试。
-  - `retry_count=3` 且无同日有效 `next_run_at` 时，当天停止。
-- 在 `backend/internal/service/sub2api_checkin_service_test.go` 新增：
-  - `TestSub2APICheckinServiceReconcileWaitsForPlannedRetryAfterWindow`
-  - `TestSub2APICheckinServiceReconcileExecutesPlannedRetryAfterWindowWhenDue`
-
-### 根因说明
-- 之前的执行条件是 `localNow.After(end) || now >= next_run_at`。
-- 这会让“窗口结束后的补签失败重试”退化成“只要过了 10:30，下一轮扫描就立刻再试”，从而绕过失败后已写入的 10-30 分钟退避。
-- 真实需要区分的是：
-  - 还没为今天失败写过有效 `next_run_at`：说明只是第一次错过窗口，可以立即补签。
-  - 已经写入同日有效 `next_run_at`：说明这是明确排队的失败重试，必须等到点再跑。
-
-### 测试命令和结果
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinService(ReconcileWaitsForPlannedRetryAfterWindow|ReconcileExecutesPlannedRetryAfterWindowWhenDue)' -v`
-  - 首次结果：失败，`TestSub2APICheckinServiceReconcileWaitsForPlannedRetryAfterWindow` 在 10:32 提前发起了请求
-  - 修复后结果：通过
-- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestSub2APICheckinService|TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveRate' -v`
-  - 结果：通过
+- `ok   github.com/Wei-Shaw/sub2api/internal/repository 0.666s`
