@@ -835,6 +835,67 @@ func (r *accountRepository) ListSub2APICheckinCandidates(ctx context.Context, li
 	return out, nil
 }
 
+func (r *accountRepository) ListUpstreamBalanceRefreshCandidatesByGroupID(ctx context.Context, groupID int64, limit int) ([]service.Account, error) {
+	if r.sql == nil {
+		return nil, errors.New("account repository SQL executor not configured")
+	}
+
+	query := `
+		SELECT a.id
+		FROM accounts a
+		JOIN account_groups ag ON ag.account_id = a.id
+		WHERE a.deleted_at IS NULL
+			AND ag.deleted_at IS NULL
+			AND ag.group_id = $1
+			AND a.status = 'active'
+			AND a.type = 'apikey'
+			AND a.platform IN ('openai', 'anthropic')
+			AND a.credentials ? 'api_key'
+		ORDER BY a.priority ASC, a.id ASC
+	`
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if limit > 0 {
+		query += " LIMIT $2"
+		rows, err = r.sql.QueryContext(ctx, query, groupID, limit)
+	} else {
+		rows, err = r.sql.QueryContext(ctx, query, groupID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return []service.Account{}, nil
+	}
+
+	accounts, err := r.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]service.Account, 0, len(accounts))
+	for _, account := range accounts {
+		if account != nil {
+			out = append(out, *account)
+		}
+	}
+	return out, nil
+}
+
 func (r *accountRepository) ListByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
 	accounts, err := r.client.Account.Query().
 		Where(

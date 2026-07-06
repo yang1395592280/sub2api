@@ -504,6 +504,26 @@ func (r *groupRepository) ListActiveByPlatform(ctx context.Context, platform str
 	return outGroups, nil
 }
 
+func (r *groupRepository) ListUpstreamBalanceRefreshEnabled(ctx context.Context) ([]service.Group, error) {
+	groups, err := r.client.Group.Query().
+		Where(
+			group.StatusEQ(service.StatusActive),
+			group.UpstreamBalanceRefreshEnabledEQ(true),
+		).
+		Order(dbent.Asc(group.FieldSortOrder), dbent.Asc(group.FieldID)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	outGroups := make([]service.Group, 0, len(groups))
+	for i := range groups {
+		g := groupEntityToService(groups[i])
+		outGroups = append(outGroups, *g)
+	}
+	return outGroups, nil
+}
+
 func (r *groupRepository) ExistsByName(ctx context.Context, name string) (bool, error) {
 	return r.client.Group.Query().Where(group.NameEQ(name)).Exist(ctx)
 }
