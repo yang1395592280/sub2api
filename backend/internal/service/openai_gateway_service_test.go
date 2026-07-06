@@ -568,6 +568,39 @@ func TestOpenAISelectAccountWithLoadAwareness_FiltersUnschedulableWhenNoConcurre
 	}
 }
 
+func TestOpenAISelectAccountWithLoadAwareness_SkipsAccountAboveGroupUpstreamPriceMaxMultiplier(t *testing.T) {
+	groupID := int64(1)
+	group := &Group{ID: groupID, UpstreamPriceMaxMultiplier: 0.001}
+	channelPrice := 0.002
+	repo := groupAwareStubOpenAIAccountRepo{
+		stubOpenAIAccountRepo: stubOpenAIAccountRepo{
+			accounts: []Account{
+				{
+					ID:            1,
+					Platform:      PlatformOpenAI,
+					Type:          AccountTypeAPIKey,
+					Status:        StatusActive,
+					Schedulable:   true,
+					Concurrency:   1,
+					Priority:      1,
+					ChannelPrice:  &channelPrice,
+					AccountGroups: []AccountGroup{{GroupID: groupID, Group: group}},
+					Groups:        []*Group{group},
+				},
+			},
+		},
+	}
+	svc := &OpenAIGatewayService{
+		accountRepo:        repo,
+		concurrencyService: NewConcurrencyService(stubConcurrencyCache{}),
+	}
+
+	selection, err := svc.SelectAccountWithLoadAwareness(context.Background(), &groupID, "", "gpt-5.2", nil)
+
+	require.ErrorIs(t, err, ErrNoAvailableAccounts)
+	require.Nil(t, selection)
+}
+
 func TestOpenAISelectAccountForModelWithExclusions_StickyUnschedulableClearsSession(t *testing.T) {
 	sessionHash := "session-1"
 	repo := stubOpenAIAccountRepo{

@@ -837,6 +837,7 @@ export default {
       label: 'OpenAI 自动选择最优惠分组',
       shortLabel: '自动最优惠',
       description: '按当前可用账号池自动使用最低倍率 OpenAI 分组',
+      configureTitle: '设置自动最优惠分组',
       currentEffective: '最近生效：{name}',
       waitingFirstUse: '等待首次调用',
       maxRateLabel: '最高倍率限制',

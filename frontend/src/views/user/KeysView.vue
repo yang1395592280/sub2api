@@ -151,7 +151,16 @@
                         : t('keys.openaiAutoCheapest.waitingFirstUse')
                     }}
                   </span>
-                  <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20">
+                  <span
+                    role="button"
+                    tabindex="0"
+                    class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-100 transition-colors hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20 dark:hover:bg-emerald-500/20"
+                    :title="t('keys.openaiAutoCheapest.configureTitle')"
+                    data-test="row-auto-cheapest-max-rate-chip"
+                    @click.stop="openAutoCheapestRateDialog(row)"
+                    @keydown.enter.stop.prevent="openAutoCheapestRateDialog(row)"
+                    @keydown.space.stop.prevent="openAutoCheapestRateDialog(row)"
+                  >
                     {{ getOpenAIAutoMaxRateLabel(row) }}
                   </span>
                 </div>
@@ -974,6 +983,53 @@
       </template>
     </BaseDialog>
 
+    <BaseDialog
+      :show="showAutoCheapestRateDialog"
+      :title="t('keys.openaiAutoCheapest.configureTitle')"
+      width="narrow"
+      @close="closeAutoCheapestRateDialog"
+    >
+      <div class="space-y-4">
+        <div>
+          <label class="input-label">
+            {{ t('keys.openaiAutoCheapest.maxRateLabel') }}
+          </label>
+          <input
+            v-model.number="autoCheapestRateForm.maxRate"
+            type="number"
+            min="0"
+            step="0.000001"
+            class="input"
+            :placeholder="t('keys.openaiAutoCheapest.maxRatePlaceholder')"
+            data-test="row-auto-cheapest-max-rate"
+          />
+          <p class="input-hint">
+            {{ t('keys.openaiAutoCheapest.maxRateHint') }}
+          </p>
+        </div>
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            @click="closeAutoCheapestRateDialog()"
+          >
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="autoCheapestRateSubmitting"
+            data-test="row-auto-cheapest-submit"
+            @click="submitAutoCheapestRateDialog"
+          >
+            {{ autoCheapestRateSubmitting ? t('keys.saving') : t('common.confirm') }}
+          </button>
+        </div>
+      </template>
+    </BaseDialog>
+
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
       :show="showDeleteDialog"
@@ -1105,7 +1161,9 @@
               'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors',
               'border-b border-gray-100 last:border-0 dark:border-dark-700',
               selectedKeyForGroup?.group_id === option.value ||
-              (!selectedKeyForGroup?.group_id && option.value === null)
+              (!selectedKeyForGroup?.group_id && option.value === null) ||
+              (selectedKeyForGroup?.group_select_mode === 'openai_auto_cheapest' &&
+                option.value === OPENAI_AUTO_CHEAPEST_GROUP_VALUE)
                 ? 'bg-primary-50 dark:bg-primary-900/20'
                 : 'hover:bg-gray-100 dark:hover:bg-dark-700'
             ]"
@@ -1124,7 +1182,9 @@
               :description="option.description"
               :selected="
                 selectedKeyForGroup?.group_id === option.value ||
-                (!selectedKeyForGroup?.group_id && option.value === null)
+                (!selectedKeyForGroup?.group_id && option.value === null) ||
+                (selectedKeyForGroup?.group_select_mode === 'openai_auto_cheapest' &&
+                  option.value === OPENAI_AUTO_CHEAPEST_GROUP_VALUE)
               "
             />
           </button>
@@ -1298,8 +1358,11 @@ const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
 const showCcsClientSelect = ref(false)
 const showColumnDropdown = ref(false)
+const showAutoCheapestRateDialog = ref(false)
+const autoCheapestRateSubmitting = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
 const selectedKey = ref<ApiKey | null>(null)
+const autoCheapestRateKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
@@ -1345,6 +1408,10 @@ const formData = ref({
   enable_expiration: false,
   expiration_preset: '30' as '7' | '30' | '90' | 'custom',
   expiration_date: ''
+})
+
+const autoCheapestRateForm = ref({
+  maxRate: null as number | null,
 })
 
 // 自定义Key验证
@@ -1660,14 +1727,7 @@ const changeGroup = async (key: ApiKey, newGroupId: KeyGroupOptionValue | null) 
   groupSelectorKeyId.value = null
   dropdownPosition.value = null
   if (newGroupId === OPENAI_AUTO_CHEAPEST_GROUP_VALUE) {
-    if (key.group_select_mode === 'openai_auto_cheapest') return
-    try {
-      await keysAPI.update(key.id, { group_id: null, group_select_mode: 'openai_auto_cheapest' })
-      appStore.showSuccess(t('keys.groupChangedSuccess'))
-      loadApiKeys()
-    } catch (error) {
-      appStore.showError(t('keys.failedToChangeGroup'))
-    }
+    openAutoCheapestRateDialog(key)
     return
   }
   if (key.group_select_mode !== 'openai_auto_cheapest' && key.group_id === newGroupId) return
@@ -1678,6 +1738,41 @@ const changeGroup = async (key: ApiKey, newGroupId: KeyGroupOptionValue | null) 
     loadApiKeys()
   } catch (error) {
     appStore.showError(t('keys.failedToChangeGroup'))
+  }
+}
+
+const openAutoCheapestRateDialog = (key: ApiKey) => {
+  autoCheapestRateKey.value = key
+  autoCheapestRateForm.value.maxRate = key.openai_auto_group_max_rate_multiplier ?? null
+  showAutoCheapestRateDialog.value = true
+}
+
+const closeAutoCheapestRateDialog = (force = false) => {
+  if (autoCheapestRateSubmitting.value && !force) return
+  showAutoCheapestRateDialog.value = false
+  autoCheapestRateKey.value = null
+  autoCheapestRateForm.value.maxRate = null
+}
+
+const submitAutoCheapestRateDialog = async () => {
+  const key = autoCheapestRateKey.value
+  if (!key) return
+  const rawMaxRate = Number(autoCheapestRateForm.value.maxRate)
+  const maxRate = Number.isFinite(rawMaxRate) && rawMaxRate > 0 ? rawMaxRate : null
+  autoCheapestRateSubmitting.value = true
+  try {
+    await keysAPI.update(key.id, {
+      group_id: null,
+      group_select_mode: 'openai_auto_cheapest',
+      openai_auto_group_max_rate_multiplier: maxRate ?? 0,
+    })
+    appStore.showSuccess(t('keys.groupChangedSuccess'))
+    closeAutoCheapestRateDialog(true)
+    loadApiKeys()
+  } catch (error) {
+    appStore.showError(t('keys.failedToChangeGroup'))
+  } finally {
+    autoCheapestRateSubmitting.value = false
   }
 }
 

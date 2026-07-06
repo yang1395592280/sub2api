@@ -65,6 +65,38 @@ func ApplyGroupUpstreamPriceGuard(ctx context.Context, repo AccountRepository, a
 	return nil
 }
 
+func isAccountBlockedByGroupUpstreamPriceGuard(account *Account, groupID *int64) bool {
+	if account == nil || groupID == nil || *groupID <= 0 {
+		return false
+	}
+	maxMultiplier, ok := accountGroupUpstreamPriceMaxMultiplier(account, *groupID)
+	if !ok || maxMultiplier <= 0 {
+		return false
+	}
+	if account.ChannelPrice == nil || *account.ChannelPrice <= 0 {
+		return false
+	}
+	return *account.ChannelPrice > maxMultiplier
+}
+
+func accountGroupUpstreamPriceMaxMultiplier(account *Account, groupID int64) (float64, bool) {
+	if account == nil || groupID <= 0 {
+		return 0, false
+	}
+	for i := range account.AccountGroups {
+		ag := account.AccountGroups[i]
+		if ag.GroupID == groupID && ag.Group != nil {
+			return ag.Group.UpstreamPriceMaxMultiplier, true
+		}
+	}
+	for _, group := range account.Groups {
+		if group != nil && group.ID == groupID {
+			return group.UpstreamPriceMaxMultiplier, true
+		}
+	}
+	return 0, false
+}
+
 func isPriceGuardReasonForGroup(reason string, groupID int64) bool {
 	reason = strings.TrimSpace(reason)
 	if !strings.HasPrefix(reason, UpstreamPriceGuardReasonPrefix) {

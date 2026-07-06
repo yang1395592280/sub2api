@@ -231,7 +231,7 @@ describe('KeysView OpenAI auto cheapest group', () => {
     )
   })
 
-  it('allows changing an existing key to auto cheapest from the row group dropdown', async () => {
+  it('allows setting max rate when changing an existing key to auto cheapest from the row group dropdown', async () => {
     listKeys.mockResolvedValue({
       items: [
         {
@@ -304,9 +304,16 @@ describe('KeysView OpenAI auto cheapest group', () => {
     autoButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await flushPromises()
 
+    expect(updateKey).not.toHaveBeenCalled()
+    const maxRateInput = wrapper.get('[data-test="row-auto-cheapest-max-rate"]')
+    await maxRateInput.setValue('0.25')
+    await wrapper.get('[data-test="row-auto-cheapest-submit"]').trigger('click')
+    await flushPromises()
+
     expect(updateKey).toHaveBeenCalledWith(7, {
       group_id: null,
       group_select_mode: 'openai_auto_cheapest',
+      openai_auto_group_max_rate_multiplier: 0.25,
     })
 
     wrapper.unmount()
@@ -375,6 +382,79 @@ describe('KeysView OpenAI auto cheapest group', () => {
     expect(wrapper.text()).toContain('OpenAI Cheap')
     expect(wrapper.text()).toContain('keys.openaiAutoCheapest.maxRateCurrent')
     expect(wrapper.text()).not.toContain('keys.openaiAutoCheapest.waitingFirstUse')
+  })
+
+  it('allows editing max rate for an existing auto cheapest key from the row chip', async () => {
+    listKeys.mockResolvedValue({
+      items: [
+        {
+          id: 11,
+          key: 'sk-auto-edit',
+          name: 'auto-edit',
+          group_id: null,
+          group_select_mode: 'openai_auto_cheapest',
+          group: null,
+          status: 'active',
+          ip_whitelist: [],
+          ip_blacklist: [],
+          quota: 0,
+          quota_used: 0,
+          rate_limit_5h: 0,
+          rate_limit_1d: 0,
+          rate_limit_7d: 0,
+          usage_5h: 0,
+          usage_1d: 0,
+          usage_7d: 0,
+          reset_5h_at: null,
+          reset_1d_at: null,
+          reset_7d_at: null,
+          created_at: '2026-06-30T00:00:00Z',
+          updated_at: '2026-06-30T00:00:00Z',
+          last_used_at: null,
+          expires_at: null,
+          last_effective_group_id: 2,
+          last_effective_group_at: '2026-06-30T01:00:00Z',
+          last_effective_group: null,
+          openai_auto_group_max_rate_multiplier: 0.8,
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 10,
+      pages: 1,
+    })
+
+    const wrapper = mount(KeysView, {
+      global: {
+        stubs: {
+          AppLayout: Passthrough,
+          TablePageLayout: TablePageLayoutStub,
+          DataTable: DataTableStub,
+          Pagination: true,
+          BaseDialog: BaseDialogStub,
+          ConfirmDialog: true,
+          EmptyState: true,
+          SearchInput: true,
+          EndpointPopover: true,
+          UseKeyModal: true,
+          Icon: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    await wrapper.get('[data-test="row-auto-cheapest-max-rate-chip"]').trigger('click')
+    const maxRateInput = wrapper.get('[data-test="row-auto-cheapest-max-rate"]')
+    expect((maxRateInput.element as HTMLInputElement).value).toBe('0.8')
+    await maxRateInput.setValue('0.3')
+    await wrapper.get('[data-test="row-auto-cheapest-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(updateKey).toHaveBeenCalledWith(11, {
+      group_id: null,
+      group_select_mode: 'openai_auto_cheapest',
+      openai_auto_group_max_rate_multiplier: 0.3,
+    })
   })
 
   it('shows waiting text when auto cheapest key has no last effective group id', async () => {

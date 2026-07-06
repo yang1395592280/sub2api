@@ -838,6 +838,7 @@ export default {
       label: 'OpenAI Auto-select cheapest group',
       shortLabel: 'Auto cheapest',
       description: 'Automatically use the lowest-rate OpenAI group with an available account pool',
+      configureTitle: 'Configure auto cheapest group',
       currentEffective: 'Current effective: {name}',
       waitingFirstUse: 'Waiting for first use',
       maxRateLabel: 'Maximum rate limit',

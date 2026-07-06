@@ -2182,6 +2182,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		}
 		group.AccountCount = int64(len(accountIDsToCopy))
 	}
+	s.applyGroupUpstreamPriceGuardBestEffort(ctx, group, false)
 
 	return group, nil
 }
@@ -2419,6 +2420,9 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.OpenAIAutoSchedulerEnabled != nil {
 		group.OpenAIAutoSchedulerEnabled = *input.OpenAIAutoSchedulerEnabled
 	}
+	upstreamPriceGuardConfigTouched := input.UpstreamBalanceRefreshEnabled != nil ||
+		input.UpstreamBalanceRefreshIntervalSeconds != nil ||
+		input.UpstreamPriceMaxMultiplier != nil
 	if input.UpstreamBalanceRefreshEnabled != nil {
 		group.UpstreamBalanceRefreshEnabled = *input.UpstreamBalanceRefreshEnabled
 	}
@@ -2515,8 +2519,30 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 			}
 		}
 	}
+	s.applyGroupUpstreamPriceGuardBestEffort(ctx, group, upstreamPriceGuardConfigTouched)
 
 	return group, nil
+}
+
+func (s *adminServiceImpl) applyGroupUpstreamPriceGuardBestEffort(ctx context.Context, group *Group, force bool) {
+	if s == nil || s.accountRepo == nil || group == nil || group.ID <= 0 {
+		return
+	}
+	if !force && group.UpstreamPriceMaxMultiplier <= 0 {
+		return
+	}
+	accounts, err := s.accountRepo.ListUpstreamBalanceRefreshCandidatesByGroupID(ctx, group.ID, groupUpstreamBalanceRefreshCandidateLimit)
+	if err != nil {
+		logger.LegacyPrintf("service.admin", "apply upstream price guard failed to list accounts: group_id=%d err=%v", group.ID, err)
+		return
+	}
+	now := time.Now()
+	for i := range accounts {
+		account := &accounts[i]
+		if err := ApplyGroupUpstreamPriceGuard(ctx, s.accountRepo, account, *group, now); err != nil {
+			logger.LegacyPrintf("service.admin", "apply upstream price guard failed: group_id=%d account_id=%d err=%v", group.ID, account.ID, err)
+		}
+	}
 }
 
 func (s *adminServiceImpl) DeleteGroup(ctx context.Context, id int64) error {

@@ -1901,6 +1901,10 @@ func (s *OpenAIGatewayService) tryStickySessionHit(ctx context.Context, groupID 
 		_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 		return nil
 	}
+	if isAccountBlockedByGroupUpstreamPriceGuard(account, groupID) {
+		_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
+		return nil
+	}
 	if groupID != nil && s.needsUpstreamChannelRestrictionCheck(ctx, groupID) &&
 		s.isUpstreamModelRestrictedByChannel(ctx, *groupID, account, requestedModel, requireCompact) {
 		_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
@@ -1943,6 +1947,9 @@ func (s *OpenAIGatewayService) selectBestAccount(ctx context.Context, groupID *i
 		}
 		fresh = s.recheckSelectedOpenAIAccountFromDB(ctx, fresh, platform, requestedModel, false, requiredCapability)
 		if fresh == nil {
+			continue
+		}
+		if isAccountBlockedByGroupUpstreamPriceGuard(fresh, groupID) {
 			continue
 		}
 		if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, fresh, requestedModel, requireCompact) {
@@ -2397,6 +2404,8 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 						_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 					} else if s.isOpenAIAutoSchedulerAccountTemporarilyBlocked(ctx, groupID, requestedModel, account.ID) {
 						_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
+					} else if isAccountBlockedByGroupUpstreamPriceGuard(account, groupID) {
+						_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 					} else if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, account, requestedModel, requireCompact) {
 						_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 					} else if !parentHealthyForShadow(account, s.parentAccountLookup(ctx)) {
@@ -2459,6 +2468,9 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 			continue
 		}
 		if s.isOpenAIAccountRuntimeBlocked(acc) {
+			continue
+		}
+		if isAccountBlockedByGroupUpstreamPriceGuard(acc, groupID) {
 			continue
 		}
 		if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, acc, requestedModel, requireCompact) {
@@ -2554,6 +2566,9 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 			if fresh == nil {
 				continue
 			}
+			if isAccountBlockedByGroupUpstreamPriceGuard(fresh, groupID) {
+				continue
+			}
 			if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, fresh, requestedModel, requireCompact) {
 				continue
 			}
@@ -2588,6 +2603,9 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 			}
 			fresh = s.recheckSelectedOpenAIAccountFromDB(ctx, fresh, platform, requestedModel, requireCompact, requiredCapability)
 			if fresh == nil {
+				continue
+			}
+			if isAccountBlockedByGroupUpstreamPriceGuard(fresh, groupID) {
 				continue
 			}
 			if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, fresh, requestedModel, requireCompact) {
@@ -2635,6 +2653,9 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 		}
 		fresh = s.recheckSelectedOpenAIAccountFromDB(ctx, fresh, platform, requestedModel, requireCompact, requiredCapability)
 		if fresh == nil {
+			continue
+		}
+		if isAccountBlockedByGroupUpstreamPriceGuard(fresh, groupID) {
 			continue
 		}
 		if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, fresh, requestedModel, requireCompact) {
