@@ -50,6 +50,7 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // upstream_model
 			sqlmock.AnyArg(), // group_id
 			sqlmock.AnyArg(), // subscription_id
+			sqlmock.AnyArg(), // api_key_group_select_mode
 			log.InputTokens,
 			log.OutputTokens,
 			log.CacheCreationTokens,
@@ -155,6 +156,7 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
+			sqlmock.AnyArg(), // api_key_group_select_mode
 			log.InputTokens,
 			log.OutputTokens,
 			log.CacheCreationTokens,
@@ -263,6 +265,22 @@ func TestPrepareUsageLogInsert_ArgCountMatchesTypes(t *testing.T) {
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
 }
 
+func TestPrepareUsageLogInsert_PersistsAPIKeyGroupSelectModeSnapshot(t *testing.T) {
+	mode := service.APIKeyGroupSelectModeOpenAIAutoCheapest
+	prepared := prepareUsageLogInsert(&service.UsageLog{
+		UserID:                1,
+		APIKeyID:              2,
+		AccountID:             3,
+		RequestID:             "req-auto-group-mode",
+		Model:                 "gpt-5",
+		RequestedModel:        "gpt-5",
+		APIKeyGroupSelectMode: &mode,
+		CreatedAt:             time.Date(2025, 1, 5, 12, 0, 0, 0, time.UTC),
+	})
+
+	require.Equal(t, sql.NullString{String: mode, Valid: true}, prepared.args[9])
+}
+
 func TestPrepareUsageLogInsert_PersistsImageSizeMetadata(t *testing.T) {
 	imageSize := "4K"
 	inputSize := "1024x1024"
@@ -284,11 +302,11 @@ func TestPrepareUsageLogInsert_PersistsImageSizeMetadata(t *testing.T) {
 		CreatedAt:          time.Date(2025, 1, 6, 12, 0, 0, 0, time.UTC),
 	})
 
-	require.Equal(t, sql.NullString{String: imageSize, Valid: true}, prepared.args[34])
-	require.Equal(t, sql.NullString{String: inputSize, Valid: true}, prepared.args[35])
-	require.Equal(t, sql.NullString{String: outputSize, Valid: true}, prepared.args[36])
-	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[37])
-	breakdownJSON, ok := prepared.args[38].(string)
+	require.Equal(t, sql.NullString{String: imageSize, Valid: true}, prepared.args[35])
+	require.Equal(t, sql.NullString{String: inputSize, Valid: true}, prepared.args[36])
+	require.Equal(t, sql.NullString{String: outputSize, Valid: true}, prepared.args[37])
+	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[38])
+	breakdownJSON, ok := prepared.args[39].(string)
 	require.True(t, ok)
 	require.JSONEq(t, `{"1K":1,"4K":1}`, breakdownJSON)
 }
@@ -312,9 +330,9 @@ func TestPrepareUsageLogInsert_PersistsChannelPriceSnapshot(t *testing.T) {
 
 	require.Contains(t, usageLogSelectColumns, "channel_price_snapshot")
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	require.Equal(t, &price, prepared.args[49])
-	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[50])
-	require.Equal(t, sql.NullTime{Time: refreshedAt, Valid: true}, prepared.args[51])
+	require.Equal(t, &price, prepared.args[50])
+	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[51])
+	require.Equal(t, sql.NullTime{Time: refreshedAt, Valid: true}, prepared.args[52])
 }
 
 func TestScanUsageLog_ChannelPriceSnapshot(t *testing.T) {
@@ -325,7 +343,7 @@ func TestScanUsageLog_ChannelPriceSnapshot(t *testing.T) {
 
 	rowValues := []any{
 		int64(99), int64(1), int64(2), int64(3), "req-channel-price", "gpt-5", "gpt-5", nil,
-		nil, nil, 10, 20, 0, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.5, 1.5,
+		nil, nil, service.APIKeyGroupSelectModeOpenAIAutoCheapest, 10, 20, 0, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.5, 1.5,
 		nil, int16(service.BillingTypeBalance), int16(service.RequestTypeSync), false, false,
 		nil, nil, nil, nil, 0, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, nil,
 		nil, nil, nil, nil, price, source, refreshedAt, createdAt,
@@ -339,6 +357,8 @@ func TestScanUsageLog_ChannelPriceSnapshot(t *testing.T) {
 	require.Equal(t, source, *got.ChannelPriceSource)
 	require.NotNil(t, got.ChannelPriceRefreshedAt)
 	require.WithinDuration(t, refreshedAt, *got.ChannelPriceRefreshedAt, time.Second)
+	require.NotNil(t, got.APIKeyGroupSelectMode)
+	require.Equal(t, service.APIKeyGroupSelectModeOpenAIAutoCheapest, *got.APIKeyGroupSelectMode)
 }
 
 type scanStub []any
@@ -937,6 +957,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullInt64{},
 			sql.NullInt64{},
+			sql.NullString{},
 			0, 0, 0, 0, 0, 0,
 			0, 0.0, // image_output_tokens, image_output_cost
 			0.0, 0.0, 0.0, 0.0, 0.8, 0.8,
@@ -997,6 +1018,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // upstream_model
 			sql.NullInt64{},   // group_id
 			sql.NullInt64{},   // subscription_id
+			sql.NullString{},  // api_key_group_select_mode
 			1,                 // input_tokens
 			2,                 // output_tokens
 			3,                 // cache_creation_tokens
@@ -1063,6 +1085,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullInt64{},
 			sql.NullInt64{},
+			sql.NullString{},
 			1, 2, 3, 4, 5, 6,
 			0, 0.0, // image_output_tokens, image_output_cost
 			0.1, 0.2, 0.3, 0.4, 1.0, 0.9,
@@ -1118,6 +1141,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullInt64{},
 			sql.NullInt64{},
+			sql.NullString{Valid: true, String: service.APIKeyGroupSelectModeOpenAIAutoCheapest},
 			1, 2, 3, 4, 5, 6,
 			0, 0.0, // image_output_tokens, image_output_cost
 			0.1, 0.2, 0.3, 0.4, 1.0, 0.9,
@@ -1155,6 +1179,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, log.ServiceTier)
 		require.Equal(t, "priority", *log.ServiceTier)
+		require.NotNil(t, log.APIKeyGroupSelectMode)
+		require.Equal(t, service.APIKeyGroupSelectModeOpenAIAutoCheapest, *log.APIKeyGroupSelectMode)
 	})
 
 }

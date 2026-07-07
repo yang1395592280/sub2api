@@ -270,6 +270,26 @@ func (_u *UsageLogUpdate) ClearSubscriptionID() *UsageLogUpdate {
 	return _u
 }
 
+// SetAPIKeyGroupSelectMode sets the "api_key_group_select_mode" field.
+func (_u *UsageLogUpdate) SetAPIKeyGroupSelectMode(v string) *UsageLogUpdate {
+	_u.mutation.SetAPIKeyGroupSelectMode(v)
+	return _u
+}
+
+// SetNillableAPIKeyGroupSelectMode sets the "api_key_group_select_mode" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableAPIKeyGroupSelectMode(v *string) *UsageLogUpdate {
+	if v != nil {
+		_u.SetAPIKeyGroupSelectMode(*v)
+	}
+	return _u
+}
+
+// ClearAPIKeyGroupSelectMode clears the value of the "api_key_group_select_mode" field.
+func (_u *UsageLogUpdate) ClearAPIKeyGroupSelectMode() *UsageLogUpdate {
+	_u.mutation.ClearAPIKeyGroupSelectMode()
+	return _u
+}
+
 // SetInputTokens sets the "input_tokens" field.
 func (_u *UsageLogUpdate) SetInputTokens(v int) *UsageLogUpdate {
 	_u.mutation.ResetInputTokens()
@@ -1017,6 +1037,11 @@ func (_u *UsageLogUpdate) check() error {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.APIKeyGroupSelectMode(); ok {
+		if err := usagelog.APIKeyGroupSelectModeValidator(v); err != nil {
+			return &ValidationError{Name: "api_key_group_select_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.api_key_group_select_mode": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ChannelPriceSource(); ok {
 		if err := usagelog.ChannelPriceSourceValidator(v); err != nil {
 			return &ValidationError{Name: "channel_price_source", err: fmt.Errorf(`ent: validator failed for field "UsageLog.channel_price_source": %w`, err)}
@@ -1120,6 +1145,12 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.BillingModeCleared() {
 		_spec.ClearField(usagelog.FieldBillingMode, field.TypeString)
+	}
+	if value, ok := _u.mutation.APIKeyGroupSelectMode(); ok {
+		_spec.SetField(usagelog.FieldAPIKeyGroupSelectMode, field.TypeString, value)
+	}
+	if _u.mutation.APIKeyGroupSelectModeCleared() {
+		_spec.ClearField(usagelog.FieldAPIKeyGroupSelectMode, field.TypeString)
 	}
 	if value, ok := _u.mutation.InputTokens(); ok {
 		_spec.SetField(usagelog.FieldInputTokens, field.TypeInt, value)
@@ -1706,6 +1737,26 @@ func (_u *UsageLogUpdateOne) SetNillableSubscriptionID(v *int64) *UsageLogUpdate
 // ClearSubscriptionID clears the value of the "subscription_id" field.
 func (_u *UsageLogUpdateOne) ClearSubscriptionID() *UsageLogUpdateOne {
 	_u.mutation.ClearSubscriptionID()
+	return _u
+}
+
+// SetAPIKeyGroupSelectMode sets the "api_key_group_select_mode" field.
+func (_u *UsageLogUpdateOne) SetAPIKeyGroupSelectMode(v string) *UsageLogUpdateOne {
+	_u.mutation.SetAPIKeyGroupSelectMode(v)
+	return _u
+}
+
+// SetNillableAPIKeyGroupSelectMode sets the "api_key_group_select_mode" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableAPIKeyGroupSelectMode(v *string) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetAPIKeyGroupSelectMode(*v)
+	}
+	return _u
+}
+
+// ClearAPIKeyGroupSelectMode clears the value of the "api_key_group_select_mode" field.
+func (_u *UsageLogUpdateOne) ClearAPIKeyGroupSelectMode() *UsageLogUpdateOne {
+	_u.mutation.ClearAPIKeyGroupSelectMode()
 	return _u
 }
 
@@ -2469,6 +2520,11 @@ func (_u *UsageLogUpdateOne) check() error {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.APIKeyGroupSelectMode(); ok {
+		if err := usagelog.APIKeyGroupSelectModeValidator(v); err != nil {
+			return &ValidationError{Name: "api_key_group_select_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.api_key_group_select_mode": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ChannelPriceSource(); ok {
 		if err := usagelog.ChannelPriceSourceValidator(v); err != nil {
 			return &ValidationError{Name: "channel_price_source", err: fmt.Errorf(`ent: validator failed for field "UsageLog.channel_price_source": %w`, err)}
@@ -2589,6 +2645,12 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if _u.mutation.BillingModeCleared() {
 		_spec.ClearField(usagelog.FieldBillingMode, field.TypeString)
+	}
+	if value, ok := _u.mutation.APIKeyGroupSelectMode(); ok {
+		_spec.SetField(usagelog.FieldAPIKeyGroupSelectMode, field.TypeString, value)
+	}
+	if _u.mutation.APIKeyGroupSelectModeCleared() {
+		_spec.ClearField(usagelog.FieldAPIKeyGroupSelectMode, field.TypeString)
 	}
 	if value, ok := _u.mutation.InputTokens(); ok {
 		_spec.SetField(usagelog.FieldInputTokens, field.TypeInt, value)

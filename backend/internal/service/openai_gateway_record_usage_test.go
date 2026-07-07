@@ -93,6 +93,32 @@ func TestOpenAIGatewayServiceRecordUsage_AppliesChannelPriceSnapshot(t *testing.
 	require.WithinDuration(t, refreshedAt, *usageRepo.lastLog.ChannelPriceRefreshedAt, time.Second)
 }
 
+func TestOpenAIGatewayServiceRecordUsage_SnapshotsAPIKeyGroupSelectMode(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID: "openai_auto_group_snapshot",
+			Model:     "gpt-5",
+			Usage:     OpenAIUsage{InputTokens: 10, OutputTokens: 6},
+			Duration:  time.Second,
+		},
+		APIKey: &APIKey{
+			ID:              501,
+			Quota:           100,
+			GroupSelectMode: APIKeyGroupSelectModeOpenAIAutoCheapest,
+		},
+		User:    &User{ID: 601},
+		Account: &Account{ID: 701},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.NotNil(t, usageRepo.lastLog.APIKeyGroupSelectMode)
+	require.Equal(t, APIKeyGroupSelectModeOpenAIAutoCheapest, *usageRepo.lastLog.APIKeyGroupSelectMode)
+}
+
 func TestRecordCyberPolicyUsageLog_BillsRealUpstreamTokens(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}

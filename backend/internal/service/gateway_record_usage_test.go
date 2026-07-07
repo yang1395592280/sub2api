@@ -193,6 +193,32 @@ func TestGatewayServiceRecordUsage_PreservesRequestedAndUpstreamModels(t *testin
 	require.Equal(t, mappedModel, *usageRepo.lastLog.UpstreamModel)
 }
 
+func TestGatewayServiceRecordUsage_SnapshotsAPIKeyGroupSelectMode(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	svc := newGatewayRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID: "gateway_auto_group_snapshot",
+			Usage:     ClaudeUsage{InputTokens: 10, OutputTokens: 6},
+			Model:     "claude-sonnet-4",
+			Duration:  time.Second,
+		},
+		APIKey: &APIKey{
+			ID:              501,
+			Quota:           100,
+			GroupSelectMode: APIKeyGroupSelectModeOpenAIAutoCheapest,
+		},
+		User:    &User{ID: 601},
+		Account: &Account{ID: 701},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.NotNil(t, usageRepo.lastLog.APIKeyGroupSelectMode)
+	require.Equal(t, APIKeyGroupSelectModeOpenAIAutoCheapest, *usageRepo.lastLog.APIKeyGroupSelectMode)
+}
+
 func TestGatewayServiceRecordUsage_AppliesChannelPriceSnapshot(t *testing.T) {
 	price := 0.123456
 	refreshedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)

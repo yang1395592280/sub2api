@@ -1397,6 +1397,9 @@ export interface UsageLog {
 
   group_id: number | null
   subscription_id: number | null
+  // API key group selection mode captured for this usage row. Do not infer it
+  // from api_key.group_select_mode, which reflects the key's current config.
+  api_key_group_select_mode?: ApiKeyGroupSelectMode | null
 
   input_tokens: number
   output_tokens: number

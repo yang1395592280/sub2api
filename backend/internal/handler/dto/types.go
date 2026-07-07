@@ -491,6 +491,8 @@ type UsageLog struct {
 
 	GroupID        *int64 `json:"group_id"`
 	SubscriptionID *int64 `json:"subscription_id"`
+	// APIKeyGroupSelectMode is a row-level snapshot. Nil means legacy/unknown.
+	APIKeyGroupSelectMode *string `json:"api_key_group_select_mode,omitempty"`
 
 	InputTokens         int `json:"input_tokens"`
 	OutputTokens        int `json:"output_tokens"`

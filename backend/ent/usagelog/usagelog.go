@@ -40,6 +40,8 @@ const (
 	FieldGroupID = "group_id"
 	// FieldSubscriptionID holds the string denoting the subscription_id field in the database.
 	FieldSubscriptionID = "subscription_id"
+	// FieldAPIKeyGroupSelectMode holds the string denoting the api_key_group_select_mode field in the database.
+	FieldAPIKeyGroupSelectMode = "api_key_group_select_mode"
 	// FieldInputTokens holds the string denoting the input_tokens field in the database.
 	FieldInputTokens = "input_tokens"
 	// FieldOutputTokens holds the string denoting the output_tokens field in the database.
@@ -167,6 +169,7 @@ var Columns = []string{
 	FieldBillingMode,
 	FieldGroupID,
 	FieldSubscriptionID,
+	FieldAPIKeyGroupSelectMode,
 	FieldInputTokens,
 	FieldOutputTokens,
 	FieldCacheCreationTokens,
@@ -225,6 +228,8 @@ var (
 	BillingTierValidator func(string) error
 	// BillingModeValidator is a validator for the "billing_mode" field. It is called by the builders before save.
 	BillingModeValidator func(string) error
+	// APIKeyGroupSelectModeValidator is a validator for the "api_key_group_select_mode" field. It is called by the builders before save.
+	APIKeyGroupSelectModeValidator func(string) error
 	// DefaultInputTokens holds the default value on creation for the "input_tokens" field.
 	DefaultInputTokens int
 	// DefaultOutputTokens holds the default value on creation for the "output_tokens" field.
@@ -348,6 +353,11 @@ func ByGroupID(opts ...sql.OrderTermOption) OrderOption {
 // BySubscriptionID orders the results by the subscription_id field.
 func BySubscriptionID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSubscriptionID, opts...).ToFunc()
+}
+
+// ByAPIKeyGroupSelectMode orders the results by the api_key_group_select_mode field.
+func ByAPIKeyGroupSelectMode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAPIKeyGroupSelectMode, opts...).ToFunc()
 }
 
 // ByInputTokens orders the results by the input_tokens field.

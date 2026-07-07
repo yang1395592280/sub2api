@@ -63,6 +63,11 @@ func (UsageLog) Fields() []ent.Field {
 		field.Int64("subscription_id").
 			Optional().
 			Nillable(),
+		field.String("api_key_group_select_mode").
+			MaxLen(32).
+			Optional().
+			Nillable().
+			Comment("API Key 分组选择模式快照，NULL 表示历史未知"),
 
 		// Token 计数字段
 		field.Int("input_tokens").

@@ -130,6 +130,10 @@ type UsageLog struct {
 
 	GroupID        *int64
 	SubscriptionID *int64
+	// APIKeyGroupSelectMode snapshots the API key group selection mode when this
+	// usage row was written. Nil means legacy/unknown and must not be inferred
+	// from the API key's current config.
+	APIKeyGroupSelectMode *string
 
 	InputTokens         int
 	OutputTokens        int

@@ -532,7 +532,7 @@ const pendingIpCount = computed(() => {
 })
 
 const isOpenAIAutoCheapestUsage = (row: AdminUsageLog) =>
-  row.api_key?.group_select_mode === OPENAI_AUTO_CHEAPEST_GROUP_VALUE
+  row.api_key_group_select_mode === OPENAI_AUTO_CHEAPEST_GROUP_VALUE
 
 const handleBatchFetchIpGeo = async () => {
   ipGeoBatchLoading.value = true

@@ -106,6 +106,28 @@ func TestUsageLogFromService_IncludesServiceTierForUserAndAdmin(t *testing.T) {
 	require.InDelta(t, 1.5, *adminDTO.AccountRateMultiplier, 1e-12)
 }
 
+func TestUsageLogFromService_IncludesAPIKeyGroupSelectModeSnapshot(t *testing.T) {
+	t.Parallel()
+
+	mode := service.APIKeyGroupSelectModeOpenAIAutoCheapest
+	log := &service.UsageLog{
+		RequestID:             "req_auto_group_snapshot",
+		Model:                 "gpt-5.5",
+		APIKeyGroupSelectMode: &mode,
+		APIKey: &service.APIKey{
+			GroupSelectMode: service.APIKeyGroupSelectModeFixed,
+		},
+	}
+
+	userDTO := UsageLogFromService(log)
+	adminDTO := UsageLogFromServiceAdmin(log)
+
+	require.NotNil(t, userDTO.APIKeyGroupSelectMode)
+	require.Equal(t, mode, *userDTO.APIKeyGroupSelectMode)
+	require.NotNil(t, adminDTO.APIKeyGroupSelectMode)
+	require.Equal(t, mode, *adminDTO.APIKeyGroupSelectMode)
+}
+
 func TestUsageLogFromService_UsesRequestedModelAndKeepsUpstreamAdminOnly(t *testing.T) {
 	t.Parallel()
 

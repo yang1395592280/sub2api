@@ -45587,6 +45587,7 @@ type UsageLogMutation struct {
 	model_mapping_chain         *string
 	billing_tier                *string
 	billing_mode                *string
+	api_key_group_select_mode   *string
 	input_tokens                *int
 	addinput_tokens             *int
 	output_tokens               *int
@@ -46342,6 +46343,55 @@ func (m *UsageLogMutation) SubscriptionIDCleared() bool {
 func (m *UsageLogMutation) ResetSubscriptionID() {
 	m.subscription = nil
 	delete(m.clearedFields, usagelog.FieldSubscriptionID)
+}
+
+// SetAPIKeyGroupSelectMode sets the "api_key_group_select_mode" field.
+func (m *UsageLogMutation) SetAPIKeyGroupSelectMode(s string) {
+	m.api_key_group_select_mode = &s
+}
+
+// APIKeyGroupSelectMode returns the value of the "api_key_group_select_mode" field in the mutation.
+func (m *UsageLogMutation) APIKeyGroupSelectMode() (r string, exists bool) {
+	v := m.api_key_group_select_mode
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAPIKeyGroupSelectMode returns the old "api_key_group_select_mode" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldAPIKeyGroupSelectMode(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAPIKeyGroupSelectMode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAPIKeyGroupSelectMode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAPIKeyGroupSelectMode: %w", err)
+	}
+	return oldValue.APIKeyGroupSelectMode, nil
+}
+
+// ClearAPIKeyGroupSelectMode clears the value of the "api_key_group_select_mode" field.
+func (m *UsageLogMutation) ClearAPIKeyGroupSelectMode() {
+	m.api_key_group_select_mode = nil
+	m.clearedFields[usagelog.FieldAPIKeyGroupSelectMode] = struct{}{}
+}
+
+// APIKeyGroupSelectModeCleared returns if the "api_key_group_select_mode" field was cleared in this mutation.
+func (m *UsageLogMutation) APIKeyGroupSelectModeCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldAPIKeyGroupSelectMode]
+	return ok
+}
+
+// ResetAPIKeyGroupSelectMode resets all changes to the "api_key_group_select_mode" field.
+func (m *UsageLogMutation) ResetAPIKeyGroupSelectMode() {
+	m.api_key_group_select_mode = nil
+	delete(m.clearedFields, usagelog.FieldAPIKeyGroupSelectMode)
 }
 
 // SetInputTokens sets the "input_tokens" field.
@@ -48182,7 +48232,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 44)
+	fields := make([]string, 0, 45)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -48221,6 +48271,9 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.subscription != nil {
 		fields = append(fields, usagelog.FieldSubscriptionID)
+	}
+	if m.api_key_group_select_mode != nil {
+		fields = append(fields, usagelog.FieldAPIKeyGroupSelectMode)
 	}
 	if m.input_tokens != nil {
 		fields = append(fields, usagelog.FieldInputTokens)
@@ -48349,6 +48402,8 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.GroupID()
 	case usagelog.FieldSubscriptionID:
 		return m.SubscriptionID()
+	case usagelog.FieldAPIKeyGroupSelectMode:
+		return m.APIKeyGroupSelectMode()
 	case usagelog.FieldInputTokens:
 		return m.InputTokens()
 	case usagelog.FieldOutputTokens:
@@ -48446,6 +48501,8 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldGroupID(ctx)
 	case usagelog.FieldSubscriptionID:
 		return m.OldSubscriptionID(ctx)
+	case usagelog.FieldAPIKeyGroupSelectMode:
+		return m.OldAPIKeyGroupSelectMode(ctx)
 	case usagelog.FieldInputTokens:
 		return m.OldInputTokens(ctx)
 	case usagelog.FieldOutputTokens:
@@ -48607,6 +48664,13 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetSubscriptionID(v)
+		return nil
+	case usagelog.FieldAPIKeyGroupSelectMode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAPIKeyGroupSelectMode(v)
 		return nil
 	case usagelog.FieldInputTokens:
 		v, ok := value.(int)
@@ -49122,6 +49186,9 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	if m.FieldCleared(usagelog.FieldSubscriptionID) {
 		fields = append(fields, usagelog.FieldSubscriptionID)
 	}
+	if m.FieldCleared(usagelog.FieldAPIKeyGroupSelectMode) {
+		fields = append(fields, usagelog.FieldAPIKeyGroupSelectMode)
+	}
 	if m.FieldCleared(usagelog.FieldAccountRateMultiplier) {
 		fields = append(fields, usagelog.FieldAccountRateMultiplier)
 	}
@@ -49198,6 +49265,9 @@ func (m *UsageLogMutation) ClearField(name string) error {
 		return nil
 	case usagelog.FieldSubscriptionID:
 		m.ClearSubscriptionID()
+		return nil
+	case usagelog.FieldAPIKeyGroupSelectMode:
+		m.ClearAPIKeyGroupSelectMode()
 		return nil
 	case usagelog.FieldAccountRateMultiplier:
 		m.ClearAccountRateMultiplier()
@@ -49284,6 +49354,9 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldSubscriptionID:
 		m.ResetSubscriptionID()
+		return nil
+	case usagelog.FieldAPIKeyGroupSelectMode:
+		m.ResetAPIKeyGroupSelectMode()
 		return nil
 	case usagelog.FieldInputTokens:
 		m.ResetInputTokens()

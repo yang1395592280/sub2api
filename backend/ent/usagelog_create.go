@@ -169,6 +169,20 @@ func (_c *UsageLogCreate) SetNillableSubscriptionID(v *int64) *UsageLogCreate {
 	return _c
 }
 
+// SetAPIKeyGroupSelectMode sets the "api_key_group_select_mode" field.
+func (_c *UsageLogCreate) SetAPIKeyGroupSelectMode(v string) *UsageLogCreate {
+	_c.mutation.SetAPIKeyGroupSelectMode(v)
+	return _c
+}
+
+// SetNillableAPIKeyGroupSelectMode sets the "api_key_group_select_mode" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableAPIKeyGroupSelectMode(v *string) *UsageLogCreate {
+	if v != nil {
+		_c.SetAPIKeyGroupSelectMode(*v)
+	}
+	return _c
+}
+
 // SetInputTokens sets the "input_tokens" field.
 func (_c *UsageLogCreate) SetInputTokens(v int) *UsageLogCreate {
 	_c.mutation.SetInputTokens(v)
@@ -781,6 +795,11 @@ func (_c *UsageLogCreate) check() error {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_mode": %w`, err)}
 		}
 	}
+	if v, ok := _c.mutation.APIKeyGroupSelectMode(); ok {
+		if err := usagelog.APIKeyGroupSelectModeValidator(v); err != nil {
+			return &ValidationError{Name: "api_key_group_select_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.api_key_group_select_mode": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.InputTokens(); !ok {
 		return &ValidationError{Name: "input_tokens", err: errors.New(`ent: missing required field "UsageLog.input_tokens"`)}
 	}
@@ -937,6 +956,10 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.BillingMode(); ok {
 		_spec.SetField(usagelog.FieldBillingMode, field.TypeString, value)
 		_node.BillingMode = &value
+	}
+	if value, ok := _c.mutation.APIKeyGroupSelectMode(); ok {
+		_spec.SetField(usagelog.FieldAPIKeyGroupSelectMode, field.TypeString, value)
+		_node.APIKeyGroupSelectMode = &value
 	}
 	if value, ok := _c.mutation.InputTokens(); ok {
 		_spec.SetField(usagelog.FieldInputTokens, field.TypeInt, value)
@@ -1406,6 +1429,24 @@ func (u *UsageLogUpsert) UpdateSubscriptionID() *UsageLogUpsert {
 // ClearSubscriptionID clears the value of the "subscription_id" field.
 func (u *UsageLogUpsert) ClearSubscriptionID() *UsageLogUpsert {
 	u.SetNull(usagelog.FieldSubscriptionID)
+	return u
+}
+
+// SetAPIKeyGroupSelectMode sets the "api_key_group_select_mode" field.
+func (u *UsageLogUpsert) SetAPIKeyGroupSelectMode(v string) *UsageLogUpsert {
+	u.Set(usagelog.FieldAPIKeyGroupSelectMode, v)
+	return u
+}
+
+// UpdateAPIKeyGroupSelectMode sets the "api_key_group_select_mode" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateAPIKeyGroupSelectMode() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldAPIKeyGroupSelectMode)
+	return u
+}
+
+// ClearAPIKeyGroupSelectMode clears the value of the "api_key_group_select_mode" field.
+func (u *UsageLogUpsert) ClearAPIKeyGroupSelectMode() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldAPIKeyGroupSelectMode)
 	return u
 }
 
@@ -2248,6 +2289,27 @@ func (u *UsageLogUpsertOne) UpdateSubscriptionID() *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) ClearSubscriptionID() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearSubscriptionID()
+	})
+}
+
+// SetAPIKeyGroupSelectMode sets the "api_key_group_select_mode" field.
+func (u *UsageLogUpsertOne) SetAPIKeyGroupSelectMode(v string) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetAPIKeyGroupSelectMode(v)
+	})
+}
+
+// UpdateAPIKeyGroupSelectMode sets the "api_key_group_select_mode" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateAPIKeyGroupSelectMode() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateAPIKeyGroupSelectMode()
+	})
+}
+
+// ClearAPIKeyGroupSelectMode clears the value of the "api_key_group_select_mode" field.
+func (u *UsageLogUpsertOne) ClearAPIKeyGroupSelectMode() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearAPIKeyGroupSelectMode()
 	})
 }
 
@@ -3348,6 +3410,27 @@ func (u *UsageLogUpsertBulk) UpdateSubscriptionID() *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) ClearSubscriptionID() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearSubscriptionID()
+	})
+}
+
+// SetAPIKeyGroupSelectMode sets the "api_key_group_select_mode" field.
+func (u *UsageLogUpsertBulk) SetAPIKeyGroupSelectMode(v string) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetAPIKeyGroupSelectMode(v)
+	})
+}
+
+// UpdateAPIKeyGroupSelectMode sets the "api_key_group_select_mode" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateAPIKeyGroupSelectMode() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateAPIKeyGroupSelectMode()
+	})
+}
+
+// ClearAPIKeyGroupSelectMode clears the value of the "api_key_group_select_mode" field.
+func (u *UsageLogUpsertBulk) ClearAPIKeyGroupSelectMode() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearAPIKeyGroupSelectMode()
 	})
 }
 

@@ -120,6 +120,11 @@ func SubscriptionID(v int64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldSubscriptionID, v))
 }
 
+// APIKeyGroupSelectMode applies equality check predicate on the "api_key_group_select_mode" field. It's identical to APIKeyGroupSelectModeEQ.
+func APIKeyGroupSelectMode(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldAPIKeyGroupSelectMode, v))
+}
+
 // InputTokens applies equality check predicate on the "input_tokens" field. It's identical to InputTokensEQ.
 func InputTokens(v int) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldInputTokens, v))
@@ -943,6 +948,81 @@ func SubscriptionIDIsNil() predicate.UsageLog {
 // SubscriptionIDNotNil applies the NotNil predicate on the "subscription_id" field.
 func SubscriptionIDNotNil() predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldNotNull(FieldSubscriptionID))
+}
+
+// APIKeyGroupSelectModeEQ applies the EQ predicate on the "api_key_group_select_mode" field.
+func APIKeyGroupSelectModeEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldAPIKeyGroupSelectMode, v))
+}
+
+// APIKeyGroupSelectModeNEQ applies the NEQ predicate on the "api_key_group_select_mode" field.
+func APIKeyGroupSelectModeNEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldAPIKeyGroupSelectMode, v))
+}
+
+// APIKeyGroupSelectModeIn applies the In predicate on the "api_key_group_select_mode" field.
+func APIKeyGroupSelectModeIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldAPIKeyGroupSelectMode, vs...))
+}
+
+// APIKeyGroupSelectModeNotIn applies the NotIn predicate on the "api_key_group_select_mode" field.
+func APIKeyGroupSelectModeNotIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldAPIKeyGroupSelectMode, vs...))
+}
+
+// APIKeyGroupSelectModeGT applies the GT predicate on the "api_key_group_select_mode" field.
+func APIKeyGroupSelectModeGT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldAPIKeyGroupSelectMode, v))
+}
+
+// APIKeyGroupSelectModeGTE applies the GTE predicate on the "api_key_group_select_mode" field.
+func APIKeyGroupSelectModeGTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldAPIKeyGroupSelectMode, v))
+}
+
+// APIKeyGroupSelectModeLT applies the LT predicate on the "api_key_group_select_mode" field.
+func APIKeyGroupSelectModeLT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldAPIKeyGroupSelectMode, v))
+}
+
+// APIKeyGroupSelectModeLTE applies the LTE predicate on the "api_key_group_select_mode" field.
+func APIKeyGroupSelectModeLTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldAPIKeyGroupSelectMode, v))
+}
+
+// APIKeyGroupSelectModeContains applies the Contains predicate on the "api_key_group_select_mode" field.
+func APIKeyGroupSelectModeContains(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContains(FieldAPIKeyGroupSelectMode, v))
+}
+
+// APIKeyGroupSelectModeHasPrefix applies the HasPrefix predicate on the "api_key_group_select_mode" field.
+func APIKeyGroupSelectModeHasPrefix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasPrefix(FieldAPIKeyGroupSelectMode, v))
+}
+
+// APIKeyGroupSelectModeHasSuffix applies the HasSuffix predicate on the "api_key_group_select_mode" field.
+func APIKeyGroupSelectModeHasSuffix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasSuffix(FieldAPIKeyGroupSelectMode, v))
+}
+
+// APIKeyGroupSelectModeIsNil applies the IsNil predicate on the "api_key_group_select_mode" field.
+func APIKeyGroupSelectModeIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldAPIKeyGroupSelectMode))
+}
+
+// APIKeyGroupSelectModeNotNil applies the NotNil predicate on the "api_key_group_select_mode" field.
+func APIKeyGroupSelectModeNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldAPIKeyGroupSelectMode))
+}
+
+// APIKeyGroupSelectModeEqualFold applies the EqualFold predicate on the "api_key_group_select_mode" field.
+func APIKeyGroupSelectModeEqualFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEqualFold(FieldAPIKeyGroupSelectMode, v))
+}
+
+// APIKeyGroupSelectModeContainsFold applies the ContainsFold predicate on the "api_key_group_select_mode" field.
+func APIKeyGroupSelectModeContainsFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContainsFold(FieldAPIKeyGroupSelectMode, v))
 }
 
 // InputTokensEQ applies the EQ predicate on the "input_tokens" field.

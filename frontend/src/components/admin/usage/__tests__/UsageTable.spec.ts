@@ -122,7 +122,7 @@ describe('admin UsageTable tooltip', () => {
     } as DOMRect)
   })
 
-  it('marks group cells for rows produced by OpenAI auto cheapest API keys', () => {
+  it('marks group cells only when the usage row was recorded as OpenAI auto cheapest', () => {
     const wrapper = mount(UsageTable, {
       props: {
         data: [{
@@ -130,6 +130,7 @@ describe('admin UsageTable tooltip', () => {
           model: 'gpt-5.5',
           group: { id: 10, name: '0.1 group' },
           api_key: { id: 7, name: 'auto key', group_select_mode: 'openai_auto_cheapest' },
+          api_key_group_select_mode: 'openai_auto_cheapest',
           actual_cost: 0,
           total_cost: 0,
           input_cost: 0,
@@ -154,6 +155,40 @@ describe('admin UsageTable tooltip', () => {
 
     expect(wrapper.text()).toContain('0.1 group')
     expect(wrapper.text()).toContain('Auto cheapest')
+  })
+
+  it('does not mark historical fixed-group rows just because the API key is currently auto cheapest', () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [{
+          request_id: 'req-fixed-before-key-change',
+          model: 'gpt-5.5',
+          group: { id: 11, name: 'fixed group' },
+          api_key: { id: 8, name: 'changed key', group_select_mode: 'openai_auto_cheapest' },
+          actual_cost: 0,
+          total_cost: 0,
+          input_cost: 0,
+          output_cost: 0,
+          cache_creation_cost: 0,
+          cache_read_cost: 0,
+          input_tokens: 0,
+          output_tokens: 0,
+        }],
+        loading: false,
+        columns: [],
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('fixed group')
+    expect(wrapper.text()).not.toContain('Auto cheapest')
   })
 
   it('shows service tier and billing breakdown in cost tooltip', async () => {
