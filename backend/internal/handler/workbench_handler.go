@@ -200,7 +200,7 @@ func (h *WorkbenchHandler) Send(c *gin.Context) {
 	if err != nil {
 		if result != nil {
 			response.Success(c, workbenchSendPartialResponse{
-				Result: result,
+				Result: publicWorkbenchSendPartialResult(result),
 				Error:  buildWorkbenchSendPartialError(result),
 			})
 			return
@@ -275,10 +275,36 @@ func buildWorkbenchSendPartialError(result *service.WorkbenchSendResult) any {
 	if result != nil && result.AssistantMessage.ErrorMessage != nil {
 		msg := strings.TrimSpace(*result.AssistantMessage.ErrorMessage)
 		if msg != "" {
-			return workbenchSendPartialError{Message: msg}
+			return workbenchSendPartialError{Message: summarizeWorkbenchPartialError(msg)}
 		}
 	}
 	return workbenchSendPartialError{Message: "workbench request partially completed"}
+}
+
+func publicWorkbenchSendPartialResult(result *service.WorkbenchSendResult) *service.WorkbenchSendResult {
+	if result == nil || result.AssistantMessage.ErrorMessage == nil {
+		return result
+	}
+	publicResult := *result
+	msg := strings.TrimSpace(*result.AssistantMessage.ErrorMessage)
+	if msg == "" {
+		return &publicResult
+	}
+	summary := summarizeWorkbenchPartialError(msg)
+	publicResult.AssistantMessage.ErrorMessage = &summary
+	publicResult.Conversation.LastError = &summary
+	publicResult.Conversation.LastMessagePreview = summary
+	return &publicResult
+}
+
+func summarizeWorkbenchPartialError(message string) string {
+	message = strings.TrimSpace(message)
+	if strings.HasPrefix(message, "gateway returned ") {
+		if idx := strings.Index(message, ":"); idx > 0 {
+			return strings.TrimSpace(message[:idx])
+		}
+	}
+	return message
 }
 
 func parseWorkbenchID(raw string) (int64, error) {
