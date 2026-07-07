@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { RouterView, useRouter, useRoute } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { onMounted, onBeforeUnmount, watch } from 'vue'
 import Toast from '@/components/common/Toast.vue'
 import NavigationProgress from '@/components/common/NavigationProgress.vue'
 import AdminComplianceDialog from '@/components/admin/AdminComplianceDialog.vue'
+import CachedRouterView from '@/components/layout/CachedRouterView.vue'
 import { resolveRouteDocumentTitle } from '@/router/title'
 import AnnouncementPopup from '@/components/common/AnnouncementPopup.vue'
 import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useAdminComplianceStore, useAdminSettingsStore } from '@/stores'
@@ -153,7 +154,7 @@ onMounted(async () => {
 
 <template>
   <NavigationProgress />
-  <RouterView />
+  <CachedRouterView />
   <Toast />
   <AnnouncementPopup />
   <AdminComplianceDialog />
