@@ -28,6 +28,8 @@ const (
 	accountSlotKeyPrefix = "concurrency:account:"
 	// 格式: concurrency:user:{userID}
 	userSlotKeyPrefix = "concurrency:user:"
+	// 格式: concurrency:user_group:{groupID}:{userID}
+	userGroupSlotKeyPrefix = "concurrency:user_group:"
 	// 格式: concurrency:api_key:{apiKeyID}
 	apiKeySlotKeyPrefix = "concurrency:api_key:"
 	// 等待队列计数器格式: concurrency:wait:{userID}
@@ -277,6 +279,10 @@ func accountSlotKey(accountID int64) string {
 
 func userSlotKey(userID int64) string {
 	return fmt.Sprintf("%s%d", userSlotKeyPrefix, userID)
+}
+
+func userGroupSlotKey(userID, groupID int64) string {
+	return fmt.Sprintf("%s%d:%d", userGroupSlotKeyPrefix, groupID, userID)
 }
 
 func apiKeySlotKey(apiKeyID int64) string {
@@ -656,6 +662,54 @@ func (c *concurrencyCache) GetAPIKeyConcurrencyBatch(ctx context.Context, apiKey
 	result := make(map[int64]int, len(apiKeyIDs))
 	for _, cmd := range cmds {
 		result[cmd.apiKeyID] = int(cmd.zcardCmd.Val())
+	}
+	return result, nil
+}
+
+func (c *concurrencyCache) TrackUserGroupSlot(ctx context.Context, userID, groupID int64, requestID string) error {
+	key := userGroupSlotKey(userID, groupID)
+	_, err := trackSlotScript.Run(ctx, c.rdb, []string{key}, c.slotTTLSeconds, requestID).Result()
+	return err
+}
+
+func (c *concurrencyCache) ReleaseUserGroupSlot(ctx context.Context, userID, groupID int64, requestID string) error {
+	key := userGroupSlotKey(userID, groupID)
+	return c.rdb.ZRem(ctx, key, requestID).Err()
+}
+
+func (c *concurrencyCache) GetUserGroupConcurrencyBatch(ctx context.Context, groupID int64, userIDs []int64) (map[int64]int, error) {
+	if len(userIDs) == 0 {
+		return map[int64]int{}, nil
+	}
+
+	now, err := c.rdb.Time(ctx).Result()
+	if err != nil {
+		return nil, fmt.Errorf("redis TIME: %w", err)
+	}
+	cutoffTime := now.Unix() - int64(c.slotTTLSeconds)
+
+	pipe := c.rdb.Pipeline()
+	type userGroupCmd struct {
+		userID   int64
+		zcardCmd *redis.IntCmd
+	}
+	cmds := make([]userGroupCmd, 0, len(userIDs))
+	for _, userID := range userIDs {
+		slotKey := userGroupSlotKey(userID, groupID)
+		pipe.ZRemRangeByScore(ctx, slotKey, "-inf", strconv.FormatInt(cutoffTime, 10))
+		cmds = append(cmds, userGroupCmd{
+			userID:   userID,
+			zcardCmd: pipe.ZCard(ctx, slotKey),
+		})
+	}
+
+	if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
+		return nil, fmt.Errorf("pipeline exec: %w", err)
+	}
+
+	result := make(map[int64]int, len(userIDs))
+	for _, cmd := range cmds {
+		result[cmd.userID] = int(cmd.zcardCmd.Val())
 	}
 	return result, nil
 }

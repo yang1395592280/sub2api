@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"sort"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 )
 
 // GroupCapacitySummary holds aggregated capacity for a single group.
@@ -14,6 +17,23 @@ type GroupCapacitySummary struct {
 	SessionsMax     int   `json:"sessions_max"`
 	RPMUsed         int   `json:"rpm_used"`
 	RPMMax          int   `json:"rpm_max"`
+}
+
+// GroupCapacityUserDetail holds per-user runtime and limit details for a group.
+type GroupCapacityUserDetail struct {
+	UserID             int64  `json:"user_id"`
+	Username           string `json:"username"`
+	Email              string `json:"email"`
+	Notes              string `json:"notes"`
+	Status             string `json:"status"`
+	CurrentConcurrency int    `json:"current_concurrency"`
+	ConcurrencyLimit   int    `json:"concurrency_limit"`
+	CurrentRPM         int    `json:"current_rpm"`
+	EffectiveRPMLimit  int    `json:"effective_rpm_limit"`
+	RPMLimitSource     string `json:"rpm_limit_source"`
+	RPMOverride        *int   `json:"rpm_override,omitempty"`
+	GroupRPMLimit      int    `json:"group_rpm_limit"`
+	UserRPMLimit       int    `json:"user_rpm_limit"`
 }
 
 // GroupAccountCapacityRow is the lightweight account projection needed for
@@ -43,6 +63,10 @@ type GroupCapacityService struct {
 	concurrencyService *ConcurrencyService
 	sessionLimitCache  SessionLimitCache
 	rpmCache           RPMCache
+	userRepo           UserRepository
+	userSubRepo        UserSubscriptionRepository
+	userGroupRateRepo  UserGroupRateRepository
+	userRPMCache       UserRPMCache
 }
 
 // NewGroupCapacityService creates a new GroupCapacityService.
@@ -52,6 +76,10 @@ func NewGroupCapacityService(
 	concurrencyService *ConcurrencyService,
 	sessionLimitCache SessionLimitCache,
 	rpmCache RPMCache,
+	userRepo UserRepository,
+	userSubRepo UserSubscriptionRepository,
+	userGroupRateRepo UserGroupRateRepository,
+	userRPMCache UserRPMCache,
 ) *GroupCapacityService {
 	return &GroupCapacityService{
 		accountRepo:        accountRepo,
@@ -59,6 +87,10 @@ func NewGroupCapacityService(
 		concurrencyService: concurrencyService,
 		sessionLimitCache:  sessionLimitCache,
 		rpmCache:           rpmCache,
+		userRepo:           userRepo,
+		userSubRepo:        userSubRepo,
+		userGroupRateRepo:  userGroupRateRepo,
+		userRPMCache:       userRPMCache,
 	}
 }
 
@@ -215,6 +247,219 @@ func (s *GroupCapacityService) getGroupCapacitiesBatch(ctx context.Context, grou
 		}
 	}
 	return results, nil
+}
+
+// GetGroupCapacityUsers returns paginated per-user capacity details for a group.
+func (s *GroupCapacityService) GetGroupCapacityUsers(ctx context.Context, groupID int64, params pagination.PaginationParams, activeOnly bool) ([]GroupCapacityUserDetail, int64, error) {
+	if s == nil || s.groupRepo == nil || s.userRepo == nil {
+		return []GroupCapacityUserDetail{}, 0, nil
+	}
+	if params.Page < 1 {
+		params.Page = 1
+	}
+	if params.PageSize < 1 {
+		params.PageSize = 20
+	}
+	if params.PageSize > 100 {
+		params.PageSize = 100
+	}
+
+	group, err := s.groupRepo.GetByID(ctx, groupID)
+	if err != nil {
+		return nil, 0, err
+	}
+	users, err := s.listGroupCapacityCandidateUsers(ctx, group)
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(users) == 0 {
+		return []GroupCapacityUserDetail{}, 0, nil
+	}
+
+	userIDs := make([]int64, 0, len(users))
+	userLoadReq := make([]UserWithConcurrency, 0, len(users))
+	for i := range users {
+		if users[i].ID <= 0 {
+			continue
+		}
+		userIDs = append(userIDs, users[i].ID)
+		userLoadReq = append(userLoadReq, UserWithConcurrency{ID: users[i].ID, MaxConcurrency: users[i].Concurrency})
+	}
+	concurrencyMap := map[int64]int{}
+	if s.concurrencyService != nil && len(userLoadReq) > 0 {
+		if _, ok := s.concurrencyService.cache.(UserGroupConcurrencyReader); ok {
+			groupLoads, loadErr := s.concurrencyService.GetUserGroupConcurrencyBatch(ctx, group.ID, userIDs)
+			if loadErr == nil && groupLoads != nil {
+				concurrencyMap = groupLoads
+			}
+		}
+		if len(concurrencyMap) == 0 {
+			if loads, loadErr := s.concurrencyService.GetUsersLoadBatch(ctx, userLoadReq); loadErr == nil && loads != nil {
+				for userID, load := range loads {
+					if load != nil {
+						concurrencyMap[userID] = load.CurrentConcurrency
+					}
+				}
+			}
+		}
+	}
+
+	items := make([]GroupCapacityUserDetail, 0, len(users))
+	for i := range users {
+		user := users[i]
+		if user.ID <= 0 {
+			continue
+		}
+		item := GroupCapacityUserDetail{
+			UserID:           user.ID,
+			Username:         user.Username,
+			Email:            user.Email,
+			Notes:            user.Notes,
+			Status:           user.Status,
+			ConcurrencyLimit: user.Concurrency,
+			GroupRPMLimit:    group.RPMLimit,
+			UserRPMLimit:     user.RPMLimit,
+		}
+		item.CurrentConcurrency = concurrencyMap[user.ID]
+		item.RPMOverride, item.EffectiveRPMLimit, item.RPMLimitSource, item.CurrentRPM = s.resolveGroupCapacityUserRPM(ctx, user.ID, group.ID, user.RPMLimit, group.RPMLimit)
+		if activeOnly && item.CurrentConcurrency == 0 && item.CurrentRPM == 0 {
+			continue
+		}
+		items = append(items, item)
+	}
+
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].CurrentConcurrency != items[j].CurrentConcurrency {
+			return items[i].CurrentConcurrency > items[j].CurrentConcurrency
+		}
+		if items[i].CurrentRPM != items[j].CurrentRPM {
+			return items[i].CurrentRPM > items[j].CurrentRPM
+		}
+		return items[i].UserID < items[j].UserID
+	})
+
+	total := int64(len(items))
+	start := (params.Page - 1) * params.PageSize
+	if start >= len(items) {
+		return []GroupCapacityUserDetail{}, total, nil
+	}
+	end := start + params.PageSize
+	if end > len(items) {
+		end = len(items)
+	}
+	return items[start:end], total, nil
+}
+
+func (s *GroupCapacityService) listGroupCapacityCandidateUsers(ctx context.Context, group *Group) ([]User, error) {
+	if group == nil || s.userRepo == nil {
+		return []User{}, nil
+	}
+	if group.IsSubscriptionType() {
+		return s.listSubscribedGroupUsers(ctx, group.ID)
+	}
+	if group.IsExclusive {
+		return s.userRepo.ListAllowedUsersByGroupID(ctx, group.ID)
+	}
+	return s.listAllActiveUsers(ctx)
+}
+
+func (s *GroupCapacityService) listSubscribedGroupUsers(ctx context.Context, groupID int64) ([]User, error) {
+	if s.userSubRepo == nil {
+		return []User{}, nil
+	}
+	users := make([]User, 0)
+	seen := make(map[int64]struct{})
+	for page := 1; ; page++ {
+		subs, result, err := s.userSubRepo.List(
+			ctx,
+			pagination.PaginationParams{Page: page, PageSize: 200, SortBy: "created_at", SortOrder: "DESC"},
+			nil,
+			&groupID,
+			SubscriptionStatusActive,
+			"",
+			"created_at",
+			"DESC",
+		)
+		if err != nil {
+			return nil, err
+		}
+		for i := range subs {
+			if subs[i].User == nil || subs[i].User.ID <= 0 {
+				continue
+			}
+			if _, ok := seen[subs[i].User.ID]; ok {
+				continue
+			}
+			seen[subs[i].User.ID] = struct{}{}
+			users = append(users, *subs[i].User)
+		}
+		if len(subs) == 0 || result == nil || int64(len(users)) >= result.Total {
+			break
+		}
+	}
+	return users, nil
+}
+
+func (s *GroupCapacityService) listAllActiveUsers(ctx context.Context) ([]User, error) {
+	users := make([]User, 0)
+	includeSubscriptions := false
+	for page := 1; ; page++ {
+		batch, result, err := s.userRepo.ListWithFilters(
+			ctx,
+			pagination.PaginationParams{Page: page, PageSize: 500, SortBy: "id", SortOrder: "asc"},
+			UserListFilters{Status: StatusActive, IncludeSubscriptions: &includeSubscriptions},
+		)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, batch...)
+		if len(batch) == 0 || result == nil || int64(len(users)) >= result.Total {
+			break
+		}
+	}
+	return users, nil
+}
+
+func (s *GroupCapacityService) resolveGroupCapacityUserRPM(ctx context.Context, userID, groupID int64, userRPMLimit, groupRPMLimit int) (*int, int, string, int) {
+	var override *int
+	if s.userGroupRateRepo != nil {
+		if value, err := s.userGroupRateRepo.GetRPMOverrideByUserAndGroup(ctx, userID, groupID); err == nil {
+			override = value
+		}
+	}
+
+	if override != nil {
+		return override, *override, "override", s.getUserGroupRPMBestEffort(ctx, userID, groupID)
+	}
+	if groupRPMLimit > 0 {
+		return nil, groupRPMLimit, "group", s.getUserGroupRPMBestEffort(ctx, userID, groupID)
+	}
+	if userRPMLimit > 0 {
+		return nil, userRPMLimit, "user", s.getUserRPMBestEffort(ctx, userID)
+	}
+	return nil, 0, "unlimited", 0
+}
+
+func (s *GroupCapacityService) getUserGroupRPMBestEffort(ctx context.Context, userID, groupID int64) int {
+	if s.userRPMCache == nil {
+		return 0
+	}
+	count, err := s.userRPMCache.GetUserGroupRPM(ctx, userID, groupID)
+	if err != nil {
+		return 0
+	}
+	return count
+}
+
+func (s *GroupCapacityService) getUserRPMBestEffort(ctx context.Context, userID int64) int {
+	if s.userRPMCache == nil {
+		return 0
+	}
+	count, err := s.userRPMCache.GetUserRPM(ctx, userID)
+	if err != nil {
+		return 0
+	}
+	return count
 }
 
 func accountIDsForGroupsWithLimit(refs []groupCapacityAccountRef, groupIndex map[int64]int, summaries []GroupCapacitySummary, include func(GroupCapacitySummary) bool) []int64 {

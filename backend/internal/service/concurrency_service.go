@@ -59,6 +59,16 @@ type APIKeyConcurrencyCache interface {
 	GetAPIKeyConcurrencyBatch(ctx context.Context, apiKeyIDs []int64) (map[int64]int, error)
 }
 
+type UserGroupConcurrencyReader interface {
+	GetUserGroupConcurrencyBatch(ctx context.Context, groupID int64, userIDs []int64) (map[int64]int, error)
+}
+
+type UserGroupConcurrencyCache interface {
+	UserGroupConcurrencyReader
+	TrackUserGroupSlot(ctx context.Context, userID, groupID int64, requestID string) error
+	ReleaseUserGroupSlot(ctx context.Context, userID, groupID int64, requestID string) error
+}
+
 var (
 	requestIDPrefix  = initRequestIDPrefix()
 	requestIDCounter atomic.Uint64
@@ -280,6 +290,40 @@ func (s *ConcurrencyService) TrackAPIKeySlot(ctx context.Context, apiKeyID int64
 	}
 }
 
+// TrackUserGroupSlot records one active request slot for a (user, group) pair
+// without applying another limit. It is fail-open and only powers admin
+// diagnostics for per-group user concurrency.
+func (s *ConcurrencyService) TrackUserGroupSlot(ctx context.Context, userID, groupID int64) func() {
+	if s == nil || s.cache == nil || userID <= 0 || groupID <= 0 {
+		return func() {}
+	}
+	cache, ok := s.cache.(UserGroupConcurrencyCache)
+	if !ok {
+		return func() {}
+	}
+
+	requestID := generateRequestID()
+	baseCtx := context.Background()
+	if ctx != nil {
+		baseCtx = context.WithoutCancel(ctx)
+	}
+	trackCtx, cancel := context.WithTimeout(baseCtx, apiKeySlotTrackTimeout)
+	err := cache.TrackUserGroupSlot(trackCtx, userID, groupID, requestID)
+	cancel()
+	if err != nil {
+		logger.LegacyPrintf("service.concurrency", "Warning: failed to track user group slot user=%d group=%d (req=%s): %v", userID, groupID, requestID, err)
+		return func() {}
+	}
+
+	return func() {
+		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := cache.ReleaseUserGroupSlot(bgCtx, userID, groupID, requestID); err != nil {
+			logger.LegacyPrintf("service.concurrency", "Warning: failed to release user group slot user=%d group=%d (req=%s): %v", userID, groupID, requestID, err)
+		}
+	}
+}
+
 // GetAPIKeyConcurrencyBatch gets real-time active request counts for API keys.
 // Stats are best-effort: missing Redis support or Redis errors return zeroes.
 func (s *ConcurrencyService) GetAPIKeyConcurrencyBatch(ctx context.Context, apiKeyIDs []int64) (map[int64]int, error) {
@@ -313,6 +357,44 @@ func zeroAPIKeyConcurrencyMap(apiKeyIDs []int64) map[int64]int {
 	result := make(map[int64]int, len(apiKeyIDs))
 	for _, apiKeyID := range apiKeyIDs {
 		result[apiKeyID] = 0
+	}
+	return result
+}
+
+// GetUserGroupConcurrencyBatch gets real-time active request counts for users
+// in a specific group. Stats are best-effort: missing Redis support or Redis
+// errors return zeroes.
+func (s *ConcurrencyService) GetUserGroupConcurrencyBatch(ctx context.Context, groupID int64, userIDs []int64) (map[int64]int, error) {
+	result := zeroUserGroupConcurrencyMap(userIDs)
+	if len(userIDs) == 0 || groupID <= 0 {
+		return result, nil
+	}
+	if s == nil || s.cache == nil {
+		return result, nil
+	}
+	cache, ok := s.cache.(UserGroupConcurrencyReader)
+	if !ok {
+		return result, nil
+	}
+
+	redisCtx, cancel := context.WithTimeout(context.Background(), apiKeyConcurrencyFetchTimeout)
+	defer cancel()
+
+	counts, err := cache.GetUserGroupConcurrencyBatch(redisCtx, groupID, userIDs)
+	if err != nil {
+		logger.LegacyPrintf("service.concurrency", "Warning: get user group concurrency batch failed: %v", err)
+		return result, nil
+	}
+	for _, userID := range userIDs {
+		result[userID] = counts[userID]
+	}
+	return result, nil
+}
+
+func zeroUserGroupConcurrencyMap(userIDs []int64) map[int64]int {
+	result := make(map[int64]int, len(userIDs))
+	for _, userID := range userIDs {
+		result[userID] = 0
 	}
 	return result
 }

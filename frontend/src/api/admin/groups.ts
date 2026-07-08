@@ -384,6 +384,37 @@ export async function getCapacitySummary(): Promise<
   return data
 }
 
+export interface GroupCapacityUserDetail {
+  user_id: number
+  username: string
+  email: string
+  notes: string
+  status: string
+  current_concurrency: number
+  concurrency_limit: number
+  current_rpm: number
+  effective_rpm_limit: number
+  rpm_limit_source: 'override' | 'group' | 'user' | 'unlimited' | string
+  rpm_override?: number | null
+  group_rpm_limit: number
+  user_rpm_limit: number
+}
+
+export async function getGroupCapacityUsers(
+  id: number,
+  page: number = 1,
+  pageSize: number = 20,
+  activeOnly: boolean = true
+): Promise<PaginatedResponse<GroupCapacityUserDetail>> {
+  const { data } = await apiClient.get<PaginatedResponse<GroupCapacityUserDetail>>(
+    `/admin/groups/${id}/capacity-users`,
+    {
+      params: { page, page_size: pageSize, active_only: activeOnly }
+    }
+  )
+  return data
+}
+
 export const groupsAPI = {
   list,
   getAll,
@@ -408,7 +439,8 @@ export const groupsAPI = {
   batchSetGroupRPMOverrides,
   updateSortOrder,
   getUsageSummary,
-  getCapacitySummary
+  getCapacitySummary,
+  getGroupCapacityUsers
 }
 
 export default groupsAPI

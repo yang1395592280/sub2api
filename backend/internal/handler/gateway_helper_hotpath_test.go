@@ -21,18 +21,22 @@ type helperConcurrencyCacheStub struct {
 	accountSeq []bool
 	userSeq    []bool
 
-	accountAcquireCalls int
-	userAcquireCalls    int
-	accountReleaseCalls int
-	userReleaseCalls    int
-	waitAllowed         bool
-	waitIncrementCalls  int
-	waitDecrementCalls  int
-	waitMaxWait         int
-	waitIncrementHook   func()
-	apiKeyTrackCalls    int
-	apiKeyReleaseCalls  int
-	apiKeyTrackIDs      []int64
+	accountAcquireCalls    int
+	userAcquireCalls       int
+	accountReleaseCalls    int
+	userReleaseCalls       int
+	waitAllowed            bool
+	waitIncrementCalls     int
+	waitDecrementCalls     int
+	waitMaxWait            int
+	waitIncrementHook      func()
+	apiKeyTrackCalls       int
+	apiKeyReleaseCalls     int
+	apiKeyTrackIDs         []int64
+	userGroupTrackCalls    int
+	userGroupReleaseCalls  int
+	userGroupTrackUserIDs  []int64
+	userGroupTrackGroupIDs []int64
 }
 
 func (s *helperConcurrencyCacheStub) AcquireAccountSlot(ctx context.Context, accountID int64, maxConcurrency int, requestID string) (bool, error) {
@@ -120,6 +124,30 @@ func (s *helperConcurrencyCacheStub) GetAPIKeyConcurrencyBatch(ctx context.Conte
 	out := make(map[int64]int, len(apiKeyIDs))
 	for _, apiKeyID := range apiKeyIDs {
 		out[apiKeyID] = 0
+	}
+	return out, nil
+}
+
+func (s *helperConcurrencyCacheStub) TrackUserGroupSlot(ctx context.Context, userID, groupID int64, requestID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.userGroupTrackCalls++
+	s.userGroupTrackUserIDs = append(s.userGroupTrackUserIDs, userID)
+	s.userGroupTrackGroupIDs = append(s.userGroupTrackGroupIDs, groupID)
+	return nil
+}
+
+func (s *helperConcurrencyCacheStub) ReleaseUserGroupSlot(ctx context.Context, userID, groupID int64, requestID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.userGroupReleaseCalls++
+	return nil
+}
+
+func (s *helperConcurrencyCacheStub) GetUserGroupConcurrencyBatch(ctx context.Context, groupID int64, userIDs []int64) (map[int64]int, error) {
+	out := make(map[int64]int, len(userIDs))
+	for _, userID := range userIDs {
+		out[userID] = 0
 	}
 	return out, nil
 }
@@ -317,6 +345,32 @@ func TestAcquireUserSlotWithWait_TracksAPIKeySlot(t *testing.T) {
 
 	require.Equal(t, 1, cache.userReleaseCalls)
 	require.Equal(t, 1, cache.apiKeyReleaseCalls)
+}
+
+func TestAcquireUserSlotWithWait_TracksUserGroupSlot(t *testing.T) {
+	cache := &helperConcurrencyCacheStub{
+		userSeq: []bool{true},
+	}
+	concurrency := service.NewConcurrencyService(cache)
+	helper := NewConcurrencyHelper(concurrency, SSEPingFormatNone, 5*time.Millisecond)
+	c, _ := newHelperTestContext(http.MethodPost, "/v1/messages")
+	groupID := int64(99)
+	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{ID: 77, GroupID: &groupID})
+	streamStarted := false
+
+	release, err := helper.acquireUserSlotWithWaitTimeout(c, 202, 3, time.Second, false, &streamStarted)
+	require.NoError(t, err)
+	require.NotNil(t, release)
+	require.Equal(t, 1, cache.apiKeyTrackCalls)
+	require.Equal(t, 1, cache.userGroupTrackCalls)
+	require.Equal(t, []int64{202}, cache.userGroupTrackUserIDs)
+	require.Equal(t, []int64{99}, cache.userGroupTrackGroupIDs)
+
+	release()
+
+	require.Equal(t, 1, cache.userReleaseCalls)
+	require.Equal(t, 1, cache.apiKeyReleaseCalls)
+	require.Equal(t, 1, cache.userGroupReleaseCalls)
 }
 
 func TestTryAcquireUserSlotForAPIKey_TracksAPIKeySlot(t *testing.T) {

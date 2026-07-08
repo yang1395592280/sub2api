@@ -12,6 +12,7 @@ const {
   getModelsListCandidates,
   getUsageSummary,
   getCapacitySummary,
+  getGroupCapacityUsers,
   listAccounts,
   showError,
   showSuccess,
@@ -25,6 +26,7 @@ const {
   getModelsListCandidates: vi.fn(),
   getUsageSummary: vi.fn(),
   getCapacitySummary: vi.fn(),
+  getGroupCapacityUsers: vi.fn(),
   listAccounts: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
@@ -61,6 +63,7 @@ vi.mock('@/api/admin', () => ({
       getModelsListCandidates,
       getUsageSummary,
       getCapacitySummary,
+      getGroupCapacityUsers,
       update: updateGroup,
       delete: vi.fn(),
       updateSortOrder: vi.fn()
@@ -197,6 +200,7 @@ async function mountView() {
         PlatformIcon: true,
         Icon: true,
         GroupCapacityBadge: true,
+        GroupCapacityUsersModal: true,
         GroupRateMultipliersModal: true,
         GroupRPMOverridesModal: true,
         VueDraggable: { template: '<div><slot /></div>' }
@@ -219,6 +223,7 @@ describe('admin GroupsView upstream price guard settings', () => {
     getModelsListCandidates.mockReset()
     getUsageSummary.mockReset()
     getCapacitySummary.mockReset()
+    getGroupCapacityUsers.mockReset()
     listAccounts.mockReset()
     showError.mockReset()
     showSuccess.mockReset()
@@ -238,6 +243,7 @@ describe('admin GroupsView upstream price guard settings', () => {
     getModelsListCandidates.mockResolvedValue([])
     getUsageSummary.mockResolvedValue([])
     getCapacitySummary.mockResolvedValue([])
+    getGroupCapacityUsers.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
     listAccounts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
     isCurrentStep.mockReturnValue(false)
   })

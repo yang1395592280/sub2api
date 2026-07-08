@@ -273,15 +273,23 @@
           </template>
 
           <template #cell-capacity="{ row }">
-            <GroupCapacityBadge
+            <button
               v-if="capacityMap.get(row.id)"
-              :concurrency-used="capacityMap.get(row.id)!.concurrencyUsed"
-              :concurrency-max="capacityMap.get(row.id)!.concurrencyMax"
-              :sessions-used="capacityMap.get(row.id)!.sessionsUsed"
-              :sessions-max="capacityMap.get(row.id)!.sessionsMax"
-              :rpm-used="capacityMap.get(row.id)!.rpmUsed"
-              :rpm-max="capacityMap.get(row.id)!.rpmMax"
-            />
+              type="button"
+              class="rounded-md transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:hover:bg-dark-700"
+              :title="t('admin.groups.viewCapacityUsers')"
+              data-test="group-capacity-users-button"
+              @click="handleCapacityUsers(row)"
+            >
+              <GroupCapacityBadge
+                :concurrency-used="capacityMap.get(row.id)!.concurrencyUsed"
+                :concurrency-max="capacityMap.get(row.id)!.concurrencyMax"
+                :sessions-used="capacityMap.get(row.id)!.sessionsUsed"
+                :sessions-max="capacityMap.get(row.id)!.sessionsMax"
+                :rpm-used="capacityMap.get(row.id)!.rpmUsed"
+                :rpm-max="capacityMap.get(row.id)!.rpmMax"
+              />
+            </button>
             <span v-else class="text-xs text-gray-400">—</span>
           </template>
 
@@ -3386,6 +3394,12 @@
       @close="showRPMOverridesModal = false"
       @success="loadGroups"
     />
+
+    <GroupCapacityUsersModal
+      :show="showCapacityUsersModal"
+      :group="capacityUsersGroup"
+      @close="showCapacityUsersModal = false"
+    />
   </AppLayout>
 </template>
 
@@ -3410,6 +3424,7 @@ import Icon from "@/components/icons/Icon.vue";
 import GroupMembersModal from "@/components/admin/group/GroupMembersModal.vue";
 import GroupRateMultipliersModal from "@/components/admin/group/GroupRateMultipliersModal.vue";
 import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesModal.vue";
+import GroupCapacityUsersModal from "@/components/admin/group/GroupCapacityUsersModal.vue";
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import { VueDraggable } from "vue-draggable-plus";
 import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
@@ -3741,6 +3756,8 @@ const showMembersModal = ref(false);
 const membersGroup = ref<AdminGroup | null>(null);
 const showRPMOverridesModal = ref(false);
 const rpmOverridesGroup = ref<AdminGroup | null>(null);
+const showCapacityUsersModal = ref(false);
+const capacityUsersGroup = ref<AdminGroup | null>(null);
 const sortableGroups = ref<AdminGroup[]>([]);
 const createMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
 const editMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
@@ -4817,6 +4834,11 @@ const handleViewMembers = (group: AdminGroup) => {
 const handleRPMOverrides = (group: AdminGroup) => {
   rpmOverridesGroup.value = group;
   showRPMOverridesModal.value = true;
+};
+
+const handleCapacityUsers = (group: AdminGroup) => {
+  capacityUsersGroup.value = group;
+  showCapacityUsersModal.value = true;
 };
 
 const handleDelete = (group: AdminGroup) => {

@@ -250,7 +250,7 @@ func (h *ConcurrencyHelper) acquireUserSlotWithWaitTimeout(c *gin.Context, userI
 	}
 
 	if acquired {
-		return h.withAPIKeySlotFromGin(c, releaseFunc), nil
+		return h.withRequestStatsSlotsFromGin(c, userID, releaseFunc), nil
 	}
 
 	queueLimit := service.CalculateMaxWait(maxConcurrency) - maxConcurrency
@@ -271,10 +271,10 @@ func (h *ConcurrencyHelper) acquireUserSlotWithWaitTimeout(c *gin.Context, userI
 	if err != nil {
 		return nil, err
 	}
-	return h.withAPIKeySlotFromGin(c, releaseFunc), nil
+	return h.withRequestStatsSlotsFromGin(c, userID, releaseFunc), nil
 }
 
-func (h *ConcurrencyHelper) withAPIKeySlotFromGin(c *gin.Context, releaseFunc func()) func() {
+func (h *ConcurrencyHelper) withRequestStatsSlotsFromGin(c *gin.Context, userID int64, releaseFunc func()) func() {
 	if c == nil {
 		return releaseFunc
 	}
@@ -282,7 +282,11 @@ func (h *ConcurrencyHelper) withAPIKeySlotFromGin(c *gin.Context, releaseFunc fu
 	if !ok || apiKey == nil {
 		return releaseFunc
 	}
-	return h.withAPIKeySlot(c.Request.Context(), apiKey.ID, releaseFunc)
+	releaseFunc = h.withAPIKeySlot(c.Request.Context(), apiKey.ID, releaseFunc)
+	if apiKey.GroupID == nil {
+		return releaseFunc
+	}
+	return h.withUserGroupSlot(c.Request.Context(), userID, *apiKey.GroupID, releaseFunc)
 }
 
 func (h *ConcurrencyHelper) withAPIKeySlot(ctx context.Context, apiKeyID int64, releaseFunc func()) func() {
@@ -296,6 +300,21 @@ func (h *ConcurrencyHelper) withAPIKeySlot(ctx context.Context, apiKeyID int64, 
 		}
 		if apiKeyReleaseFunc != nil {
 			apiKeyReleaseFunc()
+		}
+	}
+}
+
+func (h *ConcurrencyHelper) withUserGroupSlot(ctx context.Context, userID, groupID int64, releaseFunc func()) func() {
+	if h == nil || h.concurrencyService == nil || userID <= 0 || groupID <= 0 {
+		return releaseFunc
+	}
+	userGroupReleaseFunc := h.concurrencyService.TrackUserGroupSlot(ctx, userID, groupID)
+	return func() {
+		if releaseFunc != nil {
+			releaseFunc()
+		}
+		if userGroupReleaseFunc != nil {
+			userGroupReleaseFunc()
 		}
 	}
 }

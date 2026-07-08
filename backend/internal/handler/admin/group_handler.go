@@ -9,6 +9,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
@@ -486,6 +487,38 @@ func (h *GroupHandler) GetCapacitySummary(c *gin.Context) {
 		return
 	}
 	response.Success(c, results)
+}
+
+// GetCapacityUsers returns paginated user-level capacity details for a group.
+// GET /api/v1/admin/groups/:id/capacity-users?page=1&page_size=20&active_only=true
+func (h *GroupHandler) GetCapacityUsers(c *gin.Context) {
+	if h.groupCapacityService == nil {
+		response.Error(c, 503, "Group capacity service not available")
+		return
+	}
+	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || groupID <= 0 {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+
+	page, pageSize := response.ParsePagination(c)
+	activeOnly := true
+	if value := strings.TrimSpace(c.Query("active_only")); value != "" {
+		activeOnly = value != "false" && value != "0"
+	}
+
+	items, total, err := h.groupCapacityService.GetGroupCapacityUsers(
+		c.Request.Context(),
+		groupID,
+		pagination.PaginationParams{Page: page, PageSize: pageSize},
+		activeOnly,
+	)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, items, total, page, pageSize)
 }
 
 // GetGroupAPIKeys handles getting API keys in a group

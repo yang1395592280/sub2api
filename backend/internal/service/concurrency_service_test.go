@@ -34,6 +34,10 @@ type stubConcurrencyCacheForTest struct {
 	apiKeyReleaseErr     error
 	apiKeyConcurrency    map[int64]int
 	apiKeyConcurrencyErr error
+	userGroupTrackErr    error
+	userGroupReleaseErr  error
+	userGroupConcurrency map[int64]int
+	userGroupErr         error
 
 	// 记录调用
 	releasedAccountIDs       []int64
@@ -43,6 +47,11 @@ type stubConcurrencyCacheForTest struct {
 	trackedAPIKeyRequestIDs  []string
 	releasedAPIKeyIDs        []int64
 	releasedAPIKeyRequestIDs []string
+	trackedUserGroupUserIDs  []int64
+	trackedUserGroupGroupIDs []int64
+	trackedUserGroupReqIDs   []string
+	releasedUserGroupUserIDs []int64
+	releasedUserGroupReqIDs  []string
 }
 
 var _ ConcurrencyCache = (*stubConcurrencyCacheForTest)(nil)
@@ -103,6 +112,27 @@ func (c *stubConcurrencyCacheForTest) GetAPIKeyConcurrencyBatch(_ context.Contex
 	result := make(map[int64]int, len(apiKeyIDs))
 	for _, apiKeyID := range apiKeyIDs {
 		result[apiKeyID] = c.apiKeyConcurrency[apiKeyID]
+	}
+	return result, nil
+}
+func (c *stubConcurrencyCacheForTest) TrackUserGroupSlot(_ context.Context, userID, groupID int64, requestID string) error {
+	c.trackedUserGroupUserIDs = append(c.trackedUserGroupUserIDs, userID)
+	c.trackedUserGroupGroupIDs = append(c.trackedUserGroupGroupIDs, groupID)
+	c.trackedUserGroupReqIDs = append(c.trackedUserGroupReqIDs, requestID)
+	return c.userGroupTrackErr
+}
+func (c *stubConcurrencyCacheForTest) ReleaseUserGroupSlot(_ context.Context, userID, _ int64, requestID string) error {
+	c.releasedUserGroupUserIDs = append(c.releasedUserGroupUserIDs, userID)
+	c.releasedUserGroupReqIDs = append(c.releasedUserGroupReqIDs, requestID)
+	return c.userGroupReleaseErr
+}
+func (c *stubConcurrencyCacheForTest) GetUserGroupConcurrencyBatch(_ context.Context, _ int64, userIDs []int64) (map[int64]int, error) {
+	if c.userGroupErr != nil {
+		return nil, c.userGroupErr
+	}
+	result := make(map[int64]int, len(userIDs))
+	for _, userID := range userIDs {
+		result[userID] = c.userGroupConcurrency[userID]
 	}
 	return result, nil
 }
@@ -255,6 +285,51 @@ func TestTrackAPIKeySlot_FailOpen(t *testing.T) {
 
 	require.NotPanics(t, release)
 	require.Empty(t, cache.releasedAPIKeyIDs)
+}
+
+func TestTrackUserGroupSlot_ReleaseDecrements(t *testing.T) {
+	cache := &stubConcurrencyCacheForTest{}
+	svc := NewConcurrencyService(cache)
+
+	release := svc.TrackUserGroupSlot(context.Background(), 12, 34)
+	require.NotNil(t, release)
+	require.Equal(t, []int64{12}, cache.trackedUserGroupUserIDs)
+	require.Equal(t, []int64{34}, cache.trackedUserGroupGroupIDs)
+	require.Len(t, cache.trackedUserGroupReqIDs, 1)
+	require.NotEmpty(t, cache.trackedUserGroupReqIDs[0])
+
+	release()
+
+	require.Equal(t, []int64{12}, cache.releasedUserGroupUserIDs)
+	require.Equal(t, cache.trackedUserGroupReqIDs, cache.releasedUserGroupReqIDs)
+}
+
+func TestGetUserGroupConcurrencyBatch_Fallbacks(t *testing.T) {
+	t.Run("nil cache returns zeroes", func(t *testing.T) {
+		svc := &ConcurrencyService{cache: nil}
+
+		counts, err := svc.GetUserGroupConcurrencyBatch(context.Background(), 9, []int64{1, 2})
+		require.NoError(t, err)
+		require.Equal(t, map[int64]int{1: 0, 2: 0}, counts)
+	})
+
+	t.Run("redis error returns zeroes", func(t *testing.T) {
+		cache := &stubConcurrencyCacheForTest{userGroupErr: errors.New("redis down")}
+		svc := NewConcurrencyService(cache)
+
+		counts, err := svc.GetUserGroupConcurrencyBatch(context.Background(), 9, []int64{1, 2})
+		require.NoError(t, err)
+		require.Equal(t, map[int64]int{1: 0, 2: 0}, counts)
+	})
+
+	t.Run("success returns counts", func(t *testing.T) {
+		cache := &stubConcurrencyCacheForTest{userGroupConcurrency: map[int64]int{1: 3, 2: 0}}
+		svc := NewConcurrencyService(cache)
+
+		counts, err := svc.GetUserGroupConcurrencyBatch(context.Background(), 9, []int64{1, 2})
+		require.NoError(t, err)
+		require.Equal(t, map[int64]int{1: 3, 2: 0}, counts)
+	})
 }
 
 func TestGetAPIKeyConcurrencyBatch_Fallbacks(t *testing.T) {
