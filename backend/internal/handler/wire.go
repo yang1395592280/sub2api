@@ -105,6 +105,45 @@ func ProvideAdminUserHandler(adminService service.AdminService, concurrencyServi
 	return admin.NewUserHandler(adminService, concurrencyService, userPlatformQuotaRepo, billingCache, apiKeyRepo)
 }
 
+func ProvideAdminAccountHandler(
+	adminService service.AdminService,
+	oauthService *service.OAuthService,
+	openaiOAuthService *service.OpenAIOAuthService,
+	geminiOAuthService *service.GeminiOAuthService,
+	antigravityOAuthService *service.AntigravityOAuthService,
+	rateLimitService *service.RateLimitService,
+	accountUsageService *service.AccountUsageService,
+	accountTestService *service.AccountTestService,
+	concurrencyService *service.ConcurrencyService,
+	crsSyncService *service.CRSSyncService,
+	sessionLimitCache service.SessionLimitCache,
+	rpmCache service.RPMCache,
+	tokenCacheInvalidator service.TokenCacheInvalidator,
+	upstreamBalanceService *service.OpenAIUpstreamBalanceService,
+	sub2APICheckinService *service.Sub2APICheckinService,
+	openAIAutoSchedulerService *service.OpenAIAutoSchedulerService,
+) *admin.AccountHandler {
+	h := admin.NewAccountHandler(
+		adminService,
+		oauthService,
+		openaiOAuthService,
+		geminiOAuthService,
+		antigravityOAuthService,
+		rateLimitService,
+		accountUsageService,
+		accountTestService,
+		concurrencyService,
+		crsSyncService,
+		sessionLimitCache,
+		rpmCache,
+		tokenCacheInvalidator,
+		upstreamBalanceService,
+		sub2APICheckinService,
+	)
+	h.SetOpenAIAutoSchedulerAccountSummaryService(openAIAutoSchedulerService)
+	return h
+}
+
 // ProvideHandlers creates the Handlers struct
 func ProvideHandlers(
 	authHandler *AuthHandler,
@@ -175,7 +214,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewDashboardHandler,
 	ProvideAdminUserHandler,
 	admin.NewGroupHandler,
-	admin.NewAccountHandler,
+	ProvideAdminAccountHandler,
 	admin.NewAnnouncementHandler,
 	admin.NewDataManagementHandler,
 	admin.NewBackupHandler,
