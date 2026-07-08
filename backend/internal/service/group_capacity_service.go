@@ -437,7 +437,7 @@ func (s *GroupCapacityService) resolveGroupCapacityUserRPM(ctx context.Context, 
 	if userRPMLimit > 0 {
 		return nil, userRPMLimit, "user", s.getUserRPMBestEffort(ctx, userID)
 	}
-	return nil, 0, "unlimited", 0
+	return nil, 0, "unlimited", s.getUserGroupRPMBestEffort(ctx, userID, groupID)
 }
 
 func (s *GroupCapacityService) getUserGroupRPMBestEffort(ctx context.Context, userID, groupID int64) int {

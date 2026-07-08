@@ -130,7 +130,7 @@ func TestBillingCacheService_CheckRPM_OverrideZeroSkipsGroupButUserStillApplies(
 	}
 	require.ErrorIs(t, svc.checkRPM(context.Background(), user, group), ErrUserRPMExceeded,
 		"override=0 跳过分组但 user 全局上限仍应生效")
-	require.EqualValues(t, 0, atomic.LoadInt32(&cache.userGroupCalls), "override=0 不应触发分组计数器")
+	require.EqualValues(t, 6, atomic.LoadInt32(&cache.userGroupCalls), "override=0 仍应记录分组使用量，仅不执行分组超限")
 	require.EqualValues(t, 6, atomic.LoadInt32(&cache.userCalls), "user 计数器应被调用")
 }
 
@@ -146,7 +146,7 @@ func TestBillingCacheService_CheckRPM_OverrideZeroAndUserZeroIsFullyUnlimited(t 
 	for i := 0; i < 50; i++ {
 		require.NoError(t, svc.checkRPM(context.Background(), user, group))
 	}
-	require.EqualValues(t, 0, atomic.LoadInt32(&cache.userGroupCalls), "override=0 不触发分组计数")
+	require.EqualValues(t, 50, atomic.LoadInt32(&cache.userGroupCalls), "override=0 仍应记录分组使用量")
 	require.EqualValues(t, 0, atomic.LoadInt32(&cache.userCalls), "user.RPMLimit=0 也不触发用户计数")
 }
 
@@ -193,11 +193,11 @@ func TestBillingCacheService_CheckRPM_UserLevelFallbackWhenGroupUnlimited(t *tes
 	require.NoError(t, svc.checkRPM(context.Background(), user, group))
 	require.ErrorIs(t, svc.checkRPM(context.Background(), user, group), ErrUserRPMExceeded)
 
-	require.EqualValues(t, 0, atomic.LoadInt32(&cache.userGroupCalls), "group 未设限时不应 INCR user-group 键")
+	require.EqualValues(t, 3, atomic.LoadInt32(&cache.userGroupCalls), "group 未设限时也应记录 user-group 使用量")
 	require.EqualValues(t, 3, atomic.LoadInt32(&cache.userCalls))
 }
 
-func TestBillingCacheService_CheckRPM_NoLimitsConfiguredIsNoop(t *testing.T) {
+func TestBillingCacheService_CheckRPM_NoLimitsConfiguredTracksGroupUsage(t *testing.T) {
 	cache := &userRPMCacheStub{}
 	repo := &rpmOverrideRepoStub{override: nil}
 	svc := newBillingServiceForRPM(t, cache, repo)
@@ -208,7 +208,7 @@ func TestBillingCacheService_CheckRPM_NoLimitsConfiguredIsNoop(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		require.NoError(t, svc.checkRPM(context.Background(), user, group))
 	}
-	require.EqualValues(t, 0, atomic.LoadInt32(&cache.userGroupCalls))
+	require.EqualValues(t, 10, atomic.LoadInt32(&cache.userGroupCalls))
 	require.EqualValues(t, 0, atomic.LoadInt32(&cache.userCalls))
 }
 

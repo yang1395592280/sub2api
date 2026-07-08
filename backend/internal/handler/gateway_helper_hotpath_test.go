@@ -380,7 +380,7 @@ func TestTryAcquireUserSlotForAPIKey_TracksAPIKeySlot(t *testing.T) {
 	concurrency := service.NewConcurrencyService(cache)
 	helper := NewConcurrencyHelper(concurrency, SSEPingFormatNone, 5*time.Millisecond)
 
-	release, acquired, err := helper.TryAcquireUserSlotForAPIKey(context.Background(), 202, 3, 77)
+	release, acquired, err := helper.TryAcquireUserSlotForAPIKey(context.Background(), 202, 3, 77, nil)
 	require.NoError(t, err)
 	require.True(t, acquired)
 	require.NotNil(t, release)
@@ -391,6 +391,30 @@ func TestTryAcquireUserSlotForAPIKey_TracksAPIKeySlot(t *testing.T) {
 
 	require.Equal(t, 1, cache.userReleaseCalls)
 	require.Equal(t, 1, cache.apiKeyReleaseCalls)
+}
+
+func TestTryAcquireUserSlotForAPIKey_TracksUserGroupSlot(t *testing.T) {
+	cache := &helperConcurrencyCacheStub{
+		userSeq: []bool{true},
+	}
+	concurrency := service.NewConcurrencyService(cache)
+	helper := NewConcurrencyHelper(concurrency, SSEPingFormatNone, 5*time.Millisecond)
+	groupID := int64(99)
+
+	release, acquired, err := helper.TryAcquireUserSlotForAPIKey(context.Background(), 202, 3, 77, &groupID)
+	require.NoError(t, err)
+	require.True(t, acquired)
+	require.NotNil(t, release)
+	require.Equal(t, 1, cache.apiKeyTrackCalls)
+	require.Equal(t, 1, cache.userGroupTrackCalls)
+	require.Equal(t, []int64{202}, cache.userGroupTrackUserIDs)
+	require.Equal(t, []int64{99}, cache.userGroupTrackGroupIDs)
+
+	release()
+
+	require.Equal(t, 1, cache.userReleaseCalls)
+	require.Equal(t, 1, cache.apiKeyReleaseCalls)
+	require.Equal(t, 1, cache.userGroupReleaseCalls)
 }
 
 func TestAcquireUserSlotWithWait_WaitSuccessDecrementsBeforeReturn(t *testing.T) {

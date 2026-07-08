@@ -212,12 +212,16 @@ func (h *ConcurrencyHelper) TryAcquireUserSlot(ctx context.Context, userID int64
 	return result.ReleaseFunc, true, nil
 }
 
-func (h *ConcurrencyHelper) TryAcquireUserSlotForAPIKey(ctx context.Context, userID int64, maxConcurrency int, apiKeyID int64) (func(), bool, error) {
+func (h *ConcurrencyHelper) TryAcquireUserSlotForAPIKey(ctx context.Context, userID int64, maxConcurrency int, apiKeyID int64, groupID *int64) (func(), bool, error) {
 	releaseFunc, acquired, err := h.TryAcquireUserSlot(ctx, userID, maxConcurrency)
 	if err != nil || !acquired {
 		return releaseFunc, acquired, err
 	}
-	return h.withAPIKeySlot(ctx, apiKeyID, releaseFunc), true, nil
+	releaseFunc = h.withAPIKeySlot(ctx, apiKeyID, releaseFunc)
+	if groupID != nil {
+		releaseFunc = h.withUserGroupSlot(ctx, userID, *groupID, releaseFunc)
+	}
+	return releaseFunc, true, nil
 }
 
 // TryAcquireAccountSlot 尝试立即获取账号并发槽位。

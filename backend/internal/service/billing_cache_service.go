@@ -792,6 +792,29 @@ func (s *BillingCacheService) checkRPM(ctx context.Context, user *User, group *G
 
 	// ── 第一层：分组级检查（override 或 group.rpm_limit） ──
 	if group != nil {
+		groupRPMCount := 0
+		groupRPMCounted := false
+		incrementGroupRPM := func(reason string) (int, bool) {
+			if groupRPMCounted {
+				return groupRPMCount, true
+			}
+			count, err := s.userRPMCache.IncrementUserGroupRPM(ctx, user.ID, group.ID)
+			if err != nil {
+				logger.LegacyPrintf(
+					"service.billing_cache",
+					"Warning: rpm increment (%s) failed for user=%d group=%d: %v",
+					reason,
+					user.ID,
+					group.ID,
+					err,
+				)
+				return 0, false
+			}
+			groupRPMCount = count
+			groupRPMCounted = true
+			return count, true
+		}
+
 		// 解析 override：优先从 auth cache snapshot，nil 时回退 DB。
 		var override *int
 		if user.UserGroupRPMOverride != nil {
@@ -811,33 +834,20 @@ func (s *BillingCacheService) checkRPM(ctx context.Context, user *User, group *G
 
 		if override != nil {
 			// override=0 → 该用户在该分组免检（但 user 级仍会在下面检查）。
-			if *override > 0 {
-				count, incErr := s.userRPMCache.IncrementUserGroupRPM(ctx, user.ID, group.ID)
-				if incErr != nil {
-					logger.LegacyPrintf(
-						"service.billing_cache",
-						"Warning: rpm increment (override) failed for user=%d group=%d: %v",
-						user.ID, group.ID, incErr,
-					)
-					// fail-open
-				} else if count > *override {
-					return ErrGroupRPMExceeded
-				}
+			count, ok := incrementGroupRPM("override")
+			if ok && *override > 0 && count > *override {
+				return ErrGroupRPMExceeded
 			}
 			// override 命中后跳过 group.rpm_limit（override 替代 group），但不 return——继续检查 user 级。
 		} else if group.RPMLimit > 0 {
 			// 无 override，检查 group.rpm_limit。
-			count, err := s.userRPMCache.IncrementUserGroupRPM(ctx, user.ID, group.ID)
-			if err != nil {
-				logger.LegacyPrintf(
-					"service.billing_cache",
-					"Warning: rpm increment (group) failed for user=%d group=%d: %v",
-					user.ID, group.ID, err,
-				)
-				// fail-open
-			} else if count > group.RPMLimit {
+			count, ok := incrementGroupRPM("group")
+			if ok && count > group.RPMLimit {
 				return ErrGroupRPMExceeded
 			}
+		} else {
+			// 即便没有分组限流，也记录 (用户, 分组) 当前分钟请求数，用于容量明细里的活跃用户展示。
+			incrementGroupRPM("usage")
 		}
 	}
 

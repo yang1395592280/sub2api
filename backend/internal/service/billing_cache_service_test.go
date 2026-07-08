@@ -16,6 +16,27 @@ type billingCacheWorkerStub struct {
 	subscriptionUpdates int64
 }
 
+type billingCacheUserRPMCounterStub struct {
+	userGroupCalls int32
+	userCalls      int32
+}
+
+func (s *billingCacheUserRPMCounterStub) IncrementUserGroupRPM(context.Context, int64, int64) (int, error) {
+	return int(atomic.AddInt32(&s.userGroupCalls, 1)), nil
+}
+
+func (s *billingCacheUserRPMCounterStub) IncrementUserRPM(context.Context, int64) (int, error) {
+	return int(atomic.AddInt32(&s.userCalls, 1)), nil
+}
+
+func (s *billingCacheUserRPMCounterStub) GetUserGroupRPM(context.Context, int64, int64) (int, error) {
+	return int(atomic.LoadInt32(&s.userGroupCalls)), nil
+}
+
+func (s *billingCacheUserRPMCounterStub) GetUserRPM(context.Context, int64) (int, error) {
+	return int(atomic.LoadInt32(&s.userCalls)), nil
+}
+
 func (b *billingCacheWorkerStub) GetUserBalance(ctx context.Context, userID int64) (float64, error) {
 	return 0, errors.New("not implemented")
 }
@@ -129,4 +150,18 @@ func TestBillingCacheServiceEnqueueAfterStopReturnsFalse(t *testing.T) {
 		amount: 1,
 	})
 	require.False(t, enqueued)
+}
+
+func TestBillingCacheServiceCheckRPMTracksUserGroupUsageWithoutLimits(t *testing.T) {
+	rpmCache := &billingCacheUserRPMCounterStub{}
+	svc := NewBillingCacheService(nil, nil, nil, nil, rpmCache, nil, &config.Config{}, nil)
+	t.Cleanup(svc.Stop)
+
+	user := &User{ID: 1, RPMLimit: 0}
+	group := &Group{ID: 10, RPMLimit: 0}
+
+	require.NoError(t, svc.checkRPM(context.Background(), user, group))
+
+	require.EqualValues(t, 1, atomic.LoadInt32(&rpmCache.userGroupCalls))
+	require.EqualValues(t, 0, atomic.LoadInt32(&rpmCache.userCalls))
 }

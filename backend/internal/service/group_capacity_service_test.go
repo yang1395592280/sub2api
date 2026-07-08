@@ -424,3 +424,47 @@ func TestGetGroupCapacityUsersUsesUserRPMFallbackForPublicGroup(t *testing.T) {
 		},
 	}, items)
 }
+
+func TestGetGroupCapacityUsersIncludesUnlimitedGroupUsage(t *testing.T) {
+	groupID := int64(30)
+	users := []User{
+		{ID: 1, Username: "alpha", Email: "a@example.com", Status: StatusActive, Concurrency: 3, RPMLimit: 0},
+	}
+	svc := NewGroupCapacityService(
+		nil,
+		&groupCapacityDetailGroupRepoStub{groups: map[int64]*Group{
+			groupID: {ID: groupID, Name: "public", IsExclusive: false, RPMLimit: 0},
+		}},
+		NewConcurrencyService(&groupCapacityUserLoadCacheStub{loads: map[int64]*UserLoadInfo{}}),
+		nil,
+		nil,
+		&groupCapacityUserRepoStub{allUsers: users},
+		nil,
+		nil,
+		&groupCapacityUserRPMCacheStub{
+			userCounts: map[int64]int{},
+			groupCounts: map[int64]map[int64]int{
+				1: {groupID: 9},
+			},
+		},
+	)
+
+	items, total, err := svc.GetGroupCapacityUsers(context.Background(), groupID, pagination.PaginationParams{Page: 1, PageSize: 20}, true)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, total)
+	require.Equal(t, []GroupCapacityUserDetail{
+		{
+			UserID:             1,
+			Username:           "alpha",
+			Email:              "a@example.com",
+			Status:             StatusActive,
+			CurrentConcurrency: 0,
+			ConcurrencyLimit:   3,
+			CurrentRPM:         9,
+			EffectiveRPMLimit:  0,
+			RPMLimitSource:     "unlimited",
+			GroupRPMLimit:      0,
+			UserRPMLimit:       0,
+		},
+	}, items)
+}
