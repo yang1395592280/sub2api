@@ -6971,6 +6971,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 
 	if apiKey.GroupID != nil {
 		usageLog.GroupID = apiKey.GroupID
+		usageLog.GroupNameSnapshot = usageLogGroupNameSnapshot(apiKey)
 	}
 	if subscription != nil {
 		usageLog.SubscriptionID = &subscription.ID

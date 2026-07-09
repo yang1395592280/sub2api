@@ -130,6 +130,9 @@ type UsageLog struct {
 
 	GroupID        *int64
 	SubscriptionID *int64
+	// GroupNameSnapshot records the group display name when this usage row was
+	// written, so historical usage remains readable after a group is deleted.
+	GroupNameSnapshot *string
 	// APIKeyGroupSelectMode snapshots the API key group selection mode when this
 	// usage row was written. Nil means legacy/unknown and must not be inferred
 	// from the API key's current config.

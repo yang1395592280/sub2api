@@ -128,6 +128,46 @@ func TestUsageLogFromService_IncludesAPIKeyGroupSelectModeSnapshot(t *testing.T)
 	require.Equal(t, mode, *adminDTO.APIKeyGroupSelectMode)
 }
 
+func TestUsageLogFromService_UsesGroupNameSnapshotWhenGroupMissing(t *testing.T) {
+	t.Parallel()
+
+	groupID := int64(42)
+	groupName := "plus特惠临时分组（0.1x）"
+	log := &service.UsageLog{
+		RequestID:         "req_deleted_group_snapshot",
+		Model:             "gpt-5.5",
+		GroupID:           &groupID,
+		GroupNameSnapshot: &groupName,
+	}
+
+	userDTO := UsageLogFromService(log)
+	adminDTO := UsageLogFromServiceAdmin(log)
+
+	require.NotNil(t, userDTO.Group)
+	require.Equal(t, groupID, userDTO.Group.ID)
+	require.Equal(t, groupName, userDTO.Group.Name)
+	require.NotNil(t, adminDTO.Group)
+	require.Equal(t, groupID, adminDTO.Group.ID)
+	require.Equal(t, groupName, adminDTO.Group.Name)
+}
+
+func TestUsageLogFromService_UsesGroupNameSnapshotWhenGroupIDWasCleared(t *testing.T) {
+	t.Parallel()
+
+	groupName := "已删除的最优惠分组"
+	log := &service.UsageLog{
+		RequestID:         "req_deleted_group_name_only",
+		Model:             "gpt-5.5",
+		GroupNameSnapshot: &groupName,
+	}
+
+	adminDTO := UsageLogFromServiceAdmin(log)
+
+	require.NotNil(t, adminDTO.Group)
+	require.Equal(t, int64(0), adminDTO.Group.ID)
+	require.Equal(t, groupName, adminDTO.Group.Name)
+}
+
 func TestUsageLogFromService_UsesRequestedModelAndKeepsUpstreamAdminOnly(t *testing.T) {
 	t.Parallel()
 

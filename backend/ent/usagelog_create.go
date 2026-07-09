@@ -155,6 +155,20 @@ func (_c *UsageLogCreate) SetNillableGroupID(v *int64) *UsageLogCreate {
 	return _c
 }
 
+// SetGroupName sets the "group_name" field.
+func (_c *UsageLogCreate) SetGroupName(v string) *UsageLogCreate {
+	_c.mutation.SetGroupName(v)
+	return _c
+}
+
+// SetNillableGroupName sets the "group_name" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableGroupName(v *string) *UsageLogCreate {
+	if v != nil {
+		_c.SetGroupName(*v)
+	}
+	return _c
+}
+
 // SetSubscriptionID sets the "subscription_id" field.
 func (_c *UsageLogCreate) SetSubscriptionID(v int64) *UsageLogCreate {
 	_c.mutation.SetSubscriptionID(v)
@@ -795,6 +809,11 @@ func (_c *UsageLogCreate) check() error {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_mode": %w`, err)}
 		}
 	}
+	if v, ok := _c.mutation.GroupName(); ok {
+		if err := usagelog.GroupNameValidator(v); err != nil {
+			return &ValidationError{Name: "group_name", err: fmt.Errorf(`ent: validator failed for field "UsageLog.group_name": %w`, err)}
+		}
+	}
 	if v, ok := _c.mutation.APIKeyGroupSelectMode(); ok {
 		if err := usagelog.APIKeyGroupSelectModeValidator(v); err != nil {
 			return &ValidationError{Name: "api_key_group_select_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.api_key_group_select_mode": %w`, err)}
@@ -956,6 +975,10 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.BillingMode(); ok {
 		_spec.SetField(usagelog.FieldBillingMode, field.TypeString, value)
 		_node.BillingMode = &value
+	}
+	if value, ok := _c.mutation.GroupName(); ok {
+		_spec.SetField(usagelog.FieldGroupName, field.TypeString, value)
+		_node.GroupName = &value
 	}
 	if value, ok := _c.mutation.APIKeyGroupSelectMode(); ok {
 		_spec.SetField(usagelog.FieldAPIKeyGroupSelectMode, field.TypeString, value)
@@ -1411,6 +1434,24 @@ func (u *UsageLogUpsert) UpdateGroupID() *UsageLogUpsert {
 // ClearGroupID clears the value of the "group_id" field.
 func (u *UsageLogUpsert) ClearGroupID() *UsageLogUpsert {
 	u.SetNull(usagelog.FieldGroupID)
+	return u
+}
+
+// SetGroupName sets the "group_name" field.
+func (u *UsageLogUpsert) SetGroupName(v string) *UsageLogUpsert {
+	u.Set(usagelog.FieldGroupName, v)
+	return u
+}
+
+// UpdateGroupName sets the "group_name" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateGroupName() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldGroupName)
+	return u
+}
+
+// ClearGroupName clears the value of the "group_name" field.
+func (u *UsageLogUpsert) ClearGroupName() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldGroupName)
 	return u
 }
 
@@ -2268,6 +2309,27 @@ func (u *UsageLogUpsertOne) UpdateGroupID() *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) ClearGroupID() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearGroupID()
+	})
+}
+
+// SetGroupName sets the "group_name" field.
+func (u *UsageLogUpsertOne) SetGroupName(v string) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetGroupName(v)
+	})
+}
+
+// UpdateGroupName sets the "group_name" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateGroupName() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateGroupName()
+	})
+}
+
+// ClearGroupName clears the value of the "group_name" field.
+func (u *UsageLogUpsertOne) ClearGroupName() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearGroupName()
 	})
 }
 
@@ -3389,6 +3451,27 @@ func (u *UsageLogUpsertBulk) UpdateGroupID() *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) ClearGroupID() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearGroupID()
+	})
+}
+
+// SetGroupName sets the "group_name" field.
+func (u *UsageLogUpsertBulk) SetGroupName(v string) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetGroupName(v)
+	})
+}
+
+// UpdateGroupName sets the "group_name" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateGroupName() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateGroupName()
+	})
+}
+
+// ClearGroupName clears the value of the "group_name" field.
+func (u *UsageLogUpsertBulk) ClearGroupName() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearGroupName()
 	})
 }
 

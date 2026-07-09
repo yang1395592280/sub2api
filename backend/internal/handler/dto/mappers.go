@@ -3,6 +3,7 @@ package dto
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -140,6 +141,30 @@ func GroupFromService(g *service.Group) *Group {
 		return nil
 	}
 	return GroupFromServiceShallow(g)
+}
+
+func usageLogGroupFromService(l *service.UsageLog) *Group {
+	if l == nil {
+		return nil
+	}
+	if group := GroupFromServiceShallow(l.Group); group != nil {
+		return group
+	}
+	if l.GroupNameSnapshot == nil {
+		return nil
+	}
+	name := strings.TrimSpace(*l.GroupNameSnapshot)
+	if name == "" {
+		return nil
+	}
+	groupID := int64(0)
+	if l.GroupID != nil {
+		groupID = *l.GroupID
+	}
+	return GroupFromServiceShallow(&service.Group{
+		ID:   groupID,
+		Name: name,
+	})
 }
 
 // GroupFromServiceAdmin converts a service Group to DTO for admin users.
@@ -663,7 +688,7 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		CreatedAt:             l.CreatedAt,
 		User:                  UserFromServiceShallow(l.User),
 		APIKey:                APIKeyFromService(l.APIKey),
-		Group:                 GroupFromServiceShallow(l.Group),
+		Group:                 usageLogGroupFromService(l),
 		Subscription:          UserSubscriptionFromService(l.Subscription),
 	}
 }

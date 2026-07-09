@@ -49,6 +49,7 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			log.RequestedModel,
 			sqlmock.AnyArg(), // upstream_model
 			sqlmock.AnyArg(), // group_id
+			sqlmock.AnyArg(), // group_name
 			sqlmock.AnyArg(), // subscription_id
 			sqlmock.AnyArg(), // api_key_group_select_mode
 			log.InputTokens,
@@ -155,6 +156,7 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			log.RequestedModel,
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
+			sqlmock.AnyArg(), // group_name
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(), // api_key_group_select_mode
 			log.InputTokens,
@@ -278,7 +280,25 @@ func TestPrepareUsageLogInsert_PersistsAPIKeyGroupSelectModeSnapshot(t *testing.
 		CreatedAt:             time.Date(2025, 1, 5, 12, 0, 0, 0, time.UTC),
 	})
 
-	require.Equal(t, sql.NullString{String: mode, Valid: true}, prepared.args[9])
+	require.Equal(t, sql.NullString{String: mode, Valid: true}, prepared.args[10])
+}
+
+func TestPrepareUsageLogInsert_PersistsGroupNameSnapshot(t *testing.T) {
+	groupID := int64(7)
+	groupName := "plus特惠临时分组（0.1x）"
+	prepared := prepareUsageLogInsert(&service.UsageLog{
+		UserID:            1,
+		APIKeyID:          2,
+		AccountID:         3,
+		RequestID:         "req-group-name-snapshot",
+		Model:             "gpt-5.5",
+		GroupID:           &groupID,
+		GroupNameSnapshot: &groupName,
+		CreatedAt:         time.Date(2025, 1, 5, 12, 0, 0, 0, time.UTC),
+	})
+
+	require.Equal(t, sql.NullInt64{Int64: groupID, Valid: true}, prepared.args[7])
+	require.Equal(t, sql.NullString{String: groupName, Valid: true}, prepared.args[8])
 }
 
 func TestPrepareUsageLogInsert_PersistsImageSizeMetadata(t *testing.T) {
@@ -302,11 +322,11 @@ func TestPrepareUsageLogInsert_PersistsImageSizeMetadata(t *testing.T) {
 		CreatedAt:          time.Date(2025, 1, 6, 12, 0, 0, 0, time.UTC),
 	})
 
-	require.Equal(t, sql.NullString{String: imageSize, Valid: true}, prepared.args[35])
-	require.Equal(t, sql.NullString{String: inputSize, Valid: true}, prepared.args[36])
-	require.Equal(t, sql.NullString{String: outputSize, Valid: true}, prepared.args[37])
-	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[38])
-	breakdownJSON, ok := prepared.args[39].(string)
+	require.Equal(t, sql.NullString{String: imageSize, Valid: true}, prepared.args[36])
+	require.Equal(t, sql.NullString{String: inputSize, Valid: true}, prepared.args[37])
+	require.Equal(t, sql.NullString{String: outputSize, Valid: true}, prepared.args[38])
+	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[39])
+	breakdownJSON, ok := prepared.args[40].(string)
 	require.True(t, ok)
 	require.JSONEq(t, `{"1K":1,"4K":1}`, breakdownJSON)
 }
@@ -330,9 +350,9 @@ func TestPrepareUsageLogInsert_PersistsChannelPriceSnapshot(t *testing.T) {
 
 	require.Contains(t, usageLogSelectColumns, "channel_price_snapshot")
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	require.Equal(t, &price, prepared.args[50])
-	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[51])
-	require.Equal(t, sql.NullTime{Time: refreshedAt, Valid: true}, prepared.args[52])
+	require.Equal(t, &price, prepared.args[51])
+	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[52])
+	require.Equal(t, sql.NullTime{Time: refreshedAt, Valid: true}, prepared.args[53])
 }
 
 func TestScanUsageLog_ChannelPriceSnapshot(t *testing.T) {
@@ -343,7 +363,7 @@ func TestScanUsageLog_ChannelPriceSnapshot(t *testing.T) {
 
 	rowValues := []any{
 		int64(99), int64(1), int64(2), int64(3), "req-channel-price", "gpt-5", "gpt-5", nil,
-		nil, nil, service.APIKeyGroupSelectModeOpenAIAutoCheapest, 10, 20, 0, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.5, 1.5,
+		nil, nil, nil, service.APIKeyGroupSelectModeOpenAIAutoCheapest, 10, 20, 0, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.5, 1.5,
 		nil, int16(service.BillingTypeBalance), int16(service.RequestTypeSync), false, false,
 		nil, nil, nil, nil, 0, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, nil,
 		nil, nil, nil, nil, price, source, refreshedAt, createdAt,
@@ -956,6 +976,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{Valid: true, String: "gpt-image-2"},
 			sql.NullString{},
 			sql.NullInt64{},
+			sql.NullString{},
 			sql.NullInt64{},
 			sql.NullString{},
 			0, 0, 0, 0, 0, 0,
@@ -1017,6 +1038,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{Valid: true, String: "gpt-5"}, // requested_model
 			sql.NullString{},  // upstream_model
 			sql.NullInt64{},   // group_id
+			sql.NullString{},  // group_name
 			sql.NullInt64{},   // subscription_id
 			sql.NullString{},  // api_key_group_select_mode
 			1,                 // input_tokens
@@ -1084,6 +1106,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{Valid: true, String: "gpt-5"},
 			sql.NullString{},
 			sql.NullInt64{},
+			sql.NullString{},
 			sql.NullInt64{},
 			sql.NullString{},
 			1, 2, 3, 4, 5, 6,
@@ -1140,6 +1163,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{Valid: true, String: "gpt-5.4"},
 			sql.NullString{},
 			sql.NullInt64{},
+			sql.NullString{},
 			sql.NullInt64{},
 			sql.NullString{Valid: true, String: service.APIKeyGroupSelectModeOpenAIAutoCheapest},
 			1, 2, 3, 4, 5, 6,

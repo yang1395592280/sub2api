@@ -60,6 +60,11 @@ func (UsageLog) Fields() []ent.Field {
 		field.Int64("group_id").
 			Optional().
 			Nillable(),
+		field.String("group_name").
+			MaxLen(255).
+			Optional().
+			Nillable().
+			Comment("分组名称快照，用于分组删除后保持历史使用记录可读"),
 		field.Int64("subscription_id").
 			Optional().
 			Nillable(),

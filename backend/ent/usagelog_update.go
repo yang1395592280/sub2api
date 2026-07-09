@@ -250,6 +250,26 @@ func (_u *UsageLogUpdate) ClearGroupID() *UsageLogUpdate {
 	return _u
 }
 
+// SetGroupName sets the "group_name" field.
+func (_u *UsageLogUpdate) SetGroupName(v string) *UsageLogUpdate {
+	_u.mutation.SetGroupName(v)
+	return _u
+}
+
+// SetNillableGroupName sets the "group_name" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableGroupName(v *string) *UsageLogUpdate {
+	if v != nil {
+		_u.SetGroupName(*v)
+	}
+	return _u
+}
+
+// ClearGroupName clears the value of the "group_name" field.
+func (_u *UsageLogUpdate) ClearGroupName() *UsageLogUpdate {
+	_u.mutation.ClearGroupName()
+	return _u
+}
+
 // SetSubscriptionID sets the "subscription_id" field.
 func (_u *UsageLogUpdate) SetSubscriptionID(v int64) *UsageLogUpdate {
 	_u.mutation.SetSubscriptionID(v)
@@ -1037,6 +1057,11 @@ func (_u *UsageLogUpdate) check() error {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.GroupName(); ok {
+		if err := usagelog.GroupNameValidator(v); err != nil {
+			return &ValidationError{Name: "group_name", err: fmt.Errorf(`ent: validator failed for field "UsageLog.group_name": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.APIKeyGroupSelectMode(); ok {
 		if err := usagelog.APIKeyGroupSelectModeValidator(v); err != nil {
 			return &ValidationError{Name: "api_key_group_select_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.api_key_group_select_mode": %w`, err)}
@@ -1145,6 +1170,12 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.BillingModeCleared() {
 		_spec.ClearField(usagelog.FieldBillingMode, field.TypeString)
+	}
+	if value, ok := _u.mutation.GroupName(); ok {
+		_spec.SetField(usagelog.FieldGroupName, field.TypeString, value)
+	}
+	if _u.mutation.GroupNameCleared() {
+		_spec.ClearField(usagelog.FieldGroupName, field.TypeString)
 	}
 	if value, ok := _u.mutation.APIKeyGroupSelectMode(); ok {
 		_spec.SetField(usagelog.FieldAPIKeyGroupSelectMode, field.TypeString, value)
@@ -1717,6 +1748,26 @@ func (_u *UsageLogUpdateOne) SetNillableGroupID(v *int64) *UsageLogUpdateOne {
 // ClearGroupID clears the value of the "group_id" field.
 func (_u *UsageLogUpdateOne) ClearGroupID() *UsageLogUpdateOne {
 	_u.mutation.ClearGroupID()
+	return _u
+}
+
+// SetGroupName sets the "group_name" field.
+func (_u *UsageLogUpdateOne) SetGroupName(v string) *UsageLogUpdateOne {
+	_u.mutation.SetGroupName(v)
+	return _u
+}
+
+// SetNillableGroupName sets the "group_name" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableGroupName(v *string) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetGroupName(*v)
+	}
+	return _u
+}
+
+// ClearGroupName clears the value of the "group_name" field.
+func (_u *UsageLogUpdateOne) ClearGroupName() *UsageLogUpdateOne {
+	_u.mutation.ClearGroupName()
 	return _u
 }
 
@@ -2520,6 +2571,11 @@ func (_u *UsageLogUpdateOne) check() error {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.GroupName(); ok {
+		if err := usagelog.GroupNameValidator(v); err != nil {
+			return &ValidationError{Name: "group_name", err: fmt.Errorf(`ent: validator failed for field "UsageLog.group_name": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.APIKeyGroupSelectMode(); ok {
 		if err := usagelog.APIKeyGroupSelectModeValidator(v); err != nil {
 			return &ValidationError{Name: "api_key_group_select_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.api_key_group_select_mode": %w`, err)}
@@ -2645,6 +2701,12 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if _u.mutation.BillingModeCleared() {
 		_spec.ClearField(usagelog.FieldBillingMode, field.TypeString)
+	}
+	if value, ok := _u.mutation.GroupName(); ok {
+		_spec.SetField(usagelog.FieldGroupName, field.TypeString, value)
+	}
+	if _u.mutation.GroupNameCleared() {
+		_spec.ClearField(usagelog.FieldGroupName, field.TypeString)
 	}
 	if value, ok := _u.mutation.APIKeyGroupSelectMode(); ok {
 		_spec.SetField(usagelog.FieldAPIKeyGroupSelectMode, field.TypeString, value)
