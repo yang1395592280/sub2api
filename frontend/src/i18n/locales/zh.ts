@@ -1603,6 +1603,12 @@ export default {
     zenxiangLiyu: {
       title: '臻享礼遇运营',
       description: '配置奖项、授权用户并查看活动统计',
+      refresh: '刷新', settings: '活动设置', prizes: '奖项概率', stats: '授权与统计', simulator: '模拟器',
+      settingsTitle: '活动设置', settingsHint: '全局开启时，满足站内余额条件的普通用户均可参与；关闭时仅单独授权账号可参与。',
+      ticketAmount: '参与额度', minimumBalance: '最低站内余额', dailyPlayLimit: '每日参与次数', saveSettings: '保存设置', settingsSaved: '设置已保存', settingsSaveFailed: '保存设置失败',
+      prizeTitle: '奖项档位与概率', prizeHint: '系统后端负责礼遇结果计算；启用档位的概率合计必须为 100%。', addPrize: '添加档位', newPrize: '新礼遇档位', prizeName: '档位名称', rewardAmount: '礼遇额度', probability: '概率', enabled: '启用', sortOrder: '排序', remove: '删除', savePrizeConfiguration: '保存完整配置', probabilityTotal: '启用档位概率合计', probabilityWarning: '当前启用档位概率合计为 {total}%，必须为 100% 才能保存完整配置。', theoreticalExpense: '理论单次支出', theoreticalProfit: '理论单次盈亏', theoreticalProfitRate: '理论盈亏率', prizesSaved: '奖项配置已保存', prizesSaveFailed: '保存奖项配置失败',
+      startDate: '开始日期', endDate: '结束日期', refreshStats: '刷新统计', systemRevenue: '系统收入', systemExpense: '系统支出', systemProfit: '系统盈亏', profitRate: '盈亏率', participantsAndPlays: '参与用户 / 次数', userStats: '用户统计', prizeStats: '奖项统计', user: '用户', plays: '参与次数', ticketTotal: '参与额度合计', rewardTotal: '礼遇额度合计', netTotal: '用户净额', hitCount: '命中次数', actualRate: '实际命中率', grants: '单账号授权', grantUserId: '用户 ID', grant: '授权', noGrants: '暂无单账号授权', grantSaved: '授权已保存', grantSaveFailed: '保存授权失败', grantRemoved: '授权已移除', grantRemoveFailed: '移除授权失败', statsLoadFailed: '加载统计失败',
+      simulatorTitle: '运营模拟', simulatorHint: '模拟仅计算运营结果，不写入真实用户站内余额或真实流水。', userCount: '模拟用户数', playsPerUser: '每用户参与次数', initialBalance: '初始站内余额', targetProfitRate: '目标盈利率', runSimulation: '运行模拟', recommend: '推荐概率', totalPlays: '模拟参与次数', simulationFailed: '运行模拟失败', recommendations: '推荐方案', planSummary: '理论盈亏 {profit}，理论盈利率 {rate}', applyToLocalPrizes: '应用到本地奖项配置', recommendationApplied: '推荐方案已应用到本地奖项配置，请在奖项概率页核对后保存。', recommendationFailed: '生成推荐方案失败', loadFailed: '加载臻享礼遇配置失败',
     },
     workbench: {
       title: '工作台记录',

@@ -73,7 +73,7 @@ export interface ZenxiangLiyuSimulationRequest {
   ticket_amount: number
   minimum_balance: number
   daily_play_limit: number
-  prizes: ZenxiangLiyuPrize[]
+  prizes: ZenxiangLiyuPrizeInput[]
 }
 
 export interface ZenxiangLiyuSimulationPrizeHit {
@@ -98,7 +98,7 @@ export interface ZenxiangLiyuSimulationResult {
 export interface ZenxiangLiyuRecommendationRequest {
   target_profit_rate: number
   ticket_amount: number
-  prizes: ZenxiangLiyuPrize[]
+  prizes: ZenxiangLiyuPrizeInput[]
 }
 
 export interface ZenxiangLiyuRecommendationPlan {
