@@ -140,7 +140,7 @@ func (User) Edges() []ent.Edge {
 		edge.To("zenxiang_liyu_grants", ZenxiangLiyuUserGrant.Type).
 			Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("zenxiang_liyu_records", ZenxiangLiyuRecord.Type).
-			Annotations(entsql.OnDelete(entsql.Cascade)),
+			Annotations(entsql.OnDelete(entsql.Restrict)),
 	}
 }
 

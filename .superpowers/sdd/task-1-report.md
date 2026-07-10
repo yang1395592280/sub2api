@@ -66,3 +66,24 @@ None.
 ### Concern
 
 - The database-backed integration test did not run in this environment because Docker is unavailable; run it with Docker available to validate the forward migration against PostgreSQL.
+
+---
+
+## Task 1 Third Review Fixes
+
+### Changes
+
+- Added forward migration `174_zenxiang_liyu_record_fk_immutability_fix.sql`; it replaces the records-to-users foreign key with `ON DELETE RESTRICT`, preserving immutable ledger rows by preventing deletion of a referenced user.
+- Replaced the record immutability trigger function so only the database-managed prize delete action (`prize_id` non-null to `NULL`, with every other field unchanged) is permitted. Record deletes and all other updates remain rejected.
+- Updated the `User` Ent edge for Zenxiang Liyu records to `entsql.Restrict`; generated Ent metadata is regenerated to match the database constraint.
+
+### Verification
+
+- `cd backend && GOCACHE=/tmp/sub2api-go-cache go generate ./ent` passed.
+- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./ent ./internal/repository -run 'TestMigrations|Test.*Schema' -count=1` passed; no matching unit tests are enabled.
+- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test -tags integration ./internal/repository -run '^TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate$' -count=1 -v` completed successfully but skipped because Docker is unavailable.
+- `git diff --check` passed.
+
+### Concern
+
+- Run the integration migration test with Docker available to validate the `174` foreign-key replacement and trigger behavior against PostgreSQL.

@@ -2251,7 +2251,7 @@ var (
 				Symbol:     "zenxiang_liyu_records_users_zenxiang_liyu_records",
 				Columns:    []*schema.Column{ZenxiangLiyuRecordsColumns[16]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
-				OnDelete:   schema.Cascade,
+				OnDelete:   schema.Restrict,
 			},
 			{
 				Symbol:     "zenxiang_liyu_records_zenxiang_liyu_prizes_records",
