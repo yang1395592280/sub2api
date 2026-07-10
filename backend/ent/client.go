@@ -7505,6 +7505,22 @@ func (c *ZenxiangLiyuPrizeClient) GetX(ctx context.Context, id int64) *ZenxiangL
 	return obj
 }
 
+// QueryRecords queries the records edge of a ZenxiangLiyuPrize.
+func (c *ZenxiangLiyuPrizeClient) QueryRecords(_m *ZenxiangLiyuPrize) *ZenxiangLiyuRecordQuery {
+	query := (&ZenxiangLiyuRecordClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(zenxiangliyuprize.Table, zenxiangliyuprize.FieldID, id),
+			sqlgraph.To(zenxiangliyurecord.Table, zenxiangliyurecord.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, zenxiangliyuprize.RecordsTable, zenxiangliyuprize.RecordsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *ZenxiangLiyuPrizeClient) Hooks() []Hook {
 	return c.hooks.ZenxiangLiyuPrize
@@ -7647,6 +7663,22 @@ func (c *ZenxiangLiyuRecordClient) QueryUser(_m *ZenxiangLiyuRecord) *UserQuery 
 			sqlgraph.From(zenxiangliyurecord.Table, zenxiangliyurecord.FieldID, id),
 			sqlgraph.To(user.Table, user.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, true, zenxiangliyurecord.UserTable, zenxiangliyurecord.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryPrize queries the prize edge of a ZenxiangLiyuRecord.
+func (c *ZenxiangLiyuRecordClient) QueryPrize(_m *ZenxiangLiyuRecord) *ZenxiangLiyuPrizeQuery {
+	query := (&ZenxiangLiyuPrizeClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(zenxiangliyurecord.Table, zenxiangliyurecord.FieldID, id),
+			sqlgraph.To(zenxiangliyuprize.Table, zenxiangliyuprize.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, zenxiangliyurecord.PrizeTable, zenxiangliyurecord.PrizeColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -7929,6 +7961,22 @@ func (c *ZenxiangLiyuUserGrantClient) QueryUser(_m *ZenxiangLiyuUserGrant) *User
 			sqlgraph.From(zenxiangliyuusergrant.Table, zenxiangliyuusergrant.FieldID, id),
 			sqlgraph.To(user.Table, user.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, true, zenxiangliyuusergrant.UserTable, zenxiangliyuusergrant.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryGrantedByUser queries the granted_by_user edge of a ZenxiangLiyuUserGrant.
+func (c *ZenxiangLiyuUserGrantClient) QueryGrantedByUser(_m *ZenxiangLiyuUserGrant) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(zenxiangliyuusergrant.Table, zenxiangliyuusergrant.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, zenxiangliyuusergrant.GrantedByUserTable, zenxiangliyuusergrant.GrantedByUserColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil

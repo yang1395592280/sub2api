@@ -39,6 +39,10 @@ func (ZenxiangLiyuUserGrant) Fields() []ent.Field {
 func (ZenxiangLiyuUserGrant) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.From("user", User.Type).Ref("zenxiang_liyu_grants").Field("user_id").Required().Unique(),
+		edge.To("granted_by_user", User.Type).
+			Field("granted_by").
+			Unique().
+			Annotations(entsql.OnDelete(entsql.SetNull)),
 	}
 }
 

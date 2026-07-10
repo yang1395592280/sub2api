@@ -15,6 +15,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/user"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuprize"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
 )
 
@@ -201,7 +202,6 @@ func (_u *ZenxiangLiyuRecordUpdate) AddSystemProfit(v float64) *ZenxiangLiyuReco
 
 // SetPrizeID sets the "prize_id" field.
 func (_u *ZenxiangLiyuRecordUpdate) SetPrizeID(v int64) *ZenxiangLiyuRecordUpdate {
-	_u.mutation.ResetPrizeID()
 	_u.mutation.SetPrizeID(v)
 	return _u
 }
@@ -211,12 +211,6 @@ func (_u *ZenxiangLiyuRecordUpdate) SetNillablePrizeID(v *int64) *ZenxiangLiyuRe
 	if v != nil {
 		_u.SetPrizeID(*v)
 	}
-	return _u
-}
-
-// AddPrizeID adds value to the "prize_id" field.
-func (_u *ZenxiangLiyuRecordUpdate) AddPrizeID(v int64) *ZenxiangLiyuRecordUpdate {
-	_u.mutation.AddPrizeID(v)
 	return _u
 }
 
@@ -341,6 +335,11 @@ func (_u *ZenxiangLiyuRecordUpdate) SetUser(v *User) *ZenxiangLiyuRecordUpdate {
 	return _u.SetUserID(v.ID)
 }
 
+// SetPrize sets the "prize" edge to the ZenxiangLiyuPrize entity.
+func (_u *ZenxiangLiyuRecordUpdate) SetPrize(v *ZenxiangLiyuPrize) *ZenxiangLiyuRecordUpdate {
+	return _u.SetPrizeID(v.ID)
+}
+
 // Mutation returns the ZenxiangLiyuRecordMutation object of the builder.
 func (_u *ZenxiangLiyuRecordUpdate) Mutation() *ZenxiangLiyuRecordMutation {
 	return _u.mutation
@@ -349,6 +348,12 @@ func (_u *ZenxiangLiyuRecordUpdate) Mutation() *ZenxiangLiyuRecordMutation {
 // ClearUser clears the "user" edge to the User entity.
 func (_u *ZenxiangLiyuRecordUpdate) ClearUser() *ZenxiangLiyuRecordUpdate {
 	_u.mutation.ClearUser()
+	return _u
+}
+
+// ClearPrize clears the "prize" edge to the ZenxiangLiyuPrize entity.
+func (_u *ZenxiangLiyuRecordUpdate) ClearPrize() *ZenxiangLiyuRecordUpdate {
+	_u.mutation.ClearPrize()
 	return _u
 }
 
@@ -451,15 +456,6 @@ func (_u *ZenxiangLiyuRecordUpdate) sqlSave(ctx context.Context) (_node int, err
 	if value, ok := _u.mutation.AddedSystemProfit(); ok {
 		_spec.AddField(zenxiangliyurecord.FieldSystemProfit, field.TypeFloat64, value)
 	}
-	if value, ok := _u.mutation.PrizeID(); ok {
-		_spec.SetField(zenxiangliyurecord.FieldPrizeID, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.AddedPrizeID(); ok {
-		_spec.AddField(zenxiangliyurecord.FieldPrizeID, field.TypeInt64, value)
-	}
-	if _u.mutation.PrizeIDCleared() {
-		_spec.ClearField(zenxiangliyurecord.FieldPrizeID, field.TypeInt64)
-	}
 	if value, ok := _u.mutation.PrizeNameSnapshot(); ok {
 		_spec.SetField(zenxiangliyurecord.FieldPrizeNameSnapshot, field.TypeString, value)
 	}
@@ -517,6 +513,35 @@ func (_u *ZenxiangLiyuRecordUpdate) sqlSave(ctx context.Context) (_node int, err
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.PrizeCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   zenxiangliyurecord.PrizeTable,
+			Columns: []string{zenxiangliyurecord.PrizeColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyuprize.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.PrizeIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   zenxiangliyurecord.PrizeTable,
+			Columns: []string{zenxiangliyurecord.PrizeColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyuprize.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -714,7 +739,6 @@ func (_u *ZenxiangLiyuRecordUpdateOne) AddSystemProfit(v float64) *ZenxiangLiyuR
 
 // SetPrizeID sets the "prize_id" field.
 func (_u *ZenxiangLiyuRecordUpdateOne) SetPrizeID(v int64) *ZenxiangLiyuRecordUpdateOne {
-	_u.mutation.ResetPrizeID()
 	_u.mutation.SetPrizeID(v)
 	return _u
 }
@@ -724,12 +748,6 @@ func (_u *ZenxiangLiyuRecordUpdateOne) SetNillablePrizeID(v *int64) *ZenxiangLiy
 	if v != nil {
 		_u.SetPrizeID(*v)
 	}
-	return _u
-}
-
-// AddPrizeID adds value to the "prize_id" field.
-func (_u *ZenxiangLiyuRecordUpdateOne) AddPrizeID(v int64) *ZenxiangLiyuRecordUpdateOne {
-	_u.mutation.AddPrizeID(v)
 	return _u
 }
 
@@ -854,6 +872,11 @@ func (_u *ZenxiangLiyuRecordUpdateOne) SetUser(v *User) *ZenxiangLiyuRecordUpdat
 	return _u.SetUserID(v.ID)
 }
 
+// SetPrize sets the "prize" edge to the ZenxiangLiyuPrize entity.
+func (_u *ZenxiangLiyuRecordUpdateOne) SetPrize(v *ZenxiangLiyuPrize) *ZenxiangLiyuRecordUpdateOne {
+	return _u.SetPrizeID(v.ID)
+}
+
 // Mutation returns the ZenxiangLiyuRecordMutation object of the builder.
 func (_u *ZenxiangLiyuRecordUpdateOne) Mutation() *ZenxiangLiyuRecordMutation {
 	return _u.mutation
@@ -862,6 +885,12 @@ func (_u *ZenxiangLiyuRecordUpdateOne) Mutation() *ZenxiangLiyuRecordMutation {
 // ClearUser clears the "user" edge to the User entity.
 func (_u *ZenxiangLiyuRecordUpdateOne) ClearUser() *ZenxiangLiyuRecordUpdateOne {
 	_u.mutation.ClearUser()
+	return _u
+}
+
+// ClearPrize clears the "prize" edge to the ZenxiangLiyuPrize entity.
+func (_u *ZenxiangLiyuRecordUpdateOne) ClearPrize() *ZenxiangLiyuRecordUpdateOne {
+	_u.mutation.ClearPrize()
 	return _u
 }
 
@@ -994,15 +1023,6 @@ func (_u *ZenxiangLiyuRecordUpdateOne) sqlSave(ctx context.Context) (_node *Zenx
 	if value, ok := _u.mutation.AddedSystemProfit(); ok {
 		_spec.AddField(zenxiangliyurecord.FieldSystemProfit, field.TypeFloat64, value)
 	}
-	if value, ok := _u.mutation.PrizeID(); ok {
-		_spec.SetField(zenxiangliyurecord.FieldPrizeID, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.AddedPrizeID(); ok {
-		_spec.AddField(zenxiangliyurecord.FieldPrizeID, field.TypeInt64, value)
-	}
-	if _u.mutation.PrizeIDCleared() {
-		_spec.ClearField(zenxiangliyurecord.FieldPrizeID, field.TypeInt64)
-	}
 	if value, ok := _u.mutation.PrizeNameSnapshot(); ok {
 		_spec.SetField(zenxiangliyurecord.FieldPrizeNameSnapshot, field.TypeString, value)
 	}
@@ -1060,6 +1080,35 @@ func (_u *ZenxiangLiyuRecordUpdateOne) sqlSave(ctx context.Context) (_node *Zenx
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.PrizeCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   zenxiangliyurecord.PrizeTable,
+			Columns: []string{zenxiangliyurecord.PrizeColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyuprize.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.PrizeIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   zenxiangliyurecord.PrizeTable,
+			Columns: []string{zenxiangliyurecord.PrizeColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyuprize.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

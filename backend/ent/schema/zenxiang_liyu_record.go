@@ -49,6 +49,7 @@ func (ZenxiangLiyuRecord) Fields() []ent.Field {
 func (ZenxiangLiyuRecord) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.From("user", User.Type).Ref("zenxiang_liyu_records").Field("user_id").Required().Unique(),
+		edge.From("prize", ZenxiangLiyuPrize.Type).Ref("records").Field("prize_id").Unique(),
 	}
 }
 

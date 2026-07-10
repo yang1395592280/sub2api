@@ -215,26 +215,6 @@ func GrantedByNotIn(vs ...int64) predicate.ZenxiangLiyuUserGrant {
 	return predicate.ZenxiangLiyuUserGrant(sql.FieldNotIn(FieldGrantedBy, vs...))
 }
 
-// GrantedByGT applies the GT predicate on the "granted_by" field.
-func GrantedByGT(v int64) predicate.ZenxiangLiyuUserGrant {
-	return predicate.ZenxiangLiyuUserGrant(sql.FieldGT(FieldGrantedBy, v))
-}
-
-// GrantedByGTE applies the GTE predicate on the "granted_by" field.
-func GrantedByGTE(v int64) predicate.ZenxiangLiyuUserGrant {
-	return predicate.ZenxiangLiyuUserGrant(sql.FieldGTE(FieldGrantedBy, v))
-}
-
-// GrantedByLT applies the LT predicate on the "granted_by" field.
-func GrantedByLT(v int64) predicate.ZenxiangLiyuUserGrant {
-	return predicate.ZenxiangLiyuUserGrant(sql.FieldLT(FieldGrantedBy, v))
-}
-
-// GrantedByLTE applies the LTE predicate on the "granted_by" field.
-func GrantedByLTE(v int64) predicate.ZenxiangLiyuUserGrant {
-	return predicate.ZenxiangLiyuUserGrant(sql.FieldLTE(FieldGrantedBy, v))
-}
-
 // GrantedByIsNil applies the IsNil predicate on the "granted_by" field.
 func GrantedByIsNil() predicate.ZenxiangLiyuUserGrant {
 	return predicate.ZenxiangLiyuUserGrant(sql.FieldIsNull(FieldGrantedBy))
@@ -325,6 +305,29 @@ func HasUser() predicate.ZenxiangLiyuUserGrant {
 func HasUserWith(preds ...predicate.User) predicate.ZenxiangLiyuUserGrant {
 	return predicate.ZenxiangLiyuUserGrant(func(s *sql.Selector) {
 		step := newUserStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasGrantedByUser applies the HasEdge predicate on the "granted_by_user" edge.
+func HasGrantedByUser() predicate.ZenxiangLiyuUserGrant {
+	return predicate.ZenxiangLiyuUserGrant(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, GrantedByUserTable, GrantedByUserColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasGrantedByUserWith applies the HasEdge predicate on the "granted_by_user" edge with a given conditions (other predicates).
+func HasGrantedByUserWith(preds ...predicate.User) predicate.ZenxiangLiyuUserGrant {
+	return predicate.ZenxiangLiyuUserGrant(func(s *sql.Selector) {
+		step := newGrantedByUserStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

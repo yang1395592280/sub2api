@@ -51,6 +51,8 @@ const (
 	FieldCreatedAt = "created_at"
 	// EdgeUser holds the string denoting the user edge name in mutations.
 	EdgeUser = "user"
+	// EdgePrize holds the string denoting the prize edge name in mutations.
+	EdgePrize = "prize"
 	// Table holds the table name of the zenxiangliyurecord in the database.
 	Table = "zenxiang_liyu_records"
 	// UserTable is the table that holds the user relation/edge.
@@ -60,6 +62,13 @@ const (
 	UserInverseTable = "users"
 	// UserColumn is the table column denoting the user relation/edge.
 	UserColumn = "user_id"
+	// PrizeTable is the table that holds the prize relation/edge.
+	PrizeTable = "zenxiang_liyu_records"
+	// PrizeInverseTable is the table name for the ZenxiangLiyuPrize entity.
+	// It exists in this package in order to avoid circular dependency with the "zenxiangliyuprize" package.
+	PrizeInverseTable = "zenxiang_liyu_prizes"
+	// PrizeColumn is the table column denoting the prize relation/edge.
+	PrizeColumn = "prize_id"
 )
 
 // Columns holds all SQL columns for zenxiangliyurecord fields.
@@ -199,10 +208,24 @@ func ByUserField(field string, opts ...sql.OrderTermOption) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newUserStep(), sql.OrderByField(field, opts...))
 	}
 }
+
+// ByPrizeField orders the results by prize field.
+func ByPrizeField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newPrizeStep(), sql.OrderByField(field, opts...))
+	}
+}
 func newUserStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(UserInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.M2O, true, UserTable, UserColumn),
+	)
+}
+func newPrizeStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(PrizeInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2O, true, PrizeTable, PrizeColumn),
 	)
 }

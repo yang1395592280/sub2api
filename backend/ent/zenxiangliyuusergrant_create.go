@@ -104,6 +104,25 @@ func (_c *ZenxiangLiyuUserGrantCreate) SetUser(v *User) *ZenxiangLiyuUserGrantCr
 	return _c.SetUserID(v.ID)
 }
 
+// SetGrantedByUserID sets the "granted_by_user" edge to the User entity by ID.
+func (_c *ZenxiangLiyuUserGrantCreate) SetGrantedByUserID(id int64) *ZenxiangLiyuUserGrantCreate {
+	_c.mutation.SetGrantedByUserID(id)
+	return _c
+}
+
+// SetNillableGrantedByUserID sets the "granted_by_user" edge to the User entity by ID if the given value is not nil.
+func (_c *ZenxiangLiyuUserGrantCreate) SetNillableGrantedByUserID(id *int64) *ZenxiangLiyuUserGrantCreate {
+	if id != nil {
+		_c = _c.SetGrantedByUserID(*id)
+	}
+	return _c
+}
+
+// SetGrantedByUser sets the "granted_by_user" edge to the User entity.
+func (_c *ZenxiangLiyuUserGrantCreate) SetGrantedByUser(v *User) *ZenxiangLiyuUserGrantCreate {
+	return _c.SetGrantedByUserID(v.ID)
+}
+
 // Mutation returns the ZenxiangLiyuUserGrantMutation object of the builder.
 func (_c *ZenxiangLiyuUserGrantCreate) Mutation() *ZenxiangLiyuUserGrantMutation {
 	return _c.mutation
@@ -216,10 +235,6 @@ func (_c *ZenxiangLiyuUserGrantCreate) createSpec() (*ZenxiangLiyuUserGrant, *sq
 		_spec.SetField(zenxiangliyuusergrant.FieldEnabled, field.TypeBool, value)
 		_node.Enabled = value
 	}
-	if value, ok := _c.mutation.GrantedBy(); ok {
-		_spec.SetField(zenxiangliyuusergrant.FieldGrantedBy, field.TypeInt64, value)
-		_node.GrantedBy = &value
-	}
 	if value, ok := _c.mutation.Notes(); ok {
 		_spec.SetField(zenxiangliyuusergrant.FieldNotes, field.TypeString, value)
 		_node.Notes = value
@@ -239,6 +254,23 @@ func (_c *ZenxiangLiyuUserGrantCreate) createSpec() (*ZenxiangLiyuUserGrant, *sq
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		_node.UserID = nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.GrantedByUserIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   zenxiangliyuusergrant.GrantedByUserTable,
+			Columns: []string{zenxiangliyuusergrant.GrantedByUserColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.GrantedBy = &nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
@@ -338,12 +370,6 @@ func (u *ZenxiangLiyuUserGrantUpsert) SetGrantedBy(v int64) *ZenxiangLiyuUserGra
 // UpdateGrantedBy sets the "granted_by" field to the value that was provided on create.
 func (u *ZenxiangLiyuUserGrantUpsert) UpdateGrantedBy() *ZenxiangLiyuUserGrantUpsert {
 	u.SetExcluded(zenxiangliyuusergrant.FieldGrantedBy)
-	return u
-}
-
-// AddGrantedBy adds v to the "granted_by" field.
-func (u *ZenxiangLiyuUserGrantUpsert) AddGrantedBy(v int64) *ZenxiangLiyuUserGrantUpsert {
-	u.Add(zenxiangliyuusergrant.FieldGrantedBy, v)
 	return u
 }
 
@@ -456,13 +482,6 @@ func (u *ZenxiangLiyuUserGrantUpsertOne) UpdateEnabled() *ZenxiangLiyuUserGrantU
 func (u *ZenxiangLiyuUserGrantUpsertOne) SetGrantedBy(v int64) *ZenxiangLiyuUserGrantUpsertOne {
 	return u.Update(func(s *ZenxiangLiyuUserGrantUpsert) {
 		s.SetGrantedBy(v)
-	})
-}
-
-// AddGrantedBy adds v to the "granted_by" field.
-func (u *ZenxiangLiyuUserGrantUpsertOne) AddGrantedBy(v int64) *ZenxiangLiyuUserGrantUpsertOne {
-	return u.Update(func(s *ZenxiangLiyuUserGrantUpsert) {
-		s.AddGrantedBy(v)
 	})
 }
 
@@ -751,13 +770,6 @@ func (u *ZenxiangLiyuUserGrantUpsertBulk) UpdateEnabled() *ZenxiangLiyuUserGrant
 func (u *ZenxiangLiyuUserGrantUpsertBulk) SetGrantedBy(v int64) *ZenxiangLiyuUserGrantUpsertBulk {
 	return u.Update(func(s *ZenxiangLiyuUserGrantUpsert) {
 		s.SetGrantedBy(v)
-	})
-}
-
-// AddGrantedBy adds v to the "granted_by" field.
-func (u *ZenxiangLiyuUserGrantUpsertBulk) AddGrantedBy(v int64) *ZenxiangLiyuUserGrantUpsertBulk {
-	return u.Update(func(s *ZenxiangLiyuUserGrantUpsert) {
-		s.AddGrantedBy(v)
 	})
 }
 

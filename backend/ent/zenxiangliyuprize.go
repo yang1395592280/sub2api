@@ -30,8 +30,29 @@ type ZenxiangLiyuPrize struct {
 	// Enabled holds the value of the "enabled" field.
 	Enabled bool `json:"enabled,omitempty"`
 	// SortOrder holds the value of the "sort_order" field.
-	SortOrder    int `json:"sort_order,omitempty"`
+	SortOrder int `json:"sort_order,omitempty"`
+	// Edges holds the relations/edges for other nodes in the graph.
+	// The values are being populated by the ZenxiangLiyuPrizeQuery when eager-loading is set.
+	Edges        ZenxiangLiyuPrizeEdges `json:"edges"`
 	selectValues sql.SelectValues
+}
+
+// ZenxiangLiyuPrizeEdges holds the relations/edges for other nodes in the graph.
+type ZenxiangLiyuPrizeEdges struct {
+	// Records holds the value of the records edge.
+	Records []*ZenxiangLiyuRecord `json:"records,omitempty"`
+	// loadedTypes holds the information for reporting if a
+	// type was loaded (or requested) in eager-loading or not.
+	loadedTypes [1]bool
+}
+
+// RecordsOrErr returns the Records value or an error if the edge
+// was not loaded in eager-loading.
+func (e ZenxiangLiyuPrizeEdges) RecordsOrErr() ([]*ZenxiangLiyuRecord, error) {
+	if e.loadedTypes[0] {
+		return e.Records, nil
+	}
+	return nil, &NotLoadedError{edge: "records"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -123,6 +144,11 @@ func (_m *ZenxiangLiyuPrize) assignValues(columns []string, values []any) error 
 // This includes values selected through modifiers, order, etc.
 func (_m *ZenxiangLiyuPrize) Value(name string) (ent.Value, error) {
 	return _m.selectValues.Get(name)
+}
+
+// QueryRecords queries the "records" edge of the ZenxiangLiyuPrize entity.
+func (_m *ZenxiangLiyuPrize) QueryRecords() *ZenxiangLiyuRecordQuery {
+	return NewZenxiangLiyuPrizeClient(_m.config).QueryRecords(_m)
 }
 
 // Update returns a builder for updating this ZenxiangLiyuPrize.

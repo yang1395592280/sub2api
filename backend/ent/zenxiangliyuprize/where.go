@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 )
 
@@ -362,6 +363,29 @@ func SortOrderLT(v int) predicate.ZenxiangLiyuPrize {
 // SortOrderLTE applies the LTE predicate on the "sort_order" field.
 func SortOrderLTE(v int) predicate.ZenxiangLiyuPrize {
 	return predicate.ZenxiangLiyuPrize(sql.FieldLTE(FieldSortOrder, v))
+}
+
+// HasRecords applies the HasEdge predicate on the "records" edge.
+func HasRecords() predicate.ZenxiangLiyuPrize {
+	return predicate.ZenxiangLiyuPrize(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, RecordsTable, RecordsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasRecordsWith applies the HasEdge predicate on the "records" edge with a given conditions (other predicates).
+func HasRecordsWith(preds ...predicate.ZenxiangLiyuRecord) predicate.ZenxiangLiyuPrize {
+	return predicate.ZenxiangLiyuPrize(func(s *sql.Selector) {
+		step := newRecordsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
 }
 
 // And groups predicates with the AND operator between them.

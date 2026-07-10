@@ -20,12 +20,13 @@ import (
 // ZenxiangLiyuUserGrantQuery is the builder for querying ZenxiangLiyuUserGrant entities.
 type ZenxiangLiyuUserGrantQuery struct {
 	config
-	ctx        *QueryContext
-	order      []zenxiangliyuusergrant.OrderOption
-	inters     []Interceptor
-	predicates []predicate.ZenxiangLiyuUserGrant
-	withUser   *UserQuery
-	modifiers  []func(*sql.Selector)
+	ctx               *QueryContext
+	order             []zenxiangliyuusergrant.OrderOption
+	inters            []Interceptor
+	predicates        []predicate.ZenxiangLiyuUserGrant
+	withUser          *UserQuery
+	withGrantedByUser *UserQuery
+	modifiers         []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -77,6 +78,28 @@ func (_q *ZenxiangLiyuUserGrantQuery) QueryUser() *UserQuery {
 			sqlgraph.From(zenxiangliyuusergrant.Table, zenxiangliyuusergrant.FieldID, selector),
 			sqlgraph.To(user.Table, user.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, true, zenxiangliyuusergrant.UserTable, zenxiangliyuusergrant.UserColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryGrantedByUser chains the current query on the "granted_by_user" edge.
+func (_q *ZenxiangLiyuUserGrantQuery) QueryGrantedByUser() *UserQuery {
+	query := (&UserClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(zenxiangliyuusergrant.Table, zenxiangliyuusergrant.FieldID, selector),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, zenxiangliyuusergrant.GrantedByUserTable, zenxiangliyuusergrant.GrantedByUserColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -271,12 +294,13 @@ func (_q *ZenxiangLiyuUserGrantQuery) Clone() *ZenxiangLiyuUserGrantQuery {
 		return nil
 	}
 	return &ZenxiangLiyuUserGrantQuery{
-		config:     _q.config,
-		ctx:        _q.ctx.Clone(),
-		order:      append([]zenxiangliyuusergrant.OrderOption{}, _q.order...),
-		inters:     append([]Interceptor{}, _q.inters...),
-		predicates: append([]predicate.ZenxiangLiyuUserGrant{}, _q.predicates...),
-		withUser:   _q.withUser.Clone(),
+		config:            _q.config,
+		ctx:               _q.ctx.Clone(),
+		order:             append([]zenxiangliyuusergrant.OrderOption{}, _q.order...),
+		inters:            append([]Interceptor{}, _q.inters...),
+		predicates:        append([]predicate.ZenxiangLiyuUserGrant{}, _q.predicates...),
+		withUser:          _q.withUser.Clone(),
+		withGrantedByUser: _q.withGrantedByUser.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -291,6 +315,17 @@ func (_q *ZenxiangLiyuUserGrantQuery) WithUser(opts ...func(*UserQuery)) *Zenxia
 		opt(query)
 	}
 	_q.withUser = query
+	return _q
+}
+
+// WithGrantedByUser tells the query-builder to eager-load the nodes that are connected to
+// the "granted_by_user" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *ZenxiangLiyuUserGrantQuery) WithGrantedByUser(opts ...func(*UserQuery)) *ZenxiangLiyuUserGrantQuery {
+	query := (&UserClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withGrantedByUser = query
 	return _q
 }
 
@@ -372,8 +407,9 @@ func (_q *ZenxiangLiyuUserGrantQuery) sqlAll(ctx context.Context, hooks ...query
 	var (
 		nodes       = []*ZenxiangLiyuUserGrant{}
 		_spec       = _q.querySpec()
-		loadedTypes = [1]bool{
+		loadedTypes = [2]bool{
 			_q.withUser != nil,
+			_q.withGrantedByUser != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -403,6 +439,12 @@ func (_q *ZenxiangLiyuUserGrantQuery) sqlAll(ctx context.Context, hooks ...query
 			return nil, err
 		}
 	}
+	if query := _q.withGrantedByUser; query != nil {
+		if err := _q.loadGrantedByUser(ctx, query, nodes, nil,
+			func(n *ZenxiangLiyuUserGrant, e *User) { n.Edges.GrantedByUser = e }); err != nil {
+			return nil, err
+		}
+	}
 	return nodes, nil
 }
 
@@ -428,6 +470,38 @@ func (_q *ZenxiangLiyuUserGrantQuery) loadUser(ctx context.Context, query *UserQ
 		nodes, ok := nodeids[n.ID]
 		if !ok {
 			return fmt.Errorf(`unexpected foreign-key "user_id" returned %v`, n.ID)
+		}
+		for i := range nodes {
+			assign(nodes[i], n)
+		}
+	}
+	return nil
+}
+func (_q *ZenxiangLiyuUserGrantQuery) loadGrantedByUser(ctx context.Context, query *UserQuery, nodes []*ZenxiangLiyuUserGrant, init func(*ZenxiangLiyuUserGrant), assign func(*ZenxiangLiyuUserGrant, *User)) error {
+	ids := make([]int64, 0, len(nodes))
+	nodeids := make(map[int64][]*ZenxiangLiyuUserGrant)
+	for i := range nodes {
+		if nodes[i].GrantedBy == nil {
+			continue
+		}
+		fk := *nodes[i].GrantedBy
+		if _, ok := nodeids[fk]; !ok {
+			ids = append(ids, fk)
+		}
+		nodeids[fk] = append(nodeids[fk], nodes[i])
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	query.Where(user.IDIn(ids...))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nodeids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected foreign-key "granted_by" returned %v`, n.ID)
 		}
 		for i := range nodes {
 			assign(nodes[i], n)
@@ -466,6 +540,9 @@ func (_q *ZenxiangLiyuUserGrantQuery) querySpec() *sqlgraph.QuerySpec {
 		}
 		if _q.withUser != nil {
 			_spec.Node.AddColumnOnce(zenxiangliyuusergrant.FieldUserID)
+		}
+		if _q.withGrantedByUser != nil {
+			_spec.Node.AddColumnOnce(zenxiangliyuusergrant.FieldGrantedBy)
 		}
 	}
 	if ps := _q.predicates; len(ps) > 0 {

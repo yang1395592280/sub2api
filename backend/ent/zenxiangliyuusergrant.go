@@ -40,9 +40,11 @@ type ZenxiangLiyuUserGrant struct {
 type ZenxiangLiyuUserGrantEdges struct {
 	// User holds the value of the user edge.
 	User *User `json:"user,omitempty"`
+	// GrantedByUser holds the value of the granted_by_user edge.
+	GrantedByUser *User `json:"granted_by_user,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 }
 
 // UserOrErr returns the User value or an error if the edge
@@ -54,6 +56,17 @@ func (e ZenxiangLiyuUserGrantEdges) UserOrErr() (*User, error) {
 		return nil, &NotFoundError{label: user.Label}
 	}
 	return nil, &NotLoadedError{edge: "user"}
+}
+
+// GrantedByUserOrErr returns the GrantedByUser value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e ZenxiangLiyuUserGrantEdges) GrantedByUserOrErr() (*User, error) {
+	if e.GrantedByUser != nil {
+		return e.GrantedByUser, nil
+	} else if e.loadedTypes[1] {
+		return nil, &NotFoundError{label: user.Label}
+	}
+	return nil, &NotLoadedError{edge: "granted_by_user"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -143,6 +156,11 @@ func (_m *ZenxiangLiyuUserGrant) Value(name string) (ent.Value, error) {
 // QueryUser queries the "user" edge of the ZenxiangLiyuUserGrant entity.
 func (_m *ZenxiangLiyuUserGrant) QueryUser() *UserQuery {
 	return NewZenxiangLiyuUserGrantClient(_m.config).QueryUser(_m)
+}
+
+// QueryGrantedByUser queries the "granted_by_user" edge of the ZenxiangLiyuUserGrant entity.
+func (_m *ZenxiangLiyuUserGrant) QueryGrantedByUser() *UserQuery {
+	return NewZenxiangLiyuUserGrantClient(_m.config).QueryGrantedByUser(_m)
 }
 
 // Update returns a builder for updating this ZenxiangLiyuUserGrant.

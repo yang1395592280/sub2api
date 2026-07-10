@@ -14,6 +14,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/user"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuprize"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
 )
 
@@ -25,6 +26,7 @@ type ZenxiangLiyuRecordQuery struct {
 	inters     []Interceptor
 	predicates []predicate.ZenxiangLiyuRecord
 	withUser   *UserQuery
+	withPrize  *ZenxiangLiyuPrizeQuery
 	modifiers  []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -77,6 +79,28 @@ func (_q *ZenxiangLiyuRecordQuery) QueryUser() *UserQuery {
 			sqlgraph.From(zenxiangliyurecord.Table, zenxiangliyurecord.FieldID, selector),
 			sqlgraph.To(user.Table, user.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, true, zenxiangliyurecord.UserTable, zenxiangliyurecord.UserColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryPrize chains the current query on the "prize" edge.
+func (_q *ZenxiangLiyuRecordQuery) QueryPrize() *ZenxiangLiyuPrizeQuery {
+	query := (&ZenxiangLiyuPrizeClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(zenxiangliyurecord.Table, zenxiangliyurecord.FieldID, selector),
+			sqlgraph.To(zenxiangliyuprize.Table, zenxiangliyuprize.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, zenxiangliyurecord.PrizeTable, zenxiangliyurecord.PrizeColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -277,6 +301,7 @@ func (_q *ZenxiangLiyuRecordQuery) Clone() *ZenxiangLiyuRecordQuery {
 		inters:     append([]Interceptor{}, _q.inters...),
 		predicates: append([]predicate.ZenxiangLiyuRecord{}, _q.predicates...),
 		withUser:   _q.withUser.Clone(),
+		withPrize:  _q.withPrize.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -291,6 +316,17 @@ func (_q *ZenxiangLiyuRecordQuery) WithUser(opts ...func(*UserQuery)) *ZenxiangL
 		opt(query)
 	}
 	_q.withUser = query
+	return _q
+}
+
+// WithPrize tells the query-builder to eager-load the nodes that are connected to
+// the "prize" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *ZenxiangLiyuRecordQuery) WithPrize(opts ...func(*ZenxiangLiyuPrizeQuery)) *ZenxiangLiyuRecordQuery {
+	query := (&ZenxiangLiyuPrizeClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withPrize = query
 	return _q
 }
 
@@ -372,8 +408,9 @@ func (_q *ZenxiangLiyuRecordQuery) sqlAll(ctx context.Context, hooks ...queryHoo
 	var (
 		nodes       = []*ZenxiangLiyuRecord{}
 		_spec       = _q.querySpec()
-		loadedTypes = [1]bool{
+		loadedTypes = [2]bool{
 			_q.withUser != nil,
+			_q.withPrize != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -403,6 +440,12 @@ func (_q *ZenxiangLiyuRecordQuery) sqlAll(ctx context.Context, hooks ...queryHoo
 			return nil, err
 		}
 	}
+	if query := _q.withPrize; query != nil {
+		if err := _q.loadPrize(ctx, query, nodes, nil,
+			func(n *ZenxiangLiyuRecord, e *ZenxiangLiyuPrize) { n.Edges.Prize = e }); err != nil {
+			return nil, err
+		}
+	}
 	return nodes, nil
 }
 
@@ -428,6 +471,38 @@ func (_q *ZenxiangLiyuRecordQuery) loadUser(ctx context.Context, query *UserQuer
 		nodes, ok := nodeids[n.ID]
 		if !ok {
 			return fmt.Errorf(`unexpected foreign-key "user_id" returned %v`, n.ID)
+		}
+		for i := range nodes {
+			assign(nodes[i], n)
+		}
+	}
+	return nil
+}
+func (_q *ZenxiangLiyuRecordQuery) loadPrize(ctx context.Context, query *ZenxiangLiyuPrizeQuery, nodes []*ZenxiangLiyuRecord, init func(*ZenxiangLiyuRecord), assign func(*ZenxiangLiyuRecord, *ZenxiangLiyuPrize)) error {
+	ids := make([]int64, 0, len(nodes))
+	nodeids := make(map[int64][]*ZenxiangLiyuRecord)
+	for i := range nodes {
+		if nodes[i].PrizeID == nil {
+			continue
+		}
+		fk := *nodes[i].PrizeID
+		if _, ok := nodeids[fk]; !ok {
+			ids = append(ids, fk)
+		}
+		nodeids[fk] = append(nodeids[fk], nodes[i])
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	query.Where(zenxiangliyuprize.IDIn(ids...))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nodeids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected foreign-key "prize_id" returned %v`, n.ID)
 		}
 		for i := range nodes {
 			assign(nodes[i], n)
@@ -466,6 +541,9 @@ func (_q *ZenxiangLiyuRecordQuery) querySpec() *sqlgraph.QuerySpec {
 		}
 		if _q.withUser != nil {
 			_spec.Node.AddColumnOnce(zenxiangliyurecord.FieldUserID)
+		}
+		if _q.withPrize != nil {
+			_spec.Node.AddColumnOnce(zenxiangliyurecord.FieldPrizeID)
 		}
 	}
 	if ps := _q.predicates; len(ps) > 0 {

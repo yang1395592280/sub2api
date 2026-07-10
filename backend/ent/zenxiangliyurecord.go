@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/Wei-Shaw/sub2api/ent/user"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuprize"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
 )
 
@@ -63,9 +64,11 @@ type ZenxiangLiyuRecord struct {
 type ZenxiangLiyuRecordEdges struct {
 	// User holds the value of the user edge.
 	User *User `json:"user,omitempty"`
+	// Prize holds the value of the prize edge.
+	Prize *ZenxiangLiyuPrize `json:"prize,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 }
 
 // UserOrErr returns the User value or an error if the edge
@@ -77,6 +80,17 @@ func (e ZenxiangLiyuRecordEdges) UserOrErr() (*User, error) {
 		return nil, &NotFoundError{label: user.Label}
 	}
 	return nil, &NotLoadedError{edge: "user"}
+}
+
+// PrizeOrErr returns the Prize value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e ZenxiangLiyuRecordEdges) PrizeOrErr() (*ZenxiangLiyuPrize, error) {
+	if e.Prize != nil {
+		return e.Prize, nil
+	} else if e.loadedTypes[1] {
+		return nil, &NotFoundError{label: zenxiangliyuprize.Label}
+	}
+	return nil, &NotLoadedError{edge: "prize"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -236,6 +250,11 @@ func (_m *ZenxiangLiyuRecord) Value(name string) (ent.Value, error) {
 // QueryUser queries the "user" edge of the ZenxiangLiyuRecord entity.
 func (_m *ZenxiangLiyuRecord) QueryUser() *UserQuery {
 	return NewZenxiangLiyuRecordClient(_m.config).QueryUser(_m)
+}
+
+// QueryPrize queries the "prize" edge of the ZenxiangLiyuRecord entity.
+func (_m *ZenxiangLiyuRecord) QueryPrize() *ZenxiangLiyuPrizeQuery {
+	return NewZenxiangLiyuRecordClient(_m.config).QueryPrize(_m)
 }
 
 // Update returns a builder for updating this ZenxiangLiyuRecord.

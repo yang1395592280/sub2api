@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuprize"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
 )
 
 // ZenxiangLiyuPrizeCreate is the builder for creating a ZenxiangLiyuPrize entity.
@@ -94,6 +95,21 @@ func (_c *ZenxiangLiyuPrizeCreate) SetNillableSortOrder(v *int) *ZenxiangLiyuPri
 		_c.SetSortOrder(*v)
 	}
 	return _c
+}
+
+// AddRecordIDs adds the "records" edge to the ZenxiangLiyuRecord entity by IDs.
+func (_c *ZenxiangLiyuPrizeCreate) AddRecordIDs(ids ...int64) *ZenxiangLiyuPrizeCreate {
+	_c.mutation.AddRecordIDs(ids...)
+	return _c
+}
+
+// AddRecords adds the "records" edges to the ZenxiangLiyuRecord entity.
+func (_c *ZenxiangLiyuPrizeCreate) AddRecords(v ...*ZenxiangLiyuRecord) *ZenxiangLiyuPrizeCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddRecordIDs(ids...)
 }
 
 // Mutation returns the ZenxiangLiyuPrizeMutation object of the builder.
@@ -231,6 +247,22 @@ func (_c *ZenxiangLiyuPrizeCreate) createSpec() (*ZenxiangLiyuPrize, *sqlgraph.C
 	if value, ok := _c.mutation.SortOrder(); ok {
 		_spec.SetField(zenxiangliyuprize.FieldSortOrder, field.TypeInt, value)
 		_node.SortOrder = value
+	}
+	if nodes := _c.mutation.RecordsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   zenxiangliyuprize.RecordsTable,
+			Columns: []string{zenxiangliyuprize.RecordsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyurecord.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
 }

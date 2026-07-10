@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuprize"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
 )
 
 // ZenxiangLiyuPrizeUpdate is the builder for updating ZenxiangLiyuPrize entities.
@@ -125,9 +126,45 @@ func (_u *ZenxiangLiyuPrizeUpdate) AddSortOrder(v int) *ZenxiangLiyuPrizeUpdate 
 	return _u
 }
 
+// AddRecordIDs adds the "records" edge to the ZenxiangLiyuRecord entity by IDs.
+func (_u *ZenxiangLiyuPrizeUpdate) AddRecordIDs(ids ...int64) *ZenxiangLiyuPrizeUpdate {
+	_u.mutation.AddRecordIDs(ids...)
+	return _u
+}
+
+// AddRecords adds the "records" edges to the ZenxiangLiyuRecord entity.
+func (_u *ZenxiangLiyuPrizeUpdate) AddRecords(v ...*ZenxiangLiyuRecord) *ZenxiangLiyuPrizeUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddRecordIDs(ids...)
+}
+
 // Mutation returns the ZenxiangLiyuPrizeMutation object of the builder.
 func (_u *ZenxiangLiyuPrizeUpdate) Mutation() *ZenxiangLiyuPrizeMutation {
 	return _u.mutation
+}
+
+// ClearRecords clears all "records" edges to the ZenxiangLiyuRecord entity.
+func (_u *ZenxiangLiyuPrizeUpdate) ClearRecords() *ZenxiangLiyuPrizeUpdate {
+	_u.mutation.ClearRecords()
+	return _u
+}
+
+// RemoveRecordIDs removes the "records" edge to ZenxiangLiyuRecord entities by IDs.
+func (_u *ZenxiangLiyuPrizeUpdate) RemoveRecordIDs(ids ...int64) *ZenxiangLiyuPrizeUpdate {
+	_u.mutation.RemoveRecordIDs(ids...)
+	return _u
+}
+
+// RemoveRecords removes "records" edges to ZenxiangLiyuRecord entities.
+func (_u *ZenxiangLiyuPrizeUpdate) RemoveRecords(v ...*ZenxiangLiyuRecord) *ZenxiangLiyuPrizeUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveRecordIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -214,6 +251,51 @@ func (_u *ZenxiangLiyuPrizeUpdate) sqlSave(ctx context.Context) (_node int, err 
 	}
 	if value, ok := _u.mutation.AddedSortOrder(); ok {
 		_spec.AddField(zenxiangliyuprize.FieldSortOrder, field.TypeInt, value)
+	}
+	if _u.mutation.RecordsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   zenxiangliyuprize.RecordsTable,
+			Columns: []string{zenxiangliyuprize.RecordsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyurecord.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedRecordsIDs(); len(nodes) > 0 && !_u.mutation.RecordsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   zenxiangliyuprize.RecordsTable,
+			Columns: []string{zenxiangliyuprize.RecordsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyurecord.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RecordsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   zenxiangliyuprize.RecordsTable,
+			Columns: []string{zenxiangliyuprize.RecordsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyurecord.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -332,9 +414,45 @@ func (_u *ZenxiangLiyuPrizeUpdateOne) AddSortOrder(v int) *ZenxiangLiyuPrizeUpda
 	return _u
 }
 
+// AddRecordIDs adds the "records" edge to the ZenxiangLiyuRecord entity by IDs.
+func (_u *ZenxiangLiyuPrizeUpdateOne) AddRecordIDs(ids ...int64) *ZenxiangLiyuPrizeUpdateOne {
+	_u.mutation.AddRecordIDs(ids...)
+	return _u
+}
+
+// AddRecords adds the "records" edges to the ZenxiangLiyuRecord entity.
+func (_u *ZenxiangLiyuPrizeUpdateOne) AddRecords(v ...*ZenxiangLiyuRecord) *ZenxiangLiyuPrizeUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddRecordIDs(ids...)
+}
+
 // Mutation returns the ZenxiangLiyuPrizeMutation object of the builder.
 func (_u *ZenxiangLiyuPrizeUpdateOne) Mutation() *ZenxiangLiyuPrizeMutation {
 	return _u.mutation
+}
+
+// ClearRecords clears all "records" edges to the ZenxiangLiyuRecord entity.
+func (_u *ZenxiangLiyuPrizeUpdateOne) ClearRecords() *ZenxiangLiyuPrizeUpdateOne {
+	_u.mutation.ClearRecords()
+	return _u
+}
+
+// RemoveRecordIDs removes the "records" edge to ZenxiangLiyuRecord entities by IDs.
+func (_u *ZenxiangLiyuPrizeUpdateOne) RemoveRecordIDs(ids ...int64) *ZenxiangLiyuPrizeUpdateOne {
+	_u.mutation.RemoveRecordIDs(ids...)
+	return _u
+}
+
+// RemoveRecords removes "records" edges to ZenxiangLiyuRecord entities.
+func (_u *ZenxiangLiyuPrizeUpdateOne) RemoveRecords(v ...*ZenxiangLiyuRecord) *ZenxiangLiyuPrizeUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveRecordIDs(ids...)
 }
 
 // Where appends a list predicates to the ZenxiangLiyuPrizeUpdate builder.
@@ -451,6 +569,51 @@ func (_u *ZenxiangLiyuPrizeUpdateOne) sqlSave(ctx context.Context) (_node *Zenxi
 	}
 	if value, ok := _u.mutation.AddedSortOrder(); ok {
 		_spec.AddField(zenxiangliyuprize.FieldSortOrder, field.TypeInt, value)
+	}
+	if _u.mutation.RecordsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   zenxiangliyuprize.RecordsTable,
+			Columns: []string{zenxiangliyuprize.RecordsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyurecord.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedRecordsIDs(); len(nodes) > 0 && !_u.mutation.RecordsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   zenxiangliyuprize.RecordsTable,
+			Columns: []string{zenxiangliyuprize.RecordsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyurecord.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RecordsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   zenxiangliyuprize.RecordsTable,
+			Columns: []string{zenxiangliyuprize.RecordsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyurecord.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	_node = &ZenxiangLiyuPrize{config: _u.config}
 	_spec.Assign = _node.assignValues

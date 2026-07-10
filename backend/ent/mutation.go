@@ -60836,6 +60836,9 @@ type ZenxiangLiyuPrizeMutation struct {
 	sort_order       *int
 	addsort_order    *int
 	clearedFields    map[string]struct{}
+	records          map[int64]struct{}
+	removedrecords   map[int64]struct{}
+	clearedrecords   bool
 	done             bool
 	oldValue         func(context.Context) (*ZenxiangLiyuPrize, error)
 	predicates       []predicate.ZenxiangLiyuPrize
@@ -61251,6 +61254,60 @@ func (m *ZenxiangLiyuPrizeMutation) ResetSortOrder() {
 	m.addsort_order = nil
 }
 
+// AddRecordIDs adds the "records" edge to the ZenxiangLiyuRecord entity by ids.
+func (m *ZenxiangLiyuPrizeMutation) AddRecordIDs(ids ...int64) {
+	if m.records == nil {
+		m.records = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.records[ids[i]] = struct{}{}
+	}
+}
+
+// ClearRecords clears the "records" edge to the ZenxiangLiyuRecord entity.
+func (m *ZenxiangLiyuPrizeMutation) ClearRecords() {
+	m.clearedrecords = true
+}
+
+// RecordsCleared reports if the "records" edge to the ZenxiangLiyuRecord entity was cleared.
+func (m *ZenxiangLiyuPrizeMutation) RecordsCleared() bool {
+	return m.clearedrecords
+}
+
+// RemoveRecordIDs removes the "records" edge to the ZenxiangLiyuRecord entity by IDs.
+func (m *ZenxiangLiyuPrizeMutation) RemoveRecordIDs(ids ...int64) {
+	if m.removedrecords == nil {
+		m.removedrecords = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.records, ids[i])
+		m.removedrecords[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedRecords returns the removed IDs of the "records" edge to the ZenxiangLiyuRecord entity.
+func (m *ZenxiangLiyuPrizeMutation) RemovedRecordsIDs() (ids []int64) {
+	for id := range m.removedrecords {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// RecordsIDs returns the "records" edge IDs in the mutation.
+func (m *ZenxiangLiyuPrizeMutation) RecordsIDs() (ids []int64) {
+	for id := range m.records {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetRecords resets all changes to the "records" edge.
+func (m *ZenxiangLiyuPrizeMutation) ResetRecords() {
+	m.records = nil
+	m.clearedrecords = false
+	m.removedrecords = nil
+}
+
 // Where appends a list predicates to the ZenxiangLiyuPrizeMutation builder.
 func (m *ZenxiangLiyuPrizeMutation) Where(ps ...predicate.ZenxiangLiyuPrize) {
 	m.predicates = append(m.predicates, ps...)
@@ -61525,49 +61582,85 @@ func (m *ZenxiangLiyuPrizeMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *ZenxiangLiyuPrizeMutation) AddedEdges() []string {
-	edges := make([]string, 0, 0)
+	edges := make([]string, 0, 1)
+	if m.records != nil {
+		edges = append(edges, zenxiangliyuprize.EdgeRecords)
+	}
 	return edges
 }
 
 // AddedIDs returns all IDs (to other nodes) that were added for the given edge
 // name in this mutation.
 func (m *ZenxiangLiyuPrizeMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case zenxiangliyuprize.EdgeRecords:
+		ids := make([]ent.Value, 0, len(m.records))
+		for id := range m.records {
+			ids = append(ids, id)
+		}
+		return ids
+	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *ZenxiangLiyuPrizeMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 0)
+	edges := make([]string, 0, 1)
+	if m.removedrecords != nil {
+		edges = append(edges, zenxiangliyuprize.EdgeRecords)
+	}
 	return edges
 }
 
 // RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
 // the given name in this mutation.
 func (m *ZenxiangLiyuPrizeMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case zenxiangliyuprize.EdgeRecords:
+		ids := make([]ent.Value, 0, len(m.removedrecords))
+		for id := range m.removedrecords {
+			ids = append(ids, id)
+		}
+		return ids
+	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *ZenxiangLiyuPrizeMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 0)
+	edges := make([]string, 0, 1)
+	if m.clearedrecords {
+		edges = append(edges, zenxiangliyuprize.EdgeRecords)
+	}
 	return edges
 }
 
 // EdgeCleared returns a boolean which indicates if the edge with the given name
 // was cleared in this mutation.
 func (m *ZenxiangLiyuPrizeMutation) EdgeCleared(name string) bool {
+	switch name {
+	case zenxiangliyuprize.EdgeRecords:
+		return m.clearedrecords
+	}
 	return false
 }
 
 // ClearEdge clears the value of the edge with the given name. It returns an error
 // if that edge is not defined in the schema.
 func (m *ZenxiangLiyuPrizeMutation) ClearEdge(name string) error {
+	switch name {
+	}
 	return fmt.Errorf("unknown ZenxiangLiyuPrize unique edge %s", name)
 }
 
 // ResetEdge resets all changes to the edge with the given name in this mutation.
 // It returns an error if the edge is not defined in the schema.
 func (m *ZenxiangLiyuPrizeMutation) ResetEdge(name string) error {
+	switch name {
+	case zenxiangliyuprize.EdgeRecords:
+		m.ResetRecords()
+		return nil
+	}
 	return fmt.Errorf("unknown ZenxiangLiyuPrize edge %s", name)
 }
 
@@ -61591,8 +61684,6 @@ type ZenxiangLiyuRecordMutation struct {
 	addsystem_expense       *float64
 	system_profit           *float64
 	addsystem_profit        *float64
-	prize_id                *int64
-	addprize_id             *int64
 	prize_name_snapshot     *string
 	probability_snapshot    *float64
 	addprobability_snapshot *float64
@@ -61608,6 +61699,8 @@ type ZenxiangLiyuRecordMutation struct {
 	clearedFields           map[string]struct{}
 	user                    *int64
 	cleareduser             bool
+	prize                   *int64
+	clearedprize            bool
 	done                    bool
 	oldValue                func(context.Context) (*ZenxiangLiyuRecord, error)
 	predicates              []predicate.ZenxiangLiyuRecord
@@ -62157,13 +62250,12 @@ func (m *ZenxiangLiyuRecordMutation) ResetSystemProfit() {
 
 // SetPrizeID sets the "prize_id" field.
 func (m *ZenxiangLiyuRecordMutation) SetPrizeID(i int64) {
-	m.prize_id = &i
-	m.addprize_id = nil
+	m.prize = &i
 }
 
 // PrizeID returns the value of the "prize_id" field in the mutation.
 func (m *ZenxiangLiyuRecordMutation) PrizeID() (r int64, exists bool) {
-	v := m.prize_id
+	v := m.prize
 	if v == nil {
 		return
 	}
@@ -62187,28 +62279,9 @@ func (m *ZenxiangLiyuRecordMutation) OldPrizeID(ctx context.Context) (v *int64, 
 	return oldValue.PrizeID, nil
 }
 
-// AddPrizeID adds i to the "prize_id" field.
-func (m *ZenxiangLiyuRecordMutation) AddPrizeID(i int64) {
-	if m.addprize_id != nil {
-		*m.addprize_id += i
-	} else {
-		m.addprize_id = &i
-	}
-}
-
-// AddedPrizeID returns the value that was added to the "prize_id" field in this mutation.
-func (m *ZenxiangLiyuRecordMutation) AddedPrizeID() (r int64, exists bool) {
-	v := m.addprize_id
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
 // ClearPrizeID clears the value of the "prize_id" field.
 func (m *ZenxiangLiyuRecordMutation) ClearPrizeID() {
-	m.prize_id = nil
-	m.addprize_id = nil
+	m.prize = nil
 	m.clearedFields[zenxiangliyurecord.FieldPrizeID] = struct{}{}
 }
 
@@ -62220,8 +62293,7 @@ func (m *ZenxiangLiyuRecordMutation) PrizeIDCleared() bool {
 
 // ResetPrizeID resets all changes to the "prize_id" field.
 func (m *ZenxiangLiyuRecordMutation) ResetPrizeID() {
-	m.prize_id = nil
-	m.addprize_id = nil
+	m.prize = nil
 	delete(m.clearedFields, zenxiangliyurecord.FieldPrizeID)
 }
 
@@ -62599,6 +62671,33 @@ func (m *ZenxiangLiyuRecordMutation) ResetUser() {
 	m.cleareduser = false
 }
 
+// ClearPrize clears the "prize" edge to the ZenxiangLiyuPrize entity.
+func (m *ZenxiangLiyuRecordMutation) ClearPrize() {
+	m.clearedprize = true
+	m.clearedFields[zenxiangliyurecord.FieldPrizeID] = struct{}{}
+}
+
+// PrizeCleared reports if the "prize" edge to the ZenxiangLiyuPrize entity was cleared.
+func (m *ZenxiangLiyuRecordMutation) PrizeCleared() bool {
+	return m.PrizeIDCleared() || m.clearedprize
+}
+
+// PrizeIDs returns the "prize" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// PrizeID instead. It exists only for internal usage by the builders.
+func (m *ZenxiangLiyuRecordMutation) PrizeIDs() (ids []int64) {
+	if id := m.prize; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetPrize resets all changes to the "prize" edge.
+func (m *ZenxiangLiyuRecordMutation) ResetPrize() {
+	m.prize = nil
+	m.clearedprize = false
+}
+
 // Where appends a list predicates to the ZenxiangLiyuRecordMutation builder.
 func (m *ZenxiangLiyuRecordMutation) Where(ps ...predicate.ZenxiangLiyuRecord) {
 	m.predicates = append(m.predicates, ps...)
@@ -62661,7 +62760,7 @@ func (m *ZenxiangLiyuRecordMutation) Fields() []string {
 	if m.system_profit != nil {
 		fields = append(fields, zenxiangliyurecord.FieldSystemProfit)
 	}
-	if m.prize_id != nil {
+	if m.prize != nil {
 		fields = append(fields, zenxiangliyurecord.FieldPrizeID)
 	}
 	if m.prize_name_snapshot != nil {
@@ -62924,9 +63023,6 @@ func (m *ZenxiangLiyuRecordMutation) AddedFields() []string {
 	if m.addsystem_profit != nil {
 		fields = append(fields, zenxiangliyurecord.FieldSystemProfit)
 	}
-	if m.addprize_id != nil {
-		fields = append(fields, zenxiangliyurecord.FieldPrizeID)
-	}
 	if m.addprobability_snapshot != nil {
 		fields = append(fields, zenxiangliyurecord.FieldProbabilitySnapshot)
 	}
@@ -62959,8 +63055,6 @@ func (m *ZenxiangLiyuRecordMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedSystemExpense()
 	case zenxiangliyurecord.FieldSystemProfit:
 		return m.AddedSystemProfit()
-	case zenxiangliyurecord.FieldPrizeID:
-		return m.AddedPrizeID()
 	case zenxiangliyurecord.FieldProbabilitySnapshot:
 		return m.AddedProbabilitySnapshot()
 	case zenxiangliyurecord.FieldBalanceBefore:
@@ -63019,13 +63113,6 @@ func (m *ZenxiangLiyuRecordMutation) AddField(name string, value ent.Value) erro
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddSystemProfit(v)
-		return nil
-	case zenxiangliyurecord.FieldPrizeID:
-		v, ok := value.(int64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddPrizeID(v)
 		return nil
 	case zenxiangliyurecord.FieldProbabilitySnapshot:
 		v, ok := value.(float64)
@@ -63148,9 +63235,12 @@ func (m *ZenxiangLiyuRecordMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *ZenxiangLiyuRecordMutation) AddedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.user != nil {
 		edges = append(edges, zenxiangliyurecord.EdgeUser)
+	}
+	if m.prize != nil {
+		edges = append(edges, zenxiangliyurecord.EdgePrize)
 	}
 	return edges
 }
@@ -63163,13 +63253,17 @@ func (m *ZenxiangLiyuRecordMutation) AddedIDs(name string) []ent.Value {
 		if id := m.user; id != nil {
 			return []ent.Value{*id}
 		}
+	case zenxiangliyurecord.EdgePrize:
+		if id := m.prize; id != nil {
+			return []ent.Value{*id}
+		}
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *ZenxiangLiyuRecordMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	return edges
 }
 
@@ -63181,9 +63275,12 @@ func (m *ZenxiangLiyuRecordMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *ZenxiangLiyuRecordMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.cleareduser {
 		edges = append(edges, zenxiangliyurecord.EdgeUser)
+	}
+	if m.clearedprize {
+		edges = append(edges, zenxiangliyurecord.EdgePrize)
 	}
 	return edges
 }
@@ -63194,6 +63291,8 @@ func (m *ZenxiangLiyuRecordMutation) EdgeCleared(name string) bool {
 	switch name {
 	case zenxiangliyurecord.EdgeUser:
 		return m.cleareduser
+	case zenxiangliyurecord.EdgePrize:
+		return m.clearedprize
 	}
 	return false
 }
@@ -63205,6 +63304,9 @@ func (m *ZenxiangLiyuRecordMutation) ClearEdge(name string) error {
 	case zenxiangliyurecord.EdgeUser:
 		m.ClearUser()
 		return nil
+	case zenxiangliyurecord.EdgePrize:
+		m.ClearPrize()
+		return nil
 	}
 	return fmt.Errorf("unknown ZenxiangLiyuRecord unique edge %s", name)
 }
@@ -63215,6 +63317,9 @@ func (m *ZenxiangLiyuRecordMutation) ResetEdge(name string) error {
 	switch name {
 	case zenxiangliyurecord.EdgeUser:
 		m.ResetUser()
+		return nil
+	case zenxiangliyurecord.EdgePrize:
+		m.ResetPrize()
 		return nil
 	}
 	return fmt.Errorf("unknown ZenxiangLiyuRecord edge %s", name)
@@ -63921,21 +64026,21 @@ func (m *ZenxiangLiyuSettingMutation) ResetEdge(name string) error {
 // ZenxiangLiyuUserGrantMutation represents an operation that mutates the ZenxiangLiyuUserGrant nodes in the graph.
 type ZenxiangLiyuUserGrantMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *int64
-	created_at    *time.Time
-	updated_at    *time.Time
-	enabled       *bool
-	granted_by    *int64
-	addgranted_by *int64
-	notes         *string
-	clearedFields map[string]struct{}
-	user          *int64
-	cleareduser   bool
-	done          bool
-	oldValue      func(context.Context) (*ZenxiangLiyuUserGrant, error)
-	predicates    []predicate.ZenxiangLiyuUserGrant
+	op                     Op
+	typ                    string
+	id                     *int64
+	created_at             *time.Time
+	updated_at             *time.Time
+	enabled                *bool
+	notes                  *string
+	clearedFields          map[string]struct{}
+	user                   *int64
+	cleareduser            bool
+	granted_by_user        *int64
+	clearedgranted_by_user bool
+	done                   bool
+	oldValue               func(context.Context) (*ZenxiangLiyuUserGrant, error)
+	predicates             []predicate.ZenxiangLiyuUserGrant
 }
 
 var _ ent.Mutation = (*ZenxiangLiyuUserGrantMutation)(nil)
@@ -64182,13 +64287,12 @@ func (m *ZenxiangLiyuUserGrantMutation) ResetEnabled() {
 
 // SetGrantedBy sets the "granted_by" field.
 func (m *ZenxiangLiyuUserGrantMutation) SetGrantedBy(i int64) {
-	m.granted_by = &i
-	m.addgranted_by = nil
+	m.granted_by_user = &i
 }
 
 // GrantedBy returns the value of the "granted_by" field in the mutation.
 func (m *ZenxiangLiyuUserGrantMutation) GrantedBy() (r int64, exists bool) {
-	v := m.granted_by
+	v := m.granted_by_user
 	if v == nil {
 		return
 	}
@@ -64212,28 +64316,9 @@ func (m *ZenxiangLiyuUserGrantMutation) OldGrantedBy(ctx context.Context) (v *in
 	return oldValue.GrantedBy, nil
 }
 
-// AddGrantedBy adds i to the "granted_by" field.
-func (m *ZenxiangLiyuUserGrantMutation) AddGrantedBy(i int64) {
-	if m.addgranted_by != nil {
-		*m.addgranted_by += i
-	} else {
-		m.addgranted_by = &i
-	}
-}
-
-// AddedGrantedBy returns the value that was added to the "granted_by" field in this mutation.
-func (m *ZenxiangLiyuUserGrantMutation) AddedGrantedBy() (r int64, exists bool) {
-	v := m.addgranted_by
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
 // ClearGrantedBy clears the value of the "granted_by" field.
 func (m *ZenxiangLiyuUserGrantMutation) ClearGrantedBy() {
-	m.granted_by = nil
-	m.addgranted_by = nil
+	m.granted_by_user = nil
 	m.clearedFields[zenxiangliyuusergrant.FieldGrantedBy] = struct{}{}
 }
 
@@ -64245,8 +64330,7 @@ func (m *ZenxiangLiyuUserGrantMutation) GrantedByCleared() bool {
 
 // ResetGrantedBy resets all changes to the "granted_by" field.
 func (m *ZenxiangLiyuUserGrantMutation) ResetGrantedBy() {
-	m.granted_by = nil
-	m.addgranted_by = nil
+	m.granted_by_user = nil
 	delete(m.clearedFields, zenxiangliyuusergrant.FieldGrantedBy)
 }
 
@@ -64313,6 +64397,46 @@ func (m *ZenxiangLiyuUserGrantMutation) ResetUser() {
 	m.cleareduser = false
 }
 
+// SetGrantedByUserID sets the "granted_by_user" edge to the User entity by id.
+func (m *ZenxiangLiyuUserGrantMutation) SetGrantedByUserID(id int64) {
+	m.granted_by_user = &id
+}
+
+// ClearGrantedByUser clears the "granted_by_user" edge to the User entity.
+func (m *ZenxiangLiyuUserGrantMutation) ClearGrantedByUser() {
+	m.clearedgranted_by_user = true
+	m.clearedFields[zenxiangliyuusergrant.FieldGrantedBy] = struct{}{}
+}
+
+// GrantedByUserCleared reports if the "granted_by_user" edge to the User entity was cleared.
+func (m *ZenxiangLiyuUserGrantMutation) GrantedByUserCleared() bool {
+	return m.GrantedByCleared() || m.clearedgranted_by_user
+}
+
+// GrantedByUserID returns the "granted_by_user" edge ID in the mutation.
+func (m *ZenxiangLiyuUserGrantMutation) GrantedByUserID() (id int64, exists bool) {
+	if m.granted_by_user != nil {
+		return *m.granted_by_user, true
+	}
+	return
+}
+
+// GrantedByUserIDs returns the "granted_by_user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// GrantedByUserID instead. It exists only for internal usage by the builders.
+func (m *ZenxiangLiyuUserGrantMutation) GrantedByUserIDs() (ids []int64) {
+	if id := m.granted_by_user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetGrantedByUser resets all changes to the "granted_by_user" edge.
+func (m *ZenxiangLiyuUserGrantMutation) ResetGrantedByUser() {
+	m.granted_by_user = nil
+	m.clearedgranted_by_user = false
+}
+
 // Where appends a list predicates to the ZenxiangLiyuUserGrantMutation builder.
 func (m *ZenxiangLiyuUserGrantMutation) Where(ps ...predicate.ZenxiangLiyuUserGrant) {
 	m.predicates = append(m.predicates, ps...)
@@ -64360,7 +64484,7 @@ func (m *ZenxiangLiyuUserGrantMutation) Fields() []string {
 	if m.enabled != nil {
 		fields = append(fields, zenxiangliyuusergrant.FieldEnabled)
 	}
-	if m.granted_by != nil {
+	if m.granted_by_user != nil {
 		fields = append(fields, zenxiangliyuusergrant.FieldGrantedBy)
 	}
 	if m.notes != nil {
@@ -64466,9 +64590,6 @@ func (m *ZenxiangLiyuUserGrantMutation) SetField(name string, value ent.Value) e
 // this mutation.
 func (m *ZenxiangLiyuUserGrantMutation) AddedFields() []string {
 	var fields []string
-	if m.addgranted_by != nil {
-		fields = append(fields, zenxiangliyuusergrant.FieldGrantedBy)
-	}
 	return fields
 }
 
@@ -64477,8 +64598,6 @@ func (m *ZenxiangLiyuUserGrantMutation) AddedFields() []string {
 // was not set, or was not defined in the schema.
 func (m *ZenxiangLiyuUserGrantMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
-	case zenxiangliyuusergrant.FieldGrantedBy:
-		return m.AddedGrantedBy()
 	}
 	return nil, false
 }
@@ -64488,13 +64607,6 @@ func (m *ZenxiangLiyuUserGrantMutation) AddedField(name string) (ent.Value, bool
 // type.
 func (m *ZenxiangLiyuUserGrantMutation) AddField(name string, value ent.Value) error {
 	switch name {
-	case zenxiangliyuusergrant.FieldGrantedBy:
-		v, ok := value.(int64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddGrantedBy(v)
-		return nil
 	}
 	return fmt.Errorf("unknown ZenxiangLiyuUserGrant numeric field %s", name)
 }
@@ -64555,9 +64667,12 @@ func (m *ZenxiangLiyuUserGrantMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *ZenxiangLiyuUserGrantMutation) AddedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.user != nil {
 		edges = append(edges, zenxiangliyuusergrant.EdgeUser)
+	}
+	if m.granted_by_user != nil {
+		edges = append(edges, zenxiangliyuusergrant.EdgeGrantedByUser)
 	}
 	return edges
 }
@@ -64570,13 +64685,17 @@ func (m *ZenxiangLiyuUserGrantMutation) AddedIDs(name string) []ent.Value {
 		if id := m.user; id != nil {
 			return []ent.Value{*id}
 		}
+	case zenxiangliyuusergrant.EdgeGrantedByUser:
+		if id := m.granted_by_user; id != nil {
+			return []ent.Value{*id}
+		}
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *ZenxiangLiyuUserGrantMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	return edges
 }
 
@@ -64588,9 +64707,12 @@ func (m *ZenxiangLiyuUserGrantMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *ZenxiangLiyuUserGrantMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.cleareduser {
 		edges = append(edges, zenxiangliyuusergrant.EdgeUser)
+	}
+	if m.clearedgranted_by_user {
+		edges = append(edges, zenxiangliyuusergrant.EdgeGrantedByUser)
 	}
 	return edges
 }
@@ -64601,6 +64723,8 @@ func (m *ZenxiangLiyuUserGrantMutation) EdgeCleared(name string) bool {
 	switch name {
 	case zenxiangliyuusergrant.EdgeUser:
 		return m.cleareduser
+	case zenxiangliyuusergrant.EdgeGrantedByUser:
+		return m.clearedgranted_by_user
 	}
 	return false
 }
@@ -64612,6 +64736,9 @@ func (m *ZenxiangLiyuUserGrantMutation) ClearEdge(name string) error {
 	case zenxiangliyuusergrant.EdgeUser:
 		m.ClearUser()
 		return nil
+	case zenxiangliyuusergrant.EdgeGrantedByUser:
+		m.ClearGrantedByUser()
+		return nil
 	}
 	return fmt.Errorf("unknown ZenxiangLiyuUserGrant unique edge %s", name)
 }
@@ -64622,6 +64749,9 @@ func (m *ZenxiangLiyuUserGrantMutation) ResetEdge(name string) error {
 	switch name {
 	case zenxiangliyuusergrant.EdgeUser:
 		m.ResetUser()
+		return nil
+	case zenxiangliyuusergrant.EdgeGrantedByUser:
+		m.ResetGrantedByUser()
 		return nil
 	}
 	return fmt.Errorf("unknown ZenxiangLiyuUserGrant edge %s", name)

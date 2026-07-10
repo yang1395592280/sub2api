@@ -17,7 +17,12 @@ type ZenxiangLiyuSetting struct {
 
 func (ZenxiangLiyuSetting) Annotations() []schema.Annotation {
 	return []schema.Annotation{
-		entsql.Annotation{Table: "zenxiang_liyu_settings"},
+		entsql.Annotation{
+			Table: "zenxiang_liyu_settings",
+			Checks: map[string]string{
+				"zenxiang_liyu_settings_singleton": "id = 1",
+			},
+		},
 	}
 }
 

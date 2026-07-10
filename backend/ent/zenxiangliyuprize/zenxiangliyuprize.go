@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
 )
 
 const (
@@ -27,8 +28,17 @@ const (
 	FieldEnabled = "enabled"
 	// FieldSortOrder holds the string denoting the sort_order field in the database.
 	FieldSortOrder = "sort_order"
+	// EdgeRecords holds the string denoting the records edge name in mutations.
+	EdgeRecords = "records"
 	// Table holds the table name of the zenxiangliyuprize in the database.
 	Table = "zenxiang_liyu_prizes"
+	// RecordsTable is the table that holds the records relation/edge.
+	RecordsTable = "zenxiang_liyu_records"
+	// RecordsInverseTable is the table name for the ZenxiangLiyuRecord entity.
+	// It exists in this package in order to avoid circular dependency with the "zenxiangliyurecord" package.
+	RecordsInverseTable = "zenxiang_liyu_records"
+	// RecordsColumn is the table column denoting the records relation/edge.
+	RecordsColumn = "prize_id"
 )
 
 // Columns holds all SQL columns for zenxiangliyuprize fields.
@@ -109,4 +119,25 @@ func ByEnabled(opts ...sql.OrderTermOption) OrderOption {
 // BySortOrder orders the results by the sort_order field.
 func BySortOrder(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSortOrder, opts...).ToFunc()
+}
+
+// ByRecordsCount orders the results by records count.
+func ByRecordsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newRecordsStep(), opts...)
+	}
+}
+
+// ByRecords orders the results by records terms.
+func ByRecords(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newRecordsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+func newRecordsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(RecordsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, RecordsTable, RecordsColumn),
+	)
 }

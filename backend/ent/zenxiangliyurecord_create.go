@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/user"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuprize"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
 )
 
@@ -145,6 +146,11 @@ func (_c *ZenxiangLiyuRecordCreate) SetNillableCreatedAt(v *time.Time) *Zenxiang
 // SetUser sets the "user" edge to the User entity.
 func (_c *ZenxiangLiyuRecordCreate) SetUser(v *User) *ZenxiangLiyuRecordCreate {
 	return _c.SetUserID(v.ID)
+}
+
+// SetPrize sets the "prize" edge to the ZenxiangLiyuPrize entity.
+func (_c *ZenxiangLiyuRecordCreate) SetPrize(v *ZenxiangLiyuPrize) *ZenxiangLiyuRecordCreate {
+	return _c.SetPrizeID(v.ID)
 }
 
 // Mutation returns the ZenxiangLiyuRecordMutation object of the builder.
@@ -314,10 +320,6 @@ func (_c *ZenxiangLiyuRecordCreate) createSpec() (*ZenxiangLiyuRecord, *sqlgraph
 		_spec.SetField(zenxiangliyurecord.FieldSystemProfit, field.TypeFloat64, value)
 		_node.SystemProfit = value
 	}
-	if value, ok := _c.mutation.PrizeID(); ok {
-		_spec.SetField(zenxiangliyurecord.FieldPrizeID, field.TypeInt64, value)
-		_node.PrizeID = &value
-	}
 	if value, ok := _c.mutation.PrizeNameSnapshot(); ok {
 		_spec.SetField(zenxiangliyurecord.FieldPrizeNameSnapshot, field.TypeString, value)
 		_node.PrizeNameSnapshot = value
@@ -361,6 +363,23 @@ func (_c *ZenxiangLiyuRecordCreate) createSpec() (*ZenxiangLiyuRecord, *sqlgraph
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		_node.UserID = nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.PrizeIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   zenxiangliyurecord.PrizeTable,
+			Columns: []string{zenxiangliyurecord.PrizeColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyuprize.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.PrizeID = &nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
@@ -568,12 +587,6 @@ func (u *ZenxiangLiyuRecordUpsert) SetPrizeID(v int64) *ZenxiangLiyuRecordUpsert
 // UpdatePrizeID sets the "prize_id" field to the value that was provided on create.
 func (u *ZenxiangLiyuRecordUpsert) UpdatePrizeID() *ZenxiangLiyuRecordUpsert {
 	u.SetExcluded(zenxiangliyurecord.FieldPrizeID)
-	return u
-}
-
-// AddPrizeID adds v to the "prize_id" field.
-func (u *ZenxiangLiyuRecordUpsert) AddPrizeID(v int64) *ZenxiangLiyuRecordUpsert {
-	u.Add(zenxiangliyurecord.FieldPrizeID, v)
 	return u
 }
 
@@ -896,13 +909,6 @@ func (u *ZenxiangLiyuRecordUpsertOne) UpdateSystemProfit() *ZenxiangLiyuRecordUp
 func (u *ZenxiangLiyuRecordUpsertOne) SetPrizeID(v int64) *ZenxiangLiyuRecordUpsertOne {
 	return u.Update(func(s *ZenxiangLiyuRecordUpsert) {
 		s.SetPrizeID(v)
-	})
-}
-
-// AddPrizeID adds v to the "prize_id" field.
-func (u *ZenxiangLiyuRecordUpsertOne) AddPrizeID(v int64) *ZenxiangLiyuRecordUpsertOne {
-	return u.Update(func(s *ZenxiangLiyuRecordUpsert) {
-		s.AddPrizeID(v)
 	})
 }
 
@@ -1415,13 +1421,6 @@ func (u *ZenxiangLiyuRecordUpsertBulk) UpdateSystemProfit() *ZenxiangLiyuRecordU
 func (u *ZenxiangLiyuRecordUpsertBulk) SetPrizeID(v int64) *ZenxiangLiyuRecordUpsertBulk {
 	return u.Update(func(s *ZenxiangLiyuRecordUpsert) {
 		s.SetPrizeID(v)
-	})
-}
-
-// AddPrizeID adds v to the "prize_id" field.
-func (u *ZenxiangLiyuRecordUpsertBulk) AddPrizeID(v int64) *ZenxiangLiyuRecordUpsertBulk {
-	return u.Update(func(s *ZenxiangLiyuRecordUpsert) {
-		s.AddPrizeID(v)
 	})
 }
 

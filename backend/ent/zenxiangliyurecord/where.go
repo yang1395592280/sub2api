@@ -520,26 +520,6 @@ func PrizeIDNotIn(vs ...int64) predicate.ZenxiangLiyuRecord {
 	return predicate.ZenxiangLiyuRecord(sql.FieldNotIn(FieldPrizeID, vs...))
 }
 
-// PrizeIDGT applies the GT predicate on the "prize_id" field.
-func PrizeIDGT(v int64) predicate.ZenxiangLiyuRecord {
-	return predicate.ZenxiangLiyuRecord(sql.FieldGT(FieldPrizeID, v))
-}
-
-// PrizeIDGTE applies the GTE predicate on the "prize_id" field.
-func PrizeIDGTE(v int64) predicate.ZenxiangLiyuRecord {
-	return predicate.ZenxiangLiyuRecord(sql.FieldGTE(FieldPrizeID, v))
-}
-
-// PrizeIDLT applies the LT predicate on the "prize_id" field.
-func PrizeIDLT(v int64) predicate.ZenxiangLiyuRecord {
-	return predicate.ZenxiangLiyuRecord(sql.FieldLT(FieldPrizeID, v))
-}
-
-// PrizeIDLTE applies the LTE predicate on the "prize_id" field.
-func PrizeIDLTE(v int64) predicate.ZenxiangLiyuRecord {
-	return predicate.ZenxiangLiyuRecord(sql.FieldLTE(FieldPrizeID, v))
-}
-
 // PrizeIDIsNil applies the IsNil predicate on the "prize_id" field.
 func PrizeIDIsNil() predicate.ZenxiangLiyuRecord {
 	return predicate.ZenxiangLiyuRecord(sql.FieldIsNull(FieldPrizeID))
@@ -830,6 +810,29 @@ func HasUser() predicate.ZenxiangLiyuRecord {
 func HasUserWith(preds ...predicate.User) predicate.ZenxiangLiyuRecord {
 	return predicate.ZenxiangLiyuRecord(func(s *sql.Selector) {
 		step := newUserStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasPrize applies the HasEdge predicate on the "prize" edge.
+func HasPrize() predicate.ZenxiangLiyuRecord {
+	return predicate.ZenxiangLiyuRecord(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, PrizeTable, PrizeColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasPrizeWith applies the HasEdge predicate on the "prize" edge with a given conditions (other predicates).
+func HasPrizeWith(preds ...predicate.ZenxiangLiyuPrize) predicate.ZenxiangLiyuRecord {
+	return predicate.ZenxiangLiyuRecord(func(s *sql.Selector) {
+		step := newPrizeStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)
