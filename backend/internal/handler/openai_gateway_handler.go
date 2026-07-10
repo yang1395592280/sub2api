@@ -1635,6 +1635,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				if result == nil {
 					return
 				}
+				h.resetOpenAIOverbrushAfterSuccessfulWSTurn(account, result, turnErr)
 				// 排除 spark 影子:其 codex_* 仅由 QueryUsage(/wham/usage bengalfox)更新(外审第7轮 P1)。
 				if account.Type == service.AccountTypeOAuth && !account.IsShadow() {
 					h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(ctx, account.ID, result.ResponseHeaders)
@@ -1779,6 +1780,14 @@ func (h *OpenAIGatewayHandler) recoverAnthropicMessagesPanic(c *gin.Context, str
 	if !started {
 		h.anthropicErrorResponse(c, http.StatusInternalServerError, "api_error", "Internal server error")
 	}
+}
+
+func (h *OpenAIGatewayHandler) resetOpenAIOverbrushAfterSuccessfulWSTurn(account *service.Account, result *service.OpenAIForwardResult, turnErr error) bool {
+	if h == nil || h.gatewayService == nil || account == nil || result == nil || turnErr != nil {
+		return false
+	}
+	h.gatewayService.ResetOpenAIOverbrush429Count(account)
+	return true
 }
 
 func (h *OpenAIGatewayHandler) ensureResponsesDependencies(c *gin.Context, reqLog *zap.Logger) bool {

@@ -1749,3 +1749,15 @@ data: {"type":"response.failed","error":{"message":"This content was flagged"}}
 		require.False(t, openAIForwardErrorAlreadyCommunicated(c, c.Writer.Size(), errors.New("openai cyber_policy: blocked")))
 	})
 }
+
+func TestOpenAIGatewayHandler_ResetOpenAIOverbrushAfterSuccessfulWSTurn(t *testing.T) {
+	account := &service.Account{ID: 42, Platform: service.PlatformOpenAI, Type: service.AccountTypeAPIKey}
+	result := &service.OpenAIForwardResult{}
+	handler := &OpenAIGatewayHandler{gatewayService: &service.OpenAIGatewayService{}}
+
+	require.True(t, handler.resetOpenAIOverbrushAfterSuccessfulWSTurn(account, result, nil))
+	require.False(t, handler.resetOpenAIOverbrushAfterSuccessfulWSTurn(account, result, errors.New("turn failed")))
+	require.False(t, handler.resetOpenAIOverbrushAfterSuccessfulWSTurn(account, nil, nil))
+	require.False(t, handler.resetOpenAIOverbrushAfterSuccessfulWSTurn(nil, result, nil))
+	require.False(t, (&OpenAIGatewayHandler{}).resetOpenAIOverbrushAfterSuccessfulWSTurn(account, result, nil))
+}
