@@ -16,6 +16,10 @@
         </button>
       </header>
 
+      <p v-if="statusRefreshError" class="text-sm text-amber-700 dark:text-amber-300" role="status">
+        {{ statusRefreshError }}
+      </p>
+
       <div v-if="statusLoading && !status" class="card p-8 text-center text-sm text-gray-500 dark:text-gray-400">
         {{ t('zenxiangLiyu.loading') }}
       </div>
@@ -56,8 +60,9 @@
                     class="zenxiang-wheel__label"
                     :style="wheelLabelStyle(index, status.prizes.length)"
                     :title="prize.name"
+                    :aria-label="prize.name"
                   >
-                    {{ prize.name }}
+                    {{ wheelLabel(prize.name, index, status.prizes.length) }}
                   </span>
                 </div>
               </div>
@@ -126,6 +131,7 @@ const statusLoading = computed(() => zenxiangLiyuStore.loading)
 const currentBalance = computed(() => status.value?.balance ?? authStore.user?.balance ?? 0)
 const isPlaying = ref(false)
 const loadError = ref('')
+const statusRefreshError = ref('')
 const playError = ref('')
 const result = ref<ZenxiangLiyuPlayResult | null>(null)
 
@@ -177,6 +183,10 @@ function wheelLabelStyle(index: number, count: number): Record<string, string> {
   return { transform: `translate(-50%, -50%) rotate(${angle}deg) translateY(-650%) rotate(${-angle}deg)` }
 }
 
+function wheelLabel(name: string, index: number, count: number): string {
+  return count > 8 ? String(index + 1) : name
+}
+
 function newRequestId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
   return `zenxiang-${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -187,13 +197,22 @@ function errorMessage(error: unknown): string {
   return typeof responseMessage === 'string' && responseMessage.trim() ? responseMessage : t('zenxiangLiyu.playFailed')
 }
 
-async function refreshStatus(): Promise<void> {
+async function loadStatus(afterPlay: boolean): Promise<void> {
   loadError.value = ''
+  statusRefreshError.value = ''
   try {
     await zenxiangLiyuStore.loadStatus()
   } catch {
+    if (afterPlay) {
+      statusRefreshError.value = t('zenxiangLiyu.statusRefreshFailed')
+      return
+    }
     loadError.value = t('zenxiangLiyu.loadFailed')
   }
+}
+
+async function refreshStatus(): Promise<void> {
+  await loadStatus(false)
 }
 
 async function play(): Promise<void> {
@@ -203,7 +222,7 @@ async function play(): Promise<void> {
   playError.value = ''
   try {
     result.value = await playZenxiangLiyu(newRequestId())
-    await refreshStatus()
+    await loadStatus(true)
   } catch (error) {
     playError.value = errorMessage(error)
   } finally {
@@ -257,10 +276,15 @@ onMounted(() => {
   top: 50%;
   left: 50%;
   width: 30%;
+  display: -webkit-box;
+  overflow: hidden;
   color: white;
   font-size: 0.75rem;
   line-height: 1rem;
   text-align: center;
+  text-overflow: ellipsis;
   word-break: break-word;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 </style>

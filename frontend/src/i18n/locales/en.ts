@@ -536,6 +536,7 @@ export default {
     netAmount: 'Balance change: {amount} CNY',
     latestBalance: 'Latest account balance: {amount} CNY',
     loadFailed: 'Failed to load the activity status. Please try again later.',
+    statusRefreshFailed: 'Participation succeeded, but the activity status could not be refreshed. Please refresh it later.',
     playFailed: 'Participation failed. Please try again later.',
   },
 

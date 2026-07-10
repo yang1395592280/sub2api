@@ -536,6 +536,7 @@ export default {
     netAmount: '本次余额变化：{amount} 元',
     latestBalance: '最新站内余额：{amount} 元',
     loadFailed: '活动状态加载失败，请稍后重试',
+    statusRefreshFailed: '参与已成功，活动状态刷新失败，请稍后手动刷新确认。',
     playFailed: '参与失败，请稍后重试',
   },
 

@@ -46,6 +46,20 @@ const makePlayableStatus = () => ({
   ],
 })
 
+const makePlayResult = () => ({
+  applied: true,
+  request_id: 'request-id',
+  prize_id: 2,
+  prize_name: '3元',
+  reward_amount: 3,
+  ticket_amount: 2,
+  user_net_amount: 1,
+  balance_before: 12,
+  balance_after_ticket: 10,
+  balance_after_reward: 13,
+  played_at: '2026-07-10T00:00:00Z',
+})
+
 function mountView() {
   return mount(ZenxiangLiyuView, {
     global: {
@@ -81,19 +95,7 @@ describe('ZenxiangLiyuView', () => {
 
   it('plays once and displays reward from backend result', async () => {
     getZenxiangLiyuStatus.mockResolvedValue(makePlayableStatus())
-    playZenxiangLiyu.mockResolvedValue({
-      applied: true,
-      request_id: 'request-id',
-      prize_id: 2,
-      prize_name: '3元',
-      reward_amount: 3,
-      ticket_amount: 2,
-      user_net_amount: 1,
-      balance_before: 12,
-      balance_after_ticket: 10,
-      balance_after_reward: 13,
-      played_at: '2026-07-10T00:00:00Z',
-    })
+    playZenxiangLiyu.mockResolvedValue(makePlayResult())
 
     const wrapper = mountView()
     await flushPromises()
@@ -103,5 +105,66 @@ describe('ZenxiangLiyuView', () => {
     expect(playZenxiangLiyu).toHaveBeenCalledWith(expect.any(String))
     expect(wrapper.text()).toContain('3元')
     expect(wrapper.text()).toContain('13')
+  })
+
+  it('shows daily limit reason and disables play', async () => {
+    getZenxiangLiyuStatus.mockResolvedValue({
+      ...makePlayableStatus(),
+      can_play: false,
+      reason: 'daily_limit_reached',
+      remaining_plays: 0,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('zenxiangLiyu.dailyLimitReached')
+    expect(wrapper.find('[data-testid="zenxiang-play"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('disables play while participation is pending', async () => {
+    getZenxiangLiyuStatus.mockResolvedValue(makePlayableStatus())
+    let resolvePlay: (result: ReturnType<typeof makePlayResult>) => void = () => undefined
+    playZenxiangLiyu.mockImplementation(() => new Promise(resolve => {
+      resolvePlay = resolve
+    }))
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('[data-testid="zenxiang-play"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="zenxiang-play"]').attributes('disabled')).toBeDefined()
+
+    resolvePlay(makePlayResult())
+    await flushPromises()
+  })
+
+  it('shows a participation error when play fails', async () => {
+    getZenxiangLiyuStatus.mockResolvedValue(makePlayableStatus())
+    playZenxiangLiyu.mockRejectedValue(new Error('request failed'))
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('[data-testid="zenxiang-play"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('zenxiangLiyu.playFailed')
+  })
+
+  it('keeps the reward result visible when the post-play status refresh fails', async () => {
+    getZenxiangLiyuStatus
+      .mockResolvedValueOnce(makePlayableStatus())
+      .mockRejectedValueOnce(new Error('status refresh failed'))
+    playZenxiangLiyu.mockResolvedValue(makePlayResult())
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('[data-testid="zenxiang-play"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('3元')
+    expect(wrapper.text()).toContain('13')
+    expect(wrapper.text()).not.toContain('zenxiangLiyu.loadFailed')
+    expect(wrapper.text()).toContain('zenxiangLiyu.statusRefreshFailed')
   })
 })
