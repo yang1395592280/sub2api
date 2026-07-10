@@ -14,6 +14,7 @@ export interface ZenxiangLiyuStatus {
   visible: boolean
   can_play: boolean
   reason?: string
+  balance?: number
   ticket_amount: number
   minimum_balance: number
   daily_play_limit: number
