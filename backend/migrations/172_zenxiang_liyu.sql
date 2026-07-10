@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS zenxiang_liyu_settings (
     daily_play_limit INTEGER NOT NULL DEFAULT 5,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT zenxiang_liyu_settings_singleton CHECK (id = 1),
     CONSTRAINT zenxiang_liyu_settings_positive_ticket CHECK (ticket_amount > 0),
     CONSTRAINT zenxiang_liyu_settings_non_negative_minimum CHECK (minimum_balance >= 0),
     CONSTRAINT zenxiang_liyu_settings_positive_daily_limit CHECK (daily_play_limit > 0)
@@ -15,12 +14,6 @@ CREATE TABLE IF NOT EXISTS zenxiang_liyu_settings (
 INSERT INTO zenxiang_liyu_settings (id, global_enabled, ticket_amount, minimum_balance, daily_play_limit)
 VALUES (1, FALSE, 2, 10, 5)
 ON CONFLICT (id) DO NOTHING;
-
-SELECT setval(
-    'zenxiang_liyu_settings_id_seq',
-    (SELECT MAX(id) FROM zenxiang_liyu_settings),
-    TRUE
-);
 
 CREATE TABLE IF NOT EXISTS zenxiang_liyu_prizes (
     id BIGSERIAL PRIMARY KEY,

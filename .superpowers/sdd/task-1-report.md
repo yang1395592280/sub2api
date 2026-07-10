@@ -45,3 +45,24 @@ None.
 - `cd backend && GOCACHE=/tmp/sub2api-go-cache go generate ./ent` passed.
 - `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./ent ./internal/repository -run 'TestMigrations|Test.*Schema' -count=1` passed.
 - `git diff --check -- backend/ent backend/migrations/172_zenxiang_liyu.sql .superpowers/sdd/task-1-report.md` passed.
+
+---
+
+## Task 1 Second Review Fixes
+
+### Changes
+
+- Restored committed migration `172_zenxiang_liyu.sql` to the exact content from `dc3fc0a29`.
+- Added forward migration `173_zenxiang_liyu_settings_singleton_fix.sql` to idempotently add the settings singleton constraint, align the settings ID sequence, and prevent `UPDATE` and `DELETE` on `zenxiang_liyu_records` with a database trigger.
+- Retained the Ent singleton metadata and explicit foreign-key delete actions. Generated Ent update/delete builders remain intentionally available; the database trigger enforces record immutability.
+
+### Verification
+
+- `cd backend && GOCACHE=/tmp/sub2api-go-cache go generate ./ent` passed without generated Ent changes.
+- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./ent ./internal/repository -run 'TestMigrations|Test.*Schema' -count=1` passed; no matching tests are enabled without build tags.
+- `cd backend && GOCACHE=/tmp/sub2api-go-cache go test -tags integration ./internal/repository -run '^TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate$' -count=1` completed successfully but skipped because Docker is unavailable.
+- `git diff --check -- backend/ent backend/ent/schema backend/migrations/172_zenxiang_liyu.sql backend/migrations/173_zenxiang_liyu_settings_singleton_fix.sql` passed.
+
+### Concern
+
+- The database-backed integration test did not run in this environment because Docker is unavailable; run it with Docker available to validate the forward migration against PostgreSQL.
