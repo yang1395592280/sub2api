@@ -1,0 +1,109 @@
+package repository
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/stretchr/testify/require"
+)
+
+func TestZenxiangLiyuRepositoryPlayReturnsExistingRecordForSameRequestID(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := &zenxiangLiyuRepository{db: db}
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT .* FROM zenxiang_liyu_records WHERE request_id = \$1`).
+		WithArgs("req-1").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "request_id", "user_id", "ticket_amount", "reward_amount", "user_net_amount",
+			"system_revenue", "system_expense", "system_profit", "prize_id", "prize_name_snapshot",
+			"probability_snapshot", "balance_before", "balance_after_ticket", "balance_after_reward", "created_at",
+		}).AddRow(9, "req-1", 42, 2.0, 3.0, 1.0, 2.0, 3.0, -1.0, 7, "3 yuan", 20.0, 12.0, 10.0, 13.0, time.Unix(1, 0)))
+	mock.ExpectCommit()
+
+	result, err := repo.Play(context.Background(), service.ZenxiangLiyuPlayCommand{UserID: 42, RequestID: "req-1"})
+	require.NoError(t, err)
+	require.False(t, result.Applied)
+	require.InDelta(t, 3, result.RewardAmount, 0.000001)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestZenxiangLiyuRepositoryPlayAppliesAtomically(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	playDate := time.Date(2026, time.July, 10, 0, 0, 0, 0, time.UTC)
+	repo := &zenxiangLiyuRepository{db: db}
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT .* FROM zenxiang_liyu_records WHERE request_id = \$1`).
+		WithArgs("req-2").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectQuery(`SELECT id, email, role, status, balance FROM users WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
+		WithArgs(int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "role", "status", "balance"}).AddRow(42, "user@example.com", service.RoleUser, service.StatusActive, 12.0))
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM zenxiang_liyu_records WHERE user_id = \$1 AND play_date = \$2`).
+		WithArgs(int64(42), playDate).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	mock.ExpectQuery(`UPDATE users SET balance = balance - \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
+		WithArgs(2.0, int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(10.0))
+	mock.ExpectQuery(`INSERT INTO zenxiang_liyu_records`).
+		WithArgs(
+			"req-2", int64(42), playDate, 2.0, 3.0, 1.0, 2.0, 3.0, -1.0, int64(7), "3 yuan", 20.0,
+			sqlmock.AnyArg(), 12.0, 10.0, 13.0,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(time.Unix(2, 0)))
+	mock.ExpectQuery(`UPDATE users SET balance = balance \+ \$1, total_recharged = total_recharged \+ \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
+		WithArgs(3.0, int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(13.0))
+	mock.ExpectCommit()
+
+	result, err := repo.Play(context.Background(), service.ZenxiangLiyuPlayCommand{
+		UserID:    42,
+		RequestID: "req-2",
+		PlayDate:  playDate,
+		Settings:  service.ZenxiangLiyuSettings{TicketAmount: 2, MinimumBalance: 10, DailyPlayLimit: 5},
+		Prize:     service.ZenxiangLiyuPrize{ID: 7, Name: "3 yuan", RewardAmount: 3, Probability: 20},
+		ConfigSnapshot: map[string]any{
+			"settings": "snapshot",
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+	require.Equal(t, "req-2", result.RequestID)
+	require.InDelta(t, 13, result.BalanceAfterReward, 0.000001)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestZenxiangLiyuRepositorySavePrizesUsesOneTransaction(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO zenxiang_liyu_prizes`).
+		WithArgs("1 yuan", 1.0, 100.0, true, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "reward_amount", "probability", "enabled", "sort_order"}).
+			AddRow(8, "1 yuan", 1.0, 100.0, true, 1))
+	mock.ExpectQuery(`UPDATE zenxiang_liyu_prizes`).
+		WithArgs("2 yuan", 2.0, 0.0, false, 2, int64(3)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "reward_amount", "probability", "enabled", "sort_order"}).
+			AddRow(3, "2 yuan", 2.0, 0.0, false, 2))
+	mock.ExpectCommit()
+
+	repo := &zenxiangLiyuRepository{db: db}
+	prizes, err := repo.SavePrizes(context.Background(), []service.ZenxiangLiyuPrize{
+		{Name: "1 yuan", RewardAmount: 1, Probability: 100, Enabled: true, SortOrder: 1},
+		{ID: 3, Name: "2 yuan", RewardAmount: 2, Probability: 0, Enabled: false, SortOrder: 2},
+	})
+	require.NoError(t, err)
+	require.Len(t, prizes, 2)
+	require.Equal(t, int64(8), prizes[0].ID)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
