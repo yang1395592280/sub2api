@@ -133,5 +133,11 @@ func RegisterUserRoutes(
 			monitors.GET("", h.ChannelMonitor.List)
 			monitors.GET("/:id/status", h.ChannelMonitor.GetStatus)
 		}
+
+		zenxiangLiyu := authenticated.Group("/zenxiang-liyu")
+		{
+			zenxiangLiyu.GET("/status", h.ZenxiangLiyu.GetStatus)
+			zenxiangLiyu.POST("/play", h.ZenxiangLiyu.Play)
+		}
 	}
 }

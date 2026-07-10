@@ -62,6 +62,7 @@ type Handlers struct {
 	AvailableChannel *AvailableChannelHandler
 	Workbench        *WorkbenchHandler
 	BatchImage       *BatchImageHandler
+	ZenxiangLiyu     *ZenxiangLiyuHandler
 }
 
 // BuildInfo contains build-time information

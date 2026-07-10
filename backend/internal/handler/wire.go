@@ -105,6 +105,10 @@ func ProvideAdminUserHandler(adminService service.AdminService, concurrencyServi
 	return admin.NewUserHandler(adminService, concurrencyService, userPlatformQuotaRepo, billingCache, apiKeyRepo)
 }
 
+func ProvideZenxiangLiyuHandler(service *service.ZenxiangLiyuService) *ZenxiangLiyuHandler {
+	return NewZenxiangLiyuHandler(service)
+}
+
 func ProvideAdminAccountHandler(
 	adminService service.AdminService,
 	oauthService *service.OAuthService,
@@ -164,6 +168,7 @@ func ProvideHandlers(
 	availableChannelHandler *AvailableChannelHandler,
 	workbenchHandler *WorkbenchHandler,
 	batchImageHandler *BatchImageHandler,
+	zenxiangLiyuHandler *ZenxiangLiyuHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
@@ -186,6 +191,7 @@ func ProvideHandlers(
 		AvailableChannel: availableChannelHandler,
 		Workbench:        workbenchHandler,
 		BatchImage:       batchImageHandler,
+		ZenxiangLiyu:     zenxiangLiyuHandler,
 	}
 }
 
@@ -209,6 +215,7 @@ var ProviderSet = wire.NewSet(
 	NewAvailableChannelHandler,
 	NewWorkbenchHandler,
 	NewBatchImageHandler,
+	ProvideZenxiangLiyuHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,
