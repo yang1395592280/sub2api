@@ -462,6 +462,16 @@ export default {
         docUrl: 'Documentation URL',
         docUrlPlaceholder: 'https://docs.example.com',
         docUrlHint: 'Link to your documentation site. Leave empty to hide the documentation link.',
+        joinGroup: {
+          enabled: 'Show Join Group Entry',
+          enabledHint: 'Show a join-group entry to users. Configure either a link or a popup image.',
+          url: 'Join Group URL',
+          urlPlaceholder: 'https://example.com/group',
+          urlHint: 'Users can open this link from the join-group entry.',
+          image: 'Join Group Popup Image',
+          imagePlaceholder: 'Upload or enter an image URL',
+          imageHint: 'Upload a group QR code or promotional image; users see it in a popup before opening the link.'
+        },
         siteLogo: 'Site Logo',
         uploadImage: 'Upload Image',
         remove: 'Remove',

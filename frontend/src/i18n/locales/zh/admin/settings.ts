@@ -455,6 +455,16 @@ export default {
         docUrl: '文档链接',
         docUrlHint: '文档网站的链接。留空则隐藏文档链接。',
         docUrlPlaceholder: 'https://docs.example.com',
+        joinGroup: {
+          enabled: '显示进群入口',
+          enabledHint: '开启后将在用户侧展示进群入口，可配置跳转链接或弹窗图片。',
+          url: '进群链接',
+          urlPlaceholder: 'https://example.com/group',
+          urlHint: '填写完整链接后，用户点击进群入口可直接跳转。',
+          image: '进群弹窗图片',
+          imagePlaceholder: '上传或填写图片地址',
+          imageHint: '可上传群二维码或宣传图；配置后用户点击入口会先看到弹窗图片。'
+        },
         siteLogo: '站点Logo',
         uploadImage: '上传图片',
         remove: '移除',
