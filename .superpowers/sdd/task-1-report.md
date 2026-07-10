@@ -87,3 +87,16 @@ None.
 ### Concern
 
 - Run the integration migration test with Docker available to validate the `174` foreign-key replacement and trigger behavior against PostgreSQL.
+
+---
+
+## Task 1 Fourth Review Fix
+
+### Changes
+
+- Restricted the `prize_id` clearing exception in `174_zenxiang_liyu_record_fk_immutability_fix.sql` to nested PostgreSQL trigger execution (`pg_trigger_depth() > 0`), in addition to the existing non-null-to-null and no-other-columns-changed checks. Direct record updates and all record deletes remain rejected.
+
+### Verification
+
+- Static inspection confirms the trigger exception now requires `pg_trigger_depth() > 0` and retains `TG_OP = 'UPDATE'`; no local PostgreSQL SQL parser or formatter is installed.
+- PostgreSQL integration remains pending Docker availability to validate direct update rejection, FK-driven `prize_id` nulling, and delete rejection.
