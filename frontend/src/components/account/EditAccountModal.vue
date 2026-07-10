@@ -75,7 +75,11 @@
         >
           <div>
             <label class="input-label">上游管理类型</label>
-            <select v-model="editUpstreamAdminType" class="input">
+            <select
+              v-model="editUpstreamAdminType"
+              class="input"
+              data-testid="upstream-admin-type-select"
+            >
               <option value="">不配置</option>
               <option value="sub2api">sub2api</option>
               <option value="new-api">new-api</option>
@@ -2903,8 +2907,7 @@ const supportsUpstreamAdminSettings = computed(() =>
 )
 const showOpenAIOverbrush = computed(() => {
   if (props.account?.platform !== 'openai' || props.account?.type !== 'apikey') return false
-  const credentials = (props.account.credentials as Record<string, unknown>) || {}
-  return String(credentials.upstream_admin_type ?? '').trim() === ''
+  return editUpstreamAdminType.value.trim() === ''
 })
 // Bedrock credentials
 const editBedrockAccessKeyId = ref('')

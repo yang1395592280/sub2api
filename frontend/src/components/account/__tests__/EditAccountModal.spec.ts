@@ -420,6 +420,60 @@ describe('EditAccountModal', () => {
     expect(payload.extra).not.toHaveProperty('openai_overbrush_enabled')
   })
 
+  it('shows and saves OpenAI overbrush after clearing upstream admin type in the same edit', async () => {
+    const account = {
+      ...buildAccount(),
+      credentials: {
+        api_key: 'sk-test',
+        base_url: 'https://api.openai.com',
+        upstream_admin_type: 'sub2api'
+      },
+      extra: {}
+    }
+    updateAccountMock.mockResolvedValue(account)
+    const wrapper = mountModal(account)
+
+    expect(wrapper.find('[data-testid="openai-overbrush-toggle"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="upstream-admin-type-select"]').setValue('')
+    expect(wrapper.find('[data-testid="openai-overbrush-toggle"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="openai-overbrush-toggle"]').trigger('click')
+    await wrapper.get('form').trigger('submit')
+
+    const payload = updateAccountMock.mock.calls[0]?.[1]
+    expect(payload.credentials).not.toHaveProperty('upstream_admin_type')
+    expect(payload.extra).toMatchObject({ openai_overbrush_enabled: true })
+  })
+
+  it('removes OpenAI overbrush when upstream admin type is selected in the same edit', async () => {
+    const account = {
+      ...buildAccount(),
+      credentials: {
+        api_key: 'sk-test',
+        base_url: 'https://api.openai.com'
+      },
+      extra: {
+        openai_overbrush_enabled: true,
+        unrelated_setting: 'preserve-me'
+      }
+    }
+    updateAccountMock.mockResolvedValue(account)
+    const wrapper = mountModal(account)
+
+    expect(wrapper.find('[data-testid="openai-overbrush-toggle"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="upstream-admin-type-select"]').setValue('sub2api')
+    expect(wrapper.find('[data-testid="openai-overbrush-toggle"]').exists()).toBe(false)
+
+    await wrapper.get('form').trigger('submit')
+
+    const payload = updateAccountMock.mock.calls[0]?.[1]
+    expect(payload.credentials.upstream_admin_type).toBe('sub2api')
+    expect(payload.extra).toMatchObject({ unrelated_setting: 'preserve-me' })
+    expect(payload.extra).not.toHaveProperty('openai_overbrush_enabled')
+  })
+
   it('reopening the same account rehydrates the OpenAI whitelist from props', async () => {
     const account = buildAccount()
     updateAccountMock.mockReset()
