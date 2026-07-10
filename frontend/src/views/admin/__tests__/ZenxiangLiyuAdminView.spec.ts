@@ -8,9 +8,10 @@ const api = vi.hoisted(() => ({
   listGrants: vi.fn(), createGrant: vi.fn(), deleteGrant: vi.fn(), getOverviewStats: vi.fn(),
   listUserStats: vi.fn(), listPrizeStats: vi.fn(), simulate: vi.fn(), recommend: vi.fn(), applySimulation: vi.fn(),
 }))
+const usersAPI = vi.hoisted(() => ({ list: vi.fn() }))
 const notifications = vi.hoisted(() => ({ showError: vi.fn(), showSuccess: vi.fn() }))
 
-vi.mock('@/api/admin', () => ({ adminAPI: { zenxiangLiyu: api } }))
+vi.mock('@/api/admin', () => ({ adminAPI: { zenxiangLiyu: api, users: usersAPI } }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => notifications }))
 vi.mock('@/utils/apiError', () => ({ extractApiErrorMessage: (_error: unknown, fallback: string) => fallback }))
 vi.mock('vue-i18n', async () => {
@@ -51,10 +52,11 @@ describe('ZenxiangLiyuAdminView', () => {
     api.listGrants.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 1 })
     api.getOverviewStats.mockResolvedValue({ total_plays: 12, total_revenue: 24, total_expense: 18, net_profit: 6, participating_users: 4 })
     api.listUserStats.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 1 })
-    api.listPrizeStats.mockResolvedValue([])
+    api.listPrizeStats.mockResolvedValue([{ prize_name: '礼遇一档', prize_id: 1, probability: 60, hit_count: 9, reward_amount: 1 }])
     api.updateSettings.mockResolvedValue({ ...settings })
     api.replacePrizes.mockResolvedValue(prizes.map((prize) => ({ ...prize })))
     api.applySimulation.mockResolvedValue(prizes.map((prize) => ({ ...prize })))
+    usersAPI.list.mockResolvedValue({ items: [{ id: 42, email: 'user@example.com' }], total: 1, page: 1, page_size: 10, pages: 1 })
   })
 
   it('validates prize probability total before saving', async () => {
@@ -65,6 +67,8 @@ describe('ZenxiangLiyuAdminView', () => {
     expect(wrapper.text()).toContain('90')
     expect(wrapper.text()).toContain('100')
     expect(wrapper.find('[data-testid="zenxiang-save-prizes"]').attributes('disabled')).toBeDefined()
+    await wrapper.find('[data-testid="zenxiang-save-prizes"]').trigger('click')
+    expect(api.replacePrizes).not.toHaveBeenCalled()
   })
 
   it('saves activity settings', async () => {
@@ -87,18 +91,38 @@ describe('ZenxiangLiyuAdminView', () => {
 
   it('applies recommendation as prize configuration only', async () => {
     api.recommend.mockResolvedValue({ target_expense: 1.8, plans: [{ prizes: [{ ...prizes[0], probability: 70 }, { ...prizes[1], probability: 30 }], probability_total: 100, theory_expense: 1.8, theory_profit: 0.2, theory_profit_rate: 0.1 }] })
+    api.applySimulation.mockResolvedValue([{ ...prizes[0], probability: 70 }, { ...prizes[1], probability: 30 }])
     const wrapper = mountView()
     await flushPromises()
     await wrapper.find('[data-testid="zenxiang-tab-simulator"]').trigger('click')
     await wrapper.find('[data-testid="zenxiang-recommend"]').trigger('click')
     await flushPromises()
     await wrapper.find('[data-testid="zenxiang-apply-recommendation-0"]').trigger('click')
-    await wrapper.find('[data-testid="zenxiang-tab-prizes"]').trigger('click')
-    await wrapper.find('[data-testid="zenxiang-save-prizes"]').trigger('click')
     await flushPromises()
-    expect(api.replacePrizes).toHaveBeenCalledWith(expect.arrayContaining([
+    expect(api.applySimulation).toHaveBeenCalledWith(expect.arrayContaining([
       expect.objectContaining({ probability: 70 }),
     ]))
-    expect(api.applySimulation).not.toHaveBeenCalled()
+  })
+
+  it('searches users by keyword before granting access', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const input = wrapper.find('input[type="search"]')
+    await input.setValue('user@example.com')
+    await wrapper.find('[data-testid="zenxiang-search-users"]').trigger('click')
+    await flushPromises()
+    expect(usersAPI.list).toHaveBeenCalledWith(1, 10, { role: 'user', search: 'user@example.com' })
+    await wrapper.findAll('button').find((button) => button.text() === 'admin.zenxiangLiyu.grant')?.trigger('click')
+    await flushPromises()
+    expect(api.createGrant).toHaveBeenCalledWith({ user_id: 42, enabled: true })
+  })
+
+  it('shows prize hit-rate diff in stats table', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('[data-testid="zenxiang-tab-stats"]').trigger('click')
+    await flushPromises()
+    expect(api.listUserStats).toHaveBeenCalledWith({ page_size: 100 })
+    expect(wrapper.text()).toContain('+15%')
   })
 })

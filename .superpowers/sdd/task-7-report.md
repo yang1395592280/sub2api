@@ -36,5 +36,29 @@ cd frontend && git diff --check
 ## Notes
 
 - Probability configuration blocks full save unless enabled prize probability total is exactly 100.
-- Simulator and recommendations operate on configuration data only; tests assert recommendation application does not call the persistence-oriented `applySimulation` API.
-- Date inputs are present for the stats tab, but the current Task 4B backend stats API does not yet accept date range filters.
+- Simulator and recommendations operate on configuration data only; recommendation application persists prize configuration through `applySimulation`, which only sends prize rows.
+- The current Task 4B backend stats API does not yet accept date range filters, so the page shows an all-time stats notice instead of inactive date controls.
+
+## Review Fixes
+
+- Added user search by ID/email using the existing admin users search API before creating an individual grant.
+- Added prize stats diff between actual hit rate and configured probability.
+- Removed inactive stats date controls and replaced them with an all-time data notice.
+- Added an independent editable simulation prize list so operators can test configurations without mutating the formal prize draft.
+- Changed recommendation application to persist the selected prize configuration via `applySimulation`, then refresh local formal and simulation prize rows.
+- Increased stats/grant page size to reduce silent first-page truncation.
+- Expanded admin page tests to cover blocked invalid-probability save calls, user search grants, prize hit-rate diff, and recommendation persistence.
+
+## Review Fix Verification
+
+Executed on 2026-07-10:
+
+```bash
+cd frontend && pnpm test --run src/views/admin/__tests__/ZenxiangLiyuAdminView.spec.ts
+cd frontend && pnpm typecheck
+cd frontend && git diff --check
+```
+
+- Vitest: 1 test file, 6 tests passed.
+- `vue-tsc --noEmit`: passed.
+- `git diff --check`: passed with no whitespace errors.
