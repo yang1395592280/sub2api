@@ -85,6 +85,20 @@ func TestOpenAIOverbrush429SuccessReset(t *testing.T) {
 	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
 }
 
+func TestResetOpenAIOverbrush429Count_RemovesStoredCounter(t *testing.T) {
+	svc := &OpenAIGatewayService{settingService: fixedOpenAIOverbrushSettingService(t, 2)}
+	account := openAIOverbrushAPIKeyAccount()
+
+	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+	_, loaded := svc.openaiOverbrush429Counts.Load(account.ID)
+	require.True(t, loaded)
+
+	svc.ResetOpenAIOverbrush429Count(account)
+
+	_, loaded = svc.openaiOverbrush429Counts.Load(account.ID)
+	require.False(t, loaded)
+}
+
 func TestOpenAIOverbrush429NotApplicable(t *testing.T) {
 	svc := &OpenAIGatewayService{settingService: fixedOpenAIOverbrushSettingService(t, 3)}
 

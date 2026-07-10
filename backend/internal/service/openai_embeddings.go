@@ -143,6 +143,8 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 		return nil, fmt.Errorf("upstream returned status %d", resp.StatusCode)
 	}
 
+	s.ResetOpenAIOverbrush429Count(account)
+
 	respBody, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
 	if err != nil {
 		if !errors.Is(err, ErrUpstreamResponseBodyTooLarge) {

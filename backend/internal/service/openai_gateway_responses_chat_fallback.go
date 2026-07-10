@@ -206,6 +206,8 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 		return s.handleErrorResponse(ctx, resp, c, account, chatBody, billingModel)
 	}
 
+	s.ResetOpenAIOverbrush429Count(account)
+
 	statusCode := resp.StatusCode
 	var result *OpenAIForwardResult
 	if clientStream {

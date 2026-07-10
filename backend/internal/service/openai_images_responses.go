@@ -1593,6 +1593,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 	)
 	writerSizeBeforeResponse := c.Writer.Size()
 	if parsed.Stream {
+		s.ResetOpenAIOverbrush429Count(account)
 		usage, imageCount, imageOutputSizes, firstTokenMs, err = s.handleOpenAIImagesOAuthStreamingResponse(resp, c, startTime, parsed.ResponseFormat, openAIImagesStreamPrefix(parsed), requestModel)
 		if err != nil {
 			if imageCount > 0 {
@@ -1623,6 +1624,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 			)
 		}
 	} else {
+		s.ResetOpenAIOverbrush429Count(account)
 		usage, imageCount, imageOutputSizes, err = s.handleOpenAIImagesOAuthNonStreamingResponse(resp, c, parsed.ResponseFormat, requestModel)
 		if err != nil {
 			return nil, s.handleOpenAIImagesOAuthResponseError(
