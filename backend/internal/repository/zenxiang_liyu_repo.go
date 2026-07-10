@@ -10,6 +10,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/lib/pq"
 )
 
 type zenxiangLiyuRepository struct {
@@ -137,6 +138,9 @@ func (r *zenxiangLiyuRepository) SavePrizes(ctx context.Context, prizes []servic
 		}
 		saved = append(saved, stored)
 	}
+	if err = disableOmittedZenxiangLiyuPrizes(ctx, tx, saved); err != nil {
+		return nil, err
+	}
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -250,6 +254,12 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 		configSnapshot, user.balance, balanceAfterTicket, balanceAfterTicket+cmd.Prize.RewardAmount,
 	).Scan(&playedAt)
 	if err != nil {
+		if isUniqueConstraintViolation(err) {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				return nil, fmt.Errorf("rollback zenxiang liyu play after request-id conflict: %w", rollbackErr)
+			}
+			return r.findZenxiangLiyuRecordAfterUniqueConflict(ctx, cmd.RequestID)
+		}
 		return nil, err
 	}
 
@@ -274,6 +284,46 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 		BalanceAfterReward: balanceAfterReward,
 		PlayedAt:           playedAt,
 	}, nil
+}
+
+// disableOmittedZenxiangLiyuPrizes preserves referenced prize history while removing
+// omitted prizes from the active draw configuration.
+func disableOmittedZenxiangLiyuPrizes(ctx context.Context, tx *sql.Tx, saved []service.ZenxiangLiyuPrize) error {
+	ids := make([]int64, 0, len(saved))
+	for _, prize := range saved {
+		ids = append(ids, prize.ID)
+	}
+
+	if len(ids) == 0 {
+		_, err := tx.ExecContext(ctx, `UPDATE zenxiang_liyu_prizes SET enabled = FALSE, updated_at = NOW() WHERE enabled = TRUE`)
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `
+		UPDATE zenxiang_liyu_prizes
+		SET enabled = FALSE, updated_at = NOW()
+		WHERE enabled = TRUE AND NOT (id = ANY($1))`, pq.Array(ids))
+	return err
+}
+
+func (r *zenxiangLiyuRepository) findZenxiangLiyuRecordAfterUniqueConflict(ctx context.Context, requestID string) (_ *service.ZenxiangLiyuPlayResult, err error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	record, err := findZenxiangLiyuRecord(ctx, tx, requestID)
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return record, nil
 }
 
 func scanZenxiangLiyuPrizes(rows *sql.Rows) ([]service.ZenxiangLiyuPrize, error) {
