@@ -14,14 +14,15 @@ import (
 type zenxiangLiyuServiceTestRepository struct {
 	mu sync.Mutex
 
-	settings       ZenxiangLiyuSettings
-	prizes         []ZenxiangLiyuPrize
-	granted        bool
-	grantCalls     int
-	deleteCalls    int
-	bulkSaveCalls  int
-	countUserPlays int
-	playCalls      int
+	settings        ZenxiangLiyuSettings
+	prizes          []ZenxiangLiyuPrize
+	granted         bool
+	grantCalls      int
+	deleteCalls     int
+	bulkSaveCalls   int
+	countUserPlays  int
+	playCalls       int
+	lastPlayCommand ZenxiangLiyuPlayCommand
 }
 
 func (r *zenxiangLiyuServiceTestRepository) GetSettings(context.Context) (*ZenxiangLiyuSettings, error) {
@@ -103,7 +104,8 @@ func (r *zenxiangLiyuServiceTestRepository) Play(_ context.Context, command Zenx
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.playCalls++
-	return &ZenxiangLiyuPlayResult{Applied: true, RequestID: command.RequestID, PrizeID: command.Prize.ID}, nil
+	r.lastPlayCommand = command
+	return &ZenxiangLiyuPlayResult{Applied: true, RequestID: command.RequestID}, nil
 }
 
 func newZenxiangLiyuServiceTestRepository(globalEnabled, granted bool) *zenxiangLiyuServiceTestRepository {
@@ -214,6 +216,27 @@ func TestPickZenxiangLiyuPrizeUsesProbabilityBoundaries(t *testing.T) {
 	require.EqualValues(t, 2, picked.ID)
 }
 
+func TestZenxiangLiyuPlayDelegatesPolicyToRepositoryTransaction(t *testing.T) {
+	repo := newZenxiangLiyuServiceTestRepository(false, false)
+	svc := NewZenxiangLiyuService(repo, func() time.Time {
+		return time.Date(2026, time.July, 10, 12, 30, 0, 0, time.UTC)
+	}, rand.New(rand.NewSource(1)))
+
+	result, err := svc.Play(context.Background(), 42, "req-delegated")
+
+	require.NoError(t, err)
+	require.Equal(t, "req-delegated", result.RequestID)
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	require.Equal(t, 1, repo.playCalls)
+	require.Zero(t, repo.grantCalls)
+	require.Equal(t, int64(42), repo.lastPlayCommand.UserID)
+	require.Equal(t, "req-delegated", repo.lastPlayCommand.RequestID)
+	require.Equal(t, time.Date(2026, time.July, 10, 0, 0, 0, 0, time.UTC), repo.lastPlayCommand.PlayDate)
+	require.GreaterOrEqual(t, repo.lastPlayCommand.Roll, 0.0)
+	require.Less(t, repo.lastPlayCommand.Roll, 100.0)
+}
+
 func TestZenxiangLiyuSimulationComputesProfitAndUserDistribution(t *testing.T) {
 	req := ZenxiangLiyuSimulationRequest{
 		UserCount:      2,
@@ -278,12 +301,11 @@ func TestZenxiangLiyuAuthorization(t *testing.T) {
 		globalEnabled bool
 		granted       bool
 		wantStatus    string
-		wantPlayErr   error
 		grantCalls    int
 	}{
 		{name: "global enabled permits ordinary user", globalEnabled: true, granted: false, wantStatus: "", grantCalls: 0},
-		{name: "global disabled permits granted user", globalEnabled: false, granted: true, wantStatus: "", grantCalls: 2},
-		{name: "global disabled rejects ungranted user", globalEnabled: false, granted: false, wantStatus: ErrZenxiangLiyuUnauthorized.Error(), wantPlayErr: ErrZenxiangLiyuUnauthorized, grantCalls: 2},
+		{name: "global disabled permits granted user", globalEnabled: false, granted: true, wantStatus: "", grantCalls: 1},
+		{name: "global disabled hides ungranted user", globalEnabled: false, granted: false, wantStatus: ErrZenxiangLiyuUnauthorized.Error(), grantCalls: 1},
 	}
 
 	for _, tt := range tests {
@@ -297,13 +319,8 @@ func TestZenxiangLiyuAuthorization(t *testing.T) {
 			require.Equal(t, tt.wantStatus == "", status.Visible)
 
 			result, err := svc.Play(context.Background(), 1, "request-id")
-			if tt.wantPlayErr != nil {
-				require.ErrorIs(t, err, tt.wantPlayErr)
-				require.Nil(t, result)
-			} else {
-				require.NoError(t, err)
-				require.True(t, result.Applied)
-			}
+			require.NoError(t, err)
+			require.True(t, result.Applied)
 
 			repo.mu.Lock()
 			defer repo.mu.Unlock()

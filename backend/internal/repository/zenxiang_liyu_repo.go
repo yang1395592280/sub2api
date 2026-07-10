@@ -68,9 +68,22 @@ func (r *zenxiangLiyuRepository) ListPrizes(ctx context.Context) ([]service.Zenx
 }
 
 func (r *zenxiangLiyuRepository) SavePrize(ctx context.Context, prize service.ZenxiangLiyuPrize) (*service.ZenxiangLiyuPrize, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+	if err = lockZenxiangLiyuSettingsForUpdate(ctx, tx); err != nil {
+		return nil, err
+	}
+
 	if prize.ID == 0 {
 		created := &service.ZenxiangLiyuPrize{}
-		err := r.db.QueryRowContext(ctx, `
+		err = tx.QueryRowContext(ctx, `
 			INSERT INTO zenxiang_liyu_prizes (name, reward_amount, probability, enabled, sort_order)
 			VALUES ($1, $2, $3, $4, $5)
 			RETURNING id, name, reward_amount, probability, enabled, sort_order`,
@@ -79,11 +92,14 @@ func (r *zenxiangLiyuRepository) SavePrize(ctx context.Context, prize service.Ze
 		if err != nil {
 			return nil, err
 		}
+		if err = tx.Commit(); err != nil {
+			return nil, err
+		}
 		return created, nil
 	}
 
 	updated := &service.ZenxiangLiyuPrize{}
-	err := r.db.QueryRowContext(ctx, `
+	err = tx.QueryRowContext(ctx, `
 		UPDATE zenxiang_liyu_prizes
 		SET name = $1, reward_amount = $2, probability = $3, enabled = $4, sort_order = $5, updated_at = NOW()
 		WHERE id = $6
@@ -94,6 +110,9 @@ func (r *zenxiangLiyuRepository) SavePrize(ctx context.Context, prize service.Ze
 		return nil, service.ErrZenxiangLiyuInvalidSettings
 	}
 	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
 	return updated, nil
@@ -110,6 +129,9 @@ func (r *zenxiangLiyuRepository) SavePrizes(ctx context.Context, prizes []servic
 			_ = tx.Rollback()
 		}
 	}()
+	if err = lockZenxiangLiyuSettingsForUpdate(ctx, tx); err != nil {
+		return nil, err
+	}
 
 	saved := make([]service.ZenxiangLiyuPrize, 0, len(prizes))
 	for _, prize := range prizes {
@@ -147,8 +169,20 @@ func (r *zenxiangLiyuRepository) SavePrizes(ctx context.Context, prizes []servic
 	return saved, nil
 }
 
-func (r *zenxiangLiyuRepository) DeletePrize(ctx context.Context, id int64) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM zenxiang_liyu_prizes WHERE id = $1`, id)
+func (r *zenxiangLiyuRepository) DeletePrize(ctx context.Context, id int64) (err error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+	if err = lockZenxiangLiyuSettingsForUpdate(ctx, tx); err != nil {
+		return err
+	}
+	result, err := tx.ExecContext(ctx, `DELETE FROM zenxiang_liyu_prizes WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}
@@ -157,9 +191,10 @@ func (r *zenxiangLiyuRepository) DeletePrize(ctx context.Context, id int64) erro
 		return err
 	}
 	if count == 0 {
-		return service.ErrZenxiangLiyuInvalidSettings
+		err = service.ErrZenxiangLiyuInvalidSettings
+		return err
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (r *zenxiangLiyuRepository) IsUserGranted(ctx context.Context, userID int64) (bool, error) {
@@ -311,13 +346,41 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 		}
 	}()
 
-	if existing, lookupErr := findZenxiangLiyuRecord(ctx, tx, cmd.RequestID); lookupErr == nil {
+	if existing, lookupErr := findZenxiangLiyuRecord(ctx, tx, cmd.UserID, cmd.RequestID); lookupErr == nil {
 		if err = tx.Commit(); err != nil {
 			return nil, err
 		}
 		return existing, nil
 	} else if !errors.Is(lookupErr, sql.ErrNoRows) {
 		return nil, lookupErr
+	}
+
+	settings, err := getZenxiangLiyuSettingsForPlay(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	if settings.TicketAmount <= 0 || settings.MinimumBalance < 0 || settings.DailyPlayLimit <= 0 {
+		return nil, service.ErrZenxiangLiyuInvalidSettings
+	}
+	if !settings.GlobalEnabled {
+		granted, grantErr := getZenxiangLiyuGrantForPlay(ctx, tx, cmd.UserID)
+		if grantErr != nil {
+			if errors.Is(grantErr, sql.ErrNoRows) {
+				return nil, service.ErrZenxiangLiyuUnauthorized
+			}
+			return nil, grantErr
+		}
+		if !granted {
+			return nil, service.ErrZenxiangLiyuUnauthorized
+		}
+	}
+	prizes, err := listEnabledZenxiangLiyuPrizesForPlay(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	prize, err := service.PickZenxiangLiyuPrize(prizes, cmd.Roll)
+	if err != nil {
+		return nil, err
 	}
 
 	var user struct {
@@ -338,7 +401,7 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 	if user.role != service.RoleUser || user.status != service.StatusActive {
 		return nil, service.ErrZenxiangLiyuUnauthorized
 	}
-	if user.balance <= cmd.Settings.MinimumBalance || user.balance < cmd.Settings.TicketAmount {
+	if user.balance <= settings.MinimumBalance || user.balance < settings.TicketAmount {
 		return nil, service.ErrZenxiangLiyuInsufficientBalance
 	}
 
@@ -347,22 +410,22 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 	if err != nil {
 		return nil, err
 	}
-	if playCount >= cmd.Settings.DailyPlayLimit {
+	if playCount >= settings.DailyPlayLimit {
 		return nil, service.ErrZenxiangLiyuDailyLimitReached
 	}
 
 	var balanceAfterTicket float64
-	err = tx.QueryRowContext(ctx, `UPDATE users SET balance = balance - $1, updated_at = NOW() WHERE id = $2 RETURNING balance`, cmd.Settings.TicketAmount, cmd.UserID).Scan(&balanceAfterTicket)
+	err = tx.QueryRowContext(ctx, `UPDATE users SET balance = balance - $1, updated_at = NOW() WHERE id = $2 RETURNING balance`, settings.TicketAmount, cmd.UserID).Scan(&balanceAfterTicket)
 	if err != nil {
 		return nil, err
 	}
 
-	configSnapshot, err := json.Marshal(cmd.ConfigSnapshot)
+	configSnapshot, err := json.Marshal(map[string]any{"settings": settings, "prize": prize})
 	if err != nil {
 		return nil, fmt.Errorf("marshal zenxiang liyu config snapshot: %w", err)
 	}
-	userNetAmount := cmd.Prize.RewardAmount - cmd.Settings.TicketAmount
-	systemProfit := cmd.Settings.TicketAmount - cmd.Prize.RewardAmount
+	userNetAmount := prize.RewardAmount - settings.TicketAmount
+	systemProfit := settings.TicketAmount - prize.RewardAmount
 	var playedAt time.Time
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO zenxiang_liyu_records (
@@ -371,22 +434,22 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 			probability_snapshot, config_snapshot, balance_before, balance_after_ticket, balance_after_reward
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		RETURNING created_at`,
-		cmd.RequestID, cmd.UserID, cmd.PlayDate, cmd.Settings.TicketAmount, cmd.Prize.RewardAmount, userNetAmount,
-		cmd.Settings.TicketAmount, cmd.Prize.RewardAmount, systemProfit, cmd.Prize.ID, cmd.Prize.Name, cmd.Prize.Probability,
-		configSnapshot, user.balance, balanceAfterTicket, balanceAfterTicket+cmd.Prize.RewardAmount,
+		cmd.RequestID, cmd.UserID, cmd.PlayDate, settings.TicketAmount, prize.RewardAmount, userNetAmount,
+		settings.TicketAmount, prize.RewardAmount, systemProfit, prize.ID, prize.Name, prize.Probability,
+		configSnapshot, user.balance, balanceAfterTicket, balanceAfterTicket+prize.RewardAmount,
 	).Scan(&playedAt)
 	if err != nil {
 		if isUniqueConstraintViolation(err) {
 			if rollbackErr := tx.Rollback(); rollbackErr != nil {
 				return nil, fmt.Errorf("rollback zenxiang liyu play after request-id conflict: %w", rollbackErr)
 			}
-			return r.findZenxiangLiyuRecordAfterUniqueConflict(ctx, cmd.RequestID)
+			return r.findZenxiangLiyuRecordAfterUniqueConflict(ctx, cmd.UserID, cmd.RequestID)
 		}
 		return nil, err
 	}
 
 	var balanceAfterReward float64
-	err = tx.QueryRowContext(ctx, `UPDATE users SET balance = balance + $1, total_recharged = total_recharged + $1, updated_at = NOW() WHERE id = $2 RETURNING balance`, cmd.Prize.RewardAmount, cmd.UserID).Scan(&balanceAfterReward)
+	err = tx.QueryRowContext(ctx, `UPDATE users SET balance = balance + $1, total_recharged = total_recharged + $1, updated_at = NOW() WHERE id = $2 RETURNING balance`, prize.RewardAmount, cmd.UserID).Scan(&balanceAfterReward)
 	if err != nil {
 		return nil, err
 	}
@@ -396,16 +459,65 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 	return &service.ZenxiangLiyuPlayResult{
 		Applied:            true,
 		RequestID:          cmd.RequestID,
-		PrizeID:            cmd.Prize.ID,
-		PrizeName:          cmd.Prize.Name,
-		RewardAmount:       cmd.Prize.RewardAmount,
-		TicketAmount:       cmd.Settings.TicketAmount,
+		PrizeID:            prize.ID,
+		PrizeName:          prize.Name,
+		RewardAmount:       prize.RewardAmount,
+		TicketAmount:       settings.TicketAmount,
 		UserNetAmount:      userNetAmount,
 		BalanceBefore:      user.balance,
 		BalanceAfterTicket: balanceAfterTicket,
 		BalanceAfterReward: balanceAfterReward,
 		PlayedAt:           playedAt,
 	}, nil
+}
+
+func lockZenxiangLiyuSettingsForUpdate(ctx context.Context, tx *sql.Tx) error {
+	var id int64
+	err := tx.QueryRowContext(ctx, `SELECT id FROM zenxiang_liyu_settings WHERE id = 1 FOR UPDATE`).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return service.ErrZenxiangLiyuInvalidSettings
+	}
+	return err
+}
+
+func getZenxiangLiyuSettingsForPlay(ctx context.Context, tx *sql.Tx) (*service.ZenxiangLiyuSettings, error) {
+	settings := &service.ZenxiangLiyuSettings{}
+	err := tx.QueryRowContext(ctx, `
+		SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit
+		FROM zenxiang_liyu_settings WHERE id = 1 FOR UPDATE`,
+	).Scan(&settings.GlobalEnabled, &settings.TicketAmount, &settings.MinimumBalance, &settings.DailyPlayLimit)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrZenxiangLiyuInvalidSettings
+	}
+	if err != nil {
+		return nil, err
+	}
+	return settings, nil
+}
+
+func getZenxiangLiyuGrantForPlay(ctx context.Context, tx *sql.Tx, userID int64) (bool, error) {
+	var granted bool
+	err := tx.QueryRowContext(ctx, `
+		SELECT enabled
+		FROM zenxiang_liyu_user_grants
+		WHERE user_id = $1
+		FOR SHARE`, userID,
+	).Scan(&granted)
+	return granted, err
+}
+
+func listEnabledZenxiangLiyuPrizesForPlay(ctx context.Context, tx *sql.Tx) ([]service.ZenxiangLiyuPrize, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id, name, reward_amount, probability, enabled, sort_order
+		FROM zenxiang_liyu_prizes
+		WHERE enabled = TRUE
+		ORDER BY sort_order, id
+		FOR SHARE`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanZenxiangLiyuPrizes(rows)
 }
 
 // disableOmittedZenxiangLiyuPrizes preserves referenced prize history while removing
@@ -427,7 +539,7 @@ func disableOmittedZenxiangLiyuPrizes(ctx context.Context, tx *sql.Tx, saved []s
 	return err
 }
 
-func (r *zenxiangLiyuRepository) findZenxiangLiyuRecordAfterUniqueConflict(ctx context.Context, requestID string) (_ *service.ZenxiangLiyuPlayResult, err error) {
+func (r *zenxiangLiyuRepository) findZenxiangLiyuRecordAfterUniqueConflict(ctx context.Context, userID int64, requestID string) (_ *service.ZenxiangLiyuPlayResult, err error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -438,7 +550,7 @@ func (r *zenxiangLiyuRepository) findZenxiangLiyuRecordAfterUniqueConflict(ctx c
 		}
 	}()
 
-	record, err := findZenxiangLiyuRecord(ctx, tx, requestID)
+	record, err := findZenxiangLiyuRecord(ctx, tx, userID, requestID)
 	if err != nil {
 		return nil, err
 	}
@@ -463,14 +575,14 @@ func scanZenxiangLiyuPrizes(rows *sql.Rows) ([]service.ZenxiangLiyuPrize, error)
 	return prizes, nil
 }
 
-func findZenxiangLiyuRecord(ctx context.Context, tx *sql.Tx, requestID string) (*service.ZenxiangLiyuPlayResult, error) {
+func findZenxiangLiyuRecord(ctx context.Context, tx *sql.Tx, userID int64, requestID string) (*service.ZenxiangLiyuPlayResult, error) {
 	result := &service.ZenxiangLiyuPlayResult{Applied: false}
 	var prizeID sql.NullInt64
 	err := tx.QueryRowContext(ctx, `
 		SELECT id, request_id, user_id, ticket_amount, reward_amount, user_net_amount,
 			system_revenue, system_expense, system_profit, prize_id, prize_name_snapshot,
 			probability_snapshot, balance_before, balance_after_ticket, balance_after_reward, created_at
-		FROM zenxiang_liyu_records WHERE request_id = $1`, requestID,
+		FROM zenxiang_liyu_records WHERE user_id = $1 AND request_id = $2`, userID, requestID,
 	).Scan(
 		new(int64), &result.RequestID, new(int64), &result.TicketAmount, &result.RewardAmount, &result.UserNetAmount,
 		new(float64), new(float64), new(float64), &prizeID, &result.PrizeName,

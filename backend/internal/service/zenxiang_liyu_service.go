@@ -76,12 +76,10 @@ type ZenxiangLiyuStatus struct {
 }
 
 type ZenxiangLiyuPlayCommand struct {
-	UserID         int64
-	RequestID      string
-	PlayDate       time.Time
-	Settings       ZenxiangLiyuSettings
-	Prize          ZenxiangLiyuPrize
-	ConfigSnapshot map[string]any
+	UserID    int64
+	RequestID string
+	PlayDate  time.Time
+	Roll      float64
 }
 
 type ZenxiangLiyuPlayResult struct {
@@ -391,28 +389,10 @@ func (s *ZenxiangLiyuService) Play(ctx context.Context, userID int64, requestID 
 	if strings.TrimSpace(requestID) == "" {
 		return nil, ErrZenxiangLiyuRequestIDRequired
 	}
-	settings, err := s.GetSettings(ctx)
-	if err != nil {
-		return nil, err
+	if s.repo == nil {
+		return nil, ErrZenxiangLiyuInvalidSettings
 	}
-	if !settings.GlobalEnabled {
-		granted, err := s.repo.IsUserGranted(ctx, userID)
-		if err != nil {
-			return nil, err
-		}
-		if !granted {
-			return nil, ErrZenxiangLiyuUnauthorized
-		}
-	}
-	prizes, err := s.ListPrizes(ctx)
-	if err != nil {
-		return nil, err
-	}
-	prize, err := PickZenxiangLiyuPrize(prizes, s.randomFloat64()*100)
-	if err != nil {
-		return nil, err
-	}
-	return s.repo.Play(ctx, ZenxiangLiyuPlayCommand{UserID: userID, RequestID: requestID, PlayDate: s.playDate(), Settings: *settings, Prize: *prize, ConfigSnapshot: map[string]any{"settings": settings, "prize": prize}})
+	return s.repo.Play(ctx, ZenxiangLiyuPlayCommand{UserID: userID, RequestID: requestID, PlayDate: s.playDate(), Roll: s.randomFloat64() * 100})
 }
 
 func (s *ZenxiangLiyuService) GetSettings(ctx context.Context) (*ZenxiangLiyuSettings, error) {

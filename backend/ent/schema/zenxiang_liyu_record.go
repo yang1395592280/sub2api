@@ -55,7 +55,7 @@ func (ZenxiangLiyuRecord) Edges() []ent.Edge {
 
 func (ZenxiangLiyuRecord) Indexes() []ent.Index {
 	return []ent.Index{
-		index.Fields("request_id").Unique(),
+		index.Fields("user_id", "request_id").Unique(),
 		index.Fields("user_id", "play_date"),
 		index.Fields("play_date"),
 		index.Fields("prize_id"),

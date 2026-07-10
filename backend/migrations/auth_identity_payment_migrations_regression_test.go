@@ -200,6 +200,24 @@ func TestMigration158BackfillsGrokMediaGenerationGroups(t *testing.T) {
 	require.Contains(t, sql, "AND allow_image_generation = false")
 }
 
+func TestMigration175ScopesZenxiangLiyuRequestIDByUser(t *testing.T) {
+	initialContent, err := FS.ReadFile("172_zenxiang_liyu.sql")
+	require.NoError(t, err)
+
+	initialSQL := string(initialContent)
+	require.Contains(t, initialSQL, "CONSTRAINT zenxiang_liyu_records_request_unique UNIQUE (request_id)")
+	require.NotContains(t, initialSQL, "CONSTRAINT zenxiang_liyu_records_user_request_unique UNIQUE (user_id, request_id)")
+
+	content, err := FS.ReadFile("175_zenxiang_liyu_request_id_user_scope.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "DROP CONSTRAINT IF EXISTS zenxiang_liyu_records_request_unique")
+	require.Contains(t, sql, "DROP CONSTRAINT IF EXISTS zenxiangliyurecord_request_id")
+	require.Contains(t, sql, "DROP INDEX IF EXISTS zenxiangliyurecord_request_id")
+	require.Contains(t, sql, "ADD CONSTRAINT zenxiang_liyu_records_user_request_unique UNIQUE (user_id, request_id)")
+}
+
 func TestMigration154AddsSparkShadowColumnsAndConstraintsWithoutHotIndexes(t *testing.T) {
 	content, err := FS.ReadFile("154_account_spark_shadow.sql")
 	require.NoError(t, err)

@@ -2262,9 +2262,9 @@ var (
 		},
 		Indexes: []*schema.Index{
 			{
-				Name:    "zenxiangliyurecord_request_id",
+				Name:    "zenxiangliyurecord_user_id_request_id",
 				Unique:  true,
-				Columns: []*schema.Column{ZenxiangLiyuRecordsColumns[1]},
+				Columns: []*schema.Column{ZenxiangLiyuRecordsColumns[16], ZenxiangLiyuRecordsColumns[1]},
 			},
 			{
 				Name:    "zenxiangliyurecord_user_id_play_date",
