@@ -1,0 +1,216 @@
+import { apiClient } from '../client'
+import type { PaginatedResponse } from '@/types'
+import type { ZenxiangLiyuPrize } from '../zenxiangLiyu'
+
+const basePath = '/admin/zenxiang-liyu'
+
+export interface ZenxiangLiyuSettings {
+  global_enabled: boolean
+  ticket_amount: number
+  minimum_balance: number
+  daily_play_limit: number
+}
+
+export interface ZenxiangLiyuPrizeInput {
+  id?: number
+  name: string
+  reward_amount: number
+  probability: number
+  enabled: boolean
+  sort_order: number
+}
+
+export interface ZenxiangLiyuGrant {
+  user_id: number
+  user_email: string
+  enabled: boolean
+  granted_by?: number
+  notes: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ZenxiangLiyuGrantInput {
+  user_id: number
+  enabled?: boolean
+  notes?: string
+}
+
+export interface ZenxiangLiyuOverviewStats {
+  total_plays: number
+  total_revenue: number
+  total_expense: number
+  net_profit: number
+  participating_users: number
+}
+
+export interface ZenxiangLiyuUserStats {
+  user_id: number
+  user_email: string
+  play_count: number
+  ticket_amount: number
+  reward_amount: number
+  user_net_amount: number
+}
+
+export interface ZenxiangLiyuPrizeStats {
+  prize_id?: number
+  prize_name: string
+  hit_count: number
+  reward_amount: number
+  probability: number
+}
+
+export interface ZenxiangLiyuPaginationParams {
+  page?: number
+  page_size?: number
+}
+
+export interface ZenxiangLiyuSimulationRequest {
+  user_count: number
+  plays_per_user: number
+  initial_balance: number
+  ticket_amount: number
+  minimum_balance: number
+  daily_play_limit: number
+  prizes: ZenxiangLiyuPrize[]
+}
+
+export interface ZenxiangLiyuSimulationPrizeHit {
+  prize_id: number
+  prize_name: string
+  hit_count: number
+  actual_rate: number
+}
+
+export interface ZenxiangLiyuSimulationResult {
+  total_plays: number
+  total_revenue: number
+  total_expense: number
+  net_profit: number
+  profit_rate: number
+  profitable_users: number
+  losing_users: number
+  break_even_users: number
+  prize_hits: ZenxiangLiyuSimulationPrizeHit[]
+}
+
+export interface ZenxiangLiyuRecommendationRequest {
+  target_profit_rate: number
+  ticket_amount: number
+  prizes: ZenxiangLiyuPrize[]
+}
+
+export interface ZenxiangLiyuRecommendationPlan {
+  prizes: ZenxiangLiyuPrize[]
+  probability_total: number
+  theory_expense: number
+  theory_profit: number
+  theory_profit_rate: number
+}
+
+export interface ZenxiangLiyuRecommendationResult {
+  target_expense: number
+  plans: ZenxiangLiyuRecommendationPlan[]
+}
+
+async function getSettings(): Promise<ZenxiangLiyuSettings> {
+  const { data } = await apiClient.get<ZenxiangLiyuSettings>(`${basePath}/settings`)
+  return data
+}
+
+async function updateSettings(settings: ZenxiangLiyuSettings): Promise<ZenxiangLiyuSettings> {
+  const { data } = await apiClient.put<ZenxiangLiyuSettings>(`${basePath}/settings`, settings)
+  return data
+}
+
+async function listPrizes(): Promise<ZenxiangLiyuPrize[]> {
+  const { data } = await apiClient.get<ZenxiangLiyuPrize[]>(`${basePath}/prizes`)
+  return data
+}
+
+async function createPrize(prize: ZenxiangLiyuPrizeInput): Promise<ZenxiangLiyuPrize> {
+  const { data } = await apiClient.post<ZenxiangLiyuPrize>(`${basePath}/prizes`, prize)
+  return data
+}
+
+async function replacePrizes(prizes: ZenxiangLiyuPrizeInput[]): Promise<ZenxiangLiyuPrize[]> {
+  const { data } = await apiClient.put<ZenxiangLiyuPrize[]>(`${basePath}/prizes`, { prizes })
+  return data
+}
+
+async function updatePrize(id: number, prize: ZenxiangLiyuPrizeInput): Promise<ZenxiangLiyuPrize> {
+  const { data } = await apiClient.put<ZenxiangLiyuPrize>(`${basePath}/prizes/${id}`, prize)
+  return data
+}
+
+async function deletePrize(id: number): Promise<{ id: number }> {
+  const { data } = await apiClient.delete<{ id: number }>(`${basePath}/prizes/${id}`)
+  return data
+}
+
+async function listGrants(params: ZenxiangLiyuPaginationParams = {}): Promise<PaginatedResponse<ZenxiangLiyuGrant>> {
+  const { data } = await apiClient.get<PaginatedResponse<ZenxiangLiyuGrant>>(`${basePath}/grants`, { params })
+  return data
+}
+
+async function createGrant(grant: ZenxiangLiyuGrantInput): Promise<ZenxiangLiyuGrant> {
+  const { data } = await apiClient.post<ZenxiangLiyuGrant>(`${basePath}/grants`, grant)
+  return data
+}
+
+async function deleteGrant(userId: number): Promise<{ user_id: number }> {
+  const { data } = await apiClient.delete<{ user_id: number }>(`${basePath}/grants/${userId}`)
+  return data
+}
+
+async function getOverviewStats(): Promise<ZenxiangLiyuOverviewStats> {
+  const { data } = await apiClient.get<ZenxiangLiyuOverviewStats>(`${basePath}/stats/overview`)
+  return data
+}
+
+async function listUserStats(params: ZenxiangLiyuPaginationParams = {}): Promise<PaginatedResponse<ZenxiangLiyuUserStats>> {
+  const { data } = await apiClient.get<PaginatedResponse<ZenxiangLiyuUserStats>>(`${basePath}/stats/users`, { params })
+  return data
+}
+
+async function listPrizeStats(): Promise<ZenxiangLiyuPrizeStats[]> {
+  const { data } = await apiClient.get<ZenxiangLiyuPrizeStats[]>(`${basePath}/stats/prizes`)
+  return data
+}
+
+async function simulate(request: ZenxiangLiyuSimulationRequest): Promise<ZenxiangLiyuSimulationResult> {
+  const { data } = await apiClient.post<ZenxiangLiyuSimulationResult>(`${basePath}/simulate`, request)
+  return data
+}
+
+async function recommend(request: ZenxiangLiyuRecommendationRequest): Promise<ZenxiangLiyuRecommendationResult> {
+  const { data } = await apiClient.post<ZenxiangLiyuRecommendationResult>(`${basePath}/simulate/recommend`, request)
+  return data
+}
+
+async function applySimulation(prizes: ZenxiangLiyuPrizeInput[]): Promise<ZenxiangLiyuPrize[]> {
+  const { data } = await apiClient.post<ZenxiangLiyuPrize[]>(`${basePath}/simulate/apply`, { prizes })
+  return data
+}
+
+export const adminZenxiangLiyuAPI = {
+  getSettings,
+  updateSettings,
+  listPrizes,
+  createPrize,
+  replacePrizes,
+  updatePrize,
+  deletePrize,
+  listGrants,
+  createGrant,
+  deleteGrant,
+  getOverviewStats,
+  listUserStats,
+  listPrizeStats,
+  simulate,
+  recommend,
+  applySimulation,
+}
+
+export default adminZenxiangLiyuAPI

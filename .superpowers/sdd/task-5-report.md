@@ -48,3 +48,79 @@ Review:
   - `cd frontend && pnpm test:run src/views/user/__tests__/keyGroupOptions.spec.ts src/views/user/__tests__/KeysView.autoGroup.spec.ts`
   - `cd frontend && pnpm typecheck`
   - Both passed.
+
+---
+
+# Task 5 Report: Frontend APIs, Store, Routes, and Sidebar Visibility
+
+## Status
+
+Completed. The frontend plumbing for Zenxiang Liyu is implemented and committed separately from other in-progress task reports.
+
+## Changed Files
+
+- `frontend/src/api/zenxiangLiyu.ts`
+- `frontend/src/api/admin/zenxiangLiyu.ts`
+- `frontend/src/api/__tests__/zenxiangLiyu.spec.ts`
+- `frontend/src/api/admin/__tests__/zenxiangLiyu.spec.ts`
+- `frontend/src/api/index.ts`
+- `frontend/src/api/admin/index.ts`
+- `frontend/src/stores/zenxiangLiyu.ts`
+- `frontend/src/stores/index.ts`
+- `frontend/src/router/index.ts`
+- `frontend/src/components/layout/AppSidebar.vue`
+- `frontend/src/i18n/locales/zh.ts`
+- `frontend/src/i18n/locales/en.ts`
+
+## API Coverage
+
+User API:
+
+- `GET /zenxiang-liyu/status`
+- `POST /zenxiang-liyu/play`
+- `GET /zenxiang-liyu/records`
+- `GET /zenxiang-liyu/daily-summary`
+
+Admin API:
+
+- `GET|PUT /admin/zenxiang-liyu/settings`
+- `GET|POST|PUT /admin/zenxiang-liyu/prizes`
+- `PUT|DELETE /admin/zenxiang-liyu/prizes/:id`
+- `GET|POST /admin/zenxiang-liyu/grants`
+- `DELETE /admin/zenxiang-liyu/grants/:user_id`
+- `GET /admin/zenxiang-liyu/stats/overview`
+- `GET /admin/zenxiang-liyu/stats/users`
+- `GET /admin/zenxiang-liyu/stats/prizes`
+- `POST /admin/zenxiang-liyu/simulate`
+- `POST /admin/zenxiang-liyu/simulate/recommend`
+- `POST /admin/zenxiang-liyu/simulate/apply`
+
+All functions return the already-unwrapped `response.data` payload supplied by the shared client interceptor.
+
+## Routes and Navigation
+
+- Added authenticated user route `/zenxiang-liyu` and admin route `/admin/zenxiang-liyu` with localized title and description metadata.
+- Added the `useZenxiangLiyuStore()` in-memory status cache. The user navigation item depends on backend `visible`; insufficient balance remains visible when the backend reports `visible: true`.
+- Added the admin operations item, hidden only in simple mode. Both routes intentionally point to the Task 6/7 page components, which are outside this task's write scope.
+
+## Verification
+
+Passed:
+
+```text
+cd frontend && pnpm test --run src/api/__tests__/zenxiangLiyu.spec.ts src/api/admin/__tests__/zenxiangLiyu.spec.ts
+2 test files passed, 8 tests passed
+
+cd frontend && pnpm test --run src/api/__tests__/zenxiangLiyu.spec.ts src/api/admin/__tests__/zenxiangLiyu.spec.ts src/router/__tests__/guards.spec.ts
+3 test files passed, 44 tests passed
+
+cd frontend && pnpm typecheck
+Exited 0
+```
+
+`git diff --check` also exited cleanly.
+
+## Risks and Follow-up
+
+- The lazily imported user/admin page components are intentionally not created here, per the Task 5 boundary; Task 6 and Task 7 must add them before navigating to the new routes in a running application.
+- API request/response types reflect Task 4B's current Go contracts. Contract changes should update these types and their request-boundary tests together.

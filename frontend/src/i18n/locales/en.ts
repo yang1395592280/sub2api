@@ -419,6 +419,8 @@ export default {
     availableChannels: 'Available Channels',
     workbench: 'Workbench',
     adminWorkbench: 'Workbench Records',
+    zenxiangLiyu: 'Premium Rewards',
+    zenxiangLiyuOps: 'Premium Rewards Ops',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
     proxies: 'Proxies',
@@ -509,6 +511,11 @@ export default {
     deleteConversationFailed: 'Failed to delete conversation',
     retentionNotice: 'Workbench records are kept for 7 days only. Save anything important in time.',
     imageApiDocs: 'Image API Docs'
+  },
+
+  zenxiangLiyu: {
+    title: 'Premium Rewards',
+    description: 'Take part in the exclusive rewards activity',
   },
 
   imageApiDocs: {
@@ -1567,6 +1574,10 @@ export default {
 
   // Admin
   admin: {
+    zenxiangLiyu: {
+      title: 'Premium Rewards Operations',
+      description: 'Configure prizes, grant user access, and review activity statistics',
+    },
     workbench: {
       title: 'Workbench Records',
       description: 'Review and clean workbench conversations, messages, and image data',

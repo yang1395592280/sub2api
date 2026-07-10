@@ -35,6 +35,7 @@ import riskControlAPI from './riskControl'
 import adminComplianceAPI from './compliance'
 import adminWorkbenchAPI from './workbench'
 import openaiAutoSchedulerAPI from './openaiAutoScheduler'
+import adminZenxiangLiyuAPI from './zenxiangLiyu'
 
 /**
  * Unified admin API object for convenient access
@@ -71,7 +72,8 @@ export const adminAPI = {
   riskControl: riskControlAPI,
   compliance: adminComplianceAPI,
   workbench: adminWorkbenchAPI,
-  openaiAutoScheduler: openaiAutoSchedulerAPI
+  openaiAutoScheduler: openaiAutoSchedulerAPI,
+  zenxiangLiyu: adminZenxiangLiyuAPI
 }
 
 export {
@@ -106,7 +108,8 @@ export {
   riskControlAPI,
   adminComplianceAPI,
   adminWorkbenchAPI,
-  openaiAutoSchedulerAPI
+  openaiAutoSchedulerAPI,
+  adminZenxiangLiyuAPI
 }
 
 export default adminAPI

@@ -191,7 +191,7 @@
 import { computed, h, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
+import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore, useZenxiangLiyuStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
@@ -241,6 +241,7 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
 const adminSettingsStore = useAdminSettingsStore()
+const zenxiangLiyuStore = useZenxiangLiyuStore()
 const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
@@ -716,6 +717,7 @@ const flagRiskControl = makeSidebarFlag(FeatureFlags.riskControl)
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
 const flagAdminPayment = () => adminSettingsStore.paymentEnabled
 const flagBatchImageAccess = () => canUseBatchImage.value
+const flagZenxiangLiyu = () => zenxiangLiyuStore.visible
 
 // buildSelfNavItems 构造用户自己的导航项（用户端主菜单和管理员的"我的账户"子菜单共享这组声明）。
 // withDashboard=true 时包含仪表盘（用户端），false 时不含（管理员的个人区已经有独立仪表盘入口）。
@@ -733,6 +735,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
     { path: '/workbench', label: t('nav.workbench'), icon: SparklesIcon },
+    { path: '/zenxiang-liyu', label: t('nav.zenxiangLiyu'), icon: SparklesIcon, featureFlag: flagZenxiangLiyu },
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/purchase', label: t('nav.buySubscription'), icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
@@ -832,6 +835,7 @@ const adminNavItems = computed((): NavItem[] => {
     },
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },
     { path: '/admin/workbench', label: t('nav.adminWorkbench'), icon: SparklesIcon },
+    { path: '/admin/zenxiang-liyu', label: t('nav.zenxiangLiyuOps'), icon: SparklesIcon, hideInSimpleMode: true },
     { path: '/admin/user-spending-ranking', label: t('nav.userSpendingRanking'), icon: OrderIcon, hideInSimpleMode: true }
   ]
 
@@ -955,6 +959,9 @@ watch(
 
 onMounted(() => {
   void refreshBatchImageAccess()
+  if (authStore.isAuthenticated) {
+    void zenxiangLiyuStore.loadStatus()
+  }
   if (isAdmin.value) {
     adminSettingsStore.fetch()
   }

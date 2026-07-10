@@ -1,0 +1,102 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { get, post, put, delete: remove } = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  put: vi.fn(),
+  delete: vi.fn(),
+}))
+
+vi.mock('@/api/client', () => ({
+  apiClient: { get, post, put, delete: remove },
+}))
+
+import adminZenxiangLiyuAPI from '@/api/admin/zenxiangLiyu'
+
+describe('zenxiang liyu admin api', () => {
+  beforeEach(() => {
+    get.mockReset()
+    post.mockReset()
+    put.mockReset()
+    remove.mockReset()
+  })
+
+  it('loads and updates settings', async () => {
+    const payload = { global_enabled: true, ticket_amount: 2, minimum_balance: 10, daily_play_limit: 5 }
+    get.mockResolvedValueOnce({ data: payload })
+    put.mockResolvedValueOnce({ data: payload })
+
+    await expect(adminZenxiangLiyuAPI.getSettings()).resolves.toEqual(payload)
+    await expect(adminZenxiangLiyuAPI.updateSettings(payload)).resolves.toEqual(payload)
+
+    expect(get).toHaveBeenCalledWith('/admin/zenxiang-liyu/settings')
+    expect(put).toHaveBeenCalledWith('/admin/zenxiang-liyu/settings', payload)
+  })
+
+  it('manages prizes including complete replacement', async () => {
+    const prize = { id: 1, name: 'Reward', reward_amount: 3, probability: 100, enabled: true, sort_order: 1 }
+    const prizes = [prize]
+    get.mockResolvedValueOnce({ data: prizes })
+    post.mockResolvedValueOnce({ data: prize })
+    put.mockResolvedValueOnce({ data: prizes })
+    put.mockResolvedValueOnce({ data: prize })
+    remove.mockResolvedValueOnce({ data: { id: 1 } })
+
+    await expect(adminZenxiangLiyuAPI.listPrizes()).resolves.toEqual(prizes)
+    await expect(adminZenxiangLiyuAPI.createPrize(prize)).resolves.toEqual(prize)
+    await expect(adminZenxiangLiyuAPI.replacePrizes(prizes)).resolves.toEqual(prizes)
+    await expect(adminZenxiangLiyuAPI.updatePrize(1, prize)).resolves.toEqual(prize)
+    await expect(adminZenxiangLiyuAPI.deletePrize(1)).resolves.toEqual({ id: 1 })
+
+    expect(get).toHaveBeenCalledWith('/admin/zenxiang-liyu/prizes')
+    expect(post).toHaveBeenCalledWith('/admin/zenxiang-liyu/prizes', prize)
+    expect(put).toHaveBeenNthCalledWith(1, '/admin/zenxiang-liyu/prizes', { prizes })
+    expect(put).toHaveBeenNthCalledWith(2, '/admin/zenxiang-liyu/prizes/1', prize)
+    expect(remove).toHaveBeenCalledWith('/admin/zenxiang-liyu/prizes/1')
+  })
+
+  it('manages grants and loads all statistics routes', async () => {
+    const grant = { user_id: 7, enabled: true, notes: 'allowed' }
+    const grants = { items: [grant], total: 1, page: 1, page_size: 20, pages: 1 }
+    const overview = { total_plays: 1 }
+    const users = { items: [], total: 0, page: 2, page_size: 10, pages: 0 }
+    const prizeStats = []
+    get.mockResolvedValueOnce({ data: grants })
+    post.mockResolvedValueOnce({ data: grant })
+    remove.mockResolvedValueOnce({ data: { user_id: 7 } })
+    get.mockResolvedValueOnce({ data: overview })
+    get.mockResolvedValueOnce({ data: users })
+    get.mockResolvedValueOnce({ data: prizeStats })
+
+    await expect(adminZenxiangLiyuAPI.listGrants()).resolves.toEqual(grants)
+    await expect(adminZenxiangLiyuAPI.createGrant(grant)).resolves.toEqual(grant)
+    await expect(adminZenxiangLiyuAPI.deleteGrant(7)).resolves.toEqual({ user_id: 7 })
+    await expect(adminZenxiangLiyuAPI.getOverviewStats()).resolves.toEqual(overview)
+    await expect(adminZenxiangLiyuAPI.listUserStats({ page: 2, page_size: 10 })).resolves.toEqual(users)
+    await expect(adminZenxiangLiyuAPI.listPrizeStats()).resolves.toEqual(prizeStats)
+
+    expect(get).toHaveBeenNthCalledWith(1, '/admin/zenxiang-liyu/grants', { params: {} })
+    expect(post).toHaveBeenCalledWith('/admin/zenxiang-liyu/grants', grant)
+    expect(remove).toHaveBeenCalledWith('/admin/zenxiang-liyu/grants/7')
+    expect(get).toHaveBeenNthCalledWith(2, '/admin/zenxiang-liyu/stats/overview')
+    expect(get).toHaveBeenNthCalledWith(3, '/admin/zenxiang-liyu/stats/users', { params: { page: 2, page_size: 10 } })
+    expect(get).toHaveBeenNthCalledWith(4, '/admin/zenxiang-liyu/stats/prizes')
+  })
+
+  it('uses the simulation, recommendation, and apply paths', async () => {
+    const simulation = { user_count: 100, plays_per_user: 2, initial_balance: 10, ticket_amount: 1, minimum_balance: 1, daily_play_limit: 3, prizes: [] }
+    const recommendation = { target_profit_rate: 0.2, ticket_amount: 1, prizes: [] }
+    const prizes = [{ id: 1, name: 'Reward', reward_amount: 1, probability: 100, enabled: true, sort_order: 1 }]
+    post.mockResolvedValueOnce({ data: { total_plays: 200 } })
+    post.mockResolvedValueOnce({ data: { plans: [] } })
+    post.mockResolvedValueOnce({ data: prizes })
+
+    await expect(adminZenxiangLiyuAPI.simulate(simulation)).resolves.toEqual({ total_plays: 200 })
+    await expect(adminZenxiangLiyuAPI.recommend(recommendation)).resolves.toEqual({ plans: [] })
+    await expect(adminZenxiangLiyuAPI.applySimulation(prizes)).resolves.toEqual(prizes)
+
+    expect(post).toHaveBeenNthCalledWith(1, '/admin/zenxiang-liyu/simulate', simulation)
+    expect(post).toHaveBeenNthCalledWith(2, '/admin/zenxiang-liyu/simulate/recommend', recommendation)
+    expect(post).toHaveBeenNthCalledWith(3, '/admin/zenxiang-liyu/simulate/apply', { prizes })
+  })
+})

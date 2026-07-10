@@ -419,6 +419,8 @@ export default {
     availableChannels: '可用渠道',
     workbench: '网页工作台',
     adminWorkbench: '工作台记录',
+    zenxiangLiyu: '臻享礼遇',
+    zenxiangLiyuOps: '臻享礼遇运营',
     subscriptions: '订阅管理',
     accounts: '账号管理',
     proxies: 'IP管理',
@@ -509,6 +511,11 @@ export default {
     deleteConversationFailed: '删除会话失败',
     retentionNotice: '网页工作台记录仅保留 7 天，请及时保存重要内容。',
     imageApiDocs: '图片接口文档'
+  },
+
+  zenxiangLiyu: {
+    title: '臻享礼遇',
+    description: '参与专属礼遇活动',
   },
 
   imageApiDocs: {
@@ -1571,6 +1578,10 @@ export default {
 
   // Admin
   admin: {
+    zenxiangLiyu: {
+      title: '臻享礼遇运营',
+      description: '配置奖项、授权用户并查看活动统计',
+    },
     workbench: {
       title: '工作台记录',
       description: '查看和清理网页工作台会话、消息和图片数据',

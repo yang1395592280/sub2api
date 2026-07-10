@@ -289,6 +289,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/zenxiang-liyu',
+    name: 'ZenxiangLiyu',
+    component: () => import('@/views/user/ZenxiangLiyuView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Zenxiang Liyu',
+      titleKey: 'zenxiangLiyu.title',
+      descriptionKey: 'zenxiangLiyu.description'
+    }
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('@/views/user/ProfileView.vue'),
@@ -630,6 +642,18 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: true,
       titleKey: 'admin.workbench.title',
       descriptionKey: 'admin.workbench.description'
+    }
+  },
+  {
+    path: '/admin/zenxiang-liyu',
+    name: 'AdminZenxiangLiyu',
+    component: () => import('@/views/admin/ZenxiangLiyuAdminView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Zenxiang Liyu Operations',
+      titleKey: 'admin.zenxiangLiyu.title',
+      descriptionKey: 'admin.zenxiangLiyu.description'
     }
   },
   {
