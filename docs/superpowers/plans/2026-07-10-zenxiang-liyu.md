@@ -51,7 +51,8 @@ Backend files to create:
 Backend files to modify:
 
 - `backend/ent/schema/user.go`: Add edges to Zenxiang Liyu grants and records.
-- `backend/internal/service/wire.go`: Register repository/service providers.
+- `backend/internal/service/wire.go`: Register service providers.
+- `backend/internal/repository/wire.go`: Register repository providers.
 - `backend/internal/handler/handler.go`: Add user and admin Zenxiang handlers to handler structs.
 - `backend/internal/handler/wire.go`: Register user/admin handler providers.
 - `backend/internal/server/routes/user.go`: Register `/zenxiang-liyu` user routes.
@@ -511,7 +512,7 @@ git commit -m "feat: add zenxiang liyu service logic"
 - Create: `backend/internal/repository/zenxiang_liyu_repo.go`
 - Create: `backend/internal/repository/zenxiang_liyu_repo_test.go`
 - Modify: `backend/internal/service/zenxiang_liyu_service.go`
-- Modify: `backend/internal/service/wire.go`
+- Modify: `backend/internal/repository/wire.go`
 
 **Interfaces:**
 - Consumes service repository interface from Task 2.
@@ -632,13 +633,13 @@ Inside transaction:
 
 - [ ] **Step 5: Wire repository provider**
 
-Modify `backend/internal/service/wire.go` or repository provider set file to include:
+Modify `backend/internal/repository/wire.go` to include:
 
 ```go
-repository.NewZenxiangLiyuRepository,
+NewZenxiangLiyuRepository,
 ```
 
-Use the existing repository provider set location in the project. Keep constructor return type as `service.ZenxiangLiyuRepository`.
+Keep constructor return type as `service.ZenxiangLiyuRepository`.
 
 - [ ] **Step 6: Verify repository and service**
 
