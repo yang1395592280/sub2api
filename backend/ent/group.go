@@ -111,6 +111,14 @@ type Group struct {
 	MessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config,omitempty"`
 	// 自定义 /v1/models 展示列表配置；仅影响模型列表响应，不影响调度
 	ModelsListConfig domain.GroupModelsListConfig `json:"models_list_config,omitempty"`
+	// Enable OpenAI automatic score-based scheduling for this group.
+	OpenaiAutoSchedulerEnabled bool `json:"openai_auto_scheduler_enabled,omitempty"`
+	// 是否启用分组级上游余额定时刷新
+	UpstreamBalanceRefreshEnabled bool `json:"upstream_balance_refresh_enabled,omitempty"`
+	// 分组级上游余额刷新间隔秒数
+	UpstreamBalanceRefreshIntervalSeconds int `json:"upstream_balance_refresh_interval_seconds,omitempty"`
+	// 分组级上游价格倍率上限，0 表示不限制
+	UpstreamPriceMaxMultiplier float64 `json:"upstream_price_max_multiplier,omitempty"`
 	// 分组 RPM 上限，0 表示不限制；设置后接管该分组用户的限流
 	RpmLimit int `json:"rpm_limit,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -221,11 +229,11 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelsListConfig:
 			values[i] = new([]byte)
-		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet:
+		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldOpenaiAutoSchedulerEnabled, group.FieldUpstreamBalanceRefreshEnabled:
 			values[i] = new(sql.NullBool)
-		case group.FieldRateMultiplier, group.FieldPeakRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k, group.FieldBatchImageDiscountMultiplier, group.FieldBatchImageHoldMultiplier, group.FieldVideoRateMultiplier, group.FieldVideoPrice480p, group.FieldVideoPrice720p, group.FieldVideoPrice1080p:
+		case group.FieldRateMultiplier, group.FieldPeakRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k, group.FieldBatchImageDiscountMultiplier, group.FieldBatchImageHoldMultiplier, group.FieldVideoRateMultiplier, group.FieldVideoPrice480p, group.FieldVideoPrice720p, group.FieldVideoPrice1080p, group.FieldUpstreamPriceMaxMultiplier:
 			values[i] = new(sql.NullFloat64)
-		case group.FieldID, group.FieldDefaultValidityDays, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldSortOrder, group.FieldRpmLimit:
+		case group.FieldID, group.FieldDefaultValidityDays, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldSortOrder, group.FieldUpstreamBalanceRefreshIntervalSeconds, group.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
 		case group.FieldName, group.FieldDescription, group.FieldPeakStart, group.FieldPeakEnd, group.FieldStatus, group.FieldPlatform, group.FieldSubscriptionType, group.FieldDefaultMappedModel:
 			values[i] = new(sql.NullString)
@@ -549,6 +557,30 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 					return fmt.Errorf("unmarshal field models_list_config: %w", err)
 				}
 			}
+		case group.FieldOpenaiAutoSchedulerEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field openai_auto_scheduler_enabled", values[i])
+			} else if value.Valid {
+				_m.OpenaiAutoSchedulerEnabled = value.Bool
+			}
+		case group.FieldUpstreamBalanceRefreshEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field upstream_balance_refresh_enabled", values[i])
+			} else if value.Valid {
+				_m.UpstreamBalanceRefreshEnabled = value.Bool
+			}
+		case group.FieldUpstreamBalanceRefreshIntervalSeconds:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field upstream_balance_refresh_interval_seconds", values[i])
+			} else if value.Valid {
+				_m.UpstreamBalanceRefreshIntervalSeconds = int(value.Int64)
+			}
+		case group.FieldUpstreamPriceMaxMultiplier:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field upstream_price_max_multiplier", values[i])
+			} else if value.Valid {
+				_m.UpstreamPriceMaxMultiplier = value.Float64
+			}
 		case group.FieldRpmLimit:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field rpm_limit", values[i])
@@ -794,6 +826,18 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("models_list_config=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ModelsListConfig))
+	builder.WriteString(", ")
+	builder.WriteString("openai_auto_scheduler_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.OpenaiAutoSchedulerEnabled))
+	builder.WriteString(", ")
+	builder.WriteString("upstream_balance_refresh_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.UpstreamBalanceRefreshEnabled))
+	builder.WriteString(", ")
+	builder.WriteString("upstream_balance_refresh_interval_seconds=")
+	builder.WriteString(fmt.Sprintf("%v", _m.UpstreamBalanceRefreshIntervalSeconds))
+	builder.WriteString(", ")
+	builder.WriteString("upstream_price_max_multiplier=")
+	builder.WriteString(fmt.Sprintf("%v", _m.UpstreamPriceMaxMultiplier))
 	builder.WriteString(", ")
 	builder.WriteString("rpm_limit=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RpmLimit))

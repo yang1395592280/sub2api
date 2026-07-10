@@ -20,7 +20,6 @@ import (
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
-	"github.com/lib/pq"
 )
 
 type apiKeyRepository struct {

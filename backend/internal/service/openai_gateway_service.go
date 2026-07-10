@@ -327,31 +327,35 @@ var ErrNoAvailableCompactAccounts = errors.New("no available OpenAI accounts sup
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
-	accountRepo           AccountRepository
-	usageLogRepo          UsageLogRepository
-	usageBillingRepo      UsageBillingRepository
-	userRepo              UserRepository
-	userSubRepo           UserSubscriptionRepository
-	cache                 GatewayCache
-	cfg                   *config.Config
-	codexDetector         CodexClientRestrictionDetector
-	schedulerSnapshot     *SchedulerSnapshotService
-	concurrencyService    *ConcurrencyService
-	billingService        *BillingService
-	rateLimitService      *RateLimitService
-	billingCacheService   *BillingCacheService
-	userGroupRateResolver *userGroupRateResolver
-	httpUpstream          HTTPUpstream
-	deferredService       *DeferredService
-	openAITokenProvider   *OpenAITokenProvider
-	grokTokenProvider     *GrokTokenProvider
-	toolCorrector         *CodexToolCorrector
-	openaiWSResolver      OpenAIWSProtocolResolver
-	resolver              *ModelPricingResolver
-	channelService        *ChannelService
-	balanceNotifyService  *BalanceNotifyService
-	settingService        *SettingService
-	userPlatformQuotaRepo UserPlatformQuotaRepository
+	accountRepo                     AccountRepository
+	usageLogRepo                    UsageLogRepository
+	usageBillingRepo                UsageBillingRepository
+	userRepo                        UserRepository
+	userSubRepo                     UserSubscriptionRepository
+	cache                           GatewayCache
+	cfg                             *config.Config
+	codexDetector                   CodexClientRestrictionDetector
+	schedulerSnapshot               *SchedulerSnapshotService
+	concurrencyService              *ConcurrencyService
+	billingService                  *BillingService
+	rateLimitService                *RateLimitService
+	billingCacheService             *BillingCacheService
+	userGroupRateResolver           *userGroupRateResolver
+	httpUpstream                    HTTPUpstream
+	deferredService                 *DeferredService
+	openAITokenProvider             *OpenAITokenProvider
+	grokTokenProvider               *GrokTokenProvider
+	toolCorrector                   *CodexToolCorrector
+	openaiWSResolver                OpenAIWSProtocolResolver
+	resolver                        *ModelPricingResolver
+	channelService                  *ChannelService
+	balanceNotifyService            *BalanceNotifyService
+	settingService                  *SettingService
+	userPlatformQuotaRepo           UserPlatformQuotaRepository
+	openAIAutoSchedulerSelector     *OpenAIAutoSchedulerSelector
+	openAIAutoSchedulerService      *OpenAIAutoSchedulerService
+	openAIAutoCheapestGroupResolver *OpenAIAutoCheapestGroupResolver
+	apiKeyEffectiveGroupUpdater     LastEffectiveGroupUpdater
 
 	openaiWSPoolOnce              sync.Once
 	openaiWSStateStoreOnce        sync.Once
@@ -365,6 +369,8 @@ type OpenAIGatewayService struct {
 
 	openaiWSFallbackUntil               sync.Map // key: int64(accountID), value: time.Time
 	openaiAccountRuntimeBlockUntil      sync.Map // key: int64(accountID), value: time.Time
+	openaiOverbrush429CountsMu          sync.Mutex
+	openaiOverbrush429Counts            sync.Map // key: int64(accountID), value: int
 	openaiOAuth429WindowStartUnixNano   atomic.Int64
 	openaiOAuth429WindowCount           atomic.Int64
 	openaiWSRetryMetrics                openAIWSRetryMetrics

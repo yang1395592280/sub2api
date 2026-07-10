@@ -133,6 +133,12 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		}
 		account.RateMultiplier = input.RateMultiplier
 	}
+	if input.ChannelPrice != nil {
+		if *input.ChannelPrice <= 0 {
+			return nil, errors.New("channel_price must be > 0")
+		}
+		account.ChannelPrice = input.ChannelPrice
+	}
 	if input.LoadFactor != nil && *input.LoadFactor > 0 {
 		if *input.LoadFactor > 10000 {
 			return nil, errors.New("load_factor must be <= 10000")
@@ -284,6 +290,12 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 			return nil, errors.New("rate_multiplier must be >= 0")
 		}
 		account.RateMultiplier = input.RateMultiplier
+	}
+	if input.ChannelPrice != nil {
+		if *input.ChannelPrice <= 0 {
+			return nil, errors.New("channel_price must be > 0")
+		}
+		account.ChannelPrice = input.ChannelPrice
 	}
 	if input.LoadFactor != nil {
 		if *input.LoadFactor <= 0 {
@@ -448,6 +460,11 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 			return nil, errors.New("rate_multiplier must be >= 0")
 		}
 	}
+	if input.ChannelPrice != nil {
+		if *input.ChannelPrice <= 0 {
+			return nil, errors.New("channel_price must be > 0")
+		}
+	}
 
 	// 校验并规范化请求头覆写配置（批量路径为 JSONB 顶层 key 合并，直接校验增量即可）
 	if err := NormalizeHeaderOverrideCredentials(input.Credentials); err != nil {
@@ -473,6 +490,9 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	}
 	if input.RateMultiplier != nil {
 		repoUpdates.RateMultiplier = input.RateMultiplier
+	}
+	if input.ChannelPrice != nil {
+		repoUpdates.ChannelPrice = input.ChannelPrice
 	}
 	if input.LoadFactor != nil {
 		if *input.LoadFactor <= 0 {

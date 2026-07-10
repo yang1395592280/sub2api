@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -156,6 +157,309 @@ func normalizeOpenAICompatiblePlatform(platform string) string {
 		return PlatformGrok
 	}
 	return PlatformOpenAI
+}
+
+func (s *OpenAIGatewayService) SetOpenAIAutoScheduler(selector *OpenAIAutoSchedulerSelector, svc *OpenAIAutoSchedulerService) {
+	if s == nil {
+		return
+	}
+	s.openAIAutoSchedulerSelector = selector
+	s.openAIAutoSchedulerService = svc
+}
+
+func (s *OpenAIGatewayService) SetOpenAIAutoCheapestGroupResolver(resolver *OpenAIAutoCheapestGroupResolver, updater LastEffectiveGroupUpdater) {
+	if s == nil {
+		return
+	}
+	s.openAIAutoCheapestGroupResolver = resolver
+	s.apiKeyEffectiveGroupUpdater = updater
+}
+
+func (s *OpenAIGatewayService) rankOpenAIAutoSchedulerCandidates(ctx context.Context, groupID *int64, platform string, requestedModel string, candidates []*Account) ([]*Account, bool) {
+	if s == nil || s.openAIAutoSchedulerSelector == nil || normalizeOpenAICompatiblePlatform(platform) != PlatformOpenAI {
+		return candidates, false
+	}
+	return s.openAIAutoSchedulerSelector.Rank(ctx, groupID, requestedModel, candidates)
+}
+
+func (s *OpenAIGatewayService) isOpenAIAutoSchedulerAccountTemporarilyBlocked(ctx context.Context, groupID *int64, requestedModel string, accountID int64) bool {
+	if s == nil || s.openAIAutoSchedulerSelector == nil {
+		return false
+	}
+	return s.openAIAutoSchedulerSelector.IsAccountTemporarilyBlocked(ctx, groupID, requestedModel, accountID)
+}
+
+func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerOutcome(ctx context.Context, account *Account, groupID *int64, requestedModel string, outcome OpenAIAutoSchedulerRecordInput) {
+	if s == nil || s.openAIAutoSchedulerService == nil || account == nil || groupID == nil {
+		return
+	}
+	outcome.AccountID = account.ID
+	outcome.GroupID = *groupID
+	outcome.Model = strings.TrimSpace(requestedModel)
+	go func() {
+		recordCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = s.openAIAutoSchedulerService.Record(recordCtx, outcome)
+	}()
+}
+
+func openAIAutoSchedulerGroupIDFromContext(c *gin.Context) *int64 {
+	groupID := getOpenAIGroupIDFromContext(c)
+	if groupID <= 0 {
+		return nil
+	}
+	return &groupID
+}
+
+func openAIAutoSchedulerEventForStatus(statusCode int) string {
+	if statusCode == http.StatusTooManyRequests {
+		return OpenAIAutoSchedulerEventRateLimited
+	}
+	if statusCode >= 400 {
+		return OpenAIAutoSchedulerEventError
+	}
+	return OpenAIAutoSchedulerEventSuccess
+}
+
+func (s *OpenAIGatewayService) resolveEffectiveOpenAIAPIKeys(ctx context.Context, apiKey *APIKey) ([]*APIKey, error) {
+	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
+		return []*APIKey{apiKey}, nil
+	}
+	if s == nil || s.openAIAutoCheapestGroupResolver == nil {
+		return nil, ErrNoAvailableAccounts
+	}
+	groups, err := s.openAIAutoCheapestGroupResolver.CandidateGroups(ctx, apiKey.UserID, apiKey.OpenAIAutoGroupMaxRateMultiplier)
+	if err != nil {
+		return nil, err
+	}
+	if len(groups) == 0 {
+		return nil, ErrNoAvailableAccounts
+	}
+	keys := make([]*APIKey, 0, len(groups))
+	for i := range groups {
+		if effectiveKey := CloneAPIKeyForEffectiveGroup(apiKey, &groups[i]); effectiveKey != nil && effectiveKey.GroupID != nil {
+			keys = append(keys, effectiveKey)
+		}
+	}
+	if len(keys) == 0 {
+		return nil, ErrNoAvailableAccounts
+	}
+	return keys, nil
+}
+
+func (s *OpenAIGatewayService) recordLastEffectiveGroupBestEffort(ctx context.Context, apiKey *APIKey) {
+	if s == nil || s.apiKeyEffectiveGroupUpdater == nil || apiKey == nil || apiKey.GroupID == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
+		return
+	}
+	_ = s.apiKeyEffectiveGroupUpdater.UpdateLastEffectiveGroup(ctx, apiKey.ID, *apiKey.GroupID, time.Now())
+}
+
+func apiKeyGroupID(apiKey *APIKey) *int64 {
+	if apiKey == nil {
+		return nil
+	}
+	return apiKey.GroupID
+}
+
+func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithLoadAwareness(
+	ctx context.Context,
+	apiKey *APIKey,
+	sessionHash string,
+	requestedModel string,
+	excludedIDs map[int64]struct{},
+	requiredCapability OpenAIEndpointCapability,
+) (*APIKey, *AccountSelectionResult, error) {
+	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
+		selection, err := s.selectAccountWithLoadAwareness(s.withOpenAIQuotaAutoPauseContext(ctx), apiKeyGroupID(apiKey), PlatformOpenAI, sessionHash, requestedModel, excludedIDs, false, requiredCapability)
+		return apiKey, selection, err
+	}
+	keys, err := s.resolveEffectiveOpenAIAPIKeys(ctx, apiKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	var lastErr error
+	for _, effectiveKey := range keys {
+		if effectiveKey == nil || effectiveKey.GroupID == nil {
+			continue
+		}
+		selection, err := s.selectAccountWithLoadAwareness(s.withOpenAIQuotaAutoPauseContext(ctx), effectiveKey.GroupID, PlatformOpenAI, sessionHash, requestedModel, excludedIDs, false, requiredCapability)
+		if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
+			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
+			return effectiveKey, selection, nil
+		}
+		if err == nil && selection != nil && selection.Account != nil {
+			lastErr = ErrNoAvailableAccounts
+			continue
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return nil, nil, lastErr
+	}
+	return nil, nil, ErrNoAvailableAccounts
+}
+
+func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapability(
+	ctx context.Context,
+	apiKey *APIKey,
+	previousResponseID string,
+	sessionHash string,
+	requestedModel string,
+	excludedIDs map[int64]struct{},
+	transport OpenAIUpstreamTransport,
+	requiredCapability OpenAIEndpointCapability,
+	requireCompact bool,
+	previousResponseCanMove bool,
+	requestPlatform string,
+) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	return s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredCapability, requireCompact, previousResponseCanMove, requestPlatform, nil)
+}
+
+func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
+	ctx context.Context,
+	apiKey *APIKey,
+	previousResponseID string,
+	sessionHash string,
+	requestedModel string,
+	excludedIDs map[int64]struct{},
+	transport OpenAIUpstreamTransport,
+	requiredCapability OpenAIEndpointCapability,
+	requireCompact bool,
+	previousResponseCanMove bool,
+	requestPlatform string,
+	modelResolver func(*APIKey, string) string,
+) (*APIKey, string, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
+		routingModel := requestedModel
+		if modelResolver != nil {
+			if resolved := strings.TrimSpace(modelResolver(apiKey, requestedModel)); resolved != "" {
+				routingModel = resolved
+			}
+		}
+		selection, decision, err := s.SelectAccountWithSchedulerForCapability(ctx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredCapability, requireCompact, previousResponseCanMove, requestPlatform)
+		return apiKey, routingModel, selection, decision, err
+	}
+	effectiveKey, selection, decision, err := s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredCapability, requireCompact, previousResponseCanMove, requestPlatform, modelResolver)
+	if effectiveKey == nil {
+		return nil, requestedModel, selection, decision, err
+	}
+	routingModel := strings.TrimSpace(requestedModel)
+	if modelResolver != nil {
+		if resolved := strings.TrimSpace(modelResolver(effectiveKey, requestedModel)); resolved != "" {
+			routingModel = resolved
+		}
+	}
+	return effectiveKey, routingModel, selection, decision, err
+}
+
+func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImages(
+	ctx context.Context,
+	apiKey *APIKey,
+	sessionHash string,
+	requestedModel string,
+	excludedIDs map[int64]struct{},
+	requiredCapability OpenAIImagesCapability,
+) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
+		selection, decision, err := s.SelectAccountWithSchedulerForImages(ctx, apiKeyGroupID(apiKey), sessionHash, requestedModel, excludedIDs, requiredCapability)
+		return apiKey, selection, decision, err
+	}
+	keys, err := s.resolveEffectiveOpenAIAPIKeys(ctx, apiKey)
+	if err != nil {
+		return nil, nil, OpenAIAccountScheduleDecision{}, err
+	}
+	var lastDecision OpenAIAccountScheduleDecision
+	var lastErr error
+	for _, effectiveKey := range keys {
+		if effectiveKey == nil || effectiveKey.GroupID == nil {
+			continue
+		}
+		selection, decision, err := s.SelectAccountWithSchedulerForImages(ctx, effectiveKey.GroupID, sessionHash, requestedModel, excludedIDs, requiredCapability)
+		lastDecision = decision
+		if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
+			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
+			return effectiveKey, selection, decision, nil
+		}
+		if err == nil && selection != nil && selection.Account != nil {
+			lastErr = ErrNoAvailableAccounts
+			continue
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return nil, nil, lastDecision, lastErr
+	}
+	return nil, nil, lastDecision, ErrNoAvailableAccounts
+}
+
+func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapability(
+	ctx context.Context,
+	apiKey *APIKey,
+	previousResponseID string,
+	sessionHash string,
+	requestedModel string,
+	excludedIDs map[int64]struct{},
+	transport OpenAIUpstreamTransport,
+	requiredCapability OpenAIEndpointCapability,
+	requireCompact bool,
+	previousResponseCanMove bool,
+	requestPlatform string,
+	modelResolver func(*APIKey, string) string,
+) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
+		routingModel := requestedModel
+		if modelResolver != nil {
+			if resolved := strings.TrimSpace(modelResolver(apiKey, requestedModel)); resolved != "" {
+				routingModel = resolved
+			}
+		}
+		selection, decision, err := s.SelectAccountWithSchedulerForCapability(ctx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredCapability, requireCompact, previousResponseCanMove, requestPlatform)
+		return apiKey, selection, decision, err
+	}
+	keys, err := s.resolveEffectiveOpenAIAPIKeys(ctx, apiKey)
+	if err != nil {
+		return nil, nil, OpenAIAccountScheduleDecision{}, err
+	}
+	var lastDecision OpenAIAccountScheduleDecision
+	var lastErr error
+	for _, effectiveKey := range keys {
+		if effectiveKey == nil || effectiveKey.GroupID == nil {
+			continue
+		}
+		routingModel := requestedModel
+		if modelResolver != nil {
+			if resolved := strings.TrimSpace(modelResolver(effectiveKey, requestedModel)); resolved != "" {
+				routingModel = resolved
+			}
+		}
+		selection, decision, err := s.SelectAccountWithSchedulerForCapability(
+			ctx,
+			effectiveKey.GroupID,
+			previousResponseID,
+			sessionHash,
+			routingModel,
+			excludedIDs,
+			transport,
+			requiredCapability,
+			requireCompact,
+			previousResponseCanMove,
+			requestPlatform,
+		)
+		lastDecision = decision
+		if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
+			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
+			return effectiveKey, selection, decision, nil
+		}
+		if err == nil && selection != nil && selection.Account != nil {
+			lastErr = ErrNoAvailableAccounts
+			continue
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return nil, nil, lastDecision, lastErr
+	}
+	return nil, nil, lastDecision, ErrNoAvailableAccounts
 }
 
 func noAvailableOpenAISelectionError(requestedModel string, compactBlocked bool) error {
@@ -680,6 +984,7 @@ func (s *OpenAIGatewayService) selectBestAccount(ctx context.Context, groupID *i
 	selectedCompactTier := -1
 	compactBlocked := false
 	needsUpstreamCheck := s.needsUpstreamChannelRestrictionCheck(ctx, groupID)
+	candidates := make([]*Account, 0, len(accounts))
 
 	for i := range accounts {
 		acc := &accounts[i]
@@ -701,6 +1006,9 @@ func (s *OpenAIGatewayService) selectBestAccount(ctx context.Context, groupID *i
 		if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, fresh, requestedModel, requireCompact) {
 			continue
 		}
+		if isAccountBlockedByGroupUpstreamPriceGuard(fresh, groupID) {
+			continue
+		}
 		compactTier := 0
 		if requireCompact {
 			compactTier = openAICompactSupportTier(fresh)
@@ -709,6 +1017,8 @@ func (s *OpenAIGatewayService) selectBestAccount(ctx context.Context, groupID *i
 				continue
 			}
 		}
+
+		candidates = append(candidates, fresh)
 
 		// 选择优先级最高且最久未使用的账号
 		// Select highest priority and least recently used
@@ -731,6 +1041,13 @@ func (s *OpenAIGatewayService) selectBestAccount(ctx context.Context, groupID *i
 			selected = fresh
 			selectedCompactTier = compactTier
 		}
+	}
+
+	if ranked, used := s.rankOpenAIAutoSchedulerCandidates(ctx, groupID, platform, requestedModel, candidates); used {
+		if len(ranked) == 0 {
+			return nil, compactBlocked
+		}
+		return ranked[0], compactBlocked
 	}
 
 	return selected, compactBlocked
@@ -927,6 +1244,10 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 	if len(candidates) == 0 {
 		return nil, ErrNoAvailableAccounts
 	}
+	candidates, autoSchedulerRanked := s.rankOpenAIAutoSchedulerCandidates(ctx, groupID, platform, requestedModel, candidates)
+	if len(candidates) == 0 {
+		return nil, ErrNoAvailableAccounts
+	}
 
 	accountLoads := make([]AccountWithConcurrency, 0, len(candidates))
 	for _, acc := range candidates {
@@ -955,26 +1276,28 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 			return nil, false, nil
 		}
 
-		sort.SliceStable(available, func(i, j int) bool {
-			a, b := available[i], available[j]
-			if a.account.Priority != b.account.Priority {
-				return a.account.Priority < b.account.Priority
-			}
-			if a.loadInfo.LoadRate != b.loadInfo.LoadRate {
-				return a.loadInfo.LoadRate < b.loadInfo.LoadRate
-			}
-			switch {
-			case a.account.LastUsedAt == nil && b.account.LastUsedAt != nil:
-				return true
-			case a.account.LastUsedAt != nil && b.account.LastUsedAt == nil:
-				return false
-			case a.account.LastUsedAt == nil && b.account.LastUsedAt == nil:
-				return false
-			default:
-				return a.account.LastUsedAt.Before(*b.account.LastUsedAt)
-			}
-		})
-		shuffleWithinSortGroups(available)
+		if !autoSchedulerRanked {
+			sort.SliceStable(available, func(i, j int) bool {
+				a, b := available[i], available[j]
+				if a.account.Priority != b.account.Priority {
+					return a.account.Priority < b.account.Priority
+				}
+				if a.loadInfo.LoadRate != b.loadInfo.LoadRate {
+					return a.loadInfo.LoadRate < b.loadInfo.LoadRate
+				}
+				switch {
+				case a.account.LastUsedAt == nil && b.account.LastUsedAt != nil:
+					return true
+				case a.account.LastUsedAt != nil && b.account.LastUsedAt == nil:
+					return false
+				case a.account.LastUsedAt == nil && b.account.LastUsedAt == nil:
+					return false
+				default:
+					return a.account.LastUsedAt.Before(*b.account.LastUsedAt)
+				}
+			})
+			shuffleWithinSortGroups(available)
+		}
 
 		selectionOrder := make([]accountWithLoad, 0, len(available))
 		if requireCompact {
@@ -1025,8 +1348,10 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 	loadMap, err := s.concurrencyService.GetAccountsLoadBatch(ctx, accountLoads)
 	if err != nil {
 		ordered := append([]*Account(nil), candidates...)
-		sortAccountsByPriorityAndLastUsed(ordered, false)
-		if requireCompact {
+		if !autoSchedulerRanked {
+			sortAccountsByPriorityAndLastUsed(ordered, false)
+		}
+		if requireCompact && !autoSchedulerRanked {
 			ordered = prioritizeOpenAICompactAccounts(ordered)
 		}
 		for _, acc := range ordered {
@@ -1070,8 +1395,10 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 	}
 
 	// ============ Layer 3: Fallback wait ============
-	sortAccountsByPriorityAndLastUsed(candidates, false)
-	if requireCompact {
+	if !autoSchedulerRanked {
+		sortAccountsByPriorityAndLastUsed(candidates, false)
+	}
+	if requireCompact && !autoSchedulerRanked {
 		candidates = prioritizeOpenAICompactAccounts(candidates)
 	}
 	for _, acc := range candidates {

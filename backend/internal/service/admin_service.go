@@ -18,7 +18,11 @@ type AdminService interface {
 	CreateUser(ctx context.Context, input *CreateUserInput) (*User, error)
 	UpdateUser(ctx context.Context, id int64, input *UpdateUserInput) (*User, error)
 	DeleteUser(ctx context.Context, id int64) error
+	BatchDeleteUsers(ctx context.Context, userIDs []int64) (int, error)
 	UpdateUserBalance(ctx context.Context, userID int64, balance float64, operation string, notes string) (*User, error)
+	BatchAddBalanceToUsers(ctx context.Context, userIDs []int64, balance float64, operation string, notes string) (int, error)
+	GetUserBalanceSummary(ctx context.Context) (*UserBalanceSummary, error)
+	BatchAddUsersToGroup(ctx context.Context, userIDs []int64, groupID int64) (*BatchAddUsersToGroupResult, error)
 	BatchUpdateConcurrency(ctx context.Context, userIDs []int64, value int, mode string) (int, error)
 	GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int, sortBy, sortOrder string) ([]APIKey, int64, error)
 	GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error)
@@ -43,10 +47,12 @@ type AdminService interface {
 	DeleteGroup(ctx context.Context, id int64) error
 	GetGroupAPIKeys(ctx context.Context, groupID int64, page, pageSize int) ([]APIKey, int64, error)
 	GetGroupRateMultipliers(ctx context.Context, groupID int64) ([]UserGroupRateEntry, error)
+	GetGroupMembers(ctx context.Context, groupID int64) (*GroupMembersResult, error)
 	ClearGroupRateMultipliers(ctx context.Context, groupID int64) error
 	BatchSetGroupRateMultipliers(ctx context.Context, groupID int64, entries []GroupRateMultiplierInput) error
 	ClearGroupRPMOverrides(ctx context.Context, groupID int64) error
 	BatchSetGroupRPMOverrides(ctx context.Context, groupID int64, entries []GroupRPMOverrideInput) error
+	RemoveUserFromExclusiveGroup(ctx context.Context, groupID, userID int64) error
 	UpdateGroupSortOrders(ctx context.Context, updates []GroupSortOrderUpdate) error
 
 	// API Key management (admin)
@@ -152,6 +158,20 @@ type UpdateUserInput struct {
 	ActorAdminID int64
 }
 
+type UserBalanceSummary struct {
+	TotalBalance float64 `json:"total_balance"`
+	UserCount    int64   `json:"user_count"`
+}
+
+type BatchAddUsersToGroupResult struct {
+	GroupID        int64 `json:"group_id"`
+	ProcessedUsers int64 `json:"processed_users"`
+}
+
+type userBalanceSummaryReader interface {
+	SumBalanceByRole(ctx context.Context, role string) (float64, int64, error)
+}
+
 type AdminBindAuthIdentityInput struct {
 	ProviderType    string
 	ProviderKey     string
@@ -231,12 +251,16 @@ type CreateGroupInput struct {
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes []string
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
-	AllowMessagesDispatch       bool
-	DefaultMappedModel          string
-	RequireOAuthOnly            bool
-	RequirePrivacySet           bool
-	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig
-	ModelsListConfig            GroupModelsListConfig
+	AllowMessagesDispatch                 bool
+	DefaultMappedModel                    string
+	RequireOAuthOnly                      bool
+	RequirePrivacySet                     bool
+	MessagesDispatchModelConfig           OpenAIMessagesDispatchModelConfig
+	ModelsListConfig                      GroupModelsListConfig
+	OpenAIAutoSchedulerEnabled            bool
+	UpstreamBalanceRefreshEnabled         bool
+	UpstreamBalanceRefreshIntervalSeconds int
+	UpstreamPriceMaxMultiplier            float64
 	// RPMLimit 分组 RPM 上限（0 = 不限制）
 	RPMLimit int
 	// 从指定分组复制账号（创建分组后在同一事务内绑定）
@@ -285,12 +309,16 @@ type UpdateGroupInput struct {
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes *[]string
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
-	AllowMessagesDispatch       *bool
-	DefaultMappedModel          *string
-	RequireOAuthOnly            *bool
-	RequirePrivacySet           *bool
-	MessagesDispatchModelConfig *OpenAIMessagesDispatchModelConfig
-	ModelsListConfig            *GroupModelsListConfig
+	AllowMessagesDispatch                 *bool
+	DefaultMappedModel                    *string
+	RequireOAuthOnly                      *bool
+	RequirePrivacySet                     *bool
+	MessagesDispatchModelConfig           *OpenAIMessagesDispatchModelConfig
+	ModelsListConfig                      *GroupModelsListConfig
+	OpenAIAutoSchedulerEnabled            *bool
+	UpstreamBalanceRefreshEnabled         *bool
+	UpstreamBalanceRefreshIntervalSeconds *int
+	UpstreamPriceMaxMultiplier            *float64
 	// RPMLimit 分组 RPM 上限（0 = 不限制），nil 表示未提供不改动。
 	RPMLimit *int
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
@@ -308,6 +336,7 @@ type CreateAccountInput struct {
 	Concurrency        int
 	Priority           int
 	RateMultiplier     *float64 // 账号计费倍率（>=0，允许 0）
+	ChannelPrice       *float64 // 上游渠道真实价格（>0）
 	LoadFactor         *int
 	GroupIDs           []int64
 	ExpiresAt          *int64
@@ -338,6 +367,7 @@ type UpdateAccountInput struct {
 	Concurrency           *int     // 使用指针区分"未提供"和"设置为0"
 	Priority              *int     // 使用指针区分"未提供"和"设置为0"
 	RateMultiplier        *float64 // 账号计费倍率（>=0，允许 0）
+	ChannelPrice          *float64 // 上游渠道真实价格（>0）
 	LoadFactor            *int
 	Status                string
 	GroupIDs              *[]int64
@@ -355,6 +385,7 @@ type BulkUpdateAccountsInput struct {
 	Concurrency    *int
 	Priority       *int
 	RateMultiplier *float64 // 账号计费倍率（>=0，允许 0）
+	ChannelPrice   *float64 // 上游渠道真实价格（>0）
 	LoadFactor     *int
 	Status         string
 	Schedulable    *bool
@@ -400,6 +431,12 @@ type UserRPMStatus struct {
 	UserRPMUsed  int                  `json:"user_rpm_used"`
 	UserRPMLimit int                  `json:"user_rpm_limit"`
 	PerGroup     []UserGroupRPMStatus `json:"per_group"`
+}
+
+type GroupMembersResult struct {
+	GroupID         int64
+	HasFixedMembers bool
+	Members         []User
 }
 
 // UserGroupRPMStatus describes current per-minute RPM usage for one user/group pair.

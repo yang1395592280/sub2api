@@ -806,6 +806,65 @@ func (s *adminServiceImpl) GetGroupRateMultipliers(ctx context.Context, groupID 
 	return s.userGroupRateRepo.GetByGroupID(ctx, groupID)
 }
 
+func (s *adminServiceImpl) GetGroupMembers(ctx context.Context, groupID int64) (*GroupMembersResult, error) {
+	group, err := s.groupRepo.GetByID(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &GroupMembersResult{
+		GroupID: groupID,
+		Members: []User{},
+	}
+
+	if group.IsSubscriptionType() {
+		if s.userSubRepo == nil {
+			return result, nil
+		}
+
+		const pageSize = 100
+		page := 1
+		for {
+			subs, pag, listErr := s.userSubRepo.List(
+				ctx,
+				pagination.PaginationParams{Page: page, PageSize: pageSize, SortBy: "created_at", SortOrder: "DESC"},
+				nil,
+				&groupID,
+				SubscriptionStatusActive,
+				"",
+				"created_at",
+				"DESC",
+			)
+			if listErr != nil {
+				return nil, listErr
+			}
+			for i := range subs {
+				if subs[i].User != nil {
+					result.Members = append(result.Members, *subs[i].User)
+				}
+			}
+			result.HasFixedMembers = true
+			if len(subs) == 0 || pag == nil || int64(len(result.Members)) >= pag.Total {
+				break
+			}
+			page++
+		}
+		return result, nil
+	}
+
+	if !group.IsExclusive {
+		return result, nil
+	}
+
+	users, err := s.userRepo.ListAllowedUsersByGroupID(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	result.HasFixedMembers = true
+	result.Members = users
+	return result, nil
+}
+
 func (s *adminServiceImpl) ClearGroupRateMultipliers(ctx context.Context, groupID int64) error {
 	if s.userGroupRateRepo == nil {
 		return nil
@@ -835,6 +894,48 @@ func (s *adminServiceImpl) ClearGroupRPMOverrides(ctx context.Context, groupID i
 	// RPM override 已嵌入 auth cache snapshot (v7)，变更后必须失效相关缓存。
 	if s.authCacheInvalidator != nil {
 		s.authCacheInvalidator.InvalidateAuthCacheByGroupID(ctx, groupID)
+	}
+	return nil
+}
+
+func (s *adminServiceImpl) RemoveUserFromExclusiveGroup(ctx context.Context, groupID, userID int64) error {
+	group, err := s.groupRepo.GetByID(ctx, groupID)
+	if err != nil {
+		return err
+	}
+	if group.IsSubscriptionType() {
+		return infraerrors.BadRequest("GROUP_IS_SUBSCRIPTION", "subscription groups are not supported for user removal")
+	}
+	if !group.IsExclusive {
+		return infraerrors.BadRequest("GROUP_NOT_EXCLUSIVE", "only exclusive groups support user removal")
+	}
+
+	opCtx := ctx
+	var tx *dbent.Tx
+	if s.entClient == nil {
+		logger.LegacyPrintf("service.admin", "Warning: entClient is nil, skipping transaction protection for exclusive group removal")
+	} else {
+		tx, err = s.entClient.Tx(ctx)
+		if err != nil {
+			return fmt.Errorf("begin transaction: %w", err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		opCtx = dbent.NewTxContext(ctx, tx)
+	}
+
+	if err := s.userRepo.RemoveGroupFromUserAllowedGroups(opCtx, userID, groupID); err != nil {
+		return fmt.Errorf("remove group from user allowed groups: %w", err)
+	}
+	if _, err := s.apiKeyRepo.ClearGroupIDByUserAndGroup(opCtx, userID, groupID); err != nil {
+		return fmt.Errorf("clear api key group binding: %w", err)
+	}
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit transaction: %w", err)
+		}
+	}
+	if s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 	}
 	return nil
 }
