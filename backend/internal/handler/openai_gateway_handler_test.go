@@ -1752,12 +1752,16 @@ data: {"type":"response.failed","error":{"message":"This content was flagged"}}
 
 func TestOpenAIGatewayHandler_ResetOpenAIOverbrushAfterSuccessfulWSTurn(t *testing.T) {
 	account := &service.Account{ID: 42, Platform: service.PlatformOpenAI, Type: service.AccountTypeAPIKey}
-	result := &service.OpenAIForwardResult{}
 	handler := &OpenAIGatewayHandler{gatewayService: &service.OpenAIGatewayService{}}
 
-	require.True(t, handler.resetOpenAIOverbrushAfterSuccessfulWSTurn(account, result, nil))
-	require.False(t, handler.resetOpenAIOverbrushAfterSuccessfulWSTurn(account, result, errors.New("turn failed")))
+	require.True(t, handler.resetOpenAIOverbrushAfterSuccessfulWSTurn(account, &service.OpenAIForwardResult{WSTerminalEventType: "response.completed"}, nil))
+	require.True(t, handler.resetOpenAIOverbrushAfterSuccessfulWSTurn(account, &service.OpenAIForwardResult{WSTerminalEventType: "response.done"}, nil))
+
+	for _, terminalEvent := range []string{"", "response.failed", "response.incomplete", "response.cancelled", "response.canceled"} {
+		require.False(t, handler.resetOpenAIOverbrushAfterSuccessfulWSTurn(account, &service.OpenAIForwardResult{WSTerminalEventType: terminalEvent}, nil), terminalEvent)
+	}
+	require.False(t, handler.resetOpenAIOverbrushAfterSuccessfulWSTurn(account, &service.OpenAIForwardResult{WSTerminalEventType: "response.completed"}, errors.New("turn failed")))
 	require.False(t, handler.resetOpenAIOverbrushAfterSuccessfulWSTurn(account, nil, nil))
-	require.False(t, handler.resetOpenAIOverbrushAfterSuccessfulWSTurn(nil, result, nil))
-	require.False(t, (&OpenAIGatewayHandler{}).resetOpenAIOverbrushAfterSuccessfulWSTurn(account, result, nil))
+	require.False(t, handler.resetOpenAIOverbrushAfterSuccessfulWSTurn(nil, &service.OpenAIForwardResult{WSTerminalEventType: "response.completed"}, nil))
+	require.False(t, (&OpenAIGatewayHandler{}).resetOpenAIOverbrushAfterSuccessfulWSTurn(account, &service.OpenAIForwardResult{WSTerminalEventType: "response.completed"}, nil))
 }

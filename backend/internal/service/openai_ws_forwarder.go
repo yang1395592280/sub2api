@@ -2425,19 +2425,20 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	)
 
 	return &OpenAIForwardResult{
-		RequestID:        responseID,
-		Usage:            *usage,
-		Model:            originalModel,
-		UpstreamModel:    mappedModel,
-		ImageCount:       imageCounter.Count(),
-		ImageOutputSizes: imageCounter.Sizes(),
-		ServiceTier:      extractOpenAIServiceTier(reqBody),
-		ReasoningEffort:  extractOpenAIReasoningEffort(reqBody, originalModel),
-		Stream:           reqStream,
-		OpenAIWSMode:     true,
-		ResponseHeaders:  lease.HandshakeHeaders(),
-		Duration:         time.Since(startTime),
-		FirstTokenMs:     firstTokenMs,
+		RequestID:           responseID,
+		Usage:               *usage,
+		Model:               originalModel,
+		UpstreamModel:       mappedModel,
+		ImageCount:          imageCounter.Count(),
+		ImageOutputSizes:    imageCounter.Sizes(),
+		ServiceTier:         extractOpenAIServiceTier(reqBody),
+		ReasoningEffort:     extractOpenAIReasoningEffort(reqBody, originalModel),
+		Stream:              reqStream,
+		OpenAIWSMode:        true,
+		WSTerminalEventType: lastEventType,
+		ResponseHeaders:     lease.HandshakeHeaders(),
+		Duration:            time.Since(startTime),
+		FirstTokenMs:        firstTokenMs,
 	}, nil
 }
 
@@ -3367,17 +3368,18 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				}
 				imageCount := imageCounter.Count()
 				result := &OpenAIForwardResult{
-					RequestID:       responseID,
-					Usage:           usage,
-					Model:           originalModel,
-					UpstreamModel:   mappedModel,
-					ServiceTier:     extractOpenAIServiceTierFromBody(payload),
-					ReasoningEffort: ApplyThinkingEnabledFallback(extractOpenAIReasoningEffortFromBody(payload, originalModel), payload, mappedModel),
-					Stream:          reqStream,
-					OpenAIWSMode:    true,
-					ResponseHeaders: lease.HandshakeHeaders(),
-					Duration:        time.Since(turnStart),
-					FirstTokenMs:    firstTokenMs,
+					RequestID:           responseID,
+					Usage:               usage,
+					Model:               originalModel,
+					UpstreamModel:       mappedModel,
+					ServiceTier:         extractOpenAIServiceTierFromBody(payload),
+					ReasoningEffort:     ApplyThinkingEnabledFallback(extractOpenAIReasoningEffortFromBody(payload, originalModel), payload, mappedModel),
+					Stream:              reqStream,
+					OpenAIWSMode:        true,
+					WSTerminalEventType: eventType,
+					ResponseHeaders:     lease.HandshakeHeaders(),
+					Duration:            time.Since(turnStart),
+					FirstTokenMs:        firstTokenMs,
 				}
 				if replayInput := replayCollector.Items(); len(replayInput) > 0 {
 					result.wsReplayInput = replayInput

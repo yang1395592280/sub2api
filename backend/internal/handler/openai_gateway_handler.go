@@ -1786,6 +1786,11 @@ func (h *OpenAIGatewayHandler) resetOpenAIOverbrushAfterSuccessfulWSTurn(account
 	if h == nil || h.gatewayService == nil || account == nil || result == nil || turnErr != nil {
 		return false
 	}
+	switch strings.TrimSpace(result.WSTerminalEventType) {
+	case "response.completed", "response.done":
+	default:
+		return false
+	}
 	h.gatewayService.ResetOpenAIOverbrush429Count(account)
 	return true
 }
