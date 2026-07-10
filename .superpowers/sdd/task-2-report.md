@@ -1,47 +1,58 @@
-# Task 2 Report
+# Task 2 Report: zenxiang_liyu Service Domain, Validation, Probability, and Simulation
 
-## 时间
-- 2026-07-06
+## Status
 
-## 任务结论
-- 已完成 Task 2：新增上游价格守卫策略 helper 与聚焦单测。
-- 未实现 group refresh runner、repository candidate query、wire startup、frontend，保持在任务边界内。
+DONE
 
-## 修改文件
-- `backend/internal/service/openai_upstream_price_guard.go`
-- `backend/internal/service/openai_upstream_price_guard_test.go`
+## Commit
 
-## 核心变更
-- 新增 `ApplyGroupUpstreamPriceGuard(ctx, repo, account, group, now)`：
-  - 当 `upstream_price_max_multiplier <= 0` 时，仅回写 `upstream_price_guard_status=ok`，表示不做价格拦截。
-  - 当账号缺失 `ChannelPrice` 或有效价格不可用时，回写 `unsupported` 与错误信息，不做 temp unschedulable 封禁。
-  - 当实际上游倍率高于分组阈值时：
-    - 回写 `upstream_price_guard_*` 观测字段；
-    - 以 `upstream_price_guard:` 前缀写入 `temp_unschedulable_reason`；
-    - 设置 24 小时临时不可调度。
-  - 当价格恢复正常时：
-    - 回写 `upstream_price_guard_status=ok`；
-    - 仅当现有 `temp_unschedulable_reason` 以 `upstream_price_guard:` 开头时才清理临时不可调度状态；
-    - 其他原因（如 token refresh retry exhausted）保持不动。
+- `cbe121d61 feat: add zenxiang liyu service logic`
 
-## TDD / 验证过程
-1. 先新增 `openai_upstream_price_guard_test.go`。
-2. 运行：
-   - `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestApplyGroupUpstreamPriceGuard'`
-   - 结果：失败，报 `ApplyGroupUpstreamPriceGuard` 与 `UpstreamPriceGuardReasonPrefix` 未定义，符合预期红灯。
-3. 新增 `openai_upstream_price_guard.go` 最小实现。
-4. 运行：
-   - `gofmt -w internal/service/openai_upstream_price_guard.go internal/service/openai_upstream_price_guard_test.go`
-   - `GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestApplyGroupUpstreamPriceGuard'`
-   - 结果：通过。
+## Implemented
 
-## 边界与说明
-- 本次未修改 `backend/internal/service/account.go`：该文件已存在 `EffectiveChannelPrice()`，且其语义已满足 helper 使用，无需额外改动。
-- 未改动用户计费倍率、API Key 配额、usage billing 相关逻辑。
-- 未触碰其他开发者已有变更；工作区中原有 `.superpowers/sdd/progress.md` 改动保持原样。
+- Added `ZenxiangLiyuService` domain types, public service methods, repository port, settings/prize validation, and play command/result contracts.
+- Added prize validation requiring at least one enabled prize and an enabled probability total of 100 within `0.000001`.
+- Added deterministic probability selection with inclusive tier-boundary behavior.
+- Added simulator support for daily play limits, minimum-balance checks, revenue/expense/profit aggregation, user outcome distribution, and prize hit/actual-rate metrics.
+- Added target-profit recommendation support, including lower/higher reward interpolation and all-above/all-below fallback policies.
+- Added the production `ProvideZenxiangLiyuService` Wire provider with `time.Now` and a time-seeded RNG.
 
-## 风险点
-- 当前 helper 仅完成策略判断与 repo 写入，尚未接入实际 group refresh 调度流程；必须等待后续任务把调用链串起来，策略才会真正生效。
+## Tests
 
-## 提交信息
-- `feat: add upstream price guard policy`
+Executed from `backend`:
+
+```bash
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestZenxiangLiyuValidatePrizes' -count=1
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestZenxiangLiyuRecommend' -count=1
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestZenxiangLiyu|TestPickZenxiangLiyuPrize' -count=1
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -count=1
+```
+
+All commands passed. The validation and recommendation additions were first executed in a failing state before their corresponding implementations.
+
+## Self-review
+
+- Confirmed no Task 2 edit touches `backend/ent`, migrations, repositories, handlers, frontend, or generated files.
+- Added an exact-target duplicate-reward test after self-review exposed a zero-denominator interpolation edge case; the implementation now assigns 100% to the exact tier.
+- The repository interface is intentionally limited to the service-facing contract; the transactional implementation remains owned by Task 3.
+
+## Concerns
+
+- Wire generation is intentionally deferred until Task 3 supplies `NewZenxiangLiyuRepository`; the registered provider currently depends on that future repository binding.
+
+## Review Fixes (2026-07-10)
+
+- Corrected `GetStatus` and `Play` authorization: global enable now permits all eligible users; when global enable is off, an explicit user grant is required.
+- `DeletePrize` now reads the current prizes, validates the configuration after excluding the target, and refuses deletions that leave no valid enabled probability configuration.
+- Protected all shared RNG reads in `Play` and `Simulate` with a service mutex. `Recommend` does not use the RNG.
+- Added focused coverage for global enable, global disable with and without a grant, invalid remaining prize configuration on delete, and concurrent simulation RNG access.
+
+### Verification
+
+```bash
+cd backend
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestZenxiangLiyu(Authorization|DeletePrizeRejectsInvalidRemainingConfiguration|SimulateSupportsConcurrentRandomUse)' -count=1
+GOCACHE=/tmp/sub2api-go-cache go test -race ./internal/service -run 'TestZenxiangLiyuSimulateSupportsConcurrentRandomUse' -count=1
+```
+
+Both commands passed.

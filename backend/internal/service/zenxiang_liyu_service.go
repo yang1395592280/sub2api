@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -161,6 +162,7 @@ type ZenxiangLiyuService struct {
 	repo  ZenxiangLiyuRepository
 	clock func() time.Time
 	rng   *rand.Rand
+	rngMu sync.Mutex
 }
 
 func NewZenxiangLiyuService(repo ZenxiangLiyuRepository, clock func() time.Time, rng *rand.Rand) *ZenxiangLiyuService {
@@ -220,16 +222,14 @@ func (s *ZenxiangLiyuService) GetStatus(ctx context.Context, userID int64) (*Zen
 	}
 	status := &ZenxiangLiyuStatus{TicketAmount: settings.TicketAmount, MinimumBalance: settings.MinimumBalance, DailyPlayLimit: settings.DailyPlayLimit, Prizes: prizes}
 	if !settings.GlobalEnabled {
-		status.Reason = ErrZenxiangLiyuDisabled.Error()
-		return status, nil
-	}
-	granted, err := s.repo.IsUserGranted(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	if !granted {
-		status.Reason = ErrZenxiangLiyuUnauthorized.Error()
-		return status, nil
+		granted, err := s.repo.IsUserGranted(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		if !granted {
+			status.Reason = ErrZenxiangLiyuUnauthorized.Error()
+			return status, nil
+		}
 	}
 	status.Visible = true
 	status.TodayPlayCount, err = s.repo.CountUserPlaysOnDate(ctx, userID, s.playDate())
@@ -253,20 +253,19 @@ func (s *ZenxiangLiyuService) Play(ctx context.Context, userID int64, requestID 
 		return nil, err
 	}
 	if !settings.GlobalEnabled {
-		return nil, ErrZenxiangLiyuDisabled
-	}
-	granted, err := s.repo.IsUserGranted(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	if !granted {
-		return nil, ErrZenxiangLiyuUnauthorized
+		granted, err := s.repo.IsUserGranted(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		if !granted {
+			return nil, ErrZenxiangLiyuUnauthorized
+		}
 	}
 	prizes, err := s.ListPrizes(ctx)
 	if err != nil {
 		return nil, err
 	}
-	prize, err := PickZenxiangLiyuPrize(prizes, s.rng.Float64()*100)
+	prize, err := PickZenxiangLiyuPrize(prizes, s.randomFloat64()*100)
 	if err != nil {
 		return nil, err
 	}
@@ -328,6 +327,19 @@ func (s *ZenxiangLiyuService) DeletePrize(ctx context.Context, id int64) error {
 	if id <= 0 || s.repo == nil {
 		return ErrZenxiangLiyuInvalidSettings
 	}
+	prizes, err := s.repo.ListPrizes(ctx)
+	if err != nil {
+		return err
+	}
+	remaining := make([]ZenxiangLiyuPrize, 0, len(prizes))
+	for _, prize := range prizes {
+		if prize.ID != id {
+			remaining = append(remaining, prize)
+		}
+	}
+	if err := ValidateZenxiangLiyuPrizes(remaining); err != nil {
+		return err
+	}
 	return s.repo.DeletePrize(ctx, id)
 }
 
@@ -346,7 +358,7 @@ func (s *ZenxiangLiyuService) Simulate(_ context.Context, req ZenxiangLiyuSimula
 		userNet := 0.0
 		for play := 0; play < playsPerUser && balance > req.MinimumBalance; play++ {
 			balance -= req.TicketAmount
-			prize, err := PickZenxiangLiyuPrize(req.Prizes, s.rng.Float64()*100)
+			prize, err := PickZenxiangLiyuPrize(req.Prizes, s.randomFloat64()*100)
 			if err != nil {
 				return nil, err
 			}
@@ -438,6 +450,12 @@ func (s *ZenxiangLiyuService) Recommend(_ context.Context, req ZenxiangLiyuRecom
 	plan := ZenxiangLiyuRecommendationPlan{Prizes: planPrizes, ProbabilityTotal: 100, TheoryExpense: theoryExpense, TheoryProfit: req.TicketAmount - theoryExpense}
 	plan.TheoryProfitRate = plan.TheoryProfit / req.TicketAmount
 	return &ZenxiangLiyuRecommendationResult{TargetExpense: targetExpense, Plans: []ZenxiangLiyuRecommendationPlan{plan}}, nil
+}
+
+func (s *ZenxiangLiyuService) randomFloat64() float64 {
+	s.rngMu.Lock()
+	defer s.rngMu.Unlock()
+	return s.rng.Float64()
 }
 
 func (s *ZenxiangLiyuService) playDate() time.Time {

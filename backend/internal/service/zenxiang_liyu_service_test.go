@@ -3,11 +3,83 @@ package service
 import (
 	"context"
 	"math/rand"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+type zenxiangLiyuServiceTestRepository struct {
+	mu sync.Mutex
+
+	settings       ZenxiangLiyuSettings
+	prizes         []ZenxiangLiyuPrize
+	granted        bool
+	grantCalls     int
+	deleteCalls    int
+	countUserPlays int
+	playCalls      int
+}
+
+func (r *zenxiangLiyuServiceTestRepository) GetSettings(context.Context) (*ZenxiangLiyuSettings, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	settings := r.settings
+	return &settings, nil
+}
+
+func (r *zenxiangLiyuServiceTestRepository) UpdateSettings(_ context.Context, settings ZenxiangLiyuSettings) (*ZenxiangLiyuSettings, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.settings = settings
+	return &settings, nil
+}
+
+func (r *zenxiangLiyuServiceTestRepository) ListPrizes(context.Context) ([]ZenxiangLiyuPrize, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]ZenxiangLiyuPrize(nil), r.prizes...), nil
+}
+
+func (r *zenxiangLiyuServiceTestRepository) SavePrize(_ context.Context, prize ZenxiangLiyuPrize) (*ZenxiangLiyuPrize, error) {
+	return &prize, nil
+}
+
+func (r *zenxiangLiyuServiceTestRepository) DeletePrize(context.Context, int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.deleteCalls++
+	return nil
+}
+
+func (r *zenxiangLiyuServiceTestRepository) IsUserGranted(context.Context, int64) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.grantCalls++
+	return r.granted, nil
+}
+
+func (r *zenxiangLiyuServiceTestRepository) CountUserPlaysOnDate(context.Context, int64, time.Time) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.countUserPlays, nil
+}
+
+func (r *zenxiangLiyuServiceTestRepository) Play(_ context.Context, command ZenxiangLiyuPlayCommand) (*ZenxiangLiyuPlayResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.playCalls++
+	return &ZenxiangLiyuPlayResult{Applied: true, RequestID: command.RequestID, PrizeID: command.Prize.ID}, nil
+}
+
+func newZenxiangLiyuServiceTestRepository(globalEnabled, granted bool) *zenxiangLiyuServiceTestRepository {
+	return &zenxiangLiyuServiceTestRepository{
+		settings: ZenxiangLiyuSettings{GlobalEnabled: globalEnabled, TicketAmount: 1, MinimumBalance: 0, DailyPlayLimit: 1},
+		prizes:   []ZenxiangLiyuPrize{{ID: 1, Name: "A", RewardAmount: 1, Probability: 100, Enabled: true}},
+		granted:  granted,
+	}
+}
 
 func TestZenxiangLiyuValidatePrizesRequiresEnabledProbabilityTotal100(t *testing.T) {
 	prizes := []ZenxiangLiyuPrize{
@@ -100,4 +172,81 @@ func TestZenxiangLiyuRecommendUsesExactRewardForDuplicateTiers(t *testing.T) {
 	require.NoError(t, err)
 	require.InDelta(t, 1, result.Plans[0].TheoryExpense, 0.000001)
 	require.InDelta(t, 0.5, result.Plans[0].TheoryProfitRate, 0.000001)
+}
+
+func TestZenxiangLiyuAuthorization(t *testing.T) {
+	tests := []struct {
+		name          string
+		globalEnabled bool
+		granted       bool
+		wantStatus    string
+		wantPlayErr   error
+		grantCalls    int
+	}{
+		{name: "global enabled permits ordinary user", globalEnabled: true, granted: false, wantStatus: "", grantCalls: 0},
+		{name: "global disabled permits granted user", globalEnabled: false, granted: true, wantStatus: "", grantCalls: 2},
+		{name: "global disabled rejects ungranted user", globalEnabled: false, granted: false, wantStatus: ErrZenxiangLiyuUnauthorized.Error(), wantPlayErr: ErrZenxiangLiyuUnauthorized, grantCalls: 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newZenxiangLiyuServiceTestRepository(tt.globalEnabled, tt.granted)
+			svc := NewZenxiangLiyuService(repo, func() time.Time { return time.Unix(0, 0).UTC() }, rand.New(rand.NewSource(1)))
+
+			status, err := svc.GetStatus(context.Background(), 1)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantStatus, status.Reason)
+			require.Equal(t, tt.wantStatus == "", status.Visible)
+
+			result, err := svc.Play(context.Background(), 1, "request-id")
+			if tt.wantPlayErr != nil {
+				require.ErrorIs(t, err, tt.wantPlayErr)
+				require.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.True(t, result.Applied)
+			}
+
+			repo.mu.Lock()
+			defer repo.mu.Unlock()
+			require.Equal(t, tt.grantCalls, repo.grantCalls)
+		})
+	}
+}
+
+func TestZenxiangLiyuDeletePrizeRejectsInvalidRemainingConfiguration(t *testing.T) {
+	repo := newZenxiangLiyuServiceTestRepository(true, false)
+	svc := NewZenxiangLiyuService(repo, time.Now, rand.New(rand.NewSource(1)))
+
+	err := svc.DeletePrize(context.Background(), 1)
+	require.ErrorIs(t, err, ErrZenxiangLiyuInvalidProbabilityTotal)
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	require.Zero(t, repo.deleteCalls)
+}
+
+func TestZenxiangLiyuSimulateSupportsConcurrentRandomUse(t *testing.T) {
+	svc := NewZenxiangLiyuService(nil, time.Now, rand.New(rand.NewSource(1)))
+	req := ZenxiangLiyuSimulationRequest{
+		UserCount: 1, PlaysPerUser: 10, InitialBalance: 100, TicketAmount: 1, DailyPlayLimit: 10,
+		Prizes: []ZenxiangLiyuPrize{{ID: 1, Name: "A", RewardAmount: 1, Probability: 100, Enabled: true}},
+	}
+
+	const workers = 32
+	errs := make(chan error, workers)
+	var wg sync.WaitGroup
+	for worker := 0; worker < workers; worker++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := svc.Simulate(context.Background(), req)
+			errs <- err
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
 }
