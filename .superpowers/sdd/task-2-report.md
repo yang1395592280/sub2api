@@ -56,3 +56,20 @@ GOCACHE=/tmp/sub2api-go-cache go test -race ./internal/service -run 'TestZenxian
 ```
 
 Both commands passed.
+
+## Second Review Fixes (2026-07-10)
+
+- Added `SavePrizes`, a full-set prize configuration replacement operation. It validates the submitted enabled probabilities as a complete 100% configuration before delegating exactly once to `ZenxiangLiyuRepository.SavePrizes`, allowing a valid 50/50 configuration to change atomically to 60/40.
+- Kept `SavePrize` for individual writes; normal multi-row probability edits now have a transaction-capable bulk repository port.
+- Prize validation now explicitly rejects `NaN`, positive infinity, and negative infinity reward amounts and probabilities.
+- Added focused tests for atomic replacement, invalid-total rejection without repository mutation, and non-finite numeric values.
+
+### Verification
+
+```bash
+cd backend
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestZenxiangLiyu(SavePrizes|ValidatePrizesRejectsNonFiniteRewardAndProbability)' -count=1
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestZenxiangLiyu|TestPickZenxiangLiyuPrize' -count=1
+```
+
+Both commands passed.

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"math"
 	"math/rand"
 	"sync"
 	"testing"
@@ -18,6 +19,7 @@ type zenxiangLiyuServiceTestRepository struct {
 	granted        bool
 	grantCalls     int
 	deleteCalls    int
+	bulkSaveCalls  int
 	countUserPlays int
 	playCalls      int
 }
@@ -44,6 +46,14 @@ func (r *zenxiangLiyuServiceTestRepository) ListPrizes(context.Context) ([]Zenxi
 
 func (r *zenxiangLiyuServiceTestRepository) SavePrize(_ context.Context, prize ZenxiangLiyuPrize) (*ZenxiangLiyuPrize, error) {
 	return &prize, nil
+}
+
+func (r *zenxiangLiyuServiceTestRepository) SavePrizes(_ context.Context, prizes []ZenxiangLiyuPrize) ([]ZenxiangLiyuPrize, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.bulkSaveCalls++
+	r.prizes = append([]ZenxiangLiyuPrize(nil), prizes...)
+	return append([]ZenxiangLiyuPrize(nil), r.prizes...), nil
 }
 
 func (r *zenxiangLiyuServiceTestRepository) DeletePrize(context.Context, int64) error {
@@ -99,6 +109,71 @@ func TestZenxiangLiyuValidatePrizesAcceptsConfiguredTiers(t *testing.T) {
 	}
 
 	require.NoError(t, ValidateZenxiangLiyuPrizes(prizes))
+}
+
+func TestZenxiangLiyuValidatePrizesRejectsNonFiniteRewardAndProbability(t *testing.T) {
+	tests := []struct {
+		name  string
+		prize ZenxiangLiyuPrize
+	}{
+		{name: "NaN reward", prize: ZenxiangLiyuPrize{ID: 1, Name: "A", RewardAmount: math.NaN(), Probability: 100, Enabled: true}},
+		{name: "positive infinity reward", prize: ZenxiangLiyuPrize{ID: 1, Name: "A", RewardAmount: math.Inf(1), Probability: 100, Enabled: true}},
+		{name: "negative infinity reward", prize: ZenxiangLiyuPrize{ID: 1, Name: "A", RewardAmount: math.Inf(-1), Probability: 100, Enabled: true}},
+		{name: "NaN probability", prize: ZenxiangLiyuPrize{ID: 1, Name: "A", RewardAmount: 1, Probability: math.NaN(), Enabled: true}},
+		{name: "positive infinity probability", prize: ZenxiangLiyuPrize{ID: 1, Name: "A", RewardAmount: 1, Probability: math.Inf(1), Enabled: true}},
+		{name: "negative infinity probability", prize: ZenxiangLiyuPrize{ID: 1, Name: "A", RewardAmount: 1, Probability: math.Inf(-1), Enabled: true}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.ErrorIs(t, ValidateZenxiangLiyuPrizes([]ZenxiangLiyuPrize{tt.prize}), ErrZenxiangLiyuInvalidSettings)
+		})
+	}
+}
+
+func TestZenxiangLiyuSavePrizesAtomicallyReplacesValidConfiguration(t *testing.T) {
+	repo := newZenxiangLiyuServiceTestRepository(true, false)
+	repo.prizes = []ZenxiangLiyuPrize{
+		{ID: 1, Name: "A", RewardAmount: 1, Probability: 50, Enabled: true},
+		{ID: 2, Name: "B", RewardAmount: 3, Probability: 50, Enabled: true},
+	}
+	svc := NewZenxiangLiyuService(repo, time.Now, rand.New(rand.NewSource(1)))
+
+	prizes, err := svc.SavePrizes(context.Background(), []ZenxiangLiyuPrizeUpdate{
+		{ID: 1, Name: "A", RewardAmount: 1, Probability: 60, Enabled: true},
+		{ID: 2, Name: "B", RewardAmount: 3, Probability: 40, Enabled: true},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []ZenxiangLiyuPrize{
+		{ID: 1, Name: "A", RewardAmount: 1, Probability: 60, Enabled: true},
+		{ID: 2, Name: "B", RewardAmount: 3, Probability: 40, Enabled: true},
+	}, prizes)
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	require.Equal(t, 1, repo.bulkSaveCalls)
+	require.Equal(t, prizes, repo.prizes)
+}
+
+func TestZenxiangLiyuSavePrizesRejectsInvalidTotalWithoutChangingConfiguration(t *testing.T) {
+	repo := newZenxiangLiyuServiceTestRepository(true, false)
+	repo.prizes = []ZenxiangLiyuPrize{
+		{ID: 1, Name: "A", RewardAmount: 1, Probability: 50, Enabled: true},
+		{ID: 2, Name: "B", RewardAmount: 3, Probability: 50, Enabled: true},
+	}
+	want := append([]ZenxiangLiyuPrize(nil), repo.prizes...)
+	svc := NewZenxiangLiyuService(repo, time.Now, rand.New(rand.NewSource(1)))
+
+	_, err := svc.SavePrizes(context.Background(), []ZenxiangLiyuPrizeUpdate{
+		{ID: 1, Name: "A", RewardAmount: 1, Probability: 60, Enabled: true},
+		{ID: 2, Name: "B", RewardAmount: 3, Probability: 30, Enabled: true},
+	})
+
+	require.ErrorIs(t, err, ErrZenxiangLiyuInvalidProbabilityTotal)
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	require.Zero(t, repo.bulkSaveCalls)
+	require.Equal(t, want, repo.prizes)
 }
 
 func TestPickZenxiangLiyuPrizeUsesProbabilityBoundaries(t *testing.T) {

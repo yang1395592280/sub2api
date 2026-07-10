@@ -152,6 +152,7 @@ type ZenxiangLiyuRepository interface {
 	UpdateSettings(ctx context.Context, settings ZenxiangLiyuSettings) (*ZenxiangLiyuSettings, error)
 	ListPrizes(ctx context.Context) ([]ZenxiangLiyuPrize, error)
 	SavePrize(ctx context.Context, prize ZenxiangLiyuPrize) (*ZenxiangLiyuPrize, error)
+	SavePrizes(ctx context.Context, prizes []ZenxiangLiyuPrize) ([]ZenxiangLiyuPrize, error)
 	DeletePrize(ctx context.Context, id int64) error
 	IsUserGranted(ctx context.Context, userID int64) (bool, error)
 	CountUserPlaysOnDate(ctx context.Context, userID int64, playDate time.Time) (int, error)
@@ -179,7 +180,9 @@ func ValidateZenxiangLiyuPrizes(prizes []ZenxiangLiyuPrize) error {
 	total := 0.0
 	enabled := 0
 	for _, prize := range prizes {
-		if strings.TrimSpace(prize.Name) == "" || prize.RewardAmount < 0 || prize.Probability < 0 || prize.Probability > 100 {
+		if strings.TrimSpace(prize.Name) == "" ||
+			math.IsNaN(prize.RewardAmount) || math.IsInf(prize.RewardAmount, 0) || prize.RewardAmount < 0 ||
+			math.IsNaN(prize.Probability) || math.IsInf(prize.Probability, 0) || prize.Probability < 0 || prize.Probability > 100 {
 			return ErrZenxiangLiyuInvalidSettings
 		}
 		if prize.Enabled {
@@ -321,6 +324,21 @@ func (s *ZenxiangLiyuService) SavePrize(ctx context.Context, req ZenxiangLiyuPri
 		return nil, err
 	}
 	return s.repo.SavePrize(ctx, prize)
+}
+
+// SavePrizes validates and atomically replaces the complete prize configuration.
+func (s *ZenxiangLiyuService) SavePrizes(ctx context.Context, req []ZenxiangLiyuPrizeUpdate) ([]ZenxiangLiyuPrize, error) {
+	if s.repo == nil {
+		return nil, ErrZenxiangLiyuInvalidSettings
+	}
+	prizes := make([]ZenxiangLiyuPrize, len(req))
+	for i := range req {
+		prizes[i] = req[i].Prize()
+	}
+	if err := ValidateZenxiangLiyuPrizes(prizes); err != nil {
+		return nil, err
+	}
+	return s.repo.SavePrizes(ctx, prizes)
 }
 
 func (s *ZenxiangLiyuService) DeletePrize(ctx context.Context, id int64) error {
