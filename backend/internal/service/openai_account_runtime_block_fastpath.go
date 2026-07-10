@@ -39,6 +39,10 @@ func (s *OpenAIGatewayService) handleOpenAIAccountUpstreamError(ctx context.Cont
 	stateCtx, cancel := openAIAccountStateContext(ctx)
 	defer cancel()
 
+	if s.shouldSkipOpenAI429LimitForOverbrush(stateCtx, account, statusCode) {
+		return false
+	}
+
 	if account != nil && account.Platform == PlatformOpenAI && isOpenAIContextWindowError("", responseBody) {
 		return false
 	}
@@ -64,6 +68,43 @@ func (s *OpenAIGatewayService) handleOpenAIAccountUpstreamError(ctx context.Cont
 		s.BlockAccountScheduling(account, time.Time{}, "upstream_disable")
 	}
 	return shouldDisable
+}
+
+func (s *OpenAIGatewayService) openAIOverbrushThreshold(ctx context.Context) int {
+	if s != nil && s.settingService != nil {
+		settings, err := s.settingService.GetOpenAIOverbrushSettings(ctx)
+		if err == nil && settings != nil {
+			return normalizeOpenAIOverbrushThreshold(settings.Consecutive429Threshold)
+		}
+	}
+	return DefaultOpenAIOverbrushSettings().Consecutive429Threshold
+}
+
+func (s *OpenAIGatewayService) shouldSkipOpenAI429LimitForOverbrush(ctx context.Context, account *Account, statusCode int) bool {
+	if s == nil || account == nil || statusCode != http.StatusTooManyRequests || !account.IsOpenAIOverbrushEnabled() {
+		return false
+	}
+
+	threshold := s.openAIOverbrushThreshold(ctx)
+	nextCount := 1
+	if raw, ok := s.openaiOverbrush429Counts.Load(account.ID); ok {
+		if current, ok := raw.(int); ok && current > 0 {
+			nextCount = current + 1
+		}
+	}
+	if nextCount >= threshold {
+		s.openaiOverbrush429Counts.Delete(account.ID)
+		return false
+	}
+	s.openaiOverbrush429Counts.Store(account.ID, nextCount)
+	return true
+}
+
+func (s *OpenAIGatewayService) ResetOpenAIOverbrush429Count(account *Account) {
+	if s == nil || account == nil {
+		return
+	}
+	s.openaiOverbrush429Counts.Delete(account.ID)
 }
 
 func (s *OpenAIGatewayService) markOpenAIOAuth429RateLimited(ctx context.Context, account *Account, headers http.Header, responseBody []byte) {

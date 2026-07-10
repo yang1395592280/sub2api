@@ -248,6 +248,20 @@ func (a *Account) IsOpenAICompatible() bool {
 	return a != nil && (a.Platform == PlatformOpenAI || a.Platform == PlatformGrok)
 }
 
+func (a *Account) IsOpenAIOverbrushEnabled() bool {
+	if a == nil || a.Platform != PlatformOpenAI || a.Type != AccountTypeAPIKey {
+		return false
+	}
+	if a.Extra == nil || a.Extra["openai_overbrush_enabled"] != true {
+		return false
+	}
+	if a.Credentials == nil {
+		return true
+	}
+	upstreamAdminType := strings.TrimSpace(a.GetCredential("upstream_admin_type"))
+	return upstreamAdminType == ""
+}
+
 func (a *Account) GeminiOAuthType() string {
 	if a.Platform != PlatformGemini || a.Type != AccountTypeOAuth {
 		return ""
