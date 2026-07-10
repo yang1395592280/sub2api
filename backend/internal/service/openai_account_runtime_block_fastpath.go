@@ -86,6 +86,9 @@ func (s *OpenAIGatewayService) shouldSkipOpenAI429LimitForOverbrush(ctx context.
 	}
 
 	threshold := s.openAIOverbrushThreshold(ctx)
+	s.openaiOverbrush429CountsMu.Lock()
+	defer s.openaiOverbrush429CountsMu.Unlock()
+
 	nextCount := 1
 	if raw, ok := s.openaiOverbrush429Counts.Load(account.ID); ok {
 		if current, ok := raw.(int); ok && current > 0 {
@@ -104,6 +107,8 @@ func (s *OpenAIGatewayService) ResetOpenAIOverbrush429Count(account *Account) {
 	if s == nil || account == nil {
 		return
 	}
+	s.openaiOverbrush429CountsMu.Lock()
+	defer s.openaiOverbrush429CountsMu.Unlock()
 	s.openaiOverbrush429Counts.Delete(account.ID)
 }
 

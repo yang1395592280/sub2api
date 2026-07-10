@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -40,6 +41,38 @@ func TestOpenAIOverbrush429SkipsLimitBeforeThreshold(t *testing.T) {
 	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
 	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
 	require.False(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+}
+
+func TestOpenAIOverbrush429ConcurrentThresholdUpdateIsAtomic(t *testing.T) {
+	const requestCount = 256
+
+	svc := &OpenAIGatewayService{settingService: fixedOpenAIOverbrushSettingService(t, 2)}
+	account := openAIOverbrushAPIKeyAccount()
+	start := make(chan struct{})
+	results := make(chan bool, requestCount)
+	var waitGroup sync.WaitGroup
+
+	for range requestCount {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			<-start
+			results <- svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests)
+		}()
+	}
+
+	close(start)
+	waitGroup.Wait()
+	close(results)
+
+	skipped := 0
+	for shouldSkip := range results {
+		if shouldSkip {
+			skipped++
+		}
+	}
+
+	require.Equal(t, requestCount/2, skipped)
 }
 
 func TestOpenAIOverbrush429SuccessReset(t *testing.T) {
