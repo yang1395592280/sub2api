@@ -968,9 +968,11 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseU
 			"api_key":  "test-api-key",
 			"base_url": "https://image-upstream.example/v1",
 		},
+		Extra: map[string]any{"openai_overbrush_enabled": true},
 	}
+	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
 
-	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+	result, err := svc.forwardOpenAIImagesAPIKey(context.Background(), c, account, body, parsed, "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, 1, result.ImageCount)
@@ -986,6 +988,8 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseU
 	require.Equal(t, "gpt-image-2", gjson.GetBytes(upstream.lastBody, "model").String())
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "aGVsbG8=", gjson.Get(rec.Body.String(), "data.0.b64_json").String())
+	_, has429Count := svc.openaiOverbrush429Counts.Load(account.ID)
+	require.False(t, has429Count)
 }
 
 func TestOpenAIGatewayServiceForwardImages_MikotoURLResponseIsStoredAsPublicFile(t *testing.T) {

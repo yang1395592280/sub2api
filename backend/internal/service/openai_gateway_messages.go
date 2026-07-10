@@ -375,8 +375,6 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		return s.handleAnthropicErrorResponse(resp, c, account, billingModel)
 	}
 
-	s.ResetOpenAIOverbrush429Count(account)
-
 	if account.Type == AccountTypeOAuth && promptCacheKey != "" {
 		if turnState := strings.TrimSpace(resp.Header.Get("x-codex-turn-state")); turnState != "" {
 			s.bindOpenAICompatSessionTurnState(ctx, c, account, promptCacheKey, turnState)
@@ -429,6 +427,9 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		} else if snapshot := ParseCodexRateLimitHeaders(resp.Header); snapshot != nil {
 			s.updateCodexUsageSnapshot(ctx, account.ID, snapshot)
 		}
+	}
+	if handleErr == nil {
+		s.ResetOpenAIOverbrush429Count(account)
 	}
 
 	return result, handleErr

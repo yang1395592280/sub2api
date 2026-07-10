@@ -314,8 +314,6 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 		return s.handleChatCompletionsErrorResponse(resp, c, account, billingModel)
 	}
 
-	s.ResetOpenAIOverbrush429Count(account)
-
 	// 9. Handle normal response
 	var result *OpenAIForwardResult
 	var handleErr error
@@ -352,6 +350,9 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 		if snapshot := ParseCodexRateLimitHeaders(resp.Header); snapshot != nil {
 			s.updateCodexUsageSnapshot(ctx, account.ID, snapshot)
 		}
+	}
+	if handleErr == nil {
+		s.ResetOpenAIOverbrush429Count(account)
 	}
 
 	return result, handleErr

@@ -111,7 +111,7 @@ func (s *OpenAIGatewayService) ForwardCountTokensAsAnthropic(
 			return nil
 		}
 
-		if s.rateLimitService != nil {
+		if !s.shouldSkipOpenAI429LimitForOverbrush(ctx, account, resp.StatusCode) && s.rateLimitService != nil {
 			s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
 		}
 
@@ -150,6 +150,7 @@ func (s *OpenAIGatewayService) ForwardCountTokensAsAnthropic(
 		return fmt.Errorf("input_tokens response missing input_tokens field")
 	}
 
+	s.ResetOpenAIOverbrush429Count(account)
 	c.JSON(http.StatusOK, gin.H{
 		"input_tokens": int(inputTokens.Int()),
 	})

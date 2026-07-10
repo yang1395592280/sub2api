@@ -143,8 +143,6 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 		return nil, fmt.Errorf("upstream returned status %d", resp.StatusCode)
 	}
 
-	s.ResetOpenAIOverbrush429Count(account)
-
 	respBody, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
 	if err != nil {
 		if !errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
@@ -154,6 +152,7 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	}
 
 	writeOpenAIEmbeddingsUpstreamResponse(c, resp, respBody, s.responseHeaderFilter)
+	s.ResetOpenAIOverbrush429Count(account)
 
 	return &OpenAIForwardResult{
 		RequestID:     firstNonEmptyString(resp.Header.Get("x-request-id"), resp.Header.Get("request-id")),
