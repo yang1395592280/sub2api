@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent } from 'vue'
+import { defineComponent, nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 
 const {
@@ -62,7 +62,10 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => key
+      t: (key: string) => ({
+        'admin.accounts.openai.overbrush': '是否超刷',
+        'admin.accounts.openai.overbrushDesc': '开启后，该 OpenAI API Key 账号遇到 429 会继续调度，连续达到全局阈值后才进入限流中。'
+      })[key] ?? key
     })
   }
 })
@@ -338,6 +341,54 @@ describe('EditAccountModal', () => {
 
     expect(wrapper.text()).not.toContain('new-api 用户余额查询')
     expect(wrapper.find('input[placeholder="738"]').exists()).toBe(false)
+  })
+
+  it('shows OpenAI overbrush switch only for imported OpenAI API key accounts', async () => {
+    const account = {
+      ...buildAccount(),
+      credentials: {
+        api_key: 'sk-test',
+        base_url: 'https://api.openai.com'
+      },
+      extra: {}
+    }
+    const wrapper = mountModal(account)
+
+    expect(wrapper.text()).toContain('是否超刷')
+
+    await wrapper.setProps({ account: {
+      ...account,
+      credentials: {
+        ...account.credentials,
+        upstream_admin_type: 'sub2api'
+      }
+    } })
+    await nextTick()
+
+    expect(wrapper.text()).not.toContain('是否超刷')
+  })
+
+  it('persists OpenAI overbrush switch in account extra', async () => {
+    updateAccountMock.mockResolvedValue({ ...buildAccount(), extra: { openai_overbrush_enabled: true } })
+    const account = {
+      ...buildAccount(),
+      credentials: {
+        api_key: 'sk-test',
+        base_url: 'https://api.openai.com'
+      },
+      extra: {}
+    }
+    const wrapper = mountModal(account)
+
+    await wrapper.get('[data-testid="openai-overbrush-toggle"]').trigger('click')
+    await wrapper.get('form').trigger('submit')
+
+    expect(updateAccountMock).toHaveBeenCalledWith(
+      account.id,
+      expect.objectContaining({
+        extra: expect.objectContaining({ openai_overbrush_enabled: true })
+      })
+    )
   })
 
   it('reopening the same account rehydrates the OpenAI whitelist from props', async () => {
