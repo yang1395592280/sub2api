@@ -500,6 +500,12 @@ type RateLimit429CooldownSettings struct {
 	CooldownSeconds int `json:"cooldown_seconds"`
 }
 
+// OpenAIOverbrushSettings OpenAI API Key 超刷配置
+type OpenAIOverbrushSettings struct {
+	// Consecutive429Threshold 连续 429 达到该次数后回归原有限流逻辑
+	Consecutive429Threshold int `json:"consecutive_429_threshold"`
+}
+
 // DefaultOverloadCooldownSettings 返回默认的过载冷却配置（启用，10分钟）
 func DefaultOverloadCooldownSettings() *OverloadCooldownSettings {
 	return &OverloadCooldownSettings{
@@ -514,6 +520,11 @@ func DefaultRateLimit429CooldownSettings() *RateLimit429CooldownSettings {
 		Enabled:         true,
 		CooldownSeconds: 5,
 	}
+}
+
+// DefaultOpenAIOverbrushSettings 返回默认 OpenAI 超刷配置（连续 10 次 429）
+func DefaultOpenAIOverbrushSettings() *OpenAIOverbrushSettings {
+	return &OpenAIOverbrushSettings{Consecutive429Threshold: 10}
 }
 
 // DefaultBetaPolicySettings 返回默认的 Beta 策略配置

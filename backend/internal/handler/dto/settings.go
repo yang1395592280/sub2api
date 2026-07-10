@@ -389,6 +389,11 @@ type RateLimit429CooldownSettings struct {
 	CooldownSeconds int  `json:"cooldown_seconds"`
 }
 
+// OpenAIOverbrushSettings OpenAI API Key 超刷配置 DTO
+type OpenAIOverbrushSettings struct {
+	Consecutive429Threshold int `json:"consecutive_429_threshold"`
+}
+
 // StreamTimeoutSettings 流超时处理配置 DTO
 type StreamTimeoutSettings struct {
 	Enabled                bool   `json:"enabled"`
