@@ -94,9 +94,9 @@ None.
 
 ### Changes
 
-- Restricted the `prize_id` clearing exception in `174_zenxiang_liyu_record_fk_immutability_fix.sql` to nested PostgreSQL trigger execution (`pg_trigger_depth() > 0`), in addition to the existing non-null-to-null and no-other-columns-changed checks. Direct record updates and all record deletes remain rejected.
+- Restricted the `prize_id` clearing exception in `174_zenxiang_liyu_record_fk_immutability_fix.sql` to nested PostgreSQL trigger execution (`pg_trigger_depth() > 1`), so direct record updates at trigger depth 1 remain rejected. The existing non-null-to-null and no-other-columns-changed checks are retained.
 
 ### Verification
 
-- Static inspection confirms the trigger exception now requires `pg_trigger_depth() > 0` and retains `TG_OP = 'UPDATE'`; no local PostgreSQL SQL parser or formatter is installed.
+- Static inspection confirms the trigger exception now requires `pg_trigger_depth() > 1`, contains no `pg_trigger_depth() > 0` predicate, and retains `TG_OP = 'UPDATE'`; no local PostgreSQL SQL parser or formatter is installed.
 - PostgreSQL integration remains pending Docker availability to validate direct update rejection, FK-driven `prize_id` nulling, and delete rejection.

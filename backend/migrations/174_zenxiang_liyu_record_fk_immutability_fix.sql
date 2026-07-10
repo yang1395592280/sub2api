@@ -40,7 +40,7 @@ BEGIN
     IF TG_OP = 'UPDATE'
        AND OLD.prize_id IS NOT NULL
        AND NEW.prize_id IS NULL
-       AND pg_trigger_depth() > 0
+       AND pg_trigger_depth() > 1
        AND to_jsonb(NEW) - 'prize_id' = to_jsonb(OLD) - 'prize_id' THEN
         RETURN NEW;
     END IF;
