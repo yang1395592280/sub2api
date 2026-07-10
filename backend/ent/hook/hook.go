@@ -513,6 +513,54 @@ func (f WorkbenchMessageFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.V
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.WorkbenchMessageMutation", m)
 }
 
+// The ZenxiangLiyuPrizeFunc type is an adapter to allow the use of ordinary
+// function as ZenxiangLiyuPrize mutator.
+type ZenxiangLiyuPrizeFunc func(context.Context, *ent.ZenxiangLiyuPrizeMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ZenxiangLiyuPrizeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ZenxiangLiyuPrizeMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ZenxiangLiyuPrizeMutation", m)
+}
+
+// The ZenxiangLiyuRecordFunc type is an adapter to allow the use of ordinary
+// function as ZenxiangLiyuRecord mutator.
+type ZenxiangLiyuRecordFunc func(context.Context, *ent.ZenxiangLiyuRecordMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ZenxiangLiyuRecordFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ZenxiangLiyuRecordMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ZenxiangLiyuRecordMutation", m)
+}
+
+// The ZenxiangLiyuSettingFunc type is an adapter to allow the use of ordinary
+// function as ZenxiangLiyuSetting mutator.
+type ZenxiangLiyuSettingFunc func(context.Context, *ent.ZenxiangLiyuSettingMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ZenxiangLiyuSettingFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ZenxiangLiyuSettingMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ZenxiangLiyuSettingMutation", m)
+}
+
+// The ZenxiangLiyuUserGrantFunc type is an adapter to allow the use of ordinary
+// function as ZenxiangLiyuUserGrant mutator.
+type ZenxiangLiyuUserGrantFunc func(context.Context, *ent.ZenxiangLiyuUserGrantMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ZenxiangLiyuUserGrantFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ZenxiangLiyuUserGrantMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ZenxiangLiyuUserGrantMutation", m)
+}
+
 // Condition is a hook condition function.
 type Condition func(context.Context, ent.Mutation) bool
 

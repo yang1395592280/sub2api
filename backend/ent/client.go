@@ -57,6 +57,10 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 	"github.com/Wei-Shaw/sub2api/ent/workbenchconversation"
 	"github.com/Wei-Shaw/sub2api/ent/workbenchmessage"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuprize"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyusetting"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuusergrant"
 
 	stdsql "database/sql"
 )
@@ -150,6 +154,14 @@ type Client struct {
 	WorkbenchConversation *WorkbenchConversationClient
 	// WorkbenchMessage is the client for interacting with the WorkbenchMessage builders.
 	WorkbenchMessage *WorkbenchMessageClient
+	// ZenxiangLiyuPrize is the client for interacting with the ZenxiangLiyuPrize builders.
+	ZenxiangLiyuPrize *ZenxiangLiyuPrizeClient
+	// ZenxiangLiyuRecord is the client for interacting with the ZenxiangLiyuRecord builders.
+	ZenxiangLiyuRecord *ZenxiangLiyuRecordClient
+	// ZenxiangLiyuSetting is the client for interacting with the ZenxiangLiyuSetting builders.
+	ZenxiangLiyuSetting *ZenxiangLiyuSettingClient
+	// ZenxiangLiyuUserGrant is the client for interacting with the ZenxiangLiyuUserGrant builders.
+	ZenxiangLiyuUserGrant *ZenxiangLiyuUserGrantClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -203,6 +215,10 @@ func (c *Client) init() {
 	c.UserSubscription = NewUserSubscriptionClient(c.config)
 	c.WorkbenchConversation = NewWorkbenchConversationClient(c.config)
 	c.WorkbenchMessage = NewWorkbenchMessageClient(c.config)
+	c.ZenxiangLiyuPrize = NewZenxiangLiyuPrizeClient(c.config)
+	c.ZenxiangLiyuRecord = NewZenxiangLiyuRecordClient(c.config)
+	c.ZenxiangLiyuSetting = NewZenxiangLiyuSettingClient(c.config)
+	c.ZenxiangLiyuUserGrant = NewZenxiangLiyuUserGrantClient(c.config)
 }
 
 type (
@@ -337,6 +353,10 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		UserSubscription:              NewUserSubscriptionClient(cfg),
 		WorkbenchConversation:         NewWorkbenchConversationClient(cfg),
 		WorkbenchMessage:              NewWorkbenchMessageClient(cfg),
+		ZenxiangLiyuPrize:             NewZenxiangLiyuPrizeClient(cfg),
+		ZenxiangLiyuRecord:            NewZenxiangLiyuRecordClient(cfg),
+		ZenxiangLiyuSetting:           NewZenxiangLiyuSettingClient(cfg),
+		ZenxiangLiyuUserGrant:         NewZenxiangLiyuUserGrantClient(cfg),
 	}, nil
 }
 
@@ -398,6 +418,10 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		UserSubscription:              NewUserSubscriptionClient(cfg),
 		WorkbenchConversation:         NewWorkbenchConversationClient(cfg),
 		WorkbenchMessage:              NewWorkbenchMessageClient(cfg),
+		ZenxiangLiyuPrize:             NewZenxiangLiyuPrizeClient(cfg),
+		ZenxiangLiyuRecord:            NewZenxiangLiyuRecordClient(cfg),
+		ZenxiangLiyuSetting:           NewZenxiangLiyuSettingClient(cfg),
+		ZenxiangLiyuUserGrant:         NewZenxiangLiyuUserGrantClient(cfg),
 	}, nil
 }
 
@@ -439,7 +463,8 @@ func (c *Client) Use(hooks ...Hook) {
 		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
 		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
 		c.UserPlatformQuota, c.UserSubscription, c.WorkbenchConversation,
-		c.WorkbenchMessage,
+		c.WorkbenchMessage, c.ZenxiangLiyuPrize, c.ZenxiangLiyuRecord,
+		c.ZenxiangLiyuSetting, c.ZenxiangLiyuUserGrant,
 	} {
 		n.Use(hooks...)
 	}
@@ -461,7 +486,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
 		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
 		c.UserPlatformQuota, c.UserSubscription, c.WorkbenchConversation,
-		c.WorkbenchMessage,
+		c.WorkbenchMessage, c.ZenxiangLiyuPrize, c.ZenxiangLiyuRecord,
+		c.ZenxiangLiyuSetting, c.ZenxiangLiyuUserGrant,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -554,6 +580,14 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.WorkbenchConversation.mutate(ctx, m)
 	case *WorkbenchMessageMutation:
 		return c.WorkbenchMessage.mutate(ctx, m)
+	case *ZenxiangLiyuPrizeMutation:
+		return c.ZenxiangLiyuPrize.mutate(ctx, m)
+	case *ZenxiangLiyuRecordMutation:
+		return c.ZenxiangLiyuRecord.mutate(ctx, m)
+	case *ZenxiangLiyuSettingMutation:
+		return c.ZenxiangLiyuSetting.mutate(ctx, m)
+	case *ZenxiangLiyuUserGrantMutation:
+		return c.ZenxiangLiyuUserGrant.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -6172,6 +6206,38 @@ func (c *UserClient) QueryWorkbenchMessages(_m *User) *WorkbenchMessageQuery {
 	return query
 }
 
+// QueryZenxiangLiyuGrants queries the zenxiang_liyu_grants edge of a User.
+func (c *UserClient) QueryZenxiangLiyuGrants(_m *User) *ZenxiangLiyuUserGrantQuery {
+	query := (&ZenxiangLiyuUserGrantClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(zenxiangliyuusergrant.Table, zenxiangliyuusergrant.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ZenxiangLiyuGrantsTable, user.ZenxiangLiyuGrantsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryZenxiangLiyuRecords queries the zenxiang_liyu_records edge of a User.
+func (c *UserClient) QueryZenxiangLiyuRecords(_m *User) *ZenxiangLiyuRecordQuery {
+	query := (&ZenxiangLiyuRecordClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(zenxiangliyurecord.Table, zenxiangliyurecord.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ZenxiangLiyuRecordsTable, user.ZenxiangLiyuRecordsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryUserAllowedGroups queries the user_allowed_groups edge of a User.
 func (c *UserClient) QueryUserAllowedGroups(_m *User) *UserAllowedGroupQuery {
 	query := (&UserAllowedGroupClient{config: c.config}).Query()
@@ -7331,6 +7397,570 @@ func (c *WorkbenchMessageClient) mutate(ctx context.Context, m *WorkbenchMessage
 	}
 }
 
+// ZenxiangLiyuPrizeClient is a client for the ZenxiangLiyuPrize schema.
+type ZenxiangLiyuPrizeClient struct {
+	config
+}
+
+// NewZenxiangLiyuPrizeClient returns a client for the ZenxiangLiyuPrize from the given config.
+func NewZenxiangLiyuPrizeClient(c config) *ZenxiangLiyuPrizeClient {
+	return &ZenxiangLiyuPrizeClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `zenxiangliyuprize.Hooks(f(g(h())))`.
+func (c *ZenxiangLiyuPrizeClient) Use(hooks ...Hook) {
+	c.hooks.ZenxiangLiyuPrize = append(c.hooks.ZenxiangLiyuPrize, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `zenxiangliyuprize.Intercept(f(g(h())))`.
+func (c *ZenxiangLiyuPrizeClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ZenxiangLiyuPrize = append(c.inters.ZenxiangLiyuPrize, interceptors...)
+}
+
+// Create returns a builder for creating a ZenxiangLiyuPrize entity.
+func (c *ZenxiangLiyuPrizeClient) Create() *ZenxiangLiyuPrizeCreate {
+	mutation := newZenxiangLiyuPrizeMutation(c.config, OpCreate)
+	return &ZenxiangLiyuPrizeCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ZenxiangLiyuPrize entities.
+func (c *ZenxiangLiyuPrizeClient) CreateBulk(builders ...*ZenxiangLiyuPrizeCreate) *ZenxiangLiyuPrizeCreateBulk {
+	return &ZenxiangLiyuPrizeCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ZenxiangLiyuPrizeClient) MapCreateBulk(slice any, setFunc func(*ZenxiangLiyuPrizeCreate, int)) *ZenxiangLiyuPrizeCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ZenxiangLiyuPrizeCreateBulk{err: fmt.Errorf("calling to ZenxiangLiyuPrizeClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ZenxiangLiyuPrizeCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ZenxiangLiyuPrizeCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ZenxiangLiyuPrize.
+func (c *ZenxiangLiyuPrizeClient) Update() *ZenxiangLiyuPrizeUpdate {
+	mutation := newZenxiangLiyuPrizeMutation(c.config, OpUpdate)
+	return &ZenxiangLiyuPrizeUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ZenxiangLiyuPrizeClient) UpdateOne(_m *ZenxiangLiyuPrize) *ZenxiangLiyuPrizeUpdateOne {
+	mutation := newZenxiangLiyuPrizeMutation(c.config, OpUpdateOne, withZenxiangLiyuPrize(_m))
+	return &ZenxiangLiyuPrizeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ZenxiangLiyuPrizeClient) UpdateOneID(id int64) *ZenxiangLiyuPrizeUpdateOne {
+	mutation := newZenxiangLiyuPrizeMutation(c.config, OpUpdateOne, withZenxiangLiyuPrizeID(id))
+	return &ZenxiangLiyuPrizeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ZenxiangLiyuPrize.
+func (c *ZenxiangLiyuPrizeClient) Delete() *ZenxiangLiyuPrizeDelete {
+	mutation := newZenxiangLiyuPrizeMutation(c.config, OpDelete)
+	return &ZenxiangLiyuPrizeDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ZenxiangLiyuPrizeClient) DeleteOne(_m *ZenxiangLiyuPrize) *ZenxiangLiyuPrizeDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ZenxiangLiyuPrizeClient) DeleteOneID(id int64) *ZenxiangLiyuPrizeDeleteOne {
+	builder := c.Delete().Where(zenxiangliyuprize.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ZenxiangLiyuPrizeDeleteOne{builder}
+}
+
+// Query returns a query builder for ZenxiangLiyuPrize.
+func (c *ZenxiangLiyuPrizeClient) Query() *ZenxiangLiyuPrizeQuery {
+	return &ZenxiangLiyuPrizeQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeZenxiangLiyuPrize},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ZenxiangLiyuPrize entity by its id.
+func (c *ZenxiangLiyuPrizeClient) Get(ctx context.Context, id int64) (*ZenxiangLiyuPrize, error) {
+	return c.Query().Where(zenxiangliyuprize.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ZenxiangLiyuPrizeClient) GetX(ctx context.Context, id int64) *ZenxiangLiyuPrize {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *ZenxiangLiyuPrizeClient) Hooks() []Hook {
+	return c.hooks.ZenxiangLiyuPrize
+}
+
+// Interceptors returns the client interceptors.
+func (c *ZenxiangLiyuPrizeClient) Interceptors() []Interceptor {
+	return c.inters.ZenxiangLiyuPrize
+}
+
+func (c *ZenxiangLiyuPrizeClient) mutate(ctx context.Context, m *ZenxiangLiyuPrizeMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ZenxiangLiyuPrizeCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ZenxiangLiyuPrizeUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ZenxiangLiyuPrizeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ZenxiangLiyuPrizeDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ZenxiangLiyuPrize mutation op: %q", m.Op())
+	}
+}
+
+// ZenxiangLiyuRecordClient is a client for the ZenxiangLiyuRecord schema.
+type ZenxiangLiyuRecordClient struct {
+	config
+}
+
+// NewZenxiangLiyuRecordClient returns a client for the ZenxiangLiyuRecord from the given config.
+func NewZenxiangLiyuRecordClient(c config) *ZenxiangLiyuRecordClient {
+	return &ZenxiangLiyuRecordClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `zenxiangliyurecord.Hooks(f(g(h())))`.
+func (c *ZenxiangLiyuRecordClient) Use(hooks ...Hook) {
+	c.hooks.ZenxiangLiyuRecord = append(c.hooks.ZenxiangLiyuRecord, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `zenxiangliyurecord.Intercept(f(g(h())))`.
+func (c *ZenxiangLiyuRecordClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ZenxiangLiyuRecord = append(c.inters.ZenxiangLiyuRecord, interceptors...)
+}
+
+// Create returns a builder for creating a ZenxiangLiyuRecord entity.
+func (c *ZenxiangLiyuRecordClient) Create() *ZenxiangLiyuRecordCreate {
+	mutation := newZenxiangLiyuRecordMutation(c.config, OpCreate)
+	return &ZenxiangLiyuRecordCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ZenxiangLiyuRecord entities.
+func (c *ZenxiangLiyuRecordClient) CreateBulk(builders ...*ZenxiangLiyuRecordCreate) *ZenxiangLiyuRecordCreateBulk {
+	return &ZenxiangLiyuRecordCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ZenxiangLiyuRecordClient) MapCreateBulk(slice any, setFunc func(*ZenxiangLiyuRecordCreate, int)) *ZenxiangLiyuRecordCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ZenxiangLiyuRecordCreateBulk{err: fmt.Errorf("calling to ZenxiangLiyuRecordClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ZenxiangLiyuRecordCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ZenxiangLiyuRecordCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ZenxiangLiyuRecord.
+func (c *ZenxiangLiyuRecordClient) Update() *ZenxiangLiyuRecordUpdate {
+	mutation := newZenxiangLiyuRecordMutation(c.config, OpUpdate)
+	return &ZenxiangLiyuRecordUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ZenxiangLiyuRecordClient) UpdateOne(_m *ZenxiangLiyuRecord) *ZenxiangLiyuRecordUpdateOne {
+	mutation := newZenxiangLiyuRecordMutation(c.config, OpUpdateOne, withZenxiangLiyuRecord(_m))
+	return &ZenxiangLiyuRecordUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ZenxiangLiyuRecordClient) UpdateOneID(id int64) *ZenxiangLiyuRecordUpdateOne {
+	mutation := newZenxiangLiyuRecordMutation(c.config, OpUpdateOne, withZenxiangLiyuRecordID(id))
+	return &ZenxiangLiyuRecordUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ZenxiangLiyuRecord.
+func (c *ZenxiangLiyuRecordClient) Delete() *ZenxiangLiyuRecordDelete {
+	mutation := newZenxiangLiyuRecordMutation(c.config, OpDelete)
+	return &ZenxiangLiyuRecordDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ZenxiangLiyuRecordClient) DeleteOne(_m *ZenxiangLiyuRecord) *ZenxiangLiyuRecordDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ZenxiangLiyuRecordClient) DeleteOneID(id int64) *ZenxiangLiyuRecordDeleteOne {
+	builder := c.Delete().Where(zenxiangliyurecord.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ZenxiangLiyuRecordDeleteOne{builder}
+}
+
+// Query returns a query builder for ZenxiangLiyuRecord.
+func (c *ZenxiangLiyuRecordClient) Query() *ZenxiangLiyuRecordQuery {
+	return &ZenxiangLiyuRecordQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeZenxiangLiyuRecord},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ZenxiangLiyuRecord entity by its id.
+func (c *ZenxiangLiyuRecordClient) Get(ctx context.Context, id int64) (*ZenxiangLiyuRecord, error) {
+	return c.Query().Where(zenxiangliyurecord.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ZenxiangLiyuRecordClient) GetX(ctx context.Context, id int64) *ZenxiangLiyuRecord {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a ZenxiangLiyuRecord.
+func (c *ZenxiangLiyuRecordClient) QueryUser(_m *ZenxiangLiyuRecord) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(zenxiangliyurecord.Table, zenxiangliyurecord.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, zenxiangliyurecord.UserTable, zenxiangliyurecord.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ZenxiangLiyuRecordClient) Hooks() []Hook {
+	return c.hooks.ZenxiangLiyuRecord
+}
+
+// Interceptors returns the client interceptors.
+func (c *ZenxiangLiyuRecordClient) Interceptors() []Interceptor {
+	return c.inters.ZenxiangLiyuRecord
+}
+
+func (c *ZenxiangLiyuRecordClient) mutate(ctx context.Context, m *ZenxiangLiyuRecordMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ZenxiangLiyuRecordCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ZenxiangLiyuRecordUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ZenxiangLiyuRecordUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ZenxiangLiyuRecordDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ZenxiangLiyuRecord mutation op: %q", m.Op())
+	}
+}
+
+// ZenxiangLiyuSettingClient is a client for the ZenxiangLiyuSetting schema.
+type ZenxiangLiyuSettingClient struct {
+	config
+}
+
+// NewZenxiangLiyuSettingClient returns a client for the ZenxiangLiyuSetting from the given config.
+func NewZenxiangLiyuSettingClient(c config) *ZenxiangLiyuSettingClient {
+	return &ZenxiangLiyuSettingClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `zenxiangliyusetting.Hooks(f(g(h())))`.
+func (c *ZenxiangLiyuSettingClient) Use(hooks ...Hook) {
+	c.hooks.ZenxiangLiyuSetting = append(c.hooks.ZenxiangLiyuSetting, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `zenxiangliyusetting.Intercept(f(g(h())))`.
+func (c *ZenxiangLiyuSettingClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ZenxiangLiyuSetting = append(c.inters.ZenxiangLiyuSetting, interceptors...)
+}
+
+// Create returns a builder for creating a ZenxiangLiyuSetting entity.
+func (c *ZenxiangLiyuSettingClient) Create() *ZenxiangLiyuSettingCreate {
+	mutation := newZenxiangLiyuSettingMutation(c.config, OpCreate)
+	return &ZenxiangLiyuSettingCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ZenxiangLiyuSetting entities.
+func (c *ZenxiangLiyuSettingClient) CreateBulk(builders ...*ZenxiangLiyuSettingCreate) *ZenxiangLiyuSettingCreateBulk {
+	return &ZenxiangLiyuSettingCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ZenxiangLiyuSettingClient) MapCreateBulk(slice any, setFunc func(*ZenxiangLiyuSettingCreate, int)) *ZenxiangLiyuSettingCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ZenxiangLiyuSettingCreateBulk{err: fmt.Errorf("calling to ZenxiangLiyuSettingClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ZenxiangLiyuSettingCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ZenxiangLiyuSettingCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ZenxiangLiyuSetting.
+func (c *ZenxiangLiyuSettingClient) Update() *ZenxiangLiyuSettingUpdate {
+	mutation := newZenxiangLiyuSettingMutation(c.config, OpUpdate)
+	return &ZenxiangLiyuSettingUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ZenxiangLiyuSettingClient) UpdateOne(_m *ZenxiangLiyuSetting) *ZenxiangLiyuSettingUpdateOne {
+	mutation := newZenxiangLiyuSettingMutation(c.config, OpUpdateOne, withZenxiangLiyuSetting(_m))
+	return &ZenxiangLiyuSettingUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ZenxiangLiyuSettingClient) UpdateOneID(id int64) *ZenxiangLiyuSettingUpdateOne {
+	mutation := newZenxiangLiyuSettingMutation(c.config, OpUpdateOne, withZenxiangLiyuSettingID(id))
+	return &ZenxiangLiyuSettingUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ZenxiangLiyuSetting.
+func (c *ZenxiangLiyuSettingClient) Delete() *ZenxiangLiyuSettingDelete {
+	mutation := newZenxiangLiyuSettingMutation(c.config, OpDelete)
+	return &ZenxiangLiyuSettingDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ZenxiangLiyuSettingClient) DeleteOne(_m *ZenxiangLiyuSetting) *ZenxiangLiyuSettingDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ZenxiangLiyuSettingClient) DeleteOneID(id int64) *ZenxiangLiyuSettingDeleteOne {
+	builder := c.Delete().Where(zenxiangliyusetting.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ZenxiangLiyuSettingDeleteOne{builder}
+}
+
+// Query returns a query builder for ZenxiangLiyuSetting.
+func (c *ZenxiangLiyuSettingClient) Query() *ZenxiangLiyuSettingQuery {
+	return &ZenxiangLiyuSettingQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeZenxiangLiyuSetting},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ZenxiangLiyuSetting entity by its id.
+func (c *ZenxiangLiyuSettingClient) Get(ctx context.Context, id int64) (*ZenxiangLiyuSetting, error) {
+	return c.Query().Where(zenxiangliyusetting.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ZenxiangLiyuSettingClient) GetX(ctx context.Context, id int64) *ZenxiangLiyuSetting {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *ZenxiangLiyuSettingClient) Hooks() []Hook {
+	return c.hooks.ZenxiangLiyuSetting
+}
+
+// Interceptors returns the client interceptors.
+func (c *ZenxiangLiyuSettingClient) Interceptors() []Interceptor {
+	return c.inters.ZenxiangLiyuSetting
+}
+
+func (c *ZenxiangLiyuSettingClient) mutate(ctx context.Context, m *ZenxiangLiyuSettingMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ZenxiangLiyuSettingCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ZenxiangLiyuSettingUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ZenxiangLiyuSettingUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ZenxiangLiyuSettingDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ZenxiangLiyuSetting mutation op: %q", m.Op())
+	}
+}
+
+// ZenxiangLiyuUserGrantClient is a client for the ZenxiangLiyuUserGrant schema.
+type ZenxiangLiyuUserGrantClient struct {
+	config
+}
+
+// NewZenxiangLiyuUserGrantClient returns a client for the ZenxiangLiyuUserGrant from the given config.
+func NewZenxiangLiyuUserGrantClient(c config) *ZenxiangLiyuUserGrantClient {
+	return &ZenxiangLiyuUserGrantClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `zenxiangliyuusergrant.Hooks(f(g(h())))`.
+func (c *ZenxiangLiyuUserGrantClient) Use(hooks ...Hook) {
+	c.hooks.ZenxiangLiyuUserGrant = append(c.hooks.ZenxiangLiyuUserGrant, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `zenxiangliyuusergrant.Intercept(f(g(h())))`.
+func (c *ZenxiangLiyuUserGrantClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ZenxiangLiyuUserGrant = append(c.inters.ZenxiangLiyuUserGrant, interceptors...)
+}
+
+// Create returns a builder for creating a ZenxiangLiyuUserGrant entity.
+func (c *ZenxiangLiyuUserGrantClient) Create() *ZenxiangLiyuUserGrantCreate {
+	mutation := newZenxiangLiyuUserGrantMutation(c.config, OpCreate)
+	return &ZenxiangLiyuUserGrantCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ZenxiangLiyuUserGrant entities.
+func (c *ZenxiangLiyuUserGrantClient) CreateBulk(builders ...*ZenxiangLiyuUserGrantCreate) *ZenxiangLiyuUserGrantCreateBulk {
+	return &ZenxiangLiyuUserGrantCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ZenxiangLiyuUserGrantClient) MapCreateBulk(slice any, setFunc func(*ZenxiangLiyuUserGrantCreate, int)) *ZenxiangLiyuUserGrantCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ZenxiangLiyuUserGrantCreateBulk{err: fmt.Errorf("calling to ZenxiangLiyuUserGrantClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ZenxiangLiyuUserGrantCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ZenxiangLiyuUserGrantCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ZenxiangLiyuUserGrant.
+func (c *ZenxiangLiyuUserGrantClient) Update() *ZenxiangLiyuUserGrantUpdate {
+	mutation := newZenxiangLiyuUserGrantMutation(c.config, OpUpdate)
+	return &ZenxiangLiyuUserGrantUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ZenxiangLiyuUserGrantClient) UpdateOne(_m *ZenxiangLiyuUserGrant) *ZenxiangLiyuUserGrantUpdateOne {
+	mutation := newZenxiangLiyuUserGrantMutation(c.config, OpUpdateOne, withZenxiangLiyuUserGrant(_m))
+	return &ZenxiangLiyuUserGrantUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ZenxiangLiyuUserGrantClient) UpdateOneID(id int64) *ZenxiangLiyuUserGrantUpdateOne {
+	mutation := newZenxiangLiyuUserGrantMutation(c.config, OpUpdateOne, withZenxiangLiyuUserGrantID(id))
+	return &ZenxiangLiyuUserGrantUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ZenxiangLiyuUserGrant.
+func (c *ZenxiangLiyuUserGrantClient) Delete() *ZenxiangLiyuUserGrantDelete {
+	mutation := newZenxiangLiyuUserGrantMutation(c.config, OpDelete)
+	return &ZenxiangLiyuUserGrantDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ZenxiangLiyuUserGrantClient) DeleteOne(_m *ZenxiangLiyuUserGrant) *ZenxiangLiyuUserGrantDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ZenxiangLiyuUserGrantClient) DeleteOneID(id int64) *ZenxiangLiyuUserGrantDeleteOne {
+	builder := c.Delete().Where(zenxiangliyuusergrant.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ZenxiangLiyuUserGrantDeleteOne{builder}
+}
+
+// Query returns a query builder for ZenxiangLiyuUserGrant.
+func (c *ZenxiangLiyuUserGrantClient) Query() *ZenxiangLiyuUserGrantQuery {
+	return &ZenxiangLiyuUserGrantQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeZenxiangLiyuUserGrant},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ZenxiangLiyuUserGrant entity by its id.
+func (c *ZenxiangLiyuUserGrantClient) Get(ctx context.Context, id int64) (*ZenxiangLiyuUserGrant, error) {
+	return c.Query().Where(zenxiangliyuusergrant.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ZenxiangLiyuUserGrantClient) GetX(ctx context.Context, id int64) *ZenxiangLiyuUserGrant {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a ZenxiangLiyuUserGrant.
+func (c *ZenxiangLiyuUserGrantClient) QueryUser(_m *ZenxiangLiyuUserGrant) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(zenxiangliyuusergrant.Table, zenxiangliyuusergrant.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, zenxiangliyuusergrant.UserTable, zenxiangliyuusergrant.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ZenxiangLiyuUserGrantClient) Hooks() []Hook {
+	return c.hooks.ZenxiangLiyuUserGrant
+}
+
+// Interceptors returns the client interceptors.
+func (c *ZenxiangLiyuUserGrantClient) Interceptors() []Interceptor {
+	return c.inters.ZenxiangLiyuUserGrant
+}
+
+func (c *ZenxiangLiyuUserGrantClient) mutate(ctx context.Context, m *ZenxiangLiyuUserGrantMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ZenxiangLiyuUserGrantCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ZenxiangLiyuUserGrantUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ZenxiangLiyuUserGrantUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ZenxiangLiyuUserGrantDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ZenxiangLiyuUserGrant mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
@@ -7344,7 +7974,8 @@ type (
 		RedeemCode, SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
 		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
 		UserAttributeValue, UserPlatformQuota, UserSubscription, WorkbenchConversation,
-		WorkbenchMessage []ent.Hook
+		WorkbenchMessage, ZenxiangLiyuPrize, ZenxiangLiyuRecord, ZenxiangLiyuSetting,
+		ZenxiangLiyuUserGrant []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
@@ -7357,7 +7988,8 @@ type (
 		RedeemCode, SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
 		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
 		UserAttributeValue, UserPlatformQuota, UserSubscription, WorkbenchConversation,
-		WorkbenchMessage []ent.Interceptor
+		WorkbenchMessage, ZenxiangLiyuPrize, ZenxiangLiyuRecord, ZenxiangLiyuSetting,
+		ZenxiangLiyuUserGrant []ent.Interceptor
 	}
 )
 

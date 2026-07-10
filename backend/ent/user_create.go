@@ -26,6 +26,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 	"github.com/Wei-Shaw/sub2api/ent/workbenchconversation"
 	"github.com/Wei-Shaw/sub2api/ent/workbenchmessage"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuusergrant"
 )
 
 // UserCreate is the builder for creating a User entity.
@@ -579,6 +581,36 @@ func (_c *UserCreate) AddWorkbenchMessages(v ...*WorkbenchMessage) *UserCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddWorkbenchMessageIDs(ids...)
+}
+
+// AddZenxiangLiyuGrantIDs adds the "zenxiang_liyu_grants" edge to the ZenxiangLiyuUserGrant entity by IDs.
+func (_c *UserCreate) AddZenxiangLiyuGrantIDs(ids ...int64) *UserCreate {
+	_c.mutation.AddZenxiangLiyuGrantIDs(ids...)
+	return _c
+}
+
+// AddZenxiangLiyuGrants adds the "zenxiang_liyu_grants" edges to the ZenxiangLiyuUserGrant entity.
+func (_c *UserCreate) AddZenxiangLiyuGrants(v ...*ZenxiangLiyuUserGrant) *UserCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddZenxiangLiyuGrantIDs(ids...)
+}
+
+// AddZenxiangLiyuRecordIDs adds the "zenxiang_liyu_records" edge to the ZenxiangLiyuRecord entity by IDs.
+func (_c *UserCreate) AddZenxiangLiyuRecordIDs(ids ...int64) *UserCreate {
+	_c.mutation.AddZenxiangLiyuRecordIDs(ids...)
+	return _c
+}
+
+// AddZenxiangLiyuRecords adds the "zenxiang_liyu_records" edges to the ZenxiangLiyuRecord entity.
+func (_c *UserCreate) AddZenxiangLiyuRecords(v ...*ZenxiangLiyuRecord) *UserCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddZenxiangLiyuRecordIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -1137,6 +1169,38 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(workbenchmessage.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.ZenxiangLiyuGrantsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ZenxiangLiyuGrantsTable,
+			Columns: []string{user.ZenxiangLiyuGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyuusergrant.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.ZenxiangLiyuRecordsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ZenxiangLiyuRecordsTable,
+			Columns: []string{user.ZenxiangLiyuRecordsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyurecord.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

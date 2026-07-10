@@ -1730,6 +1730,52 @@ func HasWorkbenchMessagesWith(preds ...predicate.WorkbenchMessage) predicate.Use
 	})
 }
 
+// HasZenxiangLiyuGrants applies the HasEdge predicate on the "zenxiang_liyu_grants" edge.
+func HasZenxiangLiyuGrants() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, ZenxiangLiyuGrantsTable, ZenxiangLiyuGrantsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasZenxiangLiyuGrantsWith applies the HasEdge predicate on the "zenxiang_liyu_grants" edge with a given conditions (other predicates).
+func HasZenxiangLiyuGrantsWith(preds ...predicate.ZenxiangLiyuUserGrant) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newZenxiangLiyuGrantsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasZenxiangLiyuRecords applies the HasEdge predicate on the "zenxiang_liyu_records" edge.
+func HasZenxiangLiyuRecords() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, ZenxiangLiyuRecordsTable, ZenxiangLiyuRecordsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasZenxiangLiyuRecordsWith applies the HasEdge predicate on the "zenxiang_liyu_records" edge with a given conditions (other predicates).
+func HasZenxiangLiyuRecordsWith(preds ...predicate.ZenxiangLiyuRecord) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newZenxiangLiyuRecordsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasUserAllowedGroups applies the HasEdge predicate on the "user_allowed_groups" edge.
 func HasUserAllowedGroups() predicate.User {
 	return predicate.User(func(s *sql.Selector) {

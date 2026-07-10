@@ -54,6 +54,10 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 	"github.com/Wei-Shaw/sub2api/ent/workbenchconversation"
 	"github.com/Wei-Shaw/sub2api/ent/workbenchmessage"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuprize"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyusetting"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuusergrant"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -156,6 +160,10 @@ func checkColumn(t, c string) error {
 			usersubscription.Table:              usersubscription.ValidColumn,
 			workbenchconversation.Table:         workbenchconversation.ValidColumn,
 			workbenchmessage.Table:              workbenchmessage.ValidColumn,
+			zenxiangliyuprize.Table:             zenxiangliyuprize.ValidColumn,
+			zenxiangliyurecord.Table:            zenxiangliyurecord.ValidColumn,
+			zenxiangliyusetting.Table:           zenxiangliyusetting.ValidColumn,
+			zenxiangliyuusergrant.Table:         zenxiangliyuusergrant.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

@@ -103,11 +103,15 @@ type UserEdges struct {
 	WorkbenchConversations []*WorkbenchConversation `json:"workbench_conversations,omitempty"`
 	// WorkbenchMessages holds the value of the workbench_messages edge.
 	WorkbenchMessages []*WorkbenchMessage `json:"workbench_messages,omitempty"`
+	// ZenxiangLiyuGrants holds the value of the zenxiang_liyu_grants edge.
+	ZenxiangLiyuGrants []*ZenxiangLiyuUserGrant `json:"zenxiang_liyu_grants,omitempty"`
+	// ZenxiangLiyuRecords holds the value of the zenxiang_liyu_records edge.
+	ZenxiangLiyuRecords []*ZenxiangLiyuRecord `json:"zenxiang_liyu_records,omitempty"`
 	// UserAllowedGroups holds the value of the user_allowed_groups edge.
 	UserAllowedGroups []*UserAllowedGroup `json:"user_allowed_groups,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [16]bool
+	loadedTypes [18]bool
 }
 
 // APIKeysOrErr returns the APIKeys value or an error if the edge
@@ -245,10 +249,28 @@ func (e UserEdges) WorkbenchMessagesOrErr() ([]*WorkbenchMessage, error) {
 	return nil, &NotLoadedError{edge: "workbench_messages"}
 }
 
+// ZenxiangLiyuGrantsOrErr returns the ZenxiangLiyuGrants value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ZenxiangLiyuGrantsOrErr() ([]*ZenxiangLiyuUserGrant, error) {
+	if e.loadedTypes[15] {
+		return e.ZenxiangLiyuGrants, nil
+	}
+	return nil, &NotLoadedError{edge: "zenxiang_liyu_grants"}
+}
+
+// ZenxiangLiyuRecordsOrErr returns the ZenxiangLiyuRecords value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ZenxiangLiyuRecordsOrErr() ([]*ZenxiangLiyuRecord, error) {
+	if e.loadedTypes[16] {
+		return e.ZenxiangLiyuRecords, nil
+	}
+	return nil, &NotLoadedError{edge: "zenxiang_liyu_records"}
+}
+
 // UserAllowedGroupsOrErr returns the UserAllowedGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) UserAllowedGroupsOrErr() ([]*UserAllowedGroup, error) {
-	if e.loadedTypes[15] {
+	if e.loadedTypes[17] {
 		return e.UserAllowedGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "user_allowed_groups"}
@@ -526,6 +548,16 @@ func (_m *User) QueryWorkbenchConversations() *WorkbenchConversationQuery {
 // QueryWorkbenchMessages queries the "workbench_messages" edge of the User entity.
 func (_m *User) QueryWorkbenchMessages() *WorkbenchMessageQuery {
 	return NewUserClient(_m.config).QueryWorkbenchMessages(_m)
+}
+
+// QueryZenxiangLiyuGrants queries the "zenxiang_liyu_grants" edge of the User entity.
+func (_m *User) QueryZenxiangLiyuGrants() *ZenxiangLiyuUserGrantQuery {
+	return NewUserClient(_m.config).QueryZenxiangLiyuGrants(_m)
+}
+
+// QueryZenxiangLiyuRecords queries the "zenxiang_liyu_records" edge of the User entity.
+func (_m *User) QueryZenxiangLiyuRecords() *ZenxiangLiyuRecordQuery {
+	return NewUserClient(_m.config).QueryZenxiangLiyuRecords(_m)
 }
 
 // QueryUserAllowedGroups queries the "user_allowed_groups" edge of the User entity.

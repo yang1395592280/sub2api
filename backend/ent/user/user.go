@@ -93,6 +93,10 @@ const (
 	EdgeWorkbenchConversations = "workbench_conversations"
 	// EdgeWorkbenchMessages holds the string denoting the workbench_messages edge name in mutations.
 	EdgeWorkbenchMessages = "workbench_messages"
+	// EdgeZenxiangLiyuGrants holds the string denoting the zenxiang_liyu_grants edge name in mutations.
+	EdgeZenxiangLiyuGrants = "zenxiang_liyu_grants"
+	// EdgeZenxiangLiyuRecords holds the string denoting the zenxiang_liyu_records edge name in mutations.
+	EdgeZenxiangLiyuRecords = "zenxiang_liyu_records"
 	// EdgeUserAllowedGroups holds the string denoting the user_allowed_groups edge name in mutations.
 	EdgeUserAllowedGroups = "user_allowed_groups"
 	// Table holds the table name of the user in the database.
@@ -200,6 +204,20 @@ const (
 	WorkbenchMessagesInverseTable = "workbench_messages"
 	// WorkbenchMessagesColumn is the table column denoting the workbench_messages relation/edge.
 	WorkbenchMessagesColumn = "user_id"
+	// ZenxiangLiyuGrantsTable is the table that holds the zenxiang_liyu_grants relation/edge.
+	ZenxiangLiyuGrantsTable = "zenxiang_liyu_user_grants"
+	// ZenxiangLiyuGrantsInverseTable is the table name for the ZenxiangLiyuUserGrant entity.
+	// It exists in this package in order to avoid circular dependency with the "zenxiangliyuusergrant" package.
+	ZenxiangLiyuGrantsInverseTable = "zenxiang_liyu_user_grants"
+	// ZenxiangLiyuGrantsColumn is the table column denoting the zenxiang_liyu_grants relation/edge.
+	ZenxiangLiyuGrantsColumn = "user_id"
+	// ZenxiangLiyuRecordsTable is the table that holds the zenxiang_liyu_records relation/edge.
+	ZenxiangLiyuRecordsTable = "zenxiang_liyu_records"
+	// ZenxiangLiyuRecordsInverseTable is the table name for the ZenxiangLiyuRecord entity.
+	// It exists in this package in order to avoid circular dependency with the "zenxiangliyurecord" package.
+	ZenxiangLiyuRecordsInverseTable = "zenxiang_liyu_records"
+	// ZenxiangLiyuRecordsColumn is the table column denoting the zenxiang_liyu_records relation/edge.
+	ZenxiangLiyuRecordsColumn = "user_id"
 	// UserAllowedGroupsTable is the table that holds the user_allowed_groups relation/edge.
 	UserAllowedGroupsTable = "user_allowed_groups"
 	// UserAllowedGroupsInverseTable is the table name for the UserAllowedGroup entity.
@@ -648,6 +666,34 @@ func ByWorkbenchMessages(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption
 	}
 }
 
+// ByZenxiangLiyuGrantsCount orders the results by zenxiang_liyu_grants count.
+func ByZenxiangLiyuGrantsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newZenxiangLiyuGrantsStep(), opts...)
+	}
+}
+
+// ByZenxiangLiyuGrants orders the results by zenxiang_liyu_grants terms.
+func ByZenxiangLiyuGrants(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newZenxiangLiyuGrantsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByZenxiangLiyuRecordsCount orders the results by zenxiang_liyu_records count.
+func ByZenxiangLiyuRecordsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newZenxiangLiyuRecordsStep(), opts...)
+	}
+}
+
+// ByZenxiangLiyuRecords orders the results by zenxiang_liyu_records terms.
+func ByZenxiangLiyuRecords(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newZenxiangLiyuRecordsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByUserAllowedGroupsCount orders the results by user_allowed_groups count.
 func ByUserAllowedGroupsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -764,6 +810,20 @@ func newWorkbenchMessagesStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(WorkbenchMessagesInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, WorkbenchMessagesTable, WorkbenchMessagesColumn),
+	)
+}
+func newZenxiangLiyuGrantsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ZenxiangLiyuGrantsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ZenxiangLiyuGrantsTable, ZenxiangLiyuGrantsColumn),
+	)
+}
+func newZenxiangLiyuRecordsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ZenxiangLiyuRecordsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ZenxiangLiyuRecordsTable, ZenxiangLiyuRecordsColumn),
 	)
 }
 func newUserAllowedGroupsStep() *sqlgraph.Step {

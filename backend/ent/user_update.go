@@ -27,6 +27,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 	"github.com/Wei-Shaw/sub2api/ent/workbenchconversation"
 	"github.com/Wei-Shaw/sub2api/ent/workbenchmessage"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuusergrant"
 )
 
 // UserUpdate is the builder for updating User entities.
@@ -659,6 +661,36 @@ func (_u *UserUpdate) AddWorkbenchMessages(v ...*WorkbenchMessage) *UserUpdate {
 	return _u.AddWorkbenchMessageIDs(ids...)
 }
 
+// AddZenxiangLiyuGrantIDs adds the "zenxiang_liyu_grants" edge to the ZenxiangLiyuUserGrant entity by IDs.
+func (_u *UserUpdate) AddZenxiangLiyuGrantIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddZenxiangLiyuGrantIDs(ids...)
+	return _u
+}
+
+// AddZenxiangLiyuGrants adds the "zenxiang_liyu_grants" edges to the ZenxiangLiyuUserGrant entity.
+func (_u *UserUpdate) AddZenxiangLiyuGrants(v ...*ZenxiangLiyuUserGrant) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddZenxiangLiyuGrantIDs(ids...)
+}
+
+// AddZenxiangLiyuRecordIDs adds the "zenxiang_liyu_records" edge to the ZenxiangLiyuRecord entity by IDs.
+func (_u *UserUpdate) AddZenxiangLiyuRecordIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddZenxiangLiyuRecordIDs(ids...)
+	return _u
+}
+
+// AddZenxiangLiyuRecords adds the "zenxiang_liyu_records" edges to the ZenxiangLiyuRecord entity.
+func (_u *UserUpdate) AddZenxiangLiyuRecords(v ...*ZenxiangLiyuRecord) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddZenxiangLiyuRecordIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
@@ -977,6 +1009,48 @@ func (_u *UserUpdate) RemoveWorkbenchMessages(v ...*WorkbenchMessage) *UserUpdat
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveWorkbenchMessageIDs(ids...)
+}
+
+// ClearZenxiangLiyuGrants clears all "zenxiang_liyu_grants" edges to the ZenxiangLiyuUserGrant entity.
+func (_u *UserUpdate) ClearZenxiangLiyuGrants() *UserUpdate {
+	_u.mutation.ClearZenxiangLiyuGrants()
+	return _u
+}
+
+// RemoveZenxiangLiyuGrantIDs removes the "zenxiang_liyu_grants" edge to ZenxiangLiyuUserGrant entities by IDs.
+func (_u *UserUpdate) RemoveZenxiangLiyuGrantIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemoveZenxiangLiyuGrantIDs(ids...)
+	return _u
+}
+
+// RemoveZenxiangLiyuGrants removes "zenxiang_liyu_grants" edges to ZenxiangLiyuUserGrant entities.
+func (_u *UserUpdate) RemoveZenxiangLiyuGrants(v ...*ZenxiangLiyuUserGrant) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveZenxiangLiyuGrantIDs(ids...)
+}
+
+// ClearZenxiangLiyuRecords clears all "zenxiang_liyu_records" edges to the ZenxiangLiyuRecord entity.
+func (_u *UserUpdate) ClearZenxiangLiyuRecords() *UserUpdate {
+	_u.mutation.ClearZenxiangLiyuRecords()
+	return _u
+}
+
+// RemoveZenxiangLiyuRecordIDs removes the "zenxiang_liyu_records" edge to ZenxiangLiyuRecord entities by IDs.
+func (_u *UserUpdate) RemoveZenxiangLiyuRecordIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemoveZenxiangLiyuRecordIDs(ids...)
+	return _u
+}
+
+// RemoveZenxiangLiyuRecords removes "zenxiang_liyu_records" edges to ZenxiangLiyuRecord entities.
+func (_u *UserUpdate) RemoveZenxiangLiyuRecords(v ...*ZenxiangLiyuRecord) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveZenxiangLiyuRecordIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -1860,6 +1934,96 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.ZenxiangLiyuGrantsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ZenxiangLiyuGrantsTable,
+			Columns: []string{user.ZenxiangLiyuGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyuusergrant.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedZenxiangLiyuGrantsIDs(); len(nodes) > 0 && !_u.mutation.ZenxiangLiyuGrantsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ZenxiangLiyuGrantsTable,
+			Columns: []string{user.ZenxiangLiyuGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyuusergrant.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ZenxiangLiyuGrantsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ZenxiangLiyuGrantsTable,
+			Columns: []string{user.ZenxiangLiyuGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyuusergrant.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ZenxiangLiyuRecordsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ZenxiangLiyuRecordsTable,
+			Columns: []string{user.ZenxiangLiyuRecordsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyurecord.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedZenxiangLiyuRecordsIDs(); len(nodes) > 0 && !_u.mutation.ZenxiangLiyuRecordsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ZenxiangLiyuRecordsTable,
+			Columns: []string{user.ZenxiangLiyuRecordsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyurecord.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ZenxiangLiyuRecordsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ZenxiangLiyuRecordsTable,
+			Columns: []string{user.ZenxiangLiyuRecordsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyurecord.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{user.Label}
@@ -2497,6 +2661,36 @@ func (_u *UserUpdateOne) AddWorkbenchMessages(v ...*WorkbenchMessage) *UserUpdat
 	return _u.AddWorkbenchMessageIDs(ids...)
 }
 
+// AddZenxiangLiyuGrantIDs adds the "zenxiang_liyu_grants" edge to the ZenxiangLiyuUserGrant entity by IDs.
+func (_u *UserUpdateOne) AddZenxiangLiyuGrantIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddZenxiangLiyuGrantIDs(ids...)
+	return _u
+}
+
+// AddZenxiangLiyuGrants adds the "zenxiang_liyu_grants" edges to the ZenxiangLiyuUserGrant entity.
+func (_u *UserUpdateOne) AddZenxiangLiyuGrants(v ...*ZenxiangLiyuUserGrant) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddZenxiangLiyuGrantIDs(ids...)
+}
+
+// AddZenxiangLiyuRecordIDs adds the "zenxiang_liyu_records" edge to the ZenxiangLiyuRecord entity by IDs.
+func (_u *UserUpdateOne) AddZenxiangLiyuRecordIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddZenxiangLiyuRecordIDs(ids...)
+	return _u
+}
+
+// AddZenxiangLiyuRecords adds the "zenxiang_liyu_records" edges to the ZenxiangLiyuRecord entity.
+func (_u *UserUpdateOne) AddZenxiangLiyuRecords(v ...*ZenxiangLiyuRecord) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddZenxiangLiyuRecordIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
@@ -2815,6 +3009,48 @@ func (_u *UserUpdateOne) RemoveWorkbenchMessages(v ...*WorkbenchMessage) *UserUp
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveWorkbenchMessageIDs(ids...)
+}
+
+// ClearZenxiangLiyuGrants clears all "zenxiang_liyu_grants" edges to the ZenxiangLiyuUserGrant entity.
+func (_u *UserUpdateOne) ClearZenxiangLiyuGrants() *UserUpdateOne {
+	_u.mutation.ClearZenxiangLiyuGrants()
+	return _u
+}
+
+// RemoveZenxiangLiyuGrantIDs removes the "zenxiang_liyu_grants" edge to ZenxiangLiyuUserGrant entities by IDs.
+func (_u *UserUpdateOne) RemoveZenxiangLiyuGrantIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemoveZenxiangLiyuGrantIDs(ids...)
+	return _u
+}
+
+// RemoveZenxiangLiyuGrants removes "zenxiang_liyu_grants" edges to ZenxiangLiyuUserGrant entities.
+func (_u *UserUpdateOne) RemoveZenxiangLiyuGrants(v ...*ZenxiangLiyuUserGrant) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveZenxiangLiyuGrantIDs(ids...)
+}
+
+// ClearZenxiangLiyuRecords clears all "zenxiang_liyu_records" edges to the ZenxiangLiyuRecord entity.
+func (_u *UserUpdateOne) ClearZenxiangLiyuRecords() *UserUpdateOne {
+	_u.mutation.ClearZenxiangLiyuRecords()
+	return _u
+}
+
+// RemoveZenxiangLiyuRecordIDs removes the "zenxiang_liyu_records" edge to ZenxiangLiyuRecord entities by IDs.
+func (_u *UserUpdateOne) RemoveZenxiangLiyuRecordIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemoveZenxiangLiyuRecordIDs(ids...)
+	return _u
+}
+
+// RemoveZenxiangLiyuRecords removes "zenxiang_liyu_records" edges to ZenxiangLiyuRecord entities.
+func (_u *UserUpdateOne) RemoveZenxiangLiyuRecords(v ...*ZenxiangLiyuRecord) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveZenxiangLiyuRecordIDs(ids...)
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -3721,6 +3957,96 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(workbenchmessage.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ZenxiangLiyuGrantsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ZenxiangLiyuGrantsTable,
+			Columns: []string{user.ZenxiangLiyuGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyuusergrant.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedZenxiangLiyuGrantsIDs(); len(nodes) > 0 && !_u.mutation.ZenxiangLiyuGrantsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ZenxiangLiyuGrantsTable,
+			Columns: []string{user.ZenxiangLiyuGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyuusergrant.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ZenxiangLiyuGrantsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ZenxiangLiyuGrantsTable,
+			Columns: []string{user.ZenxiangLiyuGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyuusergrant.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ZenxiangLiyuRecordsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ZenxiangLiyuRecordsTable,
+			Columns: []string{user.ZenxiangLiyuRecordsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyurecord.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedZenxiangLiyuRecordsIDs(); len(nodes) > 0 && !_u.mutation.ZenxiangLiyuRecordsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ZenxiangLiyuRecordsTable,
+			Columns: []string{user.ZenxiangLiyuRecordsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyurecord.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ZenxiangLiyuRecordsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ZenxiangLiyuRecordsTable,
+			Columns: []string{user.ZenxiangLiyuRecordsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(zenxiangliyurecord.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

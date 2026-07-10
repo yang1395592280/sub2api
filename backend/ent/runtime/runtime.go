@@ -3,6 +3,7 @@
 package runtime
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/ent/account"
@@ -48,6 +49,10 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 	"github.com/Wei-Shaw/sub2api/ent/workbenchconversation"
 	"github.com/Wei-Shaw/sub2api/ent/workbenchmessage"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuprize"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyusetting"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuusergrant"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
@@ -2593,6 +2598,119 @@ func init() {
 	workbenchmessageDescErrorMessage := workbenchmessageFields[12].Descriptor()
 	// workbenchmessage.ErrorMessageValidator is a validator for the "error_message" field. It is called by the builders before save.
 	workbenchmessage.ErrorMessageValidator = workbenchmessageDescErrorMessage.Validators[0].(func(string) error)
+	zenxiangliyuprizeMixin := schema.ZenxiangLiyuPrize{}.Mixin()
+	zenxiangliyuprizeMixinFields0 := zenxiangliyuprizeMixin[0].Fields()
+	_ = zenxiangliyuprizeMixinFields0
+	zenxiangliyuprizeFields := schema.ZenxiangLiyuPrize{}.Fields()
+	_ = zenxiangliyuprizeFields
+	// zenxiangliyuprizeDescCreatedAt is the schema descriptor for created_at field.
+	zenxiangliyuprizeDescCreatedAt := zenxiangliyuprizeMixinFields0[0].Descriptor()
+	// zenxiangliyuprize.DefaultCreatedAt holds the default value on creation for the created_at field.
+	zenxiangliyuprize.DefaultCreatedAt = zenxiangliyuprizeDescCreatedAt.Default.(func() time.Time)
+	// zenxiangliyuprizeDescUpdatedAt is the schema descriptor for updated_at field.
+	zenxiangliyuprizeDescUpdatedAt := zenxiangliyuprizeMixinFields0[1].Descriptor()
+	// zenxiangliyuprize.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	zenxiangliyuprize.DefaultUpdatedAt = zenxiangliyuprizeDescUpdatedAt.Default.(func() time.Time)
+	// zenxiangliyuprize.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	zenxiangliyuprize.UpdateDefaultUpdatedAt = zenxiangliyuprizeDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// zenxiangliyuprizeDescName is the schema descriptor for name field.
+	zenxiangliyuprizeDescName := zenxiangliyuprizeFields[0].Descriptor()
+	// zenxiangliyuprize.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	zenxiangliyuprize.NameValidator = func() func(string) error {
+		validators := zenxiangliyuprizeDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// zenxiangliyuprizeDescEnabled is the schema descriptor for enabled field.
+	zenxiangliyuprizeDescEnabled := zenxiangliyuprizeFields[3].Descriptor()
+	// zenxiangliyuprize.DefaultEnabled holds the default value on creation for the enabled field.
+	zenxiangliyuprize.DefaultEnabled = zenxiangliyuprizeDescEnabled.Default.(bool)
+	// zenxiangliyuprizeDescSortOrder is the schema descriptor for sort_order field.
+	zenxiangliyuprizeDescSortOrder := zenxiangliyuprizeFields[4].Descriptor()
+	// zenxiangliyuprize.DefaultSortOrder holds the default value on creation for the sort_order field.
+	zenxiangliyuprize.DefaultSortOrder = zenxiangliyuprizeDescSortOrder.Default.(int)
+	zenxiangliyurecordFields := schema.ZenxiangLiyuRecord{}.Fields()
+	_ = zenxiangliyurecordFields
+	// zenxiangliyurecordDescRequestID is the schema descriptor for request_id field.
+	zenxiangliyurecordDescRequestID := zenxiangliyurecordFields[0].Descriptor()
+	// zenxiangliyurecord.RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
+	zenxiangliyurecord.RequestIDValidator = zenxiangliyurecordDescRequestID.Validators[0].(func(string) error)
+	// zenxiangliyurecordDescPrizeNameSnapshot is the schema descriptor for prize_name_snapshot field.
+	zenxiangliyurecordDescPrizeNameSnapshot := zenxiangliyurecordFields[10].Descriptor()
+	// zenxiangliyurecord.PrizeNameSnapshotValidator is a validator for the "prize_name_snapshot" field. It is called by the builders before save.
+	zenxiangliyurecord.PrizeNameSnapshotValidator = zenxiangliyurecordDescPrizeNameSnapshot.Validators[0].(func(string) error)
+	// zenxiangliyurecordDescConfigSnapshot is the schema descriptor for config_snapshot field.
+	zenxiangliyurecordDescConfigSnapshot := zenxiangliyurecordFields[12].Descriptor()
+	// zenxiangliyurecord.DefaultConfigSnapshot holds the default value on creation for the config_snapshot field.
+	zenxiangliyurecord.DefaultConfigSnapshot = zenxiangliyurecordDescConfigSnapshot.Default.(func() json.RawMessage)
+	// zenxiangliyurecordDescCreatedAt is the schema descriptor for created_at field.
+	zenxiangliyurecordDescCreatedAt := zenxiangliyurecordFields[16].Descriptor()
+	// zenxiangliyurecord.DefaultCreatedAt holds the default value on creation for the created_at field.
+	zenxiangliyurecord.DefaultCreatedAt = zenxiangliyurecordDescCreatedAt.Default.(func() time.Time)
+	zenxiangliyusettingMixin := schema.ZenxiangLiyuSetting{}.Mixin()
+	zenxiangliyusettingMixinFields0 := zenxiangliyusettingMixin[0].Fields()
+	_ = zenxiangliyusettingMixinFields0
+	zenxiangliyusettingFields := schema.ZenxiangLiyuSetting{}.Fields()
+	_ = zenxiangliyusettingFields
+	// zenxiangliyusettingDescCreatedAt is the schema descriptor for created_at field.
+	zenxiangliyusettingDescCreatedAt := zenxiangliyusettingMixinFields0[0].Descriptor()
+	// zenxiangliyusetting.DefaultCreatedAt holds the default value on creation for the created_at field.
+	zenxiangliyusetting.DefaultCreatedAt = zenxiangliyusettingDescCreatedAt.Default.(func() time.Time)
+	// zenxiangliyusettingDescUpdatedAt is the schema descriptor for updated_at field.
+	zenxiangliyusettingDescUpdatedAt := zenxiangliyusettingMixinFields0[1].Descriptor()
+	// zenxiangliyusetting.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	zenxiangliyusetting.DefaultUpdatedAt = zenxiangliyusettingDescUpdatedAt.Default.(func() time.Time)
+	// zenxiangliyusetting.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	zenxiangliyusetting.UpdateDefaultUpdatedAt = zenxiangliyusettingDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// zenxiangliyusettingDescGlobalEnabled is the schema descriptor for global_enabled field.
+	zenxiangliyusettingDescGlobalEnabled := zenxiangliyusettingFields[0].Descriptor()
+	// zenxiangliyusetting.DefaultGlobalEnabled holds the default value on creation for the global_enabled field.
+	zenxiangliyusetting.DefaultGlobalEnabled = zenxiangliyusettingDescGlobalEnabled.Default.(bool)
+	// zenxiangliyusettingDescTicketAmount is the schema descriptor for ticket_amount field.
+	zenxiangliyusettingDescTicketAmount := zenxiangliyusettingFields[1].Descriptor()
+	// zenxiangliyusetting.DefaultTicketAmount holds the default value on creation for the ticket_amount field.
+	zenxiangliyusetting.DefaultTicketAmount = zenxiangliyusettingDescTicketAmount.Default.(float64)
+	// zenxiangliyusettingDescMinimumBalance is the schema descriptor for minimum_balance field.
+	zenxiangliyusettingDescMinimumBalance := zenxiangliyusettingFields[2].Descriptor()
+	// zenxiangliyusetting.DefaultMinimumBalance holds the default value on creation for the minimum_balance field.
+	zenxiangliyusetting.DefaultMinimumBalance = zenxiangliyusettingDescMinimumBalance.Default.(float64)
+	// zenxiangliyusettingDescDailyPlayLimit is the schema descriptor for daily_play_limit field.
+	zenxiangliyusettingDescDailyPlayLimit := zenxiangliyusettingFields[3].Descriptor()
+	// zenxiangliyusetting.DefaultDailyPlayLimit holds the default value on creation for the daily_play_limit field.
+	zenxiangliyusetting.DefaultDailyPlayLimit = zenxiangliyusettingDescDailyPlayLimit.Default.(int)
+	zenxiangliyuusergrantMixin := schema.ZenxiangLiyuUserGrant{}.Mixin()
+	zenxiangliyuusergrantMixinFields0 := zenxiangliyuusergrantMixin[0].Fields()
+	_ = zenxiangliyuusergrantMixinFields0
+	zenxiangliyuusergrantFields := schema.ZenxiangLiyuUserGrant{}.Fields()
+	_ = zenxiangliyuusergrantFields
+	// zenxiangliyuusergrantDescCreatedAt is the schema descriptor for created_at field.
+	zenxiangliyuusergrantDescCreatedAt := zenxiangliyuusergrantMixinFields0[0].Descriptor()
+	// zenxiangliyuusergrant.DefaultCreatedAt holds the default value on creation for the created_at field.
+	zenxiangliyuusergrant.DefaultCreatedAt = zenxiangliyuusergrantDescCreatedAt.Default.(func() time.Time)
+	// zenxiangliyuusergrantDescUpdatedAt is the schema descriptor for updated_at field.
+	zenxiangliyuusergrantDescUpdatedAt := zenxiangliyuusergrantMixinFields0[1].Descriptor()
+	// zenxiangliyuusergrant.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	zenxiangliyuusergrant.DefaultUpdatedAt = zenxiangliyuusergrantDescUpdatedAt.Default.(func() time.Time)
+	// zenxiangliyuusergrant.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	zenxiangliyuusergrant.UpdateDefaultUpdatedAt = zenxiangliyuusergrantDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// zenxiangliyuusergrantDescEnabled is the schema descriptor for enabled field.
+	zenxiangliyuusergrantDescEnabled := zenxiangliyuusergrantFields[1].Descriptor()
+	// zenxiangliyuusergrant.DefaultEnabled holds the default value on creation for the enabled field.
+	zenxiangliyuusergrant.DefaultEnabled = zenxiangliyuusergrantDescEnabled.Default.(bool)
+	// zenxiangliyuusergrantDescNotes is the schema descriptor for notes field.
+	zenxiangliyuusergrantDescNotes := zenxiangliyuusergrantFields[3].Descriptor()
+	// zenxiangliyuusergrant.DefaultNotes holds the default value on creation for the notes field.
+	zenxiangliyuusergrant.DefaultNotes = zenxiangliyuusergrantDescNotes.Default.(string)
 }
 
 const (

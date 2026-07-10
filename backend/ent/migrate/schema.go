@@ -2196,6 +2196,139 @@ var (
 			},
 		},
 	}
+	// ZenxiangLiyuPrizesColumns holds the columns for the "zenxiang_liyu_prizes" table.
+	ZenxiangLiyuPrizesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "reward_amount", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "probability", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(12,8)"}},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "sort_order", Type: field.TypeInt, Default: 0},
+	}
+	// ZenxiangLiyuPrizesTable holds the schema information for the "zenxiang_liyu_prizes" table.
+	ZenxiangLiyuPrizesTable = &schema.Table{
+		Name:       "zenxiang_liyu_prizes",
+		Columns:    ZenxiangLiyuPrizesColumns,
+		PrimaryKey: []*schema.Column{ZenxiangLiyuPrizesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "zenxiangliyuprize_enabled_sort_order_id",
+				Unique:  false,
+				Columns: []*schema.Column{ZenxiangLiyuPrizesColumns[6], ZenxiangLiyuPrizesColumns[7], ZenxiangLiyuPrizesColumns[0]},
+			},
+		},
+	}
+	// ZenxiangLiyuRecordsColumns holds the columns for the "zenxiang_liyu_records" table.
+	ZenxiangLiyuRecordsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "request_id", Type: field.TypeString, Size: 128},
+		{Name: "play_date", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "date"}},
+		{Name: "ticket_amount", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "reward_amount", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "user_net_amount", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "system_revenue", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "system_expense", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "system_profit", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "prize_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "prize_name_snapshot", Type: field.TypeString, Size: 100},
+		{Name: "probability_snapshot", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(12,8)"}},
+		{Name: "config_snapshot", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "balance_before", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "balance_after_ticket", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "balance_after_reward", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "user_id", Type: field.TypeInt64},
+	}
+	// ZenxiangLiyuRecordsTable holds the schema information for the "zenxiang_liyu_records" table.
+	ZenxiangLiyuRecordsTable = &schema.Table{
+		Name:       "zenxiang_liyu_records",
+		Columns:    ZenxiangLiyuRecordsColumns,
+		PrimaryKey: []*schema.Column{ZenxiangLiyuRecordsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "zenxiang_liyu_records_users_zenxiang_liyu_records",
+				Columns:    []*schema.Column{ZenxiangLiyuRecordsColumns[17]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "zenxiangliyurecord_request_id",
+				Unique:  true,
+				Columns: []*schema.Column{ZenxiangLiyuRecordsColumns[1]},
+			},
+			{
+				Name:    "zenxiangliyurecord_user_id_play_date",
+				Unique:  false,
+				Columns: []*schema.Column{ZenxiangLiyuRecordsColumns[17], ZenxiangLiyuRecordsColumns[2]},
+			},
+			{
+				Name:    "zenxiangliyurecord_play_date",
+				Unique:  false,
+				Columns: []*schema.Column{ZenxiangLiyuRecordsColumns[2]},
+			},
+			{
+				Name:    "zenxiangliyurecord_prize_id",
+				Unique:  false,
+				Columns: []*schema.Column{ZenxiangLiyuRecordsColumns[9]},
+			},
+		},
+	}
+	// ZenxiangLiyuSettingsColumns holds the columns for the "zenxiang_liyu_settings" table.
+	ZenxiangLiyuSettingsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "global_enabled", Type: field.TypeBool, Default: false},
+		{Name: "ticket_amount", Type: field.TypeFloat64, Default: 2, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "minimum_balance", Type: field.TypeFloat64, Default: 10, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "daily_play_limit", Type: field.TypeInt, Default: 5},
+	}
+	// ZenxiangLiyuSettingsTable holds the schema information for the "zenxiang_liyu_settings" table.
+	ZenxiangLiyuSettingsTable = &schema.Table{
+		Name:       "zenxiang_liyu_settings",
+		Columns:    ZenxiangLiyuSettingsColumns,
+		PrimaryKey: []*schema.Column{ZenxiangLiyuSettingsColumns[0]},
+	}
+	// ZenxiangLiyuUserGrantsColumns holds the columns for the "zenxiang_liyu_user_grants" table.
+	ZenxiangLiyuUserGrantsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "granted_by", Type: field.TypeInt64, Nullable: true},
+		{Name: "notes", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "user_id", Type: field.TypeInt64},
+	}
+	// ZenxiangLiyuUserGrantsTable holds the schema information for the "zenxiang_liyu_user_grants" table.
+	ZenxiangLiyuUserGrantsTable = &schema.Table{
+		Name:       "zenxiang_liyu_user_grants",
+		Columns:    ZenxiangLiyuUserGrantsColumns,
+		PrimaryKey: []*schema.Column{ZenxiangLiyuUserGrantsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "zenxiang_liyu_user_grants_users_zenxiang_liyu_grants",
+				Columns:    []*schema.Column{ZenxiangLiyuUserGrantsColumns[6]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "zenxiangliyuusergrant_user_id",
+				Unique:  true,
+				Columns: []*schema.Column{ZenxiangLiyuUserGrantsColumns[6]},
+			},
+			{
+				Name:    "zenxiangliyuusergrant_enabled",
+				Unique:  false,
+				Columns: []*schema.Column{ZenxiangLiyuUserGrantsColumns[3]},
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		APIKeysTable,
@@ -2240,6 +2373,10 @@ var (
 		UserSubscriptionsTable,
 		WorkbenchConversationsTable,
 		WorkbenchMessagesTable,
+		ZenxiangLiyuPrizesTable,
+		ZenxiangLiyuRecordsTable,
+		ZenxiangLiyuSettingsTable,
+		ZenxiangLiyuUserGrantsTable,
 	}
 )
 
@@ -2407,5 +2544,19 @@ func init() {
 	WorkbenchMessagesTable.ForeignKeys[1].RefTable = WorkbenchConversationsTable
 	WorkbenchMessagesTable.Annotation = &entsql.Annotation{
 		Table: "workbench_messages",
+	}
+	ZenxiangLiyuPrizesTable.Annotation = &entsql.Annotation{
+		Table: "zenxiang_liyu_prizes",
+	}
+	ZenxiangLiyuRecordsTable.ForeignKeys[0].RefTable = UsersTable
+	ZenxiangLiyuRecordsTable.Annotation = &entsql.Annotation{
+		Table: "zenxiang_liyu_records",
+	}
+	ZenxiangLiyuSettingsTable.Annotation = &entsql.Annotation{
+		Table: "zenxiang_liyu_settings",
+	}
+	ZenxiangLiyuUserGrantsTable.ForeignKeys[0].RefTable = UsersTable
+	ZenxiangLiyuUserGrantsTable.Annotation = &entsql.Annotation{
+		Table: "zenxiang_liyu_user_grants",
 	}
 }

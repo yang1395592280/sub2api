@@ -98,6 +98,14 @@ type Tx struct {
 	WorkbenchConversation *WorkbenchConversationClient
 	// WorkbenchMessage is the client for interacting with the WorkbenchMessage builders.
 	WorkbenchMessage *WorkbenchMessageClient
+	// ZenxiangLiyuPrize is the client for interacting with the ZenxiangLiyuPrize builders.
+	ZenxiangLiyuPrize *ZenxiangLiyuPrizeClient
+	// ZenxiangLiyuRecord is the client for interacting with the ZenxiangLiyuRecord builders.
+	ZenxiangLiyuRecord *ZenxiangLiyuRecordClient
+	// ZenxiangLiyuSetting is the client for interacting with the ZenxiangLiyuSetting builders.
+	ZenxiangLiyuSetting *ZenxiangLiyuSettingClient
+	// ZenxiangLiyuUserGrant is the client for interacting with the ZenxiangLiyuUserGrant builders.
+	ZenxiangLiyuUserGrant *ZenxiangLiyuUserGrantClient
 
 	// lazily loaded.
 	client     *Client
@@ -271,6 +279,10 @@ func (tx *Tx) init() {
 	tx.UserSubscription = NewUserSubscriptionClient(tx.config)
 	tx.WorkbenchConversation = NewWorkbenchConversationClient(tx.config)
 	tx.WorkbenchMessage = NewWorkbenchMessageClient(tx.config)
+	tx.ZenxiangLiyuPrize = NewZenxiangLiyuPrizeClient(tx.config)
+	tx.ZenxiangLiyuRecord = NewZenxiangLiyuRecordClient(tx.config)
+	tx.ZenxiangLiyuSetting = NewZenxiangLiyuSettingClient(tx.config)
+	tx.ZenxiangLiyuUserGrant = NewZenxiangLiyuUserGrantClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

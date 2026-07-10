@@ -55,6 +55,10 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 	"github.com/Wei-Shaw/sub2api/ent/workbenchconversation"
 	"github.com/Wei-Shaw/sub2api/ent/workbenchmessage"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuprize"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyusetting"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuusergrant"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
@@ -109,6 +113,10 @@ const (
 	TypeUserSubscription              = "UserSubscription"
 	TypeWorkbenchConversation         = "WorkbenchConversation"
 	TypeWorkbenchMessage              = "WorkbenchMessage"
+	TypeZenxiangLiyuPrize             = "ZenxiangLiyuPrize"
+	TypeZenxiangLiyuRecord            = "ZenxiangLiyuRecord"
+	TypeZenxiangLiyuSetting           = "ZenxiangLiyuSetting"
+	TypeZenxiangLiyuUserGrant         = "ZenxiangLiyuUserGrant"
 )
 
 // APIKeyMutation represents an operation that mutates the APIKey nodes in the graph.
@@ -49756,6 +49764,12 @@ type UserMutation struct {
 	workbench_messages             map[int64]struct{}
 	removedworkbench_messages      map[int64]struct{}
 	clearedworkbench_messages      bool
+	zenxiang_liyu_grants           map[int64]struct{}
+	removedzenxiang_liyu_grants    map[int64]struct{}
+	clearedzenxiang_liyu_grants    bool
+	zenxiang_liyu_records          map[int64]struct{}
+	removedzenxiang_liyu_records   map[int64]struct{}
+	clearedzenxiang_liyu_records   bool
 	done                           bool
 	oldValue                       func(context.Context) (*User, error)
 	predicates                     []predicate.User
@@ -51732,6 +51746,114 @@ func (m *UserMutation) ResetWorkbenchMessages() {
 	m.removedworkbench_messages = nil
 }
 
+// AddZenxiangLiyuGrantIDs adds the "zenxiang_liyu_grants" edge to the ZenxiangLiyuUserGrant entity by ids.
+func (m *UserMutation) AddZenxiangLiyuGrantIDs(ids ...int64) {
+	if m.zenxiang_liyu_grants == nil {
+		m.zenxiang_liyu_grants = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.zenxiang_liyu_grants[ids[i]] = struct{}{}
+	}
+}
+
+// ClearZenxiangLiyuGrants clears the "zenxiang_liyu_grants" edge to the ZenxiangLiyuUserGrant entity.
+func (m *UserMutation) ClearZenxiangLiyuGrants() {
+	m.clearedzenxiang_liyu_grants = true
+}
+
+// ZenxiangLiyuGrantsCleared reports if the "zenxiang_liyu_grants" edge to the ZenxiangLiyuUserGrant entity was cleared.
+func (m *UserMutation) ZenxiangLiyuGrantsCleared() bool {
+	return m.clearedzenxiang_liyu_grants
+}
+
+// RemoveZenxiangLiyuGrantIDs removes the "zenxiang_liyu_grants" edge to the ZenxiangLiyuUserGrant entity by IDs.
+func (m *UserMutation) RemoveZenxiangLiyuGrantIDs(ids ...int64) {
+	if m.removedzenxiang_liyu_grants == nil {
+		m.removedzenxiang_liyu_grants = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.zenxiang_liyu_grants, ids[i])
+		m.removedzenxiang_liyu_grants[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedZenxiangLiyuGrants returns the removed IDs of the "zenxiang_liyu_grants" edge to the ZenxiangLiyuUserGrant entity.
+func (m *UserMutation) RemovedZenxiangLiyuGrantsIDs() (ids []int64) {
+	for id := range m.removedzenxiang_liyu_grants {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ZenxiangLiyuGrantsIDs returns the "zenxiang_liyu_grants" edge IDs in the mutation.
+func (m *UserMutation) ZenxiangLiyuGrantsIDs() (ids []int64) {
+	for id := range m.zenxiang_liyu_grants {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetZenxiangLiyuGrants resets all changes to the "zenxiang_liyu_grants" edge.
+func (m *UserMutation) ResetZenxiangLiyuGrants() {
+	m.zenxiang_liyu_grants = nil
+	m.clearedzenxiang_liyu_grants = false
+	m.removedzenxiang_liyu_grants = nil
+}
+
+// AddZenxiangLiyuRecordIDs adds the "zenxiang_liyu_records" edge to the ZenxiangLiyuRecord entity by ids.
+func (m *UserMutation) AddZenxiangLiyuRecordIDs(ids ...int64) {
+	if m.zenxiang_liyu_records == nil {
+		m.zenxiang_liyu_records = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.zenxiang_liyu_records[ids[i]] = struct{}{}
+	}
+}
+
+// ClearZenxiangLiyuRecords clears the "zenxiang_liyu_records" edge to the ZenxiangLiyuRecord entity.
+func (m *UserMutation) ClearZenxiangLiyuRecords() {
+	m.clearedzenxiang_liyu_records = true
+}
+
+// ZenxiangLiyuRecordsCleared reports if the "zenxiang_liyu_records" edge to the ZenxiangLiyuRecord entity was cleared.
+func (m *UserMutation) ZenxiangLiyuRecordsCleared() bool {
+	return m.clearedzenxiang_liyu_records
+}
+
+// RemoveZenxiangLiyuRecordIDs removes the "zenxiang_liyu_records" edge to the ZenxiangLiyuRecord entity by IDs.
+func (m *UserMutation) RemoveZenxiangLiyuRecordIDs(ids ...int64) {
+	if m.removedzenxiang_liyu_records == nil {
+		m.removedzenxiang_liyu_records = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.zenxiang_liyu_records, ids[i])
+		m.removedzenxiang_liyu_records[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedZenxiangLiyuRecords returns the removed IDs of the "zenxiang_liyu_records" edge to the ZenxiangLiyuRecord entity.
+func (m *UserMutation) RemovedZenxiangLiyuRecordsIDs() (ids []int64) {
+	for id := range m.removedzenxiang_liyu_records {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ZenxiangLiyuRecordsIDs returns the "zenxiang_liyu_records" edge IDs in the mutation.
+func (m *UserMutation) ZenxiangLiyuRecordsIDs() (ids []int64) {
+	for id := range m.zenxiang_liyu_records {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetZenxiangLiyuRecords resets all changes to the "zenxiang_liyu_records" edge.
+func (m *UserMutation) ResetZenxiangLiyuRecords() {
+	m.zenxiang_liyu_records = nil
+	m.clearedzenxiang_liyu_records = false
+	m.removedzenxiang_liyu_records = nil
+}
+
 // Where appends a list predicates to the UserMutation builder.
 func (m *UserMutation) Where(ps ...predicate.User) {
 	m.predicates = append(m.predicates, ps...)
@@ -52370,7 +52492,7 @@ func (m *UserMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UserMutation) AddedEdges() []string {
-	edges := make([]string, 0, 15)
+	edges := make([]string, 0, 17)
 	if m.api_keys != nil {
 		edges = append(edges, user.EdgeAPIKeys)
 	}
@@ -52415,6 +52537,12 @@ func (m *UserMutation) AddedEdges() []string {
 	}
 	if m.workbench_messages != nil {
 		edges = append(edges, user.EdgeWorkbenchMessages)
+	}
+	if m.zenxiang_liyu_grants != nil {
+		edges = append(edges, user.EdgeZenxiangLiyuGrants)
+	}
+	if m.zenxiang_liyu_records != nil {
+		edges = append(edges, user.EdgeZenxiangLiyuRecords)
 	}
 	return edges
 }
@@ -52513,13 +52641,25 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeZenxiangLiyuGrants:
+		ids := make([]ent.Value, 0, len(m.zenxiang_liyu_grants))
+		for id := range m.zenxiang_liyu_grants {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeZenxiangLiyuRecords:
+		ids := make([]ent.Value, 0, len(m.zenxiang_liyu_records))
+		for id := range m.zenxiang_liyu_records {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UserMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 15)
+	edges := make([]string, 0, 17)
 	if m.removedapi_keys != nil {
 		edges = append(edges, user.EdgeAPIKeys)
 	}
@@ -52564,6 +52704,12 @@ func (m *UserMutation) RemovedEdges() []string {
 	}
 	if m.removedworkbench_messages != nil {
 		edges = append(edges, user.EdgeWorkbenchMessages)
+	}
+	if m.removedzenxiang_liyu_grants != nil {
+		edges = append(edges, user.EdgeZenxiangLiyuGrants)
+	}
+	if m.removedzenxiang_liyu_records != nil {
+		edges = append(edges, user.EdgeZenxiangLiyuRecords)
 	}
 	return edges
 }
@@ -52662,13 +52808,25 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeZenxiangLiyuGrants:
+		ids := make([]ent.Value, 0, len(m.removedzenxiang_liyu_grants))
+		for id := range m.removedzenxiang_liyu_grants {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeZenxiangLiyuRecords:
+		ids := make([]ent.Value, 0, len(m.removedzenxiang_liyu_records))
+		for id := range m.removedzenxiang_liyu_records {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UserMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 15)
+	edges := make([]string, 0, 17)
 	if m.clearedapi_keys {
 		edges = append(edges, user.EdgeAPIKeys)
 	}
@@ -52714,6 +52872,12 @@ func (m *UserMutation) ClearedEdges() []string {
 	if m.clearedworkbench_messages {
 		edges = append(edges, user.EdgeWorkbenchMessages)
 	}
+	if m.clearedzenxiang_liyu_grants {
+		edges = append(edges, user.EdgeZenxiangLiyuGrants)
+	}
+	if m.clearedzenxiang_liyu_records {
+		edges = append(edges, user.EdgeZenxiangLiyuRecords)
+	}
 	return edges
 }
 
@@ -52751,6 +52915,10 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 		return m.clearedworkbench_conversations
 	case user.EdgeWorkbenchMessages:
 		return m.clearedworkbench_messages
+	case user.EdgeZenxiangLiyuGrants:
+		return m.clearedzenxiang_liyu_grants
+	case user.EdgeZenxiangLiyuRecords:
+		return m.clearedzenxiang_liyu_records
 	}
 	return false
 }
@@ -52811,6 +52979,12 @@ func (m *UserMutation) ResetEdge(name string) error {
 		return nil
 	case user.EdgeWorkbenchMessages:
 		m.ResetWorkbenchMessages()
+		return nil
+	case user.EdgeZenxiangLiyuGrants:
+		m.ResetZenxiangLiyuGrants()
+		return nil
+	case user.EdgeZenxiangLiyuRecords:
+		m.ResetZenxiangLiyuRecords()
 		return nil
 	}
 	return fmt.Errorf("unknown User edge %s", name)
@@ -60643,4 +60817,3812 @@ func (m *WorkbenchMessageMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown WorkbenchMessage edge %s", name)
+}
+
+// ZenxiangLiyuPrizeMutation represents an operation that mutates the ZenxiangLiyuPrize nodes in the graph.
+type ZenxiangLiyuPrizeMutation struct {
+	config
+	op               Op
+	typ              string
+	id               *int64
+	created_at       *time.Time
+	updated_at       *time.Time
+	name             *string
+	reward_amount    *float64
+	addreward_amount *float64
+	probability      *float64
+	addprobability   *float64
+	enabled          *bool
+	sort_order       *int
+	addsort_order    *int
+	clearedFields    map[string]struct{}
+	done             bool
+	oldValue         func(context.Context) (*ZenxiangLiyuPrize, error)
+	predicates       []predicate.ZenxiangLiyuPrize
+}
+
+var _ ent.Mutation = (*ZenxiangLiyuPrizeMutation)(nil)
+
+// zenxiangliyuprizeOption allows management of the mutation configuration using functional options.
+type zenxiangliyuprizeOption func(*ZenxiangLiyuPrizeMutation)
+
+// newZenxiangLiyuPrizeMutation creates new mutation for the ZenxiangLiyuPrize entity.
+func newZenxiangLiyuPrizeMutation(c config, op Op, opts ...zenxiangliyuprizeOption) *ZenxiangLiyuPrizeMutation {
+	m := &ZenxiangLiyuPrizeMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeZenxiangLiyuPrize,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withZenxiangLiyuPrizeID sets the ID field of the mutation.
+func withZenxiangLiyuPrizeID(id int64) zenxiangliyuprizeOption {
+	return func(m *ZenxiangLiyuPrizeMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ZenxiangLiyuPrize
+		)
+		m.oldValue = func(ctx context.Context) (*ZenxiangLiyuPrize, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ZenxiangLiyuPrize.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withZenxiangLiyuPrize sets the old ZenxiangLiyuPrize of the mutation.
+func withZenxiangLiyuPrize(node *ZenxiangLiyuPrize) zenxiangliyuprizeOption {
+	return func(m *ZenxiangLiyuPrizeMutation) {
+		m.oldValue = func(context.Context) (*ZenxiangLiyuPrize, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ZenxiangLiyuPrizeMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ZenxiangLiyuPrizeMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ZenxiangLiyuPrizeMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ZenxiangLiyuPrizeMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ZenxiangLiyuPrize.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ZenxiangLiyuPrizeMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ZenxiangLiyuPrizeMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the ZenxiangLiyuPrize entity.
+// If the ZenxiangLiyuPrize object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuPrizeMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ZenxiangLiyuPrizeMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *ZenxiangLiyuPrizeMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *ZenxiangLiyuPrizeMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the ZenxiangLiyuPrize entity.
+// If the ZenxiangLiyuPrize object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuPrizeMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *ZenxiangLiyuPrizeMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetName sets the "name" field.
+func (m *ZenxiangLiyuPrizeMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *ZenxiangLiyuPrizeMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the ZenxiangLiyuPrize entity.
+// If the ZenxiangLiyuPrize object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuPrizeMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *ZenxiangLiyuPrizeMutation) ResetName() {
+	m.name = nil
+}
+
+// SetRewardAmount sets the "reward_amount" field.
+func (m *ZenxiangLiyuPrizeMutation) SetRewardAmount(f float64) {
+	m.reward_amount = &f
+	m.addreward_amount = nil
+}
+
+// RewardAmount returns the value of the "reward_amount" field in the mutation.
+func (m *ZenxiangLiyuPrizeMutation) RewardAmount() (r float64, exists bool) {
+	v := m.reward_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRewardAmount returns the old "reward_amount" field's value of the ZenxiangLiyuPrize entity.
+// If the ZenxiangLiyuPrize object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuPrizeMutation) OldRewardAmount(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRewardAmount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRewardAmount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRewardAmount: %w", err)
+	}
+	return oldValue.RewardAmount, nil
+}
+
+// AddRewardAmount adds f to the "reward_amount" field.
+func (m *ZenxiangLiyuPrizeMutation) AddRewardAmount(f float64) {
+	if m.addreward_amount != nil {
+		*m.addreward_amount += f
+	} else {
+		m.addreward_amount = &f
+	}
+}
+
+// AddedRewardAmount returns the value that was added to the "reward_amount" field in this mutation.
+func (m *ZenxiangLiyuPrizeMutation) AddedRewardAmount() (r float64, exists bool) {
+	v := m.addreward_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRewardAmount resets all changes to the "reward_amount" field.
+func (m *ZenxiangLiyuPrizeMutation) ResetRewardAmount() {
+	m.reward_amount = nil
+	m.addreward_amount = nil
+}
+
+// SetProbability sets the "probability" field.
+func (m *ZenxiangLiyuPrizeMutation) SetProbability(f float64) {
+	m.probability = &f
+	m.addprobability = nil
+}
+
+// Probability returns the value of the "probability" field in the mutation.
+func (m *ZenxiangLiyuPrizeMutation) Probability() (r float64, exists bool) {
+	v := m.probability
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProbability returns the old "probability" field's value of the ZenxiangLiyuPrize entity.
+// If the ZenxiangLiyuPrize object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuPrizeMutation) OldProbability(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProbability is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProbability requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProbability: %w", err)
+	}
+	return oldValue.Probability, nil
+}
+
+// AddProbability adds f to the "probability" field.
+func (m *ZenxiangLiyuPrizeMutation) AddProbability(f float64) {
+	if m.addprobability != nil {
+		*m.addprobability += f
+	} else {
+		m.addprobability = &f
+	}
+}
+
+// AddedProbability returns the value that was added to the "probability" field in this mutation.
+func (m *ZenxiangLiyuPrizeMutation) AddedProbability() (r float64, exists bool) {
+	v := m.addprobability
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetProbability resets all changes to the "probability" field.
+func (m *ZenxiangLiyuPrizeMutation) ResetProbability() {
+	m.probability = nil
+	m.addprobability = nil
+}
+
+// SetEnabled sets the "enabled" field.
+func (m *ZenxiangLiyuPrizeMutation) SetEnabled(b bool) {
+	m.enabled = &b
+}
+
+// Enabled returns the value of the "enabled" field in the mutation.
+func (m *ZenxiangLiyuPrizeMutation) Enabled() (r bool, exists bool) {
+	v := m.enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEnabled returns the old "enabled" field's value of the ZenxiangLiyuPrize entity.
+// If the ZenxiangLiyuPrize object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuPrizeMutation) OldEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEnabled: %w", err)
+	}
+	return oldValue.Enabled, nil
+}
+
+// ResetEnabled resets all changes to the "enabled" field.
+func (m *ZenxiangLiyuPrizeMutation) ResetEnabled() {
+	m.enabled = nil
+}
+
+// SetSortOrder sets the "sort_order" field.
+func (m *ZenxiangLiyuPrizeMutation) SetSortOrder(i int) {
+	m.sort_order = &i
+	m.addsort_order = nil
+}
+
+// SortOrder returns the value of the "sort_order" field in the mutation.
+func (m *ZenxiangLiyuPrizeMutation) SortOrder() (r int, exists bool) {
+	v := m.sort_order
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSortOrder returns the old "sort_order" field's value of the ZenxiangLiyuPrize entity.
+// If the ZenxiangLiyuPrize object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuPrizeMutation) OldSortOrder(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSortOrder is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSortOrder requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSortOrder: %w", err)
+	}
+	return oldValue.SortOrder, nil
+}
+
+// AddSortOrder adds i to the "sort_order" field.
+func (m *ZenxiangLiyuPrizeMutation) AddSortOrder(i int) {
+	if m.addsort_order != nil {
+		*m.addsort_order += i
+	} else {
+		m.addsort_order = &i
+	}
+}
+
+// AddedSortOrder returns the value that was added to the "sort_order" field in this mutation.
+func (m *ZenxiangLiyuPrizeMutation) AddedSortOrder() (r int, exists bool) {
+	v := m.addsort_order
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSortOrder resets all changes to the "sort_order" field.
+func (m *ZenxiangLiyuPrizeMutation) ResetSortOrder() {
+	m.sort_order = nil
+	m.addsort_order = nil
+}
+
+// Where appends a list predicates to the ZenxiangLiyuPrizeMutation builder.
+func (m *ZenxiangLiyuPrizeMutation) Where(ps ...predicate.ZenxiangLiyuPrize) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ZenxiangLiyuPrizeMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ZenxiangLiyuPrizeMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ZenxiangLiyuPrize, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ZenxiangLiyuPrizeMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ZenxiangLiyuPrizeMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ZenxiangLiyuPrize).
+func (m *ZenxiangLiyuPrizeMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ZenxiangLiyuPrizeMutation) Fields() []string {
+	fields := make([]string, 0, 7)
+	if m.created_at != nil {
+		fields = append(fields, zenxiangliyuprize.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, zenxiangliyuprize.FieldUpdatedAt)
+	}
+	if m.name != nil {
+		fields = append(fields, zenxiangliyuprize.FieldName)
+	}
+	if m.reward_amount != nil {
+		fields = append(fields, zenxiangliyuprize.FieldRewardAmount)
+	}
+	if m.probability != nil {
+		fields = append(fields, zenxiangliyuprize.FieldProbability)
+	}
+	if m.enabled != nil {
+		fields = append(fields, zenxiangliyuprize.FieldEnabled)
+	}
+	if m.sort_order != nil {
+		fields = append(fields, zenxiangliyuprize.FieldSortOrder)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ZenxiangLiyuPrizeMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case zenxiangliyuprize.FieldCreatedAt:
+		return m.CreatedAt()
+	case zenxiangliyuprize.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case zenxiangliyuprize.FieldName:
+		return m.Name()
+	case zenxiangliyuprize.FieldRewardAmount:
+		return m.RewardAmount()
+	case zenxiangliyuprize.FieldProbability:
+		return m.Probability()
+	case zenxiangliyuprize.FieldEnabled:
+		return m.Enabled()
+	case zenxiangliyuprize.FieldSortOrder:
+		return m.SortOrder()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ZenxiangLiyuPrizeMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case zenxiangliyuprize.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case zenxiangliyuprize.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case zenxiangliyuprize.FieldName:
+		return m.OldName(ctx)
+	case zenxiangliyuprize.FieldRewardAmount:
+		return m.OldRewardAmount(ctx)
+	case zenxiangliyuprize.FieldProbability:
+		return m.OldProbability(ctx)
+	case zenxiangliyuprize.FieldEnabled:
+		return m.OldEnabled(ctx)
+	case zenxiangliyuprize.FieldSortOrder:
+		return m.OldSortOrder(ctx)
+	}
+	return nil, fmt.Errorf("unknown ZenxiangLiyuPrize field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ZenxiangLiyuPrizeMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case zenxiangliyuprize.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case zenxiangliyuprize.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case zenxiangliyuprize.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case zenxiangliyuprize.FieldRewardAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRewardAmount(v)
+		return nil
+	case zenxiangliyuprize.FieldProbability:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProbability(v)
+		return nil
+	case zenxiangliyuprize.FieldEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEnabled(v)
+		return nil
+	case zenxiangliyuprize.FieldSortOrder:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSortOrder(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuPrize field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ZenxiangLiyuPrizeMutation) AddedFields() []string {
+	var fields []string
+	if m.addreward_amount != nil {
+		fields = append(fields, zenxiangliyuprize.FieldRewardAmount)
+	}
+	if m.addprobability != nil {
+		fields = append(fields, zenxiangliyuprize.FieldProbability)
+	}
+	if m.addsort_order != nil {
+		fields = append(fields, zenxiangliyuprize.FieldSortOrder)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ZenxiangLiyuPrizeMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case zenxiangliyuprize.FieldRewardAmount:
+		return m.AddedRewardAmount()
+	case zenxiangliyuprize.FieldProbability:
+		return m.AddedProbability()
+	case zenxiangliyuprize.FieldSortOrder:
+		return m.AddedSortOrder()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ZenxiangLiyuPrizeMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case zenxiangliyuprize.FieldRewardAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRewardAmount(v)
+		return nil
+	case zenxiangliyuprize.FieldProbability:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddProbability(v)
+		return nil
+	case zenxiangliyuprize.FieldSortOrder:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSortOrder(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuPrize numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ZenxiangLiyuPrizeMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ZenxiangLiyuPrizeMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ZenxiangLiyuPrizeMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown ZenxiangLiyuPrize nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ZenxiangLiyuPrizeMutation) ResetField(name string) error {
+	switch name {
+	case zenxiangliyuprize.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case zenxiangliyuprize.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case zenxiangliyuprize.FieldName:
+		m.ResetName()
+		return nil
+	case zenxiangliyuprize.FieldRewardAmount:
+		m.ResetRewardAmount()
+		return nil
+	case zenxiangliyuprize.FieldProbability:
+		m.ResetProbability()
+		return nil
+	case zenxiangliyuprize.FieldEnabled:
+		m.ResetEnabled()
+		return nil
+	case zenxiangliyuprize.FieldSortOrder:
+		m.ResetSortOrder()
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuPrize field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ZenxiangLiyuPrizeMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ZenxiangLiyuPrizeMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ZenxiangLiyuPrizeMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ZenxiangLiyuPrizeMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ZenxiangLiyuPrizeMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ZenxiangLiyuPrizeMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ZenxiangLiyuPrizeMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown ZenxiangLiyuPrize unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ZenxiangLiyuPrizeMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown ZenxiangLiyuPrize edge %s", name)
+}
+
+// ZenxiangLiyuRecordMutation represents an operation that mutates the ZenxiangLiyuRecord nodes in the graph.
+type ZenxiangLiyuRecordMutation struct {
+	config
+	op                      Op
+	typ                     string
+	id                      *int64
+	request_id              *string
+	play_date               *time.Time
+	ticket_amount           *float64
+	addticket_amount        *float64
+	reward_amount           *float64
+	addreward_amount        *float64
+	user_net_amount         *float64
+	adduser_net_amount      *float64
+	system_revenue          *float64
+	addsystem_revenue       *float64
+	system_expense          *float64
+	addsystem_expense       *float64
+	system_profit           *float64
+	addsystem_profit        *float64
+	prize_id                *int64
+	addprize_id             *int64
+	prize_name_snapshot     *string
+	probability_snapshot    *float64
+	addprobability_snapshot *float64
+	config_snapshot         *json.RawMessage
+	appendconfig_snapshot   json.RawMessage
+	balance_before          *float64
+	addbalance_before       *float64
+	balance_after_ticket    *float64
+	addbalance_after_ticket *float64
+	balance_after_reward    *float64
+	addbalance_after_reward *float64
+	created_at              *time.Time
+	clearedFields           map[string]struct{}
+	user                    *int64
+	cleareduser             bool
+	done                    bool
+	oldValue                func(context.Context) (*ZenxiangLiyuRecord, error)
+	predicates              []predicate.ZenxiangLiyuRecord
+}
+
+var _ ent.Mutation = (*ZenxiangLiyuRecordMutation)(nil)
+
+// zenxiangliyurecordOption allows management of the mutation configuration using functional options.
+type zenxiangliyurecordOption func(*ZenxiangLiyuRecordMutation)
+
+// newZenxiangLiyuRecordMutation creates new mutation for the ZenxiangLiyuRecord entity.
+func newZenxiangLiyuRecordMutation(c config, op Op, opts ...zenxiangliyurecordOption) *ZenxiangLiyuRecordMutation {
+	m := &ZenxiangLiyuRecordMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeZenxiangLiyuRecord,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withZenxiangLiyuRecordID sets the ID field of the mutation.
+func withZenxiangLiyuRecordID(id int64) zenxiangliyurecordOption {
+	return func(m *ZenxiangLiyuRecordMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ZenxiangLiyuRecord
+		)
+		m.oldValue = func(ctx context.Context) (*ZenxiangLiyuRecord, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ZenxiangLiyuRecord.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withZenxiangLiyuRecord sets the old ZenxiangLiyuRecord of the mutation.
+func withZenxiangLiyuRecord(node *ZenxiangLiyuRecord) zenxiangliyurecordOption {
+	return func(m *ZenxiangLiyuRecordMutation) {
+		m.oldValue = func(context.Context) (*ZenxiangLiyuRecord, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ZenxiangLiyuRecordMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ZenxiangLiyuRecordMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ZenxiangLiyuRecordMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ZenxiangLiyuRecordMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ZenxiangLiyuRecord.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetRequestID sets the "request_id" field.
+func (m *ZenxiangLiyuRecordMutation) SetRequestID(s string) {
+	m.request_id = &s
+}
+
+// RequestID returns the value of the "request_id" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) RequestID() (r string, exists bool) {
+	v := m.request_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestID returns the old "request_id" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldRequestID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestID: %w", err)
+	}
+	return oldValue.RequestID, nil
+}
+
+// ResetRequestID resets all changes to the "request_id" field.
+func (m *ZenxiangLiyuRecordMutation) ResetRequestID() {
+	m.request_id = nil
+}
+
+// SetUserID sets the "user_id" field.
+func (m *ZenxiangLiyuRecordMutation) SetUserID(i int64) {
+	m.user = &i
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) UserID() (r int64, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldUserID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *ZenxiangLiyuRecordMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetPlayDate sets the "play_date" field.
+func (m *ZenxiangLiyuRecordMutation) SetPlayDate(t time.Time) {
+	m.play_date = &t
+}
+
+// PlayDate returns the value of the "play_date" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) PlayDate() (r time.Time, exists bool) {
+	v := m.play_date
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPlayDate returns the old "play_date" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldPlayDate(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPlayDate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPlayDate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPlayDate: %w", err)
+	}
+	return oldValue.PlayDate, nil
+}
+
+// ResetPlayDate resets all changes to the "play_date" field.
+func (m *ZenxiangLiyuRecordMutation) ResetPlayDate() {
+	m.play_date = nil
+}
+
+// SetTicketAmount sets the "ticket_amount" field.
+func (m *ZenxiangLiyuRecordMutation) SetTicketAmount(f float64) {
+	m.ticket_amount = &f
+	m.addticket_amount = nil
+}
+
+// TicketAmount returns the value of the "ticket_amount" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) TicketAmount() (r float64, exists bool) {
+	v := m.ticket_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTicketAmount returns the old "ticket_amount" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldTicketAmount(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTicketAmount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTicketAmount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTicketAmount: %w", err)
+	}
+	return oldValue.TicketAmount, nil
+}
+
+// AddTicketAmount adds f to the "ticket_amount" field.
+func (m *ZenxiangLiyuRecordMutation) AddTicketAmount(f float64) {
+	if m.addticket_amount != nil {
+		*m.addticket_amount += f
+	} else {
+		m.addticket_amount = &f
+	}
+}
+
+// AddedTicketAmount returns the value that was added to the "ticket_amount" field in this mutation.
+func (m *ZenxiangLiyuRecordMutation) AddedTicketAmount() (r float64, exists bool) {
+	v := m.addticket_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTicketAmount resets all changes to the "ticket_amount" field.
+func (m *ZenxiangLiyuRecordMutation) ResetTicketAmount() {
+	m.ticket_amount = nil
+	m.addticket_amount = nil
+}
+
+// SetRewardAmount sets the "reward_amount" field.
+func (m *ZenxiangLiyuRecordMutation) SetRewardAmount(f float64) {
+	m.reward_amount = &f
+	m.addreward_amount = nil
+}
+
+// RewardAmount returns the value of the "reward_amount" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) RewardAmount() (r float64, exists bool) {
+	v := m.reward_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRewardAmount returns the old "reward_amount" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldRewardAmount(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRewardAmount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRewardAmount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRewardAmount: %w", err)
+	}
+	return oldValue.RewardAmount, nil
+}
+
+// AddRewardAmount adds f to the "reward_amount" field.
+func (m *ZenxiangLiyuRecordMutation) AddRewardAmount(f float64) {
+	if m.addreward_amount != nil {
+		*m.addreward_amount += f
+	} else {
+		m.addreward_amount = &f
+	}
+}
+
+// AddedRewardAmount returns the value that was added to the "reward_amount" field in this mutation.
+func (m *ZenxiangLiyuRecordMutation) AddedRewardAmount() (r float64, exists bool) {
+	v := m.addreward_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRewardAmount resets all changes to the "reward_amount" field.
+func (m *ZenxiangLiyuRecordMutation) ResetRewardAmount() {
+	m.reward_amount = nil
+	m.addreward_amount = nil
+}
+
+// SetUserNetAmount sets the "user_net_amount" field.
+func (m *ZenxiangLiyuRecordMutation) SetUserNetAmount(f float64) {
+	m.user_net_amount = &f
+	m.adduser_net_amount = nil
+}
+
+// UserNetAmount returns the value of the "user_net_amount" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) UserNetAmount() (r float64, exists bool) {
+	v := m.user_net_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserNetAmount returns the old "user_net_amount" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldUserNetAmount(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserNetAmount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserNetAmount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserNetAmount: %w", err)
+	}
+	return oldValue.UserNetAmount, nil
+}
+
+// AddUserNetAmount adds f to the "user_net_amount" field.
+func (m *ZenxiangLiyuRecordMutation) AddUserNetAmount(f float64) {
+	if m.adduser_net_amount != nil {
+		*m.adduser_net_amount += f
+	} else {
+		m.adduser_net_amount = &f
+	}
+}
+
+// AddedUserNetAmount returns the value that was added to the "user_net_amount" field in this mutation.
+func (m *ZenxiangLiyuRecordMutation) AddedUserNetAmount() (r float64, exists bool) {
+	v := m.adduser_net_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserNetAmount resets all changes to the "user_net_amount" field.
+func (m *ZenxiangLiyuRecordMutation) ResetUserNetAmount() {
+	m.user_net_amount = nil
+	m.adduser_net_amount = nil
+}
+
+// SetSystemRevenue sets the "system_revenue" field.
+func (m *ZenxiangLiyuRecordMutation) SetSystemRevenue(f float64) {
+	m.system_revenue = &f
+	m.addsystem_revenue = nil
+}
+
+// SystemRevenue returns the value of the "system_revenue" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) SystemRevenue() (r float64, exists bool) {
+	v := m.system_revenue
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSystemRevenue returns the old "system_revenue" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldSystemRevenue(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSystemRevenue is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSystemRevenue requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSystemRevenue: %w", err)
+	}
+	return oldValue.SystemRevenue, nil
+}
+
+// AddSystemRevenue adds f to the "system_revenue" field.
+func (m *ZenxiangLiyuRecordMutation) AddSystemRevenue(f float64) {
+	if m.addsystem_revenue != nil {
+		*m.addsystem_revenue += f
+	} else {
+		m.addsystem_revenue = &f
+	}
+}
+
+// AddedSystemRevenue returns the value that was added to the "system_revenue" field in this mutation.
+func (m *ZenxiangLiyuRecordMutation) AddedSystemRevenue() (r float64, exists bool) {
+	v := m.addsystem_revenue
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSystemRevenue resets all changes to the "system_revenue" field.
+func (m *ZenxiangLiyuRecordMutation) ResetSystemRevenue() {
+	m.system_revenue = nil
+	m.addsystem_revenue = nil
+}
+
+// SetSystemExpense sets the "system_expense" field.
+func (m *ZenxiangLiyuRecordMutation) SetSystemExpense(f float64) {
+	m.system_expense = &f
+	m.addsystem_expense = nil
+}
+
+// SystemExpense returns the value of the "system_expense" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) SystemExpense() (r float64, exists bool) {
+	v := m.system_expense
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSystemExpense returns the old "system_expense" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldSystemExpense(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSystemExpense is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSystemExpense requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSystemExpense: %w", err)
+	}
+	return oldValue.SystemExpense, nil
+}
+
+// AddSystemExpense adds f to the "system_expense" field.
+func (m *ZenxiangLiyuRecordMutation) AddSystemExpense(f float64) {
+	if m.addsystem_expense != nil {
+		*m.addsystem_expense += f
+	} else {
+		m.addsystem_expense = &f
+	}
+}
+
+// AddedSystemExpense returns the value that was added to the "system_expense" field in this mutation.
+func (m *ZenxiangLiyuRecordMutation) AddedSystemExpense() (r float64, exists bool) {
+	v := m.addsystem_expense
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSystemExpense resets all changes to the "system_expense" field.
+func (m *ZenxiangLiyuRecordMutation) ResetSystemExpense() {
+	m.system_expense = nil
+	m.addsystem_expense = nil
+}
+
+// SetSystemProfit sets the "system_profit" field.
+func (m *ZenxiangLiyuRecordMutation) SetSystemProfit(f float64) {
+	m.system_profit = &f
+	m.addsystem_profit = nil
+}
+
+// SystemProfit returns the value of the "system_profit" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) SystemProfit() (r float64, exists bool) {
+	v := m.system_profit
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSystemProfit returns the old "system_profit" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldSystemProfit(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSystemProfit is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSystemProfit requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSystemProfit: %w", err)
+	}
+	return oldValue.SystemProfit, nil
+}
+
+// AddSystemProfit adds f to the "system_profit" field.
+func (m *ZenxiangLiyuRecordMutation) AddSystemProfit(f float64) {
+	if m.addsystem_profit != nil {
+		*m.addsystem_profit += f
+	} else {
+		m.addsystem_profit = &f
+	}
+}
+
+// AddedSystemProfit returns the value that was added to the "system_profit" field in this mutation.
+func (m *ZenxiangLiyuRecordMutation) AddedSystemProfit() (r float64, exists bool) {
+	v := m.addsystem_profit
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSystemProfit resets all changes to the "system_profit" field.
+func (m *ZenxiangLiyuRecordMutation) ResetSystemProfit() {
+	m.system_profit = nil
+	m.addsystem_profit = nil
+}
+
+// SetPrizeID sets the "prize_id" field.
+func (m *ZenxiangLiyuRecordMutation) SetPrizeID(i int64) {
+	m.prize_id = &i
+	m.addprize_id = nil
+}
+
+// PrizeID returns the value of the "prize_id" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) PrizeID() (r int64, exists bool) {
+	v := m.prize_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPrizeID returns the old "prize_id" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldPrizeID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPrizeID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPrizeID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPrizeID: %w", err)
+	}
+	return oldValue.PrizeID, nil
+}
+
+// AddPrizeID adds i to the "prize_id" field.
+func (m *ZenxiangLiyuRecordMutation) AddPrizeID(i int64) {
+	if m.addprize_id != nil {
+		*m.addprize_id += i
+	} else {
+		m.addprize_id = &i
+	}
+}
+
+// AddedPrizeID returns the value that was added to the "prize_id" field in this mutation.
+func (m *ZenxiangLiyuRecordMutation) AddedPrizeID() (r int64, exists bool) {
+	v := m.addprize_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearPrizeID clears the value of the "prize_id" field.
+func (m *ZenxiangLiyuRecordMutation) ClearPrizeID() {
+	m.prize_id = nil
+	m.addprize_id = nil
+	m.clearedFields[zenxiangliyurecord.FieldPrizeID] = struct{}{}
+}
+
+// PrizeIDCleared returns if the "prize_id" field was cleared in this mutation.
+func (m *ZenxiangLiyuRecordMutation) PrizeIDCleared() bool {
+	_, ok := m.clearedFields[zenxiangliyurecord.FieldPrizeID]
+	return ok
+}
+
+// ResetPrizeID resets all changes to the "prize_id" field.
+func (m *ZenxiangLiyuRecordMutation) ResetPrizeID() {
+	m.prize_id = nil
+	m.addprize_id = nil
+	delete(m.clearedFields, zenxiangliyurecord.FieldPrizeID)
+}
+
+// SetPrizeNameSnapshot sets the "prize_name_snapshot" field.
+func (m *ZenxiangLiyuRecordMutation) SetPrizeNameSnapshot(s string) {
+	m.prize_name_snapshot = &s
+}
+
+// PrizeNameSnapshot returns the value of the "prize_name_snapshot" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) PrizeNameSnapshot() (r string, exists bool) {
+	v := m.prize_name_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPrizeNameSnapshot returns the old "prize_name_snapshot" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldPrizeNameSnapshot(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPrizeNameSnapshot is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPrizeNameSnapshot requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPrizeNameSnapshot: %w", err)
+	}
+	return oldValue.PrizeNameSnapshot, nil
+}
+
+// ResetPrizeNameSnapshot resets all changes to the "prize_name_snapshot" field.
+func (m *ZenxiangLiyuRecordMutation) ResetPrizeNameSnapshot() {
+	m.prize_name_snapshot = nil
+}
+
+// SetProbabilitySnapshot sets the "probability_snapshot" field.
+func (m *ZenxiangLiyuRecordMutation) SetProbabilitySnapshot(f float64) {
+	m.probability_snapshot = &f
+	m.addprobability_snapshot = nil
+}
+
+// ProbabilitySnapshot returns the value of the "probability_snapshot" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) ProbabilitySnapshot() (r float64, exists bool) {
+	v := m.probability_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProbabilitySnapshot returns the old "probability_snapshot" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldProbabilitySnapshot(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProbabilitySnapshot is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProbabilitySnapshot requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProbabilitySnapshot: %w", err)
+	}
+	return oldValue.ProbabilitySnapshot, nil
+}
+
+// AddProbabilitySnapshot adds f to the "probability_snapshot" field.
+func (m *ZenxiangLiyuRecordMutation) AddProbabilitySnapshot(f float64) {
+	if m.addprobability_snapshot != nil {
+		*m.addprobability_snapshot += f
+	} else {
+		m.addprobability_snapshot = &f
+	}
+}
+
+// AddedProbabilitySnapshot returns the value that was added to the "probability_snapshot" field in this mutation.
+func (m *ZenxiangLiyuRecordMutation) AddedProbabilitySnapshot() (r float64, exists bool) {
+	v := m.addprobability_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetProbabilitySnapshot resets all changes to the "probability_snapshot" field.
+func (m *ZenxiangLiyuRecordMutation) ResetProbabilitySnapshot() {
+	m.probability_snapshot = nil
+	m.addprobability_snapshot = nil
+}
+
+// SetConfigSnapshot sets the "config_snapshot" field.
+func (m *ZenxiangLiyuRecordMutation) SetConfigSnapshot(jm json.RawMessage) {
+	m.config_snapshot = &jm
+	m.appendconfig_snapshot = nil
+}
+
+// ConfigSnapshot returns the value of the "config_snapshot" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) ConfigSnapshot() (r json.RawMessage, exists bool) {
+	v := m.config_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConfigSnapshot returns the old "config_snapshot" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldConfigSnapshot(ctx context.Context) (v json.RawMessage, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConfigSnapshot is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConfigSnapshot requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConfigSnapshot: %w", err)
+	}
+	return oldValue.ConfigSnapshot, nil
+}
+
+// AppendConfigSnapshot adds jm to the "config_snapshot" field.
+func (m *ZenxiangLiyuRecordMutation) AppendConfigSnapshot(jm json.RawMessage) {
+	m.appendconfig_snapshot = append(m.appendconfig_snapshot, jm...)
+}
+
+// AppendedConfigSnapshot returns the list of values that were appended to the "config_snapshot" field in this mutation.
+func (m *ZenxiangLiyuRecordMutation) AppendedConfigSnapshot() (json.RawMessage, bool) {
+	if len(m.appendconfig_snapshot) == 0 {
+		return nil, false
+	}
+	return m.appendconfig_snapshot, true
+}
+
+// ResetConfigSnapshot resets all changes to the "config_snapshot" field.
+func (m *ZenxiangLiyuRecordMutation) ResetConfigSnapshot() {
+	m.config_snapshot = nil
+	m.appendconfig_snapshot = nil
+}
+
+// SetBalanceBefore sets the "balance_before" field.
+func (m *ZenxiangLiyuRecordMutation) SetBalanceBefore(f float64) {
+	m.balance_before = &f
+	m.addbalance_before = nil
+}
+
+// BalanceBefore returns the value of the "balance_before" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) BalanceBefore() (r float64, exists bool) {
+	v := m.balance_before
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBalanceBefore returns the old "balance_before" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldBalanceBefore(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBalanceBefore is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBalanceBefore requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBalanceBefore: %w", err)
+	}
+	return oldValue.BalanceBefore, nil
+}
+
+// AddBalanceBefore adds f to the "balance_before" field.
+func (m *ZenxiangLiyuRecordMutation) AddBalanceBefore(f float64) {
+	if m.addbalance_before != nil {
+		*m.addbalance_before += f
+	} else {
+		m.addbalance_before = &f
+	}
+}
+
+// AddedBalanceBefore returns the value that was added to the "balance_before" field in this mutation.
+func (m *ZenxiangLiyuRecordMutation) AddedBalanceBefore() (r float64, exists bool) {
+	v := m.addbalance_before
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBalanceBefore resets all changes to the "balance_before" field.
+func (m *ZenxiangLiyuRecordMutation) ResetBalanceBefore() {
+	m.balance_before = nil
+	m.addbalance_before = nil
+}
+
+// SetBalanceAfterTicket sets the "balance_after_ticket" field.
+func (m *ZenxiangLiyuRecordMutation) SetBalanceAfterTicket(f float64) {
+	m.balance_after_ticket = &f
+	m.addbalance_after_ticket = nil
+}
+
+// BalanceAfterTicket returns the value of the "balance_after_ticket" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) BalanceAfterTicket() (r float64, exists bool) {
+	v := m.balance_after_ticket
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBalanceAfterTicket returns the old "balance_after_ticket" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldBalanceAfterTicket(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBalanceAfterTicket is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBalanceAfterTicket requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBalanceAfterTicket: %w", err)
+	}
+	return oldValue.BalanceAfterTicket, nil
+}
+
+// AddBalanceAfterTicket adds f to the "balance_after_ticket" field.
+func (m *ZenxiangLiyuRecordMutation) AddBalanceAfterTicket(f float64) {
+	if m.addbalance_after_ticket != nil {
+		*m.addbalance_after_ticket += f
+	} else {
+		m.addbalance_after_ticket = &f
+	}
+}
+
+// AddedBalanceAfterTicket returns the value that was added to the "balance_after_ticket" field in this mutation.
+func (m *ZenxiangLiyuRecordMutation) AddedBalanceAfterTicket() (r float64, exists bool) {
+	v := m.addbalance_after_ticket
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBalanceAfterTicket resets all changes to the "balance_after_ticket" field.
+func (m *ZenxiangLiyuRecordMutation) ResetBalanceAfterTicket() {
+	m.balance_after_ticket = nil
+	m.addbalance_after_ticket = nil
+}
+
+// SetBalanceAfterReward sets the "balance_after_reward" field.
+func (m *ZenxiangLiyuRecordMutation) SetBalanceAfterReward(f float64) {
+	m.balance_after_reward = &f
+	m.addbalance_after_reward = nil
+}
+
+// BalanceAfterReward returns the value of the "balance_after_reward" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) BalanceAfterReward() (r float64, exists bool) {
+	v := m.balance_after_reward
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBalanceAfterReward returns the old "balance_after_reward" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldBalanceAfterReward(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBalanceAfterReward is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBalanceAfterReward requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBalanceAfterReward: %w", err)
+	}
+	return oldValue.BalanceAfterReward, nil
+}
+
+// AddBalanceAfterReward adds f to the "balance_after_reward" field.
+func (m *ZenxiangLiyuRecordMutation) AddBalanceAfterReward(f float64) {
+	if m.addbalance_after_reward != nil {
+		*m.addbalance_after_reward += f
+	} else {
+		m.addbalance_after_reward = &f
+	}
+}
+
+// AddedBalanceAfterReward returns the value that was added to the "balance_after_reward" field in this mutation.
+func (m *ZenxiangLiyuRecordMutation) AddedBalanceAfterReward() (r float64, exists bool) {
+	v := m.addbalance_after_reward
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBalanceAfterReward resets all changes to the "balance_after_reward" field.
+func (m *ZenxiangLiyuRecordMutation) ResetBalanceAfterReward() {
+	m.balance_after_reward = nil
+	m.addbalance_after_reward = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ZenxiangLiyuRecordMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ZenxiangLiyuRecordMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the ZenxiangLiyuRecord entity.
+// If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuRecordMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ZenxiangLiyuRecordMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *ZenxiangLiyuRecordMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[zenxiangliyurecord.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *ZenxiangLiyuRecordMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *ZenxiangLiyuRecordMutation) UserIDs() (ids []int64) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *ZenxiangLiyuRecordMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the ZenxiangLiyuRecordMutation builder.
+func (m *ZenxiangLiyuRecordMutation) Where(ps ...predicate.ZenxiangLiyuRecord) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ZenxiangLiyuRecordMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ZenxiangLiyuRecordMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ZenxiangLiyuRecord, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ZenxiangLiyuRecordMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ZenxiangLiyuRecordMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ZenxiangLiyuRecord).
+func (m *ZenxiangLiyuRecordMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ZenxiangLiyuRecordMutation) Fields() []string {
+	fields := make([]string, 0, 17)
+	if m.request_id != nil {
+		fields = append(fields, zenxiangliyurecord.FieldRequestID)
+	}
+	if m.user != nil {
+		fields = append(fields, zenxiangliyurecord.FieldUserID)
+	}
+	if m.play_date != nil {
+		fields = append(fields, zenxiangliyurecord.FieldPlayDate)
+	}
+	if m.ticket_amount != nil {
+		fields = append(fields, zenxiangliyurecord.FieldTicketAmount)
+	}
+	if m.reward_amount != nil {
+		fields = append(fields, zenxiangliyurecord.FieldRewardAmount)
+	}
+	if m.user_net_amount != nil {
+		fields = append(fields, zenxiangliyurecord.FieldUserNetAmount)
+	}
+	if m.system_revenue != nil {
+		fields = append(fields, zenxiangliyurecord.FieldSystemRevenue)
+	}
+	if m.system_expense != nil {
+		fields = append(fields, zenxiangliyurecord.FieldSystemExpense)
+	}
+	if m.system_profit != nil {
+		fields = append(fields, zenxiangliyurecord.FieldSystemProfit)
+	}
+	if m.prize_id != nil {
+		fields = append(fields, zenxiangliyurecord.FieldPrizeID)
+	}
+	if m.prize_name_snapshot != nil {
+		fields = append(fields, zenxiangliyurecord.FieldPrizeNameSnapshot)
+	}
+	if m.probability_snapshot != nil {
+		fields = append(fields, zenxiangliyurecord.FieldProbabilitySnapshot)
+	}
+	if m.config_snapshot != nil {
+		fields = append(fields, zenxiangliyurecord.FieldConfigSnapshot)
+	}
+	if m.balance_before != nil {
+		fields = append(fields, zenxiangliyurecord.FieldBalanceBefore)
+	}
+	if m.balance_after_ticket != nil {
+		fields = append(fields, zenxiangliyurecord.FieldBalanceAfterTicket)
+	}
+	if m.balance_after_reward != nil {
+		fields = append(fields, zenxiangliyurecord.FieldBalanceAfterReward)
+	}
+	if m.created_at != nil {
+		fields = append(fields, zenxiangliyurecord.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ZenxiangLiyuRecordMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case zenxiangliyurecord.FieldRequestID:
+		return m.RequestID()
+	case zenxiangliyurecord.FieldUserID:
+		return m.UserID()
+	case zenxiangliyurecord.FieldPlayDate:
+		return m.PlayDate()
+	case zenxiangliyurecord.FieldTicketAmount:
+		return m.TicketAmount()
+	case zenxiangliyurecord.FieldRewardAmount:
+		return m.RewardAmount()
+	case zenxiangliyurecord.FieldUserNetAmount:
+		return m.UserNetAmount()
+	case zenxiangliyurecord.FieldSystemRevenue:
+		return m.SystemRevenue()
+	case zenxiangliyurecord.FieldSystemExpense:
+		return m.SystemExpense()
+	case zenxiangliyurecord.FieldSystemProfit:
+		return m.SystemProfit()
+	case zenxiangliyurecord.FieldPrizeID:
+		return m.PrizeID()
+	case zenxiangliyurecord.FieldPrizeNameSnapshot:
+		return m.PrizeNameSnapshot()
+	case zenxiangliyurecord.FieldProbabilitySnapshot:
+		return m.ProbabilitySnapshot()
+	case zenxiangliyurecord.FieldConfigSnapshot:
+		return m.ConfigSnapshot()
+	case zenxiangliyurecord.FieldBalanceBefore:
+		return m.BalanceBefore()
+	case zenxiangliyurecord.FieldBalanceAfterTicket:
+		return m.BalanceAfterTicket()
+	case zenxiangliyurecord.FieldBalanceAfterReward:
+		return m.BalanceAfterReward()
+	case zenxiangliyurecord.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ZenxiangLiyuRecordMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case zenxiangliyurecord.FieldRequestID:
+		return m.OldRequestID(ctx)
+	case zenxiangliyurecord.FieldUserID:
+		return m.OldUserID(ctx)
+	case zenxiangliyurecord.FieldPlayDate:
+		return m.OldPlayDate(ctx)
+	case zenxiangliyurecord.FieldTicketAmount:
+		return m.OldTicketAmount(ctx)
+	case zenxiangliyurecord.FieldRewardAmount:
+		return m.OldRewardAmount(ctx)
+	case zenxiangliyurecord.FieldUserNetAmount:
+		return m.OldUserNetAmount(ctx)
+	case zenxiangliyurecord.FieldSystemRevenue:
+		return m.OldSystemRevenue(ctx)
+	case zenxiangliyurecord.FieldSystemExpense:
+		return m.OldSystemExpense(ctx)
+	case zenxiangliyurecord.FieldSystemProfit:
+		return m.OldSystemProfit(ctx)
+	case zenxiangliyurecord.FieldPrizeID:
+		return m.OldPrizeID(ctx)
+	case zenxiangliyurecord.FieldPrizeNameSnapshot:
+		return m.OldPrizeNameSnapshot(ctx)
+	case zenxiangliyurecord.FieldProbabilitySnapshot:
+		return m.OldProbabilitySnapshot(ctx)
+	case zenxiangliyurecord.FieldConfigSnapshot:
+		return m.OldConfigSnapshot(ctx)
+	case zenxiangliyurecord.FieldBalanceBefore:
+		return m.OldBalanceBefore(ctx)
+	case zenxiangliyurecord.FieldBalanceAfterTicket:
+		return m.OldBalanceAfterTicket(ctx)
+	case zenxiangliyurecord.FieldBalanceAfterReward:
+		return m.OldBalanceAfterReward(ctx)
+	case zenxiangliyurecord.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown ZenxiangLiyuRecord field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ZenxiangLiyuRecordMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case zenxiangliyurecord.FieldRequestID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestID(v)
+		return nil
+	case zenxiangliyurecord.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case zenxiangliyurecord.FieldPlayDate:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPlayDate(v)
+		return nil
+	case zenxiangliyurecord.FieldTicketAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTicketAmount(v)
+		return nil
+	case zenxiangliyurecord.FieldRewardAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRewardAmount(v)
+		return nil
+	case zenxiangliyurecord.FieldUserNetAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserNetAmount(v)
+		return nil
+	case zenxiangliyurecord.FieldSystemRevenue:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSystemRevenue(v)
+		return nil
+	case zenxiangliyurecord.FieldSystemExpense:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSystemExpense(v)
+		return nil
+	case zenxiangliyurecord.FieldSystemProfit:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSystemProfit(v)
+		return nil
+	case zenxiangliyurecord.FieldPrizeID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPrizeID(v)
+		return nil
+	case zenxiangliyurecord.FieldPrizeNameSnapshot:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPrizeNameSnapshot(v)
+		return nil
+	case zenxiangliyurecord.FieldProbabilitySnapshot:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProbabilitySnapshot(v)
+		return nil
+	case zenxiangliyurecord.FieldConfigSnapshot:
+		v, ok := value.(json.RawMessage)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConfigSnapshot(v)
+		return nil
+	case zenxiangliyurecord.FieldBalanceBefore:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBalanceBefore(v)
+		return nil
+	case zenxiangliyurecord.FieldBalanceAfterTicket:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBalanceAfterTicket(v)
+		return nil
+	case zenxiangliyurecord.FieldBalanceAfterReward:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBalanceAfterReward(v)
+		return nil
+	case zenxiangliyurecord.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuRecord field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ZenxiangLiyuRecordMutation) AddedFields() []string {
+	var fields []string
+	if m.addticket_amount != nil {
+		fields = append(fields, zenxiangliyurecord.FieldTicketAmount)
+	}
+	if m.addreward_amount != nil {
+		fields = append(fields, zenxiangliyurecord.FieldRewardAmount)
+	}
+	if m.adduser_net_amount != nil {
+		fields = append(fields, zenxiangliyurecord.FieldUserNetAmount)
+	}
+	if m.addsystem_revenue != nil {
+		fields = append(fields, zenxiangliyurecord.FieldSystemRevenue)
+	}
+	if m.addsystem_expense != nil {
+		fields = append(fields, zenxiangliyurecord.FieldSystemExpense)
+	}
+	if m.addsystem_profit != nil {
+		fields = append(fields, zenxiangliyurecord.FieldSystemProfit)
+	}
+	if m.addprize_id != nil {
+		fields = append(fields, zenxiangliyurecord.FieldPrizeID)
+	}
+	if m.addprobability_snapshot != nil {
+		fields = append(fields, zenxiangliyurecord.FieldProbabilitySnapshot)
+	}
+	if m.addbalance_before != nil {
+		fields = append(fields, zenxiangliyurecord.FieldBalanceBefore)
+	}
+	if m.addbalance_after_ticket != nil {
+		fields = append(fields, zenxiangliyurecord.FieldBalanceAfterTicket)
+	}
+	if m.addbalance_after_reward != nil {
+		fields = append(fields, zenxiangliyurecord.FieldBalanceAfterReward)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ZenxiangLiyuRecordMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case zenxiangliyurecord.FieldTicketAmount:
+		return m.AddedTicketAmount()
+	case zenxiangliyurecord.FieldRewardAmount:
+		return m.AddedRewardAmount()
+	case zenxiangliyurecord.FieldUserNetAmount:
+		return m.AddedUserNetAmount()
+	case zenxiangliyurecord.FieldSystemRevenue:
+		return m.AddedSystemRevenue()
+	case zenxiangliyurecord.FieldSystemExpense:
+		return m.AddedSystemExpense()
+	case zenxiangliyurecord.FieldSystemProfit:
+		return m.AddedSystemProfit()
+	case zenxiangliyurecord.FieldPrizeID:
+		return m.AddedPrizeID()
+	case zenxiangliyurecord.FieldProbabilitySnapshot:
+		return m.AddedProbabilitySnapshot()
+	case zenxiangliyurecord.FieldBalanceBefore:
+		return m.AddedBalanceBefore()
+	case zenxiangliyurecord.FieldBalanceAfterTicket:
+		return m.AddedBalanceAfterTicket()
+	case zenxiangliyurecord.FieldBalanceAfterReward:
+		return m.AddedBalanceAfterReward()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ZenxiangLiyuRecordMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case zenxiangliyurecord.FieldTicketAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTicketAmount(v)
+		return nil
+	case zenxiangliyurecord.FieldRewardAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRewardAmount(v)
+		return nil
+	case zenxiangliyurecord.FieldUserNetAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserNetAmount(v)
+		return nil
+	case zenxiangliyurecord.FieldSystemRevenue:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSystemRevenue(v)
+		return nil
+	case zenxiangliyurecord.FieldSystemExpense:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSystemExpense(v)
+		return nil
+	case zenxiangliyurecord.FieldSystemProfit:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSystemProfit(v)
+		return nil
+	case zenxiangliyurecord.FieldPrizeID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPrizeID(v)
+		return nil
+	case zenxiangliyurecord.FieldProbabilitySnapshot:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddProbabilitySnapshot(v)
+		return nil
+	case zenxiangliyurecord.FieldBalanceBefore:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBalanceBefore(v)
+		return nil
+	case zenxiangliyurecord.FieldBalanceAfterTicket:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBalanceAfterTicket(v)
+		return nil
+	case zenxiangliyurecord.FieldBalanceAfterReward:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBalanceAfterReward(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuRecord numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ZenxiangLiyuRecordMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(zenxiangliyurecord.FieldPrizeID) {
+		fields = append(fields, zenxiangliyurecord.FieldPrizeID)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ZenxiangLiyuRecordMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ZenxiangLiyuRecordMutation) ClearField(name string) error {
+	switch name {
+	case zenxiangliyurecord.FieldPrizeID:
+		m.ClearPrizeID()
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuRecord nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ZenxiangLiyuRecordMutation) ResetField(name string) error {
+	switch name {
+	case zenxiangliyurecord.FieldRequestID:
+		m.ResetRequestID()
+		return nil
+	case zenxiangliyurecord.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case zenxiangliyurecord.FieldPlayDate:
+		m.ResetPlayDate()
+		return nil
+	case zenxiangliyurecord.FieldTicketAmount:
+		m.ResetTicketAmount()
+		return nil
+	case zenxiangliyurecord.FieldRewardAmount:
+		m.ResetRewardAmount()
+		return nil
+	case zenxiangliyurecord.FieldUserNetAmount:
+		m.ResetUserNetAmount()
+		return nil
+	case zenxiangliyurecord.FieldSystemRevenue:
+		m.ResetSystemRevenue()
+		return nil
+	case zenxiangliyurecord.FieldSystemExpense:
+		m.ResetSystemExpense()
+		return nil
+	case zenxiangliyurecord.FieldSystemProfit:
+		m.ResetSystemProfit()
+		return nil
+	case zenxiangliyurecord.FieldPrizeID:
+		m.ResetPrizeID()
+		return nil
+	case zenxiangliyurecord.FieldPrizeNameSnapshot:
+		m.ResetPrizeNameSnapshot()
+		return nil
+	case zenxiangliyurecord.FieldProbabilitySnapshot:
+		m.ResetProbabilitySnapshot()
+		return nil
+	case zenxiangliyurecord.FieldConfigSnapshot:
+		m.ResetConfigSnapshot()
+		return nil
+	case zenxiangliyurecord.FieldBalanceBefore:
+		m.ResetBalanceBefore()
+		return nil
+	case zenxiangliyurecord.FieldBalanceAfterTicket:
+		m.ResetBalanceAfterTicket()
+		return nil
+	case zenxiangliyurecord.FieldBalanceAfterReward:
+		m.ResetBalanceAfterReward()
+		return nil
+	case zenxiangliyurecord.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuRecord field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ZenxiangLiyuRecordMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, zenxiangliyurecord.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ZenxiangLiyuRecordMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case zenxiangliyurecord.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ZenxiangLiyuRecordMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ZenxiangLiyuRecordMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ZenxiangLiyuRecordMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, zenxiangliyurecord.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ZenxiangLiyuRecordMutation) EdgeCleared(name string) bool {
+	switch name {
+	case zenxiangliyurecord.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ZenxiangLiyuRecordMutation) ClearEdge(name string) error {
+	switch name {
+	case zenxiangliyurecord.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuRecord unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ZenxiangLiyuRecordMutation) ResetEdge(name string) error {
+	switch name {
+	case zenxiangliyurecord.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuRecord edge %s", name)
+}
+
+// ZenxiangLiyuSettingMutation represents an operation that mutates the ZenxiangLiyuSetting nodes in the graph.
+type ZenxiangLiyuSettingMutation struct {
+	config
+	op                  Op
+	typ                 string
+	id                  *int64
+	created_at          *time.Time
+	updated_at          *time.Time
+	global_enabled      *bool
+	ticket_amount       *float64
+	addticket_amount    *float64
+	minimum_balance     *float64
+	addminimum_balance  *float64
+	daily_play_limit    *int
+	adddaily_play_limit *int
+	clearedFields       map[string]struct{}
+	done                bool
+	oldValue            func(context.Context) (*ZenxiangLiyuSetting, error)
+	predicates          []predicate.ZenxiangLiyuSetting
+}
+
+var _ ent.Mutation = (*ZenxiangLiyuSettingMutation)(nil)
+
+// zenxiangliyusettingOption allows management of the mutation configuration using functional options.
+type zenxiangliyusettingOption func(*ZenxiangLiyuSettingMutation)
+
+// newZenxiangLiyuSettingMutation creates new mutation for the ZenxiangLiyuSetting entity.
+func newZenxiangLiyuSettingMutation(c config, op Op, opts ...zenxiangliyusettingOption) *ZenxiangLiyuSettingMutation {
+	m := &ZenxiangLiyuSettingMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeZenxiangLiyuSetting,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withZenxiangLiyuSettingID sets the ID field of the mutation.
+func withZenxiangLiyuSettingID(id int64) zenxiangliyusettingOption {
+	return func(m *ZenxiangLiyuSettingMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ZenxiangLiyuSetting
+		)
+		m.oldValue = func(ctx context.Context) (*ZenxiangLiyuSetting, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ZenxiangLiyuSetting.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withZenxiangLiyuSetting sets the old ZenxiangLiyuSetting of the mutation.
+func withZenxiangLiyuSetting(node *ZenxiangLiyuSetting) zenxiangliyusettingOption {
+	return func(m *ZenxiangLiyuSettingMutation) {
+		m.oldValue = func(context.Context) (*ZenxiangLiyuSetting, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ZenxiangLiyuSettingMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ZenxiangLiyuSettingMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ZenxiangLiyuSettingMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ZenxiangLiyuSettingMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ZenxiangLiyuSetting.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ZenxiangLiyuSettingMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ZenxiangLiyuSettingMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the ZenxiangLiyuSetting entity.
+// If the ZenxiangLiyuSetting object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuSettingMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ZenxiangLiyuSettingMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *ZenxiangLiyuSettingMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *ZenxiangLiyuSettingMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the ZenxiangLiyuSetting entity.
+// If the ZenxiangLiyuSetting object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuSettingMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *ZenxiangLiyuSettingMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetGlobalEnabled sets the "global_enabled" field.
+func (m *ZenxiangLiyuSettingMutation) SetGlobalEnabled(b bool) {
+	m.global_enabled = &b
+}
+
+// GlobalEnabled returns the value of the "global_enabled" field in the mutation.
+func (m *ZenxiangLiyuSettingMutation) GlobalEnabled() (r bool, exists bool) {
+	v := m.global_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGlobalEnabled returns the old "global_enabled" field's value of the ZenxiangLiyuSetting entity.
+// If the ZenxiangLiyuSetting object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuSettingMutation) OldGlobalEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGlobalEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGlobalEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGlobalEnabled: %w", err)
+	}
+	return oldValue.GlobalEnabled, nil
+}
+
+// ResetGlobalEnabled resets all changes to the "global_enabled" field.
+func (m *ZenxiangLiyuSettingMutation) ResetGlobalEnabled() {
+	m.global_enabled = nil
+}
+
+// SetTicketAmount sets the "ticket_amount" field.
+func (m *ZenxiangLiyuSettingMutation) SetTicketAmount(f float64) {
+	m.ticket_amount = &f
+	m.addticket_amount = nil
+}
+
+// TicketAmount returns the value of the "ticket_amount" field in the mutation.
+func (m *ZenxiangLiyuSettingMutation) TicketAmount() (r float64, exists bool) {
+	v := m.ticket_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTicketAmount returns the old "ticket_amount" field's value of the ZenxiangLiyuSetting entity.
+// If the ZenxiangLiyuSetting object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuSettingMutation) OldTicketAmount(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTicketAmount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTicketAmount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTicketAmount: %w", err)
+	}
+	return oldValue.TicketAmount, nil
+}
+
+// AddTicketAmount adds f to the "ticket_amount" field.
+func (m *ZenxiangLiyuSettingMutation) AddTicketAmount(f float64) {
+	if m.addticket_amount != nil {
+		*m.addticket_amount += f
+	} else {
+		m.addticket_amount = &f
+	}
+}
+
+// AddedTicketAmount returns the value that was added to the "ticket_amount" field in this mutation.
+func (m *ZenxiangLiyuSettingMutation) AddedTicketAmount() (r float64, exists bool) {
+	v := m.addticket_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTicketAmount resets all changes to the "ticket_amount" field.
+func (m *ZenxiangLiyuSettingMutation) ResetTicketAmount() {
+	m.ticket_amount = nil
+	m.addticket_amount = nil
+}
+
+// SetMinimumBalance sets the "minimum_balance" field.
+func (m *ZenxiangLiyuSettingMutation) SetMinimumBalance(f float64) {
+	m.minimum_balance = &f
+	m.addminimum_balance = nil
+}
+
+// MinimumBalance returns the value of the "minimum_balance" field in the mutation.
+func (m *ZenxiangLiyuSettingMutation) MinimumBalance() (r float64, exists bool) {
+	v := m.minimum_balance
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMinimumBalance returns the old "minimum_balance" field's value of the ZenxiangLiyuSetting entity.
+// If the ZenxiangLiyuSetting object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuSettingMutation) OldMinimumBalance(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMinimumBalance is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMinimumBalance requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMinimumBalance: %w", err)
+	}
+	return oldValue.MinimumBalance, nil
+}
+
+// AddMinimumBalance adds f to the "minimum_balance" field.
+func (m *ZenxiangLiyuSettingMutation) AddMinimumBalance(f float64) {
+	if m.addminimum_balance != nil {
+		*m.addminimum_balance += f
+	} else {
+		m.addminimum_balance = &f
+	}
+}
+
+// AddedMinimumBalance returns the value that was added to the "minimum_balance" field in this mutation.
+func (m *ZenxiangLiyuSettingMutation) AddedMinimumBalance() (r float64, exists bool) {
+	v := m.addminimum_balance
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMinimumBalance resets all changes to the "minimum_balance" field.
+func (m *ZenxiangLiyuSettingMutation) ResetMinimumBalance() {
+	m.minimum_balance = nil
+	m.addminimum_balance = nil
+}
+
+// SetDailyPlayLimit sets the "daily_play_limit" field.
+func (m *ZenxiangLiyuSettingMutation) SetDailyPlayLimit(i int) {
+	m.daily_play_limit = &i
+	m.adddaily_play_limit = nil
+}
+
+// DailyPlayLimit returns the value of the "daily_play_limit" field in the mutation.
+func (m *ZenxiangLiyuSettingMutation) DailyPlayLimit() (r int, exists bool) {
+	v := m.daily_play_limit
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDailyPlayLimit returns the old "daily_play_limit" field's value of the ZenxiangLiyuSetting entity.
+// If the ZenxiangLiyuSetting object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuSettingMutation) OldDailyPlayLimit(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDailyPlayLimit is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDailyPlayLimit requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDailyPlayLimit: %w", err)
+	}
+	return oldValue.DailyPlayLimit, nil
+}
+
+// AddDailyPlayLimit adds i to the "daily_play_limit" field.
+func (m *ZenxiangLiyuSettingMutation) AddDailyPlayLimit(i int) {
+	if m.adddaily_play_limit != nil {
+		*m.adddaily_play_limit += i
+	} else {
+		m.adddaily_play_limit = &i
+	}
+}
+
+// AddedDailyPlayLimit returns the value that was added to the "daily_play_limit" field in this mutation.
+func (m *ZenxiangLiyuSettingMutation) AddedDailyPlayLimit() (r int, exists bool) {
+	v := m.adddaily_play_limit
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetDailyPlayLimit resets all changes to the "daily_play_limit" field.
+func (m *ZenxiangLiyuSettingMutation) ResetDailyPlayLimit() {
+	m.daily_play_limit = nil
+	m.adddaily_play_limit = nil
+}
+
+// Where appends a list predicates to the ZenxiangLiyuSettingMutation builder.
+func (m *ZenxiangLiyuSettingMutation) Where(ps ...predicate.ZenxiangLiyuSetting) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ZenxiangLiyuSettingMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ZenxiangLiyuSettingMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ZenxiangLiyuSetting, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ZenxiangLiyuSettingMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ZenxiangLiyuSettingMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ZenxiangLiyuSetting).
+func (m *ZenxiangLiyuSettingMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ZenxiangLiyuSettingMutation) Fields() []string {
+	fields := make([]string, 0, 6)
+	if m.created_at != nil {
+		fields = append(fields, zenxiangliyusetting.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, zenxiangliyusetting.FieldUpdatedAt)
+	}
+	if m.global_enabled != nil {
+		fields = append(fields, zenxiangliyusetting.FieldGlobalEnabled)
+	}
+	if m.ticket_amount != nil {
+		fields = append(fields, zenxiangliyusetting.FieldTicketAmount)
+	}
+	if m.minimum_balance != nil {
+		fields = append(fields, zenxiangliyusetting.FieldMinimumBalance)
+	}
+	if m.daily_play_limit != nil {
+		fields = append(fields, zenxiangliyusetting.FieldDailyPlayLimit)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ZenxiangLiyuSettingMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case zenxiangliyusetting.FieldCreatedAt:
+		return m.CreatedAt()
+	case zenxiangliyusetting.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case zenxiangliyusetting.FieldGlobalEnabled:
+		return m.GlobalEnabled()
+	case zenxiangliyusetting.FieldTicketAmount:
+		return m.TicketAmount()
+	case zenxiangliyusetting.FieldMinimumBalance:
+		return m.MinimumBalance()
+	case zenxiangliyusetting.FieldDailyPlayLimit:
+		return m.DailyPlayLimit()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ZenxiangLiyuSettingMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case zenxiangliyusetting.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case zenxiangliyusetting.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case zenxiangliyusetting.FieldGlobalEnabled:
+		return m.OldGlobalEnabled(ctx)
+	case zenxiangliyusetting.FieldTicketAmount:
+		return m.OldTicketAmount(ctx)
+	case zenxiangliyusetting.FieldMinimumBalance:
+		return m.OldMinimumBalance(ctx)
+	case zenxiangliyusetting.FieldDailyPlayLimit:
+		return m.OldDailyPlayLimit(ctx)
+	}
+	return nil, fmt.Errorf("unknown ZenxiangLiyuSetting field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ZenxiangLiyuSettingMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case zenxiangliyusetting.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case zenxiangliyusetting.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case zenxiangliyusetting.FieldGlobalEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGlobalEnabled(v)
+		return nil
+	case zenxiangliyusetting.FieldTicketAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTicketAmount(v)
+		return nil
+	case zenxiangliyusetting.FieldMinimumBalance:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMinimumBalance(v)
+		return nil
+	case zenxiangliyusetting.FieldDailyPlayLimit:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDailyPlayLimit(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuSetting field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ZenxiangLiyuSettingMutation) AddedFields() []string {
+	var fields []string
+	if m.addticket_amount != nil {
+		fields = append(fields, zenxiangliyusetting.FieldTicketAmount)
+	}
+	if m.addminimum_balance != nil {
+		fields = append(fields, zenxiangliyusetting.FieldMinimumBalance)
+	}
+	if m.adddaily_play_limit != nil {
+		fields = append(fields, zenxiangliyusetting.FieldDailyPlayLimit)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ZenxiangLiyuSettingMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case zenxiangliyusetting.FieldTicketAmount:
+		return m.AddedTicketAmount()
+	case zenxiangliyusetting.FieldMinimumBalance:
+		return m.AddedMinimumBalance()
+	case zenxiangliyusetting.FieldDailyPlayLimit:
+		return m.AddedDailyPlayLimit()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ZenxiangLiyuSettingMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case zenxiangliyusetting.FieldTicketAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTicketAmount(v)
+		return nil
+	case zenxiangliyusetting.FieldMinimumBalance:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMinimumBalance(v)
+		return nil
+	case zenxiangliyusetting.FieldDailyPlayLimit:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDailyPlayLimit(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuSetting numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ZenxiangLiyuSettingMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ZenxiangLiyuSettingMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ZenxiangLiyuSettingMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown ZenxiangLiyuSetting nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ZenxiangLiyuSettingMutation) ResetField(name string) error {
+	switch name {
+	case zenxiangliyusetting.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case zenxiangliyusetting.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case zenxiangliyusetting.FieldGlobalEnabled:
+		m.ResetGlobalEnabled()
+		return nil
+	case zenxiangliyusetting.FieldTicketAmount:
+		m.ResetTicketAmount()
+		return nil
+	case zenxiangliyusetting.FieldMinimumBalance:
+		m.ResetMinimumBalance()
+		return nil
+	case zenxiangliyusetting.FieldDailyPlayLimit:
+		m.ResetDailyPlayLimit()
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuSetting field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ZenxiangLiyuSettingMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ZenxiangLiyuSettingMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ZenxiangLiyuSettingMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ZenxiangLiyuSettingMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ZenxiangLiyuSettingMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ZenxiangLiyuSettingMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ZenxiangLiyuSettingMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown ZenxiangLiyuSetting unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ZenxiangLiyuSettingMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown ZenxiangLiyuSetting edge %s", name)
+}
+
+// ZenxiangLiyuUserGrantMutation represents an operation that mutates the ZenxiangLiyuUserGrant nodes in the graph.
+type ZenxiangLiyuUserGrantMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int64
+	created_at    *time.Time
+	updated_at    *time.Time
+	enabled       *bool
+	granted_by    *int64
+	addgranted_by *int64
+	notes         *string
+	clearedFields map[string]struct{}
+	user          *int64
+	cleareduser   bool
+	done          bool
+	oldValue      func(context.Context) (*ZenxiangLiyuUserGrant, error)
+	predicates    []predicate.ZenxiangLiyuUserGrant
+}
+
+var _ ent.Mutation = (*ZenxiangLiyuUserGrantMutation)(nil)
+
+// zenxiangliyuusergrantOption allows management of the mutation configuration using functional options.
+type zenxiangliyuusergrantOption func(*ZenxiangLiyuUserGrantMutation)
+
+// newZenxiangLiyuUserGrantMutation creates new mutation for the ZenxiangLiyuUserGrant entity.
+func newZenxiangLiyuUserGrantMutation(c config, op Op, opts ...zenxiangliyuusergrantOption) *ZenxiangLiyuUserGrantMutation {
+	m := &ZenxiangLiyuUserGrantMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeZenxiangLiyuUserGrant,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withZenxiangLiyuUserGrantID sets the ID field of the mutation.
+func withZenxiangLiyuUserGrantID(id int64) zenxiangliyuusergrantOption {
+	return func(m *ZenxiangLiyuUserGrantMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ZenxiangLiyuUserGrant
+		)
+		m.oldValue = func(ctx context.Context) (*ZenxiangLiyuUserGrant, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ZenxiangLiyuUserGrant.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withZenxiangLiyuUserGrant sets the old ZenxiangLiyuUserGrant of the mutation.
+func withZenxiangLiyuUserGrant(node *ZenxiangLiyuUserGrant) zenxiangliyuusergrantOption {
+	return func(m *ZenxiangLiyuUserGrantMutation) {
+		m.oldValue = func(context.Context) (*ZenxiangLiyuUserGrant, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ZenxiangLiyuUserGrantMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ZenxiangLiyuUserGrantMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ZenxiangLiyuUserGrantMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ZenxiangLiyuUserGrantMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ZenxiangLiyuUserGrant.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ZenxiangLiyuUserGrantMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ZenxiangLiyuUserGrantMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the ZenxiangLiyuUserGrant entity.
+// If the ZenxiangLiyuUserGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuUserGrantMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ZenxiangLiyuUserGrantMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *ZenxiangLiyuUserGrantMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *ZenxiangLiyuUserGrantMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the ZenxiangLiyuUserGrant entity.
+// If the ZenxiangLiyuUserGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuUserGrantMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *ZenxiangLiyuUserGrantMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetUserID sets the "user_id" field.
+func (m *ZenxiangLiyuUserGrantMutation) SetUserID(i int64) {
+	m.user = &i
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *ZenxiangLiyuUserGrantMutation) UserID() (r int64, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the ZenxiangLiyuUserGrant entity.
+// If the ZenxiangLiyuUserGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuUserGrantMutation) OldUserID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *ZenxiangLiyuUserGrantMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetEnabled sets the "enabled" field.
+func (m *ZenxiangLiyuUserGrantMutation) SetEnabled(b bool) {
+	m.enabled = &b
+}
+
+// Enabled returns the value of the "enabled" field in the mutation.
+func (m *ZenxiangLiyuUserGrantMutation) Enabled() (r bool, exists bool) {
+	v := m.enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEnabled returns the old "enabled" field's value of the ZenxiangLiyuUserGrant entity.
+// If the ZenxiangLiyuUserGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuUserGrantMutation) OldEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEnabled: %w", err)
+	}
+	return oldValue.Enabled, nil
+}
+
+// ResetEnabled resets all changes to the "enabled" field.
+func (m *ZenxiangLiyuUserGrantMutation) ResetEnabled() {
+	m.enabled = nil
+}
+
+// SetGrantedBy sets the "granted_by" field.
+func (m *ZenxiangLiyuUserGrantMutation) SetGrantedBy(i int64) {
+	m.granted_by = &i
+	m.addgranted_by = nil
+}
+
+// GrantedBy returns the value of the "granted_by" field in the mutation.
+func (m *ZenxiangLiyuUserGrantMutation) GrantedBy() (r int64, exists bool) {
+	v := m.granted_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGrantedBy returns the old "granted_by" field's value of the ZenxiangLiyuUserGrant entity.
+// If the ZenxiangLiyuUserGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuUserGrantMutation) OldGrantedBy(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGrantedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGrantedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGrantedBy: %w", err)
+	}
+	return oldValue.GrantedBy, nil
+}
+
+// AddGrantedBy adds i to the "granted_by" field.
+func (m *ZenxiangLiyuUserGrantMutation) AddGrantedBy(i int64) {
+	if m.addgranted_by != nil {
+		*m.addgranted_by += i
+	} else {
+		m.addgranted_by = &i
+	}
+}
+
+// AddedGrantedBy returns the value that was added to the "granted_by" field in this mutation.
+func (m *ZenxiangLiyuUserGrantMutation) AddedGrantedBy() (r int64, exists bool) {
+	v := m.addgranted_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearGrantedBy clears the value of the "granted_by" field.
+func (m *ZenxiangLiyuUserGrantMutation) ClearGrantedBy() {
+	m.granted_by = nil
+	m.addgranted_by = nil
+	m.clearedFields[zenxiangliyuusergrant.FieldGrantedBy] = struct{}{}
+}
+
+// GrantedByCleared returns if the "granted_by" field was cleared in this mutation.
+func (m *ZenxiangLiyuUserGrantMutation) GrantedByCleared() bool {
+	_, ok := m.clearedFields[zenxiangliyuusergrant.FieldGrantedBy]
+	return ok
+}
+
+// ResetGrantedBy resets all changes to the "granted_by" field.
+func (m *ZenxiangLiyuUserGrantMutation) ResetGrantedBy() {
+	m.granted_by = nil
+	m.addgranted_by = nil
+	delete(m.clearedFields, zenxiangliyuusergrant.FieldGrantedBy)
+}
+
+// SetNotes sets the "notes" field.
+func (m *ZenxiangLiyuUserGrantMutation) SetNotes(s string) {
+	m.notes = &s
+}
+
+// Notes returns the value of the "notes" field in the mutation.
+func (m *ZenxiangLiyuUserGrantMutation) Notes() (r string, exists bool) {
+	v := m.notes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNotes returns the old "notes" field's value of the ZenxiangLiyuUserGrant entity.
+// If the ZenxiangLiyuUserGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ZenxiangLiyuUserGrantMutation) OldNotes(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNotes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNotes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNotes: %w", err)
+	}
+	return oldValue.Notes, nil
+}
+
+// ResetNotes resets all changes to the "notes" field.
+func (m *ZenxiangLiyuUserGrantMutation) ResetNotes() {
+	m.notes = nil
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *ZenxiangLiyuUserGrantMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[zenxiangliyuusergrant.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *ZenxiangLiyuUserGrantMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *ZenxiangLiyuUserGrantMutation) UserIDs() (ids []int64) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *ZenxiangLiyuUserGrantMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the ZenxiangLiyuUserGrantMutation builder.
+func (m *ZenxiangLiyuUserGrantMutation) Where(ps ...predicate.ZenxiangLiyuUserGrant) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ZenxiangLiyuUserGrantMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ZenxiangLiyuUserGrantMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ZenxiangLiyuUserGrant, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ZenxiangLiyuUserGrantMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ZenxiangLiyuUserGrantMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ZenxiangLiyuUserGrant).
+func (m *ZenxiangLiyuUserGrantMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ZenxiangLiyuUserGrantMutation) Fields() []string {
+	fields := make([]string, 0, 6)
+	if m.created_at != nil {
+		fields = append(fields, zenxiangliyuusergrant.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, zenxiangliyuusergrant.FieldUpdatedAt)
+	}
+	if m.user != nil {
+		fields = append(fields, zenxiangliyuusergrant.FieldUserID)
+	}
+	if m.enabled != nil {
+		fields = append(fields, zenxiangliyuusergrant.FieldEnabled)
+	}
+	if m.granted_by != nil {
+		fields = append(fields, zenxiangliyuusergrant.FieldGrantedBy)
+	}
+	if m.notes != nil {
+		fields = append(fields, zenxiangliyuusergrant.FieldNotes)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ZenxiangLiyuUserGrantMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case zenxiangliyuusergrant.FieldCreatedAt:
+		return m.CreatedAt()
+	case zenxiangliyuusergrant.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case zenxiangliyuusergrant.FieldUserID:
+		return m.UserID()
+	case zenxiangliyuusergrant.FieldEnabled:
+		return m.Enabled()
+	case zenxiangliyuusergrant.FieldGrantedBy:
+		return m.GrantedBy()
+	case zenxiangliyuusergrant.FieldNotes:
+		return m.Notes()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ZenxiangLiyuUserGrantMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case zenxiangliyuusergrant.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case zenxiangliyuusergrant.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case zenxiangliyuusergrant.FieldUserID:
+		return m.OldUserID(ctx)
+	case zenxiangliyuusergrant.FieldEnabled:
+		return m.OldEnabled(ctx)
+	case zenxiangliyuusergrant.FieldGrantedBy:
+		return m.OldGrantedBy(ctx)
+	case zenxiangliyuusergrant.FieldNotes:
+		return m.OldNotes(ctx)
+	}
+	return nil, fmt.Errorf("unknown ZenxiangLiyuUserGrant field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ZenxiangLiyuUserGrantMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case zenxiangliyuusergrant.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case zenxiangliyuusergrant.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case zenxiangliyuusergrant.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case zenxiangliyuusergrant.FieldEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEnabled(v)
+		return nil
+	case zenxiangliyuusergrant.FieldGrantedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGrantedBy(v)
+		return nil
+	case zenxiangliyuusergrant.FieldNotes:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNotes(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuUserGrant field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ZenxiangLiyuUserGrantMutation) AddedFields() []string {
+	var fields []string
+	if m.addgranted_by != nil {
+		fields = append(fields, zenxiangliyuusergrant.FieldGrantedBy)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ZenxiangLiyuUserGrantMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case zenxiangliyuusergrant.FieldGrantedBy:
+		return m.AddedGrantedBy()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ZenxiangLiyuUserGrantMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case zenxiangliyuusergrant.FieldGrantedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGrantedBy(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuUserGrant numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ZenxiangLiyuUserGrantMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(zenxiangliyuusergrant.FieldGrantedBy) {
+		fields = append(fields, zenxiangliyuusergrant.FieldGrantedBy)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ZenxiangLiyuUserGrantMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ZenxiangLiyuUserGrantMutation) ClearField(name string) error {
+	switch name {
+	case zenxiangliyuusergrant.FieldGrantedBy:
+		m.ClearGrantedBy()
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuUserGrant nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ZenxiangLiyuUserGrantMutation) ResetField(name string) error {
+	switch name {
+	case zenxiangliyuusergrant.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case zenxiangliyuusergrant.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case zenxiangliyuusergrant.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case zenxiangliyuusergrant.FieldEnabled:
+		m.ResetEnabled()
+		return nil
+	case zenxiangliyuusergrant.FieldGrantedBy:
+		m.ResetGrantedBy()
+		return nil
+	case zenxiangliyuusergrant.FieldNotes:
+		m.ResetNotes()
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuUserGrant field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ZenxiangLiyuUserGrantMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, zenxiangliyuusergrant.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ZenxiangLiyuUserGrantMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case zenxiangliyuusergrant.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ZenxiangLiyuUserGrantMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ZenxiangLiyuUserGrantMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ZenxiangLiyuUserGrantMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, zenxiangliyuusergrant.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ZenxiangLiyuUserGrantMutation) EdgeCleared(name string) bool {
+	switch name {
+	case zenxiangliyuusergrant.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ZenxiangLiyuUserGrantMutation) ClearEdge(name string) error {
+	switch name {
+	case zenxiangliyuusergrant.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuUserGrant unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ZenxiangLiyuUserGrantMutation) ResetEdge(name string) error {
+	switch name {
+	case zenxiangliyuusergrant.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown ZenxiangLiyuUserGrant edge %s", name)
 }

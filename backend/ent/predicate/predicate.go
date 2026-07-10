@@ -131,3 +131,15 @@ type WorkbenchConversation func(*sql.Selector)
 
 // WorkbenchMessage is the predicate function for workbenchmessage builders.
 type WorkbenchMessage func(*sql.Selector)
+
+// ZenxiangLiyuPrize is the predicate function for zenxiangliyuprize builders.
+type ZenxiangLiyuPrize func(*sql.Selector)
+
+// ZenxiangLiyuRecord is the predicate function for zenxiangliyurecord builders.
+type ZenxiangLiyuRecord func(*sql.Selector)
+
+// ZenxiangLiyuSetting is the predicate function for zenxiangliyusetting builders.
+type ZenxiangLiyuSetting func(*sql.Selector)
+
+// ZenxiangLiyuUserGrant is the predicate function for zenxiangliyuusergrant builders.
+type ZenxiangLiyuUserGrant func(*sql.Selector)

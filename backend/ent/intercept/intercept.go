@@ -51,6 +51,10 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 	"github.com/Wei-Shaw/sub2api/ent/workbenchconversation"
 	"github.com/Wei-Shaw/sub2api/ent/workbenchmessage"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuprize"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyusetting"
+	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuusergrant"
 )
 
 // The Query interface represents an operation that queries a graph.
@@ -1243,6 +1247,114 @@ func (f TraverseWorkbenchMessage) Traverse(ctx context.Context, q ent.Query) err
 	return fmt.Errorf("unexpected query type %T. expect *ent.WorkbenchMessageQuery", q)
 }
 
+// The ZenxiangLiyuPrizeFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ZenxiangLiyuPrizeFunc func(context.Context, *ent.ZenxiangLiyuPrizeQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ZenxiangLiyuPrizeFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ZenxiangLiyuPrizeQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ZenxiangLiyuPrizeQuery", q)
+}
+
+// The TraverseZenxiangLiyuPrize type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseZenxiangLiyuPrize func(context.Context, *ent.ZenxiangLiyuPrizeQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseZenxiangLiyuPrize) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseZenxiangLiyuPrize) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ZenxiangLiyuPrizeQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ZenxiangLiyuPrizeQuery", q)
+}
+
+// The ZenxiangLiyuRecordFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ZenxiangLiyuRecordFunc func(context.Context, *ent.ZenxiangLiyuRecordQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ZenxiangLiyuRecordFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ZenxiangLiyuRecordQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ZenxiangLiyuRecordQuery", q)
+}
+
+// The TraverseZenxiangLiyuRecord type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseZenxiangLiyuRecord func(context.Context, *ent.ZenxiangLiyuRecordQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseZenxiangLiyuRecord) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseZenxiangLiyuRecord) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ZenxiangLiyuRecordQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ZenxiangLiyuRecordQuery", q)
+}
+
+// The ZenxiangLiyuSettingFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ZenxiangLiyuSettingFunc func(context.Context, *ent.ZenxiangLiyuSettingQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ZenxiangLiyuSettingFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ZenxiangLiyuSettingQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ZenxiangLiyuSettingQuery", q)
+}
+
+// The TraverseZenxiangLiyuSetting type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseZenxiangLiyuSetting func(context.Context, *ent.ZenxiangLiyuSettingQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseZenxiangLiyuSetting) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseZenxiangLiyuSetting) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ZenxiangLiyuSettingQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ZenxiangLiyuSettingQuery", q)
+}
+
+// The ZenxiangLiyuUserGrantFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ZenxiangLiyuUserGrantFunc func(context.Context, *ent.ZenxiangLiyuUserGrantQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ZenxiangLiyuUserGrantFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ZenxiangLiyuUserGrantQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ZenxiangLiyuUserGrantQuery", q)
+}
+
+// The TraverseZenxiangLiyuUserGrant type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseZenxiangLiyuUserGrant func(context.Context, *ent.ZenxiangLiyuUserGrantQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseZenxiangLiyuUserGrant) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseZenxiangLiyuUserGrant) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ZenxiangLiyuUserGrantQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ZenxiangLiyuUserGrantQuery", q)
+}
+
 // NewQuery returns the generic Query interface for the given typed query.
 func NewQuery(q ent.Query) (Query, error) {
 	switch q := q.(type) {
@@ -1330,6 +1442,14 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.WorkbenchConversationQuery, predicate.WorkbenchConversation, workbenchconversation.OrderOption]{typ: ent.TypeWorkbenchConversation, tq: q}, nil
 	case *ent.WorkbenchMessageQuery:
 		return &query[*ent.WorkbenchMessageQuery, predicate.WorkbenchMessage, workbenchmessage.OrderOption]{typ: ent.TypeWorkbenchMessage, tq: q}, nil
+	case *ent.ZenxiangLiyuPrizeQuery:
+		return &query[*ent.ZenxiangLiyuPrizeQuery, predicate.ZenxiangLiyuPrize, zenxiangliyuprize.OrderOption]{typ: ent.TypeZenxiangLiyuPrize, tq: q}, nil
+	case *ent.ZenxiangLiyuRecordQuery:
+		return &query[*ent.ZenxiangLiyuRecordQuery, predicate.ZenxiangLiyuRecord, zenxiangliyurecord.OrderOption]{typ: ent.TypeZenxiangLiyuRecord, tq: q}, nil
+	case *ent.ZenxiangLiyuSettingQuery:
+		return &query[*ent.ZenxiangLiyuSettingQuery, predicate.ZenxiangLiyuSetting, zenxiangliyusetting.OrderOption]{typ: ent.TypeZenxiangLiyuSetting, tq: q}, nil
+	case *ent.ZenxiangLiyuUserGrantQuery:
+		return &query[*ent.ZenxiangLiyuUserGrantQuery, predicate.ZenxiangLiyuUserGrant, zenxiangliyuusergrant.OrderOption]{typ: ent.TypeZenxiangLiyuUserGrant, tq: q}, nil
 	default:
 		return nil, fmt.Errorf("unknown query type %T", q)
 	}
