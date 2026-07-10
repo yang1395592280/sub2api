@@ -13,6 +13,37 @@ import (
 type zenxiangLiyuUserService interface {
 	GetStatus(ctx context.Context, userID int64) (*service.ZenxiangLiyuStatus, error)
 	Play(ctx context.Context, userID int64, requestID string) (*service.ZenxiangLiyuPlayResult, error)
+	ListUserRecords(ctx context.Context, userID int64, page, pageSize int) ([]service.ZenxiangLiyuRecord, int, error)
+	GetUserDailySummary(ctx context.Context, userID int64) (*service.ZenxiangLiyuDailySummary, error)
+}
+
+func (h *ZenxiangLiyuHandler) ListRecords(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	records, total, err := h.service.ListUserRecords(c.Request.Context(), subject.UserID, page, pageSize)
+	if err != nil {
+		response.InternalError(c, "Failed to get Zenxiang Liyu records")
+		return
+	}
+	response.Paginated(c, records, int64(total), page, pageSize)
+}
+
+func (h *ZenxiangLiyuHandler) GetDailySummary(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	summary, err := h.service.GetUserDailySummary(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.InternalError(c, "Failed to get Zenxiang Liyu daily summary")
+		return
+	}
+	response.Success(c, summary)
 }
 
 // ZenxiangLiyuHandler handles the authenticated user-facing Zenxiang Liyu APIs.

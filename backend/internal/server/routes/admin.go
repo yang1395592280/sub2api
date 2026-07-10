@@ -113,6 +113,30 @@ func RegisterAdminRoutes(
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
 
+		registerZenxiangLiyuRoutes(admin, h)
+
+	}
+}
+
+func registerZenxiangLiyuRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	zenxiangLiyu := admin.Group("/zenxiang-liyu")
+	{
+		zenxiangLiyu.GET("/settings", h.Admin.ZenxiangLiyu.GetSettings)
+		zenxiangLiyu.PUT("/settings", h.Admin.ZenxiangLiyu.UpdateSettings)
+		zenxiangLiyu.GET("/prizes", h.Admin.ZenxiangLiyu.ListPrizes)
+		zenxiangLiyu.POST("/prizes", h.Admin.ZenxiangLiyu.SavePrize)
+		zenxiangLiyu.PUT("/prizes", h.Admin.ZenxiangLiyu.SavePrizes)
+		zenxiangLiyu.PUT("/prizes/:id", h.Admin.ZenxiangLiyu.SavePrize)
+		zenxiangLiyu.DELETE("/prizes/:id", h.Admin.ZenxiangLiyu.DeletePrize)
+		zenxiangLiyu.GET("/grants", h.Admin.ZenxiangLiyu.ListGrants)
+		zenxiangLiyu.POST("/grants", h.Admin.ZenxiangLiyu.CreateGrant)
+		zenxiangLiyu.DELETE("/grants/:user_id", h.Admin.ZenxiangLiyu.DeleteGrant)
+		zenxiangLiyu.GET("/stats/overview", h.Admin.ZenxiangLiyu.GetOverviewStats)
+		zenxiangLiyu.GET("/stats/users", h.Admin.ZenxiangLiyu.GetUserStats)
+		zenxiangLiyu.GET("/stats/prizes", h.Admin.ZenxiangLiyu.GetPrizeStats)
+		zenxiangLiyu.POST("/simulate", h.Admin.ZenxiangLiyu.Simulate)
+		zenxiangLiyu.POST("/simulate/recommend", h.Admin.ZenxiangLiyu.Recommend)
+		zenxiangLiyu.POST("/simulate/apply", h.Admin.ZenxiangLiyu.ApplySimulation)
 	}
 }
 

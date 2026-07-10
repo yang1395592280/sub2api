@@ -43,6 +43,7 @@ func ProvideAdminHandlers(
 	paymentHandler *admin.PaymentHandler,
 	affiliateHandler *admin.AffiliateHandler,
 	complianceHandler *admin.ComplianceHandler,
+	zenxiangLiyuHandler *admin.ZenxiangLiyuHandler,
 ) *AdminHandlers {
 	return &AdminHandlers{
 		Dashboard:              dashboardHandler,
@@ -79,6 +80,7 @@ func ProvideAdminHandlers(
 		Payment:                paymentHandler,
 		Affiliate:              affiliateHandler,
 		Compliance:             complianceHandler,
+		ZenxiangLiyu:           zenxiangLiyuHandler,
 	}
 }
 
@@ -107,6 +109,10 @@ func ProvideAdminUserHandler(adminService service.AdminService, concurrencyServi
 
 func ProvideZenxiangLiyuHandler(service *service.ZenxiangLiyuService) *ZenxiangLiyuHandler {
 	return NewZenxiangLiyuHandler(service)
+}
+
+func ProvideAdminZenxiangLiyuHandler(service *service.ZenxiangLiyuService) *admin.ZenxiangLiyuHandler {
+	return admin.NewZenxiangLiyuHandler(service)
 }
 
 func ProvideAdminAccountHandler(
@@ -216,6 +222,7 @@ var ProviderSet = wire.NewSet(
 	NewWorkbenchHandler,
 	NewBatchImageHandler,
 	ProvideZenxiangLiyuHandler,
+	ProvideAdminZenxiangLiyuHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,

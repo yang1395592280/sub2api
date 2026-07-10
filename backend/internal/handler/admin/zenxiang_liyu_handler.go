@@ -1,0 +1,192 @@
+package admin
+
+import (
+	"context"
+	"strconv"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
+	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/gin-gonic/gin"
+)
+
+type zenxiangLiyuAdminService interface {
+	GetSettings(context.Context) (*service.ZenxiangLiyuSettings, error)
+	UpdateSettings(context.Context, service.ZenxiangLiyuSettingsUpdate) (*service.ZenxiangLiyuSettings, error)
+	ListPrizes(context.Context) ([]service.ZenxiangLiyuPrize, error)
+	SavePrize(context.Context, service.ZenxiangLiyuPrizeUpdate) (*service.ZenxiangLiyuPrize, error)
+	SavePrizes(context.Context, []service.ZenxiangLiyuPrizeUpdate) ([]service.ZenxiangLiyuPrize, error)
+	DeletePrize(context.Context, int64) error
+	ListGrants(context.Context, int, int) ([]service.ZenxiangLiyuGrant, int, error)
+	SaveGrant(context.Context, service.ZenxiangLiyuGrant) (*service.ZenxiangLiyuGrant, error)
+	DeleteGrant(context.Context, int64) error
+	GetOverviewStats(context.Context) (*service.ZenxiangLiyuOverviewStats, error)
+	ListUserStats(context.Context, int, int) ([]service.ZenxiangLiyuUserStats, int, error)
+	ListPrizeStats(context.Context) ([]service.ZenxiangLiyuPrizeStats, error)
+	Simulate(context.Context, service.ZenxiangLiyuSimulationRequest) (*service.ZenxiangLiyuSimulationResult, error)
+	Recommend(context.Context, service.ZenxiangLiyuRecommendationRequest) (*service.ZenxiangLiyuRecommendationResult, error)
+	ApplySimulation(context.Context, []service.ZenxiangLiyuPrizeUpdate) ([]service.ZenxiangLiyuPrize, error)
+}
+
+type ZenxiangLiyuHandler struct{ service zenxiangLiyuAdminService }
+
+func NewZenxiangLiyuHandler(service zenxiangLiyuAdminService) *ZenxiangLiyuHandler {
+	return &ZenxiangLiyuHandler{service: service}
+}
+
+type zenxiangLiyuPrizeListRequest struct {
+	Prizes []service.ZenxiangLiyuPrizeUpdate `json:"prizes" binding:"required"`
+}
+type zenxiangLiyuGrantRequest struct {
+	UserID  int64  `json:"user_id" binding:"required"`
+	Enabled *bool  `json:"enabled"`
+	Notes   string `json:"notes"`
+}
+
+func (h *ZenxiangLiyuHandler) GetSettings(c *gin.Context) {
+	data, err := h.service.GetSettings(c.Request.Context())
+	h.respond(c, data, err)
+}
+func (h *ZenxiangLiyuHandler) UpdateSettings(c *gin.Context) {
+	var req service.ZenxiangLiyuSettingsUpdate
+	if !bindZenxiangLiyuJSON(c, &req) {
+		return
+	}
+	data, err := h.service.UpdateSettings(c.Request.Context(), req)
+	h.respond(c, data, err)
+}
+func (h *ZenxiangLiyuHandler) ListPrizes(c *gin.Context) {
+	data, err := h.service.ListPrizes(c.Request.Context())
+	h.respond(c, data, err)
+}
+func (h *ZenxiangLiyuHandler) SavePrize(c *gin.Context) {
+	var req service.ZenxiangLiyuPrizeUpdate
+	if !bindZenxiangLiyuJSON(c, &req) {
+		return
+	}
+	if id := c.Param("id"); id != "" {
+		parsed, err := strconv.ParseInt(id, 10, 64)
+		if err != nil || parsed <= 0 {
+			response.BadRequest(c, "Invalid prize ID")
+			return
+		}
+		req.ID = parsed
+	}
+	data, err := h.service.SavePrize(c.Request.Context(), req)
+	h.respond(c, data, err)
+}
+
+// SavePrizes replaces the complete prize configuration and disables omitted tiers.
+func (h *ZenxiangLiyuHandler) SavePrizes(c *gin.Context) {
+	var req zenxiangLiyuPrizeListRequest
+	if !bindZenxiangLiyuJSON(c, &req) {
+		return
+	}
+	data, err := h.service.SavePrizes(c.Request.Context(), req.Prizes)
+	h.respond(c, data, err)
+}
+func (h *ZenxiangLiyuHandler) DeletePrize(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "Invalid prize ID")
+		return
+	}
+	if err := h.service.DeletePrize(c.Request.Context(), id); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"id": id})
+}
+func (h *ZenxiangLiyuHandler) ListGrants(c *gin.Context) {
+	page, pageSize := response.ParsePagination(c)
+	grants, total, err := h.service.ListGrants(c.Request.Context(), page, pageSize)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, grants, int64(total), page, pageSize)
+}
+func (h *ZenxiangLiyuHandler) CreateGrant(c *gin.Context) {
+	var req zenxiangLiyuGrantRequest
+	if !bindZenxiangLiyuJSON(c, &req) {
+		return
+	}
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+	grant := service.ZenxiangLiyuGrant{UserID: req.UserID, Enabled: enabled, Notes: req.Notes}
+	if subject, ok := middleware.GetAuthSubjectFromContext(c); ok {
+		grant.GrantedBy = &subject.UserID
+	}
+	data, err := h.service.SaveGrant(c.Request.Context(), grant)
+	h.respond(c, data, err)
+}
+func (h *ZenxiangLiyuHandler) DeleteGrant(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("user_id"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.BadRequest(c, "Invalid user_id")
+		return
+	}
+	if err := h.service.DeleteGrant(c.Request.Context(), userID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"user_id": userID})
+}
+func (h *ZenxiangLiyuHandler) GetOverviewStats(c *gin.Context) {
+	data, err := h.service.GetOverviewStats(c.Request.Context())
+	h.respond(c, data, err)
+}
+func (h *ZenxiangLiyuHandler) GetUserStats(c *gin.Context) {
+	page, pageSize := response.ParsePagination(c)
+	stats, total, err := h.service.ListUserStats(c.Request.Context(), page, pageSize)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, stats, int64(total), page, pageSize)
+}
+func (h *ZenxiangLiyuHandler) GetPrizeStats(c *gin.Context) {
+	data, err := h.service.ListPrizeStats(c.Request.Context())
+	h.respond(c, data, err)
+}
+func (h *ZenxiangLiyuHandler) Simulate(c *gin.Context) {
+	var req service.ZenxiangLiyuSimulationRequest
+	if !bindZenxiangLiyuJSON(c, &req) {
+		return
+	}
+	data, err := h.service.Simulate(c.Request.Context(), req)
+	h.respond(c, data, err)
+}
+func (h *ZenxiangLiyuHandler) Recommend(c *gin.Context) {
+	var req service.ZenxiangLiyuRecommendationRequest
+	if !bindZenxiangLiyuJSON(c, &req) {
+		return
+	}
+	data, err := h.service.Recommend(c.Request.Context(), req)
+	h.respond(c, data, err)
+}
+func (h *ZenxiangLiyuHandler) ApplySimulation(c *gin.Context) {
+	var req zenxiangLiyuPrizeListRequest
+	if !bindZenxiangLiyuJSON(c, &req) {
+		return
+	}
+	data, err := h.service.ApplySimulation(c.Request.Context(), req.Prizes)
+	h.respond(c, data, err)
+}
+
+func bindZenxiangLiyuJSON(c *gin.Context, target any) bool {
+	if err := c.ShouldBindJSON(target); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return false
+	}
+	return true
+}
+func (h *ZenxiangLiyuHandler) respond(c *gin.Context, data any, err error) {
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, data)
+}

@@ -178,6 +178,128 @@ func (r *zenxiangLiyuRepository) CountUserPlaysOnDate(ctx context.Context, userI
 	return count, err
 }
 
+func (r *zenxiangLiyuRepository) ListUserRecords(ctx context.Context, userID int64, page, pageSize int) ([]service.ZenxiangLiyuRecord, int, error) {
+	var total int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM zenxiang_liyu_records WHERE user_id = $1`, userID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT id, request_id, ticket_amount, reward_amount, user_net_amount, prize_id, prize_name_snapshot, probability_snapshot, created_at FROM zenxiang_liyu_records WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`, userID, pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	records := make([]service.ZenxiangLiyuRecord, 0)
+	for rows.Next() {
+		var record service.ZenxiangLiyuRecord
+		if err := rows.Scan(&record.ID, &record.RequestID, &record.TicketAmount, &record.RewardAmount, &record.UserNetAmount, &record.PrizeID, &record.PrizeName, &record.Probability, &record.PlayedAt); err != nil {
+			return nil, 0, err
+		}
+		records = append(records, record)
+	}
+	return records, total, rows.Err()
+}
+
+func (r *zenxiangLiyuRepository) GetUserDailySummary(ctx context.Context, userID int64, playDate time.Time) (*service.ZenxiangLiyuDailySummary, error) {
+	summary := &service.ZenxiangLiyuDailySummary{PlayDate: playDate}
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(ticket_amount), 0), COALESCE(SUM(reward_amount), 0), COALESCE(SUM(user_net_amount), 0) FROM zenxiang_liyu_records WHERE user_id = $1 AND play_date = $2`, userID, playDate).Scan(&summary.PlayCount, &summary.TicketAmount, &summary.RewardAmount, &summary.UserNetAmount)
+	if err != nil {
+		return nil, err
+	}
+	return summary, nil
+}
+
+func (r *zenxiangLiyuRepository) ListGrants(ctx context.Context, page, pageSize int) ([]service.ZenxiangLiyuGrant, int, error) {
+	var total int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM zenxiang_liyu_user_grants`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT g.user_id, u.email, g.enabled, g.granted_by, g.notes, g.created_at, g.updated_at FROM zenxiang_liyu_user_grants g JOIN users u ON u.id = g.user_id ORDER BY g.updated_at DESC, g.user_id DESC LIMIT $1 OFFSET $2`, pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	grants := make([]service.ZenxiangLiyuGrant, 0)
+	for rows.Next() {
+		var grant service.ZenxiangLiyuGrant
+		if err := rows.Scan(&grant.UserID, &grant.UserEmail, &grant.Enabled, &grant.GrantedBy, &grant.Notes, &grant.CreatedAt, &grant.UpdatedAt); err != nil {
+			return nil, 0, err
+		}
+		grants = append(grants, grant)
+	}
+	return grants, total, rows.Err()
+}
+
+func (r *zenxiangLiyuRepository) SaveGrant(ctx context.Context, grant service.ZenxiangLiyuGrant) (*service.ZenxiangLiyuGrant, error) {
+	stored := &service.ZenxiangLiyuGrant{}
+	err := r.db.QueryRowContext(ctx, `INSERT INTO zenxiang_liyu_user_grants (user_id, enabled, granted_by, notes) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO UPDATE SET enabled = EXCLUDED.enabled, granted_by = EXCLUDED.granted_by, notes = EXCLUDED.notes, updated_at = NOW() RETURNING user_id, enabled, granted_by, notes, created_at, updated_at`, grant.UserID, grant.Enabled, grant.GrantedBy, grant.Notes).Scan(&stored.UserID, &stored.Enabled, &stored.GrantedBy, &stored.Notes, &stored.CreatedAt, &stored.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return stored, nil
+}
+
+func (r *zenxiangLiyuRepository) DeleteGrant(ctx context.Context, userID int64) error {
+	result, err := r.db.ExecContext(ctx, `DELETE FROM zenxiang_liyu_user_grants WHERE user_id = $1`, userID)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return service.ErrZenxiangLiyuInvalidSettings
+	}
+	return nil
+}
+
+func (r *zenxiangLiyuRepository) GetOverviewStats(ctx context.Context) (*service.ZenxiangLiyuOverviewStats, error) {
+	stats := &service.ZenxiangLiyuOverviewStats{}
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(system_revenue), 0), COALESCE(SUM(system_expense), 0), COALESCE(SUM(system_profit), 0), COUNT(DISTINCT user_id) FROM zenxiang_liyu_records`).Scan(&stats.TotalPlays, &stats.TotalRevenue, &stats.TotalExpense, &stats.NetProfit, &stats.ParticipatingUsers)
+	if err != nil {
+		return nil, err
+	}
+	return stats, nil
+}
+
+func (r *zenxiangLiyuRepository) ListUserStats(ctx context.Context, page, pageSize int) ([]service.ZenxiangLiyuUserStats, int, error) {
+	var total int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(DISTINCT user_id) FROM zenxiang_liyu_records`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT r.user_id, u.email, COUNT(*), COALESCE(SUM(r.ticket_amount), 0), COALESCE(SUM(r.reward_amount), 0), COALESCE(SUM(r.user_net_amount), 0) FROM zenxiang_liyu_records r JOIN users u ON u.id = r.user_id GROUP BY r.user_id, u.email ORDER BY COUNT(*) DESC, r.user_id DESC LIMIT $1 OFFSET $2`, pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	stats := make([]service.ZenxiangLiyuUserStats, 0)
+	for rows.Next() {
+		var stat service.ZenxiangLiyuUserStats
+		if err := rows.Scan(&stat.UserID, &stat.UserEmail, &stat.PlayCount, &stat.TicketAmount, &stat.RewardAmount, &stat.UserNetAmount); err != nil {
+			return nil, 0, err
+		}
+		stats = append(stats, stat)
+	}
+	return stats, total, rows.Err()
+}
+
+func (r *zenxiangLiyuRepository) ListPrizeStats(ctx context.Context) ([]service.ZenxiangLiyuPrizeStats, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT prize_id, prize_name_snapshot, COUNT(*), COALESCE(SUM(reward_amount), 0), MAX(probability_snapshot) FROM zenxiang_liyu_records GROUP BY prize_id, prize_name_snapshot ORDER BY COUNT(*) DESC, prize_name_snapshot`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	stats := make([]service.ZenxiangLiyuPrizeStats, 0)
+	for rows.Next() {
+		var stat service.ZenxiangLiyuPrizeStats
+		if err := rows.Scan(&stat.PrizeID, &stat.PrizeName, &stat.HitCount, &stat.RewardAmount, &stat.Probability); err != nil {
+			return nil, err
+		}
+		stats = append(stats, stat)
+	}
+	return stats, rows.Err()
+}
+
 func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangLiyuPlayCommand) (_ *service.ZenxiangLiyuPlayResult, err error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {

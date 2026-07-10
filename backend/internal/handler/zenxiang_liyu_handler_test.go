@@ -34,6 +34,13 @@ func (s *stubZenxiangLiyuService) Play(_ context.Context, userID int64, requestI
 	return s.playResult, s.playErr
 }
 
+func (s *stubZenxiangLiyuService) ListUserRecords(context.Context, int64, int, int) ([]service.ZenxiangLiyuRecord, int, error) {
+	return nil, 0, nil
+}
+func (s *stubZenxiangLiyuService) GetUserDailySummary(context.Context, int64) (*service.ZenxiangLiyuDailySummary, error) {
+	return &service.ZenxiangLiyuDailySummary{}, nil
+}
+
 func TestZenxiangLiyuHandlerPlayRejectsMissingRequestID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h := NewZenxiangLiyuHandler(&stubZenxiangLiyuService{})
@@ -113,5 +120,7 @@ func authenticatedZenxiangLiyuTestRouter(h *ZenxiangLiyuHandler) *gin.Engine {
 	})
 	router.GET("/zenxiang-liyu/status", h.GetStatus)
 	router.POST("/zenxiang-liyu/play", h.Play)
+	router.GET("/zenxiang-liyu/records", h.ListRecords)
+	router.GET("/zenxiang-liyu/daily-summary", h.GetDailySummary)
 	return router
 }

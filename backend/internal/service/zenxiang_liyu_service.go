@@ -146,6 +146,61 @@ type ZenxiangLiyuRecommendationResult struct {
 	Plans         []ZenxiangLiyuRecommendationPlan `json:"plans"`
 }
 
+type ZenxiangLiyuRecord struct {
+	ID            int64     `json:"id"`
+	RequestID     string    `json:"request_id"`
+	TicketAmount  float64   `json:"ticket_amount"`
+	RewardAmount  float64   `json:"reward_amount"`
+	UserNetAmount float64   `json:"user_net_amount"`
+	PrizeID       *int64    `json:"prize_id,omitempty"`
+	PrizeName     string    `json:"prize_name"`
+	Probability   float64   `json:"probability"`
+	PlayedAt      time.Time `json:"played_at"`
+}
+
+type ZenxiangLiyuDailySummary struct {
+	PlayDate      time.Time `json:"play_date"`
+	PlayCount     int       `json:"play_count"`
+	TicketAmount  float64   `json:"ticket_amount"`
+	RewardAmount  float64   `json:"reward_amount"`
+	UserNetAmount float64   `json:"user_net_amount"`
+}
+
+type ZenxiangLiyuGrant struct {
+	UserID    int64     `json:"user_id"`
+	UserEmail string    `json:"user_email"`
+	Enabled   bool      `json:"enabled"`
+	GrantedBy *int64    `json:"granted_by,omitempty"`
+	Notes     string    `json:"notes"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type ZenxiangLiyuOverviewStats struct {
+	TotalPlays         int     `json:"total_plays"`
+	TotalRevenue       float64 `json:"total_revenue"`
+	TotalExpense       float64 `json:"total_expense"`
+	NetProfit          float64 `json:"net_profit"`
+	ParticipatingUsers int     `json:"participating_users"`
+}
+
+type ZenxiangLiyuUserStats struct {
+	UserID        int64   `json:"user_id"`
+	UserEmail     string  `json:"user_email"`
+	PlayCount     int     `json:"play_count"`
+	TicketAmount  float64 `json:"ticket_amount"`
+	RewardAmount  float64 `json:"reward_amount"`
+	UserNetAmount float64 `json:"user_net_amount"`
+}
+
+type ZenxiangLiyuPrizeStats struct {
+	PrizeID      *int64  `json:"prize_id,omitempty"`
+	PrizeName    string  `json:"prize_name"`
+	HitCount     int     `json:"hit_count"`
+	RewardAmount float64 `json:"reward_amount"`
+	Probability  float64 `json:"probability"`
+}
+
 // ZenxiangLiyuRepository isolates service policy from the storage and transaction implementation.
 type ZenxiangLiyuRepository interface {
 	GetSettings(ctx context.Context) (*ZenxiangLiyuSettings, error)
@@ -156,7 +211,92 @@ type ZenxiangLiyuRepository interface {
 	DeletePrize(ctx context.Context, id int64) error
 	IsUserGranted(ctx context.Context, userID int64) (bool, error)
 	CountUserPlaysOnDate(ctx context.Context, userID int64, playDate time.Time) (int, error)
+	ListUserRecords(ctx context.Context, userID int64, page, pageSize int) ([]ZenxiangLiyuRecord, int, error)
+	GetUserDailySummary(ctx context.Context, userID int64, playDate time.Time) (*ZenxiangLiyuDailySummary, error)
+	ListGrants(ctx context.Context, page, pageSize int) ([]ZenxiangLiyuGrant, int, error)
+	SaveGrant(ctx context.Context, grant ZenxiangLiyuGrant) (*ZenxiangLiyuGrant, error)
+	DeleteGrant(ctx context.Context, userID int64) error
+	GetOverviewStats(ctx context.Context) (*ZenxiangLiyuOverviewStats, error)
+	ListUserStats(ctx context.Context, page, pageSize int) ([]ZenxiangLiyuUserStats, int, error)
+	ListPrizeStats(ctx context.Context) ([]ZenxiangLiyuPrizeStats, error)
 	Play(ctx context.Context, cmd ZenxiangLiyuPlayCommand) (*ZenxiangLiyuPlayResult, error)
+}
+
+func (s *ZenxiangLiyuService) ListUserRecords(ctx context.Context, userID int64, page, pageSize int) ([]ZenxiangLiyuRecord, int, error) {
+	if userID <= 0 || s.repo == nil {
+		return nil, 0, ErrZenxiangLiyuInvalidSettings
+	}
+	return s.repo.ListUserRecords(ctx, userID, normalizedZenxiangLiyuPage(page), normalizedZenxiangLiyuPageSize(pageSize))
+}
+
+func (s *ZenxiangLiyuService) GetUserDailySummary(ctx context.Context, userID int64) (*ZenxiangLiyuDailySummary, error) {
+	if userID <= 0 || s.repo == nil {
+		return nil, ErrZenxiangLiyuInvalidSettings
+	}
+	return s.repo.GetUserDailySummary(ctx, userID, s.playDate())
+}
+
+func (s *ZenxiangLiyuService) ListGrants(ctx context.Context, page, pageSize int) ([]ZenxiangLiyuGrant, int, error) {
+	if s.repo == nil {
+		return nil, 0, ErrZenxiangLiyuInvalidSettings
+	}
+	return s.repo.ListGrants(ctx, normalizedZenxiangLiyuPage(page), normalizedZenxiangLiyuPageSize(pageSize))
+}
+
+func (s *ZenxiangLiyuService) SaveGrant(ctx context.Context, grant ZenxiangLiyuGrant) (*ZenxiangLiyuGrant, error) {
+	if s.repo == nil || grant.UserID <= 0 {
+		return nil, ErrZenxiangLiyuInvalidSettings
+	}
+	return s.repo.SaveGrant(ctx, grant)
+}
+
+func (s *ZenxiangLiyuService) DeleteGrant(ctx context.Context, userID int64) error {
+	if s.repo == nil || userID <= 0 {
+		return ErrZenxiangLiyuInvalidSettings
+	}
+	return s.repo.DeleteGrant(ctx, userID)
+}
+
+func (s *ZenxiangLiyuService) GetOverviewStats(ctx context.Context) (*ZenxiangLiyuOverviewStats, error) {
+	if s.repo == nil {
+		return nil, ErrZenxiangLiyuInvalidSettings
+	}
+	return s.repo.GetOverviewStats(ctx)
+}
+
+func (s *ZenxiangLiyuService) ListUserStats(ctx context.Context, page, pageSize int) ([]ZenxiangLiyuUserStats, int, error) {
+	if s.repo == nil {
+		return nil, 0, ErrZenxiangLiyuInvalidSettings
+	}
+	return s.repo.ListUserStats(ctx, normalizedZenxiangLiyuPage(page), normalizedZenxiangLiyuPageSize(pageSize))
+}
+
+func (s *ZenxiangLiyuService) ListPrizeStats(ctx context.Context) ([]ZenxiangLiyuPrizeStats, error) {
+	if s.repo == nil {
+		return nil, ErrZenxiangLiyuInvalidSettings
+	}
+	return s.repo.ListPrizeStats(ctx)
+}
+
+// ApplySimulation persists only a simulated prize configuration. It never touches user balances or play records.
+func (s *ZenxiangLiyuService) ApplySimulation(ctx context.Context, prizes []ZenxiangLiyuPrizeUpdate) ([]ZenxiangLiyuPrize, error) {
+	return s.SavePrizes(ctx, prizes)
+}
+
+func normalizedZenxiangLiyuPage(page int) int {
+	if page < 1 {
+		return 1
+	}
+	return page
+}
+func normalizedZenxiangLiyuPageSize(pageSize int) int {
+	if pageSize < 1 {
+		return 20
+	}
+	if pageSize > 100 {
+		return 100
+	}
+	return pageSize
 }
 
 type ZenxiangLiyuService struct {

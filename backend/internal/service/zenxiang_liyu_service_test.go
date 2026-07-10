@@ -76,6 +76,29 @@ func (r *zenxiangLiyuServiceTestRepository) CountUserPlaysOnDate(context.Context
 	return r.countUserPlays, nil
 }
 
+func (r *zenxiangLiyuServiceTestRepository) ListUserRecords(context.Context, int64, int, int) ([]ZenxiangLiyuRecord, int, error) {
+	return nil, 0, nil
+}
+func (r *zenxiangLiyuServiceTestRepository) GetUserDailySummary(context.Context, int64, time.Time) (*ZenxiangLiyuDailySummary, error) {
+	return &ZenxiangLiyuDailySummary{}, nil
+}
+func (r *zenxiangLiyuServiceTestRepository) ListGrants(context.Context, int, int) ([]ZenxiangLiyuGrant, int, error) {
+	return nil, 0, nil
+}
+func (r *zenxiangLiyuServiceTestRepository) SaveGrant(context.Context, ZenxiangLiyuGrant) (*ZenxiangLiyuGrant, error) {
+	return nil, nil
+}
+func (r *zenxiangLiyuServiceTestRepository) DeleteGrant(context.Context, int64) error { return nil }
+func (r *zenxiangLiyuServiceTestRepository) GetOverviewStats(context.Context) (*ZenxiangLiyuOverviewStats, error) {
+	return nil, nil
+}
+func (r *zenxiangLiyuServiceTestRepository) ListUserStats(context.Context, int, int) ([]ZenxiangLiyuUserStats, int, error) {
+	return nil, 0, nil
+}
+func (r *zenxiangLiyuServiceTestRepository) ListPrizeStats(context.Context) ([]ZenxiangLiyuPrizeStats, error) {
+	return nil, nil
+}
+
 func (r *zenxiangLiyuServiceTestRepository) Play(_ context.Context, command ZenxiangLiyuPlayCommand) (*ZenxiangLiyuPlayResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
