@@ -1,55 +1,40 @@
-# Task 4 Report: Account Editor Switch
+# Task 4 Report
 
-## Implementation Summary
+## Zenxiang Liyu Status
 
-- Added the OpenAI overbrush switch to `EditAccountModal.vue`.
-- The switch is visible only for OpenAI API key accounts whose `credentials.upstream_admin_type` is empty after trimming.
-- Account form hydration resets the switch and loads `extra.openai_overbrush_enabled === true` for OpenAI API key accounts.
-- Saving writes `extra.openai_overbrush_enabled: true` only while the eligible account's switch is enabled; saving disabled or ineligible accounts removes the key.
-- Added the exact required Chinese and English i18n copy.
+Zenxiang Liyu currently has its transactional repository and user-facing status/play service methods available. User records and daily summary service methods are not yet implemented.
 
-## Tests
+## Task 4A
 
-- RED: `cd frontend && pnpm test -- EditAccountModal.spec.ts --run`
-  - Confirmed the two new tests failed before implementation because the switch and its test id were absent.
-- GREEN: `cd frontend && pnpm exec vitest run src/components/account/__tests__/EditAccountModal.spec.ts`
-  - Passed: 1 file, 37 tests.
-- `cd frontend && pnpm typecheck`
-  - Passed (`vue-tsc --noEmit`).
-- `git diff --check`
-  - Passed.
+### Scope
 
-## Files Changed
+- Added authenticated user APIs for Zenxiang Liyu status and play.
+- Added the handler to the application dependency graph and regenerated Wire output.
+- Did not add admin APIs, routes, service methods, repository changes, Ent changes, migrations, frontend changes, or progress updates.
 
-- `frontend/src/components/account/EditAccountModal.vue`
-- `frontend/src/components/account/__tests__/EditAccountModal.spec.ts`
-- `frontend/src/i18n/locales/zh.ts`
-- `frontend/src/i18n/locales/en.ts`
-- `.superpowers/sdd/task-4-report.md`
+### User APIs
 
-## Self-Review
+- `GET /api/v1/zenxiang-liyu/status`
+- `POST /api/v1/zenxiang-liyu/play`
 
-- Verified the eligibility check exactly excludes non-OpenAI, non-API-key, and accounts with any non-empty trimmed `upstream_admin_type`.
-- Verified the saved payload preserves the existing OpenAI `extra` data and changes only the overbrush key according to the switch state.
-- Verified the component tests exercise display removal after a prop update and persistence after a click.
-- No backend or Settings page files were changed.
+`POST /play` accepts `request_id` only and passes the authenticated user ID plus request ID to `ZenxiangLiyuService.Play`. Rewards, ticket amounts, balances, and probabilities remain server-controlled.
 
-## Concerns
+### Error Mapping
 
-- The task-specified `pnpm test -- EditAccountModal.spec.ts --run` command causes this repository's Vitest setup to run the wider test suite. The Task 4 component file passes, but the full invocation exits non-zero because of an unrelated existing failure in `BulkEditAccountModal.spec.ts` and three existing Dashboard Pinia unhandled rejections. The direct single-file Vitest command above passes cleanly.
+- `ErrZenxiangLiyuRequestIDRequired`, `ErrZenxiangLiyuInsufficientBalance`, and `ErrZenxiangLiyuDailyLimitReached`: HTTP 400.
+- `ErrZenxiangLiyuDisabled` and `ErrZenxiangLiyuUnauthorized`: HTTP 403.
+- Other service errors: HTTP 500.
 
-## Review Fix Report (2026-07-10)
+### Task 4B Dependency
 
-### Changes
-
-- Expanded OpenAI overbrush visibility coverage for `upstream_admin_type: 'new-api'`, `upstream_admin_type: 'sub2api'`, OAuth, setup-token, and whitespace-only `upstream_admin_type`.
-- Extended the enabled persistence test to prove an unrelated existing `extra` field is retained.
-- Added a disabled persistence test proving `openai_overbrush_enabled` is removed while unrelated `extra` data remains.
-- No component or i18n implementation changes were needed; the existing eligibility and payload logic satisfies these cases.
+`GET /api/v1/zenxiang-liyu/records` and `GET /api/v1/zenxiang-liyu/daily-summary` are intentionally not registered in Task 4A. The current `ZenxiangLiyuService` exposes neither user-record listing nor daily-summary methods; Task 4B must add those service contracts and implementations before HTTP exposure.
 
 ### Verification
 
-- `cd frontend && pnpm exec vitest run src/components/account/__tests__/EditAccountModal.spec.ts`
-  - Passed: 1 file, 42 tests.
-- `cd frontend && pnpm typecheck`
-  - Passed: `vue-tsc --noEmit`.
+```bash
+cd backend
+GOCACHE=/tmp/sub2api-go-cache GOMODCACHE=/tmp/sub2api-go-modcache go generate ./cmd/server
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/handler -run 'TestZenxiangLiyuHandler' -count=1
+```
+
+Result: passed.

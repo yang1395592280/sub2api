@@ -1,88 +1,75 @@
-# Task 2 Report: OpenAI Runtime Overbrush 429 Gate
+# Task 2 Report: zenxiang_liyu Service Domain, Validation, Probability, and Simulation
 
-## Implementation Summary
+## Status
 
-- Added `Account.IsOpenAIOverbrushEnabled()` for enabled OpenAI API Key accounts without an `upstream_admin_type`.
-- Added per-account OpenAI overbrush 429 runtime counters and `ResetOpenAIOverbrush429Count`.
-- Added settings-backed threshold lookup with the Task 1 default fallback.
-- Gated `handleOpenAIAccountUpstreamError` immediately after its state context is created so eligible 429 responses below the configured threshold bypass both OAuth 429 marking and the existing rate-limit service.
+DONE
 
-## TDD Evidence
+## Commit
 
-### RED
+- `cbe121d61 feat: add zenxiang liyu service logic`
 
-Created `backend/internal/service/openai_account_overbrush_test.go` before production changes, then ran:
+## Implemented
 
-```bash
-cd backend
-GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestOpenAIOverbrush429|TestHandleOpenAIAccountUpstreamError_Overbrush' -count=1
-```
-
-Result: failed as expected because `shouldSkipOpenAI429LimitForOverbrush` and `ResetOpenAIOverbrush429Count` were undefined.
-
-### GREEN
-
-Implemented the minimal eligibility helper, counter, reset helper, threshold lookup, and upstream-error gate. Then ran:
-
-```bash
-cd backend
-gofmt -w internal/service/account.go internal/service/openai_gateway_service.go internal/service/openai_account_runtime_block_fastpath.go internal/service/openai_account_overbrush_test.go
-GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestOpenAIOverbrush429|TestHandleOpenAIAccountUpstreamError_Overbrush' -count=1
-```
-
-Result: passed (`ok github.com/Wei-Shaw/sub2api/internal/service`).
+- Added `ZenxiangLiyuService` domain types, public service methods, repository port, settings/prize validation, and play command/result contracts.
+- Added prize validation requiring at least one enabled prize and an enabled probability total of 100 within `0.000001`.
+- Added deterministic probability selection with inclusive tier-boundary behavior.
+- Added simulator support for daily play limits, minimum-balance checks, revenue/expense/profit aggregation, user outcome distribution, and prize hit/actual-rate metrics.
+- Added target-profit recommendation support, including lower/higher reward interpolation and all-above/all-below fallback policies.
+- Added the production `ProvideZenxiangLiyuService` Wire provider with `time.Now` and a time-seeded RNG.
 
 ## Tests
-
-```bash
-cd backend
-GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -count=1
-```
-
-Result: passed with exit code 0.
-
-`git diff --check` also completed without output.
-
-## Files Changed
-
-- `backend/internal/service/account.go`
-- `backend/internal/service/openai_gateway_service.go`
-- `backend/internal/service/openai_account_runtime_block_fastpath.go`
-- `backend/internal/service/openai_account_overbrush_test.go`
-
-## Self-Review
-
-- Threshold behavior matches the brief: 429 responses before the threshold are deferred; the threshold response returns to existing rate-limit handling and clears the counter.
-- Eligibility rejects OAuth, setup-token, OpenAI-compatible upstream-admin API Keys, missing opt-in flags, and non-OpenAI platforms.
-- The gate is placed before context-window/image-limit and 429 handling, preventing both `markOpenAIOAuth429RateLimited` and `RateLimitService.HandleUpstreamError` while deferred.
-- Success paths intentionally do not call the reset method in this task, as deferred to later tasks by the task brief.
-
-## Concerns
-
-- None.
-
-## Review Fix: Atomic Concurrent 429 Counter (2026-07-10)
-
-### Root Cause
-
-`sync.Map` made individual map operations safe, but the `Load -> increment -> threshold check -> Delete/Store` sequence was not atomic. Concurrent 429 requests for the same account could observe stale counts and either bypass or reach the configured threshold incorrectly.
-
-### Fix
-
-- Added `openaiOverbrush429CountsMu` to `OpenAIGatewayService`.
-- Locked the entire counter read, increment, threshold, and delete/store sequence in `shouldSkipOpenAI429LimitForOverbrush`.
-- Used the same mutex in `ResetOpenAIOverbrush429Count` so a reset cannot race with an in-flight increment.
-- Added `TestOpenAIOverbrush429ConcurrentThresholdUpdateIsAtomic`: 256 concurrent requests at threshold 2 must produce exactly 128 deferred results. Before the fix it failed with 119 deferred results; after the fix it passes.
-
-### Verification
 
 Executed from `backend`:
 
 ```bash
-GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run '^TestOpenAIOverbrush429ConcurrentThresholdUpdateIsAtomic$' -count=1
-GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestOpenAIOverbrush429|TestHandleOpenAIAccountUpstreamError_Overbrush' -count=1
-GOCACHE=/tmp/sub2api-go-cache go test -race ./internal/service -run '^TestOpenAIOverbrush429ConcurrentThresholdUpdateIsAtomic$' -count=1
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestZenxiangLiyuValidatePrizes' -count=1
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestZenxiangLiyuRecommend' -count=1
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestZenxiangLiyu|TestPickZenxiangLiyuPrize' -count=1
 GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -count=1
 ```
 
-All commands completed with exit code 0.
+All commands passed. The validation and recommendation additions were first executed in a failing state before their corresponding implementations.
+
+## Self-review
+
+- Confirmed no Task 2 edit touches `backend/ent`, migrations, repositories, handlers, frontend, or generated files.
+- Added an exact-target duplicate-reward test after self-review exposed a zero-denominator interpolation edge case; the implementation now assigns 100% to the exact tier.
+- The repository interface is intentionally limited to the service-facing contract; the transactional implementation remains owned by Task 3.
+
+## Concerns
+
+- Wire generation is intentionally deferred until Task 3 supplies `NewZenxiangLiyuRepository`; the registered provider currently depends on that future repository binding.
+
+## Review Fixes (2026-07-10)
+
+- Corrected `GetStatus` and `Play` authorization: global enable now permits all eligible users; when global enable is off, an explicit user grant is required.
+- `DeletePrize` now reads the current prizes, validates the configuration after excluding the target, and refuses deletions that leave no valid enabled probability configuration.
+- Protected all shared RNG reads in `Play` and `Simulate` with a service mutex. `Recommend` does not use the RNG.
+- Added focused coverage for global enable, global disable with and without a grant, invalid remaining prize configuration on delete, and concurrent simulation RNG access.
+
+### Verification
+
+```bash
+cd backend
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestZenxiangLiyu(Authorization|DeletePrizeRejectsInvalidRemainingConfiguration|SimulateSupportsConcurrentRandomUse)' -count=1
+GOCACHE=/tmp/sub2api-go-cache go test -race ./internal/service -run 'TestZenxiangLiyuSimulateSupportsConcurrentRandomUse' -count=1
+```
+
+Both commands passed.
+
+## Second Review Fixes (2026-07-10)
+
+- Added `SavePrizes`, a full-set prize configuration replacement operation. It validates the submitted enabled probabilities as a complete 100% configuration before delegating exactly once to `ZenxiangLiyuRepository.SavePrizes`, allowing a valid 50/50 configuration to change atomically to 60/40.
+- Kept `SavePrize` for individual writes; normal multi-row probability edits now have a transaction-capable bulk repository port.
+- Prize validation now explicitly rejects `NaN`, positive infinity, and negative infinity reward amounts and probabilities.
+- Added focused tests for atomic replacement, invalid-total rejection without repository mutation, and non-finite numeric values.
+
+### Verification
+
+```bash
+cd backend
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestZenxiangLiyu(SavePrizes|ValidatePrizesRejectsNonFiniteRewardAndProbability)' -count=1
+GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestZenxiangLiyu|TestPickZenxiangLiyuPrize' -count=1
+```
+
+Both commands passed.
