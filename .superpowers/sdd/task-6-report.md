@@ -159,3 +159,37 @@ PASS: no output
 ### Risks / Notes
 
 - The old ambiguous `/scores/:id/reset` and `/scores/:id/probe` routes are intentionally not preserved. Task 7 should use the explicit `/scores/accounts/:account_id/...` routes with `group_id` and `model`.
+
+---
+
+## 臻享礼遇用户页 - 2026-07-10
+
+### 状态与改动
+
+- 已完成正式用户页、页面测试及中英文文案。
+- 修改：`frontend/src/views/user/ZenxiangLiyuView.vue`、`frontend/src/views/user/__tests__/ZenxiangLiyuView.spec.ts`、`frontend/src/i18n/locales/zh.ts`、`frontend/src/i18n/locales/en.ts`。
+
+### 核心交互
+
+- 加载活动状态，展示站内余额、参与金额、当天剩余次数和后端配置的奖项档位。
+- CSS 圆盘仅呈现 `status.prizes`；前端不固定奖项、金额或概率，也不参与随机选择。
+- 点击 `data-testid="zenxiang-play"` 后生成 request ID，并仅调用 `playZenxiangLiyu(requestId)`。
+- 使用后端响应展示奖项名称、礼遇额度、本次余额变化和参与后的站内余额，成功后刷新活动状态。
+- 覆盖加载失败、参与失败、余额不足、次数用尽、维护/不可见和参与中状态。
+
+### 验证
+
+```bash
+cd frontend && pnpm test --run src/views/user/__tests__/ZenxiangLiyuView.spec.ts
+cd frontend && pnpm typecheck
+cd frontend && git diff --check
+```
+
+- Vitest：1 个测试文件、2 个测试通过。
+- `vue-tsc --noEmit`：通过。
+- `git diff --check`：通过。
+
+### 风险与关注点
+
+- 页面兼容下划线状态代码及现有后端的错误文本型 `reason`。状态响应未保证提供 `balance` 时，页面回退认证用户的站内余额。
+- Vitest 输出既有 Browserslist 数据过期提示和 Node localStorage 实验性提示，均未影响测试结果。
