@@ -60,6 +60,7 @@ type APIKey struct {
 	IPWhitelist                      []string   `json:"ip_whitelist"`
 	IPBlacklist                      []string   `json:"ip_blacklist"`
 	LastUsedAt                       *time.Time `json:"last_used_at"`
+	LastUsedIP                       *string    `json:"last_used_ip"`
 	LastEffectiveGroupID             *int64     `json:"last_effective_group_id"`
 	LastEffectiveGroupAt             *time.Time `json:"last_effective_group_at"`
 	OpenAIAutoGroupMaxRateMultiplier *float64   `json:"openai_auto_group_max_rate_multiplier"`
@@ -111,6 +112,8 @@ type Group struct {
 	ImageRateMultiplier          float64 `json:"image_rate_multiplier"`
 	BatchImageDiscountMultiplier float64 `json:"batch_image_discount_multiplier"`
 	BatchImageHoldMultiplier     float64 `json:"batch_image_hold_multiplier"`
+	VideoRateIndependent         bool    `json:"video_rate_independent"`
+	VideoRateMultiplier          float64 `json:"video_rate_multiplier"`
 	// 高峰时段倍率配置
 	PeakRateEnabled    bool     `json:"peak_rate_enabled"`
 	PeakStart          string   `json:"peak_start"`
@@ -119,6 +122,9 @@ type Group struct {
 	ImagePrice1K       *float64 `json:"image_price_1k"`
 	ImagePrice2K       *float64 `json:"image_price_2k"`
 	ImagePrice4K       *float64 `json:"image_price_4k"`
+	VideoPrice480P     *float64 `json:"video_price_480p"`
+	VideoPrice720P     *float64 `json:"video_price_720p"`
+	VideoPrice1080P    *float64 `json:"video_price_1080p"`
 
 	// Claude Code 客户端限制
 	ClaudeCodeOnly  bool   `json:"claude_code_only"`

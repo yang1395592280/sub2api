@@ -46,6 +46,7 @@ type APIKey struct {
 	CompiledIPWhitelist  *ip.CompiledIPRules `json:"-"`
 	CompiledIPBlacklist  *ip.CompiledIPRules `json:"-"`
 	LastUsedAt           *time.Time
+	LastUsedIP           *string
 	LastEffectiveGroupID *int64
 	LastEffectiveGroupAt *time.Time
 	// nil or 0 means unlimited.
