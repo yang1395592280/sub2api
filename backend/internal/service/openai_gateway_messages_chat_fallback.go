@@ -192,10 +192,17 @@ func (s *OpenAIGatewayService) forwardAnthropicViaRawChatCompletions(
 	}
 
 	// 5. Convert response
+	var result *OpenAIForwardResult
 	if clientStream {
-		return s.streamChatCompletionsAsAnthropic(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+		result, err = s.streamChatCompletionsAsAnthropic(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+	} else {
+		result, err = s.bufferChatCompletionsAsAnthropic(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 	}
-	return s.bufferChatCompletionsAsAnthropic(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+	if err != nil {
+		return nil, err
+	}
+	s.ResetOpenAIOverbrush429Count(account)
+	return result, nil
 }
 
 func (s *OpenAIGatewayService) bufferChatCompletionsAsAnthropic(

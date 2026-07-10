@@ -22,6 +22,7 @@ func forceChatMessagesFallbackAccount() *Account {
 	account := rawChatCompletionsTestAccount()
 	account.Extra = map[string]any{
 		openai_compat.ExtraKeyResponsesMode: string(openai_compat.ResponsesSupportModeForceChatCompletions),
+		"openai_overbrush_enabled":          true,
 	}
 	return account
 }
@@ -66,7 +67,10 @@ func TestForwardAsAnthropic_ForceChatCompletionsNonStreaming(t *testing.T) {
 		httpUpstream: upstream,
 	}
 
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
+	account := forceChatMessagesFallbackAccount()
+	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "http://upstream.example/v1/chat/completions", upstream.lastReq.URL.String())
@@ -81,6 +85,8 @@ func TestForwardAsAnthropic_ForceChatCompletionsNonStreaming(t *testing.T) {
 	require.Equal(t, 2, result.Usage.OutputTokens)
 	require.Equal(t, 1, result.Usage.CacheReadInputTokens)
 	require.False(t, result.Stream)
+	_, has429Count := svc.openaiOverbrush429Counts.Load(account.ID)
+	require.False(t, has429Count)
 }
 
 // Covers the fully-new streaming composition: text block is still open when

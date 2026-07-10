@@ -3609,6 +3609,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				TtfbMS:     wsResult.FirstTokenMs,
 				StatusCode: &statusCode,
 			})
+			s.ResetOpenAIOverbrush429Count(account)
 			return wsResult, nil
 		}
 		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, OpenAIAutoSchedulerRecordInput{
@@ -3803,6 +3804,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			TtfbMS:     firstTokenMs,
 			StatusCode: &statusCode,
 		})
+		s.ResetOpenAIOverbrush429Count(account)
 		return forwardResult, nil
 	}
 }
@@ -4065,6 +4067,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		TtfbMS:     firstTokenMs,
 		StatusCode: &statusCode,
 	})
+	s.ResetOpenAIOverbrush429Count(account)
 	return forwardResult, nil
 }
 

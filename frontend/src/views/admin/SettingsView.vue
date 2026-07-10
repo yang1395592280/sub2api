@@ -10085,6 +10085,8 @@ async function loadOpenAIOverbrushSettings() {
   try {
     const settings = await adminAPI.settings.getOpenAIOverbrushSettings();
     Object.assign(openAIOverbrushForm, settings);
+  } catch (_error: unknown) {
+    // Silent fail - settings will use defaults
   } finally {
     openAIOverbrushLoading.value = false;
   }

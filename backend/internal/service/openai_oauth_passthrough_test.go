@@ -1337,17 +1337,21 @@ func TestOpenAIGatewayService_APIKeyPassthrough_PreservesBodyAndUsesResponsesEnd
 	}
 
 	account := &Account{
-		ID:             456,
-		Name:           "apikey-acc",
-		Platform:       PlatformOpenAI,
-		Type:           AccountTypeAPIKey,
-		Concurrency:    1,
-		Credentials:    map[string]any{"api_key": "sk-api-key", "base_url": "https://api.openai.com"},
-		Extra:          map[string]any{"openai_passthrough": true},
+		ID:          456,
+		Name:        "apikey-acc",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{"api_key": "sk-api-key", "base_url": "https://api.openai.com"},
+		Extra: map[string]any{
+			"openai_passthrough":       true,
+			"openai_overbrush_enabled": true,
+		},
 		Status:         StatusActive,
 		Schedulable:    true,
 		RateMultiplier: f64p(1),
 	}
+	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
 
 	result, err := svc.Forward(context.Background(), c, account, originalBody)
 	require.NoError(t, err)
@@ -1360,6 +1364,95 @@ func TestOpenAIGatewayService_APIKeyPassthrough_PreservesBodyAndUsesResponsesEnd
 	require.Equal(t, "Bearer sk-api-key", upstream.lastReq.Header.Get("Authorization"))
 	require.Equal(t, "curl/8.0", upstream.lastReq.Header.Get("User-Agent"))
 	require.Empty(t, upstream.lastReq.Header.Get("X-Test"))
+	_, has429Count := svc.openaiOverbrush429Counts.Load(account.ID)
+	require.False(t, has429Count)
+}
+
+func TestOpenAIGatewayService_NativeResponsesSuccessResetsOverbrush429Count(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"gpt-5.2","stream":false,"input":"hi"}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{
+			Enabled:           false,
+			AllowInsecureHTTP: true,
+		}}},
+		httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"output":[],"usage":{"input_tokens":1,"output_tokens":1}}`)),
+		}},
+	}
+	account := &Account{
+		ID:          789,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{"api_key": "sk-api-key", "base_url": "http://upstream.example"},
+		Extra: map[string]any{
+			openai_compat.ExtraKeyResponsesMode:      string(openai_compat.ResponsesSupportModeAuto),
+			openai_compat.ExtraKeyResponsesSupported: true,
+			"openai_overbrush_enabled":               true,
+		},
+		Status:      StatusActive,
+		Schedulable: true,
+	}
+	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+
+	result, err := svc.Forward(context.Background(), c, account, body)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	_, has429Count := svc.openaiOverbrush429Counts.Load(account.ID)
+	require.False(t, has429Count)
+}
+
+func TestOpenAIGatewayService_AnthropicChatFallbackSuccessResetsOverbrush429Count(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"gpt-5.2","max_tokens":32,"messages":[{"role":"user","content":"hi"}]}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{
+			Enabled:           false,
+			AllowInsecureHTTP: true,
+		}}},
+		httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(
+				`{"id":"chatcmpl_1","object":"chat.completion","model":"gpt-5.2","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`,
+			)),
+		}},
+	}
+	account := &Account{
+		ID:          790,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{"api_key": "sk-api-key", "base_url": "http://upstream.example"},
+		Extra: map[string]any{
+			openai_compat.ExtraKeyResponsesMode: string(openai_compat.ResponsesSupportModeForceChatCompletions),
+			"openai_overbrush_enabled":          true,
+		},
+		Status:      StatusActive,
+		Schedulable: true,
+	}
+	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	_, has429Count := svc.openaiOverbrush429Counts.Load(account.ID)
+	require.False(t, has429Count)
 }
 
 func TestOpenAIGatewayService_OAuthPassthrough_WarnOnTimeoutHeadersForStream(t *testing.T) {

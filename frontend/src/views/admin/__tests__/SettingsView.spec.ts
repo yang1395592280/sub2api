@@ -844,6 +844,18 @@ describe("admin SettingsView payment visible method controls", () => {
     });
   });
 
+  it("keeps the default OpenAI overbrush threshold when loading fails", async () => {
+    getOpenAIOverbrushSettings.mockRejectedValueOnce(new Error("load failed"));
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="openai-overbrush-threshold"]').element).toHaveProperty(
+      "value",
+      "10",
+    );
+  });
+
   it("passes translated upload and remove labels to the payment help image uploader", async () => {
     const wrapper = mountView();
 

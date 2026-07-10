@@ -75,14 +75,16 @@ func TestOpenAIOverbrush429ConcurrentThresholdUpdateIsAtomic(t *testing.T) {
 	require.Equal(t, requestCount/2, skipped)
 }
 
-func TestOpenAIOverbrush429SuccessReset(t *testing.T) {
-	svc := &OpenAIGatewayService{settingService: fixedOpenAIOverbrushSettingService(t, 3)}
+func TestOpenAIOverbrush429SuccessResetStartsNewSequence(t *testing.T) {
+	svc := &OpenAIGatewayService{settingService: fixedOpenAIOverbrushSettingService(t, 2)}
 	account := openAIOverbrushAPIKeyAccount()
 
 	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
-	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
 	svc.ResetOpenAIOverbrush429Count(account)
+
+	// The next 429 starts a fresh sequence at one instead of using the prior count.
 	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+	require.False(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
 }
 
 func TestResetOpenAIOverbrush429Count_RemovesStoredCounter(t *testing.T) {
