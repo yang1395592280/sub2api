@@ -13,6 +13,8 @@ const {
   getOverloadCooldownSettings,
   getRateLimit429CooldownSettings,
   updateRateLimit429CooldownSettings,
+  getOpenAIOverbrushSettings,
+  updateOpenAIOverbrushSettings,
   getStreamTimeoutSettings,
   getRectifierSettings,
   getBetaPolicySettings,
@@ -35,6 +37,8 @@ const {
   getOverloadCooldownSettings: vi.fn(),
   getRateLimit429CooldownSettings: vi.fn(),
   updateRateLimit429CooldownSettings: vi.fn(),
+  getOpenAIOverbrushSettings: vi.fn(),
+  updateOpenAIOverbrushSettings: vi.fn(),
   getStreamTimeoutSettings: vi.fn(),
   getRectifierSettings: vi.fn(),
   getBetaPolicySettings: vi.fn(),
@@ -63,6 +67,8 @@ vi.mock("@/api", () => ({
       getOverloadCooldownSettings,
       getRateLimit429CooldownSettings,
       updateRateLimit429CooldownSettings,
+      getOpenAIOverbrushSettings,
+      updateOpenAIOverbrushSettings,
       getStreamTimeoutSettings,
       getRectifierSettings,
       getBetaPolicySettings,
@@ -527,6 +533,8 @@ describe("admin SettingsView payment visible method controls", () => {
     getOverloadCooldownSettings.mockReset();
     getRateLimit429CooldownSettings.mockReset();
     updateRateLimit429CooldownSettings.mockReset();
+    getOpenAIOverbrushSettings.mockReset();
+    updateOpenAIOverbrushSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
@@ -568,6 +576,8 @@ describe("admin SettingsView payment visible method controls", () => {
       cooldown_seconds: 5,
     });
     updateRateLimit429CooldownSettings.mockImplementation(async (payload) => payload);
+    getOpenAIOverbrushSettings.mockResolvedValue({ consecutive_429_threshold: 10 });
+    updateOpenAIOverbrushSettings.mockImplementation(async (payload) => payload);
     getStreamTimeoutSettings.mockResolvedValue({
       enabled: true,
       action: "temp_unsched",
@@ -815,6 +825,23 @@ describe("admin SettingsView payment visible method controls", () => {
       "默认关闭。开启后仅影响本网关在 OpenAI 账号间的实验性调度选择逻辑",
     );
     expect(wrapper.text()).not.toContain("OpenAI 高级调度器");
+  });
+
+  it("loads and saves OpenAI overbrush threshold", async () => {
+    getOpenAIOverbrushSettings.mockResolvedValueOnce({ consecutive_429_threshold: 10 });
+    updateOpenAIOverbrushSettings.mockResolvedValueOnce({ consecutive_429_threshold: 12 });
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    const input = wrapper.get('[data-testid="openai-overbrush-threshold"]');
+    await input.setValue(12);
+    await wrapper.get('[data-testid="openai-overbrush-save"]').trigger("click");
+    await flushPromises();
+
+    expect(updateOpenAIOverbrushSettings).toHaveBeenCalledWith({
+      consecutive_429_threshold: 12,
+    });
   });
 
   it("passes translated upload and remove labels to the payment help image uploader", async () => {

@@ -7086,6 +7086,14 @@ export default {
         saved: '429 默认回避设置保存成功',
         saveFailed: '保存 429 默认回避设置失败'
       },
+      openAIOverbrush: {
+        title: 'OpenAI 超刷设置',
+        description: '配置开启“是否超刷”的 OpenAI API Key 账号连续 429 后进入限流的全局阈值',
+        consecutive429Threshold: '连续 429 阈值',
+        consecutive429ThresholdHint: '同一账号连续返回 429 达到该次数后，恢复原有限流逻辑（1-100）',
+        saved: 'OpenAI 超刷设置保存成功',
+        saveFailed: '保存 OpenAI 超刷设置失败'
+      },
       streamTimeout: {
         title: '流超时处理',
         description: '配置上游响应超时时的账户处理策略，避免问题账户持续被选中',

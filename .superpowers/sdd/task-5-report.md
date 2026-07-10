@@ -1,83 +1,36 @@
-# Task 5 Report: Frontend APIs, Store, Routes, and Sidebar Visibility
+# Task 5 Report: Settings Page UI and Frontend API
 
-## Status
+## Implementation Summary
 
-Completed. The frontend plumbing for Zenxiang Liyu is implemented and committed separately from other in-progress task reports.
+- Added `OpenAIOverbrushSettings` plus `getOpenAIOverbrushSettings()` and `updateOpenAIOverbrushSettings()` to the admin settings API. Both helpers use the required `/admin/settings/openai-overbrush` endpoint and are exposed through `adminAPI.settings`.
+- Added an OpenAI Overbrush settings card immediately after the 429 default cooldown card in the Gateway tab. It loads `consecutive_429_threshold`, presents a numeric input constrained to 1-100, saves the current value, and reports save success or API errors through the existing application store.
+- Added the required Chinese and English copy verbatim.
+- Added API helper coverage and a SettingsView regression test that verifies the threshold save payload.
 
-## Changed Files
+## Tests
 
-- `frontend/src/api/zenxiangLiyu.ts`
-- `frontend/src/api/admin/zenxiangLiyu.ts`
-- `frontend/src/api/__tests__/zenxiangLiyu.spec.ts`
-- `frontend/src/api/admin/__tests__/zenxiangLiyu.spec.ts`
-- `frontend/src/views/user/ZenxiangLiyuView.vue`
-- `frontend/src/views/admin/ZenxiangLiyuAdminView.vue`
-- `frontend/src/api/index.ts`
-- `frontend/src/api/admin/index.ts`
-- `frontend/src/stores/zenxiangLiyu.ts`
-- `frontend/src/stores/index.ts`
-- `frontend/src/router/index.ts`
-- `frontend/src/components/layout/AppSidebar.vue`
+- `pnpm exec vitest run src/api/__tests__/settings.openaiOverbrush.spec.ts src/views/admin/__tests__/SettingsView.spec.ts`: PASS, 2 files and 23 tests.
+- `pnpm typecheck`: PASS.
+- Required command `pnpm test -- settings.openaiOverbrush.spec.ts SettingsView.spec.ts --run`: Task 5 tests passed, but the command runs the full repository suite under the current Vitest configuration and exits non-zero on pre-existing unrelated failures:
+  - `src/components/account/__tests__/BulkEditAccountModal.spec.ts`: expected `3.1-Flash-Image passthrough`, received the Chinese `3.1-Flash-Image透传` label.
+  - `src/views/admin/__tests__/DashboardView.spec.ts`: three unhandled `getActivePinia()` rejections from `useBatchImageAccess`.
+
+## Files Changed
+
+- `frontend/src/api/admin/settings.ts`
+- `frontend/src/api/__tests__/settings.openaiOverbrush.spec.ts`
+- `frontend/src/views/admin/SettingsView.vue`
+- `frontend/src/views/admin/__tests__/SettingsView.spec.ts`
 - `frontend/src/i18n/locales/zh.ts`
 - `frontend/src/i18n/locales/en.ts`
 
-## API Coverage
+## Self-Review
 
-User API:
+- API request paths and payload shapes match the Task 5 brief exactly.
+- The UI maintains the existing loading, saving, success, and API-error patterns used by adjacent settings cards.
+- `consecutive_429_threshold` has the required default value and 1-100 input bounds.
+- No backend or account editor files were changed.
 
-- `GET /zenxiang-liyu/status`
-- `POST /zenxiang-liyu/play`
-- `GET /zenxiang-liyu/records`
-- `GET /zenxiang-liyu/daily-summary`
+## Concerns
 
-Admin API:
-
-- `GET|PUT /admin/zenxiang-liyu/settings`
-- `GET|POST|PUT /admin/zenxiang-liyu/prizes`
-- `PUT|DELETE /admin/zenxiang-liyu/prizes/:id`
-- `GET|POST /admin/zenxiang-liyu/grants`
-- `DELETE /admin/zenxiang-liyu/grants/:user_id`
-- `GET /admin/zenxiang-liyu/stats/overview`
-- `GET /admin/zenxiang-liyu/stats/users`
-- `GET /admin/zenxiang-liyu/stats/prizes`
-- `POST /admin/zenxiang-liyu/simulate`
-- `POST /admin/zenxiang-liyu/simulate/recommend`
-- `POST /admin/zenxiang-liyu/simulate/apply`
-
-All functions return the already-unwrapped `response.data` payload supplied by the shared client interceptor.
-
-## Routes and Navigation
-
-- Added authenticated user route `/zenxiang-liyu` and admin route `/admin/zenxiang-liyu` with localized title and description metadata.
-- Added the `useZenxiangLiyuStore()` in-memory status cache. The user navigation item depends on backend `visible`; insufficient balance remains visible when the backend reports `visible: true`.
-- Added the admin operations item, hidden only in simple mode. Both routes point to minimal parseable placeholder components pending Task 6/7 page implementation.
-
-## Verification
-
-Passed after this review fix:
-
-```text
-cd frontend && pnpm test --run src/api/__tests__/zenxiangLiyu.spec.ts src/api/admin/__tests__/zenxiangLiyu.spec.ts src/router/__tests__/guards.spec.ts
-3 test files passed, 44 tests passed
-
-cd frontend && pnpm typecheck
-Exited 0
-```
-
-## Review Fixes
-
-- Added minimal parseable user and admin placeholder views for the lazy-loaded routes.
-- Added optional `balance?: number` to `ZenxiangLiyuStatus`.
-- Removed unrelated legacy report content from the top of this report.
-
-### Review Fix Verification
-
-Executed on 2026-07-10:
-
-```text
-cd frontend && pnpm test --run src/api/__tests__/zenxiangLiyu.spec.ts src/api/admin/__tests__/zenxiangLiyu.spec.ts src/router/__tests__/guards.spec.ts
-3 test files passed, 44 tests passed
-
-cd frontend && pnpm typecheck
-Exited 0
-```
+- The repository-wide Vitest invocation required by the brief currently includes unrelated, pre-existing test failures and unhandled rejections. Task 5's focused tests and frontend typecheck pass.

@@ -411,6 +411,78 @@
             </div>
           </div>
 
+          <!-- OpenAI Overbrush Settings -->
+          <div class="card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.openAIOverbrush.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.openAIOverbrush.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div
+                v-if="openAIOverbrushLoading"
+                class="flex items-center gap-2 text-gray-500"
+              >
+                <div
+                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
+                ></div>
+                {{ t("common.loading") }}
+              </div>
+
+              <template v-else>
+                <div>
+                  <label
+                    class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{
+                      t(
+                        "admin.settings.openAIOverbrush.consecutive429Threshold",
+                      )
+                    }}
+                  </label>
+                  <input
+                    v-model.number="openAIOverbrushForm.consecutive_429_threshold"
+                    type="number"
+                    min="1"
+                    max="100"
+                    class="input w-32"
+                    data-testid="openai-overbrush-threshold"
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{
+                      t(
+                        "admin.settings.openAIOverbrush.consecutive429ThresholdHint",
+                      )
+                    }}
+                  </p>
+                </div>
+
+                <div
+                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <button
+                    type="button"
+                    @click="saveOpenAIOverbrushSettings"
+                    :disabled="openAIOverbrushSaving"
+                    class="btn btn-primary btn-sm"
+                    data-testid="openai-overbrush-save"
+                  >
+                    {{
+                      openAIOverbrushSaving
+                        ? t("common.saving")
+                        : t("common.save")
+                    }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
           <!-- Stream Timeout Settings -->
           <div class="card">
             <div
@@ -7570,6 +7642,13 @@ const rateLimit429CooldownForm = reactive({
   cooldown_seconds: 5,
 });
 
+// OpenAI Overbrush 状态
+const openAIOverbrushLoading = ref(true);
+const openAIOverbrushSaving = ref(false);
+const openAIOverbrushForm = reactive({
+  consecutive_429_threshold: 10,
+});
+
 // Stream Timeout 状态
 const streamTimeoutLoading = ref(true);
 const streamTimeoutSaving = ref(false);
@@ -10001,6 +10080,37 @@ async function saveRateLimit429CooldownSettings() {
   }
 }
 
+async function loadOpenAIOverbrushSettings() {
+  openAIOverbrushLoading.value = true;
+  try {
+    const settings = await adminAPI.settings.getOpenAIOverbrushSettings();
+    Object.assign(openAIOverbrushForm, settings);
+  } finally {
+    openAIOverbrushLoading.value = false;
+  }
+}
+
+async function saveOpenAIOverbrushSettings() {
+  openAIOverbrushSaving.value = true;
+  try {
+    const updated = await adminAPI.settings.updateOpenAIOverbrushSettings({
+      consecutive_429_threshold:
+        openAIOverbrushForm.consecutive_429_threshold,
+    });
+    Object.assign(openAIOverbrushForm, updated);
+    appStore.showSuccess(t("admin.settings.openAIOverbrush.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.openAIOverbrush.saveFailed"),
+      ),
+    );
+  } finally {
+    openAIOverbrushSaving.value = false;
+  }
+}
+
 // Stream Timeout 方法
 async function loadStreamTimeoutSettings() {
   streamTimeoutLoading.value = true;
@@ -10630,6 +10740,7 @@ onMounted(() => {
   loadAdminApiKey();
   loadOverloadCooldownSettings();
   loadRateLimit429CooldownSettings();
+  loadOpenAIOverbrushSettings();
   loadStreamTimeoutSettings();
   loadRectifierSettings();
   loadBetaPolicySettings();

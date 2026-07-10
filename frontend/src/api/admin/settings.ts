@@ -1193,6 +1193,29 @@ export async function updateRateLimit429CooldownSettings(
   return data;
 }
 
+// ==================== OpenAI Overbrush Settings ====================
+
+export interface OpenAIOverbrushSettings {
+  consecutive_429_threshold: number;
+}
+
+export async function getOpenAIOverbrushSettings(): Promise<OpenAIOverbrushSettings> {
+  const { data } = await apiClient.get<OpenAIOverbrushSettings>(
+    "/admin/settings/openai-overbrush",
+  );
+  return data;
+}
+
+export async function updateOpenAIOverbrushSettings(
+  settings: OpenAIOverbrushSettings,
+): Promise<OpenAIOverbrushSettings> {
+  const { data } = await apiClient.put<OpenAIOverbrushSettings>(
+    "/admin/settings/openai-overbrush",
+    settings,
+  );
+  return data;
+}
+
 // ==================== Stream Timeout Settings ====================
 
 /**
@@ -1419,6 +1442,8 @@ export const settingsAPI = {
   updateOverloadCooldownSettings,
   getRateLimit429CooldownSettings,
   updateRateLimit429CooldownSettings,
+  getOpenAIOverbrushSettings,
+  updateOpenAIOverbrushSettings,
   getStreamTimeoutSettings,
   updateStreamTimeoutSettings,
   getRectifierSettings,

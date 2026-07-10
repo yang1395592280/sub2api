@@ -6933,6 +6933,14 @@ export default {
         saved: '429 default cooldown settings saved',
         saveFailed: 'Failed to save 429 default cooldown settings'
       },
+      openAIOverbrush: {
+        title: 'OpenAI Overbrush',
+        description: 'Configure the global consecutive-429 threshold for OpenAI API Key accounts with overbrush enabled',
+        consecutive429Threshold: 'Consecutive 429 Threshold',
+        consecutive429ThresholdHint: 'When one account returns this many 429 responses in a row, it falls back to the existing rate-limit behavior (1-100)',
+        saved: 'OpenAI overbrush settings saved',
+        saveFailed: 'Failed to save OpenAI overbrush settings'
+      },
       streamTimeout: {
         title: 'Stream Timeout Handling',
         description: 'Configure account handling strategy when upstream response times out',
