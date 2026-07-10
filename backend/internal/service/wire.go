@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"math/rand"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -139,6 +140,11 @@ func ProvideOpenAIQuotaService(
 // ProvideOpenAIUpstreamBalanceService wires the OpenAI upstream balance refresh service.
 func ProvideOpenAIUpstreamBalanceService(accountRepo AccountRepository) *OpenAIUpstreamBalanceService {
 	return NewOpenAIUpstreamBalanceService(accountRepo, nil)
+}
+
+// ProvideZenxiangLiyuService supplies the production clock and random source.
+func ProvideZenxiangLiyuService(repo ZenxiangLiyuRepository) *ZenxiangLiyuService {
+	return NewZenxiangLiyuService(repo, time.Now, rand.New(rand.NewSource(time.Now().UnixNano())))
 }
 
 // ProvideSub2APICheckinService wires and starts the sub2api check-in worker.
@@ -685,6 +691,7 @@ var ProviderSet = wire.NewSet(
 	ProvideOpenAITokenProvider,
 	ProvideOpenAIQuotaService,
 	ProvideOpenAIUpstreamBalanceService,
+	ProvideZenxiangLiyuService,
 	wire.Bind(new(groupUpstreamBalanceRefresher), new(*OpenAIUpstreamBalanceService)),
 	ProvideSub2APICheckinService,
 	ProvideGroupUpstreamBalanceRefreshRunner,
