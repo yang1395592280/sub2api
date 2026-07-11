@@ -246,6 +246,24 @@ func TestMigration176AddsZenxiangLiyuDailyResetOffsetsWithoutMutatingRecords(t *
 	require.NotContains(t, sql, "DELETE FROM zenxiang_liyu_records")
 }
 
+func TestMigration180AllowsOnlyLuckyCoinRecordAppend(t *testing.T) {
+	content, err := FS.ReadFile("180_zenxiang_liyu_lucky_coin_mutation_allowlist.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "CREATE OR REPLACE FUNCTION zenxiang_liyu_records_prevent_mutation()")
+	require.Contains(t, sql, "OLD.lucky_coin_played = FALSE")
+	require.Contains(t, sql, "NEW.lucky_coin_played = TRUE")
+	require.Contains(t, sql, "NEW.lucky_coin_outcome IN ('double', 'zero')")
+	require.Contains(t, sql, "NEW.lucky_coin_adjustment = OLD.reward_amount")
+	require.Contains(t, sql, "NEW.lucky_coin_adjustment = -2 * OLD.reward_amount")
+	require.Contains(t, sql, "NEW.user_net_amount = OLD.user_net_amount + NEW.lucky_coin_adjustment")
+	require.Contains(t, sql, "NEW.system_profit = OLD.system_profit - NEW.lucky_coin_adjustment")
+	require.Contains(t, sql, "- 'lucky_coin_adjustment'")
+	require.Contains(t, sql, "- 'balance_after_lucky'")
+	require.Contains(t, sql, "RAISE EXCEPTION 'zenxiang_liyu_records are immutable'")
+}
+
 func TestMigration154AddsSparkShadowColumnsAndConstraintsWithoutHotIndexes(t *testing.T) {
 	content, err := FS.ReadFile("154_account_spark_shadow.sql")
 	require.NoError(t, err)

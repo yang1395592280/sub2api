@@ -320,6 +320,7 @@ export default {
     luckyCoinLose: '幸运金币未中',
     luckyCoinWinDetail: '幸运金币命中，额外获得 {amount} 积分。',
     luckyCoinLoseDetail: '幸运金币未中，本次扣减 {amount} 积分。',
+    luckyCoinFailed: '幸运金币参与失败',
     insufficientBalance: '积分需大于 {amount} 才可参与',
     dailyLimitReached: '今日参与次数已用完',
     noTicket: '今日暂无可用抽奖券',

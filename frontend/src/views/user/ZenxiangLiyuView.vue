@@ -348,9 +348,23 @@ function newRequestId(): string {
   return `zenxiang-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-function errorMessage(error: unknown): string {
-  const responseMessage = (error as { response?: { data?: { message?: unknown } } })?.response?.data?.message
-  return typeof responseMessage === 'string' && responseMessage.trim() ? responseMessage : t('zenxiangLiyu.playFailed')
+function errorMessage(error: unknown, fallback = t('zenxiangLiyu.playFailed')): string {
+  const apiError = error as {
+    message?: unknown
+    error?: unknown
+    detail?: unknown
+    response?: { data?: { message?: unknown, error?: unknown, detail?: unknown } }
+  }
+  const candidates = [
+    apiError.response?.data?.message,
+    apiError.response?.data?.error,
+    apiError.response?.data?.detail,
+    apiError.message,
+    apiError.error,
+    apiError.detail,
+  ]
+  const message = candidates.find((value): value is string => typeof value === 'string' && value.trim().length > 0)
+  return message ? message.trim() : fallback
 }
 
 async function loadStatus(afterPlay: boolean): Promise<void> {
@@ -444,7 +458,7 @@ async function playLuckyCoin(): Promise<void> {
     await loadStatus(true)
     await loadTodayRecords()
   } catch (error) {
-    luckyCoinError.value = errorMessage(error)
+    luckyCoinError.value = errorMessage(error, t('zenxiangLiyu.luckyCoinFailed'))
   } finally {
     luckyCoinFlipping.value = false
   }

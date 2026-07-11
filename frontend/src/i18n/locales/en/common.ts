@@ -320,6 +320,7 @@ export default {
     luckyCoinLose: 'Lucky coin missed',
     luckyCoinWinDetail: 'Lucky coin hit. Extra reward: {amount} points.',
     luckyCoinLoseDetail: 'Lucky coin missed. Deducted {amount} points.',
+    luckyCoinFailed: 'Lucky coin failed',
     insufficientBalance: 'Points must be greater than {amount} to participate',
     dailyLimitReached: 'Daily play limit reached',
     noTicket: 'No draw tickets available today',

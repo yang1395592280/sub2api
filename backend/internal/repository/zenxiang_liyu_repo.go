@@ -851,10 +851,13 @@ func (r *zenxiangLiyuRepository) PlayLuckyCoin(ctx context.Context, cmd service.
 		    user_net_amount = user_net_amount + $2,
 		    system_expense = system_expense + $2,
 		    system_profit = system_profit - $2
-		WHERE id = $4 AND user_id = $5
+		WHERE id = $4 AND user_id = $5 AND COALESCE(lucky_coin_played, FALSE) = FALSE
 		RETURNING lucky_coin_played_at`,
 		outcome, adjustment, balanceAfter, cmd.RecordID, cmd.UserID,
 	).Scan(&playedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrZenxiangLiyuLuckyCoinAlreadyPlayed
+	}
 	if err != nil {
 		return nil, err
 	}

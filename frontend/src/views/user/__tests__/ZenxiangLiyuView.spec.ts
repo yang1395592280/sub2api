@@ -203,16 +203,16 @@ describe('ZenxiangLiyuView', () => {
     vi.useRealTimers()
   })
 
-  it('shows a participation error when play fails', async () => {
+  it('shows backend message when play fails', async () => {
     getZenxiangLiyuStatus.mockResolvedValue(makePlayableStatus())
-    playZenxiangLiyu.mockRejectedValue(new Error('request failed'))
+    playZenxiangLiyu.mockRejectedValue({ message: '今日暂无可用抽奖券' })
 
     const wrapper = mountView()
     await flushPromises()
     await wrapper.find('[data-testid="zenxiang-play"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('zenxiangLiyu.playFailed')
+    expect(wrapper.text()).toContain('今日暂无可用抽奖券')
   })
 
   it('keeps the reward result visible when the post-play status refresh fails', async () => {
@@ -264,6 +264,26 @@ describe('ZenxiangLiyuView', () => {
     await flushPromises()
 
     expect(playZenxiangLiyuLuckyCoin).toHaveBeenCalledWith(9)
+    vi.useRealTimers()
+  })
+
+  it('shows backend message when lucky coin fails', async () => {
+    vi.useFakeTimers()
+    getZenxiangLiyuStatus.mockResolvedValue(makePlayableStatus())
+    playZenxiangLiyu.mockResolvedValue(makePlayResult())
+    playZenxiangLiyuLuckyCoin.mockRejectedValue({ message: '幸运金币已参与过' })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('[data-testid="zenxiang-play"]').trigger('click')
+    await flushPromises()
+    await finishSpinAnimation()
+
+    await wrapper.find('[data-testid="zenxiang-lucky-coin"]').trigger('click')
+    vi.advanceTimersByTime(900)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('幸运金币已参与过')
     vi.useRealTimers()
   })
 })

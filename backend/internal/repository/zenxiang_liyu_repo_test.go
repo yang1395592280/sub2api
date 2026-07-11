@@ -299,6 +299,67 @@ func TestZenxiangLiyuRepositoryGiftTicketsIsIdempotentByRequestID(t *testing.T) 
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestZenxiangLiyuRepositoryPlayLuckyCoinAppliesOnce(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	playedAt := time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC)
+	repo := &zenxiangLiyuRepository{db: db}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT COALESCE\(lucky_coin_enabled, TRUE\), COALESCE\(lucky_coin_double_probability, 50\)`).
+		WillReturnRows(sqlmock.NewRows([]string{"enabled", "probability"}).AddRow(true, 60.0))
+	mock.ExpectQuery(`SELECT id, reward_amount::double precision, COALESCE\(lucky_coin_played, FALSE\), balance_after_lucky`).
+		WithArgs(int64(9), int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "reward_amount", "lucky_coin_played", "balance_after_lucky"}).
+			AddRow(9, 1.5, false, nil))
+	mock.ExpectQuery(`UPDATE users`).
+		WithArgs(1.5, int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(12.5))
+	mock.ExpectQuery(`UPDATE zenxiang_liyu_records`).
+		WithArgs("double", 1.5, 12.5, int64(9), int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"lucky_coin_played_at"}).AddRow(playedAt))
+	mock.ExpectCommit()
+
+	result, err := repo.PlayLuckyCoin(context.Background(), service.ZenxiangLiyuLuckyCoinCommand{UserID: 42, RecordID: 9, Roll: 30})
+
+	require.NoError(t, err)
+	require.Equal(t, "double", result.Outcome)
+	require.InDelta(t, 1.5, result.AdjustmentAmount, 0.000001)
+	require.InDelta(t, 12.5, result.BalanceAfter, 0.000001)
+	require.Equal(t, playedAt, result.PlayedAt)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestZenxiangLiyuRepositoryPlayLuckyCoinRollsBackWhenRecordWasAlreadyUpdated(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := &zenxiangLiyuRepository{db: db}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT COALESCE\(lucky_coin_enabled, TRUE\), COALESCE\(lucky_coin_double_probability, 50\)`).
+		WillReturnRows(sqlmock.NewRows([]string{"enabled", "probability"}).AddRow(true, 60.0))
+	mock.ExpectQuery(`SELECT id, reward_amount::double precision, COALESCE\(lucky_coin_played, FALSE\), balance_after_lucky`).
+		WithArgs(int64(9), int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "reward_amount", "lucky_coin_played", "balance_after_lucky"}).
+			AddRow(9, 1.5, false, nil))
+	mock.ExpectQuery(`UPDATE users`).
+		WithArgs(1.5, int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(12.5))
+	mock.ExpectQuery(`UPDATE zenxiang_liyu_records`).
+		WithArgs("double", 1.5, 12.5, int64(9), int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"lucky_coin_played_at"}))
+	mock.ExpectRollback()
+
+	_, err = repo.PlayLuckyCoin(context.Background(), service.ZenxiangLiyuLuckyCoinCommand{UserID: 42, RecordID: 9, Roll: 30})
+
+	require.ErrorIs(t, err, service.ErrZenxiangLiyuLuckyCoinAlreadyPlayed)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func zenxiangLiyuRecordRows() *sqlmock.Rows {
 	return sqlmock.NewRows([]string{
 		"id", "request_id", "user_id", "ticket_amount", "reward_amount", "user_net_amount",
