@@ -64,6 +64,17 @@ export default {
     subscription: 'Sub'
   },
 
+  imageApiDocs: {
+    subtitle: 'OpenAI Images API compatible',
+    title: 'Image API Docs',
+    baseUrl: 'Base URL',
+    auth: 'Authentication',
+    textToImage: 'Text to image',
+    imageEdit: 'Image edit',
+    params: 'Parameters',
+    errors: 'Errors',
+  },
+
   // API Keys
   keys: {
     title: 'API Keys',
@@ -76,6 +87,19 @@ export default {
       copiedHint: 'Copied to clipboard',
       clickToCopy: 'Click to copy this endpoint',
       speedTest: 'Speed Test',
+    },
+    openaiAutoCheapest: {
+      label: 'OpenAI auto cheapest group',
+      shortLabel: 'Auto cheapest',
+      description: 'Automatically use the currently available low-price OpenAI group for requests.',
+      configureTitle: 'Configure auto cheapest group',
+      currentEffective: 'Current effective: {name}',
+      waitingFirstUse: 'Effective group appears after first use',
+      maxRateLabel: 'Maximum accepted rate',
+      maxRatePlaceholder: 'Empty means unlimited',
+      maxRateHint: 'Only choose candidate groups whose real rate is not above this value. Leave empty for no limit.',
+      maxRateCurrent: 'Max rate {rate}x',
+      maxRateUnlimited: 'Unlimited rate',
     },
     allGroups: 'All Groups',
     allStatus: 'All Status',

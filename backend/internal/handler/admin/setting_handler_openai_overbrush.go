@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetOpenAIOverbrushSettings 获取 OpenAI API Key 超刷配置。
+// GetOpenAIOverbrushSettings 获取 OpenAI OAuth 超刷配置。
 // GET /api/v1/admin/settings/openai-overbrush
 func (h *SettingHandler) GetOpenAIOverbrushSettings(c *gin.Context) {
 	settings, err := h.settingService.GetOpenAIOverbrushSettings(c.Request.Context())
@@ -26,7 +26,7 @@ type UpdateOpenAIOverbrushSettingsRequest struct {
 	Consecutive429Threshold int `json:"consecutive_429_threshold" binding:"required,min=1,max=100"`
 }
 
-// UpdateOpenAIOverbrushSettings 更新 OpenAI API Key 超刷配置。
+// UpdateOpenAIOverbrushSettings 更新 OpenAI OAuth 超刷配置。
 // PUT /api/v1/admin/settings/openai-overbrush
 func (h *SettingHandler) UpdateOpenAIOverbrushSettings(c *gin.Context) {
 	var req UpdateOpenAIOverbrushSettingsRequest

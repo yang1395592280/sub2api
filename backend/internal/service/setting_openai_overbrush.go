@@ -18,7 +18,7 @@ func normalizeOpenAIOverbrushThreshold(threshold int) int {
 	return threshold
 }
 
-// GetOpenAIOverbrushSettings 获取 OpenAI API Key 超刷配置。
+// GetOpenAIOverbrushSettings 获取 OpenAI OAuth 超刷配置。
 func (s *SettingService) GetOpenAIOverbrushSettings(ctx context.Context) (*OpenAIOverbrushSettings, error) {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyOpenAIOverbrushSettings)
 	if err != nil {
@@ -39,7 +39,7 @@ func (s *SettingService) GetOpenAIOverbrushSettings(ctx context.Context) (*OpenA
 	return &settings, nil
 }
 
-// SetOpenAIOverbrushSettings 设置 OpenAI API Key 超刷配置。
+// SetOpenAIOverbrushSettings 设置 OpenAI OAuth 超刷配置。
 func (s *SettingService) SetOpenAIOverbrushSettings(ctx context.Context, settings *OpenAIOverbrushSettings) error {
 	if settings == nil {
 		settings = DefaultOpenAIOverbrushSettings()

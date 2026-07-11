@@ -131,12 +131,12 @@ func TestForwardEmbeddings_APIKeyReadFailureKeepsOverbrush429Count(t *testing.T)
 		},
 		Extra: map[string]any{"openai_overbrush_enabled": true},
 	}
-	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+	require.False(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
 
 	result, err := svc.ForwardEmbeddings(context.Background(), c, account, body, "")
 
 	require.Error(t, err)
 	require.Nil(t, result)
 	_, has429Count := svc.openaiOverbrush429Counts.Load(account.ID)
-	require.True(t, has429Count)
+	require.False(t, has429Count)
 }

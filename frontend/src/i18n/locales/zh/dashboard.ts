@@ -64,6 +64,17 @@ export default {
     subscription: '订阅'
   },
 
+  imageApiDocs: {
+    subtitle: '兼容 OpenAI Images API',
+    title: '图片 API 文档',
+    baseUrl: 'Base URL',
+    auth: '认证',
+    textToImage: '文生图',
+    imageEdit: '图片编辑',
+    params: '参数',
+    errors: '错误码',
+  },
+
   // API Keys
   keys: {
     title: 'API 密钥',
@@ -76,6 +87,19 @@ export default {
       copiedHint: '已复制到剪贴板',
       clickToCopy: '点击可复制此端点',
       speedTest: '测速',
+    },
+    openaiAutoCheapest: {
+      label: 'OpenAI 自动低价分组',
+      shortLabel: '自动低价',
+      description: '请求时自动使用当前可用的低价 OpenAI 分组。',
+      configureTitle: '配置自动低价分组',
+      currentEffective: '当前生效：{name}',
+      waitingFirstUse: '首次使用后显示生效分组',
+      maxRateLabel: '最高可接受倍率',
+      maxRatePlaceholder: '留空表示不限制',
+      maxRateHint: '仅选择真实倍率不高于该值的候选分组，留空则不限制。',
+      maxRateCurrent: '最高倍率 {rate}x',
+      maxRateUnlimited: '不限倍率',
     },
     allGroups: '全部分组',
     allStatus: '全部状态',

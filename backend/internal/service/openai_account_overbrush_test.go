@@ -34,9 +34,21 @@ func openAIOverbrushAPIKeyAccount() *Account {
 	}
 }
 
+func openAIOverbrushOAuthAccount() *Account {
+	return &Account{
+		ID:          42,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeOAuth,
+		Credentials: map[string]any{},
+		Extra:       map[string]any{"openai_overbrush_enabled": true},
+		Status:      StatusActive,
+		Schedulable: true,
+	}
+}
+
 func TestOpenAIOverbrush429SkipsLimitBeforeThreshold(t *testing.T) {
 	svc := &OpenAIGatewayService{settingService: fixedOpenAIOverbrushSettingService(t, 3)}
-	account := openAIOverbrushAPIKeyAccount()
+	account := openAIOverbrushOAuthAccount()
 
 	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
 	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
@@ -47,7 +59,7 @@ func TestOpenAIOverbrush429ConcurrentThresholdUpdateIsAtomic(t *testing.T) {
 	const requestCount = 256
 
 	svc := &OpenAIGatewayService{settingService: fixedOpenAIOverbrushSettingService(t, 2)}
-	account := openAIOverbrushAPIKeyAccount()
+	account := openAIOverbrushOAuthAccount()
 	start := make(chan struct{})
 	results := make(chan bool, requestCount)
 	var waitGroup sync.WaitGroup
@@ -77,7 +89,7 @@ func TestOpenAIOverbrush429ConcurrentThresholdUpdateIsAtomic(t *testing.T) {
 
 func TestOpenAIOverbrush429SuccessResetStartsNewSequence(t *testing.T) {
 	svc := &OpenAIGatewayService{settingService: fixedOpenAIOverbrushSettingService(t, 2)}
-	account := openAIOverbrushAPIKeyAccount()
+	account := openAIOverbrushOAuthAccount()
 
 	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
 	svc.ResetOpenAIOverbrush429Count(account)
@@ -89,7 +101,7 @@ func TestOpenAIOverbrush429SuccessResetStartsNewSequence(t *testing.T) {
 
 func TestResetOpenAIOverbrush429Count_RemovesStoredCounter(t *testing.T) {
 	svc := &OpenAIGatewayService{settingService: fixedOpenAIOverbrushSettingService(t, 2)}
-	account := openAIOverbrushAPIKeyAccount()
+	account := openAIOverbrushOAuthAccount()
 
 	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
 	_, loaded := svc.openaiOverbrush429Counts.Load(account.ID)
@@ -105,7 +117,7 @@ func TestOpenAIOverbrush429NotApplicable(t *testing.T) {
 	svc := &OpenAIGatewayService{settingService: fixedOpenAIOverbrushSettingService(t, 3)}
 
 	for _, account := range []*Account{
-		{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Credentials: map[string]any{}, Extra: map[string]any{"openai_overbrush_enabled": true}},
+		{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{}, Extra: map[string]any{"openai_overbrush_enabled": true}},
 		{ID: 2, Platform: PlatformOpenAI, Type: AccountTypeSetupToken, Credentials: map[string]any{}, Extra: map[string]any{"openai_overbrush_enabled": true}},
 		{ID: 3, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"upstream_admin_type": "sub2api"}, Extra: map[string]any{"openai_overbrush_enabled": true}},
 		{ID: 4, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{}, Extra: map[string]any{}},
@@ -122,7 +134,7 @@ func TestHandleOpenAIAccountUpstreamError_OverbrushDefersExistingRateLimit(t *te
 		rateLimitService: rateLimitSvc,
 		settingService:   fixedOpenAIOverbrushSettingService(t, 2),
 	}
-	account := openAIOverbrushAPIKeyAccount()
+	account := openAIOverbrushOAuthAccount()
 
 	disabled := svc.handleOpenAIAccountUpstreamError(context.Background(), account, http.StatusTooManyRequests, http.Header{}, nil)
 

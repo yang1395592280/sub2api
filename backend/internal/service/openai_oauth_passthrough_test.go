@@ -1402,7 +1402,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_PreservesBodyAndUsesResponsesEnd
 		Schedulable:    true,
 		RateMultiplier: f64p(1),
 	}
-	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+	require.False(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
 
 	result, err := svc.Forward(context.Background(), c, account, originalBody)
 	require.NoError(t, err)
@@ -1452,7 +1452,7 @@ func TestOpenAIGatewayService_NativeResponsesSuccessResetsOverbrush429Count(t *t
 		Status:      StatusActive,
 		Schedulable: true,
 	}
-	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+	require.False(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
 
 	result, err := svc.Forward(context.Background(), c, account, body)
 
@@ -1496,7 +1496,7 @@ func TestOpenAIGatewayService_AnthropicChatFallbackSuccessResetsOverbrush429Coun
 		Status:      StatusActive,
 		Schedulable: true,
 	}
-	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+	require.False(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
 
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 

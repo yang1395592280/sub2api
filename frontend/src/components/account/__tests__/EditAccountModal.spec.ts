@@ -64,7 +64,7 @@ vi.mock('vue-i18n', async () => {
     useI18n: () => ({
       t: (key: string) => ({
         'admin.accounts.openai.overbrush': '是否超刷',
-        'admin.accounts.openai.overbrushDesc': '开启后，该 OpenAI API Key 账号遇到 429 会继续调度，连续达到全局阈值后才进入限流中。'
+        'admin.accounts.openai.overbrushDesc': '开启后，该 OpenAI OAuth 账号遇到 429 会继续调度，连续达到全局阈值后才进入限流中。'
       })[key] ?? key
     })
   }
@@ -344,11 +344,12 @@ describe('EditAccountModal', () => {
   })
 
   it.each([
-    ['new-api', 'apikey', 'new-api', false],
-    ['sub2api', 'apikey', 'sub2api', false],
-    ['OAuth', 'oauth', undefined, false],
+    ['plain API key', 'apikey', undefined, false],
+    ['new-api API key', 'apikey', 'new-api', false],
+    ['sub2api API key', 'apikey', 'sub2api', false],
+    ['OAuth', 'oauth', undefined, true],
     ['setup-token', 'setup-token', undefined, false],
-    ['whitespace-only upstream admin type', 'apikey', '   ', true]
+    ['whitespace-only upstream admin type API key', 'apikey', '   ', false]
   ])('shows OpenAI overbrush switch for %s accounts only when eligible', (
     _label,
     type,
@@ -370,17 +371,18 @@ describe('EditAccountModal', () => {
   })
 
   it('persists OpenAI overbrush switch in account extra', async () => {
-    updateAccountMock.mockResolvedValue({ ...buildAccount(), extra: { openai_overbrush_enabled: true } })
     const account = {
       ...buildAccount(),
+      type: 'oauth',
       credentials: {
-        api_key: 'sk-test',
-        base_url: 'https://api.openai.com'
+        access_token: 'at-test',
+        refresh_token: 'rt-test'
       },
       extra: {
         unrelated_setting: 'preserve-me'
       }
     }
+    updateAccountMock.mockResolvedValue({ ...account, extra: { openai_overbrush_enabled: true } })
     const wrapper = mountModal(account)
 
     await wrapper.get('[data-testid="openai-overbrush-toggle"]').trigger('click')
@@ -400,9 +402,10 @@ describe('EditAccountModal', () => {
   it('deletes OpenAI overbrush from extra when the enabled switch is turned off', async () => {
     const account = {
       ...buildAccount(),
+      type: 'oauth',
       credentials: {
-        api_key: 'sk-test',
-        base_url: 'https://api.openai.com'
+        access_token: 'at-test',
+        refresh_token: 'rt-test'
       },
       extra: {
         openai_overbrush_enabled: true,
@@ -420,33 +423,7 @@ describe('EditAccountModal', () => {
     expect(payload.extra).not.toHaveProperty('openai_overbrush_enabled')
   })
 
-  it('shows and saves OpenAI overbrush after clearing upstream admin type in the same edit', async () => {
-    const account = {
-      ...buildAccount(),
-      credentials: {
-        api_key: 'sk-test',
-        base_url: 'https://api.openai.com',
-        upstream_admin_type: 'sub2api'
-      },
-      extra: {}
-    }
-    updateAccountMock.mockResolvedValue(account)
-    const wrapper = mountModal(account)
-
-    expect(wrapper.find('[data-testid="openai-overbrush-toggle"]').exists()).toBe(false)
-
-    await wrapper.get('[data-testid="upstream-admin-type-select"]').setValue('')
-    expect(wrapper.find('[data-testid="openai-overbrush-toggle"]').exists()).toBe(true)
-
-    await wrapper.get('[data-testid="openai-overbrush-toggle"]').trigger('click')
-    await wrapper.get('form').trigger('submit')
-
-    const payload = updateAccountMock.mock.calls[0]?.[1]
-    expect(payload.credentials).not.toHaveProperty('upstream_admin_type')
-    expect(payload.extra).toMatchObject({ openai_overbrush_enabled: true })
-  })
-
-  it('removes OpenAI overbrush when upstream admin type is selected in the same edit', async () => {
+  it('removes stale OpenAI overbrush from API key accounts when saved', async () => {
     const account = {
       ...buildAccount(),
       credentials: {
@@ -461,15 +438,11 @@ describe('EditAccountModal', () => {
     updateAccountMock.mockResolvedValue(account)
     const wrapper = mountModal(account)
 
-    expect(wrapper.find('[data-testid="openai-overbrush-toggle"]').exists()).toBe(true)
-
-    await wrapper.get('[data-testid="upstream-admin-type-select"]').setValue('sub2api')
     expect(wrapper.find('[data-testid="openai-overbrush-toggle"]').exists()).toBe(false)
 
     await wrapper.get('form').trigger('submit')
 
     const payload = updateAccountMock.mock.calls[0]?.[1]
-    expect(payload.credentials.upstream_admin_type).toBe('sub2api')
     expect(payload.extra).toMatchObject({ unrelated_setting: 'preserve-me' })
     expect(payload.extra).not.toHaveProperty('openai_overbrush_enabled')
   })

@@ -171,7 +171,7 @@ describe('CreateAccountModal OpenAI overbrush', () => {
     showSuccessMock.mockReset()
   })
 
-  it('shows and persists the overbrush switch for new OpenAI API key accounts', async () => {
+  it('does not show or persist overbrush for new OpenAI API key accounts', async () => {
     const wrapper = mountModal()
     const vm = wrapper.vm as any
     vm.form.name = 'OpenAI Key'
@@ -180,18 +180,17 @@ describe('CreateAccountModal OpenAI overbrush', () => {
     vm.apiKeyValue = 'sk-test'
     await nextTick()
 
-    expect(wrapper.find('[data-testid="create-openai-overbrush-toggle"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="create-openai-overbrush-toggle"]').exists()).toBe(false)
 
-    await wrapper.get('[data-testid="create-openai-overbrush-toggle"]').trigger('click')
     await wrapper.get('form#create-account-form').trigger('submit.prevent')
 
     expect(createAccountMock).toHaveBeenCalledWith(expect.objectContaining({
       platform: 'openai',
-      type: 'apikey',
-      extra: expect.objectContaining({
-        openai_overbrush_enabled: true
-      })
+      type: 'apikey'
     }))
+    expect(createAccountMock.mock.calls[0][0].extra).not.toMatchObject({
+      openai_overbrush_enabled: true
+    })
   })
 
   it('hides overbrush when an upstream admin type is selected during create', async () => {

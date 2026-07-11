@@ -43,6 +43,8 @@ export default {
     channels: {
       title: '渠道管理',
       description: '管理渠道和自定义模型定价',
+      noGroupsSelected: '{platform} 至少需要选择一个关联分组',
+      emptyModelsInPricing: '{platform} 的定价模型不能为空',
       searchChannels: '搜索渠道...',
       createChannel: '创建渠道',
       editChannel: '编辑渠道',

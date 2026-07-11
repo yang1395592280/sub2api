@@ -380,7 +380,7 @@ const (
 	// SettingKeyRateLimit429CooldownSettings stores JSON config for 429 fallback cooldown handling.
 	SettingKeyRateLimit429CooldownSettings = "rate_limit_429_cooldown_settings"
 
-	// SettingKeyOpenAIOverbrushSettings stores JSON config for OpenAI API Key overbrush scheduling.
+	// SettingKeyOpenAIOverbrushSettings stores JSON config for OpenAI OAuth overbrush scheduling.
 	SettingKeyOpenAIOverbrushSettings = "openai_overbrush_settings"
 
 	// =========================

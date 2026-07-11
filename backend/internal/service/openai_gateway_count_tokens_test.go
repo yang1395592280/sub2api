@@ -85,7 +85,7 @@ func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_APIKeyUsesResponsesI
 	require.False(t, gjson.GetBytes(upstream.lastBody, "messages").Exists())
 }
 
-func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_OverbrushDefersFirst429RateLimit(t *testing.T) {
+func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_APIKeyOverbrushFlagDoesNotDefer429RateLimit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"hello"}]}`)
@@ -107,10 +107,10 @@ func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_OverbrushDefersFirst
 	err := svc.ForwardCountTokensAsAnthropic(context.Background(), c, account, body, "gpt-5.4")
 
 	require.Error(t, err)
-	require.Empty(t, repo.rateLimitedIDs)
+	require.Len(t, repo.rateLimitedIDs, 1)
 }
 
-func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_SuccessResetsOverbrush429Count(t *testing.T) {
+func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_APIKeyOverbrushFlagDoesNotCreate429Count(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"hello"}]}`)
@@ -125,7 +125,7 @@ func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_SuccessResetsOverbru
 	}
 	account := openAIOverbrushAPIKeyAccount()
 	account.Credentials = map[string]any{"api_key": "sk-test", "base_url": "http://upstream.example"}
-	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+	require.False(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
 
 	err := svc.ForwardCountTokensAsAnthropic(context.Background(), c, account, body, "gpt-5.4")
 

@@ -2906,8 +2906,7 @@ const supportsUpstreamAdminSettings = computed(() =>
   (props.account.platform === 'openai' || props.account.platform === 'anthropic')
 )
 const showOpenAIOverbrush = computed(() => {
-  if (props.account?.platform !== 'openai' || props.account?.type !== 'apikey') return false
-  return editUpstreamAdminType.value.trim() === ''
+  return props.account?.platform === 'openai' && props.account?.type === 'oauth'
 })
 // Bedrock credentials
 const editBedrockAccessKeyId = ref('')
@@ -3573,8 +3572,10 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   if (newAccount.platform === 'openai' && (newAccount.type === 'oauth' || newAccount.type === 'setup-token' || newAccount.type === 'apikey')) {
     openaiPassthroughEnabled.value = extra?.openai_passthrough === true || extra?.openai_oauth_passthrough === true
     openAICompactMode.value = (extra?.openai_compact_mode as OpenAICompactMode) || 'auto'
-    if (newAccount.type === 'apikey') {
+    if (newAccount.type === 'oauth') {
       openaiOverbrushEnabled.value = extra?.openai_overbrush_enabled === true
+    }
+    if (newAccount.type === 'apikey') {
       openAIResponsesMode.value = normalizeOpenAIResponsesMode(extra?.openai_responses_mode)
       openAIEndpointCapabilities.value = readOpenAIEndpointCapabilities(
         newAccount.credentials as Record<string, unknown> | undefined
@@ -4924,12 +4925,12 @@ const handleSubmit = async () => {
         } else {
           newExtra.openai_responses_mode = openAIResponsesMode.value
         }
-		  if (showOpenAIOverbrush.value && openaiOverbrushEnabled.value) {
-		    newExtra.openai_overbrush_enabled = true
-		  } else {
-		    delete newExtra.openai_overbrush_enabled
-		  }
 		}
+      if (showOpenAIOverbrush.value && openaiOverbrushEnabled.value) {
+        newExtra.openai_overbrush_enabled = true
+      } else {
+        delete newExtra.openai_overbrush_enabled
+      }
 		if (autoPause5hThreshold.value != null && autoPause5hThreshold.value > 0) {
 			newExtra.auto_pause_5h_threshold = autoPause5hThreshold.value / 100
 		} else {
