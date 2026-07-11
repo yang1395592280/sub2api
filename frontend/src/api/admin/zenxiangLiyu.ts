@@ -61,6 +61,29 @@ export interface ZenxiangLiyuPrizeStats {
   probability: number
 }
 
+export interface ZenxiangLiyuPeriodStats {
+  period_start: string
+  period_label: string
+  play_count: number
+  participant_count: number
+  ticket_amount: number
+  reward_amount: number
+  user_net_amount: number
+  system_revenue: number
+  system_expense: number
+  system_profit: number
+  most_hit_prize_name?: string
+  most_hit_prize_count: number
+}
+
+export interface ZenxiangLiyuResetDailyResult {
+  user_id: number
+  play_date: string
+  previous_play_count: number
+  effective_play_count: number
+  remaining_plays: number
+}
+
 export interface ZenxiangLiyuPaginationParams {
   page?: number
   page_size?: number
@@ -164,8 +187,18 @@ async function deleteGrant(userId: number): Promise<{ user_id: number }> {
   return data
 }
 
+async function resetGrantDailyPlays(userId: number): Promise<ZenxiangLiyuResetDailyResult> {
+  const { data } = await apiClient.post<ZenxiangLiyuResetDailyResult>(`${basePath}/grants/${userId}/reset-daily`)
+  return data
+}
+
 async function getOverviewStats(): Promise<ZenxiangLiyuOverviewStats> {
   const { data } = await apiClient.get<ZenxiangLiyuOverviewStats>(`${basePath}/stats/overview`)
+  return data
+}
+
+async function listPeriodStats(period: 'day' | 'week' | 'month' = 'day'): Promise<ZenxiangLiyuPeriodStats[]> {
+  const { data } = await apiClient.get<ZenxiangLiyuPeriodStats[]>(`${basePath}/stats/periods`, { params: { period } })
   return data
 }
 
@@ -205,7 +238,9 @@ export const adminZenxiangLiyuAPI = {
   listGrants,
   createGrant,
   deleteGrant,
+  resetGrantDailyPlays,
   getOverviewStats,
+  listPeriodStats,
   listUserStats,
   listPrizeStats,
   simulate,

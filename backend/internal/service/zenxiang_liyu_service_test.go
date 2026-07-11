@@ -84,7 +84,7 @@ func (r *zenxiangLiyuServiceTestRepository) CountUserPlaysOnDate(context.Context
 	return r.countUserPlays, nil
 }
 
-func (r *zenxiangLiyuServiceTestRepository) ListUserRecords(context.Context, int64, int, int) ([]ZenxiangLiyuRecord, int, error) {
+func (r *zenxiangLiyuServiceTestRepository) ListUserRecords(context.Context, int64, time.Time, int, int) ([]ZenxiangLiyuRecord, int, error) {
 	return nil, 0, nil
 }
 func (r *zenxiangLiyuServiceTestRepository) GetUserDailySummary(context.Context, int64, time.Time) (*ZenxiangLiyuDailySummary, error) {
@@ -105,6 +105,12 @@ func (r *zenxiangLiyuServiceTestRepository) ListUserStats(context.Context, int, 
 }
 func (r *zenxiangLiyuServiceTestRepository) ListPrizeStats(context.Context) ([]ZenxiangLiyuPrizeStats, error) {
 	return nil, nil
+}
+func (r *zenxiangLiyuServiceTestRepository) ListPeriodStats(context.Context, string) ([]ZenxiangLiyuPeriodStats, error) {
+	return nil, nil
+}
+func (r *zenxiangLiyuServiceTestRepository) ResetUserDailyPlays(context.Context, int64, time.Time, *int64, string) (int, error) {
+	return 0, nil
 }
 
 func (r *zenxiangLiyuServiceTestRepository) Play(_ context.Context, command ZenxiangLiyuPlayCommand) (*ZenxiangLiyuPlayResult, error) {
@@ -243,6 +249,20 @@ func TestZenxiangLiyuPlayDelegatesPolicyToRepositoryTransaction(t *testing.T) {
 	require.Equal(t, time.Date(2026, time.July, 10, 0, 0, 0, 0, time.UTC), repo.lastPlayCommand.PlayDate)
 	require.GreaterOrEqual(t, repo.lastPlayCommand.Roll, 0.0)
 	require.Less(t, repo.lastPlayCommand.Roll, 100.0)
+}
+
+func TestZenxiangLiyuPlayDateUsesShanghaiDayBoundary(t *testing.T) {
+	repo := newZenxiangLiyuServiceTestRepository(false, false)
+	svc := NewZenxiangLiyuService(repo, func() time.Time {
+		return time.Date(2026, time.July, 10, 16, 30, 0, 0, time.UTC)
+	}, rand.New(rand.NewSource(1)))
+
+	_, err := svc.Play(context.Background(), 42, "req-shanghai-day")
+
+	require.NoError(t, err)
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	require.Equal(t, time.Date(2026, time.July, 11, 0, 0, 0, 0, time.UTC), repo.lastPlayCommand.PlayDate)
 }
 
 func TestZenxiangLiyuSimulationComputesProfitAndUserDistribution(t *testing.T) {

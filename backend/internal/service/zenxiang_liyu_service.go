@@ -200,6 +200,35 @@ type ZenxiangLiyuPrizeStats struct {
 	Probability  float64 `json:"probability"`
 }
 
+type ZenxiangLiyuPeriodStats struct {
+	PeriodStart       time.Time `json:"period_start"`
+	PeriodLabel       string    `json:"period_label"`
+	PlayCount         int       `json:"play_count"`
+	ParticipantCount  int       `json:"participant_count"`
+	TicketAmount      float64   `json:"ticket_amount"`
+	RewardAmount      float64   `json:"reward_amount"`
+	UserNetAmount     float64   `json:"user_net_amount"`
+	SystemRevenue     float64   `json:"system_revenue"`
+	SystemExpense     float64   `json:"system_expense"`
+	SystemProfit      float64   `json:"system_profit"`
+	MostHitPrizeName  string    `json:"most_hit_prize_name,omitempty"`
+	MostHitPrizeCount int       `json:"most_hit_prize_count"`
+}
+
+type ZenxiangLiyuResetDailyPlayRequest struct {
+	UserID  int64  `json:"user_id"`
+	ResetBy *int64 `json:"reset_by,omitempty"`
+	Notes   string `json:"notes,omitempty"`
+}
+
+type ZenxiangLiyuResetDailyPlayResult struct {
+	UserID             int64     `json:"user_id"`
+	PlayDate           time.Time `json:"play_date"`
+	PreviousPlayCount  int       `json:"previous_play_count"`
+	EffectivePlayCount int       `json:"effective_play_count"`
+	RemainingPlays     int       `json:"remaining_plays"`
+}
+
 // ZenxiangLiyuRepository isolates service policy from the storage and transaction implementation.
 type ZenxiangLiyuRepository interface {
 	GetSettings(ctx context.Context) (*ZenxiangLiyuSettings, error)
@@ -211,7 +240,7 @@ type ZenxiangLiyuRepository interface {
 	IsUserGranted(ctx context.Context, userID int64) (bool, error)
 	GetUserBalance(ctx context.Context, userID int64) (float64, error)
 	CountUserPlaysOnDate(ctx context.Context, userID int64, playDate time.Time) (int, error)
-	ListUserRecords(ctx context.Context, userID int64, page, pageSize int) ([]ZenxiangLiyuRecord, int, error)
+	ListUserRecords(ctx context.Context, userID int64, playDate time.Time, page, pageSize int) ([]ZenxiangLiyuRecord, int, error)
 	GetUserDailySummary(ctx context.Context, userID int64, playDate time.Time) (*ZenxiangLiyuDailySummary, error)
 	ListGrants(ctx context.Context, page, pageSize int) ([]ZenxiangLiyuGrant, int, error)
 	SaveGrant(ctx context.Context, grant ZenxiangLiyuGrant) (*ZenxiangLiyuGrant, error)
@@ -219,6 +248,8 @@ type ZenxiangLiyuRepository interface {
 	GetOverviewStats(ctx context.Context) (*ZenxiangLiyuOverviewStats, error)
 	ListUserStats(ctx context.Context, page, pageSize int) ([]ZenxiangLiyuUserStats, int, error)
 	ListPrizeStats(ctx context.Context) ([]ZenxiangLiyuPrizeStats, error)
+	ListPeriodStats(ctx context.Context, period string) ([]ZenxiangLiyuPeriodStats, error)
+	ResetUserDailyPlays(ctx context.Context, userID int64, playDate time.Time, resetBy *int64, notes string) (int, error)
 	Play(ctx context.Context, cmd ZenxiangLiyuPlayCommand) (*ZenxiangLiyuPlayResult, error)
 }
 
@@ -226,7 +257,7 @@ func (s *ZenxiangLiyuService) ListUserRecords(ctx context.Context, userID int64,
 	if userID <= 0 || s.repo == nil {
 		return nil, 0, ErrZenxiangLiyuInvalidSettings
 	}
-	return s.repo.ListUserRecords(ctx, userID, normalizedZenxiangLiyuPage(page), normalizedZenxiangLiyuPageSize(pageSize))
+	return s.repo.ListUserRecords(ctx, userID, s.playDate(), normalizedZenxiangLiyuPage(page), normalizedZenxiangLiyuPageSize(pageSize))
 }
 
 func (s *ZenxiangLiyuService) GetUserDailySummary(ctx context.Context, userID int64) (*ZenxiangLiyuDailySummary, error) {
@@ -403,6 +434,38 @@ func (s *ZenxiangLiyuService) Play(ctx context.Context, userID int64, requestID 
 		return nil, ErrZenxiangLiyuInvalidSettings
 	}
 	return s.repo.Play(ctx, ZenxiangLiyuPlayCommand{UserID: userID, RequestID: requestID, PlayDate: s.playDate(), Roll: s.randomFloat64() * 100})
+}
+
+func (s *ZenxiangLiyuService) ListPeriodStats(ctx context.Context, period string) ([]ZenxiangLiyuPeriodStats, error) {
+	if s.repo == nil {
+		return nil, ErrZenxiangLiyuInvalidSettings
+	}
+	if period != "day" && period != "week" && period != "month" {
+		period = "day"
+	}
+	return s.repo.ListPeriodStats(ctx, period)
+}
+
+func (s *ZenxiangLiyuService) ResetUserDailyPlays(ctx context.Context, req ZenxiangLiyuResetDailyPlayRequest) (*ZenxiangLiyuResetDailyPlayResult, error) {
+	if req.UserID <= 0 || s.repo == nil {
+		return nil, ErrZenxiangLiyuInvalidSettings
+	}
+	playDate := s.playDate()
+	previous, err := s.repo.ResetUserDailyPlays(ctx, req.UserID, playDate, req.ResetBy, req.Notes)
+	if err != nil {
+		return nil, err
+	}
+	settings, err := s.GetSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &ZenxiangLiyuResetDailyPlayResult{
+		UserID:             req.UserID,
+		PlayDate:           playDate,
+		PreviousPlayCount:  previous,
+		EffectivePlayCount: 0,
+		RemainingPlays:     max(0, settings.DailyPlayLimit),
+	}, nil
 }
 
 func (s *ZenxiangLiyuService) GetSettings(ctx context.Context) (*ZenxiangLiyuSettings, error) {
@@ -607,6 +670,6 @@ func (s *ZenxiangLiyuService) randomFloat64() float64 {
 }
 
 func (s *ZenxiangLiyuService) playDate() time.Time {
-	now := s.clock().UTC()
+	now := s.clock().In(time.FixedZone("Asia/Shanghai", 8*60*60))
 	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 }

@@ -217,17 +217,21 @@ func (r *zenxiangLiyuRepository) GetUserBalance(ctx context.Context, userID int6
 func (r *zenxiangLiyuRepository) CountUserPlaysOnDate(ctx context.Context, userID int64, playDate time.Time) (int, error) {
 	var count int
 	err := r.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM zenxiang_liyu_records WHERE user_id = $1 AND play_date = $2`, userID, playDate,
+		SELECT GREATEST(
+			COUNT(*) - COALESCE((SELECT reset_count FROM zenxiang_liyu_daily_resets WHERE user_id = $1 AND play_date = $2), 0),
+			0
+		)
+		FROM zenxiang_liyu_records WHERE user_id = $1 AND play_date = $2`, userID, playDate,
 	).Scan(&count)
 	return count, err
 }
 
-func (r *zenxiangLiyuRepository) ListUserRecords(ctx context.Context, userID int64, page, pageSize int) ([]service.ZenxiangLiyuRecord, int, error) {
+func (r *zenxiangLiyuRepository) ListUserRecords(ctx context.Context, userID int64, playDate time.Time, page, pageSize int) ([]service.ZenxiangLiyuRecord, int, error) {
 	var total int
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM zenxiang_liyu_records WHERE user_id = $1`, userID).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM zenxiang_liyu_records WHERE user_id = $1 AND play_date = $2`, userID, playDate).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT id, request_id, ticket_amount, reward_amount, user_net_amount, prize_id, prize_name_snapshot, probability_snapshot, created_at FROM zenxiang_liyu_records WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`, userID, pageSize, (page-1)*pageSize)
+	rows, err := r.db.QueryContext(ctx, `SELECT id, request_id, ticket_amount, reward_amount, user_net_amount, prize_id, prize_name_snapshot, probability_snapshot, created_at FROM zenxiang_liyu_records WHERE user_id = $1 AND play_date = $2 ORDER BY created_at DESC, id DESC LIMIT $3 OFFSET $4`, userID, playDate, pageSize, (page-1)*pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -344,6 +348,95 @@ func (r *zenxiangLiyuRepository) ListPrizeStats(ctx context.Context) ([]service.
 	return stats, rows.Err()
 }
 
+func (r *zenxiangLiyuRepository) ListPeriodStats(ctx context.Context, period string) ([]service.ZenxiangLiyuPeriodStats, error) {
+	trunc := "day"
+	switch period {
+	case "week":
+		trunc = "week"
+	case "month":
+		trunc = "month"
+	}
+	rows, err := r.db.QueryContext(ctx, `
+		WITH base AS (
+			SELECT date_trunc($1, created_at AT TIME ZONE 'Asia/Shanghai')::date AS period_start,
+				user_id, ticket_amount, reward_amount, user_net_amount, system_revenue, system_expense, system_profit,
+				prize_name_snapshot
+			FROM zenxiang_liyu_records
+		),
+		rollup AS (
+			SELECT period_start, COUNT(*) AS play_count, COUNT(DISTINCT user_id) AS participant_count,
+				COALESCE(SUM(ticket_amount), 0) AS ticket_amount,
+				COALESCE(SUM(reward_amount), 0) AS reward_amount,
+				COALESCE(SUM(user_net_amount), 0) AS user_net_amount,
+				COALESCE(SUM(system_revenue), 0) AS system_revenue,
+				COALESCE(SUM(system_expense), 0) AS system_expense,
+				COALESCE(SUM(system_profit), 0) AS system_profit
+			FROM base GROUP BY period_start
+		),
+		top_prize AS (
+			SELECT period_start, prize_name_snapshot, COUNT(*) AS hit_count,
+				ROW_NUMBER() OVER (PARTITION BY period_start ORDER BY COUNT(*) DESC, prize_name_snapshot) AS rn
+			FROM base GROUP BY period_start, prize_name_snapshot
+		)
+		SELECT r.period_start, r.play_count, r.participant_count, r.ticket_amount, r.reward_amount,
+			r.user_net_amount, r.system_revenue, r.system_expense, r.system_profit,
+			COALESCE(t.prize_name_snapshot, ''), COALESCE(t.hit_count, 0)
+		FROM rollup r
+		LEFT JOIN top_prize t ON t.period_start = r.period_start AND t.rn = 1
+		ORDER BY r.period_start DESC
+		LIMIT 120`, trunc)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	stats := make([]service.ZenxiangLiyuPeriodStats, 0)
+	for rows.Next() {
+		var stat service.ZenxiangLiyuPeriodStats
+		if err := rows.Scan(
+			&stat.PeriodStart, &stat.PlayCount, &stat.ParticipantCount, &stat.TicketAmount, &stat.RewardAmount,
+			&stat.UserNetAmount, &stat.SystemRevenue, &stat.SystemExpense, &stat.SystemProfit,
+			&stat.MostHitPrizeName, &stat.MostHitPrizeCount,
+		); err != nil {
+			return nil, err
+		}
+		stat.PeriodLabel = stat.PeriodStart.Format("2006-01-02")
+		stats = append(stats, stat)
+	}
+	return stats, rows.Err()
+}
+
+func (r *zenxiangLiyuRepository) ResetUserDailyPlays(ctx context.Context, userID int64, playDate time.Time, resetBy *int64, notes string) (_ int, err error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	var playCount int
+	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM zenxiang_liyu_records WHERE user_id = $1 AND play_date = $2`, userID, playDate).Scan(&playCount)
+	if err != nil {
+		return 0, err
+	}
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO zenxiang_liyu_daily_resets (user_id, play_date, reset_count, reset_by, notes)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (user_id, play_date)
+		DO UPDATE SET reset_count = EXCLUDED.reset_count, reset_by = EXCLUDED.reset_by, notes = EXCLUDED.notes, updated_at = NOW()`,
+		userID, playDate, playCount, resetBy, notes,
+	)
+	if err != nil {
+		return 0, err
+	}
+	if err = tx.Commit(); err != nil {
+		return 0, err
+	}
+	return playCount, nil
+}
+
 func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangLiyuPlayCommand) (_ *service.ZenxiangLiyuPlayResult, err error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -415,7 +508,12 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 	}
 
 	var playCount int
-	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM zenxiang_liyu_records WHERE user_id = $1 AND play_date = $2`, cmd.UserID, cmd.PlayDate).Scan(&playCount)
+	err = tx.QueryRowContext(ctx, `
+		SELECT GREATEST(
+			COUNT(*) - COALESCE((SELECT reset_count FROM zenxiang_liyu_daily_resets WHERE user_id = $1 AND play_date = $2), 0),
+			0
+		)
+		FROM zenxiang_liyu_records WHERE user_id = $1 AND play_date = $2`, cmd.UserID, cmd.PlayDate).Scan(&playCount)
 	if err != nil {
 		return nil, err
 	}

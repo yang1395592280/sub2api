@@ -6,7 +6,8 @@ import ZenxiangLiyuAdminView from '../ZenxiangLiyuAdminView.vue'
 const api = vi.hoisted(() => ({
   getSettings: vi.fn(), updateSettings: vi.fn(), listPrizes: vi.fn(), replacePrizes: vi.fn(),
   listGrants: vi.fn(), createGrant: vi.fn(), deleteGrant: vi.fn(), getOverviewStats: vi.fn(),
-  listUserStats: vi.fn(), listPrizeStats: vi.fn(), simulate: vi.fn(), recommend: vi.fn(), applySimulation: vi.fn(),
+  listUserStats: vi.fn(), listPrizeStats: vi.fn(), listPeriodStats: vi.fn(), resetGrantDailyPlays: vi.fn(),
+  simulate: vi.fn(), recommend: vi.fn(), applySimulation: vi.fn(),
 }))
 const usersAPI = vi.hoisted(() => ({ list: vi.fn() }))
 const notifications = vi.hoisted(() => ({ showError: vi.fn(), showSuccess: vi.fn() }))
@@ -53,6 +54,8 @@ describe('ZenxiangLiyuAdminView', () => {
     api.getOverviewStats.mockResolvedValue({ total_plays: 12, total_revenue: 24, total_expense: 18, net_profit: 6, participating_users: 4 })
     api.listUserStats.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 1 })
     api.listPrizeStats.mockResolvedValue([{ prize_name: '礼遇一档', prize_id: 1, probability: 60, hit_count: 9, reward_amount: 1 }])
+    api.listPeriodStats.mockResolvedValue([{ period_start: '2026-07-11T00:00:00Z', period_label: '2026-07-11', play_count: 12, participant_count: 4, ticket_amount: 24, reward_amount: 18, user_net_amount: -6, system_revenue: 24, system_expense: 18, system_profit: 6, most_hit_prize_name: '礼遇一档', most_hit_prize_count: 9 }])
+    api.resetGrantDailyPlays.mockResolvedValue({ user_id: 42, play_date: '2026-07-11T00:00:00Z', previous_play_count: 3, effective_play_count: 0, remaining_plays: 5 })
     api.updateSettings.mockResolvedValue({ ...settings })
     api.replacePrizes.mockResolvedValue(prizes.map((prize) => ({ ...prize })))
     api.applySimulation.mockResolvedValue(prizes.map((prize) => ({ ...prize })))
@@ -109,7 +112,7 @@ describe('ZenxiangLiyuAdminView', () => {
     await flushPromises()
     const input = wrapper.find('input[type="search"]')
     await input.setValue('user@example.com')
-    await wrapper.find('[data-testid="zenxiang-search-users"]').trigger('click')
+    await new Promise((resolve) => setTimeout(resolve, 350))
     await flushPromises()
     expect(usersAPI.list).toHaveBeenCalledWith(1, 10, { role: 'user', search: 'user@example.com' })
     await wrapper.findAll('button').find((button) => button.text() === 'admin.zenxiangLiyu.grant')?.trigger('click')
@@ -123,6 +126,17 @@ describe('ZenxiangLiyuAdminView', () => {
     await wrapper.find('[data-testid="zenxiang-tab-stats"]').trigger('click')
     await flushPromises()
     expect(api.listUserStats).toHaveBeenCalledWith({ page_size: 100 })
+    expect(api.listPeriodStats).toHaveBeenCalledWith('day')
+    expect(wrapper.text()).toContain('2026-07-11')
     expect(wrapper.text()).toContain('+15%')
+  })
+
+  it('resets a granted user daily plays', async () => {
+    api.listGrants.mockResolvedValue({ items: [{ user_id: 42, user_email: 'user@example.com', enabled: true, notes: '', created_at: '', updated_at: '' }], total: 1, page: 1, page_size: 100, pages: 1 })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text() === 'admin.zenxiangLiyu.resetDailyPlays')?.trigger('click')
+    await flushPromises()
+    expect(api.resetGrantDailyPlays).toHaveBeenCalledWith(42)
   })
 })

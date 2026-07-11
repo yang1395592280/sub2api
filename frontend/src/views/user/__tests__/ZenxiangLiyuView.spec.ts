@@ -1,14 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
-const { getZenxiangLiyuStatus, playZenxiangLiyu } = vi.hoisted(() => ({
+const { getZenxiangLiyuStatus, listZenxiangLiyuRecords, playZenxiangLiyu } = vi.hoisted(() => ({
   getZenxiangLiyuStatus: vi.fn(),
+  listZenxiangLiyuRecords: vi.fn(),
   playZenxiangLiyu: vi.fn(),
 }))
 
 vi.mock('@/api/zenxiangLiyu', () => ({
   getZenxiangLiyuStatus,
+  listZenxiangLiyuRecords,
   playZenxiangLiyu,
 }))
 
@@ -19,9 +21,9 @@ vi.mock('vue-i18n', async () => {
     useI18n: () => ({
       t: (key: string, params?: Record<string, unknown>) => {
         const messages: Record<string, string> = {
-          'zenxiangLiyu.balanceUnit': '元',
-          'zenxiangLiyu.insufficientBalance': `余额需大于 ${params?.amount} 元才可参与`,
-          'zenxiangLiyu.latestBalance': `最新站内余额：${params?.amount} 元`,
+          'zenxiangLiyu.balanceUnit': '积分',
+          'zenxiangLiyu.insufficientBalance': `积分需大于 ${params?.amount} 积分才可参与`,
+          'zenxiangLiyu.latestBalance': `最新积分：${params?.amount} 积分`,
         }
         return messages[key] ?? key
       },
@@ -75,7 +77,13 @@ describe('ZenxiangLiyuView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     getZenxiangLiyuStatus.mockReset()
+    listZenxiangLiyuRecords.mockReset()
     playZenxiangLiyu.mockReset()
+    listZenxiangLiyuRecords.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('shows insufficient balance reason and disables play', async () => {
@@ -89,11 +97,12 @@ describe('ZenxiangLiyuView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('余额需大于 10 元才可参与')
+    expect(wrapper.text()).toContain('积分需大于 10 积分才可参与')
     expect(wrapper.find('[data-testid="zenxiang-play"]').attributes('disabled')).toBeDefined()
   })
 
   it('plays once and displays reward from backend result', async () => {
+    vi.useFakeTimers()
     getZenxiangLiyuStatus.mockResolvedValue(makePlayableStatus())
     playZenxiangLiyu.mockResolvedValue(makePlayResult())
 
@@ -101,10 +110,13 @@ describe('ZenxiangLiyuView', () => {
     await flushPromises()
     await wrapper.find('[data-testid="zenxiang-play"]').trigger('click')
     await flushPromises()
+    vi.advanceTimersByTime(3200)
+    await flushPromises()
 
     expect(playZenxiangLiyu).toHaveBeenCalledWith(expect.any(String))
     expect(wrapper.text()).toContain('3元')
     expect(wrapper.text()).toContain('13')
+    vi.useRealTimers()
   })
 
   it('shows daily limit reason and disables play', async () => {
@@ -123,6 +135,7 @@ describe('ZenxiangLiyuView', () => {
   })
 
   it('disables play while participation is pending', async () => {
+    vi.useFakeTimers()
     getZenxiangLiyuStatus.mockResolvedValue(makePlayableStatus())
     let resolvePlay: (result: ReturnType<typeof makePlayResult>) => void = () => undefined
     playZenxiangLiyu.mockImplementation(() => new Promise(resolve => {
@@ -137,6 +150,9 @@ describe('ZenxiangLiyuView', () => {
 
     resolvePlay(makePlayResult())
     await flushPromises()
+    vi.advanceTimersByTime(3200)
+    await flushPromises()
+    vi.useRealTimers()
   })
 
   it('shows a participation error when play fails', async () => {
@@ -152,6 +168,7 @@ describe('ZenxiangLiyuView', () => {
   })
 
   it('keeps the reward result visible when the post-play status refresh fails', async () => {
+    vi.useFakeTimers()
     getZenxiangLiyuStatus
       .mockResolvedValueOnce(makePlayableStatus())
       .mockRejectedValueOnce(new Error('status refresh failed'))
@@ -161,10 +178,13 @@ describe('ZenxiangLiyuView', () => {
     await flushPromises()
     await wrapper.find('[data-testid="zenxiang-play"]').trigger('click')
     await flushPromises()
+    vi.advanceTimersByTime(3200)
+    await flushPromises()
 
     expect(wrapper.text()).toContain('3元')
     expect(wrapper.text()).toContain('13')
     expect(wrapper.text()).not.toContain('zenxiangLiyu.loadFailed')
     expect(wrapper.text()).toContain('zenxiangLiyu.statusRefreshFailed')
+    vi.useRealTimers()
   })
 })

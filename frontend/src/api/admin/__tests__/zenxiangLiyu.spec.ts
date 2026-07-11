@@ -59,28 +59,36 @@ describe('zenxiang liyu admin api', () => {
     const grant = { user_id: 7, enabled: true, notes: 'allowed' }
     const grants = { items: [grant], total: 1, page: 1, page_size: 20, pages: 1 }
     const overview = { total_plays: 1 }
+    const periods = [{ period_label: '2026-07-11', play_count: 1 }]
     const users = { items: [], total: 0, page: 2, page_size: 10, pages: 0 }
     const prizeStats = []
+    const resetResult = { user_id: 7, previous_play_count: 3, remaining_plays: 5 }
     get.mockResolvedValueOnce({ data: grants })
     post.mockResolvedValueOnce({ data: grant })
     remove.mockResolvedValueOnce({ data: { user_id: 7 } })
+    post.mockResolvedValueOnce({ data: resetResult })
     get.mockResolvedValueOnce({ data: overview })
+    get.mockResolvedValueOnce({ data: periods })
     get.mockResolvedValueOnce({ data: users })
     get.mockResolvedValueOnce({ data: prizeStats })
 
     await expect(adminZenxiangLiyuAPI.listGrants()).resolves.toEqual(grants)
     await expect(adminZenxiangLiyuAPI.createGrant(grant)).resolves.toEqual(grant)
     await expect(adminZenxiangLiyuAPI.deleteGrant(7)).resolves.toEqual({ user_id: 7 })
+    await expect(adminZenxiangLiyuAPI.resetGrantDailyPlays(7)).resolves.toEqual(resetResult)
     await expect(adminZenxiangLiyuAPI.getOverviewStats()).resolves.toEqual(overview)
+    await expect(adminZenxiangLiyuAPI.listPeriodStats('week')).resolves.toEqual(periods)
     await expect(adminZenxiangLiyuAPI.listUserStats({ page: 2, page_size: 10 })).resolves.toEqual(users)
     await expect(adminZenxiangLiyuAPI.listPrizeStats()).resolves.toEqual(prizeStats)
 
     expect(get).toHaveBeenNthCalledWith(1, '/admin/zenxiang-liyu/grants', { params: {} })
     expect(post).toHaveBeenCalledWith('/admin/zenxiang-liyu/grants', grant)
     expect(remove).toHaveBeenCalledWith('/admin/zenxiang-liyu/grants/7')
+    expect(post).toHaveBeenCalledWith('/admin/zenxiang-liyu/grants/7/reset-daily')
     expect(get).toHaveBeenNthCalledWith(2, '/admin/zenxiang-liyu/stats/overview')
-    expect(get).toHaveBeenNthCalledWith(3, '/admin/zenxiang-liyu/stats/users', { params: { page: 2, page_size: 10 } })
-    expect(get).toHaveBeenNthCalledWith(4, '/admin/zenxiang-liyu/stats/prizes')
+    expect(get).toHaveBeenNthCalledWith(3, '/admin/zenxiang-liyu/stats/periods', { params: { period: 'week' } })
+    expect(get).toHaveBeenNthCalledWith(4, '/admin/zenxiang-liyu/stats/users', { params: { page: 2, page_size: 10 } })
+    expect(get).toHaveBeenNthCalledWith(5, '/admin/zenxiang-liyu/stats/prizes')
   })
 
   it('uses the simulation, recommendation, and apply paths', async () => {

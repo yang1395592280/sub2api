@@ -59,6 +59,12 @@ func (s *stubAdminZenxiangLiyuService) ListUserStats(context.Context, int, int) 
 func (s *stubAdminZenxiangLiyuService) ListPrizeStats(context.Context) ([]service.ZenxiangLiyuPrizeStats, error) {
 	return nil, nil
 }
+func (s *stubAdminZenxiangLiyuService) ListPeriodStats(context.Context, string) ([]service.ZenxiangLiyuPeriodStats, error) {
+	return nil, nil
+}
+func (s *stubAdminZenxiangLiyuService) ResetUserDailyPlays(context.Context, service.ZenxiangLiyuResetDailyPlayRequest) (*service.ZenxiangLiyuResetDailyPlayResult, error) {
+	return &service.ZenxiangLiyuResetDailyPlayResult{}, nil
+}
 func (s *stubAdminZenxiangLiyuService) Recommend(context.Context, service.ZenxiangLiyuRecommendationRequest) (*service.ZenxiangLiyuRecommendationResult, error) {
 	return nil, nil
 }

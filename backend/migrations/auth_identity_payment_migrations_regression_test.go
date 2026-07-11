@@ -234,6 +234,18 @@ func TestMigration175ScopesZenxiangLiyuRequestIDByUser(t *testing.T) {
 	require.Contains(t, sql, "ADD CONSTRAINT zenxiang_liyu_records_user_request_unique UNIQUE (user_id, request_id)")
 }
 
+func TestMigration176AddsZenxiangLiyuDailyResetOffsetsWithoutMutatingRecords(t *testing.T) {
+	content, err := FS.ReadFile("176_zenxiang_liyu_daily_resets.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "CREATE TABLE IF NOT EXISTS zenxiang_liyu_daily_resets")
+	require.Contains(t, sql, "reset_count INTEGER NOT NULL DEFAULT 0")
+	require.Contains(t, sql, "UNIQUE (user_id, play_date)")
+	require.NotContains(t, sql, "UPDATE zenxiang_liyu_records")
+	require.NotContains(t, sql, "DELETE FROM zenxiang_liyu_records")
+}
+
 func TestMigration154AddsSparkShadowColumnsAndConstraintsWithoutHotIndexes(t *testing.T) {
 	content, err := FS.ReadFile("154_account_spark_shadow.sql")
 	require.NoError(t, err)

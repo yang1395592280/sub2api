@@ -23,6 +23,8 @@ type zenxiangLiyuAdminService interface {
 	GetOverviewStats(context.Context) (*service.ZenxiangLiyuOverviewStats, error)
 	ListUserStats(context.Context, int, int) ([]service.ZenxiangLiyuUserStats, int, error)
 	ListPrizeStats(context.Context) ([]service.ZenxiangLiyuPrizeStats, error)
+	ListPeriodStats(context.Context, string) ([]service.ZenxiangLiyuPeriodStats, error)
+	ResetUserDailyPlays(context.Context, service.ZenxiangLiyuResetDailyPlayRequest) (*service.ZenxiangLiyuResetDailyPlayResult, error)
 	Simulate(context.Context, service.ZenxiangLiyuSimulationRequest) (*service.ZenxiangLiyuSimulationResult, error)
 	Recommend(context.Context, service.ZenxiangLiyuRecommendationRequest) (*service.ZenxiangLiyuRecommendationResult, error)
 	ApplySimulation(context.Context, []service.ZenxiangLiyuPrizeUpdate) ([]service.ZenxiangLiyuPrize, error)
@@ -134,8 +136,25 @@ func (h *ZenxiangLiyuHandler) DeleteGrant(c *gin.Context) {
 	}
 	response.Success(c, gin.H{"user_id": userID})
 }
+func (h *ZenxiangLiyuHandler) ResetGrantDailyPlays(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("user_id"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.BadRequest(c, "Invalid user_id")
+		return
+	}
+	req := service.ZenxiangLiyuResetDailyPlayRequest{UserID: userID}
+	if subject, ok := middleware.GetAuthSubjectFromContext(c); ok {
+		req.ResetBy = &subject.UserID
+	}
+	data, err := h.service.ResetUserDailyPlays(c.Request.Context(), req)
+	h.respond(c, data, err)
+}
 func (h *ZenxiangLiyuHandler) GetOverviewStats(c *gin.Context) {
 	data, err := h.service.GetOverviewStats(c.Request.Context())
+	h.respond(c, data, err)
+}
+func (h *ZenxiangLiyuHandler) GetPeriodStats(c *gin.Context) {
+	data, err := h.service.ListPeriodStats(c.Request.Context(), c.DefaultQuery("period", "day"))
 	h.respond(c, data, err)
 }
 func (h *ZenxiangLiyuHandler) GetUserStats(c *gin.Context) {
