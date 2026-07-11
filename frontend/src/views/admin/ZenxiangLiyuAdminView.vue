@@ -33,10 +33,29 @@
             </div>
             <Toggle v-model="settingsForm.global_enabled" />
           </div>
-          <div class="mt-4 grid gap-3 md:grid-cols-3">
-            <label><span class="input-label">{{ t('admin.zenxiangLiyu.ticketAmount') }}</span><input v-model.number="settingsForm.ticket_amount" type="number" min="0" step="0.01" class="input" /></label>
-            <label><span class="input-label">{{ t('admin.zenxiangLiyu.minimumBalance') }}</span><input v-model.number="settingsForm.minimum_balance" type="number" min="0" step="0.01" class="input" /></label>
-            <label><span class="input-label">{{ t('admin.zenxiangLiyu.dailyPlayLimit') }}</span><input v-model.number="settingsForm.daily_play_limit" type="number" min="1" step="1" class="input" /></label>
+          <div class="mt-4 grid gap-3 md:grid-cols-4">
+            <label><span class="input-label">{{ t('admin.zenxiangLiyu.ticketUsageThreshold') }}</span><input v-model.number="settingsForm.ticket_usage_threshold" type="number" min="0.01" step="0.01" class="input" /></label>
+            <label><span class="input-label">{{ t('admin.zenxiangLiyu.dailyTicketLimit') }}</span><input v-model.number="settingsForm.daily_ticket_limit" type="number" min="1" step="1" class="input" /></label>
+            <label><span class="input-label">{{ t('admin.zenxiangLiyu.unitSalePrice') }}</span><input v-model.number="settingsForm.unit_sale_price" type="number" min="0" step="0.0001" class="input" /></label>
+            <label><span class="input-label">{{ t('admin.zenxiangLiyu.unitCostPrice') }}</span><input v-model.number="settingsForm.unit_cost_price" type="number" min="0" step="0.0001" class="input" /></label>
+          </div>
+          <div class="mt-4 grid gap-3 md:grid-cols-4">
+            <div class="rounded-md bg-gray-50 px-3 py-2 text-sm dark:bg-dark-800">
+              <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.zenxiangLiyu.expectedRewardPerTicket') }}</p>
+              <p class="mt-1 font-semibold text-gray-900 dark:text-white">{{ formatAmount(theoreticalExpense) }}</p>
+            </div>
+            <div class="rounded-md bg-gray-50 px-3 py-2 text-sm dark:bg-dark-800">
+              <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.zenxiangLiyu.rewardRate') }}</p>
+              <p class="mt-1 font-semibold text-gray-900 dark:text-white">{{ formatPercent(theoreticalRewardRate) }}</p>
+            </div>
+            <div class="rounded-md bg-gray-50 px-3 py-2 text-sm dark:bg-dark-800">
+              <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.zenxiangLiyu.grossProfitAfterReward') }}</p>
+              <p class="mt-1 font-semibold text-gray-900 dark:text-white">{{ formatPercent(theoreticalGrossProfitRateAfterReward) }}</p>
+            </div>
+            <div class="rounded-md bg-gray-50 px-3 py-2 text-sm dark:bg-dark-800">
+              <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.zenxiangLiyu.tenConsumptionReward') }}</p>
+              <p class="mt-1 font-semibold text-gray-900 dark:text-white">{{ formatAmount(theoreticalRewardForTenConsumption) }}</p>
+            </div>
           </div>
           <div class="mt-4 flex justify-end">
             <button data-testid="zenxiang-save-settings" class="btn btn-primary" :disabled="savingSettings" @click="saveSettings">{{ t('admin.zenxiangLiyu.saveSettings') }}</button>
@@ -196,7 +215,16 @@ const savingPrizes = ref(false)
 const simulating = ref(false)
 const searchingUsers = ref(false)
 const resettingGrantIds = ref<Set<number>>(new Set())
-const settingsForm = reactive({ global_enabled: false, ticket_amount: 0, minimum_balance: 0, daily_play_limit: 1 })
+const settingsForm = reactive({
+  global_enabled: false,
+  ticket_amount: 0,
+  minimum_balance: 0,
+  daily_play_limit: 1,
+  ticket_usage_threshold: 5,
+  daily_ticket_limit: 3,
+  unit_sale_price: 0.1,
+  unit_cost_price: 0.05
+})
 const prizes = ref<ZenxiangLiyuPrizeInput[]>([])
 const simulationPrizes = ref<ZenxiangLiyuPrizeInput[]>([])
 const grants = ref<ZenxiangLiyuGrant[]>([])
@@ -233,8 +261,24 @@ const simulatorFields = computed(() => [
 const enabledPrizes = computed(() => prizes.value.filter((prize) => prize.enabled))
 const probabilityTotal = computed(() => enabledPrizes.value.reduce((sum, prize) => sum + Number(prize.probability || 0), 0))
 const theoreticalExpense = computed(() => enabledPrizes.value.reduce((sum, prize) => sum + Number(prize.reward_amount || 0) * Number(prize.probability || 0) / 100, 0))
-const theoreticalProfit = computed(() => Number(settingsForm.ticket_amount || 0) - theoreticalExpense.value)
-const theoreticalProfitRate = computed(() => settingsForm.ticket_amount > 0 ? theoreticalProfit.value / settingsForm.ticket_amount : 0)
+const theoreticalProfit = computed(() => Number(settingsForm.ticket_usage_threshold || 0) - theoreticalExpense.value)
+const theoreticalProfitRate = computed(() => settingsForm.ticket_usage_threshold > 0 ? theoreticalProfit.value / settingsForm.ticket_usage_threshold : 0)
+const theoreticalRewardRate = computed(() => {
+  const threshold = Number(settingsForm.ticket_usage_threshold || 0)
+  return threshold > 0 ? theoreticalExpense.value / threshold : 0
+})
+const theoreticalGrossProfitRateBeforeReward = computed(() => {
+  const sale = Number(settingsForm.unit_sale_price || 0)
+  if (sale <= 0) return 0
+  return (sale - Number(settingsForm.unit_cost_price || 0)) / sale
+})
+const theoreticalGrossProfitRateAfterReward = computed(() => theoreticalGrossProfitRateBeforeReward.value - theoreticalRewardRate.value)
+const theoreticalRewardForTenConsumption = computed(() => {
+  const threshold = Number(settingsForm.ticket_usage_threshold || 0)
+  const limit = Math.max(0, Number(settingsForm.daily_ticket_limit || 0))
+  if (threshold <= 0) return 0
+  return Math.min(Math.floor(10 / threshold), limit) * theoreticalExpense.value
+})
 const overviewProfitRate = computed(() => overview.value.total_revenue ? overview.value.net_profit / overview.value.total_revenue : 0)
 const prizeStatsRows = computed(() => prizeStats.value.map((row) => {
   const actualRate = overview.value.total_plays ? row.hit_count / overview.value.total_plays : 0

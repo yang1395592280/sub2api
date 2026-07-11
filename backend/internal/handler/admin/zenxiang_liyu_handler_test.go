@@ -68,6 +68,9 @@ func (s *stubAdminZenxiangLiyuService) ResetUserDailyPlays(context.Context, serv
 func (s *stubAdminZenxiangLiyuService) Recommend(context.Context, service.ZenxiangLiyuRecommendationRequest) (*service.ZenxiangLiyuRecommendationResult, error) {
 	return nil, nil
 }
+func (s *stubAdminZenxiangLiyuService) PreviewProfit(context.Context, service.ZenxiangLiyuProfitPreviewRequest) (*service.ZenxiangLiyuProfitPreviewResult, error) {
+	return &service.ZenxiangLiyuProfitPreviewResult{}, nil
+}
 func (s *stubAdminZenxiangLiyuService) ApplySimulation(_ context.Context, prizes []service.ZenxiangLiyuPrizeUpdate) ([]service.ZenxiangLiyuPrize, error) {
 	s.applyPrizes = prizes
 	return []service.ZenxiangLiyuPrize{{ID: 1, Name: prizes[0].Name}}, nil

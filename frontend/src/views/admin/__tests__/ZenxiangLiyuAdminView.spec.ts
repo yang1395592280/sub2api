@@ -29,7 +29,16 @@ vi.mock('vue-i18n', async () => {
   }
 })
 
-const settings = { global_enabled: false, ticket_amount: 2, minimum_balance: 10, daily_play_limit: 3 }
+const settings = {
+  global_enabled: false,
+  ticket_amount: 2,
+  minimum_balance: 10,
+  daily_play_limit: 3,
+  ticket_usage_threshold: 5,
+  daily_ticket_limit: 3,
+  unit_sale_price: 0.1,
+  unit_cost_price: 0.05,
+}
 const prizes = [
   { id: 1, name: '礼遇一档', reward_amount: 1, probability: 60, enabled: true, sort_order: 1 },
   { id: 2, name: '礼遇二档', reward_amount: 3, probability: 30, enabled: true, sort_order: 2 },

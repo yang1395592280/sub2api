@@ -114,11 +114,11 @@
                 </p>
                 <!-- Notes (admin adjustment reason) -->
                 <p
-                  v-if="item.notes"
+                  v-if="item.source_detail || item.notes"
                   class="mt-0.5 text-xs text-gray-500 dark:text-dark-400"
-                  :title="item.notes"
+                  :title="item.source_detail || item.notes"
                 >
-                  {{ item.notes.length > 60 ? item.notes.substring(0, 55) + '...' : item.notes }}
+                  {{ sourceDetailText(item) }}
                 </p>
                 <p class="mt-0.5 text-xs text-gray-400 dark:text-dark-500">
                   {{ formatDateTime(item.used_at || item.created_at) }}
@@ -201,6 +201,8 @@ const typeOptions = computed(() => [
   { value: 'balance', label: t('admin.users.typeBalance') },
   { value: 'affiliate_balance', label: t('admin.users.typeAffiliateBalance') },
   { value: 'admin_balance', label: t('admin.users.typeAdminBalance') },
+  { value: 'usage_balance', label: 'API 使用消耗' },
+  { value: 'zenxiang_liyu_reward', label: '臻享礼遇奖励' },
   { value: 'concurrency', label: t('admin.users.typeConcurrency') },
   { value: 'admin_concurrency', label: t('admin.users.typeAdminConcurrency') },
   { value: 'subscription', label: t('admin.users.typeSubscription') }
@@ -239,7 +241,7 @@ const loadHistory = async (page: number) => {
 const isAdminType = (type: string) => type === 'admin_balance' || type === 'admin_concurrency'
 
 // Helper: check if balance type (includes admin_balance)
-const isBalanceType = (type: string) => type === 'balance' || type === 'admin_balance' || type === 'affiliate_balance'
+const isBalanceType = (type: string) => ['balance', 'admin_balance', 'affiliate_balance', 'usage_balance', 'zenxiang_liyu_reward'].includes(type)
 
 // Helper: check if subscription type
 const isSubscriptionType = (type: string) => type === 'subscription'
@@ -292,6 +294,7 @@ const getValueColor = (item: BalanceHistoryItem) => {
 
 // Item title
 const getItemTitle = (item: BalanceHistoryItem) => {
+  if (item.source_label) return item.source_label
   switch (item.type) {
     case 'balance':
       return t('redeem.balanceAddedRedeem')
@@ -308,6 +311,11 @@ const getItemTitle = (item: BalanceHistoryItem) => {
     default:
       return t('common.unknown')
   }
+}
+
+const sourceDetailText = (item: BalanceHistoryItem) => {
+  const text = item.source_detail || item.notes || ''
+  return text.length > 60 ? text.substring(0, 55) + '...' : text
 }
 
 // Format display value

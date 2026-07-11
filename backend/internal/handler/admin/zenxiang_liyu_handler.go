@@ -27,6 +27,7 @@ type zenxiangLiyuAdminService interface {
 	ResetUserDailyPlays(context.Context, service.ZenxiangLiyuResetDailyPlayRequest) (*service.ZenxiangLiyuResetDailyPlayResult, error)
 	Simulate(context.Context, service.ZenxiangLiyuSimulationRequest) (*service.ZenxiangLiyuSimulationResult, error)
 	Recommend(context.Context, service.ZenxiangLiyuRecommendationRequest) (*service.ZenxiangLiyuRecommendationResult, error)
+	PreviewProfit(context.Context, service.ZenxiangLiyuProfitPreviewRequest) (*service.ZenxiangLiyuProfitPreviewResult, error)
 	ApplySimulation(context.Context, []service.ZenxiangLiyuPrizeUpdate) ([]service.ZenxiangLiyuPrize, error)
 }
 
@@ -184,6 +185,14 @@ func (h *ZenxiangLiyuHandler) Recommend(c *gin.Context) {
 		return
 	}
 	data, err := h.service.Recommend(c.Request.Context(), req)
+	h.respond(c, data, err)
+}
+func (h *ZenxiangLiyuHandler) PreviewProfit(c *gin.Context) {
+	var req service.ZenxiangLiyuProfitPreviewRequest
+	if !bindZenxiangLiyuJSON(c, &req) {
+		return
+	}
+	data, err := h.service.PreviewProfit(c.Request.Context(), req)
 	h.respond(c, data, err)
 }
 func (h *ZenxiangLiyuHandler) ApplySimulation(c *gin.Context) {

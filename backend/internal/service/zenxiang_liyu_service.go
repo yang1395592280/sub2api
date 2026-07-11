@@ -15,6 +15,8 @@ const (
 	zenxiangLiyuProbabilityEpsilon       = 0.000001
 	zenxiangLiyuFreePlayUsageThreshold   = 5.0
 	zenxiangLiyuFreePlayThresholdEpsilon = 0.000001
+	defaultZenxiangLiyuTicketThreshold   = 5.0
+	defaultZenxiangLiyuDailyTicketLimit  = 3
 )
 
 var (
@@ -24,25 +26,47 @@ var (
 	ErrZenxiangLiyuInvalidProbabilityTotal = errors.New("zenxiang liyu invalid probability total")
 	ErrZenxiangLiyuInsufficientBalance     = errors.New("zenxiang liyu insufficient balance")
 	ErrZenxiangLiyuDailyLimitReached       = errors.New("zenxiang liyu daily limit reached")
+	ErrZenxiangLiyuNoTicket                = errors.New("zenxiang liyu no ticket")
 	ErrZenxiangLiyuRequestIDRequired       = errors.New("zenxiang liyu request id required")
 )
 
 type ZenxiangLiyuSettings struct {
-	GlobalEnabled  bool    `json:"global_enabled"`
-	TicketAmount   float64 `json:"ticket_amount"`
-	MinimumBalance float64 `json:"minimum_balance"`
-	DailyPlayLimit int     `json:"daily_play_limit"`
+	GlobalEnabled        bool    `json:"global_enabled"`
+	TicketAmount         float64 `json:"ticket_amount"`
+	MinimumBalance       float64 `json:"minimum_balance"`
+	DailyPlayLimit       int     `json:"daily_play_limit"`
+	TicketUsageThreshold float64 `json:"ticket_usage_threshold"`
+	DailyTicketLimit     int     `json:"daily_ticket_limit"`
+	UnitSalePrice        float64 `json:"unit_sale_price"`
+	UnitCostPrice        float64 `json:"unit_cost_price"`
 }
 
 type ZenxiangLiyuSettingsUpdate struct {
-	GlobalEnabled  bool    `json:"global_enabled"`
-	TicketAmount   float64 `json:"ticket_amount"`
-	MinimumBalance float64 `json:"minimum_balance"`
-	DailyPlayLimit int     `json:"daily_play_limit"`
+	GlobalEnabled        bool    `json:"global_enabled"`
+	TicketAmount         float64 `json:"ticket_amount"`
+	MinimumBalance       float64 `json:"minimum_balance"`
+	DailyPlayLimit       int     `json:"daily_play_limit"`
+	TicketUsageThreshold float64 `json:"ticket_usage_threshold"`
+	DailyTicketLimit     int     `json:"daily_ticket_limit"`
+	UnitSalePrice        float64 `json:"unit_sale_price"`
+	UnitCostPrice        float64 `json:"unit_cost_price"`
 }
 
 func (u ZenxiangLiyuSettingsUpdate) Settings() ZenxiangLiyuSettings {
-	return ZenxiangLiyuSettings(u)
+	settings := ZenxiangLiyuSettings(u)
+	if settings.TicketUsageThreshold == 0 {
+		settings.TicketUsageThreshold = defaultZenxiangLiyuTicketThreshold
+	}
+	if settings.DailyTicketLimit == 0 {
+		settings.DailyTicketLimit = defaultZenxiangLiyuDailyTicketLimit
+	}
+	if settings.UnitSalePrice == 0 {
+		settings.UnitSalePrice = 0.1
+	}
+	if settings.UnitCostPrice == 0 {
+		settings.UnitCostPrice = 0.05
+	}
+	return settings
 }
 
 type ZenxiangLiyuPrize struct {
@@ -82,6 +106,12 @@ type ZenxiangLiyuStatus struct {
 	FreePlayUsageThreshold float64             `json:"free_play_usage_threshold"`
 	FreePlayAvailable      bool                `json:"free_play_available"`
 	FreePlayUsed           bool                `json:"free_play_used"`
+	TicketUsageThreshold   float64             `json:"ticket_usage_threshold"`
+	DailyTicketLimit       int                 `json:"daily_ticket_limit"`
+	TodayTicketsEarned     int                 `json:"today_tickets_earned"`
+	TodayTicketsUsed       int                 `json:"today_tickets_used"`
+	TodayTicketsAvailable  int                 `json:"today_tickets_available"`
+	TicketExpiresAt        time.Time           `json:"ticket_expires_at"`
 	Prizes                 []ZenxiangLiyuPrize `json:"prizes"`
 }
 
@@ -153,6 +183,26 @@ type ZenxiangLiyuRecommendationPlan struct {
 type ZenxiangLiyuRecommendationResult struct {
 	TargetExpense float64                          `json:"target_expense"`
 	Plans         []ZenxiangLiyuRecommendationPlan `json:"plans"`
+}
+
+type ZenxiangLiyuProfitPreviewRequest struct {
+	ConsumptionAmount    float64             `json:"consumption_amount"`
+	TicketUsageThreshold float64             `json:"ticket_usage_threshold"`
+	DailyTicketLimit     int                 `json:"daily_ticket_limit"`
+	UnitSalePrice        float64             `json:"unit_sale_price"`
+	UnitCostPrice        float64             `json:"unit_cost_price"`
+	Prizes               []ZenxiangLiyuPrize `json:"prizes"`
+}
+
+type ZenxiangLiyuProfitPreviewResult struct {
+	ExpectedRewardPerTicket float64 `json:"expected_reward_per_ticket"`
+	ExpectedTickets         int     `json:"expected_tickets"`
+	ExpectedRewardTotal     float64 `json:"expected_reward_total"`
+	GrossProfitBeforeReward float64 `json:"gross_profit_before_reward"`
+	GrossProfitAfterReward  float64 `json:"gross_profit_after_reward"`
+	GrossProfitRateBefore   float64 `json:"gross_profit_rate_before"`
+	GrossProfitRateAfter    float64 `json:"gross_profit_rate_after"`
+	RewardRate              float64 `json:"reward_rate"`
 }
 
 type ZenxiangLiyuRecord struct {
@@ -408,10 +458,12 @@ func (s *ZenxiangLiyuService) GetStatus(ctx context.Context, userID int64) (*Zen
 	}
 	status := &ZenxiangLiyuStatus{
 		TicketAmount:           settings.TicketAmount,
-		EffectiveTicketAmount:  settings.TicketAmount,
+		EffectiveTicketAmount:  0,
 		MinimumBalance:         settings.MinimumBalance,
 		DailyPlayLimit:         settings.DailyPlayLimit,
 		FreePlayUsageThreshold: zenxiangLiyuFreePlayUsageThreshold,
+		TicketUsageThreshold:   settings.EffectiveTicketUsageThreshold(),
+		DailyTicketLimit:       settings.EffectiveDailyTicketLimit(),
 		Prizes:                 prizes,
 	}
 	if !settings.GlobalEnabled {
@@ -443,20 +495,14 @@ func (s *ZenxiangLiyuService) GetStatus(ctx context.Context, userID int64) (*Zen
 		return nil, err
 	}
 	status.FreePlayAvailable = IsZenxiangLiyuFreePlayAvailable(status.TodayUsageAmount, status.FreePlayUsed)
-	if status.FreePlayAvailable {
-		status.EffectiveTicketAmount = 0
-	}
+	status.TodayTicketsEarned = CalculateZenxiangLiyuEarnedTickets(status.TodayUsageAmount, settings)
+	status.TodayTicketsUsed = status.TodayPlayCount
+	status.TodayTicketsAvailable = max(0, status.TodayTicketsEarned-status.TodayTicketsUsed)
+	status.TicketExpiresAt = playDate.AddDate(0, 0, 1)
 	status.RemainingPlays = max(0, settings.DailyPlayLimit-status.TodayPlayCount)
-	canPaidPlay := status.Balance > settings.MinimumBalance && status.Balance >= settings.TicketAmount && status.RemainingPlays > 0
-	status.CanPlay = status.FreePlayAvailable || canPaidPlay
+	status.CanPlay = status.TodayTicketsAvailable > 0
 	if !status.CanPlay {
-		if status.RemainingPlays <= 0 {
-			status.Reason = ErrZenxiangLiyuDailyLimitReached.Error()
-		} else if status.Balance <= settings.MinimumBalance || status.Balance < settings.TicketAmount {
-			status.Reason = ErrZenxiangLiyuInsufficientBalance.Error()
-		} else {
-			status.Reason = ErrZenxiangLiyuDailyLimitReached.Error()
-		}
+		status.Reason = ErrZenxiangLiyuNoTicket.Error()
 	}
 	return status, nil
 }
@@ -512,7 +558,9 @@ func (s *ZenxiangLiyuService) GetSettings(ctx context.Context) (*ZenxiangLiyuSet
 
 func (s *ZenxiangLiyuService) UpdateSettings(ctx context.Context, req ZenxiangLiyuSettingsUpdate) (*ZenxiangLiyuSettings, error) {
 	settings := req.Settings()
-	if settings.TicketAmount <= 0 || settings.MinimumBalance < 0 || settings.DailyPlayLimit <= 0 {
+	if settings.TicketAmount < 0 || settings.MinimumBalance < 0 || settings.DailyPlayLimit <= 0 ||
+		settings.TicketUsageThreshold <= 0 || settings.DailyTicketLimit <= 0 ||
+		settings.UnitSalePrice < 0 || settings.UnitCostPrice < 0 {
 		return nil, ErrZenxiangLiyuInvalidSettings
 	}
 	if s.repo == nil {
@@ -698,6 +746,45 @@ func (s *ZenxiangLiyuService) Recommend(_ context.Context, req ZenxiangLiyuRecom
 	return &ZenxiangLiyuRecommendationResult{TargetExpense: targetExpense, Plans: []ZenxiangLiyuRecommendationPlan{plan}}, nil
 }
 
+func (s *ZenxiangLiyuService) PreviewProfit(_ context.Context, req ZenxiangLiyuProfitPreviewRequest) (*ZenxiangLiyuProfitPreviewResult, error) {
+	if req.ConsumptionAmount < 0 || req.TicketUsageThreshold <= 0 || req.DailyTicketLimit <= 0 ||
+		req.UnitSalePrice < 0 || req.UnitCostPrice < 0 {
+		return nil, ErrZenxiangLiyuInvalidSettings
+	}
+	if err := ValidateZenxiangLiyuPrizes(req.Prizes); err != nil {
+		return nil, err
+	}
+	expectedRewardPerTicket := ExpectedZenxiangLiyuReward(req.Prizes)
+	tickets := int(math.Floor(req.ConsumptionAmount / req.TicketUsageThreshold))
+	if tickets > req.DailyTicketLimit {
+		tickets = req.DailyTicketLimit
+	}
+	if tickets < 0 {
+		tickets = 0
+	}
+	revenue := req.ConsumptionAmount
+	cost := revenue
+	if req.UnitSalePrice > 0 {
+		cost = revenue * req.UnitCostPrice / req.UnitSalePrice
+	}
+	before := revenue - cost
+	rewardTotal := expectedRewardPerTicket * float64(tickets)
+	after := before - rewardTotal
+	result := &ZenxiangLiyuProfitPreviewResult{
+		ExpectedRewardPerTicket: expectedRewardPerTicket,
+		ExpectedTickets:         tickets,
+		ExpectedRewardTotal:     rewardTotal,
+		GrossProfitBeforeReward: before,
+		GrossProfitAfterReward:  after,
+	}
+	if revenue > 0 {
+		result.GrossProfitRateBefore = before / revenue
+		result.GrossProfitRateAfter = after / revenue
+		result.RewardRate = rewardTotal / revenue
+	}
+	return result, nil
+}
+
 func (s *ZenxiangLiyuService) randomFloat64() float64 {
 	s.rngMu.Lock()
 	defer s.rngMu.Unlock()
@@ -706,6 +793,47 @@ func (s *ZenxiangLiyuService) randomFloat64() float64 {
 
 func IsZenxiangLiyuFreePlayAvailable(todayUsageAmount float64, freePlayUsed bool) bool {
 	return !freePlayUsed && todayUsageAmount > zenxiangLiyuFreePlayUsageThreshold+zenxiangLiyuFreePlayThresholdEpsilon
+}
+
+func CalculateZenxiangLiyuEarnedTickets(todayUsageAmount float64, settings *ZenxiangLiyuSettings) int {
+	if settings == nil {
+		return 0
+	}
+	threshold := settings.EffectiveTicketUsageThreshold()
+	if threshold <= 0 || todayUsageAmount < threshold {
+		return 0
+	}
+	earned := int(math.Floor(todayUsageAmount / threshold))
+	limit := settings.EffectiveDailyTicketLimit()
+	if earned > limit {
+		earned = limit
+	}
+	return max(0, earned)
+}
+
+func ExpectedZenxiangLiyuReward(prizes []ZenxiangLiyuPrize) float64 {
+	total := 0.0
+	for _, prize := range prizes {
+		if !prize.Enabled {
+			continue
+		}
+		total += prize.RewardAmount * prize.Probability / 100
+	}
+	return total
+}
+
+func (s ZenxiangLiyuSettings) EffectiveTicketUsageThreshold() float64 {
+	if s.TicketUsageThreshold > 0 {
+		return s.TicketUsageThreshold
+	}
+	return defaultZenxiangLiyuTicketThreshold
+}
+
+func (s ZenxiangLiyuSettings) EffectiveDailyTicketLimit() int {
+	if s.DailyTicketLimit > 0 {
+		return s.DailyTicketLimit
+	}
+	return defaultZenxiangLiyuDailyTicketLimit
 }
 
 func (s *ZenxiangLiyuService) playDate() time.Time {

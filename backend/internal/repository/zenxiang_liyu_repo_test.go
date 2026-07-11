@@ -46,8 +46,8 @@ func TestZenxiangLiyuRepositoryPlayAppliesAtomically(t *testing.T) {
 	mock.ExpectQuery(`SELECT .* FROM zenxiang_liyu_records WHERE user_id = \$1 AND request_id = \$2`).
 		WithArgs(int64(42), "req-2").
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
-	mock.ExpectQuery(`SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit FROM zenxiang_liyu_settings WHERE id = 1 FOR UPDATE`).
-		WillReturnRows(sqlmock.NewRows([]string{"global_enabled", "ticket_amount", "minimum_balance", "daily_play_limit"}).AddRow(true, 2.0, 10.0, 5))
+	mock.ExpectQuery(`SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit,`).
+		WillReturnRows(sqlmock.NewRows([]string{"global_enabled", "ticket_amount", "minimum_balance", "daily_play_limit", "ticket_usage_threshold", "daily_ticket_limit", "unit_sale_price", "unit_cost_price"}).AddRow(true, 0.0, 10.0, 5, 5.0, 3, 0.1, 0.05))
 	mock.ExpectQuery(`SELECT id, name, reward_amount, probability, enabled, sort_order FROM zenxiang_liyu_prizes WHERE enabled = TRUE ORDER BY sort_order, id FOR SHARE`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "reward_amount", "probability", "enabled", "sort_order"}).AddRow(7, "3 yuan", 3.0, 100.0, true, 1))
 	mock.ExpectQuery(`SELECT id, email, role, status, balance FROM users WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
@@ -55,7 +55,7 @@ func TestZenxiangLiyuRepositoryPlayAppliesAtomically(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "role", "status", "balance"}).AddRow(42, "user@example.com", service.RoleUser, service.StatusActive, 12.0))
 	mock.ExpectQuery(`SELECT COALESCE\(SUM\(actual_cost\), 0\)`).
 		WithArgs(int64(42), usageStart, usageEnd).
-		WillReturnRows(sqlmock.NewRows([]string{"amount"}).AddRow(0.0))
+		WillReturnRows(sqlmock.NewRows([]string{"amount"}).AddRow(5.01))
 	mock.ExpectQuery(`SELECT EXISTS\(`).
 		WithArgs(int64(42), playDate).
 		WillReturnRows(sqlmock.NewRows([]string{"used"}).AddRow(false))
@@ -63,17 +63,17 @@ func TestZenxiangLiyuRepositoryPlayAppliesAtomically(t *testing.T) {
 		WithArgs(int64(42), playDate).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 	mock.ExpectQuery(`UPDATE users SET balance = balance - \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
-		WithArgs(2.0, int64(42)).
-		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(10.0))
+		WithArgs(0.0, int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(12.0))
 	mock.ExpectQuery(`INSERT INTO zenxiang_liyu_records`).
 		WithArgs(
-			"req-2", int64(42), playDate, 2.0, 3.0, 1.0, 2.0, 3.0, -1.0, int64(7), "3 yuan", 100.0,
-			sqlmock.AnyArg(), 12.0, 10.0, 13.0,
+			"req-2", int64(42), playDate, 0.0, 3.0, 3.0, 0.0, 3.0, -3.0, int64(7), "3 yuan", 100.0,
+			sqlmock.AnyArg(), 12.0, 12.0, 15.0,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(time.Unix(2, 0)))
-	mock.ExpectQuery(`UPDATE users SET balance = balance \+ \$1, total_recharged = total_recharged \+ \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
+	mock.ExpectQuery(`UPDATE users SET balance = balance \+ \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
 		WithArgs(3.0, int64(42)).
-		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(13.0))
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(15.0))
 	mock.ExpectCommit()
 
 	result, err := repo.Play(context.Background(), service.ZenxiangLiyuPlayCommand{
@@ -85,7 +85,7 @@ func TestZenxiangLiyuRepositoryPlayAppliesAtomically(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, result.Applied)
 	require.Equal(t, "req-2", result.RequestID)
-	require.InDelta(t, 13, result.BalanceAfterReward, 0.000001)
+	require.InDelta(t, 15, result.BalanceAfterReward, 0.000001)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -101,8 +101,8 @@ func TestZenxiangLiyuRepositoryPlayUsesFreePlayAfterDailyUsageThreshold(t *testi
 	mock.ExpectQuery(`SELECT .* FROM zenxiang_liyu_records WHERE user_id = \$1 AND request_id = \$2`).
 		WithArgs(int64(42), "req-free").
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
-	mock.ExpectQuery(`SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit FROM zenxiang_liyu_settings WHERE id = 1 FOR UPDATE`).
-		WillReturnRows(sqlmock.NewRows([]string{"global_enabled", "ticket_amount", "minimum_balance", "daily_play_limit"}).AddRow(true, 2.0, 10.0, 5))
+	mock.ExpectQuery(`SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit,`).
+		WillReturnRows(sqlmock.NewRows([]string{"global_enabled", "ticket_amount", "minimum_balance", "daily_play_limit", "ticket_usage_threshold", "daily_ticket_limit", "unit_sale_price", "unit_cost_price"}).AddRow(true, 0.0, 10.0, 5, 5.0, 3, 0.1, 0.05))
 	mock.ExpectQuery(`SELECT id, name, reward_amount, probability, enabled, sort_order FROM zenxiang_liyu_prizes WHERE enabled = TRUE ORDER BY sort_order, id FOR SHARE`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "reward_amount", "probability", "enabled", "sort_order"}).AddRow(7, "3 yuan", 3.0, 100.0, true, 1))
 	mock.ExpectQuery(`SELECT id, email, role, status, balance FROM users WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
@@ -116,7 +116,7 @@ func TestZenxiangLiyuRepositoryPlayUsesFreePlayAfterDailyUsageThreshold(t *testi
 		WillReturnRows(sqlmock.NewRows([]string{"used"}).AddRow(false))
 	mock.ExpectQuery(`SELECT GREATEST\(`).
 		WithArgs(int64(42), playDate).
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(5))
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 	mock.ExpectQuery(`UPDATE users SET balance = balance - \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
 		WithArgs(0.0, int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(1.0))
@@ -126,7 +126,7 @@ func TestZenxiangLiyuRepositoryPlayUsesFreePlayAfterDailyUsageThreshold(t *testi
 			sqlmock.AnyArg(), 1.0, 1.0, 4.0,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(time.Unix(4, 0)))
-	mock.ExpectQuery(`UPDATE users SET balance = balance \+ \$1, total_recharged = total_recharged \+ \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
+	mock.ExpectQuery(`UPDATE users SET balance = balance \+ \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
 		WithArgs(3.0, int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(4.0))
 	mock.ExpectCommit()
@@ -157,8 +157,8 @@ func TestZenxiangLiyuRepositoryPlayReturnsExistingRecordAfterUniqueConflict(t *t
 	mock.ExpectQuery(`SELECT .* FROM zenxiang_liyu_records WHERE user_id = \$1 AND request_id = \$2`).
 		WithArgs(int64(42), "req-conflict").
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
-	mock.ExpectQuery(`SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit FROM zenxiang_liyu_settings WHERE id = 1 FOR UPDATE`).
-		WillReturnRows(sqlmock.NewRows([]string{"global_enabled", "ticket_amount", "minimum_balance", "daily_play_limit"}).AddRow(true, 2.0, 10.0, 5))
+	mock.ExpectQuery(`SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit,`).
+		WillReturnRows(sqlmock.NewRows([]string{"global_enabled", "ticket_amount", "minimum_balance", "daily_play_limit", "ticket_usage_threshold", "daily_ticket_limit", "unit_sale_price", "unit_cost_price"}).AddRow(true, 0.0, 10.0, 5, 5.0, 3, 0.1, 0.05))
 	mock.ExpectQuery(`SELECT id, name, reward_amount, probability, enabled, sort_order FROM zenxiang_liyu_prizes WHERE enabled = TRUE ORDER BY sort_order, id FOR SHARE`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "reward_amount", "probability", "enabled", "sort_order"}).AddRow(7, "3 yuan", 3.0, 100.0, true, 1))
 	mock.ExpectQuery(`SELECT id, email, role, status, balance FROM users WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
@@ -166,7 +166,7 @@ func TestZenxiangLiyuRepositoryPlayReturnsExistingRecordAfterUniqueConflict(t *t
 		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "role", "status", "balance"}).AddRow(42, "user@example.com", service.RoleUser, service.StatusActive, 12.0))
 	mock.ExpectQuery(`SELECT COALESCE\(SUM\(actual_cost\), 0\)`).
 		WithArgs(int64(42), usageStart, usageEnd).
-		WillReturnRows(sqlmock.NewRows([]string{"amount"}).AddRow(0.0))
+		WillReturnRows(sqlmock.NewRows([]string{"amount"}).AddRow(5.01))
 	mock.ExpectQuery(`SELECT EXISTS\(`).
 		WithArgs(int64(42), playDate).
 		WillReturnRows(sqlmock.NewRows([]string{"used"}).AddRow(false))
@@ -174,8 +174,8 @@ func TestZenxiangLiyuRepositoryPlayReturnsExistingRecordAfterUniqueConflict(t *t
 		WithArgs(int64(42), playDate).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 	mock.ExpectQuery(`UPDATE users SET balance = balance - \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
-		WithArgs(2.0, int64(42)).
-		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(10.0))
+		WithArgs(0.0, int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(12.0))
 	mock.ExpectQuery(`INSERT INTO zenxiang_liyu_records`).
 		WillReturnError(&pq.Error{Code: "23505"})
 	mock.ExpectRollback()
@@ -241,8 +241,8 @@ func TestZenxiangLiyuRepositoryPlayChecksGrantInsideTransactionWhenGlobalDisable
 	mock.ExpectQuery(`SELECT .* FROM zenxiang_liyu_records WHERE user_id = \$1 AND request_id = \$2`).
 		WithArgs(int64(42), "req-grant").
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
-	mock.ExpectQuery(`SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit FROM zenxiang_liyu_settings WHERE id = 1 FOR UPDATE`).
-		WillReturnRows(sqlmock.NewRows([]string{"global_enabled", "ticket_amount", "minimum_balance", "daily_play_limit"}).AddRow(false, 2.0, 10.0, 5))
+	mock.ExpectQuery(`SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit,`).
+		WillReturnRows(sqlmock.NewRows([]string{"global_enabled", "ticket_amount", "minimum_balance", "daily_play_limit", "ticket_usage_threshold", "daily_ticket_limit", "unit_sale_price", "unit_cost_price"}).AddRow(false, 0.0, 10.0, 5, 5.0, 3, 0.1, 0.05))
 	mock.ExpectQuery(`SELECT enabled FROM zenxiang_liyu_user_grants WHERE user_id = \$1 FOR SHARE`).
 		WithArgs(int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"enabled"}).AddRow(false))

@@ -137,10 +137,11 @@ func (r *zenxiangLiyuServiceTestRepository) Play(_ context.Context, command Zenx
 
 func newZenxiangLiyuServiceTestRepository(globalEnabled, granted bool) *zenxiangLiyuServiceTestRepository {
 	return &zenxiangLiyuServiceTestRepository{
-		settings: ZenxiangLiyuSettings{GlobalEnabled: globalEnabled, TicketAmount: 1, MinimumBalance: 0, DailyPlayLimit: 1},
-		prizes:   []ZenxiangLiyuPrize{{ID: 1, Name: "A", RewardAmount: 1, Probability: 100, Enabled: true}},
-		granted:  granted,
-		balance:  10,
+		settings:         ZenxiangLiyuSettings{GlobalEnabled: globalEnabled, TicketAmount: 0, MinimumBalance: 0, DailyPlayLimit: 1, TicketUsageThreshold: 5, DailyTicketLimit: 3, UnitSalePrice: 0.1, UnitCostPrice: 0.05},
+		prizes:           []ZenxiangLiyuPrize{{ID: 1, Name: "A", RewardAmount: 1, Probability: 100, Enabled: true}},
+		granted:          granted,
+		balance:          10,
+		todayUsageAmount: 5.01,
 	}
 }
 
@@ -371,10 +372,10 @@ func TestZenxiangLiyuAuthorization(t *testing.T) {
 	}
 }
 
-func TestZenxiangLiyuStatusRejectsBalanceAtMinimumThreshold(t *testing.T) {
+func TestZenxiangLiyuStatusRejectsWhenNoTicketAvailable(t *testing.T) {
 	repo := newZenxiangLiyuServiceTestRepository(true, false)
-	repo.settings = ZenxiangLiyuSettings{GlobalEnabled: true, TicketAmount: 2, MinimumBalance: 10, DailyPlayLimit: 5}
-	repo.balance = 10
+	repo.settings = ZenxiangLiyuSettings{GlobalEnabled: true, TicketUsageThreshold: 5, DailyTicketLimit: 3, DailyPlayLimit: 5}
+	repo.todayUsageAmount = 4.99
 	svc := NewZenxiangLiyuService(repo, func() time.Time { return time.Unix(0, 0).UTC() }, rand.New(rand.NewSource(1)))
 
 	status, err := svc.GetStatus(context.Background(), 224)
@@ -382,16 +383,16 @@ func TestZenxiangLiyuStatusRejectsBalanceAtMinimumThreshold(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, status.Visible)
 	require.False(t, status.CanPlay)
-	require.Equal(t, ErrZenxiangLiyuInsufficientBalance.Error(), status.Reason)
+	require.Equal(t, ErrZenxiangLiyuNoTicket.Error(), status.Reason)
 	require.InDelta(t, 10, status.Balance, 0.000001)
-	require.Equal(t, 5, status.RemainingPlays)
+	require.Zero(t, status.TodayTicketsAvailable)
 }
 
-func TestZenxiangLiyuStatusAllowsOneFreePlayAfterDailyUsageThreshold(t *testing.T) {
+func TestZenxiangLiyuStatusAllowsTicketAfterDailyUsageThreshold(t *testing.T) {
 	repo := newZenxiangLiyuServiceTestRepository(true, false)
-	repo.settings = ZenxiangLiyuSettings{GlobalEnabled: true, TicketAmount: 2, MinimumBalance: 10, DailyPlayLimit: 5}
+	repo.settings = ZenxiangLiyuSettings{GlobalEnabled: true, TicketUsageThreshold: 5, DailyTicketLimit: 3, DailyPlayLimit: 5}
 	repo.balance = 0
-	repo.countUserPlays = 5
+	repo.countUserPlays = 0
 	repo.todayUsageAmount = 5.01
 	svc := NewZenxiangLiyuService(repo, func() time.Time { return time.Unix(0, 0).UTC() }, rand.New(rand.NewSource(1)))
 
@@ -399,11 +400,10 @@ func TestZenxiangLiyuStatusAllowsOneFreePlayAfterDailyUsageThreshold(t *testing.
 
 	require.NoError(t, err)
 	require.True(t, status.CanPlay)
-	require.True(t, status.FreePlayAvailable)
-	require.False(t, status.FreePlayUsed)
 	require.Zero(t, status.EffectiveTicketAmount)
 	require.InDelta(t, 5.01, status.TodayUsageAmount, 0.000001)
-	require.Zero(t, status.RemainingPlays)
+	require.Equal(t, 1, status.TodayTicketsEarned)
+	require.Equal(t, 1, status.TodayTicketsAvailable)
 }
 
 func TestZenxiangLiyuDeletePrizeRejectsInvalidRemainingConfiguration(t *testing.T) {

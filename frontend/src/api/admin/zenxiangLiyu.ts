@@ -9,6 +9,10 @@ export interface ZenxiangLiyuSettings {
   ticket_amount: number
   minimum_balance: number
   daily_play_limit: number
+  ticket_usage_threshold: number
+  daily_ticket_limit: number
+  unit_sale_price: number
+  unit_cost_price: number
 }
 
 export interface ZenxiangLiyuPrizeInput {
@@ -137,6 +141,26 @@ export interface ZenxiangLiyuRecommendationResult {
   plans: ZenxiangLiyuRecommendationPlan[]
 }
 
+export interface ZenxiangLiyuProfitPreviewRequest {
+  consumption_amount: number
+  ticket_usage_threshold: number
+  daily_ticket_limit: number
+  unit_sale_price: number
+  unit_cost_price: number
+  prizes: ZenxiangLiyuPrizeInput[]
+}
+
+export interface ZenxiangLiyuProfitPreviewResult {
+  expected_reward_per_ticket: number
+  expected_tickets: number
+  expected_reward_total: number
+  gross_profit_before_reward: number
+  gross_profit_after_reward: number
+  gross_profit_rate_before: number
+  gross_profit_rate_after: number
+  reward_rate: number
+}
+
 async function getSettings(): Promise<ZenxiangLiyuSettings> {
   const { data } = await apiClient.get<ZenxiangLiyuSettings>(`${basePath}/settings`)
   return data
@@ -222,6 +246,11 @@ async function recommend(request: ZenxiangLiyuRecommendationRequest): Promise<Ze
   return data
 }
 
+async function previewProfit(request: ZenxiangLiyuProfitPreviewRequest): Promise<ZenxiangLiyuProfitPreviewResult> {
+  const { data } = await apiClient.post<ZenxiangLiyuProfitPreviewResult>(`${basePath}/simulate/profit-preview`, request)
+  return data
+}
+
 async function applySimulation(prizes: ZenxiangLiyuPrizeInput[]): Promise<ZenxiangLiyuPrize[]> {
   const { data } = await apiClient.post<ZenxiangLiyuPrize[]>(`${basePath}/simulate/apply`, { prizes })
   return data
@@ -245,6 +274,7 @@ export const adminZenxiangLiyuAPI = {
   listPrizeStats,
   simulate,
   recommend,
+  previewProfit,
   applySimulation,
 }
 

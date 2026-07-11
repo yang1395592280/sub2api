@@ -47,6 +47,12 @@ const makePlayableStatus = () => ({
   free_play_usage_threshold: 5,
   free_play_available: false,
   free_play_used: false,
+  ticket_usage_threshold: 5,
+  daily_ticket_limit: 3,
+  today_tickets_earned: 1,
+  today_tickets_used: 0,
+  today_tickets_available: 1,
+  ticket_expires_at: '2026-07-11T16:00:00Z',
   prizes: [
     { id: 1, name: '1元', reward_amount: 1, probability: 70, enabled: true, sort_order: 1 },
     { id: 2, name: '3元', reward_amount: 3, probability: 30, enabled: true, sort_order: 2 },
@@ -146,22 +152,23 @@ describe('ZenxiangLiyuView', () => {
     expect(wrapper.find('[data-testid="zenxiang-play"]').attributes('disabled')).toBeDefined()
   })
 
-  it('enables one free play when daily usage qualifies', async () => {
+  it('enables draw when daily usage earns a ticket', async () => {
     getZenxiangLiyuStatus.mockResolvedValue({
       ...makePlayableStatus(),
       balance: 0,
       can_play: true,
-      remaining_plays: 0,
       today_usage_amount: 5.01,
-      free_play_available: true,
       effective_ticket_amount: 0,
+      today_tickets_earned: 1,
+      today_tickets_used: 0,
+      today_tickets_available: 1,
     })
 
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('zenxiangLiyu.freePlay')
-    expect(wrapper.text()).toContain('0 积分')
+    expect(wrapper.text()).toContain('zenxiangLiyu.todayTickets')
+    expect(wrapper.text()).toContain('zenxiangLiyu.ticketPlayHint')
     expect(wrapper.find('[data-testid="zenxiang-play"]').attributes('disabled')).toBeUndefined()
   })
 

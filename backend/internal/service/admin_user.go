@@ -762,68 +762,83 @@ func (s *adminServiceImpl) GetUserUsageStats(ctx context.Context, userID int64, 
 	}, nil
 }
 
-// GetUserBalanceHistory returns paginated balance/concurrency change records for a user.
-func (s *adminServiceImpl) GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]RedeemCode, int64, float64, error) {
+// GetUserBalanceHistory returns paginated balance/concurrency and usage ledger records for a user.
+func (s *adminServiceImpl) GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]BalanceHistoryEntry, int64, float64, error) {
 	params := pagination.PaginationParams{Page: page, PageSize: pageSize}
-	if codeType == RedeemTypeAffiliateBalance {
-		codes, total, err := s.listAffiliateBalanceHistory(ctx, userID, params)
-		if err != nil {
-			return nil, 0, 0, err
-		}
-		totalRecharged, err := s.redeemCodeRepo.SumPositiveBalanceByUser(ctx, userID)
-		if err != nil {
-			return nil, 0, 0, err
-		}
-		return codes, total, totalRecharged, nil
-	}
-
 	if codeType == "" {
 		return s.getAllUserBalanceHistory(ctx, userID, params)
 	}
 
-	codes, result, err := s.redeemCodeRepo.ListByUserPaginated(ctx, userID, params, codeType)
+	entries, total, err := s.listBalanceHistoryByType(ctx, userID, params, codeType)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	total := result.Total
-	// Aggregate total recharged amount (only once, regardless of type filter)
 	totalRecharged, err := s.redeemCodeRepo.SumPositiveBalanceByUser(ctx, userID)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	return codes, total, totalRecharged, nil
+	return entries, total, totalRecharged, nil
 }
 
-func (s *adminServiceImpl) getAllUserBalanceHistory(ctx context.Context, userID int64, params pagination.PaginationParams) ([]RedeemCode, int64, float64, error) {
+func (s *adminServiceImpl) getAllUserBalanceHistory(ctx context.Context, userID int64, params pagination.PaginationParams) ([]BalanceHistoryEntry, int64, float64, error) {
 	needed := params.Offset() + params.Limit()
 	if needed < params.Limit() {
 		needed = params.Limit()
 	}
 
-	redeemCodes, redeemTotal, err := s.listRedeemBalanceHistoryForMerge(ctx, userID, needed)
+	redeemEntries, redeemTotal, err := s.listRedeemBalanceHistoryForMerge(ctx, userID, needed)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	affiliateCodes, affiliateTotal, err := s.listAffiliateBalanceHistoryForMerge(ctx, userID, needed)
+	affiliateEntries, affiliateTotal, err := s.listAffiliateBalanceHistoryForMerge(ctx, userID, needed)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	codes := mergeBalanceHistoryCodes(redeemCodes, affiliateCodes, params)
+	usageEntries, usageTotal, err := s.listUsageBalanceHistoryForMerge(ctx, userID, needed)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	zenxiangEntries, zenxiangTotal, err := s.listZenxiangLiyuBalanceHistoryForMerge(ctx, userID, needed)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	entries := mergeBalanceHistoryEntries(params, redeemEntries, affiliateEntries, usageEntries, zenxiangEntries)
 
 	totalRecharged, err := s.redeemCodeRepo.SumPositiveBalanceByUser(ctx, userID)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	return codes, redeemTotal + affiliateTotal, totalRecharged, nil
+	return entries, redeemTotal + affiliateTotal + usageTotal + zenxiangTotal, totalRecharged, nil
 }
 
-func (s *adminServiceImpl) listRedeemBalanceHistoryForMerge(ctx context.Context, userID int64, needed int) ([]RedeemCode, int64, error) {
+func (s *adminServiceImpl) listBalanceHistoryByType(ctx context.Context, userID int64, params pagination.PaginationParams, codeType string) ([]BalanceHistoryEntry, int64, error) {
+	switch codeType {
+	case RedeemTypeAffiliateBalance:
+		return s.listAffiliateBalanceHistory(ctx, userID, params)
+	case "usage_balance":
+		return s.listUsageBalanceHistory(ctx, userID, params)
+	case "zenxiang_liyu_reward":
+		return s.listZenxiangLiyuBalanceHistory(ctx, userID, params)
+	default:
+		codes, result, err := s.redeemCodeRepo.ListByUserPaginated(ctx, userID, params, codeType)
+		if err != nil {
+			return nil, 0, err
+		}
+		total := int64(0)
+		if result != nil {
+			total = result.Total
+		}
+		return redeemCodesToBalanceHistoryEntries(codes), total, nil
+	}
+}
+
+func (s *adminServiceImpl) listRedeemBalanceHistoryForMerge(ctx context.Context, userID int64, needed int) ([]BalanceHistoryEntry, int64, error) {
 	if needed <= 0 {
 		return nil, 0, nil
 	}
 
 	var (
-		out   []RedeemCode
+		out   []BalanceHistoryEntry
 		total int64
 	)
 	for page := 1; len(out) < needed; page++ {
@@ -835,7 +850,7 @@ func (s *adminServiceImpl) listRedeemBalanceHistoryForMerge(ctx context.Context,
 		if result != nil {
 			total = result.Total
 		}
-		out = append(out, codes...)
+		out = append(out, redeemCodesToBalanceHistoryEntries(codes)...)
 		if len(codes) < params.Limit() || int64(len(out)) >= total {
 			break
 		}
@@ -846,13 +861,13 @@ func (s *adminServiceImpl) listRedeemBalanceHistoryForMerge(ctx context.Context,
 	return out, total, nil
 }
 
-func (s *adminServiceImpl) listAffiliateBalanceHistoryForMerge(ctx context.Context, userID int64, needed int) ([]RedeemCode, int64, error) {
+func (s *adminServiceImpl) listAffiliateBalanceHistoryForMerge(ctx context.Context, userID int64, needed int) ([]BalanceHistoryEntry, int64, error) {
 	if needed <= 0 {
 		return nil, 0, nil
 	}
 
 	var (
-		out   []RedeemCode
+		out   []BalanceHistoryEntry
 		total int64
 	)
 	for page := 1; len(out) < needed; page++ {
@@ -873,7 +888,7 @@ func (s *adminServiceImpl) listAffiliateBalanceHistoryForMerge(ctx context.Conte
 	return out, total, nil
 }
 
-func (s *adminServiceImpl) listAffiliateBalanceHistory(ctx context.Context, userID int64, params pagination.PaginationParams) ([]RedeemCode, int64, error) {
+func (s *adminServiceImpl) listAffiliateBalanceHistory(ctx context.Context, userID int64, params pagination.PaginationParams) ([]BalanceHistoryEntry, int64, error) {
 	if s == nil || s.entClient == nil || userID <= 0 {
 		return nil, 0, nil
 	}
@@ -893,7 +908,7 @@ LIMIT $3`, userID, params.Offset(), params.Limit())
 	}
 	defer func() { _ = rows.Close() }()
 
-	codes := make([]RedeemCode, 0, params.Limit())
+	entries := make([]BalanceHistoryEntry, 0, params.Limit())
 	for rows.Next() {
 		var id int64
 		var amount float64
@@ -903,15 +918,18 @@ LIMIT $3`, userID, params.Offset(), params.Limit())
 		}
 		usedBy := userID
 		usedAt := createdAt
-		codes = append(codes, RedeemCode{
-			ID:        -id,
-			Code:      fmt.Sprintf("AFF-%d", id),
-			Type:      RedeemTypeAffiliateBalance,
-			Value:     amount,
-			Status:    StatusUsed,
-			UsedBy:    &usedBy,
-			UsedAt:    &usedAt,
-			CreatedAt: createdAt,
+		entries = append(entries, BalanceHistoryEntry{
+			ID:           -id,
+			Code:         fmt.Sprintf("AFF-%d", id),
+			Type:         RedeemTypeAffiliateBalance,
+			Value:        amount,
+			Status:       StatusUsed,
+			UsedBy:       &usedBy,
+			UsedAt:       &usedAt,
+			CreatedAt:    createdAt,
+			SourceLabel:  "返佣转入",
+			SourceDetail: "邀请返佣余额转入",
+			ReferenceID:  fmt.Sprintf("affiliate-ledger:%d", id),
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -922,7 +940,7 @@ LIMIT $3`, userID, params.Offset(), params.Limit())
 	if err != nil {
 		return nil, 0, err
 	}
-	return codes, total, nil
+	return entries, total, nil
 }
 
 func countAffiliateBalanceHistory(ctx context.Context, client *dbent.Client, userID int64) (int64, error) {
@@ -951,14 +969,258 @@ WHERE user_id = $1
 	return total.Int64, nil
 }
 
-func mergeBalanceHistoryCodes(redeemCodes, affiliateCodes []RedeemCode, params pagination.PaginationParams) []RedeemCode {
-	combined := append(append([]RedeemCode{}, redeemCodes...), affiliateCodes...)
+func (s *adminServiceImpl) listUsageBalanceHistoryForMerge(ctx context.Context, userID int64, needed int) ([]BalanceHistoryEntry, int64, error) {
+	return s.listPagedBalanceHistoryForMerge(ctx, userID, needed, s.listUsageBalanceHistory)
+}
+
+func (s *adminServiceImpl) listZenxiangLiyuBalanceHistoryForMerge(ctx context.Context, userID int64, needed int) ([]BalanceHistoryEntry, int64, error) {
+	return s.listPagedBalanceHistoryForMerge(ctx, userID, needed, s.listZenxiangLiyuBalanceHistory)
+}
+
+func (s *adminServiceImpl) listPagedBalanceHistoryForMerge(ctx context.Context, userID int64, needed int, list func(context.Context, int64, pagination.PaginationParams) ([]BalanceHistoryEntry, int64, error)) ([]BalanceHistoryEntry, int64, error) {
+	if needed <= 0 {
+		return nil, 0, nil
+	}
+	var (
+		out   []BalanceHistoryEntry
+		total int64
+	)
+	for page := 1; len(out) < needed; page++ {
+		params := pagination.PaginationParams{Page: page, PageSize: 1000}
+		entries, currentTotal, err := list(ctx, userID, params)
+		if err != nil {
+			return nil, 0, err
+		}
+		total = currentTotal
+		out = append(out, entries...)
+		if len(entries) < params.Limit() || int64(len(out)) >= total {
+			break
+		}
+	}
+	if len(out) > needed {
+		out = out[:needed]
+	}
+	return out, total, nil
+}
+
+func (s *adminServiceImpl) listUsageBalanceHistory(ctx context.Context, userID int64, params pagination.PaginationParams) ([]BalanceHistoryEntry, int64, error) {
+	if s == nil || s.entClient == nil || userID <= 0 {
+		return nil, 0, nil
+	}
+	rows, err := s.entClient.QueryContext(ctx, `
+SELECT id,
+       actual_cost::double precision,
+       request_type,
+       model,
+       created_at
+FROM usage_logs
+WHERE user_id = $1
+  AND actual_cost > 0
+ORDER BY created_at DESC, id DESC
+OFFSET $2
+LIMIT $3`, userID, params.Offset(), params.Limit())
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	entries := make([]BalanceHistoryEntry, 0, params.Limit())
+	for rows.Next() {
+		var id int64
+		var amount float64
+		var requestType, model sql.NullString
+		var createdAt time.Time
+		if err := rows.Scan(&id, &amount, &requestType, &model, &createdAt); err != nil {
+			return nil, 0, err
+		}
+		usedBy := userID
+		usedAt := createdAt
+		detail := "API 使用消耗"
+		if model.Valid && model.String != "" {
+			detail += " · " + model.String
+		}
+		if requestType.Valid && requestType.String != "" {
+			detail += " · " + requestType.String
+		}
+		entries = append(entries, BalanceHistoryEntry{
+			ID:           -1000000000 - id,
+			Code:         fmt.Sprintf("USAGE-%d", id),
+			Type:         "usage_balance",
+			Value:        -amount,
+			Status:       StatusUsed,
+			UsedBy:       &usedBy,
+			UsedAt:       &usedAt,
+			CreatedAt:    createdAt,
+			SourceLabel:  "API 使用消耗",
+			SourceDetail: detail,
+			ReferenceID:  fmt.Sprintf("usage_logs:%d", id),
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	total, err := countUsageBalanceHistory(ctx, s.entClient, userID)
+	if err != nil {
+		return nil, 0, err
+	}
+	return entries, total, nil
+}
+
+func countUsageBalanceHistory(ctx context.Context, client *dbent.Client, userID int64) (int64, error) {
+	rows, err := client.QueryContext(ctx, `
+SELECT COUNT(*)
+FROM usage_logs
+WHERE user_id = $1
+  AND actual_cost > 0`, userID)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = rows.Close() }()
+	var total sql.NullInt64
+	if rows.Next() {
+		if err := rows.Scan(&total); err != nil {
+			return 0, err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if !total.Valid {
+		return 0, nil
+	}
+	return total.Int64, nil
+}
+
+func (s *adminServiceImpl) listZenxiangLiyuBalanceHistory(ctx context.Context, userID int64, params pagination.PaginationParams) ([]BalanceHistoryEntry, int64, error) {
+	if s == nil || s.entClient == nil || userID <= 0 {
+		return nil, 0, nil
+	}
+	rows, err := s.entClient.QueryContext(ctx, `
+SELECT id,
+       request_id,
+       reward_amount::double precision,
+       prize_name_snapshot,
+       created_at
+FROM zenxiang_liyu_records
+WHERE user_id = $1
+  AND reward_amount > 0
+ORDER BY created_at DESC, id DESC
+OFFSET $2
+LIMIT $3`, userID, params.Offset(), params.Limit())
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	entries := make([]BalanceHistoryEntry, 0, params.Limit())
+	for rows.Next() {
+		var id int64
+		var requestID, prizeName string
+		var amount float64
+		var createdAt time.Time
+		if err := rows.Scan(&id, &requestID, &amount, &prizeName, &createdAt); err != nil {
+			return nil, 0, err
+		}
+		usedBy := userID
+		usedAt := createdAt
+		entries = append(entries, BalanceHistoryEntry{
+			ID:           -2000000000 - id,
+			Code:         requestID,
+			Type:         "zenxiang_liyu_reward",
+			Value:        amount,
+			Status:       StatusUsed,
+			UsedBy:       &usedBy,
+			UsedAt:       &usedAt,
+			CreatedAt:    createdAt,
+			SourceLabel:  "臻享礼遇奖励",
+			SourceDetail: "抽奖奖励：" + prizeName,
+			ReferenceID:  fmt.Sprintf("zenxiang_liyu_records:%d", id),
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	total, err := countZenxiangLiyuBalanceHistory(ctx, s.entClient, userID)
+	if err != nil {
+		return nil, 0, err
+	}
+	return entries, total, nil
+}
+
+func countZenxiangLiyuBalanceHistory(ctx context.Context, client *dbent.Client, userID int64) (int64, error) {
+	rows, err := client.QueryContext(ctx, `
+SELECT COUNT(*)
+FROM zenxiang_liyu_records
+WHERE user_id = $1
+  AND reward_amount > 0`, userID)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = rows.Close() }()
+	var total sql.NullInt64
+	if rows.Next() {
+		if err := rows.Scan(&total); err != nil {
+			return 0, err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if !total.Valid {
+		return 0, nil
+	}
+	return total.Int64, nil
+}
+
+func redeemCodesToBalanceHistoryEntries(codes []RedeemCode) []BalanceHistoryEntry {
+	entries := make([]BalanceHistoryEntry, 0, len(codes))
+	for i := range codes {
+		entries = append(entries, redeemCodeToBalanceHistoryEntry(codes[i]))
+	}
+	return entries
+}
+
+func redeemCodeToBalanceHistoryEntry(code RedeemCode) BalanceHistoryEntry {
+	sourceLabel := "兑换码"
+	switch code.Type {
+	case AdjustmentTypeAdminBalance:
+		sourceLabel = "管理员余额调整"
+	case AdjustmentTypeAdminConcurrency:
+		sourceLabel = "管理员并发调整"
+	case RedeemTypeBalance:
+		sourceLabel = "余额兑换码"
+	case RedeemTypeSubscription:
+		sourceLabel = "订阅兑换码"
+	}
+	return BalanceHistoryEntry{
+		ID:           code.ID,
+		Code:         code.Code,
+		Type:         code.Type,
+		Value:        code.Value,
+		Status:       code.Status,
+		UsedBy:       code.UsedBy,
+		UsedAt:       code.UsedAt,
+		CreatedAt:    code.CreatedAt,
+		GroupID:      code.GroupID,
+		ValidityDays: code.ValidityDays,
+		Notes:        code.Notes,
+		SourceLabel:  sourceLabel,
+		SourceDetail: code.Notes,
+		ReferenceID:  fmt.Sprintf("redeem_codes:%d", code.ID),
+	}
+}
+
+func mergeBalanceHistoryEntries(params pagination.PaginationParams, groups ...[]BalanceHistoryEntry) []BalanceHistoryEntry {
+	var combined []BalanceHistoryEntry
+	for _, group := range groups {
+		combined = append(combined, group...)
+	}
 	sort.SliceStable(combined, func(i, j int) bool {
-		return redeemCodeHistoryTime(combined[i]).After(redeemCodeHistoryTime(combined[j]))
+		return balanceHistoryEntryTime(combined[i]).After(balanceHistoryEntryTime(combined[j]))
 	})
 	offset := params.Offset()
 	if offset >= len(combined) {
-		return []RedeemCode{}
+		return []BalanceHistoryEntry{}
 	}
 	end := offset + params.Limit()
 	if end > len(combined) {
@@ -967,11 +1229,29 @@ func mergeBalanceHistoryCodes(redeemCodes, affiliateCodes []RedeemCode, params p
 	return combined[offset:end]
 }
 
-func redeemCodeHistoryTime(code RedeemCode) time.Time {
-	if code.UsedAt != nil {
-		return *code.UsedAt
+func mergeBalanceHistoryCodes(redeemCodes, affiliateCodes []RedeemCode, params pagination.PaginationParams) []RedeemCode {
+	entries := mergeBalanceHistoryEntries(params, redeemCodesToBalanceHistoryEntries(redeemCodes), redeemCodesToBalanceHistoryEntries(affiliateCodes))
+	out := make([]RedeemCode, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, RedeemCode{
+			ID:        entry.ID,
+			Code:      entry.Code,
+			Type:      entry.Type,
+			Value:     entry.Value,
+			Status:    entry.Status,
+			UsedBy:    entry.UsedBy,
+			UsedAt:    entry.UsedAt,
+			CreatedAt: entry.CreatedAt,
+		})
 	}
-	return code.CreatedAt
+	return out
+}
+
+func balanceHistoryEntryTime(entry BalanceHistoryEntry) time.Time {
+	if entry.UsedAt != nil {
+		return *entry.UsedAt
+	}
+	return entry.CreatedAt
 }
 
 func (s *adminServiceImpl) BindUserAuthIdentity(ctx context.Context, userID int64, input AdminBindAuthIdentityInput) (*AdminBoundAuthIdentity, error) {

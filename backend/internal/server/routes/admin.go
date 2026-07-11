@@ -138,6 +138,7 @@ func registerZenxiangLiyuRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		zenxiangLiyu.GET("/stats/prizes", h.Admin.ZenxiangLiyu.GetPrizeStats)
 		zenxiangLiyu.POST("/simulate", h.Admin.ZenxiangLiyu.Simulate)
 		zenxiangLiyu.POST("/simulate/recommend", h.Admin.ZenxiangLiyu.Recommend)
+		zenxiangLiyu.POST("/simulate/profit-preview", h.Admin.ZenxiangLiyu.PreviewProfit)
 		zenxiangLiyu.POST("/simulate/apply", h.Admin.ZenxiangLiyu.ApplySimulation)
 	}
 }

@@ -700,8 +700,22 @@ func (s *stubAdminService) ExpireRedeemCode(ctx context.Context, id int64) (*ser
 	return &code, nil
 }
 
-func (s *stubAdminService) GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]service.RedeemCode, int64, float64, error) {
-	return s.redeems, int64(len(s.redeems)), 100.0, nil
+func (s *stubAdminService) GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]service.BalanceHistoryEntry, int64, float64, error) {
+	items := make([]service.BalanceHistoryEntry, 0, len(s.redeems))
+	for _, redeem := range s.redeems {
+		items = append(items, service.BalanceHistoryEntry{
+			ID:        redeem.ID,
+			Code:      redeem.Code,
+			Type:      redeem.Type,
+			Value:     redeem.Value,
+			Status:    redeem.Status,
+			UsedBy:    redeem.UsedBy,
+			UsedAt:    redeem.UsedAt,
+			CreatedAt: redeem.CreatedAt,
+			Notes:     redeem.Notes,
+		})
+	}
+	return items, int64(len(items)), 100.0, nil
 }
 
 func (s *stubAdminService) UpdateGroupSortOrders(ctx context.Context, updates []service.GroupSortOrderUpdate) error {

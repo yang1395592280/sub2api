@@ -623,16 +623,10 @@ func (h *UserHandler) GetBalanceHistory(c *gin.Context) {
 	page, pageSize := response.ParsePagination(c)
 	codeType := c.Query("type")
 
-	codes, total, totalRecharged, err := h.adminService.GetUserBalanceHistory(c.Request.Context(), userID, page, pageSize, codeType)
+	items, total, totalRecharged, err := h.adminService.GetUserBalanceHistory(c.Request.Context(), userID, page, pageSize, codeType)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
-	}
-
-	// Convert to admin DTO (includes notes field for admin visibility)
-	out := make([]dto.AdminRedeemCode, 0, len(codes))
-	for i := range codes {
-		out = append(out, *dto.RedeemCodeFromServiceAdmin(&codes[i]))
 	}
 
 	// Custom response with total_recharged alongside pagination
@@ -641,7 +635,7 @@ func (h *UserHandler) GetBalanceHistory(c *gin.Context) {
 		pages = 1
 	}
 	response.Success(c, gin.H{
-		"items":           out,
+		"items":           items,
 		"total":           total,
 		"page":            page,
 		"page_size":       pageSize,

@@ -36,5 +36,9 @@ func (ZenxiangLiyuSetting) Fields() []ent.Field {
 		field.Float("ticket_amount").SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).Default(2),
 		field.Float("minimum_balance").SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).Default(10),
 		field.Int("daily_play_limit").Default(5),
+		field.Float("ticket_usage_threshold").SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).Default(5),
+		field.Int("daily_ticket_limit").Default(3),
+		field.Float("unit_sale_price").SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).Default(0.1),
+		field.Float("unit_cost_price").SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).Default(0.05),
 	}
 }

@@ -25,9 +25,14 @@ func NewZenxiangLiyuRepository(client *ent.Client, sqlDB *sql.DB) service.Zenxia
 func (r *zenxiangLiyuRepository) GetSettings(ctx context.Context) (*service.ZenxiangLiyuSettings, error) {
 	settings := &service.ZenxiangLiyuSettings{}
 	err := r.db.QueryRowContext(ctx, `
-		SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit
+		SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit,
+		       COALESCE(ticket_usage_threshold, 5), COALESCE(daily_ticket_limit, 3),
+		       COALESCE(unit_sale_price, 0.1), COALESCE(unit_cost_price, 0.05)
 		FROM zenxiang_liyu_settings WHERE id = 1`,
-	).Scan(&settings.GlobalEnabled, &settings.TicketAmount, &settings.MinimumBalance, &settings.DailyPlayLimit)
+	).Scan(
+		&settings.GlobalEnabled, &settings.TicketAmount, &settings.MinimumBalance, &settings.DailyPlayLimit,
+		&settings.TicketUsageThreshold, &settings.DailyTicketLimit, &settings.UnitSalePrice, &settings.UnitCostPrice,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrZenxiangLiyuInvalidSettings
 	}
@@ -41,11 +46,18 @@ func (r *zenxiangLiyuRepository) UpdateSettings(ctx context.Context, settings se
 	updated := &service.ZenxiangLiyuSettings{}
 	err := r.db.QueryRowContext(ctx, `
 		UPDATE zenxiang_liyu_settings
-		SET global_enabled = $1, ticket_amount = $2, minimum_balance = $3, daily_play_limit = $4, updated_at = NOW()
+		SET global_enabled = $1, ticket_amount = $2, minimum_balance = $3, daily_play_limit = $4,
+		    ticket_usage_threshold = $5, daily_ticket_limit = $6,
+		    unit_sale_price = $7, unit_cost_price = $8, updated_at = NOW()
 		WHERE id = 1
-		RETURNING global_enabled, ticket_amount, minimum_balance, daily_play_limit`,
+		RETURNING global_enabled, ticket_amount, minimum_balance, daily_play_limit,
+		          ticket_usage_threshold, daily_ticket_limit, unit_sale_price, unit_cost_price`,
 		settings.GlobalEnabled, settings.TicketAmount, settings.MinimumBalance, settings.DailyPlayLimit,
-	).Scan(&updated.GlobalEnabled, &updated.TicketAmount, &updated.MinimumBalance, &updated.DailyPlayLimit)
+		settings.TicketUsageThreshold, settings.DailyTicketLimit, settings.UnitSalePrice, settings.UnitCostPrice,
+	).Scan(
+		&updated.GlobalEnabled, &updated.TicketAmount, &updated.MinimumBalance, &updated.DailyPlayLimit,
+		&updated.TicketUsageThreshold, &updated.DailyTicketLimit, &updated.UnitSalePrice, &updated.UnitCostPrice,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrZenxiangLiyuInvalidSettings
 	}
@@ -483,7 +495,8 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 	if err != nil {
 		return nil, err
 	}
-	if settings.TicketAmount <= 0 || settings.MinimumBalance < 0 || settings.DailyPlayLimit <= 0 {
+	if settings.TicketAmount < 0 || settings.MinimumBalance < 0 || settings.DailyPlayLimit <= 0 ||
+		settings.EffectiveTicketUsageThreshold() <= 0 || settings.EffectiveDailyTicketLimit() <= 0 {
 		return nil, service.ErrZenxiangLiyuInvalidSettings
 	}
 	if !settings.GlobalEnabled {
@@ -535,13 +548,7 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 		return nil, err
 	}
 	useFreePlay := service.IsZenxiangLiyuFreePlayAvailable(todayUsageAmount, freePlayUsed)
-	effectiveTicketAmount := settings.TicketAmount
-	if useFreePlay {
-		effectiveTicketAmount = 0
-	}
-	if !useFreePlay && (user.balance <= settings.MinimumBalance || user.balance < settings.TicketAmount) {
-		return nil, service.ErrZenxiangLiyuInsufficientBalance
-	}
+	effectiveTicketAmount := 0.0
 
 	var playCount int
 	err = tx.QueryRowContext(ctx, `
@@ -553,8 +560,10 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 	if err != nil {
 		return nil, err
 	}
-	if !useFreePlay && playCount >= settings.DailyPlayLimit {
-		return nil, service.ErrZenxiangLiyuDailyLimitReached
+	earnedTickets := service.CalculateZenxiangLiyuEarnedTickets(todayUsageAmount, settings)
+	availableTickets := earnedTickets - playCount
+	if availableTickets <= 0 {
+		return nil, service.ErrZenxiangLiyuNoTicket
 	}
 
 	var balanceAfterTicket float64
@@ -563,7 +572,15 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 		return nil, err
 	}
 
-	configSnapshot, err := json.Marshal(map[string]any{"settings": settings, "prize": prize, "free_play": useFreePlay, "today_usage_amount": todayUsageAmount})
+	configSnapshot, err := json.Marshal(map[string]any{
+		"settings":                settings,
+		"prize":                   prize,
+		"free_play":               useFreePlay,
+		"today_usage_amount":      todayUsageAmount,
+		"today_tickets_earned":    earnedTickets,
+		"today_tickets_used":      playCount,
+		"today_tickets_available": availableTickets,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal zenxiang liyu config snapshot: %w", err)
 	}
@@ -592,7 +609,7 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 	}
 
 	var balanceAfterReward float64
-	err = tx.QueryRowContext(ctx, `UPDATE users SET balance = balance + $1, total_recharged = total_recharged + $1, updated_at = NOW() WHERE id = $2 RETURNING balance`, prize.RewardAmount, cmd.UserID).Scan(&balanceAfterReward)
+	err = tx.QueryRowContext(ctx, `UPDATE users SET balance = balance + $1, updated_at = NOW() WHERE id = $2 RETURNING balance`, prize.RewardAmount, cmd.UserID).Scan(&balanceAfterReward)
 	if err != nil {
 		return nil, err
 	}
@@ -627,9 +644,14 @@ func lockZenxiangLiyuSettingsForUpdate(ctx context.Context, tx *sql.Tx) error {
 func getZenxiangLiyuSettingsForPlay(ctx context.Context, tx *sql.Tx) (*service.ZenxiangLiyuSettings, error) {
 	settings := &service.ZenxiangLiyuSettings{}
 	err := tx.QueryRowContext(ctx, `
-		SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit
+		SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit,
+		       COALESCE(ticket_usage_threshold, 5), COALESCE(daily_ticket_limit, 3),
+		       COALESCE(unit_sale_price, 0.1), COALESCE(unit_cost_price, 0.05)
 		FROM zenxiang_liyu_settings WHERE id = 1 FOR UPDATE`,
-	).Scan(&settings.GlobalEnabled, &settings.TicketAmount, &settings.MinimumBalance, &settings.DailyPlayLimit)
+	).Scan(
+		&settings.GlobalEnabled, &settings.TicketAmount, &settings.MinimumBalance, &settings.DailyPlayLimit,
+		&settings.TicketUsageThreshold, &settings.DailyTicketLimit, &settings.UnitSalePrice, &settings.UnitCostPrice,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrZenxiangLiyuInvalidSettings
 	}

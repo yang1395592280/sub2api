@@ -25,6 +25,12 @@ export interface ZenxiangLiyuStatus {
   free_play_usage_threshold: number
   free_play_available: boolean
   free_play_used: boolean
+  ticket_usage_threshold: number
+  daily_ticket_limit: number
+  today_tickets_earned: number
+  today_tickets_used: number
+  today_tickets_available: number
+  ticket_expires_at: string
   prizes: ZenxiangLiyuPrize[]
 }
 

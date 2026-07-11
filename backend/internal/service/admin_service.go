@@ -27,10 +27,10 @@ type AdminService interface {
 	GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int, sortBy, sortOrder string) ([]APIKey, int64, error)
 	GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error)
 	GetUserRPMStatus(ctx context.Context, userID int64) (*UserRPMStatus, error)
-	// GetUserBalanceHistory returns paginated balance/concurrency change records for a user.
+	// GetUserBalanceHistory returns paginated balance/concurrency and usage ledger records for a user.
 	// codeType is optional - pass empty string to return all types.
 	// Also returns totalRecharged (sum of all positive balance top-ups).
-	GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]RedeemCode, int64, float64, error)
+	GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]BalanceHistoryEntry, int64, float64, error)
 	BindUserAuthIdentity(ctx context.Context, userID int64, input AdminBindAuthIdentityInput) (*AdminBoundAuthIdentity, error)
 
 	// Group management
@@ -161,6 +161,23 @@ type UpdateUserInput struct {
 type UserBalanceSummary struct {
 	TotalBalance float64 `json:"total_balance"`
 	UserCount    int64   `json:"user_count"`
+}
+
+type BalanceHistoryEntry struct {
+	ID           int64      `json:"id"`
+	Code         string     `json:"code"`
+	Type         string     `json:"type"`
+	Value        float64    `json:"value"`
+	Status       string     `json:"status"`
+	UsedBy       *int64     `json:"used_by,omitempty"`
+	UsedAt       *time.Time `json:"used_at,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	GroupID      *int64     `json:"group_id,omitempty"`
+	ValidityDays int        `json:"validity_days"`
+	Notes        string     `json:"notes"`
+	SourceLabel  string     `json:"source_label"`
+	SourceDetail string     `json:"source_detail"`
+	ReferenceID  string     `json:"reference_id"`
 }
 
 type BatchAddUsersToGroupResult struct {

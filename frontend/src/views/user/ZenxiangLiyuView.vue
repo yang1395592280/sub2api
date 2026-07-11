@@ -36,16 +36,17 @@
             <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{{ formatAmount(currentBalance) }}</p>
           </div>
           <div class="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
-            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.ticketAmount') }}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.todayTickets') }}</p>
             <div class="mt-1 flex items-baseline gap-2">
-              <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ formatAmount(effectiveTicketAmount) }}</p>
-              <span v-if="status.free_play_available" class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">{{ t('zenxiangLiyu.freePlay') }}</span>
+              <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ status.today_tickets_available }}</p>
+              <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">{{ t('zenxiangLiyu.ticketUnit') }}</span>
             </div>
-            <p v-if="status.free_play_available" class="mt-1 text-xs text-emerald-700 dark:text-emerald-300">{{ t('zenxiangLiyu.freePlayQualified') }}</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.ticketEarnHint', { threshold: formatNumber(status.ticket_usage_threshold), limit: status.daily_ticket_limit }) }}</p>
           </div>
           <div class="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
-            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.remainingPlays') }}</p>
-            <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{{ status.remaining_plays }} / {{ status.daily_play_limit }}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.ticketProgress') }}</p>
+            <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{{ status.today_tickets_used }} / {{ status.today_tickets_earned }}</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.ticketExpireHint') }}</p>
           </div>
         </section>
 
@@ -72,10 +73,10 @@
               </div>
 
               <p v-if="unavailableReason" class="mt-5 text-center text-sm text-amber-700 dark:text-amber-300">{{ unavailableReason }}</p>
-              <p v-else-if="status.free_play_available" class="mt-5 text-center text-sm text-emerald-700 dark:text-emerald-300">
-                {{ t('zenxiangLiyu.freePlayHint', { threshold: formatNumber(status.free_play_usage_threshold), usage: formatNumber(status.today_usage_amount) }) }}
+              <p v-else-if="status.today_tickets_available > 0" class="mt-5 text-center text-sm text-emerald-700 dark:text-emerald-300">
+                {{ t('zenxiangLiyu.ticketPlayHint', { count: status.today_tickets_available }) }}
               </p>
-              <p v-else class="mt-5 text-center text-sm text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.playHint', { amount: formatNumber(status.ticket_amount) }) }}</p>
+              <p v-else class="mt-5 text-center text-sm text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.noTicketHint', { threshold: formatNumber(status.ticket_usage_threshold) }) }}</p>
 
               <button
                 data-testid="zenxiang-play"
@@ -85,7 +86,7 @@
                 @click="play"
               >
                 <span v-if="isPlaying" class="zenxiang-play-button__spinner" aria-hidden="true"></span>
-                {{ isPlaying ? t('zenxiangLiyu.opening') : t('zenxiangLiyu.open') }}
+                {{ isPlaying ? t('zenxiangLiyu.drawing') : t('zenxiangLiyu.draw') }}
               </button>
 
               <p v-if="playError" class="mt-3 text-center text-sm text-red-600 dark:text-red-400">{{ playError }}</p>
@@ -193,7 +194,6 @@ const zenxiangLiyuStore = useZenxiangLiyuStore()
 const status = computed(() => zenxiangLiyuStore.status)
 const statusLoading = computed(() => zenxiangLiyuStore.loading)
 const currentBalance = computed(() => status.value?.balance ?? authStore.user?.balance ?? 0)
-const effectiveTicketAmount = computed(() => status.value?.effective_ticket_amount ?? status.value?.ticket_amount ?? 0)
 const isPlaying = ref(false)
 const loadError = ref('')
 const statusRefreshError = ref('')
@@ -214,6 +214,8 @@ const unavailableReason = computed(() => {
     case 'daily_play_limit_reached':
     case 'zenxiang liyu daily limit reached':
       return t('zenxiangLiyu.dailyLimitReached')
+    case 'zenxiang liyu no ticket':
+      return t('zenxiangLiyu.noTicket')
     case 'maintenance':
     case 'not_visible':
     case 'disabled':

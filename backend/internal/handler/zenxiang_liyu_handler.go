@@ -103,7 +103,8 @@ func handleZenxiangLiyuPlayError(c *gin.Context, err error) {
 		response.Forbidden(c, err.Error())
 	case errors.Is(err, service.ErrZenxiangLiyuRequestIDRequired),
 		errors.Is(err, service.ErrZenxiangLiyuInsufficientBalance),
-		errors.Is(err, service.ErrZenxiangLiyuDailyLimitReached):
+		errors.Is(err, service.ErrZenxiangLiyuDailyLimitReached),
+		errors.Is(err, service.ErrZenxiangLiyuNoTicket):
 		response.BadRequest(c, err.Error())
 	default:
 		response.InternalError(c, "Failed to play Zenxiang Liyu")
