@@ -14,16 +14,18 @@ import (
 type zenxiangLiyuServiceTestRepository struct {
 	mu sync.Mutex
 
-	settings        ZenxiangLiyuSettings
-	prizes          []ZenxiangLiyuPrize
-	granted         bool
-	balance         float64
-	grantCalls      int
-	deleteCalls     int
-	bulkSaveCalls   int
-	countUserPlays  int
-	playCalls       int
-	lastPlayCommand ZenxiangLiyuPlayCommand
+	settings         ZenxiangLiyuSettings
+	prizes           []ZenxiangLiyuPrize
+	granted          bool
+	balance          float64
+	todayUsageAmount float64
+	freePlayUsed     bool
+	grantCalls       int
+	deleteCalls      int
+	bulkSaveCalls    int
+	countUserPlays   int
+	playCalls        int
+	lastPlayCommand  ZenxiangLiyuPlayCommand
 }
 
 func (r *zenxiangLiyuServiceTestRepository) GetSettings(context.Context) (*ZenxiangLiyuSettings, error) {
@@ -82,6 +84,18 @@ func (r *zenxiangLiyuServiceTestRepository) CountUserPlaysOnDate(context.Context
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.countUserPlays, nil
+}
+
+func (r *zenxiangLiyuServiceTestRepository) GetUserUsageAmountOnDate(context.Context, int64, time.Time) (float64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.todayUsageAmount, nil
+}
+
+func (r *zenxiangLiyuServiceTestRepository) HasUserFreePlayOnDate(context.Context, int64, time.Time) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.freePlayUsed, nil
 }
 
 func (r *zenxiangLiyuServiceTestRepository) ListUserRecords(context.Context, int64, time.Time, int, int) ([]ZenxiangLiyuRecord, int, error) {
@@ -371,6 +385,25 @@ func TestZenxiangLiyuStatusRejectsBalanceAtMinimumThreshold(t *testing.T) {
 	require.Equal(t, ErrZenxiangLiyuInsufficientBalance.Error(), status.Reason)
 	require.InDelta(t, 10, status.Balance, 0.000001)
 	require.Equal(t, 5, status.RemainingPlays)
+}
+
+func TestZenxiangLiyuStatusAllowsOneFreePlayAfterDailyUsageThreshold(t *testing.T) {
+	repo := newZenxiangLiyuServiceTestRepository(true, false)
+	repo.settings = ZenxiangLiyuSettings{GlobalEnabled: true, TicketAmount: 2, MinimumBalance: 10, DailyPlayLimit: 5}
+	repo.balance = 0
+	repo.countUserPlays = 5
+	repo.todayUsageAmount = 5.01
+	svc := NewZenxiangLiyuService(repo, func() time.Time { return time.Unix(0, 0).UTC() }, rand.New(rand.NewSource(1)))
+
+	status, err := svc.GetStatus(context.Background(), 224)
+
+	require.NoError(t, err)
+	require.True(t, status.CanPlay)
+	require.True(t, status.FreePlayAvailable)
+	require.False(t, status.FreePlayUsed)
+	require.Zero(t, status.EffectiveTicketAmount)
+	require.InDelta(t, 5.01, status.TodayUsageAmount, 0.000001)
+	require.Zero(t, status.RemainingPlays)
 }
 
 func TestZenxiangLiyuDeletePrizeRejectsInvalidRemainingConfiguration(t *testing.T) {

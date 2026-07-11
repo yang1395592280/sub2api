@@ -16,10 +16,15 @@ export interface ZenxiangLiyuStatus {
   reason?: string
   balance?: number
   ticket_amount: number
+  effective_ticket_amount: number
   minimum_balance: number
   daily_play_limit: number
   today_play_count: number
   remaining_plays: number
+  today_usage_amount: number
+  free_play_usage_threshold: number
+  free_play_available: boolean
+  free_play_used: boolean
   prizes: ZenxiangLiyuPrize[]
 }
 
@@ -30,6 +35,7 @@ export interface ZenxiangLiyuPlayResult {
   prize_name: string
   reward_amount: number
   ticket_amount: number
+  free_play: boolean
   user_net_amount: number
   balance_before: number
   balance_after_ticket: number

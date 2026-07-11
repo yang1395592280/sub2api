@@ -37,7 +37,11 @@
           </div>
           <div class="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.ticketAmount') }}</p>
-            <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{{ formatAmount(status.ticket_amount) }}</p>
+            <div class="mt-1 flex items-baseline gap-2">
+              <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ formatAmount(effectiveTicketAmount) }}</p>
+              <span v-if="status.free_play_available" class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">{{ t('zenxiangLiyu.freePlay') }}</span>
+            </div>
+            <p v-if="status.free_play_available" class="mt-1 text-xs text-emerald-700 dark:text-emerald-300">{{ t('zenxiangLiyu.freePlayQualified') }}</p>
           </div>
           <div class="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.remainingPlays') }}</p>
@@ -68,15 +72,19 @@
               </div>
 
               <p v-if="unavailableReason" class="mt-5 text-center text-sm text-amber-700 dark:text-amber-300">{{ unavailableReason }}</p>
+              <p v-else-if="status.free_play_available" class="mt-5 text-center text-sm text-emerald-700 dark:text-emerald-300">
+                {{ t('zenxiangLiyu.freePlayHint', { threshold: formatNumber(status.free_play_usage_threshold), usage: formatNumber(status.today_usage_amount) }) }}
+              </p>
               <p v-else class="mt-5 text-center text-sm text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.playHint', { amount: formatNumber(status.ticket_amount) }) }}</p>
 
               <button
                 data-testid="zenxiang-play"
                 type="button"
-                class="btn btn-primary mt-4 min-w-36"
+                class="btn btn-primary zenxiang-play-button mt-4 min-w-36"
                 :disabled="!canPlay"
                 @click="play"
               >
+                <span v-if="isPlaying" class="zenxiang-play-button__spinner" aria-hidden="true"></span>
                 {{ isPlaying ? t('zenxiangLiyu.opening') : t('zenxiangLiyu.open') }}
               </button>
 
@@ -89,9 +97,17 @@
               <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('zenxiangLiyu.configuredRewards') }}</h2>
             </div>
             <ul v-if="status.prizes.length" class="divide-y divide-gray-100 dark:divide-gray-700">
-              <li v-for="prize in status.prizes" :key="prize.id" class="flex items-center justify-between gap-3 px-5 py-3">
-                <span class="min-w-0 truncate text-sm text-gray-700 dark:text-gray-200" :title="prize.name">{{ prize.name }}</span>
-                <span class="shrink-0 text-xs font-medium text-gray-700 dark:text-gray-200">{{ formatAmount(prize.reward_amount) }}</span>
+              <li v-for="prize in status.prizes" :key="prize.id" class="px-5 py-3">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium text-gray-800 dark:text-gray-100" :title="prize.name">{{ prize.name }}</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.winProbability', { value: formatProbability(prize.probability) }) }}</p>
+                  </div>
+                  <span class="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">{{ formatAmount(prize.reward_amount) }}</span>
+                </div>
+                <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                  <div class="h-full rounded-full bg-emerald-500/80 transition-all" :style="{ width: probabilityBarWidth(prize.probability) }"></div>
+                </div>
               </li>
             </ul>
             <p v-else class="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.noRewards') }}</p>
@@ -113,19 +129,29 @@
         </section>
 
         <section class="card overflow-hidden">
-          <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('zenxiangLiyu.todayRecords') }}</h2>
-            <span class="text-xs text-gray-500 dark:text-gray-400">{{ todayRecords.length }}</span>
+          <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50/80 px-5 py-4 dark:border-gray-700 dark:bg-gray-800/60">
+            <div>
+              <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('zenxiangLiyu.todayRecords') }}</h2>
+              <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.todayRecordHint') }}</p>
+            </div>
+            <span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-gray-600 shadow-sm ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">{{ todayRecords.length }}</span>
           </div>
-          <div v-if="todayRecords.length" class="divide-y divide-gray-100 dark:divide-gray-700">
-            <div v-for="record in todayRecords" :key="record.id" class="grid gap-2 px-5 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center">
-              <div class="min-w-0">
-                <p class="truncate font-medium text-gray-900 dark:text-white">{{ record.prize_name }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">{{ formatTime(record.played_at) }}</p>
+          <div v-if="todayRecords.length" class="space-y-2 bg-gray-50/40 p-3 dark:bg-gray-900/20">
+            <div v-for="record in todayRecords" :key="record.id" class="rounded-lg border border-gray-100 bg-white px-4 py-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-semibold text-gray-900 dark:text-white">{{ record.prize_name }}</p>
+                  <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                    <span>{{ formatTime(record.played_at) }}</span>
+                    <span v-if="record.probability > 0" class="rounded-full bg-gray-100 px-2 py-0.5 text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ t('zenxiangLiyu.probabilityShort', { value: formatProbability(record.probability) }) }}</span>
+                  </div>
+                </div>
+                <div class="flex flex-wrap gap-2 text-xs sm:justify-end">
+                  <span class="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">{{ t('zenxiangLiyu.rewardShort', { amount: formatNumber(record.reward_amount) }) }}</span>
+                  <span class="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ t('zenxiangLiyu.costShort', { amount: formatNumber(record.ticket_amount) }) }}</span>
+                  <span class="rounded-full px-2.5 py-1 font-semibold" :class="recordNetClass(record.user_net_amount)">{{ t('zenxiangLiyu.netShort', { amount: signedAmount(record.user_net_amount) }) }}</span>
+                </div>
               </div>
-              <span class="text-gray-600 dark:text-gray-300">{{ t('zenxiangLiyu.rewardAmount', { amount: formatNumber(record.reward_amount) }) }}</span>
-              <span class="text-gray-600 dark:text-gray-300">{{ t('zenxiangLiyu.ticketCost', { amount: formatNumber(record.ticket_amount) }) }}</span>
-              <span :class="record.user_net_amount >= 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-red-600 dark:text-red-300'">{{ t('zenxiangLiyu.netAmount', { amount: formatNumber(record.user_net_amount) }) }}</span>
             </div>
           </div>
           <p v-else class="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.noTodayRecords') }}</p>
@@ -159,12 +185,15 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import { listZenxiangLiyuRecords, playZenxiangLiyu, type ZenxiangLiyuPlayResult, type ZenxiangLiyuRecord } from '@/api/zenxiangLiyu'
 import { useAuthStore, useZenxiangLiyuStore } from '@/stores'
 
+const SPIN_DURATION_MS = 4200
+
 const { t } = useI18n()
 const authStore = useAuthStore()
 const zenxiangLiyuStore = useZenxiangLiyuStore()
 const status = computed(() => zenxiangLiyuStore.status)
 const statusLoading = computed(() => zenxiangLiyuStore.loading)
 const currentBalance = computed(() => status.value?.balance ?? authStore.user?.balance ?? 0)
+const effectiveTicketAmount = computed(() => status.value?.effective_ticket_amount ?? status.value?.ticket_amount ?? 0)
 const isPlaying = ref(false)
 const loadError = ref('')
 const statusRefreshError = ref('')
@@ -212,6 +241,29 @@ function formatAmount(amount?: number): string {
 
 function formatNumber(amount?: number): string {
   return Number(amount ?? 0).toLocaleString()
+}
+
+function formatProbability(probability?: number): string {
+  const value = Number(probability ?? 0)
+  return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}%`
+}
+
+function probabilityBarWidth(probability?: number): string {
+  const value = Math.max(0, Math.min(100, Number(probability ?? 0)))
+  return `${value}%`
+}
+
+function signedAmount(amount?: number): string {
+  const value = Number(amount ?? 0)
+  if (value > 0) return `+${formatNumber(value)}`
+  return formatNumber(value)
+}
+
+function recordNetClass(amount?: number): string {
+  const value = Number(amount ?? 0)
+  if (value > 0) return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'
+  if (value < 0) return 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300'
+  return 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
 }
 
 function wheelLabelStyle(index: number, count: number): Record<string, string> {
@@ -273,16 +325,23 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
+function nextAnimationFrame(): Promise<void> {
+  return new Promise((resolve) => window.requestAnimationFrame(() => resolve()))
+}
+
 async function spinToPrize(prizeId: number): Promise<void> {
   const prizes = status.value?.prizes ?? []
   const index = Math.max(0, prizes.findIndex((prize) => prize.id === prizeId))
   const count = Math.max(prizes.length, 1)
   const segment = 360 / count
   const targetCenter = index * segment + segment / 2
-  const currentBase = Math.ceil(wheelRotation.value / 360) * 360
+  const normalizedRotation = ((wheelRotation.value % 360) + 360) % 360
+  const targetRotation = (360 - targetCenter + 360) % 360
+  const deltaToTarget = (targetRotation - normalizedRotation + 360) % 360
   isSpinning.value = true
-  wheelRotation.value = currentBase + 360 * 5 - targetCenter
-  await wait(3200)
+  await nextAnimationFrame()
+  wheelRotation.value += 360 * 6 + deltaToTarget
+  await wait(SPIN_DURATION_MS)
   isSpinning.value = false
 }
 
@@ -293,7 +352,6 @@ async function play(): Promise<void> {
   playError.value = ''
   showResultDialog.value = false
   try {
-    wheelRotation.value += 360
     const playResult = await playZenxiangLiyu(newRequestId())
     await spinToPrize(playResult.prize_id)
     result.value = playResult
@@ -322,12 +380,16 @@ onMounted(() => {
   border: 8px solid rgb(229 231 235);
   border-radius: 9999px;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.3);
-  transition: transform 3.2s cubic-bezier(0.12, 0.72, 0.12, 1);
+  transform: translateZ(0);
+  transition: transform 4.2s cubic-bezier(0.08, 0.82, 0.16, 1);
   will-change: transform;
 }
 
 .zenxiang-wheel--spinning {
   filter: saturate(1.08);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.35),
+    0 18px 35px rgb(15 118 110 / 0.14);
 }
 
 .dark .zenxiang-wheel {
@@ -370,5 +432,27 @@ onMounted(() => {
   word-break: break-word;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.zenxiang-play-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.zenxiang-play-button__spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgb(255 255 255 / 0.45);
+  border-top-color: rgb(255 255 255);
+  border-radius: 9999px;
+  animation: zenxiang-spin 0.8s linear infinite;
+}
+
+@keyframes zenxiang-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

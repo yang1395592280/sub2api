@@ -226,6 +226,28 @@ func (r *zenxiangLiyuRepository) CountUserPlaysOnDate(ctx context.Context, userI
 	return count, err
 }
 
+func (r *zenxiangLiyuRepository) GetUserUsageAmountOnDate(ctx context.Context, userID int64, playDate time.Time) (float64, error) {
+	start, end := zenxiangLiyuUsageWindow(playDate)
+	var amount float64
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(actual_cost), 0)
+		FROM usage_logs
+		WHERE user_id = $1 AND created_at >= $2 AND created_at < $3`, userID, start, end,
+	).Scan(&amount)
+	return amount, err
+}
+
+func (r *zenxiangLiyuRepository) HasUserFreePlayOnDate(ctx context.Context, userID int64, playDate time.Time) (bool, error) {
+	var used bool
+	err := r.db.QueryRowContext(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM zenxiang_liyu_records
+			WHERE user_id = $1 AND play_date = $2 AND ticket_amount = 0
+		)`, userID, playDate,
+	).Scan(&used)
+	return used, err
+}
+
 func (r *zenxiangLiyuRepository) ListUserRecords(ctx context.Context, userID int64, playDate time.Time, page, pageSize int) ([]service.ZenxiangLiyuRecord, int, error) {
 	var total int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM zenxiang_liyu_records WHERE user_id = $1 AND play_date = $2`, userID, playDate).Scan(&total); err != nil {
@@ -503,7 +525,21 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 	if user.role != service.RoleUser || user.status != service.StatusActive {
 		return nil, service.ErrZenxiangLiyuUnauthorized
 	}
-	if user.balance <= settings.MinimumBalance || user.balance < settings.TicketAmount {
+
+	todayUsageAmount, err := getZenxiangLiyuUserUsageAmountForPlay(ctx, tx, cmd.UserID, cmd.PlayDate)
+	if err != nil {
+		return nil, err
+	}
+	freePlayUsed, err := hasZenxiangLiyuUserFreePlayForPlay(ctx, tx, cmd.UserID, cmd.PlayDate)
+	if err != nil {
+		return nil, err
+	}
+	useFreePlay := service.IsZenxiangLiyuFreePlayAvailable(todayUsageAmount, freePlayUsed)
+	effectiveTicketAmount := settings.TicketAmount
+	if useFreePlay {
+		effectiveTicketAmount = 0
+	}
+	if !useFreePlay && (user.balance <= settings.MinimumBalance || user.balance < settings.TicketAmount) {
 		return nil, service.ErrZenxiangLiyuInsufficientBalance
 	}
 
@@ -517,22 +553,22 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 	if err != nil {
 		return nil, err
 	}
-	if playCount >= settings.DailyPlayLimit {
+	if !useFreePlay && playCount >= settings.DailyPlayLimit {
 		return nil, service.ErrZenxiangLiyuDailyLimitReached
 	}
 
 	var balanceAfterTicket float64
-	err = tx.QueryRowContext(ctx, `UPDATE users SET balance = balance - $1, updated_at = NOW() WHERE id = $2 RETURNING balance`, settings.TicketAmount, cmd.UserID).Scan(&balanceAfterTicket)
+	err = tx.QueryRowContext(ctx, `UPDATE users SET balance = balance - $1, updated_at = NOW() WHERE id = $2 RETURNING balance`, effectiveTicketAmount, cmd.UserID).Scan(&balanceAfterTicket)
 	if err != nil {
 		return nil, err
 	}
 
-	configSnapshot, err := json.Marshal(map[string]any{"settings": settings, "prize": prize})
+	configSnapshot, err := json.Marshal(map[string]any{"settings": settings, "prize": prize, "free_play": useFreePlay, "today_usage_amount": todayUsageAmount})
 	if err != nil {
 		return nil, fmt.Errorf("marshal zenxiang liyu config snapshot: %w", err)
 	}
-	userNetAmount := prize.RewardAmount - settings.TicketAmount
-	systemProfit := settings.TicketAmount - prize.RewardAmount
+	userNetAmount := prize.RewardAmount - effectiveTicketAmount
+	systemProfit := effectiveTicketAmount - prize.RewardAmount
 	var playedAt time.Time
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO zenxiang_liyu_records (
@@ -541,8 +577,8 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 			probability_snapshot, config_snapshot, balance_before, balance_after_ticket, balance_after_reward
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		RETURNING created_at`,
-		cmd.RequestID, cmd.UserID, cmd.PlayDate, settings.TicketAmount, prize.RewardAmount, userNetAmount,
-		settings.TicketAmount, prize.RewardAmount, systemProfit, prize.ID, prize.Name, prize.Probability,
+		cmd.RequestID, cmd.UserID, cmd.PlayDate, effectiveTicketAmount, prize.RewardAmount, userNetAmount,
+		effectiveTicketAmount, prize.RewardAmount, systemProfit, prize.ID, prize.Name, prize.Probability,
 		configSnapshot, user.balance, balanceAfterTicket, balanceAfterTicket+prize.RewardAmount,
 	).Scan(&playedAt)
 	if err != nil {
@@ -569,7 +605,8 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 		PrizeID:            prize.ID,
 		PrizeName:          prize.Name,
 		RewardAmount:       prize.RewardAmount,
-		TicketAmount:       settings.TicketAmount,
+		TicketAmount:       effectiveTicketAmount,
+		FreePlay:           useFreePlay,
 		UserNetAmount:      userNetAmount,
 		BalanceBefore:      user.balance,
 		BalanceAfterTicket: balanceAfterTicket,
@@ -611,6 +648,34 @@ func getZenxiangLiyuGrantForPlay(ctx context.Context, tx *sql.Tx, userID int64) 
 		FOR SHARE`, userID,
 	).Scan(&granted)
 	return granted, err
+}
+
+func getZenxiangLiyuUserUsageAmountForPlay(ctx context.Context, tx *sql.Tx, userID int64, playDate time.Time) (float64, error) {
+	start, end := zenxiangLiyuUsageWindow(playDate)
+	var amount float64
+	err := tx.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(actual_cost), 0)
+		FROM usage_logs
+		WHERE user_id = $1 AND created_at >= $2 AND created_at < $3`, userID, start, end,
+	).Scan(&amount)
+	return amount, err
+}
+
+func hasZenxiangLiyuUserFreePlayForPlay(ctx context.Context, tx *sql.Tx, userID int64, playDate time.Time) (bool, error) {
+	var used bool
+	err := tx.QueryRowContext(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM zenxiang_liyu_records
+			WHERE user_id = $1 AND play_date = $2 AND ticket_amount = 0
+		)`, userID, playDate,
+	).Scan(&used)
+	return used, err
+}
+
+func zenxiangLiyuUsageWindow(playDate time.Time) (time.Time, time.Time) {
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	start := time.Date(playDate.Year(), playDate.Month(), playDate.Day(), 0, 0, 0, 0, shanghai)
+	return start.UTC(), start.AddDate(0, 0, 1).UTC()
 }
 
 func listEnabledZenxiangLiyuPrizesForPlay(ctx context.Context, tx *sql.Tx) ([]service.ZenxiangLiyuPrize, error) {
@@ -701,5 +766,6 @@ func findZenxiangLiyuRecord(ctx context.Context, tx *sql.Tx, userID int64, reque
 	if prizeID.Valid {
 		result.PrizeID = prizeID.Int64
 	}
+	result.FreePlay = result.TicketAmount == 0
 	return result, nil
 }

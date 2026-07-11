@@ -40,6 +40,7 @@ func TestZenxiangLiyuRepositoryPlayAppliesAtomically(t *testing.T) {
 	defer db.Close()
 
 	playDate := time.Date(2026, time.July, 10, 0, 0, 0, 0, time.UTC)
+	usageStart, usageEnd := zenxiangLiyuUsageWindow(playDate)
 	repo := &zenxiangLiyuRepository{db: db}
 	mock.ExpectBegin()
 	mock.ExpectQuery(`SELECT .* FROM zenxiang_liyu_records WHERE user_id = \$1 AND request_id = \$2`).
@@ -52,6 +53,12 @@ func TestZenxiangLiyuRepositoryPlayAppliesAtomically(t *testing.T) {
 	mock.ExpectQuery(`SELECT id, email, role, status, balance FROM users WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
 		WithArgs(int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "role", "status", "balance"}).AddRow(42, "user@example.com", service.RoleUser, service.StatusActive, 12.0))
+	mock.ExpectQuery(`SELECT COALESCE\(SUM\(actual_cost\), 0\)`).
+		WithArgs(int64(42), usageStart, usageEnd).
+		WillReturnRows(sqlmock.NewRows([]string{"amount"}).AddRow(0.0))
+	mock.ExpectQuery(`SELECT EXISTS\(`).
+		WithArgs(int64(42), playDate).
+		WillReturnRows(sqlmock.NewRows([]string{"used"}).AddRow(false))
 	mock.ExpectQuery(`SELECT GREATEST\(`).
 		WithArgs(int64(42), playDate).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
@@ -82,12 +89,69 @@ func TestZenxiangLiyuRepositoryPlayAppliesAtomically(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestZenxiangLiyuRepositoryPlayUsesFreePlayAfterDailyUsageThreshold(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	playDate := time.Date(2026, time.July, 10, 0, 0, 0, 0, time.UTC)
+	usageStart, usageEnd := zenxiangLiyuUsageWindow(playDate)
+	repo := &zenxiangLiyuRepository{db: db}
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT .* FROM zenxiang_liyu_records WHERE user_id = \$1 AND request_id = \$2`).
+		WithArgs(int64(42), "req-free").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectQuery(`SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit FROM zenxiang_liyu_settings WHERE id = 1 FOR UPDATE`).
+		WillReturnRows(sqlmock.NewRows([]string{"global_enabled", "ticket_amount", "minimum_balance", "daily_play_limit"}).AddRow(true, 2.0, 10.0, 5))
+	mock.ExpectQuery(`SELECT id, name, reward_amount, probability, enabled, sort_order FROM zenxiang_liyu_prizes WHERE enabled = TRUE ORDER BY sort_order, id FOR SHARE`).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "reward_amount", "probability", "enabled", "sort_order"}).AddRow(7, "3 yuan", 3.0, 100.0, true, 1))
+	mock.ExpectQuery(`SELECT id, email, role, status, balance FROM users WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
+		WithArgs(int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "role", "status", "balance"}).AddRow(42, "user@example.com", service.RoleUser, service.StatusActive, 1.0))
+	mock.ExpectQuery(`SELECT COALESCE\(SUM\(actual_cost\), 0\)`).
+		WithArgs(int64(42), usageStart, usageEnd).
+		WillReturnRows(sqlmock.NewRows([]string{"amount"}).AddRow(5.01))
+	mock.ExpectQuery(`SELECT EXISTS\(`).
+		WithArgs(int64(42), playDate).
+		WillReturnRows(sqlmock.NewRows([]string{"used"}).AddRow(false))
+	mock.ExpectQuery(`SELECT GREATEST\(`).
+		WithArgs(int64(42), playDate).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(5))
+	mock.ExpectQuery(`UPDATE users SET balance = balance - \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
+		WithArgs(0.0, int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(1.0))
+	mock.ExpectQuery(`INSERT INTO zenxiang_liyu_records`).
+		WithArgs(
+			"req-free", int64(42), playDate, 0.0, 3.0, 3.0, 0.0, 3.0, -3.0, int64(7), "3 yuan", 100.0,
+			sqlmock.AnyArg(), 1.0, 1.0, 4.0,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(time.Unix(4, 0)))
+	mock.ExpectQuery(`UPDATE users SET balance = balance \+ \$1, total_recharged = total_recharged \+ \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
+		WithArgs(3.0, int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(4.0))
+	mock.ExpectCommit()
+
+	result, err := repo.Play(context.Background(), service.ZenxiangLiyuPlayCommand{
+		UserID:    42,
+		RequestID: "req-free",
+		PlayDate:  playDate,
+		Roll:      50,
+	})
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+	require.True(t, result.FreePlay)
+	require.Zero(t, result.TicketAmount)
+	require.InDelta(t, 4, result.BalanceAfterReward, 0.000001)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestZenxiangLiyuRepositoryPlayReturnsExistingRecordAfterUniqueConflict(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
 	playDate := time.Date(2026, time.July, 10, 0, 0, 0, 0, time.UTC)
+	usageStart, usageEnd := zenxiangLiyuUsageWindow(playDate)
 	repo := &zenxiangLiyuRepository{db: db}
 	mock.ExpectBegin()
 	mock.ExpectQuery(`SELECT .* FROM zenxiang_liyu_records WHERE user_id = \$1 AND request_id = \$2`).
@@ -100,6 +164,12 @@ func TestZenxiangLiyuRepositoryPlayReturnsExistingRecordAfterUniqueConflict(t *t
 	mock.ExpectQuery(`SELECT id, email, role, status, balance FROM users WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
 		WithArgs(int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "role", "status", "balance"}).AddRow(42, "user@example.com", service.RoleUser, service.StatusActive, 12.0))
+	mock.ExpectQuery(`SELECT COALESCE\(SUM\(actual_cost\), 0\)`).
+		WithArgs(int64(42), usageStart, usageEnd).
+		WillReturnRows(sqlmock.NewRows([]string{"amount"}).AddRow(0.0))
+	mock.ExpectQuery(`SELECT EXISTS\(`).
+		WithArgs(int64(42), playDate).
+		WillReturnRows(sqlmock.NewRows([]string{"used"}).AddRow(false))
 	mock.ExpectQuery(`SELECT GREATEST\(`).
 		WithArgs(int64(42), playDate).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))

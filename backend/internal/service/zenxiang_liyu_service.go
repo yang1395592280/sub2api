@@ -11,7 +11,11 @@ import (
 	"time"
 )
 
-const zenxiangLiyuProbabilityEpsilon = 0.000001
+const (
+	zenxiangLiyuProbabilityEpsilon       = 0.000001
+	zenxiangLiyuFreePlayUsageThreshold   = 5.0
+	zenxiangLiyuFreePlayThresholdEpsilon = 0.000001
+)
 
 var (
 	ErrZenxiangLiyuDisabled                = errors.New("zenxiang liyu is disabled")
@@ -64,16 +68,21 @@ func (u ZenxiangLiyuPrizeUpdate) Prize() ZenxiangLiyuPrize {
 }
 
 type ZenxiangLiyuStatus struct {
-	Visible        bool                `json:"visible"`
-	CanPlay        bool                `json:"can_play"`
-	Reason         string              `json:"reason,omitempty"`
-	Balance        float64             `json:"balance"`
-	TicketAmount   float64             `json:"ticket_amount"`
-	MinimumBalance float64             `json:"minimum_balance"`
-	DailyPlayLimit int                 `json:"daily_play_limit"`
-	TodayPlayCount int                 `json:"today_play_count"`
-	RemainingPlays int                 `json:"remaining_plays"`
-	Prizes         []ZenxiangLiyuPrize `json:"prizes"`
+	Visible                bool                `json:"visible"`
+	CanPlay                bool                `json:"can_play"`
+	Reason                 string              `json:"reason,omitempty"`
+	Balance                float64             `json:"balance"`
+	TicketAmount           float64             `json:"ticket_amount"`
+	EffectiveTicketAmount  float64             `json:"effective_ticket_amount"`
+	MinimumBalance         float64             `json:"minimum_balance"`
+	DailyPlayLimit         int                 `json:"daily_play_limit"`
+	TodayPlayCount         int                 `json:"today_play_count"`
+	RemainingPlays         int                 `json:"remaining_plays"`
+	TodayUsageAmount       float64             `json:"today_usage_amount"`
+	FreePlayUsageThreshold float64             `json:"free_play_usage_threshold"`
+	FreePlayAvailable      bool                `json:"free_play_available"`
+	FreePlayUsed           bool                `json:"free_play_used"`
+	Prizes                 []ZenxiangLiyuPrize `json:"prizes"`
 }
 
 type ZenxiangLiyuPlayCommand struct {
@@ -90,6 +99,7 @@ type ZenxiangLiyuPlayResult struct {
 	PrizeName          string    `json:"prize_name"`
 	RewardAmount       float64   `json:"reward_amount"`
 	TicketAmount       float64   `json:"ticket_amount"`
+	FreePlay           bool      `json:"free_play"`
 	UserNetAmount      float64   `json:"user_net_amount"`
 	BalanceBefore      float64   `json:"balance_before"`
 	BalanceAfterTicket float64   `json:"balance_after_ticket"`
@@ -240,6 +250,8 @@ type ZenxiangLiyuRepository interface {
 	IsUserGranted(ctx context.Context, userID int64) (bool, error)
 	GetUserBalance(ctx context.Context, userID int64) (float64, error)
 	CountUserPlaysOnDate(ctx context.Context, userID int64, playDate time.Time) (int, error)
+	GetUserUsageAmountOnDate(ctx context.Context, userID int64, playDate time.Time) (float64, error)
+	HasUserFreePlayOnDate(ctx context.Context, userID int64, playDate time.Time) (bool, error)
 	ListUserRecords(ctx context.Context, userID int64, playDate time.Time, page, pageSize int) ([]ZenxiangLiyuRecord, int, error)
 	GetUserDailySummary(ctx context.Context, userID int64, playDate time.Time) (*ZenxiangLiyuDailySummary, error)
 	ListGrants(ctx context.Context, page, pageSize int) ([]ZenxiangLiyuGrant, int, error)
@@ -394,7 +406,14 @@ func (s *ZenxiangLiyuService) GetStatus(ctx context.Context, userID int64) (*Zen
 	if err != nil {
 		return nil, err
 	}
-	status := &ZenxiangLiyuStatus{TicketAmount: settings.TicketAmount, MinimumBalance: settings.MinimumBalance, DailyPlayLimit: settings.DailyPlayLimit, Prizes: prizes}
+	status := &ZenxiangLiyuStatus{
+		TicketAmount:           settings.TicketAmount,
+		EffectiveTicketAmount:  settings.TicketAmount,
+		MinimumBalance:         settings.MinimumBalance,
+		DailyPlayLimit:         settings.DailyPlayLimit,
+		FreePlayUsageThreshold: zenxiangLiyuFreePlayUsageThreshold,
+		Prizes:                 prizes,
+	}
 	if !settings.GlobalEnabled {
 		granted, err := s.repo.IsUserGranted(ctx, userID)
 		if err != nil {
@@ -410,14 +429,30 @@ func (s *ZenxiangLiyuService) GetStatus(ctx context.Context, userID int64) (*Zen
 	if err != nil {
 		return nil, err
 	}
-	status.TodayPlayCount, err = s.repo.CountUserPlaysOnDate(ctx, userID, s.playDate())
+	playDate := s.playDate()
+	status.TodayPlayCount, err = s.repo.CountUserPlaysOnDate(ctx, userID, playDate)
 	if err != nil {
 		return nil, err
 	}
+	status.TodayUsageAmount, err = s.repo.GetUserUsageAmountOnDate(ctx, userID, playDate)
+	if err != nil {
+		return nil, err
+	}
+	status.FreePlayUsed, err = s.repo.HasUserFreePlayOnDate(ctx, userID, playDate)
+	if err != nil {
+		return nil, err
+	}
+	status.FreePlayAvailable = IsZenxiangLiyuFreePlayAvailable(status.TodayUsageAmount, status.FreePlayUsed)
+	if status.FreePlayAvailable {
+		status.EffectiveTicketAmount = 0
+	}
 	status.RemainingPlays = max(0, settings.DailyPlayLimit-status.TodayPlayCount)
-	status.CanPlay = status.Balance > settings.MinimumBalance && status.Balance >= settings.TicketAmount && status.RemainingPlays > 0
+	canPaidPlay := status.Balance > settings.MinimumBalance && status.Balance >= settings.TicketAmount && status.RemainingPlays > 0
+	status.CanPlay = status.FreePlayAvailable || canPaidPlay
 	if !status.CanPlay {
-		if status.Balance <= settings.MinimumBalance || status.Balance < settings.TicketAmount {
+		if status.RemainingPlays <= 0 {
+			status.Reason = ErrZenxiangLiyuDailyLimitReached.Error()
+		} else if status.Balance <= settings.MinimumBalance || status.Balance < settings.TicketAmount {
 			status.Reason = ErrZenxiangLiyuInsufficientBalance.Error()
 		} else {
 			status.Reason = ErrZenxiangLiyuDailyLimitReached.Error()
@@ -667,6 +702,10 @@ func (s *ZenxiangLiyuService) randomFloat64() float64 {
 	s.rngMu.Lock()
 	defer s.rngMu.Unlock()
 	return s.rng.Float64()
+}
+
+func IsZenxiangLiyuFreePlayAvailable(todayUsageAmount float64, freePlayUsed bool) bool {
+	return !freePlayUsed && todayUsageAmount > zenxiangLiyuFreePlayUsageThreshold+zenxiangLiyuFreePlayThresholdEpsilon
 }
 
 func (s *ZenxiangLiyuService) playDate() time.Time {

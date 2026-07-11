@@ -38,10 +38,15 @@ const makePlayableStatus = () => ({
   can_play: true,
   balance: 12,
   ticket_amount: 2,
+  effective_ticket_amount: 2,
   minimum_balance: 10,
   daily_play_limit: 5,
   today_play_count: 0,
   remaining_plays: 5,
+  today_usage_amount: 0,
+  free_play_usage_threshold: 5,
+  free_play_available: false,
+  free_play_used: false,
   prizes: [
     { id: 1, name: '1元', reward_amount: 1, probability: 70, enabled: true, sort_order: 1 },
     { id: 2, name: '3元', reward_amount: 3, probability: 30, enabled: true, sort_order: 2 },
@@ -55,6 +60,7 @@ const makePlayResult = () => ({
   prize_name: '3元',
   reward_amount: 3,
   ticket_amount: 2,
+  free_play: false,
   user_net_amount: 1,
   balance_before: 12,
   balance_after_ticket: 10,
@@ -71,6 +77,13 @@ function mountView() {
       },
     },
   })
+}
+
+async function finishSpinAnimation() {
+  vi.advanceTimersByTime(20)
+  await flushPromises()
+  vi.advanceTimersByTime(4200)
+  await flushPromises()
 }
 
 describe('ZenxiangLiyuView', () => {
@@ -110,8 +123,7 @@ describe('ZenxiangLiyuView', () => {
     await flushPromises()
     await wrapper.find('[data-testid="zenxiang-play"]').trigger('click')
     await flushPromises()
-    vi.advanceTimersByTime(3200)
-    await flushPromises()
+    await finishSpinAnimation()
 
     expect(playZenxiangLiyu).toHaveBeenCalledWith(expect.any(String))
     expect(wrapper.text()).toContain('3元')
@@ -134,6 +146,25 @@ describe('ZenxiangLiyuView', () => {
     expect(wrapper.find('[data-testid="zenxiang-play"]').attributes('disabled')).toBeDefined()
   })
 
+  it('enables one free play when daily usage qualifies', async () => {
+    getZenxiangLiyuStatus.mockResolvedValue({
+      ...makePlayableStatus(),
+      balance: 0,
+      can_play: true,
+      remaining_plays: 0,
+      today_usage_amount: 5.01,
+      free_play_available: true,
+      effective_ticket_amount: 0,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('zenxiangLiyu.freePlay')
+    expect(wrapper.text()).toContain('0 积分')
+    expect(wrapper.find('[data-testid="zenxiang-play"]').attributes('disabled')).toBeUndefined()
+  })
+
   it('disables play while participation is pending', async () => {
     vi.useFakeTimers()
     getZenxiangLiyuStatus.mockResolvedValue(makePlayableStatus())
@@ -150,8 +181,7 @@ describe('ZenxiangLiyuView', () => {
 
     resolvePlay(makePlayResult())
     await flushPromises()
-    vi.advanceTimersByTime(3200)
-    await flushPromises()
+    await finishSpinAnimation()
     vi.useRealTimers()
   })
 
@@ -178,8 +208,7 @@ describe('ZenxiangLiyuView', () => {
     await flushPromises()
     await wrapper.find('[data-testid="zenxiang-play"]').trigger('click')
     await flushPromises()
-    vi.advanceTimersByTime(3200)
-    await flushPromises()
+    await finishSpinAnimation()
 
     expect(wrapper.text()).toContain('3元')
     expect(wrapper.text()).toContain('13')
