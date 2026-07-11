@@ -2,7 +2,7 @@ DO $$
 DECLARE
     user_fk_name NAME;
 BEGIN
-    SELECT constraint_name
+    SELECT key_usage.constraint_name
     INTO user_fk_name
     FROM information_schema.key_column_usage AS key_usage
     JOIN information_schema.referential_constraints AS referential_constraints
@@ -13,11 +13,11 @@ BEGIN
       AND key_usage.column_name = 'user_id'
       AND referential_constraints.unique_constraint_schema = current_schema()
       AND referential_constraints.unique_constraint_name IN (
-          SELECT constraint_name
-          FROM information_schema.table_constraints
-          WHERE table_schema = current_schema()
-            AND table_name = 'users'
-            AND constraint_type = 'PRIMARY KEY'
+          SELECT table_constraints.constraint_name
+          FROM information_schema.table_constraints AS table_constraints
+          WHERE table_constraints.table_schema = current_schema()
+            AND table_constraints.table_name = 'users'
+            AND table_constraints.constraint_type = 'PRIMARY KEY'
       );
 
     IF user_fk_name IS NOT NULL THEN

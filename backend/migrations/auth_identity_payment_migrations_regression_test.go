@@ -200,6 +200,16 @@ func TestMigration158BackfillsGrokMediaGenerationGroups(t *testing.T) {
 	require.Contains(t, sql, "AND allow_image_generation = false")
 }
 
+func TestMigration174QualifiesConstraintNameLookups(t *testing.T) {
+	content, err := FS.ReadFile("174_zenxiang_liyu_record_fk_immutability_fix.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "SELECT key_usage.constraint_name")
+	require.Contains(t, sql, "SELECT table_constraints.constraint_name")
+	require.NotContains(t, sql, "SELECT constraint_name")
+}
+
 func TestMigration175ScopesZenxiangLiyuRequestIDByUser(t *testing.T) {
 	initialContent, err := FS.ReadFile("172_zenxiang_liyu.sql")
 	require.NoError(t, err)
