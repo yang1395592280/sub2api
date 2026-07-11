@@ -114,7 +114,7 @@ func (r *zenxiangLiyuServiceTestRepository) DeleteGrant(context.Context, int64) 
 func (r *zenxiangLiyuServiceTestRepository) GetOverviewStats(context.Context) (*ZenxiangLiyuOverviewStats, error) {
 	return nil, nil
 }
-func (r *zenxiangLiyuServiceTestRepository) ListUserStats(context.Context, int, int) ([]ZenxiangLiyuUserStats, int, error) {
+func (r *zenxiangLiyuServiceTestRepository) ListUserStats(context.Context, int, int, time.Time) ([]ZenxiangLiyuUserStats, int, error) {
 	return nil, 0, nil
 }
 func (r *zenxiangLiyuServiceTestRepository) ListPrizeStats(context.Context) ([]ZenxiangLiyuPrizeStats, error) {
@@ -135,9 +135,13 @@ func (r *zenxiangLiyuServiceTestRepository) Play(_ context.Context, command Zenx
 	return &ZenxiangLiyuPlayResult{Applied: true, RequestID: command.RequestID}, nil
 }
 
+func (r *zenxiangLiyuServiceTestRepository) PlayLuckyCoin(context.Context, ZenxiangLiyuLuckyCoinCommand) (*ZenxiangLiyuLuckyCoinResult, error) {
+	return &ZenxiangLiyuLuckyCoinResult{}, nil
+}
+
 func newZenxiangLiyuServiceTestRepository(globalEnabled, granted bool) *zenxiangLiyuServiceTestRepository {
 	return &zenxiangLiyuServiceTestRepository{
-		settings:         ZenxiangLiyuSettings{GlobalEnabled: globalEnabled, TicketAmount: 0, MinimumBalance: 0, DailyPlayLimit: 1, TicketUsageThreshold: 5, DailyTicketLimit: 3, UnitSalePrice: 0.1, UnitCostPrice: 0.05},
+		settings:         ZenxiangLiyuSettings{GlobalEnabled: globalEnabled, TicketAmount: 0, MinimumBalance: 0, DailyPlayLimit: 1, TicketUsageThreshold: 5, DailyTicketLimit: 3, UnitSalePrice: 0.1, UnitCostPrice: 0.05, LuckyCoinEnabled: true, LuckyCoinProbability: 50},
 		prizes:           []ZenxiangLiyuPrize{{ID: 1, Name: "A", RewardAmount: 1, Probability: 100, Enabled: true}},
 		granted:          granted,
 		balance:          10,
@@ -386,6 +390,8 @@ func TestZenxiangLiyuStatusRejectsWhenNoTicketAvailable(t *testing.T) {
 	require.Equal(t, ErrZenxiangLiyuNoTicket.Error(), status.Reason)
 	require.InDelta(t, 10, status.Balance, 0.000001)
 	require.Zero(t, status.TodayTicketsAvailable)
+	require.InDelta(t, 5, status.NextTicketUsageTarget, 0.000001)
+	require.InDelta(t, 0.01, status.NextTicketUsageMissing, 0.000001)
 }
 
 func TestZenxiangLiyuStatusAllowsTicketAfterDailyUsageThreshold(t *testing.T) {
@@ -404,6 +410,8 @@ func TestZenxiangLiyuStatusAllowsTicketAfterDailyUsageThreshold(t *testing.T) {
 	require.InDelta(t, 5.01, status.TodayUsageAmount, 0.000001)
 	require.Equal(t, 1, status.TodayTicketsEarned)
 	require.Equal(t, 1, status.TodayTicketsAvailable)
+	require.InDelta(t, 10, status.NextTicketUsageTarget, 0.000001)
+	require.InDelta(t, 4.99, status.NextTicketUsageMissing, 0.000001)
 }
 
 func TestZenxiangLiyuDeletePrizeRejectsInvalidRemainingConfiguration(t *testing.T) {

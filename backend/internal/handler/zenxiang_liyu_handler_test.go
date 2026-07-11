@@ -15,12 +15,13 @@ import (
 )
 
 type stubZenxiangLiyuService struct {
-	status      *service.ZenxiangLiyuStatus
-	statusErr   error
-	playResult  *service.ZenxiangLiyuPlayResult
-	playErr     error
-	lastUserID  int64
-	lastRequest string
+	status       *service.ZenxiangLiyuStatus
+	statusErr    error
+	playResult   *service.ZenxiangLiyuPlayResult
+	playErr      error
+	lastUserID   int64
+	lastRequest  string
+	lastRecordID int64
 }
 
 func (s *stubZenxiangLiyuService) GetStatus(_ context.Context, userID int64) (*service.ZenxiangLiyuStatus, error) {
@@ -32,6 +33,12 @@ func (s *stubZenxiangLiyuService) Play(_ context.Context, userID int64, requestI
 	s.lastUserID = userID
 	s.lastRequest = requestID
 	return s.playResult, s.playErr
+}
+
+func (s *stubZenxiangLiyuService) PlayLuckyCoin(_ context.Context, userID, recordID int64) (*service.ZenxiangLiyuLuckyCoinResult, error) {
+	s.lastUserID = userID
+	s.lastRecordID = recordID
+	return &service.ZenxiangLiyuLuckyCoinResult{RecordID: recordID, Outcome: "double"}, nil
 }
 
 func (s *stubZenxiangLiyuService) ListUserRecords(context.Context, int64, int, int) ([]service.ZenxiangLiyuRecord, int, error) {
@@ -120,6 +127,7 @@ func authenticatedZenxiangLiyuTestRouter(h *ZenxiangLiyuHandler) *gin.Engine {
 	})
 	router.GET("/zenxiang-liyu/status", h.GetStatus)
 	router.POST("/zenxiang-liyu/play", h.Play)
+	router.POST("/zenxiang-liyu/records/:id/lucky-coin", h.PlayLuckyCoin)
 	router.GET("/zenxiang-liyu/records", h.ListRecords)
 	router.GET("/zenxiang-liyu/daily-summary", h.GetDailySummary)
 	return router

@@ -30,11 +30,16 @@ export interface ZenxiangLiyuStatus {
   today_tickets_earned: number
   today_tickets_used: number
   today_tickets_available: number
+  next_ticket_usage_target: number
+  next_ticket_usage_missing: number
+  lucky_coin_enabled: boolean
+  lucky_coin_double_probability: number
   ticket_expires_at: string
   prizes: ZenxiangLiyuPrize[]
 }
 
 export interface ZenxiangLiyuPlayResult {
+  id: number
   applied: boolean
   request_id: string
   prize_id: number
@@ -47,6 +52,19 @@ export interface ZenxiangLiyuPlayResult {
   balance_after_ticket: number
   balance_after_reward: number
   played_at: string
+  lucky_coin_available: boolean
+  lucky_coin_played: boolean
+}
+
+export interface ZenxiangLiyuLuckyCoinResult {
+  record_id: number
+  outcome: 'double' | 'zero'
+  original_reward: number
+  adjustment_amount: number
+  balance_after: number
+  double_probability: number
+  played_at: string
+  lucky_coin_available: boolean
 }
 
 export interface ZenxiangLiyuRecord {
@@ -55,6 +73,10 @@ export interface ZenxiangLiyuRecord {
   ticket_amount: number
   reward_amount: number
   user_net_amount: number
+  lucky_coin_played: boolean
+  lucky_coin_outcome?: string
+  lucky_coin_adjustment: number
+  balance_after_lucky?: number
   prize_id?: number
   prize_name: string
   probability: number
@@ -81,6 +103,11 @@ export async function getZenxiangLiyuStatus(): Promise<ZenxiangLiyuStatus> {
 
 export async function playZenxiangLiyu(requestId: string): Promise<ZenxiangLiyuPlayResult> {
   const { data } = await apiClient.post<ZenxiangLiyuPlayResult>('/zenxiang-liyu/play', { request_id: requestId })
+  return data
+}
+
+export async function playZenxiangLiyuLuckyCoin(recordId: number): Promise<ZenxiangLiyuLuckyCoinResult> {
+  const { data } = await apiClient.post<ZenxiangLiyuLuckyCoinResult>(`/zenxiang-liyu/records/${recordId}/lucky-coin`, {})
   return data
 }
 

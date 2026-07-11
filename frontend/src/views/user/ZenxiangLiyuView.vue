@@ -46,7 +46,7 @@
           <div class="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.ticketProgress') }}</p>
             <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{{ status.today_tickets_used }} / {{ status.today_tickets_earned }}</p>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.ticketExpireHint') }}</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ nextTicketHint || t('zenxiangLiyu.ticketExpireHint') }}</p>
           </div>
         </section>
 
@@ -121,12 +121,15 @@
               <p class="text-sm font-medium text-emerald-800 dark:text-emerald-200">{{ t('zenxiangLiyu.rewardResult', { amount: formatNumber(result.reward_amount) }) }}</p>
               <h2 class="mt-1 text-xl font-semibold text-emerald-950 dark:text-white">{{ result.prize_name }}</h2>
             </div>
-            <p class="text-sm text-emerald-800 dark:text-emerald-200">{{ t('zenxiangLiyu.latestBalance', { amount: formatNumber(result.balance_after_reward) }) }}</p>
+            <p class="text-sm text-emerald-800 dark:text-emerald-200">{{ t('zenxiangLiyu.latestBalance', { amount: formatNumber(latestResultBalance) }) }}</p>
           </div>
           <div class="mt-4 grid grid-cols-1 gap-3 border-t border-emerald-200 pt-4 text-sm sm:grid-cols-2 dark:border-emerald-900/70">
             <p class="text-emerald-800 dark:text-emerald-200">{{ t('zenxiangLiyu.rewardAmount', { amount: formatNumber(result.reward_amount) }) }}</p>
-            <p class="text-emerald-800 dark:text-emerald-200">{{ t('zenxiangLiyu.netAmount', { amount: formatNumber(result.user_net_amount) }) }}</p>
+            <p class="text-emerald-800 dark:text-emerald-200">{{ t('zenxiangLiyu.netAmount', { amount: formatNumber(latestResultNetAmount) }) }}</p>
           </div>
+          <p v-if="luckyCoinResult" class="mt-3 text-sm font-medium" :class="luckyCoinResult.outcome === 'double' ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'">
+            {{ luckyCoinResultText }}
+          </p>
         </section>
 
         <section class="card overflow-hidden">
@@ -149,7 +152,7 @@
                 </div>
                 <div class="flex flex-wrap gap-2 text-xs sm:justify-end">
                   <span class="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">{{ t('zenxiangLiyu.rewardShort', { amount: formatNumber(record.reward_amount) }) }}</span>
-                  <span class="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ t('zenxiangLiyu.costShort', { amount: formatNumber(record.ticket_amount) }) }}</span>
+                  <span class="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ t('zenxiangLiyu.ticketUsedShort') }}</span>
                   <span class="rounded-full px-2.5 py-1 font-semibold" :class="recordNetClass(record.user_net_amount)">{{ t('zenxiangLiyu.netShort', { amount: signedAmount(record.user_net_amount) }) }}</span>
                 </div>
               </div>
@@ -164,14 +167,32 @@
             <h2 class="mt-2 text-2xl font-semibold text-gray-950 dark:text-white">{{ result.prize_name }}</h2>
             <p class="mt-3 text-4xl font-bold text-emerald-600 dark:text-emerald-300">+{{ formatAmount(result.reward_amount) }}</p>
             <div class="mt-5 grid grid-cols-2 gap-2 rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800">
-              <span class="text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.ticketAmount') }}</span>
-              <span class="text-right text-gray-900 dark:text-white">{{ formatAmount(result.ticket_amount) }}</span>
+              <span class="text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.ticketUsedLabel') }}</span>
+              <span class="text-right text-gray-900 dark:text-white">{{ t('zenxiangLiyu.oneTicket') }}</span>
               <span class="text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.netLabel') }}</span>
-              <span class="text-right text-gray-900 dark:text-white">{{ formatAmount(result.user_net_amount) }}</span>
+              <span class="text-right text-gray-900 dark:text-white">{{ formatAmount(latestResultNetAmount) }}</span>
               <span class="text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.latestPoints') }}</span>
-              <span class="text-right text-gray-900 dark:text-white">{{ formatAmount(result.balance_after_reward) }}</span>
+              <span class="text-right text-gray-900 dark:text-white">{{ formatAmount(latestResultBalance) }}</span>
             </div>
-            <button type="button" class="btn btn-primary mt-6 w-full" @click="showResultDialog = false">{{ t('common.confirm') }}</button>
+            <div v-if="canUseLuckyCoin || luckyCoinResult || luckyCoinFlipping" class="mt-5">
+              <button
+                type="button"
+                class="lucky-coin-card"
+                :class="{ 'lucky-coin-card--flipping': luckyCoinFlipping, 'lucky-coin-card--win': luckyCoinResult?.outcome === 'double', 'lucky-coin-card--lose': luckyCoinResult?.outcome === 'zero' }"
+                :disabled="!canUseLuckyCoin || luckyCoinFlipping"
+                @click="playLuckyCoin"
+              >
+                <span class="lucky-coin-card__shine"></span>
+                <span class="lucky-coin-card__face">
+                  {{ luckyCoinFlipping ? t('zenxiangLiyu.luckyCoinFlipping') : luckyCoinButtonText }}
+                </span>
+              </button>
+              <p v-if="luckyCoinError" class="mt-2 text-sm text-rose-600 dark:text-rose-300">{{ luckyCoinError }}</p>
+            </div>
+            <div class="mt-6 grid grid-cols-2 gap-2">
+              <button type="button" class="btn btn-secondary w-full" @click="showResultDialog = false">{{ t('common.confirm') }}</button>
+              <button type="button" class="btn btn-primary w-full" :disabled="!canUseLuckyCoin || luckyCoinFlipping" @click="playLuckyCoin">{{ t('zenxiangLiyu.luckyCoinDouble') }}</button>
+            </div>
           </div>
         </div>
       </template>
@@ -183,7 +204,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import { listZenxiangLiyuRecords, playZenxiangLiyu, type ZenxiangLiyuPlayResult, type ZenxiangLiyuRecord } from '@/api/zenxiangLiyu'
+import { listZenxiangLiyuRecords, playZenxiangLiyu, playZenxiangLiyuLuckyCoin, type ZenxiangLiyuLuckyCoinResult, type ZenxiangLiyuPlayResult, type ZenxiangLiyuRecord } from '@/api/zenxiangLiyu'
 import { useAuthStore, useZenxiangLiyuStore } from '@/stores'
 
 const SPIN_DURATION_MS = 4200
@@ -199,6 +220,9 @@ const loadError = ref('')
 const statusRefreshError = ref('')
 const playError = ref('')
 const result = ref<ZenxiangLiyuPlayResult | null>(null)
+const luckyCoinResult = ref<ZenxiangLiyuLuckyCoinResult | null>(null)
+const luckyCoinFlipping = ref(false)
+const luckyCoinError = ref('')
 const todayRecords = ref<ZenxiangLiyuRecord[]>([])
 const wheelRotation = ref(0)
 const isSpinning = ref(false)
@@ -228,6 +252,39 @@ const unavailableReason = computed(() => {
 })
 
 const canPlay = computed(() => Boolean(status.value?.visible && status.value.can_play && !isPlaying.value))
+const canUseLuckyCoin = computed(() => Boolean(
+  result.value?.id &&
+  result.value.lucky_coin_available &&
+  !result.value.lucky_coin_played &&
+  !luckyCoinResult.value &&
+  !luckyCoinFlipping.value
+))
+const latestResultBalance = computed(() => luckyCoinResult.value?.balance_after ?? result.value?.balance_after_reward ?? 0)
+const latestResultNetAmount = computed(() => Number(result.value?.user_net_amount ?? 0) + Number(luckyCoinResult.value?.adjustment_amount ?? 0))
+const luckyCoinButtonText = computed(() => {
+  if (!luckyCoinResult.value) return t('zenxiangLiyu.luckyCoinDouble')
+  return luckyCoinResult.value.outcome === 'double' ? t('zenxiangLiyu.luckyCoinWin') : t('zenxiangLiyu.luckyCoinLose')
+})
+const luckyCoinResultText = computed(() => {
+  const current = luckyCoinResult.value
+  if (!current) return ''
+  if (current.outcome === 'double') {
+    return t('zenxiangLiyu.luckyCoinWinDetail', { amount: formatNumber(current.adjustment_amount) })
+  }
+  return t('zenxiangLiyu.luckyCoinLoseDetail', { amount: formatNumber(Math.abs(current.adjustment_amount)) })
+})
+const nextTicketHint = computed(() => {
+  const current = status.value
+  if (!current) return ''
+  if (current.daily_ticket_limit > 0 && current.today_tickets_earned >= current.daily_ticket_limit) {
+    return t('zenxiangLiyu.dailyTicketLimitReached')
+  }
+  const missing = Number(current.next_ticket_usage_missing || 0)
+  if (missing > 0) {
+    return t('zenxiangLiyu.nextTicketMissing', { amount: formatNumber(missing) })
+  }
+  return ''
+})
 const wheelBackground = computed(() => {
   const prizes = status.value?.prizes ?? []
   if (!prizes.length) return 'conic-gradient(#e5e7eb 0deg 360deg)'
@@ -352,6 +409,9 @@ async function play(): Promise<void> {
 
   isPlaying.value = true
   playError.value = ''
+  luckyCoinResult.value = null
+  luckyCoinError.value = ''
+  luckyCoinFlipping.value = false
   showResultDialog.value = false
   try {
     const playResult = await playZenxiangLiyu(newRequestId())
@@ -365,6 +425,25 @@ async function play(): Promise<void> {
     isSpinning.value = false
   } finally {
     isPlaying.value = false
+  }
+}
+
+async function playLuckyCoin(): Promise<void> {
+  if (!result.value?.id || !canUseLuckyCoin.value) return
+
+  luckyCoinError.value = ''
+  luckyCoinFlipping.value = true
+  try {
+    await wait(900)
+    const coinResult = await playZenxiangLiyuLuckyCoin(result.value.id)
+    luckyCoinResult.value = coinResult
+    result.value = { ...result.value, lucky_coin_available: false, lucky_coin_played: true }
+    await loadStatus(true)
+    await loadTodayRecords()
+  } catch (error) {
+    luckyCoinError.value = errorMessage(error)
+  } finally {
+    luckyCoinFlipping.value = false
   }
 }
 
@@ -450,6 +529,89 @@ onMounted(() => {
   border-top-color: rgb(255 255 255);
   border-radius: 9999px;
   animation: zenxiang-spin 0.8s linear infinite;
+}
+
+.lucky-coin-card {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 4.25rem;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgb(250 204 21 / 0.65);
+  border-radius: 0.75rem;
+  background:
+    radial-gradient(circle at 25% 20%, rgb(254 240 138 / 0.9), transparent 28%),
+    linear-gradient(135deg, rgb(146 64 14), rgb(234 179 8), rgb(180 83 9));
+  color: white;
+  font-weight: 800;
+  letter-spacing: 0;
+  box-shadow: 0 14px 30px rgb(180 83 9 / 0.28);
+  transform-style: preserve-3d;
+  transition: transform 0.32s ease, filter 0.32s ease, box-shadow 0.32s ease;
+}
+
+.lucky-coin-card:disabled {
+  cursor: not-allowed;
+}
+
+.lucky-coin-card:not(:disabled):hover {
+  transform: translateY(-1px) rotateX(5deg);
+  filter: saturate(1.1);
+}
+
+.lucky-coin-card--flipping {
+  animation: lucky-card-flip 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+
+.lucky-coin-card--win {
+  border-color: rgb(52 211 153 / 0.85);
+  background:
+    radial-gradient(circle at 25% 20%, rgb(167 243 208 / 0.95), transparent 28%),
+    linear-gradient(135deg, rgb(6 95 70), rgb(16 185 129), rgb(13 148 136));
+  box-shadow: 0 14px 34px rgb(16 185 129 / 0.32);
+}
+
+.lucky-coin-card--lose {
+  border-color: rgb(251 113 133 / 0.85);
+  background:
+    radial-gradient(circle at 25% 20%, rgb(254 205 211 / 0.95), transparent 28%),
+    linear-gradient(135deg, rgb(136 19 55), rgb(225 29 72), rgb(127 29 29));
+  box-shadow: 0 14px 34px rgb(225 29 72 / 0.28);
+}
+
+.lucky-coin-card__shine {
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(115deg, transparent 35%, rgb(255 255 255 / 0.45), transparent 65%);
+  transform: translateX(-45%) rotate(10deg);
+  animation: lucky-shine 2.4s linear infinite;
+}
+
+.lucky-coin-card__face {
+  position: relative;
+  z-index: 1;
+  padding: 0 1rem;
+  text-align: center;
+}
+
+@keyframes lucky-card-flip {
+  0% {
+    transform: rotateY(0deg) scale(1);
+  }
+  50% {
+    transform: rotateY(180deg) scale(1.04);
+  }
+  100% {
+    transform: rotateY(360deg) scale(1);
+  }
+}
+
+@keyframes lucky-shine {
+  to {
+    transform: translateX(45%) rotate(10deg);
+  }
 }
 
 @keyframes zenxiang-spin {

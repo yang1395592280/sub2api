@@ -138,6 +138,7 @@ func RegisterUserRoutes(
 		{
 			zenxiangLiyu.GET("/status", h.ZenxiangLiyu.GetStatus)
 			zenxiangLiyu.POST("/play", h.ZenxiangLiyu.Play)
+			zenxiangLiyu.POST("/records/:id/lucky-coin", h.ZenxiangLiyu.PlayLuckyCoin)
 			zenxiangLiyu.GET("/records", h.ZenxiangLiyu.ListRecords)
 			zenxiangLiyu.GET("/daily-summary", h.ZenxiangLiyu.GetDailySummary)
 		}

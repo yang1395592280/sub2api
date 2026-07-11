@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -53,7 +54,7 @@ func (s *stubAdminZenxiangLiyuService) DeleteGrant(context.Context, int64) error
 func (s *stubAdminZenxiangLiyuService) GetOverviewStats(context.Context) (*service.ZenxiangLiyuOverviewStats, error) {
 	return nil, nil
 }
-func (s *stubAdminZenxiangLiyuService) ListUserStats(context.Context, int, int) ([]service.ZenxiangLiyuUserStats, int, error) {
+func (s *stubAdminZenxiangLiyuService) ListUserStats(context.Context, int, int, time.Time) ([]service.ZenxiangLiyuUserStats, int, error) {
 	return nil, 0, nil
 }
 func (s *stubAdminZenxiangLiyuService) ListPrizeStats(context.Context) ([]service.ZenxiangLiyuPrizeStats, error) {

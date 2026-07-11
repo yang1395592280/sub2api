@@ -27,11 +27,13 @@ func (r *zenxiangLiyuRepository) GetSettings(ctx context.Context) (*service.Zenx
 	err := r.db.QueryRowContext(ctx, `
 		SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit,
 		       COALESCE(ticket_usage_threshold, 5), COALESCE(daily_ticket_limit, 3),
-		       COALESCE(unit_sale_price, 0.1), COALESCE(unit_cost_price, 0.05)
+		       COALESCE(unit_sale_price, 0.1), COALESCE(unit_cost_price, 0.05),
+		       COALESCE(lucky_coin_enabled, TRUE), COALESCE(lucky_coin_double_probability, 50)
 		FROM zenxiang_liyu_settings WHERE id = 1`,
 	).Scan(
 		&settings.GlobalEnabled, &settings.TicketAmount, &settings.MinimumBalance, &settings.DailyPlayLimit,
 		&settings.TicketUsageThreshold, &settings.DailyTicketLimit, &settings.UnitSalePrice, &settings.UnitCostPrice,
+		&settings.LuckyCoinEnabled, &settings.LuckyCoinProbability,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrZenxiangLiyuInvalidSettings
@@ -48,15 +50,19 @@ func (r *zenxiangLiyuRepository) UpdateSettings(ctx context.Context, settings se
 		UPDATE zenxiang_liyu_settings
 		SET global_enabled = $1, ticket_amount = $2, minimum_balance = $3, daily_play_limit = $4,
 		    ticket_usage_threshold = $5, daily_ticket_limit = $6,
-		    unit_sale_price = $7, unit_cost_price = $8, updated_at = NOW()
+		    unit_sale_price = $7, unit_cost_price = $8,
+		    lucky_coin_enabled = $9, lucky_coin_double_probability = $10, updated_at = NOW()
 		WHERE id = 1
 		RETURNING global_enabled, ticket_amount, minimum_balance, daily_play_limit,
-		          ticket_usage_threshold, daily_ticket_limit, unit_sale_price, unit_cost_price`,
+		          ticket_usage_threshold, daily_ticket_limit, unit_sale_price, unit_cost_price,
+		          lucky_coin_enabled, lucky_coin_double_probability`,
 		settings.GlobalEnabled, settings.TicketAmount, settings.MinimumBalance, settings.DailyPlayLimit,
 		settings.TicketUsageThreshold, settings.DailyTicketLimit, settings.UnitSalePrice, settings.UnitCostPrice,
+		settings.LuckyCoinEnabled, settings.LuckyCoinProbability,
 	).Scan(
 		&updated.GlobalEnabled, &updated.TicketAmount, &updated.MinimumBalance, &updated.DailyPlayLimit,
 		&updated.TicketUsageThreshold, &updated.DailyTicketLimit, &updated.UnitSalePrice, &updated.UnitCostPrice,
+		&updated.LuckyCoinEnabled, &updated.LuckyCoinProbability,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrZenxiangLiyuInvalidSettings
@@ -227,13 +233,14 @@ func (r *zenxiangLiyuRepository) GetUserBalance(ctx context.Context, userID int6
 }
 
 func (r *zenxiangLiyuRepository) CountUserPlaysOnDate(ctx context.Context, userID int64, playDate time.Time) (int, error) {
+	start, end := zenxiangLiyuUsageWindow(playDate)
 	var count int
 	err := r.db.QueryRowContext(ctx, `
 		SELECT GREATEST(
 			COUNT(*) - COALESCE((SELECT reset_count FROM zenxiang_liyu_daily_resets WHERE user_id = $1 AND play_date = $2), 0),
 			0
 		)
-		FROM zenxiang_liyu_records WHERE user_id = $1 AND play_date = $2`, userID, playDate,
+		FROM zenxiang_liyu_records WHERE user_id = $1 AND created_at >= $3 AND created_at < $4`, userID, playDate, start, end,
 	).Scan(&count)
 	return count, err
 }
@@ -250,22 +257,32 @@ func (r *zenxiangLiyuRepository) GetUserUsageAmountOnDate(ctx context.Context, u
 }
 
 func (r *zenxiangLiyuRepository) HasUserFreePlayOnDate(ctx context.Context, userID int64, playDate time.Time) (bool, error) {
+	start, end := zenxiangLiyuUsageWindow(playDate)
 	var used bool
 	err := r.db.QueryRowContext(ctx, `
 		SELECT EXISTS(
 			SELECT 1 FROM zenxiang_liyu_records
-			WHERE user_id = $1 AND play_date = $2 AND ticket_amount = 0
-		)`, userID, playDate,
+			WHERE user_id = $1 AND created_at >= $2 AND created_at < $3 AND ticket_amount = 0
+		)`, userID, start, end,
 	).Scan(&used)
 	return used, err
 }
 
 func (r *zenxiangLiyuRepository) ListUserRecords(ctx context.Context, userID int64, playDate time.Time, page, pageSize int) ([]service.ZenxiangLiyuRecord, int, error) {
+	start, end := zenxiangLiyuUsageWindow(playDate)
 	var total int
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM zenxiang_liyu_records WHERE user_id = $1 AND play_date = $2`, userID, playDate).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM zenxiang_liyu_records WHERE user_id = $1 AND created_at >= $2 AND created_at < $3`, userID, start, end).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT id, request_id, ticket_amount, reward_amount, user_net_amount, prize_id, prize_name_snapshot, probability_snapshot, created_at FROM zenxiang_liyu_records WHERE user_id = $1 AND play_date = $2 ORDER BY created_at DESC, id DESC LIMIT $3 OFFSET $4`, userID, playDate, pageSize, (page-1)*pageSize)
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, request_id, ticket_amount, reward_amount, user_net_amount,
+		       COALESCE(lucky_coin_played, FALSE), COALESCE(lucky_coin_outcome, ''),
+		       COALESCE(lucky_coin_adjustment, 0), balance_after_lucky,
+		       prize_id, prize_name_snapshot, probability_snapshot, created_at
+		FROM zenxiang_liyu_records
+		WHERE user_id = $1 AND created_at >= $2 AND created_at < $3
+		ORDER BY created_at DESC, id DESC
+		LIMIT $4 OFFSET $5`, userID, start, end, pageSize, (page-1)*pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -273,7 +290,11 @@ func (r *zenxiangLiyuRepository) ListUserRecords(ctx context.Context, userID int
 	records := make([]service.ZenxiangLiyuRecord, 0)
 	for rows.Next() {
 		var record service.ZenxiangLiyuRecord
-		if err := rows.Scan(&record.ID, &record.RequestID, &record.TicketAmount, &record.RewardAmount, &record.UserNetAmount, &record.PrizeID, &record.PrizeName, &record.Probability, &record.PlayedAt); err != nil {
+		if err := rows.Scan(
+			&record.ID, &record.RequestID, &record.TicketAmount, &record.RewardAmount, &record.UserNetAmount,
+			&record.LuckyCoinPlayed, &record.LuckyCoinOutcome, &record.LuckyCoinAdjustment, &record.BalanceAfterLucky,
+			&record.PrizeID, &record.PrizeName, &record.Probability, &record.PlayedAt,
+		); err != nil {
 			return nil, 0, err
 		}
 		records = append(records, record)
@@ -283,7 +304,13 @@ func (r *zenxiangLiyuRepository) ListUserRecords(ctx context.Context, userID int
 
 func (r *zenxiangLiyuRepository) GetUserDailySummary(ctx context.Context, userID int64, playDate time.Time) (*service.ZenxiangLiyuDailySummary, error) {
 	summary := &service.ZenxiangLiyuDailySummary{PlayDate: playDate}
-	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(ticket_amount), 0), COALESCE(SUM(reward_amount), 0), COALESCE(SUM(user_net_amount), 0) FROM zenxiang_liyu_records WHERE user_id = $1 AND play_date = $2`, userID, playDate).Scan(&summary.PlayCount, &summary.TicketAmount, &summary.RewardAmount, &summary.UserNetAmount)
+	start, end := zenxiangLiyuUsageWindow(playDate)
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COUNT(*), COALESCE(SUM(ticket_amount), 0),
+		       COALESCE(SUM(reward_amount + COALESCE(lucky_coin_adjustment, 0)), 0),
+		       COALESCE(SUM(user_net_amount), 0)
+		FROM zenxiang_liyu_records
+		WHERE user_id = $1 AND created_at >= $2 AND created_at < $3`, userID, start, end).Scan(&summary.PlayCount, &summary.TicketAmount, &summary.RewardAmount, &summary.UserNetAmount)
 	if err != nil {
 		return nil, err
 	}
@@ -344,12 +371,30 @@ func (r *zenxiangLiyuRepository) GetOverviewStats(ctx context.Context) (*service
 	return stats, nil
 }
 
-func (r *zenxiangLiyuRepository) ListUserStats(ctx context.Context, page, pageSize int) ([]service.ZenxiangLiyuUserStats, int, error) {
+func (r *zenxiangLiyuRepository) ListUserStats(ctx context.Context, page, pageSize int, playDate time.Time) ([]service.ZenxiangLiyuUserStats, int, error) {
 	var total int
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(DISTINCT user_id) FROM zenxiang_liyu_records`).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(DISTINCT user_id) FROM zenxiang_liyu_records WHERE play_date = $1`, playDate).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT r.user_id, u.email, COUNT(*), COALESCE(SUM(r.ticket_amount), 0), COALESCE(SUM(r.reward_amount), 0), COALESCE(SUM(r.user_net_amount), 0) FROM zenxiang_liyu_records r JOIN users u ON u.id = r.user_id GROUP BY r.user_id, u.email ORDER BY COUNT(*) DESC, r.user_id DESC LIMIT $1 OFFSET $2`, pageSize, (page-1)*pageSize)
+	start, end := zenxiangLiyuUsageWindow(playDate)
+	rows, err := r.db.QueryContext(ctx, `
+		WITH usage_amount AS (
+			SELECT user_id, COALESCE(SUM(actual_cost), 0) AS amount
+			FROM usage_logs
+			WHERE created_at >= $2 AND created_at < $3
+			GROUP BY user_id
+		)
+		SELECT r.user_id, u.email, u.balance, COALESCE(ua.amount, 0), COUNT(*),
+			COALESCE(SUM(r.ticket_amount), 0),
+			COALESCE(SUM(r.reward_amount + COALESCE(r.lucky_coin_adjustment, 0)), 0),
+			COALESCE(SUM(r.user_net_amount), 0)
+		FROM zenxiang_liyu_records r
+		JOIN users u ON u.id = r.user_id
+		LEFT JOIN usage_amount ua ON ua.user_id = r.user_id
+		WHERE r.play_date = $1
+		GROUP BY r.user_id, u.email, u.balance, ua.amount
+		ORDER BY COUNT(*) DESC, r.user_id DESC
+		LIMIT $4 OFFSET $5`, playDate, start, end, pageSize, (page-1)*pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -357,7 +402,7 @@ func (r *zenxiangLiyuRepository) ListUserStats(ctx context.Context, page, pageSi
 	stats := make([]service.ZenxiangLiyuUserStats, 0)
 	for rows.Next() {
 		var stat service.ZenxiangLiyuUserStats
-		if err := rows.Scan(&stat.UserID, &stat.UserEmail, &stat.PlayCount, &stat.TicketAmount, &stat.RewardAmount, &stat.UserNetAmount); err != nil {
+		if err := rows.Scan(&stat.UserID, &stat.UserEmail, &stat.Balance, &stat.UsageAmount, &stat.PlayCount, &stat.TicketAmount, &stat.RewardAmount, &stat.UserNetAmount); err != nil {
 			return nil, 0, err
 		}
 		stats = append(stats, stat)
@@ -393,29 +438,40 @@ func (r *zenxiangLiyuRepository) ListPeriodStats(ctx context.Context, period str
 	rows, err := r.db.QueryContext(ctx, `
 		WITH base AS (
 			SELECT date_trunc($1, created_at AT TIME ZONE 'Asia/Shanghai')::date AS period_start,
-				user_id, ticket_amount, reward_amount, user_net_amount, system_revenue, system_expense, system_profit,
+				user_id, ticket_amount, reward_amount + COALESCE(lucky_coin_adjustment, 0) AS reward_amount,
+				user_net_amount, system_revenue, system_expense, system_profit,
 				prize_name_snapshot
 			FROM zenxiang_liyu_records
 		),
 		rollup AS (
 			SELECT period_start, COUNT(*) AS play_count, COUNT(DISTINCT user_id) AS participant_count,
+				COUNT(*) AS tickets_used,
 				COALESCE(SUM(ticket_amount), 0) AS ticket_amount,
 				COALESCE(SUM(reward_amount), 0) AS reward_amount,
+				COALESCE(AVG(reward_amount), 0) AS average_reward,
 				COALESCE(SUM(user_net_amount), 0) AS user_net_amount,
 				COALESCE(SUM(system_revenue), 0) AS system_revenue,
 				COALESCE(SUM(system_expense), 0) AS system_expense,
 				COALESCE(SUM(system_profit), 0) AS system_profit
 			FROM base GROUP BY period_start
 		),
+		usage_rollup AS (
+			SELECT date_trunc($1, created_at AT TIME ZONE 'Asia/Shanghai')::date AS period_start,
+				COALESCE(SUM(actual_cost), 0) AS usage_amount
+			FROM usage_logs
+			GROUP BY period_start
+		),
 		top_prize AS (
 			SELECT period_start, prize_name_snapshot, COUNT(*) AS hit_count,
 				ROW_NUMBER() OVER (PARTITION BY period_start ORDER BY COUNT(*) DESC, prize_name_snapshot) AS rn
 			FROM base GROUP BY period_start, prize_name_snapshot
 		)
-		SELECT r.period_start, r.play_count, r.participant_count, r.ticket_amount, r.reward_amount,
+		SELECT r.period_start, r.play_count, r.participant_count, COALESCE(u.usage_amount, 0), r.tickets_used,
+			r.ticket_amount, r.reward_amount, r.average_reward,
 			r.user_net_amount, r.system_revenue, r.system_expense, r.system_profit,
 			COALESCE(t.prize_name_snapshot, ''), COALESCE(t.hit_count, 0)
 		FROM rollup r
+		LEFT JOIN usage_rollup u ON u.period_start = r.period_start
 		LEFT JOIN top_prize t ON t.period_start = r.period_start AND t.rn = 1
 		ORDER BY r.period_start DESC
 		LIMIT 120`, trunc)
@@ -427,7 +483,8 @@ func (r *zenxiangLiyuRepository) ListPeriodStats(ctx context.Context, period str
 	for rows.Next() {
 		var stat service.ZenxiangLiyuPeriodStats
 		if err := rows.Scan(
-			&stat.PeriodStart, &stat.PlayCount, &stat.ParticipantCount, &stat.TicketAmount, &stat.RewardAmount,
+			&stat.PeriodStart, &stat.PlayCount, &stat.ParticipantCount, &stat.UsageAmount, &stat.TicketsUsed,
+			&stat.TicketAmount, &stat.RewardAmount, &stat.AverageReward,
 			&stat.UserNetAmount, &stat.SystemRevenue, &stat.SystemExpense, &stat.SystemProfit,
 			&stat.MostHitPrizeName, &stat.MostHitPrizeCount,
 		); err != nil {
@@ -551,12 +608,13 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 	effectiveTicketAmount := 0.0
 
 	var playCount int
+	playStart, playEnd := zenxiangLiyuUsageWindow(cmd.PlayDate)
 	err = tx.QueryRowContext(ctx, `
 		SELECT GREATEST(
 			COUNT(*) - COALESCE((SELECT reset_count FROM zenxiang_liyu_daily_resets WHERE user_id = $1 AND play_date = $2), 0),
 			0
 		)
-		FROM zenxiang_liyu_records WHERE user_id = $1 AND play_date = $2`, cmd.UserID, cmd.PlayDate).Scan(&playCount)
+		FROM zenxiang_liyu_records WHERE user_id = $1 AND created_at >= $3 AND created_at < $4`, cmd.UserID, cmd.PlayDate, playStart, playEnd).Scan(&playCount)
 	if err != nil {
 		return nil, err
 	}
@@ -586,6 +644,7 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 	}
 	userNetAmount := prize.RewardAmount - effectiveTicketAmount
 	systemProfit := effectiveTicketAmount - prize.RewardAmount
+	var recordID int64
 	var playedAt time.Time
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO zenxiang_liyu_records (
@@ -593,11 +652,11 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 			system_revenue, system_expense, system_profit, prize_id, prize_name_snapshot,
 			probability_snapshot, config_snapshot, balance_before, balance_after_ticket, balance_after_reward
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-		RETURNING created_at`,
+		RETURNING id, created_at`,
 		cmd.RequestID, cmd.UserID, cmd.PlayDate, effectiveTicketAmount, prize.RewardAmount, userNetAmount,
 		effectiveTicketAmount, prize.RewardAmount, systemProfit, prize.ID, prize.Name, prize.Probability,
 		configSnapshot, user.balance, balanceAfterTicket, balanceAfterTicket+prize.RewardAmount,
-	).Scan(&playedAt)
+	).Scan(&recordID, &playedAt)
 	if err != nil {
 		if isUniqueConstraintViolation(err) {
 			if rollbackErr := tx.Rollback(); rollbackErr != nil {
@@ -617,6 +676,7 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 		return nil, err
 	}
 	return &service.ZenxiangLiyuPlayResult{
+		ID:                 recordID,
 		Applied:            true,
 		RequestID:          cmd.RequestID,
 		PrizeID:            prize.ID,
@@ -629,6 +689,116 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 		BalanceAfterTicket: balanceAfterTicket,
 		BalanceAfterReward: balanceAfterReward,
 		PlayedAt:           playedAt,
+		LuckyCoinAvailable: settings.LuckyCoinEnabled && prize.RewardAmount > 0,
+		LuckyCoinPlayed:    false,
+	}, nil
+}
+
+func (r *zenxiangLiyuRepository) PlayLuckyCoin(ctx context.Context, cmd service.ZenxiangLiyuLuckyCoinCommand) (_ *service.ZenxiangLiyuLuckyCoinResult, err error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	var settings struct {
+		enabled     bool
+		probability float64
+	}
+	err = tx.QueryRowContext(ctx, `
+		SELECT COALESCE(lucky_coin_enabled, TRUE), COALESCE(lucky_coin_double_probability, 50)
+		FROM zenxiang_liyu_settings WHERE id = 1 FOR SHARE`,
+	).Scan(&settings.enabled, &settings.probability)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrZenxiangLiyuInvalidSettings
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !settings.enabled {
+		return nil, service.ErrZenxiangLiyuLuckyCoinDisabled
+	}
+
+	var record struct {
+		id           int64
+		reward       float64
+		played       bool
+		balanceAfter sql.NullFloat64
+	}
+	err = tx.QueryRowContext(ctx, `
+		SELECT id, reward_amount::double precision, COALESCE(lucky_coin_played, FALSE), balance_after_lucky
+		FROM zenxiang_liyu_records
+		WHERE id = $1 AND user_id = $2
+		FOR UPDATE`, cmd.RecordID, cmd.UserID,
+	).Scan(&record.id, &record.reward, &record.played, &record.balanceAfter)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrZenxiangLiyuLuckyCoinUnavailable
+	}
+	if err != nil {
+		return nil, err
+	}
+	if record.played {
+		return nil, service.ErrZenxiangLiyuLuckyCoinAlreadyPlayed
+	}
+	if record.reward <= 0 {
+		return nil, service.ErrZenxiangLiyuLuckyCoinUnavailable
+	}
+
+	outcome := "zero"
+	adjustment := -2 * record.reward
+	if cmd.Roll < settings.probability {
+		outcome = "double"
+		adjustment = record.reward
+	}
+
+	var balanceAfter float64
+	err = tx.QueryRowContext(ctx, `
+		UPDATE users
+		SET balance = balance + $1, updated_at = NOW()
+		WHERE id = $2 AND deleted_at IS NULL
+		RETURNING balance`, adjustment, cmd.UserID,
+	).Scan(&balanceAfter)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrUserNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var playedAt time.Time
+	err = tx.QueryRowContext(ctx, `
+		UPDATE zenxiang_liyu_records
+		SET lucky_coin_played = TRUE,
+		    lucky_coin_outcome = $1,
+		    lucky_coin_adjustment = $2,
+		    lucky_coin_played_at = NOW(),
+		    balance_after_lucky = $3,
+		    user_net_amount = user_net_amount + $2,
+		    system_expense = system_expense + $2,
+		    system_profit = system_profit - $2
+		WHERE id = $4 AND user_id = $5
+		RETURNING lucky_coin_played_at`,
+		outcome, adjustment, balanceAfter, cmd.RecordID, cmd.UserID,
+	).Scan(&playedAt)
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return &service.ZenxiangLiyuLuckyCoinResult{
+		RecordID:           cmd.RecordID,
+		Outcome:            outcome,
+		OriginalReward:     record.reward,
+		AdjustmentAmount:   adjustment,
+		BalanceAfter:       balanceAfter,
+		DoubleProbability:  settings.probability,
+		PlayedAt:           playedAt,
+		LuckyCoinAvailable: false,
 	}, nil
 }
 
@@ -646,11 +816,13 @@ func getZenxiangLiyuSettingsForPlay(ctx context.Context, tx *sql.Tx) (*service.Z
 	err := tx.QueryRowContext(ctx, `
 		SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit,
 		       COALESCE(ticket_usage_threshold, 5), COALESCE(daily_ticket_limit, 3),
-		       COALESCE(unit_sale_price, 0.1), COALESCE(unit_cost_price, 0.05)
+		       COALESCE(unit_sale_price, 0.1), COALESCE(unit_cost_price, 0.05),
+		       COALESCE(lucky_coin_enabled, TRUE), COALESCE(lucky_coin_double_probability, 50)
 		FROM zenxiang_liyu_settings WHERE id = 1 FOR UPDATE`,
 	).Scan(
 		&settings.GlobalEnabled, &settings.TicketAmount, &settings.MinimumBalance, &settings.DailyPlayLimit,
 		&settings.TicketUsageThreshold, &settings.DailyTicketLimit, &settings.UnitSalePrice, &settings.UnitCostPrice,
+		&settings.LuckyCoinEnabled, &settings.LuckyCoinProbability,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrZenxiangLiyuInvalidSettings
@@ -684,12 +856,13 @@ func getZenxiangLiyuUserUsageAmountForPlay(ctx context.Context, tx *sql.Tx, user
 }
 
 func hasZenxiangLiyuUserFreePlayForPlay(ctx context.Context, tx *sql.Tx, userID int64, playDate time.Time) (bool, error) {
+	start, end := zenxiangLiyuUsageWindow(playDate)
 	var used bool
 	err := tx.QueryRowContext(ctx, `
 		SELECT EXISTS(
 			SELECT 1 FROM zenxiang_liyu_records
-			WHERE user_id = $1 AND play_date = $2 AND ticket_amount = 0
-		)`, userID, playDate,
+			WHERE user_id = $1 AND created_at >= $2 AND created_at < $3 AND ticket_amount = 0
+		)`, userID, start, end,
 	).Scan(&used)
 	return used, err
 }
@@ -775,12 +948,14 @@ func findZenxiangLiyuRecord(ctx context.Context, tx *sql.Tx, userID int64, reque
 	err := tx.QueryRowContext(ctx, `
 		SELECT id, request_id, user_id, ticket_amount, reward_amount, user_net_amount,
 			system_revenue, system_expense, system_profit, prize_id, prize_name_snapshot,
-			probability_snapshot, balance_before, balance_after_ticket, balance_after_reward, created_at
+			probability_snapshot, balance_before, balance_after_ticket, balance_after_reward, created_at,
+			COALESCE(lucky_coin_played, FALSE)
 		FROM zenxiang_liyu_records WHERE user_id = $1 AND request_id = $2`, userID, requestID,
 	).Scan(
-		new(int64), &result.RequestID, new(int64), &result.TicketAmount, &result.RewardAmount, &result.UserNetAmount,
+		&result.ID, &result.RequestID, new(int64), &result.TicketAmount, &result.RewardAmount, &result.UserNetAmount,
 		new(float64), new(float64), new(float64), &prizeID, &result.PrizeName,
 		new(float64), &result.BalanceBefore, &result.BalanceAfterTicket, &result.BalanceAfterReward, &result.PlayedAt,
+		&result.LuckyCoinPlayed,
 	)
 	if err != nil {
 		return nil, err
@@ -789,5 +964,6 @@ func findZenxiangLiyuRecord(ctx context.Context, tx *sql.Tx, userID int64, reque
 		result.PrizeID = prizeID.Int64
 	}
 	result.FreePlay = result.TicketAmount == 0
+	result.LuckyCoinAvailable = result.RewardAmount > 0 && !result.LuckyCoinPlayed
 	return result, nil
 }

@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -21,7 +22,7 @@ type zenxiangLiyuAdminService interface {
 	SaveGrant(context.Context, service.ZenxiangLiyuGrant) (*service.ZenxiangLiyuGrant, error)
 	DeleteGrant(context.Context, int64) error
 	GetOverviewStats(context.Context) (*service.ZenxiangLiyuOverviewStats, error)
-	ListUserStats(context.Context, int, int) ([]service.ZenxiangLiyuUserStats, int, error)
+	ListUserStats(context.Context, int, int, time.Time) ([]service.ZenxiangLiyuUserStats, int, error)
 	ListPrizeStats(context.Context) ([]service.ZenxiangLiyuPrizeStats, error)
 	ListPeriodStats(context.Context, string) ([]service.ZenxiangLiyuPeriodStats, error)
 	ResetUserDailyPlays(context.Context, service.ZenxiangLiyuResetDailyPlayRequest) (*service.ZenxiangLiyuResetDailyPlayResult, error)
@@ -160,7 +161,16 @@ func (h *ZenxiangLiyuHandler) GetPeriodStats(c *gin.Context) {
 }
 func (h *ZenxiangLiyuHandler) GetUserStats(c *gin.Context) {
 	page, pageSize := response.ParsePagination(c)
-	stats, total, err := h.service.ListUserStats(c.Request.Context(), page, pageSize)
+	var playDate time.Time
+	if rawDate := c.Query("date"); rawDate != "" {
+		parsed, err := time.Parse("2006-01-02", rawDate)
+		if err != nil {
+			response.BadRequest(c, "Invalid date, expected YYYY-MM-DD")
+			return
+		}
+		playDate = parsed
+	}
+	stats, total, err := h.service.ListUserStats(c.Request.Context(), page, pageSize, playDate)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

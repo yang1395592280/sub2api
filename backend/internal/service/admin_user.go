@@ -794,21 +794,17 @@ func (s *adminServiceImpl) getAllUserBalanceHistory(ctx context.Context, userID 
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	usageEntries, usageTotal, err := s.listUsageBalanceHistoryForMerge(ctx, userID, needed)
-	if err != nil {
-		return nil, 0, 0, err
-	}
 	zenxiangEntries, zenxiangTotal, err := s.listZenxiangLiyuBalanceHistoryForMerge(ctx, userID, needed)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	entries := mergeBalanceHistoryEntries(params, redeemEntries, affiliateEntries, usageEntries, zenxiangEntries)
+	entries := mergeBalanceHistoryEntries(params, redeemEntries, affiliateEntries, zenxiangEntries)
 
 	totalRecharged, err := s.redeemCodeRepo.SumPositiveBalanceByUser(ctx, userID)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	return entries, redeemTotal + affiliateTotal + usageTotal + zenxiangTotal, totalRecharged, nil
+	return entries, redeemTotal + affiliateTotal + zenxiangTotal, totalRecharged, nil
 }
 
 func (s *adminServiceImpl) listBalanceHistoryByType(ctx context.Context, userID int64, params pagination.PaginationParams, codeType string) ([]BalanceHistoryEntry, int64, error) {
@@ -1096,15 +1092,44 @@ func (s *adminServiceImpl) listZenxiangLiyuBalanceHistory(ctx context.Context, u
 		return nil, 0, nil
 	}
 	rows, err := s.entClient.QueryContext(ctx, `
-SELECT id,
-       request_id,
-       reward_amount::double precision,
-       prize_name_snapshot,
+SELECT entry_id,
+       code,
+       entry_type,
+       amount::double precision,
+       source_label,
+       source_detail,
+       reference_id,
        created_at
-FROM zenxiang_liyu_records
-WHERE user_id = $1
-  AND reward_amount > 0
-ORDER BY created_at DESC, id DESC
+FROM (
+    SELECT (-2000000000 - id) AS entry_id,
+           request_id AS code,
+           'zenxiang_liyu_reward' AS entry_type,
+           reward_amount AS amount,
+           '臻享礼遇奖励' AS source_label,
+           '抽奖奖励：' || prize_name_snapshot AS source_detail,
+           'zenxiang_liyu_records:' || id AS reference_id,
+           created_at
+    FROM zenxiang_liyu_records
+    WHERE user_id = $1
+      AND reward_amount > 0
+    UNION ALL
+    SELECT (-2100000000 - id) AS entry_id,
+           request_id || '-LUCKY' AS code,
+           'zenxiang_liyu_reward' AS entry_type,
+           lucky_coin_adjustment AS amount,
+           CASE WHEN lucky_coin_adjustment > 0 THEN '幸运金币翻倍' ELSE '幸运金币扣减' END AS source_label,
+           CASE WHEN lucky_coin_adjustment > 0
+                THEN '幸运金币奖励翻倍：' || prize_name_snapshot
+                ELSE '幸运金币未中，扣回并倒扣：' || prize_name_snapshot
+           END AS source_detail,
+           'zenxiang_liyu_records:' || id || ':lucky_coin' AS reference_id,
+           COALESCE(lucky_coin_played_at, created_at) AS created_at
+    FROM zenxiang_liyu_records
+    WHERE user_id = $1
+      AND COALESCE(lucky_coin_played, FALSE) = TRUE
+      AND COALESCE(lucky_coin_adjustment, 0) <> 0
+) entries
+ORDER BY created_at DESC, entry_id DESC
 OFFSET $2
 LIMIT $3`, userID, params.Offset(), params.Limit())
 	if err != nil {
@@ -1115,26 +1140,26 @@ LIMIT $3`, userID, params.Offset(), params.Limit())
 	entries := make([]BalanceHistoryEntry, 0, params.Limit())
 	for rows.Next() {
 		var id int64
-		var requestID, prizeName string
+		var requestID, entryType, sourceLabel, sourceDetail, referenceID string
 		var amount float64
 		var createdAt time.Time
-		if err := rows.Scan(&id, &requestID, &amount, &prizeName, &createdAt); err != nil {
+		if err := rows.Scan(&id, &requestID, &entryType, &amount, &sourceLabel, &sourceDetail, &referenceID, &createdAt); err != nil {
 			return nil, 0, err
 		}
 		usedBy := userID
 		usedAt := createdAt
 		entries = append(entries, BalanceHistoryEntry{
-			ID:           -2000000000 - id,
+			ID:           id,
 			Code:         requestID,
-			Type:         "zenxiang_liyu_reward",
+			Type:         entryType,
 			Value:        amount,
 			Status:       StatusUsed,
 			UsedBy:       &usedBy,
 			UsedAt:       &usedAt,
 			CreatedAt:    createdAt,
-			SourceLabel:  "臻享礼遇奖励",
-			SourceDetail: "抽奖奖励：" + prizeName,
-			ReferenceID:  fmt.Sprintf("zenxiang_liyu_records:%d", id),
+			SourceLabel:  sourceLabel,
+			SourceDetail: sourceDetail,
+			ReferenceID:  referenceID,
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -1150,9 +1175,18 @@ LIMIT $3`, userID, params.Offset(), params.Limit())
 func countZenxiangLiyuBalanceHistory(ctx context.Context, client *dbent.Client, userID int64) (int64, error) {
 	rows, err := client.QueryContext(ctx, `
 SELECT COUNT(*)
-FROM zenxiang_liyu_records
-WHERE user_id = $1
-  AND reward_amount > 0`, userID)
+FROM (
+    SELECT id
+    FROM zenxiang_liyu_records
+    WHERE user_id = $1
+      AND reward_amount > 0
+    UNION ALL
+    SELECT id
+    FROM zenxiang_liyu_records
+    WHERE user_id = $1
+      AND COALESCE(lucky_coin_played, FALSE) = TRUE
+      AND COALESCE(lucky_coin_adjustment, 0) <> 0
+) entries`, userID)
 	if err != nil {
 		return 0, err
 	}

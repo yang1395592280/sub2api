@@ -14,6 +14,7 @@ import {
   getZenxiangLiyuStatus,
   listZenxiangLiyuRecords,
   playZenxiangLiyu,
+  playZenxiangLiyuLuckyCoin,
 } from '@/api/zenxiangLiyu'
 
 describe('zenxiang liyu user api', () => {
@@ -38,6 +39,15 @@ describe('zenxiang liyu user api', () => {
     await expect(playZenxiangLiyu('req-1')).resolves.toEqual(result)
 
     expect(post).toHaveBeenCalledWith('/zenxiang-liyu/play', { request_id: 'req-1' })
+  })
+
+  it('posts lucky coin by record id', async () => {
+    const result = { record_id: 9, outcome: 'double' }
+    post.mockResolvedValueOnce({ data: result })
+
+    await expect(playZenxiangLiyuLuckyCoin(9)).resolves.toEqual(result)
+
+    expect(post).toHaveBeenCalledWith('/zenxiang-liyu/records/9/lucky-coin', {})
   })
 
   it('loads records with pagination parameters', async () => {

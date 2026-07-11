@@ -17,6 +17,7 @@ const (
 	zenxiangLiyuFreePlayThresholdEpsilon = 0.000001
 	defaultZenxiangLiyuTicketThreshold   = 5.0
 	defaultZenxiangLiyuDailyTicketLimit  = 3
+	defaultZenxiangLiyuLuckyProbability  = 50.0
 )
 
 var (
@@ -28,6 +29,9 @@ var (
 	ErrZenxiangLiyuDailyLimitReached       = errors.New("zenxiang liyu daily limit reached")
 	ErrZenxiangLiyuNoTicket                = errors.New("zenxiang liyu no ticket")
 	ErrZenxiangLiyuRequestIDRequired       = errors.New("zenxiang liyu request id required")
+	ErrZenxiangLiyuLuckyCoinDisabled       = errors.New("zenxiang liyu lucky coin disabled")
+	ErrZenxiangLiyuLuckyCoinAlreadyPlayed  = errors.New("zenxiang liyu lucky coin already played")
+	ErrZenxiangLiyuLuckyCoinUnavailable    = errors.New("zenxiang liyu lucky coin unavailable")
 )
 
 type ZenxiangLiyuSettings struct {
@@ -39,6 +43,8 @@ type ZenxiangLiyuSettings struct {
 	DailyTicketLimit     int     `json:"daily_ticket_limit"`
 	UnitSalePrice        float64 `json:"unit_sale_price"`
 	UnitCostPrice        float64 `json:"unit_cost_price"`
+	LuckyCoinEnabled     bool    `json:"lucky_coin_enabled"`
+	LuckyCoinProbability float64 `json:"lucky_coin_double_probability"`
 }
 
 type ZenxiangLiyuSettingsUpdate struct {
@@ -50,6 +56,8 @@ type ZenxiangLiyuSettingsUpdate struct {
 	DailyTicketLimit     int     `json:"daily_ticket_limit"`
 	UnitSalePrice        float64 `json:"unit_sale_price"`
 	UnitCostPrice        float64 `json:"unit_cost_price"`
+	LuckyCoinEnabled     bool    `json:"lucky_coin_enabled"`
+	LuckyCoinProbability float64 `json:"lucky_coin_double_probability"`
 }
 
 func (u ZenxiangLiyuSettingsUpdate) Settings() ZenxiangLiyuSettings {
@@ -108,9 +116,13 @@ type ZenxiangLiyuStatus struct {
 	FreePlayUsed           bool                `json:"free_play_used"`
 	TicketUsageThreshold   float64             `json:"ticket_usage_threshold"`
 	DailyTicketLimit       int                 `json:"daily_ticket_limit"`
+	LuckyCoinEnabled       bool                `json:"lucky_coin_enabled"`
+	LuckyCoinProbability   float64             `json:"lucky_coin_double_probability"`
 	TodayTicketsEarned     int                 `json:"today_tickets_earned"`
 	TodayTicketsUsed       int                 `json:"today_tickets_used"`
 	TodayTicketsAvailable  int                 `json:"today_tickets_available"`
+	NextTicketUsageTarget  float64             `json:"next_ticket_usage_target"`
+	NextTicketUsageMissing float64             `json:"next_ticket_usage_missing"`
 	TicketExpiresAt        time.Time           `json:"ticket_expires_at"`
 	Prizes                 []ZenxiangLiyuPrize `json:"prizes"`
 }
@@ -123,6 +135,7 @@ type ZenxiangLiyuPlayCommand struct {
 }
 
 type ZenxiangLiyuPlayResult struct {
+	ID                 int64     `json:"id"`
 	Applied            bool      `json:"applied"`
 	RequestID          string    `json:"request_id"`
 	PrizeID            int64     `json:"prize_id"`
@@ -135,6 +148,25 @@ type ZenxiangLiyuPlayResult struct {
 	BalanceAfterTicket float64   `json:"balance_after_ticket"`
 	BalanceAfterReward float64   `json:"balance_after_reward"`
 	PlayedAt           time.Time `json:"played_at"`
+	LuckyCoinAvailable bool      `json:"lucky_coin_available"`
+	LuckyCoinPlayed    bool      `json:"lucky_coin_played"`
+}
+
+type ZenxiangLiyuLuckyCoinCommand struct {
+	UserID   int64
+	RecordID int64
+	Roll     float64
+}
+
+type ZenxiangLiyuLuckyCoinResult struct {
+	RecordID           int64     `json:"record_id"`
+	Outcome            string    `json:"outcome"`
+	OriginalReward     float64   `json:"original_reward"`
+	AdjustmentAmount   float64   `json:"adjustment_amount"`
+	BalanceAfter       float64   `json:"balance_after"`
+	DoubleProbability  float64   `json:"double_probability"`
+	PlayedAt           time.Time `json:"played_at"`
+	LuckyCoinAvailable bool      `json:"lucky_coin_available"`
 }
 
 type ZenxiangLiyuSimulationRequest struct {
@@ -206,15 +238,19 @@ type ZenxiangLiyuProfitPreviewResult struct {
 }
 
 type ZenxiangLiyuRecord struct {
-	ID            int64     `json:"id"`
-	RequestID     string    `json:"request_id"`
-	TicketAmount  float64   `json:"ticket_amount"`
-	RewardAmount  float64   `json:"reward_amount"`
-	UserNetAmount float64   `json:"user_net_amount"`
-	PrizeID       *int64    `json:"prize_id,omitempty"`
-	PrizeName     string    `json:"prize_name"`
-	Probability   float64   `json:"probability"`
-	PlayedAt      time.Time `json:"played_at"`
+	ID                  int64     `json:"id"`
+	RequestID           string    `json:"request_id"`
+	TicketAmount        float64   `json:"ticket_amount"`
+	RewardAmount        float64   `json:"reward_amount"`
+	UserNetAmount       float64   `json:"user_net_amount"`
+	LuckyCoinPlayed     bool      `json:"lucky_coin_played"`
+	LuckyCoinOutcome    string    `json:"lucky_coin_outcome,omitempty"`
+	LuckyCoinAdjustment float64   `json:"lucky_coin_adjustment"`
+	BalanceAfterLucky   *float64  `json:"balance_after_lucky,omitempty"`
+	PrizeID             *int64    `json:"prize_id,omitempty"`
+	PrizeName           string    `json:"prize_name"`
+	Probability         float64   `json:"probability"`
+	PlayedAt            time.Time `json:"played_at"`
 }
 
 type ZenxiangLiyuDailySummary struct {
@@ -246,6 +282,8 @@ type ZenxiangLiyuOverviewStats struct {
 type ZenxiangLiyuUserStats struct {
 	UserID        int64   `json:"user_id"`
 	UserEmail     string  `json:"user_email"`
+	Balance       float64 `json:"balance"`
+	UsageAmount   float64 `json:"usage_amount"`
 	PlayCount     int     `json:"play_count"`
 	TicketAmount  float64 `json:"ticket_amount"`
 	RewardAmount  float64 `json:"reward_amount"`
@@ -265,8 +303,11 @@ type ZenxiangLiyuPeriodStats struct {
 	PeriodLabel       string    `json:"period_label"`
 	PlayCount         int       `json:"play_count"`
 	ParticipantCount  int       `json:"participant_count"`
+	UsageAmount       float64   `json:"usage_amount"`
+	TicketsUsed       int       `json:"tickets_used"`
 	TicketAmount      float64   `json:"ticket_amount"`
 	RewardAmount      float64   `json:"reward_amount"`
+	AverageReward     float64   `json:"average_reward"`
 	UserNetAmount     float64   `json:"user_net_amount"`
 	SystemRevenue     float64   `json:"system_revenue"`
 	SystemExpense     float64   `json:"system_expense"`
@@ -308,11 +349,12 @@ type ZenxiangLiyuRepository interface {
 	SaveGrant(ctx context.Context, grant ZenxiangLiyuGrant) (*ZenxiangLiyuGrant, error)
 	DeleteGrant(ctx context.Context, userID int64) error
 	GetOverviewStats(ctx context.Context) (*ZenxiangLiyuOverviewStats, error)
-	ListUserStats(ctx context.Context, page, pageSize int) ([]ZenxiangLiyuUserStats, int, error)
+	ListUserStats(ctx context.Context, page, pageSize int, playDate time.Time) ([]ZenxiangLiyuUserStats, int, error)
 	ListPrizeStats(ctx context.Context) ([]ZenxiangLiyuPrizeStats, error)
 	ListPeriodStats(ctx context.Context, period string) ([]ZenxiangLiyuPeriodStats, error)
 	ResetUserDailyPlays(ctx context.Context, userID int64, playDate time.Time, resetBy *int64, notes string) (int, error)
 	Play(ctx context.Context, cmd ZenxiangLiyuPlayCommand) (*ZenxiangLiyuPlayResult, error)
+	PlayLuckyCoin(ctx context.Context, cmd ZenxiangLiyuLuckyCoinCommand) (*ZenxiangLiyuLuckyCoinResult, error)
 }
 
 func (s *ZenxiangLiyuService) ListUserRecords(ctx context.Context, userID int64, page, pageSize int) ([]ZenxiangLiyuRecord, int, error) {
@@ -357,11 +399,14 @@ func (s *ZenxiangLiyuService) GetOverviewStats(ctx context.Context) (*ZenxiangLi
 	return s.repo.GetOverviewStats(ctx)
 }
 
-func (s *ZenxiangLiyuService) ListUserStats(ctx context.Context, page, pageSize int) ([]ZenxiangLiyuUserStats, int, error) {
+func (s *ZenxiangLiyuService) ListUserStats(ctx context.Context, page, pageSize int, playDate time.Time) ([]ZenxiangLiyuUserStats, int, error) {
 	if s.repo == nil {
 		return nil, 0, ErrZenxiangLiyuInvalidSettings
 	}
-	return s.repo.ListUserStats(ctx, normalizedZenxiangLiyuPage(page), normalizedZenxiangLiyuPageSize(pageSize))
+	if playDate.IsZero() {
+		playDate = s.playDate()
+	}
+	return s.repo.ListUserStats(ctx, normalizedZenxiangLiyuPage(page), normalizedZenxiangLiyuPageSize(pageSize), playDate)
 }
 
 func (s *ZenxiangLiyuService) ListPrizeStats(ctx context.Context) ([]ZenxiangLiyuPrizeStats, error) {
@@ -464,6 +509,8 @@ func (s *ZenxiangLiyuService) GetStatus(ctx context.Context, userID int64) (*Zen
 		FreePlayUsageThreshold: zenxiangLiyuFreePlayUsageThreshold,
 		TicketUsageThreshold:   settings.EffectiveTicketUsageThreshold(),
 		DailyTicketLimit:       settings.EffectiveDailyTicketLimit(),
+		LuckyCoinEnabled:       settings.LuckyCoinEnabled,
+		LuckyCoinProbability:   settings.EffectiveLuckyCoinProbability(),
 		Prizes:                 prizes,
 	}
 	if !settings.GlobalEnabled {
@@ -498,6 +545,7 @@ func (s *ZenxiangLiyuService) GetStatus(ctx context.Context, userID int64) (*Zen
 	status.TodayTicketsEarned = CalculateZenxiangLiyuEarnedTickets(status.TodayUsageAmount, settings)
 	status.TodayTicketsUsed = status.TodayPlayCount
 	status.TodayTicketsAvailable = max(0, status.TodayTicketsEarned-status.TodayTicketsUsed)
+	status.NextTicketUsageTarget, status.NextTicketUsageMissing = CalculateZenxiangLiyuNextTicketUsage(status.TodayUsageAmount, settings)
 	status.TicketExpiresAt = playDate.AddDate(0, 0, 1)
 	status.RemainingPlays = max(0, settings.DailyPlayLimit-status.TodayPlayCount)
 	status.CanPlay = status.TodayTicketsAvailable > 0
@@ -515,6 +563,13 @@ func (s *ZenxiangLiyuService) Play(ctx context.Context, userID int64, requestID 
 		return nil, ErrZenxiangLiyuInvalidSettings
 	}
 	return s.repo.Play(ctx, ZenxiangLiyuPlayCommand{UserID: userID, RequestID: requestID, PlayDate: s.playDate(), Roll: s.randomFloat64() * 100})
+}
+
+func (s *ZenxiangLiyuService) PlayLuckyCoin(ctx context.Context, userID, recordID int64) (*ZenxiangLiyuLuckyCoinResult, error) {
+	if s.repo == nil || userID <= 0 || recordID <= 0 {
+		return nil, ErrZenxiangLiyuInvalidSettings
+	}
+	return s.repo.PlayLuckyCoin(ctx, ZenxiangLiyuLuckyCoinCommand{UserID: userID, RecordID: recordID, Roll: s.randomFloat64() * 100})
 }
 
 func (s *ZenxiangLiyuService) ListPeriodStats(ctx context.Context, period string) ([]ZenxiangLiyuPeriodStats, error) {
@@ -560,7 +615,8 @@ func (s *ZenxiangLiyuService) UpdateSettings(ctx context.Context, req ZenxiangLi
 	settings := req.Settings()
 	if settings.TicketAmount < 0 || settings.MinimumBalance < 0 || settings.DailyPlayLimit <= 0 ||
 		settings.TicketUsageThreshold <= 0 || settings.DailyTicketLimit <= 0 ||
-		settings.UnitSalePrice < 0 || settings.UnitCostPrice < 0 {
+		settings.UnitSalePrice < 0 || settings.UnitCostPrice < 0 ||
+		settings.LuckyCoinProbability < 0 || settings.LuckyCoinProbability > 100 {
 		return nil, ErrZenxiangLiyuInvalidSettings
 	}
 	if s.repo == nil {
@@ -811,6 +867,23 @@ func CalculateZenxiangLiyuEarnedTickets(todayUsageAmount float64, settings *Zenx
 	return max(0, earned)
 }
 
+func CalculateZenxiangLiyuNextTicketUsage(todayUsageAmount float64, settings *ZenxiangLiyuSettings) (float64, float64) {
+	if settings == nil {
+		return 0, 0
+	}
+	threshold := settings.EffectiveTicketUsageThreshold()
+	limit := settings.EffectiveDailyTicketLimit()
+	if threshold <= 0 || limit <= 0 {
+		return 0, 0
+	}
+	earned := CalculateZenxiangLiyuEarnedTickets(todayUsageAmount, settings)
+	if earned >= limit {
+		return 0, 0
+	}
+	target := float64(earned+1) * threshold
+	return target, math.Max(0, target-todayUsageAmount)
+}
+
 func ExpectedZenxiangLiyuReward(prizes []ZenxiangLiyuPrize) float64 {
 	total := 0.0
 	for _, prize := range prizes {
@@ -834,6 +907,13 @@ func (s ZenxiangLiyuSettings) EffectiveDailyTicketLimit() int {
 		return s.DailyTicketLimit
 	}
 	return defaultZenxiangLiyuDailyTicketLimit
+}
+
+func (s ZenxiangLiyuSettings) EffectiveLuckyCoinProbability() float64 {
+	if s.LuckyCoinProbability >= 0 && s.LuckyCoinProbability <= 100 {
+		return s.LuckyCoinProbability
+	}
+	return defaultZenxiangLiyuLuckyProbability
 }
 
 func (s *ZenxiangLiyuService) playDate() time.Time {

@@ -41,6 +41,19 @@
           </div>
           <div class="mt-4 grid gap-3 md:grid-cols-4">
             <div class="rounded-md bg-gray-50 px-3 py-2 text-sm dark:bg-dark-800">
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.zenxiangLiyu.luckyCoinEnabled') }}</span>
+                <Toggle v-model="settingsForm.lucky_coin_enabled" />
+              </div>
+              <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ t('admin.zenxiangLiyu.luckyCoinHint') }}</p>
+            </div>
+            <label>
+              <span class="input-label">{{ t('admin.zenxiangLiyu.luckyCoinDoubleProbability') }}</span>
+              <input v-model.number="settingsForm.lucky_coin_double_probability" type="number" min="0" max="100" step="0.01" class="input" />
+            </label>
+          </div>
+          <div class="mt-4 grid gap-3 md:grid-cols-4">
+            <div class="rounded-md bg-gray-50 px-3 py-2 text-sm dark:bg-dark-800">
               <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.zenxiangLiyu.expectedRewardPerTicket') }}</p>
               <p class="mt-1 font-semibold text-gray-900 dark:text-white">{{ formatAmount(theoreticalExpense) }}</p>
             </div>
@@ -119,7 +132,13 @@
 
       <section v-else-if="activeTab === 'stats'" class="space-y-4">
         <div class="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900 sm:flex-row sm:items-center sm:justify-between">
-          <p class="text-sm text-gray-500 dark:text-dark-300">{{ t('admin.zenxiangLiyu.statsRangeHint') }}</p>
+          <div>
+            <p class="text-sm text-gray-500 dark:text-dark-300">{{ t('admin.zenxiangLiyu.statsRangeHint') }}</p>
+            <label class="mt-3 block max-w-52">
+              <span class="input-label">{{ t('admin.zenxiangLiyu.statsDate') }}</span>
+              <input v-model="statsDate" type="date" class="input" @change="loadStats" />
+            </label>
+          </div>
           <div class="inline-flex self-start rounded-md border border-gray-200 bg-gray-50 p-1 dark:border-dark-700 dark:bg-dark-800">
             <button
               v-for="option in periodOptions"
@@ -134,19 +153,19 @@
           </div>
         </div>
         <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <Metric :label="t('admin.zenxiangLiyu.systemRevenue')" :value="formatAmount(overview.total_revenue)" />
-          <Metric :label="t('admin.zenxiangLiyu.systemExpense')" :value="formatAmount(overview.total_expense)" />
-          <Metric :label="t('admin.zenxiangLiyu.systemProfit')" :value="formatAmount(overview.net_profit)" />
-          <Metric :label="t('admin.zenxiangLiyu.profitRate')" :value="formatPercent(overviewProfitRate)" />
+          <Metric :label="t('admin.zenxiangLiyu.rewardTotal')" :value="formatAmount(overview.total_expense)" />
+          <Metric :label="t('admin.zenxiangLiyu.totalDraws')" :value="overview.total_plays" />
+          <Metric :label="t('admin.zenxiangLiyu.avgRewardPerDraw')" :value="formatAmount(overviewAverageReward)" />
+          <Metric :label="t('admin.zenxiangLiyu.participantCount')" :value="overview.participating_users" />
           <Metric :label="t('admin.zenxiangLiyu.participantsAndPlays')" :value="`${overview.participating_users} / ${overview.total_plays}`" />
         </div>
         <StatsTable
           :title="t('admin.zenxiangLiyu.periodStats')"
-          :headers="[t('admin.zenxiangLiyu.period'), t('admin.zenxiangLiyu.participantCount'), t('admin.zenxiangLiyu.plays'), t('admin.zenxiangLiyu.ticketTotal'), t('admin.zenxiangLiyu.rewardTotal'), t('admin.zenxiangLiyu.systemProfit'), t('admin.zenxiangLiyu.mostHitPrize')]"
+          :headers="[t('admin.zenxiangLiyu.period'), t('admin.zenxiangLiyu.participantCount'), t('admin.zenxiangLiyu.drawTicketsUsed'), t('admin.zenxiangLiyu.usageAmount'), t('admin.zenxiangLiyu.rewardTotal'), t('admin.zenxiangLiyu.avgRewardPerDraw'), t('admin.zenxiangLiyu.mostHitPrize')]"
           :rows="periodStatsRows"
         />
         <div class="grid gap-4 xl:grid-cols-2">
-          <StatsTable :title="t('admin.zenxiangLiyu.userStats')" :headers="[t('admin.zenxiangLiyu.user'), t('admin.zenxiangLiyu.plays'), t('admin.zenxiangLiyu.ticketTotal'), t('admin.zenxiangLiyu.rewardTotal'), t('admin.zenxiangLiyu.netTotal')]" :rows="userStats.map(row => [row.user_email || String(row.user_id), row.play_count, formatAmount(row.ticket_amount), formatAmount(row.reward_amount), formatAmount(row.user_net_amount)])" />
+          <StatsTable :title="t('admin.zenxiangLiyu.userStats')" :headers="[t('admin.zenxiangLiyu.user'), t('admin.zenxiangLiyu.availableBalance'), t('admin.zenxiangLiyu.usageAmount'), t('admin.zenxiangLiyu.plays'), t('admin.zenxiangLiyu.rewardTotal'), t('admin.zenxiangLiyu.netTotal')]" :rows="userStatsRows" />
           <StatsTable :title="t('admin.zenxiangLiyu.prizeStats')" :headers="[t('admin.zenxiangLiyu.prizeName'), t('admin.zenxiangLiyu.configuredProbability'), t('admin.zenxiangLiyu.actualRate'), t('admin.zenxiangLiyu.probabilityDiff'), t('admin.zenxiangLiyu.hitCount')]" :rows="prizeStatsRows" />
         </div>
       </section>
@@ -223,7 +242,9 @@ const settingsForm = reactive({
   ticket_usage_threshold: 5,
   daily_ticket_limit: 3,
   unit_sale_price: 0.1,
-  unit_cost_price: 0.05
+  unit_cost_price: 0.05,
+  lucky_coin_enabled: true,
+  lucky_coin_double_probability: 50
 })
 const prizes = ref<ZenxiangLiyuPrizeInput[]>([])
 const simulationPrizes = ref<ZenxiangLiyuPrizeInput[]>([])
@@ -234,6 +255,7 @@ const overview = ref<ZenxiangLiyuOverviewStats>({ total_plays: 0, total_revenue:
 const userStats = ref<ZenxiangLiyuUserStats[]>([])
 const prizeStats = ref<ZenxiangLiyuPrizeStats[]>([])
 const statsPeriod = ref<ZenxiangLiyuStatsPeriod>('day')
+const statsDate = ref(todayString())
 const periodStats = ref<ZenxiangLiyuPeriodStats[]>([])
 const simulationForm = reactive({ user_count: 100, plays_per_user: 3, initial_balance: 100, ticket_amount: 2, minimum_balance: 10, daily_play_limit: 3, target_profit_rate: 0.1 })
 const simulationResult = ref<ZenxiangLiyuSimulationResult | null>(null)
@@ -279,7 +301,7 @@ const theoreticalRewardForTenConsumption = computed(() => {
   if (threshold <= 0) return 0
   return Math.min(Math.floor(10 / threshold), limit) * theoreticalExpense.value
 })
-const overviewProfitRate = computed(() => overview.value.total_revenue ? overview.value.net_profit / overview.value.total_revenue : 0)
+const overviewAverageReward = computed(() => overview.value.total_plays ? overview.value.total_expense / overview.value.total_plays : 0)
 const prizeStatsRows = computed(() => prizeStats.value.map((row) => {
   const actualRate = overview.value.total_plays ? row.hit_count / overview.value.total_plays : 0
   const configuredRate = Number(row.probability || 0) / 100
@@ -288,11 +310,19 @@ const prizeStatsRows = computed(() => prizeStats.value.map((row) => {
 const periodStatsRows = computed(() => periodStats.value.map((row) => [
   formatPeriodLabel(row),
   row.participant_count,
-  row.play_count,
-  formatAmount(row.ticket_amount),
+  row.tickets_used || row.play_count,
+  formatAmount(row.usage_amount),
   formatAmount(row.reward_amount),
-  formatAmount(row.system_profit),
+  formatAmount(row.average_reward),
   row.most_hit_prize_name ? `${row.most_hit_prize_name} / ${row.most_hit_prize_count}` : '-',
+]))
+const userStatsRows = computed(() => userStats.value.map((row) => [
+  row.user_email || String(row.user_id),
+  formatAmount(row.balance),
+  formatAmount(row.usage_amount),
+  row.play_count,
+  formatAmount(row.reward_amount),
+  formatAmount(row.user_net_amount),
 ]))
 
 const Metric = defineComponent({
@@ -366,6 +396,13 @@ function formatNumber(value: number) { return Number(value || 0).toFixed(2).repl
 function formatAmount(value: number) { return `${formatNumber(value)} ${t('admin.zenxiangLiyu.pointsUnit')}` }
 function formatPercent(value: number) { return `${formatNumber(value * 100)}%` }
 function formatSignedPercent(value: number) { return `${value > 0 ? '+' : ''}${formatPercent(value)}` }
+function todayString() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 function formatPeriodLabel(row: ZenxiangLiyuPeriodStats) {
   if (row.period_label) return row.period_label
   const date = new Date(row.period_start)
@@ -416,7 +453,7 @@ async function loadStats() {
   try {
     const [overviewResult, usersResult, prizesResult, periodResult, grantsResult] = await Promise.all([
       adminAPI.zenxiangLiyu.getOverviewStats(),
-      adminAPI.zenxiangLiyu.listUserStats({ page_size: 100 }),
+      adminAPI.zenxiangLiyu.listUserStats({ page_size: 100, date: statsDate.value }),
       adminAPI.zenxiangLiyu.listPrizeStats(),
       adminAPI.zenxiangLiyu.listPeriodStats(statsPeriod.value),
       adminAPI.zenxiangLiyu.listGrants({ page_size: 100 }),

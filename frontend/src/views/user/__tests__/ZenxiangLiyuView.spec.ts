@@ -2,16 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
-const { getZenxiangLiyuStatus, listZenxiangLiyuRecords, playZenxiangLiyu } = vi.hoisted(() => ({
+const { getZenxiangLiyuStatus, listZenxiangLiyuRecords, playZenxiangLiyu, playZenxiangLiyuLuckyCoin } = vi.hoisted(() => ({
   getZenxiangLiyuStatus: vi.fn(),
   listZenxiangLiyuRecords: vi.fn(),
   playZenxiangLiyu: vi.fn(),
+  playZenxiangLiyuLuckyCoin: vi.fn(),
 }))
 
 vi.mock('@/api/zenxiangLiyu', () => ({
   getZenxiangLiyuStatus,
   listZenxiangLiyuRecords,
   playZenxiangLiyu,
+  playZenxiangLiyuLuckyCoin,
 }))
 
 vi.mock('vue-i18n', async () => {
@@ -24,6 +26,7 @@ vi.mock('vue-i18n', async () => {
           'zenxiangLiyu.balanceUnit': '积分',
           'zenxiangLiyu.insufficientBalance': `积分需大于 ${params?.amount} 积分才可参与`,
           'zenxiangLiyu.latestBalance': `最新积分：${params?.amount} 积分`,
+          'zenxiangLiyu.nextTicketMissing': `距离下一张抽奖券还差 ${params?.amount} 积分`,
         }
         return messages[key] ?? key
       },
@@ -52,6 +55,10 @@ const makePlayableStatus = () => ({
   today_tickets_earned: 1,
   today_tickets_used: 0,
   today_tickets_available: 1,
+  next_ticket_usage_target: 10,
+  next_ticket_usage_missing: 5,
+  lucky_coin_enabled: true,
+  lucky_coin_double_probability: 50,
   ticket_expires_at: '2026-07-11T16:00:00Z',
   prizes: [
     { id: 1, name: '1元', reward_amount: 1, probability: 70, enabled: true, sort_order: 1 },
@@ -60,6 +67,7 @@ const makePlayableStatus = () => ({
 })
 
 const makePlayResult = () => ({
+  id: 9,
   applied: true,
   request_id: 'request-id',
   prize_id: 2,
@@ -72,6 +80,8 @@ const makePlayResult = () => ({
   balance_after_ticket: 10,
   balance_after_reward: 13,
   played_at: '2026-07-10T00:00:00Z',
+  lucky_coin_available: true,
+  lucky_coin_played: false,
 })
 
 function mountView() {
@@ -98,6 +108,7 @@ describe('ZenxiangLiyuView', () => {
     getZenxiangLiyuStatus.mockReset()
     listZenxiangLiyuRecords.mockReset()
     playZenxiangLiyu.mockReset()
+    playZenxiangLiyuLuckyCoin.mockReset()
     listZenxiangLiyuRecords.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
   })
 

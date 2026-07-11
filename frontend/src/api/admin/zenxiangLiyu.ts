@@ -13,6 +13,8 @@ export interface ZenxiangLiyuSettings {
   daily_ticket_limit: number
   unit_sale_price: number
   unit_cost_price: number
+  lucky_coin_enabled: boolean
+  lucky_coin_double_probability: number
 }
 
 export interface ZenxiangLiyuPrizeInput {
@@ -51,6 +53,8 @@ export interface ZenxiangLiyuOverviewStats {
 export interface ZenxiangLiyuUserStats {
   user_id: number
   user_email: string
+  balance: number
+  usage_amount: number
   play_count: number
   ticket_amount: number
   reward_amount: number
@@ -70,8 +74,11 @@ export interface ZenxiangLiyuPeriodStats {
   period_label: string
   play_count: number
   participant_count: number
+  usage_amount: number
+  tickets_used: number
   ticket_amount: number
   reward_amount: number
+  average_reward: number
   user_net_amount: number
   system_revenue: number
   system_expense: number
@@ -91,6 +98,7 @@ export interface ZenxiangLiyuResetDailyResult {
 export interface ZenxiangLiyuPaginationParams {
   page?: number
   page_size?: number
+  date?: string
 }
 
 export interface ZenxiangLiyuSimulationRequest {
