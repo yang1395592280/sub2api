@@ -23,7 +23,7 @@ func (h *SettingHandler) GetOpenAIOverbrushSettings(c *gin.Context) {
 }
 
 type UpdateOpenAIOverbrushSettingsRequest struct {
-	Consecutive429Threshold int `json:"consecutive_429_threshold" binding:"required,min=1,max=100"`
+	Consecutive429Threshold int `json:"consecutive_429_threshold"`
 }
 
 // UpdateOpenAIOverbrushSettings 更新 OpenAI OAuth 超刷配置。

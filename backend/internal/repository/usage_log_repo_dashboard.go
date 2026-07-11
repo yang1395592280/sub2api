@@ -150,17 +150,20 @@ func (r *usageLogRepository) fillDashboardEntityStats(ctx context.Context, stats
 	apiKeyStatsQuery := `
 		SELECT
 			COUNT(*) as total_api_keys,
-			COUNT(CASE WHEN status = $1 THEN 1 END) as active_api_keys
-		FROM api_keys
-		WHERE deleted_at IS NULL
+			COUNT(CASE WHEN ak.status = $1 THEN 1 END) as active_api_keys,
+			COUNT(DISTINCT CASE WHEN ak.group_select_mode = $2 AND u.deleted_at IS NULL THEN ak.user_id END) as openai_auto_cheapest_users
+		FROM api_keys ak
+		LEFT JOIN users u ON u.id = ak.user_id
+		WHERE ak.deleted_at IS NULL
 	`
 	if err := scanSingleRow(
 		ctx,
 		r.sql,
 		apiKeyStatsQuery,
-		[]any{service.StatusActive},
+		[]any{service.StatusActive, service.APIKeyGroupSelectModeOpenAIAutoCheapest},
 		&stats.TotalAPIKeys,
 		&stats.ActiveAPIKeys,
+		&stats.OpenAIAutoCheapestUsers,
 	); err != nil {
 		return err
 	}

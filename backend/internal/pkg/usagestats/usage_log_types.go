@@ -298,7 +298,7 @@ type UsageLogFilters struct {
 	APIKeyID  int64
 	AccountID int64
 	GroupID   int64
-	// APIKeyGroupSelectMode filters by the current group selection mode of the API key that produced the log.
+	// APIKeyGroupSelectMode filters by the group selection mode snapshotted on the usage log.
 	APIKeyGroupSelectMode string
 	Model                 string
 	// ModelFilterSource controls how Model is matched. Empty preserves raw usage_logs.model semantics.

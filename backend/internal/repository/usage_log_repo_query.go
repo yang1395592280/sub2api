@@ -116,6 +116,10 @@ func (r *usageLogRepository) ListWithFilters(ctx context.Context, params paginat
 		conditions = append(conditions, fmt.Sprintf("group_id = $%d", len(args)+1))
 		args = append(args, filters.GroupID)
 	}
+	if strings.TrimSpace(filters.APIKeyGroupSelectMode) != "" {
+		conditions = append(conditions, fmt.Sprintf("api_key_group_select_mode = $%d", len(args)+1))
+		args = append(args, strings.TrimSpace(filters.APIKeyGroupSelectMode))
+	}
 	conditions, args = appendUsageLogModelWhereCondition(conditions, args, filters.Model, filters.ModelFilterSource)
 	conditions, args = appendRequestTypeOrStreamWhereCondition(conditions, args, filters.RequestType, filters.Stream)
 	if filters.BillingType != nil {

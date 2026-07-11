@@ -992,7 +992,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseU
 		},
 		Extra: map[string]any{"openai_overbrush_enabled": true},
 	}
-	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+	require.False(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
 
 	result, err := svc.forwardOpenAIImagesAPIKey(context.Background(), c, account, body, parsed, "")
 	require.NoError(t, err)

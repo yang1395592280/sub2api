@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
 func normalizeOpenAIOverbrushThreshold(threshold int) int {
@@ -45,7 +47,7 @@ func (s *SettingService) SetOpenAIOverbrushSettings(ctx context.Context, setting
 		settings = DefaultOpenAIOverbrushSettings()
 	}
 	if settings.Consecutive429Threshold < 1 || settings.Consecutive429Threshold > 100 {
-		return fmt.Errorf("consecutive_429_threshold must be between 1-100")
+		return infraerrors.BadRequest("OPENAI_OVERBRUSH_THRESHOLD_INVALID", "consecutive_429_threshold must be between 1-100")
 	}
 	data, err := json.Marshal(settings)
 	if err != nil {

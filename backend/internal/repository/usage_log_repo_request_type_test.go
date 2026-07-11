@@ -356,9 +356,9 @@ func TestPrepareUsageLogInsert_PersistsChannelPriceSnapshot(t *testing.T) {
 
 	require.Contains(t, usageLogSelectColumns, "channel_price_snapshot")
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	require.Equal(t, &price, prepared.args[51])
-	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[52])
-	require.Equal(t, sql.NullTime{Time: refreshedAt, Valid: true}, prepared.args[53])
+	require.Equal(t, &price, prepared.args[54])
+	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[55])
+	require.Equal(t, sql.NullTime{Time: refreshedAt, Valid: true}, prepared.args[56])
 }
 
 func TestScanUsageLog_ChannelPriceSnapshot(t *testing.T) {
@@ -368,11 +368,65 @@ func TestScanUsageLog_ChannelPriceSnapshot(t *testing.T) {
 	createdAt := time.Date(2026, 1, 2, 3, 5, 0, 0, time.UTC)
 
 	rowValues := []any{
-		int64(99), int64(1), int64(2), int64(3), "req-channel-price", "gpt-5", "gpt-5", nil,
-		nil, nil, nil, service.APIKeyGroupSelectModeOpenAIAutoCheapest, 10, 20, 0, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.5, 1.5,
-		nil, int16(service.BillingTypeBalance), int16(service.RequestTypeSync), false, false,
-		nil, nil, nil, nil, 0, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, nil,
-		nil, nil, nil, nil, price, source, refreshedAt, createdAt,
+		int64(99),           // id
+		int64(1),            // user_id
+		int64(2),            // api_key_id
+		int64(3),            // account_id
+		"req-channel-price", // request_id
+		"gpt-5",             // model
+		"gpt-5",             // requested_model
+		nil,                 // upstream_model
+		nil,                 // group_id
+		nil,                 // group_name
+		nil,                 // subscription_id
+		service.APIKeyGroupSelectModeOpenAIAutoCheapest, // api_key_group_select_mode
+		10,                                // input_tokens
+		20,                                // output_tokens
+		0,                                 // cache_creation_tokens
+		0,                                 // cache_read_tokens
+		0,                                 // cache_creation_5m_tokens
+		0,                                 // cache_creation_1h_tokens
+		0,                                 // image_output_tokens
+		0.0,                               // image_output_cost
+		0.0,                               // input_cost
+		0.0,                               // output_cost
+		0.0,                               // cache_creation_cost
+		0.0,                               // cache_read_cost
+		1.0,                               // total_cost
+		1.5,                               // actual_cost
+		1.5,                               // rate_multiplier
+		nil,                               // account_rate_multiplier
+		int16(service.BillingTypeBalance), // billing_type
+		int16(service.RequestTypeSync),    // request_type
+		false,                             // stream
+		false,                             // openai_ws_mode
+		nil,                               // duration_ms
+		nil,                               // first_token_ms
+		nil,                               // user_agent
+		nil,                               // ip_address
+		0,                                 // image_count
+		nil,                               // image_size
+		nil,                               // image_input_size
+		nil,                               // image_output_size
+		nil,                               // image_size_source
+		nil,                               // image_size_breakdown
+		0,                                 // video_count
+		nil,                               // video_resolution
+		nil,                               // video_duration_seconds
+		nil,                               // service_tier
+		nil,                               // reasoning_effort
+		nil,                               // inbound_endpoint
+		nil,                               // upstream_endpoint
+		false,                             // cache_ttl_overridden
+		nil,                               // channel_id
+		nil,                               // model_mapping_chain
+		nil,                               // billing_tier
+		nil,                               // billing_mode
+		nil,                               // account_stats_cost
+		price,                             // channel_price_snapshot
+		source,                            // channel_price_source
+		refreshedAt,                       // channel_price_refreshed_at
+		createdAt,                         // created_at
 	}
 
 	got, err := scanUsageLog(scanStub(rowValues))
@@ -560,7 +614,7 @@ func TestUsageLogRepositoryListWithFiltersAPIKeyGroupSelectMode(t *testing.T) {
 		ExactTotal:            true,
 	}
 
-	modeCondition := "EXISTS \\(SELECT 1 FROM api_keys ak WHERE ak.id = usage_logs.api_key_id AND ak.group_select_mode = \\$1\\)"
+	modeCondition := "api_key_group_select_mode = \\$1"
 	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM usage_logs WHERE " + modeCondition).
 		WithArgs(service.APIKeyGroupSelectModeOpenAIAutoCheapest).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(0)))
