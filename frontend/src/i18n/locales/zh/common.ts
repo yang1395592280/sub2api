@@ -278,6 +278,7 @@ export default {
     ticketUnit: '张',
     ticketProgress: '今日已用 / 已得',
     ticketEarnHint: '每消耗 {threshold} 可得 1 张，每日最多 {limit} 张',
+    ticketGiftHint: '含管理员赠送 {count} 张',
     ticketExpireHint: '抽奖券仅当日有效',
     nextTicketMissing: '距离下一张抽奖券还差 {amount} 积分',
     dailyTicketLimitReached: '今日抽奖券已达上限',

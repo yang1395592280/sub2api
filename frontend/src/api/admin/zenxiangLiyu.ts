@@ -42,6 +42,26 @@ export interface ZenxiangLiyuGrantInput {
   notes?: string
 }
 
+export interface ZenxiangLiyuTicketGift {
+  id: number
+  request_id: string
+  user_id: number
+  user_email?: string
+  play_date: string
+  ticket_count: number
+  granted_by?: number
+  notes: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ZenxiangLiyuTicketGiftInput {
+  request_id: string
+  user_id: number
+  ticket_count: number
+  notes?: string
+}
+
 export interface ZenxiangLiyuOverviewStats {
   total_plays: number
   total_revenue: number
@@ -224,6 +244,11 @@ async function resetGrantDailyPlays(userId: number): Promise<ZenxiangLiyuResetDa
   return data
 }
 
+async function giftTickets(gift: ZenxiangLiyuTicketGiftInput): Promise<ZenxiangLiyuTicketGift> {
+  const { data } = await apiClient.post<ZenxiangLiyuTicketGift>(`${basePath}/tickets/gift`, gift)
+  return data
+}
+
 async function getOverviewStats(): Promise<ZenxiangLiyuOverviewStats> {
   const { data } = await apiClient.get<ZenxiangLiyuOverviewStats>(`${basePath}/stats/overview`)
   return data
@@ -276,6 +301,7 @@ export const adminZenxiangLiyuAPI = {
   createGrant,
   deleteGrant,
   resetGrantDailyPlays,
+  giftTickets,
   getOverviewStats,
   listPeriodStats,
   listUserStats,

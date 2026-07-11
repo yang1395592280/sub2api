@@ -96,13 +96,38 @@
           <div v-if="grantSearchResults.length" class="mt-3 divide-y divide-gray-200 rounded-md border border-gray-200 dark:divide-dark-700 dark:border-dark-700">
             <div v-for="user in grantSearchResults" :key="user.id" class="flex items-center justify-between gap-3 px-3 py-2 text-sm">
               <span class="min-w-0 truncate text-gray-700 dark:text-dark-200">{{ user.email || `#${user.id}` }}</span>
-              <button class="btn btn-primary" @click="createGrant(user.id)">{{ t('admin.zenxiangLiyu.grant') }}</button>
+              <div class="flex shrink-0 flex-wrap justify-end gap-2">
+                <button class="btn btn-secondary" @click="selectGiftUser(user.id, user.email || `#${user.id}`)">{{ t('admin.zenxiangLiyu.giftTickets') }}</button>
+                <button class="btn btn-primary" @click="createGrant(user.id)">{{ t('admin.zenxiangLiyu.grant') }}</button>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 rounded-md border border-primary-100 bg-primary-50/60 p-3 dark:border-primary-500/30 dark:bg-primary-500/10">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-end">
+              <div class="min-w-0 flex-1">
+                <span class="input-label">{{ t('admin.zenxiangLiyu.giftUser') }}</span>
+                <div class="mt-1 truncate rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200">
+                  {{ selectedGiftUser ? selectedGiftUser.label : t('admin.zenxiangLiyu.noGiftUserSelected') }}
+                </div>
+              </div>
+              <label class="w-full lg:w-36">
+                <span class="input-label">{{ t('admin.zenxiangLiyu.giftTicketCount') }}</span>
+                <input v-model.number="giftForm.ticket_count" type="number" min="1" max="1000" step="1" class="input" />
+              </label>
+              <label class="min-w-0 flex-1">
+                <span class="input-label">{{ t('admin.zenxiangLiyu.giftNotes') }}</span>
+                <input v-model.trim="giftForm.notes" type="text" class="input" :placeholder="t('admin.zenxiangLiyu.giftNotesPlaceholder')" />
+              </label>
+              <button class="btn btn-primary" :disabled="giftingTickets || !selectedGiftUser || giftForm.ticket_count <= 0" @click="giftTicketsToSelectedUser">
+                {{ t('admin.zenxiangLiyu.confirmGiftTickets') }}
+              </button>
             </div>
           </div>
           <div class="mt-4 divide-y divide-gray-200 dark:divide-dark-700">
             <div v-for="grant in grants" :key="grant.user_id" class="flex items-center justify-between gap-3 py-2 text-sm">
               <span>{{ grant.user_email || `#${grant.user_id}` }}</span>
               <div class="flex shrink-0 flex-wrap justify-end gap-2">
+                <button class="btn btn-secondary" @click="selectGiftUser(grant.user_id, grant.user_email || `#${grant.user_id}`)">{{ t('admin.zenxiangLiyu.giftTickets') }}</button>
                 <button class="btn btn-secondary" :disabled="isResettingGrant(grant.user_id)" @click="resetGrantDailyPlays(grant.user_id)">{{ t('admin.zenxiangLiyu.resetDailyPlays') }}</button>
                 <button class="btn btn-secondary" @click="removeGrant(grant.user_id)">{{ t('admin.zenxiangLiyu.remove') }}</button>
               </div>
@@ -233,6 +258,7 @@ const savingSettings = ref(false)
 const savingPrizes = ref(false)
 const simulating = ref(false)
 const searchingUsers = ref(false)
+const giftingTickets = ref(false)
 const resettingGrantIds = ref<Set<number>>(new Set())
 const settingsForm = reactive({
   global_enabled: false,
@@ -251,6 +277,8 @@ const simulationPrizes = ref<ZenxiangLiyuPrizeInput[]>([])
 const grants = ref<ZenxiangLiyuGrant[]>([])
 const grantSearch = ref('')
 const grantSearchResults = ref<AdminUser[]>([])
+const selectedGiftUser = ref<{ id: number, label: string } | null>(null)
+const giftForm = reactive({ request_id: newGiftRequestId(), ticket_count: 1, notes: '' })
 const overview = ref<ZenxiangLiyuOverviewStats>({ total_plays: 0, total_revenue: 0, total_expense: 0, net_profit: 0, participating_users: 0 })
 const userStats = ref<ZenxiangLiyuUserStats[]>([])
 const prizeStats = ref<ZenxiangLiyuPrizeStats[]>([])
@@ -542,6 +570,33 @@ async function createGrant(userId: number) {
     appStore.showSuccess(t('admin.zenxiangLiyu.grantSaved'))
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, t('admin.zenxiangLiyu.grantSaveFailed')))
+  }
+}
+function selectGiftUser(userId: number, label: string) {
+  selectedGiftUser.value = { id: userId, label }
+}
+function newGiftRequestId() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
+  return `zenxiang-gift-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+async function giftTicketsToSelectedUser() {
+  if (!selectedGiftUser.value || giftForm.ticket_count <= 0) return
+  giftingTickets.value = true
+  try {
+    const gift = await adminAPI.zenxiangLiyu.giftTickets({
+      request_id: giftForm.request_id,
+      user_id: selectedGiftUser.value.id,
+      ticket_count: giftForm.ticket_count,
+      notes: giftForm.notes,
+    })
+    giftForm.request_id = newGiftRequestId()
+    giftForm.ticket_count = 1
+    giftForm.notes = ''
+    appStore.showSuccess(t('admin.zenxiangLiyu.giftTicketsSuccess', { count: gift.ticket_count, user: gift.user_email || selectedGiftUser.value.label }))
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.zenxiangLiyu.giftTicketsFailed')))
+  } finally {
+    giftingTickets.value = false
   }
 }
 async function removeGrant(userId: number) {

@@ -28,6 +28,8 @@ export interface ZenxiangLiyuStatus {
   ticket_usage_threshold: number
   daily_ticket_limit: number
   today_tickets_earned: number
+  today_tickets_from_usage: number
+  today_tickets_granted: number
   today_tickets_used: number
   today_tickets_available: number
   next_ticket_usage_target: number

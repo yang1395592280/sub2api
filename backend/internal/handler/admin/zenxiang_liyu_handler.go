@@ -21,6 +21,7 @@ type zenxiangLiyuAdminService interface {
 	ListGrants(context.Context, int, int) ([]service.ZenxiangLiyuGrant, int, error)
 	SaveGrant(context.Context, service.ZenxiangLiyuGrant) (*service.ZenxiangLiyuGrant, error)
 	DeleteGrant(context.Context, int64) error
+	GiftTickets(context.Context, service.ZenxiangLiyuTicketGiftRequest) (*service.ZenxiangLiyuTicketGift, error)
 	GetOverviewStats(context.Context) (*service.ZenxiangLiyuOverviewStats, error)
 	ListUserStats(context.Context, int, int, time.Time) ([]service.ZenxiangLiyuUserStats, int, error)
 	ListPrizeStats(context.Context) ([]service.ZenxiangLiyuPrizeStats, error)
@@ -45,6 +46,12 @@ type zenxiangLiyuGrantRequest struct {
 	UserID  int64  `json:"user_id" binding:"required"`
 	Enabled *bool  `json:"enabled"`
 	Notes   string `json:"notes"`
+}
+type zenxiangLiyuTicketGiftRequest struct {
+	RequestID   string `json:"request_id" binding:"required"`
+	UserID      int64  `json:"user_id" binding:"required"`
+	TicketCount int    `json:"ticket_count" binding:"required"`
+	Notes       string `json:"notes"`
 }
 
 func (h *ZenxiangLiyuHandler) GetSettings(c *gin.Context) {
@@ -137,6 +144,23 @@ func (h *ZenxiangLiyuHandler) DeleteGrant(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"user_id": userID})
+}
+func (h *ZenxiangLiyuHandler) GiftTickets(c *gin.Context) {
+	var req zenxiangLiyuTicketGiftRequest
+	if !bindZenxiangLiyuJSON(c, &req) {
+		return
+	}
+	gift := service.ZenxiangLiyuTicketGiftRequest{
+		RequestID:   req.RequestID,
+		UserID:      req.UserID,
+		TicketCount: req.TicketCount,
+		Notes:       req.Notes,
+	}
+	if subject, ok := middleware.GetAuthSubjectFromContext(c); ok {
+		gift.GrantedBy = &subject.UserID
+	}
+	data, err := h.service.GiftTickets(c.Request.Context(), gift)
+	h.respond(c, data, err)
 }
 func (h *ZenxiangLiyuHandler) ResetGrantDailyPlays(c *gin.Context) {
 	userID, err := strconv.ParseInt(c.Param("user_id"), 10, 64)

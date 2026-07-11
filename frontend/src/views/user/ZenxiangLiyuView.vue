@@ -42,6 +42,9 @@
               <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">{{ t('zenxiangLiyu.ticketUnit') }}</span>
             </div>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.ticketEarnHint', { threshold: formatNumber(status.ticket_usage_threshold), limit: status.daily_ticket_limit }) }}</p>
+            <p v-if="status.today_tickets_granted > 0" class="mt-1 text-xs font-medium text-primary-600 dark:text-primary-300">
+              {{ t('zenxiangLiyu.ticketGiftHint', { count: status.today_tickets_granted }) }}
+            </p>
           </div>
           <div class="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.ticketProgress') }}</p>
@@ -174,8 +177,12 @@
               <span class="text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.latestPoints') }}</span>
               <span class="text-right text-gray-900 dark:text-white">{{ formatAmount(latestResultBalance) }}</span>
             </div>
-            <div v-if="canUseLuckyCoin || luckyCoinResult || luckyCoinFlipping" class="mt-5">
+            <p v-if="luckyCoinError" class="mt-4 text-sm text-rose-600 dark:text-rose-300">{{ luckyCoinError }}</p>
+            <div class="mt-6 grid gap-2" :class="showLuckyCoinAction ? 'grid-cols-2' : 'grid-cols-1'">
+              <button type="button" class="btn btn-secondary min-h-14 w-full" @click="showResultDialog = false">{{ t('common.confirm') }}</button>
               <button
+                v-if="showLuckyCoinAction"
+                data-testid="zenxiang-lucky-coin"
                 type="button"
                 class="lucky-coin-card"
                 :class="{ 'lucky-coin-card--flipping': luckyCoinFlipping, 'lucky-coin-card--win': luckyCoinResult?.outcome === 'double', 'lucky-coin-card--lose': luckyCoinResult?.outcome === 'zero' }"
@@ -187,11 +194,6 @@
                   {{ luckyCoinFlipping ? t('zenxiangLiyu.luckyCoinFlipping') : luckyCoinButtonText }}
                 </span>
               </button>
-              <p v-if="luckyCoinError" class="mt-2 text-sm text-rose-600 dark:text-rose-300">{{ luckyCoinError }}</p>
-            </div>
-            <div class="mt-6 grid grid-cols-2 gap-2">
-              <button type="button" class="btn btn-secondary w-full" @click="showResultDialog = false">{{ t('common.confirm') }}</button>
-              <button type="button" class="btn btn-primary w-full" :disabled="!canUseLuckyCoin || luckyCoinFlipping" @click="playLuckyCoin">{{ t('zenxiangLiyu.luckyCoinDouble') }}</button>
             </div>
           </div>
         </div>
@@ -259,6 +261,7 @@ const canUseLuckyCoin = computed(() => Boolean(
   !luckyCoinResult.value &&
   !luckyCoinFlipping.value
 ))
+const showLuckyCoinAction = computed(() => Boolean(canUseLuckyCoin.value || luckyCoinResult.value || luckyCoinFlipping.value))
 const latestResultBalance = computed(() => luckyCoinResult.value?.balance_after ?? result.value?.balance_after_reward ?? 0)
 const latestResultNetAmount = computed(() => Number(result.value?.user_net_amount ?? 0) + Number(luckyCoinResult.value?.adjustment_amount ?? 0))
 const luckyCoinButtonText = computed(() => {
@@ -533,32 +536,40 @@ onMounted(() => {
 
 .lucky-coin-card {
   position: relative;
-  display: flex;
+  display: inline-flex;
   width: 100%;
-  min-height: 4.25rem;
+  min-height: 3.5rem;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border: 1px solid rgb(250 204 21 / 0.65);
-  border-radius: 0.75rem;
+  border: 1px solid rgb(202 138 4 / 0.5);
+  border-radius: 0.5rem;
   background:
-    radial-gradient(circle at 25% 20%, rgb(254 240 138 / 0.9), transparent 28%),
-    linear-gradient(135deg, rgb(146 64 14), rgb(234 179 8), rgb(180 83 9));
+    radial-gradient(circle at 22% 18%, rgb(254 243 199 / 0.85), transparent 24%),
+    linear-gradient(135deg, rgb(146 64 14), rgb(217 119 6) 45%, rgb(161 98 7));
   color: white;
-  font-weight: 800;
+  font-size: 0.875rem;
+  font-weight: 700;
   letter-spacing: 0;
-  box-shadow: 0 14px 30px rgb(180 83 9 / 0.28);
+  text-shadow: 0 1px 1px rgb(0 0 0 / 0.18);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.24),
+    0 8px 18px rgb(180 83 9 / 0.18);
   transform-style: preserve-3d;
-  transition: transform 0.32s ease, filter 0.32s ease, box-shadow 0.32s ease;
+  transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
 }
 
 .lucky-coin-card:disabled {
   cursor: not-allowed;
+  opacity: 0.9;
 }
 
 .lucky-coin-card:not(:disabled):hover {
-  transform: translateY(-1px) rotateX(5deg);
+  transform: translateY(-1px);
   filter: saturate(1.1);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.28),
+    0 10px 22px rgb(180 83 9 / 0.22);
 }
 
 .lucky-coin-card--flipping {
@@ -568,31 +579,35 @@ onMounted(() => {
 .lucky-coin-card--win {
   border-color: rgb(52 211 153 / 0.85);
   background:
-    radial-gradient(circle at 25% 20%, rgb(167 243 208 / 0.95), transparent 28%),
-    linear-gradient(135deg, rgb(6 95 70), rgb(16 185 129), rgb(13 148 136));
-  box-shadow: 0 14px 34px rgb(16 185 129 / 0.32);
+    radial-gradient(circle at 22% 18%, rgb(167 243 208 / 0.85), transparent 24%),
+    linear-gradient(135deg, rgb(6 95 70), rgb(5 150 105), rgb(13 148 136));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    0 8px 20px rgb(16 185 129 / 0.22);
 }
 
 .lucky-coin-card--lose {
   border-color: rgb(251 113 133 / 0.85);
   background:
-    radial-gradient(circle at 25% 20%, rgb(254 205 211 / 0.95), transparent 28%),
-    linear-gradient(135deg, rgb(136 19 55), rgb(225 29 72), rgb(127 29 29));
-  box-shadow: 0 14px 34px rgb(225 29 72 / 0.28);
+    radial-gradient(circle at 22% 18%, rgb(254 205 211 / 0.85), transparent 24%),
+    linear-gradient(135deg, rgb(136 19 55), rgb(190 18 60), rgb(127 29 29));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.2),
+    0 8px 20px rgb(225 29 72 / 0.2);
 }
 
 .lucky-coin-card__shine {
   position: absolute;
-  inset: -40%;
-  background: linear-gradient(115deg, transparent 35%, rgb(255 255 255 / 0.45), transparent 65%);
-  transform: translateX(-45%) rotate(10deg);
-  animation: lucky-shine 2.4s linear infinite;
+  inset: -65% -30%;
+  background: linear-gradient(115deg, transparent 38%, rgb(255 255 255 / 0.28), transparent 62%);
+  transform: translateX(-55%) rotate(10deg);
+  animation: lucky-shine 2.8s linear infinite;
 }
 
 .lucky-coin-card__face {
   position: relative;
   z-index: 1;
-  padding: 0 1rem;
+  padding: 0 0.875rem;
   text-align: center;
 }
 

@@ -278,6 +278,7 @@ export default {
     ticketUnit: 'tickets',
     ticketProgress: 'Used / Earned Today',
     ticketEarnHint: 'Earn 1 ticket per {threshold} spent, up to {limit} per day',
+    ticketGiftHint: 'Includes {count} admin gifted tickets',
     ticketExpireHint: 'Tickets expire daily',
     nextTicketMissing: '{amount} more points spent for the next ticket',
     dailyTicketLimitReached: 'Today\'s ticket limit reached',

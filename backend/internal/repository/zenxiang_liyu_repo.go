@@ -362,6 +362,71 @@ func (r *zenxiangLiyuRepository) DeleteGrant(ctx context.Context, userID int64) 
 	return nil
 }
 
+func (r *zenxiangLiyuRepository) CountGiftedTicketsOnDate(ctx context.Context, userID int64, playDate time.Time) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(ticket_count), 0)
+		FROM zenxiang_liyu_ticket_gifts
+		WHERE user_id = $1 AND play_date = $2`, userID, playDate,
+	).Scan(&count)
+	return count, err
+}
+
+func (r *zenxiangLiyuRepository) GiftTickets(ctx context.Context, gift service.ZenxiangLiyuTicketGift) (*service.ZenxiangLiyuTicketGift, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	var userEmail string
+	err = tx.QueryRowContext(ctx, `
+		SELECT email FROM users
+		WHERE id = $1 AND role = $2 AND status = $3 AND deleted_at IS NULL
+		FOR SHARE`, gift.UserID, service.RoleUser, service.StatusActive,
+	).Scan(&userEmail)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrUserNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	stored := &service.ZenxiangLiyuTicketGift{UserEmail: userEmail}
+	err = tx.QueryRowContext(ctx, `
+		INSERT INTO zenxiang_liyu_ticket_gifts (request_id, user_id, play_date, ticket_count, granted_by, notes)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (request_id) DO NOTHING
+		RETURNING id, request_id, user_id, play_date, ticket_count, granted_by, notes, created_at, updated_at`,
+		gift.RequestID, gift.UserID, gift.PlayDate, gift.TicketCount, gift.GrantedBy, gift.Notes,
+	).Scan(
+		&stored.ID, &stored.RequestID, &stored.UserID, &stored.PlayDate, &stored.TicketCount,
+		&stored.GrantedBy, &stored.Notes, &stored.CreatedAt, &stored.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = tx.QueryRowContext(ctx, `
+			SELECT g.id, g.request_id, g.user_id, u.email, g.play_date, g.ticket_count, g.granted_by, g.notes, g.created_at, g.updated_at
+			FROM zenxiang_liyu_ticket_gifts g
+			JOIN users u ON u.id = g.user_id
+			WHERE g.request_id = $1`, gift.RequestID,
+		).Scan(
+			&stored.ID, &stored.RequestID, &stored.UserID, &stored.UserEmail, &stored.PlayDate, &stored.TicketCount,
+			&stored.GrantedBy, &stored.Notes, &stored.CreatedAt, &stored.UpdatedAt,
+		)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return stored, nil
+}
+
 func (r *zenxiangLiyuRepository) GetOverviewStats(ctx context.Context) (*service.ZenxiangLiyuOverviewStats, error) {
 	stats := &service.ZenxiangLiyuOverviewStats{}
 	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(system_revenue), 0), COALESCE(SUM(system_expense), 0), COALESCE(SUM(system_profit), 0), COUNT(DISTINCT user_id) FROM zenxiang_liyu_records`).Scan(&stats.TotalPlays, &stats.TotalRevenue, &stats.TotalExpense, &stats.NetProfit, &stats.ParticipatingUsers)
@@ -619,6 +684,11 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 		return nil, err
 	}
 	earnedTickets := service.CalculateZenxiangLiyuEarnedTickets(todayUsageAmount, settings)
+	giftedTickets, err := getZenxiangLiyuGiftedTicketsForPlay(ctx, tx, cmd.UserID, cmd.PlayDate)
+	if err != nil {
+		return nil, err
+	}
+	earnedTickets += giftedTickets
 	availableTickets := earnedTickets - playCount
 	if availableTickets <= 0 {
 		return nil, service.ErrZenxiangLiyuNoTicket
@@ -636,6 +706,7 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 		"free_play":               useFreePlay,
 		"today_usage_amount":      todayUsageAmount,
 		"today_tickets_earned":    earnedTickets,
+		"today_tickets_gifted":    giftedTickets,
 		"today_tickets_used":      playCount,
 		"today_tickets_available": availableTickets,
 	})
@@ -865,6 +936,16 @@ func hasZenxiangLiyuUserFreePlayForPlay(ctx context.Context, tx *sql.Tx, userID 
 		)`, userID, start, end,
 	).Scan(&used)
 	return used, err
+}
+
+func getZenxiangLiyuGiftedTicketsForPlay(ctx context.Context, tx *sql.Tx, userID int64, playDate time.Time) (int, error) {
+	var count int
+	err := tx.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(ticket_count), 0)
+		FROM zenxiang_liyu_ticket_gifts
+		WHERE user_id = $1 AND play_date = $2`, userID, playDate,
+	).Scan(&count)
+	return count, err
 }
 
 func zenxiangLiyuUsageWindow(playDate time.Time) (time.Time, time.Time) {

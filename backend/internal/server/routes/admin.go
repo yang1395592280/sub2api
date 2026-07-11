@@ -130,6 +130,7 @@ func registerZenxiangLiyuRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		zenxiangLiyu.DELETE("/prizes/:id", h.Admin.ZenxiangLiyu.DeletePrize)
 		zenxiangLiyu.GET("/grants", h.Admin.ZenxiangLiyu.ListGrants)
 		zenxiangLiyu.POST("/grants", h.Admin.ZenxiangLiyu.CreateGrant)
+		zenxiangLiyu.POST("/tickets/gift", h.Admin.ZenxiangLiyu.GiftTickets)
 		zenxiangLiyu.POST("/grants/:user_id/reset-daily", h.Admin.ZenxiangLiyu.ResetGrantDailyPlays)
 		zenxiangLiyu.DELETE("/grants/:user_id", h.Admin.ZenxiangLiyu.DeleteGrant)
 		zenxiangLiyu.GET("/stats/overview", h.Admin.ZenxiangLiyu.GetOverviewStats)

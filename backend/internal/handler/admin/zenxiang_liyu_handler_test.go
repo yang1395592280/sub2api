@@ -18,6 +18,7 @@ type stubAdminZenxiangLiyuService struct {
 	simulation   *service.ZenxiangLiyuSimulationResult
 	bulkPrizes   []service.ZenxiangLiyuPrizeUpdate
 	applyPrizes  []service.ZenxiangLiyuPrizeUpdate
+	lastGift     service.ZenxiangLiyuTicketGiftRequest
 }
 
 func (s *stubAdminZenxiangLiyuService) GetSettings(context.Context) (*service.ZenxiangLiyuSettings, error) {
@@ -51,6 +52,10 @@ func (s *stubAdminZenxiangLiyuService) SaveGrant(context.Context, service.Zenxia
 	return nil, nil
 }
 func (s *stubAdminZenxiangLiyuService) DeleteGrant(context.Context, int64) error { return nil }
+func (s *stubAdminZenxiangLiyuService) GiftTickets(_ context.Context, gift service.ZenxiangLiyuTicketGiftRequest) (*service.ZenxiangLiyuTicketGift, error) {
+	s.lastGift = gift
+	return &service.ZenxiangLiyuTicketGift{RequestID: gift.RequestID, UserID: gift.UserID, TicketCount: gift.TicketCount, Notes: gift.Notes}, nil
+}
 func (s *stubAdminZenxiangLiyuService) GetOverviewStats(context.Context) (*service.ZenxiangLiyuOverviewStats, error) {
 	return nil, nil
 }
@@ -129,4 +134,19 @@ func TestAdminZenxiangLiyuApplySimulationUsesApplyOnly(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Len(t, svc.applyPrizes, 1)
 	require.Empty(t, svc.bulkPrizes)
+}
+
+func TestAdminZenxiangLiyuGiftTicketsMapsPayload(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &stubAdminZenxiangLiyuService{}
+	router := gin.New()
+	router.POST("/admin/zenxiang-liyu/tickets/gift", NewZenxiangLiyuHandler(svc).GiftTickets)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/admin/zenxiang-liyu/tickets/gift", strings.NewReader(`{"request_id":"gift-1","user_id":7,"ticket_count":2,"notes":"客服补偿"}`)))
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "gift-1", svc.lastGift.RequestID)
+	require.EqualValues(t, 7, svc.lastGift.UserID)
+	require.Equal(t, 2, svc.lastGift.TicketCount)
+	require.Equal(t, "客服补偿", svc.lastGift.Notes)
 }

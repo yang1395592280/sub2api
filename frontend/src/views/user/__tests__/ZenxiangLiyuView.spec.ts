@@ -234,4 +234,36 @@ describe('ZenxiangLiyuView', () => {
     expect(wrapper.text()).toContain('zenxiangLiyu.statusRefreshFailed')
     vi.useRealTimers()
   })
+
+  it('shows only the bottom lucky coin action and uses it to play lucky coin', async () => {
+    vi.useFakeTimers()
+    getZenxiangLiyuStatus.mockResolvedValue(makePlayableStatus())
+    playZenxiangLiyu.mockResolvedValue(makePlayResult())
+    playZenxiangLiyuLuckyCoin.mockResolvedValue({
+      record_id: 9,
+      outcome: 'double',
+      original_reward: 3,
+      adjustment_amount: 3,
+      balance_after: 16,
+      double_probability: 50,
+      played_at: '2026-07-10T00:00:00Z',
+      lucky_coin_available: false,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('[data-testid="zenxiang-play"]').trigger('click')
+    await flushPromises()
+    await finishSpinAnimation()
+
+    const luckyButtons = wrapper.findAll('[data-testid="zenxiang-lucky-coin"]')
+    expect(luckyButtons).toHaveLength(1)
+
+    await luckyButtons[0].trigger('click')
+    vi.advanceTimersByTime(900)
+    await flushPromises()
+
+    expect(playZenxiangLiyuLuckyCoin).toHaveBeenCalledWith(9)
+    vi.useRealTimers()
+  })
 })

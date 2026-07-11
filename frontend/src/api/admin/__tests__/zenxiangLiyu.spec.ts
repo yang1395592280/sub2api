@@ -57,6 +57,7 @@ describe('zenxiang liyu admin api', () => {
 
   it('manages grants and loads all statistics routes', async () => {
     const grant = { user_id: 7, enabled: true, notes: 'allowed' }
+    const gift = { request_id: 'gift-1', user_id: 7, ticket_count: 2, notes: 'compensation' }
     const grants = { items: [grant], total: 1, page: 1, page_size: 20, pages: 1 }
     const overview = { total_plays: 1 }
     const periods = [{ period_label: '2026-07-11', play_count: 1 }]
@@ -67,6 +68,7 @@ describe('zenxiang liyu admin api', () => {
     post.mockResolvedValueOnce({ data: grant })
     remove.mockResolvedValueOnce({ data: { user_id: 7 } })
     post.mockResolvedValueOnce({ data: resetResult })
+    post.mockResolvedValueOnce({ data: { id: 11, ...gift } })
     get.mockResolvedValueOnce({ data: overview })
     get.mockResolvedValueOnce({ data: periods })
     get.mockResolvedValueOnce({ data: users })
@@ -76,6 +78,7 @@ describe('zenxiang liyu admin api', () => {
     await expect(adminZenxiangLiyuAPI.createGrant(grant)).resolves.toEqual(grant)
     await expect(adminZenxiangLiyuAPI.deleteGrant(7)).resolves.toEqual({ user_id: 7 })
     await expect(adminZenxiangLiyuAPI.resetGrantDailyPlays(7)).resolves.toEqual(resetResult)
+    await expect(adminZenxiangLiyuAPI.giftTickets(gift)).resolves.toEqual({ id: 11, ...gift })
     await expect(adminZenxiangLiyuAPI.getOverviewStats()).resolves.toEqual(overview)
     await expect(adminZenxiangLiyuAPI.listPeriodStats('week')).resolves.toEqual(periods)
     await expect(adminZenxiangLiyuAPI.listUserStats({ page: 2, page_size: 10 })).resolves.toEqual(users)
@@ -85,6 +88,7 @@ describe('zenxiang liyu admin api', () => {
     expect(post).toHaveBeenCalledWith('/admin/zenxiang-liyu/grants', grant)
     expect(remove).toHaveBeenCalledWith('/admin/zenxiang-liyu/grants/7')
     expect(post).toHaveBeenCalledWith('/admin/zenxiang-liyu/grants/7/reset-daily')
+    expect(post).toHaveBeenCalledWith('/admin/zenxiang-liyu/tickets/gift', gift)
     expect(get).toHaveBeenNthCalledWith(2, '/admin/zenxiang-liyu/stats/overview')
     expect(get).toHaveBeenNthCalledWith(3, '/admin/zenxiang-liyu/stats/periods', { params: { period: 'week' } })
     expect(get).toHaveBeenNthCalledWith(4, '/admin/zenxiang-liyu/stats/users', { params: { page: 2, page_size: 10 } })

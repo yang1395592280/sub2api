@@ -119,6 +119,8 @@ type ZenxiangLiyuStatus struct {
 	LuckyCoinEnabled       bool                `json:"lucky_coin_enabled"`
 	LuckyCoinProbability   float64             `json:"lucky_coin_double_probability"`
 	TodayTicketsEarned     int                 `json:"today_tickets_earned"`
+	TodayTicketsFromUsage  int                 `json:"today_tickets_from_usage"`
+	TodayTicketsGranted    int                 `json:"today_tickets_granted"`
 	TodayTicketsUsed       int                 `json:"today_tickets_used"`
 	TodayTicketsAvailable  int                 `json:"today_tickets_available"`
 	NextTicketUsageTarget  float64             `json:"next_ticket_usage_target"`
@@ -271,6 +273,27 @@ type ZenxiangLiyuGrant struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type ZenxiangLiyuTicketGift struct {
+	ID          int64     `json:"id"`
+	RequestID   string    `json:"request_id"`
+	UserID      int64     `json:"user_id"`
+	UserEmail   string    `json:"user_email,omitempty"`
+	PlayDate    time.Time `json:"play_date"`
+	TicketCount int       `json:"ticket_count"`
+	GrantedBy   *int64    `json:"granted_by,omitempty"`
+	Notes       string    `json:"notes"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type ZenxiangLiyuTicketGiftRequest struct {
+	RequestID   string `json:"request_id"`
+	UserID      int64  `json:"user_id"`
+	TicketCount int    `json:"ticket_count"`
+	GrantedBy   *int64 `json:"granted_by,omitempty"`
+	Notes       string `json:"notes,omitempty"`
+}
+
 type ZenxiangLiyuOverviewStats struct {
 	TotalPlays         int     `json:"total_plays"`
 	TotalRevenue       float64 `json:"total_revenue"`
@@ -348,6 +371,8 @@ type ZenxiangLiyuRepository interface {
 	ListGrants(ctx context.Context, page, pageSize int) ([]ZenxiangLiyuGrant, int, error)
 	SaveGrant(ctx context.Context, grant ZenxiangLiyuGrant) (*ZenxiangLiyuGrant, error)
 	DeleteGrant(ctx context.Context, userID int64) error
+	CountGiftedTicketsOnDate(ctx context.Context, userID int64, playDate time.Time) (int, error)
+	GiftTickets(ctx context.Context, gift ZenxiangLiyuTicketGift) (*ZenxiangLiyuTicketGift, error)
 	GetOverviewStats(ctx context.Context) (*ZenxiangLiyuOverviewStats, error)
 	ListUserStats(ctx context.Context, page, pageSize int, playDate time.Time) ([]ZenxiangLiyuUserStats, int, error)
 	ListPrizeStats(ctx context.Context) ([]ZenxiangLiyuPrizeStats, error)
@@ -390,6 +415,21 @@ func (s *ZenxiangLiyuService) DeleteGrant(ctx context.Context, userID int64) err
 		return ErrZenxiangLiyuInvalidSettings
 	}
 	return s.repo.DeleteGrant(ctx, userID)
+}
+
+func (s *ZenxiangLiyuService) GiftTickets(ctx context.Context, req ZenxiangLiyuTicketGiftRequest) (*ZenxiangLiyuTicketGift, error) {
+	requestID := strings.TrimSpace(req.RequestID)
+	if s.repo == nil || requestID == "" || len(requestID) > 128 || req.UserID <= 0 || req.TicketCount <= 0 || req.TicketCount > 1000 {
+		return nil, ErrZenxiangLiyuInvalidSettings
+	}
+	return s.repo.GiftTickets(ctx, ZenxiangLiyuTicketGift{
+		RequestID:   requestID,
+		UserID:      req.UserID,
+		PlayDate:    s.playDate(),
+		TicketCount: req.TicketCount,
+		GrantedBy:   req.GrantedBy,
+		Notes:       strings.TrimSpace(req.Notes),
+	})
 }
 
 func (s *ZenxiangLiyuService) GetOverviewStats(ctx context.Context) (*ZenxiangLiyuOverviewStats, error) {
@@ -542,7 +582,12 @@ func (s *ZenxiangLiyuService) GetStatus(ctx context.Context, userID int64) (*Zen
 		return nil, err
 	}
 	status.FreePlayAvailable = IsZenxiangLiyuFreePlayAvailable(status.TodayUsageAmount, status.FreePlayUsed)
-	status.TodayTicketsEarned = CalculateZenxiangLiyuEarnedTickets(status.TodayUsageAmount, settings)
+	status.TodayTicketsFromUsage = CalculateZenxiangLiyuEarnedTickets(status.TodayUsageAmount, settings)
+	status.TodayTicketsGranted, err = s.repo.CountGiftedTicketsOnDate(ctx, userID, playDate)
+	if err != nil {
+		return nil, err
+	}
+	status.TodayTicketsEarned = status.TodayTicketsFromUsage + status.TodayTicketsGranted
 	status.TodayTicketsUsed = status.TodayPlayCount
 	status.TodayTicketsAvailable = max(0, status.TodayTicketsEarned-status.TodayTicketsUsed)
 	status.NextTicketUsageTarget, status.NextTicketUsageMissing = CalculateZenxiangLiyuNextTicketUsage(status.TodayUsageAmount, settings)
