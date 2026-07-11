@@ -33,7 +33,11 @@ CREATE TABLE IF NOT EXISTS openai_auto_scheduler_score_states (
   CONSTRAINT openai_auto_scheduler_score_states_score_check
     CHECK (
       final_score >= 0 AND final_score <= 10000 AND
-      base_score >= 0 AND base_score <= 10000
+      base_score >= 0 AND base_score <= 10000 AND
+      latency_score >= -10000 AND latency_score <= 10000 AND
+      error_score >= -10000 AND error_score <= 10000 AND
+      recovery_score >= -10000 AND recovery_score <= 10000 AND
+      cost_score >= -10000 AND cost_score <= 10000
     )
 );
 
@@ -44,7 +48,11 @@ ALTER TABLE openai_auto_scheduler_score_states
   ADD CONSTRAINT openai_auto_scheduler_score_states_score_check
     CHECK (
       final_score >= 0 AND final_score <= 10000 AND
-      base_score >= 0 AND base_score <= 10000
+      base_score >= 0 AND base_score <= 10000 AND
+      latency_score >= -10000 AND latency_score <= 10000 AND
+      error_score >= -10000 AND error_score <= 10000 AND
+      recovery_score >= -10000 AND recovery_score <= 10000 AND
+      cost_score >= -10000 AND cost_score <= 10000
     );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_openai_auto_scheduler_score_state_key

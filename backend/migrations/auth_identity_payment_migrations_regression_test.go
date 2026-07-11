@@ -24,14 +24,20 @@ func TestMigration117ConstrainsOpenAIAutoSchedulerScoreBasisPoints(t *testing.T)
 	for _, column := range []string{
 		"final_score",
 		"base_score",
-		"latency_score",
-		"error_score",
-		"recovery_score",
-		"cost_score",
 		"score_before",
 		"score_after",
 	} {
 		require.Contains(t, sql, column+" >= 0", "migration should constrain %s lower bound", column)
+		require.Contains(t, sql, column+" <= 10000", "migration should constrain %s upper bound", column)
+	}
+
+	for _, column := range []string{
+		"latency_score",
+		"error_score",
+		"recovery_score",
+		"cost_score",
+	} {
+		require.Contains(t, sql, column+" >= -10000", "migration should allow negative %s penalties", column)
 		require.Contains(t, sql, column+" <= 10000", "migration should constrain %s upper bound", column)
 	}
 }
