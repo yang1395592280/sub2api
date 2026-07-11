@@ -295,7 +295,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Zenxiang Liyu',
+      title: 'Premium Rewards',
       titleKey: 'zenxiangLiyu.title',
       descriptionKey: 'zenxiangLiyu.description'
     }
@@ -651,7 +651,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Zenxiang Liyu Operations',
+      title: 'Premium Rewards Operations',
       titleKey: 'admin.zenxiangLiyu.title',
       descriptionKey: 'admin.zenxiangLiyu.description'
     }

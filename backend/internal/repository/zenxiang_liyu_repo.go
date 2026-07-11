@@ -205,6 +205,15 @@ func (r *zenxiangLiyuRepository) IsUserGranted(ctx context.Context, userID int64
 	return granted, err
 }
 
+func (r *zenxiangLiyuRepository) GetUserBalance(ctx context.Context, userID int64) (float64, error) {
+	var balance float64
+	err := r.db.QueryRowContext(ctx, `SELECT balance FROM users WHERE id = $1 AND deleted_at IS NULL`, userID).Scan(&balance)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, service.ErrUserNotFound
+	}
+	return balance, err
+}
+
 func (r *zenxiangLiyuRepository) CountUserPlaysOnDate(ctx context.Context, userID int64, playDate time.Time) (int, error) {
 	var count int
 	err := r.db.QueryRowContext(ctx, `

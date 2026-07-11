@@ -200,8 +200,8 @@ export default {
     workbench: '工作台',
     adminWorkbench: '工作台管理',
     openaiAutoScheduler: 'OpenAI 自动调度',
-    zenxiangLiyu: '臻享鲤鱼',
-    zenxiangLiyuOps: '臻享鲤鱼运维',
+    zenxiangLiyu: '臻享礼遇',
+    zenxiangLiyuOps: '臻享礼遇运维',
     userSpendingRanking: '用户消费榜',
     riskControl: '风控中心',
   },
@@ -268,7 +268,7 @@ export default {
   },
 
   zenxiangLiyu: {
-    title: '臻享鲤鱼',
+    title: '臻享礼遇',
     description: '消耗站内余额参与抽奖，按配置概率获得奖励。',
     refresh: '刷新',
     loading: '加载中...',

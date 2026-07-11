@@ -74,8 +74,8 @@ export default {
     },
 
     zenxiangLiyu: {
-      title: '臻享鲤鱼运维',
-      description: '配置臻享鲤鱼活动、奖品概率、白名单与收益模拟',
+      title: '臻享礼遇运维',
+      description: '配置臻享礼遇活动、奖品概率、白名单与收益模拟',
       refresh: '刷新',
       settings: '设置',
       prizes: '奖品配置',
@@ -150,7 +150,7 @@ export default {
       recommendationApplied: '推荐方案已应用',
       recommendationFailed: '生成推荐方案失败',
       simulationFailed: '运行模拟失败',
-      loadFailed: '加载臻享鲤鱼配置失败'
+      loadFailed: '加载臻享礼遇配置失败'
     },
 
     // Proxies Management

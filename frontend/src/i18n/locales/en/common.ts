@@ -200,8 +200,8 @@ export default {
     workbench: 'Workbench',
     adminWorkbench: 'Workbench Management',
     openaiAutoScheduler: 'OpenAI Auto Scheduler',
-    zenxiangLiyu: 'Zenxiang Liyu',
-    zenxiangLiyuOps: 'Zenxiang Liyu Ops',
+    zenxiangLiyu: 'Premium Rewards',
+    zenxiangLiyuOps: 'Premium Rewards Ops',
     userSpendingRanking: 'User Spending Ranking',
     riskControl: 'Risk Control',
   },
@@ -268,7 +268,7 @@ export default {
   },
 
   zenxiangLiyu: {
-    title: 'Zenxiang Liyu',
+    title: 'Premium Rewards',
     description: 'Spend your balance to draw rewards based on the configured probabilities.',
     refresh: 'Refresh',
     loading: 'Loading...',

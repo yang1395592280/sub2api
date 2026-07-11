@@ -17,6 +17,7 @@ type zenxiangLiyuServiceTestRepository struct {
 	settings        ZenxiangLiyuSettings
 	prizes          []ZenxiangLiyuPrize
 	granted         bool
+	balance         float64
 	grantCalls      int
 	deleteCalls     int
 	bulkSaveCalls   int
@@ -71,6 +72,12 @@ func (r *zenxiangLiyuServiceTestRepository) IsUserGranted(context.Context, int64
 	return r.granted, nil
 }
 
+func (r *zenxiangLiyuServiceTestRepository) GetUserBalance(context.Context, int64) (float64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.balance, nil
+}
+
 func (r *zenxiangLiyuServiceTestRepository) CountUserPlaysOnDate(context.Context, int64, time.Time) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -113,6 +120,7 @@ func newZenxiangLiyuServiceTestRepository(globalEnabled, granted bool) *zenxiang
 		settings: ZenxiangLiyuSettings{GlobalEnabled: globalEnabled, TicketAmount: 1, MinimumBalance: 0, DailyPlayLimit: 1},
 		prizes:   []ZenxiangLiyuPrize{{ID: 1, Name: "A", RewardAmount: 1, Probability: 100, Enabled: true}},
 		granted:  granted,
+		balance:  10,
 	}
 }
 
@@ -327,6 +335,22 @@ func TestZenxiangLiyuAuthorization(t *testing.T) {
 			require.Equal(t, tt.grantCalls, repo.grantCalls)
 		})
 	}
+}
+
+func TestZenxiangLiyuStatusRejectsBalanceAtMinimumThreshold(t *testing.T) {
+	repo := newZenxiangLiyuServiceTestRepository(true, false)
+	repo.settings = ZenxiangLiyuSettings{GlobalEnabled: true, TicketAmount: 2, MinimumBalance: 10, DailyPlayLimit: 5}
+	repo.balance = 10
+	svc := NewZenxiangLiyuService(repo, func() time.Time { return time.Unix(0, 0).UTC() }, rand.New(rand.NewSource(1)))
+
+	status, err := svc.GetStatus(context.Background(), 224)
+
+	require.NoError(t, err)
+	require.True(t, status.Visible)
+	require.False(t, status.CanPlay)
+	require.Equal(t, ErrZenxiangLiyuInsufficientBalance.Error(), status.Reason)
+	require.InDelta(t, 10, status.Balance, 0.000001)
+	require.Equal(t, 5, status.RemainingPlays)
 }
 
 func TestZenxiangLiyuDeletePrizeRejectsInvalidRemainingConfiguration(t *testing.T) {

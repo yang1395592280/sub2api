@@ -67,6 +67,7 @@ type ZenxiangLiyuStatus struct {
 	Visible        bool                `json:"visible"`
 	CanPlay        bool                `json:"can_play"`
 	Reason         string              `json:"reason,omitempty"`
+	Balance        float64             `json:"balance"`
 	TicketAmount   float64             `json:"ticket_amount"`
 	MinimumBalance float64             `json:"minimum_balance"`
 	DailyPlayLimit int                 `json:"daily_play_limit"`
@@ -208,6 +209,7 @@ type ZenxiangLiyuRepository interface {
 	SavePrizes(ctx context.Context, prizes []ZenxiangLiyuPrize) ([]ZenxiangLiyuPrize, error)
 	DeletePrize(ctx context.Context, id int64) error
 	IsUserGranted(ctx context.Context, userID int64) (bool, error)
+	GetUserBalance(ctx context.Context, userID int64) (float64, error)
 	CountUserPlaysOnDate(ctx context.Context, userID int64, playDate time.Time) (int, error)
 	ListUserRecords(ctx context.Context, userID int64, page, pageSize int) ([]ZenxiangLiyuRecord, int, error)
 	GetUserDailySummary(ctx context.Context, userID int64, playDate time.Time) (*ZenxiangLiyuDailySummary, error)
@@ -373,14 +375,22 @@ func (s *ZenxiangLiyuService) GetStatus(ctx context.Context, userID int64) (*Zen
 		}
 	}
 	status.Visible = true
+	status.Balance, err = s.repo.GetUserBalance(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
 	status.TodayPlayCount, err = s.repo.CountUserPlaysOnDate(ctx, userID, s.playDate())
 	if err != nil {
 		return nil, err
 	}
 	status.RemainingPlays = max(0, settings.DailyPlayLimit-status.TodayPlayCount)
-	status.CanPlay = status.RemainingPlays > 0
+	status.CanPlay = status.Balance > settings.MinimumBalance && status.Balance >= settings.TicketAmount && status.RemainingPlays > 0
 	if !status.CanPlay {
-		status.Reason = ErrZenxiangLiyuDailyLimitReached.Error()
+		if status.Balance <= settings.MinimumBalance || status.Balance < settings.TicketAmount {
+			status.Reason = ErrZenxiangLiyuInsufficientBalance.Error()
+		} else {
+			status.Reason = ErrZenxiangLiyuDailyLimitReached.Error()
+		}
 	}
 	return status, nil
 }

@@ -74,8 +74,8 @@ export default {
     },
 
     zenxiangLiyu: {
-      title: 'Zenxiang Liyu Operations',
-      description: 'Configure Zenxiang Liyu activity settings, prize probabilities, grants, and profit simulation',
+      title: 'Premium Rewards Operations',
+      description: 'Configure Premium Rewards activity settings, prize probabilities, grants, and profit simulation',
       refresh: 'Refresh',
       settings: 'Settings',
       prizes: 'Prizes',
@@ -150,7 +150,7 @@ export default {
       recommendationApplied: 'Recommendation applied',
       recommendationFailed: 'Failed to generate recommendation',
       simulationFailed: 'Simulation failed',
-      loadFailed: 'Failed to load Zenxiang Liyu settings'
+      loadFailed: 'Failed to load Premium Rewards settings'
     },
 
     // Proxies
