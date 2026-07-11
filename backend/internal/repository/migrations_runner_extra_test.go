@@ -101,6 +101,7 @@ func TestMigrationChecksumCompatibilityRules_CoverEditedUpgradeCompatibilityMigr
 		"112_add_payment_order_provider_key_snapshot.sql",
 		"115_auth_identity_legacy_external_backfill.sql",
 		"116_auth_identity_legacy_external_safety_reports.sql",
+		"117_openai_auto_scheduler.sql",
 		"118_wechat_dual_mode_and_auth_source_defaults.sql",
 		"120_enforce_payment_orders_out_trade_no_unique_notx.sql",
 		"123_fix_legacy_auth_source_grant_on_signup_defaults.sql",

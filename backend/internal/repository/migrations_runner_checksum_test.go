@@ -115,6 +115,15 @@ func TestIsMigrationChecksumCompatible(t *testing.T) {
 		require.True(t, ok)
 	})
 
+	t.Run("117历史checksum可兼容修复后的OpenAI自动调度约束", func(t *testing.T) {
+		ok := isMigrationChecksumCompatible(
+			"117_openai_auto_scheduler.sql",
+			"9ba0550bc15d28d0e4b38457375b27473e0275217de1a8e6bd1e7f237a188afc",
+			"9517704cd947dfe819f0223768cbdc58074a4943024272a944e4e040e13e003f",
+		)
+		require.True(t, ok)
+	})
+
 	t.Run("119历史checksum可兼容占位文件", func(t *testing.T) {
 		ok := isMigrationChecksumCompatible(
 			"119_enforce_payment_orders_out_trade_no_unique.sql",
