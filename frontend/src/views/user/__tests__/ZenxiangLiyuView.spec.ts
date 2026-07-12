@@ -27,6 +27,10 @@ vi.mock('vue-i18n', async () => {
           'zenxiangLiyu.insufficientBalance': `积分需大于 ${params?.amount} 积分才可参与`,
           'zenxiangLiyu.latestBalance': `最新积分：${params?.amount} 积分`,
           'zenxiangLiyu.nextTicketMissing': `距离下一张抽奖券还差 ${params?.amount} 积分`,
+          'zenxiangLiyu.finalRewardAmount': `最终奖励：${params?.amount}`,
+          'zenxiangLiyu.finalRewardShort': `最终 ${params?.amount}`,
+          'zenxiangLiyu.recordLuckyCoinWin': `翻倍 ${params?.amount}`,
+          'zenxiangLiyu.recordLuckyCoinLose': `扣减 ${params?.amount}`,
         }
         return messages[key] ?? key
       },
@@ -114,6 +118,20 @@ describe('ZenxiangLiyuView', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('loads today records when entering the page', async () => {
+    getZenxiangLiyuStatus.mockResolvedValue({
+      ...makePlayableStatus(),
+      visible: false,
+      can_play: false,
+      reason: 'disabled',
+    })
+
+    mountView()
+    await flushPromises()
+
+    expect(listZenxiangLiyuRecords).toHaveBeenCalledWith({ page: 1, page_size: 20 })
   })
 
   it('shows insufficient balance reason and disables play', async () => {
@@ -264,6 +282,10 @@ describe('ZenxiangLiyuView', () => {
     await flushPromises()
 
     expect(playZenxiangLiyuLuckyCoin).toHaveBeenCalledWith(9)
+    expect(wrapper.text()).toContain('最终奖励：+6')
+    expect(wrapper.text()).toContain('最终 +6')
+    expect(wrapper.text()).toContain('翻倍 +3')
+    expect(wrapper.text()).toContain('最新积分：16 积分')
     vi.useRealTimers()
   })
 
