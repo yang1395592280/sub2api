@@ -82,12 +82,26 @@ func TestDashboardService_GroupUsageSummaryServesStaleWhileRefreshing(t *testing
 	key := groupUsageSummaryCacheKey(todayStart)
 	svc.groupUsageSummaryCache[key] = groupUsageSummaryCacheEntry{
 		results:   []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 2, TotalCost: 10}},
-		updatedAt: time.Now().Add(-6 * time.Minute),
+		expiresAt: time.Now().Add(-time.Minute),
 	}
 
-	got, err := svc.GetGroupUsageSummary(context.Background(), todayStart)
-	require.NoError(t, err)
-	require.Equal(t, []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 2, TotalCost: 10}}, got)
+	type result struct {
+		value []usagestats.GroupUsageSummary
+		err   error
+	}
+	resultCh := make(chan result, 1)
+	go func() {
+		value, err := svc.GetGroupUsageSummary(context.Background(), todayStart)
+		resultCh <- result{value: value, err: err}
+	}()
+	select {
+	case got := <-resultCh:
+		require.NoError(t, got.err)
+		require.Equal(t, []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 2, TotalCost: 10}}, got.value)
+	case <-time.After(100 * time.Millisecond):
+		close(release)
+		t.Fatal("stale cache request blocked on refresh")
+	}
 	<-started
 	close(release)
 	require.Eventually(t, func() bool {
@@ -141,32 +155,6 @@ func TestDashboardService_GroupUsageSummaryColdMissUsesSingleflight(t *testing.T
 	}
 	require.Equal(t, int32(1), atomic.LoadInt32(&repo.groupUsageSummaryCall))
 }
-
-func TestDashboardService_GroupUsageSummaryRefreshTimeoutKeepsStaleValue(t *testing.T) {
-	todayStart := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
-	refreshErr := make(chan error, 1)
-	repo := &usageRepoStub{groupUsageSummaryFn: func(ctx context.Context, _ time.Time, _ int32) ([]usagestats.GroupUsageSummary, error) {
-		<-ctx.Done()
-		refreshErr <- ctx.Err()
-		return nil, ctx.Err()
-	}}
-	svc := NewDashboardService(repo, nil, nil, nil)
-	svc.groupUsageSummaryRefreshTimeout = 20 * time.Millisecond
-	key := groupUsageSummaryCacheKey(todayStart)
-	svc.groupUsageSummaryCache[key] = groupUsageSummaryCacheEntry{
-		results:   []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 2, TotalCost: 10}},
-		updatedAt: time.Now().Add(-6 * time.Minute),
-	}
-
-	got, err := svc.GetGroupUsageSummary(context.Background(), todayStart)
-	require.NoError(t, err)
-	require.Equal(t, []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 2, TotalCost: 10}}, got)
-	require.ErrorIs(t, <-refreshErr, context.DeadlineExceeded)
-
-	again, err := svc.GetGroupUsageSummary(context.Background(), todayStart)
-	require.NoError(t, err)
-	require.Equal(t, got, again)
-}
 ```
 
 - [ ] **Step 4: 运行新测试并确认 RED**
@@ -174,10 +162,10 @@ func TestDashboardService_GroupUsageSummaryRefreshTimeoutKeepsStaleValue(t *test
 Run:
 
 ```bash
-cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestDashboardService_GroupUsageSummary(ServesStaleWhileRefreshing|ColdMissUsesSingleflight|RefreshTimeoutKeepsStaleValue)' -count=1
+cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestDashboardService_GroupUsageSummary(ServesStaleWhileRefreshing|ColdMissUsesSingleflight)' -count=1
 ```
 
-Expected: FAIL，原因是 `groupUsageSummaryCacheEntry` 尚无 `updatedAt`，过期命中仍同步等待查询，冷缓存也未使用 `singleflight`。先确认失败来自缺失的新缓存状态，而不是测试语法或 stub 错误。
+Expected: FAIL，原因是过期命中仍同步等待查询，冷缓存也未使用 `singleflight`。先确认失败来自目标行为，而不是测试语法或 stub 错误。
 
 - [ ] **Step 5: 实现缓存状态与单飞回源**
 
@@ -282,7 +270,7 @@ func (s *DashboardService) storeGroupUsageSummary(key int64, results []usagestat
 }
 ```
 
-删除旧的 `expiresAt`、`getCachedGroupUsageSummary` 和 `setCachedGroupUsageSummary` 实现。
+删除旧的 `expiresAt`、`getCachedGroupUsageSummary` 和 `setCachedGroupUsageSummary` 实现，并把 Step 2 的测试夹具从 `expiresAt` 更新为 `updatedAt: time.Now().Add(-6 * time.Minute)`。
 
 - [ ] **Step 6: 运行 Task 1 测试并确认 GREEN**
 
@@ -330,34 +318,25 @@ git commit -m "perf: serve stale group usage while refreshing"
 ```go
 func TestDashboardService_GroupUsageSummaryRefreshCooldown(t *testing.T) {
 	todayStart := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
-	repo := &usageRepoStub{groupUsageSummaries: [][]usagestats.GroupUsageSummary{
-		{{GroupID: 1, TodayCost: 3, TotalCost: 12}},
-	}}
+	repo := &usageRepoStub{groupUsageSummaryErr: errors.New("refresh failed")}
 	svc := NewDashboardService(repo, nil, nil, nil)
 	key := groupUsageSummaryCacheKey(todayStart)
 	svc.groupUsageSummaryCache[key] = groupUsageSummaryCacheEntry{
-		results:            []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 2, TotalCost: 10}},
-		updatedAt:          time.Now().Add(-6 * time.Minute),
-		lastRefreshAttempt: time.Now(),
+		results:   []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 2, TotalCost: 10}},
+		updatedAt: time.Now().Add(-6 * time.Minute),
 	}
 
-	for range 2 {
-		got, err := svc.GetGroupUsageSummary(context.Background(), todayStart)
-		require.NoError(t, err)
-		require.Equal(t, float64(10), got[0].TotalCost)
-	}
-	require.Equal(t, int32(0), atomic.LoadInt32(&repo.groupUsageSummaryCall))
-
-	svc.groupUsageSummaryMu.Lock()
-	entry := svc.groupUsageSummaryCache[key]
-	entry.lastRefreshAttempt = time.Now().Add(-31 * time.Second)
-	svc.groupUsageSummaryCache[key] = entry
-	svc.groupUsageSummaryMu.Unlock()
-	_, err := svc.GetGroupUsageSummary(context.Background(), todayStart)
+	got, err := svc.GetGroupUsageSummary(context.Background(), todayStart)
 	require.NoError(t, err)
+	require.Equal(t, float64(10), got[0].TotalCost)
 	require.Eventually(t, func() bool {
 		return atomic.LoadInt32(&repo.groupUsageSummaryCall) == 1
 	}, time.Second, 10*time.Millisecond)
+	_, err = svc.GetGroupUsageSummary(context.Background(), todayStart)
+	require.NoError(t, err)
+	require.Never(t, func() bool {
+		return atomic.LoadInt32(&repo.groupUsageSummaryCall) > 1
+	}, 100*time.Millisecond, 10*time.Millisecond)
 }
 ```
 
@@ -381,7 +360,7 @@ Run:
 cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestDashboardService_GroupUsageSummary(RefreshCooldown|CacheSeparatesTodayStart)' -count=1
 ```
 
-Expected: FAIL，`groupUsageSummaryCacheEntry` 尚无 `lastRefreshAttempt`，并且成功写入第二天缓存后第一天条目仍存在。
+Expected: FAIL，旧实现会在首次刷新错误时把错误同步返回，并且过期请求会重复触发仓储查询；成功写入第二天缓存后第一天条目仍存在。
 
 - [ ] **Step 4: 实现失败冷却和跨日清理**
 
