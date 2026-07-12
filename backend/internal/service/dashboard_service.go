@@ -22,6 +22,7 @@ const (
 	defaultGroupUsageSummaryCacheTTL       = 5 * time.Minute
 	defaultGroupUsageSummaryRefreshTimeout = 30 * time.Second
 	defaultGroupUsageSummaryRetryCooldown  = 30 * time.Second
+	groupUsageSummaryRetentionWindow       = 48 * time.Hour
 )
 
 // ErrDashboardStatsCacheMiss 标记仪表盘缓存未命中。
@@ -224,24 +225,36 @@ func (s *DashboardService) GetGroupUsageSummary(ctx context.Context, todayStart 
 }
 
 func (s *DashboardService) loadGroupUsageSummary(ctx context.Context, key int64, todayStart time.Time) ([]usagestats.GroupUsageSummary, error) {
-	value, err, _ := s.groupUsageSummarySF.Do(fmt.Sprintf("%d", key), func() (any, error) {
+	resultCh := s.groupUsageSummarySF.DoChan(fmt.Sprintf("%d", key), func() (any, error) {
 		s.groupUsageSummaryMu.RLock()
 		entry, ok := s.groupUsageSummaryCache[key]
 		s.groupUsageSummaryMu.RUnlock()
 		if ok {
 			return cloneGroupUsageSummary(entry.results), nil
 		}
-		results, err := s.usageRepo.GetAllGroupUsageSummary(ctx, todayStart)
+		loadCtx, cancel := context.WithTimeout(context.Background(), s.groupUsageSummaryRefreshTimeout)
+		defer cancel()
+		results, err := s.usageRepo.GetAllGroupUsageSummary(loadCtx, todayStart)
 		if err != nil {
 			return nil, fmt.Errorf("get group usage summary: %w", err)
 		}
 		s.storeGroupUsageSummary(key, results, time.Now())
 		return cloneGroupUsageSummary(results), nil
 	})
-	if err != nil {
-		return nil, err
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case result := <-resultCh:
+		if result.Err != nil {
+			return nil, result.Err
+		}
+		value, ok := result.Val.([]usagestats.GroupUsageSummary)
+		if !ok {
+			return nil, fmt.Errorf("get group usage summary: unexpected singleflight result type %T", result.Val)
+		}
+		return cloneGroupUsageSummary(value), nil
 	}
-	return cloneGroupUsageSummary(value.([]usagestats.GroupUsageSummary)), nil
 }
 
 func (s *DashboardService) refreshGroupUsageSummaryAsync(key int64, todayStart, now time.Time) {
@@ -260,7 +273,7 @@ func (s *DashboardService) refreshGroupUsageSummaryAsync(key int64, todayStart, 
 			return nil, err
 		}
 		s.storeGroupUsageSummary(key, results, time.Now())
-		return nil, nil
+		return cloneGroupUsageSummary(results), nil
 	})
 }
 
@@ -309,12 +322,22 @@ func (s *DashboardService) groupUsageSummaryRefreshFailureMessage(key int64, tod
 func (s *DashboardService) storeGroupUsageSummary(key int64, results []usagestats.GroupUsageSummary, now time.Time) {
 	s.groupUsageSummaryMu.Lock()
 	defer s.groupUsageSummaryMu.Unlock()
+	latestKey := key
 	for cachedKey := range s.groupUsageSummaryCache {
-		if cachedKey > key {
-			return
+		if cachedKey > latestKey {
+			latestKey = cachedKey
 		}
 	}
-	clear(s.groupUsageSummaryCache)
+	retentionNanos := groupUsageSummaryRetentionWindow.Nanoseconds()
+	if key < latestKey-retentionNanos {
+		return
+	}
+	cutoff := latestKey - retentionNanos
+	for cachedKey := range s.groupUsageSummaryCache {
+		if cachedKey < cutoff {
+			delete(s.groupUsageSummaryCache, cachedKey)
+		}
+	}
 	s.groupUsageSummaryCache[key] = groupUsageSummaryCacheEntry{
 		results:            cloneGroupUsageSummary(results),
 		updatedAt:          now,

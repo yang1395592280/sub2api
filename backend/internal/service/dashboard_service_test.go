@@ -350,7 +350,7 @@ func TestDashboardService_GroupUsageSummaryUsesFiveMinuteCache(t *testing.T) {
 
 func TestDashboardService_GroupUsageSummaryCacheSeparatesTodayStart(t *testing.T) {
 	firstDay := time.Date(2026, 7, 10, 0, 0, 0, 0, time.UTC)
-	secondDay := firstDay.AddDate(0, 0, 1)
+	secondDay := firstDay.Add(8 * time.Hour)
 	repo := &usageRepoStub{
 		groupUsageSummaries: [][]usagestats.GroupUsageSummary{
 			{{GroupID: 1, TodayCost: 1, TotalCost: 10}},
@@ -369,10 +369,76 @@ func TestDashboardService_GroupUsageSummaryCacheSeparatesTodayStart(t *testing.T
 	require.Equal(t, []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 2, TotalCost: 12}}, second)
 
 	svc.groupUsageSummaryMu.RLock()
+	require.Len(t, svc.groupUsageSummaryCache, 2)
+	require.Contains(t, svc.groupUsageSummaryCache, groupUsageSummaryCacheKey(firstDay))
+	require.Contains(t, svc.groupUsageSummaryCache, groupUsageSummaryCacheKey(secondDay))
+	svc.groupUsageSummaryMu.RUnlock()
+
+	firstAgain, err := svc.GetGroupUsageSummary(context.Background(), firstDay)
+	require.NoError(t, err)
+	require.Equal(t, first, firstAgain)
+	require.Equal(t, int32(2), atomic.LoadInt32(&repo.groupUsageSummaryCall))
+}
+
+func TestDashboardService_GroupUsageSummaryLateOlderRefreshKeepsNewerKeys(t *testing.T) {
+	olderStart := time.Date(2026, 7, 11, 16, 0, 0, 0, time.UTC)
+	newerStart := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	oldStarted := make(chan struct{})
+	oldRelease := make(chan struct{})
+	repo := &usageRepoStub{groupUsageSummaryFn: func(_ context.Context, todayStart time.Time, _ int32) ([]usagestats.GroupUsageSummary, error) {
+		if todayStart.Equal(olderStart) {
+			close(oldStarted)
+			<-oldRelease
+			return []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 1, TotalCost: 11}}, nil
+		}
+		return []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 2, TotalCost: 12}}, nil
+	}}
+	svc := NewDashboardService(repo, nil, nil, nil)
+	olderKey := groupUsageSummaryCacheKey(olderStart)
+	newerKey := groupUsageSummaryCacheKey(newerStart)
+	svc.groupUsageSummaryCache[olderKey] = groupUsageSummaryCacheEntry{
+		results:   []usagestats.GroupUsageSummary{{GroupID: 1, TotalCost: 10}},
+		updatedAt: time.Now().Add(-6 * time.Minute),
+	}
+
+	_, err := svc.GetGroupUsageSummary(context.Background(), olderStart)
+	require.NoError(t, err)
+	<-oldStarted
+	oldDone := svc.groupUsageSummarySF.DoChan(fmt.Sprintf("%d", olderKey), func() (any, error) {
+		return nil, errors.New("unexpected refresh")
+	})
+	newer, err := svc.GetGroupUsageSummary(context.Background(), newerStart)
+	require.NoError(t, err)
+	require.Equal(t, float64(12), newer[0].TotalCost)
+	close(oldRelease)
+	require.NoError(t, (<-oldDone).Err)
+
+	svc.groupUsageSummaryMu.RLock()
 	defer svc.groupUsageSummaryMu.RUnlock()
-	require.Len(t, svc.groupUsageSummaryCache, 1)
-	_, ok := svc.groupUsageSummaryCache[groupUsageSummaryCacheKey(secondDay)]
-	require.True(t, ok)
+	require.Len(t, svc.groupUsageSummaryCache, 2)
+	require.Equal(t, float64(11), svc.groupUsageSummaryCache[olderKey].results[0].TotalCost)
+	require.Equal(t, float64(12), svc.groupUsageSummaryCache[newerKey].results[0].TotalCost)
+}
+
+func TestDashboardService_GroupUsageSummaryCacheRetainsRolling48Hours(t *testing.T) {
+	latestStart := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	boundaryStart := latestStart.Add(-48 * time.Hour)
+	expiredStart := boundaryStart.Add(-time.Nanosecond)
+	svc := NewDashboardService(&usageRepoStub{}, nil, nil, nil)
+	svc.storeGroupUsageSummary(groupUsageSummaryCacheKey(expiredStart), []usagestats.GroupUsageSummary{{GroupID: 1, TotalCost: 1}}, time.Now())
+	svc.storeGroupUsageSummary(groupUsageSummaryCacheKey(boundaryStart), []usagestats.GroupUsageSummary{{GroupID: 1, TotalCost: 2}}, time.Now())
+	svc.storeGroupUsageSummary(groupUsageSummaryCacheKey(latestStart), []usagestats.GroupUsageSummary{{GroupID: 1, TotalCost: 3}}, time.Now())
+
+	svc.groupUsageSummaryMu.RLock()
+	require.NotContains(t, svc.groupUsageSummaryCache, groupUsageSummaryCacheKey(expiredStart))
+	require.Contains(t, svc.groupUsageSummaryCache, groupUsageSummaryCacheKey(boundaryStart))
+	require.Contains(t, svc.groupUsageSummaryCache, groupUsageSummaryCacheKey(latestStart))
+	svc.groupUsageSummaryMu.RUnlock()
+
+	svc.storeGroupUsageSummary(groupUsageSummaryCacheKey(expiredStart), []usagestats.GroupUsageSummary{{GroupID: 1, TotalCost: 99}}, time.Now())
+	svc.groupUsageSummaryMu.RLock()
+	defer svc.groupUsageSummaryMu.RUnlock()
+	require.NotContains(t, svc.groupUsageSummaryCache, groupUsageSummaryCacheKey(expiredStart))
 }
 
 func TestDashboardService_GroupUsageSummaryCacheTTLDefaultsToFiveMinutes(t *testing.T) {
@@ -531,8 +597,8 @@ func TestDashboardService_GroupUsageSummaryRefreshCooldownStartsAfterFailure(t *
 }
 
 func TestDashboardService_GroupUsageSummaryOlderRefreshCannotReplaceNewDay(t *testing.T) {
-	firstDay := time.Date(2026, 7, 11, 0, 0, 0, 0, time.UTC)
-	secondDay := firstDay.AddDate(0, 0, 1)
+	secondDay := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	firstDay := secondDay.Add(-72 * time.Hour)
 	oldStarted := make(chan struct{})
 	oldRelease := make(chan struct{})
 	repo := &usageRepoStub{groupUsageSummaryFn: func(_ context.Context, todayStart time.Time, _ int32) ([]usagestats.GroupUsageSummary, error) {
@@ -606,6 +672,153 @@ func TestDashboardService_GroupUsageSummaryColdMissUsesSingleflight(t *testing.T
 		require.NoError(t, got.err)
 		require.Equal(t, []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 3, TotalCost: 12}}, got.value)
 	}
+	require.Equal(t, int32(1), atomic.LoadInt32(&repo.groupUsageSummaryCall))
+}
+
+func TestDashboardService_GroupUsageSummaryColdMissLeaderCancellationDoesNotCancelSharedLoad(t *testing.T) {
+	todayStart := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	started := make(chan struct{})
+	var startedOnce sync.Once
+	release := make(chan struct{})
+	repo := &usageRepoStub{groupUsageSummaryFn: func(ctx context.Context, _ time.Time, _ int32) ([]usagestats.GroupUsageSummary, error) {
+		startedOnce.Do(func() { close(started) })
+		select {
+		case <-release:
+			return []usagestats.GroupUsageSummary{{GroupID: 1, TotalCost: 12}}, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}}
+	svc := NewDashboardService(repo, nil, nil, nil)
+	leaderCtx, cancelLeader := context.WithCancel(context.Background())
+	leaderResult := make(chan error, 1)
+	go func() {
+		_, err := svc.GetGroupUsageSummary(leaderCtx, todayStart)
+		leaderResult <- err
+	}()
+	<-started
+	waiterResult := make(chan error, 1)
+	go func() {
+		got, err := svc.GetGroupUsageSummary(context.Background(), todayStart)
+		if err == nil && len(got) != 1 {
+			err = fmt.Errorf("unexpected result length: %d", len(got))
+		}
+		waiterResult <- err
+	}()
+	cancelLeader()
+	require.ErrorIs(t, <-leaderResult, context.Canceled)
+	close(release)
+	require.NoError(t, <-waiterResult)
+	require.Equal(t, int32(1), atomic.LoadInt32(&repo.groupUsageSummaryCall))
+}
+
+func TestDashboardService_GroupUsageSummaryColdMissWaiterCancellationDoesNotStopSharedLoad(t *testing.T) {
+	todayStart := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	started := make(chan struct{})
+	var startedOnce sync.Once
+	release := make(chan struct{})
+	repo := &usageRepoStub{groupUsageSummaryFn: func(ctx context.Context, _ time.Time, _ int32) ([]usagestats.GroupUsageSummary, error) {
+		startedOnce.Do(func() { close(started) })
+		select {
+		case <-release:
+			return []usagestats.GroupUsageSummary{{GroupID: 1, TotalCost: 12}}, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}}
+	svc := NewDashboardService(repo, nil, nil, nil)
+	leaderResult := make(chan error, 1)
+	go func() {
+		_, err := svc.GetGroupUsageSummary(context.Background(), todayStart)
+		leaderResult <- err
+	}()
+	<-started
+	waiterCtx, cancelWaiter := context.WithCancel(context.Background())
+	waiterResult := make(chan error, 1)
+	go func() {
+		_, err := svc.GetGroupUsageSummary(waiterCtx, todayStart)
+		waiterResult <- err
+	}()
+	cancelWaiter()
+	require.ErrorIs(t, <-waiterResult, context.Canceled)
+	close(release)
+	require.NoError(t, <-leaderResult)
+
+	got, err := svc.GetGroupUsageSummary(context.Background(), todayStart)
+	require.NoError(t, err)
+	require.Equal(t, float64(12), got[0].TotalCost)
+	require.Equal(t, int32(1), atomic.LoadInt32(&repo.groupUsageSummaryCall))
+}
+
+func TestDashboardService_GroupUsageSummaryConcurrentStaleRequestsRefreshOnce(t *testing.T) {
+	todayStart := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	repo := &usageRepoStub{groupUsageSummaryFn: func(ctx context.Context, _ time.Time, _ int32) ([]usagestats.GroupUsageSummary, error) {
+		close(started)
+		select {
+		case <-release:
+			return []usagestats.GroupUsageSummary{{GroupID: 1, TotalCost: 12}}, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}}
+	svc := NewDashboardService(repo, nil, nil, nil)
+	key := groupUsageSummaryCacheKey(todayStart)
+	svc.groupUsageSummaryCache[key] = groupUsageSummaryCacheEntry{
+		results:   []usagestats.GroupUsageSummary{{GroupID: 1, TotalCost: 10}},
+		updatedAt: time.Now().Add(-6 * time.Minute),
+	}
+
+	start := make(chan struct{})
+	results := make(chan error, 16)
+	for range 16 {
+		go func() {
+			<-start
+			got, err := svc.GetGroupUsageSummary(context.Background(), todayStart)
+			if err == nil && got[0].TotalCost != 10 {
+				err = fmt.Errorf("unexpected stale result: %v", got)
+			}
+			results <- err
+		}()
+	}
+	close(start)
+	for range 16 {
+		require.NoError(t, <-results)
+	}
+	<-started
+	require.Equal(t, int32(1), atomic.LoadInt32(&repo.groupUsageSummaryCall))
+	refreshDone := svc.groupUsageSummarySF.DoChan(fmt.Sprintf("%d", key), func() (any, error) {
+		return nil, errors.New("unexpected refresh")
+	})
+	close(release)
+	require.NoError(t, (<-refreshDone).Err)
+}
+
+func TestDashboardService_GroupUsageSummaryRefreshTimeoutKeepsStaleValue(t *testing.T) {
+	todayStart := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	repoErr := make(chan error, 1)
+	repo := &usageRepoStub{groupUsageSummaryFn: func(ctx context.Context, _ time.Time, _ int32) ([]usagestats.GroupUsageSummary, error) {
+		<-ctx.Done()
+		repoErr <- ctx.Err()
+		return nil, ctx.Err()
+	}}
+	svc := NewDashboardService(repo, nil, nil, nil)
+	svc.groupUsageSummaryRefreshTimeout = 20 * time.Millisecond
+	key := groupUsageSummaryCacheKey(todayStart)
+	svc.groupUsageSummaryCache[key] = groupUsageSummaryCacheEntry{
+		results:   []usagestats.GroupUsageSummary{{GroupID: 1, TotalCost: 10}},
+		updatedAt: time.Now().Add(-6 * time.Minute),
+	}
+
+	first, err := svc.GetGroupUsageSummary(context.Background(), todayStart)
+	require.NoError(t, err)
+	require.Equal(t, float64(10), first[0].TotalCost)
+	require.ErrorIs(t, <-repoErr, context.DeadlineExceeded)
+
+	second, err := svc.GetGroupUsageSummary(context.Background(), todayStart)
+	require.NoError(t, err)
+	require.Equal(t, float64(10), second[0].TotalCost)
 	require.Equal(t, int32(1), atomic.LoadInt32(&repo.groupUsageSummaryCall))
 }
 

@@ -4,7 +4,7 @@
 
 **Goal:** 让分组用量缓存超过 5 分钟后立即返回最近成功结果，并在后台单飞刷新，避免页面周期性等待全历史聚合。
 
-**Architecture:** 保留现有 API、handler、repository SQL 和前端行为，仅重构 `DashboardService` 的进程内缓存状态机。缓存条目记录成功更新时间与最近刷新尝试时间，`singleflight.Group` 同时合并冷缓存同步回源和过期缓存后台刷新；失败后保留旧值并进入 30 秒冷却。
+**Architecture:** 保留现有 API、handler、repository SQL 和前端行为，仅重构 `DashboardService` 的进程内缓存状态机。缓存条目记录成功更新时间与最近刷新尝试时间，`singleflight.Group` 同时合并 cold miss 和过期缓存后台刷新；cold miss 共享查询使用独立 service 级 30 秒超时 context，各请求只控制自己的等待。缓存按精确 `todayStart` key 保存距最新 key 48 小时内的多时区结果；失败后保留旧值并进入 30 秒冷却。
 
 **Tech Stack:** Go 1.26.5、`golang.org/x/sync/singleflight`、`testify/require`
 
@@ -12,6 +12,7 @@
 
 - 缓存新鲜期固定为 5 分钟。
 - 后台刷新超时和失败重试冷却均固定为 30 秒。
+- 多时区精确 `todayStart` key 固定滚动保留 48 小时，不新增配置。
 - 不新增数据库迁移、预聚合表、依赖或配置项。
 - 不修改 `/api/v1/admin/groups/usage-summary` 的请求参数与响应结构。
 - 不修改 `GetAllGroupUsageSummary` SQL、统计口径或前端展示。
@@ -226,24 +227,35 @@ func (s *DashboardService) GetGroupUsageSummary(ctx context.Context, todayStart 
 }
 
 func (s *DashboardService) loadGroupUsageSummary(ctx context.Context, key int64, todayStart time.Time) ([]usagestats.GroupUsageSummary, error) {
-	value, err, _ := s.groupUsageSummarySF.Do(fmt.Sprintf("%d", key), func() (any, error) {
+	resultCh := s.groupUsageSummarySF.DoChan(fmt.Sprintf("%d", key), func() (any, error) {
 		s.groupUsageSummaryMu.RLock()
 		entry, ok := s.groupUsageSummaryCache[key]
 		s.groupUsageSummaryMu.RUnlock()
 		if ok {
 			return cloneGroupUsageSummary(entry.results), nil
 		}
-		results, err := s.usageRepo.GetAllGroupUsageSummary(ctx, todayStart)
+		loadCtx, cancel := context.WithTimeout(context.Background(), s.groupUsageSummaryRefreshTimeout)
+		defer cancel()
+		results, err := s.usageRepo.GetAllGroupUsageSummary(loadCtx, todayStart)
 		if err != nil {
 			return nil, fmt.Errorf("get group usage summary: %w", err)
 		}
 		s.storeGroupUsageSummary(key, results, time.Now())
 		return cloneGroupUsageSummary(results), nil
 	})
-	if err != nil {
-		return nil, err
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case result := <-resultCh:
+		if result.Err != nil {
+			return nil, result.Err
+		}
+		value, ok := result.Val.([]usagestats.GroupUsageSummary)
+		if !ok {
+			return nil, fmt.Errorf("get group usage summary: unexpected singleflight result type %T", result.Val)
+		}
+		return cloneGroupUsageSummary(value), nil
 	}
-	return cloneGroupUsageSummary(value.([]usagestats.GroupUsageSummary)), nil
 }
 
 func (s *DashboardService) refreshGroupUsageSummaryAsync(key int64, todayStart, now time.Time) {
@@ -256,7 +268,7 @@ func (s *DashboardService) refreshGroupUsageSummaryAsync(key int64, todayStart, 
 			return nil, err
 		}
 		s.storeGroupUsageSummary(key, results, time.Now())
-		return nil, nil
+		return cloneGroupUsageSummary(results), nil
 	})
 }
 
@@ -301,7 +313,7 @@ git commit -m "perf: serve stale group usage while refreshing"
 
 ---
 
-### Task 2: 刷新失败冷却与跨日清理
+### Task 2: 刷新失败冷却与 48 小时多时区滚动保留
 
 **Files:**
 - Modify: `backend/internal/service/dashboard_service.go`
@@ -309,7 +321,7 @@ git commit -m "perf: serve stale group usage while refreshing"
 
 **Interfaces:**
 - Consumes: Task 1 的 `groupUsageSummaryCacheEntry`、`refreshGroupUsageSummaryAsync` 和 `storeGroupUsageSummary`。
-- Produces: 失败后 30 秒内不重复查询，成功写入新日期时只保留该日期缓存。
+- Produces: 失败后 30 秒内不重复查询；成功写入后保留距最新精确 key 不超过 48 小时的多个缓存，拒绝窗口外晚到结果。
 
 - [ ] **Step 1: 写失败冷却的失败测试**
 
@@ -340,16 +352,16 @@ func TestDashboardService_GroupUsageSummaryRefreshCooldown(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 强化跨日清理测试**
+- [ ] **Step 2: 强化多时区并存和滚动清理测试**
 
-在 `TestDashboardService_GroupUsageSummaryCacheSeparatesTodayStart` 末尾加：
+在 `TestDashboardService_GroupUsageSummaryCacheSeparatesTodayStart` 中验证两个相邻时区边界 key 同时存在，重复读取不回源；另补 48 小时边界保留、窗口外清理，以及旧 key 晚完成不驱逐新 key 的测试。
 
 ```go
 svc.groupUsageSummaryMu.RLock()
 defer svc.groupUsageSummaryMu.RUnlock()
-require.Len(t, svc.groupUsageSummaryCache, 1)
-_, ok := svc.groupUsageSummaryCache[groupUsageSummaryCacheKey(secondDay)]
-require.True(t, ok)
+require.Len(t, svc.groupUsageSummaryCache, 2)
+require.Contains(t, svc.groupUsageSummaryCache, groupUsageSummaryCacheKey(firstDay))
+require.Contains(t, svc.groupUsageSummaryCache, groupUsageSummaryCacheKey(secondDay))
 ```
 
 - [ ] **Step 3: 运行新增测试并确认 RED**
@@ -360,9 +372,9 @@ Run:
 cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'TestDashboardService_GroupUsageSummary(RefreshCooldown|CacheSeparatesTodayStart)' -count=1
 ```
 
-Expected: FAIL，旧实现会在首次刷新错误时把错误同步返回，并且过期请求会重复触发仓储查询；成功写入第二天缓存后第一天条目仍存在。
+Expected: FAIL，旧实现会在首次刷新错误时把错误同步返回，并且过期请求会重复触发仓储查询；单日期清理还会驱逐 48 小时窗口内的另一个时区 key。
 
-- [ ] **Step 4: 实现失败冷却和跨日清理**
+- [ ] **Step 4: 实现失败冷却和 48 小时滚动保留**
 
 增加常量、字段和构造函数初始化：
 
@@ -418,13 +430,27 @@ func (s *DashboardService) markGroupUsageSummaryRefreshAttempt(key int64, now ti
 groupUsageSummaryRetryCooldown: defaultGroupUsageSummaryRetryCooldown,
 ```
 
-将 `storeGroupUsageSummary` 改为成功写入时清理旧日期，并记录本次成功尝试时间：
+将 `storeGroupUsageSummary` 改为成功写入时保留距最新 key 48 小时内（含边界）的精确 key，并记录本次成功尝试时间。若旧结果晚到且已落后最新 key 超过 48 小时，则拒绝写入；窗口内旧结果只能写自己的 key，不得删除较新的有效 key：
 
 ```go
 func (s *DashboardService) storeGroupUsageSummary(key int64, results []usagestats.GroupUsageSummary, now time.Time) {
 	s.groupUsageSummaryMu.Lock()
 	defer s.groupUsageSummaryMu.Unlock()
-	clear(s.groupUsageSummaryCache)
+	latestKey := key
+	for cachedKey := range s.groupUsageSummaryCache {
+		if cachedKey > latestKey {
+			latestKey = cachedKey
+		}
+	}
+	retentionNanos := (48 * time.Hour).Nanoseconds()
+	if key < latestKey-retentionNanos {
+		return
+	}
+	for cachedKey := range s.groupUsageSummaryCache {
+		if cachedKey < latestKey-retentionNanos {
+			delete(s.groupUsageSummaryCache, cachedKey)
+		}
+	}
 	s.groupUsageSummaryCache[key] = groupUsageSummaryCacheEntry{
 		results:            cloneGroupUsageSummary(results),
 		updatedAt:          now,
