@@ -253,6 +253,7 @@ func (s *DashboardService) refreshGroupUsageSummaryAsync(key int64, todayStart, 
 		defer cancel()
 		results, err := s.usageRepo.GetAllGroupUsageSummary(ctx, todayStart)
 		if err != nil {
+			s.recordGroupUsageSummaryRefreshFailure(key, time.Now())
 			logger.LegacyPrintf("service.dashboard", "[Dashboard] 分组用量缓存异步刷新失败: today_start=%s err=%v", todayStart.Format(time.RFC3339), err)
 			return nil, err
 		}
@@ -273,9 +274,25 @@ func (s *DashboardService) markGroupUsageSummaryRefreshAttempt(key int64, now ti
 	return true
 }
 
+func (s *DashboardService) recordGroupUsageSummaryRefreshFailure(key int64, now time.Time) {
+	s.groupUsageSummaryMu.Lock()
+	defer s.groupUsageSummaryMu.Unlock()
+	entry, ok := s.groupUsageSummaryCache[key]
+	if !ok {
+		return
+	}
+	entry.lastRefreshAttempt = now
+	s.groupUsageSummaryCache[key] = entry
+}
+
 func (s *DashboardService) storeGroupUsageSummary(key int64, results []usagestats.GroupUsageSummary, now time.Time) {
 	s.groupUsageSummaryMu.Lock()
 	defer s.groupUsageSummaryMu.Unlock()
+	for cachedKey := range s.groupUsageSummaryCache {
+		if cachedKey > key {
+			return
+		}
+	}
 	clear(s.groupUsageSummaryCache)
 	s.groupUsageSummaryCache[key] = groupUsageSummaryCacheEntry{
 		results:            cloneGroupUsageSummary(results),
