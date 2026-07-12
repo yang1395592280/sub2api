@@ -195,7 +195,7 @@
           row-key="id"
           :server-side-sort="true"
           @sort="handleSort"
-          default-sort-key="name"
+          default-sort-key="channel_price"
           default-sort-order="asc"
           :sort-storage-key="ACCOUNT_SORT_STORAGE_KEY"
           :estimate-row-height="72"
@@ -626,7 +626,7 @@ const ACCOUNT_SORTABLE_KEYS = new Set([
   'expires_at'
 ])
 const loadInitialAccountSortState = (): AccountSortState => {
-  const fallback: AccountSortState = { sort_by: 'name', sort_order: 'asc' }
+  const fallback: AccountSortState = { sort_by: 'channel_price', sort_order: 'asc' }
   try {
     const raw = localStorage.getItem(ACCOUNT_SORT_STORAGE_KEY)
     if (!raw) return fallback
