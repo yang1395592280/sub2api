@@ -149,6 +149,68 @@ describe('BulkEditAccountModal', () => {
     })
   })
 
+  it('仅全部为 OpenAI OAuth 时显示超刷批量编辑项', () => {
+    const eligible = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+    expect(eligible.find('#bulk-edit-openai-overbrush-enabled').exists()).toBe(true)
+
+    const apiKey = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['apikey']
+    })
+    expect(apiKey.find('#bulk-edit-openai-overbrush-enabled').exists()).toBe(false)
+
+    const mixedTypes = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth', 'setup-token']
+    })
+    expect(mixedTypes.find('#bulk-edit-openai-overbrush-enabled').exists()).toBe(false)
+
+    const otherPlatform = mountModal({
+      selectedPlatforms: ['anthropic'],
+      selectedTypes: ['oauth']
+    })
+    expect(otherPlatform.find('#bulk-edit-openai-overbrush-enabled').exists()).toBe(false)
+  })
+
+  it.each([
+    ['开启', true],
+    ['关闭', false]
+  ])('OpenAI OAuth 批量编辑可%s超刷且不修改调度', async (_label, enabled) => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+
+    await wrapper.get('#bulk-edit-openai-overbrush-enabled').setValue(true)
+    if (enabled) {
+      await wrapper.get('#bulk-edit-openai-overbrush-toggle').trigger('click')
+    }
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      extra: {
+        openai_overbrush_enabled: enabled
+      }
+    })
+  })
+
+  it('未勾选修改超刷时不提交更新', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).not.toHaveBeenCalled()
+  })
+
   it('渠道价格允许任意正小数', () => {
     const wrapper = mountModal()
 
