@@ -253,8 +253,10 @@ func (s *DashboardService) refreshGroupUsageSummaryAsync(key int64, todayStart, 
 		defer cancel()
 		results, err := s.usageRepo.GetAllGroupUsageSummary(ctx, todayStart)
 		if err != nil {
-			s.recordGroupUsageSummaryRefreshFailure(key, time.Now())
-			logger.LegacyPrintf("service.dashboard", "[Dashboard] 分组用量缓存异步刷新失败: today_start=%s err=%v", todayStart.Format(time.RFC3339), err)
+			failedAt := time.Now()
+			s.recordGroupUsageSummaryRefreshFailure(key, failedAt)
+			cacheAge := s.groupUsageSummaryCacheAgeForLog(key, failedAt)
+			logger.LegacyPrintf("service.dashboard", "[Dashboard] 分组用量缓存异步刷新失败: cache_age=%s today_start=%s err=%v", cacheAge, todayStart.Format(time.RFC3339), err)
 			return nil, err
 		}
 		s.storeGroupUsageSummary(key, results, time.Now())
@@ -283,6 +285,16 @@ func (s *DashboardService) recordGroupUsageSummaryRefreshFailure(key int64, now 
 	}
 	entry.lastRefreshAttempt = now
 	s.groupUsageSummaryCache[key] = entry
+}
+
+func (s *DashboardService) groupUsageSummaryCacheAgeForLog(key int64, now time.Time) string {
+	s.groupUsageSummaryMu.RLock()
+	entry, ok := s.groupUsageSummaryCache[key]
+	s.groupUsageSummaryMu.RUnlock()
+	if !ok || entry.updatedAt.IsZero() {
+		return "unknown"
+	}
+	return now.Sub(entry.updatedAt).String()
 }
 
 func (s *DashboardService) storeGroupUsageSummary(key int64, results []usagestats.GroupUsageSummary, now time.Time) {

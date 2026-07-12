@@ -451,6 +451,21 @@ func TestDashboardService_GroupUsageSummaryRefreshCooldown(t *testing.T) {
 	}, 100*time.Millisecond, 10*time.Millisecond)
 }
 
+func TestDashboardService_GroupUsageSummaryCacheAgeForLog(t *testing.T) {
+	now := time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC)
+	todayStart := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	svc := NewDashboardService(&usageRepoStub{}, nil, nil, nil)
+	key := groupUsageSummaryCacheKey(todayStart)
+	svc.groupUsageSummaryCache[key] = groupUsageSummaryCacheEntry{
+		updatedAt: now.Add(-6 * time.Minute),
+	}
+
+	require.Equal(t, "6m0s", svc.groupUsageSummaryCacheAgeForLog(key, now))
+
+	delete(svc.groupUsageSummaryCache, key)
+	require.Equal(t, "unknown", svc.groupUsageSummaryCacheAgeForLog(key, now))
+}
+
 func TestDashboardService_GroupUsageSummaryRefreshCooldownStartsAfterFailure(t *testing.T) {
 	todayStart := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
 	started := make(chan struct{})
