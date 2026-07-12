@@ -211,6 +211,125 @@ describe('BulkEditAccountModal', () => {
     expect(adminAPI.accounts.bulkUpdate).not.toHaveBeenCalled()
   })
 
+  it('关闭后重新打开不保留超刷修改状态', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+
+    await wrapper.get('#bulk-edit-openai-overbrush-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-openai-overbrush-toggle').trigger('click')
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true })
+
+    expect(
+      (wrapper.get('#bulk-edit-openai-overbrush-enabled').element as HTMLInputElement).checked
+    ).toBe(false)
+    expect(wrapper.get('#bulk-edit-openai-overbrush-toggle').attributes('aria-checked')).toBe(
+      'false'
+    )
+  })
+
+  it('资格从 OpenAI OAuth 变为不符合时不提交隐藏的超刷字段', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+
+    await wrapper.get('#bulk-edit-openai-overbrush-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-openai-overbrush-toggle').trigger('click')
+    await wrapper.setProps({ selectedTypes: ['apikey'] })
+
+    expect(wrapper.find('#bulk-edit-openai-overbrush-enabled').exists()).toBe(false)
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).not.toHaveBeenCalled()
+  })
+
+  it('filtered 明确筛选 OpenAI OAuth 时显示超刷并按筛选目标提交', async () => {
+    const filters = { platform: 'openai', type: 'oauth' }
+    const wrapper = mountModal({
+      accountIds: [],
+      selectedPlatforms: [],
+      selectedTypes: [],
+      target: {
+        mode: 'filtered',
+        filters,
+        previewCount: 120,
+        selectedPlatforms: ['openai'],
+        selectedTypes: ['oauth']
+      }
+    })
+
+    expect(wrapper.find('#bulk-edit-openai-overbrush-enabled').exists()).toBe(true)
+    await wrapper.get('#bulk-edit-openai-overbrush-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-openai-overbrush-toggle').trigger('click')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith({
+      filters,
+      extra: {
+        openai_overbrush_enabled: true
+      }
+    })
+  })
+
+  it.each([
+    ['未明确筛选条件', {}],
+    ['账号类型不符合', { platform: 'openai', type: 'apikey' }]
+  ])('filtered 仅摘要符合但%s时隐藏超刷且不提交', async (_label, filters) => {
+    const wrapper = mountModal({
+      accountIds: [],
+      selectedPlatforms: [],
+      selectedTypes: [],
+      target: {
+        mode: 'filtered',
+        filters: { platform: 'openai', type: 'oauth' },
+        previewCount: 120,
+        selectedPlatforms: ['openai'],
+        selectedTypes: ['oauth']
+      }
+    })
+
+    await wrapper.get('#bulk-edit-openai-overbrush-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-openai-overbrush-toggle').trigger('click')
+    await wrapper.setProps({
+      target: {
+        mode: 'filtered',
+        filters,
+        previewCount: 120,
+        selectedPlatforms: ['openai'],
+        selectedTypes: ['oauth']
+      }
+    })
+
+    expect(wrapper.find('#bulk-edit-openai-overbrush-enabled').exists()).toBe(false)
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).not.toHaveBeenCalled()
+  })
+
+  it('超刷开关提供 switch 可访问语义并同步选中状态', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+    const toggle = wrapper.get('#bulk-edit-openai-overbrush-toggle')
+
+    expect(toggle.attributes('role')).toBe('switch')
+    expect(toggle.attributes('aria-labelledby')).toBe('bulk-edit-openai-overbrush-label')
+    expect(toggle.attributes('aria-checked')).toBe('false')
+
+    await wrapper.get('#bulk-edit-openai-overbrush-enabled').setValue(true)
+    await toggle.trigger('click')
+
+    expect(toggle.attributes('aria-checked')).toBe('true')
+  })
+
   it('渠道价格允许任意正小数', () => {
     const wrapper = mountModal()
 

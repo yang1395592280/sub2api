@@ -886,6 +886,9 @@
           <button
             id="bulk-edit-openai-overbrush-toggle"
             type="button"
+            role="switch"
+            aria-labelledby="bulk-edit-openai-overbrush-label"
+            :aria-checked="openAIOverbrushEnabled"
             :disabled="!enableOpenAIOverbrush"
             :class="[
               'relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
@@ -1425,6 +1428,12 @@ const allOpenAIOAuth = computed(() => {
 })
 
 const allOpenAIOverbrushEligible = computed(() => {
+  if (targetMode.value === 'filtered') {
+    return (
+      props.target?.filters?.platform === 'openai' && props.target?.filters?.type === 'oauth'
+    )
+  }
+
   return (
     targetSelectedPlatforms.value.length === 1 &&
     targetSelectedPlatforms.value[0] === 'openai' &&
@@ -1830,7 +1839,7 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     )
   }
 
-  if (enableOpenAIOverbrush.value) {
+  if (allOpenAIOverbrushEligible.value && enableOpenAIOverbrush.value) {
     const extra = ensureExtra()
     extra.openai_overbrush_enabled = openAIOverbrushEnabled.value
   }
@@ -1965,7 +1974,7 @@ const handleSubmit = async () => {
     enableStatus.value ||
     enableGroups.value ||
     enableOpenAIWSMode.value ||
-    enableOpenAIOverbrush.value ||
+    (allOpenAIOverbrushEligible.value && enableOpenAIOverbrush.value) ||
     enableOpenAIAPIKeyWSMode.value ||
     enableCodexCLIOnly.value ||
     enableCodexCLIOnlyAppServer.value ||
@@ -2085,6 +2094,7 @@ watch(
       enableGroups.value = false
       enableOpenAIPassthrough.value = false
       enableOpenAIWSMode.value = false
+      enableOpenAIOverbrush.value = false
       enableOpenAIAPIKeyWSMode.value = false
       enableCodexCLIOnly.value = false
       enableCodexCLIOnlyAppServer.value = false
@@ -2112,6 +2122,7 @@ watch(
       status.value = 'active'
       groupIds.value = []
       openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
+      openAIOverbrushEnabled.value = false
       openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       codexCLIOnlyEnabled.value = false
       codexCLIOnlyAppServerEnabled.value = false
