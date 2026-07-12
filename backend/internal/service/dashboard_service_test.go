@@ -462,8 +462,31 @@ func TestDashboardService_GroupUsageSummaryCacheAgeForLog(t *testing.T) {
 
 	require.Equal(t, "6m0s", svc.groupUsageSummaryCacheAgeForLog(key, now))
 
+	svc.groupUsageSummaryCache[key] = groupUsageSummaryCacheEntry{}
+	require.Equal(t, "unknown", svc.groupUsageSummaryCacheAgeForLog(key, now))
+
+	svc.groupUsageSummaryCache[key] = groupUsageSummaryCacheEntry{
+		updatedAt: now.Add(time.Minute),
+	}
+	require.Equal(t, "0s", svc.groupUsageSummaryCacheAgeForLog(key, now))
+
 	delete(svc.groupUsageSummaryCache, key)
 	require.Equal(t, "unknown", svc.groupUsageSummaryCacheAgeForLog(key, now))
+	require.NotContains(t, svc.groupUsageSummaryCache, key)
+}
+
+func TestDashboardService_GroupUsageSummaryRefreshFailureMessage(t *testing.T) {
+	now := time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC)
+	todayStart := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	svc := NewDashboardService(&usageRepoStub{}, nil, nil, nil)
+	key := groupUsageSummaryCacheKey(todayStart)
+	svc.groupUsageSummaryCache[key] = groupUsageSummaryCacheEntry{
+		updatedAt: now.Add(-6 * time.Minute),
+	}
+
+	message := svc.groupUsageSummaryRefreshFailureMessage(key, todayStart, now, errors.New("refresh failed"))
+
+	require.Equal(t, "[Dashboard] 分组用量缓存异步刷新失败: cache_age=6m0s today_start=2026-07-12T00:00:00Z err=refresh failed", message)
 }
 
 func TestDashboardService_GroupUsageSummaryRefreshCooldownStartsAfterFailure(t *testing.T) {
