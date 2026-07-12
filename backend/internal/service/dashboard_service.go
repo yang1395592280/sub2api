@@ -12,13 +12,15 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
-	defaultDashboardStatsFreshTTL       = 15 * time.Second
-	defaultDashboardStatsCacheTTL       = 30 * time.Second
-	defaultDashboardStatsRefreshTimeout = 30 * time.Second
-	defaultGroupUsageSummaryCacheTTL    = 5 * time.Minute
+	defaultDashboardStatsFreshTTL          = 15 * time.Second
+	defaultDashboardStatsCacheTTL          = 30 * time.Second
+	defaultDashboardStatsRefreshTimeout    = 30 * time.Second
+	defaultGroupUsageSummaryCacheTTL       = 5 * time.Minute
+	defaultGroupUsageSummaryRefreshTimeout = 30 * time.Second
 )
 
 // ErrDashboardStatsCacheMiss 标记仪表盘缓存未命中。
@@ -42,7 +44,7 @@ type dashboardStatsCacheEntry struct {
 
 type groupUsageSummaryCacheEntry struct {
 	results   []usagestats.GroupUsageSummary
-	expiresAt time.Time
+	updatedAt time.Time
 }
 
 type GroupUserUsageComparisonResult struct {
@@ -71,9 +73,11 @@ type DashboardService struct {
 	aggLookback    time.Duration
 	aggUsageDays   int
 
-	groupUsageSummaryMu       sync.RWMutex
-	groupUsageSummaryCache    map[int64]groupUsageSummaryCacheEntry
-	groupUsageSummaryCacheTTL time.Duration
+	groupUsageSummaryMu             sync.RWMutex
+	groupUsageSummaryCache          map[int64]groupUsageSummaryCacheEntry
+	groupUsageSummarySF             singleflight.Group
+	groupUsageSummaryCacheTTL       time.Duration
+	groupUsageSummaryRefreshTimeout time.Duration
 }
 
 func NewDashboardService(usageRepo UsageLogRepository, aggRepo DashboardAggregationRepository, cache DashboardStatsCache, cfg *config.Config) *DashboardService {
@@ -123,8 +127,9 @@ func NewDashboardService(usageRepo UsageLogRepository, aggRepo DashboardAggregat
 		aggLookback:    aggLookback,
 		aggUsageDays:   aggUsageDays,
 
-		groupUsageSummaryCache:    make(map[int64]groupUsageSummaryCacheEntry),
-		groupUsageSummaryCacheTTL: defaultGroupUsageSummaryCacheTTL,
+		groupUsageSummaryCache:          make(map[int64]groupUsageSummaryCacheEntry),
+		groupUsageSummaryCacheTTL:       defaultGroupUsageSummaryCacheTTL,
+		groupUsageSummaryRefreshTimeout: defaultGroupUsageSummaryRefreshTimeout,
 	}
 }
 
@@ -197,55 +202,65 @@ func (s *DashboardService) GetGroupStatsWithFilters(ctx context.Context, startTi
 
 // GetGroupUsageSummary returns today's and cumulative cost for all groups.
 func (s *DashboardService) GetGroupUsageSummary(ctx context.Context, todayStart time.Time) ([]usagestats.GroupUsageSummary, error) {
-	if results, ok := s.getCachedGroupUsageSummary(todayStart); ok {
-		return results, nil
-	}
-
-	results, err := s.usageRepo.GetAllGroupUsageSummary(ctx, todayStart)
-	if err != nil {
-		return nil, fmt.Errorf("get group usage summary: %w", err)
-	}
-	s.setCachedGroupUsageSummary(todayStart, results)
-	return cloneGroupUsageSummary(results), nil
-}
-
-func (s *DashboardService) getCachedGroupUsageSummary(todayStart time.Time) ([]usagestats.GroupUsageSummary, bool) {
-	if s == nil || s.groupUsageSummaryCacheTTL <= 0 {
-		return nil, false
-	}
 	key := groupUsageSummaryCacheKey(todayStart)
 	now := time.Now()
 
 	s.groupUsageSummaryMu.RLock()
 	entry, ok := s.groupUsageSummaryCache[key]
 	s.groupUsageSummaryMu.RUnlock()
-	if !ok {
-		return nil, false
-	}
-	if !now.Before(entry.expiresAt) {
-		s.groupUsageSummaryMu.Lock()
-		if current, exists := s.groupUsageSummaryCache[key]; exists && !now.Before(current.expiresAt) {
-			delete(s.groupUsageSummaryCache, key)
+	if ok {
+		results := cloneGroupUsageSummary(entry.results)
+		if now.Sub(entry.updatedAt) > s.groupUsageSummaryCacheTTL {
+			s.refreshGroupUsageSummaryAsync(key, todayStart, now)
 		}
-		s.groupUsageSummaryMu.Unlock()
-		return nil, false
+		return results, nil
 	}
-	return cloneGroupUsageSummary(entry.results), true
+
+	return s.loadGroupUsageSummary(ctx, key, todayStart)
 }
 
-func (s *DashboardService) setCachedGroupUsageSummary(todayStart time.Time, results []usagestats.GroupUsageSummary) {
-	if s == nil || s.groupUsageSummaryCacheTTL <= 0 {
-		return
+func (s *DashboardService) loadGroupUsageSummary(ctx context.Context, key int64, todayStart time.Time) ([]usagestats.GroupUsageSummary, error) {
+	value, err, _ := s.groupUsageSummarySF.Do(fmt.Sprintf("%d", key), func() (any, error) {
+		s.groupUsageSummaryMu.RLock()
+		entry, ok := s.groupUsageSummaryCache[key]
+		s.groupUsageSummaryMu.RUnlock()
+		if ok {
+			return cloneGroupUsageSummary(entry.results), nil
+		}
+		results, err := s.usageRepo.GetAllGroupUsageSummary(ctx, todayStart)
+		if err != nil {
+			return nil, fmt.Errorf("get group usage summary: %w", err)
+		}
+		s.storeGroupUsageSummary(key, results, time.Now())
+		return cloneGroupUsageSummary(results), nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	key := groupUsageSummaryCacheKey(todayStart)
-	entry := groupUsageSummaryCacheEntry{
-		results:   cloneGroupUsageSummary(results),
-		expiresAt: time.Now().Add(s.groupUsageSummaryCacheTTL),
-	}
+	return cloneGroupUsageSummary(value.([]usagestats.GroupUsageSummary)), nil
+}
 
+func (s *DashboardService) refreshGroupUsageSummaryAsync(key int64, todayStart, now time.Time) {
+	s.groupUsageSummarySF.DoChan(fmt.Sprintf("%d", key), func() (any, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), s.groupUsageSummaryRefreshTimeout)
+		defer cancel()
+		results, err := s.usageRepo.GetAllGroupUsageSummary(ctx, todayStart)
+		if err != nil {
+			logger.LegacyPrintf("service.dashboard", "[Dashboard] 分组用量缓存异步刷新失败: today_start=%s err=%v", todayStart.Format(time.RFC3339), err)
+			return nil, err
+		}
+		s.storeGroupUsageSummary(key, results, time.Now())
+		return nil, nil
+	})
+}
+
+func (s *DashboardService) storeGroupUsageSummary(key int64, results []usagestats.GroupUsageSummary, now time.Time) {
 	s.groupUsageSummaryMu.Lock()
-	s.groupUsageSummaryCache[key] = entry
-	s.groupUsageSummaryMu.Unlock()
+	defer s.groupUsageSummaryMu.Unlock()
+	s.groupUsageSummaryCache[key] = groupUsageSummaryCacheEntry{
+		results:   cloneGroupUsageSummary(results),
+		updatedAt: now,
+	}
 }
 
 func groupUsageSummaryCacheKey(todayStart time.Time) int64 {

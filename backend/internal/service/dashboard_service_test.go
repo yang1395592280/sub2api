@@ -39,6 +39,7 @@ type usageRepoStub struct {
 	stats                 *usagestats.DashboardStats
 	rangeStats            *usagestats.DashboardStats
 	groupUsageSummaries   [][]usagestats.GroupUsageSummary
+	groupUsageSummaryFn   func(ctx context.Context, todayStart time.Time, call int32) ([]usagestats.GroupUsageSummary, error)
 	err                   error
 	rangeErr              error
 	groupUsageSummaryErr  error
@@ -79,6 +80,9 @@ func (s *usageRepoStub) GetDashboardStatsWithRange(ctx context.Context, start, e
 
 func (s *usageRepoStub) GetAllGroupUsageSummary(ctx context.Context, todayStart time.Time) ([]usagestats.GroupUsageSummary, error) {
 	call := atomic.AddInt32(&s.groupUsageSummaryCall, 1)
+	if s.groupUsageSummaryFn != nil {
+		return s.groupUsageSummaryFn(ctx, todayStart, call)
+	}
 	if s.groupUsageSummaryErr != nil {
 		return nil, s.groupUsageSummaryErr
 	}
@@ -89,8 +93,6 @@ func (s *usageRepoStub) GetAllGroupUsageSummary(ctx context.Context, todayStart 
 	if idx >= len(s.groupUsageSummaries) {
 		idx = len(s.groupUsageSummaries) - 1
 	}
-	_ = ctx
-	_ = todayStart
 	return s.groupUsageSummaries[idx], nil
 }
 
@@ -370,6 +372,92 @@ func TestDashboardService_GroupUsageSummaryCacheTTLDefaultsToFiveMinutes(t *test
 	svc := NewDashboardService(&usageRepoStub{}, nil, nil, nil)
 
 	require.Equal(t, 5*time.Minute, svc.groupUsageSummaryCacheTTL)
+}
+
+func TestDashboardService_GroupUsageSummaryServesStaleWhileRefreshing(t *testing.T) {
+	todayStart := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	started := make(chan struct{})
+	var startedOnce sync.Once
+	release := make(chan struct{})
+	repo := &usageRepoStub{groupUsageSummaryFn: func(ctx context.Context, _ time.Time, _ int32) ([]usagestats.GroupUsageSummary, error) {
+		startedOnce.Do(func() { close(started) })
+		select {
+		case <-release:
+			return []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 3, TotalCost: 12}}, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}}
+	svc := NewDashboardService(repo, nil, nil, nil)
+	key := groupUsageSummaryCacheKey(todayStart)
+	svc.groupUsageSummaryCache[key] = groupUsageSummaryCacheEntry{
+		results:   []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 2, TotalCost: 10}},
+		updatedAt: time.Now().Add(-6 * time.Minute),
+	}
+
+	type result struct {
+		value []usagestats.GroupUsageSummary
+		err   error
+	}
+	resultCh := make(chan result, 1)
+	go func() {
+		value, err := svc.GetGroupUsageSummary(context.Background(), todayStart)
+		resultCh <- result{value: value, err: err}
+	}()
+	select {
+	case got := <-resultCh:
+		require.NoError(t, got.err)
+		require.Equal(t, []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 2, TotalCost: 10}}, got.value)
+	case <-time.After(100 * time.Millisecond):
+		close(release)
+		t.Fatal("stale cache request blocked on refresh")
+	}
+	<-started
+	close(release)
+	require.Eventually(t, func() bool {
+		svc.groupUsageSummaryMu.RLock()
+		defer svc.groupUsageSummaryMu.RUnlock()
+		return svc.groupUsageSummaryCache[key].results[0].TotalCost == 12
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestDashboardService_GroupUsageSummaryColdMissUsesSingleflight(t *testing.T) {
+	todayStart := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	started := make(chan struct{})
+	var startedOnce sync.Once
+	release := make(chan struct{})
+	repo := &usageRepoStub{groupUsageSummaryFn: func(ctx context.Context, _ time.Time, _ int32) ([]usagestats.GroupUsageSummary, error) {
+		startedOnce.Do(func() { close(started) })
+		select {
+		case <-release:
+			return []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 3, TotalCost: 12}}, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}}
+	svc := NewDashboardService(repo, nil, nil, nil)
+	type result struct {
+		value []usagestats.GroupUsageSummary
+		err   error
+	}
+	results := make(chan result, 8)
+	start := make(chan struct{})
+	for range 8 {
+		go func() {
+			<-start
+			value, err := svc.GetGroupUsageSummary(context.Background(), todayStart)
+			results <- result{value: value, err: err}
+		}()
+	}
+	close(start)
+	<-started
+	close(release)
+	for range 8 {
+		got := <-results
+		require.NoError(t, got.err)
+		require.Equal(t, []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 3, TotalCost: 12}}, got.value)
+	}
+	require.Equal(t, int32(1), atomic.LoadInt32(&repo.groupUsageSummaryCall))
 }
 
 func TestDashboardService_CacheHitStale_TriggersAsyncRefresh(t *testing.T) {
