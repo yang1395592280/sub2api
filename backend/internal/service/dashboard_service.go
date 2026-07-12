@@ -21,6 +21,7 @@ const (
 	defaultDashboardStatsRefreshTimeout    = 30 * time.Second
 	defaultGroupUsageSummaryCacheTTL       = 5 * time.Minute
 	defaultGroupUsageSummaryRefreshTimeout = 30 * time.Second
+	defaultGroupUsageSummaryRetryCooldown  = 30 * time.Second
 )
 
 // ErrDashboardStatsCacheMiss 标记仪表盘缓存未命中。
@@ -43,8 +44,9 @@ type dashboardStatsCacheEntry struct {
 }
 
 type groupUsageSummaryCacheEntry struct {
-	results   []usagestats.GroupUsageSummary
-	updatedAt time.Time
+	results            []usagestats.GroupUsageSummary
+	updatedAt          time.Time
+	lastRefreshAttempt time.Time
 }
 
 type GroupUserUsageComparisonResult struct {
@@ -78,6 +80,7 @@ type DashboardService struct {
 	groupUsageSummarySF             singleflight.Group
 	groupUsageSummaryCacheTTL       time.Duration
 	groupUsageSummaryRefreshTimeout time.Duration
+	groupUsageSummaryRetryCooldown  time.Duration
 }
 
 func NewDashboardService(usageRepo UsageLogRepository, aggRepo DashboardAggregationRepository, cache DashboardStatsCache, cfg *config.Config) *DashboardService {
@@ -130,6 +133,7 @@ func NewDashboardService(usageRepo UsageLogRepository, aggRepo DashboardAggregat
 		groupUsageSummaryCache:          make(map[int64]groupUsageSummaryCacheEntry),
 		groupUsageSummaryCacheTTL:       defaultGroupUsageSummaryCacheTTL,
 		groupUsageSummaryRefreshTimeout: defaultGroupUsageSummaryRefreshTimeout,
+		groupUsageSummaryRetryCooldown:  defaultGroupUsageSummaryRetryCooldown,
 	}
 }
 
@@ -241,6 +245,9 @@ func (s *DashboardService) loadGroupUsageSummary(ctx context.Context, key int64,
 }
 
 func (s *DashboardService) refreshGroupUsageSummaryAsync(key int64, todayStart, now time.Time) {
+	if !s.markGroupUsageSummaryRefreshAttempt(key, now) {
+		return
+	}
 	s.groupUsageSummarySF.DoChan(fmt.Sprintf("%d", key), func() (any, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), s.groupUsageSummaryRefreshTimeout)
 		defer cancel()
@@ -254,12 +261,26 @@ func (s *DashboardService) refreshGroupUsageSummaryAsync(key int64, todayStart, 
 	})
 }
 
+func (s *DashboardService) markGroupUsageSummaryRefreshAttempt(key int64, now time.Time) bool {
+	s.groupUsageSummaryMu.Lock()
+	defer s.groupUsageSummaryMu.Unlock()
+	entry, ok := s.groupUsageSummaryCache[key]
+	if !ok || (!entry.lastRefreshAttempt.IsZero() && now.Sub(entry.lastRefreshAttempt) < s.groupUsageSummaryRetryCooldown) {
+		return false
+	}
+	entry.lastRefreshAttempt = now
+	s.groupUsageSummaryCache[key] = entry
+	return true
+}
+
 func (s *DashboardService) storeGroupUsageSummary(key int64, results []usagestats.GroupUsageSummary, now time.Time) {
 	s.groupUsageSummaryMu.Lock()
 	defer s.groupUsageSummaryMu.Unlock()
+	clear(s.groupUsageSummaryCache)
 	s.groupUsageSummaryCache[key] = groupUsageSummaryCacheEntry{
-		results:   cloneGroupUsageSummary(results),
-		updatedAt: now,
+		results:            cloneGroupUsageSummary(results),
+		updatedAt:          now,
+		lastRefreshAttempt: now,
 	}
 }
 

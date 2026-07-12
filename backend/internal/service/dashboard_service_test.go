@@ -366,6 +366,12 @@ func TestDashboardService_GroupUsageSummaryCacheSeparatesTodayStart(t *testing.T
 	require.Equal(t, int32(2), atomic.LoadInt32(&repo.groupUsageSummaryCall))
 	require.Equal(t, []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 1, TotalCost: 10}}, first)
 	require.Equal(t, []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 2, TotalCost: 12}}, second)
+
+	svc.groupUsageSummaryMu.RLock()
+	defer svc.groupUsageSummaryMu.RUnlock()
+	require.Len(t, svc.groupUsageSummaryCache, 1)
+	_, ok := svc.groupUsageSummaryCache[groupUsageSummaryCacheKey(secondDay)]
+	require.True(t, ok)
 }
 
 func TestDashboardService_GroupUsageSummaryCacheTTLDefaultsToFiveMinutes(t *testing.T) {
@@ -419,6 +425,29 @@ func TestDashboardService_GroupUsageSummaryServesStaleWhileRefreshing(t *testing
 		defer svc.groupUsageSummaryMu.RUnlock()
 		return svc.groupUsageSummaryCache[key].results[0].TotalCost == 12
 	}, time.Second, 10*time.Millisecond)
+}
+
+func TestDashboardService_GroupUsageSummaryRefreshCooldown(t *testing.T) {
+	todayStart := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	repo := &usageRepoStub{groupUsageSummaryErr: errors.New("refresh failed")}
+	svc := NewDashboardService(repo, nil, nil, nil)
+	key := groupUsageSummaryCacheKey(todayStart)
+	svc.groupUsageSummaryCache[key] = groupUsageSummaryCacheEntry{
+		results:   []usagestats.GroupUsageSummary{{GroupID: 1, TodayCost: 2, TotalCost: 10}},
+		updatedAt: time.Now().Add(-6 * time.Minute),
+	}
+
+	got, err := svc.GetGroupUsageSummary(context.Background(), todayStart)
+	require.NoError(t, err)
+	require.Equal(t, float64(10), got[0].TotalCost)
+	require.Eventually(t, func() bool {
+		return atomic.LoadInt32(&repo.groupUsageSummaryCall) == 1
+	}, time.Second, 10*time.Millisecond)
+	_, err = svc.GetGroupUsageSummary(context.Background(), todayStart)
+	require.NoError(t, err)
+	require.Never(t, func() bool {
+		return atomic.LoadInt32(&repo.groupUsageSummaryCall) > 1
+	}, 100*time.Millisecond, 10*time.Millisecond)
 }
 
 func TestDashboardService_GroupUsageSummaryColdMissUsesSingleflight(t *testing.T) {
