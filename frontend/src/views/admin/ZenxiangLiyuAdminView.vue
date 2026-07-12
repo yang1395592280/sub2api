@@ -156,39 +156,12 @@
       </section>
 
       <section v-else-if="activeTab === 'stats'" class="space-y-4">
-        <div class="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p class="text-sm text-gray-500 dark:text-dark-300">{{ t('admin.zenxiangLiyu.statsRangeHint') }}</p>
-            <label class="mt-3 block max-w-52">
-              <span class="input-label">{{ t('admin.zenxiangLiyu.statsDate') }}</span>
-              <input v-model="statsDate" type="date" class="input" @change="loadStats" />
-            </label>
-          </div>
-          <div class="inline-flex self-start rounded-md border border-gray-200 bg-gray-50 p-1 dark:border-dark-700 dark:bg-dark-800">
-            <button
-              v-for="option in periodOptions"
-              :key="option.value"
-              type="button"
-              class="rounded px-3 py-1.5 text-sm font-medium"
-              :class="statsPeriod === option.value ? 'bg-white text-primary-600 shadow-sm dark:bg-dark-900 dark:text-primary-400' : 'text-gray-500 hover:text-gray-800 dark:text-dark-300 dark:hover:text-white'"
-              @click="changeStatsPeriod(option.value)"
-            >
-              {{ option.label }}
-            </button>
-          </div>
+        <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+          <label class="block max-w-52">
+            <span class="input-label">{{ t('admin.zenxiangLiyu.statsDate') }}</span>
+            <input v-model="statsDate" type="date" class="input" @change="loadStats" />
+          </label>
         </div>
-        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <Metric :label="t('admin.zenxiangLiyu.rewardTotal')" :value="formatAmount(overview.total_expense)" />
-          <Metric :label="t('admin.zenxiangLiyu.totalDraws')" :value="overview.total_plays" />
-          <Metric :label="t('admin.zenxiangLiyu.avgRewardPerDraw')" :value="formatAmount(overviewAverageReward)" />
-          <Metric :label="t('admin.zenxiangLiyu.participantCount')" :value="overview.participating_users" />
-          <Metric :label="t('admin.zenxiangLiyu.participantsAndPlays')" :value="`${overview.participating_users} / ${overview.total_plays}`" />
-        </div>
-        <StatsTable
-          :title="t('admin.zenxiangLiyu.periodStats')"
-          :headers="[t('admin.zenxiangLiyu.period'), t('admin.zenxiangLiyu.participantCount'), t('admin.zenxiangLiyu.drawTicketsUsed'), t('admin.zenxiangLiyu.usageAmount'), t('admin.zenxiangLiyu.rewardTotal'), t('admin.zenxiangLiyu.avgRewardPerDraw'), t('admin.zenxiangLiyu.mostHitPrize')]"
-          :rows="periodStatsRows"
-        />
         <div class="grid gap-4 xl:grid-cols-2">
           <StatsTable :title="t('admin.zenxiangLiyu.userStats')" :headers="[t('admin.zenxiangLiyu.user'), t('admin.zenxiangLiyu.availableBalance'), t('admin.zenxiangLiyu.usageAmount'), t('admin.zenxiangLiyu.plays'), t('admin.zenxiangLiyu.rewardTotal'), t('admin.zenxiangLiyu.netTotal')]" :rows="userStatsRows" />
           <StatsTable :title="t('admin.zenxiangLiyu.prizeStats')" :headers="[t('admin.zenxiangLiyu.prizeName'), t('admin.zenxiangLiyu.configuredProbability'), t('admin.zenxiangLiyu.actualRate'), t('admin.zenxiangLiyu.probabilityDiff'), t('admin.zenxiangLiyu.hitCount')]" :rows="prizeStatsRows" />
@@ -245,14 +218,13 @@ import Toggle from '@/components/common/Toggle.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { adminAPI } from '@/api/admin'
 import type { AdminUser } from '@/types'
-import type { ZenxiangLiyuGrant, ZenxiangLiyuOverviewStats, ZenxiangLiyuPeriodStats, ZenxiangLiyuPrizeInput, ZenxiangLiyuPrizeStats, ZenxiangLiyuSimulationResult, ZenxiangLiyuUserStats } from '@/api/admin/zenxiangLiyu'
+import type { ZenxiangLiyuGrant, ZenxiangLiyuPrizeInput, ZenxiangLiyuPrizeStats, ZenxiangLiyuSimulationResult, ZenxiangLiyuUserStats } from '@/api/admin/zenxiangLiyu'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 
 const { t } = useI18n()
 const appStore = useAppStore()
 const activeTab = ref<'settings' | 'prizes' | 'stats' | 'simulator'>('settings')
-type ZenxiangLiyuStatsPeriod = 'day' | 'week' | 'month'
 const loading = ref(false)
 const savingSettings = ref(false)
 const savingPrizes = ref(false)
@@ -279,12 +251,9 @@ const grantSearch = ref('')
 const grantSearchResults = ref<AdminUser[]>([])
 const selectedGiftUser = ref<{ id: number, label: string } | null>(null)
 const giftForm = reactive({ request_id: newGiftRequestId(), ticket_count: 1, notes: '' })
-const overview = ref<ZenxiangLiyuOverviewStats>({ total_plays: 0, total_revenue: 0, total_expense: 0, net_profit: 0, participating_users: 0 })
 const userStats = ref<ZenxiangLiyuUserStats[]>([])
 const prizeStats = ref<ZenxiangLiyuPrizeStats[]>([])
-const statsPeriod = ref<ZenxiangLiyuStatsPeriod>('day')
 const statsDate = ref(todayString())
-const periodStats = ref<ZenxiangLiyuPeriodStats[]>([])
 const simulationForm = reactive({ user_count: 100, plays_per_user: 3, initial_balance: 100, ticket_amount: 2, minimum_balance: 10, daily_play_limit: 3, target_profit_rate: 0.1 })
 const simulationResult = ref<ZenxiangLiyuSimulationResult | null>(null)
 const recommendationPlans = ref<Array<{ prizes: ZenxiangLiyuPrizeInput[], theory_profit: number, theory_profit_rate: number }>>([])
@@ -293,11 +262,6 @@ const tabs = computed(() => [
   { id: 'prizes' as const, label: t('admin.zenxiangLiyu.prizes') },
   { id: 'stats' as const, label: t('admin.zenxiangLiyu.stats') },
   { id: 'simulator' as const, label: t('admin.zenxiangLiyu.simulator') },
-])
-const periodOptions = computed<Array<{ value: ZenxiangLiyuStatsPeriod, label: string }>>(() => [
-  { value: 'day', label: t('admin.zenxiangLiyu.periodDay') },
-  { value: 'week', label: t('admin.zenxiangLiyu.periodWeek') },
-  { value: 'month', label: t('admin.zenxiangLiyu.periodMonth') },
 ])
 const simulatorFields = computed(() => [
   { key: 'user_count' as const, label: t('admin.zenxiangLiyu.userCount'), min: 1, step: 1 },
@@ -329,21 +293,12 @@ const theoreticalRewardForTenConsumption = computed(() => {
   if (threshold <= 0) return 0
   return Math.min(Math.floor(10 / threshold), limit) * theoreticalExpense.value
 })
-const overviewAverageReward = computed(() => overview.value.total_plays ? overview.value.total_expense / overview.value.total_plays : 0)
+const prizeStatsTotalHits = computed(() => prizeStats.value.reduce((sum, row) => sum + row.hit_count, 0))
 const prizeStatsRows = computed(() => prizeStats.value.map((row) => {
-  const actualRate = overview.value.total_plays ? row.hit_count / overview.value.total_plays : 0
+  const actualRate = prizeStatsTotalHits.value ? row.hit_count / prizeStatsTotalHits.value : 0
   const configuredRate = Number(row.probability || 0) / 100
   return [row.prize_name, `${formatNumber(row.probability)}%`, formatPercent(actualRate), formatSignedPercent(actualRate - configuredRate), row.hit_count]
 }))
-const periodStatsRows = computed(() => periodStats.value.map((row) => [
-  formatPeriodLabel(row),
-  row.participant_count,
-  row.tickets_used || row.play_count,
-  formatAmount(row.usage_amount),
-  formatAmount(row.reward_amount),
-  formatAmount(row.average_reward),
-  row.most_hit_prize_name ? `${row.most_hit_prize_name} / ${row.most_hit_prize_count}` : '-',
-]))
 const userStatsRows = computed(() => userStats.value.map((row) => [
   row.user_email || String(row.user_id),
   formatAmount(row.balance),
@@ -431,12 +386,6 @@ function todayString() {
   const day = String(now.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
-function formatPeriodLabel(row: ZenxiangLiyuPeriodStats) {
-  if (row.period_label) return row.period_label
-  const date = new Date(row.period_start)
-  if (Number.isNaN(date.getTime())) return row.period_start
-  return date.toLocaleDateString()
-}
 function copyPrizes(value: ZenxiangLiyuPrizeInput[]) { return value.map((prize) => ({ ...prize })) }
 function newPrize(sortOrder: number): ZenxiangLiyuPrizeInput {
   return { name: t('admin.zenxiangLiyu.newPrize'), reward_amount: 0, probability: 0, enabled: true, sort_order: sortOrder }
@@ -479,17 +428,13 @@ async function loadGrants() {
 async function loadStats() {
   loading.value = true
   try {
-    const [overviewResult, usersResult, prizesResult, periodResult, grantsResult] = await Promise.all([
-      adminAPI.zenxiangLiyu.getOverviewStats(),
+    const [usersResult, prizesResult, grantsResult] = await Promise.all([
       adminAPI.zenxiangLiyu.listUserStats({ page_size: 100, date: statsDate.value }),
       adminAPI.zenxiangLiyu.listPrizeStats(),
-      adminAPI.zenxiangLiyu.listPeriodStats(statsPeriod.value),
       adminAPI.zenxiangLiyu.listGrants({ page_size: 100 }),
     ])
-    overview.value = overviewResult
     userStats.value = usersResult.items
     prizeStats.value = prizesResult
-    periodStats.value = periodResult
     grants.value = grantsResult.items
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, t('admin.zenxiangLiyu.statsLoadFailed')))
@@ -503,11 +448,6 @@ async function selectTab(tab: typeof activeTab.value) {
   if (tab === 'stats') await loadStats()
 }
 async function reloadCurrentTab() { if (activeTab.value === 'stats') await loadStats(); else await loadCore() }
-async function changeStatsPeriod(period: ZenxiangLiyuStatsPeriod) {
-  if (statsPeriod.value === period) return
-  statsPeriod.value = period
-  if (activeTab.value === 'stats') await loadStats()
-}
 async function saveSettings() {
   savingSettings.value = true
   try {

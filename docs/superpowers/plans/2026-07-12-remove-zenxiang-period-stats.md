@@ -27,7 +27,7 @@
 - Consumes: `adminAPI.zenxiangLiyu.listUserStats`, `listPrizeStats`, and `listGrants`.
 - Produces: a statistics tab that displays only the date selector, user statistics, and prize statistics.
 
-- [ ] **Step 1: Write the failing component test**
+- [x] **Step 1: Write the failing component test**
 
 Replace the existing statistics test with assertions that the retained requests execute, the slow requests do not execute, and the removed sections are absent:
 
@@ -63,7 +63,7 @@ api.listPrizeStats.mockResolvedValue([
 ])
 ```
 
-- [ ] **Step 2: Run the focused test and verify RED**
+- [x] **Step 2: Run the focused test and verify RED**
 
 Run:
 
@@ -73,7 +73,7 @@ cd frontend && pnpm test:run src/views/admin/__tests__/ZenxiangLiyuAdminView.spe
 
 Expected: FAIL because `getOverviewStats` and `listPeriodStats` are still called and the removed UI is still rendered.
 
-- [ ] **Step 3: Implement the minimal component change**
+- [x] **Step 3: Implement the minimal component change**
 
 In `ZenxiangLiyuAdminView.vue`:
 
@@ -103,7 +103,7 @@ prizeStats.value = prizesResult
 grants.value = grantsResult.items
 ```
 
-- [ ] **Step 4: Run focused tests and verify GREEN**
+- [x] **Step 4: Run focused tests and verify GREEN**
 
 Run:
 
@@ -113,7 +113,7 @@ cd frontend && pnpm test:run src/views/admin/__tests__/ZenxiangLiyuAdminView.spe
 
 Expected: all tests in the file PASS.
 
-- [ ] **Step 5: Run frontend verification**
+- [x] **Step 5: Run frontend verification**
 
 Run:
 
@@ -124,7 +124,7 @@ cd frontend && pnpm build
 
 Expected: both commands exit with status 0.
 
-- [ ] **Step 6: Verify the page behavior**
+- [x] **Step 6: Verify the page behavior**
 
 Start the frontend development server, open the statistics tab, and confirm:
 
@@ -132,7 +132,9 @@ Start the frontend development server, open the statistics tab, and confirm:
 - user statistics and prize statistics remain visible;
 - the statistics refresh completes without requests to `/stats/overview` or `/stats/periods`.
 
-- [ ] **Step 7: Commit the implementation**
+The local route redirected to login because no local administrator session was available. The component DOM test verified the removed sections and retained tables, and its API spies verified that neither slow endpoint is requested.
+
+- [x] **Step 7: Commit the implementation**
 
 ```bash
 git add frontend/src/views/admin/ZenxiangLiyuAdminView.vue frontend/src/views/admin/__tests__/ZenxiangLiyuAdminView.spec.ts docs/superpowers/plans/2026-07-12-remove-zenxiang-period-stats.md

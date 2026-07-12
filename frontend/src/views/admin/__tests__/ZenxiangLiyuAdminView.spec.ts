@@ -64,7 +64,10 @@ describe('ZenxiangLiyuAdminView', () => {
     api.listGrants.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 1 })
     api.getOverviewStats.mockResolvedValue({ total_plays: 12, total_revenue: 24, total_expense: 18, net_profit: 6, participating_users: 4 })
     api.listUserStats.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 1 })
-    api.listPrizeStats.mockResolvedValue([{ prize_name: '礼遇一档', prize_id: 1, probability: 60, hit_count: 9, reward_amount: 1 }])
+    api.listPrizeStats.mockResolvedValue([
+      { prize_name: '礼遇一档', prize_id: 1, probability: 60, hit_count: 9, reward_amount: 9 },
+      { prize_name: '礼遇二档', prize_id: 2, probability: 30, hit_count: 3, reward_amount: 9 },
+    ])
     api.listPeriodStats.mockResolvedValue([{ period_start: '2026-07-11T00:00:00Z', period_label: '2026-07-11', play_count: 12, participant_count: 4, usage_amount: 80, tickets_used: 12, ticket_amount: 0, reward_amount: 18, average_reward: 1.5, user_net_amount: 18, system_revenue: 0, system_expense: 18, system_profit: -18, most_hit_prize_name: '礼遇一档', most_hit_prize_count: 9 }])
     api.resetGrantDailyPlays.mockResolvedValue({ user_id: 42, play_date: '2026-07-11T00:00:00Z', previous_play_count: 3, effective_play_count: 0, remaining_plays: 5 })
     api.updateSettings.mockResolvedValue({ ...settings })
@@ -131,14 +134,24 @@ describe('ZenxiangLiyuAdminView', () => {
     expect(api.createGrant).toHaveBeenCalledWith({ user_id: 42, enabled: true })
   })
 
-  it('shows prize hit-rate diff in stats table', async () => {
+  it('loads only user, prize, and grant data for the stats tab', async () => {
     const wrapper = mountView()
     await flushPromises()
+    vi.clearAllMocks()
+
     await wrapper.find('[data-testid="zenxiang-tab-stats"]').trigger('click')
     await flushPromises()
-    expect(api.listUserStats).toHaveBeenCalledWith(expect.objectContaining({ page_size: 100, date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }))
-    expect(api.listPeriodStats).toHaveBeenCalledWith('day')
-    expect(wrapper.text()).toContain('2026-07-11')
+
+    expect(api.listUserStats).toHaveBeenCalledWith(expect.objectContaining({
+      page_size: 100,
+      date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    }))
+    expect(api.listPrizeStats).toHaveBeenCalledOnce()
+    expect(api.listGrants).toHaveBeenCalledWith({ page_size: 100 })
+    expect(api.getOverviewStats).not.toHaveBeenCalled()
+    expect(api.listPeriodStats).not.toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('admin.zenxiangLiyu.periodStats')
+    expect(wrapper.text()).not.toContain('admin.zenxiangLiyu.totalDraws')
     expect(wrapper.text()).toContain('+15%')
   })
 
