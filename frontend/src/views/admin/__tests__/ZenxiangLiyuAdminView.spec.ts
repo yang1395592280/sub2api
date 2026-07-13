@@ -223,6 +223,29 @@ describe('ZenxiangLiyuAdminView', () => {
     expect(api.listUserRecords).toHaveBeenLastCalledWith(42, { date: '2026-07-12', page: 1, page_size: 100 })
   })
 
+  it('ignores stale user statistics when date requests finish out of order', async () => {
+    let resolveFirst: (value: unknown) => void = () => undefined
+    let resolveSecond: (value: unknown) => void = () => undefined
+    api.listUserStats
+      .mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve }))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveSecond = resolve }))
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="zenxiang-tab-stats"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    await wrapper.get('input[type="date"]').setValue('2026-07-12')
+    await wrapper.vm.$nextTick()
+
+    resolveSecond({ items: [{ user_id: 43, user_email: 'new-date@example.com', balance: 20, usage_amount: 10, play_count: 1, ticket_amount: 0, reward_amount: 2, user_net_amount: 2 }], total: 1, page: 1, page_size: 100, pages: 1 })
+    await flushPromises()
+    expect(wrapper.text()).toContain('new-date@example.com')
+
+    resolveFirst({ items: [{ user_id: 42, user_email: 'stale-date@example.com', balance: 10, usage_amount: 5, play_count: 1, ticket_amount: 0, reward_amount: 1, user_net_amount: 1 }], total: 1, page: 1, page_size: 100, pages: 1 })
+    await flushPromises()
+    expect(wrapper.text()).toContain('new-date@example.com')
+    expect(wrapper.text()).not.toContain('stale-date@example.com')
+  })
+
   it('shows loading and empty states for user draw details', async () => {
     api.listUserStats.mockResolvedValue({ items: [{ user_id: 42, user_email: 'user@example.com', balance: 10, usage_amount: 5, play_count: 1, ticket_amount: 0, reward_amount: 1, user_net_amount: 1 }], total: 1, page: 1, page_size: 100, pages: 1 })
     let resolveRecords: (value: unknown) => void = () => undefined

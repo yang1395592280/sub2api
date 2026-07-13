@@ -182,6 +182,19 @@ func TestAdminZenxiangLiyuGetUserRecordsMapsUserDateAndPagination(t *testing.T) 
 	require.Contains(t, w.Body.String(), `"total":1`)
 }
 
+func TestAdminZenxiangLiyuGetUserRecordsClampsPageSizeToServiceLimit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &stubAdminZenxiangLiyuService{}
+	router := gin.New()
+	router.GET("/admin/zenxiang-liyu/stats/users/:user_id/records", NewZenxiangLiyuHandler(svc).GetUserRecords)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin/zenxiang-liyu/stats/users/42/records?date=2026-07-13&page_size=1000", nil))
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, 100, svc.recordsSize)
+	require.Contains(t, w.Body.String(), `"page_size":100`)
+}
+
 func TestAdminZenxiangLiyuGetUserRecordsRejectsInvalidUserID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := &stubAdminZenxiangLiyuService{}

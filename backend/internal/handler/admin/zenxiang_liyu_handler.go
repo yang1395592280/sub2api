@@ -36,6 +36,8 @@ type zenxiangLiyuAdminService interface {
 
 type ZenxiangLiyuHandler struct{ service zenxiangLiyuAdminService }
 
+const zenxiangLiyuMaxPageSize = 100
+
 func NewZenxiangLiyuHandler(service zenxiangLiyuAdminService) *ZenxiangLiyuHandler {
 	return &ZenxiangLiyuHandler{service: service}
 }
@@ -214,6 +216,9 @@ func (h *ZenxiangLiyuHandler) GetUserRecords(c *gin.Context) {
 		return
 	}
 	page, pageSize := response.ParsePagination(c)
+	if pageSize > zenxiangLiyuMaxPageSize {
+		pageSize = zenxiangLiyuMaxPageSize
+	}
 	records, total, err := h.service.ListUserRecordsByDate(c.Request.Context(), userID, playDate, page, pageSize)
 	if err != nil {
 		response.ErrorFrom(c, err)

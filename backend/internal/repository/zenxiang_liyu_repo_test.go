@@ -346,12 +346,12 @@ func TestZenxiangLiyuRepositoryPlayLuckyCoinMissLosesHalfReward(t *testing.T) {
 	mock.ExpectQuery(`SELECT id, reward_amount::double precision, COALESCE\(lucky_coin_played, FALSE\), balance_after_lucky`).
 		WithArgs(int64(9), int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "reward_amount", "lucky_coin_played", "balance_after_lucky"}).
-			AddRow(9, 1.0, false, nil))
+			AddRow(9, 0.33333333, false, nil))
 	mock.ExpectQuery(`UPDATE users`).
-		WithArgs(-1.5, int64(42)).
+		WithArgs(-0.5, int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(8.5))
 	mock.ExpectQuery(`UPDATE zenxiang_liyu_records`).
-		WithArgs("zero", -1.5, 8.5, int64(9), int64(42)).
+		WithArgs("zero", -0.5, 8.5, int64(9), int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"lucky_coin_played_at"}).AddRow(playedAt))
 	mock.ExpectCommit()
 
@@ -359,7 +359,7 @@ func TestZenxiangLiyuRepositoryPlayLuckyCoinMissLosesHalfReward(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "zero", result.Outcome)
-	require.InDelta(t, -1.5, result.AdjustmentAmount, 0.000001)
+	require.Equal(t, -0.5, result.AdjustmentAmount)
 	require.InDelta(t, 8.5, result.BalanceAfter, 0.000001)
 	require.Equal(t, playedAt, result.PlayedAt)
 	require.NoError(t, mock.ExpectationsWereMet())

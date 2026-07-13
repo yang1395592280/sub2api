@@ -19,7 +19,7 @@ BEGIN
        AND OLD.lucky_coin_adjustment = 0
        AND (
            (NEW.lucky_coin_outcome = 'double' AND NEW.lucky_coin_adjustment = OLD.reward_amount)
-           OR (NEW.lucky_coin_outcome = 'zero' AND NEW.lucky_coin_adjustment = -1.5 * OLD.reward_amount)
+           OR (NEW.lucky_coin_outcome = 'zero' AND NEW.lucky_coin_adjustment = ROUND(-1.5 * OLD.reward_amount, 8))
        )
        AND OLD.lucky_coin_played_at IS NULL
        AND NEW.lucky_coin_played_at IS NOT NULL

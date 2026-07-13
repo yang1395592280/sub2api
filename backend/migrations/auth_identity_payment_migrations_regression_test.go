@@ -270,7 +270,7 @@ func TestMigration181AllowsLuckyCoinHalfLoss(t *testing.T) {
 
 	sql := string(content)
 	require.Contains(t, sql, "CREATE OR REPLACE FUNCTION zenxiang_liyu_records_prevent_mutation()")
-	require.Contains(t, sql, "NEW.lucky_coin_adjustment = -1.5 * OLD.reward_amount")
+	require.Contains(t, sql, "NEW.lucky_coin_adjustment = ROUND(-1.5 * OLD.reward_amount, 8)")
 	require.Contains(t, sql, "NEW.user_net_amount = OLD.user_net_amount + NEW.lucky_coin_adjustment")
 	require.Contains(t, sql, "NEW.system_expense = OLD.system_expense + NEW.lucky_coin_adjustment")
 	require.Contains(t, sql, "NEW.system_profit = OLD.system_profit - NEW.lucky_coin_adjustment")

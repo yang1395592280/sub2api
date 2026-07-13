@@ -330,6 +330,7 @@ const userRecordCache = ref<Record<string, ZenxiangLiyuRecord[]>>({})
 const userRecordLoading = ref(false)
 const userRecordError = ref('')
 let userRecordRequestVersion = 0
+let statsRequestVersion = 0
 const simulationForm = reactive({ user_count: 100, plays_per_user: 3, initial_balance: 100, ticket_amount: 2, minimum_balance: 10, daily_play_limit: 3, target_profit_rate: 0.1 })
 const simulationResult = ref<ZenxiangLiyuSimulationResult | null>(null)
 const recommendationPlans = ref<Array<{ prizes: ZenxiangLiyuPrizeInput[], theory_profit: number, theory_profit_rate: number }>>([])
@@ -516,21 +517,25 @@ async function loadGrants() {
 }
 
 async function loadStats() {
+  const requestVersion = ++statsRequestVersion
+  const requestDate = statsDate.value
   resetUserRecordDetails()
   loading.value = true
   try {
     const [usersResult, prizesResult, grantsResult] = await Promise.all([
-      adminAPI.zenxiangLiyu.listUserStats({ page_size: 100, date: statsDate.value }),
+      adminAPI.zenxiangLiyu.listUserStats({ page_size: 100, date: requestDate }),
       adminAPI.zenxiangLiyu.listPrizeStats(),
       adminAPI.zenxiangLiyu.listGrants({ page_size: 100 }),
     ])
+    if (requestVersion !== statsRequestVersion || requestDate !== statsDate.value) return
     userStats.value = usersResult.items
     prizeStats.value = prizesResult
     grants.value = grantsResult.items
   } catch (error) {
+    if (requestVersion !== statsRequestVersion || requestDate !== statsDate.value) return
     appStore.showError(extractApiErrorMessage(error, t('admin.zenxiangLiyu.statsLoadFailed')))
   } finally {
-    loading.value = false
+    if (requestVersion === statsRequestVersion) loading.value = false
   }
 }
 

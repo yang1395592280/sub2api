@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/ent"
@@ -17,6 +18,8 @@ type zenxiangLiyuRepository struct {
 	client *ent.Client
 	db     *sql.DB
 }
+
+const zenxiangLiyuAmountScale = 100_000_000
 
 func NewZenxiangLiyuRepository(client *ent.Client, sqlDB *sql.DB) service.ZenxiangLiyuRepository {
 	return &zenxiangLiyuRepository{client: client, db: sqlDB}
@@ -820,7 +823,7 @@ func (r *zenxiangLiyuRepository) PlayLuckyCoin(ctx context.Context, cmd service.
 	}
 
 	outcome := "zero"
-	adjustment := -1.5 * record.reward
+	adjustment := math.Round(-1.5*record.reward*zenxiangLiyuAmountScale) / zenxiangLiyuAmountScale
 	if cmd.Roll < settings.probability {
 		outcome = "double"
 		adjustment = record.reward
