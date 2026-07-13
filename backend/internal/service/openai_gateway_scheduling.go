@@ -221,19 +221,41 @@ func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerOutcome(ctx context.Cont
 }
 
 func openAIAutoSchedulerSuccessOutcome(c *gin.Context, forwardStartedAt time.Time, result *OpenAIForwardResult) OpenAIAutoSchedulerRecordInput {
+	now := time.Now()
 	statusCode := http.StatusOK
-	latencyMS := int(time.Since(forwardStartedAt).Milliseconds())
+	latencyMS := int(now.Sub(forwardStartedAt).Milliseconds())
 	outcome := OpenAIAutoSchedulerRecordInput{
 		EventType:  OpenAIAutoSchedulerEventSuccess,
 		LatencyMS:  &latencyMS,
 		StatusCode: &statusCode,
+	}
+	if result != nil && result.OpenAIWSMode {
+		switch strings.TrimSpace(result.WSTerminalEventType) {
+		case "response.completed", "response.done":
+		default:
+			outcome.EventType = OpenAIAutoSchedulerEventError
+			outcome.StatusCode = result.WSTerminalStatusCode
+			if result.WSTerminalStatusCode != nil && *result.WSTerminalStatusCode == http.StatusTooManyRequests {
+				outcome.EventType = OpenAIAutoSchedulerEventRateLimited
+			}
+			outcome.Message = truncateString(strings.TrimSpace(result.WSTerminalError), 512)
+			if outcome.Message == "" {
+				outcome.Message = truncateString(strings.TrimSpace(result.WSTerminalEventType), 512)
+			}
+		}
 	}
 	if result == nil || result.FirstTokenMs == nil {
 		return outcome
 	}
 
 	ttfbMS := *result.FirstTokenMs
-	if c != nil {
+	if result.OpenAIWSMode && result.Duration > 0 {
+		measurementStartedAt := now.Add(-result.Duration)
+		preMeasurementMS := int(measurementStartedAt.Sub(forwardStartedAt).Milliseconds())
+		if preMeasurementMS > 0 {
+			ttfbMS += preMeasurementMS
+		}
+	} else if c != nil {
 		if timing := OpenAIRequestTimingFromContext(c); timing != nil {
 			timing.mu.Lock()
 			preForwardMS := int(forwardStartedAt.Sub(timing.startedAt).Milliseconds())

@@ -33,6 +33,9 @@ type RelayResult struct {
 	Usage                   Usage
 	RequestID               string
 	TerminalEventType       string
+	TerminalErrorCode       string
+	TerminalErrorType       string
+	TerminalErrorMessage    string
 	FirstTokenMs            *int
 	Duration                time.Duration
 	ClientToUpstreamFrames  int64
@@ -41,12 +44,15 @@ type RelayResult struct {
 }
 
 type RelayTurnResult struct {
-	RequestModel      string
-	Usage             Usage
-	RequestID         string
-	TerminalEventType string
-	Duration          time.Duration
-	FirstTokenMs      *int
+	RequestModel         string
+	Usage                Usage
+	RequestID            string
+	TerminalEventType    string
+	TerminalErrorCode    string
+	TerminalErrorType    string
+	TerminalErrorMessage string
+	Duration             time.Duration
+	FirstTokenMs         *int
 }
 
 type RelayExit struct {
@@ -81,13 +87,16 @@ type RelayTraceEvent struct {
 }
 
 type relayState struct {
-	usage             Usage
-	requestModel      string
-	lastResponseID    string
-	terminalEventType string
-	firstTokenMs      *int
-	turnTimingByID    map[string]*relayTurnTiming
-	activeTurn        *relayTurnTiming
+	usage                Usage
+	requestModel         string
+	lastResponseID       string
+	terminalEventType    string
+	terminalErrorCode    string
+	terminalErrorType    string
+	terminalErrorMessage string
+	firstTokenMs         *int
+	turnTimingByID       map[string]*relayTurnTiming
+	activeTurn           *relayTurnTiming
 }
 
 type relayExitSignal struct {
@@ -98,12 +107,15 @@ type relayExitSignal struct {
 }
 
 type observedUpstreamEvent struct {
-	terminal   bool
-	eventType  string
-	responseID string
-	usage      Usage
-	duration   time.Duration
-	firstToken *int
+	terminal     bool
+	eventType    string
+	errorCode    string
+	errorType    string
+	errorMessage string
+	responseID   string
+	usage        Usage
+	duration     time.Duration
+	firstToken   *int
 }
 
 type relayTurnTiming struct {
@@ -607,7 +619,19 @@ func observeUpstreamMessage(
 	if state == nil || len(message) == 0 {
 		return observedUpstreamEvent{}
 	}
-	values := gjson.GetManyBytes(message, "type", "response.id", "response_id", "id")
+	values := gjson.GetManyBytes(
+		message,
+		"type",
+		"response.id",
+		"response_id",
+		"id",
+		"response.error.code",
+		"response.error.type",
+		"response.error.message",
+		"error.code",
+		"error.type",
+		"error.message",
+	)
 	eventType := strings.TrimSpace(values[0].String())
 	if eventType == "" {
 		return observedUpstreamEvent{}
@@ -653,7 +677,13 @@ func observeUpstreamMessage(
 		return observed
 	}
 	observed.terminal = true
+	observed.errorCode = firstNonEmptyRelayValue(values[4].String(), values[7].String())
+	observed.errorType = firstNonEmptyRelayValue(values[5].String(), values[8].String())
+	observed.errorMessage = firstNonEmptyRelayValue(values[6].String(), values[9].String())
 	state.terminalEventType = eventType
+	state.terminalErrorCode = observed.errorCode
+	state.terminalErrorType = observed.errorType
+	state.terminalErrorMessage = observed.errorMessage
 	if responseID != "" {
 		state.lastResponseID = responseID
 		if turnTiming, ok := openAIWSRelayDeleteTurnTiming(state, responseID); ok {
@@ -685,12 +715,15 @@ func emitTurnComplete(
 		requestModel = state.requestModel
 	}
 	onTurnComplete(RelayTurnResult{
-		RequestModel:      requestModel,
-		Usage:             observed.usage,
-		RequestID:         responseID,
-		TerminalEventType: observed.eventType,
-		Duration:          observed.duration,
-		FirstTokenMs:      openAIWSRelayCloneIntPtr(observed.firstToken),
+		RequestModel:         requestModel,
+		Usage:                observed.usage,
+		RequestID:            responseID,
+		TerminalEventType:    observed.eventType,
+		TerminalErrorCode:    observed.errorCode,
+		TerminalErrorType:    observed.errorType,
+		TerminalErrorMessage: observed.errorMessage,
+		Duration:             observed.duration,
+		FirstTokenMs:         openAIWSRelayCloneIntPtr(observed.firstToken),
 	})
 }
 
@@ -847,7 +880,17 @@ func enrichResult(result *RelayResult, state *relayState, duration time.Duration
 	result.Usage = state.usage
 	result.RequestID = state.lastResponseID
 	result.TerminalEventType = state.terminalEventType
+	result.TerminalErrorCode = state.terminalErrorCode
+	result.TerminalErrorType = state.terminalErrorType
+	result.TerminalErrorMessage = state.terminalErrorMessage
 	result.FirstTokenMs = state.firstTokenMs
+}
+
+func firstNonEmptyRelayValue(primary string, fallback string) string {
+	if value := strings.TrimSpace(primary); value != "" {
+		return value
+	}
+	return strings.TrimSpace(fallback)
 }
 
 func isDisconnectError(err error) bool {

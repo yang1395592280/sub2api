@@ -425,7 +425,7 @@ func TestRelay_OnTurnComplete_PerTerminalEvent(t *testing.T) {
 		},
 		{
 			msgType: coderws.MessageText,
-			payload: []byte(`{"type":"response.failed","response":{"id":"resp_turn_2","usage":{"input_tokens":3,"output_tokens":4}}}`),
+			payload: []byte(`{"type":"response.failed","response":{"id":"resp_turn_2","usage":{"input_tokens":3,"output_tokens":4},"error":{"code":"rate_limit_exceeded","type":"rate_limit_error","message":"Rate limit exceeded"}}}`),
 		},
 	}, true)
 
@@ -447,6 +447,9 @@ func TestRelay_OnTurnComplete_PerTerminalEvent(t *testing.T) {
 	require.Equal(t, 1, turns[0].Usage.OutputTokens)
 	require.Equal(t, "resp_turn_2", turns[1].RequestID)
 	require.Equal(t, "response.failed", turns[1].TerminalEventType)
+	require.Equal(t, "rate_limit_exceeded", turns[1].TerminalErrorCode)
+	require.Equal(t, "rate_limit_error", turns[1].TerminalErrorType)
+	require.Equal(t, "Rate limit exceeded", turns[1].TerminalErrorMessage)
 	require.Equal(t, 3, turns[1].Usage.InputTokens)
 	require.Equal(t, 4, turns[1].Usage.OutputTokens)
 	require.Equal(t, 5, result.Usage.InputTokens)

@@ -36,9 +36,10 @@ type OpenAIAutoSchedulerOutcomeRecorder struct {
 	stopped  atomic.Bool
 	workers  atomic.Int32
 
-	accepted atomic.Uint64
-	failed   atomic.Uint64
-	dropped  atomic.Uint64
+	accepted        atomic.Uint64
+	failed          atomic.Uint64
+	dropped         atomic.Uint64
+	reportedDropped atomic.Uint64
 }
 
 func NewOpenAIAutoSchedulerOutcomeRecorder(
@@ -69,11 +70,18 @@ func (r *OpenAIAutoSchedulerOutcomeRecorder) TryRecord(input OpenAIAutoScheduler
 	if r == nil {
 		return false
 	}
+	if r.stopped.Load() {
+		r.recordDropped()
+		return false
+	}
 
-	r.queueMu.RLock()
+	if !r.queueMu.TryRLock() {
+		r.recordDropped()
+		return false
+	}
 	defer r.queueMu.RUnlock()
 	if r.stopped.Load() {
-		r.recordDropped("stopped")
+		r.recordDropped()
 		return false
 	}
 
@@ -82,7 +90,7 @@ func (r *OpenAIAutoSchedulerOutcomeRecorder) TryRecord(input OpenAIAutoScheduler
 		r.accepted.Add(1)
 		return true
 	default:
-		r.recordDropped("queue_full")
+		r.recordDropped()
 		return false
 	}
 }
@@ -104,6 +112,7 @@ func (r *OpenAIAutoSchedulerOutcomeRecorder) Stop(ctx context.Context) error {
 
 	select {
 	case <-r.done:
+		r.logDroppedFeedback()
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -166,10 +175,24 @@ func classifyOpenAIAutoSchedulerProductionOutcome(
 	return input
 }
 
-func (r *OpenAIAutoSchedulerOutcomeRecorder) recordDropped(reason string) {
-	dropped := r.dropped.Add(1)
-	if shouldLogOpenAIAutoSchedulerOutcomeRecorderCount(dropped) {
-		slog.Warn("OpenAI auto scheduler outcome recorder dropped feedback", "reason", reason, "dropped", dropped)
+func (r *OpenAIAutoSchedulerOutcomeRecorder) recordDropped() {
+	r.dropped.Add(1)
+}
+
+func (r *OpenAIAutoSchedulerOutcomeRecorder) logDroppedFeedback() {
+	dropped := r.dropped.Load()
+	if !shouldLogOpenAIAutoSchedulerOutcomeRecorderCount(dropped) {
+		return
+	}
+	for {
+		reported := r.reportedDropped.Load()
+		if dropped <= reported {
+			return
+		}
+		if r.reportedDropped.CompareAndSwap(reported, dropped) {
+			slog.Warn("OpenAI auto scheduler outcome recorder dropped feedback", "dropped", dropped)
+			return
+		}
 	}
 }
 

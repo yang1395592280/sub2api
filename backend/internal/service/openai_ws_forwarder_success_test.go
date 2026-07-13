@@ -618,7 +618,7 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthStoreFalseByDefault(t *testing.T
 
 	captureConn := &openAIWSCaptureConn{
 		events: [][]byte{
-			[]byte(`{"type":"response.completed","response":{"id":"resp_oauth_1","model":"gpt-5.1","usage":{"input_tokens":3,"output_tokens":2}}}`),
+			[]byte(`{"type":"response.failed","response":{"id":"resp_oauth_1","model":"gpt-5.1","error":{"code":"rate_limit_exceeded","type":"rate_limit_error","message":"Rate limit exceeded"},"usage":{"input_tokens":3,"output_tokens":0}}}`),
 		},
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
@@ -654,6 +654,9 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthStoreFalseByDefault(t *testing.T
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "resp_oauth_1", result.RequestID)
+	require.Equal(t, "response.failed", result.WSTerminalEventType)
+	require.Equal(t, http.StatusTooManyRequests, *result.WSTerminalStatusCode)
+	require.Equal(t, "Rate limit exceeded", result.WSTerminalError)
 
 	require.NotNil(t, captureConn.lastWrite)
 	requestJSON := requestToJSONString(captureConn.lastWrite)

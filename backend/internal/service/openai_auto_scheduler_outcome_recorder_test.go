@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,6 +17,51 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+type blockingOutcomeRecorderLogHandler struct {
+	release <-chan struct{}
+}
+
+func (h *blockingOutcomeRecorderLogHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *blockingOutcomeRecorderLogHandler) Handle(_ context.Context, record slog.Record) error {
+	if record.Message == "OpenAI auto scheduler outcome recorder dropped feedback" {
+		<-h.release
+	}
+	return nil
+}
+
+func (h *blockingOutcomeRecorderLogHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *blockingOutcomeRecorderLogHandler) WithGroup(string) slog.Handler      { return h }
+
+type collectingOutcomeRecorderLogHandler struct {
+	mu       sync.Mutex
+	messages []string
+}
+
+func (h *collectingOutcomeRecorderLogHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *collectingOutcomeRecorderLogHandler) Handle(_ context.Context, record slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.messages = append(h.messages, record.Message)
+	return nil
+}
+
+func (h *collectingOutcomeRecorderLogHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *collectingOutcomeRecorderLogHandler) WithGroup(string) slog.Handler      { return h }
+
+func (h *collectingOutcomeRecorderLogHandler) count(message string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	count := 0
+	for _, recorded := range h.messages {
+		if recorded == message {
+			count++
+		}
+	}
+	return count
+}
 
 type blockingOpenAIAutoSchedulerOutcomeSink struct {
 	started chan struct{}
@@ -87,6 +133,80 @@ func TestOpenAIAutoSchedulerOutcomeRecorderDoesNotBlockWhenFull(t *testing.T) {
 	require.EqualValues(t, 1, metrics.Dropped)
 }
 
+func TestOpenAIAutoSchedulerOutcomeRecorderTryRecordDoesNotWaitForStopLock(t *testing.T) {
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(&collectingOpenAIAutoSchedulerOutcomeSink{}, 1, 1)
+	recorder.queueMu.Lock()
+
+	resultCh := make(chan bool, 1)
+	start := time.Now()
+	go func() {
+		resultCh <- recorder.TryRecord(OpenAIAutoSchedulerRecordInput{AccountID: 1})
+	}()
+
+	select {
+	case accepted := <-resultCh:
+		require.False(t, accepted)
+		require.Less(t, time.Since(start), 50*time.Millisecond)
+	case <-time.After(50 * time.Millisecond):
+		recorder.queueMu.Unlock()
+		<-resultCh
+		_ = recorder.Stop(context.Background())
+		t.Fatal("TryRecord blocked waiting for the lifecycle lock")
+	}
+	recorder.queueMu.Unlock()
+	require.NoError(t, recorder.Stop(context.Background()))
+	require.EqualValues(t, 1, recorder.SnapshotMetrics().Dropped)
+}
+
+func TestOpenAIAutoSchedulerOutcomeRecorderTryRecordDoesNotRunDropLogger(t *testing.T) {
+	sink := newBlockingOpenAIAutoSchedulerOutcomeSink()
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 1, 1)
+	require.True(t, recorder.TryRecord(OpenAIAutoSchedulerRecordInput{AccountID: 1}))
+	select {
+	case <-sink.started:
+	case <-time.After(time.Second):
+		t.Fatal("worker did not start processing the first record")
+	}
+	require.True(t, recorder.TryRecord(OpenAIAutoSchedulerRecordInput{AccountID: 2}))
+
+	releaseLog := make(chan struct{})
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(&blockingOutcomeRecorderLogHandler{release: releaseLog}))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+	resultCh := make(chan bool, 1)
+	go func() {
+		resultCh <- recorder.TryRecord(OpenAIAutoSchedulerRecordInput{AccountID: 3})
+	}()
+	select {
+	case accepted := <-resultCh:
+		require.False(t, accepted)
+	case <-time.After(50 * time.Millisecond):
+		close(releaseLog)
+		<-resultCh
+		close(sink.release)
+		_ = recorder.Stop(context.Background())
+		t.Fatal("TryRecord synchronously invoked the drop logger")
+	}
+	close(releaseLog)
+	close(sink.release)
+	require.NoError(t, recorder.Stop(context.Background()))
+}
+
+func TestOpenAIAutoSchedulerOutcomeRecorderLogsEachDroppedCountOnce(t *testing.T) {
+	handler := &collectingOutcomeRecorderLogHandler{}
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(handler))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+	recorder := &OpenAIAutoSchedulerOutcomeRecorder{}
+	recorder.recordDropped()
+	recorder.logDroppedFeedback()
+	recorder.logDroppedFeedback()
+
+	require.Equal(t, 1, handler.count("OpenAI auto scheduler outcome recorder dropped feedback"))
+}
+
 func TestOpenAIAutoSchedulerOutcomeRecorderStopDrainsAcceptedRecords(t *testing.T) {
 	sink := &collectingOpenAIAutoSchedulerOutcomeSink{}
 	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 4, 1)
@@ -108,6 +228,61 @@ func TestOpenAIAutoSchedulerOutcomeRecorderRejectsAfterStop(t *testing.T) {
 
 	require.False(t, recorder.TryRecord(OpenAIAutoSchedulerRecordInput{AccountID: 1}))
 	require.EqualValues(t, 1, recorder.SnapshotMetrics().Dropped)
+}
+
+func TestOpenAIAutoSchedulerOutcomeRecorderConcurrentTryRecordAndStop(t *testing.T) {
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(&collectingOpenAIAutoSchedulerOutcomeSink{}, 32, 2)
+	start := make(chan struct{})
+	var writers sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		writers.Add(1)
+		go func(accountID int64) {
+			defer writers.Done()
+			<-start
+			for recorder.TryRecord(OpenAIAutoSchedulerRecordInput{AccountID: accountID}) {
+			}
+		}(int64(i + 1))
+	}
+
+	close(start)
+	require.NoError(t, recorder.Stop(context.Background()))
+	writers.Wait()
+	require.False(t, recorder.TryRecord(OpenAIAutoSchedulerRecordInput{AccountID: 99}))
+}
+
+func TestOpenAIAutoSchedulerOutcomeRecorderConcurrentStopIsIdempotent(t *testing.T) {
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(&collectingOpenAIAutoSchedulerOutcomeSink{}, 4, 1)
+	var stops sync.WaitGroup
+	errs := make(chan error, 16)
+	for i := 0; i < cap(errs); i++ {
+		stops.Add(1)
+		go func() {
+			defer stops.Done()
+			errs <- recorder.Stop(context.Background())
+		}()
+	}
+	stops.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+}
+
+func TestOpenAIAutoSchedulerOutcomeRecorderStopCanWaitAgainAfterTimeout(t *testing.T) {
+	sink := newBlockingOpenAIAutoSchedulerOutcomeSink()
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 1, 1)
+	require.True(t, recorder.TryRecord(OpenAIAutoSchedulerRecordInput{AccountID: 1}))
+	select {
+	case <-sink.started:
+	case <-time.After(time.Second):
+		t.Fatal("worker did not start processing the record")
+	}
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	require.ErrorIs(t, recorder.Stop(stopCtx), context.DeadlineExceeded)
+	close(sink.release)
+	require.NoError(t, recorder.Stop(context.Background()))
 }
 
 func TestOpenAIAutoSchedulerOutcomeRecorderIsolatesSinkErrors(t *testing.T) {

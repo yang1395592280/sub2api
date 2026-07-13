@@ -1262,6 +1262,91 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_RecordsOutcomeThroughBo
 	require.Equal(t, &statusCode, event.StatusCode)
 }
 
+func TestOpenAIAutoSchedulerSuccessOutcomeClassifiesWSTerminalEvents(t *testing.T) {
+	tests := []struct {
+		name       string
+		result     *OpenAIForwardResult
+		wantEvent  string
+		wantStatus int
+	}{
+		{
+			name:       "non websocket result stays successful",
+			result:     &OpenAIForwardResult{},
+			wantEvent:  OpenAIAutoSchedulerEventSuccess,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "completed websocket response is successful",
+			result: &OpenAIForwardResult{
+				OpenAIWSMode:        true,
+				WSTerminalEventType: "response.completed",
+			},
+			wantEvent:  OpenAIAutoSchedulerEventSuccess,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "failed websocket response is an error",
+			result: &OpenAIForwardResult{
+				OpenAIWSMode:        true,
+				WSTerminalEventType: "response.failed",
+			},
+			wantEvent: OpenAIAutoSchedulerEventError,
+		},
+		{
+			name: "websocket response without terminal is an error",
+			result: &OpenAIForwardResult{
+				OpenAIWSMode: true,
+			},
+			wantEvent: OpenAIAutoSchedulerEventError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			outcome := openAIAutoSchedulerSuccessOutcome(nil, time.Now(), tt.result)
+			require.Equal(t, tt.wantEvent, outcome.EventType)
+			if tt.wantStatus == 0 {
+				require.Nil(t, outcome.StatusCode)
+			} else {
+				require.Equal(t, tt.wantStatus, *outcome.StatusCode)
+			}
+		})
+	}
+}
+
+func TestOpenAIAutoSchedulerSuccessOutcomeIncludesOuterTurnTimeInWSTTFT(t *testing.T) {
+	firstTokenMS := 20
+	turnStartedAt := time.Now().Add(-200 * time.Millisecond)
+	result := &OpenAIForwardResult{
+		OpenAIWSMode:        true,
+		WSTerminalEventType: "response.completed",
+		Duration:            100 * time.Millisecond,
+		FirstTokenMs:        &firstTokenMS,
+	}
+
+	outcome := openAIAutoSchedulerSuccessOutcome(nil, turnStartedAt, result)
+
+	require.NotNil(t, outcome.TtfbMS)
+	require.GreaterOrEqual(t, *outcome.TtfbMS, 110)
+	require.Less(t, *outcome.TtfbMS, 180)
+}
+
+func TestOpenAIAutoSchedulerSuccessOutcomeClassifiesWSSemanticRateLimit(t *testing.T) {
+	statusCode := http.StatusTooManyRequests
+	result := &OpenAIForwardResult{
+		OpenAIWSMode:         true,
+		WSTerminalEventType:  "response.failed",
+		WSTerminalStatusCode: &statusCode,
+		WSTerminalError:      "Rate limit exceeded",
+	}
+
+	outcome := openAIAutoSchedulerSuccessOutcome(nil, time.Now(), result)
+
+	require.Equal(t, OpenAIAutoSchedulerEventRateLimited, outcome.EventType)
+	require.Equal(t, http.StatusTooManyRequests, *outcome.StatusCode)
+	require.Equal(t, "Rate limit exceeded", outcome.Message)
+}
+
 func TestOpenAISelectAccountForModelWithExclusions_StickyExcludedFallback(t *testing.T) {
 	sessionHash := "excluded"
 	repo := stubOpenAIAccountRepo{

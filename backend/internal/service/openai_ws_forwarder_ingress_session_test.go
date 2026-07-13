@@ -39,7 +39,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 	captureConn := &openAIWSCaptureConn{
 		events: [][]byte{
 			[]byte(`{"type":"response.completed","response":{"id":"resp_ingress_turn_1","model":"gpt-5.1","usage":{"input_tokens":1,"output_tokens":1}}}`),
-			[]byte(`{"type":"response.completed","response":{"id":"resp_ingress_turn_2","model":"gpt-5.1","usage":{"input_tokens":1,"output_tokens":1}}}`),
+			[]byte(`{"type":"response.failed","response":{"id":"resp_ingress_turn_2","model":"gpt-5.1","error":{"code":"rate_limit_exceeded","type":"rate_limit_error","message":"Rate limit exceeded"},"usage":{"input_tokens":1,"output_tokens":0}}}`),
 		},
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
@@ -149,7 +149,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 
 	writeMessage(`{"type":"response.create","model":"gpt-5.1","stream":false,"previous_response_id":"resp_ingress_turn_1"}`)
 	secondTurnEvent := readMessage()
-	require.Equal(t, "response.completed", gjson.GetBytes(secondTurnEvent, "type").String())
+	require.Equal(t, "response.failed", gjson.GetBytes(secondTurnEvent, "type").String())
 	require.Equal(t, "resp_ingress_turn_2", gjson.GetBytes(secondTurnEvent, "response.id").String())
 	require.True(t, <-turnWSModeCh, "首轮 turn 应标记为 WS 模式")
 	require.True(t, <-turnWSModeCh, "第二轮 turn 应标记为 WS 模式")
@@ -171,11 +171,96 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 	outcomes := outcomeSink.snapshot()
 	require.Len(t, outcomes, 2, "每个完成的 native WS turn 应只记录一次")
 	for _, outcome := range outcomes {
-		require.Equal(t, OpenAIAutoSchedulerEventSuccess, outcome.EventType)
 		require.Equal(t, account.ID, outcome.AccountID)
 		require.Equal(t, groupID, outcome.GroupID)
 		require.Equal(t, "gpt-5.1", outcome.Model)
 	}
+	require.Equal(t, OpenAIAutoSchedulerEventSuccess, outcomes[0].EventType)
+	require.Equal(t, OpenAIAutoSchedulerEventRateLimited, outcomes[1].EventType)
+	require.Equal(t, http.StatusTooManyRequests, *outcomes[1].StatusCode)
+	require.Equal(t, "Rate limit exceeded", outcomes[1].Message)
+}
+
+func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_InitialAcquireRateLimitRecordsOutcome(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{}
+	cfg.Security.URLAllowlist.Enabled = false
+	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
+	cfg.Gateway.OpenAIWS.Enabled = true
+	cfg.Gateway.OpenAIWS.OAuthEnabled = true
+	cfg.Gateway.OpenAIWS.APIKeyEnabled = true
+	cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
+	cfg.Gateway.OpenAIWS.MaxConnsPerAccount = 1
+	cfg.Gateway.OpenAIWS.QueueLimitPerConn = 1
+
+	dialer := &openAIWSQueueDialer{
+		failureStatus: http.StatusTooManyRequests,
+		failureErr:    errors.New("upstream websocket rate limited"),
+	}
+	pool := newOpenAIWSConnPool(cfg)
+	pool.setClientDialerForTest(dialer)
+	groupID := int64(77)
+	outcomeSink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+	outcomeRecorder := NewOpenAIAutoSchedulerOutcomeRecorder(outcomeSink, 2, 1)
+	svc := &OpenAIGatewayService{
+		cfg:                                cfg,
+		httpUpstream:                       &httpUpstreamRecorder{},
+		cache:                              &stubGatewayCache{},
+		openaiWSResolver:                   NewOpenAIWSProtocolResolver(cfg),
+		toolCorrector:                      NewCodexToolCorrector(),
+		openaiWSPool:                       pool,
+		openAIAutoSchedulerOutcomeRecorder: outcomeRecorder,
+	}
+	account := &Account{
+		ID: 454, Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
+		Status: StatusActive, Schedulable: true, Concurrency: 1,
+		Credentials: map[string]any{"api_key": "sk-test"},
+		Extra:       map[string]any{"responses_websockets_v2_enabled": true},
+	}
+
+	serverErrCh := make(chan error, 1)
+	wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := coderws.Accept(w, r, nil)
+		if err != nil {
+			serverErrCh <- err
+			return
+		}
+		defer func() { _ = conn.CloseNow() }()
+		ginCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ginCtx.Request = r
+		ginCtx.Set("api_key", &APIKey{GroupID: &groupID})
+		readCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		msgType, firstMessage, readErr := conn.Read(readCtx)
+		cancel()
+		if readErr != nil {
+			serverErrCh <- readErr
+			return
+		}
+		if msgType != coderws.MessageText {
+			serverErrCh <- errors.New("unexpected client frame type")
+			return
+		}
+		serverErrCh <- svc.ProxyResponsesWebSocketFromClient(r.Context(), ginCtx, conn, account, "sk-test", firstMessage, nil)
+	}))
+	defer wsServer.Close()
+
+	clientConn, _, err := coderws.Dial(context.Background(), "ws"+strings.TrimPrefix(wsServer.URL, "http"), nil)
+	require.NoError(t, err)
+	defer func() { _ = clientConn.CloseNow() }()
+	require.NoError(t, clientConn.Write(context.Background(), coderws.MessageText, []byte(`{"type":"response.create","model":"gpt-5.1"}`)))
+	select {
+	case serverErr := <-serverErrCh:
+		require.Error(t, serverErr)
+		require.Contains(t, serverErr.Error(), "acquire upstream websocket")
+	case <-time.After(5 * time.Second):
+		t.Fatal("等待 initial acquire 失败超时")
+	}
+
+	require.NoError(t, outcomeRecorder.Stop(context.Background()))
+	outcomes := outcomeSink.snapshot()
+	require.Len(t, outcomes, 1)
+	require.Equal(t, OpenAIAutoSchedulerEventRateLimited, outcomes[0].EventType)
+	require.Equal(t, http.StatusTooManyRequests, *outcomes[0].StatusCode)
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_FollowupCreateCanOmitModel(t *testing.T) {
@@ -736,6 +821,126 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 	require.Equal(t, account.ID, outcomes[0].AccountID)
 	require.Equal(t, groupID, outcomes[0].GroupID)
 	require.Equal(t, "gpt-5.1", outcomes[0].Model)
+}
+
+func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughRecordsSemanticAndMissingTerminalFailures(t *testing.T) {
+	tests := []struct {
+		name       string
+		events     [][]byte
+		wantEvent  string
+		wantFrame  string
+		wantStatus int
+	}{
+		{
+			name:       "semantic rate limit",
+			events:     [][]byte{[]byte(`{"type":"response.failed","response":{"id":"resp_passthrough_failed","error":{"code":"rate_limit_exceeded","type":"rate_limit_error","message":"Rate limit exceeded"}}}`)},
+			wantEvent:  OpenAIAutoSchedulerEventRateLimited,
+			wantFrame:  "response.failed",
+			wantStatus: http.StatusTooManyRequests,
+		},
+		{
+			name:      "upstream closes before terminal",
+			wantEvent: OpenAIAutoSchedulerEventError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			cfg := &config.Config{}
+			cfg.Security.URLAllowlist.Enabled = false
+			cfg.Security.URLAllowlist.AllowInsecureHTTP = true
+			cfg.Gateway.OpenAIWS.Enabled = true
+			cfg.Gateway.OpenAIWS.OAuthEnabled = true
+			cfg.Gateway.OpenAIWS.APIKeyEnabled = true
+			cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
+			cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
+
+			upstreamConn := &openAIWSCaptureConn{events: tt.events}
+			groupID := int64(75)
+			outcomeSink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+			outcomeRecorder := NewOpenAIAutoSchedulerOutcomeRecorder(outcomeSink, 4, 1)
+			svc := &OpenAIGatewayService{
+				cfg:                                cfg,
+				httpUpstream:                       &httpUpstreamRecorder{},
+				cache:                              &stubGatewayCache{},
+				openaiWSResolver:                   NewOpenAIWSProtocolResolver(cfg),
+				toolCorrector:                      NewCodexToolCorrector(),
+				openaiWSPassthroughDialer:          &openAIWSCaptureDialer{conn: upstreamConn},
+				openAIAutoSchedulerOutcomeRecorder: outcomeRecorder,
+			}
+			account := &Account{
+				ID: 453, Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
+				Status: StatusActive, Schedulable: true, Concurrency: 1,
+				Credentials: map[string]any{"api_key": "sk-test"},
+				Extra:       map[string]any{"openai_apikey_responses_websockets_v2_mode": OpenAIWSIngressModePassthrough},
+			}
+
+			serverErrCh := make(chan error, 1)
+			resultCh := make(chan *OpenAIForwardResult, 1)
+			wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := coderws.Accept(w, r, nil)
+				if err != nil {
+					serverErrCh <- err
+					return
+				}
+				defer func() { _ = conn.CloseNow() }()
+				ginCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+				ginCtx.Request = r
+				ginCtx.Set("api_key", &APIKey{GroupID: &groupID})
+				readCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+				msgType, firstMessage, readErr := conn.Read(readCtx)
+				cancel()
+				if readErr != nil {
+					serverErrCh <- readErr
+					return
+				}
+				hooks := &OpenAIWSIngressHooks{AfterTurn: func(_ int, result *OpenAIForwardResult, turnErr error) {
+					if result != nil && turnErr == nil {
+						resultCh <- result
+					}
+				}}
+				if msgType != coderws.MessageText {
+					serverErrCh <- errors.New("unexpected client frame type")
+					return
+				}
+				serverErrCh <- svc.ProxyResponsesWebSocketFromClient(r.Context(), ginCtx, conn, account, "sk-test", firstMessage, hooks)
+			}))
+			defer wsServer.Close()
+
+			clientConn, _, err := coderws.Dial(context.Background(), "ws"+strings.TrimPrefix(wsServer.URL, "http"), nil)
+			require.NoError(t, err)
+			defer func() { _ = clientConn.CloseNow() }()
+			require.NoError(t, clientConn.Write(context.Background(), coderws.MessageText, []byte(`{"type":"response.create","model":"gpt-5.1"}`)))
+			if tt.wantFrame != "" {
+				_, frame, readErr := clientConn.Read(context.Background())
+				require.NoError(t, readErr)
+				require.Equal(t, tt.wantFrame, gjson.GetBytes(frame, "type").String())
+			}
+			_ = clientConn.Close(coderws.StatusNormalClosure, "done")
+
+			select {
+			case serverErr := <-serverErrCh:
+				require.NoError(t, serverErr)
+			case <-time.After(5 * time.Second):
+				t.Fatal("等待 passthrough 结束超时")
+			}
+			require.NoError(t, outcomeRecorder.Stop(context.Background()))
+			outcomes := outcomeSink.snapshot()
+			require.Len(t, outcomes, 1)
+			require.Equal(t, tt.wantEvent, outcomes[0].EventType)
+			if tt.wantStatus > 0 {
+				require.Equal(t, tt.wantStatus, *outcomes[0].StatusCode)
+				select {
+				case result := <-resultCh:
+					require.Equal(t, tt.wantFrame, result.WSTerminalEventType)
+					require.Equal(t, tt.wantStatus, *result.WSTerminalStatusCode)
+				default:
+					t.Fatal("未收到 semantic terminal result")
+				}
+			}
+		})
+	}
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeadersUsePromptCacheAndTurnState(t *testing.T) {
@@ -2320,7 +2525,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 	require.Equal(t, "resp_auto_prev_ref_1", gjson.Get(requestToJSONString(captureConn.writes[1]), "previous_response_id").String(), "仅有 item_reference 不足以自包含 function_call_output，应回填上一轮响应 ID")
 }
 
-func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreflightPingFailReconnectsBeforeTurn(t *testing.T) {
+func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreflightPingFailReacquireRateLimitRecordsOutcome(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	prevPreflightPingIdle := openAIWSIngressPreflightPingIdle
 	openAIWSIngressPreflightPingIdle = 0
@@ -2348,24 +2553,25 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreflightPingFai
 			[]byte(`{"type":"response.completed","response":{"id":"resp_turn_ping_1","model":"gpt-5.1","usage":{"input_tokens":1,"output_tokens":1}}}`),
 		},
 	}
-	secondConn := &openAIWSCaptureConn{
-		events: [][]byte{
-			[]byte(`{"type":"response.completed","response":{"id":"resp_turn_ping_2","model":"gpt-5.1","usage":{"input_tokens":1,"output_tokens":1}}}`),
-		},
-	}
 	dialer := &openAIWSQueueDialer{
-		conns: []openAIWSClientConn{firstConn, secondConn},
+		conns:         []openAIWSClientConn{firstConn},
+		failureStatus: http.StatusTooManyRequests,
+		failureErr:    errors.New("upstream websocket rate limited"),
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.setClientDialerForTest(dialer)
+	groupID := int64(76)
+	outcomeSink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+	outcomeRecorder := NewOpenAIAutoSchedulerOutcomeRecorder(outcomeSink, 4, 1)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:                                cfg,
+		httpUpstream:                       &httpUpstreamRecorder{},
+		cache:                              &stubGatewayCache{},
+		openaiWSResolver:                   NewOpenAIWSProtocolResolver(cfg),
+		toolCorrector:                      NewCodexToolCorrector(),
+		openaiWSPool:                       pool,
+		openAIAutoSchedulerOutcomeRecorder: outcomeRecorder,
 	}
 
 	account := &Account{
@@ -2403,6 +2609,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreflightPingFai
 		req.Header = req.Header.Clone()
 		req.Header.Set("User-Agent", "unit-test-agent/1.0")
 		ginCtx.Request = req
+		ginCtx.Set("api_key", &APIKey{GroupID: &groupID})
 
 		readCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		msgType, firstMessage, readErr := conn.Read(readCtx)
@@ -2447,19 +2654,22 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreflightPingFai
 	require.Equal(t, "resp_turn_ping_1", gjson.GetBytes(firstTurn, "response.id").String())
 
 	writeMessage(`{"type":"response.create","model":"gpt-5.1","stream":false,"previous_response_id":"resp_turn_ping_1"}`)
-	secondTurn := readMessage()
-	require.Equal(t, "resp_turn_ping_2", gjson.GetBytes(secondTurn, "response.id").String())
-
-	require.NoError(t, clientConn.Close(coderws.StatusNormalClosure, "done"))
 	select {
 	case serverErr := <-serverErrCh:
-		require.NoError(t, serverErr)
+		require.Error(t, serverErr)
+		require.Contains(t, serverErr.Error(), "acquire upstream websocket after preflight ping fail")
 	case <-time.After(5 * time.Second):
 		t.Fatal("等待 ingress websocket 结束超时")
 	}
-	require.Equal(t, 2, dialer.DialCount(), "第二轮 turn 前 ping 失败应触发换连")
+	require.Equal(t, 2, dialer.DialCount(), "第二轮 turn 前 ping 失败应尝试换连")
 	require.Equal(t, 1, firstConn.WriteCount(), "preflight ping 失败后不应继续向旧连接发送第二轮 turn")
 	require.GreaterOrEqual(t, firstConn.PingCount(), 1, "第二轮前应对旧连接执行 preflight ping")
+	require.NoError(t, outcomeRecorder.Stop(context.Background()))
+	outcomes := outcomeSink.snapshot()
+	require.Len(t, outcomes, 2)
+	require.Equal(t, OpenAIAutoSchedulerEventSuccess, outcomes[0].EventType)
+	require.Equal(t, OpenAIAutoSchedulerEventRateLimited, outcomes[1].EventType)
+	require.Equal(t, http.StatusTooManyRequests, *outcomes[1].StatusCode)
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStrictAffinityPreflightPingFailAutoRecoveryReconnects(t *testing.T) {
@@ -2807,14 +3017,18 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.setClientDialerForTest(dialer)
+	groupID := int64(73)
+	outcomeSink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+	outcomeRecorder := NewOpenAIAutoSchedulerOutcomeRecorder(outcomeSink, 4, 1)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:                                cfg,
+		httpUpstream:                       &httpUpstreamRecorder{},
+		cache:                              &stubGatewayCache{},
+		openaiWSResolver:                   NewOpenAIWSProtocolResolver(cfg),
+		toolCorrector:                      NewCodexToolCorrector(),
+		openaiWSPool:                       pool,
+		openAIAutoSchedulerOutcomeRecorder: outcomeRecorder,
 	}
 
 	account := &Account{
@@ -2852,6 +3066,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 		req.Header = req.Header.Clone()
 		req.Header.Set("User-Agent", "unit-test-agent/1.0")
 		ginCtx.Request = req
+		ginCtx.Set("api_key", &APIKey{GroupID: &groupID})
 
 		readCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		msgType, firstMessage, readErr := conn.Read(readCtx)
@@ -2913,6 +3128,11 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 	secondWrites := append([]map[string]any(nil), secondConn.writes...)
 	secondConn.mu.Unlock()
 	require.Empty(t, secondWrites, "不能把旧连接的 previous_response_id 发送到新上游，否则会触发 previous_response_not_found")
+	require.NoError(t, outcomeRecorder.Stop(context.Background()))
+	outcomes := outcomeSink.snapshot()
+	require.Len(t, outcomes, 2)
+	require.Equal(t, OpenAIAutoSchedulerEventSuccess, outcomes[0].EventType)
+	require.Equal(t, OpenAIAutoSchedulerEventError, outcomes[1].EventType)
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPreflightPingFailClosesWhenReplayHasFunctionCallOutput(t *testing.T) {
@@ -3094,14 +3314,18 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_WriteFailBeforeD
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.setClientDialerForTest(dialer)
+	groupID := int64(74)
+	outcomeSink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+	outcomeRecorder := NewOpenAIAutoSchedulerOutcomeRecorder(outcomeSink, 4, 1)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:                                cfg,
+		httpUpstream:                       &httpUpstreamRecorder{},
+		cache:                              &stubGatewayCache{},
+		openaiWSResolver:                   NewOpenAIWSProtocolResolver(cfg),
+		toolCorrector:                      NewCodexToolCorrector(),
+		openaiWSPool:                       pool,
+		openAIAutoSchedulerOutcomeRecorder: outcomeRecorder,
 	}
 
 	account := &Account{
@@ -3155,6 +3379,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_WriteFailBeforeD
 		req.Header = req.Header.Clone()
 		req.Header.Set("User-Agent", "unit-test-agent/1.0")
 		ginCtx.Request = req
+		ginCtx.Set("api_key", &APIKey{GroupID: &groupID})
 
 		readCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		msgType, firstMessage, readErr := conn.Read(readCtx)
@@ -3220,6 +3445,11 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_WriteFailBeforeD
 	require.Equal(t, 1, beforeTurn2, "同一 turn 重试不应重复触发 BeforeTurn")
 	require.Equal(t, 1, afterTurn1, "首轮 turn AfterTurn 应执行一次")
 	require.Equal(t, 1, afterTurn2, "第二轮 turn AfterTurn 应执行一次")
+	require.NoError(t, outcomeRecorder.Stop(context.Background()))
+	outcomes := outcomeSink.snapshot()
+	require.Len(t, outcomes, 2, "内部重试不应重复记录 scheduler outcome")
+	require.Equal(t, OpenAIAutoSchedulerEventSuccess, outcomes[0].EventType)
+	require.Equal(t, OpenAIAutoSchedulerEventSuccess, outcomes[1].EventType)
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponseNotFoundRecoversByDroppingPrevID(t *testing.T) {
@@ -3777,9 +4007,11 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_RejectsMessageID
 }
 
 type openAIWSQueueDialer struct {
-	mu        sync.Mutex
-	conns     []openAIWSClientConn
-	dialCount int
+	mu            sync.Mutex
+	conns         []openAIWSClientConn
+	failureStatus int
+	failureErr    error
+	dialCount     int
 }
 
 func (d *openAIWSQueueDialer) Dial(
@@ -3796,12 +4028,18 @@ func (d *openAIWSQueueDialer) Dial(
 	defer d.mu.Unlock()
 	d.dialCount++
 	if len(d.conns) == 0 {
-		return nil, 503, nil, errors.New("no test conn")
+		statusCode := d.failureStatus
+		if statusCode == 0 {
+			statusCode = http.StatusServiceUnavailable
+		}
+		err := d.failureErr
+		if err == nil {
+			err = errors.New("no test conn")
+		}
+		return nil, statusCode, nil, err
 	}
 	conn := d.conns[0]
-	if len(d.conns) > 1 {
-		d.conns = d.conns[1:]
-	}
+	d.conns = d.conns[1:]
 	return conn, 0, nil, nil
 }
 

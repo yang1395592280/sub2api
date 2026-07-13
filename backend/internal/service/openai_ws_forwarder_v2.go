@@ -323,6 +323,9 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	usage := &OpenAIUsage{}
 	imageCounter := newOpenAIImageOutputCounter()
 	var firstTokenMs *int
+	var terminalEventType string
+	var terminalStatusCode *int
+	var terminalError string
 	responseID := ""
 	var finalResponse []byte
 	wroteDownstream := false
@@ -471,6 +474,9 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		isTerminalEvent := isOpenAIWSTerminalEvent(eventType)
 		if isTerminalEvent {
 			terminalEventCount++
+			terminalEventType = eventType
+			errCodeRaw, errTypeRaw, errMsgRaw := parseOpenAIWSErrorEventFields(message)
+			terminalStatusCode, terminalError = openAIWSTerminalOutcomeMetadata(eventType, errCodeRaw, errTypeRaw, errMsgRaw)
 		}
 		if firstTokenMs == nil && isTokenEvent {
 			ms := int(time.Since(startTime).Milliseconds())
@@ -685,19 +691,22 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	)
 
 	return &OpenAIForwardResult{
-		RequestID:        responseID,
-		Usage:            *usage,
-		Model:            originalModel,
-		UpstreamModel:    mappedModel,
-		ImageCount:       imageCounter.Count(),
-		ImageOutputSizes: imageCounter.Sizes(),
-		ServiceTier:      extractOpenAIServiceTier(reqBody),
-		ReasoningEffort:  extractOpenAIReasoningEffort(reqBody, mappedModel, originalModel),
-		Stream:           reqStream,
-		OpenAIWSMode:     true,
-		ResponseHeaders:  lease.HandshakeHeaders(),
-		Duration:         time.Since(startTime),
-		FirstTokenMs:     firstTokenMs,
+		RequestID:            responseID,
+		Usage:                *usage,
+		Model:                originalModel,
+		UpstreamModel:        mappedModel,
+		ImageCount:           imageCounter.Count(),
+		ImageOutputSizes:     imageCounter.Sizes(),
+		ServiceTier:          extractOpenAIServiceTier(reqBody),
+		ReasoningEffort:      extractOpenAIReasoningEffort(reqBody, mappedModel, originalModel),
+		Stream:               reqStream,
+		OpenAIWSMode:         true,
+		WSTerminalEventType:  terminalEventType,
+		WSTerminalStatusCode: terminalStatusCode,
+		WSTerminalError:      terminalError,
+		ResponseHeaders:      lease.HandshakeHeaders(),
+		Duration:             time.Since(startTime),
+		FirstTokenMs:         firstTokenMs,
 	}, nil
 }
 

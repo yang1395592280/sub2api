@@ -78,6 +78,37 @@ func TestOpenAIWSErrorEventHelpers_ConsistentWithWrapper(t *testing.T) {
 	require.Equal(t, wrappedMsg, rawMsg)
 }
 
+func TestParseOpenAIWSErrorEventFieldsReadsResponseTerminalError(t *testing.T) {
+	message := []byte(`{"type":"response.failed","response":{"error":{"type":"rate_limit_error","code":"rate_limit_exceeded","message":"Rate limit exceeded"}}}`)
+
+	code, errType, errMessage := parseOpenAIWSErrorEventFields(message)
+
+	require.Equal(t, "rate_limit_exceeded", code)
+	require.Equal(t, "rate_limit_error", errType)
+	require.Equal(t, "Rate limit exceeded", errMessage)
+}
+
+func TestOpenAIWSTerminalOutcomeMetadata(t *testing.T) {
+	statusCode, message := openAIWSTerminalOutcomeMetadata(
+		"response.failed",
+		"rate_limit_exceeded",
+		"rate_limit_error",
+		"Rate limit exceeded",
+	)
+	require.NotNil(t, statusCode)
+	require.Equal(t, http.StatusTooManyRequests, *statusCode)
+	require.Equal(t, "Rate limit exceeded", message)
+
+	statusCode, message = openAIWSTerminalOutcomeMetadata("response.completed", "", "", "")
+	require.Nil(t, statusCode)
+	require.Empty(t, message)
+
+	statusCode, message = openAIWSTerminalOutcomeMetadata("response.cancelled", "", "", "")
+	require.NotNil(t, statusCode)
+	require.Equal(t, http.StatusBadGateway, *statusCode)
+	require.Equal(t, "response.cancelled", message)
+}
+
 func TestOpenAIWSMessageLikelyContainsToolCalls(t *testing.T) {
 	require.False(t, openAIWSMessageLikelyContainsToolCalls([]byte(`{"type":"response.output_text.delta","delta":"hello"}`)))
 	require.True(t, openAIWSMessageLikelyContainsToolCalls([]byte(`{"type":"response.output_item.added","item":{"tool_calls":[{"id":"tc1"}]}}`)))

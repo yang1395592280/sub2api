@@ -205,6 +205,32 @@ func isOpenAIWSTerminalEvent(eventType string) bool {
 	}
 }
 
+func openAIWSTerminalOutcomeMetadata(eventType, codeRaw, errTypeRaw, msgRaw string) (*int, string) {
+	eventType = strings.TrimSpace(eventType)
+	if eventType == "response.completed" || eventType == "response.done" {
+		return nil, ""
+	}
+	if !isOpenAIWSTerminalEvent(eventType) {
+		return nil, ""
+	}
+
+	statusCode := openAIWSErrorHTTPStatusFromRaw(codeRaw, errTypeRaw)
+	if isOpenAIWSRateLimitError(codeRaw, errTypeRaw, msgRaw) {
+		statusCode = http.StatusTooManyRequests
+	}
+	message := strings.TrimSpace(msgRaw)
+	if message == "" {
+		message = strings.TrimSpace(codeRaw)
+	}
+	if message == "" {
+		message = strings.TrimSpace(errTypeRaw)
+	}
+	if message == "" {
+		message = eventType
+	}
+	return &statusCode, message
+}
+
 func isOpenAIWSTokenEvent(eventType string) bool {
 	eventType = strings.TrimSpace(eventType)
 	if eventType == "" {
