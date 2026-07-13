@@ -264,6 +264,21 @@ func TestMigration180AllowsOnlyLuckyCoinRecordAppend(t *testing.T) {
 	require.Contains(t, sql, "RAISE EXCEPTION 'zenxiang_liyu_records are immutable'")
 }
 
+func TestMigration181AllowsLuckyCoinHalfLoss(t *testing.T) {
+	content, err := FS.ReadFile("181_zenxiang_liyu_lucky_coin_half_loss.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "CREATE OR REPLACE FUNCTION zenxiang_liyu_records_prevent_mutation()")
+	require.Contains(t, sql, "NEW.lucky_coin_adjustment = -1.5 * OLD.reward_amount")
+	require.Contains(t, sql, "NEW.user_net_amount = OLD.user_net_amount + NEW.lucky_coin_adjustment")
+	require.Contains(t, sql, "NEW.system_expense = OLD.system_expense + NEW.lucky_coin_adjustment")
+	require.Contains(t, sql, "NEW.system_profit = OLD.system_profit - NEW.lucky_coin_adjustment")
+	require.Contains(t, sql, "- 'lucky_coin_adjustment'")
+	require.Contains(t, sql, "- 'balance_after_lucky'")
+	require.Contains(t, sql, "RAISE EXCEPTION 'zenxiang_liyu_records are immutable'")
+}
+
 func TestMigration154AddsSparkShadowColumnsAndConstraintsWithoutHotIndexes(t *testing.T) {
 	content, err := FS.ReadFile("154_account_spark_shadow.sql")
 	require.NoError(t, err)

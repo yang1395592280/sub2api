@@ -91,7 +91,7 @@ export default {
       unitSalePrice: 'Sale Unit Price',
       unitCostPrice: 'Channel Cost',
       luckyCoinEnabled: 'Lucky Coin',
-      luckyCoinHint: 'After winning, users can flip once. A miss removes and reverses the original reward.',
+      luckyCoinHint: 'After winning, users can flip once. A miss results in a net loss of half the original reward.',
       luckyCoinDoubleProbability: 'Double Chance (%)',
       expectedRewardPerTicket: 'Expected Reward / Ticket',
       rewardRate: 'Reward Rate',

@@ -820,7 +820,7 @@ func (r *zenxiangLiyuRepository) PlayLuckyCoin(ctx context.Context, cmd service.
 	}
 
 	outcome := "zero"
-	adjustment := -2 * record.reward
+	adjustment := -1.5 * record.reward
 	if cmd.Roll < settings.probability {
 		outcome = "double"
 		adjustment = record.reward

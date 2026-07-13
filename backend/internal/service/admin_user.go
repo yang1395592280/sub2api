@@ -1120,7 +1120,7 @@ FROM (
            CASE WHEN lucky_coin_adjustment > 0 THEN '幸运金币翻倍' ELSE '幸运金币扣减' END AS source_label,
            CASE WHEN lucky_coin_adjustment > 0
                 THEN '幸运金币奖励翻倍：' || prize_name_snapshot
-                ELSE '幸运金币未中，扣回并倒扣：' || prize_name_snapshot
+                ELSE '幸运金币未中，减半损失：' || prize_name_snapshot
            END AS source_detail,
            'zenxiang_liyu_records:' || id || ':lucky_coin' AS reference_id,
            COALESCE(lucky_coin_played_at, created_at) AS created_at

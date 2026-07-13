@@ -91,7 +91,7 @@ export default {
       unitSalePrice: '售卖单价',
       unitCostPrice: '渠道成本价',
       luckyCoinEnabled: '幸运金币',
-      luckyCoinHint: '中奖后可翻牌，未中会扣回并倒扣原奖励',
+      luckyCoinHint: '中奖后可翻牌，未中时最终损失原奖励的一半',
       luckyCoinDoubleProbability: '翻倍概率(%)',
       expectedRewardPerTicket: '每张券期望奖励',
       rewardRate: '抽奖返利率',
