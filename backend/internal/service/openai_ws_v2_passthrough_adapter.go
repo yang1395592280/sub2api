@@ -468,16 +468,29 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			if msgType != coderws.MessageText {
 				return payload, nil, nil
 			}
-			if strings.TrimSpace(gjson.GetBytes(payload, "type").String()) == "response.create" && hooks != nil && hooks.BeforeRequest != nil {
+			isResponseCreate := strings.TrimSpace(gjson.GetBytes(payload, "type").String()) == "response.create"
+			lifecycleTurnNo := 0
+			lifecycleStarted := false
+			completeLocalReject := func(turnErr error) {
+				if !lifecycleStarted || hooks == nil || hooks.AfterTurn == nil {
+					return
+				}
+				lifecycleStarted = false
+				hooks.AfterTurn(lifecycleTurnNo, nil, turnErr)
+			}
+			if isResponseCreate && hooks != nil && hooks.BeforeRequest != nil {
 				turnNo := pendingTurns.nextTurnNo()
 				if turnNo < 2 {
 					turnNo = 2
 				}
+				lifecycleTurnNo = turnNo
+				lifecycleStarted = true
 				requestModel := usageMeta.requestModelForFrame(payload)
 				if requestModel == "" {
 					requestModel = capturedSessionModel
 				}
 				if err := hooks.BeforeRequest(turnNo, payload, requestModel); err != nil {
+					completeLocalReject(err)
 					return payload, nil, err
 				}
 			}
@@ -503,6 +516,11 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 				model = capturedSessionModel
 			}
 			out, blocked, policyErr := s.applyOpenAIFastPolicyToWSResponseCreate(ctx, account, model, payload)
+			if policyErr != nil {
+				completeLocalReject(policyErr)
+			} else if blocked != nil {
+				completeLocalReject(blocked)
+			}
 			// 多轮 passthrough usage：仅在成功（non-block / non-err）
 			// 的 response.create 帧上更新 usageMeta，使用
 			// filter 处理后的 payload，与首帧 policy-after-extract 语义
@@ -517,8 +535,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			//     extractOpenAIServiceTierFromBody 返回 nil；这里有意
 			//     覆盖（Store(nil)），因为 OpenAI 上游对该帧实际不传
 			//     service_tier 时按 default 处理，billing 应如实反映。
-			if policyErr == nil && blocked == nil &&
-				strings.TrimSpace(gjson.GetBytes(payload, "type").String()) == "response.create" {
+			if policyErr == nil && blocked == nil && isResponseCreate {
 				usageMeta.updateFromResponseCreate(out, model, requestModelForThisFrame)
 				pendingModel := requestModelForThisFrame
 				if pendingModel == "" {

@@ -239,6 +239,159 @@ func TestOpenAIWSPassthroughPendingTurnsConcurrentPopAndDrainDoNotDuplicate(t *t
 	}
 }
 
+func TestOpenAIGatewayService_PassthroughFollowupLocalRejectCompletesLifecycleOnce(t *testing.T) {
+	tests := []struct {
+		name               string
+		beforeRequestErr   error
+		configureFastBlock bool
+	}{
+		{name: "before request error", beforeRequestErr: errors.New("content moderation rejected follow-up")},
+		{name: "fast policy block", configureFastBlock: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			cfg := &config.Config{}
+			cfg.Security.URLAllowlist.Enabled = false
+			cfg.Security.URLAllowlist.AllowInsecureHTTP = true
+			cfg.Gateway.OpenAIWS.Enabled = true
+			cfg.Gateway.OpenAIWS.OAuthEnabled = true
+			cfg.Gateway.OpenAIWS.APIKeyEnabled = true
+			cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
+			cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
+
+			upstream := newOpenAIWSChannelFrameConn()
+			groupID := int64(81)
+			sink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+			recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 4, 1)
+			svc := &OpenAIGatewayService{
+				cfg:                                cfg,
+				httpUpstream:                       &httpUpstreamRecorder{},
+				cache:                              &stubGatewayCache{},
+				openaiWSResolver:                   NewOpenAIWSProtocolResolver(cfg),
+				toolCorrector:                      NewCodexToolCorrector(),
+				openaiWSPassthroughDialer:          &openAIWSStaticClientDialer{conn: upstream},
+				openAIAutoSchedulerOutcomeRecorder: recorder,
+			}
+			if tt.configureFastBlock {
+				settings := &OpenAIFastPolicySettings{Rules: []OpenAIFastPolicyRule{{
+					ServiceTier:    OpenAIFastTierPriority,
+					Action:         BetaPolicyActionBlock,
+					Scope:          BetaPolicyScopeAll,
+					ErrorMessage:   "priority blocked for lifecycle test",
+					ModelWhitelist: []string{"gpt-5.5"},
+					FallbackAction: BetaPolicyActionPass,
+				}}}
+				repo := &openAIFastPolicyRepoStub{values: map[string]string{}}
+				raw, err := json.Marshal(settings)
+				require.NoError(t, err)
+				repo.values[SettingKeyOpenAIFastPolicySettings] = string(raw)
+				svc.settingService = NewSettingService(repo, cfg)
+			}
+			account := &Account{
+				ID: 456, Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
+				Status: StatusActive, Schedulable: true, Concurrency: 1,
+				Credentials: map[string]any{"api_key": "sk-test"},
+				Extra:       map[string]any{"openai_apikey_responses_websockets_v2_mode": OpenAIWSIngressModePassthrough},
+			}
+
+			var lifecycleMu sync.Mutex
+			turn2Active := 0
+			turn2AfterCalls := 0
+			var turn2AfterErr error
+			hooks := &OpenAIWSIngressHooks{
+				BeforeRequest: func(turn int, _ []byte, _ string) error {
+					if turn != 2 {
+						return nil
+					}
+					lifecycleMu.Lock()
+					turn2Active++
+					lifecycleMu.Unlock()
+					return tt.beforeRequestErr
+				},
+				AfterTurn: func(turn int, _ *OpenAIForwardResult, turnErr error) {
+					if turn != 2 {
+						return
+					}
+					lifecycleMu.Lock()
+					defer lifecycleMu.Unlock()
+					turn2Active--
+					turn2AfterCalls++
+					turn2AfterErr = turnErr
+				},
+			}
+
+			serverErrCh := make(chan error, 1)
+			wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := coderws.Accept(w, r, nil)
+				if err != nil {
+					serverErrCh <- err
+					return
+				}
+				defer func() { _ = conn.CloseNow() }()
+				ginCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+				ginCtx.Request = r
+				ginCtx.Set("api_key", &APIKey{GroupID: &groupID})
+				readCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+				msgType, firstMessage, readErr := conn.Read(readCtx)
+				cancel()
+				if readErr != nil {
+					serverErrCh <- readErr
+					return
+				}
+				if msgType != coderws.MessageText {
+					serverErrCh <- errors.New("unexpected client frame type")
+					return
+				}
+				serverErrCh <- svc.ProxyResponsesWebSocketFromClient(r.Context(), ginCtx, conn, account, "sk-test", firstMessage, hooks)
+			}))
+			defer wsServer.Close()
+
+			client, _, err := coderws.Dial(context.Background(), "ws"+strings.TrimPrefix(wsServer.URL, "http"), nil)
+			require.NoError(t, err)
+			defer func() { _ = client.CloseNow() }()
+			require.NoError(t, client.Write(context.Background(), coderws.MessageText, []byte(`{"type":"response.create","model":"gpt-5.5"}`)))
+			_ = readTestChannel(t, upstream.writes)
+			upstream.events <- []byte(`{"type":"response.completed","response":{"id":"resp_lifecycle_1"}}`)
+			_, _, err = client.Read(context.Background())
+			require.NoError(t, err)
+
+			secondFrame := []byte(`{"type":"response.create","model":"gpt-5.5"}`)
+			if tt.configureFastBlock {
+				secondFrame = []byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}`)
+			}
+			require.NoError(t, client.Write(context.Background(), coderws.MessageText, secondFrame))
+			if tt.configureFastBlock {
+				readCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				_, _, _ = client.Read(readCtx)
+				cancel()
+			}
+
+			select {
+			case serverErr := <-serverErrCh:
+				require.Error(t, serverErr)
+			case <-time.After(5 * time.Second):
+				t.Fatal("等待 follow-up local reject 结束超时")
+			}
+			require.NoError(t, recorder.Stop(context.Background()))
+			outcomes := sink.snapshot()
+			require.Len(t, outcomes, 1, "本地拒绝不得伪造 upstream scheduler outcome")
+			require.Equal(t, OpenAIAutoSchedulerEventSuccess, outcomes[0].EventType)
+			select {
+			case unexpected := <-upstream.writes:
+				t.Fatalf("本地拒绝不应发送第二条上游 frame: %s", unexpected)
+			default:
+			}
+			lifecycleMu.Lock()
+			require.Equal(t, 1, turn2AfterCalls)
+			require.Zero(t, turn2Active, "turn2 slot 必须释放")
+			require.Error(t, turn2AfterErr)
+			lifecycleMu.Unlock()
+		})
+	}
+}
+
 func readTestChannel[T any](t *testing.T, ch <-chan T) T {
 	t.Helper()
 	select {
