@@ -247,17 +247,31 @@ git commit -m "feat: batch load OpenAI health snapshots"
 **Files:**
 - Create: `backend/internal/service/openai_scheduler_health_score.go`
 - Test: `backend/internal/service/openai_scheduler_health_score_test.go`
+- Modify: `backend/internal/service/openai_auto_scheduler_service.go`
 - Modify: `backend/internal/service/openai_auto_scheduler_outcome_recorder.go`
+- Modify: `backend/internal/service/openai_gateway_scheduling.go`
+- Modify: `backend/internal/service/openai_gateway_forward.go`
+- Modify: `backend/internal/service/openai_gateway_passthrough.go`
+- Modify: `backend/internal/service/openai_gateway_chat_completions.go`
+- Modify: `backend/internal/service/openai_gateway_chat_completions_raw.go`
+- Modify: `backend/internal/service/openai_gateway_cc_pipeline.go`
+- Modify: `backend/internal/service/openai_embeddings.go`
+- Modify: `backend/internal/service/openai_images.go`
+- Modify: `backend/internal/service/openai_images_responses.go`
+- Modify: `backend/internal/service/openai_ws_v2_passthrough_adapter.go`
+- Modify: `backend/internal/service/openai_ws_forwarder_ingress.go`
 - Modify: `backend/internal/service/wire.go`
 - Generated: `backend/cmd/server/wire_gen.go`
 
 **Interfaces:**
 - Produces: `OpenAISchedulerHealthEvent`, `OpenAISchedulerHealthSettings`, and `ApplyOpenAISchedulerHealthEvent(now, current, event, settings) OpenAISchedulerHealthSnapshot`.
 - Consumes: outcome recorder events from the observability plan.
+- Extends `OpenAIAutoSchedulerRecordInput` with `ModelFamily`, `Endpoint`, and `Transport`; `Model` remains unchanged for the legacy group-scoped score path.
+- Normalizes `ModelFamily` from the actual upstream model with trim + lowercase and no heuristic family folding. Endpoint values are `responses`, `chat_completions`, `embeddings`, `images_generations`, or `images_edits`; transport values reuse the actual `OpenAIUpstreamTransport` value and never persist the ingress-only selector value.
 
 - [ ] **Step 1: Write failing table tests**
 
-Cover fast real success, slow real success, severe slow breaker, 429, 5xx, probe older than real data, TTL expiry, open cooldown, and half-open recovery.
+Cover fast real success, slow real success, severe slow breaker, 429, 5xx, probe older than real data, TTL expiry, open cooldown, half-open recovery, metadata normalization, missing-dimension skip, HTTP/WS separation, endpoint separation, legacy write preservation, and concurrent same-key updates from two recorder workers.
 
 ```go
 func TestApplyOpenAISchedulerHealthEvent_ProbeCannotOverwriteFreshRealSample(t *testing.T) {
@@ -287,7 +301,9 @@ Use alpha 0.2 for real samples, alpha 0.1 for eligible probe samples, 30-minute 
 
 - [ ] **Step 4: Connect the outcome recorder sink**
 
-For each accepted real event, load the key, apply the event, and upsert unified health. Keep the legacy `OpenAIAutoSchedulerService.Record` write for compatibility events during rollout.
+For each accepted real event with a complete normalized key, serialize load-apply-upsert by that key inside the process, load the key, apply the event, and upsert unified health. Keep the legacy `OpenAIAutoSchedulerService.RecordOutcome` write for every compatibility event during rollout, including events skipped by the unified sink because metadata is incomplete. Preserve production slow/severe classification when the recorder is wired to the composite sink rather than directly to `OpenAIAutoSchedulerService`.
+
+The actual attempt producer must populate all three dimensions explicitly. Success uses the final `OpenAIForwardResult.UpstreamModel` and actual endpoint/transport. Failure uses the model, endpoint, and transport fixed before that attempt began. Do not infer a fallback endpoint from the inbound route, do not write wildcard keys, and normalize `responses_websockets_v2_ingress` to the actual WS transport before enqueueing.
 
 - [ ] **Step 5: Wire the unified health sink and regenerate Wire**
 
@@ -301,14 +317,25 @@ Expected: generated constructors pass the unified sink to the outcome recorder w
 
 Run: `cd backend && GOCACHE=/tmp/sub2api-go-cache go test ./internal/service -run 'OpenAISchedulerHealth|OutcomeRecorder' -count=1`
 
-Expected: PASS; real data wins over probe and slow successes can open the circuit.
+Expected: PASS; real data wins over probe, slow successes can open the circuit, HTTP/WS and endpoint rows remain separate, two workers do not lose same-key updates, and missing metadata still reaches the legacy sink without creating a unified row.
 
 - [ ] **Step 7: Commit unified health feedback**
 
 ```bash
 git add backend/internal/service/openai_scheduler_health_score.go \
   backend/internal/service/openai_scheduler_health_score_test.go \
+  backend/internal/service/openai_auto_scheduler_service.go \
   backend/internal/service/openai_auto_scheduler_outcome_recorder.go \
+  backend/internal/service/openai_gateway_scheduling.go \
+  backend/internal/service/openai_gateway_forward.go \
+  backend/internal/service/openai_gateway_passthrough.go \
+  backend/internal/service/openai_gateway_chat_completions.go \
+  backend/internal/service/openai_gateway_chat_completions_raw.go \
+  backend/internal/service/openai_gateway_cc_pipeline.go \
+  backend/internal/service/openai_embeddings.go backend/internal/service/openai_images.go \
+  backend/internal/service/openai_images_responses.go \
+  backend/internal/service/openai_ws_v2_passthrough_adapter.go \
+  backend/internal/service/openai_ws_forwarder_ingress.go \
   backend/internal/service/wire.go backend/cmd/server/wire_gen.go
 git commit -m "feat: learn OpenAI health from real requests"
 ```
