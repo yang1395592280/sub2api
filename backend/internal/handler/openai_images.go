@@ -307,12 +307,9 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 								zap.Int("retry_limit", retryLimit),
 								zap.Int("retry_count", sameAccountRetryCount[account.ID]),
 							)
-							select {
-							case <-requestCtx.Done():
+							if !waitOpenAIRetryDelay(requestCtx, timing, sameAccountRetryDelay) {
 								return
-							case <-time.After(sameAccountRetryDelay):
 							}
-							timing.AddRetry(sameAccountRetryDelay)
 							continue
 						}
 					}

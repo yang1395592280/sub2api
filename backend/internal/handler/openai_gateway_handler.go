@@ -490,12 +490,9 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 								zap.Int("retry_limit", retryLimit),
 								zap.Int("retry_count", sameAccountRetryCount[account.ID]),
 							)
-							select {
-							case <-c.Request.Context().Done():
+							if !waitOpenAIRetryDelay(c.Request.Context(), timing, sameAccountRetryDelay) {
 								return
-							case <-time.After(sameAccountRetryDelay):
 							}
-							timing.AddRetry(sameAccountRetryDelay)
 							continue
 						}
 					}
@@ -1026,12 +1023,9 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 								zap.Int("retry_limit", retryLimit),
 								zap.Int("retry_count", sameAccountRetryCount[account.ID]),
 							)
-							select {
-							case <-c.Request.Context().Done():
+							if !waitOpenAIRetryDelay(c.Request.Context(), timing, sameAccountRetryDelay) {
 								return
-							case <-time.After(sameAccountRetryDelay):
 							}
-							timing.AddRetry(sameAccountRetryDelay)
 							continue
 						}
 					}
@@ -2276,6 +2270,22 @@ func closeOpenAIWSFailoverExhausted(conn *coderws.Conn, failoverErr *service.Ups
 		closeOpenAIClientWS(conn, coderws.StatusPolicyViolation, "upstream websocket authentication failed")
 	default:
 		closeOpenAIClientWS(conn, coderws.StatusInternalError, "upstream websocket proxy failed")
+	}
+}
+
+func waitOpenAIRetryDelay(ctx context.Context, timing *service.OpenAIRequestTiming, delay time.Duration) bool {
+	startedAt := time.Now()
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		if timing != nil {
+			timing.AddRetry(time.Since(startedAt))
+		}
+		return true
 	}
 }
 

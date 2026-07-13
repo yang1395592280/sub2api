@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,29 +23,123 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	"go.uber.org/zap"
 )
 
-func TestOpenAIHandlerTimingIncludesSelectionAndQueue(t *testing.T) {
+func TestOpenAIHandlerTimingIncludesSelectionOnError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	timing := service.BeginOpenAIRequestTiming(c)
-	timing.BeginRouting()
-	time.Sleep(time.Millisecond)
-	timing.EndRouting()
-	timing.AddQueue(25 * time.Millisecond)
-	snapshot := timing.Snapshot()
-	assert.Greater(t, snapshot.RoutingMS, 0)
-	assert.Equal(t, 25, snapshot.QueueMS)
+	groupID := int64(4901)
+	cfg := &config.Config{RunMode: config.RunModeSimple}
+	var requestContext *gin.Context
+	selectorSawTiming := false
+	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{
+		listDelay: 15 * time.Millisecond,
+		listHook: func() {
+			selectorSawTiming = service.OpenAIRequestTimingFromContext(requestContext) != nil
+		},
+	}
+	billingCacheService := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	t.Cleanup(billingCacheService.Stop)
+	concurrencyService := service.NewConcurrencyService(&concurrencyCacheMock{
+		acquireUserSlotFn: func(context.Context, int64, int, string) (bool, error) { return true, nil },
+	})
+	gatewayService := service.NewOpenAIGatewayService(
+		accountRepo, nil, nil, nil, nil, nil, nil, cfg, nil, concurrencyService,
+		service.NewBillingService(cfg, nil), nil, billingCacheService, nil,
+		&service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil,
+	)
+	h := NewOpenAIGatewayHandler(
+		gatewayService,
+		concurrencyService,
+		billingCacheService,
+		service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, cfg),
+		nil, nil, nil, nil, cfg,
+	)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	requestContext = c
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(`{"model":"gpt-image-1","prompt":"test"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
+		ID: 4902, GroupID: &groupID, User: &service.User{ID: 4903},
+		Group: &service.Group{ID: groupID, Platform: service.PlatformOpenAI, Status: service.StatusActive, AllowImageGeneration: true},
+	})
+	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 4903, Concurrency: 1})
+
+	h.Images(c)
+
+	require.True(t, selectorSawTiming, "handler must begin request timing before invoking selector")
+	timing := service.OpenAIRequestTimingFromContext(c)
+	require.NotNil(t, timing, "handler must begin request timing before selection")
+	require.GreaterOrEqual(t, timing.Snapshot().RoutingMS, 10, "selection error path must close routing timing")
+}
+
+func TestOpenAIHandlerTimingIncludesAccountQueueWaitButNotFastPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	selection := &service.AccountSelectionResult{
+		Account:  &service.Account{ID: 4904},
+		WaitPlan: &service.AccountWaitPlan{AccountID: 4904, MaxConcurrency: 1, MaxWaiting: 1, Timeout: time.Second},
+	}
+
+	t.Run("wait", func(t *testing.T) {
+		var calls int32
+		cache := &concurrencyCacheMock{acquireAccountSlotFn: func(context.Context, int64, int, string) (bool, error) {
+			return atomic.AddInt32(&calls, 1) >= 3, nil
+		}}
+		h := &OpenAIGatewayHandler{
+			gatewayService:    &service.OpenAIGatewayService{},
+			concurrencyHelper: NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, time.Second),
+		}
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+		service.BeginOpenAIRequestTiming(c)
+		streamStarted := false
+		release, acquired := h.acquireResponsesAccountSlot(c, nil, "", selection, false, &streamStarted, zap.NewNop())
+		require.True(t, acquired)
+		require.NotNil(t, release)
+		release()
+		require.GreaterOrEqual(t, service.OpenAIRequestTimingFromContext(c).Snapshot().QueueMS, 80)
+	})
+
+	t.Run("fast_path", func(t *testing.T) {
+		cache := &concurrencyCacheMock{acquireAccountSlotFn: func(context.Context, int64, int, string) (bool, error) {
+			time.Sleep(15 * time.Millisecond)
+			return true, nil
+		}}
+		h := &OpenAIGatewayHandler{
+			gatewayService:    &service.OpenAIGatewayService{},
+			concurrencyHelper: NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, time.Second),
+		}
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+		service.BeginOpenAIRequestTiming(c)
+		streamStarted := false
+		release, acquired := h.acquireResponsesAccountSlot(c, nil, "", selection, false, &streamStarted, zap.NewNop())
+		require.True(t, acquired)
+		require.NotNil(t, release)
+		release()
+		require.Zero(t, service.OpenAIRequestTimingFromContext(c).Snapshot().QueueMS)
+	})
 }
 
 func TestOpenAIHandlerTimingRetryReusesRequestTiming(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	first := service.BeginOpenAIRequestTiming(c)
-	time.Sleep(time.Millisecond)
+	require.True(t, waitOpenAIRetryDelay(context.Background(), first, 10*time.Millisecond))
 	second := service.BeginOpenAIRequestTiming(c)
-	assert.Same(t, first, second)
-	assert.Greater(t, second.E2EFirstTokenMS(), 0)
+	require.Same(t, first, second)
+	firstRetry := second.Snapshot().RetryMS
+	require.GreaterOrEqual(t, firstRetry, 5)
+	require.True(t, waitOpenAIRetryDelay(context.Background(), second, 10*time.Millisecond))
+	require.Greater(t, second.Snapshot().RetryMS, firstRetry)
+
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	retryBeforeCancel := second.Snapshot().RetryMS
+	require.False(t, waitOpenAIRetryDelay(cancelled, second, time.Second))
+	require.Equal(t, retryBeforeCancel, second.Snapshot().RetryMS)
 }
 
 func TestOpenAIHandleStreamingAwareError_JSONEscaping(t *testing.T) {
@@ -1228,9 +1323,17 @@ type openAIWSFailoverHandlerAccountRepoStub struct {
 	service.AccountRepository
 	accounts       []service.Account
 	rateLimitedIDs []int64
+	listDelay      time.Duration
+	listHook       func()
 }
 
 func (s *openAIWSFailoverHandlerAccountRepoStub) ListSchedulableByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
+	if s.listHook != nil {
+		s.listHook()
+	}
+	if s.listDelay > 0 {
+		time.Sleep(s.listDelay)
+	}
 	out := make([]service.Account, 0, len(s.accounts))
 	for _, account := range s.accounts {
 		if account.Platform == platform && account.IsSchedulable() {
