@@ -24,6 +24,7 @@ type zenxiangLiyuAdminService interface {
 	GiftTickets(context.Context, service.ZenxiangLiyuTicketGiftRequest) (*service.ZenxiangLiyuTicketGift, error)
 	GetOverviewStats(context.Context) (*service.ZenxiangLiyuOverviewStats, error)
 	ListUserStats(context.Context, int, int, time.Time) ([]service.ZenxiangLiyuUserStats, int, error)
+	ListUserRecordsByDate(context.Context, int64, time.Time, int, int) ([]service.ZenxiangLiyuRecord, int, error)
 	ListPrizeStats(context.Context) ([]service.ZenxiangLiyuPrizeStats, error)
 	ListPeriodStats(context.Context, string) ([]service.ZenxiangLiyuPeriodStats, error)
 	ResetUserDailyPlays(context.Context, service.ZenxiangLiyuResetDailyPlayRequest) (*service.ZenxiangLiyuResetDailyPlayResult, error)
@@ -200,6 +201,25 @@ func (h *ZenxiangLiyuHandler) GetUserStats(c *gin.Context) {
 		return
 	}
 	response.Paginated(c, stats, int64(total), page, pageSize)
+}
+func (h *ZenxiangLiyuHandler) GetUserRecords(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("user_id"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.BadRequest(c, "Invalid user_id")
+		return
+	}
+	playDate, err := time.Parse("2006-01-02", c.Query("date"))
+	if err != nil {
+		response.BadRequest(c, "Invalid date, expected YYYY-MM-DD")
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	records, total, err := h.service.ListUserRecordsByDate(c.Request.Context(), userID, playDate, page, pageSize)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, records, int64(total), page, pageSize)
 }
 func (h *ZenxiangLiyuHandler) GetPrizeStats(c *gin.Context) {
 	data, err := h.service.ListPrizeStats(c.Request.Context())

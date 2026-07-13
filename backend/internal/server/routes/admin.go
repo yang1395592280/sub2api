@@ -136,6 +136,7 @@ func registerZenxiangLiyuRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		zenxiangLiyu.GET("/stats/overview", h.Admin.ZenxiangLiyu.GetOverviewStats)
 		zenxiangLiyu.GET("/stats/periods", h.Admin.ZenxiangLiyu.GetPeriodStats)
 		zenxiangLiyu.GET("/stats/users", h.Admin.ZenxiangLiyu.GetUserStats)
+		zenxiangLiyu.GET("/stats/users/:user_id/records", h.Admin.ZenxiangLiyu.GetUserRecords)
 		zenxiangLiyu.GET("/stats/prizes", h.Admin.ZenxiangLiyu.GetPrizeStats)
 		zenxiangLiyu.POST("/simulate", h.Admin.ZenxiangLiyu.Simulate)
 		zenxiangLiyu.POST("/simulate/recommend", h.Admin.ZenxiangLiyu.Recommend)

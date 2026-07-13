@@ -383,10 +383,14 @@ type ZenxiangLiyuRepository interface {
 }
 
 func (s *ZenxiangLiyuService) ListUserRecords(ctx context.Context, userID int64, page, pageSize int) ([]ZenxiangLiyuRecord, int, error) {
-	if userID <= 0 || s.repo == nil {
+	return s.ListUserRecordsByDate(ctx, userID, s.playDate(), page, pageSize)
+}
+
+func (s *ZenxiangLiyuService) ListUserRecordsByDate(ctx context.Context, userID int64, playDate time.Time, page, pageSize int) ([]ZenxiangLiyuRecord, int, error) {
+	if userID <= 0 || playDate.IsZero() || s.repo == nil {
 		return nil, 0, ErrZenxiangLiyuInvalidSettings
 	}
-	return s.repo.ListUserRecords(ctx, userID, s.playDate(), normalizedZenxiangLiyuPage(page), normalizedZenxiangLiyuPageSize(pageSize))
+	return s.repo.ListUserRecords(ctx, userID, playDate, normalizedZenxiangLiyuPage(page), normalizedZenxiangLiyuPageSize(pageSize))
 }
 
 func (s *ZenxiangLiyuService) GetUserDailySummary(ctx context.Context, userID int64) (*ZenxiangLiyuDailySummary, error) {

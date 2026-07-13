@@ -19,6 +19,11 @@ type stubAdminZenxiangLiyuService struct {
 	bulkPrizes   []service.ZenxiangLiyuPrizeUpdate
 	applyPrizes  []service.ZenxiangLiyuPrizeUpdate
 	lastGift     service.ZenxiangLiyuTicketGiftRequest
+	recordsCalls int
+	recordsUser  int64
+	recordsDate  time.Time
+	recordsPage  int
+	recordsSize  int
 }
 
 func (s *stubAdminZenxiangLiyuService) GetSettings(context.Context) (*service.ZenxiangLiyuSettings, error) {
@@ -61,6 +66,14 @@ func (s *stubAdminZenxiangLiyuService) GetOverviewStats(context.Context) (*servi
 }
 func (s *stubAdminZenxiangLiyuService) ListUserStats(context.Context, int, int, time.Time) ([]service.ZenxiangLiyuUserStats, int, error) {
 	return nil, 0, nil
+}
+func (s *stubAdminZenxiangLiyuService) ListUserRecordsByDate(_ context.Context, userID int64, playDate time.Time, page, pageSize int) ([]service.ZenxiangLiyuRecord, int, error) {
+	s.recordsCalls++
+	s.recordsUser = userID
+	s.recordsDate = playDate
+	s.recordsPage = page
+	s.recordsSize = pageSize
+	return []service.ZenxiangLiyuRecord{{ID: 9, PrizeName: "礼遇一档", RewardAmount: 1}}, 1, nil
 }
 func (s *stubAdminZenxiangLiyuService) ListPrizeStats(context.Context) ([]service.ZenxiangLiyuPrizeStats, error) {
 	return nil, nil
@@ -149,4 +162,46 @@ func TestAdminZenxiangLiyuGiftTicketsMapsPayload(t *testing.T) {
 	require.EqualValues(t, 7, svc.lastGift.UserID)
 	require.Equal(t, 2, svc.lastGift.TicketCount)
 	require.Equal(t, "客服补偿", svc.lastGift.Notes)
+}
+
+func TestAdminZenxiangLiyuGetUserRecordsMapsUserDateAndPagination(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &stubAdminZenxiangLiyuService{}
+	router := gin.New()
+	router.GET("/admin/zenxiang-liyu/stats/users/:user_id/records", NewZenxiangLiyuHandler(svc).GetUserRecords)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin/zenxiang-liyu/stats/users/42/records?date=2026-07-13&page=2&page_size=10", nil))
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, 1, svc.recordsCalls)
+	require.EqualValues(t, 42, svc.recordsUser)
+	require.Equal(t, time.Date(2026, time.July, 13, 0, 0, 0, 0, time.UTC), svc.recordsDate)
+	require.Equal(t, 2, svc.recordsPage)
+	require.Equal(t, 10, svc.recordsSize)
+	require.Contains(t, w.Body.String(), `"prize_name":"礼遇一档"`)
+	require.Contains(t, w.Body.String(), `"total":1`)
+}
+
+func TestAdminZenxiangLiyuGetUserRecordsRejectsInvalidUserID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &stubAdminZenxiangLiyuService{}
+	router := gin.New()
+	router.GET("/admin/zenxiang-liyu/stats/users/:user_id/records", NewZenxiangLiyuHandler(svc).GetUserRecords)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin/zenxiang-liyu/stats/users/invalid/records?date=2026-07-13", nil))
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Zero(t, svc.recordsCalls)
+}
+
+func TestAdminZenxiangLiyuGetUserRecordsRejectsInvalidDate(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &stubAdminZenxiangLiyuService{}
+	router := gin.New()
+	router.GET("/admin/zenxiang-liyu/stats/users/:user_id/records", NewZenxiangLiyuHandler(svc).GetUserRecords)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin/zenxiang-liyu/stats/users/42/records?date=2026-07-32", nil))
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Zero(t, svc.recordsCalls)
 }
