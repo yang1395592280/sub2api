@@ -58,6 +58,35 @@ func TestOpenAIGatewayServiceRecordUsage_RejectsNilInput(t *testing.T) {
 	require.Error(t, svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{}))
 }
 
+func TestOpenAIGatewayServiceRecordUsageCopiesSchedulerTiming(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID:       "scheduler_timing",
+			Model:           "gpt-5.5",
+			Usage:           OpenAIUsage{InputTokens: 10, OutputTokens: 5},
+			Duration:        2 * time.Second,
+			FirstTokenMs:    intPtr(900),
+			E2EFirstTokenMs: intPtr(1180),
+			RoutingMs:       intPtr(20),
+			QueueMs:         intPtr(200),
+			RetryMs:         intPtr(60),
+		},
+		APIKey:  &APIKey{ID: 501, Quota: 100},
+		User:    &User{ID: 601},
+		Account: &Account{ID: 701},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, 900, *usageRepo.lastLog.FirstTokenMs)
+	require.Equal(t, 1180, *usageRepo.lastLog.E2EFirstTokenMs)
+	require.Equal(t, 20, *usageRepo.lastLog.RoutingMs)
+	require.Equal(t, 200, *usageRepo.lastLog.QueueMs)
+	require.Equal(t, 60, *usageRepo.lastLog.RetryMs)
+}
+
 func TestOpenAIGatewayServiceRecordUsage_AppliesChannelPriceSnapshot(t *testing.T) {
 	price := 0.234567
 	refreshedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)

@@ -74,6 +74,10 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			true,
 			sqlmock.AnyArg(), // duration_ms
 			sqlmock.AnyArg(), // first_token_ms
+			sqlmock.AnyArg(), // e2e_first_token_ms
+			sqlmock.AnyArg(), // routing_ms
+			sqlmock.AnyArg(), // queue_ms
+			sqlmock.AnyArg(), // retry_ms
 			sqlmock.AnyArg(), // user_agent
 			sqlmock.AnyArg(), // ip_address
 			log.ImageCount,
@@ -186,6 +190,10 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
 			log.ImageCount,
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(), // image_input_size
@@ -273,6 +281,33 @@ func TestPrepareUsageLogInsert_ArgCountMatchesTypes(t *testing.T) {
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
 }
 
+func TestPrepareUsageLogInsertPersistsSchedulerTimingAfterFirstToken(t *testing.T) {
+	firstTokenMs := 900
+	e2eFirstTokenMs := 1180
+	routingMs := 20
+	queueMs := 200
+	retryMs := 60
+	prepared := prepareUsageLogInsert(&service.UsageLog{
+		UserID:          1,
+		APIKeyID:        2,
+		AccountID:       3,
+		RequestID:       "req-scheduler-timing",
+		Model:           "gpt-5.5",
+		FirstTokenMs:    &firstTokenMs,
+		E2EFirstTokenMs: &e2eFirstTokenMs,
+		RoutingMs:       &routingMs,
+		QueueMs:         &queueMs,
+		RetryMs:         &retryMs,
+		CreatedAt:       time.Date(2025, 1, 5, 12, 0, 0, 0, time.UTC),
+	})
+
+	require.Equal(t, sql.NullInt64{Int64: 900, Valid: true}, prepared.args[32])
+	require.Equal(t, sql.NullInt64{Int64: 1180, Valid: true}, prepared.args[33])
+	require.Equal(t, sql.NullInt64{Int64: 20, Valid: true}, prepared.args[34])
+	require.Equal(t, sql.NullInt64{Int64: 200, Valid: true}, prepared.args[35])
+	require.Equal(t, sql.NullInt64{Int64: 60, Valid: true}, prepared.args[36])
+}
+
 func TestPrepareUsageLogInsert_PersistsAPIKeyGroupSelectModeSnapshot(t *testing.T) {
 	mode := service.APIKeyGroupSelectModeOpenAIAutoCheapest
 	prepared := prepareUsageLogInsert(&service.UsageLog{
@@ -328,11 +363,11 @@ func TestPrepareUsageLogInsert_PersistsImageSizeMetadata(t *testing.T) {
 		CreatedAt:          time.Date(2025, 1, 6, 12, 0, 0, 0, time.UTC),
 	})
 
-	require.Equal(t, sql.NullString{String: imageSize, Valid: true}, prepared.args[36])
-	require.Equal(t, sql.NullString{String: inputSize, Valid: true}, prepared.args[37])
-	require.Equal(t, sql.NullString{String: outputSize, Valid: true}, prepared.args[38])
-	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[39])
-	breakdownJSON, ok := prepared.args[40].(string)
+	require.Equal(t, sql.NullString{String: imageSize, Valid: true}, prepared.args[40])
+	require.Equal(t, sql.NullString{String: inputSize, Valid: true}, prepared.args[41])
+	require.Equal(t, sql.NullString{String: outputSize, Valid: true}, prepared.args[42])
+	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[43])
+	breakdownJSON, ok := prepared.args[44].(string)
 	require.True(t, ok)
 	require.JSONEq(t, `{"1K":1,"4K":1}`, breakdownJSON)
 }
@@ -356,12 +391,12 @@ func TestPrepareUsageLogInsert_PersistsChannelPriceSnapshot(t *testing.T) {
 
 	require.Contains(t, usageLogSelectColumns, "channel_price_snapshot")
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	require.Equal(t, &price, prepared.args[54])
-	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[55])
-	require.Equal(t, sql.NullTime{Time: refreshedAt, Valid: true}, prepared.args[56])
+	require.Equal(t, &price, prepared.args[58])
+	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[59])
+	require.Equal(t, sql.NullTime{Time: refreshedAt, Valid: true}, prepared.args[60])
 }
 
-func TestScanUsageLog_ChannelPriceSnapshot(t *testing.T) {
+func TestScanUsageLogSchedulerTimingAndChannelPriceSnapshot(t *testing.T) {
 	price := 0.123456
 	source := "upstream_balance"
 	refreshedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
@@ -401,7 +436,11 @@ func TestScanUsageLog_ChannelPriceSnapshot(t *testing.T) {
 		false,                             // stream
 		false,                             // openai_ws_mode
 		nil,                               // duration_ms
-		nil,                               // first_token_ms
+		int64(900),                        // first_token_ms
+		int64(1180),                       // e2e_first_token_ms
+		int64(20),                         // routing_ms
+		int64(200),                        // queue_ms
+		int64(60),                         // retry_ms
 		nil,                               // user_agent
 		nil,                               // ip_address
 		0,                                 // image_count
@@ -432,6 +471,11 @@ func TestScanUsageLog_ChannelPriceSnapshot(t *testing.T) {
 	got, err := scanUsageLog(scanStub(rowValues))
 	require.NoError(t, err)
 	require.NotNil(t, got.ChannelPriceSnapshot)
+	require.Equal(t, 900, *got.FirstTokenMs)
+	require.Equal(t, 1180, *got.E2EFirstTokenMs)
+	require.Equal(t, 20, *got.RoutingMs)
+	require.Equal(t, 200, *got.QueueMs)
+	require.Equal(t, 60, *got.RetryMs)
 	require.InDelta(t, price, *got.ChannelPriceSnapshot, 0.000001)
 	require.NotNil(t, got.ChannelPriceSource)
 	require.Equal(t, source, *got.ChannelPriceSource)
@@ -1055,6 +1099,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			false,
 			sql.NullInt64{},
 			sql.NullInt64{},
+			sql.NullInt64{}, // e2e_first_token_ms
+			sql.NullInt64{}, // routing_ms
+			sql.NullInt64{}, // queue_ms
+			sql.NullInt64{}, // retry_ms
 			sql.NullString{},
 			sql.NullString{},
 			2,
@@ -1092,6 +1140,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 		require.NotNil(t, log.ImageSizeSource)
 		require.Equal(t, "output", *log.ImageSizeSource)
 		require.Equal(t, map[string]int{"4K": 2}, log.ImageSizeBreakdown)
+		require.Nil(t, log.E2EFirstTokenMs)
+		require.Nil(t, log.RoutingMs)
+		require.Nil(t, log.QueueMs)
+		require.Nil(t, log.RetryMs)
 	})
 
 	t.Run("request_type_ws_v2_overrides_legacy", func(t *testing.T) {
@@ -1131,6 +1183,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			false, // legacy openai ws
 			sql.NullInt64{},
 			sql.NullInt64{},
+			sql.NullInt64{}, // e2e_first_token_ms
+			sql.NullInt64{}, // routing_ms
+			sql.NullInt64{}, // queue_ms
+			sql.NullInt64{}, // retry_ms
 			sql.NullString{},
 			sql.NullString{},
 			0,
@@ -1191,6 +1247,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			false,
 			sql.NullInt64{},
 			sql.NullInt64{},
+			sql.NullInt64{}, // e2e_first_token_ms
+			sql.NullInt64{}, // routing_ms
+			sql.NullInt64{}, // queue_ms
+			sql.NullInt64{}, // retry_ms
 			sql.NullString{},
 			sql.NullString{},
 			0,
@@ -1251,6 +1311,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			false,
 			sql.NullInt64{},
 			sql.NullInt64{},
+			sql.NullInt64{}, // e2e_first_token_ms
+			sql.NullInt64{}, // routing_ms
+			sql.NullInt64{}, // queue_ms
+			sql.NullInt64{}, // retry_ms
 			sql.NullString{},
 			sql.NullString{},
 			0,

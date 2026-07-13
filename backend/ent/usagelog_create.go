@@ -491,6 +491,62 @@ func (_c *UsageLogCreate) SetNillableFirstTokenMs(v *int) *UsageLogCreate {
 	return _c
 }
 
+// SetE2eFirstTokenMs sets the "e2e_first_token_ms" field.
+func (_c *UsageLogCreate) SetE2eFirstTokenMs(v int) *UsageLogCreate {
+	_c.mutation.SetE2eFirstTokenMs(v)
+	return _c
+}
+
+// SetNillableE2eFirstTokenMs sets the "e2e_first_token_ms" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableE2eFirstTokenMs(v *int) *UsageLogCreate {
+	if v != nil {
+		_c.SetE2eFirstTokenMs(*v)
+	}
+	return _c
+}
+
+// SetRoutingMs sets the "routing_ms" field.
+func (_c *UsageLogCreate) SetRoutingMs(v int) *UsageLogCreate {
+	_c.mutation.SetRoutingMs(v)
+	return _c
+}
+
+// SetNillableRoutingMs sets the "routing_ms" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableRoutingMs(v *int) *UsageLogCreate {
+	if v != nil {
+		_c.SetRoutingMs(*v)
+	}
+	return _c
+}
+
+// SetQueueMs sets the "queue_ms" field.
+func (_c *UsageLogCreate) SetQueueMs(v int) *UsageLogCreate {
+	_c.mutation.SetQueueMs(v)
+	return _c
+}
+
+// SetNillableQueueMs sets the "queue_ms" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableQueueMs(v *int) *UsageLogCreate {
+	if v != nil {
+		_c.SetQueueMs(*v)
+	}
+	return _c
+}
+
+// SetRetryMs sets the "retry_ms" field.
+func (_c *UsageLogCreate) SetRetryMs(v int) *UsageLogCreate {
+	_c.mutation.SetRetryMs(v)
+	return _c
+}
+
+// SetNillableRetryMs sets the "retry_ms" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableRetryMs(v *int) *UsageLogCreate {
+	if v != nil {
+		_c.SetRetryMs(*v)
+	}
+	return _c
+}
+
 // SetUserAgent sets the "user_agent" field.
 func (_c *UsageLogCreate) SetUserAgent(v string) *UsageLogCreate {
 	_c.mutation.SetUserAgent(v)
@@ -1121,6 +1177,22 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.FirstTokenMs(); ok {
 		_spec.SetField(usagelog.FieldFirstTokenMs, field.TypeInt, value)
 		_node.FirstTokenMs = &value
+	}
+	if value, ok := _c.mutation.E2eFirstTokenMs(); ok {
+		_spec.SetField(usagelog.FieldE2eFirstTokenMs, field.TypeInt, value)
+		_node.E2eFirstTokenMs = &value
+	}
+	if value, ok := _c.mutation.RoutingMs(); ok {
+		_spec.SetField(usagelog.FieldRoutingMs, field.TypeInt, value)
+		_node.RoutingMs = &value
+	}
+	if value, ok := _c.mutation.QueueMs(); ok {
+		_spec.SetField(usagelog.FieldQueueMs, field.TypeInt, value)
+		_node.QueueMs = &value
+	}
+	if value, ok := _c.mutation.RetryMs(); ok {
+		_spec.SetField(usagelog.FieldRetryMs, field.TypeInt, value)
+		_node.RetryMs = &value
 	}
 	if value, ok := _c.mutation.UserAgent(); ok {
 		_spec.SetField(usagelog.FieldUserAgent, field.TypeString, value)
@@ -1950,6 +2022,102 @@ func (u *UsageLogUpsert) AddFirstTokenMs(v int) *UsageLogUpsert {
 // ClearFirstTokenMs clears the value of the "first_token_ms" field.
 func (u *UsageLogUpsert) ClearFirstTokenMs() *UsageLogUpsert {
 	u.SetNull(usagelog.FieldFirstTokenMs)
+	return u
+}
+
+// SetE2eFirstTokenMs sets the "e2e_first_token_ms" field.
+func (u *UsageLogUpsert) SetE2eFirstTokenMs(v int) *UsageLogUpsert {
+	u.Set(usagelog.FieldE2eFirstTokenMs, v)
+	return u
+}
+
+// UpdateE2eFirstTokenMs sets the "e2e_first_token_ms" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateE2eFirstTokenMs() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldE2eFirstTokenMs)
+	return u
+}
+
+// AddE2eFirstTokenMs adds v to the "e2e_first_token_ms" field.
+func (u *UsageLogUpsert) AddE2eFirstTokenMs(v int) *UsageLogUpsert {
+	u.Add(usagelog.FieldE2eFirstTokenMs, v)
+	return u
+}
+
+// ClearE2eFirstTokenMs clears the value of the "e2e_first_token_ms" field.
+func (u *UsageLogUpsert) ClearE2eFirstTokenMs() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldE2eFirstTokenMs)
+	return u
+}
+
+// SetRoutingMs sets the "routing_ms" field.
+func (u *UsageLogUpsert) SetRoutingMs(v int) *UsageLogUpsert {
+	u.Set(usagelog.FieldRoutingMs, v)
+	return u
+}
+
+// UpdateRoutingMs sets the "routing_ms" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateRoutingMs() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldRoutingMs)
+	return u
+}
+
+// AddRoutingMs adds v to the "routing_ms" field.
+func (u *UsageLogUpsert) AddRoutingMs(v int) *UsageLogUpsert {
+	u.Add(usagelog.FieldRoutingMs, v)
+	return u
+}
+
+// ClearRoutingMs clears the value of the "routing_ms" field.
+func (u *UsageLogUpsert) ClearRoutingMs() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldRoutingMs)
+	return u
+}
+
+// SetQueueMs sets the "queue_ms" field.
+func (u *UsageLogUpsert) SetQueueMs(v int) *UsageLogUpsert {
+	u.Set(usagelog.FieldQueueMs, v)
+	return u
+}
+
+// UpdateQueueMs sets the "queue_ms" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateQueueMs() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldQueueMs)
+	return u
+}
+
+// AddQueueMs adds v to the "queue_ms" field.
+func (u *UsageLogUpsert) AddQueueMs(v int) *UsageLogUpsert {
+	u.Add(usagelog.FieldQueueMs, v)
+	return u
+}
+
+// ClearQueueMs clears the value of the "queue_ms" field.
+func (u *UsageLogUpsert) ClearQueueMs() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldQueueMs)
+	return u
+}
+
+// SetRetryMs sets the "retry_ms" field.
+func (u *UsageLogUpsert) SetRetryMs(v int) *UsageLogUpsert {
+	u.Set(usagelog.FieldRetryMs, v)
+	return u
+}
+
+// UpdateRetryMs sets the "retry_ms" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateRetryMs() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldRetryMs)
+	return u
+}
+
+// AddRetryMs adds v to the "retry_ms" field.
+func (u *UsageLogUpsert) AddRetryMs(v int) *UsageLogUpsert {
+	u.Add(usagelog.FieldRetryMs, v)
+	return u
+}
+
+// ClearRetryMs clears the value of the "retry_ms" field.
+func (u *UsageLogUpsert) ClearRetryMs() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldRetryMs)
 	return u
 }
 
@@ -2960,6 +3128,118 @@ func (u *UsageLogUpsertOne) UpdateFirstTokenMs() *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) ClearFirstTokenMs() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearFirstTokenMs()
+	})
+}
+
+// SetE2eFirstTokenMs sets the "e2e_first_token_ms" field.
+func (u *UsageLogUpsertOne) SetE2eFirstTokenMs(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetE2eFirstTokenMs(v)
+	})
+}
+
+// AddE2eFirstTokenMs adds v to the "e2e_first_token_ms" field.
+func (u *UsageLogUpsertOne) AddE2eFirstTokenMs(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddE2eFirstTokenMs(v)
+	})
+}
+
+// UpdateE2eFirstTokenMs sets the "e2e_first_token_ms" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateE2eFirstTokenMs() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateE2eFirstTokenMs()
+	})
+}
+
+// ClearE2eFirstTokenMs clears the value of the "e2e_first_token_ms" field.
+func (u *UsageLogUpsertOne) ClearE2eFirstTokenMs() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearE2eFirstTokenMs()
+	})
+}
+
+// SetRoutingMs sets the "routing_ms" field.
+func (u *UsageLogUpsertOne) SetRoutingMs(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetRoutingMs(v)
+	})
+}
+
+// AddRoutingMs adds v to the "routing_ms" field.
+func (u *UsageLogUpsertOne) AddRoutingMs(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddRoutingMs(v)
+	})
+}
+
+// UpdateRoutingMs sets the "routing_ms" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateRoutingMs() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateRoutingMs()
+	})
+}
+
+// ClearRoutingMs clears the value of the "routing_ms" field.
+func (u *UsageLogUpsertOne) ClearRoutingMs() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearRoutingMs()
+	})
+}
+
+// SetQueueMs sets the "queue_ms" field.
+func (u *UsageLogUpsertOne) SetQueueMs(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetQueueMs(v)
+	})
+}
+
+// AddQueueMs adds v to the "queue_ms" field.
+func (u *UsageLogUpsertOne) AddQueueMs(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddQueueMs(v)
+	})
+}
+
+// UpdateQueueMs sets the "queue_ms" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateQueueMs() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateQueueMs()
+	})
+}
+
+// ClearQueueMs clears the value of the "queue_ms" field.
+func (u *UsageLogUpsertOne) ClearQueueMs() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearQueueMs()
+	})
+}
+
+// SetRetryMs sets the "retry_ms" field.
+func (u *UsageLogUpsertOne) SetRetryMs(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetRetryMs(v)
+	})
+}
+
+// AddRetryMs adds v to the "retry_ms" field.
+func (u *UsageLogUpsertOne) AddRetryMs(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddRetryMs(v)
+	})
+}
+
+// UpdateRetryMs sets the "retry_ms" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateRetryMs() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateRetryMs()
+	})
+}
+
+// ClearRetryMs clears the value of the "retry_ms" field.
+func (u *UsageLogUpsertOne) ClearRetryMs() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearRetryMs()
 	})
 }
 
@@ -4172,6 +4452,118 @@ func (u *UsageLogUpsertBulk) UpdateFirstTokenMs() *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) ClearFirstTokenMs() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearFirstTokenMs()
+	})
+}
+
+// SetE2eFirstTokenMs sets the "e2e_first_token_ms" field.
+func (u *UsageLogUpsertBulk) SetE2eFirstTokenMs(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetE2eFirstTokenMs(v)
+	})
+}
+
+// AddE2eFirstTokenMs adds v to the "e2e_first_token_ms" field.
+func (u *UsageLogUpsertBulk) AddE2eFirstTokenMs(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddE2eFirstTokenMs(v)
+	})
+}
+
+// UpdateE2eFirstTokenMs sets the "e2e_first_token_ms" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateE2eFirstTokenMs() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateE2eFirstTokenMs()
+	})
+}
+
+// ClearE2eFirstTokenMs clears the value of the "e2e_first_token_ms" field.
+func (u *UsageLogUpsertBulk) ClearE2eFirstTokenMs() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearE2eFirstTokenMs()
+	})
+}
+
+// SetRoutingMs sets the "routing_ms" field.
+func (u *UsageLogUpsertBulk) SetRoutingMs(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetRoutingMs(v)
+	})
+}
+
+// AddRoutingMs adds v to the "routing_ms" field.
+func (u *UsageLogUpsertBulk) AddRoutingMs(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddRoutingMs(v)
+	})
+}
+
+// UpdateRoutingMs sets the "routing_ms" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateRoutingMs() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateRoutingMs()
+	})
+}
+
+// ClearRoutingMs clears the value of the "routing_ms" field.
+func (u *UsageLogUpsertBulk) ClearRoutingMs() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearRoutingMs()
+	})
+}
+
+// SetQueueMs sets the "queue_ms" field.
+func (u *UsageLogUpsertBulk) SetQueueMs(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetQueueMs(v)
+	})
+}
+
+// AddQueueMs adds v to the "queue_ms" field.
+func (u *UsageLogUpsertBulk) AddQueueMs(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddQueueMs(v)
+	})
+}
+
+// UpdateQueueMs sets the "queue_ms" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateQueueMs() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateQueueMs()
+	})
+}
+
+// ClearQueueMs clears the value of the "queue_ms" field.
+func (u *UsageLogUpsertBulk) ClearQueueMs() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearQueueMs()
+	})
+}
+
+// SetRetryMs sets the "retry_ms" field.
+func (u *UsageLogUpsertBulk) SetRetryMs(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetRetryMs(v)
+	})
+}
+
+// AddRetryMs adds v to the "retry_ms" field.
+func (u *UsageLogUpsertBulk) AddRetryMs(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddRetryMs(v)
+	})
+}
+
+// UpdateRetryMs sets the "retry_ms" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateRetryMs() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateRetryMs()
+	})
+}
+
+// ClearRetryMs clears the value of the "retry_ms" field.
+func (u *UsageLogUpsertBulk) ClearRetryMs() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearRetryMs()
 	})
 }
 

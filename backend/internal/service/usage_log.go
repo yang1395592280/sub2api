@@ -167,14 +167,18 @@ type UsageLog struct {
 	// ChannelPriceRefreshedAt records when the source channel price was last refreshed.
 	ChannelPriceRefreshedAt *time.Time
 
-	BillingType  int8
-	RequestType  RequestType
-	Stream       bool
-	OpenAIWSMode bool
-	DurationMs   *int
-	FirstTokenMs *int
-	UserAgent    *string
-	IPAddress    *string
+	BillingType     int8
+	RequestType     RequestType
+	Stream          bool
+	OpenAIWSMode    bool
+	DurationMs      *int
+	FirstTokenMs    *int
+	E2EFirstTokenMs *int
+	RoutingMs       *int
+	QueueMs         *int
+	RetryMs         *int
+	UserAgent       *string
+	IPAddress       *string
 
 	// Cache TTL Override 标记（管理员强制替换了缓存 TTL 计费）
 	CacheTTLOverridden bool

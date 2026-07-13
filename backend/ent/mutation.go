@@ -46205,6 +46205,14 @@ type UsageLogMutation struct {
 	addduration_ms              *int
 	first_token_ms              *int
 	addfirst_token_ms           *int
+	e2e_first_token_ms          *int
+	adde2e_first_token_ms       *int
+	routing_ms                  *int
+	addrouting_ms               *int
+	queue_ms                    *int
+	addqueue_ms                 *int
+	retry_ms                    *int
+	addretry_ms                 *int
 	user_agent                  *string
 	ip_address                  *string
 	image_count                 *int
@@ -48224,6 +48232,286 @@ func (m *UsageLogMutation) ResetFirstTokenMs() {
 	delete(m.clearedFields, usagelog.FieldFirstTokenMs)
 }
 
+// SetE2eFirstTokenMs sets the "e2e_first_token_ms" field.
+func (m *UsageLogMutation) SetE2eFirstTokenMs(i int) {
+	m.e2e_first_token_ms = &i
+	m.adde2e_first_token_ms = nil
+}
+
+// E2eFirstTokenMs returns the value of the "e2e_first_token_ms" field in the mutation.
+func (m *UsageLogMutation) E2eFirstTokenMs() (r int, exists bool) {
+	v := m.e2e_first_token_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldE2eFirstTokenMs returns the old "e2e_first_token_ms" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldE2eFirstTokenMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldE2eFirstTokenMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldE2eFirstTokenMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldE2eFirstTokenMs: %w", err)
+	}
+	return oldValue.E2eFirstTokenMs, nil
+}
+
+// AddE2eFirstTokenMs adds i to the "e2e_first_token_ms" field.
+func (m *UsageLogMutation) AddE2eFirstTokenMs(i int) {
+	if m.adde2e_first_token_ms != nil {
+		*m.adde2e_first_token_ms += i
+	} else {
+		m.adde2e_first_token_ms = &i
+	}
+}
+
+// AddedE2eFirstTokenMs returns the value that was added to the "e2e_first_token_ms" field in this mutation.
+func (m *UsageLogMutation) AddedE2eFirstTokenMs() (r int, exists bool) {
+	v := m.adde2e_first_token_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearE2eFirstTokenMs clears the value of the "e2e_first_token_ms" field.
+func (m *UsageLogMutation) ClearE2eFirstTokenMs() {
+	m.e2e_first_token_ms = nil
+	m.adde2e_first_token_ms = nil
+	m.clearedFields[usagelog.FieldE2eFirstTokenMs] = struct{}{}
+}
+
+// E2eFirstTokenMsCleared returns if the "e2e_first_token_ms" field was cleared in this mutation.
+func (m *UsageLogMutation) E2eFirstTokenMsCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldE2eFirstTokenMs]
+	return ok
+}
+
+// ResetE2eFirstTokenMs resets all changes to the "e2e_first_token_ms" field.
+func (m *UsageLogMutation) ResetE2eFirstTokenMs() {
+	m.e2e_first_token_ms = nil
+	m.adde2e_first_token_ms = nil
+	delete(m.clearedFields, usagelog.FieldE2eFirstTokenMs)
+}
+
+// SetRoutingMs sets the "routing_ms" field.
+func (m *UsageLogMutation) SetRoutingMs(i int) {
+	m.routing_ms = &i
+	m.addrouting_ms = nil
+}
+
+// RoutingMs returns the value of the "routing_ms" field in the mutation.
+func (m *UsageLogMutation) RoutingMs() (r int, exists bool) {
+	v := m.routing_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRoutingMs returns the old "routing_ms" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldRoutingMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRoutingMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRoutingMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRoutingMs: %w", err)
+	}
+	return oldValue.RoutingMs, nil
+}
+
+// AddRoutingMs adds i to the "routing_ms" field.
+func (m *UsageLogMutation) AddRoutingMs(i int) {
+	if m.addrouting_ms != nil {
+		*m.addrouting_ms += i
+	} else {
+		m.addrouting_ms = &i
+	}
+}
+
+// AddedRoutingMs returns the value that was added to the "routing_ms" field in this mutation.
+func (m *UsageLogMutation) AddedRoutingMs() (r int, exists bool) {
+	v := m.addrouting_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearRoutingMs clears the value of the "routing_ms" field.
+func (m *UsageLogMutation) ClearRoutingMs() {
+	m.routing_ms = nil
+	m.addrouting_ms = nil
+	m.clearedFields[usagelog.FieldRoutingMs] = struct{}{}
+}
+
+// RoutingMsCleared returns if the "routing_ms" field was cleared in this mutation.
+func (m *UsageLogMutation) RoutingMsCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldRoutingMs]
+	return ok
+}
+
+// ResetRoutingMs resets all changes to the "routing_ms" field.
+func (m *UsageLogMutation) ResetRoutingMs() {
+	m.routing_ms = nil
+	m.addrouting_ms = nil
+	delete(m.clearedFields, usagelog.FieldRoutingMs)
+}
+
+// SetQueueMs sets the "queue_ms" field.
+func (m *UsageLogMutation) SetQueueMs(i int) {
+	m.queue_ms = &i
+	m.addqueue_ms = nil
+}
+
+// QueueMs returns the value of the "queue_ms" field in the mutation.
+func (m *UsageLogMutation) QueueMs() (r int, exists bool) {
+	v := m.queue_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQueueMs returns the old "queue_ms" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldQueueMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQueueMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQueueMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQueueMs: %w", err)
+	}
+	return oldValue.QueueMs, nil
+}
+
+// AddQueueMs adds i to the "queue_ms" field.
+func (m *UsageLogMutation) AddQueueMs(i int) {
+	if m.addqueue_ms != nil {
+		*m.addqueue_ms += i
+	} else {
+		m.addqueue_ms = &i
+	}
+}
+
+// AddedQueueMs returns the value that was added to the "queue_ms" field in this mutation.
+func (m *UsageLogMutation) AddedQueueMs() (r int, exists bool) {
+	v := m.addqueue_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearQueueMs clears the value of the "queue_ms" field.
+func (m *UsageLogMutation) ClearQueueMs() {
+	m.queue_ms = nil
+	m.addqueue_ms = nil
+	m.clearedFields[usagelog.FieldQueueMs] = struct{}{}
+}
+
+// QueueMsCleared returns if the "queue_ms" field was cleared in this mutation.
+func (m *UsageLogMutation) QueueMsCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldQueueMs]
+	return ok
+}
+
+// ResetQueueMs resets all changes to the "queue_ms" field.
+func (m *UsageLogMutation) ResetQueueMs() {
+	m.queue_ms = nil
+	m.addqueue_ms = nil
+	delete(m.clearedFields, usagelog.FieldQueueMs)
+}
+
+// SetRetryMs sets the "retry_ms" field.
+func (m *UsageLogMutation) SetRetryMs(i int) {
+	m.retry_ms = &i
+	m.addretry_ms = nil
+}
+
+// RetryMs returns the value of the "retry_ms" field in the mutation.
+func (m *UsageLogMutation) RetryMs() (r int, exists bool) {
+	v := m.retry_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRetryMs returns the old "retry_ms" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldRetryMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRetryMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRetryMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRetryMs: %w", err)
+	}
+	return oldValue.RetryMs, nil
+}
+
+// AddRetryMs adds i to the "retry_ms" field.
+func (m *UsageLogMutation) AddRetryMs(i int) {
+	if m.addretry_ms != nil {
+		*m.addretry_ms += i
+	} else {
+		m.addretry_ms = &i
+	}
+}
+
+// AddedRetryMs returns the value that was added to the "retry_ms" field in this mutation.
+func (m *UsageLogMutation) AddedRetryMs() (r int, exists bool) {
+	v := m.addretry_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearRetryMs clears the value of the "retry_ms" field.
+func (m *UsageLogMutation) ClearRetryMs() {
+	m.retry_ms = nil
+	m.addretry_ms = nil
+	m.clearedFields[usagelog.FieldRetryMs] = struct{}{}
+}
+
+// RetryMsCleared returns if the "retry_ms" field was cleared in this mutation.
+func (m *UsageLogMutation) RetryMsCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldRetryMs]
+	return ok
+}
+
+// ResetRetryMs resets all changes to the "retry_ms" field.
+func (m *UsageLogMutation) ResetRetryMs() {
+	m.retry_ms = nil
+	m.addretry_ms = nil
+	delete(m.clearedFields, usagelog.FieldRetryMs)
+}
+
 // SetUserAgent sets the "user_agent" field.
 func (m *UsageLogMutation) SetUserAgent(s string) {
 	m.user_agent = &s
@@ -49039,7 +49327,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 49)
+	fields := make([]string, 0, 53)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -49147,6 +49435,18 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.first_token_ms != nil {
 		fields = append(fields, usagelog.FieldFirstTokenMs)
+	}
+	if m.e2e_first_token_ms != nil {
+		fields = append(fields, usagelog.FieldE2eFirstTokenMs)
+	}
+	if m.routing_ms != nil {
+		fields = append(fields, usagelog.FieldRoutingMs)
+	}
+	if m.queue_ms != nil {
+		fields = append(fields, usagelog.FieldQueueMs)
+	}
+	if m.retry_ms != nil {
+		fields = append(fields, usagelog.FieldRetryMs)
 	}
 	if m.user_agent != nil {
 		fields = append(fields, usagelog.FieldUserAgent)
@@ -49267,6 +49567,14 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.DurationMs()
 	case usagelog.FieldFirstTokenMs:
 		return m.FirstTokenMs()
+	case usagelog.FieldE2eFirstTokenMs:
+		return m.E2eFirstTokenMs()
+	case usagelog.FieldRoutingMs:
+		return m.RoutingMs()
+	case usagelog.FieldQueueMs:
+		return m.QueueMs()
+	case usagelog.FieldRetryMs:
+		return m.RetryMs()
 	case usagelog.FieldUserAgent:
 		return m.UserAgent()
 	case usagelog.FieldIPAddress:
@@ -49374,6 +49682,14 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldDurationMs(ctx)
 	case usagelog.FieldFirstTokenMs:
 		return m.OldFirstTokenMs(ctx)
+	case usagelog.FieldE2eFirstTokenMs:
+		return m.OldE2eFirstTokenMs(ctx)
+	case usagelog.FieldRoutingMs:
+		return m.OldRoutingMs(ctx)
+	case usagelog.FieldQueueMs:
+		return m.OldQueueMs(ctx)
+	case usagelog.FieldRetryMs:
+		return m.OldRetryMs(ctx)
 	case usagelog.FieldUserAgent:
 		return m.OldUserAgent(ctx)
 	case usagelog.FieldIPAddress:
@@ -49661,6 +49977,34 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetFirstTokenMs(v)
 		return nil
+	case usagelog.FieldE2eFirstTokenMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetE2eFirstTokenMs(v)
+		return nil
+	case usagelog.FieldRoutingMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRoutingMs(v)
+		return nil
+	case usagelog.FieldQueueMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQueueMs(v)
+		return nil
+	case usagelog.FieldRetryMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRetryMs(v)
+		return nil
 	case usagelog.FieldUserAgent:
 		v, ok := value.(string)
 		if !ok {
@@ -49817,6 +50161,18 @@ func (m *UsageLogMutation) AddedFields() []string {
 	if m.addfirst_token_ms != nil {
 		fields = append(fields, usagelog.FieldFirstTokenMs)
 	}
+	if m.adde2e_first_token_ms != nil {
+		fields = append(fields, usagelog.FieldE2eFirstTokenMs)
+	}
+	if m.addrouting_ms != nil {
+		fields = append(fields, usagelog.FieldRoutingMs)
+	}
+	if m.addqueue_ms != nil {
+		fields = append(fields, usagelog.FieldQueueMs)
+	}
+	if m.addretry_ms != nil {
+		fields = append(fields, usagelog.FieldRetryMs)
+	}
 	if m.addimage_count != nil {
 		fields = append(fields, usagelog.FieldImageCount)
 	}
@@ -49872,6 +50228,14 @@ func (m *UsageLogMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedDurationMs()
 	case usagelog.FieldFirstTokenMs:
 		return m.AddedFirstTokenMs()
+	case usagelog.FieldE2eFirstTokenMs:
+		return m.AddedE2eFirstTokenMs()
+	case usagelog.FieldRoutingMs:
+		return m.AddedRoutingMs()
+	case usagelog.FieldQueueMs:
+		return m.AddedQueueMs()
+	case usagelog.FieldRetryMs:
+		return m.AddedRetryMs()
 	case usagelog.FieldImageCount:
 		return m.AddedImageCount()
 	case usagelog.FieldVideoCount:
@@ -50020,6 +50384,34 @@ func (m *UsageLogMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddFirstTokenMs(v)
 		return nil
+	case usagelog.FieldE2eFirstTokenMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddE2eFirstTokenMs(v)
+		return nil
+	case usagelog.FieldRoutingMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRoutingMs(v)
+		return nil
+	case usagelog.FieldQueueMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddQueueMs(v)
+		return nil
+	case usagelog.FieldRetryMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRetryMs(v)
+		return nil
 	case usagelog.FieldImageCount:
 		v, ok := value.(int)
 		if !ok {
@@ -50096,6 +50488,18 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(usagelog.FieldFirstTokenMs) {
 		fields = append(fields, usagelog.FieldFirstTokenMs)
+	}
+	if m.FieldCleared(usagelog.FieldE2eFirstTokenMs) {
+		fields = append(fields, usagelog.FieldE2eFirstTokenMs)
+	}
+	if m.FieldCleared(usagelog.FieldRoutingMs) {
+		fields = append(fields, usagelog.FieldRoutingMs)
+	}
+	if m.FieldCleared(usagelog.FieldQueueMs) {
+		fields = append(fields, usagelog.FieldQueueMs)
+	}
+	if m.FieldCleared(usagelog.FieldRetryMs) {
+		fields = append(fields, usagelog.FieldRetryMs)
 	}
 	if m.FieldCleared(usagelog.FieldUserAgent) {
 		fields = append(fields, usagelog.FieldUserAgent)
@@ -50185,6 +50589,18 @@ func (m *UsageLogMutation) ClearField(name string) error {
 		return nil
 	case usagelog.FieldFirstTokenMs:
 		m.ClearFirstTokenMs()
+		return nil
+	case usagelog.FieldE2eFirstTokenMs:
+		m.ClearE2eFirstTokenMs()
+		return nil
+	case usagelog.FieldRoutingMs:
+		m.ClearRoutingMs()
+		return nil
+	case usagelog.FieldQueueMs:
+		m.ClearQueueMs()
+		return nil
+	case usagelog.FieldRetryMs:
+		m.ClearRetryMs()
 		return nil
 	case usagelog.FieldUserAgent:
 		m.ClearUserAgent()
@@ -50328,6 +50744,18 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldFirstTokenMs:
 		m.ResetFirstTokenMs()
+		return nil
+	case usagelog.FieldE2eFirstTokenMs:
+		m.ResetE2eFirstTokenMs()
+		return nil
+	case usagelog.FieldRoutingMs:
+		m.ResetRoutingMs()
+		return nil
+	case usagelog.FieldQueueMs:
+		m.ResetQueueMs()
+		return nil
+	case usagelog.FieldRetryMs:
+		m.ResetRetryMs()
 		return nil
 	case usagelog.FieldUserAgent:
 		m.ResetUserAgent()
