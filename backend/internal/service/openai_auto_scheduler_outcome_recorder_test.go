@@ -207,6 +207,21 @@ func TestOpenAIAutoSchedulerOutcomeRecorderLogsEachDroppedCountOnce(t *testing.T
 	require.Equal(t, 1, handler.count("OpenAI auto scheduler outcome recorder dropped feedback"))
 }
 
+func TestOpenAIAutoSchedulerOutcomeRecorderLogsNonPowerOfTwoDroppedTotal(t *testing.T) {
+	handler := &collectingOutcomeRecorderLogHandler{}
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(handler))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+	recorder := &OpenAIAutoSchedulerOutcomeRecorder{}
+	recorder.recordDropped()
+	recorder.recordDropped()
+	recorder.recordDropped()
+	recorder.logDroppedFeedback()
+
+	require.Equal(t, 1, handler.count("OpenAI auto scheduler outcome recorder dropped feedback"))
+}
+
 func TestOpenAIAutoSchedulerOutcomeRecorderStopDrainsAcceptedRecords(t *testing.T) {
 	sink := &collectingOpenAIAutoSchedulerOutcomeSink{}
 	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 4, 1)

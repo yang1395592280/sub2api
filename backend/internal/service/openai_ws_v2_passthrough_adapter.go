@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -131,6 +132,58 @@ type openAIWSPassthroughUsageMeta struct {
 
 	// 仅在 client->upstream filter goroutine 中读写；Load 侧通过上方原子指针同步。
 	sessionRequestModel string
+}
+
+type openAIWSPassthroughPendingTurn struct {
+	turnNo    int
+	startedAt time.Time
+	model     string
+}
+
+type openAIWSPassthroughPendingTurns struct {
+	mu     sync.Mutex
+	next   int
+	queued []openAIWSPassthroughPendingTurn
+}
+
+func (q *openAIWSPassthroughPendingTurns) nextTurnNo() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.next + 1
+}
+
+func (q *openAIWSPassthroughPendingTurns) append(startedAt time.Time, model string) openAIWSPassthroughPendingTurn {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.next++
+	turn := openAIWSPassthroughPendingTurn{
+		turnNo:    q.next,
+		startedAt: startedAt,
+		model:     strings.TrimSpace(model),
+	}
+	q.queued = append(q.queued, turn)
+	return turn
+}
+
+func (q *openAIWSPassthroughPendingTurns) pop() (openAIWSPassthroughPendingTurn, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.queued) == 0 {
+		return openAIWSPassthroughPendingTurn{}, false
+	}
+	turn := q.queued[0]
+	q.queued[0] = openAIWSPassthroughPendingTurn{}
+	q.queued = q.queued[1:]
+	return turn, true
+}
+
+func (q *openAIWSPassthroughPendingTurns) drain() []openAIWSPassthroughPendingTurn {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	turns := append([]openAIWSPassthroughPendingTurn(nil), q.queued...)
+	clear(q.queued)
+	q.queued = nil
+	return turns
 }
 
 func newOpenAIWSPassthroughUsageMeta(initialRequestModel string, firstFrame []byte) *openAIWSPassthroughUsageMeta {
@@ -404,8 +457,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	}
 
 	completedTurns := atomic.Int32{}
-	startedTurns := atomic.Int32{}
-	activeTurnStartedAt := atomic.Int64{}
+	pendingTurns := &openAIWSPassthroughPendingTurns{}
 	policyClientConn := &openAIWSPolicyEnforcingFrameConn{
 		inner: &openAIWSClientFrameConn{conn: clientConn},
 		// 注意线程安全：filter 仅在 runClientToUpstream 这一条
@@ -417,7 +469,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 				return payload, nil, nil
 			}
 			if strings.TrimSpace(gjson.GetBytes(payload, "type").String()) == "response.create" && hooks != nil && hooks.BeforeRequest != nil {
-				turnNo := int(completedTurns.Load()) + 1
+				turnNo := pendingTurns.nextTurnNo()
 				if turnNo < 2 {
 					turnNo = 2
 				}
@@ -468,8 +520,11 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			if policyErr == nil && blocked == nil &&
 				strings.TrimSpace(gjson.GetBytes(payload, "type").String()) == "response.create" {
 				usageMeta.updateFromResponseCreate(out, model, requestModelForThisFrame)
-				startedTurns.Store(int32(completedTurns.Load() + 1))
-				activeTurnStartedAt.Store(time.Now().UnixNano())
+				pendingModel := requestModelForThisFrame
+				if pendingModel == "" {
+					pendingModel = capturedSessionModel
+				}
+				pendingTurns.append(time.Now(), pendingModel)
 			}
 			return out, blocked, policyErr
 		},
@@ -501,8 +556,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		return forwardErr
 	}
 	upstreamFirstMessageSent = true
-	startedTurns.Store(1)
-	activeTurnStartedAt.Store(relayStartedAt.UnixNano())
+	pendingTurns.append(relayStartedAt, requestModel)
 
 	readNextClientFrame := func(readCtx context.Context, conn openaiwsv2.FrameConn) (coderws.MessageType, []byte, error) {
 		for {
@@ -515,6 +569,18 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			}
 			if writeErr := upstreamFrameConn.WriteFrame(readCtx, msgType, payload); writeErr != nil {
 				return msgType, payload, writeErr
+			}
+		}
+	}
+	recordUnfinishedTurns := func(turnErr error) {
+		for _, pendingTurn := range pendingTurns.drain() {
+			turnModel := pendingTurn.model
+			if turnModel == "" {
+				turnModel = requestModel
+			}
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), turnModel, openAIAutoSchedulerErrorOutcome(pendingTurn.startedAt, openAIAutoSchedulerStatusCodeForError(turnErr), turnErr))
+			if hooks != nil && hooks.AfterTurn != nil {
+				hooks.AfterTurn(pendingTurn.turnNo, nil, turnErr)
 			}
 		}
 	}
@@ -539,7 +605,22 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 				)
 			},
 			OnTurnComplete: func(turn openaiwsv2.RelayTurnResult) {
-				turnNo := int(completedTurns.Add(1))
+				pendingTurn, ok := pendingTurns.pop()
+				if !ok {
+					logOpenAIWSV2Passthrough(
+						"relay_turn_without_pending account_id=%d request_id=%s terminal_event=%s",
+						account.ID,
+						truncateOpenAIWSLogValue(turn.RequestID, openAIWSIDValueMaxLen),
+						truncateOpenAIWSLogValue(turn.TerminalEventType, openAIWSLogValueMaxLen),
+					)
+					return
+				}
+				completedTurns.Add(1)
+				turnNo := pendingTurn.turnNo
+				turnModel := pendingTurn.model
+				if turnModel == "" {
+					turnModel = strings.TrimSpace(turn.RequestModel)
+				}
 				terminalStatusCode, terminalError := openAIWSTerminalOutcomeMetadata(turn.TerminalEventType, turn.TerminalErrorCode, turn.TerminalErrorType, turn.TerminalErrorMessage)
 				turnResult := &OpenAIForwardResult{
 					RequestID: turn.RequestID,
@@ -550,7 +631,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 						CacheReadInputTokens:     turn.Usage.CacheReadInputTokens,
 						ImageOutputTokens:        turn.Usage.ImageOutputTokens,
 					},
-					Model:                turn.RequestModel,
+					Model:                turnModel,
 					ServiceTier:          usageMeta.serviceTier.Load(),
 					ReasoningEffort:      usageMeta.reasoningEffort.Load(),
 					Stream:               true,
@@ -574,11 +655,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 					turnResult.Usage.OutputTokens,
 					turnResult.Usage.CacheReadInputTokens,
 				)
-				turnStartedAt := relayStartedAt
-				if startedAtNanos := activeTurnStartedAt.Swap(0); startedAtNanos > 0 {
-					turnStartedAt = time.Unix(0, startedAtNanos)
-				}
-				s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), turn.RequestModel, openAIAutoSchedulerSuccessOutcome(nil, turnStartedAt, turnResult))
+				s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), turnModel, openAIAutoSchedulerSuccessOutcome(nil, pendingTurn.startedAt, turnResult))
 				if hooks != nil && hooks.AfterTurn != nil {
 					hooks.AfterTurn(turnNo, turnResult, nil)
 				}
@@ -660,17 +737,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			relayResult.DroppedDownstreamFrames,
 			turnCount,
 		)
-		if int(startedTurns.Load()) > turnCount {
-			turnErr := errors.New("upstream websocket closed before terminal event")
-			turnStartedAt := relayStartedAt
-			if startedAtNanos := activeTurnStartedAt.Load(); startedAtNanos > 0 {
-				turnStartedAt = time.Unix(0, startedAtNanos)
-			}
-			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), requestModel, openAIAutoSchedulerErrorOutcome(turnStartedAt, nil, turnErr))
-			if hooks != nil && hooks.AfterTurn != nil {
-				hooks.AfterTurn(turnCount+1, nil, turnErr)
-			}
-		}
+		recordUnfinishedTurns(errors.New("upstream websocket closed before terminal event"))
 		return nil
 	}
 	logOpenAIWSV2Passthrough(
@@ -699,16 +766,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		relayErr,
 		relayExit.WroteDownstream,
 	)
-	if int(startedTurns.Load()) > turnCount {
-		turnStartedAt := relayStartedAt
-		if startedAtNanos := activeTurnStartedAt.Load(); startedAtNanos > 0 {
-			turnStartedAt = time.Unix(0, startedAtNanos)
-		}
-		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), requestModel, openAIAutoSchedulerErrorOutcome(turnStartedAt, openAIAutoSchedulerStatusCodeForError(turnErr), turnErr))
-	}
-	if hooks != nil && hooks.AfterTurn != nil {
-		hooks.AfterTurn(turnCount+1, nil, turnErr)
-	}
+	recordUnfinishedTurns(turnErr)
 	return turnErr
 }
 

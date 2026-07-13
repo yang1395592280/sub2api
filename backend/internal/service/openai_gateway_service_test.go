@@ -1262,6 +1262,37 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_RecordsOutcomeThroughBo
 	require.Equal(t, &statusCode, event.StatusCode)
 }
 
+func TestOpenAIGatewayService_RecordOpenAIAutoSchedulerOutcomeRejectsInvalidIdentity(t *testing.T) {
+	validGroupID := int64(10)
+	zeroGroupID := int64(0)
+	validAccount := &Account{ID: 1, Platform: PlatformOpenAI}
+	tests := []struct {
+		name    string
+		account *Account
+		groupID *int64
+		model   string
+	}{
+		{name: "nil account", groupID: &validGroupID, model: "gpt-5"},
+		{name: "zero account id", account: &Account{Platform: PlatformOpenAI}, groupID: &validGroupID, model: "gpt-5"},
+		{name: "wrong platform", account: &Account{ID: 1, Platform: PlatformAnthropic}, groupID: &validGroupID, model: "gpt-5"},
+		{name: "nil group", account: validAccount, model: "gpt-5"},
+		{name: "zero group", account: validAccount, groupID: &zeroGroupID, model: "gpt-5"},
+		{name: "blank model", account: validAccount, groupID: &validGroupID, model: "   "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := NewOpenAIAutoSchedulerOutcomeRecorder(&collectingOpenAIAutoSchedulerOutcomeSink{}, 1, 1)
+			svc := &OpenAIGatewayService{openAIAutoSchedulerOutcomeRecorder: recorder}
+
+			svc.recordOpenAIAutoSchedulerOutcome(context.Background(), tt.account, tt.groupID, tt.model, OpenAIAutoSchedulerRecordInput{EventType: OpenAIAutoSchedulerEventSuccess})
+
+			require.NoError(t, recorder.Stop(context.Background()))
+			require.Zero(t, recorder.SnapshotMetrics().Accepted)
+		})
+	}
+}
+
 func TestOpenAIAutoSchedulerSuccessOutcomeClassifiesWSTerminalEvents(t *testing.T) {
 	tests := []struct {
 		name       string

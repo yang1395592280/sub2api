@@ -181,7 +181,7 @@ func (r *OpenAIAutoSchedulerOutcomeRecorder) recordDropped() {
 
 func (r *OpenAIAutoSchedulerOutcomeRecorder) logDroppedFeedback() {
 	dropped := r.dropped.Load()
-	if !shouldLogOpenAIAutoSchedulerOutcomeRecorderCount(dropped) {
+	if dropped == 0 {
 		return
 	}
 	for {

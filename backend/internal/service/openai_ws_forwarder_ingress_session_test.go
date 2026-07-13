@@ -1082,17 +1082,21 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRe
 			Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_bridge_1"}},
 			Body: io.NopCloser(strings.NewReader(
 				"data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n" +
-					"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_http_bridge_1\",\"usage\":{\"input_tokens\":2,\"output_tokens\":1,\"input_tokens_details\":{\"cached_tokens\":1}}}}\n\n" +
+					"data: {\"type\":\"response.failed\",\"response\":{\"id\":\"resp_http_bridge_1\",\"error\":{\"code\":\"rate_limit_exceeded\",\"type\":\"rate_limit_error\",\"message\":\"Rate limit exceeded\"},\"usage\":{\"input_tokens\":2,\"output_tokens\":0,\"input_tokens_details\":{\"cached_tokens\":1}}}}\n\n" +
 					"data: [DONE]\n\n",
 			)),
 		},
 	}
+	groupID := int64(80)
+	outcomeSink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+	outcomeRecorder := NewOpenAIAutoSchedulerOutcomeRecorder(outcomeSink, 2, 1)
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     upstream,
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
+		cfg:                                cfg,
+		httpUpstream:                       upstream,
+		cache:                              &stubGatewayCache{},
+		openaiWSResolver:                   NewOpenAIWSProtocolResolver(cfg),
+		toolCorrector:                      NewCodexToolCorrector(),
+		openAIAutoSchedulerOutcomeRecorder: outcomeRecorder,
 	}
 
 	account := &Account{
@@ -1139,6 +1143,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRe
 		req.Header = req.Header.Clone()
 		req.Header.Set("User-Agent", "unit-test-agent/1.0")
 		ginCtx.Request = req
+		ginCtx.Set("api_key", &APIKey{GroupID: &groupID})
 
 		readCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		msgType, firstMessage, readErr := conn.Read(readCtx)
@@ -1180,7 +1185,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRe
 	_, event2, readErr2 := clientConn.Read(readCtx2)
 	cancelRead2()
 	require.NoError(t, readErr2)
-	require.Equal(t, "response.completed", gjson.GetBytes(event2, "type").String())
+	require.Equal(t, "response.failed", gjson.GetBytes(event2, "type").String())
 	require.Equal(t, "resp_http_bridge_1", gjson.GetBytes(event2, "response.id").String())
 
 	_ = clientConn.Close(coderws.StatusNormalClosure, "done")
@@ -1197,12 +1202,19 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRe
 		require.Equal(t, "resp_http_bridge_1", result.RequestID)
 		require.True(t, result.OpenAIWSMode)
 		require.Equal(t, 2, result.Usage.InputTokens)
-		require.Equal(t, 1, result.Usage.OutputTokens)
+		require.Equal(t, 0, result.Usage.OutputTokens)
 		require.Equal(t, 1, result.Usage.CacheReadInputTokens)
 		require.NotNil(t, result.FirstTokenMs)
 	case <-time.After(2 * time.Second):
 		t.Fatal("未收到 http_bridge turn 结果回调")
 	}
+	require.NoError(t, outcomeRecorder.Stop(context.Background()))
+	outcomes := outcomeSink.snapshot()
+	require.Len(t, outcomes, 1)
+	require.Equal(t, OpenAIAutoSchedulerEventRateLimited, outcomes[0].EventType)
+	require.Equal(t, account.ID, outcomes[0].AccountID)
+	require.Equal(t, groupID, outcomes[0].GroupID)
+	require.Equal(t, "gpt-5.1", outcomes[0].Model)
 
 	require.NotNil(t, upstream.lastReq, "http_bridge 模式应调用 HTTP 上游")
 }

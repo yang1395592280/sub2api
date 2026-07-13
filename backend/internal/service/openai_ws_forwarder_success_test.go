@@ -603,6 +603,8 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthStoreFalseByDefault(t *testing.T
 	c.Request.Header.Set("session_id", "sess-oauth-1")
 	c.Request.Header.Set("conversation_id", "conv-oauth-1")
 	c.Request.Header.Set("x-codex-beta-features", "remote_compaction_v2")
+	groupID := int64(79)
+	c.Set("api_key", &APIKey{GroupID: &groupID})
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -624,14 +626,17 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthStoreFalseByDefault(t *testing.T
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.setClientDialerForTest(captureDialer)
+	outcomeSink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+	outcomeRecorder := NewOpenAIAutoSchedulerOutcomeRecorder(outcomeSink, 2, 1)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:                                cfg,
+		httpUpstream:                       &httpUpstreamRecorder{},
+		cache:                              &stubGatewayCache{},
+		openaiWSResolver:                   NewOpenAIWSProtocolResolver(cfg),
+		toolCorrector:                      NewCodexToolCorrector(),
+		openaiWSPool:                       pool,
+		openAIAutoSchedulerOutcomeRecorder: outcomeRecorder,
 	}
 	account := &Account{
 		ID:          29,
@@ -657,6 +662,13 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthStoreFalseByDefault(t *testing.T
 	require.Equal(t, "response.failed", result.WSTerminalEventType)
 	require.Equal(t, http.StatusTooManyRequests, *result.WSTerminalStatusCode)
 	require.Equal(t, "Rate limit exceeded", result.WSTerminalError)
+	require.NoError(t, outcomeRecorder.Stop(context.Background()))
+	outcomes := outcomeSink.snapshot()
+	require.Len(t, outcomes, 1)
+	require.Equal(t, OpenAIAutoSchedulerEventRateLimited, outcomes[0].EventType)
+	require.Equal(t, account.ID, outcomes[0].AccountID)
+	require.Equal(t, groupID, outcomes[0].GroupID)
+	require.Equal(t, "gpt-5.1", outcomes[0].Model)
 
 	require.NotNil(t, captureConn.lastWrite)
 	requestJSON := requestToJSONString(captureConn.lastWrite)
