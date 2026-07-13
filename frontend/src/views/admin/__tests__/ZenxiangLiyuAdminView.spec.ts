@@ -196,6 +196,15 @@ describe('ZenxiangLiyuAdminView', () => {
     expect(wrapper.find('[data-testid="zenxiang-user-stats-details-43"]').exists()).toBe(true)
   })
 
+  it('keeps statistics tables full width for expanded desktop details', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="zenxiang-tab-stats"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="zenxiang-stats-tables"]').classes()).not.toContain('xl:grid-cols-2')
+  })
+
   it('clears expanded details and cache when the statistics date changes', async () => {
     api.listUserStats.mockResolvedValue({ items: [{ user_id: 42, user_email: 'user@example.com', balance: 10, usage_amount: 5, play_count: 1, ticket_amount: 0, reward_amount: 1, user_net_amount: 1 }], total: 1, page: 1, page_size: 100, pages: 1 })
     const wrapper = mountView()
