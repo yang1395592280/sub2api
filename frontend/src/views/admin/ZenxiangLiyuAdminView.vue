@@ -163,7 +163,76 @@
           </label>
         </div>
         <div class="grid gap-4 xl:grid-cols-2">
-          <StatsTable :title="t('admin.zenxiangLiyu.userStats')" :headers="[t('admin.zenxiangLiyu.user'), t('admin.zenxiangLiyu.availableBalance'), t('admin.zenxiangLiyu.usageAmount'), t('admin.zenxiangLiyu.plays'), t('admin.zenxiangLiyu.rewardTotal'), t('admin.zenxiangLiyu.netTotal')]" :rows="userStatsRows" />
+          <div class="overflow-hidden rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+            <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.zenxiangLiyu.userStats') }}</h2>
+            <div class="mt-3 overflow-x-auto">
+              <table class="w-full min-w-[720px] text-sm">
+                <thead>
+                  <tr>
+                    <th v-for="header in [t('admin.zenxiangLiyu.user'), t('admin.zenxiangLiyu.availableBalance'), t('admin.zenxiangLiyu.usageAmount'), t('admin.zenxiangLiyu.plays'), t('admin.zenxiangLiyu.rewardTotal'), t('admin.zenxiangLiyu.netTotal')]" :key="header" class="p-2 text-left text-xs text-gray-500 dark:text-dark-400">{{ header }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template v-for="row in userStats" :key="row.user_id">
+                    <tr class="border-t border-gray-200 dark:border-dark-700">
+                      <td class="p-2">
+                        <button
+                          type="button"
+                          :data-testid="`zenxiang-user-stats-toggle-${row.user_id}`"
+                          class="inline-flex max-w-56 items-center gap-1.5 text-left font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                          :aria-expanded="expandedUserID === row.user_id"
+                          :title="expandedUserID === row.user_id ? t('admin.zenxiangLiyu.userRecordsCollapse') : t('admin.zenxiangLiyu.userRecordsExpand')"
+                          @click="toggleUserDetails(row.user_id)"
+                        >
+                          <Icon :name="expandedUserID === row.user_id ? 'chevronDown' : 'chevronRight'" size="xs" class="shrink-0" />
+                          <span class="truncate">{{ row.user_email || String(row.user_id) }}</span>
+                        </button>
+                      </td>
+                      <td class="p-2 text-gray-700 dark:text-dark-200">{{ formatAmount(row.balance) }}</td>
+                      <td class="p-2 text-gray-700 dark:text-dark-200">{{ formatAmount(row.usage_amount) }}</td>
+                      <td class="p-2 text-gray-700 dark:text-dark-200">{{ row.play_count }}</td>
+                      <td class="p-2 text-gray-700 dark:text-dark-200">{{ formatAmount(row.reward_amount) }}</td>
+                      <td class="p-2 text-gray-700 dark:text-dark-200">{{ formatAmount(row.user_net_amount) }}</td>
+                    </tr>
+                    <tr v-if="expandedUserID === row.user_id" :data-testid="`zenxiang-user-stats-details-${row.user_id}`">
+                      <td colspan="6" class="border-t border-gray-200 bg-gray-50/80 p-3 dark:border-dark-700 dark:bg-dark-800/70">
+                        <p v-if="userRecordLoading" class="py-4 text-center text-sm text-gray-500 dark:text-dark-400">{{ t('admin.zenxiangLiyu.userRecordsLoading') }}</p>
+                        <div v-else-if="userRecordError" class="flex min-h-16 flex-wrap items-center justify-center gap-3 text-sm text-rose-600 dark:text-rose-300">
+                          <span>{{ userRecordError }}</span>
+                          <button :data-testid="`zenxiang-user-records-retry-${row.user_id}`" type="button" class="btn btn-secondary" @click="loadUserRecords(row.user_id)">{{ t('admin.zenxiangLiyu.userRecordsRetry') }}</button>
+                        </div>
+                        <p v-else-if="expandedUserRecords.length === 0" class="py-4 text-center text-sm text-gray-500 dark:text-dark-400">{{ t('admin.zenxiangLiyu.userRecordsEmpty') }}</p>
+                        <div v-else class="overflow-x-auto">
+                          <table class="w-full min-w-[760px] table-fixed text-xs">
+                            <thead>
+                              <tr class="text-gray-500 dark:text-dark-400">
+                                <th class="w-40 p-2 text-left font-medium">{{ t('admin.zenxiangLiyu.userRecordPlayedAt') }}</th>
+                                <th class="p-2 text-left font-medium">{{ t('admin.zenxiangLiyu.prizeName') }}</th>
+                                <th class="w-28 p-2 text-right font-medium">{{ t('admin.zenxiangLiyu.userRecordOriginalReward') }}</th>
+                                <th class="w-28 p-2 text-left font-medium">{{ t('admin.zenxiangLiyu.userRecordLuckyResult') }}</th>
+                                <th class="w-28 p-2 text-right font-medium">{{ t('admin.zenxiangLiyu.userRecordAdjustment') }}</th>
+                                <th class="w-28 p-2 text-right font-medium">{{ t('admin.zenxiangLiyu.userRecordFinalNet') }}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr v-for="record in expandedUserRecords" :key="record.id" class="border-t border-gray-200 dark:border-dark-700">
+                                <td class="whitespace-nowrap p-2 text-gray-600 dark:text-dark-300">{{ formatDateTime(record.played_at) }}</td>
+                                <td class="truncate p-2 font-medium text-gray-800 dark:text-dark-100" :title="record.prize_name">{{ record.prize_name }}</td>
+                                <td class="p-2 text-right tabular-nums text-gray-700 dark:text-dark-200">{{ formatAmount(record.reward_amount) }}</td>
+                                <td class="p-2" :class="luckyCoinResultClass(record)">{{ luckyCoinResultLabel(record) }}</td>
+                                <td class="p-2 text-right tabular-nums" :class="amountClass(record.lucky_coin_adjustment)">{{ formatSignedAmount(record.lucky_coin_adjustment) }}</td>
+                                <td class="p-2 text-right font-semibold tabular-nums" :class="amountClass(record.user_net_amount)">{{ formatSignedAmount(record.user_net_amount) }}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
           <StatsTable :title="t('admin.zenxiangLiyu.prizeStats')" :headers="[t('admin.zenxiangLiyu.prizeName'), t('admin.zenxiangLiyu.configuredProbability'), t('admin.zenxiangLiyu.actualRate'), t('admin.zenxiangLiyu.probabilityDiff'), t('admin.zenxiangLiyu.hitCount')]" :rows="prizeStatsRows" />
         </div>
       </section>
@@ -219,8 +288,10 @@ import Icon from '@/components/icons/Icon.vue'
 import { adminAPI } from '@/api/admin'
 import type { AdminUser } from '@/types'
 import type { ZenxiangLiyuGrant, ZenxiangLiyuPrizeInput, ZenxiangLiyuPrizeStats, ZenxiangLiyuSimulationResult, ZenxiangLiyuUserStats } from '@/api/admin/zenxiangLiyu'
+import type { ZenxiangLiyuRecord } from '@/api/zenxiangLiyu'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import { formatDateTime } from '@/utils/format'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -254,6 +325,11 @@ const giftForm = reactive({ request_id: newGiftRequestId(), ticket_count: 1, not
 const userStats = ref<ZenxiangLiyuUserStats[]>([])
 const prizeStats = ref<ZenxiangLiyuPrizeStats[]>([])
 const statsDate = ref(todayString())
+const expandedUserID = ref<number | null>(null)
+const userRecordCache = ref<Record<string, ZenxiangLiyuRecord[]>>({})
+const userRecordLoading = ref(false)
+const userRecordError = ref('')
+let userRecordRequestVersion = 0
 const simulationForm = reactive({ user_count: 100, plays_per_user: 3, initial_balance: 100, ticket_amount: 2, minimum_balance: 10, daily_play_limit: 3, target_profit_rate: 0.1 })
 const simulationResult = ref<ZenxiangLiyuSimulationResult | null>(null)
 const recommendationPlans = ref<Array<{ prizes: ZenxiangLiyuPrizeInput[], theory_profit: number, theory_profit_rate: number }>>([])
@@ -299,14 +375,10 @@ const prizeStatsRows = computed(() => prizeStats.value.map((row) => {
   const configuredRate = Number(row.probability || 0) / 100
   return [row.prize_name, `${formatNumber(row.probability)}%`, formatPercent(actualRate), formatSignedPercent(actualRate - configuredRate), row.hit_count]
 }))
-const userStatsRows = computed(() => userStats.value.map((row) => [
-  row.user_email || String(row.user_id),
-  formatAmount(row.balance),
-  formatAmount(row.usage_amount),
-  row.play_count,
-  formatAmount(row.reward_amount),
-  formatAmount(row.user_net_amount),
-]))
+const expandedUserRecords = computed(() => {
+  if (expandedUserID.value === null) return []
+  return userRecordCache.value[userRecordCacheKey(expandedUserID.value)] ?? []
+})
 
 const Metric = defineComponent({
   props: { label: { type: String, required: true }, value: { type: [String, Number], required: true }, warn: Boolean },
@@ -377,8 +449,26 @@ const StatsTable = defineComponent({
 
 function formatNumber(value: number) { return Number(value || 0).toFixed(2).replace(/\.00$/, '') }
 function formatAmount(value: number) { return `${formatNumber(value)} ${t('admin.zenxiangLiyu.pointsUnit')}` }
+function formatSignedAmount(value: number) { return `${Number(value || 0) > 0 ? '+' : ''}${formatAmount(value)}` }
 function formatPercent(value: number) { return `${formatNumber(value * 100)}%` }
 function formatSignedPercent(value: number) { return `${value > 0 ? '+' : ''}${formatPercent(value)}` }
+function amountClass(value: number) {
+  if (Number(value || 0) > 0) return 'text-emerald-700 dark:text-emerald-300'
+  if (Number(value || 0) < 0) return 'text-rose-700 dark:text-rose-300'
+  return 'text-gray-500 dark:text-dark-400'
+}
+function luckyCoinResultLabel(record: ZenxiangLiyuRecord) {
+  if (!record.lucky_coin_played) return t('admin.zenxiangLiyu.userRecordLuckyNotPlayed')
+  return record.lucky_coin_outcome === 'double'
+    ? t('admin.zenxiangLiyu.userRecordLuckyDoubled')
+    : t('admin.zenxiangLiyu.userRecordLuckyMissed')
+}
+function luckyCoinResultClass(record: ZenxiangLiyuRecord) {
+  if (!record.lucky_coin_played) return 'text-gray-500 dark:text-dark-400'
+  return record.lucky_coin_outcome === 'double'
+    ? 'text-emerald-700 dark:text-emerald-300'
+    : 'text-rose-700 dark:text-rose-300'
+}
 function todayString() {
   const now = new Date()
   const year = now.getFullYear()
@@ -426,6 +516,7 @@ async function loadGrants() {
 }
 
 async function loadStats() {
+  resetUserRecordDetails()
   loading.value = true
   try {
     const [usersResult, prizesResult, grantsResult] = await Promise.all([
@@ -440,6 +531,53 @@ async function loadStats() {
     appStore.showError(extractApiErrorMessage(error, t('admin.zenxiangLiyu.statsLoadFailed')))
   } finally {
     loading.value = false
+  }
+}
+
+function userRecordCacheKey(userID: number, date = statsDate.value) {
+  return `${date}:${userID}`
+}
+
+function resetUserRecordDetails() {
+  userRecordRequestVersion++
+  expandedUserID.value = null
+  userRecordCache.value = {}
+  userRecordLoading.value = false
+  userRecordError.value = ''
+}
+
+async function toggleUserDetails(userID: number) {
+  if (expandedUserID.value === userID) {
+    userRecordRequestVersion++
+    expandedUserID.value = null
+    userRecordLoading.value = false
+    userRecordError.value = ''
+    return
+  }
+  userRecordRequestVersion++
+  expandedUserID.value = userID
+  userRecordLoading.value = false
+  userRecordError.value = ''
+  if (userRecordCache.value[userRecordCacheKey(userID)]) return
+  await loadUserRecords(userID)
+}
+
+async function loadUserRecords(userID: number) {
+  const date = statsDate.value
+  const cacheKey = userRecordCacheKey(userID, date)
+  const requestVersion = ++userRecordRequestVersion
+  expandedUserID.value = userID
+  userRecordLoading.value = true
+  userRecordError.value = ''
+  try {
+    const result = await adminAPI.zenxiangLiyu.listUserRecords(userID, { date, page: 1, page_size: 100 })
+    if (requestVersion !== userRecordRequestVersion || expandedUserID.value !== userID || statsDate.value !== date) return
+    userRecordCache.value = { ...userRecordCache.value, [cacheKey]: result.items }
+  } catch (error) {
+    if (requestVersion !== userRecordRequestVersion || expandedUserID.value !== userID || statsDate.value !== date) return
+    userRecordError.value = extractApiErrorMessage(error, t('admin.zenxiangLiyu.userRecordsLoadFailed'))
+  } finally {
+    if (requestVersion === userRecordRequestVersion) userRecordLoading.value = false
   }
 }
 

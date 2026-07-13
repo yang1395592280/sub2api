@@ -6,7 +6,7 @@ import ZenxiangLiyuAdminView from '../ZenxiangLiyuAdminView.vue'
 const api = vi.hoisted(() => ({
   getSettings: vi.fn(), updateSettings: vi.fn(), listPrizes: vi.fn(), replacePrizes: vi.fn(),
   listGrants: vi.fn(), createGrant: vi.fn(), deleteGrant: vi.fn(), getOverviewStats: vi.fn(),
-  listUserStats: vi.fn(), listPrizeStats: vi.fn(), listPeriodStats: vi.fn(), resetGrantDailyPlays: vi.fn(),
+  listUserStats: vi.fn(), listUserRecords: vi.fn(), listPrizeStats: vi.fn(), listPeriodStats: vi.fn(), resetGrantDailyPlays: vi.fn(),
   simulate: vi.fn(), recommend: vi.fn(), applySimulation: vi.fn(),
 }))
 const usersAPI = vi.hoisted(() => ({ list: vi.fn() }))
@@ -64,6 +64,7 @@ describe('ZenxiangLiyuAdminView', () => {
     api.listGrants.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 1 })
     api.getOverviewStats.mockResolvedValue({ total_plays: 12, total_revenue: 24, total_expense: 18, net_profit: 6, participating_users: 4 })
     api.listUserStats.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 1 })
+    api.listUserRecords.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 100, pages: 0 })
     api.listPrizeStats.mockResolvedValue([
       { prize_name: '礼遇一档', prize_id: 1, probability: 60, hit_count: 9, reward_amount: 9 },
       { prize_name: '礼遇二档', prize_id: 2, probability: 30, hit_count: 3, reward_amount: 9 },
@@ -153,6 +154,98 @@ describe('ZenxiangLiyuAdminView', () => {
     expect(wrapper.text()).not.toContain('admin.zenxiangLiyu.periodStats')
     expect(wrapper.text()).not.toContain('admin.zenxiangLiyu.totalDraws')
     expect(wrapper.text()).toContain('+15%')
+  })
+
+  it('expands, collapses, and switches user draw details', async () => {
+    api.listUserStats.mockResolvedValue({
+      items: [
+        { user_id: 42, user_email: 'first@example.com', balance: 10, usage_amount: 5, play_count: 1, ticket_amount: 0, reward_amount: -0.5, user_net_amount: -0.5 },
+        { user_id: 43, user_email: 'second@example.com', balance: 20, usage_amount: 10, play_count: 1, ticket_amount: 0, reward_amount: 2, user_net_amount: 2 },
+      ],
+      total: 2, page: 1, page_size: 100, pages: 1,
+    })
+    api.listUserRecords.mockImplementation((userId: number) => Promise.resolve({
+      items: [{
+        id: userId, request_id: `request-${userId}`, ticket_amount: 0, reward_amount: userId === 42 ? 1 : 2,
+        user_net_amount: userId === 42 ? -0.5 : 2, lucky_coin_played: userId === 42,
+        lucky_coin_outcome: userId === 42 ? 'zero' : '', lucky_coin_adjustment: userId === 42 ? -1.5 : 0,
+        prize_name: userId === 42 ? '礼遇一档' : '礼遇二档', probability: 50, played_at: '2026-07-13T10:00:00Z',
+      }],
+      total: 1, page: 1, page_size: 100, pages: 1,
+    }))
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="zenxiang-tab-stats"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="zenxiang-user-stats-toggle-42"]').trigger('click')
+    await flushPromises()
+    expect(api.listUserRecords).toHaveBeenCalledWith(42, {
+      date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), page: 1, page_size: 100,
+    })
+    expect(wrapper.get('[data-testid="zenxiang-user-stats-details-42"]').text()).toContain('礼遇一档')
+    expect(wrapper.get('[data-testid="zenxiang-user-stats-details-42"]').text()).toContain('-1.5')
+    expect(wrapper.get('[data-testid="zenxiang-user-stats-details-42"]').text()).toContain('-0.5')
+
+    await wrapper.get('[data-testid="zenxiang-user-stats-toggle-42"]').trigger('click')
+    expect(wrapper.find('[data-testid="zenxiang-user-stats-details-42"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="zenxiang-user-stats-toggle-42"]').trigger('click')
+    await wrapper.get('[data-testid="zenxiang-user-stats-toggle-43"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="zenxiang-user-stats-details-42"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="zenxiang-user-stats-details-43"]').exists()).toBe(true)
+  })
+
+  it('clears expanded details and cache when the statistics date changes', async () => {
+    api.listUserStats.mockResolvedValue({ items: [{ user_id: 42, user_email: 'user@example.com', balance: 10, usage_amount: 5, play_count: 1, ticket_amount: 0, reward_amount: 1, user_net_amount: 1 }], total: 1, page: 1, page_size: 100, pages: 1 })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="zenxiang-tab-stats"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="zenxiang-user-stats-toggle-42"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('input[type="date"]').setValue('2026-07-12')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="zenxiang-user-stats-details-42"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="zenxiang-user-stats-toggle-42"]').trigger('click')
+    await flushPromises()
+    expect(api.listUserRecords).toHaveBeenCalledTimes(2)
+    expect(api.listUserRecords).toHaveBeenLastCalledWith(42, { date: '2026-07-12', page: 1, page_size: 100 })
+  })
+
+  it('shows loading and empty states for user draw details', async () => {
+    api.listUserStats.mockResolvedValue({ items: [{ user_id: 42, user_email: 'user@example.com', balance: 10, usage_amount: 5, play_count: 1, ticket_amount: 0, reward_amount: 1, user_net_amount: 1 }], total: 1, page: 1, page_size: 100, pages: 1 })
+    let resolveRecords: (value: unknown) => void = () => undefined
+    api.listUserRecords.mockReturnValue(new Promise((resolve) => { resolveRecords = resolve }))
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="zenxiang-tab-stats"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="zenxiang-user-stats-toggle-42"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('[data-testid="zenxiang-user-stats-details-42"]').text()).toContain('admin.zenxiangLiyu.userRecordsLoading')
+
+    resolveRecords({ items: [], total: 0, page: 1, page_size: 100, pages: 0 })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="zenxiang-user-stats-details-42"]').text()).toContain('admin.zenxiangLiyu.userRecordsEmpty')
+  })
+
+  it('shows a retry action when user draw details fail to load', async () => {
+    api.listUserStats.mockResolvedValue({ items: [{ user_id: 42, user_email: 'user@example.com', balance: 10, usage_amount: 5, play_count: 1, ticket_amount: 0, reward_amount: 1, user_net_amount: 1 }], total: 1, page: 1, page_size: 100, pages: 1 })
+    api.listUserRecords.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce({ items: [], total: 0, page: 1, page_size: 100, pages: 0 })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="zenxiang-tab-stats"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="zenxiang-user-stats-toggle-42"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="zenxiang-user-stats-details-42"]').text()).toContain('admin.zenxiangLiyu.userRecordsLoadFailed')
+
+    await wrapper.get('[data-testid="zenxiang-user-records-retry-42"]').trigger('click')
+    await flushPromises()
+    expect(api.listUserRecords).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('[data-testid="zenxiang-user-stats-details-42"]').text()).toContain('admin.zenxiangLiyu.userRecordsEmpty')
   })
 
   it('resets a granted user daily plays', async () => {
