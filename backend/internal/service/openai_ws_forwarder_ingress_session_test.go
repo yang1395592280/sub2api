@@ -18,7 +18,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossTurns(t *testing.T) {
+func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossTurnsAndRecordsAutoSchedulerOutcome(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
@@ -46,13 +46,17 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 	pool := newOpenAIWSConnPool(cfg)
 	pool.setClientDialerForTest(captureDialer)
 
+	groupID := int64(71)
+	outcomeSink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+	outcomeRecorder := NewOpenAIAutoSchedulerOutcomeRecorder(outcomeSink, 4, 1)
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:                                cfg,
+		httpUpstream:                       &httpUpstreamRecorder{},
+		cache:                              &stubGatewayCache{},
+		openaiWSResolver:                   NewOpenAIWSProtocolResolver(cfg),
+		toolCorrector:                      NewCodexToolCorrector(),
+		openaiWSPool:                       pool,
+		openAIAutoSchedulerOutcomeRecorder: outcomeRecorder,
 	}
 
 	account := &Account{
@@ -98,6 +102,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 		req.Header = req.Header.Clone()
 		req.Header.Set("User-Agent", "unit-test-agent/1.0")
 		ginCtx.Request = req
+		ginCtx.Set("api_key", &APIKey{GroupID: &groupID})
 
 		readCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		msgType, firstMessage, readErr := conn.Read(readCtx)
@@ -162,6 +167,15 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 	require.Equal(t, int64(1), metrics.AcquireTotal, "同一 ingress 会话多 turn 应只获取一次上游 lease")
 	require.Equal(t, 1, captureDialer.DialCount(), "同一 ingress 会话应保持同一上游连接")
 	require.Len(t, captureConn.writes, 2, "应向同一上游连接发送两轮 response.create")
+	require.NoError(t, outcomeRecorder.Stop(context.Background()))
+	outcomes := outcomeSink.snapshot()
+	require.Len(t, outcomes, 2, "每个完成的 native WS turn 应只记录一次")
+	for _, outcome := range outcomes {
+		require.Equal(t, OpenAIAutoSchedulerEventSuccess, outcome.EventType)
+		require.Equal(t, account.ID, outcome.AccountID)
+		require.Equal(t, groupID, outcome.GroupID)
+		require.Equal(t, "gpt-5.1", outcome.Model)
+	}
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_FollowupCreateCanOmitModel(t *testing.T) {
@@ -569,7 +583,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_DedicatedModeDoe
 	require.Equal(t, 2, dialer.DialCount(), "dedicated 模式下跨客户端会话不应复用上游连接")
 }
 
-func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeRelaysByCaddyAdapter(t *testing.T) {
+func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeRecordsAutoSchedulerOutcome(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
@@ -591,13 +605,17 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 		},
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: upstreamConn}
+	groupID := int64(72)
+	outcomeSink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+	outcomeRecorder := NewOpenAIAutoSchedulerOutcomeRecorder(outcomeSink, 4, 1)
 	svc := &OpenAIGatewayService{
-		cfg:                       cfg,
-		httpUpstream:              &httpUpstreamRecorder{},
-		cache:                     &stubGatewayCache{},
-		openaiWSResolver:          NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:             NewCodexToolCorrector(),
-		openaiWSPassthroughDialer: captureDialer,
+		cfg:                                cfg,
+		httpUpstream:                       &httpUpstreamRecorder{},
+		cache:                              &stubGatewayCache{},
+		openaiWSResolver:                   NewOpenAIWSProtocolResolver(cfg),
+		toolCorrector:                      NewCodexToolCorrector(),
+		openaiWSPassthroughDialer:          captureDialer,
+		openAIAutoSchedulerOutcomeRecorder: outcomeRecorder,
 	}
 
 	account := &Account{
@@ -644,6 +662,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 		req.Header = req.Header.Clone()
 		req.Header.Set("User-Agent", "unit-test-agent/1.0")
 		ginCtx.Request = req
+		ginCtx.Set("api_key", &APIKey{GroupID: &groupID})
 
 		readCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		msgType, firstMessage, readErr := conn.Read(readCtx)
@@ -710,6 +729,13 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 
 	require.Equal(t, 1, captureDialer.DialCount(), "passthrough 模式应直接建立上游 websocket")
 	require.Len(t, upstreamConn.writes, 1, "passthrough 模式应透传首条 response.create")
+	require.NoError(t, outcomeRecorder.Stop(context.Background()))
+	outcomes := outcomeSink.snapshot()
+	require.Len(t, outcomes, 1, "完成 turn 后客户端正常关闭不应额外记录 error")
+	require.Equal(t, OpenAIAutoSchedulerEventSuccess, outcomes[0].EventType)
+	require.Equal(t, account.ID, outcomes[0].AccountID)
+	require.Equal(t, groupID, outcomes[0].GroupID)
+	require.Equal(t, "gpt-5.1", outcomes[0].Model)
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeadersUsePromptCacheAndTurnState(t *testing.T) {

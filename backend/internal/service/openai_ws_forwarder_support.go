@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -280,6 +281,29 @@ func getOpenAIGroupIDFromContext(c *gin.Context) int64 {
 		return 0
 	}
 	return *apiKey.GroupID
+}
+
+func openAIAutoSchedulerStatusCodeForError(err error) *int {
+	if err == nil {
+		return nil
+	}
+	var failoverErr *UpstreamFailoverError
+	if errors.As(err, &failoverErr) && failoverErr.StatusCode > 0 {
+		statusCode := failoverErr.StatusCode
+		return &statusCode
+	}
+	var dialErr *openAIWSDialError
+	if errors.As(err, &dialErr) && dialErr.StatusCode > 0 {
+		statusCode := dialErr.StatusCode
+		return &statusCode
+	}
+	for _, statusCode := range []int{http.StatusTooManyRequests, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout, http.StatusInternalServerError} {
+		if strings.Contains(err.Error(), fmt.Sprintf("status=%d", statusCode)) {
+			status := statusCode
+			return &status
+		}
+	}
+	return nil
 }
 
 // SelectAccountByPreviousResponseID 按 previous_response_id 命中账号粘连。

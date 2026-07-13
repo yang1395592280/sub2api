@@ -180,6 +180,13 @@ func (s *OpenAIGatewayService) SetOpenAIAutoScheduler(selector *OpenAIAutoSchedu
 	s.openAIAutoSchedulerService = svc
 }
 
+func (s *OpenAIGatewayService) SetOpenAIAutoSchedulerOutcomeRecorder(recorder *OpenAIAutoSchedulerOutcomeRecorder) {
+	if s == nil {
+		return
+	}
+	s.openAIAutoSchedulerOutcomeRecorder = recorder
+}
+
 func (s *OpenAIGatewayService) SetOpenAIAutoCheapestGroupResolver(resolver *OpenAIAutoCheapestGroupResolver, updater LastEffectiveGroupUpdater) {
 	if s == nil {
 		return
@@ -203,17 +210,59 @@ func (s *OpenAIGatewayService) isOpenAIAutoSchedulerAccountTemporarilyBlocked(ct
 }
 
 func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerOutcome(ctx context.Context, account *Account, groupID *int64, requestedModel string, outcome OpenAIAutoSchedulerRecordInput) {
-	if s == nil || s.openAIAutoSchedulerService == nil || account == nil || groupID == nil {
+	model := strings.TrimSpace(requestedModel)
+	if s == nil || s.openAIAutoSchedulerOutcomeRecorder == nil || account == nil || account.ID <= 0 || account.Platform != PlatformOpenAI || groupID == nil || *groupID <= 0 || model == "" {
 		return
 	}
 	outcome.AccountID = account.ID
 	outcome.GroupID = *groupID
-	outcome.Model = strings.TrimSpace(requestedModel)
-	go func() {
-		recordCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		_ = s.openAIAutoSchedulerService.Record(recordCtx, outcome)
-	}()
+	outcome.Model = model
+	s.openAIAutoSchedulerOutcomeRecorder.TryRecord(outcome)
+}
+
+func openAIAutoSchedulerSuccessOutcome(c *gin.Context, forwardStartedAt time.Time, result *OpenAIForwardResult) OpenAIAutoSchedulerRecordInput {
+	statusCode := http.StatusOK
+	latencyMS := int(time.Since(forwardStartedAt).Milliseconds())
+	outcome := OpenAIAutoSchedulerRecordInput{
+		EventType:  OpenAIAutoSchedulerEventSuccess,
+		LatencyMS:  &latencyMS,
+		StatusCode: &statusCode,
+	}
+	if result == nil || result.FirstTokenMs == nil {
+		return outcome
+	}
+
+	ttfbMS := *result.FirstTokenMs
+	if c != nil {
+		if timing := OpenAIRequestTimingFromContext(c); timing != nil {
+			timing.mu.Lock()
+			preForwardMS := int(forwardStartedAt.Sub(timing.startedAt).Milliseconds())
+			timing.mu.Unlock()
+			if preForwardMS > 0 {
+				ttfbMS += preForwardMS
+			}
+		}
+	}
+	outcome.TtfbMS = &ttfbMS
+	return outcome
+}
+
+func openAIAutoSchedulerErrorOutcome(forwardStartedAt time.Time, statusCode *int, err error) OpenAIAutoSchedulerRecordInput {
+	latencyMS := int(time.Since(forwardStartedAt).Milliseconds())
+	eventType := OpenAIAutoSchedulerEventError
+	if statusCode != nil && *statusCode == http.StatusTooManyRequests {
+		eventType = OpenAIAutoSchedulerEventRateLimited
+	}
+	message := ""
+	if err != nil {
+		message = truncateString(err.Error(), 512)
+	}
+	return OpenAIAutoSchedulerRecordInput{
+		EventType:  eventType,
+		LatencyMS:  &latencyMS,
+		StatusCode: statusCode,
+		Message:    message,
+	}
 }
 
 func openAIAutoSchedulerGroupIDFromContext(c *gin.Context) *int64 {

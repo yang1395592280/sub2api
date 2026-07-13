@@ -101,6 +101,7 @@ func provideCleanup(
 	groupUpstreamBalanceRefreshRunner *service.GroupUpstreamBalanceRefreshRunner,
 	openAIGateway *service.OpenAIGatewayService,
 	openAIAutoSchedulerProbeRunner *service.OpenAIAutoSchedulerProbeRunner,
+	openAIAutoSchedulerOutcomeRecorder *service.OpenAIAutoSchedulerOutcomeRecorder,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	backupSvc *service.BackupService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
@@ -267,6 +268,12 @@ func provideCleanup(
 			{"OpenAIAutoSchedulerProbeRunner", func() error {
 				if openAIAutoSchedulerProbeRunner != nil {
 					openAIAutoSchedulerProbeRunner.Stop()
+				}
+				return nil
+			}},
+			{"OpenAIAutoSchedulerOutcomeRecorder", func() error {
+				if openAIAutoSchedulerOutcomeRecorder != nil {
+					return openAIAutoSchedulerOutcomeRecorder.Stop(ctx)
 				}
 				return nil
 			}},

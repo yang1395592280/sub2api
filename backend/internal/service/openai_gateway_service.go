@@ -396,6 +396,8 @@ type OpenAIGatewayService struct {
 	openAIAutoCheapestGroupResolver *OpenAIAutoCheapestGroupResolver
 	apiKeyEffectiveGroupUpdater     LastEffectiveGroupUpdater
 
+	openAIAutoSchedulerOutcomeRecorder *OpenAIAutoSchedulerOutcomeRecorder
+
 	openaiWSPoolOnce              sync.Once
 	openaiWSStateStoreOnce        sync.Once
 	openaiSchedulerOnce           sync.Once

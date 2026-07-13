@@ -1229,7 +1229,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_AdvancedSkipsAccountWhe
 	}
 }
 
-func TestOpenAIGatewayService_SelectAccountWithScheduler_RecordsOutcomeAsync(t *testing.T) {
+func TestOpenAIGatewayService_SelectAccountWithScheduler_RecordsOutcomeThroughBoundedRecorder(t *testing.T) {
 	groupID := int64(10)
 	repo := &fakeOpenAIAutoSchedulerRepo{
 		groups: map[int64]Group{
@@ -1238,22 +1238,19 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_RecordsOutcomeAsync(t *
 		states: map[string]OpenAIAutoSchedulerScoreState{},
 	}
 	schedulerSvc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(schedulerSvc, 4, 1)
 	svc := &OpenAIGatewayService{}
 	svc.SetOpenAIAutoScheduler(nil, schedulerSvc)
+	svc.SetOpenAIAutoSchedulerOutcomeRecorder(recorder)
 	latencyMS := 123
 	statusCode := http.StatusOK
 
-	svc.recordOpenAIAutoSchedulerOutcome(context.Background(), &Account{ID: 1}, &groupID, " gpt-5 ", OpenAIAutoSchedulerRecordInput{
+	svc.recordOpenAIAutoSchedulerOutcome(context.Background(), &Account{ID: 1, Platform: PlatformOpenAI}, &groupID, " gpt-5 ", OpenAIAutoSchedulerRecordInput{
 		EventType:  OpenAIAutoSchedulerEventSuccess,
 		LatencyMS:  &latencyMS,
 		StatusCode: &statusCode,
 	})
-
-	require.Eventually(t, func() bool {
-		repo.mu.Lock()
-		defer repo.mu.Unlock()
-		return len(repo.events) == 1
-	}, time.Second, 10*time.Millisecond)
+	require.NoError(t, recorder.Stop(context.Background()))
 	repo.mu.Lock()
 	event := repo.events[0]
 	repo.mu.Unlock()

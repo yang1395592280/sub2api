@@ -586,6 +586,10 @@ func ProvideOpenAIAutoSchedulerSelector(svc *OpenAIAutoSchedulerService) *OpenAI
 	return NewOpenAIAutoSchedulerSelector(svc)
 }
 
+func ProvideOpenAIAutoSchedulerOutcomeRecorder(svc *OpenAIAutoSchedulerService) *OpenAIAutoSchedulerOutcomeRecorder {
+	return NewOpenAIAutoSchedulerOutcomeRecorder(svc, openAIAutoSchedulerOutcomeQueueSize, openAIAutoSchedulerOutcomeWorkerCount)
+}
+
 func ProvideOpenAIGatewayService(
 	accountRepo AccountRepository,
 	usageLogRepo UsageLogRepository,
@@ -611,6 +615,7 @@ func ProvideOpenAIGatewayService(
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
 	openAIAutoSchedulerSelector *OpenAIAutoSchedulerSelector,
 	openAIAutoSchedulerService *OpenAIAutoSchedulerService,
+	openAIAutoSchedulerOutcomeRecorder *OpenAIAutoSchedulerOutcomeRecorder,
 	apiKeyService *APIKeyService,
 	apiKeyRepo APIKeyRepository,
 ) *OpenAIGatewayService {
@@ -639,6 +644,7 @@ func ProvideOpenAIGatewayService(
 		userPlatformQuotaRepo,
 	)
 	svc.SetOpenAIAutoScheduler(openAIAutoSchedulerSelector, openAIAutoSchedulerService)
+	svc.SetOpenAIAutoSchedulerOutcomeRecorder(openAIAutoSchedulerOutcomeRecorder)
 	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(apiKeyService), apiKeyRepo)
 	return svc
 }
@@ -697,6 +703,7 @@ var ProviderSet = wire.NewSet(
 	ProvideGroupUpstreamBalanceRefreshRunner,
 	NewOpenAIAutoSchedulerService,
 	ProvideOpenAIAutoSchedulerSelector,
+	ProvideOpenAIAutoSchedulerOutcomeRecorder,
 	NewOpenAIAutoSchedulerProbeChecker,
 	ProvideOpenAIAutoSchedulerProbeRunner,
 	ProvideGrokQuotaService,

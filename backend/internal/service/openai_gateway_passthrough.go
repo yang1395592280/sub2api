@@ -184,11 +184,15 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		// Transport-level failure (proxy/DNS/TCP/TLS — no HTTP response). Convert to
 		// a failover so the handler switches to a healthy account, and temporarily
 		// unschedule the account on durable faults (e.g. rejected proxy credentials).
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
+		forwardErr := s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
+		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, openAIAutoSchedulerErrorOutcome(startTime, nil, forwardErr))
+		return nil, forwardErr
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
+		statusCode := resp.StatusCode
+		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, errors.New(resp.Status)))
 		// 透传模式默认保持原样代理；但 429/529 属于网关必须兜底的
 		// 上游容量类错误，应先触发多账号 failover 以维持基础 SLA。
 		if shouldFailoverOpenAIPassthroughResponse(resp.StatusCode) {
@@ -207,6 +211,8 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	if reqStream {
 		result, err := s.handleStreamingResponsePassthrough(ctx, resp, c, account, startTime, reqModel, upstreamPassthroughModel)
 		if err != nil {
+			statusCode := resp.StatusCode
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, err))
 			return nil, err
 		}
 		usage = result.usage
@@ -217,6 +223,8 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	} else {
 		result, err := s.handleNonStreamingResponsePassthrough(ctx, resp, c, reqModel, upstreamPassthroughModel)
 		if err != nil {
+			statusCode := resp.StatusCode
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, err))
 			return nil, err
 		}
 		usage = result.usage
@@ -258,6 +266,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		forwardResult.BillingModel = imageBillingModel
 	}
 	s.ResetOpenAIOverbrush429Count(account)
+	s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, openAIAutoSchedulerSuccessOutcome(c, startTime, forwardResult))
 	return forwardResult, nil
 }
 
