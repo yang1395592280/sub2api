@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -193,6 +194,108 @@ func TestOpenAIUsageSubmitPathCarriesForwardTiming(t *testing.T) {
 	require.Equal(t, 75, *submitted.FirstTokenMs)
 	require.Equal(t, 200, *submitted.E2EFirstTokenMs)
 	require.Equal(t, 10, *submitted.QueueMs)
+}
+
+type openAIForwardTimingHTTPUpstream struct {
+	service.HTTPUpstream
+}
+
+func (u *openAIForwardTimingHTTPUpstream) Do(req *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header: http.Header{
+			"Content-Type": []string{"text/event-stream"},
+			"X-Request-Id": []string{"req_timing_bridge"},
+		},
+		Body: io.NopCloser(strings.NewReader(
+			`data: {"type":"response.output_text.delta","delta":"ok"}` + "\n\n" +
+				`data: {"type":"response.completed","response":{"id":"resp_timing_bridge","model":"gpt-5.4","usage":{"input_tokens":2,"output_tokens":1}}}` + "\n\n",
+		)),
+		Request: req,
+	}, nil
+}
+
+func TestOpenAIResponsesSuccessBridgesTimingIntoUsageLog(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	groupID := int64(5901)
+	account := service.Account{
+		ID:          5902,
+		Name:        "openai-timing-bridge",
+		Platform:    service.PlatformOpenAI,
+		Type:        service.AccountTypeOAuth,
+		Status:      service.StatusActive,
+		Schedulable: true,
+		Concurrency: 1,
+		Credentials: map[string]any{"access_token": "token", "base_url": "http://timing.invalid"},
+	}
+	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: []service.Account{account}, listDelay: 5 * time.Millisecond}
+	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, 1)}
+	cfg := &config.Config{RunMode: config.RunModeSimple}
+	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	t.Cleanup(billingCacheSvc.Stop)
+	gatewaySvc := service.NewOpenAIGatewayService(
+		accountRepo,
+		usageRepo,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		cfg,
+		nil,
+		nil,
+		service.NewBillingService(cfg, nil),
+		nil,
+		billingCacheSvc,
+		&openAIForwardTimingHTTPUpstream{},
+		&service.DeferredService{},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	cache := &concurrencyCacheMock{
+		acquireUserSlotFn:    func(context.Context, int64, int, string) (bool, error) { return true, nil },
+		acquireAccountSlotFn: func(context.Context, int64, int, string) (bool, error) { return true, nil },
+	}
+	h := &OpenAIGatewayHandler{
+		gatewayService:      gatewaySvc,
+		billingCacheService: billingCacheSvc,
+		apiKeyService:       &service.APIKeyService{},
+		concurrencyHelper:   NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, time.Second),
+	}
+	apiKey := &service.APIKey{
+		ID:      5903,
+		GroupID: &groupID,
+		User:    &service.User{ID: 5904, Status: service.StatusActive},
+		Group:   &service.Group{ID: groupID, Platform: service.PlatformOpenAI, Status: service.StatusActive},
+	}
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-5.4","stream":true,"input":"hello"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(string(middleware.ContextKeyAPIKey), apiKey)
+	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: apiKey.User.ID, Concurrency: 1})
+
+	h.Responses(c)
+
+	select {
+	case usageLog := <-usageRepo.created:
+		require.NotNil(t, usageLog.FirstTokenMs)
+		require.NotNil(t, usageLog.E2EFirstTokenMs)
+		require.NotNil(t, usageLog.RoutingMs)
+		require.NotNil(t, usageLog.QueueMs)
+		require.NotNil(t, usageLog.RetryMs)
+		require.Greater(t, *usageLog.E2EFirstTokenMs, *usageLog.FirstTokenMs)
+		require.GreaterOrEqual(t, *usageLog.RoutingMs, 1)
+		require.Equal(t, 0, *usageLog.QueueMs)
+		require.Equal(t, 0, *usageLog.RetryMs)
+	case <-time.After(3 * time.Second):
+		t.Fatal("等待 HTTP usage log 写入超时")
+	}
 }
 
 func TestOpenAIHandleStreamingAwareError_JSONEscaping(t *testing.T) {
