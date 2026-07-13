@@ -32,9 +32,9 @@ func (OpenAISchedulerHealthState) Fields() []ent.Field {
 		field.Float("error_rate").Default(0).SchemaType(map[string]string{dialect.Postgres: "decimal(8,4)"}),
 		field.Float("rate_limited_rate").Default(0).SchemaType(map[string]string{dialect.Postgres: "decimal(8,4)"}),
 		field.Float("server_error_rate").Default(0).SchemaType(map[string]string{dialect.Postgres: "decimal(8,4)"}),
-		field.Int("consecutive_slow").Default(0),
-		field.Int("consecutive_error").Default(0),
-		field.Int("consecutive_success").Default(0),
+		field.Int("consecutive_slow").Default(0).SchemaType(map[string]string{dialect.Postgres: "integer"}),
+		field.Int("consecutive_error").Default(0).SchemaType(map[string]string{dialect.Postgres: "integer"}),
+		field.Int("consecutive_success").Default(0).SchemaType(map[string]string{dialect.Postgres: "integer"}),
 		field.Int64("real_sample_count").Default(0),
 		field.Int64("probe_sample_count").Default(0),
 		field.Time("last_real_at").Optional().Nillable().SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
@@ -46,7 +46,7 @@ func (OpenAISchedulerHealthState) Fields() []ent.Field {
 
 func (OpenAISchedulerHealthState) Indexes() []ent.Index {
 	return []ent.Index{
-		index.Fields("account_id", "model_family", "endpoint", "transport").Unique(),
-		index.Fields("expires_at"),
+		index.Fields("account_id", "model_family", "endpoint", "transport").Unique().StorageKey("idx_openai_scheduler_health_key"),
+		index.Fields("expires_at").StorageKey("idx_openai_scheduler_health_expiry"),
 	}
 }

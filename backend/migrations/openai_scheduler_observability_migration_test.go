@@ -36,13 +36,30 @@ func TestOpenAISchedulerHealthStateMigrationContract(t *testing.T) {
 
 	sql := strings.ToLower(string(migration))
 	require.Contains(t, sql, "create table if not exists openai_scheduler_health_states")
+	require.Contains(t, sql, "id bigserial primary key")
+	require.Contains(t, sql, "account_id bigint not null")
+	for _, column := range []string{"model_family varchar(100) not null default ''", "endpoint varchar(100) not null default ''"} {
+		require.Contains(t, sql, column)
+	}
+	require.Contains(t, sql, "transport varchar(32) not null default ''")
+	require.Contains(t, sql, "state varchar(20) not null default 'running'")
 	require.Contains(t, sql, "predicted_ttft_ms decimal(12,3) not null default 0")
 	for _, rate := range []string{"error_rate", "rate_limited_rate", "server_error_rate"} {
 		require.Contains(t, sql, rate+" decimal(8,4) not null default 0")
 	}
-	for _, timestamp := range []string{"last_real_at", "last_probe_at", "cooldown_until", "expires_at", "created_at", "updated_at"} {
-		require.Contains(t, sql, timestamp+" timestamptz")
+	for _, consecutive := range []string{"consecutive_slow", "consecutive_error", "consecutive_success"} {
+		require.Contains(t, sql, consecutive+" integer not null default 0")
 	}
+	for _, sampleCount := range []string{"real_sample_count", "probe_sample_count"} {
+		require.Contains(t, sql, sampleCount+" bigint not null default 0")
+	}
+	for _, nullableTimestamp := range []string{"last_real_at", "last_probe_at", "cooldown_until"} {
+		require.Contains(t, sql, nullableTimestamp+" timestamptz")
+		require.NotContains(t, sql, nullableTimestamp+" timestamptz not null")
+	}
+	require.Contains(t, sql, "expires_at timestamptz not null")
+	require.Contains(t, sql, "created_at timestamptz not null default now()")
+	require.Contains(t, sql, "updated_at timestamptz not null default now()")
 	require.Contains(t, sql, "create unique index if not exists idx_openai_scheduler_health_key")
 	require.Contains(t, sql, "on openai_scheduler_health_states(account_id, model_family, endpoint, transport)")
 	require.Contains(t, sql, "create index if not exists idx_openai_scheduler_health_expiry")

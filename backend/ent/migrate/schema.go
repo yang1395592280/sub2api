@@ -1121,9 +1121,9 @@ var (
 		{Name: "error_rate", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(8,4)"}},
 		{Name: "rate_limited_rate", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(8,4)"}},
 		{Name: "server_error_rate", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(8,4)"}},
-		{Name: "consecutive_slow", Type: field.TypeInt, Default: 0},
-		{Name: "consecutive_error", Type: field.TypeInt, Default: 0},
-		{Name: "consecutive_success", Type: field.TypeInt, Default: 0},
+		{Name: "consecutive_slow", Type: field.TypeInt, Default: 0, SchemaType: map[string]string{"postgres": "integer"}},
+		{Name: "consecutive_error", Type: field.TypeInt, Default: 0, SchemaType: map[string]string{"postgres": "integer"}},
+		{Name: "consecutive_success", Type: field.TypeInt, Default: 0, SchemaType: map[string]string{"postgres": "integer"}},
 		{Name: "real_sample_count", Type: field.TypeInt64, Default: 0},
 		{Name: "probe_sample_count", Type: field.TypeInt64, Default: 0},
 		{Name: "last_real_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
@@ -1138,12 +1138,12 @@ var (
 		PrimaryKey: []*schema.Column{OpenaiSchedulerHealthStatesColumns[0]},
 		Indexes: []*schema.Index{
 			{
-				Name:    "openaischedulerhealthstate_account_id_model_family_endpoint_transport",
+				Name:    "idx_openai_scheduler_health_key",
 				Unique:  true,
 				Columns: []*schema.Column{OpenaiSchedulerHealthStatesColumns[3], OpenaiSchedulerHealthStatesColumns[4], OpenaiSchedulerHealthStatesColumns[5], OpenaiSchedulerHealthStatesColumns[6]},
 			},
 			{
-				Name:    "openaischedulerhealthstate_expires_at",
+				Name:    "idx_openai_scheduler_health_expiry",
 				Unique:  false,
 				Columns: []*schema.Column{OpenaiSchedulerHealthStatesColumns[20]},
 			},
