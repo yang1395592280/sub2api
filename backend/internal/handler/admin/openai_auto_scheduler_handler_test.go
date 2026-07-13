@@ -406,6 +406,7 @@ func TestOpenAIAutoSchedulerHandler_ProbeClassifiesSlowSuccessUsingEffectiveSett
 
 			require.Equal(t, http.StatusOK, rec.Code)
 			require.Equal(t, tt.want, schedulerSvc.recordInput.EventType)
+			require.Contains(t, rec.Body.String(), `"success":true`)
 		})
 	}
 }

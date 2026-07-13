@@ -275,7 +275,7 @@ func (h *OpenAIAutoSchedulerHandler) ProbeScore(c *gin.Context) {
 	}
 	response.Success(c, gin.H{
 		"event_type": eventType,
-		"success":    eventType == service.OpenAIAutoSchedulerEventProbeSuccess,
+		"success":    result.Success && result.Err == nil,
 		"message":    message,
 		"latency_ms": result.LatencyMS,
 		"ttfb_ms":    result.TtfbMS,

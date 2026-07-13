@@ -40,3 +40,15 @@
 - 自动与手动入口均进入同一核心分类器；手动入口额外校验 settings service 已配置。
 - 现有 `//go:build unit` runner 测试在 `-tags=unit` 下会被分支中既有的旧 mock 接口缺失阻断（缺少 `ListUpstreamBalanceRefreshCandidatesByGroupID` 等），未修复无关问题；无 tag 的完整 service/admin 测试已通过。
 - 未覆盖真实 HTTP probe 的慢响应计时，仅覆盖 checker 结果到事件分类的边界；该任务范围不涉及网络计时实现。
+
+## Reviewer Fix: 手动 probe success 响应语义
+
+### RED
+
+- 强化 `TestOpenAIAutoSchedulerHandler_ProbeClassifiesSlowSuccessUsingEffectiveSettings`，要求 slow/severe 成功 probe 的响应包含 `"success":true`。
+- `GOCACHE=/tmp/sub2api-go-cache go test ./internal/handler/admin -run 'TestOpenAIAutoSchedulerHandler_Probe' -count=1`：失败；slow 和 severe_slow 的响应均为 `"success":false`，虽然 checker 成功且事件分类正确。
+
+### GREEN
+
+- 将响应 `success` 字段改为 `result.Success && result.Err == nil`，与真实 checker 成功语义一致；事件类型仍由共享分类器决定。
+- `GOCACHE=/tmp/sub2api-go-cache go test ./internal/handler/admin -run 'TestOpenAIAutoSchedulerHandler_Probe' -count=1`：通过（`ok github.com/Wei-Shaw/sub2api/internal/handler/admin`）。
