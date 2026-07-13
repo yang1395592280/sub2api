@@ -124,6 +124,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 			reqModel,
 			failedAccountIDs,
 			service.OpenAIUpstreamTransportHTTPSSE,
+			service.OpenAISchedulerEndpointEmbeddings,
 			service.OpenAIEndpointCapabilityEmbeddings,
 			false,
 			false,

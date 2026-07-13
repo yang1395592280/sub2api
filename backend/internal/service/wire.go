@@ -593,6 +593,10 @@ func ProvideOpenAISchedulerHealthEventSink(
 	return NewOpenAISchedulerHealthEventSink(repo, settingsProvider)
 }
 
+func ProvideOpenAIBalancedScheduler(repo OpenAISchedulerHealthRepository) *OpenAIBalancedScheduler {
+	return NewOpenAIBalancedScheduler(repo)
+}
+
 func ProvideOpenAIAutoSchedulerService(
 	repo OpenAIAutoSchedulerRepository,
 	settingsProvider OpenAIAutoSchedulerSettingsProvider,
@@ -635,6 +639,7 @@ func ProvideOpenAIGatewayService(
 	openAIAutoSchedulerSelector *OpenAIAutoSchedulerSelector,
 	openAIAutoSchedulerService *OpenAIAutoSchedulerService,
 	openAIAutoSchedulerOutcomeRecorder *OpenAIAutoSchedulerOutcomeRecorder,
+	openAIBalancedScheduler *OpenAIBalancedScheduler,
 	apiKeyService *APIKeyService,
 	apiKeyRepo APIKeyRepository,
 ) *OpenAIGatewayService {
@@ -664,6 +669,7 @@ func ProvideOpenAIGatewayService(
 	)
 	svc.SetOpenAIAutoScheduler(openAIAutoSchedulerSelector, openAIAutoSchedulerService)
 	svc.SetOpenAIAutoSchedulerOutcomeRecorder(openAIAutoSchedulerOutcomeRecorder)
+	svc.SetOpenAIBalancedScheduler(openAIBalancedScheduler)
 	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(apiKeyService), apiKeyRepo)
 	return svc
 }
@@ -721,6 +727,7 @@ var ProviderSet = wire.NewSet(
 	ProvideSub2APICheckinService,
 	ProvideGroupUpstreamBalanceRefreshRunner,
 	ProvideOpenAISchedulerHealthEventSink,
+	ProvideOpenAIBalancedScheduler,
 	ProvideOpenAIAutoSchedulerService,
 	ProvideOpenAIAutoSchedulerSelector,
 	ProvideOpenAIAutoSchedulerOutcomeRecorder,

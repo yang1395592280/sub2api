@@ -152,6 +152,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			reqModel,
 			failedAccountIDs,
 			service.OpenAIUpstreamTransportAny,
+			service.OpenAISchedulerEndpointChatCompletions,
 			service.OpenAIEndpointCapabilityChatCompletions,
 			false,
 			false,

@@ -173,6 +173,7 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 			failedAccountIDs,
 			service.OpenAIUpstreamTransportHTTPSSE,
 			"",
+			"",
 			false,
 			false,
 			service.PlatformGrok,

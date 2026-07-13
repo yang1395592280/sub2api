@@ -395,6 +395,7 @@ type OpenAIGatewayService struct {
 	userPlatformQuotaRepo           UserPlatformQuotaRepository
 	openAIAutoSchedulerSelector     *OpenAIAutoSchedulerSelector
 	openAIAutoSchedulerService      *OpenAIAutoSchedulerService
+	openaiBalancedScheduler         *OpenAIBalancedScheduler
 	openAIAutoCheapestGroupResolver *OpenAIAutoCheapestGroupResolver
 	apiKeyEffectiveGroupUpdater     LastEffectiveGroupUpdater
 
