@@ -481,6 +481,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				}
 			}
 			turnStartedAt := time.Now()
+			attemptMetadata := openAIWSIngressAttemptMetadata(account, currentBridgePayload.originalModel, OpenAIUpstreamTransportHTTPSSE)
 			result, bridgeErr := s.proxyOpenAIWSHTTPBridgeTurn(
 				ctx,
 				c,
@@ -498,13 +499,13 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			)
 			if bridgeErr != nil {
 				s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentBridgePayload.originalModel, openAIAutoSchedulerErrorOutcome(turnStartedAt, openAIAutoSchedulerStatusCodeForError(bridgeErr), bridgeErr),
-					openAIAutoSchedulerAttemptMetadata{ModelFamily: normalizeOpenAIModelForUpstream(account, currentBridgePayload.originalModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
+					attemptMetadata)
 			} else if result != nil {
 				if hooks != nil && hooks.TimingForTurn != nil {
 					applyOpenAIWSTurnTiming(hooks.TimingForTurn(turn), turnStartedAt, result)
 				}
 				s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentBridgePayload.originalModel, openAIAutoSchedulerSuccessOutcome(nil, turnStartedAt, result),
-					openAIAutoSchedulerHealthMetadataForAttempt(openAIAutoSchedulerAttemptMetadata{ModelFamily: normalizeOpenAIModelForUpstream(account, currentBridgePayload.originalModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE}, result))
+					openAIAutoSchedulerHealthMetadataForAttempt(attemptMetadata, result))
 			}
 			if hooks != nil && hooks.AfterTurn != nil {
 				hooks.AfterTurn(turn, result, bridgeErr)
@@ -1472,6 +1473,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			)
 		}
 
+		attemptMetadata := openAIWSIngressAttemptMetadata(account, currentOriginalModel, OpenAIUpstreamTransportResponsesWebsocketV2)
 		result, relayErr := sendAndRelay(turn, sessionLease, currentPayload, currentPayloadBytes, currentOriginalModel, currentImageBillingModel, currentImageSizeTier, currentImageInputSize)
 		if relayErr != nil {
 			lastTurnClean = false
@@ -1486,7 +1488,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				finalErr = unwrapped
 			}
 			s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentOriginalModel, openAIAutoSchedulerErrorOutcome(turnStartedAt, openAIAutoSchedulerStatusCodeForError(finalErr), finalErr),
-				openAIAutoSchedulerAttemptMetadata{ModelFamily: normalizeOpenAIModelForUpstream(account, currentOriginalModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportResponsesWebsocketV2})
+				attemptMetadata)
 			if hooks != nil && hooks.AfterTurn != nil {
 				hooks.AfterTurn(turn, nil, finalErr)
 			}
@@ -1502,7 +1504,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				applyOpenAIWSTurnTiming(hooks.TimingForTurn(turn), turnStartedAt, result)
 			}
 			s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentOriginalModel, openAIAutoSchedulerSuccessOutcome(nil, turnStartedAt, result),
-				openAIAutoSchedulerHealthMetadataForAttempt(openAIAutoSchedulerAttemptMetadata{ModelFamily: normalizeOpenAIModelForUpstream(account, currentOriginalModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportResponsesWebsocketV2}, result))
+				openAIAutoSchedulerHealthMetadataForAttempt(attemptMetadata, result))
 		}
 		if hooks != nil && hooks.AfterTurn != nil {
 			hooks.AfterTurn(turn, result, nil)
@@ -1622,4 +1624,16 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		}
 		turn++
 	}
+}
+
+func openAIWSIngressAttemptMetadata(account *Account, originalModel string, transport OpenAIUpstreamTransport) openAIAutoSchedulerAttemptMetadata {
+	upstreamModel := strings.TrimSpace(originalModel)
+	if account != nil {
+		upstreamModel = normalizeOpenAIModelForUpstream(account, account.GetMappedModel(originalModel))
+	}
+	return openAIAutoSchedulerHealthMetadataForAttempt(openAIAutoSchedulerAttemptMetadata{
+		ModelFamily: upstreamModel,
+		Endpoint:    openAISchedulerHealthEndpointResponses,
+		Transport:   transport,
+	}, nil)
 }

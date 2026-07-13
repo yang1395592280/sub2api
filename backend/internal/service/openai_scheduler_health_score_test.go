@@ -115,6 +115,72 @@ func TestApplyOpenAISchedulerHealthEvent(t *testing.T) {
 		require.Equal(t, OpenAIAutoSchedulerStateOpen, got.State)
 	})
 
+	t.Run("error-open circuit stays open with original cooldown after slow sample", func(t *testing.T) {
+		opened := ApplyOpenAISchedulerHealthEvent(now, OpenAISchedulerHealthSnapshot{
+			State: OpenAIAutoSchedulerStateObserving, ConsecutiveError: 1, RealSampleCount: 1,
+		}, OpenAISchedulerHealthEvent{Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventError, OccurredAt: now}, settings)
+		require.Equal(t, OpenAIAutoSchedulerStateOpen, opened.State)
+		originalCooldown := *opened.CooldownUntil
+
+		got := ApplyOpenAISchedulerHealthEvent(now.Add(time.Second), opened, OpenAISchedulerHealthEvent{
+			Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventSlow, TTFTMS: 1_500, OccurredAt: now.Add(time.Second),
+		}, settings)
+		require.Equal(t, OpenAIAutoSchedulerStateOpen, got.State)
+		require.Equal(t, originalCooldown, *got.CooldownUntil)
+		require.Equal(t, 1, got.ConsecutiveSlow)
+		require.Zero(t, got.ConsecutiveError)
+	})
+
+	t.Run("unexpired open circuit repeated error preserves original cooldown", func(t *testing.T) {
+		opened := ApplyOpenAISchedulerHealthEvent(now, OpenAISchedulerHealthSnapshot{
+			State: OpenAIAutoSchedulerStateObserving, ConsecutiveError: 1, RealSampleCount: 1,
+		}, OpenAISchedulerHealthEvent{Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventError, OccurredAt: now}, settings)
+		originalCooldown := *opened.CooldownUntil
+
+		got := ApplyOpenAISchedulerHealthEvent(now.Add(time.Second), opened, OpenAISchedulerHealthEvent{
+			Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventError, OccurredAt: now.Add(time.Second),
+		}, settings)
+		require.Equal(t, OpenAIAutoSchedulerStateOpen, got.State)
+		require.Equal(t, originalCooldown, *got.CooldownUntil)
+		require.Equal(t, 3, got.ConsecutiveError)
+	})
+
+	t.Run("slow-open circuit stays open with original cooldown after error", func(t *testing.T) {
+		opened := ApplyOpenAISchedulerHealthEvent(now, OpenAISchedulerHealthSnapshot{
+			State: OpenAIAutoSchedulerStateObserving, ConsecutiveSlow: 1, RealSampleCount: 1,
+		}, OpenAISchedulerHealthEvent{Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventSlow, TTFTMS: 1_500, OccurredAt: now}, settings)
+		require.Equal(t, OpenAIAutoSchedulerStateOpen, opened.State)
+		originalCooldown := *opened.CooldownUntil
+
+		got := ApplyOpenAISchedulerHealthEvent(now.Add(time.Second), opened, OpenAISchedulerHealthEvent{
+			Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventError, OccurredAt: now.Add(time.Second),
+		}, settings)
+		require.Equal(t, OpenAIAutoSchedulerStateOpen, got.State)
+		require.Equal(t, originalCooldown, *got.CooldownUntil)
+		require.Equal(t, 1, got.ConsecutiveError)
+		require.Zero(t, got.ConsecutiveSlow)
+	})
+
+	t.Run("half open slow immediately reopens", func(t *testing.T) {
+		got := ApplyOpenAISchedulerHealthEvent(now, OpenAISchedulerHealthSnapshot{
+			State: OpenAIAutoSchedulerStateHalfOpen, ConsecutiveSuccess: 1, RealSampleCount: 1,
+		}, OpenAISchedulerHealthEvent{Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventSlow, TTFTMS: 1_500, OccurredAt: now}, settings)
+		require.Equal(t, OpenAIAutoSchedulerStateOpen, got.State)
+		require.Equal(t, now.Add(time.Minute), *got.CooldownUntil)
+		require.Equal(t, 1, got.ConsecutiveSlow)
+		require.Zero(t, got.ConsecutiveSuccess)
+	})
+
+	t.Run("expired open circuit bad sample refreshes cooldown", func(t *testing.T) {
+		expiredCooldown := now.Add(-time.Second)
+		got := ApplyOpenAISchedulerHealthEvent(now, OpenAISchedulerHealthSnapshot{
+			State: OpenAIAutoSchedulerStateOpen, CooldownUntil: &expiredCooldown, RealSampleCount: 1,
+		}, OpenAISchedulerHealthEvent{Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventRateLimited, OccurredAt: now}, settings)
+		require.Equal(t, OpenAIAutoSchedulerStateOpen, got.State)
+		require.Equal(t, now.Add(time.Minute), *got.CooldownUntil)
+		require.Equal(t, 1, got.ConsecutiveError)
+	})
+
 	t.Run("cooldown success enters half open and next success recovers", func(t *testing.T) {
 		cooldown := now.Add(-time.Second)
 		halfOpen := ApplyOpenAISchedulerHealthEvent(now, OpenAISchedulerHealthSnapshot{
@@ -336,5 +402,42 @@ func TestOpenAISchedulerHealthCompositePreservesProductionSlowClassification(t *
 	for _, state := range healthRepo.snapshot() {
 		require.Equal(t, 1, state.ConsecutiveSlow)
 		require.Equal(t, OpenAIAutoSchedulerStateObserving, state.State)
+	}
+}
+
+func TestOpenAISchedulerHealthWSIngressFailureUsesMappedAttemptModel(t *testing.T) {
+	account := &Account{
+		ID: 20, Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key": "sk-test",
+			"model_mapping": map[string]any{
+				"client-alias": "mapped-upstream-model",
+			},
+		},
+	}
+	groupID := int64(30)
+	for _, tt := range []struct {
+		name      string
+		transport OpenAIUpstreamTransport
+	}{
+		{name: "HTTP bridge failure", transport: OpenAIUpstreamTransportHTTPSSE},
+		{name: "WS relay failure", transport: OpenAIUpstreamTransportResponsesWebsocketV2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			legacy := &strictCollectingLegacyOutcomeSink{}
+			recorder := NewOpenAIAutoSchedulerOutcomeRecorder(legacy, 1, 1)
+			svc := &OpenAIGatewayService{openAIAutoSchedulerOutcomeRecorder: recorder}
+			attemptMetadata := openAIWSIngressAttemptMetadata(account, "client-alias", tt.transport)
+			svc.recordOpenAIAutoSchedulerOutcome(context.Background(), account, &groupID, "client-alias",
+				OpenAIAutoSchedulerRecordInput{EventType: OpenAIAutoSchedulerEventError}, attemptMetadata)
+			require.NoError(t, recorder.Stop(context.Background()))
+
+			records := legacy.snapshot()
+			require.Len(t, records, 1)
+			require.Equal(t, "client-alias", records[0].Model, "legacy model remains client-facing")
+			require.Equal(t, "mapped-upstream-model", records[0].ModelFamily)
+			require.Equal(t, openAISchedulerHealthEndpointResponses, records[0].Endpoint)
+			require.Equal(t, tt.transport, records[0].Transport)
+		})
 	}
 }

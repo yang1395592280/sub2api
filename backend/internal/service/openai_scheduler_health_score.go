@@ -190,6 +190,7 @@ func applyOpenAISchedulerHealthState(
 	eventType string,
 	settings OpenAISchedulerHealthSettings,
 ) OpenAISchedulerHealthSnapshot {
+	stateBeforeEvent := current.State
 	isSuccess := eventType == OpenAIAutoSchedulerEventSuccess || eventType == OpenAIAutoSchedulerEventProbeSuccess
 	if current.State == OpenAIAutoSchedulerStateOpen && openAIAutoSchedulerCooldownExpired(now, current.CooldownUntil) && isSuccess {
 		current.State = OpenAIAutoSchedulerStateHalfOpen
@@ -215,21 +216,42 @@ func applyOpenAISchedulerHealthState(
 		current.ConsecutiveSlow++
 		current.ConsecutiveError = 0
 		current.ConsecutiveSuccess = 0
-		if current.ConsecutiveSlow >= settings.ConsecutiveSlowBreakerThreshold {
-			current = openOpenAISchedulerHealthCircuit(now, current, settings)
-		} else {
-			current.State = OpenAIAutoSchedulerStateObserving
-		}
+		current = applyOpenAISchedulerBadHealthEventState(
+			now, current, stateBeforeEvent,
+			current.ConsecutiveSlow >= settings.ConsecutiveSlowBreakerThreshold,
+			settings,
+		)
 	case OpenAIAutoSchedulerEventError, OpenAIAutoSchedulerEventProbeError, OpenAIAutoSchedulerEventRateLimited:
 		current.ConsecutiveError++
 		current.ConsecutiveSlow = 0
 		current.ConsecutiveSuccess = 0
-		if current.ConsecutiveError >= settings.ConsecutiveErrorBreakerThreshold || current.State == OpenAIAutoSchedulerStateHalfOpen {
-			current = openOpenAISchedulerHealthCircuit(now, current, settings)
-		} else {
-			current.State = OpenAIAutoSchedulerStateObserving
-		}
+		current = applyOpenAISchedulerBadHealthEventState(
+			now, current, stateBeforeEvent,
+			current.ConsecutiveError >= settings.ConsecutiveErrorBreakerThreshold,
+			settings,
+		)
 	}
+	return current
+}
+
+func applyOpenAISchedulerBadHealthEventState(
+	now time.Time,
+	current OpenAISchedulerHealthSnapshot,
+	stateBeforeEvent string,
+	breakerReached bool,
+	settings OpenAISchedulerHealthSettings,
+) OpenAISchedulerHealthSnapshot {
+	if stateBeforeEvent == OpenAIAutoSchedulerStateOpen {
+		if current.CooldownUntil == nil || openAIAutoSchedulerCooldownExpired(now, current.CooldownUntil) {
+			return openOpenAISchedulerHealthCircuit(now, current, settings)
+		}
+		current.State = OpenAIAutoSchedulerStateOpen
+		return current
+	}
+	if stateBeforeEvent == OpenAIAutoSchedulerStateHalfOpen || breakerReached {
+		return openOpenAISchedulerHealthCircuit(now, current, settings)
+	}
+	current.State = OpenAIAutoSchedulerStateObserving
 	return current
 }
 

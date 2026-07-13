@@ -1219,6 +1219,109 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRe
 	require.NotNil(t, upstream.lastReq, "http_bridge 模式应调用 HTTP 上游")
 }
 
+func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_FailureOutcomeUsesMappedAttemptModel(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		mode          string
+		wantTransport OpenAIUpstreamTransport
+	}{
+		{name: "HTTP bridge failure", mode: OpenAIWSIngressModeHTTPBridge, wantTransport: OpenAIUpstreamTransportHTTPSSE},
+		{name: "WS relay failure", mode: OpenAIWSIngressModeCtxPool, wantTransport: OpenAIUpstreamTransportResponsesWebsocketV2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			cfg := &config.Config{}
+			cfg.Security.URLAllowlist.Enabled = false
+			cfg.Security.URLAllowlist.AllowInsecureHTTP = true
+			cfg.Gateway.OpenAIWS.Enabled = true
+			cfg.Gateway.OpenAIWS.APIKeyEnabled = true
+			cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
+			cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
+			cfg.Gateway.OpenAIWS.IngressModeDefault = OpenAIWSIngressModeCtxPool
+			cfg.Gateway.OpenAIWS.DialTimeoutSeconds = 3
+			cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 3
+			cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
+
+			groupID := int64(801)
+			outcomeSink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+			outcomeRecorder := NewOpenAIAutoSchedulerOutcomeRecorder(outcomeSink, 4, 1)
+			svc := &OpenAIGatewayService{
+				cfg:                                cfg,
+				cache:                              &stubGatewayCache{},
+				openaiWSResolver:                   NewOpenAIWSProtocolResolver(cfg),
+				toolCorrector:                      NewCodexToolCorrector(),
+				openAIAutoSchedulerOutcomeRecorder: outcomeRecorder,
+			}
+			if tt.mode == OpenAIWSIngressModeHTTPBridge {
+				svc.httpUpstream = &httpUpstreamRecorder{err: errors.New("bridge upstream failed")}
+			} else {
+				captureDialer := &openAIWSCaptureDialer{conn: &openAIWSCaptureConn{}}
+				pool := newOpenAIWSConnPool(cfg)
+				pool.setClientDialerForTest(captureDialer)
+				svc.httpUpstream = &httpUpstreamRecorder{}
+				svc.openaiWSPool = pool
+			}
+
+			account := &Account{
+				ID: 802, Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
+				Status: StatusActive, Schedulable: true, Concurrency: 1,
+				Credentials: map[string]any{
+					"api_key":       "sk-test",
+					"model_mapping": map[string]any{"client-alias": "mapped-upstream-model"},
+				},
+				Extra: map[string]any{"openai_apikey_responses_websockets_v2_mode": tt.mode},
+			}
+
+			serverErrCh := make(chan error, 1)
+			wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := coderws.Accept(w, r, nil)
+				if err != nil {
+					serverErrCh <- err
+					return
+				}
+				defer func() { _ = conn.CloseNow() }()
+				ginCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+				ginCtx.Request = r
+				ginCtx.Set("api_key", &APIKey{GroupID: &groupID})
+				readCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+				msgType, firstMessage, readErr := conn.Read(readCtx)
+				cancel()
+				if readErr != nil {
+					serverErrCh <- readErr
+					return
+				}
+				if msgType != coderws.MessageText {
+					serverErrCh <- errors.New("unexpected client frame type")
+					return
+				}
+				serverErrCh <- svc.ProxyResponsesWebSocketFromClient(r.Context(), ginCtx, conn, account, "sk-test", firstMessage, nil)
+			}))
+			defer wsServer.Close()
+
+			clientConn, _, err := coderws.Dial(context.Background(), "ws"+strings.TrimPrefix(wsServer.URL, "http"), nil)
+			require.NoError(t, err)
+			defer func() { _ = clientConn.CloseNow() }()
+			require.NoError(t, clientConn.Write(context.Background(), coderws.MessageText,
+				[]byte(`{"type":"response.create","model":"client-alias","stream":false}`)))
+
+			select {
+			case serverErr := <-serverErrCh:
+				require.Error(t, serverErr)
+			case <-time.After(5 * time.Second):
+				t.Fatal("waiting for mapped-model failure outcome timed out")
+			}
+			require.NoError(t, outcomeRecorder.Stop(context.Background()))
+			outcomes := outcomeSink.snapshot()
+			require.Len(t, outcomes, 1)
+			require.Equal(t, OpenAIAutoSchedulerEventError, outcomes[0].EventType)
+			require.Equal(t, "client-alias", outcomes[0].Model)
+			require.Equal(t, "mapped-upstream-model", outcomes[0].ModelFamily)
+			require.Equal(t, openAISchedulerHealthEndpointResponses, outcomes[0].Endpoint)
+			require.Equal(t, tt.wantTransport, outcomes[0].Transport)
+		})
+	}
+}
+
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ModeOffReturnsPolicyViolation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
