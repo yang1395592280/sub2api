@@ -870,6 +870,7 @@ var (
 		{Name: "video_price_480p", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "video_price_720p", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "video_price_1080p", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "web_search_price_per_call", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "claude_code_only", Type: field.TypeBool, Default: false},
 		{Name: "fallback_group_id", Type: field.TypeInt64, Nullable: true},
 		{Name: "fallback_group_id_on_invalid_request", Type: field.TypeInt64, Nullable: true},
@@ -924,7 +925,7 @@ var (
 			{
 				Name:    "group_sort_order",
 				Unique:  false,
-				Columns: []*schema.Column{GroupsColumns[40]},
+				Columns: []*schema.Column{GroupsColumns[41]},
 			},
 		},
 	}
@@ -2300,6 +2301,10 @@ var (
 		{Name: "ticket_amount", Type: field.TypeFloat64, Default: 2, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "minimum_balance", Type: field.TypeFloat64, Default: 10, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "daily_play_limit", Type: field.TypeInt, Default: 5},
+		{Name: "ticket_usage_threshold", Type: field.TypeFloat64, Default: 5, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "daily_ticket_limit", Type: field.TypeInt, Default: 3},
+		{Name: "unit_sale_price", Type: field.TypeFloat64, Default: 0.1, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "unit_cost_price", Type: field.TypeFloat64, Default: 0.05, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 	}
 	// ZenxiangLiyuSettingsTable holds the schema information for the "zenxiang_liyu_settings" table.
 	ZenxiangLiyuSettingsTable = &schema.Table{

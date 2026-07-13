@@ -84,6 +84,26 @@ func DailyPlayLimit(v int) predicate.ZenxiangLiyuSetting {
 	return predicate.ZenxiangLiyuSetting(sql.FieldEQ(FieldDailyPlayLimit, v))
 }
 
+// TicketUsageThreshold applies equality check predicate on the "ticket_usage_threshold" field. It's identical to TicketUsageThresholdEQ.
+func TicketUsageThreshold(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldEQ(FieldTicketUsageThreshold, v))
+}
+
+// DailyTicketLimit applies equality check predicate on the "daily_ticket_limit" field. It's identical to DailyTicketLimitEQ.
+func DailyTicketLimit(v int) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldEQ(FieldDailyTicketLimit, v))
+}
+
+// UnitSalePrice applies equality check predicate on the "unit_sale_price" field. It's identical to UnitSalePriceEQ.
+func UnitSalePrice(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldEQ(FieldUnitSalePrice, v))
+}
+
+// UnitCostPrice applies equality check predicate on the "unit_cost_price" field. It's identical to UnitCostPriceEQ.
+func UnitCostPrice(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldEQ(FieldUnitCostPrice, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.ZenxiangLiyuSetting {
 	return predicate.ZenxiangLiyuSetting(sql.FieldEQ(FieldCreatedAt, v))
@@ -292,6 +312,166 @@ func DailyPlayLimitLT(v int) predicate.ZenxiangLiyuSetting {
 // DailyPlayLimitLTE applies the LTE predicate on the "daily_play_limit" field.
 func DailyPlayLimitLTE(v int) predicate.ZenxiangLiyuSetting {
 	return predicate.ZenxiangLiyuSetting(sql.FieldLTE(FieldDailyPlayLimit, v))
+}
+
+// TicketUsageThresholdEQ applies the EQ predicate on the "ticket_usage_threshold" field.
+func TicketUsageThresholdEQ(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldEQ(FieldTicketUsageThreshold, v))
+}
+
+// TicketUsageThresholdNEQ applies the NEQ predicate on the "ticket_usage_threshold" field.
+func TicketUsageThresholdNEQ(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldNEQ(FieldTicketUsageThreshold, v))
+}
+
+// TicketUsageThresholdIn applies the In predicate on the "ticket_usage_threshold" field.
+func TicketUsageThresholdIn(vs ...float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldIn(FieldTicketUsageThreshold, vs...))
+}
+
+// TicketUsageThresholdNotIn applies the NotIn predicate on the "ticket_usage_threshold" field.
+func TicketUsageThresholdNotIn(vs ...float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldNotIn(FieldTicketUsageThreshold, vs...))
+}
+
+// TicketUsageThresholdGT applies the GT predicate on the "ticket_usage_threshold" field.
+func TicketUsageThresholdGT(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldGT(FieldTicketUsageThreshold, v))
+}
+
+// TicketUsageThresholdGTE applies the GTE predicate on the "ticket_usage_threshold" field.
+func TicketUsageThresholdGTE(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldGTE(FieldTicketUsageThreshold, v))
+}
+
+// TicketUsageThresholdLT applies the LT predicate on the "ticket_usage_threshold" field.
+func TicketUsageThresholdLT(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldLT(FieldTicketUsageThreshold, v))
+}
+
+// TicketUsageThresholdLTE applies the LTE predicate on the "ticket_usage_threshold" field.
+func TicketUsageThresholdLTE(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldLTE(FieldTicketUsageThreshold, v))
+}
+
+// DailyTicketLimitEQ applies the EQ predicate on the "daily_ticket_limit" field.
+func DailyTicketLimitEQ(v int) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldEQ(FieldDailyTicketLimit, v))
+}
+
+// DailyTicketLimitNEQ applies the NEQ predicate on the "daily_ticket_limit" field.
+func DailyTicketLimitNEQ(v int) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldNEQ(FieldDailyTicketLimit, v))
+}
+
+// DailyTicketLimitIn applies the In predicate on the "daily_ticket_limit" field.
+func DailyTicketLimitIn(vs ...int) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldIn(FieldDailyTicketLimit, vs...))
+}
+
+// DailyTicketLimitNotIn applies the NotIn predicate on the "daily_ticket_limit" field.
+func DailyTicketLimitNotIn(vs ...int) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldNotIn(FieldDailyTicketLimit, vs...))
+}
+
+// DailyTicketLimitGT applies the GT predicate on the "daily_ticket_limit" field.
+func DailyTicketLimitGT(v int) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldGT(FieldDailyTicketLimit, v))
+}
+
+// DailyTicketLimitGTE applies the GTE predicate on the "daily_ticket_limit" field.
+func DailyTicketLimitGTE(v int) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldGTE(FieldDailyTicketLimit, v))
+}
+
+// DailyTicketLimitLT applies the LT predicate on the "daily_ticket_limit" field.
+func DailyTicketLimitLT(v int) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldLT(FieldDailyTicketLimit, v))
+}
+
+// DailyTicketLimitLTE applies the LTE predicate on the "daily_ticket_limit" field.
+func DailyTicketLimitLTE(v int) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldLTE(FieldDailyTicketLimit, v))
+}
+
+// UnitSalePriceEQ applies the EQ predicate on the "unit_sale_price" field.
+func UnitSalePriceEQ(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldEQ(FieldUnitSalePrice, v))
+}
+
+// UnitSalePriceNEQ applies the NEQ predicate on the "unit_sale_price" field.
+func UnitSalePriceNEQ(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldNEQ(FieldUnitSalePrice, v))
+}
+
+// UnitSalePriceIn applies the In predicate on the "unit_sale_price" field.
+func UnitSalePriceIn(vs ...float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldIn(FieldUnitSalePrice, vs...))
+}
+
+// UnitSalePriceNotIn applies the NotIn predicate on the "unit_sale_price" field.
+func UnitSalePriceNotIn(vs ...float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldNotIn(FieldUnitSalePrice, vs...))
+}
+
+// UnitSalePriceGT applies the GT predicate on the "unit_sale_price" field.
+func UnitSalePriceGT(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldGT(FieldUnitSalePrice, v))
+}
+
+// UnitSalePriceGTE applies the GTE predicate on the "unit_sale_price" field.
+func UnitSalePriceGTE(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldGTE(FieldUnitSalePrice, v))
+}
+
+// UnitSalePriceLT applies the LT predicate on the "unit_sale_price" field.
+func UnitSalePriceLT(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldLT(FieldUnitSalePrice, v))
+}
+
+// UnitSalePriceLTE applies the LTE predicate on the "unit_sale_price" field.
+func UnitSalePriceLTE(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldLTE(FieldUnitSalePrice, v))
+}
+
+// UnitCostPriceEQ applies the EQ predicate on the "unit_cost_price" field.
+func UnitCostPriceEQ(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldEQ(FieldUnitCostPrice, v))
+}
+
+// UnitCostPriceNEQ applies the NEQ predicate on the "unit_cost_price" field.
+func UnitCostPriceNEQ(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldNEQ(FieldUnitCostPrice, v))
+}
+
+// UnitCostPriceIn applies the In predicate on the "unit_cost_price" field.
+func UnitCostPriceIn(vs ...float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldIn(FieldUnitCostPrice, vs...))
+}
+
+// UnitCostPriceNotIn applies the NotIn predicate on the "unit_cost_price" field.
+func UnitCostPriceNotIn(vs ...float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldNotIn(FieldUnitCostPrice, vs...))
+}
+
+// UnitCostPriceGT applies the GT predicate on the "unit_cost_price" field.
+func UnitCostPriceGT(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldGT(FieldUnitCostPrice, v))
+}
+
+// UnitCostPriceGTE applies the GTE predicate on the "unit_cost_price" field.
+func UnitCostPriceGTE(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldGTE(FieldUnitCostPrice, v))
+}
+
+// UnitCostPriceLT applies the LT predicate on the "unit_cost_price" field.
+func UnitCostPriceLT(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldLT(FieldUnitCostPrice, v))
+}
+
+// UnitCostPriceLTE applies the LTE predicate on the "unit_cost_price" field.
+func UnitCostPriceLTE(v float64) predicate.ZenxiangLiyuSetting {
+	return predicate.ZenxiangLiyuSetting(sql.FieldLTE(FieldUnitCostPrice, v))
 }
 
 // And groups predicates with the AND operator between them.

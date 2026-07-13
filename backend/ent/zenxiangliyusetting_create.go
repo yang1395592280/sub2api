@@ -106,6 +106,62 @@ func (_c *ZenxiangLiyuSettingCreate) SetNillableDailyPlayLimit(v *int) *Zenxiang
 	return _c
 }
 
+// SetTicketUsageThreshold sets the "ticket_usage_threshold" field.
+func (_c *ZenxiangLiyuSettingCreate) SetTicketUsageThreshold(v float64) *ZenxiangLiyuSettingCreate {
+	_c.mutation.SetTicketUsageThreshold(v)
+	return _c
+}
+
+// SetNillableTicketUsageThreshold sets the "ticket_usage_threshold" field if the given value is not nil.
+func (_c *ZenxiangLiyuSettingCreate) SetNillableTicketUsageThreshold(v *float64) *ZenxiangLiyuSettingCreate {
+	if v != nil {
+		_c.SetTicketUsageThreshold(*v)
+	}
+	return _c
+}
+
+// SetDailyTicketLimit sets the "daily_ticket_limit" field.
+func (_c *ZenxiangLiyuSettingCreate) SetDailyTicketLimit(v int) *ZenxiangLiyuSettingCreate {
+	_c.mutation.SetDailyTicketLimit(v)
+	return _c
+}
+
+// SetNillableDailyTicketLimit sets the "daily_ticket_limit" field if the given value is not nil.
+func (_c *ZenxiangLiyuSettingCreate) SetNillableDailyTicketLimit(v *int) *ZenxiangLiyuSettingCreate {
+	if v != nil {
+		_c.SetDailyTicketLimit(*v)
+	}
+	return _c
+}
+
+// SetUnitSalePrice sets the "unit_sale_price" field.
+func (_c *ZenxiangLiyuSettingCreate) SetUnitSalePrice(v float64) *ZenxiangLiyuSettingCreate {
+	_c.mutation.SetUnitSalePrice(v)
+	return _c
+}
+
+// SetNillableUnitSalePrice sets the "unit_sale_price" field if the given value is not nil.
+func (_c *ZenxiangLiyuSettingCreate) SetNillableUnitSalePrice(v *float64) *ZenxiangLiyuSettingCreate {
+	if v != nil {
+		_c.SetUnitSalePrice(*v)
+	}
+	return _c
+}
+
+// SetUnitCostPrice sets the "unit_cost_price" field.
+func (_c *ZenxiangLiyuSettingCreate) SetUnitCostPrice(v float64) *ZenxiangLiyuSettingCreate {
+	_c.mutation.SetUnitCostPrice(v)
+	return _c
+}
+
+// SetNillableUnitCostPrice sets the "unit_cost_price" field if the given value is not nil.
+func (_c *ZenxiangLiyuSettingCreate) SetNillableUnitCostPrice(v *float64) *ZenxiangLiyuSettingCreate {
+	if v != nil {
+		_c.SetUnitCostPrice(*v)
+	}
+	return _c
+}
+
 // Mutation returns the ZenxiangLiyuSettingMutation object of the builder.
 func (_c *ZenxiangLiyuSettingCreate) Mutation() *ZenxiangLiyuSettingMutation {
 	return _c.mutation
@@ -165,6 +221,22 @@ func (_c *ZenxiangLiyuSettingCreate) defaults() {
 		v := zenxiangliyusetting.DefaultDailyPlayLimit
 		_c.mutation.SetDailyPlayLimit(v)
 	}
+	if _, ok := _c.mutation.TicketUsageThreshold(); !ok {
+		v := zenxiangliyusetting.DefaultTicketUsageThreshold
+		_c.mutation.SetTicketUsageThreshold(v)
+	}
+	if _, ok := _c.mutation.DailyTicketLimit(); !ok {
+		v := zenxiangliyusetting.DefaultDailyTicketLimit
+		_c.mutation.SetDailyTicketLimit(v)
+	}
+	if _, ok := _c.mutation.UnitSalePrice(); !ok {
+		v := zenxiangliyusetting.DefaultUnitSalePrice
+		_c.mutation.SetUnitSalePrice(v)
+	}
+	if _, ok := _c.mutation.UnitCostPrice(); !ok {
+		v := zenxiangliyusetting.DefaultUnitCostPrice
+		_c.mutation.SetUnitCostPrice(v)
+	}
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -186,6 +258,18 @@ func (_c *ZenxiangLiyuSettingCreate) check() error {
 	}
 	if _, ok := _c.mutation.DailyPlayLimit(); !ok {
 		return &ValidationError{Name: "daily_play_limit", err: errors.New(`ent: missing required field "ZenxiangLiyuSetting.daily_play_limit"`)}
+	}
+	if _, ok := _c.mutation.TicketUsageThreshold(); !ok {
+		return &ValidationError{Name: "ticket_usage_threshold", err: errors.New(`ent: missing required field "ZenxiangLiyuSetting.ticket_usage_threshold"`)}
+	}
+	if _, ok := _c.mutation.DailyTicketLimit(); !ok {
+		return &ValidationError{Name: "daily_ticket_limit", err: errors.New(`ent: missing required field "ZenxiangLiyuSetting.daily_ticket_limit"`)}
+	}
+	if _, ok := _c.mutation.UnitSalePrice(); !ok {
+		return &ValidationError{Name: "unit_sale_price", err: errors.New(`ent: missing required field "ZenxiangLiyuSetting.unit_sale_price"`)}
+	}
+	if _, ok := _c.mutation.UnitCostPrice(); !ok {
+		return &ValidationError{Name: "unit_cost_price", err: errors.New(`ent: missing required field "ZenxiangLiyuSetting.unit_cost_price"`)}
 	}
 	return nil
 }
@@ -237,6 +321,22 @@ func (_c *ZenxiangLiyuSettingCreate) createSpec() (*ZenxiangLiyuSetting, *sqlgra
 	if value, ok := _c.mutation.DailyPlayLimit(); ok {
 		_spec.SetField(zenxiangliyusetting.FieldDailyPlayLimit, field.TypeInt, value)
 		_node.DailyPlayLimit = value
+	}
+	if value, ok := _c.mutation.TicketUsageThreshold(); ok {
+		_spec.SetField(zenxiangliyusetting.FieldTicketUsageThreshold, field.TypeFloat64, value)
+		_node.TicketUsageThreshold = value
+	}
+	if value, ok := _c.mutation.DailyTicketLimit(); ok {
+		_spec.SetField(zenxiangliyusetting.FieldDailyTicketLimit, field.TypeInt, value)
+		_node.DailyTicketLimit = value
+	}
+	if value, ok := _c.mutation.UnitSalePrice(); ok {
+		_spec.SetField(zenxiangliyusetting.FieldUnitSalePrice, field.TypeFloat64, value)
+		_node.UnitSalePrice = value
+	}
+	if value, ok := _c.mutation.UnitCostPrice(); ok {
+		_spec.SetField(zenxiangliyusetting.FieldUnitCostPrice, field.TypeFloat64, value)
+		_node.UnitCostPrice = value
 	}
 	return _node, _spec
 }
@@ -365,6 +465,78 @@ func (u *ZenxiangLiyuSettingUpsert) UpdateDailyPlayLimit() *ZenxiangLiyuSettingU
 // AddDailyPlayLimit adds v to the "daily_play_limit" field.
 func (u *ZenxiangLiyuSettingUpsert) AddDailyPlayLimit(v int) *ZenxiangLiyuSettingUpsert {
 	u.Add(zenxiangliyusetting.FieldDailyPlayLimit, v)
+	return u
+}
+
+// SetTicketUsageThreshold sets the "ticket_usage_threshold" field.
+func (u *ZenxiangLiyuSettingUpsert) SetTicketUsageThreshold(v float64) *ZenxiangLiyuSettingUpsert {
+	u.Set(zenxiangliyusetting.FieldTicketUsageThreshold, v)
+	return u
+}
+
+// UpdateTicketUsageThreshold sets the "ticket_usage_threshold" field to the value that was provided on create.
+func (u *ZenxiangLiyuSettingUpsert) UpdateTicketUsageThreshold() *ZenxiangLiyuSettingUpsert {
+	u.SetExcluded(zenxiangliyusetting.FieldTicketUsageThreshold)
+	return u
+}
+
+// AddTicketUsageThreshold adds v to the "ticket_usage_threshold" field.
+func (u *ZenxiangLiyuSettingUpsert) AddTicketUsageThreshold(v float64) *ZenxiangLiyuSettingUpsert {
+	u.Add(zenxiangliyusetting.FieldTicketUsageThreshold, v)
+	return u
+}
+
+// SetDailyTicketLimit sets the "daily_ticket_limit" field.
+func (u *ZenxiangLiyuSettingUpsert) SetDailyTicketLimit(v int) *ZenxiangLiyuSettingUpsert {
+	u.Set(zenxiangliyusetting.FieldDailyTicketLimit, v)
+	return u
+}
+
+// UpdateDailyTicketLimit sets the "daily_ticket_limit" field to the value that was provided on create.
+func (u *ZenxiangLiyuSettingUpsert) UpdateDailyTicketLimit() *ZenxiangLiyuSettingUpsert {
+	u.SetExcluded(zenxiangliyusetting.FieldDailyTicketLimit)
+	return u
+}
+
+// AddDailyTicketLimit adds v to the "daily_ticket_limit" field.
+func (u *ZenxiangLiyuSettingUpsert) AddDailyTicketLimit(v int) *ZenxiangLiyuSettingUpsert {
+	u.Add(zenxiangliyusetting.FieldDailyTicketLimit, v)
+	return u
+}
+
+// SetUnitSalePrice sets the "unit_sale_price" field.
+func (u *ZenxiangLiyuSettingUpsert) SetUnitSalePrice(v float64) *ZenxiangLiyuSettingUpsert {
+	u.Set(zenxiangliyusetting.FieldUnitSalePrice, v)
+	return u
+}
+
+// UpdateUnitSalePrice sets the "unit_sale_price" field to the value that was provided on create.
+func (u *ZenxiangLiyuSettingUpsert) UpdateUnitSalePrice() *ZenxiangLiyuSettingUpsert {
+	u.SetExcluded(zenxiangliyusetting.FieldUnitSalePrice)
+	return u
+}
+
+// AddUnitSalePrice adds v to the "unit_sale_price" field.
+func (u *ZenxiangLiyuSettingUpsert) AddUnitSalePrice(v float64) *ZenxiangLiyuSettingUpsert {
+	u.Add(zenxiangliyusetting.FieldUnitSalePrice, v)
+	return u
+}
+
+// SetUnitCostPrice sets the "unit_cost_price" field.
+func (u *ZenxiangLiyuSettingUpsert) SetUnitCostPrice(v float64) *ZenxiangLiyuSettingUpsert {
+	u.Set(zenxiangliyusetting.FieldUnitCostPrice, v)
+	return u
+}
+
+// UpdateUnitCostPrice sets the "unit_cost_price" field to the value that was provided on create.
+func (u *ZenxiangLiyuSettingUpsert) UpdateUnitCostPrice() *ZenxiangLiyuSettingUpsert {
+	u.SetExcluded(zenxiangliyusetting.FieldUnitCostPrice)
+	return u
+}
+
+// AddUnitCostPrice adds v to the "unit_cost_price" field.
+func (u *ZenxiangLiyuSettingUpsert) AddUnitCostPrice(v float64) *ZenxiangLiyuSettingUpsert {
+	u.Add(zenxiangliyusetting.FieldUnitCostPrice, v)
 	return u
 }
 
@@ -501,6 +673,90 @@ func (u *ZenxiangLiyuSettingUpsertOne) AddDailyPlayLimit(v int) *ZenxiangLiyuSet
 func (u *ZenxiangLiyuSettingUpsertOne) UpdateDailyPlayLimit() *ZenxiangLiyuSettingUpsertOne {
 	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
 		s.UpdateDailyPlayLimit()
+	})
+}
+
+// SetTicketUsageThreshold sets the "ticket_usage_threshold" field.
+func (u *ZenxiangLiyuSettingUpsertOne) SetTicketUsageThreshold(v float64) *ZenxiangLiyuSettingUpsertOne {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.SetTicketUsageThreshold(v)
+	})
+}
+
+// AddTicketUsageThreshold adds v to the "ticket_usage_threshold" field.
+func (u *ZenxiangLiyuSettingUpsertOne) AddTicketUsageThreshold(v float64) *ZenxiangLiyuSettingUpsertOne {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.AddTicketUsageThreshold(v)
+	})
+}
+
+// UpdateTicketUsageThreshold sets the "ticket_usage_threshold" field to the value that was provided on create.
+func (u *ZenxiangLiyuSettingUpsertOne) UpdateTicketUsageThreshold() *ZenxiangLiyuSettingUpsertOne {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.UpdateTicketUsageThreshold()
+	})
+}
+
+// SetDailyTicketLimit sets the "daily_ticket_limit" field.
+func (u *ZenxiangLiyuSettingUpsertOne) SetDailyTicketLimit(v int) *ZenxiangLiyuSettingUpsertOne {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.SetDailyTicketLimit(v)
+	})
+}
+
+// AddDailyTicketLimit adds v to the "daily_ticket_limit" field.
+func (u *ZenxiangLiyuSettingUpsertOne) AddDailyTicketLimit(v int) *ZenxiangLiyuSettingUpsertOne {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.AddDailyTicketLimit(v)
+	})
+}
+
+// UpdateDailyTicketLimit sets the "daily_ticket_limit" field to the value that was provided on create.
+func (u *ZenxiangLiyuSettingUpsertOne) UpdateDailyTicketLimit() *ZenxiangLiyuSettingUpsertOne {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.UpdateDailyTicketLimit()
+	})
+}
+
+// SetUnitSalePrice sets the "unit_sale_price" field.
+func (u *ZenxiangLiyuSettingUpsertOne) SetUnitSalePrice(v float64) *ZenxiangLiyuSettingUpsertOne {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.SetUnitSalePrice(v)
+	})
+}
+
+// AddUnitSalePrice adds v to the "unit_sale_price" field.
+func (u *ZenxiangLiyuSettingUpsertOne) AddUnitSalePrice(v float64) *ZenxiangLiyuSettingUpsertOne {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.AddUnitSalePrice(v)
+	})
+}
+
+// UpdateUnitSalePrice sets the "unit_sale_price" field to the value that was provided on create.
+func (u *ZenxiangLiyuSettingUpsertOne) UpdateUnitSalePrice() *ZenxiangLiyuSettingUpsertOne {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.UpdateUnitSalePrice()
+	})
+}
+
+// SetUnitCostPrice sets the "unit_cost_price" field.
+func (u *ZenxiangLiyuSettingUpsertOne) SetUnitCostPrice(v float64) *ZenxiangLiyuSettingUpsertOne {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.SetUnitCostPrice(v)
+	})
+}
+
+// AddUnitCostPrice adds v to the "unit_cost_price" field.
+func (u *ZenxiangLiyuSettingUpsertOne) AddUnitCostPrice(v float64) *ZenxiangLiyuSettingUpsertOne {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.AddUnitCostPrice(v)
+	})
+}
+
+// UpdateUnitCostPrice sets the "unit_cost_price" field to the value that was provided on create.
+func (u *ZenxiangLiyuSettingUpsertOne) UpdateUnitCostPrice() *ZenxiangLiyuSettingUpsertOne {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.UpdateUnitCostPrice()
 	})
 }
 
@@ -803,6 +1059,90 @@ func (u *ZenxiangLiyuSettingUpsertBulk) AddDailyPlayLimit(v int) *ZenxiangLiyuSe
 func (u *ZenxiangLiyuSettingUpsertBulk) UpdateDailyPlayLimit() *ZenxiangLiyuSettingUpsertBulk {
 	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
 		s.UpdateDailyPlayLimit()
+	})
+}
+
+// SetTicketUsageThreshold sets the "ticket_usage_threshold" field.
+func (u *ZenxiangLiyuSettingUpsertBulk) SetTicketUsageThreshold(v float64) *ZenxiangLiyuSettingUpsertBulk {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.SetTicketUsageThreshold(v)
+	})
+}
+
+// AddTicketUsageThreshold adds v to the "ticket_usage_threshold" field.
+func (u *ZenxiangLiyuSettingUpsertBulk) AddTicketUsageThreshold(v float64) *ZenxiangLiyuSettingUpsertBulk {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.AddTicketUsageThreshold(v)
+	})
+}
+
+// UpdateTicketUsageThreshold sets the "ticket_usage_threshold" field to the value that was provided on create.
+func (u *ZenxiangLiyuSettingUpsertBulk) UpdateTicketUsageThreshold() *ZenxiangLiyuSettingUpsertBulk {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.UpdateTicketUsageThreshold()
+	})
+}
+
+// SetDailyTicketLimit sets the "daily_ticket_limit" field.
+func (u *ZenxiangLiyuSettingUpsertBulk) SetDailyTicketLimit(v int) *ZenxiangLiyuSettingUpsertBulk {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.SetDailyTicketLimit(v)
+	})
+}
+
+// AddDailyTicketLimit adds v to the "daily_ticket_limit" field.
+func (u *ZenxiangLiyuSettingUpsertBulk) AddDailyTicketLimit(v int) *ZenxiangLiyuSettingUpsertBulk {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.AddDailyTicketLimit(v)
+	})
+}
+
+// UpdateDailyTicketLimit sets the "daily_ticket_limit" field to the value that was provided on create.
+func (u *ZenxiangLiyuSettingUpsertBulk) UpdateDailyTicketLimit() *ZenxiangLiyuSettingUpsertBulk {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.UpdateDailyTicketLimit()
+	})
+}
+
+// SetUnitSalePrice sets the "unit_sale_price" field.
+func (u *ZenxiangLiyuSettingUpsertBulk) SetUnitSalePrice(v float64) *ZenxiangLiyuSettingUpsertBulk {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.SetUnitSalePrice(v)
+	})
+}
+
+// AddUnitSalePrice adds v to the "unit_sale_price" field.
+func (u *ZenxiangLiyuSettingUpsertBulk) AddUnitSalePrice(v float64) *ZenxiangLiyuSettingUpsertBulk {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.AddUnitSalePrice(v)
+	})
+}
+
+// UpdateUnitSalePrice sets the "unit_sale_price" field to the value that was provided on create.
+func (u *ZenxiangLiyuSettingUpsertBulk) UpdateUnitSalePrice() *ZenxiangLiyuSettingUpsertBulk {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.UpdateUnitSalePrice()
+	})
+}
+
+// SetUnitCostPrice sets the "unit_cost_price" field.
+func (u *ZenxiangLiyuSettingUpsertBulk) SetUnitCostPrice(v float64) *ZenxiangLiyuSettingUpsertBulk {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.SetUnitCostPrice(v)
+	})
+}
+
+// AddUnitCostPrice adds v to the "unit_cost_price" field.
+func (u *ZenxiangLiyuSettingUpsertBulk) AddUnitCostPrice(v float64) *ZenxiangLiyuSettingUpsertBulk {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.AddUnitCostPrice(v)
+	})
+}
+
+// UpdateUnitCostPrice sets the "unit_cost_price" field to the value that was provided on create.
+func (u *ZenxiangLiyuSettingUpsertBulk) UpdateUnitCostPrice() *ZenxiangLiyuSettingUpsertBulk {
+	return u.Update(func(s *ZenxiangLiyuSettingUpsert) {
+		s.UpdateUnitCostPrice()
 	})
 }
 

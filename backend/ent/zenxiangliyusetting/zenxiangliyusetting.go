@@ -25,6 +25,14 @@ const (
 	FieldMinimumBalance = "minimum_balance"
 	// FieldDailyPlayLimit holds the string denoting the daily_play_limit field in the database.
 	FieldDailyPlayLimit = "daily_play_limit"
+	// FieldTicketUsageThreshold holds the string denoting the ticket_usage_threshold field in the database.
+	FieldTicketUsageThreshold = "ticket_usage_threshold"
+	// FieldDailyTicketLimit holds the string denoting the daily_ticket_limit field in the database.
+	FieldDailyTicketLimit = "daily_ticket_limit"
+	// FieldUnitSalePrice holds the string denoting the unit_sale_price field in the database.
+	FieldUnitSalePrice = "unit_sale_price"
+	// FieldUnitCostPrice holds the string denoting the unit_cost_price field in the database.
+	FieldUnitCostPrice = "unit_cost_price"
 	// Table holds the table name of the zenxiangliyusetting in the database.
 	Table = "zenxiang_liyu_settings"
 )
@@ -38,6 +46,10 @@ var Columns = []string{
 	FieldTicketAmount,
 	FieldMinimumBalance,
 	FieldDailyPlayLimit,
+	FieldTicketUsageThreshold,
+	FieldDailyTicketLimit,
+	FieldUnitSalePrice,
+	FieldUnitCostPrice,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -65,6 +77,14 @@ var (
 	DefaultMinimumBalance float64
 	// DefaultDailyPlayLimit holds the default value on creation for the "daily_play_limit" field.
 	DefaultDailyPlayLimit int
+	// DefaultTicketUsageThreshold holds the default value on creation for the "ticket_usage_threshold" field.
+	DefaultTicketUsageThreshold float64
+	// DefaultDailyTicketLimit holds the default value on creation for the "daily_ticket_limit" field.
+	DefaultDailyTicketLimit int
+	// DefaultUnitSalePrice holds the default value on creation for the "unit_sale_price" field.
+	DefaultUnitSalePrice float64
+	// DefaultUnitCostPrice holds the default value on creation for the "unit_cost_price" field.
+	DefaultUnitCostPrice float64
 )
 
 // OrderOption defines the ordering options for the ZenxiangLiyuSetting queries.
@@ -103,4 +123,24 @@ func ByMinimumBalance(opts ...sql.OrderTermOption) OrderOption {
 // ByDailyPlayLimit orders the results by the daily_play_limit field.
 func ByDailyPlayLimit(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDailyPlayLimit, opts...).ToFunc()
+}
+
+// ByTicketUsageThreshold orders the results by the ticket_usage_threshold field.
+func ByTicketUsageThreshold(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTicketUsageThreshold, opts...).ToFunc()
+}
+
+// ByDailyTicketLimit orders the results by the daily_ticket_limit field.
+func ByDailyTicketLimit(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDailyTicketLimit, opts...).ToFunc()
+}
+
+// ByUnitSalePrice orders the results by the unit_sale_price field.
+func ByUnitSalePrice(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUnitSalePrice, opts...).ToFunc()
+}
+
+// ByUnitCostPrice orders the results by the unit_cost_price field.
+func ByUnitCostPrice(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUnitCostPrice, opts...).ToFunc()
 }

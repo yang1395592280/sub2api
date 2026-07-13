@@ -1059,69 +1059,69 @@ func init() {
 	// group.DefaultVideoRateMultiplier holds the default value on creation for the video_rate_multiplier field.
 	group.DefaultVideoRateMultiplier = groupDescVideoRateMultiplier.Default.(float64)
 	// groupDescClaudeCodeOnly is the schema descriptor for claude_code_only field.
-	groupDescClaudeCodeOnly := groupFields[29].Descriptor()
+	groupDescClaudeCodeOnly := groupFields[30].Descriptor()
 	// group.DefaultClaudeCodeOnly holds the default value on creation for the claude_code_only field.
 	group.DefaultClaudeCodeOnly = groupDescClaudeCodeOnly.Default.(bool)
 	// groupDescModelRoutingEnabled is the schema descriptor for model_routing_enabled field.
-	groupDescModelRoutingEnabled := groupFields[33].Descriptor()
+	groupDescModelRoutingEnabled := groupFields[34].Descriptor()
 	// group.DefaultModelRoutingEnabled holds the default value on creation for the model_routing_enabled field.
 	group.DefaultModelRoutingEnabled = groupDescModelRoutingEnabled.Default.(bool)
 	// groupDescMcpXMLInject is the schema descriptor for mcp_xml_inject field.
-	groupDescMcpXMLInject := groupFields[34].Descriptor()
+	groupDescMcpXMLInject := groupFields[35].Descriptor()
 	// group.DefaultMcpXMLInject holds the default value on creation for the mcp_xml_inject field.
 	group.DefaultMcpXMLInject = groupDescMcpXMLInject.Default.(bool)
 	// groupDescSupportedModelScopes is the schema descriptor for supported_model_scopes field.
-	groupDescSupportedModelScopes := groupFields[35].Descriptor()
+	groupDescSupportedModelScopes := groupFields[36].Descriptor()
 	// group.DefaultSupportedModelScopes holds the default value on creation for the supported_model_scopes field.
 	group.DefaultSupportedModelScopes = groupDescSupportedModelScopes.Default.([]string)
 	// groupDescSortOrder is the schema descriptor for sort_order field.
-	groupDescSortOrder := groupFields[36].Descriptor()
+	groupDescSortOrder := groupFields[37].Descriptor()
 	// group.DefaultSortOrder holds the default value on creation for the sort_order field.
 	group.DefaultSortOrder = groupDescSortOrder.Default.(int)
 	// groupDescAllowMessagesDispatch is the schema descriptor for allow_messages_dispatch field.
-	groupDescAllowMessagesDispatch := groupFields[37].Descriptor()
+	groupDescAllowMessagesDispatch := groupFields[38].Descriptor()
 	// group.DefaultAllowMessagesDispatch holds the default value on creation for the allow_messages_dispatch field.
 	group.DefaultAllowMessagesDispatch = groupDescAllowMessagesDispatch.Default.(bool)
 	// groupDescRequireOauthOnly is the schema descriptor for require_oauth_only field.
-	groupDescRequireOauthOnly := groupFields[38].Descriptor()
+	groupDescRequireOauthOnly := groupFields[39].Descriptor()
 	// group.DefaultRequireOauthOnly holds the default value on creation for the require_oauth_only field.
 	group.DefaultRequireOauthOnly = groupDescRequireOauthOnly.Default.(bool)
 	// groupDescRequirePrivacySet is the schema descriptor for require_privacy_set field.
-	groupDescRequirePrivacySet := groupFields[39].Descriptor()
+	groupDescRequirePrivacySet := groupFields[40].Descriptor()
 	// group.DefaultRequirePrivacySet holds the default value on creation for the require_privacy_set field.
 	group.DefaultRequirePrivacySet = groupDescRequirePrivacySet.Default.(bool)
 	// groupDescDefaultMappedModel is the schema descriptor for default_mapped_model field.
-	groupDescDefaultMappedModel := groupFields[40].Descriptor()
+	groupDescDefaultMappedModel := groupFields[41].Descriptor()
 	// group.DefaultDefaultMappedModel holds the default value on creation for the default_mapped_model field.
 	group.DefaultDefaultMappedModel = groupDescDefaultMappedModel.Default.(string)
 	// group.DefaultMappedModelValidator is a validator for the "default_mapped_model" field. It is called by the builders before save.
 	group.DefaultMappedModelValidator = groupDescDefaultMappedModel.Validators[0].(func(string) error)
 	// groupDescMessagesDispatchModelConfig is the schema descriptor for messages_dispatch_model_config field.
-	groupDescMessagesDispatchModelConfig := groupFields[41].Descriptor()
+	groupDescMessagesDispatchModelConfig := groupFields[42].Descriptor()
 	// group.DefaultMessagesDispatchModelConfig holds the default value on creation for the messages_dispatch_model_config field.
 	group.DefaultMessagesDispatchModelConfig = groupDescMessagesDispatchModelConfig.Default.(domain.OpenAIMessagesDispatchModelConfig)
 	// groupDescModelsListConfig is the schema descriptor for models_list_config field.
-	groupDescModelsListConfig := groupFields[42].Descriptor()
+	groupDescModelsListConfig := groupFields[43].Descriptor()
 	// group.DefaultModelsListConfig holds the default value on creation for the models_list_config field.
 	group.DefaultModelsListConfig = groupDescModelsListConfig.Default.(domain.GroupModelsListConfig)
 	// groupDescOpenaiAutoSchedulerEnabled is the schema descriptor for openai_auto_scheduler_enabled field.
-	groupDescOpenaiAutoSchedulerEnabled := groupFields[43].Descriptor()
+	groupDescOpenaiAutoSchedulerEnabled := groupFields[44].Descriptor()
 	// group.DefaultOpenaiAutoSchedulerEnabled holds the default value on creation for the openai_auto_scheduler_enabled field.
 	group.DefaultOpenaiAutoSchedulerEnabled = groupDescOpenaiAutoSchedulerEnabled.Default.(bool)
 	// groupDescUpstreamBalanceRefreshEnabled is the schema descriptor for upstream_balance_refresh_enabled field.
-	groupDescUpstreamBalanceRefreshEnabled := groupFields[44].Descriptor()
+	groupDescUpstreamBalanceRefreshEnabled := groupFields[45].Descriptor()
 	// group.DefaultUpstreamBalanceRefreshEnabled holds the default value on creation for the upstream_balance_refresh_enabled field.
 	group.DefaultUpstreamBalanceRefreshEnabled = groupDescUpstreamBalanceRefreshEnabled.Default.(bool)
 	// groupDescUpstreamBalanceRefreshIntervalSeconds is the schema descriptor for upstream_balance_refresh_interval_seconds field.
-	groupDescUpstreamBalanceRefreshIntervalSeconds := groupFields[45].Descriptor()
+	groupDescUpstreamBalanceRefreshIntervalSeconds := groupFields[46].Descriptor()
 	// group.DefaultUpstreamBalanceRefreshIntervalSeconds holds the default value on creation for the upstream_balance_refresh_interval_seconds field.
 	group.DefaultUpstreamBalanceRefreshIntervalSeconds = groupDescUpstreamBalanceRefreshIntervalSeconds.Default.(int)
 	// groupDescUpstreamPriceMaxMultiplier is the schema descriptor for upstream_price_max_multiplier field.
-	groupDescUpstreamPriceMaxMultiplier := groupFields[46].Descriptor()
+	groupDescUpstreamPriceMaxMultiplier := groupFields[47].Descriptor()
 	// group.DefaultUpstreamPriceMaxMultiplier holds the default value on creation for the upstream_price_max_multiplier field.
 	group.DefaultUpstreamPriceMaxMultiplier = groupDescUpstreamPriceMaxMultiplier.Default.(float64)
 	// groupDescRpmLimit is the schema descriptor for rpm_limit field.
-	groupDescRpmLimit := groupFields[47].Descriptor()
+	groupDescRpmLimit := groupFields[48].Descriptor()
 	// group.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	group.DefaultRpmLimit = groupDescRpmLimit.Default.(int)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()
@@ -2704,6 +2704,22 @@ func init() {
 	zenxiangliyusettingDescDailyPlayLimit := zenxiangliyusettingFields[3].Descriptor()
 	// zenxiangliyusetting.DefaultDailyPlayLimit holds the default value on creation for the daily_play_limit field.
 	zenxiangliyusetting.DefaultDailyPlayLimit = zenxiangliyusettingDescDailyPlayLimit.Default.(int)
+	// zenxiangliyusettingDescTicketUsageThreshold is the schema descriptor for ticket_usage_threshold field.
+	zenxiangliyusettingDescTicketUsageThreshold := zenxiangliyusettingFields[4].Descriptor()
+	// zenxiangliyusetting.DefaultTicketUsageThreshold holds the default value on creation for the ticket_usage_threshold field.
+	zenxiangliyusetting.DefaultTicketUsageThreshold = zenxiangliyusettingDescTicketUsageThreshold.Default.(float64)
+	// zenxiangliyusettingDescDailyTicketLimit is the schema descriptor for daily_ticket_limit field.
+	zenxiangliyusettingDescDailyTicketLimit := zenxiangliyusettingFields[5].Descriptor()
+	// zenxiangliyusetting.DefaultDailyTicketLimit holds the default value on creation for the daily_ticket_limit field.
+	zenxiangliyusetting.DefaultDailyTicketLimit = zenxiangliyusettingDescDailyTicketLimit.Default.(int)
+	// zenxiangliyusettingDescUnitSalePrice is the schema descriptor for unit_sale_price field.
+	zenxiangliyusettingDescUnitSalePrice := zenxiangliyusettingFields[6].Descriptor()
+	// zenxiangliyusetting.DefaultUnitSalePrice holds the default value on creation for the unit_sale_price field.
+	zenxiangliyusetting.DefaultUnitSalePrice = zenxiangliyusettingDescUnitSalePrice.Default.(float64)
+	// zenxiangliyusettingDescUnitCostPrice is the schema descriptor for unit_cost_price field.
+	zenxiangliyusettingDescUnitCostPrice := zenxiangliyusettingFields[7].Descriptor()
+	// zenxiangliyusetting.DefaultUnitCostPrice holds the default value on creation for the unit_cost_price field.
+	zenxiangliyusetting.DefaultUnitCostPrice = zenxiangliyusettingDescUnitCostPrice.Default.(float64)
 	zenxiangliyuusergrantMixin := schema.ZenxiangLiyuUserGrant{}.Mixin()
 	zenxiangliyuusergrantMixinFields0 := zenxiangliyuusergrantMixin[0].Fields()
 	_ = zenxiangliyuusergrantMixinFields0

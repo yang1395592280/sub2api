@@ -460,6 +460,9 @@ type PublicSettingsInjectionPayload struct {
 	ContactInfo                      string                   `json:"contact_info"`
 	DocURL                           string                   `json:"doc_url"`
 	HomeContent                      string                   `json:"home_content"`
+	JoinGroupEnabled                 bool                     `json:"join_group_enabled"`
+	JoinGroupURL                     string                   `json:"join_group_url"`
+	JoinGroupPopupImage              string                   `json:"join_group_popup_image"`
 	HideCcsImportButton              bool                     `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled      bool                     `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL          string                   `json:"purchase_subscription_url"`
@@ -529,6 +532,9 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		ContactInfo:                      settings.ContactInfo,
 		DocURL:                           settings.DocURL,
 		HomeContent:                      settings.HomeContent,
+		JoinGroupEnabled:                 settings.JoinGroupEnabled,
+		JoinGroupURL:                     settings.JoinGroupURL,
+		JoinGroupPopupImage:              settings.JoinGroupPopupImage,
 		HideCcsImportButton:              settings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:      settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:          settings.PurchaseSubscriptionURL,

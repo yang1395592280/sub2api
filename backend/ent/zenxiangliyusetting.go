@@ -29,7 +29,15 @@ type ZenxiangLiyuSetting struct {
 	MinimumBalance float64 `json:"minimum_balance,omitempty"`
 	// DailyPlayLimit holds the value of the "daily_play_limit" field.
 	DailyPlayLimit int `json:"daily_play_limit,omitempty"`
-	selectValues   sql.SelectValues
+	// TicketUsageThreshold holds the value of the "ticket_usage_threshold" field.
+	TicketUsageThreshold float64 `json:"ticket_usage_threshold,omitempty"`
+	// DailyTicketLimit holds the value of the "daily_ticket_limit" field.
+	DailyTicketLimit int `json:"daily_ticket_limit,omitempty"`
+	// UnitSalePrice holds the value of the "unit_sale_price" field.
+	UnitSalePrice float64 `json:"unit_sale_price,omitempty"`
+	// UnitCostPrice holds the value of the "unit_cost_price" field.
+	UnitCostPrice float64 `json:"unit_cost_price,omitempty"`
+	selectValues  sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -39,9 +47,9 @@ func (*ZenxiangLiyuSetting) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case zenxiangliyusetting.FieldGlobalEnabled:
 			values[i] = new(sql.NullBool)
-		case zenxiangliyusetting.FieldTicketAmount, zenxiangliyusetting.FieldMinimumBalance:
+		case zenxiangliyusetting.FieldTicketAmount, zenxiangliyusetting.FieldMinimumBalance, zenxiangliyusetting.FieldTicketUsageThreshold, zenxiangliyusetting.FieldUnitSalePrice, zenxiangliyusetting.FieldUnitCostPrice:
 			values[i] = new(sql.NullFloat64)
-		case zenxiangliyusetting.FieldID, zenxiangliyusetting.FieldDailyPlayLimit:
+		case zenxiangliyusetting.FieldID, zenxiangliyusetting.FieldDailyPlayLimit, zenxiangliyusetting.FieldDailyTicketLimit:
 			values[i] = new(sql.NullInt64)
 		case zenxiangliyusetting.FieldCreatedAt, zenxiangliyusetting.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -102,6 +110,30 @@ func (_m *ZenxiangLiyuSetting) assignValues(columns []string, values []any) erro
 			} else if value.Valid {
 				_m.DailyPlayLimit = int(value.Int64)
 			}
+		case zenxiangliyusetting.FieldTicketUsageThreshold:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field ticket_usage_threshold", values[i])
+			} else if value.Valid {
+				_m.TicketUsageThreshold = value.Float64
+			}
+		case zenxiangliyusetting.FieldDailyTicketLimit:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field daily_ticket_limit", values[i])
+			} else if value.Valid {
+				_m.DailyTicketLimit = int(value.Int64)
+			}
+		case zenxiangliyusetting.FieldUnitSalePrice:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field unit_sale_price", values[i])
+			} else if value.Valid {
+				_m.UnitSalePrice = value.Float64
+			}
+		case zenxiangliyusetting.FieldUnitCostPrice:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field unit_cost_price", values[i])
+			} else if value.Valid {
+				_m.UnitCostPrice = value.Float64
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -155,6 +187,18 @@ func (_m *ZenxiangLiyuSetting) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("daily_play_limit=")
 	builder.WriteString(fmt.Sprintf("%v", _m.DailyPlayLimit))
+	builder.WriteString(", ")
+	builder.WriteString("ticket_usage_threshold=")
+	builder.WriteString(fmt.Sprintf("%v", _m.TicketUsageThreshold))
+	builder.WriteString(", ")
+	builder.WriteString("daily_ticket_limit=")
+	builder.WriteString(fmt.Sprintf("%v", _m.DailyTicketLimit))
+	builder.WriteString(", ")
+	builder.WriteString("unit_sale_price=")
+	builder.WriteString(fmt.Sprintf("%v", _m.UnitSalePrice))
+	builder.WriteString(", ")
+	builder.WriteString("unit_cost_price=")
+	builder.WriteString(fmt.Sprintf("%v", _m.UnitCostPrice))
 	builder.WriteByte(')')
 	return builder.String()
 }
