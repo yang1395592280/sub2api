@@ -70,6 +70,21 @@ func TestOpenAIBalancedSchedulerComparesPriceOnlyInsideLatencyEligiblePool(t *te
 	require.Equal(t, []int64{2, 1, 3}, result.OrderedAccountIDs)
 }
 
+func TestOpenAIBalancedSchedulerLatencyTailPreservesLegacyOrderRegardlessOfPrice(t *testing.T) {
+	input := OpenAIBalancedSelectionInput{
+		Candidates: []OpenAIBalancedCandidate{
+			{AccountID: 1, PredictedTTFTMS: 100, Price: 5, LegacyOrderPosition: 0, State: OpenAIAutoSchedulerStateRunning},
+			{AccountID: 2, PredictedTTFTMS: 5000, Price: 10, LegacyOrderPosition: 1, State: OpenAIAutoSchedulerStateRunning},
+			{AccountID: 3, PredictedTTFTMS: 5000, Price: 1, LegacyOrderPosition: 2, State: OpenAIAutoSchedulerStateRunning},
+		},
+		Settings: OpenAIBalancedSettings{TopK: 3, LatencyBudgetMS: 1000},
+	}
+
+	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), input)
+	require.NoError(t, err)
+	require.Equal(t, []int64{1, 2, 3}, result.OrderedAccountIDs)
+}
+
 func TestOpenAIBalancedSchedulerUsesGroupPriority(t *testing.T) {
 	input := OpenAIBalancedSelectionInput{
 		Candidates: []OpenAIBalancedCandidate{
@@ -155,6 +170,7 @@ func TestOpenAIBalancedSchedulerExcludesOpenAndHalfOpen(t *testing.T) {
 	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), input)
 	require.NoError(t, err)
 	require.Equal(t, []int64{3}, result.OrderedAccountIDs)
+	require.Equal(t, []int64{1, 2}, result.RejectedAccountIDs)
 	require.Equal(t, 1, result.CandidateCount)
 }
 
@@ -263,7 +279,8 @@ func TestOpenAIBalancedSchedulerEscapedStickyDoesNotPullSlowTailIntoTopK(t *test
 func TestOpenAIBalancedSchedulerCandidateHealthKeyMatchesActualUpstream(t *testing.T) {
 	apiKeyResponses := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
 	apiKeyRawChat := &Account{ID: 2, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Extra: map[string]any{
-		openai_compat.ExtraKeyResponsesMode: string(openai_compat.ResponsesSupportModeForceChatCompletions),
+		openai_compat.ExtraKeyResponsesMode:             string(openai_compat.ResponsesSupportModeForceChatCompletions),
+		"openai_apikey_responses_websockets_v2_enabled": true,
 	}}
 	oauth := &Account{ID: 3, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
 	mapped := &Account{ID: 4, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{
@@ -302,8 +319,12 @@ func TestOpenAIBalancedSchedulerCandidateHealthKeyMatchesActualUpstream(t *testi
 			if tt.name == "mapped actual upstream model" {
 				requestedModel = "gpt-5"
 			}
+			svc := &OpenAIGatewayService{}
+			if tt.transport == OpenAIUpstreamTransportResponsesWebsocketV2Ingress {
+				svc.cfg = newSchedulerTestOpenAIWSV2Config()
+			}
 			req := OpenAIAccountScheduleRequest{RequestedModel: requestedModel, RequiredEndpoint: tt.endpoint, RequiredTransport: tt.transport}
-			require.Equal(t, tt.want, openAIBalancedHealthKeyForCandidate(tt.account, req))
+			require.Equal(t, tt.want, svc.openAIBalancedHealthKeyForCandidate(tt.account, req))
 		})
 	}
 }

@@ -116,7 +116,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 
 	for {
 		timing.BeginRouting()
-		effectiveAPIKey, selection, _, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
+		effectiveAPIKey, _, selection, _, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
 			c.Request.Context(),
 			apiKey,
 			"",
@@ -129,6 +129,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 			false,
 			false,
 			service.PlatformOpenAI,
+			h.openAIChannelMappedModelResolver(c.Request.Context()),
 		)
 		timing.EndRouting()
 		if err != nil {

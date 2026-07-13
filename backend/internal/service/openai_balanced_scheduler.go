@@ -65,6 +65,7 @@ type OpenAIBalancedSelectionInput struct {
 
 type OpenAIBalancedSelectionResult struct {
 	OrderedAccountIDs  []int64
+	RejectedAccountIDs []int64
 	StickyEscapeReason string
 	CandidateCount     int
 	TopK               int
@@ -110,19 +111,24 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 		input.Candidates = loaded
 	}
 	candidates := make([]OpenAIBalancedCandidate, 0, len(input.Candidates))
+	rejectedAccountIDs := make([]int64, 0)
 	for _, candidate := range input.Candidates {
 		if candidate.AccountID <= 0 {
 			continue
 		}
 		state := normalizeOpenAIAutoSchedulerState(candidate.State)
 		if state == OpenAIAutoSchedulerStateOpen || state == OpenAIAutoSchedulerStateHalfOpen {
+			rejectedAccountIDs = append(rejectedAccountIDs, candidate.AccountID)
 			continue
 		}
 		candidate.State = state
 		candidates = append(candidates, candidate)
 	}
 
-	result := OpenAIBalancedSelectionResult{CandidateCount: len(candidates)}
+	result := OpenAIBalancedSelectionResult{
+		CandidateCount:     len(candidates),
+		RejectedAccountIDs: rejectedAccountIDs,
+	}
 	if len(candidates) == 0 {
 		return result, nil
 	}
@@ -141,7 +147,7 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 		return isOpenAIBalancedCandidateBetter(eligible[i], eligible[j])
 	})
 	sort.SliceStable(ineligible, func(i, j int) bool {
-		return isOpenAIBalancedCandidateBetter(ineligible[i], ineligible[j])
+		return isOpenAIBalancedLatencyTailCandidateBetter(ineligible[i], ineligible[j])
 	})
 	stickyEscape := ""
 	if input.SessionAccountID > 0 {
@@ -310,7 +316,7 @@ func legacyOpenAIBalancedSelectionResult(input OpenAIBalancedSelectionInput, set
 	}
 }
 
-func openAIBalancedHealthKeyForCandidate(account *Account, req OpenAIAccountScheduleRequest) OpenAISchedulerHealthKey {
+func (s *OpenAIGatewayService) openAIBalancedHealthKeyForCandidate(account *Account, req OpenAIAccountScheduleRequest) OpenAISchedulerHealthKey {
 	if account == nil {
 		return OpenAISchedulerHealthKey{}
 	}
@@ -319,7 +325,7 @@ func openAIBalancedHealthKeyForCandidate(account *Account, req OpenAIAccountSche
 		transport = OpenAIUpstreamTransportHTTPSSE
 	}
 	if transport == OpenAIUpstreamTransportResponsesWebsocketV2Ingress {
-		transport = OpenAIUpstreamTransportResponsesWebsocketV2
+		transport = s.openAIBalancedWSIngressTransport(account)
 	}
 	endpoint := normalizeOpenAISchedulerHealthEndpoint(req.RequiredEndpoint)
 	switch transport {
@@ -350,6 +356,25 @@ func openAIBalancedHealthKeyForCandidate(account *Account, req OpenAIAccountSche
 		Endpoint:    endpoint,
 		Transport:   string(transport),
 	})
+}
+
+func (s *OpenAIGatewayService) openAIBalancedWSIngressTransport(account *Account) OpenAIUpstreamTransport {
+	if s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.ModeRouterV2Enabled {
+		switch account.ResolveOpenAIResponsesWebSocketV2Mode(s.cfg.Gateway.OpenAIWS.IngressModeDefault) {
+		case OpenAIWSIngressModePassthrough:
+			return OpenAIUpstreamTransportResponsesWebsocketV2
+		case OpenAIWSIngressModeHTTPBridge:
+			return OpenAIUpstreamTransportHTTPSSE
+		case OpenAIWSIngressModeCtxPool, OpenAIWSIngressModeShared, OpenAIWSIngressModeDedicated:
+			return OpenAIUpstreamTransportAny
+		default:
+			return OpenAIUpstreamTransportAny
+		}
+	}
+	if s == nil {
+		return OpenAIUpstreamTransportAny
+	}
+	return s.getOpenAIWSProtocolResolver().Resolve(account).Transport
 }
 
 func normalizeOpenAIBalancedSettings(settings OpenAIBalancedSettings) OpenAIBalancedSettings {
@@ -457,6 +482,46 @@ func isOpenAIBalancedCandidateBetter(left, right OpenAIBalancedCandidate) bool {
 	}
 	if left.LoadRate != right.LoadRate {
 		return left.LoadRate < right.LoadRate
+	}
+	return left.AccountID < right.AccountID
+}
+
+func isOpenAIBalancedLatencyTailCandidateBetter(left, right OpenAIBalancedCandidate) bool {
+	if left.SelectionTier != right.SelectionTier {
+		return left.SelectionTier < right.SelectionTier
+	}
+	if left.PredictedTTFTMS != right.PredictedTTFTMS {
+		if left.PredictedTTFTMS <= 0 {
+			return false
+		}
+		if right.PredictedTTFTMS <= 0 {
+			return true
+		}
+		return left.PredictedTTFTMS < right.PredictedTTFTMS
+	}
+	if left.ErrorRate != right.ErrorRate {
+		return left.ErrorRate < right.ErrorRate
+	}
+	if left.RateLimitedRate != right.RateLimitedRate {
+		return left.RateLimitedRate < right.RateLimitedRate
+	}
+	if left.ServerErrorRate != right.ServerErrorRate {
+		return left.ServerErrorRate < right.ServerErrorRate
+	}
+	if left.WaitingCount != right.WaitingCount {
+		return left.WaitingCount < right.WaitingCount
+	}
+	if left.GroupPriority != right.GroupPriority {
+		return left.GroupPriority < right.GroupPriority
+	}
+	if left.QuotaHeadroom != right.QuotaHeadroom {
+		return left.QuotaHeadroom > right.QuotaHeadroom
+	}
+	if left.LoadRate != right.LoadRate {
+		return left.LoadRate < right.LoadRate
+	}
+	if left.LegacyOrderPosition != right.LegacyOrderPosition {
+		return left.LegacyOrderPosition < right.LegacyOrderPosition
 	}
 	return left.AccountID < right.AccountID
 }

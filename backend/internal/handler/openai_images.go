@@ -154,7 +154,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 	for {
 		reqLog.Debug("openai.images.account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))
 		timing.BeginRouting()
-		effectiveAPIKey, selection, scheduleDecision, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForImages(
+		effectiveAPIKey, _, selection, scheduleDecision, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForImagesAndModelResolver(
 			requestCtx,
 			apiKey,
 			sessionHash,
@@ -162,6 +162,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			parsed.Endpoint,
 			failedAccountIDs,
 			parsed.RequiredCapability,
+			h.openAIChannelMappedModelResolver(requestCtx),
 		)
 		timing.EndRouting()
 		if err != nil {

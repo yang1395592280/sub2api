@@ -128,6 +128,7 @@ type openAIAccountLoadPlan struct {
 	candidateCount            int
 	topK                      int
 	loadSkew                  float64
+	rejectedAccountIDs        map[int64]struct{}
 }
 
 type openAIAccountLoadSelectionAttempt struct {
@@ -138,6 +139,7 @@ type openAIAccountLoadSelectionAttempt struct {
 	loadSkew            float64
 	compactBlocked      bool
 	noCompactCandidates bool
+	rejectedAccountIDs  map[int64]struct{}
 	err                 error
 }
 
@@ -964,7 +966,7 @@ func (s *defaultOpenAIAccountScheduler) applyOpenAIBalancedSelectionOrder(
 		if candidate.account == nil || candidate.loadInfo == nil {
 			continue
 		}
-		balancedCandidates = append(balancedCandidates, openAIBalancedCandidateForAccount(req, candidate.account, candidate.loadInfo, i, now))
+		balancedCandidates = append(balancedCandidates, openAIBalancedCandidateForAccount(s.service, req, candidate.account, candidate.loadInfo, i, now))
 	}
 	result, err := s.service.openaiBalancedScheduler.Order(ctx, OpenAIBalancedSelectionInput{
 		PreviousResponseAccountID: req.StickyPreviousAccountID,
@@ -977,7 +979,7 @@ func (s *defaultOpenAIAccountScheduler) applyOpenAIBalancedSelectionOrder(
 		HealthSnapshots:           req.balancedHealthSnapshots,
 		HealthLoadAttempted:       req.balancedHealthAttempted,
 	})
-	if err != nil || len(result.OrderedAccountIDs) == 0 {
+	if err != nil || (len(result.OrderedAccountIDs) == 0 && len(result.RejectedAccountIDs) == 0) {
 		return
 	}
 	orderedIDs := append([]int64(nil), result.OrderedAccountIDs...)
@@ -985,8 +987,16 @@ func (s *defaultOpenAIAccountScheduler) applyOpenAIBalancedSelectionOrder(
 	for _, accountID := range orderedIDs {
 		seen[accountID] = struct{}{}
 	}
+	rejected := make(map[int64]struct{}, len(result.RejectedAccountIDs))
+	for _, accountID := range result.RejectedAccountIDs {
+		rejected[accountID] = struct{}{}
+	}
+	plan.rejectedAccountIDs = rejected
 	for _, accountID := range legacyIDs {
 		if _, exists := seen[accountID]; exists {
+			continue
+		}
+		if _, circuitRejected := rejected[accountID]; circuitRejected {
 			continue
 		}
 		seen[accountID] = struct{}{}
@@ -1004,13 +1014,14 @@ func (s *defaultOpenAIAccountScheduler) applyOpenAIBalancedSelectionOrder(
 			selectionOrder = append(selectionOrder, candidate)
 		}
 	}
-	if len(selectionOrder) > 0 {
+	if len(selectionOrder) > 0 || len(rejected) > 0 {
 		plan.selectionOrder = selectionOrder
 		plan.topK = result.TopK
 	}
 }
 
 func openAIBalancedCandidateForAccount(
+	service *OpenAIGatewayService,
 	req OpenAIAccountScheduleRequest,
 	account *Account,
 	loadInfo *AccountLoadInfo,
@@ -1023,7 +1034,7 @@ func openAIBalancedCandidateForAccount(
 	}
 	return OpenAIBalancedCandidate{
 		AccountID:           account.ID,
-		HealthKey:           openAIBalancedHealthKeyForCandidate(account, req),
+		HealthKey:           service.openAIBalancedHealthKeyForCandidate(account, req),
 		WaitingCount:        loadInfo.WaitingCount,
 		LoadRate:            loadInfo.LoadRate,
 		GroupPriority:       openAIAccountSchedulingPriority(account, req.GroupID),
@@ -1383,7 +1394,7 @@ func (s *defaultOpenAIAccountScheduler) preloadOpenAIBalancedHealth(
 		if loadInfo == nil {
 			loadInfo = &AccountLoadInfo{AccountID: account.ID}
 		}
-		candidates = append(candidates, openAIBalancedCandidateForAccount(req, account, loadInfo, i, now))
+		candidates = append(candidates, openAIBalancedCandidateForAccount(s.service, req, account, loadInfo, i, now))
 	}
 	if len(candidates) == 0 {
 		return req
@@ -1417,10 +1428,11 @@ func (s *defaultOpenAIAccountScheduler) trySelectByLoadBalancePool(
 ) openAIAccountLoadSelectionAttempt {
 	plan := s.buildOpenAIAccountLoadPlan(ctx, req, filtered, loadMap)
 	attempt := openAIAccountLoadSelectionAttempt{
-		selectionOrder: plan.selectionOrder,
-		candidateCount: plan.candidateCount,
-		topK:           plan.topK,
-		loadSkew:       plan.loadSkew,
+		selectionOrder:     plan.selectionOrder,
+		candidateCount:     plan.candidateCount,
+		topK:               plan.topK,
+		loadSkew:           plan.loadSkew,
+		rejectedAccountIDs: plan.rejectedAccountIDs,
 	}
 	if req.RequireCompact && len(plan.candidates) == 0 && len(plan.staleSnapshotCompactRetry) == 0 {
 		attempt.noCompactCandidates = true
@@ -1452,7 +1464,7 @@ func (s *defaultOpenAIAccountScheduler) trySelectByLoadBalancePool(
 		loadReq := buildOpenAIAccountLoadRequest(filtered)
 		if freshLoadMap, loadErr := s.service.concurrencyService.GetAccountsLoadBatchFresh(ctx, loadReq); loadErr == nil {
 			freshPlan := s.buildOpenAIAccountLoadPlanWithBalanced(ctx, req, filtered, freshLoadMap, false)
-			preserveOpenAIBalancedSelectionOrder(&freshPlan, attempt.selectionOrder)
+			preserveOpenAIBalancedSelectionOrder(&freshPlan, attempt.selectionOrder, attempt.rejectedAccountIDs)
 			if len(freshPlan.selectionOrder) > 0 {
 				freshResult, freshCompactBlocked, freshAcquireErr := s.tryAcquireOpenAISelectionOrder(ctx, req, freshPlan.selectionOrder)
 				if freshAcquireErr != nil {
@@ -1479,7 +1491,11 @@ func (s *defaultOpenAIAccountScheduler) trySelectByLoadBalancePool(
 	return attempt
 }
 
-func preserveOpenAIBalancedSelectionOrder(plan *openAIAccountLoadPlan, previous []openAIAccountCandidateScore) {
+func preserveOpenAIBalancedSelectionOrder(
+	plan *openAIAccountLoadPlan,
+	previous []openAIAccountCandidateScore,
+	rejectedAccountIDs map[int64]struct{},
+) {
 	if plan == nil || len(previous) == 0 {
 		return
 	}
@@ -1496,6 +1512,9 @@ func preserveOpenAIBalancedSelectionOrder(plan *openAIAccountLoadPlan, previous 
 			return
 		}
 		accountID := candidate.account.ID
+		if _, rejected := rejectedAccountIDs[accountID]; rejected {
+			return
+		}
 		if _, exists := seen[accountID]; exists {
 			return
 		}

@@ -41,6 +41,17 @@ type OpenAIGatewayHandler struct {
 	cfg                      *config.Config
 }
 
+func (h *OpenAIGatewayHandler) openAIChannelMappedModelResolver(ctx context.Context) func(*service.APIKey, string) string {
+	return func(candidate *service.APIKey, model string) string {
+		var groupID *int64
+		if candidate != nil {
+			groupID = candidate.GroupID
+		}
+		mapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(ctx, groupID, model)
+		return mapping.MappedModel
+	}
+}
+
 func resolveOpenAIMessagesDispatchMappedModel(apiKey *service.APIKey, requestedModel string) string {
 	if apiKey == nil || apiKey.Group == nil {
 		return ""
@@ -345,7 +356,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		// Select account supporting the requested model
 		reqLog.Debug("openai.account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))
 		timing.BeginRouting()
-		effectiveAPIKey, selection, scheduleDecision, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
+		effectiveAPIKey, _, selection, scheduleDecision, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
 			c.Request.Context(),
 			apiKey,
 			previousResponseID,
@@ -358,6 +369,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			requireCompact,
 			false,
 			requestPlatform,
+			h.openAIChannelMappedModelResolver(c.Request.Context()),
 		)
 		timing.EndRouting()
 		if err != nil {
@@ -1544,7 +1556,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	for {
 		reqLog.Debug("openai.websocket_account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))
 		firstTurnTiming.BeginRouting()
-		effectiveAPIKey, selection, scheduleDecision, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
+		effectiveAPIKey, _, selection, scheduleDecision, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
 			ctx,
 			apiKey,
 			previousResponseID,
@@ -1557,6 +1569,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			false,
 			previousResponseCanMove,
 			requestPlatform,
+			h.openAIChannelMappedModelResolver(ctx),
 		)
 		firstTurnTiming.EndRouting()
 		if err != nil {
