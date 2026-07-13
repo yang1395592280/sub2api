@@ -142,6 +142,59 @@ func TestOpenAIHandlerTimingRetryReusesRequestTiming(t *testing.T) {
 	require.Equal(t, retryBeforeCancel, second.Snapshot().RetryMS)
 }
 
+func TestApplyOpenAIForwardTimingCopiesSchedulerPhasesAndPreservesFirstToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	timing := service.BeginOpenAIRequestTiming(c)
+	timing.AddQueue(25 * time.Millisecond)
+	timing.AddRetry(7 * time.Millisecond)
+	firstTokenMs := 900
+	result := &service.OpenAIForwardResult{FirstTokenMs: &firstTokenMs}
+
+	applyOpenAIForwardTiming(c, 280, result)
+
+	require.Equal(t, 900, *result.FirstTokenMs)
+	require.Equal(t, 1180, *result.E2EFirstTokenMs)
+	require.Equal(t, 0, *result.RoutingMs)
+	require.Equal(t, 25, *result.QueueMs)
+	require.Equal(t, 7, *result.RetryMs)
+}
+
+func TestApplyOpenAIForwardTimingLeavesE2EUnsetWithoutFirstToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	service.BeginOpenAIRequestTiming(c)
+	result := &service.OpenAIForwardResult{}
+
+	applyOpenAIForwardTiming(c, 280, result)
+
+	require.Nil(t, result.E2EFirstTokenMs)
+	require.NotNil(t, result.RoutingMs)
+	require.NotNil(t, result.QueueMs)
+	require.NotNil(t, result.RetryMs)
+}
+
+func TestOpenAIUsageSubmitPathCarriesForwardTiming(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	timing := service.BeginOpenAIRequestTiming(c)
+	timing.AddQueue(10 * time.Millisecond)
+	firstTokenMs := 75
+	result := &service.OpenAIForwardResult{FirstTokenMs: &firstTokenMs}
+	applyOpenAIForwardTiming(c, 125, result)
+
+	var submitted *service.OpenAIForwardResult
+	h := &OpenAIGatewayHandler{}
+	h.submitOpenAIUsageRecordTask(context.Background(), result, func(context.Context) {
+		submitted = result
+	})
+
+	require.Same(t, result, submitted)
+	require.Equal(t, 75, *submitted.FirstTokenMs)
+	require.Equal(t, 200, *submitted.E2EFirstTokenMs)
+	require.Equal(t, 10, *submitted.QueueMs)
+}
+
 func TestOpenAIHandleStreamingAwareError_JSONEscaping(t *testing.T) {
 	tests := []struct {
 		name    string

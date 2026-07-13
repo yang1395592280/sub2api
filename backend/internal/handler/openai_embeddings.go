@@ -191,6 +191,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 			forwardBody = h.gatewayService.ReplaceModelInBody(body, channelMapping.MappedModel)
 		}
 		writerSizeBeforeForward := c.Writer.Size()
+		preForwardE2EFirstTokenMs := timing.E2EFirstTokenMS()
 		result, err := func() (*service.OpenAIForwardResult, error) {
 			defer func() {
 				if accountReleaseFunc != nil {
@@ -199,6 +200,9 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 			}()
 			return h.gatewayService.ForwardEmbeddings(c.Request.Context(), c, account, forwardBody, "")
 		}()
+		if err == nil {
+			applyOpenAIForwardTiming(c, preForwardE2EFirstTokenMs, result)
+		}
 
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
 		upstreamLatencyMs, _ := getContextInt64(c, service.OpsUpstreamLatencyMsKey)
