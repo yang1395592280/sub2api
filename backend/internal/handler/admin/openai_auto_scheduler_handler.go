@@ -251,10 +251,12 @@ func (h *OpenAIAutoSchedulerHandler) ProbeScore(c *gin.Context) {
 		return
 	}
 	result := h.checker.Check(c.Request.Context(), account, model, 15*time.Second)
-	eventType := service.OpenAIAutoSchedulerEventProbeError
-	if result.Success && result.Err == nil {
-		eventType = service.OpenAIAutoSchedulerEventProbeSuccess
+	if h.settingsSvc == nil {
+		response.InternalError(c, "openai auto scheduler settings service is not configured")
+		return
 	}
+	settings := h.settingsSvc.GetOpenAIAutoSchedulerSettings(c.Request.Context())
+	eventType := service.ClassifyOpenAIAutoSchedulerProbeEvent(result, settings)
 	message := strings.TrimSpace(result.Message)
 	if result.Err != nil && message == "" {
 		message = result.Err.Error()

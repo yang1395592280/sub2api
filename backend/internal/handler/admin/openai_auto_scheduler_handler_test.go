@@ -152,10 +152,15 @@ func setupOpenAIAutoSchedulerProbeRouter(
 	schedulerSvc *fakeOpenAIAutoSchedulerService,
 	accountRepo *fakeOpenAIAutoSchedulerAccountRepo,
 	checker service.OpenAIAutoSchedulerProbeChecker,
+	settingsOverride ...service.OpenAIAutoSchedulerSettings,
 ) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	h := NewOpenAIAutoSchedulerHandler(nil, nil, schedulerSvc, accountRepo, checker)
+	settings := service.DefaultOpenAIAutoSchedulerSettings()
+	if len(settingsOverride) > 0 {
+		settings = settingsOverride[0]
+	}
+	h := NewOpenAIAutoSchedulerHandler(&fakeOpenAIAutoSchedulerSettingsService{settings: settings}, nil, schedulerSvc, accountRepo, checker)
 	group := router.Group("/api/v1/admin/openai-auto-scheduler")
 	{
 		group.POST("/scores/accounts/:account_id/probe", h.ProbeScore)
@@ -370,6 +375,39 @@ func TestOpenAIAutoSchedulerHandler_ProbeRecordsSuccess(t *testing.T) {
 	require.Equal(t, &ttfb, schedulerSvc.recordInput.TtfbMS)
 	require.Contains(t, rec.Body.String(), `"success":true`)
 	require.Contains(t, rec.Body.String(), `"ttfb_ms":32`)
+}
+
+func TestOpenAIAutoSchedulerHandler_ProbeClassifiesSlowSuccessUsingEffectiveSettings(t *testing.T) {
+	settings := service.DefaultOpenAIAutoSchedulerSettings()
+	settings.SlowThresholdMS = 6000
+	settings.SevereSlowThresholdMS = 15000
+
+	tests := []struct {
+		name string
+		ttfb int
+		want string
+	}{
+		{"slow", 7000, service.OpenAIAutoSchedulerEventSlow},
+		{"severe slow", 16000, service.OpenAIAutoSchedulerEventSevereSlow},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			schedulerSvc := &fakeOpenAIAutoSchedulerService{}
+			router := setupOpenAIAutoSchedulerProbeRouter(
+				schedulerSvc,
+				&fakeOpenAIAutoSchedulerAccountRepo{account: &service.Account{ID: 101, Platform: service.PlatformOpenAI}},
+				fakeOpenAIAutoSchedulerProbeChecker{result: service.OpenAIAutoSchedulerProbeResult{Success: true, TtfbMS: &tt.ttfb}},
+				settings,
+			)
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/openai-auto-scheduler/scores/accounts/101/probe?group_id=20&model=gpt-5", nil)
+			router.ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			require.Equal(t, tt.want, schedulerSvc.recordInput.EventType)
+		})
+	}
 }
 
 func TestOpenAIAutoSchedulerHandler_ProbeSurfacesRecordError(t *testing.T) {

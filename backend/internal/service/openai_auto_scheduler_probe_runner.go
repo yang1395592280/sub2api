@@ -188,7 +188,7 @@ func (r *OpenAIAutoSchedulerProbeRunner) runOnce(ctx context.Context) {
 			}
 			if _, ok := r.pool.TrySubmit(func() {
 				defer r.releaseInFlight(key)
-				r.runProbe(ctx, &accountCopy, groupID, probeModel, timeout)
+				r.runProbe(ctx, &accountCopy, groupID, probeModel, timeout, settings)
 			}); !ok {
 				r.releaseInFlight(key)
 			}
@@ -196,15 +196,12 @@ func (r *OpenAIAutoSchedulerProbeRunner) runOnce(ctx context.Context) {
 	}
 }
 
-func (r *OpenAIAutoSchedulerProbeRunner) runProbe(ctx context.Context, account *Account, groupID int64, model string, timeout time.Duration) {
+func (r *OpenAIAutoSchedulerProbeRunner) runProbe(ctx context.Context, account *Account, groupID int64, model string, timeout time.Duration, settings OpenAIAutoSchedulerSettings) {
 	probeCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	result := r.checker.Check(probeCtx, account, model, timeout)
-	eventType := OpenAIAutoSchedulerEventProbeError
-	if result.Success && result.Err == nil {
-		eventType = OpenAIAutoSchedulerEventProbeSuccess
-	}
+	eventType := classifyOpenAIAutoSchedulerProbeEvent(result, settings)
 	input := OpenAIAutoSchedulerRecordInput{
 		AccountID: account.ID,
 		GroupID:   groupID,
@@ -220,6 +217,33 @@ func (r *OpenAIAutoSchedulerProbeRunner) runProbe(ctx context.Context, account *
 	if err := r.svc.Record(ctx, input); err != nil {
 		slog.Warn("openai_auto_scheduler_probe: record failed", "account_id", account.ID, "group_id", groupID, "error", err)
 	}
+}
+
+func classifyOpenAIAutoSchedulerProbeEvent(result OpenAIAutoSchedulerProbeResult, settings OpenAIAutoSchedulerSettings) string {
+	if !result.Success || result.Err != nil {
+		return OpenAIAutoSchedulerEventProbeError
+	}
+	normalized := normalizeOpenAIAutoSchedulerSettings(settings)
+	observedMS := 0
+	if result.LatencyMS != nil && *result.LatencyMS > 0 {
+		observedMS = *result.LatencyMS
+	}
+	if result.TtfbMS != nil && *result.TtfbMS > 0 {
+		observedMS = *result.TtfbMS
+	}
+	switch {
+	case observedMS >= normalized.SevereSlowThresholdMS:
+		return OpenAIAutoSchedulerEventSevereSlow
+	case observedMS >= normalized.SlowThresholdMS:
+		return OpenAIAutoSchedulerEventSlow
+	default:
+		return OpenAIAutoSchedulerEventProbeSuccess
+	}
+}
+
+// ClassifyOpenAIAutoSchedulerProbeEvent exposes the shared probe classifier to admin handlers.
+func ClassifyOpenAIAutoSchedulerProbeEvent(result OpenAIAutoSchedulerProbeResult, settings OpenAIAutoSchedulerSettings) string {
+	return classifyOpenAIAutoSchedulerProbeEvent(result, settings)
 }
 
 func (r *OpenAIAutoSchedulerProbeRunner) tryAcquireInFlight(key string) bool {
