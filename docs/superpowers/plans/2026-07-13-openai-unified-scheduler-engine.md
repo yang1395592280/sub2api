@@ -347,12 +347,19 @@ git commit -m "feat: learn OpenAI health from real requests"
 - Test: `backend/internal/service/openai_balanced_scheduler_test.go`
 - Modify: `backend/internal/service/openai_account_scheduler.go`
 - Modify: `backend/internal/service/openai_account_scheduler_test.go`
+- Modify: `backend/internal/service/openai_gateway_scheduling.go`
+- Modify: `backend/internal/handler/openai_gateway_handler.go`
+- Modify: `backend/internal/handler/openai_chat_completions.go`
+- Modify: `backend/internal/handler/openai_embeddings.go`
+- Modify: `backend/internal/handler/openai_images.go`
 - Modify: `backend/internal/service/wire.go`
 - Generated: `backend/cmd/server/wire_gen.go`
 
 **Interfaces:**
 - Produces: `OpenAIBalancedScheduler.Order(context.Context, OpenAIBalancedSelectionInput) (OpenAIBalancedSelectionResult, error)`.
 - Consumes: batch health repository and candidate load information already fetched by the account scheduler.
+- Extends the internal `OpenAIAccountScheduleRequest` with an explicit canonical `RequiredEndpoint`. Handlers pass the requested operation: `responses`, `chat_completions`, `embeddings`, `images_generations`, or `images_edits`.
+- Resolves each candidate's actual upstream endpoint with the same account/transport rules as forwarding: WS and Responses bridges use `responses`; raw-compatible API key accounts use `chat_completions`; OAuth image bridges use `responses`; direct image API key accounts preserve generations versus edits. Missing or unknown dimensions fall back to legacy order instead of using a wildcard key.
 
 - [ ] **Step 1: Write failing policy tests**
 
@@ -373,7 +380,7 @@ func TestOpenAIBalancedSchedulerEscapesSlowSession(t *testing.T) {
 }
 ```
 
-Also test strong previous-response ordering, price only inside latency-eligible pool, group priority, queue escape, half-open exclusion, deterministic no-exploration tests, and seeded 3% exploration.
+Also test strong previous-response ordering, price only inside latency-eligible pool, group priority, queue escape, half-open exclusion, deterministic no-exploration tests, seeded 3% exploration, and exact candidate health keys for Responses/raw Chat, HTTP/WS, embeddings, OAuth image bridge, API key image generations, and API key image edits.
 
 - [ ] **Step 2: Run policy tests and confirm RED**
 
@@ -401,7 +408,9 @@ Change `openAIAccountSchedulingPriority` to accept `groupID` and return `Account
 
 - [ ] **Step 5: Add one thin integration call in the account scheduler**
 
-After existing hard filtering and batch load retrieval, map candidates into `OpenAIBalancedSelectionInput`, call the policy, and reorder existing candidate structs by returned account IDs. Slot acquisition, DB recheck, compact retry, overbrush exclusions, and wait-plan creation remain unchanged.
+After existing hard filtering, resolve a complete Task 3-compatible health key for every candidate and load all keys with one `GetBatch`. If any required dimension cannot be resolved or the health repository fails, preserve the legacy candidate order. Otherwise map candidates into `OpenAIBalancedSelectionInput`, call the policy, and reorder existing candidate structs by returned account IDs. Slot acquisition, DB recheck, compact retry, overbrush exclusions, and wait-plan creation remain unchanged.
+
+Propagate `RequiredEndpoint` through the effective-group wrappers and entry handlers as an internal parameter only. Images must use the parsed request endpoint and must not infer generations versus edits from `OpenAIImagesCapability`. Endpoint propagation must not change request validation, model mapping, forwarding, billing, or failover.
 
 - [ ] **Step 6: Wire the policy and regenerate Wire**
 
@@ -419,6 +428,9 @@ Expected: PASS; group priority is honored and previous response remains strong s
 git add backend/internal/service/openai_balanced_scheduler.go \
   backend/internal/service/openai_balanced_scheduler_test.go \
   backend/internal/service/openai_account_scheduler.go backend/internal/service/openai_account_scheduler_test.go \
+  backend/internal/service/openai_gateway_scheduling.go \
+  backend/internal/handler/openai_gateway_handler.go backend/internal/handler/openai_chat_completions.go \
+  backend/internal/handler/openai_embeddings.go backend/internal/handler/openai_images.go \
   backend/internal/service/wire.go backend/cmd/server/wire_gen.go
 git commit -m "feat: unify OpenAI account selection policy"
 ```
