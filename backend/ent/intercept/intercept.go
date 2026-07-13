@@ -28,6 +28,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
 	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscoreevent"
 	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscorestate"
+	"github.com/Wei-Shaw/sub2api/ent/openaischedulerhealthstate"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -651,6 +652,33 @@ func (f TraverseOpenAIAutoSchedulerScoreState) Traverse(ctx context.Context, q e
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.OpenAIAutoSchedulerScoreStateQuery", q)
+}
+
+// The OpenAISchedulerHealthStateFunc type is an adapter to allow the use of ordinary function as a Querier.
+type OpenAISchedulerHealthStateFunc func(context.Context, *ent.OpenAISchedulerHealthStateQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f OpenAISchedulerHealthStateFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.OpenAISchedulerHealthStateQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.OpenAISchedulerHealthStateQuery", q)
+}
+
+// The TraverseOpenAISchedulerHealthState type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseOpenAISchedulerHealthState func(context.Context, *ent.OpenAISchedulerHealthStateQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseOpenAISchedulerHealthState) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseOpenAISchedulerHealthState) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.OpenAISchedulerHealthStateQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.OpenAISchedulerHealthStateQuery", q)
 }
 
 // The PaymentAuditLogFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -1398,6 +1426,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.OpenAIAutoSchedulerScoreEventQuery, predicate.OpenAIAutoSchedulerScoreEvent, openaiautoschedulerscoreevent.OrderOption]{typ: ent.TypeOpenAIAutoSchedulerScoreEvent, tq: q}, nil
 	case *ent.OpenAIAutoSchedulerScoreStateQuery:
 		return &query[*ent.OpenAIAutoSchedulerScoreStateQuery, predicate.OpenAIAutoSchedulerScoreState, openaiautoschedulerscorestate.OrderOption]{typ: ent.TypeOpenAIAutoSchedulerScoreState, tq: q}, nil
+	case *ent.OpenAISchedulerHealthStateQuery:
+		return &query[*ent.OpenAISchedulerHealthStateQuery, predicate.OpenAISchedulerHealthState, openaischedulerhealthstate.OrderOption]{typ: ent.TypeOpenAISchedulerHealthState, tq: q}, nil
 	case *ent.PaymentAuditLogQuery:
 		return &query[*ent.PaymentAuditLogQuery, predicate.PaymentAuditLog, paymentauditlog.OrderOption]{typ: ent.TypePaymentAuditLog, tq: q}, nil
 	case *ent.PaymentOrderQuery:

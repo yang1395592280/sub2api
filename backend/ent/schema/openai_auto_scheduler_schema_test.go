@@ -43,6 +43,26 @@ func TestOpenAIAutoSchedulerSchemas(t *testing.T) {
 		"score_before", "score_after")
 }
 
+func TestOpenAISchedulerHealthStateSchema(t *testing.T) {
+	spec, err := (&load.Config{Path: "."}).Load()
+	require.NoError(t, err)
+
+	schemas := map[string]*load.Schema{}
+	for _, schema := range spec.Schemas {
+		schemas[schema.Name] = schema
+	}
+
+	health := requireSchema(t, schemas, "OpenAISchedulerHealthState")
+	requireSchemaFields(t, health,
+		"account_id", "model_family", "endpoint", "transport", "state",
+		"predicted_ttft_ms", "error_rate", "rate_limited_rate", "server_error_rate",
+		"consecutive_slow", "consecutive_error", "consecutive_success",
+		"real_sample_count", "probe_sample_count", "last_real_at", "last_probe_at",
+		"cooldown_until", "expires_at",
+	)
+	requireHasUniqueIndex(t, health, "account_id", "model_family", "endpoint", "transport")
+}
+
 func TestGroupUpstreamPriceGuardSchemaFields(t *testing.T) {
 	spec, err := (&load.Config{Path: "."}).Load()
 	require.NoError(t, err)

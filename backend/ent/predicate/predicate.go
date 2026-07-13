@@ -66,6 +66,9 @@ type OpenAIAutoSchedulerScoreEvent func(*sql.Selector)
 // OpenAIAutoSchedulerScoreState is the predicate function for openaiautoschedulerscorestate builders.
 type OpenAIAutoSchedulerScoreState func(*sql.Selector)
 
+// OpenAISchedulerHealthState is the predicate function for openaischedulerhealthstate builders.
+type OpenAISchedulerHealthState func(*sql.Selector)
+
 // PaymentAuditLog is the predicate function for paymentauditlog builders.
 type PaymentAuditLog func(*sql.Selector)
 

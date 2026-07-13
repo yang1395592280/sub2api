@@ -1107,6 +1107,48 @@ var (
 			},
 		},
 	}
+	// OpenaiSchedulerHealthStatesColumns holds the columns for the "openai_scheduler_health_states" table.
+	OpenaiSchedulerHealthStatesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "account_id", Type: field.TypeInt64},
+		{Name: "model_family", Type: field.TypeString, Size: 100, Default: ""},
+		{Name: "endpoint", Type: field.TypeString, Size: 100, Default: ""},
+		{Name: "transport", Type: field.TypeString, Size: 32, Default: ""},
+		{Name: "state", Type: field.TypeString, Size: 20, Default: "running"},
+		{Name: "predicted_ttft_ms", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(12,3)"}},
+		{Name: "error_rate", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(8,4)"}},
+		{Name: "rate_limited_rate", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(8,4)"}},
+		{Name: "server_error_rate", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(8,4)"}},
+		{Name: "consecutive_slow", Type: field.TypeInt, Default: 0},
+		{Name: "consecutive_error", Type: field.TypeInt, Default: 0},
+		{Name: "consecutive_success", Type: field.TypeInt, Default: 0},
+		{Name: "real_sample_count", Type: field.TypeInt64, Default: 0},
+		{Name: "probe_sample_count", Type: field.TypeInt64, Default: 0},
+		{Name: "last_real_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "last_probe_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "cooldown_until", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "expires_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// OpenaiSchedulerHealthStatesTable holds the schema information for the "openai_scheduler_health_states" table.
+	OpenaiSchedulerHealthStatesTable = &schema.Table{
+		Name:       "openai_scheduler_health_states",
+		Columns:    OpenaiSchedulerHealthStatesColumns,
+		PrimaryKey: []*schema.Column{OpenaiSchedulerHealthStatesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "openaischedulerhealthstate_account_id_model_family_endpoint_transport",
+				Unique:  true,
+				Columns: []*schema.Column{OpenaiSchedulerHealthStatesColumns[3], OpenaiSchedulerHealthStatesColumns[4], OpenaiSchedulerHealthStatesColumns[5], OpenaiSchedulerHealthStatesColumns[6]},
+			},
+			{
+				Name:    "openaischedulerhealthstate_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{OpenaiSchedulerHealthStatesColumns[20]},
+			},
+		},
+	}
 	// PaymentAuditLogsColumns holds the columns for the "payment_audit_logs" table.
 	PaymentAuditLogsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2380,6 +2422,7 @@ var (
 		IdentityAdoptionDecisionsTable,
 		OpenaiAutoSchedulerScoreEventsTable,
 		OpenaiAutoSchedulerScoreStatesTable,
+		OpenaiSchedulerHealthStatesTable,
 		PaymentAuditLogsTable,
 		PaymentOrdersTable,
 		PaymentProviderInstancesTable,
@@ -2484,6 +2527,9 @@ func init() {
 	}
 	OpenaiAutoSchedulerScoreStatesTable.Annotation = &entsql.Annotation{
 		Table: "openai_auto_scheduler_score_states",
+	}
+	OpenaiSchedulerHealthStatesTable.Annotation = &entsql.Annotation{
+		Table: "openai_scheduler_health_states",
 	}
 	PaymentAuditLogsTable.Annotation = &entsql.Annotation{
 		Table: "payment_audit_logs",

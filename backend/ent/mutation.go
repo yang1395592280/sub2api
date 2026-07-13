@@ -32,6 +32,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
 	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscoreevent"
 	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscorestate"
+	"github.com/Wei-Shaw/sub2api/ent/openaischedulerhealthstate"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -91,6 +92,7 @@ const (
 	TypeIdentityAdoptionDecision      = "IdentityAdoptionDecision"
 	TypeOpenAIAutoSchedulerScoreEvent = "OpenAIAutoSchedulerScoreEvent"
 	TypeOpenAIAutoSchedulerScoreState = "OpenAIAutoSchedulerScoreState"
+	TypeOpenAISchedulerHealthState    = "OpenAISchedulerHealthState"
 	TypePaymentAuditLog               = "PaymentAuditLog"
 	TypePaymentOrder                  = "PaymentOrder"
 	TypePaymentProviderInstance       = "PaymentProviderInstance"
@@ -31316,6 +31318,1751 @@ func (m *OpenAIAutoSchedulerScoreStateMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *OpenAIAutoSchedulerScoreStateMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown OpenAIAutoSchedulerScoreState edge %s", name)
+}
+
+// OpenAISchedulerHealthStateMutation represents an operation that mutates the OpenAISchedulerHealthState nodes in the graph.
+type OpenAISchedulerHealthStateMutation struct {
+	config
+	op                     Op
+	typ                    string
+	id                     *int64
+	created_at             *time.Time
+	updated_at             *time.Time
+	account_id             *int64
+	addaccount_id          *int64
+	model_family           *string
+	endpoint               *string
+	transport              *string
+	state                  *string
+	predicted_ttft_ms      *float64
+	addpredicted_ttft_ms   *float64
+	error_rate             *float64
+	adderror_rate          *float64
+	rate_limited_rate      *float64
+	addrate_limited_rate   *float64
+	server_error_rate      *float64
+	addserver_error_rate   *float64
+	consecutive_slow       *int
+	addconsecutive_slow    *int
+	consecutive_error      *int
+	addconsecutive_error   *int
+	consecutive_success    *int
+	addconsecutive_success *int
+	real_sample_count      *int64
+	addreal_sample_count   *int64
+	probe_sample_count     *int64
+	addprobe_sample_count  *int64
+	last_real_at           *time.Time
+	last_probe_at          *time.Time
+	cooldown_until         *time.Time
+	expires_at             *time.Time
+	clearedFields          map[string]struct{}
+	done                   bool
+	oldValue               func(context.Context) (*OpenAISchedulerHealthState, error)
+	predicates             []predicate.OpenAISchedulerHealthState
+}
+
+var _ ent.Mutation = (*OpenAISchedulerHealthStateMutation)(nil)
+
+// openaischedulerhealthstateOption allows management of the mutation configuration using functional options.
+type openaischedulerhealthstateOption func(*OpenAISchedulerHealthStateMutation)
+
+// newOpenAISchedulerHealthStateMutation creates new mutation for the OpenAISchedulerHealthState entity.
+func newOpenAISchedulerHealthStateMutation(c config, op Op, opts ...openaischedulerhealthstateOption) *OpenAISchedulerHealthStateMutation {
+	m := &OpenAISchedulerHealthStateMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeOpenAISchedulerHealthState,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withOpenAISchedulerHealthStateID sets the ID field of the mutation.
+func withOpenAISchedulerHealthStateID(id int64) openaischedulerhealthstateOption {
+	return func(m *OpenAISchedulerHealthStateMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *OpenAISchedulerHealthState
+		)
+		m.oldValue = func(ctx context.Context) (*OpenAISchedulerHealthState, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().OpenAISchedulerHealthState.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withOpenAISchedulerHealthState sets the old OpenAISchedulerHealthState of the mutation.
+func withOpenAISchedulerHealthState(node *OpenAISchedulerHealthState) openaischedulerhealthstateOption {
+	return func(m *OpenAISchedulerHealthStateMutation) {
+		m.oldValue = func(context.Context) (*OpenAISchedulerHealthState, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m OpenAISchedulerHealthStateMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m OpenAISchedulerHealthStateMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *OpenAISchedulerHealthStateMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *OpenAISchedulerHealthStateMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().OpenAISchedulerHealthState.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *OpenAISchedulerHealthStateMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *OpenAISchedulerHealthStateMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetAccountID sets the "account_id" field.
+func (m *OpenAISchedulerHealthStateMutation) SetAccountID(i int64) {
+	m.account_id = &i
+	m.addaccount_id = nil
+}
+
+// AccountID returns the value of the "account_id" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) AccountID() (r int64, exists bool) {
+	v := m.account_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccountID returns the old "account_id" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldAccountID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccountID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccountID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccountID: %w", err)
+	}
+	return oldValue.AccountID, nil
+}
+
+// AddAccountID adds i to the "account_id" field.
+func (m *OpenAISchedulerHealthStateMutation) AddAccountID(i int64) {
+	if m.addaccount_id != nil {
+		*m.addaccount_id += i
+	} else {
+		m.addaccount_id = &i
+	}
+}
+
+// AddedAccountID returns the value that was added to the "account_id" field in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) AddedAccountID() (r int64, exists bool) {
+	v := m.addaccount_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAccountID resets all changes to the "account_id" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetAccountID() {
+	m.account_id = nil
+	m.addaccount_id = nil
+}
+
+// SetModelFamily sets the "model_family" field.
+func (m *OpenAISchedulerHealthStateMutation) SetModelFamily(s string) {
+	m.model_family = &s
+}
+
+// ModelFamily returns the value of the "model_family" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) ModelFamily() (r string, exists bool) {
+	v := m.model_family
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldModelFamily returns the old "model_family" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldModelFamily(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldModelFamily is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldModelFamily requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldModelFamily: %w", err)
+	}
+	return oldValue.ModelFamily, nil
+}
+
+// ResetModelFamily resets all changes to the "model_family" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetModelFamily() {
+	m.model_family = nil
+}
+
+// SetEndpoint sets the "endpoint" field.
+func (m *OpenAISchedulerHealthStateMutation) SetEndpoint(s string) {
+	m.endpoint = &s
+}
+
+// Endpoint returns the value of the "endpoint" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) Endpoint() (r string, exists bool) {
+	v := m.endpoint
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEndpoint returns the old "endpoint" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldEndpoint(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEndpoint is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEndpoint requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEndpoint: %w", err)
+	}
+	return oldValue.Endpoint, nil
+}
+
+// ResetEndpoint resets all changes to the "endpoint" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetEndpoint() {
+	m.endpoint = nil
+}
+
+// SetTransport sets the "transport" field.
+func (m *OpenAISchedulerHealthStateMutation) SetTransport(s string) {
+	m.transport = &s
+}
+
+// Transport returns the value of the "transport" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) Transport() (r string, exists bool) {
+	v := m.transport
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTransport returns the old "transport" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldTransport(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTransport is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTransport requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTransport: %w", err)
+	}
+	return oldValue.Transport, nil
+}
+
+// ResetTransport resets all changes to the "transport" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetTransport() {
+	m.transport = nil
+}
+
+// SetState sets the "state" field.
+func (m *OpenAISchedulerHealthStateMutation) SetState(s string) {
+	m.state = &s
+}
+
+// State returns the value of the "state" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) State() (r string, exists bool) {
+	v := m.state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldState returns the old "state" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldState(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldState: %w", err)
+	}
+	return oldValue.State, nil
+}
+
+// ResetState resets all changes to the "state" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetState() {
+	m.state = nil
+}
+
+// SetPredictedTtftMs sets the "predicted_ttft_ms" field.
+func (m *OpenAISchedulerHealthStateMutation) SetPredictedTtftMs(f float64) {
+	m.predicted_ttft_ms = &f
+	m.addpredicted_ttft_ms = nil
+}
+
+// PredictedTtftMs returns the value of the "predicted_ttft_ms" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) PredictedTtftMs() (r float64, exists bool) {
+	v := m.predicted_ttft_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPredictedTtftMs returns the old "predicted_ttft_ms" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldPredictedTtftMs(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPredictedTtftMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPredictedTtftMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPredictedTtftMs: %w", err)
+	}
+	return oldValue.PredictedTtftMs, nil
+}
+
+// AddPredictedTtftMs adds f to the "predicted_ttft_ms" field.
+func (m *OpenAISchedulerHealthStateMutation) AddPredictedTtftMs(f float64) {
+	if m.addpredicted_ttft_ms != nil {
+		*m.addpredicted_ttft_ms += f
+	} else {
+		m.addpredicted_ttft_ms = &f
+	}
+}
+
+// AddedPredictedTtftMs returns the value that was added to the "predicted_ttft_ms" field in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) AddedPredictedTtftMs() (r float64, exists bool) {
+	v := m.addpredicted_ttft_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetPredictedTtftMs resets all changes to the "predicted_ttft_ms" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetPredictedTtftMs() {
+	m.predicted_ttft_ms = nil
+	m.addpredicted_ttft_ms = nil
+}
+
+// SetErrorRate sets the "error_rate" field.
+func (m *OpenAISchedulerHealthStateMutation) SetErrorRate(f float64) {
+	m.error_rate = &f
+	m.adderror_rate = nil
+}
+
+// ErrorRate returns the value of the "error_rate" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) ErrorRate() (r float64, exists bool) {
+	v := m.error_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldErrorRate returns the old "error_rate" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldErrorRate(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldErrorRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldErrorRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldErrorRate: %w", err)
+	}
+	return oldValue.ErrorRate, nil
+}
+
+// AddErrorRate adds f to the "error_rate" field.
+func (m *OpenAISchedulerHealthStateMutation) AddErrorRate(f float64) {
+	if m.adderror_rate != nil {
+		*m.adderror_rate += f
+	} else {
+		m.adderror_rate = &f
+	}
+}
+
+// AddedErrorRate returns the value that was added to the "error_rate" field in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) AddedErrorRate() (r float64, exists bool) {
+	v := m.adderror_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetErrorRate resets all changes to the "error_rate" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetErrorRate() {
+	m.error_rate = nil
+	m.adderror_rate = nil
+}
+
+// SetRateLimitedRate sets the "rate_limited_rate" field.
+func (m *OpenAISchedulerHealthStateMutation) SetRateLimitedRate(f float64) {
+	m.rate_limited_rate = &f
+	m.addrate_limited_rate = nil
+}
+
+// RateLimitedRate returns the value of the "rate_limited_rate" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) RateLimitedRate() (r float64, exists bool) {
+	v := m.rate_limited_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRateLimitedRate returns the old "rate_limited_rate" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldRateLimitedRate(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRateLimitedRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRateLimitedRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRateLimitedRate: %w", err)
+	}
+	return oldValue.RateLimitedRate, nil
+}
+
+// AddRateLimitedRate adds f to the "rate_limited_rate" field.
+func (m *OpenAISchedulerHealthStateMutation) AddRateLimitedRate(f float64) {
+	if m.addrate_limited_rate != nil {
+		*m.addrate_limited_rate += f
+	} else {
+		m.addrate_limited_rate = &f
+	}
+}
+
+// AddedRateLimitedRate returns the value that was added to the "rate_limited_rate" field in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) AddedRateLimitedRate() (r float64, exists bool) {
+	v := m.addrate_limited_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRateLimitedRate resets all changes to the "rate_limited_rate" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetRateLimitedRate() {
+	m.rate_limited_rate = nil
+	m.addrate_limited_rate = nil
+}
+
+// SetServerErrorRate sets the "server_error_rate" field.
+func (m *OpenAISchedulerHealthStateMutation) SetServerErrorRate(f float64) {
+	m.server_error_rate = &f
+	m.addserver_error_rate = nil
+}
+
+// ServerErrorRate returns the value of the "server_error_rate" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) ServerErrorRate() (r float64, exists bool) {
+	v := m.server_error_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldServerErrorRate returns the old "server_error_rate" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldServerErrorRate(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldServerErrorRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldServerErrorRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldServerErrorRate: %w", err)
+	}
+	return oldValue.ServerErrorRate, nil
+}
+
+// AddServerErrorRate adds f to the "server_error_rate" field.
+func (m *OpenAISchedulerHealthStateMutation) AddServerErrorRate(f float64) {
+	if m.addserver_error_rate != nil {
+		*m.addserver_error_rate += f
+	} else {
+		m.addserver_error_rate = &f
+	}
+}
+
+// AddedServerErrorRate returns the value that was added to the "server_error_rate" field in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) AddedServerErrorRate() (r float64, exists bool) {
+	v := m.addserver_error_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetServerErrorRate resets all changes to the "server_error_rate" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetServerErrorRate() {
+	m.server_error_rate = nil
+	m.addserver_error_rate = nil
+}
+
+// SetConsecutiveSlow sets the "consecutive_slow" field.
+func (m *OpenAISchedulerHealthStateMutation) SetConsecutiveSlow(i int) {
+	m.consecutive_slow = &i
+	m.addconsecutive_slow = nil
+}
+
+// ConsecutiveSlow returns the value of the "consecutive_slow" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) ConsecutiveSlow() (r int, exists bool) {
+	v := m.consecutive_slow
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConsecutiveSlow returns the old "consecutive_slow" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldConsecutiveSlow(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConsecutiveSlow is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConsecutiveSlow requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConsecutiveSlow: %w", err)
+	}
+	return oldValue.ConsecutiveSlow, nil
+}
+
+// AddConsecutiveSlow adds i to the "consecutive_slow" field.
+func (m *OpenAISchedulerHealthStateMutation) AddConsecutiveSlow(i int) {
+	if m.addconsecutive_slow != nil {
+		*m.addconsecutive_slow += i
+	} else {
+		m.addconsecutive_slow = &i
+	}
+}
+
+// AddedConsecutiveSlow returns the value that was added to the "consecutive_slow" field in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) AddedConsecutiveSlow() (r int, exists bool) {
+	v := m.addconsecutive_slow
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetConsecutiveSlow resets all changes to the "consecutive_slow" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetConsecutiveSlow() {
+	m.consecutive_slow = nil
+	m.addconsecutive_slow = nil
+}
+
+// SetConsecutiveError sets the "consecutive_error" field.
+func (m *OpenAISchedulerHealthStateMutation) SetConsecutiveError(i int) {
+	m.consecutive_error = &i
+	m.addconsecutive_error = nil
+}
+
+// ConsecutiveError returns the value of the "consecutive_error" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) ConsecutiveError() (r int, exists bool) {
+	v := m.consecutive_error
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConsecutiveError returns the old "consecutive_error" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldConsecutiveError(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConsecutiveError is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConsecutiveError requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConsecutiveError: %w", err)
+	}
+	return oldValue.ConsecutiveError, nil
+}
+
+// AddConsecutiveError adds i to the "consecutive_error" field.
+func (m *OpenAISchedulerHealthStateMutation) AddConsecutiveError(i int) {
+	if m.addconsecutive_error != nil {
+		*m.addconsecutive_error += i
+	} else {
+		m.addconsecutive_error = &i
+	}
+}
+
+// AddedConsecutiveError returns the value that was added to the "consecutive_error" field in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) AddedConsecutiveError() (r int, exists bool) {
+	v := m.addconsecutive_error
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetConsecutiveError resets all changes to the "consecutive_error" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetConsecutiveError() {
+	m.consecutive_error = nil
+	m.addconsecutive_error = nil
+}
+
+// SetConsecutiveSuccess sets the "consecutive_success" field.
+func (m *OpenAISchedulerHealthStateMutation) SetConsecutiveSuccess(i int) {
+	m.consecutive_success = &i
+	m.addconsecutive_success = nil
+}
+
+// ConsecutiveSuccess returns the value of the "consecutive_success" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) ConsecutiveSuccess() (r int, exists bool) {
+	v := m.consecutive_success
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConsecutiveSuccess returns the old "consecutive_success" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldConsecutiveSuccess(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConsecutiveSuccess is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConsecutiveSuccess requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConsecutiveSuccess: %w", err)
+	}
+	return oldValue.ConsecutiveSuccess, nil
+}
+
+// AddConsecutiveSuccess adds i to the "consecutive_success" field.
+func (m *OpenAISchedulerHealthStateMutation) AddConsecutiveSuccess(i int) {
+	if m.addconsecutive_success != nil {
+		*m.addconsecutive_success += i
+	} else {
+		m.addconsecutive_success = &i
+	}
+}
+
+// AddedConsecutiveSuccess returns the value that was added to the "consecutive_success" field in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) AddedConsecutiveSuccess() (r int, exists bool) {
+	v := m.addconsecutive_success
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetConsecutiveSuccess resets all changes to the "consecutive_success" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetConsecutiveSuccess() {
+	m.consecutive_success = nil
+	m.addconsecutive_success = nil
+}
+
+// SetRealSampleCount sets the "real_sample_count" field.
+func (m *OpenAISchedulerHealthStateMutation) SetRealSampleCount(i int64) {
+	m.real_sample_count = &i
+	m.addreal_sample_count = nil
+}
+
+// RealSampleCount returns the value of the "real_sample_count" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) RealSampleCount() (r int64, exists bool) {
+	v := m.real_sample_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRealSampleCount returns the old "real_sample_count" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldRealSampleCount(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRealSampleCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRealSampleCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRealSampleCount: %w", err)
+	}
+	return oldValue.RealSampleCount, nil
+}
+
+// AddRealSampleCount adds i to the "real_sample_count" field.
+func (m *OpenAISchedulerHealthStateMutation) AddRealSampleCount(i int64) {
+	if m.addreal_sample_count != nil {
+		*m.addreal_sample_count += i
+	} else {
+		m.addreal_sample_count = &i
+	}
+}
+
+// AddedRealSampleCount returns the value that was added to the "real_sample_count" field in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) AddedRealSampleCount() (r int64, exists bool) {
+	v := m.addreal_sample_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRealSampleCount resets all changes to the "real_sample_count" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetRealSampleCount() {
+	m.real_sample_count = nil
+	m.addreal_sample_count = nil
+}
+
+// SetProbeSampleCount sets the "probe_sample_count" field.
+func (m *OpenAISchedulerHealthStateMutation) SetProbeSampleCount(i int64) {
+	m.probe_sample_count = &i
+	m.addprobe_sample_count = nil
+}
+
+// ProbeSampleCount returns the value of the "probe_sample_count" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) ProbeSampleCount() (r int64, exists bool) {
+	v := m.probe_sample_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProbeSampleCount returns the old "probe_sample_count" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldProbeSampleCount(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProbeSampleCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProbeSampleCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProbeSampleCount: %w", err)
+	}
+	return oldValue.ProbeSampleCount, nil
+}
+
+// AddProbeSampleCount adds i to the "probe_sample_count" field.
+func (m *OpenAISchedulerHealthStateMutation) AddProbeSampleCount(i int64) {
+	if m.addprobe_sample_count != nil {
+		*m.addprobe_sample_count += i
+	} else {
+		m.addprobe_sample_count = &i
+	}
+}
+
+// AddedProbeSampleCount returns the value that was added to the "probe_sample_count" field in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) AddedProbeSampleCount() (r int64, exists bool) {
+	v := m.addprobe_sample_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetProbeSampleCount resets all changes to the "probe_sample_count" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetProbeSampleCount() {
+	m.probe_sample_count = nil
+	m.addprobe_sample_count = nil
+}
+
+// SetLastRealAt sets the "last_real_at" field.
+func (m *OpenAISchedulerHealthStateMutation) SetLastRealAt(t time.Time) {
+	m.last_real_at = &t
+}
+
+// LastRealAt returns the value of the "last_real_at" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) LastRealAt() (r time.Time, exists bool) {
+	v := m.last_real_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastRealAt returns the old "last_real_at" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldLastRealAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastRealAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastRealAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastRealAt: %w", err)
+	}
+	return oldValue.LastRealAt, nil
+}
+
+// ClearLastRealAt clears the value of the "last_real_at" field.
+func (m *OpenAISchedulerHealthStateMutation) ClearLastRealAt() {
+	m.last_real_at = nil
+	m.clearedFields[openaischedulerhealthstate.FieldLastRealAt] = struct{}{}
+}
+
+// LastRealAtCleared returns if the "last_real_at" field was cleared in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) LastRealAtCleared() bool {
+	_, ok := m.clearedFields[openaischedulerhealthstate.FieldLastRealAt]
+	return ok
+}
+
+// ResetLastRealAt resets all changes to the "last_real_at" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetLastRealAt() {
+	m.last_real_at = nil
+	delete(m.clearedFields, openaischedulerhealthstate.FieldLastRealAt)
+}
+
+// SetLastProbeAt sets the "last_probe_at" field.
+func (m *OpenAISchedulerHealthStateMutation) SetLastProbeAt(t time.Time) {
+	m.last_probe_at = &t
+}
+
+// LastProbeAt returns the value of the "last_probe_at" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) LastProbeAt() (r time.Time, exists bool) {
+	v := m.last_probe_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastProbeAt returns the old "last_probe_at" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldLastProbeAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastProbeAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastProbeAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastProbeAt: %w", err)
+	}
+	return oldValue.LastProbeAt, nil
+}
+
+// ClearLastProbeAt clears the value of the "last_probe_at" field.
+func (m *OpenAISchedulerHealthStateMutation) ClearLastProbeAt() {
+	m.last_probe_at = nil
+	m.clearedFields[openaischedulerhealthstate.FieldLastProbeAt] = struct{}{}
+}
+
+// LastProbeAtCleared returns if the "last_probe_at" field was cleared in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) LastProbeAtCleared() bool {
+	_, ok := m.clearedFields[openaischedulerhealthstate.FieldLastProbeAt]
+	return ok
+}
+
+// ResetLastProbeAt resets all changes to the "last_probe_at" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetLastProbeAt() {
+	m.last_probe_at = nil
+	delete(m.clearedFields, openaischedulerhealthstate.FieldLastProbeAt)
+}
+
+// SetCooldownUntil sets the "cooldown_until" field.
+func (m *OpenAISchedulerHealthStateMutation) SetCooldownUntil(t time.Time) {
+	m.cooldown_until = &t
+}
+
+// CooldownUntil returns the value of the "cooldown_until" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) CooldownUntil() (r time.Time, exists bool) {
+	v := m.cooldown_until
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCooldownUntil returns the old "cooldown_until" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldCooldownUntil(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCooldownUntil is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCooldownUntil requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCooldownUntil: %w", err)
+	}
+	return oldValue.CooldownUntil, nil
+}
+
+// ClearCooldownUntil clears the value of the "cooldown_until" field.
+func (m *OpenAISchedulerHealthStateMutation) ClearCooldownUntil() {
+	m.cooldown_until = nil
+	m.clearedFields[openaischedulerhealthstate.FieldCooldownUntil] = struct{}{}
+}
+
+// CooldownUntilCleared returns if the "cooldown_until" field was cleared in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) CooldownUntilCleared() bool {
+	_, ok := m.clearedFields[openaischedulerhealthstate.FieldCooldownUntil]
+	return ok
+}
+
+// ResetCooldownUntil resets all changes to the "cooldown_until" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetCooldownUntil() {
+	m.cooldown_until = nil
+	delete(m.clearedFields, openaischedulerhealthstate.FieldCooldownUntil)
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (m *OpenAISchedulerHealthStateMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *OpenAISchedulerHealthStateMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the OpenAISchedulerHealthState entity.
+// If the OpenAISchedulerHealthState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OpenAISchedulerHealthStateMutation) OldExpiresAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *OpenAISchedulerHealthStateMutation) ResetExpiresAt() {
+	m.expires_at = nil
+}
+
+// Where appends a list predicates to the OpenAISchedulerHealthStateMutation builder.
+func (m *OpenAISchedulerHealthStateMutation) Where(ps ...predicate.OpenAISchedulerHealthState) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the OpenAISchedulerHealthStateMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *OpenAISchedulerHealthStateMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.OpenAISchedulerHealthState, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *OpenAISchedulerHealthStateMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *OpenAISchedulerHealthStateMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (OpenAISchedulerHealthState).
+func (m *OpenAISchedulerHealthStateMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *OpenAISchedulerHealthStateMutation) Fields() []string {
+	fields := make([]string, 0, 20)
+	if m.created_at != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldUpdatedAt)
+	}
+	if m.account_id != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldAccountID)
+	}
+	if m.model_family != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldModelFamily)
+	}
+	if m.endpoint != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldEndpoint)
+	}
+	if m.transport != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldTransport)
+	}
+	if m.state != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldState)
+	}
+	if m.predicted_ttft_ms != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldPredictedTtftMs)
+	}
+	if m.error_rate != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldErrorRate)
+	}
+	if m.rate_limited_rate != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldRateLimitedRate)
+	}
+	if m.server_error_rate != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldServerErrorRate)
+	}
+	if m.consecutive_slow != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldConsecutiveSlow)
+	}
+	if m.consecutive_error != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldConsecutiveError)
+	}
+	if m.consecutive_success != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldConsecutiveSuccess)
+	}
+	if m.real_sample_count != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldRealSampleCount)
+	}
+	if m.probe_sample_count != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldProbeSampleCount)
+	}
+	if m.last_real_at != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldLastRealAt)
+	}
+	if m.last_probe_at != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldLastProbeAt)
+	}
+	if m.cooldown_until != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldCooldownUntil)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldExpiresAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *OpenAISchedulerHealthStateMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case openaischedulerhealthstate.FieldCreatedAt:
+		return m.CreatedAt()
+	case openaischedulerhealthstate.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case openaischedulerhealthstate.FieldAccountID:
+		return m.AccountID()
+	case openaischedulerhealthstate.FieldModelFamily:
+		return m.ModelFamily()
+	case openaischedulerhealthstate.FieldEndpoint:
+		return m.Endpoint()
+	case openaischedulerhealthstate.FieldTransport:
+		return m.Transport()
+	case openaischedulerhealthstate.FieldState:
+		return m.State()
+	case openaischedulerhealthstate.FieldPredictedTtftMs:
+		return m.PredictedTtftMs()
+	case openaischedulerhealthstate.FieldErrorRate:
+		return m.ErrorRate()
+	case openaischedulerhealthstate.FieldRateLimitedRate:
+		return m.RateLimitedRate()
+	case openaischedulerhealthstate.FieldServerErrorRate:
+		return m.ServerErrorRate()
+	case openaischedulerhealthstate.FieldConsecutiveSlow:
+		return m.ConsecutiveSlow()
+	case openaischedulerhealthstate.FieldConsecutiveError:
+		return m.ConsecutiveError()
+	case openaischedulerhealthstate.FieldConsecutiveSuccess:
+		return m.ConsecutiveSuccess()
+	case openaischedulerhealthstate.FieldRealSampleCount:
+		return m.RealSampleCount()
+	case openaischedulerhealthstate.FieldProbeSampleCount:
+		return m.ProbeSampleCount()
+	case openaischedulerhealthstate.FieldLastRealAt:
+		return m.LastRealAt()
+	case openaischedulerhealthstate.FieldLastProbeAt:
+		return m.LastProbeAt()
+	case openaischedulerhealthstate.FieldCooldownUntil:
+		return m.CooldownUntil()
+	case openaischedulerhealthstate.FieldExpiresAt:
+		return m.ExpiresAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *OpenAISchedulerHealthStateMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case openaischedulerhealthstate.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case openaischedulerhealthstate.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case openaischedulerhealthstate.FieldAccountID:
+		return m.OldAccountID(ctx)
+	case openaischedulerhealthstate.FieldModelFamily:
+		return m.OldModelFamily(ctx)
+	case openaischedulerhealthstate.FieldEndpoint:
+		return m.OldEndpoint(ctx)
+	case openaischedulerhealthstate.FieldTransport:
+		return m.OldTransport(ctx)
+	case openaischedulerhealthstate.FieldState:
+		return m.OldState(ctx)
+	case openaischedulerhealthstate.FieldPredictedTtftMs:
+		return m.OldPredictedTtftMs(ctx)
+	case openaischedulerhealthstate.FieldErrorRate:
+		return m.OldErrorRate(ctx)
+	case openaischedulerhealthstate.FieldRateLimitedRate:
+		return m.OldRateLimitedRate(ctx)
+	case openaischedulerhealthstate.FieldServerErrorRate:
+		return m.OldServerErrorRate(ctx)
+	case openaischedulerhealthstate.FieldConsecutiveSlow:
+		return m.OldConsecutiveSlow(ctx)
+	case openaischedulerhealthstate.FieldConsecutiveError:
+		return m.OldConsecutiveError(ctx)
+	case openaischedulerhealthstate.FieldConsecutiveSuccess:
+		return m.OldConsecutiveSuccess(ctx)
+	case openaischedulerhealthstate.FieldRealSampleCount:
+		return m.OldRealSampleCount(ctx)
+	case openaischedulerhealthstate.FieldProbeSampleCount:
+		return m.OldProbeSampleCount(ctx)
+	case openaischedulerhealthstate.FieldLastRealAt:
+		return m.OldLastRealAt(ctx)
+	case openaischedulerhealthstate.FieldLastProbeAt:
+		return m.OldLastProbeAt(ctx)
+	case openaischedulerhealthstate.FieldCooldownUntil:
+		return m.OldCooldownUntil(ctx)
+	case openaischedulerhealthstate.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown OpenAISchedulerHealthState field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OpenAISchedulerHealthStateMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case openaischedulerhealthstate.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case openaischedulerhealthstate.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case openaischedulerhealthstate.FieldAccountID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountID(v)
+		return nil
+	case openaischedulerhealthstate.FieldModelFamily:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetModelFamily(v)
+		return nil
+	case openaischedulerhealthstate.FieldEndpoint:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEndpoint(v)
+		return nil
+	case openaischedulerhealthstate.FieldTransport:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTransport(v)
+		return nil
+	case openaischedulerhealthstate.FieldState:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetState(v)
+		return nil
+	case openaischedulerhealthstate.FieldPredictedTtftMs:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPredictedTtftMs(v)
+		return nil
+	case openaischedulerhealthstate.FieldErrorRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetErrorRate(v)
+		return nil
+	case openaischedulerhealthstate.FieldRateLimitedRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRateLimitedRate(v)
+		return nil
+	case openaischedulerhealthstate.FieldServerErrorRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetServerErrorRate(v)
+		return nil
+	case openaischedulerhealthstate.FieldConsecutiveSlow:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConsecutiveSlow(v)
+		return nil
+	case openaischedulerhealthstate.FieldConsecutiveError:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConsecutiveError(v)
+		return nil
+	case openaischedulerhealthstate.FieldConsecutiveSuccess:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConsecutiveSuccess(v)
+		return nil
+	case openaischedulerhealthstate.FieldRealSampleCount:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRealSampleCount(v)
+		return nil
+	case openaischedulerhealthstate.FieldProbeSampleCount:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProbeSampleCount(v)
+		return nil
+	case openaischedulerhealthstate.FieldLastRealAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastRealAt(v)
+		return nil
+	case openaischedulerhealthstate.FieldLastProbeAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastProbeAt(v)
+		return nil
+	case openaischedulerhealthstate.FieldCooldownUntil:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCooldownUntil(v)
+		return nil
+	case openaischedulerhealthstate.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown OpenAISchedulerHealthState field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *OpenAISchedulerHealthStateMutation) AddedFields() []string {
+	var fields []string
+	if m.addaccount_id != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldAccountID)
+	}
+	if m.addpredicted_ttft_ms != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldPredictedTtftMs)
+	}
+	if m.adderror_rate != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldErrorRate)
+	}
+	if m.addrate_limited_rate != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldRateLimitedRate)
+	}
+	if m.addserver_error_rate != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldServerErrorRate)
+	}
+	if m.addconsecutive_slow != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldConsecutiveSlow)
+	}
+	if m.addconsecutive_error != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldConsecutiveError)
+	}
+	if m.addconsecutive_success != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldConsecutiveSuccess)
+	}
+	if m.addreal_sample_count != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldRealSampleCount)
+	}
+	if m.addprobe_sample_count != nil {
+		fields = append(fields, openaischedulerhealthstate.FieldProbeSampleCount)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *OpenAISchedulerHealthStateMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case openaischedulerhealthstate.FieldAccountID:
+		return m.AddedAccountID()
+	case openaischedulerhealthstate.FieldPredictedTtftMs:
+		return m.AddedPredictedTtftMs()
+	case openaischedulerhealthstate.FieldErrorRate:
+		return m.AddedErrorRate()
+	case openaischedulerhealthstate.FieldRateLimitedRate:
+		return m.AddedRateLimitedRate()
+	case openaischedulerhealthstate.FieldServerErrorRate:
+		return m.AddedServerErrorRate()
+	case openaischedulerhealthstate.FieldConsecutiveSlow:
+		return m.AddedConsecutiveSlow()
+	case openaischedulerhealthstate.FieldConsecutiveError:
+		return m.AddedConsecutiveError()
+	case openaischedulerhealthstate.FieldConsecutiveSuccess:
+		return m.AddedConsecutiveSuccess()
+	case openaischedulerhealthstate.FieldRealSampleCount:
+		return m.AddedRealSampleCount()
+	case openaischedulerhealthstate.FieldProbeSampleCount:
+		return m.AddedProbeSampleCount()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OpenAISchedulerHealthStateMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case openaischedulerhealthstate.FieldAccountID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAccountID(v)
+		return nil
+	case openaischedulerhealthstate.FieldPredictedTtftMs:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPredictedTtftMs(v)
+		return nil
+	case openaischedulerhealthstate.FieldErrorRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddErrorRate(v)
+		return nil
+	case openaischedulerhealthstate.FieldRateLimitedRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRateLimitedRate(v)
+		return nil
+	case openaischedulerhealthstate.FieldServerErrorRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddServerErrorRate(v)
+		return nil
+	case openaischedulerhealthstate.FieldConsecutiveSlow:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddConsecutiveSlow(v)
+		return nil
+	case openaischedulerhealthstate.FieldConsecutiveError:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddConsecutiveError(v)
+		return nil
+	case openaischedulerhealthstate.FieldConsecutiveSuccess:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddConsecutiveSuccess(v)
+		return nil
+	case openaischedulerhealthstate.FieldRealSampleCount:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRealSampleCount(v)
+		return nil
+	case openaischedulerhealthstate.FieldProbeSampleCount:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddProbeSampleCount(v)
+		return nil
+	}
+	return fmt.Errorf("unknown OpenAISchedulerHealthState numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *OpenAISchedulerHealthStateMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(openaischedulerhealthstate.FieldLastRealAt) {
+		fields = append(fields, openaischedulerhealthstate.FieldLastRealAt)
+	}
+	if m.FieldCleared(openaischedulerhealthstate.FieldLastProbeAt) {
+		fields = append(fields, openaischedulerhealthstate.FieldLastProbeAt)
+	}
+	if m.FieldCleared(openaischedulerhealthstate.FieldCooldownUntil) {
+		fields = append(fields, openaischedulerhealthstate.FieldCooldownUntil)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *OpenAISchedulerHealthStateMutation) ClearField(name string) error {
+	switch name {
+	case openaischedulerhealthstate.FieldLastRealAt:
+		m.ClearLastRealAt()
+		return nil
+	case openaischedulerhealthstate.FieldLastProbeAt:
+		m.ClearLastProbeAt()
+		return nil
+	case openaischedulerhealthstate.FieldCooldownUntil:
+		m.ClearCooldownUntil()
+		return nil
+	}
+	return fmt.Errorf("unknown OpenAISchedulerHealthState nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *OpenAISchedulerHealthStateMutation) ResetField(name string) error {
+	switch name {
+	case openaischedulerhealthstate.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case openaischedulerhealthstate.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case openaischedulerhealthstate.FieldAccountID:
+		m.ResetAccountID()
+		return nil
+	case openaischedulerhealthstate.FieldModelFamily:
+		m.ResetModelFamily()
+		return nil
+	case openaischedulerhealthstate.FieldEndpoint:
+		m.ResetEndpoint()
+		return nil
+	case openaischedulerhealthstate.FieldTransport:
+		m.ResetTransport()
+		return nil
+	case openaischedulerhealthstate.FieldState:
+		m.ResetState()
+		return nil
+	case openaischedulerhealthstate.FieldPredictedTtftMs:
+		m.ResetPredictedTtftMs()
+		return nil
+	case openaischedulerhealthstate.FieldErrorRate:
+		m.ResetErrorRate()
+		return nil
+	case openaischedulerhealthstate.FieldRateLimitedRate:
+		m.ResetRateLimitedRate()
+		return nil
+	case openaischedulerhealthstate.FieldServerErrorRate:
+		m.ResetServerErrorRate()
+		return nil
+	case openaischedulerhealthstate.FieldConsecutiveSlow:
+		m.ResetConsecutiveSlow()
+		return nil
+	case openaischedulerhealthstate.FieldConsecutiveError:
+		m.ResetConsecutiveError()
+		return nil
+	case openaischedulerhealthstate.FieldConsecutiveSuccess:
+		m.ResetConsecutiveSuccess()
+		return nil
+	case openaischedulerhealthstate.FieldRealSampleCount:
+		m.ResetRealSampleCount()
+		return nil
+	case openaischedulerhealthstate.FieldProbeSampleCount:
+		m.ResetProbeSampleCount()
+		return nil
+	case openaischedulerhealthstate.FieldLastRealAt:
+		m.ResetLastRealAt()
+		return nil
+	case openaischedulerhealthstate.FieldLastProbeAt:
+		m.ResetLastProbeAt()
+		return nil
+	case openaischedulerhealthstate.FieldCooldownUntil:
+		m.ResetCooldownUntil()
+		return nil
+	case openaischedulerhealthstate.FieldExpiresAt:
+		m.ResetExpiresAt()
+		return nil
+	}
+	return fmt.Errorf("unknown OpenAISchedulerHealthState field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *OpenAISchedulerHealthStateMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *OpenAISchedulerHealthStateMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown OpenAISchedulerHealthState unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *OpenAISchedulerHealthStateMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown OpenAISchedulerHealthState edge %s", name)
 }
 
 // PaymentAuditLogMutation represents an operation that mutates the PaymentAuditLog nodes in the graph.
