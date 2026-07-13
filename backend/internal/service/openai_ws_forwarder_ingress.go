@@ -497,12 +497,14 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				writeClientMessage,
 			)
 			if bridgeErr != nil {
-				s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentBridgePayload.originalModel, openAIAutoSchedulerErrorOutcome(turnStartedAt, openAIAutoSchedulerStatusCodeForError(bridgeErr), bridgeErr))
+				s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentBridgePayload.originalModel, openAIAutoSchedulerErrorOutcome(turnStartedAt, openAIAutoSchedulerStatusCodeForError(bridgeErr), bridgeErr),
+					openAIAutoSchedulerAttemptMetadata{ModelFamily: normalizeOpenAIModelForUpstream(account, currentBridgePayload.originalModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
 			} else if result != nil {
 				if hooks != nil && hooks.TimingForTurn != nil {
 					applyOpenAIWSTurnTiming(hooks.TimingForTurn(turn), turnStartedAt, result)
 				}
-				s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentBridgePayload.originalModel, openAIAutoSchedulerSuccessOutcome(nil, turnStartedAt, result))
+				s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentBridgePayload.originalModel, openAIAutoSchedulerSuccessOutcome(nil, turnStartedAt, result),
+					openAIAutoSchedulerHealthMetadataForAttempt(openAIAutoSchedulerAttemptMetadata{ModelFamily: normalizeOpenAIModelForUpstream(account, currentBridgePayload.originalModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE}, result))
 			}
 			if hooks != nil && hooks.AfterTurn != nil {
 				hooks.AfterTurn(turn, result, bridgeErr)
@@ -942,6 +944,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					Usage:                usage,
 					Model:                originalModel,
 					UpstreamModel:        mappedModel,
+					UpstreamEndpoint:     "/v1/responses",
 					ServiceTier:          extractOpenAIServiceTierFromBody(payload),
 					ReasoningEffort:      ApplyThinkingEnabledFallback(extractOpenAIReasoningEffortFromBody(payload, mappedModel, originalModel), payload, mappedModel),
 					Stream:               reqStream,
@@ -1482,7 +1485,8 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			if unwrapped := errors.Unwrap(relayErr); unwrapped != nil {
 				finalErr = unwrapped
 			}
-			s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentOriginalModel, openAIAutoSchedulerErrorOutcome(turnStartedAt, openAIAutoSchedulerStatusCodeForError(finalErr), finalErr))
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentOriginalModel, openAIAutoSchedulerErrorOutcome(turnStartedAt, openAIAutoSchedulerStatusCodeForError(finalErr), finalErr),
+				openAIAutoSchedulerAttemptMetadata{ModelFamily: normalizeOpenAIModelForUpstream(account, currentOriginalModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportResponsesWebsocketV2})
 			if hooks != nil && hooks.AfterTurn != nil {
 				hooks.AfterTurn(turn, nil, finalErr)
 			}
@@ -1497,7 +1501,8 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			if hooks != nil && hooks.TimingForTurn != nil {
 				applyOpenAIWSTurnTiming(hooks.TimingForTurn(turn), turnStartedAt, result)
 			}
-			s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentOriginalModel, openAIAutoSchedulerSuccessOutcome(nil, turnStartedAt, result))
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentOriginalModel, openAIAutoSchedulerSuccessOutcome(nil, turnStartedAt, result),
+				openAIAutoSchedulerHealthMetadataForAttempt(openAIAutoSchedulerAttemptMetadata{ModelFamily: normalizeOpenAIModelForUpstream(account, currentOriginalModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportResponsesWebsocketV2}, result))
 		}
 		if hooks != nil && hooks.AfterTurn != nil {
 			hooks.AfterTurn(turn, result, nil)

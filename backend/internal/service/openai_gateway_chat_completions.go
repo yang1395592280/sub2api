@@ -274,7 +274,11 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	if account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
-	armOpenAIUpstreamAttempt(ctx)
+	armOpenAIUpstreamAttempt(ctx, openAIAutoSchedulerAttemptMetadata{
+		ModelFamily: upstreamModel,
+		Endpoint:    openAISchedulerHealthEndpointResponses,
+		Transport:   OpenAIUpstreamTransportHTTPSSE,
+	})
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	if err != nil {
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
@@ -294,7 +298,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 			)
 			statusCode := resp.StatusCode
 			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel,
-				openAIAutoSchedulerErrorOutcome(upstreamAttempt.startedAt, &statusCode, errors.New(upstreamMsg)))
+				openAIAutoSchedulerErrorOutcome(upstreamAttempt.startedAt, &statusCode, errors.New(upstreamMsg)), upstreamAttempt.metadata)
 			recordOutcome = false
 			return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel)
 		}
@@ -482,13 +486,14 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 	c.JSON(http.StatusOK, chatResp)
 
 	return &OpenAIForwardResult{
-		RequestID:     requestID,
-		Usage:         usage,
-		Model:         originalModel,
-		BillingModel:  billingModel,
-		UpstreamModel: upstreamModel,
-		Stream:        false,
-		Duration:      time.Since(startTime),
+		RequestID:        requestID,
+		Usage:            usage,
+		Model:            originalModel,
+		BillingModel:     billingModel,
+		UpstreamModel:    upstreamModel,
+		UpstreamEndpoint: "/v1/responses",
+		Stream:           false,
+		Duration:         time.Since(startTime),
 	}, nil
 }
 
@@ -541,14 +546,15 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 
 	resultWithUsage := func() *OpenAIForwardResult {
 		return &OpenAIForwardResult{
-			RequestID:     requestID,
-			Usage:         usage,
-			Model:         originalModel,
-			BillingModel:  billingModel,
-			UpstreamModel: upstreamModel,
-			Stream:        true,
-			Duration:      time.Since(startTime),
-			FirstTokenMs:  firstTokenMs,
+			RequestID:        requestID,
+			Usage:            usage,
+			Model:            originalModel,
+			BillingModel:     billingModel,
+			UpstreamModel:    upstreamModel,
+			UpstreamEndpoint: "/v1/responses",
+			Stream:           true,
+			Duration:         time.Since(startTime),
+			FirstTokenMs:     firstTokenMs,
 		}
 	}
 

@@ -586,8 +586,27 @@ func ProvideOpenAIAutoSchedulerSelector(svc *OpenAIAutoSchedulerService) *OpenAI
 	return NewOpenAIAutoSchedulerSelector(svc)
 }
 
-func ProvideOpenAIAutoSchedulerOutcomeRecorder(svc *OpenAIAutoSchedulerService) *OpenAIAutoSchedulerOutcomeRecorder {
-	return NewOpenAIAutoSchedulerOutcomeRecorder(svc, openAIAutoSchedulerOutcomeQueueSize, openAIAutoSchedulerOutcomeWorkerCount)
+func ProvideOpenAISchedulerHealthEventSink(
+	repo OpenAISchedulerHealthRepository,
+	settingsProvider OpenAIAutoSchedulerSettingsProvider,
+) *OpenAISchedulerHealthEventSink {
+	return NewOpenAISchedulerHealthEventSink(repo, settingsProvider)
+}
+
+func ProvideOpenAIAutoSchedulerService(
+	repo OpenAIAutoSchedulerRepository,
+	settingsProvider OpenAIAutoSchedulerSettingsProvider,
+	healthSink *OpenAISchedulerHealthEventSink,
+) *OpenAIAutoSchedulerService {
+	svc := NewOpenAIAutoSchedulerService(repo, settingsProvider)
+	svc.healthSink = healthSink
+	return svc
+}
+
+func ProvideOpenAIAutoSchedulerOutcomeRecorder(
+	svc *OpenAIAutoSchedulerService,
+) *OpenAIAutoSchedulerOutcomeRecorder {
+	return NewOpenAIAutoSchedulerOutcomeRecorder(svc, openAIAutoSchedulerOutcomeQueueSize, openAIAutoSchedulerOutcomeWorkerCount, svc.healthSink)
 }
 
 func ProvideOpenAIGatewayService(
@@ -701,7 +720,8 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(groupUpstreamBalanceRefresher), new(*OpenAIUpstreamBalanceService)),
 	ProvideSub2APICheckinService,
 	ProvideGroupUpstreamBalanceRefreshRunner,
-	NewOpenAIAutoSchedulerService,
+	ProvideOpenAISchedulerHealthEventSink,
+	ProvideOpenAIAutoSchedulerService,
 	ProvideOpenAIAutoSchedulerSelector,
 	ProvideOpenAIAutoSchedulerOutcomeRecorder,
 	NewOpenAIAutoSchedulerProbeChecker,

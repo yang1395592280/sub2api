@@ -668,6 +668,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				wsAttempts,
 			)
 			wsResult.UpstreamModel = upstreamModel
+			wsResult.UpstreamEndpoint = "/v1/responses"
 			if wsResult.BillingModel == "" {
 				wsResult.BillingModel = billingModel
 			}
@@ -676,11 +677,13 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				wsResult.ImageInputSize = imageInputSize
 				wsResult.BillingModel = imageBillingModel
 			}
-			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerSuccessOutcome(c, startTime, wsResult))
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerSuccessOutcome(c, startTime, wsResult),
+				openAIAutoSchedulerHealthMetadataForAttempt(openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: wsDecision.Transport}, wsResult))
 			return wsResult, nil
 		}
 		s.writeOpenAIWSFallbackErrorResponse(c, account, wsErr)
-		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerErrorOutcome(startTime, openAIAutoSchedulerStatusCodeForError(wsErr), wsErr))
+		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerErrorOutcome(startTime, openAIAutoSchedulerStatusCodeForError(wsErr), wsErr),
+			openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: wsDecision.Transport})
 		return nil, wsErr
 	}
 
@@ -709,7 +712,8 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			// a failover so the handler switches to a healthy account, and temporarily
 			// unschedule the account on durable faults (e.g. rejected proxy credentials).
 			forwardErr := s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
-			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerErrorOutcome(startTime, nil, forwardErr))
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerErrorOutcome(startTime, nil, forwardErr),
+				openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
 			return nil, forwardErr
 		}
 
@@ -739,7 +743,8 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Skip non-WSv2 invalid_encrypted_content retry because encrypted reasoning items are missing (account: %s)", account.Name)
 			}
 			statusCode := resp.StatusCode
-			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, errors.New(upstreamMsg)))
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, errors.New(upstreamMsg)),
+				openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
 			if s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody) {
 				upstreamDetail := ""
 				if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
@@ -789,7 +794,8 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			streamResult, err := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, upstreamModel)
 			if err != nil {
 				statusCode := resp.StatusCode
-				s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, err))
+				s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, err),
+					openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
 				return nil, err
 			}
 			usage = streamResult.usage
@@ -801,7 +807,8 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			nonStreamResult, err := s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, upstreamModel)
 			if err != nil {
 				statusCode := resp.StatusCode
-				s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, err))
+				s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, err),
+					openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
 				return nil, err
 			}
 			usage = nonStreamResult.usage
@@ -824,18 +831,19 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 
 		forwardResult := &OpenAIForwardResult{
-			RequestID:       resp.Header.Get("x-request-id"),
-			ResponseID:      responseID,
-			Usage:           *usage,
-			Model:           originalModel,
-			BillingModel:    billingModel,
-			UpstreamModel:   upstreamModel,
-			ServiceTier:     serviceTier,
-			ReasoningEffort: reasoningEffort,
-			Stream:          reqStream,
-			OpenAIWSMode:    false,
-			Duration:        time.Since(startTime),
-			FirstTokenMs:    firstTokenMs,
+			RequestID:        resp.Header.Get("x-request-id"),
+			ResponseID:       responseID,
+			Usage:            *usage,
+			Model:            originalModel,
+			BillingModel:     billingModel,
+			UpstreamModel:    upstreamModel,
+			UpstreamEndpoint: "/v1/responses",
+			ServiceTier:      serviceTier,
+			ReasoningEffort:  reasoningEffort,
+			Stream:           reqStream,
+			OpenAIWSMode:     false,
+			Duration:         time.Since(startTime),
+			FirstTokenMs:     firstTokenMs,
 		}
 		if imageCount > 0 {
 			forwardResult.ImageCount = imageCount
@@ -845,7 +853,8 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			forwardResult.BillingModel = imageBillingModel
 		}
 		s.ResetOpenAIOverbrush429Count(account)
-		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerSuccessOutcome(c, startTime, forwardResult))
+		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerSuccessOutcome(c, startTime, forwardResult),
+			openAIAutoSchedulerHealthMetadataForAttempt(openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE}, forwardResult))
 		return forwardResult, nil
 	}
 }

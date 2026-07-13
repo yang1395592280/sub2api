@@ -30,15 +30,18 @@ type OpenAIAutoSchedulerRepository interface {
 }
 
 type OpenAIAutoSchedulerRecordInput struct {
-	AccountID  int64
-	GroupID    int64
-	Model      string
-	EventType  string
-	LatencyMS  *int
-	TtfbMS     *int
-	StatusCode *int
-	Message    string
-	CostScore  *int
+	AccountID   int64
+	GroupID     int64
+	Model       string
+	ModelFamily string
+	Endpoint    string
+	Transport   OpenAIUpstreamTransport
+	EventType   string
+	LatencyMS   *int
+	TtfbMS      *int
+	StatusCode  *int
+	Message     string
+	CostScore   *int
 }
 
 type OpenAIAutoSchedulerScoreEvent struct {
@@ -75,6 +78,7 @@ type OpenAIAutoSchedulerEventListResult struct {
 type OpenAIAutoSchedulerService struct {
 	repo             OpenAIAutoSchedulerRepository
 	settingsProvider OpenAIAutoSchedulerSettingsProvider
+	healthSink       *OpenAISchedulerHealthEventSink
 	mu               sync.Mutex
 	keyLocks         map[string]*sync.Mutex
 }

@@ -444,7 +444,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 				StatusCode:      http.StatusTooManyRequests,
 				ResponseHeaders: cloneHeader(handshakeHeaders),
 			}
-			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), requestModel, openAIAutoSchedulerErrorOutcome(relayStartedAt, &statusCode, forwardErr))
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), requestModel, openAIAutoSchedulerErrorOutcome(relayStartedAt, &statusCode, forwardErr),
+				openAIAutoSchedulerAttemptMetadata{ModelFamily: normalizeOpenAIModelForUpstream(account, requestModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportResponsesWebsocketV2})
 			return forwardErr
 		}
 		forwardErr := s.mapOpenAIWSPassthroughDialError(err, statusCode, handshakeHeaders)
@@ -452,7 +453,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		if statusCode > 0 {
 			schedulerStatusCode = &statusCode
 		}
-		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), requestModel, openAIAutoSchedulerErrorOutcome(relayStartedAt, schedulerStatusCode, forwardErr))
+		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), requestModel, openAIAutoSchedulerErrorOutcome(relayStartedAt, schedulerStatusCode, forwardErr),
+			openAIAutoSchedulerAttemptMetadata{ModelFamily: normalizeOpenAIModelForUpstream(account, requestModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportResponsesWebsocketV2})
 		return forwardErr
 	}
 	defer func() {
@@ -593,7 +595,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			fmt.Errorf("write first upstream websocket request: %w", firstWriteErr),
 			false,
 		)
-		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), requestModel, openAIAutoSchedulerErrorOutcome(relayStartedAt, nil, forwardErr))
+		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), requestModel, openAIAutoSchedulerErrorOutcome(relayStartedAt, nil, forwardErr),
+			openAIAutoSchedulerAttemptMetadata{ModelFamily: normalizeOpenAIModelForUpstream(account, requestModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportResponsesWebsocketV2})
 		return forwardErr
 	}
 	upstreamFirstMessageSent = true
@@ -623,7 +626,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			if turnModel == "" {
 				turnModel = requestModel
 			}
-			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), turnModel, openAIAutoSchedulerErrorOutcome(pendingTurn.startedAt, openAIAutoSchedulerStatusCodeForError(turnErr), turnErr))
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), turnModel, openAIAutoSchedulerErrorOutcome(pendingTurn.startedAt, openAIAutoSchedulerStatusCodeForError(turnErr), turnErr),
+				openAIAutoSchedulerAttemptMetadata{ModelFamily: normalizeOpenAIModelForUpstream(account, turnModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportResponsesWebsocketV2})
 			if hooks != nil && hooks.AfterTurn != nil {
 				hooks.AfterTurn(pendingTurn.turnNo, nil, turnErr)
 			}
@@ -677,6 +681,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 						ImageOutputTokens:        turn.Usage.ImageOutputTokens,
 					},
 					Model:                turnModel,
+					UpstreamModel:        normalizeOpenAIModelForUpstream(account, turnModel),
+					UpstreamEndpoint:     "/v1/responses",
 					ServiceTier:          pendingTurn.serviceTier,
 					ReasoningEffort:      pendingTurn.reasoningEffort,
 					Stream:               true,
@@ -701,7 +707,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 					turnResult.Usage.OutputTokens,
 					turnResult.Usage.CacheReadInputTokens,
 				)
-				s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), turnModel, openAIAutoSchedulerSuccessOutcome(nil, pendingTurn.startedAt, turnResult))
+				s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), turnModel, openAIAutoSchedulerSuccessOutcome(nil, pendingTurn.startedAt, turnResult),
+					openAIAutoSchedulerHealthMetadataForAttempt(openAIAutoSchedulerAttemptMetadata{ModelFamily: normalizeOpenAIModelForUpstream(account, turnModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportResponsesWebsocketV2}, turnResult))
 				if hooks != nil && hooks.AfterTurn != nil {
 					hooks.AfterTurn(turnNo, turnResult, nil)
 				}
@@ -758,6 +765,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			ImageOutputTokens:        relayResult.Usage.ImageOutputTokens,
 		},
 		Model:                relayResult.RequestModel,
+		UpstreamModel:        normalizeOpenAIModelForUpstream(account, relayResult.RequestModel),
+		UpstreamEndpoint:     "/v1/responses",
 		ServiceTier:          usageMeta.serviceTier.Load(),
 		ReasoningEffort:      usageMeta.reasoningEffort.Load(),
 		Stream:               true,

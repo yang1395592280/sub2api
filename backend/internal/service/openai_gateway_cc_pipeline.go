@@ -16,6 +16,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
 
@@ -205,7 +206,11 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 	if account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
-	armOpenAIUpstreamAttempt(ctx)
+	armOpenAIUpstreamAttempt(ctx, openAIAutoSchedulerAttemptMetadata{
+		ModelFamily: gjson.GetBytes(body, "model").String(),
+		Endpoint:    openAISchedulerHealthEndpointChat,
+		Transport:   OpenAIUpstreamTransportHTTPSSE,
+	})
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	if err != nil {
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)

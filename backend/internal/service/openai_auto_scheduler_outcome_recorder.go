@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -34,6 +35,7 @@ type OpenAIAutoSchedulerOutcomeRecorderMetrics struct {
 // path while bounding both queued work and background concurrency.
 type OpenAIAutoSchedulerOutcomeRecorder struct {
 	sink          openAIAutoSchedulerOutcomeSink
+	healthSink    openAIAutoSchedulerOutcomeSink
 	queue         chan OpenAIAutoSchedulerRecordInput
 	done          chan struct{}
 	monitorStop   chan struct{}
@@ -55,12 +57,23 @@ func NewOpenAIAutoSchedulerOutcomeRecorder(
 	sink openAIAutoSchedulerOutcomeSink,
 	queueSize int,
 	workerCount int,
+	healthSinks ...openAIAutoSchedulerOutcomeSink,
 ) *OpenAIAutoSchedulerOutcomeRecorder {
-	return newOpenAIAutoSchedulerOutcomeRecorder(sink, queueSize, workerCount, openAIAutoSchedulerOutcomeMetricsPeriod)
+	return newOpenAIAutoSchedulerOutcomeRecorderWithHealth(sink, firstOpenAIAutoSchedulerOutcomeSink(healthSinks), queueSize, workerCount, openAIAutoSchedulerOutcomeMetricsPeriod)
 }
 
 func newOpenAIAutoSchedulerOutcomeRecorder(
 	sink openAIAutoSchedulerOutcomeSink,
+	queueSize int,
+	workerCount int,
+	metricsPeriod time.Duration,
+) *OpenAIAutoSchedulerOutcomeRecorder {
+	return newOpenAIAutoSchedulerOutcomeRecorderWithHealth(sink, nil, queueSize, workerCount, metricsPeriod)
+}
+
+func newOpenAIAutoSchedulerOutcomeRecorderWithHealth(
+	sink openAIAutoSchedulerOutcomeSink,
+	healthSink openAIAutoSchedulerOutcomeSink,
 	queueSize int,
 	workerCount int,
 	metricsPeriod time.Duration,
@@ -77,6 +90,7 @@ func newOpenAIAutoSchedulerOutcomeRecorder(
 
 	recorder := &OpenAIAutoSchedulerOutcomeRecorder{
 		sink:          sink,
+		healthSink:    healthSink,
 		queue:         make(chan OpenAIAutoSchedulerRecordInput, queueSize),
 		done:          make(chan struct{}),
 		monitorStop:   make(chan struct{}),
@@ -184,10 +198,23 @@ func (r *OpenAIAutoSchedulerOutcomeRecorder) runWorker() {
 }
 
 func (r *OpenAIAutoSchedulerOutcomeRecorder) persistOutcome(ctx context.Context, input OpenAIAutoSchedulerRecordInput) error {
+	var legacyErr error
 	if strict, ok := r.sink.(openAIAutoSchedulerStrictOutcomeSink); ok {
-		return strict.RecordOutcome(ctx, input)
+		legacyErr = strict.RecordOutcome(ctx, input)
+	} else {
+		legacyErr = r.sink.Record(ctx, input)
 	}
-	return r.sink.Record(ctx, input)
+	if r.healthSink == nil {
+		return legacyErr
+	}
+	return errors.Join(legacyErr, r.healthSink.Record(ctx, input))
+}
+
+func firstOpenAIAutoSchedulerOutcomeSink(sinks []openAIAutoSchedulerOutcomeSink) openAIAutoSchedulerOutcomeSink {
+	if len(sinks) == 0 {
+		return nil
+	}
+	return sinks[0]
 }
 
 func (r *OpenAIAutoSchedulerOutcomeRecorder) runMetricsLogger() {

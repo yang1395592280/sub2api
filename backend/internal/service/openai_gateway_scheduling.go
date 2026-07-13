@@ -209,7 +209,14 @@ func (s *OpenAIGatewayService) isOpenAIAutoSchedulerAccountTemporarilyBlocked(ct
 	return s.openAIAutoSchedulerSelector.IsAccountTemporarilyBlocked(ctx, groupID, requestedModel, accountID)
 }
 
-func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerOutcome(ctx context.Context, account *Account, groupID *int64, requestedModel string, outcome OpenAIAutoSchedulerRecordInput) {
+func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerOutcome(
+	ctx context.Context,
+	account *Account,
+	groupID *int64,
+	requestedModel string,
+	outcome OpenAIAutoSchedulerRecordInput,
+	healthMetadata ...openAIAutoSchedulerAttemptMetadata,
+) {
 	model := strings.TrimSpace(requestedModel)
 	if s == nil || s.openAIAutoSchedulerOutcomeRecorder == nil || account == nil || account.ID <= 0 || account.Platform != PlatformOpenAI || groupID == nil || *groupID <= 0 || model == "" || strings.TrimSpace(outcome.EventType) == "" {
 		return
@@ -217,6 +224,12 @@ func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerOutcome(ctx context.Cont
 	outcome.AccountID = account.ID
 	outcome.GroupID = *groupID
 	outcome.Model = model
+	if len(healthMetadata) > 0 {
+		metadata := openAIAutoSchedulerHealthMetadataForAttempt(healthMetadata[0], nil)
+		outcome.ModelFamily = metadata.ModelFamily
+		outcome.Endpoint = metadata.Endpoint
+		outcome.Transport = metadata.Transport
+	}
 	s.openAIAutoSchedulerOutcomeRecorder.TryRecord(outcome)
 }
 
@@ -313,6 +326,7 @@ type openAIUpstreamAttemptContextKey struct{}
 type openAIUpstreamAttempt struct {
 	startedAt time.Time
 	armed     bool
+	metadata  openAIAutoSchedulerAttemptMetadata
 }
 
 func beginOpenAIUpstreamAttempt(ctx context.Context) (context.Context, *openAIUpstreamAttempt) {
@@ -320,7 +334,7 @@ func beginOpenAIUpstreamAttempt(ctx context.Context) (context.Context, *openAIUp
 	return context.WithValue(ctx, openAIUpstreamAttemptContextKey{}, attempt), attempt
 }
 
-func armOpenAIUpstreamAttempt(ctx context.Context) {
+func armOpenAIUpstreamAttempt(ctx context.Context, healthMetadata ...openAIAutoSchedulerAttemptMetadata) {
 	if ctx == nil {
 		return
 	}
@@ -330,6 +344,9 @@ func armOpenAIUpstreamAttempt(ctx context.Context) {
 	}
 	attempt.startedAt = time.Now()
 	attempt.armed = true
+	if len(healthMetadata) > 0 {
+		attempt.metadata = openAIAutoSchedulerHealthMetadataForAttempt(healthMetadata[0], nil)
+	}
 }
 
 func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerForwardAttempt(
@@ -341,13 +358,19 @@ func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerForwardAttempt(
 	result *OpenAIForwardResult,
 	err error,
 ) {
+	attempt, _ := ctx.Value(openAIUpstreamAttemptContextKey{}).(*openAIUpstreamAttempt)
+	metadata := openAIAutoSchedulerAttemptMetadata{}
+	if attempt != nil {
+		metadata = attempt.metadata
+	}
+	metadata = openAIAutoSchedulerHealthMetadataForAttempt(metadata, result)
 	if err != nil {
 		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), requestedModel,
-			openAIAutoSchedulerErrorOutcome(startedAt, openAIAutoSchedulerStatusCodeForError(err), err))
+			openAIAutoSchedulerErrorOutcome(startedAt, openAIAutoSchedulerStatusCodeForError(err), err), metadata)
 		return
 	}
 	s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), requestedModel,
-		openAIAutoSchedulerSuccessOutcome(c, startedAt, result))
+		openAIAutoSchedulerSuccessOutcome(c, startedAt, result), metadata)
 }
 
 func openAIAutoSchedulerGroupIDFromContext(c *gin.Context) *int64 {

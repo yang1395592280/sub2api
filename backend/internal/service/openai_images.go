@@ -631,7 +631,11 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 		proxyURL = account.Proxy.URL()
 	}
 	upstreamStart := time.Now()
-	armOpenAIUpstreamAttempt(ctx)
+	armOpenAIUpstreamAttempt(ctx, openAIAutoSchedulerAttemptMetadata{
+		ModelFamily: upstreamModel,
+		Endpoint:    parsed.Endpoint,
+		Transport:   OpenAIUpstreamTransportHTTPSSE,
+	})
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 	if err != nil {
@@ -693,6 +697,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 					Usage:            streamUsage,
 					Model:            requestModel,
 					UpstreamModel:    upstreamModel,
+					UpstreamEndpoint: parsed.Endpoint,
 					Stream:           parsed.Stream,
 					ResponseHeaders:  resp.Header.Clone(),
 					Duration:         time.Since(startTime),
@@ -715,6 +720,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 			Usage:            usage,
 			Model:            requestModel,
 			UpstreamModel:    upstreamModel,
+			UpstreamEndpoint: parsed.Endpoint,
 			Stream:           parsed.Stream,
 			ResponseHeaders:  resp.Header.Clone(),
 			Duration:         time.Since(startTime),
@@ -739,6 +745,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 			Usage:            usage,
 			Model:            requestModel,
 			UpstreamModel:    upstreamModel,
+			UpstreamEndpoint: parsed.Endpoint,
 			Stream:           parsed.Stream,
 			ResponseHeaders:  resp.Header.Clone(),
 			Duration:         time.Since(startTime),
