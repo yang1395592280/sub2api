@@ -151,6 +151,7 @@ func NewOpenAIGatewayHandler(
 // Responses handles OpenAI Responses API endpoint
 // POST /openai/v1/responses
 func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
+	timing := service.BeginOpenAIRequestTiming(c)
 	// 局部兜底：确保该 handler 内部任何 panic 都不会击穿到进程级。
 	streamStarted := false
 	defer h.recoverResponsesPanic(c, &streamStarted)
@@ -342,6 +343,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	for {
 		// Select account supporting the requested model
 		reqLog.Debug("openai.account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))
+		timing.BeginRouting()
 		effectiveAPIKey, selection, scheduleDecision, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
 			c.Request.Context(),
 			apiKey,
@@ -355,6 +357,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			false,
 			requestPlatform,
 		)
+		timing.EndRouting()
 		if err != nil {
 			reqLog.Warn("openai.account_select_failed",
 				zap.Error(openAICompatibleSelectionErrorForLog(err, requestPlatform)),
@@ -492,6 +495,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 								return
 							case <-time.After(sameAccountRetryDelay):
 							}
+							timing.AddRetry(sameAccountRetryDelay)
 							continue
 						}
 					}
@@ -740,6 +744,7 @@ func (h *OpenAIGatewayHandler) logOpenAIRemoteCompactOutcome(c *gin.Context, sta
 // Messages handles Anthropic Messages API requests routed to OpenAI platform.
 // POST /v1/messages (when group platform is OpenAI)
 func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
+	timing := service.BeginOpenAIRequestTiming(c)
 	streamStarted := false
 	defer h.recoverAnthropicMessagesPanic(c, &streamStarted)
 
@@ -874,6 +879,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			currentRoutingModel = effectiveMappedModel
 		}
 		reqLog.Debug("openai_messages.account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))
+		timing.BeginRouting()
 		effectiveAPIKey, selectedRoutingModel, selection, scheduleDecision, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
 			c.Request.Context(),
 			apiKey,
@@ -896,6 +902,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 				return service.NormalizeOpenAICompatRequestedModel(model)
 			},
 		)
+		timing.EndRouting()
 		if err != nil {
 			reqLog.Warn("openai_messages.account_select_failed",
 				zap.Error(openAICompatibleSelectionErrorForLog(err, requestPlatform)),
@@ -1024,6 +1031,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 								return
 							case <-time.After(sameAccountRetryDelay):
 							}
+							timing.AddRetry(sameAccountRetryDelay)
 							continue
 						}
 					}
@@ -1289,6 +1297,7 @@ func (h *OpenAIGatewayHandler) acquireResponsesAccountSlot(
 	}
 	defer releaseWait()
 
+	waitStarted := time.Now()
 	accountReleaseFunc, err := h.concurrencyHelper.AcquireAccountSlotWithWaitTimeout(
 		c,
 		account.ID,
@@ -1297,6 +1306,9 @@ func (h *OpenAIGatewayHandler) acquireResponsesAccountSlot(
 		reqStream,
 		streamStarted,
 	)
+	if timing := service.OpenAIRequestTimingFromContext(c); timing != nil {
+		timing.AddQueue(time.Since(waitStarted))
+	}
 	if err != nil {
 		reqLog.Warn("openai.account_slot_acquire_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 		h.handleConcurrencyError(c, err, "account", *streamStarted)

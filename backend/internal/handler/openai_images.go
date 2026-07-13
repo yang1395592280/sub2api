@@ -22,6 +22,7 @@ import (
 // POST /v1/images/generations
 // POST /v1/images/edits
 func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
+	timing := service.BeginOpenAIRequestTiming(c)
 	streamStarted := false
 	defer h.recoverResponsesPanic(c, &streamStarted)
 
@@ -152,6 +153,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 
 	for {
 		reqLog.Debug("openai.images.account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))
+		timing.BeginRouting()
 		effectiveAPIKey, selection, scheduleDecision, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForImages(
 			requestCtx,
 			apiKey,
@@ -160,6 +162,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			failedAccountIDs,
 			parsed.RequiredCapability,
 		)
+		timing.EndRouting()
 		if err != nil {
 			reqLog.Warn("openai.images.account_select_failed",
 				zap.Error(err),
@@ -309,6 +312,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 								return
 							case <-time.After(sameAccountRetryDelay):
 							}
+							timing.AddRetry(sameAccountRetryDelay)
 							continue
 						}
 					}

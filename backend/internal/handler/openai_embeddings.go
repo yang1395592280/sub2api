@@ -21,6 +21,7 @@ import (
 // Embeddings handles the OpenAI-compatible Embeddings API.
 // POST /v1/embeddings
 func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
+	timing := service.BeginOpenAIRequestTiming(c)
 	streamStarted := false
 	requestStart := time.Now()
 
@@ -114,6 +115,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 	routingStart := time.Now()
 
 	for {
+		timing.BeginRouting()
 		effectiveAPIKey, selection, _, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
 			c.Request.Context(),
 			apiKey,
@@ -127,6 +129,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 			false,
 			service.PlatformOpenAI,
 		)
+		timing.EndRouting()
 		if err != nil {
 			reqLog.Warn("openai_embeddings.account_select_failed",
 				zap.Error(err),

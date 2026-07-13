@@ -24,6 +24,29 @@ import (
 	"github.com/tidwall/sjson"
 )
 
+func TestOpenAIHandlerTimingIncludesSelectionAndQueue(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	timing := service.BeginOpenAIRequestTiming(c)
+	timing.BeginRouting()
+	time.Sleep(time.Millisecond)
+	timing.EndRouting()
+	timing.AddQueue(25 * time.Millisecond)
+	snapshot := timing.Snapshot()
+	assert.Greater(t, snapshot.RoutingMS, 0)
+	assert.Equal(t, 25, snapshot.QueueMS)
+}
+
+func TestOpenAIHandlerTimingRetryReusesRequestTiming(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	first := service.BeginOpenAIRequestTiming(c)
+	time.Sleep(time.Millisecond)
+	second := service.BeginOpenAIRequestTiming(c)
+	assert.Same(t, first, second)
+	assert.Greater(t, second.E2EFirstTokenMS(), 0)
+}
+
 func TestOpenAIHandleStreamingAwareError_JSONEscaping(t *testing.T) {
 	tests := []struct {
 		name    string
