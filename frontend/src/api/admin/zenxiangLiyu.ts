@@ -1,6 +1,6 @@
 import { apiClient } from '../client'
 import type { PaginatedResponse } from '@/types'
-import type { ZenxiangLiyuPrize } from '../zenxiangLiyu'
+import type { ZenxiangLiyuPrize, ZenxiangLiyuRecord } from '../zenxiangLiyu'
 
 const basePath = '/admin/zenxiang-liyu'
 
@@ -119,6 +119,10 @@ export interface ZenxiangLiyuPaginationParams {
   page?: number
   page_size?: number
   date?: string
+}
+
+export interface ZenxiangLiyuUserRecordParams extends ZenxiangLiyuPaginationParams {
+  date: string
 }
 
 export interface ZenxiangLiyuSimulationRequest {
@@ -264,6 +268,11 @@ async function listUserStats(params: ZenxiangLiyuPaginationParams = {}): Promise
   return data
 }
 
+async function listUserRecords(userId: number, params: ZenxiangLiyuUserRecordParams): Promise<PaginatedResponse<ZenxiangLiyuRecord>> {
+  const { data } = await apiClient.get<PaginatedResponse<ZenxiangLiyuRecord>>(`${basePath}/stats/users/${userId}/records`, { params })
+  return data
+}
+
 async function listPrizeStats(): Promise<ZenxiangLiyuPrizeStats[]> {
   const { data } = await apiClient.get<ZenxiangLiyuPrizeStats[]>(`${basePath}/stats/prizes`)
   return data
@@ -305,6 +314,7 @@ export const adminZenxiangLiyuAPI = {
   getOverviewStats,
   listPeriodStats,
   listUserStats,
+  listUserRecords,
   listPrizeStats,
   simulate,
   recommend,

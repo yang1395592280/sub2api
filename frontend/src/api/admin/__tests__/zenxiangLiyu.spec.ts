@@ -95,6 +95,27 @@ describe('zenxiang liyu admin api', () => {
     expect(get).toHaveBeenNthCalledWith(5, '/admin/zenxiang-liyu/stats/prizes')
   })
 
+  it('loads a selected users daily draw records', async () => {
+    const records = {
+      items: [{ id: 9, prize_name: 'Reward', reward_amount: 1, played_at: '2026-07-13T10:00:00Z' }],
+      total: 1,
+      page: 1,
+      page_size: 100,
+      pages: 1,
+    }
+    get.mockResolvedValueOnce({ data: records })
+
+    await expect(adminZenxiangLiyuAPI.listUserRecords(42, {
+      date: '2026-07-13',
+      page: 1,
+      page_size: 100,
+    })).resolves.toEqual(records)
+
+    expect(get).toHaveBeenCalledWith('/admin/zenxiang-liyu/stats/users/42/records', {
+      params: { date: '2026-07-13', page: 1, page_size: 100 },
+    })
+  })
+
   it('uses the simulation, recommendation, and apply paths', async () => {
     const simulation = { user_count: 100, plays_per_user: 2, initial_balance: 10, ticket_amount: 1, minimum_balance: 1, daily_play_limit: 3, prizes: [] }
     const recommendation = { target_profit_rate: 0.2, ticket_amount: 1, prizes: [] }
