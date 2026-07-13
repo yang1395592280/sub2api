@@ -100,12 +100,14 @@ func TestNormalizeResponsesBodyServiceTier(t *testing.T) {
 
 func TestForwardAsChatCompletions_UnknownModelDoesNotUseDefaultMappedModel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	groupID := int64(8)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	body := []byte(`{"model":"gpt6","messages":[{"role":"user","content":"hello"}],"stream":false}`)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("api_key", &APIKey{GroupID: &groupID})
 
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusBadRequest,
@@ -113,9 +115,12 @@ func TestForwardAsChatCompletions_UnknownModelDoesNotUseDefaultMappedModel(t *te
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"invalid_request_error","message":"model not found"}}`)),
 	}}
 
+	sink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 4, 1)
 	svc := &OpenAIGatewayService{
-		cfg:          &config.Config{},
-		httpUpstream: upstream,
+		cfg:                                &config.Config{},
+		httpUpstream:                       upstream,
+		openAIAutoSchedulerOutcomeRecorder: recorder,
 	}
 	account := &Account{
 		ID:          1,
@@ -135,6 +140,10 @@ func TestForwardAsChatCompletions_UnknownModelDoesNotUseDefaultMappedModel(t *te
 	require.Equal(t, "gpt6", gjson.GetBytes(upstream.lastBody, "model").String())
 	require.NotEqual(t, "gpt-5.4", gjson.GetBytes(upstream.lastBody, "model").String())
 	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.NoError(t, recorder.Stop(context.Background()))
+	records := sink.snapshot()
+	require.Len(t, records, 1)
+	require.Equal(t, OpenAIAutoSchedulerEventError, records[0].EventType)
 }
 
 func TestForwardAsChatCompletions_APIKeyPropagatesPromptCacheKeyInResponsesBody(t *testing.T) {

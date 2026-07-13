@@ -1378,6 +1378,48 @@ func TestOpenAIAutoSchedulerSuccessOutcomeClassifiesWSSemanticRateLimit(t *testi
 	require.Equal(t, "Rate limit exceeded", outcome.Message)
 }
 
+func TestOpenAIAutoSchedulerOutcomeSkipsNeutralWSTerminals(t *testing.T) {
+	for _, terminal := range []struct {
+		name      string
+		eventType string
+		message   string
+	}{
+		{name: "client cancelled", eventType: "response.cancelled", message: "response.cancelled"},
+		{name: "max output truncation", eventType: "response.incomplete", message: "max_output_tokens"},
+		{name: "content filter", eventType: "response.incomplete", message: "content_filter"},
+	} {
+		t.Run(terminal.name, func(t *testing.T) {
+			outcome := openAIAutoSchedulerSuccessOutcome(nil, time.Now(), &OpenAIForwardResult{
+				OpenAIWSMode: true, WSTerminalEventType: terminal.eventType, WSTerminalError: terminal.message,
+			})
+			require.Empty(t, outcome.EventType)
+		})
+	}
+}
+
+func TestOpenAIAutoSchedulerNeutralWSTerminalDoesNotReachLegacyScore(t *testing.T) {
+	settings := enabledOpenAIAutoSchedulerSettings()
+	groupID := int64(31)
+	repo := &fakeOpenAIAutoSchedulerRepo{groups: map[int64]Group{groupID: {
+		ID: groupID, Platform: PlatformOpenAI, Status: StatusActive, OpenAIAutoSchedulerEnabled: true,
+	}}}
+	schedulerSvc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: settings})
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(schedulerSvc, 2, 1)
+	gatewaySvc := &OpenAIGatewayService{openAIAutoSchedulerOutcomeRecorder: recorder}
+	account := &Account{ID: 41, Platform: PlatformOpenAI}
+	result := &OpenAIForwardResult{
+		OpenAIWSMode: true, WSTerminalEventType: "response.incomplete", WSTerminalError: "max_output_tokens",
+	}
+
+	gatewaySvc.recordOpenAIAutoSchedulerOutcome(context.Background(), account, &groupID, "gpt-5",
+		openAIAutoSchedulerSuccessOutcome(nil, time.Now(), result))
+	require.NoError(t, recorder.Stop(context.Background()))
+
+	require.Zero(t, recorder.SnapshotMetrics().Accepted)
+	require.Zero(t, repo.getStateCalls)
+	require.Empty(t, repo.events)
+}
+
 func TestOpenAISelectAccountForModelWithExclusions_StickyExcludedFallback(t *testing.T) {
 	sessionHash := "excluded"
 	repo := stubOpenAIAccountRepo{

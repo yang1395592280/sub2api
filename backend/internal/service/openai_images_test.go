@@ -617,6 +617,7 @@ func findOpenAIImageTestSSEEvent(events []openAIImageTestSSEEvent, name string) 
 
 func TestOpenAIGatewayServiceForwardImages_OAuthPassesNAndReturnsAllImages(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	groupID := int64(11)
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","size":"1024x1024","quality":"high","n":3}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -624,7 +625,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthPassesNAndReturnsAllImages(t *te
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
-	c.Set("api_key", &APIKey{ID: 42})
+	c.Set("api_key", &APIKey{ID: 42, GroupID: &groupID})
 
 	svc := &OpenAIGatewayService{}
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
@@ -644,6 +645,9 @@ func TestOpenAIGatewayServiceForwardImages_OAuthPassesNAndReturnsAllImages(t *te
 		},
 	}
 	svc.httpUpstream = upstream
+	sink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 4, 1)
+	svc.openAIAutoSchedulerOutcomeRecorder = recorder
 
 	account := &Account{
 		ID:       1,
@@ -693,6 +697,10 @@ func TestOpenAIGatewayServiceForwardImages_OAuthPassesNAndReturnsAllImages(t *te
 	require.Equal(t, "aW1hZ2UtMw==", gjson.Get(rec.Body.String(), "data.2.b64_json").String())
 	require.Equal(t, "draw a cat 1", gjson.Get(rec.Body.String(), "data.0.revised_prompt").String())
 	require.Equal(t, "draw a cat 3", gjson.Get(rec.Body.String(), "data.2.revised_prompt").String())
+	require.NoError(t, recorder.Stop(context.Background()))
+	records := sink.snapshot()
+	require.Len(t, records, 1)
+	require.Equal(t, OpenAIAutoSchedulerEventSuccess, records[0].EventType)
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthUpstreamHTTPErrorSurfacesRealError(t *testing.T) {

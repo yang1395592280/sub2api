@@ -631,6 +631,8 @@ func observeUpstreamMessage(
 		"error.code",
 		"error.type",
 		"error.message",
+		"response.incomplete_details.reason",
+		"incomplete_details.reason",
 	)
 	eventType := strings.TrimSpace(values[0].String())
 	if eventType == "" {
@@ -680,6 +682,9 @@ func observeUpstreamMessage(
 	observed.errorCode = firstNonEmptyRelayValue(values[4].String(), values[7].String())
 	observed.errorType = firstNonEmptyRelayValue(values[5].String(), values[8].String())
 	observed.errorMessage = firstNonEmptyRelayValue(values[6].String(), values[9].String())
+	if observed.errorCode == "" {
+		observed.errorCode = firstNonEmptyRelayValue(values[10].String(), values[11].String())
+	}
 	state.terminalEventType = eventType
 	state.terminalErrorCode = observed.errorCode
 	state.terminalErrorType = observed.errorType

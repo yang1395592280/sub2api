@@ -121,9 +121,13 @@ func (r *fakeOpenAIAutoSchedulerAccountRepo) GetByID(context.Context, int64) (*s
 
 type fakeOpenAIAutoSchedulerProbeChecker struct {
 	result service.OpenAIAutoSchedulerProbeResult
+	calls  *int
 }
 
 func (c fakeOpenAIAutoSchedulerProbeChecker) Check(context.Context, *service.Account, string, time.Duration) service.OpenAIAutoSchedulerProbeResult {
+	if c.calls != nil {
+		*c.calls++
+	}
 	return c.result
 }
 
@@ -425,6 +429,27 @@ func TestOpenAIAutoSchedulerHandler_ProbeSurfacesRecordError(t *testing.T) {
 
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 	require.Contains(t, rec.Body.String(), "internal error")
+}
+
+func TestOpenAIAutoSchedulerHandler_ProbeChecksSettingsDependencyBeforeRemoteCall(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	calls := 0
+	h := NewOpenAIAutoSchedulerHandler(
+		nil,
+		nil,
+		&fakeOpenAIAutoSchedulerService{},
+		&fakeOpenAIAutoSchedulerAccountRepo{account: &service.Account{ID: 101, Platform: service.PlatformOpenAI}},
+		fakeOpenAIAutoSchedulerProbeChecker{calls: &calls},
+	)
+	router := gin.New()
+	router.POST("/scores/accounts/:account_id/probe", h.ProbeScore)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/scores/accounts/101/probe?group_id=20&model=gpt-5", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	require.Zero(t, calls)
 }
 
 func TestOpenAIAutoSchedulerHandler_ProbeRejectsMissingMutationQueryParams(t *testing.T) {

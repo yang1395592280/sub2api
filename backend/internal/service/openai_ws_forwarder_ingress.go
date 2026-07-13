@@ -499,6 +499,9 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			if bridgeErr != nil {
 				s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentBridgePayload.originalModel, openAIAutoSchedulerErrorOutcome(turnStartedAt, openAIAutoSchedulerStatusCodeForError(bridgeErr), bridgeErr))
 			} else if result != nil {
+				if hooks != nil && hooks.TimingForTurn != nil {
+					applyOpenAIWSTurnTiming(hooks.TimingForTurn(turn), turnStartedAt, result)
+				}
 				s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentBridgePayload.originalModel, openAIAutoSchedulerSuccessOutcome(nil, turnStartedAt, result))
 			}
 			if hooks != nil && hooks.AfterTurn != nil {
@@ -1491,6 +1494,9 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		lastTurnFinishedAt = time.Now()
 		lastTurnClean = true
 		if result != nil {
+			if hooks != nil && hooks.TimingForTurn != nil {
+				applyOpenAIWSTurnTiming(hooks.TimingForTurn(turn), turnStartedAt, result)
+			}
 			s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentOriginalModel, openAIAutoSchedulerSuccessOutcome(nil, turnStartedAt, result))
 		}
 		if hooks != nil && hooks.AfterTurn != nil {

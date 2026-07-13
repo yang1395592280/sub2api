@@ -314,6 +314,64 @@ func TestOpenAIAutoSchedulerOutcomeRecorderIsolatesSinkErrors(t *testing.T) {
 	require.EqualValues(t, 1, metrics.Failed)
 }
 
+func TestOpenAIAutoSchedulerOutcomeRecorderUsesStrictProductionPersistence(t *testing.T) {
+	settings := enabledOpenAIAutoSchedulerSettings()
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{2: {
+			ID: 2, Platform: PlatformOpenAI, Status: StatusActive, OpenAIAutoSchedulerEnabled: true,
+		}},
+		err: errors.New("repository unavailable"),
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: settings})
+	input := OpenAIAutoSchedulerRecordInput{
+		AccountID: 1, GroupID: 2, Model: "gpt-5", EventType: OpenAIAutoSchedulerEventSuccess,
+	}
+
+	// Existing callers retain best-effort behavior.
+	require.NoError(t, svc.Record(context.Background(), input))
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(svc, 1, 1)
+	require.True(t, recorder.TryRecord(input))
+	require.Eventually(t, func() bool {
+		return recorder.SnapshotMetrics().Failed == 1
+	}, time.Second, time.Millisecond)
+	require.NoError(t, recorder.Stop(context.Background()))
+}
+
+func TestOpenAIAutoSchedulerOutcomeRecorderExposesRuntimeQueueDepth(t *testing.T) {
+	sink := newBlockingOpenAIAutoSchedulerOutcomeSink()
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 1, 1)
+	t.Cleanup(func() {
+		close(sink.release)
+		_ = recorder.Stop(context.Background())
+	})
+
+	require.True(t, recorder.TryRecord(OpenAIAutoSchedulerRecordInput{AccountID: 1}))
+	select {
+	case <-sink.started:
+	case <-time.After(time.Second):
+		t.Fatal("worker did not start")
+	}
+	require.True(t, recorder.TryRecord(OpenAIAutoSchedulerRecordInput{AccountID: 2}))
+	require.False(t, recorder.TryRecord(OpenAIAutoSchedulerRecordInput{AccountID: 3}))
+
+	metrics := recorder.SnapshotMetrics()
+	require.Equal(t, 1, metrics.QueueDepth)
+	require.EqualValues(t, 1, metrics.Dropped)
+}
+
+func TestOpenAIAutoSchedulerOutcomeRecorderPeriodicallyLogsRuntimeMetrics(t *testing.T) {
+	handler := &collectingOutcomeRecorderLogHandler{}
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(handler))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+	recorder := newOpenAIAutoSchedulerOutcomeRecorder(&collectingOpenAIAutoSchedulerOutcomeSink{}, 1, 1, time.Millisecond)
+	require.Eventually(t, func() bool {
+		return handler.count("OpenAI auto scheduler outcome recorder metrics") > 0
+	}, time.Second, time.Millisecond)
+	require.NoError(t, recorder.Stop(context.Background()))
+}
+
 func TestOpenAIAutoSchedulerOutcomeRecorderClassifiesSuccessfulFeedbackWithConfiguredThresholds(t *testing.T) {
 	settings := DefaultOpenAIAutoSchedulerSettings()
 	settings.Enabled = true
@@ -453,4 +511,103 @@ func TestOpenAIAutoSchedulerOutcomeRecorderRecordsPassthroughHTTPOutcome(t *test
 	require.Equal(t, int64(11), records[0].AccountID)
 	require.Equal(t, groupID, records[0].GroupID)
 	require.Equal(t, "gpt-5.4", records[0].Model)
+}
+
+func TestOpenAIAutoSchedulerOutcomeRecorderCoversAdditionalTransportErrors(t *testing.T) {
+	newConfig := func() *config.Config {
+		cfg := &config.Config{}
+		cfg.Security.URLAllowlist.Enabled = false
+		cfg.Security.URLAllowlist.AllowInsecureHTTP = true
+		return cfg
+	}
+	newAPIKeyAccount := func() *Account {
+		return &Account{
+			ID: 90, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Concurrency: 1,
+			Credentials: map[string]any{"api_key": "sk-test", "base_url": "http://upstream.example"},
+		}
+	}
+	newContext := func(t *testing.T, path string, body []byte) (*gin.Context, int64) {
+		t.Helper()
+		groupID := int64(91)
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, path, bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Set("api_key", &APIKey{GroupID: &groupID})
+		return c, groupID
+	}
+	assertOutcome := func(t *testing.T, sink *collectingOpenAIAutoSchedulerOutcomeSink, recorder *OpenAIAutoSchedulerOutcomeRecorder, want string) {
+		t.Helper()
+		require.NoError(t, recorder.Stop(context.Background()))
+		records := sink.snapshot()
+		require.Len(t, records, 1)
+		require.Equal(t, want, records[0].EventType)
+	}
+
+	t.Run("embeddings 429", func(t *testing.T) {
+		body := []byte(`{"model":"text-embedding-3-small","input":"hello"}`)
+		c, _ := newContext(t, "/v1/embeddings", body)
+		sink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+		recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 2, 1)
+		svc := &OpenAIGatewayService{cfg: newConfig(), httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"rate_limit_error","message":"slow down"}}`)),
+		}}, openAIAutoSchedulerOutcomeRecorder: recorder}
+		account := newAPIKeyAccount()
+		_, err := svc.ForwardEmbeddings(context.Background(), c, account, body, "")
+		require.Error(t, err)
+		assertOutcome(t, sink, recorder, OpenAIAutoSchedulerEventRateLimited)
+	})
+
+	for _, transport := range []struct {
+		name string
+		path string
+		run  func(*OpenAIGatewayService, *gin.Context) error
+	}{
+		{
+			name: "raw chat transport error",
+			path: "/v1/chat/completions",
+			run: func(svc *OpenAIGatewayService, c *gin.Context) error {
+				body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":false}`)
+				_, err := svc.forwardAsRawChatCompletions(context.Background(), c, newAPIKeyAccount(), body, "")
+				return err
+			},
+		},
+		{
+			name: "normal chat transport error",
+			path: "/v1/chat/completions",
+			run: func(svc *OpenAIGatewayService, c *gin.Context) error {
+				body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":false}`)
+				account := &Account{ID: 92, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Concurrency: 1, Credentials: map[string]any{"access_token": "test", "chatgpt_account_id": "acct"}}
+				_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+				return err
+			},
+		},
+		{
+			name: "images transport error",
+			path: "/v1/images/generations",
+			run: func(svc *OpenAIGatewayService, c *gin.Context) error {
+				body := []byte(`{"model":"gpt-image-2","prompt":"draw"}`)
+				parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+				require.NoError(t, err)
+				account := newAPIKeyAccount()
+				_, err = svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+				return err
+			},
+		},
+	} {
+		t.Run(transport.name, func(t *testing.T) {
+			body := []byte(`{"model":"gpt-5.4","messages":[],"prompt":"draw"}`)
+			c, _ := newContext(t, transport.path, body)
+			sink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+			recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 2, 1)
+			svc := &OpenAIGatewayService{
+				cfg:                                newConfig(),
+				httpUpstream:                       &httpUpstreamRecorder{err: errors.New("dial failed")},
+				openAIAutoSchedulerOutcomeRecorder: recorder,
+			}
+			require.Error(t, transport.run(svc, c))
+			assertOutcome(t, sink, recorder, OpenAIAutoSchedulerEventError)
+		})
+	}
 }

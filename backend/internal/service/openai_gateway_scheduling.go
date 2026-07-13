@@ -211,7 +211,7 @@ func (s *OpenAIGatewayService) isOpenAIAutoSchedulerAccountTemporarilyBlocked(ct
 
 func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerOutcome(ctx context.Context, account *Account, groupID *int64, requestedModel string, outcome OpenAIAutoSchedulerRecordInput) {
 	model := strings.TrimSpace(requestedModel)
-	if s == nil || s.openAIAutoSchedulerOutcomeRecorder == nil || account == nil || account.ID <= 0 || account.Platform != PlatformOpenAI || groupID == nil || *groupID <= 0 || model == "" {
+	if s == nil || s.openAIAutoSchedulerOutcomeRecorder == nil || account == nil || account.ID <= 0 || account.Platform != PlatformOpenAI || groupID == nil || *groupID <= 0 || model == "" || strings.TrimSpace(outcome.EventType) == "" {
 		return
 	}
 	outcome.AccountID = account.ID
@@ -232,6 +232,13 @@ func openAIAutoSchedulerSuccessOutcome(c *gin.Context, forwardStartedAt time.Tim
 	if result != nil && result.OpenAIWSMode {
 		switch strings.TrimSpace(result.WSTerminalEventType) {
 		case "response.completed", "response.done":
+		case "response.incomplete", "response.cancelled", "response.canceled":
+			if result.WSTerminalStatusCode == nil {
+				outcome.EventType = ""
+				outcome.StatusCode = nil
+				outcome.Message = truncateString(strings.TrimSpace(result.WSTerminalError), 512)
+				return outcome
+			}
 		default:
 			outcome.EventType = OpenAIAutoSchedulerEventError
 			outcome.StatusCode = result.WSTerminalStatusCode
@@ -285,6 +292,24 @@ func openAIAutoSchedulerErrorOutcome(forwardStartedAt time.Time, statusCode *int
 		StatusCode: statusCode,
 		Message:    message,
 	}
+}
+
+func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerForwardAttempt(
+	ctx context.Context,
+	c *gin.Context,
+	account *Account,
+	requestedModel string,
+	startedAt time.Time,
+	result *OpenAIForwardResult,
+	err error,
+) {
+	if err != nil {
+		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), requestedModel,
+			openAIAutoSchedulerErrorOutcome(startedAt, openAIAutoSchedulerStatusCodeForError(err), err))
+		return
+	}
+	s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), requestedModel,
+		openAIAutoSchedulerSuccessOutcome(c, startedAt, result))
 }
 
 func openAIAutoSchedulerGroupIDFromContext(c *gin.Context) *int64 {

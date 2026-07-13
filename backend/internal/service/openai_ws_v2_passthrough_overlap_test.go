@@ -127,6 +127,35 @@ func TestOpenAIGatewayService_PassthroughOverlappingTurnsKeepFIFOOutcomeIdentity
 				Credentials: map[string]any{"api_key": "sk-test"},
 				Extra:       map[string]any{"openai_apikey_responses_websockets_v2_mode": OpenAIWSIngressModePassthrough},
 			}
+			var resultsMu sync.Mutex
+			var turnResults []*OpenAIForwardResult
+			var turnTimings sync.Map
+			firstTiming := NewOpenAIRequestTiming()
+			firstTiming.AddQueue(11 * time.Millisecond)
+			turnTimings.Store(1, firstTiming)
+			hooks := &OpenAIWSIngressHooks{
+				BeforeRequest: func(turn int, _ []byte, _ string) error {
+					if turn > 1 {
+						timing := NewOpenAIRequestTiming()
+						timing.AddQueue(22 * time.Millisecond)
+						turnTimings.Store(turn, timing)
+					}
+					return nil
+				},
+				TimingForTurn: func(turn int) *OpenAIRequestTiming {
+					value, _ := turnTimings.Load(turn)
+					timing, _ := value.(*OpenAIRequestTiming)
+					return timing
+				},
+				AfterTurn: func(_ int, result *OpenAIForwardResult, turnErr error) {
+					if turnErr != nil || result == nil {
+						return
+					}
+					resultsMu.Lock()
+					turnResults = append(turnResults, result)
+					resultsMu.Unlock()
+				},
+			}
 
 			serverErrCh := make(chan error, 1)
 			wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -150,28 +179,28 @@ func TestOpenAIGatewayService_PassthroughOverlappingTurnsKeepFIFOOutcomeIdentity
 					serverErrCh <- errors.New("unexpected client frame type")
 					return
 				}
-				serverErrCh <- svc.ProxyResponsesWebSocketFromClient(r.Context(), ginCtx, conn, account, "sk-test", firstMessage, nil)
+				serverErrCh <- svc.ProxyResponsesWebSocketFromClient(r.Context(), ginCtx, conn, account, "sk-test", firstMessage, hooks)
 			}))
 			defer wsServer.Close()
 
 			client, _, err := coderws.Dial(context.Background(), "ws"+strings.TrimPrefix(wsServer.URL, "http"), nil)
 			require.NoError(t, err)
 			defer func() { _ = client.CloseNow() }()
-			require.NoError(t, client.Write(context.Background(), coderws.MessageText, []byte(`{"type":"response.create","model":"gpt-first"}`)))
-			require.Contains(t, string(readTestChannel(t, upstream.writes)), "gpt-first")
+			require.NoError(t, client.Write(context.Background(), coderws.MessageText, []byte(`{"type":"response.create","model":"gpt-5.4","service_tier":"priority","reasoning":{"effort":"high"}}`)))
+			require.Contains(t, string(readTestChannel(t, upstream.writes)), "gpt-5.4")
 
 			upstream.events <- []byte(`{"type":"response.created","response":{"id":"resp_overlap_1"}}`)
 			_, _, err = client.Read(context.Background())
 			require.NoError(t, err)
 			time.Sleep(60 * time.Millisecond)
-			require.NoError(t, client.Write(context.Background(), coderws.MessageText, []byte(`{"type":"response.create","model":"gpt-second"}`)))
-			require.Contains(t, string(readTestChannel(t, upstream.writes)), "gpt-second")
+			require.NoError(t, client.Write(context.Background(), coderws.MessageText, []byte(`{"type":"response.create","model":"gpt-5.1","service_tier":"flex","reasoning":{"effort":"low"}}`)))
+			require.Contains(t, string(readTestChannel(t, upstream.writes)), "gpt-5.1")
 
-			upstream.events <- []byte(`{"type":"response.completed","response":{"id":"resp_overlap_1"}}`)
+			upstream.events <- []byte(`{"type":"response.completed","response":{"id":"resp_overlap_1","usage":{"input_tokens":100,"output_tokens":50}}}`)
 			_, _, err = client.Read(context.Background())
 			require.NoError(t, err)
 			if tt.completeSecond {
-				upstream.events <- []byte(`{"type":"response.completed","response":{"id":"resp_overlap_2"}}`)
+				upstream.events <- []byte(`{"type":"response.completed","response":{"id":"resp_overlap_2","usage":{"input_tokens":100,"output_tokens":50}}}`)
 				_, _, err = client.Read(context.Background())
 				require.NoError(t, err)
 			}
@@ -186,12 +215,45 @@ func TestOpenAIGatewayService_PassthroughOverlappingTurnsKeepFIFOOutcomeIdentity
 			require.NoError(t, recorder.Stop(context.Background()))
 			outcomes := sink.snapshot()
 			require.Len(t, outcomes, 2)
-			require.Equal(t, "gpt-first", outcomes[0].Model)
+			require.Equal(t, "gpt-5.4", outcomes[0].Model)
 			require.Equal(t, OpenAIAutoSchedulerEventSuccess, outcomes[0].EventType)
 			require.NotNil(t, outcomes[0].LatencyMS)
 			require.GreaterOrEqual(t, *outcomes[0].LatencyMS, 40)
-			require.Equal(t, "gpt-second", outcomes[1].Model)
+			require.Equal(t, "gpt-5.1", outcomes[1].Model)
 			require.Equal(t, tt.wantSecond, outcomes[1].EventType)
+
+			if tt.completeSecond {
+				resultsMu.Lock()
+				captured := append([]*OpenAIForwardResult(nil), turnResults...)
+				resultsMu.Unlock()
+				require.Len(t, captured, 2)
+
+				usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+				billingSvc := newOpenAIRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
+				apiKey := &APIKey{ID: 1001, GroupID: &groupID, Group: &Group{ID: groupID, RateMultiplier: 1}}
+				user := &User{ID: 2001}
+				require.NoError(t, billingSvc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{Result: captured[0], APIKey: apiKey, User: user, Account: account}))
+				firstLog := usageRepo.lastLog
+				require.NoError(t, billingSvc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{Result: captured[1], APIKey: apiKey, User: user, Account: account}))
+				secondLog := usageRepo.lastLog
+
+				require.Equal(t, "gpt-5.4", firstLog.Model)
+				require.Equal(t, "priority", *firstLog.ServiceTier)
+				require.Equal(t, "high", *firstLog.ReasoningEffort)
+				require.Equal(t, "gpt-5.1", secondLog.Model)
+				require.Equal(t, "flex", *secondLog.ServiceTier)
+				require.Equal(t, "low", *secondLog.ReasoningEffort)
+				require.Equal(t, 11, *firstLog.QueueMs)
+				require.Equal(t, 22, *secondLog.QueueMs)
+				require.NotNil(t, firstLog.E2EFirstTokenMs)
+				require.NotNil(t, secondLog.E2EFirstTokenMs)
+				require.Equal(t, captured[0].FirstTokenMs, firstLog.FirstTokenMs)
+				require.Equal(t, captured[1].FirstTokenMs, secondLog.FirstTokenMs)
+				firstBase := expectedOpenAICost(t, billingSvc, "gpt-5.4", captured[0].Usage, 1)
+				secondBase := expectedOpenAICost(t, billingSvc, "gpt-5.1", captured[1].Usage, 1)
+				require.InDelta(t, firstBase.TotalCost*2, firstLog.TotalCost, 1e-10)
+				require.InDelta(t, secondBase.TotalCost*0.5, secondLog.TotalCost, 1e-10)
+			}
 		})
 	}
 }
@@ -199,7 +261,7 @@ func TestOpenAIGatewayService_PassthroughOverlappingTurnsKeepFIFOOutcomeIdentity
 func TestOpenAIWSPassthroughPendingTurnsConcurrentPopAndDrainDoNotDuplicate(t *testing.T) {
 	queue := &openAIWSPassthroughPendingTurns{}
 	for i := 0; i < 100; i++ {
-		queue.append(time.Now(), "gpt-5")
+		queue.append(time.Now(), "gpt-5", nil, nil, nil)
 	}
 
 	start := make(chan struct{})
@@ -237,6 +299,24 @@ func TestOpenAIWSPassthroughPendingTurnsConcurrentPopAndDrainDoNotDuplicate(t *t
 	for turnNo := 1; turnNo <= 100; turnNo++ {
 		require.Contains(t, seen, turnNo)
 	}
+}
+
+func TestOpenAIWSPassthroughPendingTurnFreezesBillingMetadata(t *testing.T) {
+	queue := &openAIWSPassthroughPendingTurns{}
+	priority, high := "priority", "high"
+	flex, low := "flex", "low"
+
+	queue.append(time.Now(), "gpt-5.4", &priority, &high, nil)
+	queue.append(time.Now(), "gpt-5.5", &flex, &low, nil)
+
+	first, ok := queue.pop()
+	require.True(t, ok)
+	second, ok := queue.pop()
+	require.True(t, ok)
+	require.Equal(t, "priority", *first.serviceTier)
+	require.Equal(t, "high", *first.reasoningEffort)
+	require.Equal(t, "flex", *second.serviceTier)
+	require.Equal(t, "low", *second.reasoningEffort)
 }
 
 func TestOpenAIGatewayService_PassthroughFollowupLocalRejectCompletesLifecycleOnce(t *testing.T) {

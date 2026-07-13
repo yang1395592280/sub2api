@@ -135,9 +135,12 @@ type openAIWSPassthroughUsageMeta struct {
 }
 
 type openAIWSPassthroughPendingTurn struct {
-	turnNo    int
-	startedAt time.Time
-	model     string
+	turnNo          int
+	startedAt       time.Time
+	model           string
+	serviceTier     *string
+	reasoningEffort *string
+	timing          *OpenAIRequestTiming
 }
 
 type openAIWSPassthroughPendingTurns struct {
@@ -152,17 +155,28 @@ func (q *openAIWSPassthroughPendingTurns) nextTurnNo() int {
 	return q.next + 1
 }
 
-func (q *openAIWSPassthroughPendingTurns) append(startedAt time.Time, model string) openAIWSPassthroughPendingTurn {
+func (q *openAIWSPassthroughPendingTurns) append(startedAt time.Time, model string, serviceTier, reasoningEffort *string, timing *OpenAIRequestTiming) openAIWSPassthroughPendingTurn {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.next++
 	turn := openAIWSPassthroughPendingTurn{
-		turnNo:    q.next,
-		startedAt: startedAt,
-		model:     strings.TrimSpace(model),
+		turnNo:          q.next,
+		startedAt:       startedAt,
+		model:           strings.TrimSpace(model),
+		serviceTier:     cloneOpenAIStringPtr(serviceTier),
+		reasoningEffort: cloneOpenAIStringPtr(reasoningEffort),
+		timing:          timing,
 	}
 	q.queued = append(q.queued, turn)
 	return turn
+}
+
+func cloneOpenAIStringPtr(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func (q *openAIWSPassthroughPendingTurns) pop() (openAIWSPassthroughPendingTurn, bool) {
@@ -493,6 +507,12 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 					completeLocalReject(err)
 					return payload, nil, err
 				}
+				if hooks.BeforeTurn != nil {
+					if err := hooks.BeforeTurn(turnNo); err != nil {
+						completeLocalReject(err)
+						return payload, nil, err
+					}
+				}
 			}
 			// 在评估策略前先刷新 capturedSessionModel：客户端可能通过
 			// session.update 修改 session-level model（Realtime /
@@ -541,7 +561,11 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 				if pendingModel == "" {
 					pendingModel = capturedSessionModel
 				}
-				pendingTurns.append(time.Now(), pendingModel)
+				var turnTiming *OpenAIRequestTiming
+				if hooks != nil && hooks.TimingForTurn != nil {
+					turnTiming = hooks.TimingForTurn(lifecycleTurnNo)
+				}
+				pendingTurns.append(time.Now(), pendingModel, usageMeta.serviceTier.Load(), usageMeta.reasoningEffort.Load(), turnTiming)
 			}
 			return out, blocked, policyErr
 		},
@@ -573,7 +597,11 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		return forwardErr
 	}
 	upstreamFirstMessageSent = true
-	pendingTurns.append(relayStartedAt, requestModel)
+	firstTurnTiming := OpenAIRequestTimingFromContext(c)
+	if hooks != nil && hooks.TimingForTurn != nil {
+		firstTurnTiming = hooks.TimingForTurn(1)
+	}
+	pendingTurns.append(relayStartedAt, requestModel, usageMeta.serviceTier.Load(), usageMeta.reasoningEffort.Load(), firstTurnTiming)
 
 	readNextClientFrame := func(readCtx context.Context, conn openaiwsv2.FrameConn) (coderws.MessageType, []byte, error) {
 		for {
@@ -649,8 +677,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 						ImageOutputTokens:        turn.Usage.ImageOutputTokens,
 					},
 					Model:                turnModel,
-					ServiceTier:          usageMeta.serviceTier.Load(),
-					ReasoningEffort:      usageMeta.reasoningEffort.Load(),
+					ServiceTier:          pendingTurn.serviceTier,
+					ReasoningEffort:      pendingTurn.reasoningEffort,
 					Stream:               true,
 					OpenAIWSMode:         true,
 					WSTerminalEventType:  turn.TerminalEventType,
@@ -660,6 +688,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 					Duration:             turn.Duration,
 					FirstTokenMs:         turn.FirstTokenMs,
 				}
+				applyOpenAIWSTurnTiming(pendingTurn.timing, pendingTurn.startedAt, turnResult)
 				logOpenAIWSV2Passthrough(
 					"relay_turn_completed account_id=%d turn=%d request_id=%s terminal_event=%s duration_ms=%d first_token_ms=%d input_tokens=%d output_tokens=%d cache_read_tokens=%d",
 					account.ID,

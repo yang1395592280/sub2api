@@ -34,6 +34,11 @@ func newOpenAIRequestTiming(now func() time.Time) *OpenAIRequestTiming {
 	}
 }
 
+// NewOpenAIRequestTiming starts timing for an independent WebSocket turn.
+func NewOpenAIRequestTiming() *OpenAIRequestTiming {
+	return newOpenAIRequestTiming(time.Now)
+}
+
 // BeginOpenAIRequestTiming creates request timing once and reuses it for retries.
 func BeginOpenAIRequestTiming(c *gin.Context) *OpenAIRequestTiming {
 	if timing := OpenAIRequestTimingFromContext(c); timing != nil {
@@ -107,4 +112,32 @@ func (t *OpenAIRequestTiming) Snapshot() OpenAIRequestTimingSnapshot {
 		QueueMS:   int(t.queue.Milliseconds()),
 		RetryMS:   int(t.retry.Milliseconds()),
 	}
+}
+
+func applyOpenAIWSTurnTiming(timing *OpenAIRequestTiming, forwardStartedAt time.Time, result *OpenAIForwardResult) {
+	if timing == nil || result == nil {
+		return
+	}
+	snapshot := timing.Snapshot()
+	result.RoutingMs = openAIOptionalTimingInt(snapshot.RoutingMS)
+	result.QueueMs = openAIOptionalTimingInt(snapshot.QueueMS)
+	result.RetryMs = openAIOptionalTimingInt(snapshot.RetryMS)
+	if result.FirstTokenMs == nil {
+		return
+	}
+	timing.mu.Lock()
+	preForwardMS := int(forwardStartedAt.Sub(timing.startedAt).Milliseconds())
+	timing.mu.Unlock()
+	if preForwardMS < 0 {
+		preForwardMS = 0
+	}
+	e2e := preForwardMS + *result.FirstTokenMs
+	result.E2EFirstTokenMs = &e2e
+}
+
+func openAIOptionalTimingInt(value int) *int {
+	if value <= 0 {
+		return nil
+	}
+	return &value
 }

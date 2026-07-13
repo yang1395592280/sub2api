@@ -213,11 +213,6 @@ func openAIWSTerminalOutcomeMetadata(eventType, codeRaw, errTypeRaw, msgRaw stri
 	if !isOpenAIWSTerminalEvent(eventType) {
 		return nil, ""
 	}
-
-	statusCode := openAIWSErrorHTTPStatusFromRaw(codeRaw, errTypeRaw)
-	if isOpenAIWSRateLimitError(codeRaw, errTypeRaw, msgRaw) {
-		statusCode = http.StatusTooManyRequests
-	}
 	message := strings.TrimSpace(msgRaw)
 	if message == "" {
 		message = strings.TrimSpace(codeRaw)
@@ -228,7 +223,29 @@ func openAIWSTerminalOutcomeMetadata(eventType, codeRaw, errTypeRaw, msgRaw stri
 	if message == "" {
 		message = eventType
 	}
+	if isNeutralOpenAIWSTerminal(eventType, codeRaw, errTypeRaw, msgRaw) {
+		return nil, message
+	}
+
+	statusCode := openAIWSErrorHTTPStatusFromRaw(codeRaw, errTypeRaw)
+	if isOpenAIWSRateLimitError(codeRaw, errTypeRaw, msgRaw) {
+		statusCode = http.StatusTooManyRequests
+	}
 	return &statusCode, message
+}
+
+func isNeutralOpenAIWSTerminal(eventType, codeRaw, errTypeRaw, msgRaw string) bool {
+	switch strings.TrimSpace(eventType) {
+	case "response.cancelled", "response.canceled":
+		return true
+	case "response.incomplete":
+		reason := strings.ToLower(strings.TrimSpace(firstNonEmptyString(codeRaw, errTypeRaw, msgRaw)))
+		switch reason {
+		case "max_output_tokens", "max_tokens", "content_filter", "client_cancelled", "client_canceled", "cancelled", "canceled":
+			return true
+		}
+	}
+	return false
 }
 
 func isOpenAIWSTokenEvent(eventType string) bool {
@@ -321,6 +338,11 @@ func openAIAutoSchedulerStatusCodeForError(err error) *int {
 	var dialErr *openAIWSDialError
 	if errors.As(err, &dialErr) && dialErr.StatusCode > 0 {
 		statusCode := dialErr.StatusCode
+		return &statusCode
+	}
+	var imagesErr *OpenAIImagesUpstreamError
+	if errors.As(err, &imagesErr) && imagesErr.StatusCode > 0 {
+		statusCode := imagesErr.StatusCode
 		return &statusCode
 	}
 	for _, statusCode := range []int{http.StatusTooManyRequests, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout, http.StatusInternalServerError} {

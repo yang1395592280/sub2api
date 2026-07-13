@@ -233,7 +233,7 @@ func (h *OpenAIAutoSchedulerHandler) ProbeScore(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if h == nil || h.scheduler == nil || h.accountRepo == nil || h.checker == nil {
+	if h == nil || h.scheduler == nil || h.accountRepo == nil || h.checker == nil || h.settingsSvc == nil {
 		response.InternalError(c, "openai auto scheduler probe dependencies are not configured")
 		return
 	}
@@ -251,10 +251,6 @@ func (h *OpenAIAutoSchedulerHandler) ProbeScore(c *gin.Context) {
 		return
 	}
 	result := h.checker.Check(c.Request.Context(), account, model, 15*time.Second)
-	if h.settingsSvc == nil {
-		response.InternalError(c, "openai auto scheduler settings service is not configured")
-		return
-	}
 	settings := h.settingsSvc.GetOpenAIAutoSchedulerSettings(c.Request.Context())
 	eventType := service.ClassifyOpenAIAutoSchedulerProbeEvent(result, settings)
 	message := strings.TrimSpace(result.Message)

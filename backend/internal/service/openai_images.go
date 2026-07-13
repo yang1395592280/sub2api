@@ -554,10 +554,15 @@ func (s *OpenAIGatewayService) ForwardImages(
 	body []byte,
 	parsed *OpenAIImagesRequest,
 	channelMappedModel string,
-) (*OpenAIForwardResult, error) {
+) (result *OpenAIForwardResult, err error) {
 	if parsed == nil {
 		return nil, fmt.Errorf("parsed images request is required")
 	}
+	startedAt := time.Now()
+	requestedModel := strings.TrimSpace(parsed.Model)
+	defer func() {
+		s.recordOpenAIAutoSchedulerForwardAttempt(ctx, c, account, requestedModel, startedAt, result, err)
+	}()
 	switch account.Type {
 	case AccountTypeAPIKey:
 		return s.forwardOpenAIImagesAPIKey(ctx, c, account, body, parsed, channelMappedModel)

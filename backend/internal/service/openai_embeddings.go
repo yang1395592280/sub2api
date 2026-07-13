@@ -23,7 +23,7 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	account *Account,
 	body []byte,
 	defaultMappedModel string,
-) (*OpenAIForwardResult, error) {
+) (result *OpenAIForwardResult, err error) {
 	startTime := time.Now()
 
 	originalModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
@@ -31,6 +31,9 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 		writeOpenAIEmbeddingsError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return nil, fmt.Errorf("missing model in request")
 	}
+	defer func() {
+		s.recordOpenAIAutoSchedulerForwardAttempt(ctx, c, account, originalModel, startTime, result, err)
+	}()
 
 	billingModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
 	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)

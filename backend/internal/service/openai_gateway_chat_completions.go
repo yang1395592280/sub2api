@@ -57,7 +57,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	body []byte,
 	promptCacheKey string,
 	defaultMappedModel string,
-) (*OpenAIForwardResult, error) {
+) (result *OpenAIForwardResult, err error) {
 	restrictionResult := s.detectCodexClientRestriction(c, account, body)
 	logCodexCLIOnlyDetection(ctx, c, account, getAPIKeyIDFromContext(c), restrictionResult, body)
 	if restrictionResult.Enabled && !restrictionResult.Matched {
@@ -100,6 +100,12 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	}
 	originalModel := chatReq.Model
 	clientStream := chatReq.Stream
+	recordOutcome := true
+	defer func() {
+		if recordOutcome {
+			s.recordOpenAIAutoSchedulerForwardAttempt(ctx, c, account, originalModel, startTime, result, err)
+		}
+	}()
 
 	// 2. Resolve model mapping early so compat prompt_cache_key injection can
 	// derive a stable seed from the final upstream model family.
@@ -130,7 +136,6 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	var (
 		responsesReq  *apicompat.ResponsesRequest
 		responsesBody []byte
-		err           error
 	)
 	if isResponsesShape {
 		responsesBody, err = sjson.SetBytes(body, "model", upstreamModel)
@@ -285,6 +290,10 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 				zap.Int("upstream_status", resp.StatusCode),
 				zap.String("upstream_message", upstreamMsg),
 			)
+			statusCode := resp.StatusCode
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel,
+				openAIAutoSchedulerErrorOutcome(startTime, &statusCode, errors.New(upstreamMsg)))
+			recordOutcome = false
 			return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel)
 		}
 		if foErr := s.failoverOpenAIUpstreamHTTPError(ctx, c, account, resp, respBody, upstreamMsg, upstreamModel); foErr != nil {
@@ -294,12 +303,12 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	}
 
 	// 9. Handle normal response
-	var result *OpenAIForwardResult
+	var forwardResult *OpenAIForwardResult
 	var handleErr error
 	if clientStream {
-		result, handleErr = s.handleChatStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, startTime, len(body))
+		forwardResult, handleErr = s.handleChatStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, startTime, len(body))
 	} else {
-		result, handleErr = s.handleChatBufferedStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, startTime)
+		forwardResult, handleErr = s.handleChatBufferedStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, startTime)
 	}
 
 	// cyber_policy：标记已设、error 已按 Chat Completions 格式发给客户端。丢弃 result、
@@ -312,14 +321,14 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	}
 
 	// Propagate ServiceTier and ReasoningEffort to result for billing
-	if handleErr == nil && result != nil {
+	if handleErr == nil && forwardResult != nil {
 		if responsesReq.ServiceTier != "" {
 			st := responsesReq.ServiceTier
-			result.ServiceTier = &st
+			forwardResult.ServiceTier = &st
 		}
 		if responsesReq.Reasoning != nil && responsesReq.Reasoning.Effort != "" {
 			re := responsesReq.Reasoning.Effort
-			result.ReasoningEffort = &re
+			forwardResult.ReasoningEffort = &re
 		}
 	}
 
@@ -334,7 +343,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 		s.ResetOpenAIOverbrush429Count(account)
 	}
 
-	return result, handleErr
+	return forwardResult, handleErr
 }
 
 func normalizeResponsesRequestServiceTier(req *apicompat.ResponsesRequest) {

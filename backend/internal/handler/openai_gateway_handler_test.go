@@ -1294,6 +1294,22 @@ func TestOpenAIResponsesWebSocket_PassthroughUsageLogLeavesUserAgentNilWhenMissi
 	require.Equal(t, "medium", *got.log.ReasoningEffort)
 }
 
+func TestOpenAIResponsesWebSocket_FirstTurnPersistsHandlerSchedulerTiming(t *testing.T) {
+	got := runOpenAIResponsesWebSocketUsageLogCase(t, openAIResponsesWSUsageLogCase{
+		firstPayload:       `{"type":"response.create","model":"gpt-5.4","stream":false}`,
+		accountSelectDelay: 20 * time.Millisecond,
+		userSlotDelay:      15 * time.Millisecond,
+	})
+
+	require.NotNil(t, got.log.RoutingMs)
+	require.GreaterOrEqual(t, *got.log.RoutingMs, 20)
+	require.NotNil(t, got.log.QueueMs)
+	require.GreaterOrEqual(t, *got.log.QueueMs, 15)
+	require.NotNil(t, got.log.FirstTokenMs)
+	require.NotNil(t, got.log.E2EFirstTokenMs)
+	require.Greater(t, *got.log.E2EFirstTokenMs, *got.log.FirstTokenMs)
+}
+
 func TestSetOpenAIClientTransportHTTP(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -1441,9 +1457,11 @@ func newOpenAIWSHandlerTestServer(t *testing.T, h *OpenAIGatewayHandler, subject
 }
 
 type openAIResponsesWSUsageLogCase struct {
-	firstPayload   string
-	userAgent      *string
-	channelMapping map[string]string
+	firstPayload       string
+	userAgent          *string
+	channelMapping     map[string]string
+	accountSelectDelay time.Duration
+	userSlotDelay      time.Duration
 }
 
 type openAIResponsesWSUsageLogResult struct {
@@ -1453,10 +1471,14 @@ type openAIResponsesWSUsageLogResult struct {
 
 type openAIWSUsageHandlerAccountRepoStub struct {
 	service.AccountRepository
-	account service.Account
+	account   service.Account
+	listDelay time.Duration
 }
 
 func (s *openAIWSUsageHandlerAccountRepoStub) ListSchedulableByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
+	if s.listDelay > 0 {
+		time.Sleep(s.listDelay)
+	}
 	if s.account.Platform != platform {
 		return nil, nil
 	}
@@ -1834,7 +1856,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 3
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
 
-	accountRepo := &openAIWSUsageHandlerAccountRepoStub{account: account}
+	accountRepo := &openAIWSUsageHandlerAccountRepoStub{account: account, listDelay: tc.accountSelectDelay}
 	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, 1)}
 
 	var channelSvc *service.ChannelService
@@ -1879,6 +1901,9 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 
 	cache := &concurrencyCacheMock{
 		acquireUserSlotFn: func(ctx context.Context, userID int64, maxConcurrency int, requestID string) (bool, error) {
+			if tc.userSlotDelay > 0 {
+				time.Sleep(tc.userSlotDelay)
+			}
 			return true, nil
 		},
 		acquireAccountSlotFn: func(ctx context.Context, accountID int64, maxConcurrency int, requestID string) (bool, error) {

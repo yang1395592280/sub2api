@@ -65,3 +65,18 @@ func TestOpenAIRequestTimingConcurrentQueueAndRetry(t *testing.T) {
 	require.Equal(t, additions, snapshot.QueueMS)
 	require.Equal(t, additions*2, snapshot.RetryMS)
 }
+
+func TestApplyOpenAIWSTurnTimingPreservesFirstTokenAndUsesIndependentTurn(t *testing.T) {
+	now := time.Unix(100, 0)
+	timing := newOpenAIRequestTiming(func() time.Time { return now })
+	timing.AddQueue(12 * time.Millisecond)
+	now = now.Add(40 * time.Millisecond)
+	firstTokenMS := 25
+	result := &OpenAIForwardResult{FirstTokenMs: &firstTokenMS}
+
+	applyOpenAIWSTurnTiming(timing, now, result)
+
+	require.Equal(t, 25, *result.FirstTokenMs)
+	require.Equal(t, 65, *result.E2EFirstTokenMs)
+	require.Equal(t, 12, *result.QueueMs)
+}

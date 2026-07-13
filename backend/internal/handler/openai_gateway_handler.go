@@ -9,6 +9,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -1328,6 +1329,7 @@ func (h *OpenAIGatewayHandler) acquireResponsesAccountSlot(
 // ResponsesWebSocket handles OpenAI Responses API WebSocket ingress endpoint
 // GET /openai/v1/responses (Upgrade: websocket)
 func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
+	firstTurnTiming := service.BeginOpenAIRequestTiming(c)
 	if !isOpenAIWSUpgradeRequest(c.Request) {
 		h.errorResponse(c, http.StatusUpgradeRequired, "invalid_request_error", "WebSocket upgrade required (Upgrade: websocket)")
 		return
@@ -1475,7 +1477,9 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	// 必须尽早注册，确保任何 early return 都能释放已获取的并发槽位。
 	defer releaseTurnSlots()
 
+	userSlotStartedAt := time.Now()
 	userReleaseFunc, userAcquired, err := h.concurrencyHelper.TryAcquireUserSlotForAPIKey(ctx, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.GroupID)
+	firstTurnTiming.AddQueue(time.Since(userSlotStartedAt))
 	if err != nil {
 		reqLog.Warn("openai.websocket_user_slot_acquire_failed", zap.Error(err))
 		closeOpenAIClientWS(wsConn, coderws.StatusInternalError, "failed to acquire user concurrency slot")
@@ -1527,9 +1531,17 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	switchCount := 0
 	failedAccountIDs := make(map[int64]struct{})
 	var lastFailoverErr *service.UpstreamFailoverError
+	var turnTimings sync.Map
+	turnTimings.Store(1, firstTurnTiming)
+	timingForTurn := func(turn int) *service.OpenAIRequestTiming {
+		value, _ := turnTimings.Load(turn)
+		timing, _ := value.(*service.OpenAIRequestTiming)
+		return timing
+	}
 
 	for {
 		reqLog.Debug("openai.websocket_account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))
+		firstTurnTiming.BeginRouting()
 		effectiveAPIKey, selection, scheduleDecision, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
 			ctx,
 			apiKey,
@@ -1543,6 +1555,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			previousResponseCanMove,
 			requestPlatform,
 		)
+		firstTurnTiming.EndRouting()
 		if err != nil {
 			reqLog.Warn("openai.websocket_account_select_failed",
 				zap.Error(openAICompatibleSelectionErrorForLog(err, requestPlatform)),
@@ -1592,11 +1605,13 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				closeOpenAIClientWS(wsConn, coderws.StatusTryAgainLater, "account is busy, please retry later")
 				return
 			}
+			accountSlotStartedAt := time.Now()
 			fastReleaseFunc, fastAcquired, err := h.concurrencyHelper.TryAcquireAccountSlot(
 				ctx,
 				account.ID,
 				selection.WaitPlan.MaxConcurrency,
 			)
+			firstTurnTiming.AddQueue(time.Since(accountSlotStartedAt))
 			if err != nil {
 				reqLog.Warn("openai.websocket_account_slot_acquire_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 				closeOpenAIClientWS(wsConn, coderws.StatusInternalError, "failed to acquire account concurrency slot")
@@ -1634,6 +1649,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				if turn == 1 {
 					return nil
 				}
+				turnTimings.Store(turn, service.NewOpenAIRequestTiming())
 				if !gjson.ValidBytes(payload) {
 					return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "invalid websocket request payload", errors.New("invalid json"))
 				}
@@ -1658,9 +1674,11 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				if turn == 1 {
 					return nil
 				}
+				turnTiming := timingForTurn(turn)
 				// 防御式清理：避免异常路径下旧槽位覆盖导致泄漏。
 				releaseTurnSlots()
 				// 非首轮 turn 需要重新抢占并发槽位，避免长连接空闲占槽。
+				slotStartedAt := time.Now()
 				userReleaseFunc, userAcquired, err := h.concurrencyHelper.TryAcquireUserSlotForAPIKey(ctx, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.GroupID)
 				if err != nil {
 					return service.NewOpenAIWSClientCloseError(coderws.StatusInternalError, "failed to acquire user concurrency slot", err)
@@ -1669,6 +1687,9 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					return service.NewOpenAIWSClientCloseError(coderws.StatusTryAgainLater, "too many concurrent requests, please retry later", nil)
 				}
 				accountReleaseFunc, accountAcquired, err := h.concurrencyHelper.TryAcquireAccountSlot(ctx, account.ID, accountMaxConcurrency)
+				if turnTiming != nil {
+					turnTiming.AddQueue(time.Since(slotStartedAt))
+				}
 				if err != nil {
 					if userReleaseFunc != nil {
 						userReleaseFunc()
@@ -1690,6 +1711,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				// CyberBlocked 必须在 submit 前同步预捕获（task 闭包由 worker 池异步执行，
 				// 届时 defer 已清除标记）。
 				defer clearCyberPolicyTurnState(c)
+				defer turnTimings.Delete(turn)
 				releaseTurnSlots()
 				h.recordCyberPolicyIfMarked(c, apiKeyForRequest, account, subscription, reqModel, turnErr != nil, cyberBlockKey, channelMappingWS.ToUsageFields(reqModel, ""), requestPayloadHash)
 				if service.GetOpsCyberPolicy(c) != nil {
@@ -1748,6 +1770,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					}
 				})
 			},
+			TimingForTurn: timingForTurn,
 		}
 
 		// 应用渠道模型映射到 WebSocket 首条消息
@@ -1773,6 +1796,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		if err := h.gatewayService.ProxyResponsesWebSocketFromClient(ctx, c, wsConn, account, token, wsFirstMessage, hooks); err != nil {
 			var failoverErr *service.UpstreamFailoverError
 			if errors.As(err, &failoverErr) {
+				retryStartedAt := time.Now()
 				h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
 				releaseAccountSlot()
 				failedAccountIDs[account.ID] = struct{}{}
@@ -1796,6 +1820,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				if !ensureUserSlotHeld() {
 					return
 				}
+				firstTurnTiming.AddRetry(time.Since(retryStartedAt))
 				continue
 			}
 

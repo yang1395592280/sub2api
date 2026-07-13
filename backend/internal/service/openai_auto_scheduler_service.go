@@ -107,6 +107,12 @@ func (s *OpenAIAutoSchedulerService) Record(ctx context.Context, input OpenAIAut
 	return s.record(ctx, input, true)
 }
 
+// RecordOutcome is the strict persistence path used by the bounded recorder.
+// Public Record remains best-effort for legacy request-path callers.
+func (s *OpenAIAutoSchedulerService) RecordOutcome(ctx context.Context, input OpenAIAutoSchedulerRecordInput) error {
+	return s.record(ctx, input, false)
+}
+
 func (s *OpenAIAutoSchedulerService) RecordManualProbe(ctx context.Context, input OpenAIAutoSchedulerRecordInput) error {
 	return s.record(ctx, input, false)
 }

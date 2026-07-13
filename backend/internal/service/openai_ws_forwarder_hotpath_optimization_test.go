@@ -104,9 +104,24 @@ func TestOpenAIWSTerminalOutcomeMetadata(t *testing.T) {
 	require.Empty(t, message)
 
 	statusCode, message = openAIWSTerminalOutcomeMetadata("response.cancelled", "", "", "")
+	require.Nil(t, statusCode)
+	require.Equal(t, "response.cancelled", message)
+
+	for _, reason := range []string{"max_output_tokens", "content_filter"} {
+		statusCode, message = openAIWSTerminalOutcomeMetadata("response.incomplete", reason, "", "")
+		require.Nil(t, statusCode)
+		require.Equal(t, reason, message)
+	}
+	statusCode, _ = openAIWSTerminalOutcomeMetadata("response.incomplete", "upstream_internal_error", "", "")
 	require.NotNil(t, statusCode)
 	require.Equal(t, http.StatusBadGateway, *statusCode)
-	require.Equal(t, "response.cancelled", message)
+}
+
+func TestParseOpenAIWSErrorEventFieldsReadsIncompleteReason(t *testing.T) {
+	code, errType, message := parseOpenAIWSErrorEventFields([]byte(`{"type":"response.incomplete","response":{"incomplete_details":{"reason":"max_output_tokens"}}}`))
+	require.Equal(t, "max_output_tokens", code)
+	require.Empty(t, errType)
+	require.Empty(t, message)
 }
 
 func TestOpenAIWSMessageLikelyContainsToolCalls(t *testing.T) {

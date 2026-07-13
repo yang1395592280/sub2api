@@ -12,24 +12,33 @@ const (
 	openAIAutoSchedulerOutcomeRecordTimeout = 2 * time.Second
 	openAIAutoSchedulerOutcomeQueueSize     = 1024
 	openAIAutoSchedulerOutcomeWorkerCount   = 2
+	openAIAutoSchedulerOutcomeMetricsPeriod = 30 * time.Second
 )
 
 type openAIAutoSchedulerOutcomeSink interface {
 	Record(context.Context, OpenAIAutoSchedulerRecordInput) error
 }
 
+type openAIAutoSchedulerStrictOutcomeSink interface {
+	RecordOutcome(context.Context, OpenAIAutoSchedulerRecordInput) error
+}
+
 type OpenAIAutoSchedulerOutcomeRecorderMetrics struct {
-	Accepted uint64
-	Failed   uint64
-	Dropped  uint64
+	Accepted   uint64
+	Failed     uint64
+	Dropped    uint64
+	QueueDepth int
 }
 
 // OpenAIAutoSchedulerOutcomeRecorder keeps scheduler feedback off the request
 // path while bounding both queued work and background concurrency.
 type OpenAIAutoSchedulerOutcomeRecorder struct {
-	sink  openAIAutoSchedulerOutcomeSink
-	queue chan OpenAIAutoSchedulerRecordInput
-	done  chan struct{}
+	sink          openAIAutoSchedulerOutcomeSink
+	queue         chan OpenAIAutoSchedulerRecordInput
+	done          chan struct{}
+	monitorStop   chan struct{}
+	monitorDone   chan struct{}
+	metricsPeriod time.Duration
 
 	queueMu  sync.RWMutex
 	stopOnce sync.Once
@@ -47,22 +56,38 @@ func NewOpenAIAutoSchedulerOutcomeRecorder(
 	queueSize int,
 	workerCount int,
 ) *OpenAIAutoSchedulerOutcomeRecorder {
+	return newOpenAIAutoSchedulerOutcomeRecorder(sink, queueSize, workerCount, openAIAutoSchedulerOutcomeMetricsPeriod)
+}
+
+func newOpenAIAutoSchedulerOutcomeRecorder(
+	sink openAIAutoSchedulerOutcomeSink,
+	queueSize int,
+	workerCount int,
+	metricsPeriod time.Duration,
+) *OpenAIAutoSchedulerOutcomeRecorder {
 	if queueSize < 1 {
 		queueSize = 1
 	}
 	if workerCount < 1 {
 		workerCount = 1
 	}
+	if metricsPeriod <= 0 {
+		metricsPeriod = openAIAutoSchedulerOutcomeMetricsPeriod
+	}
 
 	recorder := &OpenAIAutoSchedulerOutcomeRecorder{
-		sink:  sink,
-		queue: make(chan OpenAIAutoSchedulerRecordInput, queueSize),
-		done:  make(chan struct{}),
+		sink:          sink,
+		queue:         make(chan OpenAIAutoSchedulerRecordInput, queueSize),
+		done:          make(chan struct{}),
+		monitorStop:   make(chan struct{}),
+		monitorDone:   make(chan struct{}),
+		metricsPeriod: metricsPeriod,
 	}
 	recorder.workers.Store(int32(workerCount))
 	for range workerCount {
 		go recorder.runWorker()
 	}
+	go recorder.runMetricsLogger()
 	return recorder
 }
 
@@ -107,11 +132,17 @@ func (r *OpenAIAutoSchedulerOutcomeRecorder) Stop(ctx context.Context) error {
 		r.queueMu.Lock()
 		r.stopped.Store(true)
 		close(r.queue)
+		close(r.monitorStop)
 		r.queueMu.Unlock()
 	})
 
 	select {
 	case <-r.done:
+		select {
+		case <-r.monitorDone:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 		r.logDroppedFeedback()
 		return nil
 	case <-ctx.Done():
@@ -124,9 +155,10 @@ func (r *OpenAIAutoSchedulerOutcomeRecorder) SnapshotMetrics() OpenAIAutoSchedul
 		return OpenAIAutoSchedulerOutcomeRecorderMetrics{}
 	}
 	return OpenAIAutoSchedulerOutcomeRecorderMetrics{
-		Accepted: r.accepted.Load(),
-		Failed:   r.failed.Load(),
-		Dropped:  r.dropped.Load(),
+		Accepted:   r.accepted.Load(),
+		Failed:     r.failed.Load(),
+		Dropped:    r.dropped.Load(),
+		QueueDepth: len(r.queue),
 	}
 }
 
@@ -140,13 +172,40 @@ func (r *OpenAIAutoSchedulerOutcomeRecorder) runWorker() {
 	for input := range r.queue {
 		recordCtx, cancel := context.WithTimeout(context.Background(), openAIAutoSchedulerOutcomeRecordTimeout)
 		input = classifyOpenAIAutoSchedulerProductionOutcome(recordCtx, r.sink, input)
-		err := r.sink.Record(recordCtx, input)
+		err := r.persistOutcome(recordCtx, input)
 		cancel()
 		if err != nil {
 			failed := r.failed.Add(1)
 			if shouldLogOpenAIAutoSchedulerOutcomeRecorderCount(failed) {
 				slog.Warn("OpenAI auto scheduler outcome recorder sink failed", "failed", failed, "error", err)
 			}
+		}
+	}
+}
+
+func (r *OpenAIAutoSchedulerOutcomeRecorder) persistOutcome(ctx context.Context, input OpenAIAutoSchedulerRecordInput) error {
+	if strict, ok := r.sink.(openAIAutoSchedulerStrictOutcomeSink); ok {
+		return strict.RecordOutcome(ctx, input)
+	}
+	return r.sink.Record(ctx, input)
+}
+
+func (r *OpenAIAutoSchedulerOutcomeRecorder) runMetricsLogger() {
+	defer close(r.monitorDone)
+	ticker := time.NewTicker(r.metricsPeriod)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			metrics := r.SnapshotMetrics()
+			slog.Info("OpenAI auto scheduler outcome recorder metrics",
+				"accepted", metrics.Accepted,
+				"failed", metrics.Failed,
+				"dropped", metrics.Dropped,
+				"queue_depth", metrics.QueueDepth,
+			)
+		case <-r.monitorStop:
+			return
 		}
 	}
 }

@@ -213,6 +213,8 @@ func parseOpenAIWSErrorEventFields(message []byte) (code string, errType string,
 		"error.code",
 		"error.type",
 		"error.message",
+		"response.incomplete_details.reason",
+		"incomplete_details.reason",
 	)
 	code = strings.TrimSpace(values[0].String())
 	errType = strings.TrimSpace(values[1].String())
@@ -225,6 +227,9 @@ func parseOpenAIWSErrorEventFields(message []byte) (code string, errType string,
 	}
 	if errMessage == "" {
 		errMessage = strings.TrimSpace(values[5].String())
+	}
+	if code == "" {
+		code = firstNonEmptyString(strings.TrimSpace(values[6].String()), strings.TrimSpace(values[7].String()))
 	}
 	return code, errType, errMessage
 }
