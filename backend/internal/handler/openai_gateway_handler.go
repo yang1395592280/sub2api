@@ -1711,7 +1711,10 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				// CyberBlocked 必须在 submit 前同步预捕获（task 闭包由 worker 池异步执行，
 				// 届时 defer 已清除标记）。
 				defer clearCyberPolicyTurnState(c)
-				defer turnTimings.Delete(turn)
+				var failoverErr *service.UpstreamFailoverError
+				if !errors.As(turnErr, &failoverErr) {
+					defer turnTimings.Delete(turn)
+				}
 				releaseTurnSlots()
 				h.recordCyberPolicyIfMarked(c, apiKeyForRequest, account, subscription, reqModel, turnErr != nil, cyberBlockKey, channelMappingWS.ToUsageFields(reqModel, ""), requestPayloadHash)
 				if service.GetOpsCyberPolicy(c) != nil {

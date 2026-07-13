@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -337,6 +338,43 @@ func TestOpenAIAutoSchedulerOutcomeRecorderUsesStrictProductionPersistence(t *te
 	require.NoError(t, recorder.Stop(context.Background()))
 }
 
+func TestOpenAIAutoSchedulerOutcomeRecorderFeatureOffIsNoop(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings OpenAIAutoSchedulerSettings
+		group    Group
+	}{
+		{
+			name: "global disabled",
+			settings: func() OpenAIAutoSchedulerSettings {
+				settings := enabledOpenAIAutoSchedulerSettings()
+				settings.Enabled = false
+				return settings
+			}(),
+			group: Group{ID: 2, Platform: PlatformOpenAI, Status: StatusActive, OpenAIAutoSchedulerEnabled: true},
+		},
+		{name: "inactive group", settings: enabledOpenAIAutoSchedulerSettings(), group: Group{ID: 2, Platform: PlatformOpenAI, Status: StatusDisabled, OpenAIAutoSchedulerEnabled: true}},
+		{name: "scheduler disabled group", settings: enabledOpenAIAutoSchedulerSettings(), group: Group{ID: 2, Platform: PlatformOpenAI, Status: StatusActive, OpenAIAutoSchedulerEnabled: false}},
+		{name: "non openai group", settings: enabledOpenAIAutoSchedulerSettings(), group: Group{ID: 2, Platform: PlatformAnthropic, Status: StatusActive, OpenAIAutoSchedulerEnabled: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeOpenAIAutoSchedulerRepo{groups: map[int64]Group{2: tt.group}}
+			svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: tt.settings})
+			recorder := NewOpenAIAutoSchedulerOutcomeRecorder(svc, 1, 1)
+			require.True(t, recorder.TryRecord(OpenAIAutoSchedulerRecordInput{
+				AccountID: 1, GroupID: 2, Model: "gpt-5", EventType: OpenAIAutoSchedulerEventSuccess,
+			}))
+			require.NoError(t, recorder.Stop(context.Background()))
+
+			metrics := recorder.SnapshotMetrics()
+			require.Zero(t, metrics.Failed)
+			require.Zero(t, repo.getStateCalls)
+			require.Empty(t, repo.events)
+		})
+	}
+}
+
 func TestOpenAIAutoSchedulerOutcomeRecorderExposesRuntimeQueueDepth(t *testing.T) {
 	sink := newBlockingOpenAIAutoSchedulerOutcomeSink()
 	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 1, 1)
@@ -610,4 +648,81 @@ func TestOpenAIAutoSchedulerOutcomeRecorderCoversAdditionalTransportErrors(t *te
 			assertOutcome(t, sink, recorder, OpenAIAutoSchedulerEventError)
 		})
 	}
+}
+
+func TestOpenAIHTTPOutcomeFinalizersIgnoreLocalValidationFailures(t *testing.T) {
+	newContext := func(path string, body []byte) *gin.Context {
+		groupID := int64(93)
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, path, bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Set("api_key", &APIKey{GroupID: &groupID})
+		return c
+	}
+	newRecorderService := func() (*OpenAIGatewayService, *OpenAIAutoSchedulerOutcomeRecorder) {
+		recorder := NewOpenAIAutoSchedulerOutcomeRecorder(&collectingOpenAIAutoSchedulerOutcomeSink{}, 2, 1)
+		cfg := &config.Config{}
+		cfg.Security.URLAllowlist.Enabled = false
+		cfg.Security.URLAllowlist.AllowInsecureHTTP = true
+		return &OpenAIGatewayService{cfg: cfg, httpUpstream: &httpUpstreamRecorder{}, openAIAutoSchedulerOutcomeRecorder: recorder}, recorder
+	}
+	assertNoOutcome := func(t *testing.T, recorder *OpenAIAutoSchedulerOutcomeRecorder) {
+		t.Helper()
+		require.NoError(t, recorder.Stop(context.Background()))
+		require.Zero(t, recorder.SnapshotMetrics().Accepted)
+	}
+	configureFastBlock := func(t *testing.T, svc *OpenAIGatewayService) {
+		t.Helper()
+		settings := &OpenAIFastPolicySettings{Rules: []OpenAIFastPolicyRule{{
+			ServiceTier: OpenAIFastTierPriority, Action: BetaPolicyActionBlock, Scope: BetaPolicyScopeAll,
+			ErrorMessage: "blocked locally", ModelWhitelist: []string{"gpt-5.4"}, FallbackAction: BetaPolicyActionPass,
+		}}}
+		raw, err := json.Marshal(settings)
+		require.NoError(t, err)
+		repo := &openAIFastPolicyRepoStub{values: map[string]string{SettingKeyOpenAIFastPolicySettings: string(raw)}}
+		svc.settingService = NewSettingService(repo, svc.cfg)
+	}
+
+	t.Run("normal chat fast policy", func(t *testing.T) {
+		body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"service_tier":"priority"}`)
+		svc, recorder := newRecorderService()
+		configureFastBlock(t, svc)
+		account := &Account{ID: 94, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Credentials: map[string]any{"access_token": "test"}}
+		_, err := svc.ForwardAsChatCompletions(context.Background(), newContext("/v1/chat/completions", body), account, body, "", "")
+		require.Error(t, err)
+		assertNoOutcome(t, recorder)
+	})
+
+	t.Run("raw chat fast policy", func(t *testing.T) {
+		body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"service_tier":"priority"}`)
+		svc, recorder := newRecorderService()
+		configureFastBlock(t, svc)
+		account := &Account{ID: 95, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test", "base_url": "http://upstream.example"}}
+		_, err := svc.forwardAsRawChatCompletions(context.Background(), newContext("/v1/chat/completions", body), account, body, "")
+		require.Error(t, err)
+		assertNoOutcome(t, recorder)
+	})
+
+	t.Run("embeddings invalid URL", func(t *testing.T) {
+		body := []byte(`{"model":"text-embedding-3-small","input":"hello"}`)
+		svc, recorder := newRecorderService()
+		account := &Account{ID: 96, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test", "base_url": "://invalid"}}
+		_, err := svc.ForwardEmbeddings(context.Background(), newContext("/v1/embeddings", body), account, body, "")
+		require.Error(t, err)
+		assertNoOutcome(t, recorder)
+	})
+
+	t.Run("images invalid mapped model", func(t *testing.T) {
+		body := []byte(`{"model":"gpt-image-2","prompt":"draw"}`)
+		svc, recorder := newRecorderService()
+		c := newContext("/v1/images/generations", body)
+		parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+		require.NoError(t, err)
+		account := &Account{ID: 97, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{
+			"api_key": "test", "base_url": "http://upstream.example", "model_mapping": map[string]any{"gpt-image-2": "gpt-5.4"},
+		}}
+		_, err = svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+		require.Error(t, err)
+		assertNoOutcome(t, recorder)
+	})
 }

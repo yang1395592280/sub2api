@@ -100,10 +100,11 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	}
 	originalModel := chatReq.Model
 	clientStream := chatReq.Stream
+	ctx, upstreamAttempt := beginOpenAIUpstreamAttempt(ctx)
 	recordOutcome := true
 	defer func() {
-		if recordOutcome {
-			s.recordOpenAIAutoSchedulerForwardAttempt(ctx, c, account, originalModel, startTime, result, err)
+		if recordOutcome && upstreamAttempt.armed {
+			s.recordOpenAIAutoSchedulerForwardAttempt(ctx, c, account, originalModel, upstreamAttempt.startedAt, result, err)
 		}
 	}()
 
@@ -273,6 +274,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	if account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
+	armOpenAIUpstreamAttempt(ctx)
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	if err != nil {
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
@@ -292,7 +294,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 			)
 			statusCode := resp.StatusCode
 			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel,
-				openAIAutoSchedulerErrorOutcome(startTime, &statusCode, errors.New(upstreamMsg)))
+				openAIAutoSchedulerErrorOutcome(upstreamAttempt.startedAt, &statusCode, errors.New(upstreamMsg)))
 			recordOutcome = false
 			return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel)
 		}

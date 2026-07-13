@@ -78,5 +78,9 @@ func TestApplyOpenAIWSTurnTimingPreservesFirstTokenAndUsesIndependentTurn(t *tes
 
 	require.Equal(t, 25, *result.FirstTokenMs)
 	require.Equal(t, 65, *result.E2EFirstTokenMs)
+	require.NotNil(t, result.RoutingMs)
+	require.Zero(t, *result.RoutingMs)
 	require.Equal(t, 12, *result.QueueMs)
+	require.NotNil(t, result.RetryMs)
+	require.Zero(t, *result.RetryMs)
 }

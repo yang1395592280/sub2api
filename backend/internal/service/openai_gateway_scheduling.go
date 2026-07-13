@@ -239,6 +239,12 @@ func openAIAutoSchedulerSuccessOutcome(c *gin.Context, forwardStartedAt time.Tim
 				outcome.Message = truncateString(strings.TrimSpace(result.WSTerminalError), 512)
 				return outcome
 			}
+			outcome.EventType = OpenAIAutoSchedulerEventError
+			outcome.StatusCode = result.WSTerminalStatusCode
+			if *result.WSTerminalStatusCode == http.StatusTooManyRequests {
+				outcome.EventType = OpenAIAutoSchedulerEventRateLimited
+			}
+			outcome.Message = truncateString(strings.TrimSpace(result.WSTerminalError), 512)
 		default:
 			outcome.EventType = OpenAIAutoSchedulerEventError
 			outcome.StatusCode = result.WSTerminalStatusCode
@@ -251,7 +257,15 @@ func openAIAutoSchedulerSuccessOutcome(c *gin.Context, forwardStartedAt time.Tim
 			}
 		}
 	}
-	if result == nil || result.FirstTokenMs == nil {
+	if result == nil {
+		return outcome
+	}
+	if result.E2EFirstTokenMs != nil {
+		ttfbMS := *result.E2EFirstTokenMs
+		outcome.TtfbMS = &ttfbMS
+		return outcome
+	}
+	if result.FirstTokenMs == nil {
 		return outcome
 	}
 
@@ -292,6 +306,30 @@ func openAIAutoSchedulerErrorOutcome(forwardStartedAt time.Time, statusCode *int
 		StatusCode: statusCode,
 		Message:    message,
 	}
+}
+
+type openAIUpstreamAttemptContextKey struct{}
+
+type openAIUpstreamAttempt struct {
+	startedAt time.Time
+	armed     bool
+}
+
+func beginOpenAIUpstreamAttempt(ctx context.Context) (context.Context, *openAIUpstreamAttempt) {
+	attempt := &openAIUpstreamAttempt{}
+	return context.WithValue(ctx, openAIUpstreamAttemptContextKey{}, attempt), attempt
+}
+
+func armOpenAIUpstreamAttempt(ctx context.Context) {
+	if ctx == nil {
+		return
+	}
+	attempt, _ := ctx.Value(openAIUpstreamAttemptContextKey{}).(*openAIUpstreamAttempt)
+	if attempt == nil || attempt.armed {
+		return
+	}
+	attempt.startedAt = time.Now()
+	attempt.armed = true
 }
 
 func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerForwardAttempt(

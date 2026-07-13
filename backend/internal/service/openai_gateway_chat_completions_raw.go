@@ -68,8 +68,11 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 		writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return nil, fmt.Errorf("missing model in request")
 	}
+	ctx, upstreamAttempt := beginOpenAIUpstreamAttempt(ctx)
 	defer func() {
-		s.recordOpenAIAutoSchedulerForwardAttempt(ctx, c, account, originalModel, startTime, result, err)
+		if upstreamAttempt.armed {
+			s.recordOpenAIAutoSchedulerForwardAttempt(ctx, c, account, originalModel, upstreamAttempt.startedAt, result, err)
+		}
 	}()
 	clientStream := gjson.GetBytes(body, "stream").Bool()
 

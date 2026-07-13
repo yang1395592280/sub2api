@@ -104,20 +104,20 @@ func (s *OpenAIAutoSchedulerService) IsEnabledForGroup(ctx context.Context, grou
 }
 
 func (s *OpenAIAutoSchedulerService) Record(ctx context.Context, input OpenAIAutoSchedulerRecordInput) error {
-	return s.record(ctx, input, true)
+	return s.record(ctx, input, true, false)
 }
 
 // RecordOutcome is the strict persistence path used by the bounded recorder.
 // Public Record remains best-effort for legacy request-path callers.
 func (s *OpenAIAutoSchedulerService) RecordOutcome(ctx context.Context, input OpenAIAutoSchedulerRecordInput) error {
-	return s.record(ctx, input, false)
+	return s.record(ctx, input, false, true)
 }
 
 func (s *OpenAIAutoSchedulerService) RecordManualProbe(ctx context.Context, input OpenAIAutoSchedulerRecordInput) error {
-	return s.record(ctx, input, false)
+	return s.record(ctx, input, false, false)
 }
 
-func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAutoSchedulerRecordInput, bestEffort bool) error {
+func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAutoSchedulerRecordInput, bestEffort, outcomeFeatureOffNoop bool) error {
 	if s == nil || s.repo == nil {
 		if bestEffort {
 			return nil
@@ -140,7 +140,7 @@ func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAut
 
 	settings := s.settings(ctx)
 	if !settings.Enabled {
-		if bestEffort {
+		if bestEffort || outcomeFeatureOffNoop {
 			return nil
 		}
 		return infraerrors.BadRequest("OPENAI_AUTO_SCHEDULER_DISABLED", "openai auto scheduler is disabled")
@@ -159,7 +159,7 @@ func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAut
 		return infraerrors.NotFound("OPENAI_AUTO_SCHEDULER_GROUP_NOT_FOUND", "group not found")
 	}
 	if group.Platform != PlatformOpenAI || group.Status != StatusActive || !group.OpenAIAutoSchedulerEnabled {
-		if bestEffort {
+		if bestEffort || outcomeFeatureOffNoop {
 			return nil
 		}
 		return infraerrors.BadRequest("OPENAI_AUTO_SCHEDULER_GROUP_DISABLED", "openai auto scheduler is not enabled for this group")

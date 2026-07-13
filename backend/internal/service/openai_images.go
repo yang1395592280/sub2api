@@ -558,10 +558,12 @@ func (s *OpenAIGatewayService) ForwardImages(
 	if parsed == nil {
 		return nil, fmt.Errorf("parsed images request is required")
 	}
-	startedAt := time.Now()
 	requestedModel := strings.TrimSpace(parsed.Model)
+	ctx, upstreamAttempt := beginOpenAIUpstreamAttempt(ctx)
 	defer func() {
-		s.recordOpenAIAutoSchedulerForwardAttempt(ctx, c, account, requestedModel, startedAt, result, err)
+		if upstreamAttempt.armed {
+			s.recordOpenAIAutoSchedulerForwardAttempt(ctx, c, account, requestedModel, upstreamAttempt.startedAt, result, err)
+		}
 	}()
 	switch account.Type {
 	case AccountTypeAPIKey:
@@ -629,6 +631,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 		proxyURL = account.Proxy.URL()
 	}
 	upstreamStart := time.Now()
+	armOpenAIUpstreamAttempt(ctx)
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 	if err != nil {

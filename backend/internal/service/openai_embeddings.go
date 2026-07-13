@@ -31,8 +31,11 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 		writeOpenAIEmbeddingsError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return nil, fmt.Errorf("missing model in request")
 	}
+	ctx, upstreamAttempt := beginOpenAIUpstreamAttempt(ctx)
 	defer func() {
-		s.recordOpenAIAutoSchedulerForwardAttempt(ctx, c, account, originalModel, startTime, result, err)
+		if upstreamAttempt.armed {
+			s.recordOpenAIAutoSchedulerForwardAttempt(ctx, c, account, originalModel, upstreamAttempt.startedAt, result, err)
+		}
 	}()
 
 	billingModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
@@ -92,6 +95,7 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	if account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
+	armOpenAIUpstreamAttempt(ctx)
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	if err != nil {
 		safeErr := sanitizeUpstreamErrorMessage(err.Error())

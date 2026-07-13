@@ -119,9 +119,9 @@ func applyOpenAIWSTurnTiming(timing *OpenAIRequestTiming, forwardStartedAt time.
 		return
 	}
 	snapshot := timing.Snapshot()
-	result.RoutingMs = openAIOptionalTimingInt(snapshot.RoutingMS)
-	result.QueueMs = openAIOptionalTimingInt(snapshot.QueueMS)
-	result.RetryMs = openAIOptionalTimingInt(snapshot.RetryMS)
+	result.RoutingMs = &snapshot.RoutingMS
+	result.QueueMs = &snapshot.QueueMS
+	result.RetryMs = &snapshot.RetryMS
 	if result.FirstTokenMs == nil {
 		return
 	}
@@ -133,11 +133,4 @@ func applyOpenAIWSTurnTiming(timing *OpenAIRequestTiming, forwardStartedAt time.
 	}
 	e2e := preForwardMS + *result.FirstTokenMs
 	result.E2EFirstTokenMs = &e2e
-}
-
-func openAIOptionalTimingInt(value int) *int {
-	if value <= 0 {
-		return nil
-	}
-	return &value
 }

@@ -1556,6 +1556,24 @@ type openAIWSUsageHandlerUsageLogRepoStub struct {
 	created chan *service.UsageLog
 }
 
+type openAIWSOutcomeSinkStub struct {
+	mu      sync.Mutex
+	records []service.OpenAIAutoSchedulerRecordInput
+}
+
+func (s *openAIWSOutcomeSinkStub) Record(_ context.Context, input service.OpenAIAutoSchedulerRecordInput) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.records = append(s.records, input)
+	return nil
+}
+
+func (s *openAIWSOutcomeSinkStub) snapshot() []service.OpenAIAutoSchedulerRecordInput {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]service.OpenAIAutoSchedulerRecordInput(nil), s.records...)
+}
+
 func (s *openAIWSUsageHandlerUsageLogRepoStub) Create(ctx context.Context, log *service.UsageLog) (bool, error) {
 	if s.created != nil {
 		s.created <- log
@@ -1603,6 +1621,7 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 			firstHitCh <- payload
 		}
 
+		time.Sleep(20 * time.Millisecond)
 		writeCtx, cancelWrite := context.WithTimeout(r.Context(), 3*time.Second)
 		_ = conn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"error","error":{"code":"rate_limit_exceeded","type":"usage_limit_reached","message":"The usage limit has been reached"}}`))
 		cancelWrite()
@@ -1623,6 +1642,7 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 			secondHitCh <- payload
 		}
 
+		time.Sleep(20 * time.Millisecond)
 		writeCtx, cancelWrite := context.WithTimeout(r.Context(), 3*time.Second)
 		_ = conn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.completed","response":{"id":"resp_ws_failover_ok","model":"gpt-5.1","usage":{"input_tokens":1,"output_tokens":1}}}`))
 		cancelWrite()
@@ -1684,12 +1704,15 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
 	cfg.Gateway.MaxAccountSwitches = 3
 
-	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}
+	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts, listDelay: 10 * time.Millisecond}
+	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, 1)}
+	outcomeSink := &openAIWSOutcomeSinkStub{}
+	outcomeRecorder := service.NewOpenAIAutoSchedulerOutcomeRecorder(outcomeSink, 4, 1)
 	rateLimitSvc := service.NewRateLimitService(accountRepo, nil, cfg, nil, nil)
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
-		nil,
+		usageRepo,
 		nil,
 		nil,
 		nil,
@@ -1711,9 +1734,11 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 		nil,
 		nil,
 	)
+	gatewaySvc.SetOpenAIAutoSchedulerOutcomeRecorder(outcomeRecorder)
 
 	cache := &concurrencyCacheMock{
 		acquireUserSlotFn: func(ctx context.Context, userID int64, maxConcurrency int, requestID string) (bool, error) {
+			time.Sleep(10 * time.Millisecond)
 			return true, nil
 		},
 		acquireAccountSlotFn: func(ctx context.Context, accountID int64, maxConcurrency int, requestID string) (bool, error) {
@@ -1777,6 +1802,35 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 		t.Fatal("等待第二个上游收到重放首帧超时")
 	}
 	require.Equal(t, []int64{int64(9902)}, accountRepo.rateLimitedIDs)
+
+	var usageLog *service.UsageLog
+	select {
+	case usageLog = <-usageRepo.created:
+	case <-time.After(3 * time.Second):
+		t.Fatal("等待 failover 成功后的 WebSocket usage log 写入超时")
+	}
+	require.NotNil(t, usageLog.FirstTokenMs)
+	require.NotNil(t, usageLog.E2EFirstTokenMs)
+	require.Greater(t, *usageLog.E2EFirstTokenMs, *usageLog.FirstTokenMs)
+	require.NotNil(t, usageLog.RoutingMs)
+	require.NotNil(t, usageLog.QueueMs)
+	require.NotNil(t, usageLog.RetryMs)
+	require.Greater(t, *usageLog.RoutingMs, 0)
+	require.Greater(t, *usageLog.QueueMs, 0)
+	require.Greater(t, *usageLog.RetryMs, 0)
+
+	require.NoError(t, outcomeRecorder.Stop(context.Background()))
+	var successOutcome *service.OpenAIAutoSchedulerRecordInput
+	for _, outcome := range outcomeSink.snapshot() {
+		if outcome.AccountID == 9903 && outcome.EventType == service.OpenAIAutoSchedulerEventSuccess {
+			outcomeCopy := outcome
+			successOutcome = &outcomeCopy
+			break
+		}
+	}
+	require.NotNil(t, successOutcome)
+	require.NotNil(t, successOutcome.TtfbMS)
+	require.Equal(t, *usageLog.E2EFirstTokenMs, *successOutcome.TtfbMS)
 }
 
 func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSUsageLogCase) openAIResponsesWSUsageLogResult {
