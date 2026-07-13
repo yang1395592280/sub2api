@@ -98,6 +98,7 @@ var ProviderSet = wire.NewSet(
 	NewUserPlatformQuotaRepository,     // T14: user × platform quota
 	NewUserPlatformQuotaServiceAdapter, // T14: adapter → service.UserPlatformQuotaRepository
 	NewOpenAIAutoSchedulerRepository,
+	NewOpenAISchedulerHealthRepository,
 	NewZenxiangLiyuRepository,
 
 	// Cache implementations
