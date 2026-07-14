@@ -80,6 +80,10 @@ func TestOpenAISchedulerOverviewRepositoryHealthUsesFixedCountAndRowsQueries(t *
 	t.Cleanup(func() { _ = db.Close() })
 	repo := newOpenAISchedulerOverviewRepositoryWithSQL(db)
 	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+	tempBlockedUntil := now.Add(time.Minute)
+	accountExpiresAt := now.Add(2 * time.Minute)
+	overloadUntil := now.Add(3 * time.Minute)
+	rateLimitResetAt := now.Add(4 * time.Minute)
 	price := 0.75
 	params := service.OpenAISchedulerHealthParams{
 		GroupID: 33, State: "running", ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse",
@@ -91,13 +95,15 @@ func TestOpenAISchedulerOverviewRepositoryHealthUsesFixedCountAndRowsQueries(t *
 		WithArgs(filterArgs...).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	rowArgs := append(append([]driver.Value(nil), filterArgs...), 20, 20)
-	mock.ExpectQuery(`(?s)WITH health_rows AS.*a\.status AS account_status.*a\.schedulable.*a\.temp_unschedulable_until.*CASE WHEN a\.load_factor > 0 THEN a\.load_factor WHEN a\.concurrency > 0 THEN a\.concurrency ELSE 1 END AS load_capacity.*SELECT account_id, account_name, group_id, account_status, schedulable`).
+	mock.ExpectQuery(`(?s)WITH health_rows AS.*g\.status AS group_status.*g\.openai_auto_scheduler_enabled AS group_auto_scheduler_enabled.*a\.status AS account_status.*a\.schedulable.*a\.temp_unschedulable_until.*a\.auto_pause_on_expired.*a\.expires_at AS account_expires_at.*a\.overload_until.*a\.rate_limit_reset_at.*CASE WHEN a\.load_factor > 0 THEN a\.load_factor WHEN a\.concurrency > 0 THEN a\.concurrency ELSE 1 END AS load_capacity.*SELECT account_id, account_name, group_id, group_status, group_auto_scheduler_enabled`).
 		WithArgs(rowArgs...).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"account_id", "account_name", "group_id", "account_status", "schedulable", "temp_unschedulable_until", "temp_unschedulable_reason",
+			"account_id", "account_name", "group_id", "group_status", "group_auto_scheduler_enabled",
+			"account_status", "schedulable", "temp_unschedulable_until", "temp_unschedulable_reason",
+			"auto_pause_on_expired", "account_expires_at", "overload_until", "rate_limit_reset_at",
 			"model_family", "endpoint", "transport", "state", "predicted_ttft_ms", "real_sample_count", "probe_sample_count", "error_rate",
 			"rate_limited_rate", "server_error_rate", "cooldown_until", "expires_at", "updated_at", "load_capacity", "channel_price",
-		}).AddRow(10, "primary", 33, service.StatusActive, true, nil, "", "gpt-5.4", "responses", "http_sse", "running", 1200.0, 20, 2, 0.01, 0.02, 0.03, nil, now.Add(time.Minute), now, 20, price))
+		}).AddRow(10, "primary", 33, service.StatusActive, true, service.StatusActive, true, tempBlockedUntil, "price guard", true, accountExpiresAt, overloadUntil, rateLimitResetAt, "gpt-5.4", "responses", "http_sse", "running", 1200.0, 20, 2, 0.01, 0.02, 0.03, nil, now.Add(time.Minute), now, 20, price))
 
 	items, total, err := repo.ListOpenAISchedulerHealth(context.Background(), params)
 
@@ -108,6 +114,13 @@ func TestOpenAISchedulerOverviewRepositoryHealthUsesFixedCountAndRowsQueries(t *
 	require.Equal(t, "gpt-5.4", items[0].ModelFamily)
 	require.Equal(t, 20, items[0].LoadCapacity)
 	require.Equal(t, service.StatusActive, items[0].AccountStatus)
+	require.Equal(t, service.StatusActive, items[0].GroupStatus)
+	require.True(t, items[0].GroupAutoSchedulerEnabled)
+	require.True(t, items[0].AutoPauseOnExpired)
+	require.Equal(t, tempBlockedUntil, *items[0].TempUnschedulableUntil)
+	require.Equal(t, accountExpiresAt, *items[0].AccountExpiresAt)
+	require.Equal(t, overloadUntil, *items[0].OverloadUntil)
+	require.Equal(t, rateLimitResetAt, *items[0].RateLimitResetAt)
 	require.Equal(t, &price, items[0].ChannelPrice)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

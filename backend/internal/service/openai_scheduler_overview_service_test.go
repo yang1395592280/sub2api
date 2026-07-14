@@ -111,8 +111,8 @@ func TestOpenAISchedulerOverviewServiceMapsPaginatedHealthWithOneLoadBatch(t *te
 	repo := &openAISchedulerOverviewRepoStub{
 		healthTotal: 3,
 		healthItems: []OpenAISchedulerHealthRecord{
-			{AccountID: 10, AccountName: "primary", GroupID: 33, AccountStatus: StatusActive, Schedulable: true, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 1200, RealSampleCount: 20, ProbeSampleCount: 2, ErrorRate: 0.01, RateLimitedRate: 0.02, ServerErrorRate: 0.03, LoadCapacity: 4, ChannelPrice: &price, UpdatedAt: now.Add(-2 * time.Second), ExpiresAt: now.Add(time.Minute)},
-			{AccountID: 10, AccountName: "primary", GroupID: 82, AccountStatus: StatusActive, Schedulable: true, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateOpen, PredictedTTFTMS: 9200, LoadCapacity: 4, UpdatedAt: now.Add(-3 * time.Second), ExpiresAt: now.Add(time.Minute)},
+			{AccountID: 10, AccountName: "primary", GroupID: 33, GroupStatus: StatusActive, GroupAutoSchedulerEnabled: true, AccountStatus: StatusActive, Schedulable: true, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 1200, RealSampleCount: 20, ProbeSampleCount: 2, ErrorRate: 0.01, RateLimitedRate: 0.02, ServerErrorRate: 0.03, LoadCapacity: 4, ChannelPrice: &price, UpdatedAt: now.Add(-2 * time.Second), ExpiresAt: now.Add(time.Minute)},
+			{AccountID: 10, AccountName: "primary", GroupID: 82, GroupStatus: StatusActive, GroupAutoSchedulerEnabled: true, AccountStatus: StatusActive, Schedulable: true, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateOpen, PredictedTTFTMS: 9200, LoadCapacity: 4, UpdatedAt: now.Add(-3 * time.Second), ExpiresAt: now.Add(time.Minute)},
 		},
 	}
 	loads := &openAISchedulerOverviewLoadStub{loads: map[int64]*AccountLoadInfo{10: {AccountID: 10, CurrentConcurrency: 2, WaitingCount: 1}}}
@@ -149,12 +149,12 @@ func TestOpenAISchedulerOverviewServiceClassifiesHealthWithoutInventingRequestDe
 	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
 	blockedUntil := now.Add(time.Minute)
 	repo := &openAISchedulerOverviewRepoStub{healthItems: []OpenAISchedulerHealthRecord{
-		{AccountID: 1, GroupID: 33, AccountStatus: StatusActive, Schedulable: true, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 2501, ExpiresAt: now.Add(time.Minute)},
-		{AccountID: 2, GroupID: 33, AccountStatus: StatusActive, Schedulable: true, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 1000, ExpiresAt: now.Add(-time.Second)},
+		{AccountID: 1, GroupID: 33, GroupStatus: StatusActive, GroupAutoSchedulerEnabled: true, AccountStatus: StatusActive, Schedulable: true, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 2501, ExpiresAt: now.Add(time.Minute)},
+		{AccountID: 2, GroupID: 33, GroupStatus: StatusActive, GroupAutoSchedulerEnabled: true, AccountStatus: StatusActive, Schedulable: true, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 1000, ExpiresAt: now.Add(-time.Second)},
 		{AccountID: 3, GroupID: 33},
-		{AccountID: 4, GroupID: 33, AccountStatus: "disabled", Schedulable: true, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(time.Minute)},
-		{AccountID: 5, GroupID: 33, AccountStatus: StatusActive, Schedulable: false, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(time.Minute)},
-		{AccountID: 6, GroupID: 33, AccountStatus: StatusActive, Schedulable: true, TempUnschedulableUntil: &blockedUntil, TempUnschedulableReason: "price guard", ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(time.Minute)},
+		{AccountID: 4, GroupID: 33, GroupStatus: StatusActive, GroupAutoSchedulerEnabled: true, AccountStatus: "disabled", Schedulable: true, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(time.Minute)},
+		{AccountID: 5, GroupID: 33, GroupStatus: StatusActive, GroupAutoSchedulerEnabled: true, AccountStatus: StatusActive, Schedulable: false, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(time.Minute)},
+		{AccountID: 6, GroupID: 33, GroupStatus: StatusActive, GroupAutoSchedulerEnabled: true, AccountStatus: StatusActive, Schedulable: true, TempUnschedulableUntil: &blockedUntil, TempUnschedulableReason: "price guard", ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(time.Minute)},
 	}}
 	svc := NewOpenAISchedulerOverviewService(repo)
 	svc.now = func() time.Time { return now }
@@ -176,6 +176,42 @@ func TestOpenAISchedulerOverviewServiceClassifiesHealthWithoutInventingRequestDe
 	require.Equal(t, "temporarily_blocked: price guard", got.Items[5].DecisionReason)
 	for _, item := range got.Items {
 		require.Nil(t, item.StickyEscapeReason)
+	}
+}
+
+func TestClassifyOpenAISchedulerHealthRecordKnownHardFilters(t *testing.T) {
+	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+	past := now.Add(-time.Second)
+	future := now.Add(time.Minute)
+	base := OpenAISchedulerHealthRecord{
+		GroupStatus: StatusActive, GroupAutoSchedulerEnabled: true,
+		AccountStatus: StatusActive, Schedulable: true,
+		ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse",
+		State: OpenAIAutoSchedulerStateRunning, ExpiresAt: future,
+	}
+	tests := []struct {
+		name       string
+		mutate     func(*OpenAISchedulerHealthRecord)
+		want       string
+		wantReason string
+	}{
+		{name: "group inactive", mutate: func(r *OpenAISchedulerHealthRecord) { r.GroupStatus = StatusDisabled }, want: "hard_filtered", wantReason: "group_inactive"},
+		{name: "group scheduler disabled", mutate: func(r *OpenAISchedulerHealthRecord) { r.GroupAutoSchedulerEnabled = false }, want: "hard_filtered", wantReason: "group_scheduler_disabled"},
+		{name: "expired auto pause", mutate: func(r *OpenAISchedulerHealthRecord) { r.AutoPauseOnExpired = true; r.AccountExpiresAt = &past }, want: "hard_filtered", wantReason: "account_expired"},
+		{name: "expired without auto pause needs context", mutate: func(r *OpenAISchedulerHealthRecord) { r.AutoPauseOnExpired = false; r.AccountExpiresAt = &past }, want: "context_required", wantReason: "request_context_required"},
+		{name: "overloaded", mutate: func(r *OpenAISchedulerHealthRecord) { r.OverloadUntil = &future }, want: "hard_filtered", wantReason: "account_overloaded"},
+		{name: "past overload needs context", mutate: func(r *OpenAISchedulerHealthRecord) { r.OverloadUntil = &past }, want: "context_required", wantReason: "request_context_required"},
+		{name: "rate limited", mutate: func(r *OpenAISchedulerHealthRecord) { r.RateLimitResetAt = &future }, want: "hard_filtered", wantReason: "account_rate_limited"},
+		{name: "past rate limit needs context", mutate: func(r *OpenAISchedulerHealthRecord) { r.RateLimitResetAt = &past }, want: "context_required", wantReason: "request_context_required"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			record := base
+			tt.mutate(&record)
+			got, reason := classifyOpenAISchedulerHealthRecord(record, now)
+			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.wantReason, reason)
+		})
 	}
 }
 

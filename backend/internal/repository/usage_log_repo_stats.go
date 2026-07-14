@@ -604,8 +604,11 @@ func buildOpenAISchedulerHealthQueries(params service.OpenAISchedulerHealthParam
 	rowsQuery := fmt.Sprintf(`
 		WITH health_rows AS (
 			SELECT a.id AS account_id, a.name AS account_name, ag.group_id,
+			       g.status AS group_status, g.openai_auto_scheduler_enabled AS group_auto_scheduler_enabled,
 			       a.status AS account_status, a.schedulable,
 			       a.temp_unschedulable_until, COALESCE(a.temp_unschedulable_reason, '') AS temp_unschedulable_reason,
+			       a.auto_pause_on_expired, a.expires_at AS account_expires_at,
+			       a.overload_until, a.rate_limit_reset_at,
 			       COALESCE(hs.model_family, '') AS model_family,
 			       COALESCE(hs.endpoint, '') AS endpoint,
 			       COALESCE(hs.transport, '') AS transport,
@@ -621,8 +624,10 @@ func buildOpenAISchedulerHealthQueries(params service.OpenAISchedulerHealthParam
 			       a.channel_price
 			%s
 		)
-		SELECT account_id, account_name, group_id, account_status, schedulable,
+		SELECT account_id, account_name, group_id, group_status, group_auto_scheduler_enabled,
+		       account_status, schedulable,
 		       temp_unschedulable_until, temp_unschedulable_reason,
+		       auto_pause_on_expired, account_expires_at, overload_until, rate_limit_reset_at,
 		       model_family, endpoint, transport, state,
 		       predicted_ttft_ms, real_sample_count, probe_sample_count,
 		       error_rate, rate_limited_rate, server_error_rate, cooldown_until, expires_at,
@@ -656,11 +661,14 @@ func (r *openAISchedulerOverviewRepository) ListOpenAISchedulerHealth(ctx contex
 	result = make([]service.OpenAISchedulerHealthRecord, 0)
 	for rows.Next() {
 		var item service.OpenAISchedulerHealthRecord
-		var tempUnschedulableUntil, cooldownUntil, expiresAt, updatedAt sql.NullTime
+		var tempUnschedulableUntil, accountExpiresAt, overloadUntil, rateLimitResetAt sql.NullTime
+		var cooldownUntil, expiresAt, updatedAt sql.NullTime
 		var channelPrice sql.NullFloat64
 		if err = rows.Scan(
-			&item.AccountID, &item.AccountName, &item.GroupID, &item.AccountStatus, &item.Schedulable,
+			&item.AccountID, &item.AccountName, &item.GroupID, &item.GroupStatus, &item.GroupAutoSchedulerEnabled,
+			&item.AccountStatus, &item.Schedulable,
 			&tempUnschedulableUntil, &item.TempUnschedulableReason,
+			&item.AutoPauseOnExpired, &accountExpiresAt, &overloadUntil, &rateLimitResetAt,
 			&item.ModelFamily, &item.Endpoint, &item.Transport,
 			&item.State, &item.PredictedTTFTMS, &item.RealSampleCount,
 			&item.ProbeSampleCount, &item.ErrorRate, &item.RateLimitedRate, &item.ServerErrorRate,
@@ -670,6 +678,15 @@ func (r *openAISchedulerOverviewRepository) ListOpenAISchedulerHealth(ctx contex
 		}
 		if tempUnschedulableUntil.Valid {
 			item.TempUnschedulableUntil = &tempUnschedulableUntil.Time
+		}
+		if accountExpiresAt.Valid {
+			item.AccountExpiresAt = &accountExpiresAt.Time
+		}
+		if overloadUntil.Valid {
+			item.OverloadUntil = &overloadUntil.Time
+		}
+		if rateLimitResetAt.Valid {
+			item.RateLimitResetAt = &rateLimitResetAt.Time
 		}
 		if cooldownUntil.Valid {
 			item.CooldownUntil = &cooldownUntil.Time

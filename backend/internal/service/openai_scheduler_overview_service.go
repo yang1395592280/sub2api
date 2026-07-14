@@ -74,28 +74,34 @@ type OpenAISchedulerHealthParams struct {
 
 // OpenAISchedulerHealthRecord is the bounded database view before live load is attached.
 type OpenAISchedulerHealthRecord struct {
-	AccountID               int64
-	AccountName             string
-	GroupID                 int64
-	AccountStatus           string
-	Schedulable             bool
-	TempUnschedulableUntil  *time.Time
-	TempUnschedulableReason string
-	ModelFamily             string
-	Endpoint                string
-	Transport               string
-	State                   string
-	PredictedTTFTMS         float64
-	RealSampleCount         int64
-	ProbeSampleCount        int64
-	ErrorRate               float64
-	RateLimitedRate         float64
-	ServerErrorRate         float64
-	CooldownUntil           *time.Time
-	ExpiresAt               time.Time
-	UpdatedAt               time.Time
-	LoadCapacity            int
-	ChannelPrice            *float64
+	AccountID                 int64
+	AccountName               string
+	GroupID                   int64
+	GroupStatus               string
+	GroupAutoSchedulerEnabled bool
+	AccountStatus             string
+	Schedulable               bool
+	TempUnschedulableUntil    *time.Time
+	TempUnschedulableReason   string
+	AutoPauseOnExpired        bool
+	AccountExpiresAt          *time.Time
+	OverloadUntil             *time.Time
+	RateLimitResetAt          *time.Time
+	ModelFamily               string
+	Endpoint                  string
+	Transport                 string
+	State                     string
+	PredictedTTFTMS           float64
+	RealSampleCount           int64
+	ProbeSampleCount          int64
+	ErrorRate                 float64
+	RateLimitedRate           float64
+	ServerErrorRate           float64
+	CooldownUntil             *time.Time
+	ExpiresAt                 time.Time
+	UpdatedAt                 time.Time
+	LoadCapacity              int
+	ChannelPrice              *float64
 }
 
 type OpenAISchedulerHealthRow struct {
@@ -324,6 +330,12 @@ func classifyOpenAISchedulerHealthRecord(record OpenAISchedulerHealthRecord, now
 	if state == OpenAIAutoSchedulerStateOpen || state == OpenAIAutoSchedulerStateHalfOpen {
 		return OpenAISchedulerDecisionCircuitRejected, state
 	}
+	if record.GroupStatus != StatusActive {
+		return OpenAISchedulerDecisionHardFiltered, "group_inactive"
+	}
+	if !record.GroupAutoSchedulerEnabled {
+		return OpenAISchedulerDecisionHardFiltered, "group_scheduler_disabled"
+	}
 	if record.AccountStatus != StatusActive {
 		return OpenAISchedulerDecisionHardFiltered, "account_inactive"
 	}
@@ -336,6 +348,15 @@ func classifyOpenAISchedulerHealthRecord(record OpenAISchedulerHealthRecord, now
 			return OpenAISchedulerDecisionHardFiltered, "temporarily_blocked"
 		}
 		return OpenAISchedulerDecisionHardFiltered, "temporarily_blocked: " + reason
+	}
+	if record.AutoPauseOnExpired && record.AccountExpiresAt != nil && !now.Before(*record.AccountExpiresAt) {
+		return OpenAISchedulerDecisionHardFiltered, "account_expired"
+	}
+	if record.OverloadUntil != nil && now.Before(*record.OverloadUntil) {
+		return OpenAISchedulerDecisionHardFiltered, "account_overloaded"
+	}
+	if record.RateLimitResetAt != nil && now.Before(*record.RateLimitResetAt) {
+		return OpenAISchedulerDecisionHardFiltered, "account_rate_limited"
 	}
 	return OpenAISchedulerDecisionContextRequired, "request_context_required"
 }

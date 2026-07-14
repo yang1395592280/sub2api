@@ -338,17 +338,17 @@ func (r *OpenAIAutoSchedulerProbeRunner) runProbe(ctx context.Context, plan open
 	}
 	for _, groupID := range plan.groupIDs {
 		input := OpenAIAutoSchedulerRecordInput{
-			AccountID:   plan.account.ID,
-			GroupID:     groupID,
-			Model:       plan.model,
-			ModelFamily: plan.healthKey.ModelFamily,
-			Endpoint:    plan.healthKey.Endpoint,
-			Transport:   OpenAIUpstreamTransport(plan.healthKey.Transport),
-			EventType:   eventType,
-			OccurredAt:  attemptTime,
-			LatencyMS:   result.LatencyMS,
-			TtfbMS:      result.TtfbMS,
-			Message:     message,
+			AccountID:      plan.account.ID,
+			GroupID:        groupID,
+			Model:          plan.model,
+			ModelFamily:    plan.healthKey.ModelFamily,
+			Endpoint:       plan.healthKey.Endpoint,
+			Transport:      OpenAIUpstreamTransport(plan.healthKey.Transport),
+			EventType:      eventType,
+			AuditCreatedAt: attemptTime,
+			LatencyMS:      result.LatencyMS,
+			TtfbMS:         result.TtfbMS,
+			Message:        message,
 		}
 		if err := r.svc.Record(ctx, input); err != nil {
 			slog.Warn("openai_auto_scheduler_probe: record failed", "account_id", plan.account.ID, "group_id", groupID, "error", err)

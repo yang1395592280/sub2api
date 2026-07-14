@@ -484,8 +484,8 @@ func TestOpenAIAutoSchedulerProbeRunner_FanoutReusesOneExactPhysicalAttemptTime(
 	svc.mu.Lock()
 	defer svc.mu.Unlock()
 	require.Len(t, svc.records, 2)
-	require.Equal(t, first, svc.records[0].OccurredAt)
-	require.Equal(t, first, svc.records[1].OccurredAt)
+	require.Equal(t, first, svc.records[0].AuditCreatedAt)
+	require.Equal(t, first, svc.records[1].AuditCreatedAt)
 	require.Equal(t, 1, nowCalls, "one physical probe must mint one attempt timestamp even when fan-out crosses seconds")
 }
 

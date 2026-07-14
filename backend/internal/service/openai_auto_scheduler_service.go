@@ -37,12 +37,14 @@ type OpenAIAutoSchedulerRecordInput struct {
 	Endpoint    string
 	Transport   OpenAIUpstreamTransport
 	EventType   string
-	OccurredAt  time.Time
-	LatencyMS   *int
-	TtfbMS      *int
-	StatusCode  *int
-	Message     string
-	CostScore   *int
+	// AuditCreatedAt identifies one physical probe across legacy per-group audit fan-out.
+	// It never controls score-state transition time.
+	AuditCreatedAt time.Time
+	LatencyMS      *int
+	TtfbMS         *int
+	StatusCode     *int
+	Message        string
+	CostScore      *int
 }
 
 type OpenAIAutoSchedulerScoreEvent struct {
@@ -171,9 +173,9 @@ func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAut
 	}
 
 	now := time.Now()
-	occurredAt := input.OccurredAt
-	if occurredAt.IsZero() {
-		occurredAt = now
+	auditCreatedAt := input.AuditCreatedAt
+	if auditCreatedAt.IsZero() {
+		auditCreatedAt = now
 	}
 	unlock := s.lockScoreState(input.AccountID, input.GroupID, model)
 	defer unlock()
@@ -191,7 +193,6 @@ func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAut
 	before := state.FinalScore
 	next := ApplyOpenAIAutoSchedulerEvent(now, *state, OpenAIAutoSchedulerEventInput{
 		EventType:  input.EventType,
-		OccurredAt: input.OccurredAt,
 		LatencyMS:  input.LatencyMS,
 		TtfbMS:     input.TtfbMS,
 		StatusCode: input.StatusCode,
@@ -218,7 +219,7 @@ func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAut
 		TtfbMS:      input.TtfbMS,
 		StatusCode:  input.StatusCode,
 		Message:     strings.TrimSpace(input.Message),
-		CreatedAt:   occurredAt,
+		CreatedAt:   auditCreatedAt,
 	}); err != nil {
 		if bestEffort {
 			return nil
