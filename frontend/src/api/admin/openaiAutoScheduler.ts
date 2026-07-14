@@ -16,6 +16,15 @@ export type OpenAIAutoSchedulerEventType =
 
 export interface OpenAIAutoSchedulerSettings {
   enabled: boolean
+  mode?: 'legacy' | 'balanced'
+  shadow_mode?: boolean
+  top_k?: number
+  exploration_rate?: number
+  session_escape_min_gap_ms?: number
+  session_escape_ratio?: number
+  health_ttl_seconds?: number
+  real_sample_fresh_seconds?: number
+  probe_jitter_seconds?: number
   probe_model: string
   probe_interval_seconds: number
   slow_threshold_ms: number
@@ -88,6 +97,7 @@ export interface OpenAIAutoSchedulerEvent {
 }
 
 export interface OpenAIAutoSchedulerListParams {
+  account_id?: number
   group_id?: number
   model?: string
   state?: OpenAIAutoSchedulerState | ''
@@ -102,6 +112,96 @@ export interface OpenAIAutoSchedulerListResponse<T> {
   page: number
   page_size: number
   pages: number
+}
+
+export type OpenAISchedulerWindow = '1h' | '6h' | '24h' | '7d'
+
+export interface OpenAISchedulerRequestOptions {
+  signal?: AbortSignal
+}
+
+export interface OpenAISchedulerOverviewParams {
+  group_id?: number
+  window: OpenAISchedulerWindow
+}
+
+export interface OpenAISchedulerGroupSummary {
+  id: number
+  name: string
+  enabled: boolean
+  account_count: number
+  e2e_ttft_p90_ms: number | null
+  alert_level: 'ok' | 'warning' | 'critical' | 'disabled'
+}
+
+export interface OpenAISchedulerTrendPoint {
+  bucket: string
+  e2e_ttft_p50_ms: number | null
+  e2e_ttft_p90_ms: number | null
+}
+
+export interface OpenAISchedulerSlowCause {
+  reason: 'upstream_ttft' | 'queue' | 'retry'
+  count: number
+  ratio: number
+}
+
+export interface OpenAISchedulerOverview {
+  e2e_ttft_p50_ms: number | null
+  e2e_ttft_p90_ms: number | null
+  selection_p95_ms: number | null
+  probe_ratio: number
+  groups: OpenAISchedulerGroupSummary[]
+  trend: OpenAISchedulerTrendPoint[]
+  slow_causes: OpenAISchedulerSlowCause[]
+}
+
+export type OpenAISchedulerHealthSort =
+  | 'account_id'
+  | 'predicted_ttft_ms'
+  | 'error_rate'
+  | 'real_sample_count'
+  | 'probe_sample_count'
+  | 'snapshot_age_ms'
+  | 'channel_price'
+
+export interface OpenAISchedulerHealthParams {
+  group_id?: number
+  state?: string
+  model_family?: string
+  endpoint?: string
+  transport?: string
+  sort?: OpenAISchedulerHealthSort
+  order?: 'asc' | 'desc'
+  page?: number
+  page_size?: number
+}
+
+export interface OpenAISchedulerHealthRow {
+  account_id: number
+  account_name: string
+  group_id: number
+  model_family: string
+  endpoint: string
+  transport: string
+  state: string
+  predicted_ttft_ms: number | null
+  real_sample_count: number
+  probe_sample_count: number
+  error_rate: number
+  rate_limited_rate: number
+  server_error_rate: number
+  load_inflight: number
+  load_capacity: number
+  waiting_count: number
+  channel_price: number | null
+  decision: string
+  decision_reason: string
+  scheduler_mode: string
+  shadow_mode: boolean
+  sticky_escape_reason: string | null
+  snapshot_age_ms: number | null
+  cooldown_until: string | null
 }
 
 export interface OpenAIAutoSchedulerScoreActionParams {
@@ -166,6 +266,27 @@ export async function listEvents(
   return data
 }
 
+export async function getOverview(
+  params: OpenAISchedulerOverviewParams,
+  options: OpenAISchedulerRequestOptions = {}
+): Promise<OpenAISchedulerOverview> {
+  const config = options.signal ? { params, signal: options.signal } : { params }
+  const { data } = await apiClient.get<OpenAISchedulerOverview>(`${basePath}/overview`, config)
+  return data
+}
+
+export async function listHealth(
+  params: OpenAISchedulerHealthParams = {},
+  options: OpenAISchedulerRequestOptions = {}
+): Promise<OpenAIAutoSchedulerListResponse<OpenAISchedulerHealthRow>> {
+  const config = options.signal ? { params, signal: options.signal } : { params }
+  const { data } = await apiClient.get<OpenAIAutoSchedulerListResponse<OpenAISchedulerHealthRow>>(
+    `${basePath}/health`,
+    config
+  )
+  return data
+}
+
 export async function resetScore(
   accountId: number,
   params: OpenAIAutoSchedulerScoreActionParams
@@ -197,6 +318,8 @@ export const openaiAutoSchedulerAPI = {
   updateGroup,
   listScores,
   listEvents,
+  getOverview,
+  listHealth,
   resetScore,
   probeScore,
 }

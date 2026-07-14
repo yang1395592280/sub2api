@@ -77,6 +77,15 @@
 
 `account + model_family + endpoint + transport`
 
+首版对这四个维度采用保守的精确语义：
+
+- `account` 是最终转发请求的物理账号 ID，不包含业务分组。
+- `model_family` 使用最终发给上游的模型名，执行 trim 和 lowercase；首版不将 `gpt-5.4`、`gpt-5.1-codex` 等变体启发式合并，避免不同模型的延迟被错误混合。
+- `endpoint` 是实际上游 API 类型，规范为 `responses`、`chat_completions`、`embeddings`、`images_generations` 或 `images_edits`；发生 fallback 时记录 fallback 后的实际类型。
+- `transport` 复用现有 `OpenAIUpstreamTransport` 值：HTTP/SSE 记为 `http_sse`，WS 记为实际 `responses_websockets*` 协议；入口选号用的 `responses_websockets_v2_ingress` 不作为实际健康键。
+
+不使用空字符串或 wildcard 将不同 endpoint/transport 合并。任一维度无法从实际转发尝试确定时，该样本跳过新统一健康写入，但仍执行旧 `OpenAIAutoSchedulerService.Record` 兼容写入，并以有限频率记录元数据缺失。
+
 健康快照至少包含：
 
 - 预测上游 TTFT EWMA。
@@ -102,6 +111,10 @@ SSE、WS、passthrough、chat fallback 和失败路径统一上报：
 - session 粘性命中、逃逸原因和最终账号。
 
 请求热路径先更新当前进程的轻量状态，再写入有容量限制的异步队列。后台批量持久化健康快照和审计事件，不再为每次请求创建独立 goroutine。
+
+Outcome 在“实际上游尝试”边界携带上述健康键元数据，成功路径优先使用 `OpenAIForwardResult.UpstreamModel/UpstreamEndpoint` 和实际 WS 决策，失败路径使用发起该次尝试时已确定的模型、endpoint 和 transport，不根据入站 URL 猜测 fallback 后的上游 endpoint。新统一健康 sink 和旧 sink 由 outcome recorder 同一后台 worker 串接，旧 sink 在灰度期间不删除。
+
+同一进程内的 load-apply-upsert 按规范化健康键串行化，防止 outcome recorder 多 worker 互相覆盖。多实例首版保持短窗口最终一致，不在用户请求热路径增加分布式锁；probe 在后续任务通过 leader lock 避免跨实例重复写入。
 
 队列满或存储异常时不得阻塞用户请求；必须增加丢弃计数和告警，并继续使用最近快照。
 

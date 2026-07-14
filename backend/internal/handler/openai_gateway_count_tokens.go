@@ -108,6 +108,7 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 		currentRoutingModel,
 		nil,
 		service.OpenAIUpstreamTransportAny,
+		"",
 		service.OpenAIEndpointCapabilityChatCompletions,
 		false,
 		false,

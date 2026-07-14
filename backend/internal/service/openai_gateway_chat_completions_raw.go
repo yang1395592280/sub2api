@@ -59,7 +59,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	account *Account,
 	body []byte,
 	defaultMappedModel string,
-) (*OpenAIForwardResult, error) {
+) (result *OpenAIForwardResult, err error) {
 	startTime := time.Now()
 
 	// 1. Parse minimal fields needed for routing/billing
@@ -68,6 +68,12 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 		writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return nil, fmt.Errorf("missing model in request")
 	}
+	ctx, upstreamAttempt := beginOpenAIUpstreamAttempt(ctx)
+	defer func() {
+		if upstreamAttempt.armed {
+			s.recordOpenAIAutoSchedulerForwardAttempt(ctx, c, account, originalModel, upstreamAttempt.startedAt, result, err)
+		}
+	}()
 	clientStream := gjson.GetBytes(body, "stream").Bool()
 
 	// 1b. Extract service tier from the raw body before any transformation.
@@ -205,21 +211,21 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	}
 
 	// 8. Forward response
-	var result *OpenAIForwardResult
+	var forwardResult *OpenAIForwardResult
 	var forwardErr error
 	if clientStream {
-		result, forwardErr = s.streamRawChatCompletions(c, resp, account, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime, len(body))
+		forwardResult, forwardErr = s.streamRawChatCompletions(c, resp, account, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime, len(body))
 	} else {
-		result, forwardErr = s.bufferRawChatCompletions(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+		forwardResult, forwardErr = s.bufferRawChatCompletions(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 	}
-	if result != nil {
-		addOpenAIUsage(&result.Usage, bridgeUsage)
-		result.UpstreamEndpoint = grokChatRawEndpoint
+	if forwardResult != nil {
+		addOpenAIUsage(&forwardResult.Usage, bridgeUsage)
+		forwardResult.UpstreamEndpoint = grokChatRawEndpoint
 	}
 	if forwardErr == nil {
 		s.ResetOpenAIOverbrush429Count(account)
 	}
-	return result, forwardErr
+	return forwardResult, forwardErr
 }
 
 func (s *OpenAIGatewayService) rawChatCompletionsURL(account *Account) (string, error) {

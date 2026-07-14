@@ -69,8 +69,42 @@ export default {
     },
 
     openaiAutoScheduler: {
-      title: 'OpenAI 自动调度',
-      description: '查看 OpenAI 账号调度分数、分组开关和调度事件'
+      title: 'OpenAI 调度控制台',
+      description: '查看 OpenAI 调度性能、账号健康、事件和灰度配置',
+      global: '全局',
+      allGroups: '全部分组',
+      refresh: '刷新',
+      modes: { legacy: '兼容模式', balanced: '均衡模式', shadow: '影子观察', live: '实时生效' },
+      tabs: { overview: '运行概览', health: '账号健康', events: '调度事件', settings: '灰度与配置' },
+      groups: { title: '调度分组', participating: '参与均衡调度', excluded: '未参与调度' },
+      overview: {
+        e2eP50: '端到端首字 P50', e2eP90: '端到端首字 P90', selectionP95: '选择阶段 P95', probeRatio: '探测样本占比',
+        typicalExperience: '典型用户体验', tailExperience: '尾部用户体验', routingProxy: '以路由耗时代理', probeRatioNote: '探测 / 全部健康样本',
+        trend: '端到端首字趋势', realRequests: '真实用户请求', noTrend: '暂无首字趋势数据', slowCauses: '慢请求原因', noSlowRequests: '暂无慢请求',
+        causeUpstream: '上游首字延迟', causeQueue: '并发排队', causeRetry: '请求重试', viewAccounts: '查看账号'
+      },
+      health: {
+        allStates: '全部状态', allEndpoints: '全部端点', allTransports: '全部传输', model: '模型', sort: '排序',
+        accountChannel: '账号 / 渠道', state: '健康', modelPath: '模型 / 路径', predictedTTFT: '预测首字', samples: '样本', load: '负载', price: '价格', decisionTitle: '当前判定', actions: '操作', group: '分组', waiting: '等待',
+        realSamples: '真实请求样本', probeSamples: '探测样本', noData: '暂无账号健康数据', snapshotAge: '快照年龄', totalErrorRate: '总错误率', rateLimitedRate: '429 比例', serverErrorRate: '5xx 比例', loadCapacity: '负载 / 容量', waitingRequests: '等待请求', channelPrice: '渠道价格', cooldownUntil: '冷却至', recentEvents: '最近事件', noEvents: '暂无近期事件', drawerLabel: '账号健康详情',
+        states: { running: '运行中', observing: '观察中', open: '已熔断', halfOpen: '恢复验证', unknown: '未知' },
+        decision: { contextRequired: '请求时判定', circuitRejected: '熔断排除', stale: '快照过期', unavailable: '健康未知', hardFiltered: '硬条件排除', pending: '待判定' },
+        reasons: { requestContext: '需结合模型、配额和队列', snapshotExpired: '健康快照已过期', snapshotMissing: '缺少完整健康维度', groupInactive: '分组未启用', groupDisabled: '分组未参与调度', accountInactive: '账号未启用', accountUnschedulable: '账号不可调度', accountExpired: '账号已过期', accountOverloaded: '账号过载', accountRateLimited: '账号限流中', temporarilyBlocked: '账号临时屏蔽' },
+        detailDecision: { contextRequired: '请求时结合模型、配额和队列判定', circuitRejected: '熔断排除', stale: '健康快照过期', unavailable: '健康信息不可用', hardFiltered: '被硬条件排除' }
+      },
+      events: {
+        time: '时间', accountModel: '账号 / 模型', result: '结果', latency: '延迟', scoreChange: '健康分变化', detail: '详情', ttfb: 'TTFB', totalDuration: '总耗时', noData: '暂无调度事件',
+        types: { success: '请求成功', slow: '慢响应', severeSlow: '严重慢响应', error: '请求错误', rateLimited: '上游限流', probeSuccess: '探测成功', probeError: '探测失败', manualReset: '手动重置' }
+      },
+      settings: {
+        runtime: '运行模式', globalScheduler: '全局调度', mode: '模式', shadowMode: '影子观察', balancedSelection: '均衡选择', topK: 'Top-K', explorationRate: '探索率', sessionEscapeGap: '会话逃逸差值 (ms)', sessionEscapeRatio: '会话逃逸比例', costWeight: '成本权重',
+        breaker: '慢响应与熔断', slowThreshold: '慢响应阈值 (ms)', severeThreshold: '严重慢响应阈值 (ms)', consecutiveSlow: '连续慢响应', consecutiveErrors: '连续错误', cooldown: '冷却时间 (秒)', recoverySamples: '恢复成功样本', recoveryStep: '恢复步长',
+        healthProbe: '健康与探测', probeModel: '探测模型', probeInterval: '探测间隔 (秒)', probeJitter: '探测抖动 (秒)', healthTTL: '健康 TTL (秒)', realFreshness: '真实样本新鲜期 (秒)', save: '保存配置', saving: '保存中',
+        errors: { probeModelRequired: '探测模型不能为空', topKRange: 'Top-K 必须在 1 到 10 之间', explorationRange: '探索率必须在 0 到 0.1 之间', sessionGapRange: '会话逃逸差值必须在 0 到 30000 ms 之间', sessionRatioRange: '会话逃逸比例必须在 0 到 2 之间', costWeightRange: '成本权重必须在 0 到 1 之间', positiveRequired: '探测、熔断和恢复参数必须大于 0', severeThreshold: '严重慢响应阈值不能低于慢响应阈值', jitterRange: '探测抖动不能超过探测间隔的一半', healthTTLRange: '健康 TTL 必须在 60 到 86400 秒之间', realFreshnessRange: '真实样本新鲜期必须在 30 到 3600 秒之间' }
+      },
+      actions: { manualProbe: '手动探测', resetHealth: '重置健康状态', close: '关闭', retry: '重试', confirmReset: '确认重置' },
+      reset: { title: '重置账号健康状态', message: '确认重置 {name} (#{id}) 的调度健康状态？' },
+      messages: { enabled: 'OpenAI 调度已启用', disabled: 'OpenAI 调度已关闭', globalFailed: '更新全局调度失败', groupEnabled: '分组已加入调度', groupDisabled: '分组已退出调度', groupFailed: '更新分组调度状态失败', settingsSaved: '调度配置已更新', settingsFailed: '更新调度配置失败', probeDone: '手动探测已完成', probeFailed: '手动探测失败', resetDone: '账号健康状态已重置', resetFailed: '重置账号健康状态失败' }
     },
 
     zenxiangLiyu: {

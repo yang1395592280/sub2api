@@ -161,6 +161,9 @@ func (r *openAIAutoSchedulerRepository) InsertScoreEvent(ctx context.Context, ev
 func (r *openAIAutoSchedulerRepository) ListScoreStates(ctx context.Context, params service.OpenAIAutoSchedulerListParams) ([]service.OpenAIAutoSchedulerScoreState, int64, error) {
 	page, pageSize := normalizeOpenAIAutoSchedulerPage(params.Page, params.PageSize)
 	query := r.client.OpenAIAutoSchedulerScoreState.Query()
+	if params.AccountID > 0 {
+		query = query.Where(openaiautoschedulerscorestate.AccountIDEQ(params.AccountID))
+	}
 	if params.GroupID > 0 {
 		query = query.Where(openaiautoschedulerscorestate.GroupIDEQ(params.GroupID))
 	}
@@ -273,6 +276,9 @@ func (r *openAIAutoSchedulerRepository) ListSchedulableOpenAIAccountsByGroup(ctx
 func (r *openAIAutoSchedulerRepository) ListScoreEvents(ctx context.Context, params service.OpenAIAutoSchedulerListParams) ([]service.OpenAIAutoSchedulerScoreEvent, int64, error) {
 	page, pageSize := normalizeOpenAIAutoSchedulerPage(params.Page, params.PageSize)
 	query := r.client.OpenAIAutoSchedulerScoreEvent.Query()
+	if params.AccountID > 0 {
+		query = query.Where(openaiautoschedulerscoreevent.AccountIDEQ(params.AccountID))
+	}
 	if params.GroupID > 0 {
 		query = query.Where(openaiautoschedulerscoreevent.GroupIDEQ(params.GroupID))
 	}
@@ -314,6 +320,9 @@ func (r *openAIAutoSchedulerRepository) ListScoreEvents(ctx context.Context, par
 func (r *openAIAutoSchedulerRepository) ListScoreDailySamples(ctx context.Context, params service.OpenAIAutoSchedulerListParams, since time.Time) (map[int64]service.OpenAIAutoSchedulerDailySample, error) {
 	query := r.client.OpenAIAutoSchedulerScoreEvent.Query().
 		Where(openaiautoschedulerscoreevent.CreatedAtGTE(since))
+	if params.AccountID > 0 {
+		query = query.Where(openaiautoschedulerscoreevent.AccountIDEQ(params.AccountID))
+	}
 	if params.GroupID > 0 {
 		query = query.Where(openaiautoschedulerscoreevent.GroupIDEQ(params.GroupID))
 	}

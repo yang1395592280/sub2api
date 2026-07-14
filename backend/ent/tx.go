@@ -54,6 +54,8 @@ type Tx struct {
 	OpenAIAutoSchedulerScoreEvent *OpenAIAutoSchedulerScoreEventClient
 	// OpenAIAutoSchedulerScoreState is the client for interacting with the OpenAIAutoSchedulerScoreState builders.
 	OpenAIAutoSchedulerScoreState *OpenAIAutoSchedulerScoreStateClient
+	// OpenAISchedulerHealthState is the client for interacting with the OpenAISchedulerHealthState builders.
+	OpenAISchedulerHealthState *OpenAISchedulerHealthStateClient
 	// PaymentAuditLog is the client for interacting with the PaymentAuditLog builders.
 	PaymentAuditLog *PaymentAuditLogClient
 	// PaymentOrder is the client for interacting with the PaymentOrder builders.
@@ -257,6 +259,7 @@ func (tx *Tx) init() {
 	tx.IdentityAdoptionDecision = NewIdentityAdoptionDecisionClient(tx.config)
 	tx.OpenAIAutoSchedulerScoreEvent = NewOpenAIAutoSchedulerScoreEventClient(tx.config)
 	tx.OpenAIAutoSchedulerScoreState = NewOpenAIAutoSchedulerScoreStateClient(tx.config)
+	tx.OpenAISchedulerHealthState = NewOpenAISchedulerHealthStateClient(tx.config)
 	tx.PaymentAuditLog = NewPaymentAuditLogClient(tx.config)
 	tx.PaymentOrder = NewPaymentOrderClient(tx.config)
 	tx.PaymentProviderInstance = NewPaymentProviderInstanceClient(tx.config)

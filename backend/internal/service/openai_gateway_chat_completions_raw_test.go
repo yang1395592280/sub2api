@@ -124,12 +124,14 @@ func TestForwardAsRawChatCompletions_ForcesStreamUsageUpstreamAndPassesUsageDown
 
 func TestForwardAsRawChatCompletions_PreservesMappedGPT56MaxEffort(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	groupID := int64(9)
 
 	body := []byte(`{"model":"sol","messages":[{"role":"user","content":"hello"}],"reasoning_effort":"max","stream":false}`)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("api_key", &APIKey{GroupID: &groupID})
 
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
@@ -138,9 +140,12 @@ func TestForwardAsRawChatCompletions_PreservesMappedGPT56MaxEffort(t *testing.T)
 			`{"id":"chatcmpl_max","object":"chat.completion","model":"gpt-5.6-sol","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}`,
 		)),
 	}}
+	sink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 4, 1)
 	svc := &OpenAIGatewayService{
-		cfg:          rawChatCompletionsTestConfig(),
-		httpUpstream: upstream,
+		cfg:                                rawChatCompletionsTestConfig(),
+		httpUpstream:                       upstream,
+		openAIAutoSchedulerOutcomeRecorder: recorder,
 	}
 	account := rawChatCompletionsTestAccount()
 	account.Credentials["model_mapping"] = map[string]any{"sol": "gpt-5.6-sol"}
@@ -153,6 +158,43 @@ func TestForwardAsRawChatCompletions_PreservesMappedGPT56MaxEffort(t *testing.T)
 	require.Equal(t, "max", gjson.GetBytes(upstream.lastBody, "reasoning_effort").String())
 	require.NotNil(t, result.ReasoningEffort)
 	require.Equal(t, "max", *result.ReasoningEffort)
+	require.NoError(t, recorder.Stop(context.Background()))
+	records := sink.snapshot()
+	require.Len(t, records, 1)
+	require.Equal(t, OpenAIAutoSchedulerEventSuccess, records[0].EventType)
+}
+
+func TestForwardAsRawChatCompletionsRecordsFailoverThenFinalSuccessExactlyOnce(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	groupID := int64(10)
+	body := []byte(`{"model":"gpt-5.6","messages":[{"role":"user","content":"hello"}],"stream":false}`)
+	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+		{StatusCode: http.StatusTooManyRequests, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"type":"rate_limit_error","message":"slow down"}}`))},
+		{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"id":"chatcmpl_ok","object":"chat.completion","model":"gpt-5.6","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}`))},
+	}}
+	sink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 4, 1)
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream, openAIAutoSchedulerOutcomeRecorder: recorder}
+	account := rawChatCompletionsTestAccount()
+
+	newContext := func() *gin.Context {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Set("api_key", &APIKey{GroupID: &groupID})
+		return c
+	}
+	_, err := svc.forwardAsRawChatCompletions(context.Background(), newContext(), account, body, "")
+	require.Error(t, err)
+	result, err := svc.forwardAsRawChatCompletions(context.Background(), newContext(), account, body, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NoError(t, recorder.Stop(context.Background()))
+
+	records := sink.snapshot()
+	require.Len(t, records, 2)
+	require.Equal(t, OpenAIAutoSchedulerEventRateLimited, records[0].EventType)
+	require.Equal(t, OpenAIAutoSchedulerEventSuccess, records[1].EventType)
 }
 
 func TestForwardAsRawChatCompletions_NonStreamingCapturesCacheWriteUsage(t *testing.T) {
@@ -562,12 +604,14 @@ func TestForwardAsRawChatCompletions_UpstreamRequestIgnoresClientCancel(t *testi
 
 func TestForwardAsChatCompletions_UnknownResponsesSupportFallbackUsesVersionedChatURL(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	groupID := int64(12)
 
 	body := []byte(`{"model":"glm-4.5-air","messages":[{"role":"user","content":"hello"}],"stream":false}`)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("api_key", &APIKey{GroupID: &groupID})
 
 	upstream := &httpUpstreamRecorder{responses: []*http.Response{
 		{
@@ -584,9 +628,12 @@ func TestForwardAsChatCompletions_UnknownResponsesSupportFallbackUsesVersionedCh
 		},
 	}}
 
+	sink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 4, 1)
 	svc := &OpenAIGatewayService{
-		cfg:          rawChatCompletionsTestConfig(),
-		httpUpstream: upstream,
+		cfg:                                rawChatCompletionsTestConfig(),
+		httpUpstream:                       upstream,
+		openAIAutoSchedulerOutcomeRecorder: recorder,
 	}
 	account := rawChatCompletionsTestAccount()
 	account.Credentials["base_url"] = "https://open.bigmodel.cn/api/paas/v4"
@@ -601,6 +648,11 @@ func TestForwardAsChatCompletions_UnknownResponsesSupportFallbackUsesVersionedCh
 	require.Equal(t, "https://open.bigmodel.cn/api/paas/v4/chat/completions", upstream.requests[1].URL.String())
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `"content":"ok"`)
+	require.NoError(t, recorder.Stop(context.Background()))
+	records := sink.snapshot()
+	require.Len(t, records, 2)
+	require.Equal(t, OpenAIAutoSchedulerEventError, records[0].EventType)
+	require.Equal(t, OpenAIAutoSchedulerEventSuccess, records[1].EventType)
 }
 
 func TestIsOpenAIChatUsageOnlyStreamChunk(t *testing.T) {

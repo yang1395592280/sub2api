@@ -40,6 +40,7 @@ func TestBuildOpenAIEmbeddingsURL(t *testing.T) {
 
 func TestForwardEmbeddings_APIKeyPassthroughRecordsUsageAndBatchInput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	groupID := int64(7)
 
 	reqBody := []byte(`{
 		"model":"nowledge-embedding",
@@ -51,6 +52,7 @@ func TestForwardEmbeddings_APIKeyPassthroughRecordsUsageAndBatchInput(t *testing
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/embeddings", bytes.NewReader(reqBody))
 	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("api_key", &APIKey{GroupID: &groupID})
 
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
@@ -68,9 +70,12 @@ func TestForwardEmbeddings_APIKeyPassthroughRecordsUsageAndBatchInput(t *testing
 			"usage":{"prompt_tokens":13,"total_tokens":13}
 		}`)),
 	}}
+	sink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 4, 1)
 	svc := &OpenAIGatewayService{
-		cfg:          &config.Config{},
-		httpUpstream: upstream,
+		cfg:                                &config.Config{},
+		httpUpstream:                       upstream,
+		openAIAutoSchedulerOutcomeRecorder: recorder,
 	}
 	account := &Account{
 		ID:       42,
@@ -104,6 +109,10 @@ func TestForwardEmbeddings_APIKeyPassthroughRecordsUsageAndBatchInput(t *testing
 	require.Equal(t, "world", gjson.GetBytes(upstream.lastBody, "input.1").String())
 	require.Equal(t, "float", gjson.GetBytes(upstream.lastBody, "encoding_format").String())
 	require.Equal(t, int64(256), gjson.GetBytes(upstream.lastBody, "dimensions").Int())
+	require.NoError(t, recorder.Stop(context.Background()))
+	records := sink.snapshot()
+	require.Len(t, records, 1)
+	require.Equal(t, OpenAIAutoSchedulerEventSuccess, records[0].EventType)
 }
 
 func TestForwardEmbeddings_APIKeyReadFailureKeepsOverbrush429Count(t *testing.T) {

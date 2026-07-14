@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -58,6 +59,10 @@ type SettingService struct {
 	openAICodexUASF             singleflight.Group
 	codexRestrictionPolicyCache atomic.Value // *cachedCodexRestrictionPolicy
 	codexRestrictionPolicySF    singleflight.Group
+	openAIAutoSchedulerCache    atomic.Value // *cachedOpenAIAutoSchedulerSettings
+	openAIAutoSchedulerSF       singleflight.Group
+	openAIAutoSchedulerCacheMu  sync.Mutex
+	openAIAutoSchedulerRevision atomic.Uint64
 
 	cyberSessionBlockRuntimeCache atomic.Value // *cachedCyberSessionBlockRuntime
 	cyberSessionBlockRuntimeSF    singleflight.Group

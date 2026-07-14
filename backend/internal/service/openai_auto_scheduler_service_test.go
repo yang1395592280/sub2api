@@ -260,6 +260,62 @@ func TestOpenAIAutoSchedulerService_RecordAppliesEventAndStoresAudit(t *testing.
 	require.Equal(t, state.FinalScore, repo.events[0].ScoreAfter)
 }
 
+func TestOpenAIAutoSchedulerService_AuditCreatedAtDoesNotMoveStateClockBackward(t *testing.T) {
+	auditCreatedAt := time.Date(2026, 7, 14, 12, 0, 0, 123456789, time.UTC)
+	realUpdatedAt := time.Now().Add(-time.Second)
+	state10 := NewOpenAIAutoSchedulerScoreState(100, 200, "gpt-5")
+	state10.LastCheckedAt = &realUpdatedAt
+	state20 := NewOpenAIAutoSchedulerScoreState(100, 201, "gpt-5")
+	state20.LastCheckedAt = &realUpdatedAt
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{
+			200: {ID: 200, Platform: PlatformOpenAI, OpenAIAutoSchedulerEnabled: true, Hydrated: true, Status: StatusActive},
+			201: {ID: 201, Platform: PlatformOpenAI, OpenAIAutoSchedulerEnabled: true, Hydrated: true, Status: StatusActive},
+		},
+		states: map[string]OpenAIAutoSchedulerScoreState{
+			openAIAutoSchedulerStateKey(100, 200, "gpt-5"): state10,
+			openAIAutoSchedulerStateKey(100, 201, "gpt-5"): state20,
+		},
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+	processedAfter := time.Now()
+	for _, groupID := range []int64{200, 201} {
+		require.NoError(t, svc.Record(context.Background(), OpenAIAutoSchedulerRecordInput{
+			AccountID: 100, GroupID: groupID, Model: "gpt-5", EventType: OpenAIAutoSchedulerEventProbeSuccess,
+			AuditCreatedAt: auditCreatedAt,
+		}))
+	}
+
+	require.Len(t, repo.events, 2)
+	require.Equal(t, auditCreatedAt, repo.events[0].CreatedAt)
+	require.Equal(t, auditCreatedAt, repo.events[1].CreatedAt)
+	for _, groupID := range []int64{200, 201} {
+		lastCheckedAt := repo.states[openAIAutoSchedulerStateKey(100, groupID, "gpt-5")].LastCheckedAt
+		require.NotNil(t, lastCheckedAt)
+		require.False(t, lastCheckedAt.Before(processedAfter))
+		require.True(t, lastCheckedAt.After(realUpdatedAt))
+	}
+}
+
+func TestOpenAIAutoSchedulerService_RecordWithoutAuditCreatedAtKeepsWallClockSemantics(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{200: {ID: 200, Platform: PlatformOpenAI, OpenAIAutoSchedulerEnabled: true, Hydrated: true, Status: StatusActive}},
+		states: map[string]OpenAIAutoSchedulerScoreState{},
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+	before := time.Now()
+
+	err := svc.Record(context.Background(), OpenAIAutoSchedulerRecordInput{
+		AccountID: 100, GroupID: 200, Model: "gpt-5", EventType: OpenAIAutoSchedulerEventSuccess,
+	})
+
+	after := time.Now()
+	require.NoError(t, err)
+	require.Len(t, repo.events, 1)
+	require.False(t, repo.events[0].CreatedAt.Before(before))
+	require.False(t, repo.events[0].CreatedAt.After(after))
+}
+
 func TestOpenAIAutoSchedulerService_RecordSkipsWhenSettingsDisabled(t *testing.T) {
 	repo := &fakeOpenAIAutoSchedulerRepo{}
 	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: DefaultOpenAIAutoSchedulerSettings()})

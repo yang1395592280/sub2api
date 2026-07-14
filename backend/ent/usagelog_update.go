@@ -766,6 +766,114 @@ func (_u *UsageLogUpdate) ClearFirstTokenMs() *UsageLogUpdate {
 	return _u
 }
 
+// SetE2eFirstTokenMs sets the "e2e_first_token_ms" field.
+func (_u *UsageLogUpdate) SetE2eFirstTokenMs(v int) *UsageLogUpdate {
+	_u.mutation.ResetE2eFirstTokenMs()
+	_u.mutation.SetE2eFirstTokenMs(v)
+	return _u
+}
+
+// SetNillableE2eFirstTokenMs sets the "e2e_first_token_ms" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableE2eFirstTokenMs(v *int) *UsageLogUpdate {
+	if v != nil {
+		_u.SetE2eFirstTokenMs(*v)
+	}
+	return _u
+}
+
+// AddE2eFirstTokenMs adds value to the "e2e_first_token_ms" field.
+func (_u *UsageLogUpdate) AddE2eFirstTokenMs(v int) *UsageLogUpdate {
+	_u.mutation.AddE2eFirstTokenMs(v)
+	return _u
+}
+
+// ClearE2eFirstTokenMs clears the value of the "e2e_first_token_ms" field.
+func (_u *UsageLogUpdate) ClearE2eFirstTokenMs() *UsageLogUpdate {
+	_u.mutation.ClearE2eFirstTokenMs()
+	return _u
+}
+
+// SetRoutingMs sets the "routing_ms" field.
+func (_u *UsageLogUpdate) SetRoutingMs(v int) *UsageLogUpdate {
+	_u.mutation.ResetRoutingMs()
+	_u.mutation.SetRoutingMs(v)
+	return _u
+}
+
+// SetNillableRoutingMs sets the "routing_ms" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableRoutingMs(v *int) *UsageLogUpdate {
+	if v != nil {
+		_u.SetRoutingMs(*v)
+	}
+	return _u
+}
+
+// AddRoutingMs adds value to the "routing_ms" field.
+func (_u *UsageLogUpdate) AddRoutingMs(v int) *UsageLogUpdate {
+	_u.mutation.AddRoutingMs(v)
+	return _u
+}
+
+// ClearRoutingMs clears the value of the "routing_ms" field.
+func (_u *UsageLogUpdate) ClearRoutingMs() *UsageLogUpdate {
+	_u.mutation.ClearRoutingMs()
+	return _u
+}
+
+// SetQueueMs sets the "queue_ms" field.
+func (_u *UsageLogUpdate) SetQueueMs(v int) *UsageLogUpdate {
+	_u.mutation.ResetQueueMs()
+	_u.mutation.SetQueueMs(v)
+	return _u
+}
+
+// SetNillableQueueMs sets the "queue_ms" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableQueueMs(v *int) *UsageLogUpdate {
+	if v != nil {
+		_u.SetQueueMs(*v)
+	}
+	return _u
+}
+
+// AddQueueMs adds value to the "queue_ms" field.
+func (_u *UsageLogUpdate) AddQueueMs(v int) *UsageLogUpdate {
+	_u.mutation.AddQueueMs(v)
+	return _u
+}
+
+// ClearQueueMs clears the value of the "queue_ms" field.
+func (_u *UsageLogUpdate) ClearQueueMs() *UsageLogUpdate {
+	_u.mutation.ClearQueueMs()
+	return _u
+}
+
+// SetRetryMs sets the "retry_ms" field.
+func (_u *UsageLogUpdate) SetRetryMs(v int) *UsageLogUpdate {
+	_u.mutation.ResetRetryMs()
+	_u.mutation.SetRetryMs(v)
+	return _u
+}
+
+// SetNillableRetryMs sets the "retry_ms" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableRetryMs(v *int) *UsageLogUpdate {
+	if v != nil {
+		_u.SetRetryMs(*v)
+	}
+	return _u
+}
+
+// AddRetryMs adds value to the "retry_ms" field.
+func (_u *UsageLogUpdate) AddRetryMs(v int) *UsageLogUpdate {
+	_u.mutation.AddRetryMs(v)
+	return _u
+}
+
+// ClearRetryMs clears the value of the "retry_ms" field.
+func (_u *UsageLogUpdate) ClearRetryMs() *UsageLogUpdate {
+	_u.mutation.ClearRetryMs()
+	return _u
+}
+
 // SetUserAgent sets the "user_agent" field.
 func (_u *UsageLogUpdate) SetUserAgent(v string) *UsageLogUpdate {
 	_u.mutation.SetUserAgent(v)
@@ -1390,6 +1498,42 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.FirstTokenMsCleared() {
 		_spec.ClearField(usagelog.FieldFirstTokenMs, field.TypeInt)
+	}
+	if value, ok := _u.mutation.E2eFirstTokenMs(); ok {
+		_spec.SetField(usagelog.FieldE2eFirstTokenMs, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedE2eFirstTokenMs(); ok {
+		_spec.AddField(usagelog.FieldE2eFirstTokenMs, field.TypeInt, value)
+	}
+	if _u.mutation.E2eFirstTokenMsCleared() {
+		_spec.ClearField(usagelog.FieldE2eFirstTokenMs, field.TypeInt)
+	}
+	if value, ok := _u.mutation.RoutingMs(); ok {
+		_spec.SetField(usagelog.FieldRoutingMs, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRoutingMs(); ok {
+		_spec.AddField(usagelog.FieldRoutingMs, field.TypeInt, value)
+	}
+	if _u.mutation.RoutingMsCleared() {
+		_spec.ClearField(usagelog.FieldRoutingMs, field.TypeInt)
+	}
+	if value, ok := _u.mutation.QueueMs(); ok {
+		_spec.SetField(usagelog.FieldQueueMs, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedQueueMs(); ok {
+		_spec.AddField(usagelog.FieldQueueMs, field.TypeInt, value)
+	}
+	if _u.mutation.QueueMsCleared() {
+		_spec.ClearField(usagelog.FieldQueueMs, field.TypeInt)
+	}
+	if value, ok := _u.mutation.RetryMs(); ok {
+		_spec.SetField(usagelog.FieldRetryMs, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRetryMs(); ok {
+		_spec.AddField(usagelog.FieldRetryMs, field.TypeInt, value)
+	}
+	if _u.mutation.RetryMsCleared() {
+		_spec.ClearField(usagelog.FieldRetryMs, field.TypeInt)
 	}
 	if value, ok := _u.mutation.UserAgent(); ok {
 		_spec.SetField(usagelog.FieldUserAgent, field.TypeString, value)
@@ -2361,6 +2505,114 @@ func (_u *UsageLogUpdateOne) ClearFirstTokenMs() *UsageLogUpdateOne {
 	return _u
 }
 
+// SetE2eFirstTokenMs sets the "e2e_first_token_ms" field.
+func (_u *UsageLogUpdateOne) SetE2eFirstTokenMs(v int) *UsageLogUpdateOne {
+	_u.mutation.ResetE2eFirstTokenMs()
+	_u.mutation.SetE2eFirstTokenMs(v)
+	return _u
+}
+
+// SetNillableE2eFirstTokenMs sets the "e2e_first_token_ms" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableE2eFirstTokenMs(v *int) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetE2eFirstTokenMs(*v)
+	}
+	return _u
+}
+
+// AddE2eFirstTokenMs adds value to the "e2e_first_token_ms" field.
+func (_u *UsageLogUpdateOne) AddE2eFirstTokenMs(v int) *UsageLogUpdateOne {
+	_u.mutation.AddE2eFirstTokenMs(v)
+	return _u
+}
+
+// ClearE2eFirstTokenMs clears the value of the "e2e_first_token_ms" field.
+func (_u *UsageLogUpdateOne) ClearE2eFirstTokenMs() *UsageLogUpdateOne {
+	_u.mutation.ClearE2eFirstTokenMs()
+	return _u
+}
+
+// SetRoutingMs sets the "routing_ms" field.
+func (_u *UsageLogUpdateOne) SetRoutingMs(v int) *UsageLogUpdateOne {
+	_u.mutation.ResetRoutingMs()
+	_u.mutation.SetRoutingMs(v)
+	return _u
+}
+
+// SetNillableRoutingMs sets the "routing_ms" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableRoutingMs(v *int) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetRoutingMs(*v)
+	}
+	return _u
+}
+
+// AddRoutingMs adds value to the "routing_ms" field.
+func (_u *UsageLogUpdateOne) AddRoutingMs(v int) *UsageLogUpdateOne {
+	_u.mutation.AddRoutingMs(v)
+	return _u
+}
+
+// ClearRoutingMs clears the value of the "routing_ms" field.
+func (_u *UsageLogUpdateOne) ClearRoutingMs() *UsageLogUpdateOne {
+	_u.mutation.ClearRoutingMs()
+	return _u
+}
+
+// SetQueueMs sets the "queue_ms" field.
+func (_u *UsageLogUpdateOne) SetQueueMs(v int) *UsageLogUpdateOne {
+	_u.mutation.ResetQueueMs()
+	_u.mutation.SetQueueMs(v)
+	return _u
+}
+
+// SetNillableQueueMs sets the "queue_ms" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableQueueMs(v *int) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetQueueMs(*v)
+	}
+	return _u
+}
+
+// AddQueueMs adds value to the "queue_ms" field.
+func (_u *UsageLogUpdateOne) AddQueueMs(v int) *UsageLogUpdateOne {
+	_u.mutation.AddQueueMs(v)
+	return _u
+}
+
+// ClearQueueMs clears the value of the "queue_ms" field.
+func (_u *UsageLogUpdateOne) ClearQueueMs() *UsageLogUpdateOne {
+	_u.mutation.ClearQueueMs()
+	return _u
+}
+
+// SetRetryMs sets the "retry_ms" field.
+func (_u *UsageLogUpdateOne) SetRetryMs(v int) *UsageLogUpdateOne {
+	_u.mutation.ResetRetryMs()
+	_u.mutation.SetRetryMs(v)
+	return _u
+}
+
+// SetNillableRetryMs sets the "retry_ms" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableRetryMs(v *int) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetRetryMs(*v)
+	}
+	return _u
+}
+
+// AddRetryMs adds value to the "retry_ms" field.
+func (_u *UsageLogUpdateOne) AddRetryMs(v int) *UsageLogUpdateOne {
+	_u.mutation.AddRetryMs(v)
+	return _u
+}
+
+// ClearRetryMs clears the value of the "retry_ms" field.
+func (_u *UsageLogUpdateOne) ClearRetryMs() *UsageLogUpdateOne {
+	_u.mutation.ClearRetryMs()
+	return _u
+}
+
 // SetUserAgent sets the "user_agent" field.
 func (_u *UsageLogUpdateOne) SetUserAgent(v string) *UsageLogUpdateOne {
 	_u.mutation.SetUserAgent(v)
@@ -3015,6 +3267,42 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if _u.mutation.FirstTokenMsCleared() {
 		_spec.ClearField(usagelog.FieldFirstTokenMs, field.TypeInt)
+	}
+	if value, ok := _u.mutation.E2eFirstTokenMs(); ok {
+		_spec.SetField(usagelog.FieldE2eFirstTokenMs, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedE2eFirstTokenMs(); ok {
+		_spec.AddField(usagelog.FieldE2eFirstTokenMs, field.TypeInt, value)
+	}
+	if _u.mutation.E2eFirstTokenMsCleared() {
+		_spec.ClearField(usagelog.FieldE2eFirstTokenMs, field.TypeInt)
+	}
+	if value, ok := _u.mutation.RoutingMs(); ok {
+		_spec.SetField(usagelog.FieldRoutingMs, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRoutingMs(); ok {
+		_spec.AddField(usagelog.FieldRoutingMs, field.TypeInt, value)
+	}
+	if _u.mutation.RoutingMsCleared() {
+		_spec.ClearField(usagelog.FieldRoutingMs, field.TypeInt)
+	}
+	if value, ok := _u.mutation.QueueMs(); ok {
+		_spec.SetField(usagelog.FieldQueueMs, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedQueueMs(); ok {
+		_spec.AddField(usagelog.FieldQueueMs, field.TypeInt, value)
+	}
+	if _u.mutation.QueueMsCleared() {
+		_spec.ClearField(usagelog.FieldQueueMs, field.TypeInt)
+	}
+	if value, ok := _u.mutation.RetryMs(); ok {
+		_spec.SetField(usagelog.FieldRetryMs, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRetryMs(); ok {
+		_spec.AddField(usagelog.FieldRetryMs, field.TypeInt, value)
+	}
+	if _u.mutation.RetryMsCleared() {
+		_spec.ClearField(usagelog.FieldRetryMs, field.TypeInt)
 	}
 	if value, ok := _u.mutation.UserAgent(); ok {
 		_spec.SetField(usagelog.FieldUserAgent, field.TypeString, value)

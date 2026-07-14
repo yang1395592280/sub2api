@@ -159,6 +159,8 @@ func registerWorkbenchRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 func registerOpenAIAutoSchedulerRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	openAIAutoScheduler := admin.Group("/openai-auto-scheduler")
 	{
+		openAIAutoScheduler.GET("/overview", h.Admin.OpenAIAutoScheduler.GetOverview)
+		openAIAutoScheduler.GET("/health", h.Admin.OpenAIAutoScheduler.ListHealth)
 		openAIAutoScheduler.GET("/settings", h.Admin.OpenAIAutoScheduler.GetSettings)
 		openAIAutoScheduler.PUT("/settings", h.Admin.OpenAIAutoScheduler.UpdateSettings)
 		openAIAutoScheduler.GET("/groups", h.Admin.OpenAIAutoScheduler.ListGroups)

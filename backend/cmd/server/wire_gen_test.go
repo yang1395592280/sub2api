@@ -28,13 +28,16 @@ func TestWireGenInjectsOpenAIAutoSchedulerIntoGateway(t *testing.T) {
 
 	source := string(body)
 	selectorIndex := strings.Index(source, "openAIAutoSchedulerSelector := service.ProvideOpenAIAutoSchedulerSelector(openAIAutoSchedulerService)")
+	recorderIndex := strings.Index(source, "openAIAutoSchedulerOutcomeRecorder := service.ProvideOpenAIAutoSchedulerOutcomeRecorder(openAIAutoSchedulerService)")
 	gatewayIndex := strings.Index(source, "openAIGatewayService := service.ProvideOpenAIGatewayService(")
 	handlerIndex := strings.Index(source, "handler.NewOpenAIGatewayHandler")
 	require.NotEqual(t, -1, selectorIndex, "OpenAI auto scheduler selector must be constructed by production wire")
+	require.NotEqual(t, -1, recorderIndex, "OpenAI auto scheduler outcome recorder must be constructed by production wire")
 	require.NotEqual(t, -1, gatewayIndex, "OpenAI gateway must be constructed through the provider that wires scheduler dependencies")
 	require.NotEqual(t, -1, handlerIndex, "OpenAI gateway handler construction must remain visible in production wire")
-	require.Contains(t, source, "openAIAutoSchedulerSelector, openAIAutoSchedulerService")
+	require.Contains(t, source, "openAIAutoSchedulerSelector, openAIAutoSchedulerService, openAIAutoSchedulerOutcomeRecorder")
 	require.Less(t, selectorIndex, gatewayIndex, "OpenAI auto scheduler selector must exist before gateway construction")
+	require.Less(t, recorderIndex, gatewayIndex, "OpenAI outcome recorder must exist before gateway construction")
 	require.Less(t,
 		gatewayIndex,
 		handlerIndex,
@@ -46,6 +49,26 @@ func TestWireGenInjectsOpenAIAutoSchedulerIntoGateway(t *testing.T) {
 	providerSource := string(providerBody)
 	require.Contains(t, providerSource, "return NewOpenAIAutoSchedulerSelector(svc)")
 	require.Contains(t, providerSource, "svc.SetOpenAIAutoScheduler(openAIAutoSchedulerSelector, openAIAutoSchedulerService)")
+	require.Contains(t, providerSource, "svc.SetOpenAIAutoSchedulerOutcomeRecorder(openAIAutoSchedulerOutcomeRecorder)")
+}
+
+func TestWireGenInjectsOpenAIBalancedSchedulerIntoGateway(t *testing.T) {
+	body, err := os.ReadFile("wire_gen.go")
+	require.NoError(t, err)
+
+	source := string(body)
+	balancedIndex := strings.Index(source, "openAIBalancedScheduler := service.ProvideOpenAIBalancedScheduler(openAISchedulerHealthRepository)")
+	gatewayIndex := strings.Index(source, "openAIGatewayService := service.ProvideOpenAIGatewayService(")
+	require.NotEqual(t, -1, balancedIndex)
+	require.NotEqual(t, -1, gatewayIndex)
+	require.Contains(t, source, "openAIAutoSchedulerOutcomeRecorder, openAIBalancedScheduler, apiKeyService")
+	require.Less(t, balancedIndex, gatewayIndex)
+
+	providerBody, err := os.ReadFile("../../internal/service/wire.go")
+	require.NoError(t, err)
+	providerSource := string(providerBody)
+	require.Contains(t, providerSource, "return NewOpenAIBalancedScheduler(repo)")
+	require.Contains(t, providerSource, "svc.SetOpenAIBalancedScheduler(openAIBalancedScheduler)")
 }
 
 func TestWireGenInjectsOpenAIAutoSchedulerIntoAccountHandler(t *testing.T) {
@@ -71,7 +94,7 @@ func TestWireGenInjectsGroupUpstreamBalanceRefreshRunnerIntoStartupAndCleanup(t 
 	require.NoError(t, err)
 
 	source := string(body)
-	runnerIndex := strings.Index(source, "groupUpstreamBalanceRefreshRunner := service.ProvideGroupUpstreamBalanceRefreshRunner(groupRepository, accountRepository, openAIUpstreamBalanceService)")
+	runnerIndex := strings.Index(source, "groupUpstreamBalanceRefreshRunner := service.ProvideGroupUpstreamBalanceRefreshRunner(groupRepository, accountRepository, openAIUpstreamBalanceService, leaderLockCache, db, settingRepository)")
 	cleanupCallIndex := strings.Index(source, "provideCleanup(client, redisClient")
 	cleanupStepIndex := strings.Index(source, "{\"GroupUpstreamBalanceRefreshRunner\", func() error {")
 	require.NotEqual(t, -1, runnerIndex, "production wire must construct group upstream balance refresh runner")
@@ -144,6 +167,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		groupUpstreamBalanceRefreshRunner,
 		nil, // openAIGateway
 		nil, // openAIAutoSchedulerProbeRunner
+		nil, // openAIAutoSchedulerOutcomeRecorder
 		nil, // scheduledTestRunner
 		nil, // backupSvc
 		nil, // paymentOrderExpiry

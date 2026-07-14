@@ -143,6 +143,18 @@ func (UsageLog) Fields() []ent.Field {
 		field.Int("first_token_ms").
 			Optional().
 			Nillable(),
+		field.Int("e2e_first_token_ms").
+			Optional().
+			Nillable(),
+		field.Int("routing_ms").
+			Optional().
+			Nillable(),
+		field.Int("queue_ms").
+			Optional().
+			Nillable(),
+		field.Int("retry_ms").
+			Optional().
+			Nillable(),
 		field.String("user_agent").
 			MaxLen(512).
 			Optional().

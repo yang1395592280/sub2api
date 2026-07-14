@@ -554,10 +554,17 @@ func (s *OpenAIGatewayService) ForwardImages(
 	body []byte,
 	parsed *OpenAIImagesRequest,
 	channelMappedModel string,
-) (*OpenAIForwardResult, error) {
+) (result *OpenAIForwardResult, err error) {
 	if parsed == nil {
 		return nil, fmt.Errorf("parsed images request is required")
 	}
+	requestedModel := strings.TrimSpace(parsed.Model)
+	ctx, upstreamAttempt := beginOpenAIUpstreamAttempt(ctx)
+	defer func() {
+		if upstreamAttempt.armed {
+			s.recordOpenAIAutoSchedulerForwardAttempt(ctx, c, account, requestedModel, upstreamAttempt.startedAt, result, err)
+		}
+	}()
 	switch account.Type {
 	case AccountTypeAPIKey:
 		return s.forwardOpenAIImagesAPIKey(ctx, c, account, body, parsed, channelMappedModel)
@@ -624,6 +631,11 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 		proxyURL = account.Proxy.URL()
 	}
 	upstreamStart := time.Now()
+	armOpenAIUpstreamAttempt(ctx, openAIAutoSchedulerAttemptMetadata{
+		ModelFamily: upstreamModel,
+		Endpoint:    parsed.Endpoint,
+		Transport:   OpenAIUpstreamTransportHTTPSSE,
+	})
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 	if err != nil {
@@ -685,6 +697,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 					Usage:            streamUsage,
 					Model:            requestModel,
 					UpstreamModel:    upstreamModel,
+					UpstreamEndpoint: parsed.Endpoint,
 					Stream:           parsed.Stream,
 					ResponseHeaders:  resp.Header.Clone(),
 					Duration:         time.Since(startTime),
@@ -707,6 +720,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 			Usage:            usage,
 			Model:            requestModel,
 			UpstreamModel:    upstreamModel,
+			UpstreamEndpoint: parsed.Endpoint,
 			Stream:           parsed.Stream,
 			ResponseHeaders:  resp.Header.Clone(),
 			Duration:         time.Since(startTime),
@@ -731,6 +745,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 			Usage:            usage,
 			Model:            requestModel,
 			UpstreamModel:    upstreamModel,
+			UpstreamEndpoint: parsed.Endpoint,
 			Stream:           parsed.Stream,
 			ResponseHeaders:  resp.Header.Clone(),
 			Duration:         time.Since(startTime),

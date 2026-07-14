@@ -86,6 +86,14 @@ const (
 	FieldDurationMs = "duration_ms"
 	// FieldFirstTokenMs holds the string denoting the first_token_ms field in the database.
 	FieldFirstTokenMs = "first_token_ms"
+	// FieldE2eFirstTokenMs holds the string denoting the e2e_first_token_ms field in the database.
+	FieldE2eFirstTokenMs = "e2e_first_token_ms"
+	// FieldRoutingMs holds the string denoting the routing_ms field in the database.
+	FieldRoutingMs = "routing_ms"
+	// FieldQueueMs holds the string denoting the queue_ms field in the database.
+	FieldQueueMs = "queue_ms"
+	// FieldRetryMs holds the string denoting the retry_ms field in the database.
+	FieldRetryMs = "retry_ms"
 	// FieldUserAgent holds the string denoting the user_agent field in the database.
 	FieldUserAgent = "user_agent"
 	// FieldIPAddress holds the string denoting the ip_address field in the database.
@@ -200,6 +208,10 @@ var Columns = []string{
 	FieldStream,
 	FieldDurationMs,
 	FieldFirstTokenMs,
+	FieldE2eFirstTokenMs,
+	FieldRoutingMs,
+	FieldQueueMs,
+	FieldRetryMs,
 	FieldUserAgent,
 	FieldIPAddress,
 	FieldImageCount,
@@ -486,6 +498,26 @@ func ByDurationMs(opts ...sql.OrderTermOption) OrderOption {
 // ByFirstTokenMs orders the results by the first_token_ms field.
 func ByFirstTokenMs(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldFirstTokenMs, opts...).ToFunc()
+}
+
+// ByE2eFirstTokenMs orders the results by the e2e_first_token_ms field.
+func ByE2eFirstTokenMs(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldE2eFirstTokenMs, opts...).ToFunc()
+}
+
+// ByRoutingMs orders the results by the routing_ms field.
+func ByRoutingMs(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRoutingMs, opts...).ToFunc()
+}
+
+// ByQueueMs orders the results by the queue_ms field.
+func ByQueueMs(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldQueueMs, opts...).ToFunc()
+}
+
+// ByRetryMs orders the results by the retry_ms field.
+func ByRetryMs(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRetryMs, opts...).ToFunc()
 }
 
 // ByUserAgent orders the results by the user_agent field.

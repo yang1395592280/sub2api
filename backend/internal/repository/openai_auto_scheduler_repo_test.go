@@ -258,6 +258,22 @@ func TestOpenAIAutoSchedulerRepository_InsertScoreEventTruncatesMessageAtRuneBou
 	require.Equal(t, strings.Repeat("x", 999), got.Message)
 }
 
+func TestOpenAIAutoSchedulerRepository_InsertScoreEventUsesDefaultTimeWhenOccurredAtIsZero(t *testing.T) {
+	ctx := context.Background()
+	repo, client := newOpenAIAutoSchedulerRepoSQLite(t)
+	before := time.Now()
+
+	require.NoError(t, repo.InsertScoreEvent(ctx, service.OpenAIAutoSchedulerScoreEvent{
+		AccountID: 703, GroupID: 803, Model: "gpt-5", EventType: service.OpenAIAutoSchedulerEventSuccess,
+	}))
+
+	got, err := client.OpenAIAutoSchedulerScoreEvent.Query().
+		Where(openaiautoschedulerscoreevent.AccountIDEQ(703)).
+		Only(ctx)
+	require.NoError(t, err)
+	require.False(t, got.CreatedAt.Before(before))
+}
+
 func TestOpenAIAutoSchedulerRepository_ListScoreDailySamplesAggregatesSinceStart(t *testing.T) {
 	ctx := context.Background()
 	repo, _ := newOpenAIAutoSchedulerRepoSQLite(t)
@@ -313,6 +329,33 @@ func TestOpenAIAutoSchedulerRepository_ListScoreDailySamplesAggregatesSinceStart
 	require.Equal(t, int64(3), samples[1].RequestCount)
 	require.Equal(t, int64(2), samples[1].TtfbSampleCount)
 	require.Equal(t, &lastTTFB, samples[1].LastTtfbMS)
+}
+
+func TestOpenAIAutoSchedulerRepository_ListScoreEventsFiltersAccount(t *testing.T) {
+	ctx := context.Background()
+	repo, _ := newOpenAIAutoSchedulerRepoSQLite(t)
+	createdAt := time.Date(2026, 7, 14, 1, 2, 3, 0, time.UTC)
+
+	for _, accountID := range []int64{101, 202} {
+		require.NoError(t, repo.InsertScoreEvent(ctx, service.OpenAIAutoSchedulerScoreEvent{
+			AccountID: accountID,
+			GroupID:   20,
+			Model:     "gpt-5",
+			EventType: service.OpenAIAutoSchedulerEventSuccess,
+			CreatedAt: createdAt,
+		}))
+	}
+
+	events, total, err := repo.ListScoreEvents(ctx, service.OpenAIAutoSchedulerListParams{
+		AccountID: 101,
+		GroupID:   20,
+		Model:     "gpt-5",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Len(t, events, 1)
+	require.Equal(t, int64(101), events[0].AccountID)
 }
 
 func TestOpenAIAutoSchedulerRepository_ListEnabledOpenAIGroupsFiltersActiveEnabledOpenAI(t *testing.T) {

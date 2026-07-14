@@ -57,6 +57,10 @@ var usageLogInsertArgTypes = [...]string{
 	"boolean",     // openai_ws_mode
 	"integer",     // duration_ms
 	"integer",     // first_token_ms
+	"integer",     // e2e_first_token_ms
+	"integer",     // routing_ms
+	"integer",     // queue_ms
+	"integer",     // retry_ms
 	"text",        // user_agent
 	"text",        // ip_address
 	"integer",     // image_count
@@ -254,6 +258,10 @@ func (r *usageLogRepository) createSingle(ctx context.Context, sqlq sqlExecutor,
 			openai_ws_mode,
 			duration_ms,
 			first_token_ms,
+			e2e_first_token_ms,
+			routing_ms,
+			queue_ms,
+			retry_ms,
 			user_agent,
 			ip_address,
 			image_count,
@@ -285,7 +293,7 @@ func (r *usageLogRepository) createSingle(ctx context.Context, sqlq sqlExecutor,
 			$12, $13, $14, $15,
 			$16, $17, $18, $19,
 			$20, $21, $22, $23, $24, $25,
-			$26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58
+			$26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62
 		)
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 		RETURNING id, created_at
@@ -710,6 +718,10 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 			openai_ws_mode,
 			duration_ms,
 			first_token_ms,
+			e2e_first_token_ms,
+			routing_ms,
+			queue_ms,
+			retry_ms,
 			user_agent,
 			ip_address,
 			image_count,
@@ -799,6 +811,10 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 				openai_ws_mode,
 				duration_ms,
 				first_token_ms,
+				e2e_first_token_ms,
+				routing_ms,
+				queue_ms,
+				retry_ms,
 				user_agent,
 				ip_address,
 				image_count,
@@ -859,6 +875,10 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 				openai_ws_mode,
 				duration_ms,
 				first_token_ms,
+				e2e_first_token_ms,
+				routing_ms,
+				queue_ms,
+				retry_ms,
 				user_agent,
 				ip_address,
 				image_count,
@@ -959,6 +979,10 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			openai_ws_mode,
 			duration_ms,
 			first_token_ms,
+			e2e_first_token_ms,
+			routing_ms,
+			queue_ms,
+			retry_ms,
 			user_agent,
 			ip_address,
 			image_count,
@@ -1045,6 +1069,10 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			openai_ws_mode,
 			duration_ms,
 			first_token_ms,
+			e2e_first_token_ms,
+			routing_ms,
+			queue_ms,
+			retry_ms,
 			user_agent,
 			ip_address,
 			image_count,
@@ -1105,6 +1133,10 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			openai_ws_mode,
 			duration_ms,
 			first_token_ms,
+			e2e_first_token_ms,
+			routing_ms,
+			queue_ms,
+			retry_ms,
 			user_agent,
 			ip_address,
 			image_count,
@@ -1173,6 +1205,10 @@ func execUsageLogInsertNoResult(ctx context.Context, sqlq sqlExecutor, prepared 
 			openai_ws_mode,
 			duration_ms,
 			first_token_ms,
+			e2e_first_token_ms,
+			routing_ms,
+			queue_ms,
+			retry_ms,
 			user_agent,
 			ip_address,
 			image_count,
@@ -1204,7 +1240,7 @@ func execUsageLogInsertNoResult(ctx context.Context, sqlq sqlExecutor, prepared 
 			$12, $13, $14, $15,
 			$16, $17, $18, $19,
 			$20, $21, $22, $23, $24, $25,
-			$26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58
+			$26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62
 		)
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 	`, prepared.args...)
@@ -1230,6 +1266,10 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 	apiKeyGroupSelectMode := nullString(log.APIKeyGroupSelectMode)
 	duration := nullInt(log.DurationMs)
 	firstToken := nullInt(log.FirstTokenMs)
+	e2eFirstToken := nullInt(log.E2EFirstTokenMs)
+	routing := nullInt(log.RoutingMs)
+	queue := nullInt(log.QueueMs)
+	retry := nullInt(log.RetryMs)
 	userAgent := nullString(log.UserAgent)
 	ipAddress := nullString(log.IPAddress)
 	imageSize := nullString(log.ImageSize)
@@ -1298,6 +1338,10 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 			log.OpenAIWSMode,
 			duration,
 			firstToken,
+			e2eFirstToken,
+			routing,
+			queue,
+			retry,
 			userAgent,
 			ipAddress,
 			log.ImageCount,

@@ -78,6 +78,52 @@ func TestOpenAIWSErrorEventHelpers_ConsistentWithWrapper(t *testing.T) {
 	require.Equal(t, wrappedMsg, rawMsg)
 }
 
+func TestParseOpenAIWSErrorEventFieldsReadsResponseTerminalError(t *testing.T) {
+	message := []byte(`{"type":"response.failed","response":{"error":{"type":"rate_limit_error","code":"rate_limit_exceeded","message":"Rate limit exceeded"}}}`)
+
+	code, errType, errMessage := parseOpenAIWSErrorEventFields(message)
+
+	require.Equal(t, "rate_limit_exceeded", code)
+	require.Equal(t, "rate_limit_error", errType)
+	require.Equal(t, "Rate limit exceeded", errMessage)
+}
+
+func TestOpenAIWSTerminalOutcomeMetadata(t *testing.T) {
+	statusCode, message := openAIWSTerminalOutcomeMetadata(
+		"response.failed",
+		"rate_limit_exceeded",
+		"rate_limit_error",
+		"Rate limit exceeded",
+	)
+	require.NotNil(t, statusCode)
+	require.Equal(t, http.StatusTooManyRequests, *statusCode)
+	require.Equal(t, "Rate limit exceeded", message)
+
+	statusCode, message = openAIWSTerminalOutcomeMetadata("response.completed", "", "", "")
+	require.Nil(t, statusCode)
+	require.Empty(t, message)
+
+	statusCode, message = openAIWSTerminalOutcomeMetadata("response.cancelled", "", "", "")
+	require.Nil(t, statusCode)
+	require.Equal(t, "response.cancelled", message)
+
+	for _, reason := range []string{"max_output_tokens", "content_filter"} {
+		statusCode, message = openAIWSTerminalOutcomeMetadata("response.incomplete", reason, "", "")
+		require.Nil(t, statusCode)
+		require.Equal(t, reason, message)
+	}
+	statusCode, _ = openAIWSTerminalOutcomeMetadata("response.incomplete", "upstream_internal_error", "", "")
+	require.NotNil(t, statusCode)
+	require.Equal(t, http.StatusBadGateway, *statusCode)
+}
+
+func TestParseOpenAIWSErrorEventFieldsReadsIncompleteReason(t *testing.T) {
+	code, errType, message := parseOpenAIWSErrorEventFields([]byte(`{"type":"response.incomplete","response":{"incomplete_details":{"reason":"max_output_tokens"}}}`))
+	require.Equal(t, "max_output_tokens", code)
+	require.Empty(t, errType)
+	require.Empty(t, message)
+}
+
 func TestOpenAIWSMessageLikelyContainsToolCalls(t *testing.T) {
 	require.False(t, openAIWSMessageLikelyContainsToolCalls([]byte(`{"type":"response.output_text.delta","delta":"hello"}`)))
 	require.True(t, openAIWSMessageLikelyContainsToolCalls([]byte(`{"type":"response.output_item.added","item":{"tool_calls":[{"id":"tc1"}]}}`)))

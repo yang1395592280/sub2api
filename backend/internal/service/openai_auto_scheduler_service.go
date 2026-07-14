@@ -30,15 +30,21 @@ type OpenAIAutoSchedulerRepository interface {
 }
 
 type OpenAIAutoSchedulerRecordInput struct {
-	AccountID  int64
-	GroupID    int64
-	Model      string
-	EventType  string
-	LatencyMS  *int
-	TtfbMS     *int
-	StatusCode *int
-	Message    string
-	CostScore  *int
+	AccountID   int64
+	GroupID     int64
+	Model       string
+	ModelFamily string
+	Endpoint    string
+	Transport   OpenAIUpstreamTransport
+	EventType   string
+	// AuditCreatedAt identifies one physical probe across legacy per-group audit fan-out.
+	// It never controls score-state transition time.
+	AuditCreatedAt time.Time
+	LatencyMS      *int
+	TtfbMS         *int
+	StatusCode     *int
+	Message        string
+	CostScore      *int
 }
 
 type OpenAIAutoSchedulerScoreEvent struct {
@@ -56,10 +62,11 @@ type OpenAIAutoSchedulerScoreEvent struct {
 }
 
 type OpenAIAutoSchedulerListParams struct {
-	GroupID  int64
-	Model    string
-	Page     int
-	PageSize int
+	AccountID int64
+	GroupID   int64
+	Model     string
+	Page      int
+	PageSize  int
 }
 
 type OpenAIAutoSchedulerScoreListResult struct {
@@ -75,6 +82,7 @@ type OpenAIAutoSchedulerEventListResult struct {
 type OpenAIAutoSchedulerService struct {
 	repo             OpenAIAutoSchedulerRepository
 	settingsProvider OpenAIAutoSchedulerSettingsProvider
+	healthSink       *OpenAISchedulerHealthEventSink
 	mu               sync.Mutex
 	keyLocks         map[string]*sync.Mutex
 }
@@ -104,14 +112,20 @@ func (s *OpenAIAutoSchedulerService) IsEnabledForGroup(ctx context.Context, grou
 }
 
 func (s *OpenAIAutoSchedulerService) Record(ctx context.Context, input OpenAIAutoSchedulerRecordInput) error {
-	return s.record(ctx, input, true)
+	return s.record(ctx, input, true, false)
+}
+
+// RecordOutcome is the strict persistence path used by the bounded recorder.
+// Public Record remains best-effort for legacy request-path callers.
+func (s *OpenAIAutoSchedulerService) RecordOutcome(ctx context.Context, input OpenAIAutoSchedulerRecordInput) error {
+	return s.record(ctx, input, false, true)
 }
 
 func (s *OpenAIAutoSchedulerService) RecordManualProbe(ctx context.Context, input OpenAIAutoSchedulerRecordInput) error {
-	return s.record(ctx, input, false)
+	return s.record(ctx, input, false, false)
 }
 
-func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAutoSchedulerRecordInput, bestEffort bool) error {
+func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAutoSchedulerRecordInput, bestEffort, outcomeFeatureOffNoop bool) error {
 	if s == nil || s.repo == nil {
 		if bestEffort {
 			return nil
@@ -134,7 +148,7 @@ func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAut
 
 	settings := s.settings(ctx)
 	if !settings.Enabled {
-		if bestEffort {
+		if bestEffort || outcomeFeatureOffNoop {
 			return nil
 		}
 		return infraerrors.BadRequest("OPENAI_AUTO_SCHEDULER_DISABLED", "openai auto scheduler is disabled")
@@ -153,13 +167,17 @@ func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAut
 		return infraerrors.NotFound("OPENAI_AUTO_SCHEDULER_GROUP_NOT_FOUND", "group not found")
 	}
 	if group.Platform != PlatformOpenAI || group.Status != StatusActive || !group.OpenAIAutoSchedulerEnabled {
-		if bestEffort {
+		if bestEffort || outcomeFeatureOffNoop {
 			return nil
 		}
 		return infraerrors.BadRequest("OPENAI_AUTO_SCHEDULER_GROUP_DISABLED", "openai auto scheduler is not enabled for this group")
 	}
 
 	now := time.Now()
+	auditCreatedAt := input.AuditCreatedAt
+	if auditCreatedAt.IsZero() {
+		auditCreatedAt = now
+	}
 	unlock := s.lockScoreState(input.AccountID, input.GroupID, model)
 	defer unlock()
 	state, err := s.repo.GetScoreState(ctx, input.AccountID, input.GroupID, model)
@@ -202,7 +220,7 @@ func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAut
 		TtfbMS:      input.TtfbMS,
 		StatusCode:  input.StatusCode,
 		Message:     strings.TrimSpace(input.Message),
-		CreatedAt:   now,
+		CreatedAt:   auditCreatedAt,
 	}); err != nil {
 		if bestEffort {
 			return nil

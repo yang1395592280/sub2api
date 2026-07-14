@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,7 +24,279 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	"go.uber.org/zap"
 )
+
+func TestOpenAIHandlerTimingIncludesSelectionOnError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	groupID := int64(4901)
+	cfg := &config.Config{RunMode: config.RunModeSimple}
+	var requestContext *gin.Context
+	selectorSawTiming := false
+	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{
+		listDelay: 15 * time.Millisecond,
+		listHook: func() {
+			selectorSawTiming = service.OpenAIRequestTimingFromContext(requestContext) != nil
+		},
+	}
+	billingCacheService := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	t.Cleanup(billingCacheService.Stop)
+	concurrencyService := service.NewConcurrencyService(&concurrencyCacheMock{
+		acquireUserSlotFn: func(context.Context, int64, int, string) (bool, error) { return true, nil },
+	})
+	gatewayService := service.NewOpenAIGatewayService(
+		accountRepo, nil, nil, nil, nil, nil, nil, cfg, nil, concurrencyService,
+		service.NewBillingService(cfg, nil), nil, billingCacheService, nil,
+		&service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil,
+	)
+	h := NewOpenAIGatewayHandler(
+		gatewayService,
+		concurrencyService,
+		billingCacheService,
+		service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, cfg),
+		nil, nil, nil, nil, cfg,
+	)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	requestContext = c
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(`{"model":"gpt-image-1","prompt":"test"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
+		ID: 4902, GroupID: &groupID, User: &service.User{ID: 4903},
+		Group: &service.Group{ID: groupID, Platform: service.PlatformOpenAI, Status: service.StatusActive, AllowImageGeneration: true},
+	})
+	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 4903, Concurrency: 1})
+
+	h.Images(c)
+
+	require.True(t, selectorSawTiming, "handler must begin request timing before invoking selector")
+	timing := service.OpenAIRequestTimingFromContext(c)
+	require.NotNil(t, timing, "handler must begin request timing before selection")
+	require.GreaterOrEqual(t, timing.Snapshot().RoutingMS, 10, "selection error path must close routing timing")
+}
+
+func TestOpenAIHandlerTimingIncludesAccountQueueWaitButNotFastPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	selection := &service.AccountSelectionResult{
+		Account:  &service.Account{ID: 4904},
+		WaitPlan: &service.AccountWaitPlan{AccountID: 4904, MaxConcurrency: 1, MaxWaiting: 1, Timeout: time.Second},
+	}
+
+	t.Run("wait", func(t *testing.T) {
+		var calls int32
+		cache := &concurrencyCacheMock{acquireAccountSlotFn: func(context.Context, int64, int, string) (bool, error) {
+			return atomic.AddInt32(&calls, 1) >= 3, nil
+		}}
+		h := &OpenAIGatewayHandler{
+			gatewayService:    &service.OpenAIGatewayService{},
+			concurrencyHelper: NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, time.Second),
+		}
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+		service.BeginOpenAIRequestTiming(c)
+		streamStarted := false
+		release, acquired := h.acquireResponsesAccountSlot(c, nil, "", selection, false, &streamStarted, zap.NewNop())
+		require.True(t, acquired)
+		require.NotNil(t, release)
+		release()
+		require.GreaterOrEqual(t, service.OpenAIRequestTimingFromContext(c).Snapshot().QueueMS, 80)
+	})
+
+	t.Run("fast_path", func(t *testing.T) {
+		cache := &concurrencyCacheMock{acquireAccountSlotFn: func(context.Context, int64, int, string) (bool, error) {
+			time.Sleep(15 * time.Millisecond)
+			return true, nil
+		}}
+		h := &OpenAIGatewayHandler{
+			gatewayService:    &service.OpenAIGatewayService{},
+			concurrencyHelper: NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, time.Second),
+		}
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+		service.BeginOpenAIRequestTiming(c)
+		streamStarted := false
+		release, acquired := h.acquireResponsesAccountSlot(c, nil, "", selection, false, &streamStarted, zap.NewNop())
+		require.True(t, acquired)
+		require.NotNil(t, release)
+		release()
+		require.Zero(t, service.OpenAIRequestTimingFromContext(c).Snapshot().QueueMS)
+	})
+}
+
+func TestOpenAIHandlerTimingRetryReusesRequestTiming(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	first := service.BeginOpenAIRequestTiming(c)
+	require.True(t, waitOpenAIRetryDelay(context.Background(), first, 10*time.Millisecond))
+	second := service.BeginOpenAIRequestTiming(c)
+	require.Same(t, first, second)
+	firstRetry := second.Snapshot().RetryMS
+	require.GreaterOrEqual(t, firstRetry, 5)
+	require.True(t, waitOpenAIRetryDelay(context.Background(), second, 10*time.Millisecond))
+	require.Greater(t, second.Snapshot().RetryMS, firstRetry)
+
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	retryBeforeCancel := second.Snapshot().RetryMS
+	require.False(t, waitOpenAIRetryDelay(cancelled, second, time.Second))
+	require.Equal(t, retryBeforeCancel, second.Snapshot().RetryMS)
+}
+
+func TestApplyOpenAIForwardTimingCopiesSchedulerPhasesAndPreservesFirstToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	timing := service.BeginOpenAIRequestTiming(c)
+	timing.AddQueue(25 * time.Millisecond)
+	timing.AddRetry(7 * time.Millisecond)
+	firstTokenMs := 900
+	result := &service.OpenAIForwardResult{FirstTokenMs: &firstTokenMs}
+
+	applyOpenAIForwardTiming(c, 280, result)
+
+	require.Equal(t, 900, *result.FirstTokenMs)
+	require.Equal(t, 1180, *result.E2EFirstTokenMs)
+	require.Equal(t, 0, *result.RoutingMs)
+	require.Equal(t, 25, *result.QueueMs)
+	require.Equal(t, 7, *result.RetryMs)
+}
+
+func TestApplyOpenAIForwardTimingLeavesE2EUnsetWithoutFirstToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	service.BeginOpenAIRequestTiming(c)
+	result := &service.OpenAIForwardResult{}
+
+	applyOpenAIForwardTiming(c, 280, result)
+
+	require.Nil(t, result.E2EFirstTokenMs)
+	require.NotNil(t, result.RoutingMs)
+	require.NotNil(t, result.QueueMs)
+	require.NotNil(t, result.RetryMs)
+}
+
+func TestOpenAIUsageSubmitPathCarriesForwardTiming(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	timing := service.BeginOpenAIRequestTiming(c)
+	timing.AddQueue(10 * time.Millisecond)
+	firstTokenMs := 75
+	result := &service.OpenAIForwardResult{FirstTokenMs: &firstTokenMs}
+	applyOpenAIForwardTiming(c, 125, result)
+
+	var submitted *service.OpenAIForwardResult
+	h := &OpenAIGatewayHandler{}
+	h.submitOpenAIUsageRecordTask(context.Background(), result, func(context.Context) {
+		submitted = result
+	})
+
+	require.Same(t, result, submitted)
+	require.Equal(t, 75, *submitted.FirstTokenMs)
+	require.Equal(t, 200, *submitted.E2EFirstTokenMs)
+	require.Equal(t, 10, *submitted.QueueMs)
+}
+
+type openAIForwardTimingHTTPUpstream struct {
+	service.HTTPUpstream
+}
+
+func (u *openAIForwardTimingHTTPUpstream) Do(req *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header: http.Header{
+			"Content-Type": []string{"text/event-stream"},
+			"X-Request-Id": []string{"req_timing_bridge"},
+		},
+		Body: io.NopCloser(strings.NewReader(
+			`data: {"type":"response.output_text.delta","delta":"ok"}` + "\n\n" +
+				`data: {"type":"response.completed","response":{"id":"resp_timing_bridge","model":"gpt-5.4","usage":{"input_tokens":2,"output_tokens":1}}}` + "\n\n",
+		)),
+		Request: req,
+	}, nil
+}
+
+func TestOpenAIResponsesSuccessBridgesTimingIntoUsageLog(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	groupID := int64(5901)
+	account := service.Account{
+		ID:          5902,
+		Name:        "openai-timing-bridge",
+		Platform:    service.PlatformOpenAI,
+		Type:        service.AccountTypeOAuth,
+		Status:      service.StatusActive,
+		Schedulable: true,
+		Concurrency: 1,
+		Credentials: map[string]any{"access_token": "token", "base_url": "http://timing.invalid"},
+	}
+	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: []service.Account{account}, listDelay: 5 * time.Millisecond}
+	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, 1)}
+	cfg := &config.Config{RunMode: config.RunModeSimple}
+	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	t.Cleanup(billingCacheSvc.Stop)
+	gatewaySvc := service.NewOpenAIGatewayService(
+		accountRepo,
+		usageRepo,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		cfg,
+		nil,
+		nil,
+		service.NewBillingService(cfg, nil),
+		nil,
+		billingCacheSvc,
+		&openAIForwardTimingHTTPUpstream{},
+		&service.DeferredService{},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	cache := &concurrencyCacheMock{
+		acquireUserSlotFn:    func(context.Context, int64, int, string) (bool, error) { return true, nil },
+		acquireAccountSlotFn: func(context.Context, int64, int, string) (bool, error) { return true, nil },
+	}
+	h := &OpenAIGatewayHandler{
+		gatewayService:      gatewaySvc,
+		billingCacheService: billingCacheSvc,
+		apiKeyService:       &service.APIKeyService{},
+		concurrencyHelper:   NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, time.Second),
+	}
+	apiKey := &service.APIKey{
+		ID:      5903,
+		GroupID: &groupID,
+		User:    &service.User{ID: 5904, Status: service.StatusActive},
+		Group:   &service.Group{ID: groupID, Platform: service.PlatformOpenAI, Status: service.StatusActive},
+	}
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-5.4","stream":true,"input":"hello"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(string(middleware.ContextKeyAPIKey), apiKey)
+	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: apiKey.User.ID, Concurrency: 1})
+
+	h.Responses(c)
+
+	select {
+	case usageLog := <-usageRepo.created:
+		require.NotNil(t, usageLog.FirstTokenMs)
+		require.NotNil(t, usageLog.E2EFirstTokenMs)
+		require.NotNil(t, usageLog.RoutingMs)
+		require.NotNil(t, usageLog.QueueMs)
+		require.NotNil(t, usageLog.RetryMs)
+		require.Greater(t, *usageLog.E2EFirstTokenMs, *usageLog.FirstTokenMs)
+		require.GreaterOrEqual(t, *usageLog.RoutingMs, 1)
+		require.Equal(t, 0, *usageLog.QueueMs)
+		require.Equal(t, 0, *usageLog.RetryMs)
+	case <-time.After(3 * time.Second):
+		t.Fatal("等待 HTTP usage log 写入超时")
+	}
+}
 
 func TestOpenAIHandleStreamingAwareError_JSONEscaping(t *testing.T) {
 	tests := []struct {
@@ -1020,6 +1294,22 @@ func TestOpenAIResponsesWebSocket_PassthroughUsageLogLeavesUserAgentNilWhenMissi
 	require.Equal(t, "medium", *got.log.ReasoningEffort)
 }
 
+func TestOpenAIResponsesWebSocket_FirstTurnPersistsHandlerSchedulerTiming(t *testing.T) {
+	got := runOpenAIResponsesWebSocketUsageLogCase(t, openAIResponsesWSUsageLogCase{
+		firstPayload:       `{"type":"response.create","model":"gpt-5.4","stream":false}`,
+		accountSelectDelay: 20 * time.Millisecond,
+		userSlotDelay:      15 * time.Millisecond,
+	})
+
+	require.NotNil(t, got.log.RoutingMs)
+	require.GreaterOrEqual(t, *got.log.RoutingMs, 20)
+	require.NotNil(t, got.log.QueueMs)
+	require.GreaterOrEqual(t, *got.log.QueueMs, 15)
+	require.NotNil(t, got.log.FirstTokenMs)
+	require.NotNil(t, got.log.E2EFirstTokenMs)
+	require.Greater(t, *got.log.E2EFirstTokenMs, *got.log.FirstTokenMs)
+}
+
 func TestSetOpenAIClientTransportHTTP(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -1167,9 +1457,11 @@ func newOpenAIWSHandlerTestServer(t *testing.T, h *OpenAIGatewayHandler, subject
 }
 
 type openAIResponsesWSUsageLogCase struct {
-	firstPayload   string
-	userAgent      *string
-	channelMapping map[string]string
+	firstPayload       string
+	userAgent          *string
+	channelMapping     map[string]string
+	accountSelectDelay time.Duration
+	userSlotDelay      time.Duration
 }
 
 type openAIResponsesWSUsageLogResult struct {
@@ -1179,10 +1471,14 @@ type openAIResponsesWSUsageLogResult struct {
 
 type openAIWSUsageHandlerAccountRepoStub struct {
 	service.AccountRepository
-	account service.Account
+	account   service.Account
+	listDelay time.Duration
 }
 
 func (s *openAIWSUsageHandlerAccountRepoStub) ListSchedulableByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
+	if s.listDelay > 0 {
+		time.Sleep(s.listDelay)
+	}
 	if s.account.Platform != platform {
 		return nil, nil
 	}
@@ -1205,9 +1501,17 @@ type openAIWSFailoverHandlerAccountRepoStub struct {
 	service.AccountRepository
 	accounts       []service.Account
 	rateLimitedIDs []int64
+	listDelay      time.Duration
+	listHook       func()
 }
 
 func (s *openAIWSFailoverHandlerAccountRepoStub) ListSchedulableByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
+	if s.listHook != nil {
+		s.listHook()
+	}
+	if s.listDelay > 0 {
+		time.Sleep(s.listDelay)
+	}
 	out := make([]service.Account, 0, len(s.accounts))
 	for _, account := range s.accounts {
 		if account.Platform == platform && account.IsSchedulable() {
@@ -1250,6 +1554,24 @@ func (s *openAIWSFailoverHandlerAccountRepoStub) SetRateLimited(ctx context.Cont
 type openAIWSUsageHandlerUsageLogRepoStub struct {
 	service.UsageLogRepository
 	created chan *service.UsageLog
+}
+
+type openAIWSOutcomeSinkStub struct {
+	mu      sync.Mutex
+	records []service.OpenAIAutoSchedulerRecordInput
+}
+
+func (s *openAIWSOutcomeSinkStub) Record(_ context.Context, input service.OpenAIAutoSchedulerRecordInput) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.records = append(s.records, input)
+	return nil
+}
+
+func (s *openAIWSOutcomeSinkStub) snapshot() []service.OpenAIAutoSchedulerRecordInput {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]service.OpenAIAutoSchedulerRecordInput(nil), s.records...)
 }
 
 func (s *openAIWSUsageHandlerUsageLogRepoStub) Create(ctx context.Context, log *service.UsageLog) (bool, error) {
@@ -1299,6 +1621,7 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 			firstHitCh <- payload
 		}
 
+		time.Sleep(20 * time.Millisecond)
 		writeCtx, cancelWrite := context.WithTimeout(r.Context(), 3*time.Second)
 		_ = conn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"error","error":{"code":"rate_limit_exceeded","type":"usage_limit_reached","message":"The usage limit has been reached"}}`))
 		cancelWrite()
@@ -1319,6 +1642,7 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 			secondHitCh <- payload
 		}
 
+		time.Sleep(20 * time.Millisecond)
 		writeCtx, cancelWrite := context.WithTimeout(r.Context(), 3*time.Second)
 		_ = conn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.completed","response":{"id":"resp_ws_failover_ok","model":"gpt-5.1","usage":{"input_tokens":1,"output_tokens":1}}}`))
 		cancelWrite()
@@ -1380,12 +1704,15 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
 	cfg.Gateway.MaxAccountSwitches = 3
 
-	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}
+	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts, listDelay: 10 * time.Millisecond}
+	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, 1)}
+	outcomeSink := &openAIWSOutcomeSinkStub{}
+	outcomeRecorder := service.NewOpenAIAutoSchedulerOutcomeRecorder(outcomeSink, 4, 1)
 	rateLimitSvc := service.NewRateLimitService(accountRepo, nil, cfg, nil, nil)
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
-		nil,
+		usageRepo,
 		nil,
 		nil,
 		nil,
@@ -1407,9 +1734,11 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 		nil,
 		nil,
 	)
+	gatewaySvc.SetOpenAIAutoSchedulerOutcomeRecorder(outcomeRecorder)
 
 	cache := &concurrencyCacheMock{
 		acquireUserSlotFn: func(ctx context.Context, userID int64, maxConcurrency int, requestID string) (bool, error) {
+			time.Sleep(10 * time.Millisecond)
 			return true, nil
 		},
 		acquireAccountSlotFn: func(ctx context.Context, accountID int64, maxConcurrency int, requestID string) (bool, error) {
@@ -1473,6 +1802,35 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 		t.Fatal("等待第二个上游收到重放首帧超时")
 	}
 	require.Equal(t, []int64{int64(9902)}, accountRepo.rateLimitedIDs)
+
+	var usageLog *service.UsageLog
+	select {
+	case usageLog = <-usageRepo.created:
+	case <-time.After(3 * time.Second):
+		t.Fatal("等待 failover 成功后的 WebSocket usage log 写入超时")
+	}
+	require.NotNil(t, usageLog.FirstTokenMs)
+	require.NotNil(t, usageLog.E2EFirstTokenMs)
+	require.Greater(t, *usageLog.E2EFirstTokenMs, *usageLog.FirstTokenMs)
+	require.NotNil(t, usageLog.RoutingMs)
+	require.NotNil(t, usageLog.QueueMs)
+	require.NotNil(t, usageLog.RetryMs)
+	require.Greater(t, *usageLog.RoutingMs, 0)
+	require.Greater(t, *usageLog.QueueMs, 0)
+	require.Greater(t, *usageLog.RetryMs, 0)
+
+	require.NoError(t, outcomeRecorder.Stop(context.Background()))
+	var successOutcome *service.OpenAIAutoSchedulerRecordInput
+	for _, outcome := range outcomeSink.snapshot() {
+		if outcome.AccountID == 9903 && outcome.EventType == service.OpenAIAutoSchedulerEventSuccess {
+			outcomeCopy := outcome
+			successOutcome = &outcomeCopy
+			break
+		}
+	}
+	require.NotNil(t, successOutcome)
+	require.NotNil(t, successOutcome.TtfbMS)
+	require.Equal(t, *usageLog.E2EFirstTokenMs, *successOutcome.TtfbMS)
 }
 
 func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSUsageLogCase) openAIResponsesWSUsageLogResult {
@@ -1552,7 +1910,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 3
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
 
-	accountRepo := &openAIWSUsageHandlerAccountRepoStub{account: account}
+	accountRepo := &openAIWSUsageHandlerAccountRepoStub{account: account, listDelay: tc.accountSelectDelay}
 	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, 1)}
 
 	var channelSvc *service.ChannelService
@@ -1597,6 +1955,9 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 
 	cache := &concurrencyCacheMock{
 		acquireUserSlotFn: func(ctx context.Context, userID int64, maxConcurrency int, requestID string) (bool, error) {
+			if tc.userSlotDelay > 0 {
+				time.Sleep(tc.userSlotDelay)
+			}
 			return true, nil
 		},
 		acquireAccountSlotFn: func(ctx context.Context, accountID int64, maxConcurrency int, requestID string) (bool, error) {

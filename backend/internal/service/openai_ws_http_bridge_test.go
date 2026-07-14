@@ -51,7 +51,7 @@ func TestOpenAIWSHTTPBridgeDecisionKeepsSmallFramesOnWS(t *testing.T) {
 	require.True(t, svc.shouldBridgeOpenAIWSHTTP(&Account{Platform: PlatformGrok}, 1, "resp_existing"))
 }
 
-func TestOpenAIWSHTTPBridgeRelaysSSEFramesAsWebSocketMessages(t *testing.T) {
+func TestOpenAIWSHTTPBridgeRelaysSemanticFailureMetadata(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	sseBody := strings.Join([]string{
@@ -59,7 +59,7 @@ func TestOpenAIWSHTTPBridgeRelaysSSEFramesAsWebSocketMessages(t *testing.T) {
 		"",
 		`data: {"type":"response.output_text.delta","response":{"id":"resp_bridge"},"delta":"ok"}`,
 		"",
-		`data: {"type":"response.completed","response":{"id":"resp_bridge","model":"gpt-5","usage":{"input_tokens":3,"output_tokens":2}}}`,
+		`data: {"type":"response.failed","response":{"id":"resp_bridge","model":"gpt-5","error":{"code":"rate_limit_exceeded","type":"rate_limit_error","message":"Rate limit exceeded"},"usage":{"input_tokens":3,"output_tokens":0}}}`,
 		"",
 	}, "\n")
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
@@ -153,11 +153,11 @@ func TestOpenAIWSHTTPBridgeRelaysSSEFramesAsWebSocketMessages(t *testing.T) {
 
 	created := readEvent()
 	delta := readEvent()
-	completed := readEvent()
+	failed := readEvent()
 
 	require.Equal(t, "response.created", gjson.GetBytes(created, "type").String())
 	require.Equal(t, "response.output_text.delta", gjson.GetBytes(delta, "type").String())
-	require.Equal(t, "response.completed", gjson.GetBytes(completed, "type").String())
+	require.Equal(t, "response.failed", gjson.GetBytes(failed, "type").String())
 
 	select {
 	case bridge := <-resultCh:
@@ -165,8 +165,11 @@ func TestOpenAIWSHTTPBridgeRelaysSSEFramesAsWebSocketMessages(t *testing.T) {
 		require.NotNil(t, bridge.result)
 		require.Equal(t, "resp_bridge", bridge.result.RequestID)
 		require.Equal(t, 3, bridge.result.Usage.InputTokens)
-		require.Equal(t, 2, bridge.result.Usage.OutputTokens)
+		require.Equal(t, 0, bridge.result.Usage.OutputTokens)
 		require.True(t, bridge.result.OpenAIWSMode)
+		require.Equal(t, "response.failed", bridge.result.WSTerminalEventType)
+		require.Equal(t, http.StatusTooManyRequests, *bridge.result.WSTerminalStatusCode)
+		require.Equal(t, "Rate limit exceeded", bridge.result.WSTerminalError)
 	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for bridge result")
 	}

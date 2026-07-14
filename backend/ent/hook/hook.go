@@ -249,6 +249,18 @@ func (f OpenAIAutoSchedulerScoreStateFunc) Mutate(ctx context.Context, m ent.Mut
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.OpenAIAutoSchedulerScoreStateMutation", m)
 }
 
+// The OpenAISchedulerHealthStateFunc type is an adapter to allow the use of ordinary
+// function as OpenAISchedulerHealthState mutator.
+type OpenAISchedulerHealthStateFunc func(context.Context, *ent.OpenAISchedulerHealthStateMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f OpenAISchedulerHealthStateFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.OpenAISchedulerHealthStateMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.OpenAISchedulerHealthStateMutation", m)
+}
+
 // The PaymentAuditLogFunc type is an adapter to allow the use of ordinary
 // function as PaymentAuditLog mutator.
 type PaymentAuditLogFunc func(context.Context, *ent.PaymentAuditLogMutation) (ent.Value, error)

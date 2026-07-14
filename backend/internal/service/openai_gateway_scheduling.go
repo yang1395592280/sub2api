@@ -180,6 +180,20 @@ func (s *OpenAIGatewayService) SetOpenAIAutoScheduler(selector *OpenAIAutoSchedu
 	s.openAIAutoSchedulerService = svc
 }
 
+func (s *OpenAIGatewayService) SetOpenAIBalancedScheduler(scheduler *OpenAIBalancedScheduler) {
+	if s == nil {
+		return
+	}
+	s.openaiBalancedScheduler = scheduler
+}
+
+func (s *OpenAIGatewayService) SetOpenAIAutoSchedulerOutcomeRecorder(recorder *OpenAIAutoSchedulerOutcomeRecorder) {
+	if s == nil {
+		return
+	}
+	s.openAIAutoSchedulerOutcomeRecorder = recorder
+}
+
 func (s *OpenAIGatewayService) SetOpenAIAutoCheapestGroupResolver(resolver *OpenAIAutoCheapestGroupResolver, updater LastEffectiveGroupUpdater) {
 	if s == nil {
 		return
@@ -202,18 +216,168 @@ func (s *OpenAIGatewayService) isOpenAIAutoSchedulerAccountTemporarilyBlocked(ct
 	return s.openAIAutoSchedulerSelector.IsAccountTemporarilyBlocked(ctx, groupID, requestedModel, accountID)
 }
 
-func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerOutcome(ctx context.Context, account *Account, groupID *int64, requestedModel string, outcome OpenAIAutoSchedulerRecordInput) {
-	if s == nil || s.openAIAutoSchedulerService == nil || account == nil || groupID == nil {
+func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerOutcome(
+	ctx context.Context,
+	account *Account,
+	groupID *int64,
+	requestedModel string,
+	outcome OpenAIAutoSchedulerRecordInput,
+	healthMetadata ...openAIAutoSchedulerAttemptMetadata,
+) {
+	model := strings.TrimSpace(requestedModel)
+	if s == nil || s.openAIAutoSchedulerOutcomeRecorder == nil || account == nil || account.ID <= 0 || account.Platform != PlatformOpenAI || groupID == nil || *groupID <= 0 || model == "" || strings.TrimSpace(outcome.EventType) == "" {
 		return
 	}
 	outcome.AccountID = account.ID
 	outcome.GroupID = *groupID
-	outcome.Model = strings.TrimSpace(requestedModel)
-	go func() {
-		recordCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		_ = s.openAIAutoSchedulerService.Record(recordCtx, outcome)
-	}()
+	outcome.Model = model
+	if len(healthMetadata) > 0 {
+		metadata := openAIAutoSchedulerHealthMetadataForAttempt(healthMetadata[0], nil)
+		outcome.ModelFamily = metadata.ModelFamily
+		outcome.Endpoint = metadata.Endpoint
+		outcome.Transport = metadata.Transport
+	}
+	s.openAIAutoSchedulerOutcomeRecorder.TryRecord(outcome)
+}
+
+func openAIAutoSchedulerSuccessOutcome(c *gin.Context, forwardStartedAt time.Time, result *OpenAIForwardResult) OpenAIAutoSchedulerRecordInput {
+	now := time.Now()
+	statusCode := http.StatusOK
+	latencyMS := int(now.Sub(forwardStartedAt).Milliseconds())
+	outcome := OpenAIAutoSchedulerRecordInput{
+		EventType:  OpenAIAutoSchedulerEventSuccess,
+		LatencyMS:  &latencyMS,
+		StatusCode: &statusCode,
+	}
+	if result != nil && result.OpenAIWSMode {
+		switch strings.TrimSpace(result.WSTerminalEventType) {
+		case "response.completed", "response.done":
+		case "response.incomplete", "response.cancelled", "response.canceled":
+			if result.WSTerminalStatusCode == nil {
+				outcome.EventType = ""
+				outcome.StatusCode = nil
+				outcome.Message = truncateString(strings.TrimSpace(result.WSTerminalError), 512)
+				return outcome
+			}
+			outcome.EventType = OpenAIAutoSchedulerEventError
+			outcome.StatusCode = result.WSTerminalStatusCode
+			if *result.WSTerminalStatusCode == http.StatusTooManyRequests {
+				outcome.EventType = OpenAIAutoSchedulerEventRateLimited
+			}
+			outcome.Message = truncateString(strings.TrimSpace(result.WSTerminalError), 512)
+		default:
+			outcome.EventType = OpenAIAutoSchedulerEventError
+			outcome.StatusCode = result.WSTerminalStatusCode
+			if result.WSTerminalStatusCode != nil && *result.WSTerminalStatusCode == http.StatusTooManyRequests {
+				outcome.EventType = OpenAIAutoSchedulerEventRateLimited
+			}
+			outcome.Message = truncateString(strings.TrimSpace(result.WSTerminalError), 512)
+			if outcome.Message == "" {
+				outcome.Message = truncateString(strings.TrimSpace(result.WSTerminalEventType), 512)
+			}
+		}
+	}
+	if result == nil {
+		return outcome
+	}
+	if result.E2EFirstTokenMs != nil {
+		ttfbMS := *result.E2EFirstTokenMs
+		outcome.TtfbMS = &ttfbMS
+		return outcome
+	}
+	if result.FirstTokenMs == nil {
+		return outcome
+	}
+
+	ttfbMS := *result.FirstTokenMs
+	if result.OpenAIWSMode && result.Duration > 0 {
+		measurementStartedAt := now.Add(-result.Duration)
+		preMeasurementMS := int(measurementStartedAt.Sub(forwardStartedAt).Milliseconds())
+		if preMeasurementMS > 0 {
+			ttfbMS += preMeasurementMS
+		}
+	} else if c != nil {
+		if timing := OpenAIRequestTimingFromContext(c); timing != nil {
+			timing.mu.Lock()
+			preForwardMS := int(forwardStartedAt.Sub(timing.startedAt).Milliseconds())
+			timing.mu.Unlock()
+			if preForwardMS > 0 {
+				ttfbMS += preForwardMS
+			}
+		}
+	}
+	outcome.TtfbMS = &ttfbMS
+	return outcome
+}
+
+func openAIAutoSchedulerErrorOutcome(forwardStartedAt time.Time, statusCode *int, err error) OpenAIAutoSchedulerRecordInput {
+	latencyMS := int(time.Since(forwardStartedAt).Milliseconds())
+	eventType := OpenAIAutoSchedulerEventError
+	if statusCode != nil && *statusCode == http.StatusTooManyRequests {
+		eventType = OpenAIAutoSchedulerEventRateLimited
+	}
+	message := ""
+	if err != nil {
+		message = truncateString(err.Error(), 512)
+	}
+	return OpenAIAutoSchedulerRecordInput{
+		EventType:  eventType,
+		LatencyMS:  &latencyMS,
+		StatusCode: statusCode,
+		Message:    message,
+	}
+}
+
+type openAIUpstreamAttemptContextKey struct{}
+
+type openAIUpstreamAttempt struct {
+	startedAt time.Time
+	armed     bool
+	metadata  openAIAutoSchedulerAttemptMetadata
+}
+
+func beginOpenAIUpstreamAttempt(ctx context.Context) (context.Context, *openAIUpstreamAttempt) {
+	attempt := &openAIUpstreamAttempt{}
+	return context.WithValue(ctx, openAIUpstreamAttemptContextKey{}, attempt), attempt
+}
+
+func armOpenAIUpstreamAttempt(ctx context.Context, healthMetadata ...openAIAutoSchedulerAttemptMetadata) {
+	if ctx == nil {
+		return
+	}
+	attempt, _ := ctx.Value(openAIUpstreamAttemptContextKey{}).(*openAIUpstreamAttempt)
+	if attempt == nil || attempt.armed {
+		return
+	}
+	attempt.startedAt = time.Now()
+	attempt.armed = true
+	if len(healthMetadata) > 0 {
+		attempt.metadata = openAIAutoSchedulerHealthMetadataForAttempt(healthMetadata[0], nil)
+	}
+}
+
+func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerForwardAttempt(
+	ctx context.Context,
+	c *gin.Context,
+	account *Account,
+	requestedModel string,
+	startedAt time.Time,
+	result *OpenAIForwardResult,
+	err error,
+) {
+	attempt, _ := ctx.Value(openAIUpstreamAttemptContextKey{}).(*openAIUpstreamAttempt)
+	metadata := openAIAutoSchedulerAttemptMetadata{}
+	if attempt != nil {
+		metadata = attempt.metadata
+	}
+	metadata = openAIAutoSchedulerHealthMetadataForAttempt(metadata, result)
+	if err != nil {
+		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), requestedModel,
+			openAIAutoSchedulerErrorOutcome(startedAt, openAIAutoSchedulerStatusCodeForError(err), err), metadata)
+		return
+	}
+	s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), requestedModel,
+		openAIAutoSchedulerSuccessOutcome(c, startedAt, result), metadata)
 }
 
 func openAIAutoSchedulerGroupIDFromContext(c *gin.Context) *int64 {
@@ -320,12 +484,13 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapab
 	requestedModel string,
 	excludedIDs map[int64]struct{},
 	transport OpenAIUpstreamTransport,
+	requiredEndpoint string,
 	requiredCapability OpenAIEndpointCapability,
 	requireCompact bool,
 	previousResponseCanMove bool,
 	requestPlatform string,
 ) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-	return s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredCapability, requireCompact, previousResponseCanMove, requestPlatform, nil)
+	return s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredEndpoint, requiredCapability, requireCompact, previousResponseCanMove, requestPlatform, nil)
 }
 
 func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
@@ -336,6 +501,7 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapab
 	requestedModel string,
 	excludedIDs map[int64]struct{},
 	transport OpenAIUpstreamTransport,
+	requiredEndpoint string,
 	requiredCapability OpenAIEndpointCapability,
 	requireCompact bool,
 	previousResponseCanMove bool,
@@ -349,10 +515,10 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapab
 				routingModel = resolved
 			}
 		}
-		selection, decision, err := s.SelectAccountWithSchedulerForCapability(ctx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredCapability, requireCompact, previousResponseCanMove, requestPlatform)
+		selection, decision, err := s.SelectAccountWithSchedulerForCapability(ctx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredEndpoint, requiredCapability, requireCompact, previousResponseCanMove, requestPlatform)
 		return apiKey, routingModel, selection, decision, err
 	}
-	effectiveKey, selection, decision, err := s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredCapability, requireCompact, previousResponseCanMove, requestPlatform, modelResolver)
+	effectiveKey, selection, decision, err := s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredEndpoint, requiredCapability, requireCompact, previousResponseCanMove, requestPlatform, modelResolver)
 	if effectiveKey == nil {
 		return nil, requestedModel, selection, decision, err
 	}
@@ -370,16 +536,46 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImage
 	apiKey *APIKey,
 	sessionHash string,
 	requestedModel string,
+	requiredEndpoint string,
 	excludedIDs map[int64]struct{},
 	requiredCapability OpenAIImagesCapability,
 ) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	effectiveKey, _, selection, decision, err := s.SelectEffectiveOpenAIAccountWithSchedulerForImagesAndModelResolver(
+		ctx,
+		apiKey,
+		sessionHash,
+		requestedModel,
+		requiredEndpoint,
+		excludedIDs,
+		requiredCapability,
+		nil,
+	)
+	return effectiveKey, selection, decision, err
+}
+
+func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImagesAndModelResolver(
+	ctx context.Context,
+	apiKey *APIKey,
+	sessionHash string,
+	requestedModel string,
+	requiredEndpoint string,
+	excludedIDs map[int64]struct{},
+	requiredCapability OpenAIImagesCapability,
+	modelResolver func(*APIKey, string) string,
+) (*APIKey, string, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
 	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
-		selection, decision, err := s.SelectAccountWithSchedulerForImages(ctx, apiKeyGroupID(apiKey), sessionHash, requestedModel, excludedIDs, requiredCapability)
-		return apiKey, selection, decision, err
+		routingModel := requestedModel
+		if modelResolver != nil {
+			if resolved := strings.TrimSpace(modelResolver(apiKey, requestedModel)); resolved != "" {
+				routingModel = resolved
+			}
+		}
+		selection, decision, err := s.SelectAccountWithSchedulerForImages(ctx, apiKeyGroupID(apiKey), sessionHash, routingModel, requiredEndpoint, excludedIDs, requiredCapability)
+		return apiKey, routingModel, selection, decision, err
 	}
 	keys, err := s.resolveEffectiveOpenAIAPIKeys(ctx, apiKey)
 	if err != nil {
-		return nil, nil, OpenAIAccountScheduleDecision{}, err
+		return nil, requestedModel, nil, OpenAIAccountScheduleDecision{}, err
 	}
 	var lastDecision OpenAIAccountScheduleDecision
 	var lastErr error
@@ -387,11 +583,17 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImage
 		if effectiveKey == nil || effectiveKey.GroupID == nil {
 			continue
 		}
-		selection, decision, err := s.SelectAccountWithSchedulerForImages(ctx, effectiveKey.GroupID, sessionHash, requestedModel, excludedIDs, requiredCapability)
+		routingModel := requestedModel
+		if modelResolver != nil {
+			if resolved := strings.TrimSpace(modelResolver(effectiveKey, requestedModel)); resolved != "" {
+				routingModel = resolved
+			}
+		}
+		selection, decision, err := s.SelectAccountWithSchedulerForImages(ctx, effectiveKey.GroupID, sessionHash, routingModel, requiredEndpoint, excludedIDs, requiredCapability)
 		lastDecision = decision
 		if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
 			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
-			return effectiveKey, selection, decision, nil
+			return effectiveKey, routingModel, selection, decision, nil
 		}
 		if err == nil && selection != nil && selection.Account != nil {
 			lastErr = ErrNoAvailableAccounts
@@ -400,9 +602,9 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImage
 		lastErr = err
 	}
 	if lastErr != nil {
-		return nil, nil, lastDecision, lastErr
+		return nil, requestedModel, nil, lastDecision, lastErr
 	}
-	return nil, nil, lastDecision, ErrNoAvailableAccounts
+	return nil, requestedModel, nil, lastDecision, ErrNoAvailableAccounts
 }
 
 func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapability(
@@ -413,6 +615,7 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 	requestedModel string,
 	excludedIDs map[int64]struct{},
 	transport OpenAIUpstreamTransport,
+	requiredEndpoint string,
 	requiredCapability OpenAIEndpointCapability,
 	requireCompact bool,
 	previousResponseCanMove bool,
@@ -426,7 +629,7 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 				routingModel = resolved
 			}
 		}
-		selection, decision, err := s.SelectAccountWithSchedulerForCapability(ctx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredCapability, requireCompact, previousResponseCanMove, requestPlatform)
+		selection, decision, err := s.SelectAccountWithSchedulerForCapability(ctx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredEndpoint, requiredCapability, requireCompact, previousResponseCanMove, requestPlatform)
 		return apiKey, selection, decision, err
 	}
 	keys, err := s.resolveEffectiveOpenAIAPIKeys(ctx, apiKey)
@@ -453,6 +656,7 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 			routingModel,
 			excludedIDs,
 			transport,
+			requiredEndpoint,
 			requiredCapability,
 			requireCompact,
 			previousResponseCanMove,
@@ -868,10 +1072,15 @@ func resolveOpenAIAccountUpstreamModelForRequest(account *Account, requestedMode
 	if upstreamModel == "" {
 		return ""
 	}
-	if requireCompact {
-		return resolveOpenAICompactForwardModel(account, upstreamModel)
+	if requireCompact && account != nil {
+		compactModel, matched := account.ResolveCompactMappedModel(upstreamModel)
+		if matched && strings.TrimSpace(compactModel) != "" && compactModel != upstreamModel {
+			// ForwardResponses bypasses OAuth alias normalization after an explicit
+			// compact mapping, so the health key must preserve that exact target.
+			return strings.TrimSpace(compactModel)
+		}
 	}
-	return upstreamModel
+	return normalizeOpenAIModelForUpstream(account, upstreamModel)
 }
 
 func (s *OpenAIGatewayService) selectAccountForModelWithExclusions(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, requireCompact bool, stickyAccountID int64, requiredCapability OpenAIEndpointCapability) (*Account, error) {

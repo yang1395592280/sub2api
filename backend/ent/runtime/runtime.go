@@ -26,6 +26,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
 	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscoreevent"
 	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscorestate"
+	"github.com/Wei-Shaw/sub2api/ent/openaischedulerhealthstate"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -1305,6 +1306,81 @@ func init() {
 	openaiautoschedulerscorestateDescReason := openaiautoschedulerscorestateFields[23].Descriptor()
 	// openaiautoschedulerscorestate.DefaultReason holds the default value on creation for the reason field.
 	openaiautoschedulerscorestate.DefaultReason = openaiautoschedulerscorestateDescReason.Default.(string)
+	openaischedulerhealthstateMixin := schema.OpenAISchedulerHealthState{}.Mixin()
+	openaischedulerhealthstateMixinFields0 := openaischedulerhealthstateMixin[0].Fields()
+	_ = openaischedulerhealthstateMixinFields0
+	openaischedulerhealthstateFields := schema.OpenAISchedulerHealthState{}.Fields()
+	_ = openaischedulerhealthstateFields
+	// openaischedulerhealthstateDescCreatedAt is the schema descriptor for created_at field.
+	openaischedulerhealthstateDescCreatedAt := openaischedulerhealthstateMixinFields0[0].Descriptor()
+	// openaischedulerhealthstate.DefaultCreatedAt holds the default value on creation for the created_at field.
+	openaischedulerhealthstate.DefaultCreatedAt = openaischedulerhealthstateDescCreatedAt.Default.(func() time.Time)
+	// openaischedulerhealthstateDescUpdatedAt is the schema descriptor for updated_at field.
+	openaischedulerhealthstateDescUpdatedAt := openaischedulerhealthstateMixinFields0[1].Descriptor()
+	// openaischedulerhealthstate.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	openaischedulerhealthstate.DefaultUpdatedAt = openaischedulerhealthstateDescUpdatedAt.Default.(func() time.Time)
+	// openaischedulerhealthstate.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	openaischedulerhealthstate.UpdateDefaultUpdatedAt = openaischedulerhealthstateDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// openaischedulerhealthstateDescModelFamily is the schema descriptor for model_family field.
+	openaischedulerhealthstateDescModelFamily := openaischedulerhealthstateFields[1].Descriptor()
+	// openaischedulerhealthstate.DefaultModelFamily holds the default value on creation for the model_family field.
+	openaischedulerhealthstate.DefaultModelFamily = openaischedulerhealthstateDescModelFamily.Default.(string)
+	// openaischedulerhealthstate.ModelFamilyValidator is a validator for the "model_family" field. It is called by the builders before save.
+	openaischedulerhealthstate.ModelFamilyValidator = openaischedulerhealthstateDescModelFamily.Validators[0].(func(string) error)
+	// openaischedulerhealthstateDescEndpoint is the schema descriptor for endpoint field.
+	openaischedulerhealthstateDescEndpoint := openaischedulerhealthstateFields[2].Descriptor()
+	// openaischedulerhealthstate.DefaultEndpoint holds the default value on creation for the endpoint field.
+	openaischedulerhealthstate.DefaultEndpoint = openaischedulerhealthstateDescEndpoint.Default.(string)
+	// openaischedulerhealthstate.EndpointValidator is a validator for the "endpoint" field. It is called by the builders before save.
+	openaischedulerhealthstate.EndpointValidator = openaischedulerhealthstateDescEndpoint.Validators[0].(func(string) error)
+	// openaischedulerhealthstateDescTransport is the schema descriptor for transport field.
+	openaischedulerhealthstateDescTransport := openaischedulerhealthstateFields[3].Descriptor()
+	// openaischedulerhealthstate.DefaultTransport holds the default value on creation for the transport field.
+	openaischedulerhealthstate.DefaultTransport = openaischedulerhealthstateDescTransport.Default.(string)
+	// openaischedulerhealthstate.TransportValidator is a validator for the "transport" field. It is called by the builders before save.
+	openaischedulerhealthstate.TransportValidator = openaischedulerhealthstateDescTransport.Validators[0].(func(string) error)
+	// openaischedulerhealthstateDescState is the schema descriptor for state field.
+	openaischedulerhealthstateDescState := openaischedulerhealthstateFields[4].Descriptor()
+	// openaischedulerhealthstate.DefaultState holds the default value on creation for the state field.
+	openaischedulerhealthstate.DefaultState = openaischedulerhealthstateDescState.Default.(string)
+	// openaischedulerhealthstate.StateValidator is a validator for the "state" field. It is called by the builders before save.
+	openaischedulerhealthstate.StateValidator = openaischedulerhealthstateDescState.Validators[0].(func(string) error)
+	// openaischedulerhealthstateDescPredictedTtftMs is the schema descriptor for predicted_ttft_ms field.
+	openaischedulerhealthstateDescPredictedTtftMs := openaischedulerhealthstateFields[5].Descriptor()
+	// openaischedulerhealthstate.DefaultPredictedTtftMs holds the default value on creation for the predicted_ttft_ms field.
+	openaischedulerhealthstate.DefaultPredictedTtftMs = openaischedulerhealthstateDescPredictedTtftMs.Default.(float64)
+	// openaischedulerhealthstateDescErrorRate is the schema descriptor for error_rate field.
+	openaischedulerhealthstateDescErrorRate := openaischedulerhealthstateFields[6].Descriptor()
+	// openaischedulerhealthstate.DefaultErrorRate holds the default value on creation for the error_rate field.
+	openaischedulerhealthstate.DefaultErrorRate = openaischedulerhealthstateDescErrorRate.Default.(float64)
+	// openaischedulerhealthstateDescRateLimitedRate is the schema descriptor for rate_limited_rate field.
+	openaischedulerhealthstateDescRateLimitedRate := openaischedulerhealthstateFields[7].Descriptor()
+	// openaischedulerhealthstate.DefaultRateLimitedRate holds the default value on creation for the rate_limited_rate field.
+	openaischedulerhealthstate.DefaultRateLimitedRate = openaischedulerhealthstateDescRateLimitedRate.Default.(float64)
+	// openaischedulerhealthstateDescServerErrorRate is the schema descriptor for server_error_rate field.
+	openaischedulerhealthstateDescServerErrorRate := openaischedulerhealthstateFields[8].Descriptor()
+	// openaischedulerhealthstate.DefaultServerErrorRate holds the default value on creation for the server_error_rate field.
+	openaischedulerhealthstate.DefaultServerErrorRate = openaischedulerhealthstateDescServerErrorRate.Default.(float64)
+	// openaischedulerhealthstateDescConsecutiveSlow is the schema descriptor for consecutive_slow field.
+	openaischedulerhealthstateDescConsecutiveSlow := openaischedulerhealthstateFields[9].Descriptor()
+	// openaischedulerhealthstate.DefaultConsecutiveSlow holds the default value on creation for the consecutive_slow field.
+	openaischedulerhealthstate.DefaultConsecutiveSlow = openaischedulerhealthstateDescConsecutiveSlow.Default.(int)
+	// openaischedulerhealthstateDescConsecutiveError is the schema descriptor for consecutive_error field.
+	openaischedulerhealthstateDescConsecutiveError := openaischedulerhealthstateFields[10].Descriptor()
+	// openaischedulerhealthstate.DefaultConsecutiveError holds the default value on creation for the consecutive_error field.
+	openaischedulerhealthstate.DefaultConsecutiveError = openaischedulerhealthstateDescConsecutiveError.Default.(int)
+	// openaischedulerhealthstateDescConsecutiveSuccess is the schema descriptor for consecutive_success field.
+	openaischedulerhealthstateDescConsecutiveSuccess := openaischedulerhealthstateFields[11].Descriptor()
+	// openaischedulerhealthstate.DefaultConsecutiveSuccess holds the default value on creation for the consecutive_success field.
+	openaischedulerhealthstate.DefaultConsecutiveSuccess = openaischedulerhealthstateDescConsecutiveSuccess.Default.(int)
+	// openaischedulerhealthstateDescRealSampleCount is the schema descriptor for real_sample_count field.
+	openaischedulerhealthstateDescRealSampleCount := openaischedulerhealthstateFields[12].Descriptor()
+	// openaischedulerhealthstate.DefaultRealSampleCount holds the default value on creation for the real_sample_count field.
+	openaischedulerhealthstate.DefaultRealSampleCount = openaischedulerhealthstateDescRealSampleCount.Default.(int64)
+	// openaischedulerhealthstateDescProbeSampleCount is the schema descriptor for probe_sample_count field.
+	openaischedulerhealthstateDescProbeSampleCount := openaischedulerhealthstateFields[13].Descriptor()
+	// openaischedulerhealthstate.DefaultProbeSampleCount holds the default value on creation for the probe_sample_count field.
+	openaischedulerhealthstate.DefaultProbeSampleCount = openaischedulerhealthstateDescProbeSampleCount.Default.(int64)
 	paymentauditlogFields := schema.PaymentAuditLog{}.Fields()
 	_ = paymentauditlogFields
 	// paymentauditlogDescOrderID is the schema descriptor for order_id field.
@@ -2111,47 +2187,47 @@ func init() {
 	// usagelog.DefaultStream holds the default value on creation for the stream field.
 	usagelog.DefaultStream = usagelogDescStream.Default.(bool)
 	// usagelogDescUserAgent is the schema descriptor for user_agent field.
-	usagelogDescUserAgent := usagelogFields[36].Descriptor()
+	usagelogDescUserAgent := usagelogFields[40].Descriptor()
 	// usagelog.UserAgentValidator is a validator for the "user_agent" field. It is called by the builders before save.
 	usagelog.UserAgentValidator = usagelogDescUserAgent.Validators[0].(func(string) error)
 	// usagelogDescIPAddress is the schema descriptor for ip_address field.
-	usagelogDescIPAddress := usagelogFields[37].Descriptor()
+	usagelogDescIPAddress := usagelogFields[41].Descriptor()
 	// usagelog.IPAddressValidator is a validator for the "ip_address" field. It is called by the builders before save.
 	usagelog.IPAddressValidator = usagelogDescIPAddress.Validators[0].(func(string) error)
 	// usagelogDescImageCount is the schema descriptor for image_count field.
-	usagelogDescImageCount := usagelogFields[38].Descriptor()
+	usagelogDescImageCount := usagelogFields[42].Descriptor()
 	// usagelog.DefaultImageCount holds the default value on creation for the image_count field.
 	usagelog.DefaultImageCount = usagelogDescImageCount.Default.(int)
 	// usagelogDescImageSize is the schema descriptor for image_size field.
-	usagelogDescImageSize := usagelogFields[39].Descriptor()
+	usagelogDescImageSize := usagelogFields[43].Descriptor()
 	// usagelog.ImageSizeValidator is a validator for the "image_size" field. It is called by the builders before save.
 	usagelog.ImageSizeValidator = usagelogDescImageSize.Validators[0].(func(string) error)
 	// usagelogDescImageInputSize is the schema descriptor for image_input_size field.
-	usagelogDescImageInputSize := usagelogFields[40].Descriptor()
+	usagelogDescImageInputSize := usagelogFields[44].Descriptor()
 	// usagelog.ImageInputSizeValidator is a validator for the "image_input_size" field. It is called by the builders before save.
 	usagelog.ImageInputSizeValidator = usagelogDescImageInputSize.Validators[0].(func(string) error)
 	// usagelogDescImageOutputSize is the schema descriptor for image_output_size field.
-	usagelogDescImageOutputSize := usagelogFields[41].Descriptor()
+	usagelogDescImageOutputSize := usagelogFields[45].Descriptor()
 	// usagelog.ImageOutputSizeValidator is a validator for the "image_output_size" field. It is called by the builders before save.
 	usagelog.ImageOutputSizeValidator = usagelogDescImageOutputSize.Validators[0].(func(string) error)
 	// usagelogDescImageSizeSource is the schema descriptor for image_size_source field.
-	usagelogDescImageSizeSource := usagelogFields[42].Descriptor()
+	usagelogDescImageSizeSource := usagelogFields[46].Descriptor()
 	// usagelog.ImageSizeSourceValidator is a validator for the "image_size_source" field. It is called by the builders before save.
 	usagelog.ImageSizeSourceValidator = usagelogDescImageSizeSource.Validators[0].(func(string) error)
 	// usagelogDescVideoCount is the schema descriptor for video_count field.
-	usagelogDescVideoCount := usagelogFields[44].Descriptor()
+	usagelogDescVideoCount := usagelogFields[48].Descriptor()
 	// usagelog.DefaultVideoCount holds the default value on creation for the video_count field.
 	usagelog.DefaultVideoCount = usagelogDescVideoCount.Default.(int)
 	// usagelogDescVideoResolution is the schema descriptor for video_resolution field.
-	usagelogDescVideoResolution := usagelogFields[45].Descriptor()
+	usagelogDescVideoResolution := usagelogFields[49].Descriptor()
 	// usagelog.VideoResolutionValidator is a validator for the "video_resolution" field. It is called by the builders before save.
 	usagelog.VideoResolutionValidator = usagelogDescVideoResolution.Validators[0].(func(string) error)
 	// usagelogDescCacheTTLOverridden is the schema descriptor for cache_ttl_overridden field.
-	usagelogDescCacheTTLOverridden := usagelogFields[47].Descriptor()
+	usagelogDescCacheTTLOverridden := usagelogFields[51].Descriptor()
 	// usagelog.DefaultCacheTTLOverridden holds the default value on creation for the cache_ttl_overridden field.
 	usagelog.DefaultCacheTTLOverridden = usagelogDescCacheTTLOverridden.Default.(bool)
 	// usagelogDescCreatedAt is the schema descriptor for created_at field.
-	usagelogDescCreatedAt := usagelogFields[48].Descriptor()
+	usagelogDescCreatedAt := usagelogFields[52].Descriptor()
 	// usagelog.DefaultCreatedAt holds the default value on creation for the created_at field.
 	usagelog.DefaultCreatedAt = usagelogDescCreatedAt.Default.(func() time.Time)
 	userMixin := schema.User{}.Mixin()

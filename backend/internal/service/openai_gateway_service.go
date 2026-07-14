@@ -234,23 +234,29 @@ type OpenAIForwardResult struct {
 	ServiceTier *string
 	// ReasoningEffort is extracted from request body (reasoning.effort) or derived from model suffix.
 	// Stored for usage records display; nil means not provided / not applicable.
-	ReasoningEffort     *string
-	Stream              bool
-	OpenAIWSMode        bool
-	WSTerminalEventType string
-	ResponseHeaders     http.Header
-	Duration            time.Duration
-	FirstTokenMs        *int
-	ClientDisconnect    bool
-	ImageCount          int
-	ImageSize           string
-	ImageInputSize      string
-	ImageOutputSize     string
-	ImageOutputSizes    []string
-	ImageSizeSource     string
-	ImageSizeBreakdown  map[string]int
-	VideoCount          int
-	VideoResolution     string
+	ReasoningEffort      *string
+	Stream               bool
+	OpenAIWSMode         bool
+	WSTerminalEventType  string
+	WSTerminalStatusCode *int
+	WSTerminalError      string
+	ResponseHeaders      http.Header
+	Duration             time.Duration
+	FirstTokenMs         *int
+	E2EFirstTokenMs      *int
+	RoutingMs            *int
+	QueueMs              *int
+	RetryMs              *int
+	ClientDisconnect     bool
+	ImageCount           int
+	ImageSize            string
+	ImageInputSize       string
+	ImageOutputSize      string
+	ImageOutputSizes     []string
+	ImageSizeSource      string
+	ImageSizeBreakdown   map[string]int
+	VideoCount           int
+	VideoResolution      string
 	// VideoDurationSeconds 是提交时请求的生成时长（xAI 按输出秒数计费），已归一化到 1-15 秒。
 	VideoDurationSeconds int
 	// WebSearchCalls 是 Codex alpha/search 网页搜索调用次数（每次成功请求为 1）。
@@ -389,8 +395,11 @@ type OpenAIGatewayService struct {
 	userPlatformQuotaRepo           UserPlatformQuotaRepository
 	openAIAutoSchedulerSelector     *OpenAIAutoSchedulerSelector
 	openAIAutoSchedulerService      *OpenAIAutoSchedulerService
+	openaiBalancedScheduler         *OpenAIBalancedScheduler
 	openAIAutoCheapestGroupResolver *OpenAIAutoCheapestGroupResolver
 	apiKeyEffectiveGroupUpdater     LastEffectiveGroupUpdater
+
+	openAIAutoSchedulerOutcomeRecorder *OpenAIAutoSchedulerOutcomeRecorder
 
 	openaiWSPoolOnce              sync.Once
 	openaiWSStateStoreOnce        sync.Once

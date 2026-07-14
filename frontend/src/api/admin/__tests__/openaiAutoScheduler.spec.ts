@@ -15,6 +15,8 @@ vi.mock('@/api/client', () => ({
 }))
 
 import openaiAutoSchedulerAPI, {
+  type OpenAISchedulerHealthRow,
+  type OpenAISchedulerOverview,
   type OpenAIAutoSchedulerSettings,
 } from '@/api/admin/openaiAutoScheduler'
 
@@ -80,6 +82,77 @@ describe('openai auto scheduler admin api', () => {
     expect(get).toHaveBeenNthCalledWith(2, '/admin/openai-auto-scheduler/events', {
       params: { group_id: 10, model: 'gpt-5' },
     })
+  })
+
+  it('requests the scheduler overview with group, window, and cancellation', async () => {
+    const overview: OpenAISchedulerOverview = {
+      e2e_ttft_p50_ms: 2970,
+      e2e_ttft_p90_ms: 7210,
+      selection_p95_ms: 18,
+      probe_ratio: 0.24,
+      groups: [],
+      trend: [],
+      slow_causes: [],
+    }
+    const controller = new AbortController()
+    get.mockResolvedValueOnce({ data: overview })
+
+    await expect(
+      openaiAutoSchedulerAPI.getOverview(
+        { group_id: 33, window: '6h' },
+        { signal: controller.signal }
+      )
+    ).resolves.toEqual(overview)
+
+    expect(get).toHaveBeenCalledWith('/admin/openai-auto-scheduler/overview', {
+      params: { group_id: 33, window: '6h' },
+      signal: controller.signal,
+    })
+  })
+
+  it('requests paginated scheduler health with exact backend filters', async () => {
+    const health: OpenAISchedulerHealthRow = {
+      account_id: 12512,
+      account_name: 'openai-main',
+      group_id: 33,
+      model_family: 'gpt-5.4',
+      endpoint: 'responses',
+      transport: 'http_sse',
+      state: 'running',
+      predicted_ttft_ms: 10940,
+      real_sample_count: 20,
+      probe_sample_count: 4,
+      error_rate: 0.01,
+      rate_limited_rate: 0,
+      server_error_rate: 0.01,
+      load_inflight: 2,
+      load_capacity: 10,
+      waiting_count: 0,
+      channel_price: 0.25,
+      decision: 'context_required',
+      decision_reason: 'request_context_required',
+      scheduler_mode: 'balanced',
+      shadow_mode: true,
+      sticky_escape_reason: null,
+      snapshot_age_ms: 500,
+      cooldown_until: null,
+    }
+    const page = { items: [health], total: 1, page: 1, page_size: 20, pages: 1 }
+    const params = {
+      group_id: 33,
+      state: 'running',
+      model_family: 'gpt-5.4',
+      endpoint: 'responses',
+      transport: 'http_sse',
+      sort: 'predicted_ttft_ms' as const,
+      order: 'desc' as const,
+      page: 1,
+      page_size: 20,
+    }
+    get.mockResolvedValueOnce({ data: page })
+
+    await expect(openaiAutoSchedulerAPI.listHealth(params)).resolves.toEqual(page)
+    expect(get).toHaveBeenCalledWith('/admin/openai-auto-scheduler/health', { params })
   })
 
   it('uses explicit account routes for reset and probe actions', async () => {

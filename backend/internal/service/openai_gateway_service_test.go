@@ -1229,7 +1229,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_AdvancedSkipsAccountWhe
 	}
 }
 
-func TestOpenAIGatewayService_SelectAccountWithScheduler_RecordsOutcomeAsync(t *testing.T) {
+func TestOpenAIGatewayService_SelectAccountWithScheduler_RecordsOutcomeThroughBoundedRecorder(t *testing.T) {
 	groupID := int64(10)
 	repo := &fakeOpenAIAutoSchedulerRepo{
 		groups: map[int64]Group{
@@ -1238,22 +1238,19 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_RecordsOutcomeAsync(t *
 		states: map[string]OpenAIAutoSchedulerScoreState{},
 	}
 	schedulerSvc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(schedulerSvc, 4, 1)
 	svc := &OpenAIGatewayService{}
 	svc.SetOpenAIAutoScheduler(nil, schedulerSvc)
+	svc.SetOpenAIAutoSchedulerOutcomeRecorder(recorder)
 	latencyMS := 123
 	statusCode := http.StatusOK
 
-	svc.recordOpenAIAutoSchedulerOutcome(context.Background(), &Account{ID: 1}, &groupID, " gpt-5 ", OpenAIAutoSchedulerRecordInput{
+	svc.recordOpenAIAutoSchedulerOutcome(context.Background(), &Account{ID: 1, Platform: PlatformOpenAI}, &groupID, " gpt-5 ", OpenAIAutoSchedulerRecordInput{
 		EventType:  OpenAIAutoSchedulerEventSuccess,
 		LatencyMS:  &latencyMS,
 		StatusCode: &statusCode,
 	})
-
-	require.Eventually(t, func() bool {
-		repo.mu.Lock()
-		defer repo.mu.Unlock()
-		return len(repo.events) == 1
-	}, time.Second, 10*time.Millisecond)
+	require.NoError(t, recorder.Stop(context.Background()))
 	repo.mu.Lock()
 	event := repo.events[0]
 	repo.mu.Unlock()
@@ -1263,6 +1260,226 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_RecordsOutcomeAsync(t *
 	require.Equal(t, OpenAIAutoSchedulerEventSuccess, event.EventType)
 	require.Equal(t, &latencyMS, event.LatencyMS)
 	require.Equal(t, &statusCode, event.StatusCode)
+}
+
+func TestOpenAIGatewayService_RecordOpenAIAutoSchedulerOutcomeRejectsInvalidIdentity(t *testing.T) {
+	validGroupID := int64(10)
+	zeroGroupID := int64(0)
+	validAccount := &Account{ID: 1, Platform: PlatformOpenAI}
+	tests := []struct {
+		name    string
+		account *Account
+		groupID *int64
+		model   string
+	}{
+		{name: "nil account", groupID: &validGroupID, model: "gpt-5"},
+		{name: "zero account id", account: &Account{Platform: PlatformOpenAI}, groupID: &validGroupID, model: "gpt-5"},
+		{name: "wrong platform", account: &Account{ID: 1, Platform: PlatformAnthropic}, groupID: &validGroupID, model: "gpt-5"},
+		{name: "nil group", account: validAccount, model: "gpt-5"},
+		{name: "zero group", account: validAccount, groupID: &zeroGroupID, model: "gpt-5"},
+		{name: "blank model", account: validAccount, groupID: &validGroupID, model: "   "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := NewOpenAIAutoSchedulerOutcomeRecorder(&collectingOpenAIAutoSchedulerOutcomeSink{}, 1, 1)
+			svc := &OpenAIGatewayService{openAIAutoSchedulerOutcomeRecorder: recorder}
+
+			svc.recordOpenAIAutoSchedulerOutcome(context.Background(), tt.account, tt.groupID, tt.model, OpenAIAutoSchedulerRecordInput{EventType: OpenAIAutoSchedulerEventSuccess})
+
+			require.NoError(t, recorder.Stop(context.Background()))
+			require.Zero(t, recorder.SnapshotMetrics().Accepted)
+		})
+	}
+}
+
+func TestOpenAIAutoSchedulerSuccessOutcomeClassifiesWSTerminalEvents(t *testing.T) {
+	tests := []struct {
+		name       string
+		result     *OpenAIForwardResult
+		wantEvent  string
+		wantStatus int
+	}{
+		{
+			name:       "non websocket result stays successful",
+			result:     &OpenAIForwardResult{},
+			wantEvent:  OpenAIAutoSchedulerEventSuccess,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "completed websocket response is successful",
+			result: &OpenAIForwardResult{
+				OpenAIWSMode:        true,
+				WSTerminalEventType: "response.completed",
+			},
+			wantEvent:  OpenAIAutoSchedulerEventSuccess,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "failed websocket response is an error",
+			result: &OpenAIForwardResult{
+				OpenAIWSMode:        true,
+				WSTerminalEventType: "response.failed",
+			},
+			wantEvent: OpenAIAutoSchedulerEventError,
+		},
+		{
+			name: "websocket response without terminal is an error",
+			result: &OpenAIForwardResult{
+				OpenAIWSMode: true,
+			},
+			wantEvent: OpenAIAutoSchedulerEventError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			outcome := openAIAutoSchedulerSuccessOutcome(nil, time.Now(), tt.result)
+			require.Equal(t, tt.wantEvent, outcome.EventType)
+			if tt.wantStatus == 0 {
+				require.Nil(t, outcome.StatusCode)
+			} else {
+				require.Equal(t, tt.wantStatus, *outcome.StatusCode)
+			}
+		})
+	}
+}
+
+func TestOpenAIAutoSchedulerSuccessOutcomeIncludesOuterTurnTimeInWSTTFT(t *testing.T) {
+	firstTokenMS := 20
+	turnStartedAt := time.Now().Add(-200 * time.Millisecond)
+	result := &OpenAIForwardResult{
+		OpenAIWSMode:        true,
+		WSTerminalEventType: "response.completed",
+		Duration:            100 * time.Millisecond,
+		FirstTokenMs:        &firstTokenMS,
+	}
+
+	outcome := openAIAutoSchedulerSuccessOutcome(nil, turnStartedAt, result)
+
+	require.NotNil(t, outcome.TtfbMS)
+	require.GreaterOrEqual(t, *outcome.TtfbMS, 110)
+	require.Less(t, *outcome.TtfbMS, 180)
+}
+
+func TestOpenAIAutoSchedulerSuccessOutcomePrefersWSE2EFirstToken(t *testing.T) {
+	firstTokenMS := 20
+	e2eFirstTokenMS := 275
+	result := &OpenAIForwardResult{
+		OpenAIWSMode:        true,
+		WSTerminalEventType: "response.completed",
+		Duration:            100 * time.Millisecond,
+		FirstTokenMs:        &firstTokenMS,
+		E2EFirstTokenMs:     &e2eFirstTokenMS,
+	}
+
+	outcome := openAIAutoSchedulerSuccessOutcome(nil, time.Now().Add(-500*time.Millisecond), result)
+
+	require.NotNil(t, outcome.TtfbMS)
+	require.Equal(t, e2eFirstTokenMS, *outcome.TtfbMS)
+}
+
+func TestOpenAIAutoSchedulerSuccessOutcomeClassifiesWSSemanticRateLimit(t *testing.T) {
+	statusCode := http.StatusTooManyRequests
+	result := &OpenAIForwardResult{
+		OpenAIWSMode:         true,
+		WSTerminalEventType:  "response.failed",
+		WSTerminalStatusCode: &statusCode,
+		WSTerminalError:      "Rate limit exceeded",
+	}
+
+	outcome := openAIAutoSchedulerSuccessOutcome(nil, time.Now(), result)
+
+	require.Equal(t, OpenAIAutoSchedulerEventRateLimited, outcome.EventType)
+	require.Equal(t, http.StatusTooManyRequests, *outcome.StatusCode)
+	require.Equal(t, "Rate limit exceeded", outcome.Message)
+}
+
+func TestOpenAIAutoSchedulerIncompleteWithStatusPenalizesLegacyScore(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		status    int
+		wantEvent string
+	}{
+		{name: "upstream error", status: http.StatusBadGateway, wantEvent: OpenAIAutoSchedulerEventError},
+		{name: "rate limited", status: http.StatusTooManyRequests, wantEvent: OpenAIAutoSchedulerEventRateLimited},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			groupID := int64(31)
+			repo := &fakeOpenAIAutoSchedulerRepo{
+				groups: map[int64]Group{groupID: {
+					ID: groupID, Platform: PlatformOpenAI, Status: StatusActive, OpenAIAutoSchedulerEnabled: true,
+				}},
+				states: map[string]OpenAIAutoSchedulerScoreState{},
+			}
+			schedulerSvc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+			recorder := NewOpenAIAutoSchedulerOutcomeRecorder(schedulerSvc, 2, 1)
+			gatewaySvc := &OpenAIGatewayService{openAIAutoSchedulerOutcomeRecorder: recorder}
+			account := &Account{ID: 41, Platform: PlatformOpenAI}
+			result := &OpenAIForwardResult{
+				OpenAIWSMode:         true,
+				WSTerminalEventType:  "response.incomplete",
+				WSTerminalStatusCode: &tt.status,
+				WSTerminalError:      "upstream_internal_error",
+			}
+
+			outcome := openAIAutoSchedulerSuccessOutcome(nil, time.Now(), result)
+			require.Equal(t, tt.wantEvent, outcome.EventType)
+			require.Equal(t, tt.status, *outcome.StatusCode)
+			require.Equal(t, "upstream_internal_error", outcome.Message)
+
+			gatewaySvc.recordOpenAIAutoSchedulerOutcome(context.Background(), account, &groupID, "gpt-5", outcome)
+			require.NoError(t, recorder.Stop(context.Background()))
+
+			state := repo.states[openAIAutoSchedulerStateKey(account.ID, groupID, "gpt-5")]
+			require.Equal(t, 1, state.ConsecutiveErrorCount)
+			require.Less(t, state.FinalScore, state.BaseScore)
+			require.Len(t, repo.events, 1)
+			require.Equal(t, tt.wantEvent, repo.events[0].EventType)
+		})
+	}
+}
+
+func TestOpenAIAutoSchedulerOutcomeSkipsNeutralWSTerminals(t *testing.T) {
+	for _, terminal := range []struct {
+		name      string
+		eventType string
+		message   string
+	}{
+		{name: "client cancelled", eventType: "response.cancelled", message: "response.cancelled"},
+		{name: "max output truncation", eventType: "response.incomplete", message: "max_output_tokens"},
+		{name: "content filter", eventType: "response.incomplete", message: "content_filter"},
+	} {
+		t.Run(terminal.name, func(t *testing.T) {
+			outcome := openAIAutoSchedulerSuccessOutcome(nil, time.Now(), &OpenAIForwardResult{
+				OpenAIWSMode: true, WSTerminalEventType: terminal.eventType, WSTerminalError: terminal.message,
+			})
+			require.Empty(t, outcome.EventType)
+		})
+	}
+}
+
+func TestOpenAIAutoSchedulerNeutralWSTerminalDoesNotReachLegacyScore(t *testing.T) {
+	settings := enabledOpenAIAutoSchedulerSettings()
+	groupID := int64(31)
+	repo := &fakeOpenAIAutoSchedulerRepo{groups: map[int64]Group{groupID: {
+		ID: groupID, Platform: PlatformOpenAI, Status: StatusActive, OpenAIAutoSchedulerEnabled: true,
+	}}}
+	schedulerSvc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: settings})
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(schedulerSvc, 2, 1)
+	gatewaySvc := &OpenAIGatewayService{openAIAutoSchedulerOutcomeRecorder: recorder}
+	account := &Account{ID: 41, Platform: PlatformOpenAI}
+	result := &OpenAIForwardResult{
+		OpenAIWSMode: true, WSTerminalEventType: "response.incomplete", WSTerminalError: "max_output_tokens",
+	}
+
+	gatewaySvc.recordOpenAIAutoSchedulerOutcome(context.Background(), account, &groupID, "gpt-5",
+		openAIAutoSchedulerSuccessOutcome(nil, time.Now(), result))
+	require.NoError(t, recorder.Stop(context.Background()))
+
+	require.Zero(t, recorder.SnapshotMetrics().Accepted)
+	require.Zero(t, repo.getStateCalls)
+	require.Empty(t, repo.events)
 }
 
 func TestOpenAISelectAccountForModelWithExclusions_StickyExcludedFallback(t *testing.T) {

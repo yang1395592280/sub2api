@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -204,6 +205,49 @@ func isOpenAIWSTerminalEvent(eventType string) bool {
 	}
 }
 
+func openAIWSTerminalOutcomeMetadata(eventType, codeRaw, errTypeRaw, msgRaw string) (*int, string) {
+	eventType = strings.TrimSpace(eventType)
+	if eventType == "response.completed" || eventType == "response.done" {
+		return nil, ""
+	}
+	if !isOpenAIWSTerminalEvent(eventType) {
+		return nil, ""
+	}
+	message := strings.TrimSpace(msgRaw)
+	if message == "" {
+		message = strings.TrimSpace(codeRaw)
+	}
+	if message == "" {
+		message = strings.TrimSpace(errTypeRaw)
+	}
+	if message == "" {
+		message = eventType
+	}
+	if isNeutralOpenAIWSTerminal(eventType, codeRaw, errTypeRaw, msgRaw) {
+		return nil, message
+	}
+
+	statusCode := openAIWSErrorHTTPStatusFromRaw(codeRaw, errTypeRaw)
+	if isOpenAIWSRateLimitError(codeRaw, errTypeRaw, msgRaw) {
+		statusCode = http.StatusTooManyRequests
+	}
+	return &statusCode, message
+}
+
+func isNeutralOpenAIWSTerminal(eventType, codeRaw, errTypeRaw, msgRaw string) bool {
+	switch strings.TrimSpace(eventType) {
+	case "response.cancelled", "response.canceled":
+		return true
+	case "response.incomplete":
+		reason := strings.ToLower(strings.TrimSpace(firstNonEmptyString(codeRaw, errTypeRaw, msgRaw)))
+		switch reason {
+		case "max_output_tokens", "max_tokens", "content_filter", "client_cancelled", "client_canceled", "cancelled", "canceled":
+			return true
+		}
+	}
+	return false
+}
+
 func isOpenAIWSTokenEvent(eventType string) bool {
 	eventType = strings.TrimSpace(eventType)
 	if eventType == "" {
@@ -280,6 +324,34 @@ func getOpenAIGroupIDFromContext(c *gin.Context) int64 {
 		return 0
 	}
 	return *apiKey.GroupID
+}
+
+func openAIAutoSchedulerStatusCodeForError(err error) *int {
+	if err == nil {
+		return nil
+	}
+	var failoverErr *UpstreamFailoverError
+	if errors.As(err, &failoverErr) && failoverErr.StatusCode > 0 {
+		statusCode := failoverErr.StatusCode
+		return &statusCode
+	}
+	var dialErr *openAIWSDialError
+	if errors.As(err, &dialErr) && dialErr.StatusCode > 0 {
+		statusCode := dialErr.StatusCode
+		return &statusCode
+	}
+	var imagesErr *OpenAIImagesUpstreamError
+	if errors.As(err, &imagesErr) && imagesErr.StatusCode > 0 {
+		statusCode := imagesErr.StatusCode
+		return &statusCode
+	}
+	for _, statusCode := range []int{http.StatusTooManyRequests, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout, http.StatusInternalServerError} {
+		if strings.Contains(err.Error(), fmt.Sprintf("status=%d", statusCode)) {
+			status := statusCode
+			return &status
+		}
+	}
+	return nil
 }
 
 // SelectAccountByPreviousResponseID 按 previous_response_id 命中账号粘连。

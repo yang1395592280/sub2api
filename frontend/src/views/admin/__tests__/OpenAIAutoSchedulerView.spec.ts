@@ -2,13 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import OpenAIAutoSchedulerView from '../OpenAIAutoSchedulerView.vue'
+import { createSchedulerTestI18n } from '@/components/admin/openai-scheduler/__tests__/testI18n'
 
 const {
   getSettings,
   updateSettings,
   listGroups,
   updateGroup,
-  listScores,
+  getOverview,
+  listHealth,
   listEvents,
   resetScore,
   probeScore,
@@ -19,7 +21,8 @@ const {
   updateSettings: vi.fn(),
   listGroups: vi.fn(),
   updateGroup: vi.fn(),
-  listScores: vi.fn(),
+  getOverview: vi.fn(),
+  listHealth: vi.fn(),
   listEvents: vi.fn(),
   resetScore: vi.fn(),
   probeScore: vi.fn(),
@@ -34,7 +37,8 @@ vi.mock('@/api/admin', () => ({
       updateSettings,
       listGroups,
       updateGroup,
-      listScores,
+      getOverview,
+      listHealth,
       listEvents,
       resetScore,
       probeScore,
@@ -43,18 +47,20 @@ vi.mock('@/api/admin', () => ({
 }))
 
 vi.mock('@/stores/app', () => ({
-  useAppStore: () => ({
-    showError,
-    showSuccess,
-  }),
-}))
-
-vi.mock('@/utils/apiError', () => ({
-  extractApiErrorMessage: (_err: unknown, fallback: string) => fallback,
+  useAppStore: () => ({ showError, showSuccess }),
 }))
 
 const settings = {
   enabled: true,
+  mode: 'balanced' as const,
+  shadow_mode: true,
+  top_k: 3,
+  exploration_rate: 0.03,
+  session_escape_min_gap_ms: 1000,
+  session_escape_ratio: 0.25,
+  health_ttl_seconds: 1800,
+  real_sample_fresh_seconds: 300,
+  probe_jitter_seconds: 6,
   probe_model: 'gpt-5.4',
   probe_interval_seconds: 60,
   slow_threshold_ms: 10000,
@@ -68,129 +74,82 @@ const settings = {
 }
 
 const groups = [
-  { id: 20, name: 'plus特惠临时分组', status: 'active', enabled: true },
-  { id: 21, name: 'openai-backup', status: 'active', enabled: false },
+  { id: 10, name: 'disabled', status: 'active', enabled: false },
+  { id: 33, name: 'Codex', status: 'active', enabled: true },
+  { id: 82, name: 'Control', status: 'active', enabled: true },
 ]
 
-const scores = [
-  {
-    account_id: 101,
-    account_name: 'plus特惠临时分组渠道',
-    channel_price: 0.1,
-    group_id: 20,
-    model: 'gpt-5.4',
-    base_score: 6000,
-    base_score_percent: 60,
-    final_score: 8200,
-    final_score_percent: 82,
-    latency_score: 7000,
-    latency_score_percent: 70,
-    error_score: 10000,
-    error_score_percent: 100,
-    recovery_score: 9000,
-    recovery_score_percent: 90,
-    cost_score: 8000,
-    cost_score_percent: 80,
-    state: 'observing',
-    consecutive_slow_count: 1,
-    consecutive_error_count: 0,
-    consecutive_success_count: 2,
-    request_count: 12,
-    ttfb_sample_count: 7,
-    slow_rate: 0.25,
-    error_rate: 0.05,
-    stuck_rate: 0,
-    cooldown_until: null,
-    last_latency_ms: 1200,
-    last_ttfb_ms: 420,
-    last_status_code: 200,
-    last_error: null,
-    reason: 'latency above target',
-    last_checked_at: '2026-06-28T03:00:00Z',
-  },
-  {
-    account_id: 102,
-    account_name: 'codex-pro备用渠道',
-    channel_price: null,
-    group_id: 21,
-    model: 'gpt-5.5',
-    base_score: 10000,
-    base_score_percent: 100,
-    final_score: 3200,
-    final_score_percent: 32,
-    latency_score: 3000,
-    latency_score_percent: 30,
-    error_score: 4000,
-    error_score_percent: 40,
-    recovery_score: 2000,
-    recovery_score_percent: 20,
-    cost_score: 8000,
-    cost_score_percent: 80,
-    state: 'open',
-    consecutive_slow_count: 3,
-    consecutive_error_count: 2,
-    consecutive_success_count: 0,
-    request_count: 20,
-    ttfb_sample_count: 10,
-    slow_rate: 0.5,
-    error_rate: 0.35,
-    stuck_rate: 0.1,
-    cooldown_until: '2026-06-28T03:05:00Z',
-    last_latency_ms: 22000,
-    last_ttfb_ms: 1200,
-    last_status_code: 500,
-    last_error: 'context deadline exceeded',
-    reason: 'breaker open',
-    last_checked_at: '2026-06-28T03:01:00Z',
-  },
-]
+const healthRow = {
+  account_id: 12512,
+  account_name: 'main-account',
+  group_id: 33,
+  model_family: 'gpt-5.4',
+  endpoint: 'responses',
+  transport: 'http_sse',
+  state: 'running',
+  predicted_ttft_ms: 920,
+  real_sample_count: 21,
+  probe_sample_count: 4,
+  error_rate: 0.01,
+  rate_limited_rate: 0,
+  server_error_rate: 0,
+  load_inflight: 2,
+  load_capacity: 10,
+  waiting_count: 0,
+  channel_price: 0.25,
+  decision: 'context_required',
+  decision_reason: 'request_context_required',
+  scheduler_mode: 'balanced',
+  shadow_mode: true,
+  sticky_escape_reason: null,
+  snapshot_age_ms: 500,
+  cooldown_until: null,
+}
 
 const AppLayoutStub = { template: '<div><slot /></div>' }
-const EmptyStateStub = defineComponent({
-  props: ['title', 'description'],
-  template: '<div>{{ title }} {{ description }}</div>',
-})
-const IconStub = defineComponent({
-  props: ['name'],
-  template: '<span>{{ name }}</span>',
-})
-const PaginationStub = defineComponent({
-  props: ['page', 'total', 'pageSize'],
-  emits: ['update:page', 'update:pageSize'],
-  template: '<div data-testid="pagination">{{ page }} / {{ pageSize }} / {{ total }}</div>',
-})
+const IconStub = { template: '<span />' }
 const ToggleStub = defineComponent({
-  props: {
-    modelValue: {
-      type: Boolean,
-      required: true,
-    },
-  },
+  props: ['modelValue'],
   emits: ['update:modelValue'],
   setup(props, { emit }) {
-    return () =>
-      h(
-        'button',
-        {
-          type: 'button',
-          role: 'switch',
-          'aria-checked': String(props.modelValue),
-          onClick: () => emit('update:modelValue', !props.modelValue),
-        },
-        String(props.modelValue)
-      )
+    return () => h('button', { type: 'button', 'data-testid': 'global-toggle', onClick: () => emit('update:modelValue', !props.modelValue) })
   },
+})
+const GroupListStub = defineComponent({
+  props: ['groups', 'modelValue'],
+  emits: ['update:modelValue', 'toggle'],
+  template: '<div><button data-testid="select-82" @click="$emit(\'update:modelValue\', 82)">Control</button><button data-testid="toggle-82" @click="$emit(\'toggle\', 82, false)">toggle</button></div>',
+})
+const OverviewStub = defineComponent({ props: ['overview'], template: '<div data-testid="overview">{{ overview?.e2e_ttft_p50_ms }}</div>' })
+const HealthStub = defineComponent({
+  props: ['rows'],
+  emits: ['select', 'probe', 'reset', 'filter', 'page'],
+  template: '<div data-testid="health"><span>{{ rows.length }}</span><button data-testid="select-health" @click="$emit(\'select\', rows[0])">select</button><button data-testid="reset-health" @click="$emit(\'reset\', rows[0])">reset</button></div>',
+})
+const DrawerStub = defineComponent({ props: ['open', 'account'], template: '<div v-if="open" data-testid="drawer">{{ account?.account_name }}</div>' })
+const EventsStub = { template: '<div data-testid="events" />' }
+const SettingsStub = { template: '<div data-testid="settings" />' }
+const ConfirmStub = defineComponent({
+  props: ['show'],
+  emits: ['confirm', 'cancel'],
+  template: '<button v-if="show" data-testid="confirm-reset" @click="$emit(\'confirm\')">confirm</button>',
 })
 
 function mountView() {
   return mount(OpenAIAutoSchedulerView, {
     global: {
+      plugins: [createSchedulerTestI18n()],
       stubs: {
         AppLayout: AppLayoutStub,
-        EmptyState: EmptyStateStub,
         Icon: IconStub,
-        Pagination: PaginationStub,
         Toggle: ToggleStub,
+        SchedulerGroupList: GroupListStub,
+        SchedulerOverview: OverviewStub,
+        SchedulerHealthTable: HealthStub,
+        SchedulerAccountDrawer: DrawerStub,
+        SchedulerEventsPanel: EventsStub,
+        SchedulerSettingsPanel: SettingsStub,
+        ConfirmDialog: ConfirmStub,
       },
     },
   })
@@ -200,283 +159,84 @@ describe('OpenAIAutoSchedulerView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getSettings.mockResolvedValue({ ...settings })
-    updateSettings.mockResolvedValue({ ...settings, enabled: false })
+    updateSettings.mockImplementation((payload) => Promise.resolve({ ...payload }))
     listGroups.mockResolvedValue(groups.map((group) => ({ ...group })))
-    updateGroup.mockImplementation((id: number, payload: { enabled: boolean }) =>
-      Promise.resolve({ ...groups.find((group) => group.id === id), ...payload })
-    )
-    listScores.mockResolvedValue({
-      items: scores.map((score) => ({ ...score })),
-      total: scores.length,
-      page: 1,
-      page_size: 20,
-      pages: 1,
+    updateGroup.mockImplementation((id, payload) => Promise.resolve({ ...groups.find((group) => group.id === id), ...payload }))
+    getOverview.mockResolvedValue({
+      e2e_ttft_p50_ms: 970,
+      e2e_ttft_p90_ms: 2100,
+      selection_p95_ms: 18,
+      probe_ratio: 0.2,
+      groups: [],
+      trend: [],
+      slow_causes: [],
     })
-    listEvents.mockResolvedValue({
-      items: [
-        {
-          account_id: 101,
-          group_id: 20,
-          model: 'gpt-5.4',
-          event_type: 'probe_error',
-          score_before: 6000,
-          score_before_percent: 60,
-          score_after: 2140,
-          score_after_percent: 21.4,
-          latency_ms: null,
-          ttfb_ms: null,
-          status_code: null,
-          message: 'Post "https://walkcoding.top": context deadline exceeded',
-          created_at: '2026-06-28T10:28:00Z',
-        },
-      ],
-      total: 1,
-      page: 1,
-      page_size: 20,
-      pages: 1,
-    })
-    resetScore.mockResolvedValue({ message: 'score reset' })
-    probeScore.mockResolvedValue({
-      event_type: 'probe_success',
-      success: true,
-      message: 'ok',
-      latency_ms: 800,
-    })
+    listHealth.mockResolvedValue({ items: [healthRow], total: 1, page: 1, page_size: 20, pages: 1 })
+    listEvents.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 1 })
+    resetScore.mockResolvedValue({ message: 'reset' })
+    probeScore.mockResolvedValue({ success: true, event_type: 'probe_success', message: 'ok', latency_ms: 800, ttfb_ms: 600 })
   })
 
-  it('loads settings, groups and score rows', async () => {
+  it('initializes the B console on the first enabled group', async () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(getSettings).toHaveBeenCalled()
-    expect(listGroups).toHaveBeenCalled()
-    expect(listScores).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1, group_id: 20, model: 'gpt-5.4' }),
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
-    )
-    expect(wrapper.text()).toContain('plus特惠临时分组')
-    expect(wrapper.text()).toContain('plus特惠临时分组渠道')
-    expect(wrapper.text()).toContain('观察中')
-    expect(wrapper.text()).not.toContain('observing')
-    expect(wrapper.text()).toContain('价格 0.1x')
-    expect(wrapper.text()).toContain('0.8200')
-    expect(wrapper.get<HTMLSelectElement>('#scheduler-filter-model').element.value).toBe('gpt-5.4')
-    expect(wrapper.text()).toContain('实际调度分')
-    expect(wrapper.text()).toContain('当前分数 0.8200（已含成本修正 +0.8000）；同状态选择时再叠加组内价格修正')
-    expect(wrapper.text()).not.toContain('实际调度分 = 健康分 0.8200 + 价格修正 +0.8000')
-    expect(wrapper.text()).toContain('基础分 0.6000')
-    expect(wrapper.text()).toContain('新渠道默认起点')
-    expect(wrapper.text()).toContain('延迟修正')
-    expect(wrapper.text()).toContain('错误惩罚')
-    expect(wrapper.text()).toContain('恢复加分')
-    expect(wrapper.text()).toContain('成本修正')
-    expect(wrapper.text()).toContain('请求样本')
-    expect(wrapper.text()).toContain('TTFB样本')
-    expect(wrapper.text()).toContain('超时：context deadline exceeded')
-  })
-
-  it('uses configured probe model for default filter and labels', async () => {
-    getSettings.mockResolvedValueOnce({ ...settings, probe_model: 'gpt-5.5' })
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    expect(listScores).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1, group_id: 20, model: 'gpt-5.5' }),
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
-    )
-    expect(wrapper.get<HTMLSelectElement>('#scheduler-filter-model').element.value).toBe('gpt-5.5')
-    expect(wrapper.text()).toContain('检测模型')
-    expect(wrapper.get('[data-testid="scheduler-group-card-20"]').text()).toContain('检测模型 gpt-5.5')
-  })
-
-  it('renders the approved operations layout with group sidebar and channel table', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    expect(wrapper.get('[data-testid="scheduler-group-sidebar"]').text()).toContain('plus特惠临时分组')
-    expect(wrapper.get('[data-testid="scheduler-group-sidebar"]').text()).toContain('参与自动调度')
-    expect(wrapper.get('[data-testid="scheduler-score-table"]').text()).toContain('上游渠道')
-    expect(wrapper.get('[data-testid="scheduler-score-table"]').text()).toContain('实际调度分')
-    expect(wrapper.get('[data-testid="scheduler-score-table"]').text()).toContain('健康分拆解')
-    expect(wrapper.get('[data-testid="scheduler-score-table"]').text()).toContain('探测样本')
-    expect(wrapper.get('[data-testid="scheduler-score-table"]').text()).toContain('最近风险')
-    expect(wrapper.text()).toContain('关闭后走系统原调度')
-    expect(wrapper.text()).toContain('当前分组关闭时只展示分数，不参与自动调度')
-  })
-
-  it('uses viewport-filling responsive layout classes to avoid fixed blank space', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    expect(wrapper.get('[data-testid="scheduler-page"]').classes()).toEqual(
-      expect.arrayContaining(['flex', 'min-h-[calc(100vh-8rem)]', 'flex-col'])
-    )
-    expect(wrapper.get('[data-testid="scheduler-main-grid"]').classes()).toEqual(
-      expect.arrayContaining(['flex-1', 'min-h-0', 'xl:grid-cols-[clamp(260px,18vw,360px)_minmax(0,1fr)]'])
-    )
-    expect(wrapper.get('[data-testid="scheduler-score-panel"]').classes()).toEqual(
-      expect.arrayContaining(['flex', 'min-h-0', 'flex-1', 'flex-col'])
-    )
-    expect(wrapper.get('[data-testid="scheduler-score-card"]').classes()).toEqual(
-      expect.arrayContaining(['flex', 'min-h-[420px]', 'flex-1', 'flex-col'])
-    )
-    expect(wrapper.get('[data-testid="scheduler-score-table"]').classes()).toEqual(
-      expect.arrayContaining(['w-full', 'min-w-[1280px]'])
-    )
-  })
-
-  it('opens a detail drawer with score breakdown, events and full error text', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    await wrapper.findAll('button').find((button) => button.text().includes('查看详情'))!.trigger('click')
-    await flushPromises()
-
-    expect(listEvents).toHaveBeenCalledWith(
-      expect.objectContaining({ account_id: 101, group_id: 20, model: 'gpt-5.4', page: 1, page_size: 20 }),
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
-    )
-    expect(wrapper.get('[data-testid="scheduler-score-drawer"]').text()).toContain('评分拆解')
-    expect(wrapper.get('[data-testid="scheduler-score-drawer"]').text()).toContain('完整错误')
-    expect(wrapper.get('[data-testid="scheduler-score-drawer"]').text()).toContain('Post "https://walkcoding.top": context deadline exceeded')
-    expect(wrapper.get('[data-testid="scheduler-score-drawer"]').text()).toContain('最近事件')
-  })
-
-  it('selects groups from the sidebar and keeps the filter in sync', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    await wrapper.get('[data-testid="scheduler-group-card-21"]').trigger('click')
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('openai-backup')
-    expect(wrapper.text()).toContain('不参与自动调度')
-    expect(listScores).toHaveBeenLastCalledWith(
-      expect.objectContaining({ group_id: 21, model: 'gpt-5.4' }),
+    expect(wrapper.text()).toContain('OpenAI 调度控制台')
+    expect(wrapper.text()).toContain('均衡模式')
+    expect(wrapper.text()).toContain('影子观察')
+    expect(wrapper.findAll('[data-testid^="scheduler-tab-"]')).toHaveLength(4)
+    expect(getOverview).toHaveBeenCalledWith(
+      { group_id: 33, window: '6h' },
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
   })
 
-  it('updates selected group participation and applies group filter', async () => {
+  it('loads account health when switching tabs', async () => {
     const wrapper = mountView()
     await flushPromises()
-
-    await wrapper.get('[data-testid="scheduler-group-card-21"]').trigger('click')
+    await wrapper.get('[data-testid="scheduler-tab-health"]').trigger('click')
     await flushPromises()
 
-    expect(listScores).toHaveBeenLastCalledWith(
-      expect.objectContaining({ group_id: 21 }),
+    expect(listHealth).toHaveBeenCalledWith(
+      expect.objectContaining({ group_id: 33, page: 1, page_size: 20 }),
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
-
-    await wrapper.get('[data-testid="scheduler-group-card-21"]').get('[role="switch"]').trigger('click')
-    await flushPromises()
-
-    expect(updateGroup).toHaveBeenCalledWith(21, { enabled: true })
-    expect(showSuccess).toHaveBeenCalledWith('分组已加入自动调度')
+    expect(wrapper.get('[data-testid="health"]').text()).toContain('1')
   })
 
-  it('uses row account, group and model identity for probe and reset actions', async () => {
+  it('reloads the active overview when selecting another group', async () => {
     const wrapper = mountView()
     await flushPromises()
-
-    const buttons = wrapper.findAll('button')
-    const probe = buttons.find((button) => button.text().includes('探测'))
-
-    await probe!.trigger('click')
+    await wrapper.get('[data-testid="select-82"]').trigger('click')
     await flushPromises()
 
-    expect(probeScore).toHaveBeenCalledWith(101, { group_id: 20, model: 'gpt-5.4' })
-
-    const resetAfterProbe = wrapper.findAll('button').find((button) => button.text().includes('重置'))
-    await resetAfterProbe!.trigger('click')
-    await flushPromises()
-
-    expect(resetScore).toHaveBeenCalledWith(101, { group_id: 20, model: 'gpt-5.4' })
-  })
-
-  it('edits scheduler settings from the configuration panel', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    await wrapper.findAll('button').find((button) => button.text().includes('编辑调度配置'))!.trigger('click')
-    await flushPromises()
-
-    await wrapper.get<HTMLInputElement>('#scheduler-settings-probe-interval').setValue('90')
-    await wrapper.get<HTMLInputElement>('#scheduler-settings-cost-weight').setValue('35')
-    await wrapper.find('form[data-testid="scheduler-settings-form"]').trigger('submit')
-    await flushPromises()
-
-    expect(updateSettings).toHaveBeenCalledWith(
-      expect.objectContaining({
-        probe_interval_seconds: 90,
-        cost_weight: 0.35,
-      })
-    )
-    expect(showSuccess).toHaveBeenCalledWith('调度配置已更新')
-  })
-
-  it('locally filters before paginating and reports filtered total when state filter is active', async () => {
-    const openScores = Array.from({ length: 22 }, (_, index) => ({
-      ...scores[1],
-      account_id: 200 + index,
-      account_name: `open渠道-${index + 1}`,
-      model: `gpt-5.5-open-${index + 1}`,
-      state: 'open',
-    }))
-    const runningScores = Array.from({ length: 5 }, (_, index) => ({
-      ...scores[0],
-      account_id: 300 + index,
-      account_name: `running渠道-${index + 1}`,
-      model: `gpt-5.4-running-${index + 1}`,
-      state: 'running',
-    }))
-    listScores.mockResolvedValueOnce({
-      items: scores.map((score) => ({ ...score })),
-      total: scores.length,
-      page: 1,
-      page_size: 20,
-      pages: 1,
-    })
-    listScores.mockResolvedValueOnce({
-      items: [...openScores, ...runningScores],
-      total: 27,
-      page: 1,
-      page_size: 200,
-      pages: 1,
-    })
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    await wrapper.get<HTMLSelectElement>('#scheduler-filter-state').setValue('open')
-    await flushPromises()
-
-    expect(listScores).toHaveBeenLastCalledWith(
-      expect.objectContaining({ page: 1, page_size: 200 }),
+    expect(getOverview).toHaveBeenLastCalledWith(
+      { group_id: 82, window: '6h' },
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
-    expect(wrapper.text()).toContain('open渠道-1')
-    expect(wrapper.text()).toContain('open渠道-20')
-    expect(wrapper.text()).not.toContain('open渠道-21')
-    expect(wrapper.text()).not.toContain('gpt-5.4-running')
-    expect(wrapper.get('[data-testid="pagination"]').text()).toBe('1 / 20 / 22')
   })
 
-  it('selecting the score group filter shows that group participation switch state', async () => {
+  it('updates the global switch through the settings contract', async () => {
     const wrapper = mountView()
     await flushPromises()
-
-    await wrapper.get<HTMLSelectElement>('#scheduler-filter-group').setValue('21')
+    await wrapper.get('[data-testid="global-toggle"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('openai-backup')
-    expect(wrapper.text()).toContain('不参与自动调度')
-    expect(wrapper.get('[data-testid="scheduler-group-card-21"]').get('[role="switch"]').attributes('aria-checked')).toBe('false')
-    expect(listScores).toHaveBeenLastCalledWith(
-      expect.objectContaining({ group_id: 21 }),
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
-    )
+    expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({ enabled: false, mode: 'balanced' }))
+    expect(showSuccess).toHaveBeenCalled()
+  })
+
+  it('opens health detail and confirms reset using row identity', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="scheduler-tab-health"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="select-health"]').trigger('click')
+    expect(wrapper.get('[data-testid="drawer"]').text()).toContain('main-account')
+    await wrapper.get('[data-testid="reset-health"]').trigger('click')
+    await wrapper.get('[data-testid="confirm-reset"]').trigger('click')
+    await flushPromises()
+
+    expect(resetScore).toHaveBeenCalledWith(12512, { group_id: 33, model: 'gpt-5.4' })
   })
 })

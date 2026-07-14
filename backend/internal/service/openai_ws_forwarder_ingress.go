@@ -480,6 +480,8 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					return fmt.Errorf("resolve Grok websocket cache identity: %w", err)
 				}
 			}
+			turnStartedAt := time.Now()
+			attemptMetadata := openAIWSIngressAttemptMetadata(account, currentBridgePayload.originalModel, OpenAIUpstreamTransportHTTPSSE)
 			result, bridgeErr := s.proxyOpenAIWSHTTPBridgeTurn(
 				ctx,
 				c,
@@ -495,6 +497,16 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				turn,
 				writeClientMessage,
 			)
+			if bridgeErr != nil {
+				s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentBridgePayload.originalModel, openAIAutoSchedulerErrorOutcome(turnStartedAt, openAIAutoSchedulerStatusCodeForError(bridgeErr), bridgeErr),
+					attemptMetadata)
+			} else if result != nil {
+				if hooks != nil && hooks.TimingForTurn != nil {
+					applyOpenAIWSTurnTiming(hooks.TimingForTurn(turn), turnStartedAt, result)
+				}
+				s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentBridgePayload.originalModel, openAIAutoSchedulerSuccessOutcome(nil, turnStartedAt, result),
+					openAIAutoSchedulerHealthMetadataForAttempt(attemptMetadata, result))
+			}
 			if hooks != nil && hooks.AfterTurn != nil {
 				hooks.AfterTurn(turn, result, bridgeErr)
 			}
@@ -926,18 +938,24 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					)
 				}
 				imageCount := imageCounter.Count()
+				errCodeRaw, errTypeRaw, errMsgRaw := parseOpenAIWSErrorEventFields(upstreamMessage)
+				terminalStatusCode, terminalError := openAIWSTerminalOutcomeMetadata(eventType, errCodeRaw, errTypeRaw, errMsgRaw)
 				result := &OpenAIForwardResult{
-					RequestID:       responseID,
-					Usage:           usage,
-					Model:           originalModel,
-					UpstreamModel:   mappedModel,
-					ServiceTier:     extractOpenAIServiceTierFromBody(payload),
-					ReasoningEffort: ApplyThinkingEnabledFallback(extractOpenAIReasoningEffortFromBody(payload, mappedModel, originalModel), payload, mappedModel),
-					Stream:          reqStream,
-					OpenAIWSMode:    true,
-					ResponseHeaders: lease.HandshakeHeaders(),
-					Duration:        time.Since(turnStart),
-					FirstTokenMs:    firstTokenMs,
+					RequestID:            responseID,
+					Usage:                usage,
+					Model:                originalModel,
+					UpstreamModel:        mappedModel,
+					UpstreamEndpoint:     "/v1/responses",
+					ServiceTier:          extractOpenAIServiceTierFromBody(payload),
+					ReasoningEffort:      ApplyThinkingEnabledFallback(extractOpenAIReasoningEffortFromBody(payload, mappedModel, originalModel), payload, mappedModel),
+					Stream:               reqStream,
+					OpenAIWSMode:         true,
+					WSTerminalEventType:  eventType,
+					WSTerminalStatusCode: terminalStatusCode,
+					WSTerminalError:      terminalError,
+					ResponseHeaders:      lease.HandshakeHeaders(),
+					Duration:             time.Since(turnStart),
+					FirstTokenMs:         firstTokenMs,
 				}
 				if replayInput := replayCollector.Items(); len(replayInput) > 0 {
 					result.wsReplayInput = replayInput
@@ -1018,6 +1036,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	defer releaseSessionLease()
 
 	turn := 1
+	turnStartedAt := time.Now()
 	turnRetry := 0
 	turnPrevRecoveryTried := false
 	lastTurnFinishedAt := time.Time{}
@@ -1308,7 +1327,9 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		if sessionLease == nil {
 			acquiredLease, acquireErr := acquireTurnLease(turn, preferredConnID, forcePreferredConn)
 			if acquireErr != nil {
-				return fmt.Errorf("acquire upstream websocket: %w", acquireErr)
+				finalErr := fmt.Errorf("acquire upstream websocket: %w", acquireErr)
+				s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentOriginalModel, openAIAutoSchedulerErrorOutcome(turnStartedAt, openAIAutoSchedulerStatusCodeForError(acquireErr), acquireErr))
+				return finalErr
 			}
 			sessionLease = acquiredLease
 			sessionConnID = strings.TrimSpace(sessionLease.ConnID())
@@ -1406,17 +1427,21 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 						)
 					}
 					resetSessionLease(true)
-					return NewOpenAIWSClientCloseError(
+					finalErr := NewOpenAIWSClientCloseError(
 						coderws.StatusPolicyViolation,
 						"upstream continuation connection is unavailable; please restart the conversation",
 						pingErr,
 					)
+					s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentOriginalModel, openAIAutoSchedulerErrorOutcome(turnStartedAt, openAIAutoSchedulerStatusCodeForError(finalErr), finalErr))
+					return finalErr
 				}
 				resetSessionLease(true)
 
 				acquiredLease, acquireErr := acquireTurnLease(turn, preferredConnID, forcePreferredConn)
 				if acquireErr != nil {
-					return fmt.Errorf("acquire upstream websocket after preflight ping fail: %w", acquireErr)
+					finalErr := fmt.Errorf("acquire upstream websocket after preflight ping fail: %w", acquireErr)
+					s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentOriginalModel, openAIAutoSchedulerErrorOutcome(turnStartedAt, openAIAutoSchedulerStatusCodeForError(acquireErr), acquireErr))
+					return finalErr
 				}
 				sessionLease = acquiredLease
 				sessionConnID = strings.TrimSpace(sessionLease.ConnID())
@@ -1448,6 +1473,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			)
 		}
 
+		attemptMetadata := openAIWSIngressAttemptMetadata(account, currentOriginalModel, OpenAIUpstreamTransportResponsesWebsocketV2)
 		result, relayErr := sendAndRelay(turn, sessionLease, currentPayload, currentPayloadBytes, currentOriginalModel, currentImageBillingModel, currentImageSizeTier, currentImageInputSize)
 		if relayErr != nil {
 			lastTurnClean = false
@@ -1461,6 +1487,8 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			if unwrapped := errors.Unwrap(relayErr); unwrapped != nil {
 				finalErr = unwrapped
 			}
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentOriginalModel, openAIAutoSchedulerErrorOutcome(turnStartedAt, openAIAutoSchedulerStatusCodeForError(finalErr), finalErr),
+				attemptMetadata)
 			if hooks != nil && hooks.AfterTurn != nil {
 				hooks.AfterTurn(turn, nil, finalErr)
 			}
@@ -1471,6 +1499,13 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		turnPrevRecoveryTried = false
 		lastTurnFinishedAt = time.Now()
 		lastTurnClean = true
+		if result != nil {
+			if hooks != nil && hooks.TimingForTurn != nil {
+				applyOpenAIWSTurnTiming(hooks.TimingForTurn(turn), turnStartedAt, result)
+			}
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, &groupID, currentOriginalModel, openAIAutoSchedulerSuccessOutcome(nil, turnStartedAt, result),
+				openAIAutoSchedulerHealthMetadataForAttempt(attemptMetadata, result))
+		}
 		if hooks != nil && hooks.AfterTurn != nil {
 			hooks.AfterTurn(turn, result, nil)
 		}
@@ -1527,6 +1562,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			}
 			return fmt.Errorf("read client websocket request: %w", readErr)
 		}
+		turnStartedAt = time.Now()
 
 		nextPayload, parseErr := parseClientPayload(nextClientMessage)
 		if parseErr != nil {
@@ -1588,4 +1624,16 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		}
 		turn++
 	}
+}
+
+func openAIWSIngressAttemptMetadata(account *Account, originalModel string, transport OpenAIUpstreamTransport) openAIAutoSchedulerAttemptMetadata {
+	upstreamModel := strings.TrimSpace(originalModel)
+	if account != nil {
+		upstreamModel = resolveOpenAIAccountUpstreamModelForRequest(account, originalModel, false)
+	}
+	return openAIAutoSchedulerHealthMetadataForAttempt(openAIAutoSchedulerAttemptMetadata{
+		ModelFamily: upstreamModel,
+		Endpoint:    openAISchedulerHealthEndpointResponses,
+		Transport:   transport,
+	}, nil)
 }

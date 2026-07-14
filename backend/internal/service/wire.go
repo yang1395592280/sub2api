@@ -155,8 +155,15 @@ func ProvideSub2APICheckinService(accountRepo AccountRepository, upstreamBalance
 }
 
 // ProvideGroupUpstreamBalanceRefreshRunner wires and starts the group upstream balance refresh runner.
-func ProvideGroupUpstreamBalanceRefreshRunner(groupRepo GroupRepository, accountRepo AccountRepository, refresher groupUpstreamBalanceRefresher) *GroupUpstreamBalanceRefreshRunner {
-	svc := NewGroupUpstreamBalanceRefreshRunner(groupRepo, accountRepo, refresher)
+func ProvideGroupUpstreamBalanceRefreshRunner(
+	groupRepo GroupRepository,
+	accountRepo AccountRepository,
+	refresher groupUpstreamBalanceRefresher,
+	lockCache LeaderLockCache,
+	db *sql.DB,
+	settingRepo SettingRepository,
+) *GroupUpstreamBalanceRefreshRunner {
+	svc := newGroupUpstreamBalanceRefreshRunnerWithState(groupRepo, accountRepo, refresher, lockCache, db, settingRepo)
 	svc.Start()
 	return svc
 }
@@ -586,6 +593,33 @@ func ProvideOpenAIAutoSchedulerSelector(svc *OpenAIAutoSchedulerService) *OpenAI
 	return NewOpenAIAutoSchedulerSelector(svc)
 }
 
+func ProvideOpenAISchedulerHealthEventSink(
+	repo OpenAISchedulerHealthRepository,
+	settingsProvider OpenAIAutoSchedulerSettingsProvider,
+) *OpenAISchedulerHealthEventSink {
+	return NewOpenAISchedulerHealthEventSink(repo, settingsProvider)
+}
+
+func ProvideOpenAIBalancedScheduler(repo OpenAISchedulerHealthRepository) *OpenAIBalancedScheduler {
+	return NewOpenAIBalancedScheduler(repo)
+}
+
+func ProvideOpenAIAutoSchedulerService(
+	repo OpenAIAutoSchedulerRepository,
+	settingsProvider OpenAIAutoSchedulerSettingsProvider,
+	healthSink *OpenAISchedulerHealthEventSink,
+) *OpenAIAutoSchedulerService {
+	svc := NewOpenAIAutoSchedulerService(repo, settingsProvider)
+	svc.healthSink = healthSink
+	return svc
+}
+
+func ProvideOpenAIAutoSchedulerOutcomeRecorder(
+	svc *OpenAIAutoSchedulerService,
+) *OpenAIAutoSchedulerOutcomeRecorder {
+	return NewOpenAIAutoSchedulerOutcomeRecorder(svc, openAIAutoSchedulerOutcomeQueueSize, openAIAutoSchedulerOutcomeWorkerCount, svc.healthSink)
+}
+
 func ProvideOpenAIGatewayService(
 	accountRepo AccountRepository,
 	usageLogRepo UsageLogRepository,
@@ -611,6 +645,8 @@ func ProvideOpenAIGatewayService(
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
 	openAIAutoSchedulerSelector *OpenAIAutoSchedulerSelector,
 	openAIAutoSchedulerService *OpenAIAutoSchedulerService,
+	openAIAutoSchedulerOutcomeRecorder *OpenAIAutoSchedulerOutcomeRecorder,
+	openAIBalancedScheduler *OpenAIBalancedScheduler,
 	apiKeyService *APIKeyService,
 	apiKeyRepo APIKeyRepository,
 ) *OpenAIGatewayService {
@@ -639,6 +675,8 @@ func ProvideOpenAIGatewayService(
 		userPlatformQuotaRepo,
 	)
 	svc.SetOpenAIAutoScheduler(openAIAutoSchedulerSelector, openAIAutoSchedulerService)
+	svc.SetOpenAIAutoSchedulerOutcomeRecorder(openAIAutoSchedulerOutcomeRecorder)
+	svc.SetOpenAIBalancedScheduler(openAIBalancedScheduler)
 	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(apiKeyService), apiKeyRepo)
 	return svc
 }
@@ -695,8 +733,12 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(groupUpstreamBalanceRefresher), new(*OpenAIUpstreamBalanceService)),
 	ProvideSub2APICheckinService,
 	ProvideGroupUpstreamBalanceRefreshRunner,
-	NewOpenAIAutoSchedulerService,
+	ProvideOpenAISchedulerHealthEventSink,
+	ProvideOpenAIBalancedScheduler,
+	ProvideOpenAISchedulerOverviewService,
+	ProvideOpenAIAutoSchedulerService,
 	ProvideOpenAIAutoSchedulerSelector,
+	ProvideOpenAIAutoSchedulerOutcomeRecorder,
 	NewOpenAIAutoSchedulerProbeChecker,
 	ProvideOpenAIAutoSchedulerProbeRunner,
 	ProvideGrokQuotaService,
@@ -826,9 +868,12 @@ func ProvideOpenAIAutoSchedulerProbeRunner(
 	settingsProvider OpenAIAutoSchedulerSettingsProvider,
 	accountRepo AccountRepository,
 	checker OpenAIAutoSchedulerProbeChecker,
+	healthSink *OpenAISchedulerHealthEventSink,
+	lockCache LeaderLockCache,
+	db *sql.DB,
 	tlsFPProfileService *TLSFingerprintProfileService,
 ) *OpenAIAutoSchedulerProbeRunner {
-	r := NewOpenAIAutoSchedulerProbeRunner(svc, settingsProvider, accountRepo, checker, tlsFPProfileService)
+	r := NewOpenAIAutoSchedulerProbeRunner(svc, settingsProvider, accountRepo, checker, healthSink, lockCache, db, tlsFPProfileService)
 	r.Start()
 	return r
 }
