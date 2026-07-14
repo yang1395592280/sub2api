@@ -126,8 +126,8 @@ func openAISchedulerHealthSettingsFromAutoScheduler(settings OpenAIAutoScheduler
 	return OpenAISchedulerHealthSettings{
 		RealSampleAlpha:                  openAISchedulerHealthRealAlpha,
 		ProbeSampleAlpha:                 openAISchedulerHealthProbeAlpha,
-		StateTTL:                         openAISchedulerHealthStateTTL,
-		RealSampleFreshSeconds:           openAISchedulerHealthRealFreshSeconds,
+		StateTTL:                         time.Duration(settings.HealthTTLSeconds) * time.Second,
+		RealSampleFreshSeconds:           settings.RealSampleFreshSeconds,
 		SlowThresholdMS:                  settings.SlowThresholdMS,
 		SevereSlowThresholdMS:            settings.SevereSlowThresholdMS,
 		ConsecutiveSlowBreakerThreshold:  settings.ConsecutiveSlowBreakerThreshold,

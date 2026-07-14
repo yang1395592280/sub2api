@@ -16,6 +16,15 @@ export type OpenAIAutoSchedulerEventType =
 
 export interface OpenAIAutoSchedulerSettings {
   enabled: boolean
+  mode?: 'legacy' | 'balanced'
+  shadow_mode?: boolean
+  top_k?: number
+  exploration_rate?: number
+  session_escape_min_gap_ms?: number
+  session_escape_ratio?: number
+  health_ttl_seconds?: number
+  real_sample_fresh_seconds?: number
+  probe_jitter_seconds?: number
   probe_model: string
   probe_interval_seconds: number
   slow_threshold_ms: number

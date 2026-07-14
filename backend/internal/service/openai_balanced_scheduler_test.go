@@ -402,6 +402,97 @@ func TestOpenAIBalancedSchedulerLoadsHealthInOneBatch(t *testing.T) {
 	require.Equal(t, []int64{2, 1}, result.OrderedAccountIDs)
 }
 
+func TestOpenAIBalancedSchedulerShadowReturnsFullLegacyOrderAndRecordsComparison(t *testing.T) {
+	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), OpenAIBalancedSelectionInput{
+		Candidates: []OpenAIBalancedCandidate{
+			{AccountID: 1, PredictedTTFTMS: 2000, Price: 5, State: OpenAIAutoSchedulerStateRunning},
+			{AccountID: 2, PredictedTTFTMS: 500, Price: 1, State: OpenAIAutoSchedulerStateRunning},
+			{AccountID: 3, PredictedTTFTMS: 4000, Price: 1, State: OpenAIAutoSchedulerStateRunning},
+		},
+		LegacyOrderedAccountIDs: []int64{1, 2, 3},
+		Settings: OpenAIBalancedSettings{
+			Mode: "balanced", ShadowMode: true, TopK: 2, ExplorationRate: 0,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{1, 2, 3}, result.OrderedAccountIDs)
+	require.True(t, result.Shadow)
+	require.Equal(t, int64(1), result.LegacyAccountID)
+	require.Equal(t, int64(2), result.ShadowAccountID)
+	require.InDelta(t, -1500, result.PredictedTTFTDifferenceMS, 0.001)
+	require.Equal(t, "balanced_order_changed", result.ShadowReason)
+}
+
+func TestOpenAIBalancedSchedulerShadowReturnsLegacyWhenAllBalancedCandidatesAreCircuitRejected(t *testing.T) {
+	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), OpenAIBalancedSelectionInput{
+		Candidates: []OpenAIBalancedCandidate{
+			{AccountID: 1, PredictedTTFTMS: 2000, State: OpenAIAutoSchedulerStateOpen},
+			{AccountID: 2, PredictedTTFTMS: 500, State: OpenAIAutoSchedulerStateHalfOpen},
+		},
+		LegacyOrderedAccountIDs: []int64{1, 2},
+		Settings: OpenAIBalancedSettings{
+			Mode: OpenAIAutoSchedulerModeBalanced, ShadowMode: true, TopK: 2,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{1, 2}, result.OrderedAccountIDs)
+	require.Empty(t, result.RejectedAccountIDs)
+	require.True(t, result.Shadow)
+}
+
+func TestOpenAIBalancedSchedulerHonorsExplicitZeroSessionEscapeThresholds(t *testing.T) {
+	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), OpenAIBalancedSelectionInput{
+		SessionAccountID: 1,
+		Candidates: []OpenAIBalancedCandidate{
+			{AccountID: 1, PredictedTTFTMS: 900, State: OpenAIAutoSchedulerStateRunning},
+			{AccountID: 2, PredictedTTFTMS: 500, State: OpenAIAutoSchedulerStateRunning},
+		},
+		Settings: OpenAIBalancedSettings{
+			Mode: OpenAIAutoSchedulerModeBalanced, TopK: 2,
+			SessionEscapeMinGapMS: 0, SessionEscapeRatio: 0,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "ttft", result.StickyEscapeReason)
+	require.Equal(t, int64(2), result.OrderedAccountIDs[0])
+}
+
+func TestOpenAIBalancedSchedulerLiveReturnsBalancedOrder(t *testing.T) {
+	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), OpenAIBalancedSelectionInput{
+		Candidates: []OpenAIBalancedCandidate{
+			{AccountID: 1, PredictedTTFTMS: 2000, Price: 5, State: OpenAIAutoSchedulerStateRunning},
+			{AccountID: 2, PredictedTTFTMS: 500, Price: 1, State: OpenAIAutoSchedulerStateRunning},
+		},
+		LegacyOrderedAccountIDs: []int64{1, 2},
+		Settings: OpenAIBalancedSettings{
+			Mode: "balanced", ShadowMode: false, TopK: 2, ExplorationRate: 0,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{2, 1}, result.OrderedAccountIDs)
+	require.False(t, result.Shadow)
+}
+
+func TestOpenAIBalancedSchedulerLegacyModeSkipsBalancedHealthLoad(t *testing.T) {
+	repo := &balancedSchedulerHealthRepoStub{}
+	result, err := NewOpenAIBalancedScheduler(repo).Order(context.Background(), OpenAIBalancedSelectionInput{
+		Candidates: []OpenAIBalancedCandidate{
+			{AccountID: 1, HealthKey: OpenAISchedulerHealthKey{AccountID: 1}},
+			{AccountID: 2, HealthKey: OpenAISchedulerHealthKey{AccountID: 2}},
+		},
+		LegacyOrderedAccountIDs: []int64{1, 2},
+		Settings:                OpenAIBalancedSettings{Mode: "legacy", TopK: 2},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{1, 2}, result.OrderedAccountIDs)
+	require.Zero(t, repo.getCalls)
+}
+
 func TestOpenAIBalancedSchedulerHealthFallbackPreservesLegacyOrder(t *testing.T) {
 	now := time.Date(2026, 7, 14, 8, 0, 0, 0, time.UTC)
 	key1 := OpenAISchedulerHealthKey{AccountID: 1, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse"}
@@ -437,4 +528,33 @@ func TestOpenAIBalancedSchedulerHealthFallbackPreservesLegacyOrder(t *testing.T)
 			require.LessOrEqual(t, tt.repo.getCalls, 1)
 		})
 	}
+}
+
+func TestOpenAIBalancedSchedulerShadowHealthFallbackDoesNotReportFalseAgreement(t *testing.T) {
+	now := time.Date(2026, 7, 14, 8, 0, 0, 0, time.UTC)
+	key1 := OpenAISchedulerHealthKey{AccountID: 1, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse"}
+	key2 := OpenAISchedulerHealthKey{AccountID: 2, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse"}
+	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), OpenAIBalancedSelectionInput{
+		Now: now,
+		Candidates: []OpenAIBalancedCandidate{
+			{AccountID: 1, HealthKey: key1},
+			{AccountID: 2, HealthKey: key2},
+		},
+		LegacyOrderedAccountIDs: []int64{1, 2},
+		Settings: OpenAIBalancedSettings{
+			Mode: OpenAIAutoSchedulerModeBalanced, ShadowMode: true, TopK: 2,
+		},
+		HealthLoadAttempted: true,
+		HealthSnapshots: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{
+			key1: {Key: key1, State: OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(time.Minute)},
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{1, 2}, result.OrderedAccountIDs)
+	require.True(t, result.Shadow)
+	require.Equal(t, int64(1), result.LegacyAccountID)
+	require.Zero(t, result.ShadowAccountID)
+	require.Zero(t, result.PredictedTTFTDifferenceMS)
+	require.Equal(t, "health_unavailable", result.ShadowReason)
 }

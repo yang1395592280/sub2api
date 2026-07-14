@@ -10,7 +10,8 @@ import (
 )
 
 type openAIAutoSchedulerSettingsRepoStub struct {
-	values map[string]string
+	values        map[string]string
+	getValueCalls int
 }
 
 func (s *openAIAutoSchedulerSettingsRepoStub) Get(ctx context.Context, key string) (*Setting, error) {
@@ -18,6 +19,7 @@ func (s *openAIAutoSchedulerSettingsRepoStub) Get(ctx context.Context, key strin
 }
 
 func (s *openAIAutoSchedulerSettingsRepoStub) GetValue(ctx context.Context, key string) (string, error) {
+	s.getValueCalls++
 	if v, ok := s.values[key]; ok {
 		return v, nil
 	}
@@ -67,6 +69,49 @@ func TestSettingService_OpenAIAutoSchedulerSettingsDefaultsAndNormalization(t *t
 	require.Equal(t, 3, settings.HalfOpenSuccessThreshold)
 	require.Equal(t, 1.0, settings.CostWeight)
 	require.Equal(t, 800, settings.RecoveryStep)
+}
+
+func TestNormalizeOpenAIAutoSchedulerSettings_BalancedDefaults(t *testing.T) {
+	got := normalizeOpenAIAutoSchedulerSettings(OpenAIAutoSchedulerSettings{})
+
+	require.Equal(t, "balanced", got.Mode)
+	require.Equal(t, 3, got.TopK)
+	require.InDelta(t, 0.03, got.ExplorationRate, 0.0001)
+	require.Equal(t, 1000, got.SessionEscapeMinGapMS)
+	require.InDelta(t, 0.25, got.SessionEscapeRatio, 0.0001)
+	require.Equal(t, 1800, got.HealthTTLSeconds)
+	require.Equal(t, 300, got.RealSampleFreshSeconds)
+	require.Equal(t, 0, got.ProbeJitterSeconds)
+}
+
+func TestSettingService_OpenAIAutoSchedulerOldJSONDefaultsToShadow(t *testing.T) {
+	repo := &openAIAutoSchedulerSettingsRepoStub{values: map[string]string{
+		SettingKeyOpenAIAutoSchedulerSettings: `{"enabled":true,"probe_interval_seconds":60}`,
+	}}
+	svc := NewSettingService(repo, &config.Config{})
+
+	settings := svc.GetOpenAIAutoSchedulerSettings(context.Background())
+
+	require.Equal(t, "balanced", settings.Mode)
+	require.True(t, settings.ShadowMode)
+	require.Equal(t, 3, settings.TopK)
+	require.Equal(t, 1800, settings.HealthTTLSeconds)
+	require.Equal(t, 300, settings.RealSampleFreshSeconds)
+}
+
+func TestSettingService_OpenAIAutoSchedulerExplicitShadowFalseSurvivesDecodeAndPersist(t *testing.T) {
+	repo := &openAIAutoSchedulerSettingsRepoStub{values: map[string]string{
+		SettingKeyOpenAIAutoSchedulerSettings: `{"mode":"balanced","shadow_mode":false,"probe_interval_seconds":60}`,
+	}}
+	svc := NewSettingService(repo, &config.Config{})
+
+	settings := svc.GetOpenAIAutoSchedulerSettings(context.Background())
+	require.False(t, settings.ShadowMode)
+
+	require.NoError(t, svc.SetOpenAIAutoSchedulerSettings(context.Background(), settings))
+	var saved map[string]any
+	require.NoError(t, json.Unmarshal([]byte(repo.values[SettingKeyOpenAIAutoSchedulerSettings]), &saved))
+	require.Equal(t, false, saved["shadow_mode"])
 }
 
 func TestSettingService_SetOpenAIAutoSchedulerSettingsPersistsNormalizedJSON(t *testing.T) {

@@ -27,6 +27,7 @@ const (
 const (
 	openAIAdvancedSchedulerSettingCacheTTL  = 5 * time.Second
 	openAIAdvancedSchedulerSettingDBTimeout = 2 * time.Second
+	openAIBalancedRuntimeSettingCacheTTL    = 5 * time.Second
 )
 
 const (
@@ -82,6 +83,9 @@ type OpenAIAccountScheduleRequest struct {
 	balancedLoadReady       bool
 	balancedPrivacyGroup    *Group
 	balancedPrivacyBlocked  []*Account
+	balancedMode            string
+	balancedShadowMode      bool
+	balancedPolicySettings  OpenAIBalancedSettings
 }
 
 type OpenAIAccountScheduleDecision struct {
@@ -285,9 +289,16 @@ func (s *openAIAccountRuntimeStats) size() int {
 }
 
 type defaultOpenAIAccountScheduler struct {
-	service *OpenAIGatewayService
-	metrics openAIAccountSchedulerMetrics
-	stats   *openAIAccountRuntimeStats
+	service                   *OpenAIGatewayService
+	metrics                   openAIAccountSchedulerMetrics
+	stats                     *openAIAccountRuntimeStats
+	balancedRuntimeSettings   atomic.Value // *cachedOpenAIBalancedRuntimeSettings
+	balancedRuntimeSettingsMu sync.Mutex
+}
+
+type cachedOpenAIBalancedRuntimeSettings struct {
+	settings  OpenAIAutoSchedulerSettings
+	expiresAt time.Time
 }
 
 type openAIStickyEscapeConfig struct {
@@ -311,6 +322,7 @@ func (s *defaultOpenAIAccountScheduler) Select(
 	req OpenAIAccountScheduleRequest,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
 	decision := OpenAIAccountScheduleDecision{}
+	req = s.withOpenAIBalancedRuntimeSettings(ctx, req)
 	start := time.Now()
 	defer func() {
 		decision.LatencyMs = time.Since(start).Milliseconds()
@@ -352,7 +364,7 @@ func (s *defaultOpenAIAccountScheduler) Select(
 		}
 	}
 
-	if req.StickyAccountID > 0 || req.StickyPreviousAccountID > 0 {
+	if (req.StickyAccountID > 0 || req.StickyPreviousAccountID > 0) && req.balancedMode != OpenAIAutoSchedulerModeLegacy {
 		req = s.prepareOpenAIBalancedHealth(ctx, req)
 	}
 
@@ -362,6 +374,9 @@ func (s *defaultOpenAIAccountScheduler) Select(
 			return nil, decision, err
 		}
 		if selection != nil && selection.Account != nil {
+			if req.balancedShadowMode {
+				_, _ = s.openAIBalancedShadowDecisionForSticky(ctx, req, selection.Account.ID)
+			}
 			decision.Layer = openAIAccountScheduleLayerSessionSticky
 			decision.StickySessionHit = true
 			decision.SelectedAccountID = selection.Account.ID
@@ -394,6 +409,109 @@ func (s *defaultOpenAIAccountScheduler) Select(
 		}
 	}
 	return selection, decision, nil
+}
+
+func (s *defaultOpenAIAccountScheduler) withOpenAIBalancedRuntimeSettings(
+	ctx context.Context,
+	req OpenAIAccountScheduleRequest,
+) OpenAIAccountScheduleRequest {
+	settings := s.openAIBalancedRuntimeSettingsForRequest(ctx)
+	req.balancedMode = settings.Mode
+	req.balancedShadowMode = settings.ShadowMode
+	req.balancedPolicySettings = OpenAIBalancedSettings{
+		Mode:                   settings.Mode,
+		ShadowMode:             settings.ShadowMode,
+		TopK:                   settings.TopK,
+		ExplorationRate:        settings.ExplorationRate,
+		LatencyBudgetMS:        openAIBalancedDefaultLatencyBudgetMS,
+		SessionEscapeMinGapMS:  float64(settings.SessionEscapeMinGapMS),
+		SessionEscapeRatio:     settings.SessionEscapeRatio,
+		SessionEscapeErrorRate: openAIBalancedDefaultSessionErrorRate,
+	}
+	return req
+}
+
+func (s *defaultOpenAIAccountScheduler) openAIBalancedRuntimeSettingsForRequest(ctx context.Context) OpenAIAutoSchedulerSettings {
+	now := time.Now()
+	if s != nil {
+		if cached, ok := s.balancedRuntimeSettings.Load().(*cachedOpenAIBalancedRuntimeSettings); ok && cached != nil && now.Before(cached.expiresAt) {
+			return cached.settings
+		}
+		s.balancedRuntimeSettingsMu.Lock()
+		defer s.balancedRuntimeSettingsMu.Unlock()
+		if cached, ok := s.balancedRuntimeSettings.Load().(*cachedOpenAIBalancedRuntimeSettings); ok && cached != nil && now.Before(cached.expiresAt) {
+			return cached.settings
+		}
+	}
+	settings := DefaultOpenAIAutoSchedulerSettings()
+	if s != nil && s.service != nil && s.service.settingService != nil {
+		settings = s.service.settingService.GetOpenAIAutoSchedulerSettings(ctx)
+	} else {
+		// Keep explicitly constructed gateway services compatible with the pre-rollout live policy.
+		settings.ShadowMode = false
+	}
+	settings = normalizeOpenAIAutoSchedulerSettings(settings)
+	if s != nil {
+		s.balancedRuntimeSettings.Store(&cachedOpenAIBalancedRuntimeSettings{
+			settings: settings, expiresAt: now.Add(openAIBalancedRuntimeSettingCacheTTL),
+		})
+	}
+	return settings
+}
+
+func (s *defaultOpenAIAccountScheduler) openAIBalancedShadowDecisionForSticky(
+	ctx context.Context,
+	req OpenAIAccountScheduleRequest,
+	legacyAccountID int64,
+) (OpenAIBalancedSelectionResult, bool) {
+	if s == nil || s.service == nil || s.service.openaiBalancedScheduler == nil || !req.balancedShadowMode || legacyAccountID <= 0 {
+		return OpenAIBalancedSelectionResult{}, false
+	}
+	legacyIDs := make([]int64, 0, len(req.balancedAccounts))
+	legacyIDs = append(legacyIDs, legacyAccountID)
+	for _, account := range req.balancedAccounts {
+		if account == nil || (req.RequireCompact && openAICompactSupportTier(account) == 0) {
+			continue
+		}
+		if account.ID != legacyAccountID {
+			legacyIDs = append(legacyIDs, account.ID)
+		}
+	}
+	legacyPositions := make(map[int64]int, len(legacyIDs))
+	for position, accountID := range legacyIDs {
+		legacyPositions[accountID] = position
+	}
+	candidates := make([]OpenAIBalancedCandidate, 0, len(req.balancedAccounts))
+	now := time.Now()
+	for _, account := range req.balancedAccounts {
+		if account == nil || (req.RequireCompact && openAICompactSupportTier(account) == 0) {
+			continue
+		}
+		loadInfo := req.balancedLoadMap[account.ID]
+		if loadInfo == nil {
+			loadInfo = &AccountLoadInfo{AccountID: account.ID}
+		}
+		candidates = append(candidates, openAIBalancedCandidateForAccount(
+			s.service, req, account, loadInfo, legacyPositions[account.ID], now,
+		))
+	}
+	if len(candidates) == 0 {
+		return OpenAIBalancedSelectionResult{}, false
+	}
+	settings := req.balancedPolicySettings
+	settings.Mode = OpenAIAutoSchedulerModeBalanced
+	settings.ShadowMode = true
+	result, err := s.service.openaiBalancedScheduler.Order(ctx, OpenAIBalancedSelectionInput{
+		SessionAccountID:        legacyAccountID,
+		Candidates:              candidates,
+		LegacyOrderedAccountIDs: legacyIDs,
+		Settings:                settings,
+		RandomSeed:              deriveOpenAISelectionSeed(req),
+		Now:                     now,
+		HealthSnapshots:         req.balancedHealthSnapshots,
+		HealthLoadAttempted:     req.balancedHealthAttempted,
+	})
+	return result, err == nil
 }
 
 func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
@@ -969,7 +1087,7 @@ func (s *defaultOpenAIAccountScheduler) applyOpenAIBalancedSelectionOrder(
 	req OpenAIAccountScheduleRequest,
 	plan *openAIAccountLoadPlan,
 ) {
-	if s == nil || s.service == nil || s.service.openaiBalancedScheduler == nil || plan == nil || len(plan.candidates) == 0 {
+	if s == nil || s.service == nil || s.service.openaiBalancedScheduler == nil || plan == nil || len(plan.candidates) == 0 || req.balancedMode == OpenAIAutoSchedulerModeLegacy {
 		return
 	}
 	legacyIDs := make([]int64, 0, len(plan.selectionOrder))
@@ -1008,12 +1126,16 @@ func (s *defaultOpenAIAccountScheduler) applyOpenAIBalancedSelectionOrder(
 		sessionAccountID = previousResponseAccountID
 		previousResponseAccountID = 0
 	}
+	policySettings := req.balancedPolicySettings
+	if strings.TrimSpace(policySettings.Mode) == "" {
+		policySettings = DefaultOpenAIBalancedSettings()
+	}
 	result, err := s.service.openaiBalancedScheduler.Order(ctx, OpenAIBalancedSelectionInput{
 		PreviousResponseAccountID: previousResponseAccountID,
 		SessionAccountID:          sessionAccountID,
 		Candidates:                balancedCandidates,
 		LegacyOrderedAccountIDs:   legacyIDs,
-		Settings:                  DefaultOpenAIBalancedSettings(),
+		Settings:                  policySettings,
 		RandomSeed:                deriveOpenAISelectionSeed(req),
 		Now:                       now,
 		HealthSnapshots:           req.balancedHealthSnapshots,
@@ -1345,7 +1467,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			loadMap = batchLoad
 		}
 	}
-	if !req.balancedHealthAttempted {
+	if !req.balancedHealthAttempted && req.balancedMode != OpenAIAutoSchedulerModeLegacy {
 		req = s.preloadOpenAIBalancedHealth(ctx, req, filtered, loadMap)
 	}
 
@@ -1403,7 +1525,7 @@ func (s *defaultOpenAIAccountScheduler) prepareOpenAIBalancedHealth(
 	ctx context.Context,
 	req OpenAIAccountScheduleRequest,
 ) OpenAIAccountScheduleRequest {
-	if s == nil || s.service == nil || s.service.openaiBalancedScheduler == nil || s.service.openaiBalancedScheduler.repo == nil {
+	if s == nil || s.service == nil || s.service.openaiBalancedScheduler == nil || s.service.openaiBalancedScheduler.repo == nil || req.balancedMode == OpenAIAutoSchedulerModeLegacy {
 		return req
 	}
 	prepared, err := s.prepareOpenAIAccountCandidates(ctx, req)
@@ -1484,7 +1606,7 @@ func (s *defaultOpenAIAccountScheduler) isOpenAIBalancedCircuitRejected(
 	req OpenAIAccountScheduleRequest,
 	account *Account,
 ) bool {
-	if s == nil || s.service == nil || account == nil || !req.balancedHealthAttempted || len(req.balancedHealthSnapshots) == 0 {
+	if s == nil || s.service == nil || account == nil || req.balancedShadowMode || req.balancedMode == OpenAIAutoSchedulerModeLegacy || !req.balancedHealthAttempted || len(req.balancedHealthSnapshots) == 0 {
 		return false
 	}
 	key := s.service.openAIBalancedHealthKeyForCandidate(account, req)
@@ -1503,7 +1625,7 @@ func (s *defaultOpenAIAccountScheduler) openAIBalancedSoftStickyEscapeReason(
 	req OpenAIAccountScheduleRequest,
 	accountID int64,
 ) string {
-	if s == nil || s.service == nil || accountID <= 0 || !req.balancedHealthAttempted || len(req.balancedHealthSnapshots) == 0 {
+	if s == nil || s.service == nil || accountID <= 0 || req.balancedShadowMode || req.balancedMode == OpenAIAutoSchedulerModeLegacy || !req.balancedHealthAttempted || len(req.balancedHealthSnapshots) == 0 {
 		return ""
 	}
 	candidates := make([]OpenAIBalancedCandidate, 0, len(req.balancedAccounts))
@@ -1534,7 +1656,11 @@ func (s *defaultOpenAIAccountScheduler) openAIBalancedSoftStickyEscapeReason(
 	if len(running) == 0 {
 		return ""
 	}
-	return openAIBalancedStickyEscapeReason(accountID, running, bestOpenAIBalancedTTFT(running), DefaultOpenAIBalancedSettings())
+	settings := req.balancedPolicySettings
+	if strings.TrimSpace(settings.Mode) == "" {
+		settings = DefaultOpenAIBalancedSettings()
+	}
+	return openAIBalancedStickyEscapeReason(accountID, running, bestOpenAIBalancedTTFT(running), settings)
 }
 
 func (s *defaultOpenAIAccountScheduler) preloadOpenAIBalancedHealth(

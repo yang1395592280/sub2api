@@ -2949,6 +2949,153 @@ func TestDefaultOpenAIAccountScheduler_BalancedLatencyTailUsesLegacySelectionOrd
 	require.Equal(t, []int64{accounts[0].ID, accounts[2].ID, accounts[1].ID}, orderedIDs)
 }
 
+func TestDefaultOpenAIAccountScheduler_RuntimeSettingsMapBalancedControls(t *testing.T) {
+	repo := &openAIAutoSchedulerSettingsRepoStub{values: map[string]string{
+		SettingKeyOpenAIAutoSchedulerSettings: `{"mode":"balanced","shadow_mode":true,"top_k":7,"exploration_rate":0.08,"session_escape_min_gap_ms":2500,"session_escape_ratio":0.5,"probe_interval_seconds":60}`,
+	}}
+	gateway := &OpenAIGatewayService{settingService: NewSettingService(repo, &config.Config{})}
+	scheduler := &defaultOpenAIAccountScheduler{service: gateway}
+
+	req := scheduler.withOpenAIBalancedRuntimeSettings(context.Background(), OpenAIAccountScheduleRequest{})
+
+	require.Equal(t, OpenAIAutoSchedulerModeBalanced, req.balancedMode)
+	require.True(t, req.balancedShadowMode)
+	require.Equal(t, 7, req.balancedPolicySettings.TopK)
+	require.InDelta(t, 0.08, req.balancedPolicySettings.ExplorationRate, 0.0001)
+	require.InDelta(t, 2500, req.balancedPolicySettings.SessionEscapeMinGapMS, 0.0001)
+	require.InDelta(t, 0.5, req.balancedPolicySettings.SessionEscapeRatio, 0.0001)
+
+	_ = scheduler.withOpenAIBalancedRuntimeSettings(context.Background(), OpenAIAccountScheduleRequest{})
+	require.Equal(t, 1, repo.getValueCalls)
+}
+
+func TestDefaultOpenAIAccountScheduler_ShadowKeepsLegacyPlanAndLiveUsesBalancedPlan(t *testing.T) {
+	accounts := []*Account{
+		{ID: 216440, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1},
+		{ID: 216441, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1},
+	}
+	loadInfo := func(accountID int64) *AccountLoadInfo { return &AccountLoadInfo{AccountID: accountID} }
+	newPlan := func() openAIAccountLoadPlan {
+		first := openAIAccountCandidateScore{account: accounts[0], loadInfo: loadInfo(accounts[0].ID)}
+		second := openAIAccountCandidateScore{account: accounts[1], loadInfo: loadInfo(accounts[1].ID)}
+		return openAIAccountLoadPlan{
+			allCandidates:  []openAIAccountCandidateScore{first, second},
+			candidates:     []openAIAccountCandidateScore{first, second},
+			selectionOrder: []openAIAccountCandidateScore{first, second},
+		}
+	}
+	gateway := &OpenAIGatewayService{}
+	gateway.SetOpenAIBalancedScheduler(NewOpenAIBalancedScheduler(nil))
+	scheduler := &defaultOpenAIAccountScheduler{service: gateway}
+	baseReq := OpenAIAccountScheduleRequest{
+		RequestedModel: "gpt-5.4", RequiredEndpoint: OpenAISchedulerEndpointResponses,
+		RequiredTransport: OpenAIUpstreamTransportHTTPSSE, balancedMode: OpenAIAutoSchedulerModeBalanced,
+		balancedHealthAttempted: true, balancedHealthSnapshots: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{},
+	}
+	now := time.Now()
+	for i, account := range accounts {
+		key := gateway.openAIBalancedHealthKeyForCandidate(account, baseReq)
+		baseReq.balancedHealthSnapshots[key] = OpenAISchedulerHealthSnapshot{
+			Key: key, State: OpenAIAutoSchedulerStateRunning,
+			PredictedTTFTMS: []float64{2000, 500}[i], ExpiresAt: now.Add(time.Hour),
+		}
+	}
+
+	shadowReq := baseReq
+	shadowReq.balancedShadowMode = true
+	shadowReq.balancedPolicySettings = OpenAIBalancedSettings{Mode: OpenAIAutoSchedulerModeBalanced, ShadowMode: true, TopK: 2}
+	shadowPlan := newPlan()
+	scheduler.applyOpenAIBalancedSelectionOrder(context.Background(), shadowReq, &shadowPlan)
+	require.Equal(t, []int64{accounts[0].ID, accounts[1].ID}, openAIAccountCandidateIDs(shadowPlan.selectionOrder))
+
+	liveReq := baseReq
+	liveReq.balancedPolicySettings = OpenAIBalancedSettings{Mode: OpenAIAutoSchedulerModeBalanced, TopK: 2}
+	livePlan := newPlan()
+	scheduler.applyOpenAIBalancedSelectionOrder(context.Background(), liveReq, &livePlan)
+	require.Equal(t, []int64{accounts[1].ID, accounts[0].ID}, openAIAccountCandidateIDs(livePlan.selectionOrder))
+
+	legacyReq := baseReq
+	legacyReq.balancedMode = OpenAIAutoSchedulerModeLegacy
+	legacyPlan := newPlan()
+	scheduler.applyOpenAIBalancedSelectionOrder(context.Background(), legacyReq, &legacyPlan)
+	require.Equal(t, []int64{accounts[0].ID, accounts[1].ID}, openAIAccountCandidateIDs(legacyPlan.selectionOrder))
+}
+
+func TestDefaultOpenAIAccountScheduler_SoftStickyUsesRuntimeEscapeThresholds(t *testing.T) {
+	accounts := []*Account{
+		{ID: 216442, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1},
+		{ID: 216443, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1},
+	}
+	gateway := &OpenAIGatewayService{}
+	scheduler := &defaultOpenAIAccountScheduler{service: gateway}
+	req := OpenAIAccountScheduleRequest{
+		RequestedModel: "gpt-5.4", RequiredEndpoint: OpenAISchedulerEndpointResponses,
+		RequiredTransport: OpenAIUpstreamTransportHTTPSSE, balancedMode: OpenAIAutoSchedulerModeBalanced,
+		balancedAccounts: accounts, balancedLoadMap: map[int64]*AccountLoadInfo{}, balancedHealthAttempted: true,
+		balancedHealthSnapshots: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{},
+		balancedPolicySettings: OpenAIBalancedSettings{
+			Mode: OpenAIAutoSchedulerModeBalanced, TopK: 2,
+			SessionEscapeMinGapMS: 0, SessionEscapeRatio: 0,
+		},
+	}
+	now := time.Now()
+	for i, account := range accounts {
+		key := gateway.openAIBalancedHealthKeyForCandidate(account, req)
+		req.balancedHealthSnapshots[key] = OpenAISchedulerHealthSnapshot{
+			Key: key, State: OpenAIAutoSchedulerStateRunning,
+			PredictedTTFTMS: []float64{900, 500}[i], ExpiresAt: now.Add(time.Hour),
+		}
+	}
+
+	require.Equal(t, "ttft", scheduler.openAIBalancedSoftStickyEscapeReason(req, accounts[0].ID))
+}
+
+func TestDefaultOpenAIAccountScheduler_ComputesStickyShadowDecisionWithoutChangingLegacyAccount(t *testing.T) {
+	accounts := []*Account{
+		{ID: 216444, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1},
+		{ID: 216445, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1},
+	}
+	gateway := &OpenAIGatewayService{}
+	gateway.SetOpenAIBalancedScheduler(NewOpenAIBalancedScheduler(nil))
+	scheduler := &defaultOpenAIAccountScheduler{service: gateway}
+	req := OpenAIAccountScheduleRequest{
+		RequestedModel: "gpt-5.4", RequiredEndpoint: OpenAISchedulerEndpointResponses,
+		RequiredTransport: OpenAIUpstreamTransportHTTPSSE, balancedMode: OpenAIAutoSchedulerModeBalanced,
+		balancedShadowMode: true, balancedAccounts: accounts, balancedLoadMap: map[int64]*AccountLoadInfo{},
+		balancedHealthAttempted: true, balancedHealthSnapshots: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{},
+		balancedPolicySettings: OpenAIBalancedSettings{
+			Mode: OpenAIAutoSchedulerModeBalanced, ShadowMode: true, TopK: 2,
+			SessionEscapeMinGapMS: 100, SessionEscapeRatio: 0.1,
+		},
+	}
+	now := time.Now()
+	for i, account := range accounts {
+		key := gateway.openAIBalancedHealthKeyForCandidate(account, req)
+		req.balancedHealthSnapshots[key] = OpenAISchedulerHealthSnapshot{
+			Key: key, State: OpenAIAutoSchedulerStateRunning,
+			PredictedTTFTMS: []float64{2000, 500}[i], ExpiresAt: now.Add(time.Hour),
+		}
+	}
+
+	result, ok := scheduler.openAIBalancedShadowDecisionForSticky(context.Background(), req, accounts[0].ID)
+
+	require.True(t, ok)
+	require.True(t, result.Shadow)
+	require.Equal(t, accounts[0].ID, result.LegacyAccountID)
+	require.Equal(t, accounts[1].ID, result.ShadowAccountID)
+	require.Equal(t, []int64{accounts[0].ID, accounts[1].ID}, result.OrderedAccountIDs)
+}
+
+func openAIAccountCandidateIDs(candidates []openAIAccountCandidateScore) []int64 {
+	ids := make([]int64, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.account != nil {
+			ids = append(ids, candidate.account.ID)
+		}
+	}
+	return ids
+}
+
 func TestOpenAIGatewayService_SelectAccountBalancedCompactStaleRetryHonorsCircuit(t *testing.T) {
 	groupID := int64(101261)
 	busy := &Account{

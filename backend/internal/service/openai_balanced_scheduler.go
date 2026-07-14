@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
@@ -26,6 +28,8 @@ const (
 )
 
 type OpenAIBalancedSettings struct {
+	Mode                   string
+	ShadowMode             bool
 	TopK                   int
 	ExplorationRate        float64
 	LatencyBudgetMS        float64
@@ -64,12 +68,16 @@ type OpenAIBalancedSelectionInput struct {
 }
 
 type OpenAIBalancedSelectionResult struct {
-	OrderedAccountIDs  []int64
-	RejectedAccountIDs []int64
-	StickyEscapeReason string
-	CandidateCount     int
-	TopK               int
-	Shadow             bool
+	OrderedAccountIDs         []int64
+	RejectedAccountIDs        []int64
+	StickyEscapeReason        string
+	CandidateCount            int
+	TopK                      int
+	Shadow                    bool
+	LegacyAccountID           int64
+	ShadowAccountID           int64
+	PredictedTTFTDifferenceMS float64
+	ShadowReason              string
 }
 
 type OpenAIBalancedScheduler struct {
@@ -82,6 +90,7 @@ func NewOpenAIBalancedScheduler(repo OpenAISchedulerHealthRepository) *OpenAIBal
 
 func DefaultOpenAIBalancedSettings() OpenAIBalancedSettings {
 	return OpenAIBalancedSettings{
+		Mode:                   OpenAIAutoSchedulerModeBalanced,
 		TopK:                   openAIBalancedDefaultTopK,
 		ExplorationRate:        openAIBalancedDefaultExplorationRate,
 		LatencyBudgetMS:        openAIBalancedDefaultLatencyBudgetMS,
@@ -93,20 +102,23 @@ func DefaultOpenAIBalancedSettings() OpenAIBalancedSettings {
 
 func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalancedSelectionInput) (OpenAIBalancedSelectionResult, error) {
 	settings := normalizeOpenAIBalancedSettings(input.Settings)
+	if settings.Mode == OpenAIAutoSchedulerModeLegacy {
+		return legacyOpenAIBalancedSelectionResult(input, settings), nil
+	}
 	if input.HealthLoadAttempted {
 		loaded, ok := hydrateOpenAIBalancedHealth(input.Candidates, input.HealthSnapshots, input.Now)
 		if !ok {
-			return legacyOpenAIBalancedSelectionResult(input, settings), nil
+			return openAIBalancedFallbackResult(input, settings), nil
 		}
 		input.Candidates = loaded
 	} else if s != nil && s.repo != nil {
 		states, ok := s.loadOpenAIBalancedHealthSnapshots(ctx, input.Candidates, input.Now)
 		if !ok {
-			return legacyOpenAIBalancedSelectionResult(input, settings), nil
+			return openAIBalancedFallbackResult(input, settings), nil
 		}
 		loaded, ok := hydrateOpenAIBalancedHealth(input.Candidates, states, input.Now)
 		if !ok {
-			return legacyOpenAIBalancedSelectionResult(input, settings), nil
+			return openAIBalancedFallbackResult(input, settings), nil
 		}
 		input.Candidates = loaded
 	}
@@ -130,6 +142,9 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 		RejectedAccountIDs: rejectedAccountIDs,
 	}
 	if len(candidates) == 0 {
+		if settings.ShadowMode {
+			return openAIBalancedShadowResult(input, result), nil
+		}
 		return result, nil
 	}
 
@@ -221,7 +236,78 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 	for _, candidate := range ordered {
 		result.OrderedAccountIDs = append(result.OrderedAccountIDs, candidate.AccountID)
 	}
+	if settings.ShadowMode {
+		result = openAIBalancedShadowResult(input, result)
+	}
 	return result, nil
+}
+
+func openAIBalancedFallbackResult(input OpenAIBalancedSelectionInput, settings OpenAIBalancedSettings) OpenAIBalancedSelectionResult {
+	result := legacyOpenAIBalancedSelectionResult(input, settings)
+	if !settings.ShadowMode {
+		return result
+	}
+	result.Shadow = true
+	if len(result.OrderedAccountIDs) > 0 {
+		result.LegacyAccountID = result.OrderedAccountIDs[0]
+	}
+	result.ShadowReason = "health_unavailable"
+	slog.Info("openai_balanced_scheduler_shadow_decision",
+		"legacy_account_id", result.LegacyAccountID,
+		"shadow_account_id", int64(0),
+		"predicted_ttft_difference_ms", float64(0),
+		"reason", result.ShadowReason,
+	)
+	return result
+}
+
+func openAIBalancedShadowResult(input OpenAIBalancedSelectionInput, balanced OpenAIBalancedSelectionResult) OpenAIBalancedSelectionResult {
+	legacyOrder := append([]int64(nil), input.LegacyOrderedAccountIDs...)
+	if len(legacyOrder) == 0 {
+		for _, candidate := range input.Candidates {
+			if candidate.AccountID > 0 {
+				legacyOrder = append(legacyOrder, candidate.AccountID)
+			}
+		}
+	}
+	balanced.Shadow = true
+	balanced.RejectedAccountIDs = nil
+	if len(legacyOrder) > 0 {
+		balanced.LegacyAccountID = legacyOrder[0]
+	}
+	if len(balanced.OrderedAccountIDs) > 0 {
+		balanced.ShadowAccountID = balanced.OrderedAccountIDs[0]
+	}
+	legacyTTFT := openAIBalancedCandidateTTFT(input.Candidates, balanced.LegacyAccountID)
+	shadowTTFT := openAIBalancedCandidateTTFT(input.Candidates, balanced.ShadowAccountID)
+	balanced.PredictedTTFTDifferenceMS = shadowTTFT - legacyTTFT
+	switch {
+	case balanced.LegacyAccountID == 0 && balanced.ShadowAccountID == 0:
+		balanced.ShadowReason = "no_candidate"
+	case balanced.LegacyAccountID == balanced.ShadowAccountID:
+		balanced.ShadowReason = "same_account"
+	case strings.TrimSpace(balanced.StickyEscapeReason) != "":
+		balanced.ShadowReason = "sticky_escape_" + balanced.StickyEscapeReason
+	default:
+		balanced.ShadowReason = "balanced_order_changed"
+	}
+	slog.Info("openai_balanced_scheduler_shadow_decision",
+		"legacy_account_id", balanced.LegacyAccountID,
+		"shadow_account_id", balanced.ShadowAccountID,
+		"predicted_ttft_difference_ms", balanced.PredictedTTFTDifferenceMS,
+		"reason", balanced.ShadowReason,
+	)
+	balanced.OrderedAccountIDs = legacyOrder
+	return balanced
+}
+
+func openAIBalancedCandidateTTFT(candidates []OpenAIBalancedCandidate, accountID int64) float64 {
+	for _, candidate := range candidates {
+		if candidate.AccountID == accountID {
+			return candidate.PredictedTTFTMS
+		}
+	}
+	return 0
 }
 
 func applyOpenAIBalancedRankWeightedOrder(candidates []OpenAIBalancedCandidate, rng *openAISelectionRNG) {
@@ -389,16 +475,21 @@ func (s *OpenAIGatewayService) openAIBalancedWSIngressTransport(account *Account
 }
 
 func normalizeOpenAIBalancedSettings(settings OpenAIBalancedSettings) OpenAIBalancedSettings {
+	runtimeSettings := strings.TrimSpace(settings.Mode) != ""
+	settings.Mode = strings.ToLower(strings.TrimSpace(settings.Mode))
+	if settings.Mode != OpenAIAutoSchedulerModeLegacy && settings.Mode != OpenAIAutoSchedulerModeBalanced {
+		settings.Mode = OpenAIAutoSchedulerModeBalanced
+	}
 	if settings.TopK <= 0 {
 		settings.TopK = openAIBalancedDefaultTopK
 	}
 	if settings.LatencyBudgetMS <= 0 {
 		settings.LatencyBudgetMS = openAIBalancedDefaultLatencyBudgetMS
 	}
-	if settings.SessionEscapeMinGapMS <= 0 {
+	if settings.SessionEscapeMinGapMS < 0 || (!runtimeSettings && settings.SessionEscapeMinGapMS == 0) {
 		settings.SessionEscapeMinGapMS = openAIBalancedDefaultSessionEscapeGapMS
 	}
-	if settings.SessionEscapeRatio <= 0 {
+	if settings.SessionEscapeRatio < 0 || (!runtimeSettings && settings.SessionEscapeRatio == 0) {
 		settings.SessionEscapeRatio = openAIBalancedDefaultSessionEscapeRatio
 	}
 	if settings.SessionEscapeErrorRate <= 0 || settings.SessionEscapeErrorRate > 1 {

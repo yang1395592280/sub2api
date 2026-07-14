@@ -840,7 +840,7 @@ func (s *SettingService) GetOpenAIAutoSchedulerSettings(ctx context.Context) Ope
 	if err != nil || strings.TrimSpace(raw) == "" {
 		return settings
 	}
-	var parsed OpenAIAutoSchedulerSettings
+	parsed := DefaultOpenAIAutoSchedulerSettings()
 	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
 		return settings
 	}

@@ -84,7 +84,7 @@ func (h *OpenAIAutoSchedulerHandler) UpdateSettings(c *gin.Context) {
 		response.InternalError(c, "openai auto scheduler settings service is not configured")
 		return
 	}
-	var req service.OpenAIAutoSchedulerSettings
+	req := service.DefaultOpenAIAutoSchedulerSettings()
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, err.Error())
 		return
@@ -339,8 +339,24 @@ type openAIAutoSchedulerEventResponse struct {
 
 func validateOpenAIAutoSchedulerSettings(settings service.OpenAIAutoSchedulerSettings) string {
 	switch {
+	case settings.Mode != service.OpenAIAutoSchedulerModeLegacy && settings.Mode != service.OpenAIAutoSchedulerModeBalanced:
+		return "mode must be legacy or balanced"
+	case settings.TopK < 1 || settings.TopK > 10:
+		return "top_k must be between 1 and 10"
+	case settings.ExplorationRate < 0 || settings.ExplorationRate > 0.10:
+		return "exploration_rate must be between 0 and 0.10"
+	case settings.SessionEscapeMinGapMS < 0 || settings.SessionEscapeMinGapMS > 30000:
+		return "session_escape_min_gap_ms must be between 0 and 30000"
+	case settings.SessionEscapeRatio < 0 || settings.SessionEscapeRatio > 2:
+		return "session_escape_ratio must be between 0 and 2"
+	case settings.HealthTTLSeconds < 60 || settings.HealthTTLSeconds > 86400:
+		return "health_ttl_seconds must be between 60 and 86400"
+	case settings.RealSampleFreshSeconds < 30 || settings.RealSampleFreshSeconds > 3600:
+		return "real_sample_fresh_seconds must be between 30 and 3600"
 	case settings.ProbeIntervalSeconds <= 0:
 		return "probe_interval_seconds must be > 0"
+	case settings.ProbeJitterSeconds < 0 || settings.ProbeJitterSeconds > settings.ProbeIntervalSeconds/2:
+		return "probe_jitter_seconds must be between 0 and half probe_interval_seconds"
 	case settings.SlowThresholdMS <= 0:
 		return "slow_threshold_ms must be > 0"
 	case settings.SevereSlowThresholdMS < settings.SlowThresholdMS:

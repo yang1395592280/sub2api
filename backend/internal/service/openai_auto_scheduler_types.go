@@ -1,12 +1,15 @@
 package service
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 )
 
 const (
 	OpenAIAutoSchedulerDefaultProbeModel = "gpt-5.4"
+	OpenAIAutoSchedulerModeLegacy        = "legacy"
+	OpenAIAutoSchedulerModeBalanced      = "balanced"
 
 	OpenAIAutoSchedulerStateRunning   = "running"
 	OpenAIAutoSchedulerStateObserving = "observing"
@@ -25,6 +28,15 @@ const (
 
 type OpenAIAutoSchedulerSettings struct {
 	Enabled                          bool    `json:"enabled"`
+	Mode                             string  `json:"mode"`
+	ShadowMode                       bool    `json:"shadow_mode"`
+	TopK                             int     `json:"top_k"`
+	ExplorationRate                  float64 `json:"exploration_rate"`
+	SessionEscapeMinGapMS            int     `json:"session_escape_min_gap_ms"`
+	SessionEscapeRatio               float64 `json:"session_escape_ratio"`
+	HealthTTLSeconds                 int     `json:"health_ttl_seconds"`
+	RealSampleFreshSeconds           int     `json:"real_sample_fresh_seconds"`
+	ProbeJitterSeconds               int     `json:"probe_jitter_seconds"`
 	ProbeModel                       string  `json:"probe_model"`
 	ProbeIntervalSeconds             int     `json:"probe_interval_seconds"`
 	SlowThresholdMS                  int     `json:"slow_threshold_ms"`
@@ -35,6 +47,39 @@ type OpenAIAutoSchedulerSettings struct {
 	HalfOpenSuccessThreshold         int     `json:"half_open_success_threshold"`
 	CostWeight                       float64 `json:"cost_weight"`
 	RecoveryStep                     int     `json:"recovery_step"`
+
+	modeSet                   bool
+	shadowModeSet             bool
+	topKSet                   bool
+	explorationRateSet        bool
+	sessionEscapeMinGapMSSet  bool
+	sessionEscapeRatioSet     bool
+	healthTTLSecondsSet       bool
+	realSampleFreshSecondsSet bool
+	probeJitterSecondsSet     bool
+}
+
+func (s *OpenAIAutoSchedulerSettings) UnmarshalJSON(data []byte) error {
+	type settingsAlias OpenAIAutoSchedulerSettings
+	defaults := DefaultOpenAIAutoSchedulerSettings()
+	*s = defaults
+	if err := json.Unmarshal(data, (*settingsAlias)(s)); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	_, s.modeSet = fields["mode"]
+	_, s.shadowModeSet = fields["shadow_mode"]
+	_, s.topKSet = fields["top_k"]
+	_, s.explorationRateSet = fields["exploration_rate"]
+	_, s.sessionEscapeMinGapMSSet = fields["session_escape_min_gap_ms"]
+	_, s.sessionEscapeRatioSet = fields["session_escape_ratio"]
+	_, s.healthTTLSecondsSet = fields["health_ttl_seconds"]
+	_, s.realSampleFreshSecondsSet = fields["real_sample_fresh_seconds"]
+	_, s.probeJitterSecondsSet = fields["probe_jitter_seconds"]
+	return nil
 }
 
 type OpenAIAutoSchedulerScoreState struct {
@@ -111,6 +156,15 @@ const (
 func DefaultOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {
 	return OpenAIAutoSchedulerSettings{
 		Enabled:                          false,
+		Mode:                             OpenAIAutoSchedulerModeBalanced,
+		ShadowMode:                       true,
+		TopK:                             3,
+		ExplorationRate:                  0.03,
+		SessionEscapeMinGapMS:            1000,
+		SessionEscapeRatio:               0.25,
+		HealthTTLSeconds:                 int(openAISchedulerHealthStateTTL / time.Second),
+		RealSampleFreshSeconds:           openAISchedulerHealthRealFreshSeconds,
+		ProbeJitterSeconds:               0,
 		ProbeModel:                       OpenAIAutoSchedulerDefaultProbeModel,
 		ProbeIntervalSeconds:             60,
 		SlowThresholdMS:                  10000,
@@ -121,18 +175,80 @@ func DefaultOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {
 		HalfOpenSuccessThreshold:         3,
 		CostWeight:                       0.2,
 		RecoveryStep:                     800,
+		modeSet:                          true,
+		shadowModeSet:                    true,
+		topKSet:                          true,
+		explorationRateSet:               true,
+		sessionEscapeMinGapMSSet:         true,
+		sessionEscapeRatioSet:            true,
+		healthTTLSecondsSet:              true,
+		realSampleFreshSecondsSet:        true,
+		probeJitterSecondsSet:            true,
 	}
 }
 
 func normalizeOpenAIAutoSchedulerSettings(settings OpenAIAutoSchedulerSettings) OpenAIAutoSchedulerSettings {
 	defaults := DefaultOpenAIAutoSchedulerSettings()
 	enabled := settings.Enabled
+	settings.Mode = strings.ToLower(strings.TrimSpace(settings.Mode))
+	if !settings.modeSet || (settings.Mode != OpenAIAutoSchedulerModeLegacy && settings.Mode != OpenAIAutoSchedulerModeBalanced) {
+		settings.Mode = defaults.Mode
+	}
+	if !settings.shadowModeSet {
+		settings.ShadowMode = defaults.ShadowMode
+	}
+	if !settings.topKSet || settings.TopK <= 0 {
+		settings.TopK = defaults.TopK
+	} else if settings.TopK > 10 {
+		settings.TopK = 10
+	}
+	if !settings.explorationRateSet {
+		settings.ExplorationRate = defaults.ExplorationRate
+	} else if settings.ExplorationRate < 0 {
+		settings.ExplorationRate = 0
+	} else if settings.ExplorationRate > 0.10 {
+		settings.ExplorationRate = 0.10
+	}
+	if !settings.sessionEscapeMinGapMSSet {
+		settings.SessionEscapeMinGapMS = defaults.SessionEscapeMinGapMS
+	} else if settings.SessionEscapeMinGapMS < 0 {
+		settings.SessionEscapeMinGapMS = 0
+	} else if settings.SessionEscapeMinGapMS > 30000 {
+		settings.SessionEscapeMinGapMS = 30000
+	}
+	if !settings.sessionEscapeRatioSet {
+		settings.SessionEscapeRatio = defaults.SessionEscapeRatio
+	} else if settings.SessionEscapeRatio < 0 {
+		settings.SessionEscapeRatio = 0
+	} else if settings.SessionEscapeRatio > 2 {
+		settings.SessionEscapeRatio = 2
+	}
+	if !settings.healthTTLSecondsSet || settings.HealthTTLSeconds <= 0 {
+		settings.HealthTTLSeconds = defaults.HealthTTLSeconds
+	} else if settings.HealthTTLSeconds < 60 {
+		settings.HealthTTLSeconds = 60
+	} else if settings.HealthTTLSeconds > 86400 {
+		settings.HealthTTLSeconds = 86400
+	}
+	if !settings.realSampleFreshSecondsSet || settings.RealSampleFreshSeconds <= 0 {
+		settings.RealSampleFreshSeconds = defaults.RealSampleFreshSeconds
+	} else if settings.RealSampleFreshSeconds < 30 {
+		settings.RealSampleFreshSeconds = 30
+	} else if settings.RealSampleFreshSeconds > 3600 {
+		settings.RealSampleFreshSeconds = 3600
+	}
 	settings.ProbeModel = strings.TrimSpace(settings.ProbeModel)
 	if settings.ProbeModel == "" {
 		settings.ProbeModel = defaults.ProbeModel
 	}
 	if settings.ProbeIntervalSeconds <= 0 {
 		settings.ProbeIntervalSeconds = defaults.ProbeIntervalSeconds
+	}
+	if !settings.probeJitterSecondsSet || settings.ProbeJitterSeconds < 0 {
+		settings.ProbeJitterSeconds = defaults.ProbeJitterSeconds
+	}
+	if maxJitter := settings.ProbeIntervalSeconds / 2; settings.ProbeJitterSeconds > maxJitter {
+		settings.ProbeJitterSeconds = maxJitter
 	}
 	if settings.SlowThresholdMS <= 0 {
 		settings.SlowThresholdMS = defaults.SlowThresholdMS

@@ -216,6 +216,87 @@ func TestOpenAIAutoSchedulerHandler_UpdateSettingsRejectsInvalidThresholds(t *te
 	require.Contains(t, rec.Body.String(), "probe_interval_seconds")
 }
 
+func TestValidateOpenAIAutoSchedulerSettings_BalancedRanges(t *testing.T) {
+	valid := service.DefaultOpenAIAutoSchedulerSettings()
+	tests := []struct {
+		name   string
+		mutate func(*service.OpenAIAutoSchedulerSettings)
+	}{
+		{name: "mode", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.Mode = "random" }},
+		{name: "top k below", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.TopK = 0 }},
+		{name: "top k above", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.TopK = 11 }},
+		{name: "exploration below", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationRate = -0.01 }},
+		{name: "exploration above", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationRate = 0.11 }},
+		{name: "escape gap below", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.SessionEscapeMinGapMS = -1 }},
+		{name: "escape gap above", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.SessionEscapeMinGapMS = 30001 }},
+		{name: "escape ratio below", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.SessionEscapeRatio = -0.01 }},
+		{name: "escape ratio above", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.SessionEscapeRatio = 2.01 }},
+		{name: "health ttl below", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.HealthTTLSeconds = 59 }},
+		{name: "health ttl above", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.HealthTTLSeconds = 86401 }},
+		{name: "real freshness below", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.RealSampleFreshSeconds = 29 }},
+		{name: "real freshness above", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.RealSampleFreshSeconds = 3601 }},
+		{name: "probe jitter below", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.ProbeJitterSeconds = -1 }},
+		{name: "probe jitter above half interval", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.ProbeJitterSeconds = 31 }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			settings := valid
+			tt.mutate(&settings)
+			require.NotEmpty(t, validateOpenAIAutoSchedulerSettings(settings))
+		})
+	}
+
+	for _, mutate := range []func(*service.OpenAIAutoSchedulerSettings){
+		func(s *service.OpenAIAutoSchedulerSettings) { s.Mode = "legacy" },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.TopK = 1 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.TopK = 10 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationRate = 0 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationRate = 0.10 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.SessionEscapeMinGapMS = 0 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.SessionEscapeMinGapMS = 30000 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.SessionEscapeRatio = 0 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.SessionEscapeRatio = 2 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.HealthTTLSeconds = 60 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.HealthTTLSeconds = 86400 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.RealSampleFreshSeconds = 30 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.RealSampleFreshSeconds = 3600 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.ProbeJitterSeconds = 30 },
+	} {
+		settings := valid
+		mutate(&settings)
+		require.Empty(t, validateOpenAIAutoSchedulerSettings(settings))
+	}
+}
+
+func TestOpenAIAutoSchedulerHandler_UpdateSettingsOldPayloadKeepsShadowDefault(t *testing.T) {
+	settingsSvc := &fakeOpenAIAutoSchedulerSettingsService{}
+	router := setupOpenAIAutoSchedulerHandlerRouter(settingsSvc, &fakeOpenAIAutoSchedulerAdminService{}, &fakeOpenAIAutoSchedulerService{})
+	body := `{
+		"enabled": true,
+		"probe_interval_seconds": 60,
+		"slow_threshold_ms": 10000,
+		"severe_slow_threshold_ms": 20000,
+		"consecutive_slow_breaker_threshold": 3,
+		"consecutive_error_breaker_threshold": 2,
+		"cooldown_seconds": 120,
+		"half_open_success_threshold": 3,
+		"cost_weight": 0.2,
+		"recovery_step": 800
+	}`
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/openai-auto-scheduler/settings", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.True(t, settingsSvc.updated)
+	require.Equal(t, "balanced", settingsSvc.settings.Mode)
+	require.True(t, settingsSvc.settings.ShadowMode)
+	require.Equal(t, 3, settingsSvc.settings.TopK)
+}
+
 func TestOpenAIAutoSchedulerHandler_UpdateGroupRejectsNonOpenAIGroup(t *testing.T) {
 	adminSvc := &fakeOpenAIAutoSchedulerAdminService{groups: []service.Group{
 		{ID: 10, Name: "anthropic", Platform: service.PlatformAnthropic, Status: service.StatusActive},
