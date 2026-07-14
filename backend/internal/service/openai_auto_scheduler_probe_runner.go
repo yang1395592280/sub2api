@@ -3,11 +3,13 @@ package service
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"strings"
 	"sync"
@@ -16,12 +18,17 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/alitto/pond/v2"
+	"github.com/google/uuid"
 )
 
 const (
 	openAIAutoSchedulerProbeWorkerLimit  = 5
 	openAIAutoSchedulerProbeTimeout      = 15 * time.Second
 	openAIAutoSchedulerProbeMaxBodyBytes = 256 * 1024
+
+	openAIAutoSchedulerProbeLeaderLockKey   = "openai-auto-scheduler-probe"
+	openAIAutoSchedulerProbeMaxCycleRuntime = 45 * time.Second
+	openAIAutoSchedulerProbeLeaderLockTTL   = 2 * time.Minute
 )
 
 type openAIAutoSchedulerProbeRunnerService interface {
@@ -42,11 +49,18 @@ type OpenAIAutoSchedulerProbeRunner struct {
 	settingsProvider    OpenAIAutoSchedulerSettingsProvider
 	accountRepo         openAIAutoSchedulerProbeAccountRepository
 	checker             OpenAIAutoSchedulerProbeChecker
+	healthSink          *OpenAISchedulerHealthEventSink
+	lockCache           LeaderLockCache
+	db                  *sql.DB
+	owner               string
 	tlsFPProfileService *TLSFingerprintProfileService
+	now                 func() time.Time
+	randInt64           func(int64) int64
 
 	pool      pond.Pool
 	parentCtx context.Context
 	cancel    context.CancelFunc
+	loopWG    sync.WaitGroup
 
 	startOnce sync.Once
 	stopOnce  sync.Once
@@ -55,14 +69,36 @@ type OpenAIAutoSchedulerProbeRunner struct {
 	inFlight  map[string]struct{}
 }
 
-func newOpenAIAutoSchedulerProbeRunner(svc openAIAutoSchedulerProbeRunnerService, settingsProvider OpenAIAutoSchedulerSettingsProvider, accountRepo openAIAutoSchedulerProbeAccountRepository, checker OpenAIAutoSchedulerProbeChecker, tlsFPProfileService *TLSFingerprintProfileService) *OpenAIAutoSchedulerProbeRunner {
+type openAIAutoSchedulerProbePlanItem struct {
+	account   Account
+	healthKey OpenAISchedulerHealthKey
+	groupIDs  []int64
+	model     string
+}
+
+func newOpenAIAutoSchedulerProbeRunner(
+	svc openAIAutoSchedulerProbeRunnerService,
+	settingsProvider OpenAIAutoSchedulerSettingsProvider,
+	accountRepo openAIAutoSchedulerProbeAccountRepository,
+	checker OpenAIAutoSchedulerProbeChecker,
+	healthSink *OpenAISchedulerHealthEventSink,
+	lockCache LeaderLockCache,
+	db *sql.DB,
+	tlsFPProfileService *TLSFingerprintProfileService,
+) *OpenAIAutoSchedulerProbeRunner {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &OpenAIAutoSchedulerProbeRunner{
 		svc:                 svc,
 		settingsProvider:    settingsProvider,
 		accountRepo:         accountRepo,
 		checker:             checker,
+		healthSink:          healthSink,
+		lockCache:           lockCache,
+		db:                  db,
+		owner:               uuid.NewString(),
 		tlsFPProfileService: tlsFPProfileService,
+		now:                 time.Now,
+		randInt64:           rand.Int64N,
 		pool:                pond.NewPool(openAIAutoSchedulerProbeWorkerLimit),
 		parentCtx:           ctx,
 		cancel:              cancel,
@@ -70,16 +106,34 @@ func newOpenAIAutoSchedulerProbeRunner(svc openAIAutoSchedulerProbeRunnerService
 	}
 }
 
-func NewOpenAIAutoSchedulerProbeRunner(svc *OpenAIAutoSchedulerService, settingsProvider OpenAIAutoSchedulerSettingsProvider, accountRepo AccountRepository, checker OpenAIAutoSchedulerProbeChecker, tlsFPProfileService *TLSFingerprintProfileService) *OpenAIAutoSchedulerProbeRunner {
-	return newOpenAIAutoSchedulerProbeRunner(svc, settingsProvider, accountRepo, checker, tlsFPProfileService)
+func NewOpenAIAutoSchedulerProbeRunner(
+	svc *OpenAIAutoSchedulerService,
+	settingsProvider OpenAIAutoSchedulerSettingsProvider,
+	accountRepo AccountRepository,
+	checker OpenAIAutoSchedulerProbeChecker,
+	healthSink *OpenAISchedulerHealthEventSink,
+	lockCache LeaderLockCache,
+	db *sql.DB,
+	tlsFPProfileService *TLSFingerprintProfileService,
+) *OpenAIAutoSchedulerProbeRunner {
+	return newOpenAIAutoSchedulerProbeRunner(svc, settingsProvider, accountRepo, checker, healthSink, lockCache, db, tlsFPProfileService)
 }
 
 func (r *OpenAIAutoSchedulerProbeRunner) Start() {
 	if r == nil || r.svc == nil {
 		return
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.stopped {
+		return
+	}
 	r.startOnce.Do(func() {
-		go r.loop()
+		r.loopWG.Add(1)
+		go func() {
+			defer r.loopWG.Done()
+			r.loop()
+		}()
 	})
 }
 
@@ -94,6 +148,7 @@ func (r *OpenAIAutoSchedulerProbeRunner) Stop() {
 		if r.cancel != nil {
 			r.cancel()
 		}
+		r.loopWG.Wait()
 		if r.pool != nil {
 			r.pool.StopAndWait()
 		}
@@ -102,8 +157,7 @@ func (r *OpenAIAutoSchedulerProbeRunner) Stop() {
 
 func (r *OpenAIAutoSchedulerProbeRunner) loop() {
 	ctx := r.parentCtx
-	r.runOnce(ctx)
-	timer := time.NewTimer(openAIAutoSchedulerProbeInterval(r.settingsProvider, ctx))
+	timer := time.NewTimer(r.nextDelay(ctx))
 	defer timer.Stop()
 
 	for {
@@ -115,20 +169,41 @@ func (r *OpenAIAutoSchedulerProbeRunner) loop() {
 			if ctx.Err() != nil {
 				return
 			}
-			timer.Reset(openAIAutoSchedulerProbeInterval(r.settingsProvider, ctx))
+			timer.Reset(r.nextDelay(ctx))
 		}
 	}
 }
 
-func openAIAutoSchedulerProbeInterval(provider OpenAIAutoSchedulerSettingsProvider, ctx context.Context) time.Duration {
-	interval := 60
+func (r *OpenAIAutoSchedulerProbeRunner) nextDelay(ctx context.Context) time.Duration {
+	interval, jitter := openAIAutoSchedulerProbeTiming(r.settingsProvider, ctx)
+	return nextOpenAIProbeDelay(interval, jitter, r.randInt64)
+}
+
+func openAIAutoSchedulerProbeTiming(provider OpenAIAutoSchedulerSettingsProvider, ctx context.Context) (time.Duration, time.Duration) {
+	settings := DefaultOpenAIAutoSchedulerSettings()
 	if provider != nil {
-		settings := normalizeOpenAIAutoSchedulerSettings(provider.GetOpenAIAutoSchedulerSettings(ctx))
-		if settings.ProbeIntervalSeconds > 0 {
-			interval = settings.ProbeIntervalSeconds
-		}
+		settings = normalizeOpenAIAutoSchedulerSettings(provider.GetOpenAIAutoSchedulerSettings(ctx))
 	}
-	return time.Duration(interval) * time.Second
+	return time.Duration(settings.ProbeIntervalSeconds) * time.Second,
+		time.Duration(settings.ProbeJitterSeconds) * time.Second
+}
+
+func nextOpenAIProbeDelay(interval, jitter time.Duration, randInt64 func(int64) int64) time.Duration {
+	if interval <= 0 {
+		return 0
+	}
+	if jitter <= 0 || randInt64 == nil {
+		return interval
+	}
+	if jitter > interval {
+		jitter = interval
+	}
+	span := int64(2*jitter) + 1
+	draw := randInt64(span) % span
+	if draw < 0 {
+		draw += span
+	}
+	return interval + time.Duration(draw-int64(jitter))
 }
 
 func (r *OpenAIAutoSchedulerProbeRunner) runOnce(ctx context.Context) {
@@ -148,75 +223,239 @@ func (r *OpenAIAutoSchedulerProbeRunner) runOnce(ctx context.Context) {
 	if !settings.Enabled {
 		return
 	}
+	cycleCtx, cancel := context.WithTimeout(ctx, openAIAutoSchedulerProbeMaxCycleRuntime)
+	defer cancel()
+	releaseLeader, acquired := tryAcquireSingletonLeaderLock(
+		cycleCtx,
+		r.lockCache,
+		r.db,
+		openAIAutoSchedulerProbeLeaderLockKey,
+		r.owner,
+		openAIAutoSchedulerProbeLeaderLockTTL,
+	)
+	if !acquired {
+		return
+	}
+	defer releaseLeader()
 
-	groups, err := r.svc.ListEnabledOpenAIGroups(ctx)
+	groups, err := r.svc.ListEnabledOpenAIGroups(cycleCtx)
 	if err != nil {
 		slog.Warn("openai_auto_scheduler_probe: list groups failed", "error", err)
 		return
 	}
 
 	model := selectOpenAIAutoSchedulerProbeModel(settings)
-	timeout := openAIAutoSchedulerProbeTimeout
+	plans := make(map[OpenAISchedulerHealthKey]*openAIAutoSchedulerProbePlanItem)
 	for i := range groups {
-		if ctx.Err() != nil {
+		if cycleCtx.Err() != nil {
 			return
 		}
 		group := groups[i]
-		accounts, err := r.accountRepo.ListSchedulableByGroupIDAndPlatform(ctx, group.ID, PlatformOpenAI)
+		accounts, err := r.accountRepo.ListSchedulableByGroupIDAndPlatform(cycleCtx, group.ID, PlatformOpenAI)
 		if err != nil {
 			slog.Warn("openai_auto_scheduler_probe: list accounts failed", "group_id", group.ID, "error", err)
 			continue
 		}
 		for i := range accounts {
-			if ctx.Err() != nil {
+			if cycleCtx.Err() != nil {
 				return
 			}
 			account := accounts[i]
-			if account.ID <= 0 {
+			healthKey := openAIAutoSchedulerProbeHealthKey(&account, model)
+			if !isCompleteOpenAISchedulerHealthKey(healthKey) {
 				continue
 			}
-			key := openAIAutoSchedulerProbeKey(account.ID, group.ID, model)
-			if !r.tryAcquireInFlight(key) {
-				continue
-			}
-			accountCopy := account
-			groupID := group.ID
-			probeModel := model
-			if r.pool == nil || r.pool.Stopped() {
-				r.releaseInFlight(key)
-				continue
-			}
-			if _, ok := r.pool.TrySubmit(func() {
-				defer r.releaseInFlight(key)
-				r.runProbe(ctx, &accountCopy, groupID, probeModel, timeout, settings)
-			}); !ok {
-				r.releaseInFlight(key)
-			}
+			mergeOpenAIAutoSchedulerProbePlanItem(plans, openAIAutoSchedulerProbePlanItem{
+				account: account, healthKey: healthKey, groupIDs: []int64{group.ID}, model: model,
+			})
+		}
+	}
+	if len(plans) == 0 {
+		return
+	}
+
+	keys := make([]OpenAISchedulerHealthKey, 0, len(plans))
+	for key := range plans {
+		keys = append(keys, key)
+	}
+	healthSnapshots, err := r.loadProbeHealthSnapshots(cycleCtx, keys)
+	if err != nil {
+		slog.Warn("openai_auto_scheduler_probe: load health freshness failed", "error", err)
+		healthSnapshots = map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{}
+	}
+
+	now := time.Now()
+	if r.now != nil {
+		now = r.now()
+	}
+	var cycleWG sync.WaitGroup
+	for key, plan := range plans {
+		if cycleCtx.Err() != nil {
+			break
+		}
+		if hasFreshOpenAIAutoSchedulerRealSample(healthSnapshots[key], now, settings.RealSampleFreshSeconds) {
+			continue
+		}
+		inFlightKey := openAIAutoSchedulerPhysicalProbeKey(key)
+		if !r.tryAcquireInFlight(inFlightKey) {
+			continue
+		}
+		if r.pool == nil || r.pool.Stopped() {
+			r.releaseInFlight(inFlightKey)
+			continue
+		}
+		planCopy := *plan
+		planCopy.groupIDs = append([]int64(nil), plan.groupIDs...)
+		cycleWG.Add(1)
+		if _, ok := r.pool.TrySubmit(func() {
+			defer cycleWG.Done()
+			defer r.releaseInFlight(inFlightKey)
+			r.runProbe(cycleCtx, planCopy, openAIAutoSchedulerProbeTimeout, settings)
+		}); !ok {
+			cycleWG.Done()
+			r.releaseInFlight(inFlightKey)
+		}
+	}
+	cycleWG.Wait()
+}
+
+func (r *OpenAIAutoSchedulerProbeRunner) runProbe(ctx context.Context, plan openAIAutoSchedulerProbePlanItem, timeout time.Duration, settings OpenAIAutoSchedulerSettings) {
+	probeCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	result := r.checker.Check(probeCtx, &plan.account, plan.model, timeout)
+	eventType := classifyOpenAIAutoSchedulerProbeEvent(result, settings)
+	message := strings.TrimSpace(result.Message)
+	if result.Err != nil && message == "" {
+		message = result.Err.Error()
+	}
+	if err := r.recordProbeHealth(ctx, plan.healthKey, eventType, result, settings); err != nil {
+		slog.Warn("openai_auto_scheduler_probe: record unified health failed", "account_id", plan.account.ID, "error", err)
+	}
+	for _, groupID := range plan.groupIDs {
+		input := OpenAIAutoSchedulerRecordInput{
+			AccountID:   plan.account.ID,
+			GroupID:     groupID,
+			Model:       plan.model,
+			ModelFamily: plan.healthKey.ModelFamily,
+			Endpoint:    plan.healthKey.Endpoint,
+			Transport:   OpenAIUpstreamTransport(plan.healthKey.Transport),
+			EventType:   eventType,
+			LatencyMS:   result.LatencyMS,
+			TtfbMS:      result.TtfbMS,
+			Message:     message,
+		}
+		if err := r.svc.Record(ctx, input); err != nil {
+			slog.Warn("openai_auto_scheduler_probe: record failed", "account_id", plan.account.ID, "group_id", groupID, "error", err)
 		}
 	}
 }
 
-func (r *OpenAIAutoSchedulerProbeRunner) runProbe(ctx context.Context, account *Account, groupID int64, model string, timeout time.Duration, settings OpenAIAutoSchedulerSettings) {
-	probeCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+func mergeOpenAIAutoSchedulerProbePlanItem(plans map[OpenAISchedulerHealthKey]*openAIAutoSchedulerProbePlanItem, item openAIAutoSchedulerProbePlanItem) {
+	if plans == nil {
+		return
+	}
+	item.healthKey = normalizeOpenAISchedulerHealthKey(item.healthKey)
+	if !isCompleteOpenAISchedulerHealthKey(item.healthKey) {
+		return
+	}
+	if existing := plans[item.healthKey]; existing != nil {
+		for _, groupID := range item.groupIDs {
+			if !containsOpenAIAutoSchedulerProbeGroup(existing.groupIDs, groupID) {
+				existing.groupIDs = append(existing.groupIDs, groupID)
+			}
+		}
+		return
+	}
+	item.groupIDs = append([]int64(nil), item.groupIDs...)
+	plans[item.healthKey] = &item
+}
 
-	result := r.checker.Check(probeCtx, account, model, timeout)
-	eventType := classifyOpenAIAutoSchedulerProbeEvent(result, settings)
-	input := OpenAIAutoSchedulerRecordInput{
-		AccountID: account.ID,
-		GroupID:   groupID,
-		Model:     model,
-		EventType: eventType,
-		LatencyMS: result.LatencyMS,
-		TtfbMS:    result.TtfbMS,
-		Message:   strings.TrimSpace(result.Message),
+func containsOpenAIAutoSchedulerProbeGroup(groupIDs []int64, groupID int64) bool {
+	for _, candidate := range groupIDs {
+		if candidate == groupID {
+			return true
+		}
 	}
-	if result.Err != nil && input.Message == "" {
-		input.Message = result.Err.Error()
+	return false
+}
+
+func openAIAutoSchedulerProbeHealthKey(account *Account, model string) OpenAISchedulerHealthKey {
+	if account == nil {
+		return OpenAISchedulerHealthKey{}
 	}
-	if err := r.svc.Record(ctx, input); err != nil {
-		slog.Warn("openai_auto_scheduler_probe: record failed", "account_id", account.ID, "group_id", groupID, "error", err)
+	endpoint := openAISchedulerHealthEndpointResponses
+	if account.Type == AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {
+		endpoint = openAISchedulerHealthEndpointChat
 	}
+	return normalizeOpenAISchedulerHealthKey(OpenAISchedulerHealthKey{
+		AccountID:   account.ID,
+		ModelFamily: normalizeOpenAIModelForUpstream(account, account.GetMappedModel(model)),
+		Endpoint:    endpoint,
+		Transport:   string(OpenAIUpstreamTransportHTTPSSE),
+	})
+}
+
+func openAIAutoSchedulerPhysicalProbeKey(key OpenAISchedulerHealthKey) string {
+	key = normalizeOpenAISchedulerHealthKey(key)
+	return fmt.Sprintf("%d:%s:%s:%s", key.AccountID, key.ModelFamily, key.Endpoint, key.Transport)
+}
+
+func hasFreshOpenAIAutoSchedulerRealSample(snapshot OpenAISchedulerHealthSnapshot, now time.Time, freshSeconds int) bool {
+	return snapshot.LastRealAt != nil && freshSeconds > 0 &&
+		snapshot.LastRealAt.After(now.Add(-time.Duration(freshSeconds)*time.Second))
+}
+
+func (r *OpenAIAutoSchedulerProbeRunner) loadProbeHealthSnapshots(ctx context.Context, keys []OpenAISchedulerHealthKey) (map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot, error) {
+	if r == nil || r.healthSink == nil || r.healthSink.repo == nil {
+		return map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{}, nil
+	}
+	return r.healthSink.repo.GetBatch(ctx, keys)
+}
+
+func (r *OpenAIAutoSchedulerProbeRunner) recordProbeHealth(
+	ctx context.Context,
+	key OpenAISchedulerHealthKey,
+	eventType string,
+	result OpenAIAutoSchedulerProbeResult,
+	settings OpenAIAutoSchedulerSettings,
+) error {
+	if r == nil || r.healthSink == nil || r.healthSink.repo == nil {
+		return nil
+	}
+	key = normalizeOpenAISchedulerHealthKey(key)
+	if !isCompleteOpenAISchedulerHealthKey(key) {
+		return nil
+	}
+	release := r.healthSink.lockKey(key)
+	defer release()
+	states, err := r.healthSink.repo.GetBatch(ctx, []OpenAISchedulerHealthKey{key})
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	if r.now != nil {
+		now = r.now()
+	}
+	current := states[key]
+	if hasFreshOpenAIAutoSchedulerRealSample(current, now, settings.RealSampleFreshSeconds) {
+		return nil
+	}
+	current.Key = key
+	ttftMS := 0.0
+	if result.LatencyMS != nil && *result.LatencyMS > 0 {
+		ttftMS = float64(*result.LatencyMS)
+	}
+	if result.TtfbMS != nil && *result.TtfbMS > 0 {
+		ttftMS = float64(*result.TtfbMS)
+	}
+	next := ApplyOpenAISchedulerHealthEvent(now, current, OpenAISchedulerHealthEvent{
+		Source:     HealthSourceProbe,
+		EventType:  eventType,
+		TTFTMS:     ttftMS,
+		OccurredAt: now,
+	}, openAISchedulerHealthSettingsFromAutoScheduler(settings))
+	return r.healthSink.repo.Upsert(ctx, next)
 }
 
 func classifyOpenAIAutoSchedulerProbeEvent(result OpenAIAutoSchedulerProbeResult, settings OpenAIAutoSchedulerSettings) string {

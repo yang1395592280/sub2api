@@ -305,7 +305,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	subscriptionExpiryService := service.ProvideSubscriptionExpiryService(userSubscriptionRepository, settingRepository, notificationEmailService, leaderLockCache, db)
 	batchImageWorkerRuntime := service.ProvideBatchImageWorkerRuntime(batchImageRepository, accountRepository, batchImageQueue, usageBillingRepository, usageLogRepository, batchImageModelPricingResolver, apiKeyAuthCacheInvalidator, configConfig)
 	groupUpstreamBalanceRefreshRunner := service.ProvideGroupUpstreamBalanceRefreshRunner(groupRepository, accountRepository, openAIUpstreamBalanceService)
-	openAIAutoSchedulerProbeRunner := service.ProvideOpenAIAutoSchedulerProbeRunner(openAIAutoSchedulerService, settingService, accountRepository, openAIAutoSchedulerProbeChecker, tlsFingerprintProfileService)
+	openAIAutoSchedulerProbeRunner := service.ProvideOpenAIAutoSchedulerProbeRunner(openAIAutoSchedulerService, settingService, accountRepository, openAIAutoSchedulerProbeChecker, openAISchedulerHealthEventSink, leaderLockCache, db, tlsFingerprintProfileService)
 	scheduledTestRunnerService := service.ProvideScheduledTestRunnerService(scheduledTestPlanRepository, scheduledTestService, accountTestService, rateLimitService, configConfig)
 	paymentOrderExpiryService := service.ProvidePaymentOrderExpiryService(paymentService, leaderLockCache, db)
 	channelMonitorRunner := service.ProvideChannelMonitorRunner(channelMonitorService, settingService)

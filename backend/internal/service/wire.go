@@ -860,9 +860,12 @@ func ProvideOpenAIAutoSchedulerProbeRunner(
 	settingsProvider OpenAIAutoSchedulerSettingsProvider,
 	accountRepo AccountRepository,
 	checker OpenAIAutoSchedulerProbeChecker,
+	healthSink *OpenAISchedulerHealthEventSink,
+	lockCache LeaderLockCache,
+	db *sql.DB,
 	tlsFPProfileService *TLSFingerprintProfileService,
 ) *OpenAIAutoSchedulerProbeRunner {
-	r := NewOpenAIAutoSchedulerProbeRunner(svc, settingsProvider, accountRepo, checker, tlsFPProfileService)
+	r := NewOpenAIAutoSchedulerProbeRunner(svc, settingsProvider, accountRepo, checker, healthSink, lockCache, db, tlsFPProfileService)
 	r.Start()
 	return r
 }
