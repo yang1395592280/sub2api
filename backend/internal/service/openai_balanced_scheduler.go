@@ -203,7 +203,11 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 			if strongSticky {
 				weightedStart = 1
 			}
-			applyOpenAIBalancedRankWeightedOrder(balancedTop[weightedStart:], &rng)
+			weightedEnd := len(balancedTop)
+			if stickyEscape != "" && weightedEnd > weightedStart && balancedTop[weightedEnd-1].AccountID == input.SessionAccountID {
+				weightedEnd--
+			}
+			applyOpenAIBalancedRankWeightedOrder(balancedTop[weightedStart:weightedEnd], &rng)
 		}
 	}
 	result.OrderedAccountIDs = make([]int64, 0, len(ordered))

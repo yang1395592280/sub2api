@@ -352,6 +352,33 @@ func TestOpenAIBalancedSchedulerCandidateHealthKeyMatchesActualUpstream(t *testi
 	}
 }
 
+func TestOpenAIBalancedSchedulerCandidateHealthKeyNormalizesOAuthUpstreamAlias(t *testing.T) {
+	oauthHTTP := &Account{ID: 31, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	oauthWS := &Account{ID: 32, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Concurrency: 1, Extra: map[string]any{
+		"openai_oauth_responses_websockets_v2_enabled": true,
+	}}
+
+	tests := []struct {
+		name      string
+		service   *OpenAIGatewayService
+		account   *Account
+		transport OpenAIUpstreamTransport
+	}{
+		{name: "Responses HTTP", service: &OpenAIGatewayService{}, account: oauthHTTP, transport: OpenAIUpstreamTransportHTTPSSE},
+		{name: "Responses WS", service: &OpenAIGatewayService{cfg: newSchedulerTestOpenAIWSV2Config()}, account: oauthWS, transport: OpenAIUpstreamTransportResponsesWebsocketV2Ingress},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := OpenAIAccountScheduleRequest{
+				RequestedModel: "gpt-5.1", RequiredEndpoint: OpenAISchedulerEndpointResponses, RequiredTransport: tt.transport,
+			}
+			key := tt.service.openAIBalancedHealthKeyForCandidate(tt.account, req)
+			require.Equal(t, "gpt-5.4", key.ModelFamily)
+			require.Equal(t, normalizeOpenAIModelForUpstream(tt.account, tt.account.GetMappedModel(req.RequestedModel)), key.ModelFamily)
+		})
+	}
+}
+
 func TestOpenAIBalancedSchedulerLoadsHealthInOneBatch(t *testing.T) {
 	now := time.Date(2026, 7, 14, 8, 0, 0, 0, time.UTC)
 	key1 := OpenAISchedulerHealthKey{AccountID: 1, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse"}

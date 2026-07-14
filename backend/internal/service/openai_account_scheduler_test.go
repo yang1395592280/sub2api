@@ -1296,6 +1296,141 @@ func TestOpenAIGatewayService_SelectAccountBalancedCircuitRejectedStickyBoundari
 	})
 }
 
+func TestOpenAIGatewayService_SelectAccountBalancedSoftStickyUsesUnifiedTTFTEscape(t *testing.T) {
+	groupID := int64(101079)
+	sticky := Account{
+		ID: 37131, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+		Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID},
+		Extra: map[string]any{"openai_apikey_responses_websockets_v2_enabled": true},
+	}
+	fast := Account{
+		ID: 37132, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+		Concurrency: 1, Priority: 100, GroupIDs: []int64{groupID},
+		Extra: map[string]any{"openai_apikey_responses_websockets_v2_enabled": true},
+	}
+	newService := func(t *testing.T) (*OpenAIGatewayService, *balancedSchedulerHealthRepoStub, *[]int64) {
+		t.Helper()
+		req := OpenAIAccountScheduleRequest{RequestedModel: "gpt-5.4", RequiredEndpoint: OpenAISchedulerEndpointResponses, RequiredTransport: OpenAIUpstreamTransportAny}
+		keyService := &OpenAIGatewayService{}
+		stickyKey := keyService.openAIBalancedHealthKeyForCandidate(&sticky, req)
+		fastKey := keyService.openAIBalancedHealthKeyForCandidate(&fast, req)
+		now := time.Now()
+		healthRepo := &balancedSchedulerHealthRepoStub{states: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{
+			stickyKey: {Key: stickyKey, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 2600, ExpiresAt: now.Add(time.Hour)},
+			fastKey:   {Key: fastKey, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 1200, ExpiresAt: now.Add(time.Hour)},
+		}}
+		acquireOrder := []int64{}
+		cfg := newSchedulerTestSubscriptionPriorityConfig()
+		cfg.Gateway.OpenAIWS.Enabled = true
+		cfg.Gateway.OpenAIWS.APIKeyEnabled = true
+		cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
+		svc := &OpenAIGatewayService{
+			accountRepo: schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: []Account{sticky, fast}}},
+			cache: &schedulerTestGatewayCache{sessionBindings: map[string]int64{
+				"openai:soft-sticky-ttft": sticky.ID,
+			}},
+			cfg:                cfg,
+			rateLimitService:   newOpenAIAdvancedSchedulerRateLimitService("true", "false"),
+			openaiAccountStats: newOpenAIAccountRuntimeStats(),
+			concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{acquireOrder: &acquireOrder}),
+		}
+		svc.SetOpenAIBalancedScheduler(NewOpenAIBalancedScheduler(healthRepo))
+		return svc, healthRepo, &acquireOrder
+	}
+
+	t.Run("ordinary session yields to faster unified-health candidate", func(t *testing.T) {
+		svc, healthRepo, acquireOrder := newService(t)
+		selection, decision, err := svc.SelectAccountWithScheduler(
+			context.Background(), &groupID, "", "soft-sticky-ttft", "gpt-5.4", nil, OpenAIUpstreamTransportAny, false,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, selection)
+		require.Equal(t, fast.ID, selection.Account.ID)
+		require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+		require.NotContains(t, *acquireOrder, sticky.ID)
+		require.Equal(t, 1, healthRepo.getCalls)
+	})
+
+	t.Run("movable previous yields to faster unified-health candidate", func(t *testing.T) {
+		svc, healthRepo, acquireOrder := newService(t)
+		store := svc.getOpenAIWSStateStore()
+		require.NoError(t, store.BindResponseAccount(context.Background(), groupID, "resp-soft-sticky-ttft", sticky.ID, time.Hour))
+
+		selection, decision, err := svc.SelectAccountWithSchedulerForCapability(
+			context.Background(), &groupID, "resp-soft-sticky-ttft", "", "gpt-5.4", nil,
+			OpenAIUpstreamTransportAny, OpenAISchedulerEndpointResponses,
+			OpenAIEndpointCapabilityChatCompletions, false, true, PlatformOpenAI,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, selection)
+		require.Equal(t, fast.ID, selection.Account.ID)
+		require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+		require.NotContains(t, *acquireOrder, sticky.ID)
+		require.Equal(t, 1, healthRepo.getCalls)
+	})
+
+	t.Run("non movable previous remains strong", func(t *testing.T) {
+		svc, healthRepo, acquireOrder := newService(t)
+		store := svc.getOpenAIWSStateStore()
+		require.NoError(t, store.BindResponseAccount(context.Background(), groupID, "resp-strong-slow", sticky.ID, time.Hour))
+
+		selection, decision, err := svc.SelectAccountWithSchedulerForCapability(
+			context.Background(), &groupID, "resp-strong-slow", "", "gpt-5.4", nil,
+			OpenAIUpstreamTransportAny, OpenAISchedulerEndpointResponses,
+			OpenAIEndpointCapabilityChatCompletions, false, false, PlatformOpenAI,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, selection)
+		require.Equal(t, sticky.ID, selection.Account.ID)
+		require.Equal(t, openAIAccountScheduleLayerPreviousResponse, decision.Layer)
+		require.Equal(t, []int64{sticky.ID}, *acquireOrder)
+		require.Zero(t, healthRepo.getCalls)
+	})
+
+	for _, tt := range []struct {
+		name            string
+		waitingCount    int
+		rateLimitedRate float64
+		serverErrorRate float64
+		errorRate       float64
+	}{
+		{name: "queue", waitingCount: 1},
+		{name: "rate limited", rateLimitedRate: 0.2},
+		{name: "server error", serverErrorRate: 0.2},
+		{name: "error rate", errorRate: 0.6},
+	} {
+		t.Run("ordinary session hard escape on "+tt.name, func(t *testing.T) {
+			svc, healthRepo, acquireOrder := newService(t)
+			for key, snapshot := range healthRepo.states {
+				snapshot.PredictedTTFTMS = 1200
+				if key.AccountID == sticky.ID {
+					snapshot.RateLimitedRate = tt.rateLimitedRate
+					snapshot.ServerErrorRate = tt.serverErrorRate
+					snapshot.ErrorRate = tt.errorRate
+				}
+				healthRepo.states[key] = snapshot
+			}
+			svc.concurrencyService = NewConcurrencyService(schedulerTestConcurrencyCache{
+				acquireOrder: acquireOrder,
+				loadMap: map[int64]*AccountLoadInfo{
+					sticky.ID: {AccountID: sticky.ID, WaitingCount: tt.waitingCount},
+					fast.ID:   {AccountID: fast.ID},
+				},
+			})
+
+			selection, decision, err := svc.SelectAccountWithScheduler(
+				context.Background(), &groupID, "", "soft-sticky-ttft", "gpt-5.4", nil, OpenAIUpstreamTransportAny, false,
+			)
+			require.NoError(t, err)
+			require.NotNil(t, selection)
+			require.Equal(t, fast.ID, selection.Account.ID)
+			require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+			require.NotContains(t, *acquireOrder, sticky.ID)
+			require.Equal(t, 1, healthRepo.getCalls)
+		})
+	}
+}
+
 func TestOpenAIGatewayService_SelectAccountWithScheduler_PreviousResponseCompactUnsupportedDeletesBinding(t *testing.T) {
 	resetOpenAIAdvancedSchedulerSettingCacheForTest()
 
@@ -2763,6 +2898,139 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_BalancedPreservesHardFi
 	require.ElementsMatch(t, []OpenAISchedulerHealthKey{fastKey, fallbackKey}, healthRepo.keys)
 	require.Equal(t, 2, decision.CandidateCount)
 	require.Equal(t, 2, decision.TopK)
+}
+
+func TestDefaultOpenAIAccountScheduler_BalancedLatencyTailUsesLegacySelectionOrderPosition(t *testing.T) {
+	accounts := []*Account{
+		{ID: 21644, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1},
+		{ID: 21645, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1},
+		{ID: 21646, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1},
+	}
+	svc := &OpenAIGatewayService{}
+	svc.SetOpenAIBalancedScheduler(NewOpenAIBalancedScheduler(nil))
+	scheduler := &defaultOpenAIAccountScheduler{service: svc}
+	req := OpenAIAccountScheduleRequest{
+		RequestedModel: "gpt-5.4", RequiredEndpoint: OpenAISchedulerEndpointResponses,
+		RequiredTransport: OpenAIUpstreamTransportHTTPSSE, balancedHealthAttempted: true,
+		balancedHealthSnapshots: make(map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot),
+	}
+	now := time.Now()
+	for i, account := range accounts {
+		key := svc.openAIBalancedHealthKeyForCandidate(account, req)
+		ttft := []float64{100, 4000, 3000}[i]
+		req.balancedHealthSnapshots[key] = OpenAISchedulerHealthSnapshot{
+			Key: key, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: ttft, ExpiresAt: now.Add(time.Hour),
+		}
+	}
+	loadInfo := func(accountID int64) *AccountLoadInfo { return &AccountLoadInfo{AccountID: accountID} }
+	plan := openAIAccountLoadPlan{
+		allCandidates: []openAIAccountCandidateScore{
+			{account: accounts[0], loadInfo: loadInfo(accounts[0].ID)},
+			{account: accounts[1], loadInfo: loadInfo(accounts[1].ID)},
+			{account: accounts[2], loadInfo: loadInfo(accounts[2].ID)},
+		},
+		candidates: []openAIAccountCandidateScore{
+			{account: accounts[0], loadInfo: loadInfo(accounts[0].ID)},
+			{account: accounts[1], loadInfo: loadInfo(accounts[1].ID)},
+			{account: accounts[2], loadInfo: loadInfo(accounts[2].ID)},
+		},
+		selectionOrder: []openAIAccountCandidateScore{
+			{account: accounts[2], loadInfo: loadInfo(accounts[2].ID)},
+			{account: accounts[1], loadInfo: loadInfo(accounts[1].ID)},
+			{account: accounts[0], loadInfo: loadInfo(accounts[0].ID)},
+		},
+	}
+
+	scheduler.applyOpenAIBalancedSelectionOrder(context.Background(), req, &plan)
+	orderedIDs := make([]int64, 0, len(plan.selectionOrder))
+	for _, candidate := range plan.selectionOrder {
+		orderedIDs = append(orderedIDs, candidate.account.ID)
+	}
+	require.Equal(t, []int64{accounts[0].ID, accounts[2].ID, accounts[1].ID}, orderedIDs)
+}
+
+func TestOpenAIGatewayService_SelectAccountBalancedCompactStaleRetryHonorsCircuit(t *testing.T) {
+	groupID := int64(101261)
+	busy := &Account{
+		ID: 21647, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+		Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID}, Extra: map[string]any{"openai_compact_supported": true},
+	}
+	staleUnsupported := &Account{
+		ID: 21648, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+		Concurrency: 1, Priority: 1, GroupIDs: []int64{groupID}, Extra: map[string]any{"openai_compact_supported": false},
+	}
+	freshSupported := *staleUnsupported
+	freshSupported.Extra = map[string]any{"openai_compact_supported": true}
+	req := OpenAIAccountScheduleRequest{
+		RequestedModel: "gpt-5.4", RequiredEndpoint: OpenAISchedulerEndpointResponses,
+		RequiredTransport: OpenAIUpstreamTransportAny, RequireCompact: true,
+	}
+	baseReq := req
+	keyService := &OpenAIGatewayService{}
+	busyKey := keyService.openAIBalancedHealthKeyForCandidate(busy, req)
+	staleKey := keyService.openAIBalancedHealthKeyForCandidate(staleUnsupported, req)
+	now := time.Now()
+	healthRepo := &balancedSchedulerHealthRepoStub{states: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{
+		busyKey:  {Key: busyKey, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 200, ExpiresAt: now.Add(time.Hour)},
+		staleKey: {Key: staleKey, State: OpenAIAutoSchedulerStateOpen, PredictedTTFTMS: 100, ExpiresAt: now.Add(time.Hour)},
+	}}
+	acquireOrder := []int64{}
+	svc := &OpenAIGatewayService{
+		accountRepo: schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: []Account{*busy, freshSupported}}},
+		cfg:         newSchedulerTestSubscriptionPriorityConfig(),
+		schedulerSnapshot: &SchedulerSnapshotService{cache: &openAISnapshotCacheStub{
+			accountsByID: map[int64]*Account{busy.ID: busy, staleUnsupported.ID: staleUnsupported},
+		}},
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{acquireOrder: &acquireOrder, acquireResults: map[int64]bool{busy.ID: false, staleUnsupported.ID: true}}),
+	}
+	svc.SetOpenAIBalancedScheduler(NewOpenAIBalancedScheduler(healthRepo))
+	scheduler := &defaultOpenAIAccountScheduler{service: svc, stats: newOpenAIAccountRuntimeStats()}
+	req = scheduler.preloadOpenAIBalancedHealth(context.Background(), req, []*Account{busy, staleUnsupported}, nil)
+	busyCandidate := openAIAccountCandidateScore{account: busy, loadInfo: &AccountLoadInfo{AccountID: busy.ID}}
+	staleCandidate := openAIAccountCandidateScore{account: staleUnsupported, loadInfo: &AccountLoadInfo{AccountID: staleUnsupported.ID}}
+	plan := openAIAccountLoadPlan{
+		allCandidates:             []openAIAccountCandidateScore{busyCandidate, staleCandidate},
+		candidates:                []openAIAccountCandidateScore{busyCandidate},
+		staleSnapshotCompactRetry: []openAIAccountCandidateScore{staleCandidate},
+		topK:                      2,
+	}
+	plan.selectionOrder = scheduler.buildOpenAISelectionOrder(req, plan)
+	selection, compactBlocked, err := scheduler.tryAcquireOpenAISelectionOrder(context.Background(), req, plan.selectionOrder)
+	require.NoError(t, err)
+	require.Nil(t, selection)
+	require.False(t, compactBlocked)
+	require.NotContains(t, acquireOrder, staleUnsupported.ID)
+	require.Equal(t, 1, healthRepo.getCalls)
+	require.ElementsMatch(t, []OpenAISchedulerHealthKey{busyKey, staleKey}, healthRepo.keys)
+
+	waitSelection, _, _, _, err := scheduler.finishLoadBalanceSelectionFallback(context.Background(), req, openAIAccountLoadSelectionAttempt{
+		selectionOrder: plan.selectionOrder,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, waitSelection)
+	require.NotNil(t, waitSelection.WaitPlan)
+	require.Equal(t, busy.ID, waitSelection.WaitPlan.AccountID)
+
+	healthRepo.err = errors.New("health unavailable")
+	healthRepo.getCalls = 0
+	healthRepo.keys = nil
+	acquireOrder = nil
+	legacyReq := scheduler.preloadOpenAIBalancedHealth(context.Background(), baseReq, []*Account{busy, staleUnsupported}, nil)
+	legacyPlan := openAIAccountLoadPlan{
+		allCandidates:             []openAIAccountCandidateScore{busyCandidate, staleCandidate},
+		candidates:                []openAIAccountCandidateScore{busyCandidate},
+		staleSnapshotCompactRetry: []openAIAccountCandidateScore{staleCandidate},
+		topK:                      2,
+	}
+	legacyPlan.selectionOrder = scheduler.buildOpenAISelectionOrder(legacyReq, legacyPlan)
+	legacySelection, _, err := scheduler.tryAcquireOpenAISelectionOrder(context.Background(), legacyReq, legacyPlan.selectionOrder)
+	require.NoError(t, err)
+	require.NotNil(t, legacySelection)
+	require.True(t, legacySelection.Acquired)
+	require.Equal(t, staleUnsupported.ID, legacySelection.Account.ID)
+	require.Equal(t, []int64{busy.ID, staleUnsupported.ID}, acquireOrder)
+	require.Equal(t, 1, healthRepo.getCalls)
+	require.ElementsMatch(t, []OpenAISchedulerHealthKey{busyKey, staleKey}, healthRepo.keys)
 }
 
 func TestOpenAIGatewayService_SelectAccountWithScheduler_BalancedHealthFallbackUsesLegacyOrder(t *testing.T) {

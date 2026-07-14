@@ -1072,10 +1072,15 @@ func resolveOpenAIAccountUpstreamModelForRequest(account *Account, requestedMode
 	if upstreamModel == "" {
 		return ""
 	}
-	if requireCompact {
-		return resolveOpenAICompactForwardModel(account, upstreamModel)
+	if requireCompact && account != nil {
+		compactModel, matched := account.ResolveCompactMappedModel(upstreamModel)
+		if matched && strings.TrimSpace(compactModel) != "" && compactModel != upstreamModel {
+			// ForwardResponses bypasses OAuth alias normalization after an explicit
+			// compact mapping, so the health key must preserve that exact target.
+			return strings.TrimSpace(compactModel)
+		}
 	}
-	return upstreamModel
+	return normalizeOpenAIModelForUpstream(account, upstreamModel)
 }
 
 func (s *OpenAIGatewayService) selectAccountForModelWithExclusions(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, requireCompact bool, stickyAccountID int64, requiredCapability OpenAIEndpointCapability) (*Account, error) {
