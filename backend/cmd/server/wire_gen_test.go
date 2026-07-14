@@ -80,13 +80,14 @@ func TestWireGenInjectsOpenAIAutoSchedulerIntoAccountHandler(t *testing.T) {
 	schedulerHandlerIndex := strings.Index(source, "openAIAutoSchedulerHandler := admin.ProvideOpenAIAutoSchedulerHandler(")
 	require.NotEqual(t, -1, accountHandlerIndex, "admin account handler provider must remain visible in production wire")
 	require.NotEqual(t, -1, schedulerHandlerIndex, "OpenAI auto scheduler handler construction must remain visible in production wire")
-	require.Contains(t, source, "sub2APICheckinService, openAIAutoSchedulerService)")
+	require.Contains(t, source, "sub2APICheckinService, openAIAutoSchedulerService, grokQuotaService)")
 	require.Less(t, accountHandlerIndex, schedulerHandlerIndex, "account handler should be wired before admin handlers are assembled")
 
 	providerBody, err := os.ReadFile("../../internal/handler/wire.go")
 	require.NoError(t, err)
 	providerSource := string(providerBody)
 	require.Contains(t, providerSource, "h.SetOpenAIAutoSchedulerAccountSummaryService(openAIAutoSchedulerService)")
+	require.Contains(t, providerSource, "h.SetGrokImportProber(grokQuotaService)")
 }
 
 func TestWireGenInjectsGroupUpstreamBalanceRefreshRunnerIntoStartupAndCleanup(t *testing.T) {

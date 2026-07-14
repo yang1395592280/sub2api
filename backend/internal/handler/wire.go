@@ -132,6 +132,7 @@ func ProvideAdminAccountHandler(
 	upstreamBalanceService *service.OpenAIUpstreamBalanceService,
 	sub2APICheckinService *service.Sub2APICheckinService,
 	openAIAutoSchedulerService *service.OpenAIAutoSchedulerService,
+	grokQuotaService *service.GrokQuotaService,
 ) *admin.AccountHandler {
 	h := admin.NewAccountHandler(
 		adminService,
@@ -151,6 +152,7 @@ func ProvideAdminAccountHandler(
 		sub2APICheckinService,
 	)
 	h.SetOpenAIAutoSchedulerAccountSummaryService(openAIAutoSchedulerService)
+	h.SetGrokImportProber(grokQuotaService)
 	return h
 }
 

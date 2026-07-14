@@ -57,6 +57,8 @@ const schedulerOutboxPendingDedupKeyMigration = "153_scheduler_outbox_pending_de
 const schedulerOutboxPendingDedupKeyIndex = "idx_scheduler_outbox_pending_dedup_key"
 const openAISchedulerObservabilityIndexMigration = "182_openai_scheduler_observability_index_notx.sql"
 const openAISchedulerObservabilityIndex = "idx_usage_logs_e2e_ttft_created_at"
+const latestAPIKeyIPIndexMigration = "174_add_usage_logs_api_key_latest_ip_index_notx.sql"
+const latestAPIKeyIPIndex = "idx_usage_logs_api_key_latest_ip"
 
 type migrationChecksumCompatibilityRule struct {
 	fileChecksum       string
@@ -269,6 +271,8 @@ func prepareNonTransactionalMigration(ctx context.Context, db *sql.DB, name stri
 		return dropInvalidIndexIfPresent(ctx, db, schedulerOutboxPendingDedupKeyIndex)
 	case openAISchedulerObservabilityIndexMigration:
 		return dropInvalidIndexIfPresent(ctx, db, openAISchedulerObservabilityIndex)
+	case latestAPIKeyIPIndexMigration:
+		return dropInvalidIndexIfPresent(ctx, db, latestAPIKeyIPIndex)
 	default:
 		return nil
 	}

@@ -94,6 +94,7 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // inbound_endpoint
 			sqlmock.AnyArg(), // upstream_endpoint
 			log.CacheTTLOverridden,
+			log.LongContextBillingApplied,
 			sqlmock.AnyArg(), // channel_id
 			sqlmock.AnyArg(), // model_mapping_chain
 			sqlmock.AnyArg(), // billing_tier
@@ -208,6 +209,7 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			log.CacheTTLOverridden,
+			log.LongContextBillingApplied,
 			sqlmock.AnyArg(), // channel_id
 			sqlmock.AnyArg(), // model_mapping_chain
 			sqlmock.AnyArg(), // billing_tier
@@ -391,9 +393,9 @@ func TestPrepareUsageLogInsert_PersistsChannelPriceSnapshot(t *testing.T) {
 
 	require.Contains(t, usageLogSelectColumns, "channel_price_snapshot")
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	require.Equal(t, &price, prepared.args[58])
-	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[59])
-	require.Equal(t, sql.NullTime{Time: refreshedAt, Valid: true}, prepared.args[60])
+	require.Equal(t, &price, prepared.args[59])
+	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[60])
+	require.Equal(t, sql.NullTime{Time: refreshedAt, Valid: true}, prepared.args[61])
 }
 
 func TestScanUsageLogSchedulerTimingAndChannelPriceSnapshot(t *testing.T) {
@@ -457,6 +459,7 @@ func TestScanUsageLogSchedulerTimingAndChannelPriceSnapshot(t *testing.T) {
 		nil,                               // inbound_endpoint
 		nil,                               // upstream_endpoint
 		false,                             // cache_ttl_overridden
+		false,                             // long_context_billing_applied
 		nil,                               // channel_id
 		nil,                               // model_mapping_chain
 		nil,                               // billing_tier
@@ -1119,6 +1122,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			false,
+			false,
 			sql.NullInt64{},
 			sql.NullString{},
 			sql.NullString{},
@@ -1203,6 +1207,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			false,
+			false,
 			sql.NullInt64{},   // channel_id
 			sql.NullString{},  // model_mapping_chain
 			sql.NullString{},  // billing_tier
@@ -1267,6 +1272,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			false,
+			false,
 			sql.NullInt64{},   // channel_id
 			sql.NullString{},  // model_mapping_chain
 			sql.NullString{},  // billing_tier
@@ -1330,6 +1336,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			sql.NullString{},
+			false,
 			false,
 			sql.NullInt64{},   // channel_id
 			sql.NullString{},  // model_mapping_chain
