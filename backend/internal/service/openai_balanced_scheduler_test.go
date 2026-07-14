@@ -1,8 +1,10 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -425,6 +427,11 @@ func TestOpenAIBalancedSchedulerShadowReturnsFullLegacyOrderAndRecordsComparison
 }
 
 func TestOpenAIBalancedSchedulerShadowReturnsLegacyWhenAllBalancedCandidatesAreCircuitRejected(t *testing.T) {
+	previousLogger := slog.Default()
+	var logs bytes.Buffer
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
 	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), OpenAIBalancedSelectionInput{
 		Candidates: []OpenAIBalancedCandidate{
 			{AccountID: 1, PredictedTTFTMS: 2000, State: OpenAIAutoSchedulerStateOpen},
@@ -440,6 +447,13 @@ func TestOpenAIBalancedSchedulerShadowReturnsLegacyWhenAllBalancedCandidatesAreC
 	require.Equal(t, []int64{1, 2}, result.OrderedAccountIDs)
 	require.Empty(t, result.RejectedAccountIDs)
 	require.True(t, result.Shadow)
+	require.Zero(t, result.ShadowAccountID)
+	require.Zero(t, result.PredictedTTFTDifferenceMS)
+	require.Equal(t, "all_rejected", result.ShadowReason)
+	require.Contains(t, logs.String(), "legacy_account_id=1")
+	require.Contains(t, logs.String(), "shadow_account_id=0")
+	require.Contains(t, logs.String(), "predicted_ttft_difference_ms=0")
+	require.Contains(t, logs.String(), "reason=all_rejected")
 }
 
 func TestOpenAIBalancedSchedulerHonorsExplicitZeroSessionEscapeThresholds(t *testing.T) {

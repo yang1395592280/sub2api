@@ -2966,7 +2966,7 @@ func TestDefaultOpenAIAccountScheduler_RuntimeSettingsMapBalancedControls(t *tes
 	require.InDelta(t, 0.5, req.balancedPolicySettings.SessionEscapeRatio, 0.0001)
 
 	_ = scheduler.withOpenAIBalancedRuntimeSettings(context.Background(), OpenAIAccountScheduleRequest{})
-	require.Equal(t, 1, repo.getValueCalls)
+	require.Equal(t, 1, repo.calls())
 }
 
 func TestDefaultOpenAIAccountScheduler_ShadowKeepsLegacyPlanAndLiveUsesBalancedPlan(t *testing.T) {

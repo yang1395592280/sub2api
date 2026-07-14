@@ -27,7 +27,6 @@ const (
 const (
 	openAIAdvancedSchedulerSettingCacheTTL  = 5 * time.Second
 	openAIAdvancedSchedulerSettingDBTimeout = 2 * time.Second
-	openAIBalancedRuntimeSettingCacheTTL    = 5 * time.Second
 )
 
 const (
@@ -289,16 +288,9 @@ func (s *openAIAccountRuntimeStats) size() int {
 }
 
 type defaultOpenAIAccountScheduler struct {
-	service                   *OpenAIGatewayService
-	metrics                   openAIAccountSchedulerMetrics
-	stats                     *openAIAccountRuntimeStats
-	balancedRuntimeSettings   atomic.Value // *cachedOpenAIBalancedRuntimeSettings
-	balancedRuntimeSettingsMu sync.Mutex
-}
-
-type cachedOpenAIBalancedRuntimeSettings struct {
-	settings  OpenAIAutoSchedulerSettings
-	expiresAt time.Time
+	service *OpenAIGatewayService
+	metrics openAIAccountSchedulerMetrics
+	stats   *openAIAccountRuntimeStats
 }
 
 type openAIStickyEscapeConfig struct {
@@ -432,17 +424,6 @@ func (s *defaultOpenAIAccountScheduler) withOpenAIBalancedRuntimeSettings(
 }
 
 func (s *defaultOpenAIAccountScheduler) openAIBalancedRuntimeSettingsForRequest(ctx context.Context) OpenAIAutoSchedulerSettings {
-	now := time.Now()
-	if s != nil {
-		if cached, ok := s.balancedRuntimeSettings.Load().(*cachedOpenAIBalancedRuntimeSettings); ok && cached != nil && now.Before(cached.expiresAt) {
-			return cached.settings
-		}
-		s.balancedRuntimeSettingsMu.Lock()
-		defer s.balancedRuntimeSettingsMu.Unlock()
-		if cached, ok := s.balancedRuntimeSettings.Load().(*cachedOpenAIBalancedRuntimeSettings); ok && cached != nil && now.Before(cached.expiresAt) {
-			return cached.settings
-		}
-	}
 	settings := DefaultOpenAIAutoSchedulerSettings()
 	if s != nil && s.service != nil && s.service.settingService != nil {
 		settings = s.service.settingService.GetOpenAIAutoSchedulerSettings(ctx)
@@ -450,13 +431,7 @@ func (s *defaultOpenAIAccountScheduler) openAIBalancedRuntimeSettingsForRequest(
 		// Keep explicitly constructed gateway services compatible with the pre-rollout live policy.
 		settings.ShadowMode = false
 	}
-	settings = normalizeOpenAIAutoSchedulerSettings(settings)
-	if s != nil {
-		s.balancedRuntimeSettings.Store(&cachedOpenAIBalancedRuntimeSettings{
-			settings: settings, expiresAt: now.Add(openAIBalancedRuntimeSettingCacheTTL),
-		})
-	}
-	return settings
+	return normalizeOpenAIAutoSchedulerSettings(settings)
 }
 
 func (s *defaultOpenAIAccountScheduler) openAIBalancedShadowDecisionForSticky(

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -284,6 +285,44 @@ func TestOpenAISchedulerHealthOutcomeSink(t *testing.T) {
 	require.Contains(t, states, OpenAISchedulerHealthKey{AccountID: 7, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "responses_websockets_v2"})
 	require.Contains(t, states, OpenAISchedulerHealthKey{AccountID: 7, ModelFamily: "gpt-5.4", Endpoint: "chat_completions", Transport: "http_sse"})
 	require.Len(t, legacy.snapshot(), 4, "missing unified metadata must not suppress the legacy strict write")
+}
+
+func TestOpenAISchedulerHealthOutcomeSinkSharesSettingsCacheAcrossRecords(t *testing.T) {
+	settingsRepo := &openAIAutoSchedulerSettingsRepoStub{values: map[string]string{
+		SettingKeyOpenAIAutoSchedulerSettings: `{"mode":"balanced","shadow_mode":false,"health_ttl_seconds":1800,"real_sample_fresh_seconds":300}`,
+	}}
+	settingsService := NewSettingService(settingsRepo, &config.Config{})
+	healthRepo := &recordingOpenAISchedulerHealthRepository{states: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{}}
+	healthSink := NewOpenAISchedulerHealthEventSink(healthRepo, settingsService)
+	input := OpenAIAutoSchedulerRecordInput{
+		AccountID: 7, GroupID: 10, Model: "gpt-5.4", ModelFamily: "gpt-5.4",
+		Endpoint: "responses", Transport: OpenAIUpstreamTransportHTTPSSE,
+		EventType: OpenAIAutoSchedulerEventSuccess,
+	}
+
+	require.NoError(t, healthSink.Record(context.Background(), input))
+	require.NoError(t, healthSink.Record(context.Background(), input))
+	require.Equal(t, 1, settingsRepo.calls())
+}
+
+func TestOpenAIAutoSchedulerSettingsCacheIsSharedBySelectionAndOutcome(t *testing.T) {
+	settingsRepo := &openAIAutoSchedulerSettingsRepoStub{values: map[string]string{
+		SettingKeyOpenAIAutoSchedulerSettings: `{"mode":"balanced","shadow_mode":false,"health_ttl_seconds":1800,"real_sample_fresh_seconds":300}`,
+	}}
+	settingsService := NewSettingService(settingsRepo, &config.Config{})
+	gateway := &OpenAIGatewayService{settingService: settingsService}
+	scheduler := &defaultOpenAIAccountScheduler{service: gateway}
+	_ = scheduler.withOpenAIBalancedRuntimeSettings(context.Background(), OpenAIAccountScheduleRequest{})
+
+	healthRepo := &recordingOpenAISchedulerHealthRepository{states: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{}}
+	healthSink := NewOpenAISchedulerHealthEventSink(healthRepo, settingsService)
+	require.NoError(t, healthSink.Record(context.Background(), OpenAIAutoSchedulerRecordInput{
+		AccountID: 8, GroupID: 10, Model: "gpt-5.4", ModelFamily: "gpt-5.4",
+		Endpoint: "responses", Transport: OpenAIUpstreamTransportHTTPSSE,
+		EventType: OpenAIAutoSchedulerEventSuccess,
+	}))
+
+	require.Equal(t, 1, settingsRepo.calls())
 }
 
 func TestOpenAISchedulerHealthOutcomeSinkSerializesSameKeyAcrossTwoWorkers(t *testing.T) {

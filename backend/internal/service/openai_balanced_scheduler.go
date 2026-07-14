@@ -270,6 +270,7 @@ func openAIBalancedShadowResult(input OpenAIBalancedSelectionInput, balanced Ope
 			}
 		}
 	}
+	allRejected := len(balanced.OrderedAccountIDs) == 0 && len(balanced.RejectedAccountIDs) > 0
 	balanced.Shadow = true
 	balanced.RejectedAccountIDs = nil
 	if len(legacyOrder) > 0 {
@@ -278,10 +279,14 @@ func openAIBalancedShadowResult(input OpenAIBalancedSelectionInput, balanced Ope
 	if len(balanced.OrderedAccountIDs) > 0 {
 		balanced.ShadowAccountID = balanced.OrderedAccountIDs[0]
 	}
-	legacyTTFT := openAIBalancedCandidateTTFT(input.Candidates, balanced.LegacyAccountID)
-	shadowTTFT := openAIBalancedCandidateTTFT(input.Candidates, balanced.ShadowAccountID)
-	balanced.PredictedTTFTDifferenceMS = shadowTTFT - legacyTTFT
+	if !allRejected {
+		legacyTTFT := openAIBalancedCandidateTTFT(input.Candidates, balanced.LegacyAccountID)
+		shadowTTFT := openAIBalancedCandidateTTFT(input.Candidates, balanced.ShadowAccountID)
+		balanced.PredictedTTFTDifferenceMS = shadowTTFT - legacyTTFT
+	}
 	switch {
+	case allRejected:
+		balanced.ShadowReason = "all_rejected"
 	case balanced.LegacyAccountID == 0 && balanced.ShadowAccountID == 0:
 		balanced.ShadowReason = "no_candidate"
 	case balanced.LegacyAccountID == balanced.ShadowAccountID:

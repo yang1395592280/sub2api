@@ -11,7 +11,18 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 )
+
+const (
+	openAIAutoSchedulerSettingsCacheTTL  = 5 * time.Second
+	openAIAutoSchedulerSettingsDBTimeout = 2 * time.Second
+)
+
+type cachedOpenAIAutoSchedulerSettings struct {
+	settings  OpenAIAutoSchedulerSettings
+	expiresAt time.Time
+}
 
 // IsRegistrationEnabled 检查是否开放注册
 func (s *SettingService) IsRegistrationEnabled(ctx context.Context) bool {
@@ -832,19 +843,69 @@ func (s *SettingService) SetOpenAIFastPolicySettings(ctx context.Context, settin
 }
 
 func (s *SettingService) GetOpenAIAutoSchedulerSettings(ctx context.Context) OpenAIAutoSchedulerSettings {
-	settings := DefaultOpenAIAutoSchedulerSettings()
+	defaults := DefaultOpenAIAutoSchedulerSettings()
 	if s == nil || s.settingRepo == nil {
-		return settings
+		return defaults
 	}
-	raw, err := s.settingRepo.GetValue(ctx, SettingKeyOpenAIAutoSchedulerSettings)
-	if err != nil || strings.TrimSpace(raw) == "" {
-		return settings
+	if cached := s.cachedOpenAIAutoSchedulerSettings(time.Now()); cached != nil {
+		return cached.settings
 	}
-	parsed := DefaultOpenAIAutoSchedulerSettings()
-	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
-		return settings
+	value, err, _ := s.openAIAutoSchedulerSF.Do("openai_auto_scheduler_settings", func() (any, error) {
+		if cached := s.cachedOpenAIAutoSchedulerSettings(time.Now()); cached != nil {
+			return cached.settings, nil
+		}
+		revision := s.openAIAutoSchedulerRevision.Load()
+		settings, loadErr := s.loadOpenAIAutoSchedulerSettings(ctx)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		s.openAIAutoSchedulerCacheMu.Lock()
+		defer s.openAIAutoSchedulerCacheMu.Unlock()
+		if s.openAIAutoSchedulerRevision.Load() != revision {
+			if current, _ := s.openAIAutoSchedulerCache.Load().(*cachedOpenAIAutoSchedulerSettings); current != nil {
+				return current.settings, nil
+			}
+		}
+		s.openAIAutoSchedulerCache.Store(&cachedOpenAIAutoSchedulerSettings{
+			settings: settings, expiresAt: time.Now().Add(openAIAutoSchedulerSettingsCacheTTL),
+		})
+		return settings, nil
+	})
+	if err == nil {
+		return value.(OpenAIAutoSchedulerSettings)
 	}
-	return normalizeOpenAIAutoSchedulerSettings(parsed)
+	if stale, _ := s.openAIAutoSchedulerCache.Load().(*cachedOpenAIAutoSchedulerSettings); stale != nil {
+		return stale.settings
+	}
+	return defaults
+}
+
+func (s *SettingService) cachedOpenAIAutoSchedulerSettings(now time.Time) *cachedOpenAIAutoSchedulerSettings {
+	cached, _ := s.openAIAutoSchedulerCache.Load().(*cachedOpenAIAutoSchedulerSettings)
+	if cached == nil || !now.Before(cached.expiresAt) {
+		return nil
+	}
+	return cached
+}
+
+func (s *SettingService) loadOpenAIAutoSchedulerSettings(ctx context.Context) (OpenAIAutoSchedulerSettings, error) {
+	settings := DefaultOpenAIAutoSchedulerSettings()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), openAIAutoSchedulerSettingsDBTimeout)
+	defer cancel()
+	raw, err := s.settingRepo.GetValue(dbCtx, SettingKeyOpenAIAutoSchedulerSettings)
+	if errors.Is(err, ErrSettingNotFound) || (err == nil && strings.TrimSpace(raw) == "") {
+		return settings, nil
+	}
+	if err != nil {
+		return OpenAIAutoSchedulerSettings{}, err
+	}
+	if err := json.Unmarshal([]byte(raw), &settings); err != nil {
+		return OpenAIAutoSchedulerSettings{}, fmt.Errorf("unmarshal openai auto scheduler settings: %w", err)
+	}
+	return normalizeOpenAIAutoSchedulerSettings(settings), nil
 }
 
 func (s *SettingService) SetOpenAIAutoSchedulerSettings(ctx context.Context, settings OpenAIAutoSchedulerSettings) error {
@@ -856,7 +917,16 @@ func (s *SettingService) SetOpenAIAutoSchedulerSettings(ctx context.Context, set
 	if err != nil {
 		return fmt.Errorf("marshal openai auto scheduler settings: %w", err)
 	}
-	return s.settingRepo.Set(ctx, SettingKeyOpenAIAutoSchedulerSettings, string(data))
+	if err := s.settingRepo.Set(ctx, SettingKeyOpenAIAutoSchedulerSettings, string(data)); err != nil {
+		return err
+	}
+	s.openAIAutoSchedulerCacheMu.Lock()
+	defer s.openAIAutoSchedulerCacheMu.Unlock()
+	s.openAIAutoSchedulerRevision.Add(1)
+	s.openAIAutoSchedulerCache.Store(&cachedOpenAIAutoSchedulerSettings{
+		settings: normalized, expiresAt: time.Now().Add(openAIAutoSchedulerSettingsCacheTTL),
+	})
+	return nil
 }
 
 // SetStreamTimeoutSettings 设置流超时处理配置
