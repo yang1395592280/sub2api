@@ -97,6 +97,7 @@ export interface OpenAIAutoSchedulerEvent {
 }
 
 export interface OpenAIAutoSchedulerListParams {
+  account_id?: number
   group_id?: number
   model?: string
   state?: OpenAIAutoSchedulerState | ''
