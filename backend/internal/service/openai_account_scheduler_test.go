@@ -1164,6 +1164,138 @@ func TestOpenAIGatewayService_SelectAccountBalancedKeepsRunningLatencyTailForFai
 	require.Equal(t, []int64{fast.ID, slow.ID}, acquireOrder)
 }
 
+func TestOpenAIGatewayService_SelectAccountBalancedCircuitRejectedStickyBoundaries(t *testing.T) {
+	groupID := int64(101078)
+	sticky := Account{
+		ID: 37121, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+		Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID},
+		Extra: map[string]any{"openai_apikey_responses_websockets_v2_enabled": true},
+	}
+	running := Account{
+		ID: 37122, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+		Concurrency: 1, Priority: 100, GroupIDs: []int64{groupID},
+		Extra: map[string]any{"openai_apikey_responses_websockets_v2_enabled": true},
+	}
+	newService := func(t *testing.T, stickyWeighted bool, acquireResults map[int64]bool) (*OpenAIGatewayService, *balancedSchedulerHealthRepoStub, *[]int64) {
+		t.Helper()
+		req := OpenAIAccountScheduleRequest{RequestedModel: "gpt-5.4", RequiredEndpoint: OpenAISchedulerEndpointResponses, RequiredTransport: OpenAIUpstreamTransportAny}
+		healthKeyService := &OpenAIGatewayService{}
+		stickyKey := healthKeyService.openAIBalancedHealthKeyForCandidate(&sticky, req)
+		runningKey := healthKeyService.openAIBalancedHealthKeyForCandidate(&running, req)
+		now := time.Now()
+		healthRepo := &balancedSchedulerHealthRepoStub{states: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{
+			stickyKey:  {Key: stickyKey, State: OpenAIAutoSchedulerStateOpen, PredictedTTFTMS: 100, ExpiresAt: now.Add(time.Hour)},
+			runningKey: {Key: runningKey, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 500, ExpiresAt: now.Add(time.Hour)},
+		}}
+		acquireOrder := []int64{}
+		stickyWeightedSetting := "false"
+		if stickyWeighted {
+			stickyWeightedSetting = "true"
+		}
+		cfg := newSchedulerTestSubscriptionPriorityConfig()
+		cfg.Gateway.OpenAIWS.Enabled = true
+		cfg.Gateway.OpenAIWS.APIKeyEnabled = true
+		cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
+		cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds = 3600
+		svc := &OpenAIGatewayService{
+			accountRepo: schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: []Account{sticky, running}}},
+			cache: &schedulerTestGatewayCache{sessionBindings: map[string]int64{
+				"openai:sticky-circuit": sticky.ID,
+			}},
+			cfg:              cfg,
+			rateLimitService: newOpenAIAdvancedSchedulerRateLimitService("true", stickyWeightedSetting),
+			concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{
+				acquireOrder:   &acquireOrder,
+				acquireResults: acquireResults,
+			}),
+		}
+		svc.SetOpenAIBalancedScheduler(NewOpenAIBalancedScheduler(healthRepo))
+		return svc, healthRepo, &acquireOrder
+	}
+
+	t.Run("ordinary session sticky yields to running account", func(t *testing.T) {
+		svc, healthRepo, acquireOrder := newService(t, false, map[int64]bool{sticky.ID: true, running.ID: true})
+
+		selection, _, err := svc.SelectAccountWithScheduler(
+			context.Background(), &groupID, "", "sticky-circuit", "gpt-5.4", nil, OpenAIUpstreamTransportAny, false,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, selection)
+		require.True(t, selection.Acquired)
+		require.Equal(t, running.ID, selection.Account.ID)
+		require.NotContains(t, *acquireOrder, sticky.ID)
+		require.Equal(t, 1, healthRepo.getCalls)
+	})
+
+	t.Run("weighted sticky fallback does not reacquire rejected account", func(t *testing.T) {
+		svc, healthRepo, acquireOrder := newService(t, true, map[int64]bool{sticky.ID: true, running.ID: false})
+
+		selection, _, err := svc.SelectAccountWithScheduler(
+			context.Background(), &groupID, "", "sticky-circuit", "gpt-5.4", nil, OpenAIUpstreamTransportAny, false,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, selection)
+		require.False(t, selection.Acquired)
+		require.NotNil(t, selection.WaitPlan)
+		require.Equal(t, running.ID, selection.WaitPlan.AccountID)
+		require.NotContains(t, *acquireOrder, sticky.ID)
+		require.Equal(t, 1, healthRepo.getCalls)
+	})
+
+	t.Run("movable previous response yields to running account", func(t *testing.T) {
+		svc, healthRepo, acquireOrder := newService(t, false, map[int64]bool{sticky.ID: true, running.ID: true})
+		store := svc.getOpenAIWSStateStore()
+		require.NoError(t, store.BindResponseAccount(context.Background(), groupID, "resp-circuit-movable", sticky.ID, time.Hour))
+
+		selection, _, err := svc.SelectAccountWithSchedulerForCapability(
+			context.Background(), &groupID, "resp-circuit-movable", "", "gpt-5.4", nil,
+			OpenAIUpstreamTransportAny, OpenAISchedulerEndpointResponses,
+			OpenAIEndpointCapabilityChatCompletions, false, true, PlatformOpenAI,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, selection)
+		require.True(t, selection.Acquired)
+		require.Equal(t, running.ID, selection.Account.ID)
+		require.NotContains(t, *acquireOrder, sticky.ID)
+		require.Equal(t, 1, healthRepo.getCalls)
+	})
+
+	t.Run("non movable previous response remains strong", func(t *testing.T) {
+		svc, healthRepo, acquireOrder := newService(t, false, map[int64]bool{sticky.ID: true, running.ID: true})
+		store := svc.getOpenAIWSStateStore()
+		require.NoError(t, store.BindResponseAccount(context.Background(), groupID, "resp-circuit-strong", sticky.ID, time.Hour))
+
+		selection, decision, err := svc.SelectAccountWithSchedulerForCapability(
+			context.Background(), &groupID, "resp-circuit-strong", "", "gpt-5.4", nil,
+			OpenAIUpstreamTransportAny, OpenAISchedulerEndpointResponses,
+			OpenAIEndpointCapabilityChatCompletions, false, false, PlatformOpenAI,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, selection)
+		require.True(t, selection.Acquired)
+		require.Equal(t, sticky.ID, selection.Account.ID)
+		require.Equal(t, openAIAccountScheduleLayerPreviousResponse, decision.Layer)
+		require.Equal(t, []int64{sticky.ID}, *acquireOrder)
+		require.Zero(t, healthRepo.getCalls)
+	})
+
+	t.Run("health load failure keeps ordinary session sticky", func(t *testing.T) {
+		svc, healthRepo, acquireOrder := newService(t, false, map[int64]bool{sticky.ID: true, running.ID: true})
+		healthRepo.err = errors.New("health unavailable")
+
+		selection, decision, err := svc.SelectAccountWithScheduler(
+			context.Background(), &groupID, "", "sticky-circuit", "gpt-5.4", nil, OpenAIUpstreamTransportAny, false,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, selection)
+		require.True(t, selection.Acquired)
+		require.Equal(t, sticky.ID, selection.Account.ID)
+		require.Equal(t, openAIAccountScheduleLayerSessionSticky, decision.Layer)
+		require.Equal(t, []int64{sticky.ID}, *acquireOrder)
+		require.Equal(t, 1, healthRepo.getCalls)
+	})
+}
+
 func TestOpenAIGatewayService_SelectAccountWithScheduler_PreviousResponseCompactUnsupportedDeletesBinding(t *testing.T) {
 	resetOpenAIAdvancedSchedulerSettingCacheForTest()
 

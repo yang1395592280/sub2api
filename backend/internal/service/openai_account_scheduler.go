@@ -75,6 +75,11 @@ type OpenAIAccountScheduleRequest struct {
 	ExcludedIDs             map[int64]struct{}
 	balancedHealthSnapshots map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot
 	balancedHealthAttempted bool
+	balancedAccountsReady   bool
+	balancedAccounts        []*Account
+	balancedLoadRequest     []AccountWithConcurrency
+	balancedPrivacyGroup    *Group
+	balancedPrivacyBlocked  []*Account
 }
 
 type OpenAIAccountScheduleDecision struct {
@@ -312,7 +317,7 @@ func (s *defaultOpenAIAccountScheduler) Select(
 
 	previousResponseID := strings.TrimSpace(req.PreviousResponseID)
 	if previousResponseID != "" && normalizeOpenAICompatiblePlatform(req.Platform) == PlatformOpenAI &&
-		(!req.StickyWeighted || !req.PreviousResponseCanMove) {
+		!req.PreviousResponseCanMove {
 		selection, err := s.service.selectAccountByPreviousResponseIDForCapability(
 			ctx,
 			req.GroupID,
@@ -343,6 +348,10 @@ func (s *defaultOpenAIAccountScheduler) Select(
 			}
 			return selection, decision, nil
 		}
+	}
+
+	if req.StickyAccountID > 0 || req.StickyPreviousAccountID > 0 {
+		req = s.prepareOpenAIBalancedHealth(ctx, req)
 	}
 
 	if !req.StickyWeighted {
@@ -435,6 +444,9 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 	if isAccountBlockedByGroupUpstreamPriceGuard(account, req.GroupID) {
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		return nil, false, nil
+	}
+	if s.isOpenAIBalancedCircuitRejected(req, account) {
+		return nil, true, nil
 	}
 	escapeCfg := s.service.openAIStickyEscapeConfig()
 	if reason, errorRate, ttft, shouldEscape := s.shouldEscapeStickyAccount(accountID, escapeCfg); shouldEscape {
@@ -1204,6 +1216,9 @@ func (s *defaultOpenAIAccountScheduler) tryFallbackToWeightedSticky(
 		if err != nil || account == nil {
 			continue
 		}
+		if s.isOpenAIBalancedCircuitRejected(req, account) {
+			continue
+		}
 		if isAccountBlockedByGroupUpstreamPriceGuard(account, req.GroupID) {
 			continue
 		}
@@ -1262,56 +1277,21 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	ctx context.Context,
 	req OpenAIAccountScheduleRequest,
 ) (*AccountSelectionResult, int, int, float64, error) {
-	accounts, err := s.service.listSchedulableAccounts(ctx, req.GroupID, req.Platform)
-	if err != nil {
-		return nil, 0, 0, 0, err
+	if !req.balancedAccountsReady {
+		var err error
+		req, err = s.prepareOpenAIAccountCandidates(ctx, req)
+		if err != nil {
+			return nil, 0, 0, 0, err
+		}
 	}
-	if len(accounts) == 0 {
-		return nil, 0, 0, 0, noAvailableOpenAISelectionError(req.RequestedModel, false)
-	}
-
-	// require_privacy_set: 获取分组信息
-	var schedGroup *Group
-	if req.GroupID != nil && s.service.schedulerSnapshot != nil {
-		schedGroup, _ = s.service.schedulerSnapshot.GetGroupByID(ctx, *req.GroupID)
-	}
-
-	filtered := make([]*Account, 0, len(accounts))
-	loadReq := make([]AccountWithConcurrency, 0, len(accounts))
-	for i := range accounts {
-		account := &accounts[i]
-		if req.ExcludedIDs != nil {
-			if _, excluded := req.ExcludedIDs[account.ID]; excluded {
-				continue
-			}
-		}
-		if !account.IsSchedulable() || account.Platform != normalizeOpenAICompatiblePlatform(req.Platform) || !account.IsOpenAICompatible() {
-			continue
-		}
-		if s.service.isOpenAIAccountRuntimeBlocked(account) {
-			continue
-		}
-		if isAccountBlockedByGroupUpstreamPriceGuard(account, req.GroupID) {
-			continue
-		}
-		// require_privacy_set: 跳过 privacy 未设置的账号并标记异常
-		if schedGroup != nil && schedGroup.RequirePrivacySet && !account.IsPrivacySet() {
+	filtered := req.balancedAccounts
+	loadReq := req.balancedLoadRequest
+	if req.balancedPrivacyGroup != nil {
+		for _, account := range req.balancedPrivacyBlocked {
 			s.service.BlockAccountScheduling(account, time.Time{}, "privacy_not_set")
 			_ = s.service.accountRepo.SetError(ctx, account.ID,
-				fmt.Sprintf("Privacy not set, required by group [%s]", schedGroup.Name))
-			continue
+				fmt.Sprintf("Privacy not set, required by group [%s]", req.balancedPrivacyGroup.Name))
 		}
-		if !s.isAccountRequestCompatible(ctx, account, req) {
-			continue
-		}
-		if !s.isAccountTransportCompatible(account, req.RequiredTransport) {
-			continue
-		}
-		filtered = append(filtered, account)
-		loadReq = append(loadReq, AccountWithConcurrency{
-			ID:             account.ID,
-			MaxConcurrency: account.EffectiveLoadFactor(),
-		})
 	}
 	if len(filtered) == 0 {
 		return nil, 0, 0, 0, noAvailableOpenAISelectionError(req.RequestedModel, false)
@@ -1323,7 +1303,9 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			loadMap = batchLoad
 		}
 	}
-	req = s.preloadOpenAIBalancedHealth(ctx, req, filtered, loadMap)
+	if !req.balancedHealthAttempted {
+		req = s.preloadOpenAIBalancedHealth(ctx, req, filtered, loadMap)
+	}
 
 	if req.SubscriptionPriority {
 		subscriptionAccounts, regularAccounts := partitionOpenAIChatGPTSubscriptionAccounts(filtered)
@@ -1373,6 +1355,98 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		return attempt.result, attempt.candidateCount, attempt.topK, attempt.loadSkew, nil
 	}
 	return s.finishLoadBalanceSelectionFallback(ctx, req, attempt)
+}
+
+func (s *defaultOpenAIAccountScheduler) prepareOpenAIBalancedHealth(
+	ctx context.Context,
+	req OpenAIAccountScheduleRequest,
+) OpenAIAccountScheduleRequest {
+	if s == nil || s.service == nil || s.service.openaiBalancedScheduler == nil || s.service.openaiBalancedScheduler.repo == nil {
+		return req
+	}
+	prepared, err := s.prepareOpenAIAccountCandidates(ctx, req)
+	if err != nil || len(prepared.balancedAccounts) == 0 {
+		return req
+	}
+	return s.preloadOpenAIBalancedHealth(ctx, prepared, prepared.balancedAccounts, nil)
+}
+
+func (s *defaultOpenAIAccountScheduler) prepareOpenAIAccountCandidates(
+	ctx context.Context,
+	req OpenAIAccountScheduleRequest,
+) (OpenAIAccountScheduleRequest, error) {
+	accounts, err := s.service.listSchedulableAccounts(ctx, req.GroupID, req.Platform)
+	if err != nil {
+		return req, err
+	}
+
+	// require_privacy_set: 获取分组信息
+	var schedGroup *Group
+	if req.GroupID != nil && s.service.schedulerSnapshot != nil {
+		schedGroup, _ = s.service.schedulerSnapshot.GetGroupByID(ctx, *req.GroupID)
+	}
+
+	filtered := make([]*Account, 0, len(accounts))
+	loadReq := make([]AccountWithConcurrency, 0, len(accounts))
+	privacyBlocked := make([]*Account, 0)
+	for i := range accounts {
+		account := &accounts[i]
+		if req.ExcludedIDs != nil {
+			if _, excluded := req.ExcludedIDs[account.ID]; excluded {
+				continue
+			}
+		}
+		if !account.IsSchedulable() || account.Platform != normalizeOpenAICompatiblePlatform(req.Platform) || !account.IsOpenAICompatible() {
+			continue
+		}
+		if s.service.isOpenAIAccountRuntimeBlocked(account) {
+			continue
+		}
+		if isAccountBlockedByGroupUpstreamPriceGuard(account, req.GroupID) {
+			continue
+		}
+		// require_privacy_set: 跳过 privacy 未设置的账号并标记异常
+		if schedGroup != nil && schedGroup.RequirePrivacySet && !account.IsPrivacySet() {
+			privacyBlocked = append(privacyBlocked, account)
+			continue
+		}
+		if !s.isAccountRequestCompatible(ctx, account, req) {
+			continue
+		}
+		if !s.isAccountTransportCompatible(account, req.RequiredTransport) {
+			continue
+		}
+		filtered = append(filtered, account)
+		loadReq = append(loadReq, AccountWithConcurrency{
+			ID:             account.ID,
+			MaxConcurrency: account.EffectiveLoadFactor(),
+		})
+	}
+	req.balancedAccountsReady = true
+	req.balancedAccounts = filtered
+	req.balancedLoadRequest = loadReq
+	req.balancedPrivacyGroup = schedGroup
+	req.balancedPrivacyBlocked = privacyBlocked
+	return req, nil
+}
+
+func (s *defaultOpenAIAccountScheduler) isOpenAIBalancedCircuitRejected(
+	req OpenAIAccountScheduleRequest,
+	account *Account,
+) bool {
+	if s == nil || s.service == nil || account == nil || !req.balancedHealthAttempted || len(req.balancedHealthSnapshots) == 0 {
+		return false
+	}
+	key := s.service.openAIBalancedHealthKeyForCandidate(account, req)
+	if !isCompleteOpenAISchedulerHealthKey(key) {
+		return false
+	}
+	snapshot, ok := req.balancedHealthSnapshots[key]
+	if !ok || snapshot.ExpiresAt.IsZero() || !time.Now().Before(snapshot.ExpiresAt) {
+		return false
+	}
+	state := normalizeOpenAIAutoSchedulerState(snapshot.State)
+	return state == OpenAIAutoSchedulerStateOpen || state == OpenAIAutoSchedulerStateHalfOpen
 }
 
 func (s *defaultOpenAIAccountScheduler) preloadOpenAIBalancedHealth(
@@ -2053,7 +2127,7 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	stickyWeighted := s.isOpenAIAdvancedSchedulerStickyWeightedEnabled(ctx)
 	subscriptionPriority := s.isOpenAIAdvancedSchedulerSubscriptionPriorityEnabled(ctx)
 	stickyPreviousAccountID := int64(0)
-	if stickyWeighted && previousResponseCanMove && strings.TrimSpace(previousResponseID) != "" && platform == PlatformOpenAI {
+	if previousResponseCanMove && strings.TrimSpace(previousResponseID) != "" && platform == PlatformOpenAI {
 		stickyPreviousAccountID = s.ResolveAccountIDByPreviousResponseIDForScheduler(ctx, groupID, previousResponseID, requestedModel, excludedIDs, requiredCapability, requireCompact)
 	}
 

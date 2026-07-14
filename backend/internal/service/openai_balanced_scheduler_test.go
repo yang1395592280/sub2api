@@ -85,6 +85,29 @@ func TestOpenAIBalancedSchedulerLatencyTailPreservesLegacyOrderRegardlessOfPrice
 	require.Equal(t, []int64{1, 2, 3}, result.OrderedAccountIDs)
 }
 
+func TestOpenAIBalancedSchedulerLatencyTailStrictlyPreservesLegacyOrder(t *testing.T) {
+	input := OpenAIBalancedSelectionInput{
+		Candidates: []OpenAIBalancedCandidate{
+			{AccountID: 1, PredictedTTFTMS: 100, LegacyOrderPosition: 0, State: OpenAIAutoSchedulerStateRunning},
+			{
+				AccountID: 2, PredictedTTFTMS: 9000, ErrorRate: 0.8, RateLimitedRate: 0.7,
+				ServerErrorRate: 0.6, WaitingCount: 9, LoadRate: 99, GroupPriority: 100,
+				QuotaHeadroom: 0.01, LegacyOrderPosition: 1, State: OpenAIAutoSchedulerStateRunning,
+			},
+			{
+				AccountID: 3, PredictedTTFTMS: 3000, ErrorRate: 0.1, RateLimitedRate: 0.1,
+				ServerErrorRate: 0.1, WaitingCount: 0, LoadRate: 1, GroupPriority: 1,
+				QuotaHeadroom: 0.99, LegacyOrderPosition: 2, State: OpenAIAutoSchedulerStateRunning,
+			},
+		},
+		Settings: OpenAIBalancedSettings{TopK: 3, LatencyBudgetMS: 1000},
+	}
+
+	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), input)
+	require.NoError(t, err)
+	require.Equal(t, []int64{1, 2, 3}, result.OrderedAccountIDs)
+}
+
 func TestOpenAIBalancedSchedulerUsesGroupPriority(t *testing.T) {
 	input := OpenAIBalancedSelectionInput{
 		Candidates: []OpenAIBalancedCandidate{

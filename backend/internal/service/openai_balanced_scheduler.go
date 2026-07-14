@@ -487,43 +487,7 @@ func isOpenAIBalancedCandidateBetter(left, right OpenAIBalancedCandidate) bool {
 }
 
 func isOpenAIBalancedLatencyTailCandidateBetter(left, right OpenAIBalancedCandidate) bool {
-	if left.SelectionTier != right.SelectionTier {
-		return left.SelectionTier < right.SelectionTier
-	}
-	if left.PredictedTTFTMS != right.PredictedTTFTMS {
-		if left.PredictedTTFTMS <= 0 {
-			return false
-		}
-		if right.PredictedTTFTMS <= 0 {
-			return true
-		}
-		return left.PredictedTTFTMS < right.PredictedTTFTMS
-	}
-	if left.ErrorRate != right.ErrorRate {
-		return left.ErrorRate < right.ErrorRate
-	}
-	if left.RateLimitedRate != right.RateLimitedRate {
-		return left.RateLimitedRate < right.RateLimitedRate
-	}
-	if left.ServerErrorRate != right.ServerErrorRate {
-		return left.ServerErrorRate < right.ServerErrorRate
-	}
-	if left.WaitingCount != right.WaitingCount {
-		return left.WaitingCount < right.WaitingCount
-	}
-	if left.GroupPriority != right.GroupPriority {
-		return left.GroupPriority < right.GroupPriority
-	}
-	if left.QuotaHeadroom != right.QuotaHeadroom {
-		return left.QuotaHeadroom > right.QuotaHeadroom
-	}
-	if left.LoadRate != right.LoadRate {
-		return left.LoadRate < right.LoadRate
-	}
-	if left.LegacyOrderPosition != right.LegacyOrderPosition {
-		return left.LegacyOrderPosition < right.LegacyOrderPosition
-	}
-	return left.AccountID < right.AccountID
+	return left.LegacyOrderPosition < right.LegacyOrderPosition
 }
 
 func moveOpenAIBalancedCandidateFirst(candidates []OpenAIBalancedCandidate, accountID int64) []OpenAIBalancedCandidate {
