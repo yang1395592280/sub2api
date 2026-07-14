@@ -39,10 +39,22 @@ type groupUpstreamRefreshAccountRepoStub struct {
 	tempReasons   map[int64]string
 	tempUntils    map[int64]*time.Time
 	getByIDCalls  []int64
+	getByIDErrs   map[int64]error
+	getByIDNils   map[int64]bool
+	getByIDPanics map[int64]bool
 }
 
 func (r *groupUpstreamRefreshAccountRepoStub) GetByID(_ context.Context, id int64) (*Account, error) {
 	r.getByIDCalls = append(r.getByIDCalls, id)
+	if r.getByIDPanics[id] {
+		panic("get account state boom")
+	}
+	if err := r.getByIDErrs[id]; err != nil {
+		return nil, err
+	}
+	if r.getByIDNils[id] {
+		return nil, nil
+	}
 	return &Account{ID: id, TempUnschedulableReason: r.tempReasons[id], TempUnschedulableUntil: r.tempUntils[id]}, nil
 }
 
@@ -527,6 +539,66 @@ func TestGroupUpstreamBalanceRefreshRunner_ReloadsStateWhenConditionalSetUpdates
 
 	require.Equal(t, existingReason, account.TempUnschedulableReason)
 	require.Equal(t, existingUntil, *account.TempUnschedulableUntil)
+}
+
+func TestGroupUpstreamBalanceRefreshRunner_UntrustedReloadStopsOnlyCurrentAccountFanout(t *testing.T) {
+	cases := map[string]func(*groupUpstreamRefreshAccountRepoStub){
+		"error": func(repo *groupUpstreamRefreshAccountRepoStub) {
+			repo.getByIDErrs = map[int64]error{42: errors.New("reload failed")}
+		},
+		"nil": func(repo *groupUpstreamRefreshAccountRepoStub) {
+			repo.getByIDNils = map[int64]bool{42: true}
+		},
+		"panic": func(repo *groupUpstreamRefreshAccountRepoStub) {
+			repo.getByIDPanics = map[int64]bool{42: true}
+		},
+	}
+	for name, configureFailure := range cases {
+		t.Run(name, func(t *testing.T) {
+			groups := []Group{
+				{ID: 10, UpstreamBalanceRefreshIntervalSeconds: 600, UpstreamPriceMaxMultiplier: 0.05},
+				{ID: 20, UpstreamBalanceRefreshIntervalSeconds: 600, UpstreamPriceMaxMultiplier: 0.10},
+				{ID: 30, UpstreamBalanceRefreshIntervalSeconds: 600},
+			}
+			price := 0.08
+			initialReason := UpstreamPriceGuardReasonPrefix + " group_id=20"
+			account42 := Account{ID: 42, ChannelPrice: &price, TempUnschedulableReason: initialReason}
+			account43 := Account{ID: 43}
+			accountRepo := &groupUpstreamRefreshAccountRepoStub{
+				accounts:    map[int64][]Account{10: {account42}, 20: {account42}, 30: {account43}},
+				tempReasons: map[int64]string{42: initialReason},
+				tempUntils:  map[int64]*time.Time{},
+			}
+			configureFailure(accountRepo)
+			refresher := &groupUpstreamBalanceStub{refreshed: map[int64]*Account{42: &account42, 43: &account43}}
+			runner := NewGroupUpstreamBalanceRefreshRunner(&groupUpstreamRefreshGroupRepoStub{groups: groups}, accountRepo, refresher)
+			now := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+
+			require.NotPanics(t, func() { runner.runOnce(context.Background(), now) })
+
+			require.Contains(t, accountRepo.tempReasons[42], "group_id=10")
+			require.Len(t, accountRepo.extraHistory[43], 1, "an untrusted account state must not stop later account plans")
+			accountRepo.getByIDErrs = nil
+			accountRepo.getByIDNils = nil
+			accountRepo.getByIDPanics = nil
+			accountRepo.listCalls = nil
+			runner.runOnce(context.Background(), now.Add(time.Minute))
+			require.Equal(t, []int64{10, 20}, accountRepo.listCalls)
+		})
+	}
+}
+
+func TestGroupUpstreamBalanceRefreshRunner_ReloadPanicIsContainedByMembership(t *testing.T) {
+	account := &Account{ID: 42}
+	runner := NewGroupUpstreamBalanceRefreshRunner(
+		&groupUpstreamRefreshGroupRepoStub{},
+		&groupUpstreamRefreshAccountRepoStub{getByIDPanics: map[int64]bool{42: true}},
+		&groupUpstreamBalanceStub{},
+	)
+
+	require.NotPanics(t, func() {
+		runner.applyPriceGuardMembership(context.Background(), account, Group{ID: 10}, time.Now())
+	})
 }
 
 func TestGroupUpstreamBalanceRefreshRunner_CommitsCompletedGroupBeforeLaterCancellation(t *testing.T) {

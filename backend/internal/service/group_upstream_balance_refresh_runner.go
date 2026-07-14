@@ -402,11 +402,20 @@ func (r *GroupUpstreamBalanceRefreshRunner) refreshAccount(ctx context.Context, 
 			return membershipResults, true
 		}
 		group := plan.groups[i]
-		panicked, stop := r.applyPriceGuardMembership(ctx, refreshed, group, now)
-		if stop {
+		failed, stopAccount, stopBatch := r.applyPriceGuardMembership(ctx, refreshed, group, now)
+		if stopBatch {
 			return membershipResults, true
 		}
-		membershipResults = append(membershipResults, groupUpstreamBalanceRefreshMembershipResult{groupID: group.ID, failed: panicked})
+		membershipResults = append(membershipResults, groupUpstreamBalanceRefreshMembershipResult{groupID: group.ID, failed: failed})
+		if stopAccount {
+			for j := i + 1; j < len(plan.groups); j++ {
+				membershipResults = append(membershipResults, groupUpstreamBalanceRefreshMembershipResult{
+					groupID: plan.groups[j].ID,
+					failed:  true,
+				})
+			}
+			return membershipResults, false
+		}
 	}
 	return membershipResults, false
 }
@@ -419,12 +428,14 @@ func terminalGroupMembershipResults(groups []Group) []groupUpstreamBalanceRefres
 	return results
 }
 
-func (r *GroupUpstreamBalanceRefreshRunner) applyPriceGuardMembership(ctx context.Context, account *Account, group Group, now time.Time) (panicked bool, stopBatch bool) {
+func (r *GroupUpstreamBalanceRefreshRunner) applyPriceGuardMembership(ctx context.Context, account *Account, group Group, now time.Time) (failed bool, stopAccount bool, stopBatch bool) {
 	defer func() {
-		r.reloadAccountGuardState(ctx, account)
 		if recovered := recover(); recovered != nil {
-			panicked = true
-			stopBatch = false
+			failed = true
+			stopBatch = ctx.Err() != nil
+			if !stopBatch {
+				stopAccount = !r.reloadAccountGuardState(ctx, account)
+			}
 			slog.Error(
 				"group_upstream_balance_refresh.price_guard_panic",
 				"group_id", group.ID,
@@ -436,21 +447,39 @@ func (r *GroupUpstreamBalanceRefreshRunner) applyPriceGuardMembership(ctx contex
 	if err := ApplyGroupUpstreamPriceGuard(ctx, r.accountRepo, account, group, now); err != nil {
 		slog.Warn("group_upstream_balance_refresh.price_guard_failed", "group_id", group.ID, "account_id", account.ID, "error", err)
 	}
-	return false, ctx.Err() != nil
+	if ctx.Err() != nil {
+		return false, false, true
+	}
+	if !r.reloadAccountGuardState(ctx, account) {
+		return true, true, false
+	}
+	return false, false, false
 }
 
-func (r *GroupUpstreamBalanceRefreshRunner) reloadAccountGuardState(ctx context.Context, account *Account) {
+func (r *GroupUpstreamBalanceRefreshRunner) reloadAccountGuardState(ctx context.Context, account *Account) (trusted bool) {
 	if account == nil || r.accountRepo == nil {
-		return
+		return false
 	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			trusted = false
+			slog.Error(
+				"group_upstream_balance_refresh.reload_guard_state_panic",
+				"account_id", account.ID,
+				"panic", fmt.Sprint(recovered),
+			)
+		}
+	}()
 	latest, err := r.accountRepo.GetByID(ctx, account.ID)
 	if err != nil {
 		slog.Warn("group_upstream_balance_refresh.reload_guard_state_failed", "account_id", account.ID, "error", err)
-		return
+		return false
 	}
 	if latest == nil {
-		return
+		slog.Warn("group_upstream_balance_refresh.reload_guard_state_missing", "account_id", account.ID)
+		return false
 	}
 	account.TempUnschedulableReason = latest.TempUnschedulableReason
 	account.TempUnschedulableUntil = latest.TempUnschedulableUntil
+	return true
 }
