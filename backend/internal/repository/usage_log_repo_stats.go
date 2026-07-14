@@ -273,6 +273,408 @@ func resolveUsageStatsTimezone() string {
 	return "UTC"
 }
 
+// openAISchedulerOverviewRepository keeps control-console SQL separate from the
+// general UsageLogRepository contract while reusing its established SQL patterns.
+type openAISchedulerOverviewRepository struct {
+	sql sqlExecutor
+}
+
+func NewOpenAISchedulerOverviewRepository(db *sql.DB) service.OpenAISchedulerOverviewRepository {
+	return newOpenAISchedulerOverviewRepositoryWithSQL(db)
+}
+
+func newOpenAISchedulerOverviewRepositoryWithSQL(sqlq sqlExecutor) *openAISchedulerOverviewRepository {
+	return &openAISchedulerOverviewRepository{sql: sqlq}
+}
+
+func (r *openAISchedulerOverviewRepository) GetOpenAISchedulerOverviewMetrics(ctx context.Context, params service.OpenAISchedulerOverviewParams) (service.OpenAISchedulerOverviewMetrics, error) {
+	var metrics service.OpenAISchedulerOverviewMetrics
+	if r == nil || r.sql == nil {
+		return metrics, nil
+	}
+	if err := r.loadOpenAISchedulerOverviewSummary(ctx, params, &metrics); err != nil {
+		return service.OpenAISchedulerOverviewMetrics{}, err
+	}
+	groups, err := r.loadOpenAISchedulerOverviewGroups(ctx, params)
+	if err != nil {
+		return service.OpenAISchedulerOverviewMetrics{}, err
+	}
+	trend, err := r.loadOpenAISchedulerOverviewTrend(ctx, params)
+	if err != nil {
+		return service.OpenAISchedulerOverviewMetrics{}, err
+	}
+	slowCauses, err := r.loadOpenAISchedulerOverviewSlowCauses(ctx, params)
+	if err != nil {
+		return service.OpenAISchedulerOverviewMetrics{}, err
+	}
+	metrics.Groups = groups
+	metrics.Trend = trend
+	metrics.SlowCauses = slowCauses
+	return metrics, nil
+}
+
+func (r *openAISchedulerOverviewRepository) loadOpenAISchedulerOverviewSummary(ctx context.Context, params service.OpenAISchedulerOverviewParams, metrics *service.OpenAISchedulerOverviewMetrics) error {
+	args := []any{params.StartTime, params.EndTime}
+	probeGroupFilter := ""
+	usageGroupFilter := ""
+	if params.GroupID > 0 {
+		args = append(args, params.GroupID)
+		probeGroupFilter = fmt.Sprintf(" AND group_id = $%d", len(args))
+		usageGroupFilter = fmt.Sprintf(" AND ul.group_id = $%d", len(args))
+	}
+	query := fmt.Sprintf(`
+		WITH physical_probes AS (
+			-- Legacy probe fan-out has no attempt ID. This signature removes per-group copies;
+			-- nil status distinguishes slow probe outcomes from real slow requests.
+			SELECT DISTINCT account_id, model, event_type, DATE_TRUNC('second', created_at) AS probe_second
+			FROM openai_auto_scheduler_score_events
+			WHERE created_at >= $1 AND created_at < $2
+			  AND (event_type IN ('probe_success', 'probe_error')
+			       OR (event_type IN ('slow', 'severe_slow') AND status_code IS NULL))%s
+		), usage_metrics AS (
+			SELECT
+				COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ul.e2e_first_token_ms), 0) AS e2e_p50,
+				COALESCE(PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY ul.e2e_first_token_ms), 0) AS e2e_p90,
+				COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ul.routing_ms) FILTER (WHERE ul.routing_ms IS NOT NULL), 0) AS selection_p95,
+				COUNT(*) AS real_count
+			FROM usage_logs ul
+			JOIN groups g ON g.id = ul.group_id
+			WHERE ul.created_at >= $1 AND ul.created_at < $2
+			  AND ul.e2e_first_token_ms IS NOT NULL
+			  AND g.platform = 'openai'%s
+		)
+		SELECT e2e_p50, e2e_p90, selection_p95, real_count,
+		       (SELECT COUNT(*) FROM physical_probes) AS probe_count
+		FROM usage_metrics
+	`, probeGroupFilter, usageGroupFilter)
+	var realCount, probeCount int64
+	if err := scanSingleRow(ctx, r.sql, query, args,
+		&metrics.E2EP50MS, &metrics.E2EP90MS, &metrics.SelectionP95MS, &realCount, &probeCount,
+	); err != nil {
+		return err
+	}
+	denominator := realCount + probeCount
+	if denominator > 0 {
+		metrics.ProbeRatio = float64(probeCount) / float64(denominator)
+	}
+	return nil
+}
+
+func (r *openAISchedulerOverviewRepository) loadOpenAISchedulerOverviewGroups(ctx context.Context, params service.OpenAISchedulerOverviewParams) (result []service.OpenAISchedulerGroupSummary, err error) {
+	args := []any{params.StartTime, params.EndTime, service.PlatformOpenAI}
+	groupFilter := ""
+	if params.GroupID > 0 {
+		args = append(args, params.GroupID)
+		groupFilter = fmt.Sprintf(" AND g.id = $%d", len(args))
+	}
+	query := fmt.Sprintf(`
+		WITH group_usage AS (
+			SELECT ul.group_id,
+			       PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY ul.e2e_first_token_ms) AS e2e_p90
+			FROM usage_logs ul
+			WHERE ul.created_at >= $1 AND ul.created_at < $2
+			  AND ul.e2e_first_token_ms IS NOT NULL
+			GROUP BY ul.group_id
+		), memberships AS (
+			SELECT ag.group_id, COUNT(*) AS account_count
+			FROM account_groups ag
+			JOIN accounts a ON a.id = ag.account_id
+			WHERE a.platform = $3 AND a.deleted_at IS NULL
+			GROUP BY ag.group_id
+		)
+		SELECT g.id, g.name, g.openai_auto_scheduler_enabled,
+		       COALESCE(m.account_count, 0) AS account_count,
+		       COALESCE(gu.e2e_p90, 0) AS e2e_p90
+		FROM groups g
+		LEFT JOIN memberships m ON m.group_id = g.id
+		LEFT JOIN group_usage gu ON gu.group_id = g.id
+		WHERE g.platform = $3 AND g.deleted_at IS NULL%s
+		ORDER BY g.sort_order ASC, g.id ASC
+	`, groupFilter)
+	rows, err := r.sql.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+			result = nil
+		}
+	}()
+	result = make([]service.OpenAISchedulerGroupSummary, 0)
+	for rows.Next() {
+		var item service.OpenAISchedulerGroupSummary
+		if err = rows.Scan(&item.ID, &item.Name, &item.Enabled, &item.AccountCount, &item.E2EP90MS); err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func buildOpenAISchedulerOverviewTrendQuery(params service.OpenAISchedulerOverviewParams) (string, []any) {
+	bucketExpression := "DATE_TRUNC('hour', ul.created_at)"
+	if params.Bucket == 6*time.Hour {
+		bucketExpression = "DATE_TRUNC('day', ul.created_at) + FLOOR(EXTRACT(HOUR FROM ul.created_at) / 6) * INTERVAL '6 hours'"
+	}
+	args := []any{params.StartTime, params.EndTime}
+	groupFilter := ""
+	if params.GroupID > 0 {
+		args = append(args, params.GroupID)
+		groupFilter = fmt.Sprintf(" AND ul.group_id = $%d", len(args))
+	}
+	query := fmt.Sprintf(`
+		SELECT %s AS bucket,
+		       COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ul.e2e_first_token_ms), 0) AS e2e_p50,
+		       COALESCE(PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY ul.e2e_first_token_ms), 0) AS e2e_p90
+		FROM usage_logs ul
+		JOIN groups g ON g.id = ul.group_id
+		WHERE ul.created_at >= $1 AND ul.created_at < $2
+		  AND ul.e2e_first_token_ms IS NOT NULL
+		  AND g.platform = 'openai'%s
+		GROUP BY bucket
+		ORDER BY bucket ASC
+	`, bucketExpression, groupFilter)
+	return query, args
+}
+
+func (r *openAISchedulerOverviewRepository) loadOpenAISchedulerOverviewTrend(ctx context.Context, params service.OpenAISchedulerOverviewParams) (result []service.OpenAISchedulerTrendPoint, err error) {
+	query, args := buildOpenAISchedulerOverviewTrendQuery(params)
+	rows, err := r.sql.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+			result = nil
+		}
+	}()
+	result = make([]service.OpenAISchedulerTrendPoint, 0)
+	for rows.Next() {
+		var point service.OpenAISchedulerTrendPoint
+		if err = rows.Scan(&point.Bucket, &point.E2EP50MS, &point.E2EP90MS); err != nil {
+			return nil, err
+		}
+		result = append(result, point)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (r *openAISchedulerOverviewRepository) loadOpenAISchedulerOverviewSlowCauses(ctx context.Context, params service.OpenAISchedulerOverviewParams) (result []service.OpenAISchedulerSlowCause, err error) {
+	args := []any{params.StartTime, params.EndTime, params.SlowThresholdMS}
+	groupFilter := ""
+	if params.GroupID > 0 {
+		args = append(args, params.GroupID)
+		groupFilter = fmt.Sprintf(" AND ul.group_id = $%d", len(args))
+	}
+	query := fmt.Sprintf(`
+		WITH contributions AS (
+			SELECT COALESCE(ul.queue_ms, 0) AS queue_ms,
+			       COALESCE(ul.retry_ms, 0) AS retry_ms,
+			       GREATEST(ul.e2e_first_token_ms - COALESCE(ul.routing_ms, 0) - COALESCE(ul.queue_ms, 0) - COALESCE(ul.retry_ms, 0), 0) AS upstream_ms
+			FROM usage_logs ul
+			JOIN groups g ON g.id = ul.group_id
+			WHERE ul.created_at >= $1 AND ul.created_at < $2
+			  AND ul.e2e_first_token_ms >= $3
+			  AND g.platform = 'openai'%s
+		), classified AS (
+			SELECT CASE
+				WHEN queue_ms >= retry_ms AND queue_ms > upstream_ms THEN 'queue'
+				WHEN retry_ms > queue_ms AND retry_ms > upstream_ms THEN 'retry'
+				ELSE 'upstream_ttft'
+			END AS reason
+			FROM contributions
+		)
+		SELECT reason, COUNT(*) AS cause_count
+		FROM classified
+		GROUP BY reason
+		ORDER BY cause_count DESC, reason ASC
+	`, groupFilter)
+	rows, err := r.sql.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+			result = nil
+		}
+	}()
+	result = make([]service.OpenAISchedulerSlowCause, 0, 3)
+	var total int64
+	for rows.Next() {
+		var cause service.OpenAISchedulerSlowCause
+		if err = rows.Scan(&cause.Reason, &cause.Count); err != nil {
+			return nil, err
+		}
+		total += cause.Count
+		result = append(result, cause)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	if total > 0 {
+		for i := range result {
+			result[i].Ratio = float64(result[i].Count) / float64(total)
+		}
+	}
+	return result, nil
+}
+
+func buildOpenAISchedulerHealthQueries(params service.OpenAISchedulerHealthParams) (string, string, []any, []any) {
+	page := params.Page
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := params.PageSize
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 200 {
+		pageSize = 200
+	}
+	conditions := []string{"a.platform = $1", "g.platform = $1", "a.deleted_at IS NULL", "g.deleted_at IS NULL"}
+	args := []any{service.PlatformOpenAI}
+	appendFilter := func(column string, value any) {
+		args = append(args, value)
+		conditions = append(conditions, fmt.Sprintf("%s = $%d", column, len(args)))
+	}
+	if params.GroupID > 0 {
+		appendFilter("ag.group_id", params.GroupID)
+	}
+	if value := strings.TrimSpace(params.State); value != "" {
+		appendFilter("hs.state", value)
+	}
+	if value := strings.TrimSpace(params.ModelFamily); value != "" {
+		appendFilter("hs.model_family", value)
+	}
+	if value := strings.TrimSpace(params.Endpoint); value != "" {
+		appendFilter("hs.endpoint", value)
+	}
+	if value := strings.TrimSpace(params.Transport); value != "" {
+		appendFilter("hs.transport", value)
+	}
+	fromWhere := `
+		FROM account_groups ag
+		JOIN accounts a ON a.id = ag.account_id
+		JOIN groups g ON g.id = ag.group_id
+		LEFT JOIN openai_scheduler_health_states hs ON hs.account_id = ag.account_id
+		WHERE ` + strings.Join(conditions, " AND ")
+	countQuery := "SELECT COUNT(*) " + fromWhere
+
+	sortColumns := map[string]string{
+		"account_id": "account_id", "predicted_ttft_ms": "predicted_ttft_ms", "error_rate": "error_rate",
+		"real_sample_count": "real_sample_count", "probe_sample_count": "probe_sample_count",
+		"snapshot_age_ms": "updated_at", "channel_price": "channel_price",
+	}
+	sortColumn := sortColumns[strings.ToLower(strings.TrimSpace(params.Sort))]
+	if sortColumn == "" {
+		sortColumn = "predicted_ttft_ms"
+	}
+	order := strings.ToUpper(strings.TrimSpace(params.Order))
+	if order != "ASC" {
+		order = "DESC"
+	}
+	if strings.EqualFold(params.Sort, "snapshot_age_ms") {
+		if order == "ASC" {
+			order = "DESC"
+		} else {
+			order = "ASC"
+		}
+	}
+	rowsArgs := append([]any(nil), args...)
+	rowsArgs = append(rowsArgs, pageSize, (page-1)*pageSize)
+	limitPlaceholder := len(rowsArgs) - 1
+	offsetPlaceholder := len(rowsArgs)
+	rowsQuery := fmt.Sprintf(`
+		WITH health_rows AS (
+			SELECT a.id AS account_id, a.name AS account_name, ag.group_id,
+			       COALESCE(hs.model_family, '') AS model_family,
+			       COALESCE(hs.endpoint, '') AS endpoint,
+			       COALESCE(hs.transport, '') AS transport,
+			       COALESCE(hs.state, '') AS state,
+			       COALESCE(hs.predicted_ttft_ms, 0) AS predicted_ttft_ms,
+			       COALESCE(MIN(NULLIF(hs.predicted_ttft_ms, 0)) OVER (PARTITION BY ag.group_id, hs.model_family, hs.endpoint, hs.transport), 0) AS best_predicted_ttft_ms,
+			       COALESCE(hs.real_sample_count, 0) AS real_sample_count,
+			       COALESCE(hs.probe_sample_count, 0) AS probe_sample_count,
+			       COALESCE(hs.error_rate, 0) AS error_rate,
+			       COALESCE(hs.rate_limited_rate, 0) AS rate_limited_rate,
+			       COALESCE(hs.server_error_rate, 0) AS server_error_rate,
+			       hs.cooldown_until, hs.expires_at, hs.updated_at,
+			       a.concurrency AS max_concurrency, a.channel_price
+			%s
+		)
+		SELECT account_id, account_name, group_id, model_family, endpoint, transport, state,
+		       predicted_ttft_ms, best_predicted_ttft_ms, real_sample_count, probe_sample_count,
+		       error_rate, rate_limited_rate, server_error_rate, cooldown_until, expires_at,
+		       updated_at, max_concurrency, channel_price
+		FROM health_rows
+		ORDER BY %s %s NULLS LAST, account_id ASC, group_id ASC, model_family ASC, endpoint ASC, transport ASC
+		LIMIT $%d OFFSET $%d
+	`, fromWhere, sortColumn, order, limitPlaceholder, offsetPlaceholder)
+	return countQuery, rowsQuery, args, rowsArgs
+}
+
+func (r *openAISchedulerOverviewRepository) ListOpenAISchedulerHealth(ctx context.Context, params service.OpenAISchedulerHealthParams) (result []service.OpenAISchedulerHealthRecord, total int64, err error) {
+	if r == nil || r.sql == nil {
+		return []service.OpenAISchedulerHealthRecord{}, 0, nil
+	}
+	countQuery, rowsQuery, countArgs, rowsArgs := buildOpenAISchedulerHealthQueries(params)
+	if err := scanSingleRow(ctx, r.sql, countQuery, countArgs, &total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.sql.QueryContext(ctx, rowsQuery, rowsArgs...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+			result = nil
+			total = 0
+		}
+	}()
+	result = make([]service.OpenAISchedulerHealthRecord, 0)
+	for rows.Next() {
+		var item service.OpenAISchedulerHealthRecord
+		var cooldownUntil, expiresAt, updatedAt sql.NullTime
+		var channelPrice sql.NullFloat64
+		if err = rows.Scan(
+			&item.AccountID, &item.AccountName, &item.GroupID, &item.ModelFamily, &item.Endpoint, &item.Transport,
+			&item.State, &item.PredictedTTFTMS, &item.BestPredictedTTFTMS, &item.RealSampleCount,
+			&item.ProbeSampleCount, &item.ErrorRate, &item.RateLimitedRate, &item.ServerErrorRate,
+			&cooldownUntil, &expiresAt, &updatedAt, &item.MaxConcurrency, &channelPrice,
+		); err != nil {
+			return nil, 0, err
+		}
+		if cooldownUntil.Valid {
+			item.CooldownUntil = &cooldownUntil.Time
+		}
+		if expiresAt.Valid {
+			item.ExpiresAt = expiresAt.Time
+		}
+		if updatedAt.Valid {
+			item.UpdatedAt = updatedAt.Time
+		}
+		if channelPrice.Valid {
+			price := channelPrice.Float64
+			item.ChannelPrice = &price
+		}
+		result = append(result, item)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return result, total, nil
+}
+
 // GetAccountTodayStats 获取账号今日统计
 func (r *usageLogRepository) GetAccountTodayStats(ctx context.Context, accountID int64) (*usagestats.AccountStats, error) {
 	today := timezone.Today()

@@ -1,0 +1,198 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+)
+
+type openAISchedulerOverviewRepoStub struct {
+	metrics      OpenAISchedulerOverviewMetrics
+	healthItems  []OpenAISchedulerHealthRecord
+	healthTotal  int64
+	overviewErr  error
+	healthErr    error
+	overviewCall OpenAISchedulerOverviewParams
+	healthCall   OpenAISchedulerHealthParams
+}
+
+func (s *openAISchedulerOverviewRepoStub) GetOpenAISchedulerOverviewMetrics(_ context.Context, params OpenAISchedulerOverviewParams) (OpenAISchedulerOverviewMetrics, error) {
+	s.overviewCall = params
+	return s.metrics, s.overviewErr
+}
+
+func (s *openAISchedulerOverviewRepoStub) ListOpenAISchedulerHealth(_ context.Context, params OpenAISchedulerHealthParams) ([]OpenAISchedulerHealthRecord, int64, error) {
+	s.healthCall = params
+	return s.healthItems, s.healthTotal, s.healthErr
+}
+
+type openAISchedulerOverviewLoadStub struct {
+	calls    int
+	accounts []AccountWithConcurrency
+	loads    map[int64]*AccountLoadInfo
+	err      error
+}
+
+func (s *openAISchedulerOverviewLoadStub) GetAccountsLoadBatch(_ context.Context, accounts []AccountWithConcurrency) (map[int64]*AccountLoadInfo, error) {
+	s.calls++
+	s.accounts = append([]AccountWithConcurrency(nil), accounts...)
+	return s.loads, s.err
+}
+
+type openAISchedulerOverviewSettingsStub struct {
+	settings OpenAIAutoSchedulerSettings
+}
+
+func (s openAISchedulerOverviewSettingsStub) GetOpenAIAutoSchedulerSettings(context.Context) OpenAIAutoSchedulerSettings {
+	return s.settings
+}
+
+func TestOpenAISchedulerOverviewServiceBuildsControlConsoleMetrics(t *testing.T) {
+	repo := &openAISchedulerOverviewRepoStub{metrics: OpenAISchedulerOverviewMetrics{
+		E2EP50MS:       2970,
+		E2EP90MS:       7210,
+		SelectionP95MS: 18,
+		ProbeRatio:     0.24,
+		Groups:         []OpenAISchedulerGroupSummary{{ID: 33, Name: "Codex", Enabled: true, AccountCount: 4, E2EP90MS: 7210}},
+	}}
+	svc := NewOpenAISchedulerOverviewService(repo)
+	svc.now = func() time.Time { return time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC) }
+
+	got, err := svc.GetOverview(context.Background(), OpenAISchedulerOverviewParams{GroupID: 33, Window: 6 * time.Hour})
+
+	require.NoError(t, err)
+	require.Equal(t, 2970.0, got.E2EP50MS)
+	require.Equal(t, 7210.0, got.E2EP90MS)
+	require.Equal(t, 18.0, got.SelectionP95MS)
+	require.InDelta(t, 0.24, got.ProbeRatio, 0.0001)
+	require.Equal(t, time.Hour, repo.overviewCall.Bucket)
+	require.Equal(t, 6*time.Hour, repo.overviewCall.Window)
+	require.Equal(t, 33, int(repo.overviewCall.GroupID))
+	require.Equal(t, "ok", got.Groups[0].AlertLevel)
+	require.Equal(t, svc.now(), repo.overviewCall.EndTime)
+	require.Equal(t, svc.now().Add(-6*time.Hour), repo.overviewCall.StartTime)
+}
+
+func TestOpenAISchedulerOverviewServiceUsesBoundedBuckets(t *testing.T) {
+	tests := []struct {
+		name       string
+		window     time.Duration
+		wantBucket time.Duration
+		wantErr    bool
+	}{
+		{name: "one hour", window: time.Hour, wantBucket: time.Hour},
+		{name: "six hours", window: 6 * time.Hour, wantBucket: time.Hour},
+		{name: "one day", window: 24 * time.Hour, wantBucket: time.Hour},
+		{name: "seven days", window: 7 * 24 * time.Hour, wantBucket: 6 * time.Hour},
+		{name: "unsupported", window: 2 * time.Hour, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &openAISchedulerOverviewRepoStub{}
+			svc := NewOpenAISchedulerOverviewService(repo)
+			_, err := svc.GetOverview(context.Background(), OpenAISchedulerOverviewParams{Window: tt.window})
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Equal(t, time.Duration(0), repo.overviewCall.Window)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantBucket, repo.overviewCall.Bucket)
+		})
+	}
+}
+
+func TestOpenAISchedulerOverviewServiceMapsPaginatedHealthWithOneLoadBatch(t *testing.T) {
+	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+	price := 0.75
+	repo := &openAISchedulerOverviewRepoStub{
+		healthTotal: 3,
+		healthItems: []OpenAISchedulerHealthRecord{
+			{AccountID: 10, AccountName: "primary", GroupID: 33, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 1200, BestPredictedTTFTMS: 1200, RealSampleCount: 20, ProbeSampleCount: 2, ErrorRate: 0.01, RateLimitedRate: 0.02, ServerErrorRate: 0.03, MaxConcurrency: 4, ChannelPrice: &price, UpdatedAt: now.Add(-2 * time.Second), ExpiresAt: now.Add(time.Minute)},
+			{AccountID: 10, AccountName: "primary", GroupID: 82, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateOpen, PredictedTTFTMS: 9200, BestPredictedTTFTMS: 1200, MaxConcurrency: 4, UpdatedAt: now.Add(-3 * time.Second), ExpiresAt: now.Add(time.Minute)},
+		},
+	}
+	loads := &openAISchedulerOverviewLoadStub{loads: map[int64]*AccountLoadInfo{10: {AccountID: 10, CurrentConcurrency: 2, WaitingCount: 1}}}
+	settings := DefaultOpenAIAutoSchedulerSettings()
+	settings.Mode = OpenAIAutoSchedulerModeBalanced
+	settings.ShadowMode = true
+	svc := NewOpenAISchedulerOverviewService(repo)
+	svc.loads = loads
+	svc.settings = openAISchedulerOverviewSettingsStub{settings: settings}
+	svc.now = func() time.Time { return now }
+
+	got, err := svc.ListHealth(context.Background(), OpenAISchedulerHealthParams{GroupID: 33, State: "running", Page: 2, PageSize: 20})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(3), got.Total)
+	require.Len(t, got.Items, 2)
+	require.Equal(t, 1, loads.calls)
+	require.Equal(t, []AccountWithConcurrency{{ID: 10, MaxConcurrency: 4}}, loads.accounts)
+	require.Equal(t, 2, got.Items[0].LoadInflight)
+	require.Equal(t, 4, got.Items[0].LoadCapacity)
+	require.Equal(t, 1, got.Items[0].WaitingCount)
+	require.Equal(t, "eligible", got.Items[0].Decision)
+	require.Equal(t, "within_latency_budget", got.Items[0].DecisionReason)
+	require.Equal(t, "circuit_rejected", got.Items[1].Decision)
+	require.Equal(t, "open", got.Items[1].DecisionReason)
+	require.Equal(t, OpenAIAutoSchedulerModeBalanced, got.Items[0].SchedulerMode)
+	require.True(t, got.Items[0].ShadowMode)
+	require.Equal(t, int64(2000), *got.Items[0].SnapshotAgeMS)
+	require.Nil(t, got.Items[0].StickyEscapeReason)
+	require.Equal(t, int64(33), repo.healthCall.GroupID)
+}
+
+func TestOpenAISchedulerOverviewServiceClassifiesHealthWithoutInventingRequestDecisions(t *testing.T) {
+	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+	repo := &openAISchedulerOverviewRepoStub{healthItems: []OpenAISchedulerHealthRecord{
+		{AccountID: 1, GroupID: 33, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 2501, BestPredictedTTFTMS: 1500, ExpiresAt: now.Add(time.Minute)},
+		{AccountID: 2, GroupID: 33, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 1000, BestPredictedTTFTMS: 1000, ExpiresAt: now.Add(-time.Second)},
+		{AccountID: 3, GroupID: 33},
+	}}
+	svc := NewOpenAISchedulerOverviewService(repo)
+	svc.now = func() time.Time { return now }
+
+	got, err := svc.ListHealth(context.Background(), OpenAISchedulerHealthParams{})
+
+	require.NoError(t, err)
+	require.Equal(t, "latency_tail", got.Items[0].Decision)
+	require.Equal(t, "latency_budget", got.Items[0].DecisionReason)
+	require.Equal(t, "stale", got.Items[1].Decision)
+	require.Equal(t, "snapshot_expired", got.Items[1].DecisionReason)
+	require.Equal(t, "health_unavailable", got.Items[2].Decision)
+	require.Equal(t, "snapshot_missing", got.Items[2].DecisionReason)
+	for _, item := range got.Items {
+		require.Nil(t, item.StickyEscapeReason)
+	}
+}
+
+func TestOpenAISchedulerOverviewServiceHealthEmptyAndErrors(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		repo := &openAISchedulerOverviewRepoStub{}
+		loads := &openAISchedulerOverviewLoadStub{}
+		svc := NewOpenAISchedulerOverviewService(repo)
+		svc.loads = loads
+		got, err := svc.ListHealth(context.Background(), OpenAISchedulerHealthParams{Page: 1, PageSize: 20})
+		require.NoError(t, err)
+		require.Empty(t, got.Items)
+		require.Zero(t, loads.calls)
+	})
+
+	t.Run("repository error", func(t *testing.T) {
+		wantErr := errors.New("health query failed")
+		svc := NewOpenAISchedulerOverviewService(&openAISchedulerOverviewRepoStub{healthErr: wantErr})
+		_, err := svc.ListHealth(context.Background(), OpenAISchedulerHealthParams{})
+		require.ErrorIs(t, err, wantErr)
+	})
+
+	t.Run("load error", func(t *testing.T) {
+		wantErr := errors.New("load query failed")
+		svc := NewOpenAISchedulerOverviewService(&openAISchedulerOverviewRepoStub{healthItems: []OpenAISchedulerHealthRecord{{AccountID: 1, MaxConcurrency: 2}}})
+		svc.loads = &openAISchedulerOverviewLoadStub{err: wantErr}
+		_, err := svc.ListHealth(context.Background(), OpenAISchedulerHealthParams{})
+		require.ErrorIs(t, err, wantErr)
+	})
+}

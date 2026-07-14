@@ -1298,6 +1298,42 @@ func TestAPIContracts(t *testing.T) {
 			}`,
 		},
 		{
+			name:       "GET /api/v1/admin/openai-auto-scheduler/overview",
+			method:     http.MethodGet,
+			path:       "/api/v1/admin/openai-auto-scheduler/overview?window=6h",
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": {
+					"e2e_ttft_p50_ms": null,
+					"e2e_ttft_p90_ms": null,
+					"selection_p95_ms": null,
+					"probe_ratio": 0,
+					"groups": [],
+					"trend": [],
+					"slow_causes": []
+				}
+			}`,
+		},
+		{
+			name:       "GET /api/v1/admin/openai-auto-scheduler/health",
+			method:     http.MethodGet,
+			path:       "/api/v1/admin/openai-auto-scheduler/health?page=1&page_size=20",
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": {
+					"items": [],
+					"total": 0,
+					"page": 1,
+					"page_size": 20,
+					"pages": 1
+				}
+			}`,
+		},
+		{
 			name:       "GET /api/v1/admin/openai-auto-scheduler/settings",
 			method:     http.MethodGet,
 			path:       "/api/v1/admin/openai-auto-scheduler/settings",
@@ -1479,8 +1515,9 @@ func newContractDeps(t *testing.T) *contractDeps {
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
 	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, nil, nil)
 	adminSettingHandler := adminhandler.NewSettingHandler(settingService, nil, nil, nil, nil, nil, nil)
-	adminAccountHandler := adminhandler.NewAccountHandler(adminService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	openAIAutoSchedulerHandler := adminhandler.NewOpenAIAutoSchedulerHandler(settingService, adminService, service.NewOpenAIAutoSchedulerService(nil, settingService), nil, nil)
+	adminAccountHandler := adminhandler.NewAccountHandler(adminService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	openAISchedulerOverviewService := service.NewOpenAISchedulerOverviewService(nil)
+	openAIAutoSchedulerHandler := adminhandler.NewOpenAIAutoSchedulerHandler(settingService, adminService, service.NewOpenAIAutoSchedulerService(nil, settingService), nil, nil, openAISchedulerOverviewService)
 
 	jwtAuth := func(c *gin.Context) {
 		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{
@@ -1530,6 +1567,8 @@ func newContractDeps(t *testing.T) *contractDeps {
 	v1Admin.Use(adminAuth)
 	v1Admin.GET("/settings", adminSettingHandler.GetSettings)
 	v1Admin.POST("/accounts/bulk-update", adminAccountHandler.BulkUpdate)
+	v1Admin.GET("/openai-auto-scheduler/overview", openAIAutoSchedulerHandler.GetOverview)
+	v1Admin.GET("/openai-auto-scheduler/health", openAIAutoSchedulerHandler.ListHealth)
 	v1Admin.GET("/openai-auto-scheduler/settings", openAIAutoSchedulerHandler.GetSettings)
 	v1Admin.GET("/openai-auto-scheduler/groups", openAIAutoSchedulerHandler.ListGroups)
 	v1Admin.GET("/openai-auto-scheduler/scores", openAIAutoSchedulerHandler.ListScores)
@@ -1802,6 +1841,10 @@ func (r *stubGroupRepo) ListActiveByPlatform(ctx context.Context, platform strin
 	return out, nil
 }
 
+func (r *stubGroupRepo) ListUpstreamBalanceRefreshEnabled(context.Context) ([]service.Group, error) {
+	return nil, nil
+}
+
 func (stubGroupRepo) ExistsByName(ctx context.Context, name string) (bool, error) {
 	return false, errors.New("not implemented")
 }
@@ -1884,6 +1927,14 @@ func (s *stubAccountRepo) ListActive(ctx context.Context) ([]service.Account, er
 
 func (s *stubAccountRepo) ListOAuthRefreshCandidates(ctx context.Context) ([]service.Account, error) {
 	return nil, errors.New("not implemented")
+}
+
+func (s *stubAccountRepo) ListSub2APICheckinCandidates(context.Context, int) ([]service.Account, error) {
+	return nil, nil
+}
+
+func (s *stubAccountRepo) ListUpstreamBalanceRefreshCandidatesByGroupID(context.Context, int64, int) ([]service.Account, error) {
+	return nil, nil
 }
 
 func (s *stubAccountRepo) ListByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
@@ -2494,6 +2545,10 @@ func (r *stubApiKeyRepo) UpdateLastUsed(ctx context.Context, id int64, usedAt ti
 	clone := *key
 	r.byID[id] = &clone
 	r.byKey[clone.Key] = &clone
+	return nil
+}
+
+func (r *stubApiKeyRepo) UpdateLastEffectiveGroup(context.Context, int64, int64, time.Time) error {
 	return nil
 }
 

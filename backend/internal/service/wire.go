@@ -735,6 +735,7 @@ var ProviderSet = wire.NewSet(
 	ProvideGroupUpstreamBalanceRefreshRunner,
 	ProvideOpenAISchedulerHealthEventSink,
 	ProvideOpenAIBalancedScheduler,
+	ProvideOpenAISchedulerOverviewService,
 	ProvideOpenAIAutoSchedulerService,
 	ProvideOpenAIAutoSchedulerSelector,
 	ProvideOpenAIAutoSchedulerOutcomeRecorder,

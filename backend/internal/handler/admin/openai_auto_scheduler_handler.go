@@ -36,6 +36,11 @@ type openAIAutoSchedulerAccountRepository interface {
 	GetByID(ctx context.Context, id int64) (*service.Account, error)
 }
 
+type openAISchedulerOverviewService interface {
+	GetOverview(ctx context.Context, params service.OpenAISchedulerOverviewParams) (service.OpenAISchedulerOverviewMetrics, error)
+	ListHealth(ctx context.Context, params service.OpenAISchedulerHealthParams) (*service.OpenAISchedulerHealthListResult, error)
+}
+
 // OpenAIAutoSchedulerHandler exposes admin APIs for OpenAI auto scheduler state.
 type OpenAIAutoSchedulerHandler struct {
 	settingsSvc openAIAutoSchedulerSettingsService
@@ -43,6 +48,7 @@ type OpenAIAutoSchedulerHandler struct {
 	scheduler   openAIAutoSchedulerService
 	accountRepo openAIAutoSchedulerAccountRepository
 	checker     service.OpenAIAutoSchedulerProbeChecker
+	overview    openAISchedulerOverviewService
 }
 
 func NewOpenAIAutoSchedulerHandler(
@@ -51,14 +57,19 @@ func NewOpenAIAutoSchedulerHandler(
 	scheduler openAIAutoSchedulerService,
 	accountRepo openAIAutoSchedulerAccountRepository,
 	checker service.OpenAIAutoSchedulerProbeChecker,
+	overview ...openAISchedulerOverviewService,
 ) *OpenAIAutoSchedulerHandler {
-	return &OpenAIAutoSchedulerHandler{
+	h := &OpenAIAutoSchedulerHandler{
 		settingsSvc: settingsSvc,
 		adminSvc:    adminSvc,
 		scheduler:   scheduler,
 		accountRepo: accountRepo,
 		checker:     checker,
 	}
+	if len(overview) > 0 {
+		h.overview = overview[0]
+	}
+	return h
 }
 
 func ProvideOpenAIAutoSchedulerHandler(
@@ -67,8 +78,55 @@ func ProvideOpenAIAutoSchedulerHandler(
 	schedulerService *service.OpenAIAutoSchedulerService,
 	accountRepo service.AccountRepository,
 	checker service.OpenAIAutoSchedulerProbeChecker,
+	overviewService *service.OpenAISchedulerOverviewService,
 ) *OpenAIAutoSchedulerHandler {
-	return NewOpenAIAutoSchedulerHandler(settingService, adminService, schedulerService, accountRepo, checker)
+	return NewOpenAIAutoSchedulerHandler(settingService, adminService, schedulerService, accountRepo, checker, overviewService)
+}
+
+func (h *OpenAIAutoSchedulerHandler) GetOverview(c *gin.Context) {
+	if h == nil || h.overview == nil {
+		response.InternalError(c, "openai scheduler overview service is not configured")
+		return
+	}
+	groupID, ok := parseOptionalPositiveInt64Query(c, "group_id")
+	if !ok {
+		return
+	}
+	window, ok := parseOpenAISchedulerOverviewWindow(c)
+	if !ok {
+		return
+	}
+	metrics, err := h.overview.GetOverview(c.Request.Context(), service.OpenAISchedulerOverviewParams{
+		GroupID: groupID,
+		Window:  window,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, openAISchedulerOverviewToResponse(metrics))
+}
+
+func (h *OpenAIAutoSchedulerHandler) ListHealth(c *gin.Context) {
+	if h == nil || h.overview == nil {
+		response.InternalError(c, "openai scheduler overview service is not configured")
+		return
+	}
+	page, pageSize := parseOpenAIAutoSchedulerPagination(c)
+	params, ok := parseOpenAISchedulerHealthParams(c, page, pageSize)
+	if !ok {
+		return
+	}
+	result, err := h.overview.ListHealth(c.Request.Context(), params)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	items := make([]openAISchedulerHealthResponse, 0, len(result.Items))
+	for _, item := range result.Items {
+		items = append(items, openAISchedulerHealthToResponse(item))
+	}
+	response.Paginated(c, items, result.Total, page, pageSize)
 }
 
 func (h *OpenAIAutoSchedulerHandler) GetSettings(c *gin.Context) {
@@ -337,6 +395,65 @@ type openAIAutoSchedulerEventResponse struct {
 	CreatedAt          string  `json:"created_at"`
 }
 
+type openAISchedulerOverviewResponse struct {
+	E2ETTFTP50MS *float64 `json:"e2e_ttft_p50_ms"`
+	E2ETTFTP90MS *float64 `json:"e2e_ttft_p90_ms"`
+	// SelectionP95MS is the routing_ms proxy because no narrower persisted selection timer exists.
+	SelectionP95MS *float64                           `json:"selection_p95_ms"`
+	ProbeRatio     float64                            `json:"probe_ratio"`
+	Groups         []openAISchedulerGroupResponse     `json:"groups"`
+	Trend          []openAISchedulerTrendResponse     `json:"trend"`
+	SlowCauses     []openAISchedulerSlowCauseResponse `json:"slow_causes"`
+}
+
+type openAISchedulerGroupResponse struct {
+	ID           int64    `json:"id"`
+	Name         string   `json:"name"`
+	Enabled      bool     `json:"enabled"`
+	AccountCount int64    `json:"account_count"`
+	E2ETTFTP90MS *float64 `json:"e2e_ttft_p90_ms"`
+	AlertLevel   string   `json:"alert_level"`
+}
+
+type openAISchedulerTrendResponse struct {
+	Bucket       string   `json:"bucket"`
+	E2ETTFTP50MS *float64 `json:"e2e_ttft_p50_ms"`
+	E2ETTFTP90MS *float64 `json:"e2e_ttft_p90_ms"`
+}
+
+type openAISchedulerSlowCauseResponse struct {
+	Reason string  `json:"reason"`
+	Count  int64   `json:"count"`
+	Ratio  float64 `json:"ratio"`
+}
+
+type openAISchedulerHealthResponse struct {
+	AccountID          int64    `json:"account_id"`
+	AccountName        string   `json:"account_name"`
+	GroupID            int64    `json:"group_id"`
+	ModelFamily        string   `json:"model_family"`
+	Endpoint           string   `json:"endpoint"`
+	Transport          string   `json:"transport"`
+	State              string   `json:"state"`
+	PredictedTTFTMS    *float64 `json:"predicted_ttft_ms"`
+	RealSampleCount    int64    `json:"real_sample_count"`
+	ProbeSampleCount   int64    `json:"probe_sample_count"`
+	ErrorRate          float64  `json:"error_rate"`
+	RateLimitedRate    float64  `json:"rate_limited_rate"`
+	ServerErrorRate    float64  `json:"server_error_rate"`
+	LoadInflight       int      `json:"load_inflight"`
+	LoadCapacity       int      `json:"load_capacity"`
+	WaitingCount       int      `json:"waiting_count"`
+	ChannelPrice       *float64 `json:"channel_price"`
+	Decision           string   `json:"decision"`
+	DecisionReason     string   `json:"decision_reason"`
+	SchedulerMode      string   `json:"scheduler_mode"`
+	ShadowMode         bool     `json:"shadow_mode"`
+	StickyEscapeReason *string  `json:"sticky_escape_reason"`
+	SnapshotAgeMS      *int64   `json:"snapshot_age_ms"`
+	CooldownUntil      *string  `json:"cooldown_until"`
+}
+
 func validateOpenAIAutoSchedulerSettings(settings service.OpenAIAutoSchedulerSettings) string {
 	switch {
 	case settings.Mode != service.OpenAIAutoSchedulerModeLegacy && settings.Mode != service.OpenAIAutoSchedulerModeBalanced:
@@ -396,6 +513,56 @@ func parseOpenAIAutoSchedulerListParams(c *gin.Context, page, pageSize int) (ser
 		Model:    strings.TrimSpace(c.Query("model")),
 		Page:     page,
 		PageSize: pageSize,
+	}, true
+}
+
+func parseOpenAISchedulerOverviewWindow(c *gin.Context) (time.Duration, bool) {
+	switch strings.ToLower(strings.TrimSpace(c.Query("window"))) {
+	case "", "6h":
+		return 6 * time.Hour, true
+	case "1h":
+		return time.Hour, true
+	case "24h":
+		return 24 * time.Hour, true
+	case "7d":
+		return 7 * 24 * time.Hour, true
+	default:
+		response.BadRequest(c, "window must be one of 1h, 6h, 24h, 7d")
+		return 0, false
+	}
+}
+
+func parseOpenAISchedulerHealthParams(c *gin.Context, page, pageSize int) (service.OpenAISchedulerHealthParams, bool) {
+	groupID, ok := parseOptionalPositiveInt64Query(c, "group_id")
+	if !ok {
+		return service.OpenAISchedulerHealthParams{}, false
+	}
+	sortField := strings.ToLower(strings.TrimSpace(c.Query("sort")))
+	if sortField == "" {
+		sortField = "predicted_ttft_ms"
+	}
+	validSort := map[string]struct{}{
+		"account_id": {}, "predicted_ttft_ms": {}, "error_rate": {}, "real_sample_count": {},
+		"probe_sample_count": {}, "snapshot_age_ms": {}, "channel_price": {},
+	}
+	if _, valid := validSort[sortField]; !valid {
+		response.BadRequest(c, "invalid health sort field")
+		return service.OpenAISchedulerHealthParams{}, false
+	}
+	order := strings.ToLower(strings.TrimSpace(c.Query("order")))
+	if order == "" {
+		order = "desc"
+	}
+	if order != "asc" && order != "desc" {
+		response.BadRequest(c, "order must be asc or desc")
+		return service.OpenAISchedulerHealthParams{}, false
+	}
+	return service.OpenAISchedulerHealthParams{
+		GroupID: groupID, State: strings.ToLower(strings.TrimSpace(c.Query("state"))),
+		ModelFamily: strings.ToLower(strings.TrimSpace(c.Query("model_family"))),
+		Endpoint:    strings.ToLower(strings.TrimSpace(c.Query("endpoint"))),
+		Transport:   strings.ToLower(strings.TrimSpace(c.Query("transport"))),
+		Sort:        sortField, Order: order, Page: page, PageSize: pageSize,
 	}, true
 }
 
@@ -506,6 +673,53 @@ func openAIAutoSchedulerEventToResponse(event service.OpenAIAutoSchedulerScoreEv
 		Message:            event.Message,
 		CreatedAt:          event.CreatedAt.UTC().Format(time.RFC3339),
 	}
+}
+
+func openAISchedulerOverviewToResponse(metrics service.OpenAISchedulerOverviewMetrics) openAISchedulerOverviewResponse {
+	groups := make([]openAISchedulerGroupResponse, 0, len(metrics.Groups))
+	for _, group := range metrics.Groups {
+		groups = append(groups, openAISchedulerGroupResponse{
+			ID: group.ID, Name: group.Name, Enabled: group.Enabled, AccountCount: group.AccountCount,
+			E2ETTFTP90MS: positiveOpenAISchedulerFloatPtr(group.E2EP90MS), AlertLevel: group.AlertLevel,
+		})
+	}
+	trend := make([]openAISchedulerTrendResponse, 0, len(metrics.Trend))
+	for _, point := range metrics.Trend {
+		trend = append(trend, openAISchedulerTrendResponse{
+			Bucket: point.Bucket.UTC().Format(time.RFC3339), E2ETTFTP50MS: positiveOpenAISchedulerFloatPtr(point.E2EP50MS),
+			E2ETTFTP90MS: positiveOpenAISchedulerFloatPtr(point.E2EP90MS),
+		})
+	}
+	slowCauses := make([]openAISchedulerSlowCauseResponse, 0, len(metrics.SlowCauses))
+	for _, cause := range metrics.SlowCauses {
+		slowCauses = append(slowCauses, openAISchedulerSlowCauseResponse{Reason: cause.Reason, Count: cause.Count, Ratio: cause.Ratio})
+	}
+	return openAISchedulerOverviewResponse{
+		E2ETTFTP50MS: positiveOpenAISchedulerFloatPtr(metrics.E2EP50MS), E2ETTFTP90MS: positiveOpenAISchedulerFloatPtr(metrics.E2EP90MS),
+		SelectionP95MS: positiveOpenAISchedulerFloatPtr(metrics.SelectionP95MS), ProbeRatio: metrics.ProbeRatio,
+		Groups: groups, Trend: trend, SlowCauses: slowCauses,
+	}
+}
+
+func openAISchedulerHealthToResponse(row service.OpenAISchedulerHealthRow) openAISchedulerHealthResponse {
+	return openAISchedulerHealthResponse{
+		AccountID: row.AccountID, AccountName: row.AccountName, GroupID: row.GroupID,
+		ModelFamily: row.ModelFamily, Endpoint: row.Endpoint, Transport: row.Transport, State: row.State,
+		PredictedTTFTMS: positiveOpenAISchedulerFloatPtr(row.PredictedTTFTMS), RealSampleCount: row.RealSampleCount,
+		ProbeSampleCount: row.ProbeSampleCount, ErrorRate: row.ErrorRate, RateLimitedRate: row.RateLimitedRate,
+		ServerErrorRate: row.ServerErrorRate, LoadInflight: row.LoadInflight, LoadCapacity: row.LoadCapacity,
+		WaitingCount: row.WaitingCount, ChannelPrice: row.ChannelPrice, Decision: row.Decision,
+		DecisionReason: row.DecisionReason, SchedulerMode: row.SchedulerMode, ShadowMode: row.ShadowMode,
+		StickyEscapeReason: row.StickyEscapeReason, SnapshotAgeMS: row.SnapshotAgeMS,
+		CooldownUntil: openAIAutoSchedulerTimePtr(row.CooldownUntil),
+	}
+}
+
+func positiveOpenAISchedulerFloatPtr(value float64) *float64 {
+	if value <= 0 {
+		return nil
+	}
+	return &value
 }
 
 func openAIAutoSchedulerScorePercent(score int) float64 {

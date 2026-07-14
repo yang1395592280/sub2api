@@ -124,6 +124,31 @@ type fakeOpenAIAutoSchedulerProbeChecker struct {
 	calls  *int
 }
 
+type fakeOpenAISchedulerOverviewService struct {
+	overview       service.OpenAISchedulerOverviewMetrics
+	health         *service.OpenAISchedulerHealthListResult
+	err            error
+	overviewParams service.OpenAISchedulerOverviewParams
+	healthParams   service.OpenAISchedulerHealthParams
+	overviewCalls  int
+	healthCalls    int
+}
+
+func (s *fakeOpenAISchedulerOverviewService) GetOverview(_ context.Context, params service.OpenAISchedulerOverviewParams) (service.OpenAISchedulerOverviewMetrics, error) {
+	s.overviewCalls++
+	s.overviewParams = params
+	return s.overview, s.err
+}
+
+func (s *fakeOpenAISchedulerOverviewService) ListHealth(_ context.Context, params service.OpenAISchedulerHealthParams) (*service.OpenAISchedulerHealthListResult, error) {
+	s.healthCalls++
+	s.healthParams = params
+	if s.health == nil {
+		s.health = &service.OpenAISchedulerHealthListResult{}
+	}
+	return s.health, s.err
+}
+
 func (c fakeOpenAIAutoSchedulerProbeChecker) Check(context.Context, *service.Account, string, time.Duration) service.OpenAIAutoSchedulerProbeResult {
 	if c.calls != nil {
 		*c.calls++
@@ -150,6 +175,101 @@ func setupOpenAIAutoSchedulerHandlerRouter(
 		group.POST("/scores/accounts/:account_id/reset", h.ResetScore)
 	}
 	return router
+}
+
+func setupOpenAISchedulerControlRouter(svc *fakeOpenAISchedulerOverviewService) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	h := NewOpenAIAutoSchedulerHandler(nil, nil, nil, nil, nil, svc)
+	group := router.Group("/api/v1/admin/openai-auto-scheduler")
+	group.GET("/overview", h.GetOverview)
+	group.GET("/health", h.ListHealth)
+	return router
+}
+
+func TestOpenAIAutoSchedulerHandler_GetOverviewValidatesWindowAndMapsResponse(t *testing.T) {
+	t.Run("defaults to six hours", func(t *testing.T) {
+		svc := &fakeOpenAISchedulerOverviewService{overview: service.OpenAISchedulerOverviewMetrics{
+			E2EP50MS: 2970, E2EP90MS: 7210, SelectionP95MS: 18, ProbeRatio: 0.24,
+			SlowCauses: []service.OpenAISchedulerSlowCause{{Reason: "queue", Count: 2, Ratio: 0.5}},
+		}}
+		router := setupOpenAISchedulerControlRouter(svc)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/openai-auto-scheduler/overview?group_id=33", nil)
+		router.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, 6*time.Hour, svc.overviewParams.Window)
+		require.Equal(t, int64(33), svc.overviewParams.GroupID)
+		require.Contains(t, rec.Body.String(), `"e2e_ttft_p50_ms":2970`)
+		require.Contains(t, rec.Body.String(), `"selection_p95_ms":18`)
+		require.Contains(t, rec.Body.String(), `"probe_ratio":0.24`)
+		require.Contains(t, rec.Body.String(), `"reason":"queue"`)
+	})
+
+	t.Run("rejects unsupported window", func(t *testing.T) {
+		svc := &fakeOpenAISchedulerOverviewService{}
+		router := setupOpenAISchedulerControlRouter(svc)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/openai-auto-scheduler/overview?window=2h", nil)
+		router.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusBadRequest, rec.Code)
+		require.Contains(t, rec.Body.String(), "window must be one of 1h, 6h, 24h, 7d")
+		require.Zero(t, svc.overviewCalls)
+	})
+}
+
+func TestOpenAIAutoSchedulerHandler_ListHealthParsesBoundedFiltersAndPagination(t *testing.T) {
+	age := int64(2500)
+	svc := &fakeOpenAISchedulerOverviewService{health: &service.OpenAISchedulerHealthListResult{
+		Total: 1,
+		Items: []service.OpenAISchedulerHealthRow{{
+			AccountID: 10, AccountName: "primary", GroupID: 33, ModelFamily: "gpt-5.4",
+			Endpoint: "responses", Transport: "http_sse", State: "running", Decision: "eligible",
+			DecisionReason: "within_latency_budget", SchedulerMode: "balanced", ShadowMode: true,
+			PredictedTTFTMS: 1200, LoadInflight: 2, LoadCapacity: 4, WaitingCount: 1, SnapshotAgeMS: &age,
+		}},
+	}}
+	router := setupOpenAISchedulerControlRouter(svc)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/openai-auto-scheduler/health?group_id=33&state=running&model_family=gpt-5.4&endpoint=responses&transport=http_sse&sort=predicted_ttft_ms&order=asc&page=2&page_size=999", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(33), svc.healthParams.GroupID)
+	require.Equal(t, "running", svc.healthParams.State)
+	require.Equal(t, "gpt-5.4", svc.healthParams.ModelFamily)
+	require.Equal(t, "responses", svc.healthParams.Endpoint)
+	require.Equal(t, "http_sse", svc.healthParams.Transport)
+	require.Equal(t, "predicted_ttft_ms", svc.healthParams.Sort)
+	require.Equal(t, "asc", svc.healthParams.Order)
+	require.Equal(t, 2, svc.healthParams.Page)
+	require.Equal(t, 200, svc.healthParams.PageSize)
+	require.Contains(t, rec.Body.String(), `"decision":"eligible"`)
+	require.Contains(t, rec.Body.String(), `"sticky_escape_reason":null`)
+	require.Contains(t, rec.Body.String(), `"page_size":200`)
+}
+
+func TestOpenAIAutoSchedulerHandler_ListHealthRejectsInvalidFilterAndPropagatesError(t *testing.T) {
+	t.Run("invalid sort", func(t *testing.T) {
+		svc := &fakeOpenAISchedulerOverviewService{}
+		router := setupOpenAISchedulerControlRouter(svc)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/openai-auto-scheduler/health?sort=drop_table", nil)
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusBadRequest, rec.Code)
+		require.Zero(t, svc.healthCalls)
+	})
+
+	t.Run("service error", func(t *testing.T) {
+		svc := &fakeOpenAISchedulerOverviewService{err: errors.New("query failed")}
+		router := setupOpenAISchedulerControlRouter(svc)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/openai-auto-scheduler/health", nil)
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusInternalServerError, rec.Code)
+	})
 }
 
 func setupOpenAIAutoSchedulerProbeRouter(

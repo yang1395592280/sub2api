@@ -99,6 +99,7 @@ var ProviderSet = wire.NewSet(
 	NewUserPlatformQuotaServiceAdapter, // T14: adapter → service.UserPlatformQuotaRepository
 	NewOpenAIAutoSchedulerRepository,
 	NewOpenAISchedulerHealthRepository,
+	NewOpenAISchedulerOverviewRepository,
 	NewZenxiangLiyuRepository,
 
 	// Cache implementations
