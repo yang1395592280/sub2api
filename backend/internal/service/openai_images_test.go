@@ -703,6 +703,57 @@ func TestOpenAIGatewayServiceForwardImages_OAuthPassesNAndReturnsAllImages(t *te
 	require.Equal(t, OpenAIAutoSchedulerEventSuccess, records[0].EventType)
 }
 
+func TestOpenAIGatewayServiceForwardImages_OAuthAccountMappingMatchesSchedulerHealthKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	groupID := int64(11)
+	body := []byte(`{"model":"gpt-image-1","prompt":"draw a cat"}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+	c.Set("api_key", &APIKey{ID: 42, GroupID: &groupID})
+
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body: io.NopCloser(strings.NewReader(
+			"data: {\"type\":\"response.completed\",\"response\":{\"created_at\":1710000000,\"usage\":{},\"tool_usage\":{\"image_gen\":{\"images\":1}},\"output\":[{\"type\":\"image_generation_call\",\"result\":\"aW1hZ2U=\",\"output_format\":\"png\"}]}}\n\n" +
+				"data: [DONE]\n\n",
+		)),
+	}}
+	sink := &collectingOpenAIAutoSchedulerOutcomeSink{}
+	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 4, 1)
+	svc := &OpenAIGatewayService{
+		httpUpstream:                       upstream,
+		openAIAutoSchedulerOutcomeRecorder: recorder,
+	}
+	account := &Account{
+		ID:       1,
+		Name:     "openai-oauth",
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"access_token":       "token-123",
+			"chatgpt_account_id": "acct-123",
+			"model_mapping":      map[string]any{"gpt-image-1": "gpt-image-2"},
+		},
+	}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+
+	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+	require.NoError(t, err)
+	require.Equal(t, "gpt-image-2", resolveOpenAIAccountUpstreamModelForRequest(account, parsed.Model, false))
+	require.Equal(t, "gpt-image-2", gjson.GetBytes(upstream.lastBody, "tools.0.model").String())
+	require.Equal(t, "gpt-image-2", result.UpstreamModel)
+
+	require.NoError(t, recorder.Stop(context.Background()))
+	records := sink.snapshot()
+	require.Len(t, records, 1)
+	require.Equal(t, "gpt-image-2", records[0].ModelFamily)
+}
+
 func TestOpenAIGatewayServiceForwardImages_OAuthUpstreamHTTPErrorSurfacesRealError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","response_format":"b64_json"}`)
