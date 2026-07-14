@@ -1629,7 +1629,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 func openAIWSIngressAttemptMetadata(account *Account, originalModel string, transport OpenAIUpstreamTransport) openAIAutoSchedulerAttemptMetadata {
 	upstreamModel := strings.TrimSpace(originalModel)
 	if account != nil {
-		upstreamModel = normalizeOpenAIModelForUpstream(account, account.GetMappedModel(originalModel))
+		upstreamModel = resolveOpenAIAccountUpstreamModelForRequest(account, originalModel, false)
 	}
 	return openAIAutoSchedulerHealthMetadataForAttempt(openAIAutoSchedulerAttemptMetadata{
 		ModelFamily: upstreamModel,

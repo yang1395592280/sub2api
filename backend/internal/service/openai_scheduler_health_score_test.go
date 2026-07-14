@@ -441,3 +441,15 @@ func TestOpenAISchedulerHealthWSIngressFailureUsesMappedAttemptModel(t *testing.
 		})
 	}
 }
+
+func TestOpenAIWSIngressAttemptMetadataMapsBeforeOAuthAliasNormalization(t *testing.T) {
+	account := &Account{
+		ID: 21, Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{"custom-alias": "gpt-5.1"},
+		},
+	}
+
+	metadata := openAIWSIngressAttemptMetadata(account, "custom-alias", OpenAIUpstreamTransportResponsesWebsocketV2)
+	require.Equal(t, "gpt-5.4", metadata.ModelFamily)
+}

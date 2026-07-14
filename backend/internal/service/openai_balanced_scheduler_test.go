@@ -294,9 +294,9 @@ func TestOpenAIBalancedSchedulerEscapedStickyDoesNotPullSlowTailIntoTopK(t *test
 	}
 	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), input)
 	require.NoError(t, err)
-	require.Equal(t, 2, result.TopK)
-	require.Equal(t, int64(2), result.OrderedAccountIDs[0])
-	require.Equal(t, int64(3), result.OrderedAccountIDs[2])
+	require.Equal(t, 1, result.TopK)
+	require.Equal(t, []int64{2, 1, 3}, result.OrderedAccountIDs)
+	require.NotContains(t, result.OrderedAccountIDs[:result.TopK], int64(1))
 }
 
 func TestOpenAIBalancedSchedulerCandidateHealthKeyMatchesActualUpstream(t *testing.T) {

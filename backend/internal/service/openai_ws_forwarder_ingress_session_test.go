@@ -713,6 +713,9 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key": "sk-test",
+			"model_mapping": map[string]any{
+				"gpt-5.1": "mapped-ws-upstream",
+			},
 		},
 		Extra: map[string]any{
 			"openai_apikey_responses_websockets_v2_mode": OpenAIWSIngressModePassthrough,
@@ -821,6 +824,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 	require.Equal(t, account.ID, outcomes[0].AccountID)
 	require.Equal(t, groupID, outcomes[0].GroupID)
 	require.Equal(t, "gpt-5.1", outcomes[0].Model)
+	require.Equal(t, "mapped-ws-upstream", outcomes[0].ModelFamily)
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughRecordsSemanticAndMissingTerminalFailures(t *testing.T) {

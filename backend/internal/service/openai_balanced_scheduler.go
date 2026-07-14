@@ -155,8 +155,15 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 		if stickyEscape == "" {
 			eligible, ineligible = promoteOpenAIBalancedCandidate(eligible, ineligible, input.SessionAccountID)
 		} else {
-			eligible = moveOpenAIBalancedCandidateLast(eligible, input.SessionAccountID)
-			ineligible = moveOpenAIBalancedCandidateLast(ineligible, input.SessionAccountID)
+			var escaped OpenAIBalancedCandidate
+			var found bool
+			eligible, escaped, found = removeOpenAIBalancedCandidate(eligible, input.SessionAccountID)
+			if !found {
+				ineligible, escaped, found = removeOpenAIBalancedCandidate(ineligible, input.SessionAccountID)
+			}
+			if found {
+				ineligible = insertOpenAIBalancedLatencyTailCandidate(ineligible, escaped, candidates)
+			}
 		}
 	}
 	if input.PreviousResponseAccountID > 0 {
@@ -505,15 +512,39 @@ func moveOpenAIBalancedCandidateFirst(candidates []OpenAIBalancedCandidate, acco
 	return candidates
 }
 
-func moveOpenAIBalancedCandidateLast(candidates []OpenAIBalancedCandidate, accountID int64) []OpenAIBalancedCandidate {
+func removeOpenAIBalancedCandidate(
+	candidates []OpenAIBalancedCandidate,
+	accountID int64,
+) ([]OpenAIBalancedCandidate, OpenAIBalancedCandidate, bool) {
 	for i, candidate := range candidates {
 		if candidate.AccountID == accountID {
-			copy(candidates[i:], candidates[i+1:])
-			candidates[len(candidates)-1] = candidate
+			return append(candidates[:i], candidates[i+1:]...), candidate, true
+		}
+	}
+	return candidates, OpenAIBalancedCandidate{}, false
+}
+
+func insertOpenAIBalancedLatencyTailCandidate(
+	tail []OpenAIBalancedCandidate,
+	candidate OpenAIBalancedCandidate,
+	legacyCandidates []OpenAIBalancedCandidate,
+) []OpenAIBalancedCandidate {
+	legacyPosition := make(map[int64]int, len(legacyCandidates))
+	for i, item := range legacyCandidates {
+		legacyPosition[item.AccountID] = i
+	}
+	insertAt := len(tail)
+	for i, item := range tail {
+		if candidate.LegacyOrderPosition < item.LegacyOrderPosition ||
+			(candidate.LegacyOrderPosition == item.LegacyOrderPosition && legacyPosition[candidate.AccountID] < legacyPosition[item.AccountID]) {
+			insertAt = i
 			break
 		}
 	}
-	return candidates
+	tail = append(tail, OpenAIBalancedCandidate{})
+	copy(tail[insertAt+1:], tail[insertAt:])
+	tail[insertAt] = candidate
+	return tail
 }
 
 func promoteOpenAIBalancedCandidate(primary, tail []OpenAIBalancedCandidate, accountID int64) ([]OpenAIBalancedCandidate, []OpenAIBalancedCandidate) {
