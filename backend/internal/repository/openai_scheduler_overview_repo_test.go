@@ -21,16 +21,16 @@ func TestOpenAISchedulerOverviewRepositoryUsesBoundedPostgresAggregates(t *testi
 	start := time.Date(2026, 7, 14, 6, 0, 0, 0, time.UTC)
 	end := start.Add(6 * time.Hour)
 
-	mock.ExpectQuery(`(?s)WITH physical_probes AS .*SELECT DISTINCT account_id, model, event_type, DATE_TRUNC\('second', created_at\).*severe_slow.*status_code IS NULL.*PERCENTILE_CONT\(0\.5\).*e2e_first_token_ms.*PERCENTILE_CONT\(0\.95\).*routing_ms`).
+	mock.ExpectQuery(`(?s)WITH physical_probes AS .*SELECT DISTINCT e\.account_id, e\.model, e\.event_type, e\.created_at.*pg\.deleted_at IS NULL.*PERCENTILE_CONT\(0\.5\).*e2e_first_token_ms.*PERCENTILE_CONT\(0\.95\).*routing_ms.*g\.deleted_at IS NULL`).
 		WithArgs(start, end, int64(33)).
 		WillReturnRows(sqlmock.NewRows([]string{"e2e_p50", "e2e_p90", "selection_p95", "real_count", "probe_count"}).AddRow(2970.0, 7210.0, 18.0, 100, 20))
-	mock.ExpectQuery(`(?s)SELECT g\.id, g\.name, g\.openai_auto_scheduler_enabled,.*account_count,.*e2e_p90`).
+	mock.ExpectQuery(`(?s)SELECT g\.id, g\.name, g\.openai_auto_scheduler_enabled,.*account_count,.*e2e_p90.*g\.deleted_at IS NULL`).
 		WithArgs(start, end, service.PlatformOpenAI, int64(33)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "enabled", "account_count", "e2e_p90"}).AddRow(33, "Codex", true, 4, 7210.0))
-	mock.ExpectQuery(`(?s)DATE_TRUNC\('hour', ul\.created_at\).*PERCENTILE_CONT\(0\.5\).*e2e_first_token_ms`).
+	mock.ExpectQuery(`(?s)DATE_TRUNC\('hour', ul\.created_at\).*PERCENTILE_CONT\(0\.5\).*e2e_first_token_ms.*g\.deleted_at IS NULL`).
 		WithArgs(start, end, int64(33)).
 		WillReturnRows(sqlmock.NewRows([]string{"bucket", "e2e_p50", "e2e_p90"}).AddRow(start, 2500.0, 6100.0))
-	mock.ExpectQuery(`(?s)GREATEST\(.*e2e_first_token_ms.*routing_ms.*queue_ms.*retry_ms.*CASE.*upstream_ttft`).
+	mock.ExpectQuery(`(?s)GREATEST\(.*e2e_first_token_ms.*routing_ms.*queue_ms.*retry_ms.*g\.deleted_at IS NULL.*CASE.*upstream_ttft`).
 		WithArgs(start, end, 10000, int64(33)).
 		WillReturnRows(sqlmock.NewRows([]string{"reason", "count"}).AddRow("queue", 3).AddRow("upstream_ttft", 1))
 
@@ -55,8 +55,23 @@ func TestBuildOpenAISchedulerOverviewTrendQueryUsesSixHourBucketsForSevenDays(t 
 		StartTime: time.Unix(100, 0), EndTime: time.Unix(200, 0),
 	})
 	require.Contains(t, query, "INTERVAL '6 hours'")
+	require.Contains(t, query, "ul.created_at AT TIME ZONE 'UTC'")
+	require.Contains(t, query, "AT TIME ZONE 'UTC' AS bucket")
+	require.Contains(t, query, "g.deleted_at IS NULL")
 	require.NotContains(t, strings.ToUpper(query), "SELECT *")
 	require.Equal(t, []any{time.Unix(100, 0), time.Unix(200, 0), int64(82)}, args)
+}
+
+func TestBuildOpenAISchedulerOverviewSummaryQueryKeepsDistinctPhysicalAttemptsWithinOneSecond(t *testing.T) {
+	query, args := buildOpenAISchedulerOverviewSummaryQuery(service.OpenAISchedulerOverviewParams{
+		StartTime: time.Unix(100, 0), EndTime: time.Unix(200, 0),
+	})
+	require.Contains(t, query, "SELECT DISTINCT e.account_id, e.model, e.event_type, e.created_at")
+	require.NotContains(t, query, "DATE_TRUNC('second', e.created_at)")
+	require.Contains(t, query, "JOIN groups pg ON pg.id = e.group_id")
+	require.Contains(t, query, "pg.deleted_at IS NULL")
+	require.Contains(t, query, "g.deleted_at IS NULL")
+	require.Equal(t, []any{time.Unix(100, 0), time.Unix(200, 0)}, args)
 }
 
 func TestOpenAISchedulerOverviewRepositoryHealthUsesFixedCountAndRowsQueries(t *testing.T) {
@@ -76,13 +91,13 @@ func TestOpenAISchedulerOverviewRepositoryHealthUsesFixedCountAndRowsQueries(t *
 		WithArgs(filterArgs...).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	rowArgs := append(append([]driver.Value(nil), filterArgs...), 20, 20)
-	mock.ExpectQuery(`(?s)WITH health_rows AS.*MIN\(NULLIF\(hs\.predicted_ttft_ms, 0\)\) OVER.*SELECT account_id, account_name, group_id, model_family, endpoint, transport, state, predicted_ttft_ms`).
+	mock.ExpectQuery(`(?s)WITH health_rows AS.*a\.status AS account_status.*a\.schedulable.*a\.temp_unschedulable_until.*CASE WHEN a\.load_factor > 0 THEN a\.load_factor WHEN a\.concurrency > 0 THEN a\.concurrency ELSE 1 END AS load_capacity.*SELECT account_id, account_name, group_id, account_status, schedulable`).
 		WithArgs(rowArgs...).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"account_id", "account_name", "group_id", "model_family", "endpoint", "transport", "state",
-			"predicted_ttft_ms", "best_predicted_ttft_ms", "real_sample_count", "probe_sample_count", "error_rate",
-			"rate_limited_rate", "server_error_rate", "cooldown_until", "expires_at", "updated_at", "max_concurrency", "channel_price",
-		}).AddRow(10, "primary", 33, "gpt-5.4", "responses", "http_sse", "running", 1200.0, 1100.0, 20, 2, 0.01, 0.02, 0.03, nil, now.Add(time.Minute), now, 4, price))
+			"account_id", "account_name", "group_id", "account_status", "schedulable", "temp_unschedulable_until", "temp_unschedulable_reason",
+			"model_family", "endpoint", "transport", "state", "predicted_ttft_ms", "real_sample_count", "probe_sample_count", "error_rate",
+			"rate_limited_rate", "server_error_rate", "cooldown_until", "expires_at", "updated_at", "load_capacity", "channel_price",
+		}).AddRow(10, "primary", 33, service.StatusActive, true, nil, "", "gpt-5.4", "responses", "http_sse", "running", 1200.0, 20, 2, 0.01, 0.02, 0.03, nil, now.Add(time.Minute), now, 20, price))
 
 	items, total, err := repo.ListOpenAISchedulerHealth(context.Background(), params)
 
@@ -91,7 +106,8 @@ func TestOpenAISchedulerOverviewRepositoryHealthUsesFixedCountAndRowsQueries(t *
 	require.Len(t, items, 1)
 	require.Equal(t, int64(10), items[0].AccountID)
 	require.Equal(t, "gpt-5.4", items[0].ModelFamily)
-	require.Equal(t, 1100.0, items[0].BestPredictedTTFTMS)
+	require.Equal(t, 20, items[0].LoadCapacity)
+	require.Equal(t, service.StatusActive, items[0].AccountStatus)
 	require.Equal(t, &price, items[0].ChannelPrice)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

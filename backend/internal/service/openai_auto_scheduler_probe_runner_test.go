@@ -460,6 +460,35 @@ func TestOpenAIAutoSchedulerProbeRunner_FreshRealSampleSkipsAndHealthErrorFallsB
 	svc.mu.Unlock()
 }
 
+func TestOpenAIAutoSchedulerProbeRunner_FanoutReusesOneExactPhysicalAttemptTime(t *testing.T) {
+	settings := DefaultOpenAIAutoSchedulerSettings()
+	settings.Enabled = true
+	svc := &fakeOpenAIAutoSchedulerProbeService{settings: settings}
+	runner := newOpenAIAutoSchedulerProbeRunner(svc, svc, nil, &fakeOpenAIAutoSchedulerProbeChecker{}, nil, nil, nil, nil)
+	first := time.Date(2026, 7, 14, 12, 0, 0, 123456789, time.UTC)
+	nowCalls := 0
+	runner.now = func() time.Time {
+		nowCalls++
+		if nowCalls == 1 {
+			return first
+		}
+		return first.Add(2 * time.Second)
+	}
+	plan := openAIAutoSchedulerProbePlanItem{
+		account: Account{ID: 7}, model: "gpt-5.4", groupIDs: []int64{10, 20},
+		healthKey: OpenAISchedulerHealthKey{AccountID: 7, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse"},
+	}
+
+	runner.runProbe(context.Background(), plan, time.Second, settings)
+
+	svc.mu.Lock()
+	defer svc.mu.Unlock()
+	require.Len(t, svc.records, 2)
+	require.Equal(t, first, svc.records[0].OccurredAt)
+	require.Equal(t, first, svc.records[1].OccurredAt)
+	require.Equal(t, 1, nowCalls, "one physical probe must mint one attempt timestamp even when fan-out crosses seconds")
+}
+
 func TestOpenAIAutoSchedulerProbeRunner_FreshRealSampleArrivingDuringProbePreventsProbeWrite(t *testing.T) {
 	settings := DefaultOpenAIAutoSchedulerSettings()
 	settings.Enabled = true

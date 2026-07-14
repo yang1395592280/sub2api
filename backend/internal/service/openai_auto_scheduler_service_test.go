@@ -260,6 +260,44 @@ func TestOpenAIAutoSchedulerService_RecordAppliesEventAndStoresAudit(t *testing.
 	require.Equal(t, state.FinalScore, repo.events[0].ScoreAfter)
 }
 
+func TestOpenAIAutoSchedulerService_RecordPreservesOptionalOccurredAt(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{200: {ID: 200, Platform: PlatformOpenAI, OpenAIAutoSchedulerEnabled: true, Hydrated: true, Status: StatusActive}},
+		states: map[string]OpenAIAutoSchedulerScoreState{},
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+	occurredAt := time.Date(2026, 7, 14, 12, 0, 0, 123456789, time.UTC)
+
+	err := svc.Record(context.Background(), OpenAIAutoSchedulerRecordInput{
+		AccountID: 100, GroupID: 200, Model: "gpt-5", EventType: OpenAIAutoSchedulerEventProbeSuccess,
+		OccurredAt: occurredAt,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, repo.events, 1)
+	require.Equal(t, occurredAt, repo.events[0].CreatedAt)
+	require.Equal(t, occurredAt, *repo.states[openAIAutoSchedulerStateKey(100, 200, "gpt-5")].LastCheckedAt)
+}
+
+func TestOpenAIAutoSchedulerService_RecordWithoutOccurredAtKeepsWallClockSemantics(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{200: {ID: 200, Platform: PlatformOpenAI, OpenAIAutoSchedulerEnabled: true, Hydrated: true, Status: StatusActive}},
+		states: map[string]OpenAIAutoSchedulerScoreState{},
+	}
+	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+	before := time.Now()
+
+	err := svc.Record(context.Background(), OpenAIAutoSchedulerRecordInput{
+		AccountID: 100, GroupID: 200, Model: "gpt-5", EventType: OpenAIAutoSchedulerEventSuccess,
+	})
+
+	after := time.Now()
+	require.NoError(t, err)
+	require.Len(t, repo.events, 1)
+	require.False(t, repo.events[0].CreatedAt.Before(before))
+	require.False(t, repo.events[0].CreatedAt.After(after))
+}
+
 func TestOpenAIAutoSchedulerService_RecordSkipsWhenSettingsDisabled(t *testing.T) {
 	repo := &fakeOpenAIAutoSchedulerRepo{}
 	svc := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: DefaultOpenAIAutoSchedulerSettings()})

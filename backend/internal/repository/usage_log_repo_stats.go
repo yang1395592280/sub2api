@@ -314,39 +314,7 @@ func (r *openAISchedulerOverviewRepository) GetOpenAISchedulerOverviewMetrics(ct
 }
 
 func (r *openAISchedulerOverviewRepository) loadOpenAISchedulerOverviewSummary(ctx context.Context, params service.OpenAISchedulerOverviewParams, metrics *service.OpenAISchedulerOverviewMetrics) error {
-	args := []any{params.StartTime, params.EndTime}
-	probeGroupFilter := ""
-	usageGroupFilter := ""
-	if params.GroupID > 0 {
-		args = append(args, params.GroupID)
-		probeGroupFilter = fmt.Sprintf(" AND group_id = $%d", len(args))
-		usageGroupFilter = fmt.Sprintf(" AND ul.group_id = $%d", len(args))
-	}
-	query := fmt.Sprintf(`
-		WITH physical_probes AS (
-			-- Legacy probe fan-out has no attempt ID. This signature removes per-group copies;
-			-- nil status distinguishes slow probe outcomes from real slow requests.
-			SELECT DISTINCT account_id, model, event_type, DATE_TRUNC('second', created_at) AS probe_second
-			FROM openai_auto_scheduler_score_events
-			WHERE created_at >= $1 AND created_at < $2
-			  AND (event_type IN ('probe_success', 'probe_error')
-			       OR (event_type IN ('slow', 'severe_slow') AND status_code IS NULL))%s
-		), usage_metrics AS (
-			SELECT
-				COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ul.e2e_first_token_ms), 0) AS e2e_p50,
-				COALESCE(PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY ul.e2e_first_token_ms), 0) AS e2e_p90,
-				COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ul.routing_ms) FILTER (WHERE ul.routing_ms IS NOT NULL), 0) AS selection_p95,
-				COUNT(*) AS real_count
-			FROM usage_logs ul
-			JOIN groups g ON g.id = ul.group_id
-			WHERE ul.created_at >= $1 AND ul.created_at < $2
-			  AND ul.e2e_first_token_ms IS NOT NULL
-			  AND g.platform = 'openai'%s
-		)
-		SELECT e2e_p50, e2e_p90, selection_p95, real_count,
-		       (SELECT COUNT(*) FROM physical_probes) AS probe_count
-		FROM usage_metrics
-	`, probeGroupFilter, usageGroupFilter)
+	query, args := buildOpenAISchedulerOverviewSummaryQuery(params)
 	var realCount, probeCount int64
 	if err := scanSingleRow(ctx, r.sql, query, args,
 		&metrics.E2EP50MS, &metrics.E2EP90MS, &metrics.SelectionP95MS, &realCount, &probeCount,
@@ -358,6 +326,44 @@ func (r *openAISchedulerOverviewRepository) loadOpenAISchedulerOverviewSummary(c
 		metrics.ProbeRatio = float64(probeCount) / float64(denominator)
 	}
 	return nil
+}
+
+func buildOpenAISchedulerOverviewSummaryQuery(params service.OpenAISchedulerOverviewParams) (string, []any) {
+	args := []any{params.StartTime, params.EndTime}
+	probeGroupFilter := ""
+	usageGroupFilter := ""
+	if params.GroupID > 0 {
+		args = append(args, params.GroupID)
+		probeGroupFilter = fmt.Sprintf(" AND e.group_id = $%d", len(args))
+		usageGroupFilter = fmt.Sprintf(" AND ul.group_id = $%d", len(args))
+	}
+	query := fmt.Sprintf(`
+		WITH physical_probes AS (
+			SELECT DISTINCT e.account_id, e.model, e.event_type, e.created_at
+			FROM openai_auto_scheduler_score_events e
+			JOIN groups pg ON pg.id = e.group_id
+			WHERE e.created_at >= $1 AND e.created_at < $2
+			  AND pg.deleted_at IS NULL
+			  AND (e.event_type IN ('probe_success', 'probe_error')
+			       OR (e.event_type IN ('slow', 'severe_slow') AND e.status_code IS NULL))%s
+		), usage_metrics AS (
+			SELECT
+				COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ul.e2e_first_token_ms), 0) AS e2e_p50,
+				COALESCE(PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY ul.e2e_first_token_ms), 0) AS e2e_p90,
+				COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ul.routing_ms) FILTER (WHERE ul.routing_ms IS NOT NULL), 0) AS selection_p95,
+				COUNT(*) AS real_count
+			FROM usage_logs ul
+			JOIN groups g ON g.id = ul.group_id
+			WHERE ul.created_at >= $1 AND ul.created_at < $2
+			  AND ul.e2e_first_token_ms IS NOT NULL
+			  AND g.platform = 'openai'
+			  AND g.deleted_at IS NULL%s
+		)
+		SELECT e2e_p50, e2e_p90, selection_p95, real_count,
+		       (SELECT COUNT(*) FROM physical_probes) AS probe_count
+		FROM usage_metrics
+	`, probeGroupFilter, usageGroupFilter)
+	return query, args
 }
 
 func (r *openAISchedulerOverviewRepository) loadOpenAISchedulerOverviewGroups(ctx context.Context, params service.OpenAISchedulerOverviewParams) (result []service.OpenAISchedulerGroupSummary, err error) {
@@ -418,7 +424,7 @@ func (r *openAISchedulerOverviewRepository) loadOpenAISchedulerOverviewGroups(ct
 func buildOpenAISchedulerOverviewTrendQuery(params service.OpenAISchedulerOverviewParams) (string, []any) {
 	bucketExpression := "DATE_TRUNC('hour', ul.created_at)"
 	if params.Bucket == 6*time.Hour {
-		bucketExpression = "DATE_TRUNC('day', ul.created_at) + FLOOR(EXTRACT(HOUR FROM ul.created_at) / 6) * INTERVAL '6 hours'"
+		bucketExpression = "(DATE_TRUNC('day', ul.created_at AT TIME ZONE 'UTC') + FLOOR(EXTRACT(HOUR FROM ul.created_at AT TIME ZONE 'UTC') / 6) * INTERVAL '6 hours') AT TIME ZONE 'UTC'"
 	}
 	args := []any{params.StartTime, params.EndTime}
 	groupFilter := ""
@@ -434,7 +440,8 @@ func buildOpenAISchedulerOverviewTrendQuery(params service.OpenAISchedulerOvervi
 		JOIN groups g ON g.id = ul.group_id
 		WHERE ul.created_at >= $1 AND ul.created_at < $2
 		  AND ul.e2e_first_token_ms IS NOT NULL
-		  AND g.platform = 'openai'%s
+		  AND g.platform = 'openai'
+		  AND g.deleted_at IS NULL%s
 		GROUP BY bucket
 		ORDER BY bucket ASC
 	`, bucketExpression, groupFilter)
@@ -483,7 +490,8 @@ func (r *openAISchedulerOverviewRepository) loadOpenAISchedulerOverviewSlowCause
 			JOIN groups g ON g.id = ul.group_id
 			WHERE ul.created_at >= $1 AND ul.created_at < $2
 			  AND ul.e2e_first_token_ms >= $3
-			  AND g.platform = 'openai'%s
+			  AND g.platform = 'openai'
+			  AND g.deleted_at IS NULL%s
 		), classified AS (
 			SELECT CASE
 				WHEN queue_ms >= retry_ms AND queue_ms > upstream_ms THEN 'queue'
@@ -596,25 +604,29 @@ func buildOpenAISchedulerHealthQueries(params service.OpenAISchedulerHealthParam
 	rowsQuery := fmt.Sprintf(`
 		WITH health_rows AS (
 			SELECT a.id AS account_id, a.name AS account_name, ag.group_id,
+			       a.status AS account_status, a.schedulable,
+			       a.temp_unschedulable_until, COALESCE(a.temp_unschedulable_reason, '') AS temp_unschedulable_reason,
 			       COALESCE(hs.model_family, '') AS model_family,
 			       COALESCE(hs.endpoint, '') AS endpoint,
 			       COALESCE(hs.transport, '') AS transport,
 			       COALESCE(hs.state, '') AS state,
 			       COALESCE(hs.predicted_ttft_ms, 0) AS predicted_ttft_ms,
-			       COALESCE(MIN(NULLIF(hs.predicted_ttft_ms, 0)) OVER (PARTITION BY ag.group_id, hs.model_family, hs.endpoint, hs.transport), 0) AS best_predicted_ttft_ms,
 			       COALESCE(hs.real_sample_count, 0) AS real_sample_count,
 			       COALESCE(hs.probe_sample_count, 0) AS probe_sample_count,
 			       COALESCE(hs.error_rate, 0) AS error_rate,
 			       COALESCE(hs.rate_limited_rate, 0) AS rate_limited_rate,
 			       COALESCE(hs.server_error_rate, 0) AS server_error_rate,
 			       hs.cooldown_until, hs.expires_at, hs.updated_at,
-			       a.concurrency AS max_concurrency, a.channel_price
+			       CASE WHEN a.load_factor > 0 THEN a.load_factor WHEN a.concurrency > 0 THEN a.concurrency ELSE 1 END AS load_capacity,
+			       a.channel_price
 			%s
 		)
-		SELECT account_id, account_name, group_id, model_family, endpoint, transport, state,
-		       predicted_ttft_ms, best_predicted_ttft_ms, real_sample_count, probe_sample_count,
+		SELECT account_id, account_name, group_id, account_status, schedulable,
+		       temp_unschedulable_until, temp_unschedulable_reason,
+		       model_family, endpoint, transport, state,
+		       predicted_ttft_ms, real_sample_count, probe_sample_count,
 		       error_rate, rate_limited_rate, server_error_rate, cooldown_until, expires_at,
-		       updated_at, max_concurrency, channel_price
+		       updated_at, load_capacity, channel_price
 		FROM health_rows
 		ORDER BY %s %s NULLS LAST, account_id ASC, group_id ASC, model_family ASC, endpoint ASC, transport ASC
 		LIMIT $%d OFFSET $%d
@@ -644,15 +656,20 @@ func (r *openAISchedulerOverviewRepository) ListOpenAISchedulerHealth(ctx contex
 	result = make([]service.OpenAISchedulerHealthRecord, 0)
 	for rows.Next() {
 		var item service.OpenAISchedulerHealthRecord
-		var cooldownUntil, expiresAt, updatedAt sql.NullTime
+		var tempUnschedulableUntil, cooldownUntil, expiresAt, updatedAt sql.NullTime
 		var channelPrice sql.NullFloat64
 		if err = rows.Scan(
-			&item.AccountID, &item.AccountName, &item.GroupID, &item.ModelFamily, &item.Endpoint, &item.Transport,
-			&item.State, &item.PredictedTTFTMS, &item.BestPredictedTTFTMS, &item.RealSampleCount,
+			&item.AccountID, &item.AccountName, &item.GroupID, &item.AccountStatus, &item.Schedulable,
+			&tempUnschedulableUntil, &item.TempUnschedulableReason,
+			&item.ModelFamily, &item.Endpoint, &item.Transport,
+			&item.State, &item.PredictedTTFTMS, &item.RealSampleCount,
 			&item.ProbeSampleCount, &item.ErrorRate, &item.RateLimitedRate, &item.ServerErrorRate,
-			&cooldownUntil, &expiresAt, &updatedAt, &item.MaxConcurrency, &channelPrice,
+			&cooldownUntil, &expiresAt, &updatedAt, &item.LoadCapacity, &channelPrice,
 		); err != nil {
 			return nil, 0, err
+		}
+		if tempUnschedulableUntil.Valid {
+			item.TempUnschedulableUntil = &tempUnschedulableUntil.Time
 		}
 		if cooldownUntil.Valid {
 			item.CooldownUntil = &cooldownUntil.Time

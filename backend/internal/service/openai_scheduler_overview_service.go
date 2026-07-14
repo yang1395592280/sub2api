@@ -8,11 +8,11 @@ import (
 )
 
 const (
-	OpenAISchedulerDecisionEligible          = "eligible"
-	OpenAISchedulerDecisionLatencyTail       = "latency_tail"
 	OpenAISchedulerDecisionCircuitRejected   = "circuit_rejected"
 	OpenAISchedulerDecisionStale             = "stale"
 	OpenAISchedulerDecisionHealthUnavailable = "health_unavailable"
+	OpenAISchedulerDecisionHardFiltered      = "hard_filtered"
+	OpenAISchedulerDecisionContextRequired   = "context_required"
 
 	openAISchedulerOverviewDefaultWindow = 6 * time.Hour
 	openAISchedulerOverviewMaxPageSize   = 200
@@ -74,25 +74,28 @@ type OpenAISchedulerHealthParams struct {
 
 // OpenAISchedulerHealthRecord is the bounded database view before live load is attached.
 type OpenAISchedulerHealthRecord struct {
-	AccountID           int64
-	AccountName         string
-	GroupID             int64
-	ModelFamily         string
-	Endpoint            string
-	Transport           string
-	State               string
-	PredictedTTFTMS     float64
-	BestPredictedTTFTMS float64
-	RealSampleCount     int64
-	ProbeSampleCount    int64
-	ErrorRate           float64
-	RateLimitedRate     float64
-	ServerErrorRate     float64
-	CooldownUntil       *time.Time
-	ExpiresAt           time.Time
-	UpdatedAt           time.Time
-	MaxConcurrency      int
-	ChannelPrice        *float64
+	AccountID               int64
+	AccountName             string
+	GroupID                 int64
+	AccountStatus           string
+	Schedulable             bool
+	TempUnschedulableUntil  *time.Time
+	TempUnschedulableReason string
+	ModelFamily             string
+	Endpoint                string
+	Transport               string
+	State                   string
+	PredictedTTFTMS         float64
+	RealSampleCount         int64
+	ProbeSampleCount        int64
+	ErrorRate               float64
+	RateLimitedRate         float64
+	ServerErrorRate         float64
+	CooldownUntil           *time.Time
+	ExpiresAt               time.Time
+	UpdatedAt               time.Time
+	LoadCapacity            int
+	ChannelPrice            *float64
 }
 
 type OpenAISchedulerHealthRow struct {
@@ -279,7 +282,7 @@ func uniqueOpenAISchedulerHealthLoadRequest(records []OpenAISchedulerHealthRecor
 			continue
 		}
 		seen[record.AccountID] = struct{}{}
-		request = append(request, AccountWithConcurrency{ID: record.AccountID, MaxConcurrency: record.MaxConcurrency})
+		request = append(request, AccountWithConcurrency{ID: record.AccountID, MaxConcurrency: record.LoadCapacity})
 	}
 	return request
 }
@@ -292,7 +295,7 @@ func openAISchedulerHealthRecordToRow(record OpenAISchedulerHealthRecord, load *
 		State: record.State, PredictedTTFTMS: record.PredictedTTFTMS,
 		RealSampleCount: record.RealSampleCount, ProbeSampleCount: record.ProbeSampleCount,
 		ErrorRate: record.ErrorRate, RateLimitedRate: record.RateLimitedRate, ServerErrorRate: record.ServerErrorRate,
-		LoadCapacity: record.MaxConcurrency, ChannelPrice: record.ChannelPrice,
+		LoadCapacity: record.LoadCapacity, ChannelPrice: record.ChannelPrice,
 		Decision: decision, DecisionReason: reason, SchedulerMode: settings.Mode, ShadowMode: settings.ShadowMode,
 		StickyEscapeReason: nil, CooldownUntil: record.CooldownUntil,
 	}
@@ -321,10 +324,20 @@ func classifyOpenAISchedulerHealthRecord(record OpenAISchedulerHealthRecord, now
 	if state == OpenAIAutoSchedulerStateOpen || state == OpenAIAutoSchedulerStateHalfOpen {
 		return OpenAISchedulerDecisionCircuitRejected, state
 	}
-	if record.BestPredictedTTFTMS > 0 && record.PredictedTTFTMS > record.BestPredictedTTFTMS+openAIBalancedDefaultLatencyBudgetMS {
-		return OpenAISchedulerDecisionLatencyTail, "latency_budget"
+	if record.AccountStatus != StatusActive {
+		return OpenAISchedulerDecisionHardFiltered, "account_inactive"
 	}
-	return OpenAISchedulerDecisionEligible, "within_latency_budget"
+	if !record.Schedulable {
+		return OpenAISchedulerDecisionHardFiltered, "account_unschedulable"
+	}
+	if record.TempUnschedulableUntil != nil && now.Before(*record.TempUnschedulableUntil) {
+		reason := strings.TrimSpace(record.TempUnschedulableReason)
+		if reason == "" {
+			return OpenAISchedulerDecisionHardFiltered, "temporarily_blocked"
+		}
+		return OpenAISchedulerDecisionHardFiltered, "temporarily_blocked: " + reason
+	}
+	return OpenAISchedulerDecisionContextRequired, "request_context_required"
 }
 
 func (s *OpenAISchedulerOverviewService) schedulerSettings(ctx context.Context) OpenAIAutoSchedulerSettings {

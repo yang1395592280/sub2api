@@ -320,6 +320,10 @@ func (r *OpenAIAutoSchedulerProbeRunner) runOnce(ctx context.Context) {
 }
 
 func (r *OpenAIAutoSchedulerProbeRunner) runProbe(ctx context.Context, plan openAIAutoSchedulerProbePlanItem, timeout time.Duration, settings OpenAIAutoSchedulerSettings) {
+	attemptTime := time.Now()
+	if r.now != nil {
+		attemptTime = r.now()
+	}
 	probeCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -341,6 +345,7 @@ func (r *OpenAIAutoSchedulerProbeRunner) runProbe(ctx context.Context, plan open
 			Endpoint:    plan.healthKey.Endpoint,
 			Transport:   OpenAIUpstreamTransport(plan.healthKey.Transport),
 			EventType:   eventType,
+			OccurredAt:  attemptTime,
 			LatencyMS:   result.LatencyMS,
 			TtfbMS:      result.TtfbMS,
 			Message:     message,

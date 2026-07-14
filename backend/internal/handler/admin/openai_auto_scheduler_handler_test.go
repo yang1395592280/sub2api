@@ -226,8 +226,8 @@ func TestOpenAIAutoSchedulerHandler_ListHealthParsesBoundedFiltersAndPagination(
 		Total: 1,
 		Items: []service.OpenAISchedulerHealthRow{{
 			AccountID: 10, AccountName: "primary", GroupID: 33, ModelFamily: "gpt-5.4",
-			Endpoint: "responses", Transport: "http_sse", State: "running", Decision: "eligible",
-			DecisionReason: "within_latency_budget", SchedulerMode: "balanced", ShadowMode: true,
+			Endpoint: "responses", Transport: "http_sse", State: "running", Decision: "context_required",
+			DecisionReason: "request_context_required", SchedulerMode: "balanced", ShadowMode: true,
 			PredictedTTFTMS: 1200, LoadInflight: 2, LoadCapacity: 4, WaitingCount: 1, SnapshotAgeMS: &age,
 		}},
 	}}
@@ -246,7 +246,7 @@ func TestOpenAIAutoSchedulerHandler_ListHealthParsesBoundedFiltersAndPagination(
 	require.Equal(t, "asc", svc.healthParams.Order)
 	require.Equal(t, 2, svc.healthParams.Page)
 	require.Equal(t, 200, svc.healthParams.PageSize)
-	require.Contains(t, rec.Body.String(), `"decision":"eligible"`)
+	require.Contains(t, rec.Body.String(), `"decision":"context_required"`)
 	require.Contains(t, rec.Body.String(), `"sticky_escape_reason":null`)
 	require.Contains(t, rec.Body.String(), `"page_size":200`)
 }

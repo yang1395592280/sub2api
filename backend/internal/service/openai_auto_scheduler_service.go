@@ -37,6 +37,7 @@ type OpenAIAutoSchedulerRecordInput struct {
 	Endpoint    string
 	Transport   OpenAIUpstreamTransport
 	EventType   string
+	OccurredAt  time.Time
 	LatencyMS   *int
 	TtfbMS      *int
 	StatusCode  *int
@@ -170,6 +171,10 @@ func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAut
 	}
 
 	now := time.Now()
+	occurredAt := input.OccurredAt
+	if occurredAt.IsZero() {
+		occurredAt = now
+	}
 	unlock := s.lockScoreState(input.AccountID, input.GroupID, model)
 	defer unlock()
 	state, err := s.repo.GetScoreState(ctx, input.AccountID, input.GroupID, model)
@@ -186,6 +191,7 @@ func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAut
 	before := state.FinalScore
 	next := ApplyOpenAIAutoSchedulerEvent(now, *state, OpenAIAutoSchedulerEventInput{
 		EventType:  input.EventType,
+		OccurredAt: input.OccurredAt,
 		LatencyMS:  input.LatencyMS,
 		TtfbMS:     input.TtfbMS,
 		StatusCode: input.StatusCode,
@@ -212,7 +218,7 @@ func (s *OpenAIAutoSchedulerService) record(ctx context.Context, input OpenAIAut
 		TtfbMS:      input.TtfbMS,
 		StatusCode:  input.StatusCode,
 		Message:     strings.TrimSpace(input.Message),
-		CreatedAt:   now,
+		CreatedAt:   occurredAt,
 	}); err != nil {
 		if bestEffort {
 			return nil

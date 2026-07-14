@@ -258,6 +258,22 @@ func TestOpenAIAutoSchedulerRepository_InsertScoreEventTruncatesMessageAtRuneBou
 	require.Equal(t, strings.Repeat("x", 999), got.Message)
 }
 
+func TestOpenAIAutoSchedulerRepository_InsertScoreEventUsesDefaultTimeWhenOccurredAtIsZero(t *testing.T) {
+	ctx := context.Background()
+	repo, client := newOpenAIAutoSchedulerRepoSQLite(t)
+	before := time.Now()
+
+	require.NoError(t, repo.InsertScoreEvent(ctx, service.OpenAIAutoSchedulerScoreEvent{
+		AccountID: 703, GroupID: 803, Model: "gpt-5", EventType: service.OpenAIAutoSchedulerEventSuccess,
+	}))
+
+	got, err := client.OpenAIAutoSchedulerScoreEvent.Query().
+		Where(openaiautoschedulerscoreevent.AccountIDEQ(703)).
+		Only(ctx)
+	require.NoError(t, err)
+	require.False(t, got.CreatedAt.Before(before))
+}
+
 func TestOpenAIAutoSchedulerRepository_ListScoreDailySamplesAggregatesSinceStart(t *testing.T) {
 	ctx := context.Background()
 	repo, _ := newOpenAIAutoSchedulerRepoSQLite(t)

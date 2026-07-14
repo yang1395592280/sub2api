@@ -111,8 +111,8 @@ func TestOpenAISchedulerOverviewServiceMapsPaginatedHealthWithOneLoadBatch(t *te
 	repo := &openAISchedulerOverviewRepoStub{
 		healthTotal: 3,
 		healthItems: []OpenAISchedulerHealthRecord{
-			{AccountID: 10, AccountName: "primary", GroupID: 33, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 1200, BestPredictedTTFTMS: 1200, RealSampleCount: 20, ProbeSampleCount: 2, ErrorRate: 0.01, RateLimitedRate: 0.02, ServerErrorRate: 0.03, MaxConcurrency: 4, ChannelPrice: &price, UpdatedAt: now.Add(-2 * time.Second), ExpiresAt: now.Add(time.Minute)},
-			{AccountID: 10, AccountName: "primary", GroupID: 82, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateOpen, PredictedTTFTMS: 9200, BestPredictedTTFTMS: 1200, MaxConcurrency: 4, UpdatedAt: now.Add(-3 * time.Second), ExpiresAt: now.Add(time.Minute)},
+			{AccountID: 10, AccountName: "primary", GroupID: 33, AccountStatus: StatusActive, Schedulable: true, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 1200, RealSampleCount: 20, ProbeSampleCount: 2, ErrorRate: 0.01, RateLimitedRate: 0.02, ServerErrorRate: 0.03, LoadCapacity: 4, ChannelPrice: &price, UpdatedAt: now.Add(-2 * time.Second), ExpiresAt: now.Add(time.Minute)},
+			{AccountID: 10, AccountName: "primary", GroupID: 82, AccountStatus: StatusActive, Schedulable: true, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateOpen, PredictedTTFTMS: 9200, LoadCapacity: 4, UpdatedAt: now.Add(-3 * time.Second), ExpiresAt: now.Add(time.Minute)},
 		},
 	}
 	loads := &openAISchedulerOverviewLoadStub{loads: map[int64]*AccountLoadInfo{10: {AccountID: 10, CurrentConcurrency: 2, WaitingCount: 1}}}
@@ -134,8 +134,8 @@ func TestOpenAISchedulerOverviewServiceMapsPaginatedHealthWithOneLoadBatch(t *te
 	require.Equal(t, 2, got.Items[0].LoadInflight)
 	require.Equal(t, 4, got.Items[0].LoadCapacity)
 	require.Equal(t, 1, got.Items[0].WaitingCount)
-	require.Equal(t, "eligible", got.Items[0].Decision)
-	require.Equal(t, "within_latency_budget", got.Items[0].DecisionReason)
+	require.Equal(t, "context_required", got.Items[0].Decision)
+	require.Equal(t, "request_context_required", got.Items[0].DecisionReason)
 	require.Equal(t, "circuit_rejected", got.Items[1].Decision)
 	require.Equal(t, "open", got.Items[1].DecisionReason)
 	require.Equal(t, OpenAIAutoSchedulerModeBalanced, got.Items[0].SchedulerMode)
@@ -147,10 +147,14 @@ func TestOpenAISchedulerOverviewServiceMapsPaginatedHealthWithOneLoadBatch(t *te
 
 func TestOpenAISchedulerOverviewServiceClassifiesHealthWithoutInventingRequestDecisions(t *testing.T) {
 	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+	blockedUntil := now.Add(time.Minute)
 	repo := &openAISchedulerOverviewRepoStub{healthItems: []OpenAISchedulerHealthRecord{
-		{AccountID: 1, GroupID: 33, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 2501, BestPredictedTTFTMS: 1500, ExpiresAt: now.Add(time.Minute)},
-		{AccountID: 2, GroupID: 33, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 1000, BestPredictedTTFTMS: 1000, ExpiresAt: now.Add(-time.Second)},
+		{AccountID: 1, GroupID: 33, AccountStatus: StatusActive, Schedulable: true, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 2501, ExpiresAt: now.Add(time.Minute)},
+		{AccountID: 2, GroupID: 33, AccountStatus: StatusActive, Schedulable: true, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 1000, ExpiresAt: now.Add(-time.Second)},
 		{AccountID: 3, GroupID: 33},
+		{AccountID: 4, GroupID: 33, AccountStatus: "disabled", Schedulable: true, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(time.Minute)},
+		{AccountID: 5, GroupID: 33, AccountStatus: StatusActive, Schedulable: false, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(time.Minute)},
+		{AccountID: 6, GroupID: 33, AccountStatus: StatusActive, Schedulable: true, TempUnschedulableUntil: &blockedUntil, TempUnschedulableReason: "price guard", ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse", State: OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(time.Minute)},
 	}}
 	svc := NewOpenAISchedulerOverviewService(repo)
 	svc.now = func() time.Time { return now }
@@ -158,15 +162,41 @@ func TestOpenAISchedulerOverviewServiceClassifiesHealthWithoutInventingRequestDe
 	got, err := svc.ListHealth(context.Background(), OpenAISchedulerHealthParams{})
 
 	require.NoError(t, err)
-	require.Equal(t, "latency_tail", got.Items[0].Decision)
-	require.Equal(t, "latency_budget", got.Items[0].DecisionReason)
+	require.Equal(t, "context_required", got.Items[0].Decision)
+	require.Equal(t, "request_context_required", got.Items[0].DecisionReason)
 	require.Equal(t, "stale", got.Items[1].Decision)
 	require.Equal(t, "snapshot_expired", got.Items[1].DecisionReason)
 	require.Equal(t, "health_unavailable", got.Items[2].Decision)
 	require.Equal(t, "snapshot_missing", got.Items[2].DecisionReason)
+	require.Equal(t, "hard_filtered", got.Items[3].Decision)
+	require.Equal(t, "account_inactive", got.Items[3].DecisionReason)
+	require.Equal(t, "hard_filtered", got.Items[4].Decision)
+	require.Equal(t, "account_unschedulable", got.Items[4].DecisionReason)
+	require.Equal(t, "hard_filtered", got.Items[5].Decision)
+	require.Equal(t, "temporarily_blocked: price guard", got.Items[5].DecisionReason)
 	for _, item := range got.Items {
 		require.Nil(t, item.StickyEscapeReason)
 	}
+}
+
+func TestOpenAISchedulerOverviewServiceUsesEffectiveLoadCapacityForBatchLoad(t *testing.T) {
+	repo := &openAISchedulerOverviewRepoStub{healthItems: []OpenAISchedulerHealthRecord{
+		{AccountID: 20, LoadCapacity: 20},
+		{AccountID: 5, LoadCapacity: 5},
+		{AccountID: 1, LoadCapacity: 1},
+	}}
+	loads := &openAISchedulerOverviewLoadStub{}
+	svc := NewOpenAISchedulerOverviewService(repo)
+	svc.loads = loads
+
+	_, err := svc.ListHealth(context.Background(), OpenAISchedulerHealthParams{})
+
+	require.NoError(t, err)
+	require.Equal(t, []AccountWithConcurrency{
+		{ID: 20, MaxConcurrency: 20},
+		{ID: 5, MaxConcurrency: 5},
+		{ID: 1, MaxConcurrency: 1},
+	}, loads.accounts)
 }
 
 func TestOpenAISchedulerOverviewServiceHealthEmptyAndErrors(t *testing.T) {
@@ -190,7 +220,7 @@ func TestOpenAISchedulerOverviewServiceHealthEmptyAndErrors(t *testing.T) {
 
 	t.Run("load error", func(t *testing.T) {
 		wantErr := errors.New("load query failed")
-		svc := NewOpenAISchedulerOverviewService(&openAISchedulerOverviewRepoStub{healthItems: []OpenAISchedulerHealthRecord{{AccountID: 1, MaxConcurrency: 2}}})
+		svc := NewOpenAISchedulerOverviewService(&openAISchedulerOverviewRepoStub{healthItems: []OpenAISchedulerHealthRecord{{AccountID: 1, LoadCapacity: 2}}})
 		svc.loads = &openAISchedulerOverviewLoadStub{err: wantErr}
 		_, err := svc.ListHealth(context.Background(), OpenAISchedulerHealthParams{})
 		require.ErrorIs(t, err, wantErr)

@@ -27,6 +27,9 @@ func NewOpenAIAutoSchedulerScoreState(accountID, groupID int64, model string) Op
 }
 
 func ApplyOpenAIAutoSchedulerEvent(now time.Time, state OpenAIAutoSchedulerScoreState, input OpenAIAutoSchedulerEventInput, settings OpenAIAutoSchedulerSettings) OpenAIAutoSchedulerScoreState {
+	if !input.OccurredAt.IsZero() {
+		now = input.OccurredAt
+	}
 	settings = normalizeOpenAIAutoSchedulerSettings(settings)
 	state.State = normalizeOpenAIAutoSchedulerState(state.State)
 	state.LastCheckedAt = openAIAutoSchedulerTimePtr(now)

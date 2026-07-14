@@ -114,6 +114,7 @@ type OpenAIAutoSchedulerScoreState struct {
 
 type OpenAIAutoSchedulerEventInput struct {
 	EventType  string
+	OccurredAt time.Time
 	LatencyMS  *int
 	TtfbMS     *int
 	StatusCode *int
