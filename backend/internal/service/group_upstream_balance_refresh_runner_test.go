@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,6 +36,14 @@ type groupUpstreamRefreshAccountRepoStub struct {
 	extraUpdates  map[int64]map[string]any
 	extraHistory  map[int64][]map[string]any
 	onUpdateExtra func(context.Context, int64, map[string]any) error
+	tempReasons   map[int64]string
+	tempUntils    map[int64]*time.Time
+	getByIDCalls  []int64
+}
+
+func (r *groupUpstreamRefreshAccountRepoStub) GetByID(_ context.Context, id int64) (*Account, error) {
+	r.getByIDCalls = append(r.getByIDCalls, id)
+	return &Account{ID: id, TempUnschedulableReason: r.tempReasons[id], TempUnschedulableUntil: r.tempUntils[id]}, nil
 }
 
 func (r *groupUpstreamRefreshAccountRepoStub) ListUpstreamBalanceRefreshCandidatesByGroupID(_ context.Context, groupID int64, _ int) ([]Account, error) {
@@ -68,11 +78,25 @@ func (r *groupUpstreamRefreshAccountRepoStub) UpdateExtra(ctx context.Context, i
 	return nil
 }
 
-func (r *groupUpstreamRefreshAccountRepoStub) SetTempUnschedulable(context.Context, int64, time.Time, string) error {
+func (r *groupUpstreamRefreshAccountRepoStub) SetTempUnschedulable(_ context.Context, id int64, until time.Time, reason string) error {
+	if existing := r.tempUntils[id]; existing != nil && !existing.Before(until) {
+		return nil
+	}
+	if r.tempReasons == nil {
+		r.tempReasons = map[int64]string{}
+	}
+	if r.tempUntils == nil {
+		r.tempUntils = map[int64]*time.Time{}
+	}
+	untilCopy := until
+	r.tempReasons[id] = reason
+	r.tempUntils[id] = &untilCopy
 	return nil
 }
 
-func (r *groupUpstreamRefreshAccountRepoStub) ClearTempUnschedulable(context.Context, int64) error {
+func (r *groupUpstreamRefreshAccountRepoStub) ClearTempUnschedulable(_ context.Context, id int64) error {
+	delete(r.tempReasons, id)
+	delete(r.tempUntils, id)
 	return nil
 }
 
@@ -82,6 +106,44 @@ type groupUpstreamBalanceStub struct {
 	panicIDs  map[int64]bool
 	calls     []int64
 	onRefresh func(context.Context, int64)
+}
+
+type groupUpstreamRefreshSettingRepoStub struct {
+	SettingRepository
+	values   map[string]string
+	getErr   error
+	setErr   error
+	getCalls [][]string
+	setCalls map[string]string
+}
+
+func (r *groupUpstreamRefreshSettingRepoStub) GetMultiple(_ context.Context, keys []string) (map[string]string, error) {
+	r.getCalls = append(r.getCalls, append([]string(nil), keys...))
+	if r.getErr != nil {
+		return nil, r.getErr
+	}
+	result := make(map[string]string, len(keys))
+	for _, key := range keys {
+		if value, ok := r.values[key]; ok {
+			result[key] = value
+		}
+	}
+	return result, nil
+}
+
+func (r *groupUpstreamRefreshSettingRepoStub) Set(_ context.Context, key, value string) error {
+	if r.setCalls == nil {
+		r.setCalls = map[string]string{}
+	}
+	r.setCalls[key] = value
+	if r.setErr != nil {
+		return r.setErr
+	}
+	if r.values == nil {
+		r.values = map[string]string{}
+	}
+	r.values[key] = value
+	return nil
 }
 
 func (s *groupUpstreamBalanceStub) Refresh(ctx context.Context, accountID int64) (*Account, error) {
@@ -195,6 +257,10 @@ func TestGroupUpstreamBalanceRefreshRunner_JitterDelayIsDeterministicAndBounded(
 	require.Equal(t, interval, nextGroupUpstreamBalanceRefreshDelay(interval, func(int64) int64 { return int64(6 * time.Second) }))
 	require.Equal(t, 66*time.Second, nextGroupUpstreamBalanceRefreshDelay(interval, func(n int64) int64 { return n - 1 }))
 	require.Equal(t, interval, nextGroupUpstreamBalanceRefreshDelay(interval, nil))
+}
+
+func TestGroupUpstreamBalanceRefreshRunner_LeaderLeaseOutlivesMaxCycle(t *testing.T) {
+	require.Greater(t, groupUpstreamBalanceRefreshLeaderLockTTL, groupUpstreamBalanceRefreshMaxCycleRuntime)
 }
 
 func TestGroupUpstreamBalanceRefreshRunner_OnlyDueGroupsJoinSharedAccountPlan(t *testing.T) {
@@ -384,6 +450,227 @@ func TestGroupUpstreamBalanceRefreshRunner_PriceGuardErrorContinuesSharedAccount
 	require.Equal(t, int64(20), accountRepo.extraHistory[42][0]["upstream_price_guard_group_id"])
 }
 
+func TestGroupUpstreamBalanceRefreshRunner_PriceGuardPanicOnlyFailsThatMembership(t *testing.T) {
+	groups := []Group{
+		{ID: 10, UpstreamBalanceRefreshIntervalSeconds: 600},
+		{ID: 20, UpstreamBalanceRefreshIntervalSeconds: 600},
+	}
+	account := Account{ID: 42}
+	accountRepo := &groupUpstreamRefreshAccountRepoStub{
+		accounts: map[int64][]Account{10: {account}, 20: {account}},
+		onUpdateExtra: func(_ context.Context, _ int64, updates map[string]any) error {
+			if updates["upstream_price_guard_group_id"] == int64(10) {
+				panic("group 10 guard panic")
+			}
+			return nil
+		},
+	}
+	refresher := &groupUpstreamBalanceStub{refreshed: map[int64]*Account{42: &account}}
+	runner := NewGroupUpstreamBalanceRefreshRunner(&groupUpstreamRefreshGroupRepoStub{groups: groups}, accountRepo, refresher)
+
+	require.NotPanics(t, func() {
+		runner.runOnce(context.Background(), time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC))
+	})
+
+	require.Equal(t, []int64{42}, refresher.calls)
+	require.Len(t, accountRepo.extraHistory[42], 1)
+	require.Equal(t, int64(20), accountRepo.extraHistory[42][0]["upstream_price_guard_group_id"])
+	accountRepo.onUpdateExtra = nil
+	accountRepo.listCalls = nil
+	runner.runOnce(context.Background(), time.Date(2026, 7, 13, 12, 1, 0, 0, time.UTC))
+	require.Equal(t, []int64{10}, accountRepo.listCalls)
+}
+
+func TestGroupUpstreamBalanceRefreshRunner_ReloadsSharedGuardStateBetweenMemberships(t *testing.T) {
+	groups := []Group{
+		{ID: 10, UpstreamBalanceRefreshIntervalSeconds: 600, UpstreamPriceMaxMultiplier: 0.05},
+		{ID: 20, UpstreamBalanceRefreshIntervalSeconds: 600, UpstreamPriceMaxMultiplier: 0.10},
+	}
+	price := 0.08
+	initialReason := UpstreamPriceGuardReasonPrefix + " group_id=20"
+	account := Account{ID: 42, ChannelPrice: &price, TempUnschedulableReason: initialReason}
+	accountRepo := &groupUpstreamRefreshAccountRepoStub{
+		accounts:    map[int64][]Account{10: {account}, 20: {account}},
+		tempReasons: map[int64]string{42: initialReason},
+		tempUntils:  map[int64]*time.Time{},
+	}
+	runner := NewGroupUpstreamBalanceRefreshRunner(
+		&groupUpstreamRefreshGroupRepoStub{groups: groups},
+		accountRepo,
+		&groupUpstreamBalanceStub{refreshed: map[int64]*Account{42: &account}},
+	)
+
+	runner.runOnce(context.Background(), time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC))
+
+	require.Contains(t, accountRepo.tempReasons[42], "group_id=10")
+	require.Equal(t, []int64{42, 42}, accountRepo.getByIDCalls)
+}
+
+func TestGroupUpstreamBalanceRefreshRunner_ReloadsStateWhenConditionalSetUpdatesZeroRows(t *testing.T) {
+	now := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+	price := 0.08
+	existingUntil := now.Add(48 * time.Hour)
+	existingReason := UpstreamPriceGuardReasonPrefix + " group_id=20"
+	account := Account{ID: 42, ChannelPrice: &price}
+	accountRepo := &groupUpstreamRefreshAccountRepoStub{
+		accounts:    map[int64][]Account{10: {account}},
+		tempReasons: map[int64]string{42: existingReason},
+		tempUntils:  map[int64]*time.Time{42: &existingUntil},
+	}
+	runner := NewGroupUpstreamBalanceRefreshRunner(
+		&groupUpstreamRefreshGroupRepoStub{groups: []Group{{ID: 10, UpstreamBalanceRefreshIntervalSeconds: 600, UpstreamPriceMaxMultiplier: 0.05}}},
+		accountRepo,
+		&groupUpstreamBalanceStub{refreshed: map[int64]*Account{42: &account}},
+	)
+
+	runner.runOnce(context.Background(), now)
+
+	require.Equal(t, existingReason, account.TempUnschedulableReason)
+	require.Equal(t, existingUntil, *account.TempUnschedulableUntil)
+}
+
+func TestGroupUpstreamBalanceRefreshRunner_CommitsCompletedGroupBeforeLaterCancellation(t *testing.T) {
+	groups := []Group{
+		{ID: 10, UpstreamBalanceRefreshIntervalSeconds: 600},
+		{ID: 20, UpstreamBalanceRefreshIntervalSeconds: 600},
+	}
+	accountRepo := &groupUpstreamRefreshAccountRepoStub{accounts: map[int64][]Account{
+		10: {{ID: 42}},
+		20: {{ID: 43}},
+	}}
+	ctx, cancel := context.WithCancel(context.Background())
+	refresher := &groupUpstreamBalanceStub{
+		refreshed: map[int64]*Account{42: {ID: 42}, 43: {ID: 43}},
+		onRefresh: func(_ context.Context, accountID int64) {
+			if accountID == 43 {
+				cancel()
+			}
+		},
+	}
+	runner := NewGroupUpstreamBalanceRefreshRunner(&groupUpstreamRefreshGroupRepoStub{groups: groups}, accountRepo, refresher)
+	now := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+
+	runner.runOnce(ctx, now)
+	accountRepo.listCalls = nil
+	runner.runOnce(context.Background(), now.Add(time.Minute))
+
+	require.Equal(t, []int64{20}, accountRepo.listCalls)
+}
+
+func TestGroupUpstreamBalanceRefreshRunner_CommitsEmptyGroupBeforeLaterCancellation(t *testing.T) {
+	groups := []Group{
+		{ID: 10, UpstreamBalanceRefreshIntervalSeconds: 600},
+		{ID: 20, UpstreamBalanceRefreshIntervalSeconds: 600},
+	}
+	accountRepo := &groupUpstreamRefreshAccountRepoStub{accounts: map[int64][]Account{20: {{ID: 43}}}}
+	ctx, cancel := context.WithCancel(context.Background())
+	refresher := &groupUpstreamBalanceStub{
+		refreshed: map[int64]*Account{43: {ID: 43}},
+		onRefresh: func(_ context.Context, accountID int64) {
+			if accountID == 43 {
+				cancel()
+			}
+		},
+	}
+	runner := NewGroupUpstreamBalanceRefreshRunner(&groupUpstreamRefreshGroupRepoStub{groups: groups}, accountRepo, refresher)
+	now := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+
+	runner.runOnce(ctx, now)
+	accountRepo.listCalls = nil
+	runner.runOnce(context.Background(), now.Add(time.Minute))
+
+	require.Equal(t, []int64{20}, accountRepo.listCalls)
+}
+
+func TestGroupUpstreamBalanceRefreshRunner_DistributedLastRunPreventsAlternatingRunnerRefresh(t *testing.T) {
+	group := Group{ID: 10, UpstreamBalanceRefreshIntervalSeconds: 600}
+	account := Account{ID: 42}
+	settings := &groupUpstreamRefreshSettingRepoStub{values: map[string]string{}}
+	refresher := &groupUpstreamBalanceStub{refreshed: map[int64]*Account{42: &account}}
+	newRunner := func() *GroupUpstreamBalanceRefreshRunner {
+		return newGroupUpstreamBalanceRefreshRunnerWithState(
+			&groupUpstreamRefreshGroupRepoStub{groups: []Group{group}},
+			&groupUpstreamRefreshAccountRepoStub{accounts: map[int64][]Account{10: {account}}},
+			refresher,
+			&fakeOpenAIAutoSchedulerProbeLeaderLock{acquire: true},
+			nil,
+			settings,
+		)
+	}
+	runnerA := newRunner()
+	runnerB := newRunner()
+	now := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+
+	runnerA.runOnce(context.Background(), now)
+	runnerB.runOnce(context.Background(), now.Add(time.Minute))
+
+	require.Equal(t, []int64{42}, refresher.calls)
+	require.Equal(t, now.Unix(), mustParseGroupUpstreamBalanceRefreshLastRun(t, settings.values[groupUpstreamBalanceRefreshLastRunKey(10)]))
+	require.Len(t, settings.getCalls, 2)
+}
+
+func TestGroupUpstreamBalanceRefreshRunner_LoadsAllGroupLastRunsInOneBatch(t *testing.T) {
+	groups := []Group{{ID: 10, UpstreamBalanceRefreshIntervalSeconds: 600}, {ID: 20, UpstreamBalanceRefreshIntervalSeconds: 600}}
+	settings := &groupUpstreamRefreshSettingRepoStub{values: map[string]string{}}
+	runner := newGroupUpstreamBalanceRefreshRunnerWithState(
+		&groupUpstreamRefreshGroupRepoStub{groups: groups},
+		&groupUpstreamRefreshAccountRepoStub{},
+		&groupUpstreamBalanceStub{},
+		nil, nil, settings,
+	)
+
+	runner.runOnce(context.Background(), time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC))
+
+	require.Equal(t, [][]string{{
+		groupUpstreamBalanceRefreshLastRunKey(10),
+		groupUpstreamBalanceRefreshLastRunKey(20),
+	}}, settings.getCalls)
+}
+
+func TestGroupUpstreamBalanceRefreshRunner_DistributedReadFailureUsesLocalFallback(t *testing.T) {
+	group := Group{ID: 10, UpstreamBalanceRefreshIntervalSeconds: 600}
+	account := Account{ID: 42}
+	settings := &groupUpstreamRefreshSettingRepoStub{getErr: errors.New("settings read failed")}
+	refresher := &groupUpstreamBalanceStub{refreshed: map[int64]*Account{42: &account}}
+	runner := newGroupUpstreamBalanceRefreshRunnerWithState(
+		&groupUpstreamRefreshGroupRepoStub{groups: []Group{group}},
+		&groupUpstreamRefreshAccountRepoStub{accounts: map[int64][]Account{10: {account}}},
+		refresher, nil, nil, settings,
+	)
+	now := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+
+	runner.runOnce(context.Background(), now)
+	runner.runOnce(context.Background(), now.Add(time.Minute))
+
+	require.Equal(t, []int64{42}, refresher.calls)
+}
+
+func TestGroupUpstreamBalanceRefreshRunner_DistributedWriteFailureKeepsLocalLastRun(t *testing.T) {
+	group := Group{ID: 10, UpstreamBalanceRefreshIntervalSeconds: 600}
+	account := Account{ID: 42}
+	settings := &groupUpstreamRefreshSettingRepoStub{values: map[string]string{}, setErr: errors.New("settings write failed")}
+	refresher := &groupUpstreamBalanceStub{refreshed: map[int64]*Account{42: &account}}
+	runner := newGroupUpstreamBalanceRefreshRunnerWithState(
+		&groupUpstreamRefreshGroupRepoStub{groups: []Group{group}},
+		&groupUpstreamRefreshAccountRepoStub{accounts: map[int64][]Account{10: {account}}},
+		refresher, nil, nil, settings,
+	)
+	now := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+
+	runner.runOnce(context.Background(), now)
+	runner.runOnce(context.Background(), now.Add(time.Minute))
+
+	require.Equal(t, []int64{42}, refresher.calls)
+	require.Empty(t, settings.values)
+}
+
+func mustParseGroupUpstreamBalanceRefreshLastRun(t *testing.T, value string) int64 {
+	t.Helper()
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	require.NoError(t, err)
+	return parsed
+}
+
 func TestGroupUpstreamBalanceRefreshRunner_StartAndStopAreIdempotent(t *testing.T) {
 	runner := NewGroupUpstreamBalanceRefreshRunner(
 		&groupUpstreamRefreshGroupRepoStub{},
@@ -396,6 +683,28 @@ func TestGroupUpstreamBalanceRefreshRunner_StartAndStopAreIdempotent(t *testing.
 		runner.Stop()
 		runner.Stop()
 	})
+}
+
+func TestGroupUpstreamBalanceRefreshRunner_ConcurrentStartStopIsSafe(t *testing.T) {
+	runner := NewGroupUpstreamBalanceRefreshRunner(
+		&groupUpstreamRefreshGroupRepoStub{},
+		&groupUpstreamRefreshAccountRepoStub{},
+		&groupUpstreamBalanceStub{},
+	)
+	var wg sync.WaitGroup
+	for range 32 {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			runner.Start()
+		}()
+		go func() {
+			defer wg.Done()
+			runner.Stop()
+		}()
+	}
+	wg.Wait()
+	runner.Stop()
 }
 
 func TestGroupUpstreamBalanceRefreshRunner_RespectsGroupInterval(t *testing.T) {

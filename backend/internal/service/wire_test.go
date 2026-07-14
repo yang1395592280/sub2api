@@ -94,7 +94,7 @@ func TestProvideGroupUpstreamBalanceRefreshRunner_StartsWorker(t *testing.T) {
 	accountRepo := &groupUpstreamBalanceProviderAccountRepoStub{}
 	balance := &groupUpstreamBalanceProviderRefreshStub{}
 
-	svc := ProvideGroupUpstreamBalanceRefreshRunner(groupRepo, accountRepo, balance, nil, nil)
+	svc := ProvideGroupUpstreamBalanceRefreshRunner(groupRepo, accountRepo, balance, nil, nil, nil)
 	requireNotNil(t, svc)
 	t.Cleanup(func() {
 		svc.Stop()

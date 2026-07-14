@@ -161,8 +161,9 @@ func ProvideGroupUpstreamBalanceRefreshRunner(
 	refresher groupUpstreamBalanceRefresher,
 	lockCache LeaderLockCache,
 	db *sql.DB,
+	settingRepo SettingRepository,
 ) *GroupUpstreamBalanceRefreshRunner {
-	svc := newGroupUpstreamBalanceRefreshRunner(groupRepo, accountRepo, refresher, lockCache, db)
+	svc := newGroupUpstreamBalanceRefreshRunnerWithState(groupRepo, accountRepo, refresher, lockCache, db, settingRepo)
 	svc.Start()
 	return svc
 }
