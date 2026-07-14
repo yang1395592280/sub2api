@@ -62,10 +62,11 @@ type OpenAIAutoSchedulerScoreEvent struct {
 }
 
 type OpenAIAutoSchedulerListParams struct {
-	GroupID  int64
-	Model    string
-	Page     int
-	PageSize int
+	AccountID int64
+	GroupID   int64
+	Model     string
+	Page      int
+	PageSize  int
 }
 
 type OpenAIAutoSchedulerScoreListResult struct {

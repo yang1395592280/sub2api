@@ -520,11 +520,11 @@ func TestOpenAIAutoSchedulerHandler_ListEventsReturnsPaginatedRows(t *testing.T)
 	router := setupOpenAIAutoSchedulerHandlerRouter(&fakeOpenAIAutoSchedulerSettingsService{}, &fakeOpenAIAutoSchedulerAdminService{}, schedulerSvc)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/openai-auto-scheduler/events?page=2&page_size=1&group_id=20&model=gpt-5", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/openai-auto-scheduler/events?page=2&page_size=1&account_id=101&group_id=20&model=gpt-5", nil)
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, service.OpenAIAutoSchedulerListParams{GroupID: 20, Model: "gpt-5", Page: 2, PageSize: 1}, schedulerSvc.listParams)
+	require.Equal(t, service.OpenAIAutoSchedulerListParams{AccountID: 101, GroupID: 20, Model: "gpt-5", Page: 2, PageSize: 1}, schedulerSvc.listParams)
 	require.Contains(t, rec.Body.String(), `"event_type":"probe_success"`)
 	require.Contains(t, rec.Body.String(), `"created_at":"2026-06-28T01:02:03Z"`)
 }

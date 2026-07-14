@@ -504,15 +504,20 @@ func parseOpenAIAutoSchedulerPagination(c *gin.Context) (int, int) {
 }
 
 func parseOpenAIAutoSchedulerListParams(c *gin.Context, page, pageSize int) (service.OpenAIAutoSchedulerListParams, bool) {
+	accountID, ok := parseOptionalPositiveInt64Query(c, "account_id")
+	if !ok {
+		return service.OpenAIAutoSchedulerListParams{}, false
+	}
 	groupID, ok := parseOptionalPositiveInt64Query(c, "group_id")
 	if !ok {
 		return service.OpenAIAutoSchedulerListParams{}, false
 	}
 	return service.OpenAIAutoSchedulerListParams{
-		GroupID:  groupID,
-		Model:    strings.TrimSpace(c.Query("model")),
-		Page:     page,
-		PageSize: pageSize,
+		AccountID: accountID,
+		GroupID:   groupID,
+		Model:     strings.TrimSpace(c.Query("model")),
+		Page:      page,
+		PageSize:  pageSize,
 	}, true
 }
 
