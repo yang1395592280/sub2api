@@ -94,7 +94,7 @@ func TestWireGenInjectsGroupUpstreamBalanceRefreshRunnerIntoStartupAndCleanup(t 
 	require.NoError(t, err)
 
 	source := string(body)
-	runnerIndex := strings.Index(source, "groupUpstreamBalanceRefreshRunner := service.ProvideGroupUpstreamBalanceRefreshRunner(groupRepository, accountRepository, openAIUpstreamBalanceService)")
+	runnerIndex := strings.Index(source, "groupUpstreamBalanceRefreshRunner := service.ProvideGroupUpstreamBalanceRefreshRunner(groupRepository, accountRepository, openAIUpstreamBalanceService, leaderLockCache, db)")
 	cleanupCallIndex := strings.Index(source, "provideCleanup(client, redisClient")
 	cleanupStepIndex := strings.Index(source, "{\"GroupUpstreamBalanceRefreshRunner\", func() error {")
 	require.NotEqual(t, -1, runnerIndex, "production wire must construct group upstream balance refresh runner")

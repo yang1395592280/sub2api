@@ -155,8 +155,14 @@ func ProvideSub2APICheckinService(accountRepo AccountRepository, upstreamBalance
 }
 
 // ProvideGroupUpstreamBalanceRefreshRunner wires and starts the group upstream balance refresh runner.
-func ProvideGroupUpstreamBalanceRefreshRunner(groupRepo GroupRepository, accountRepo AccountRepository, refresher groupUpstreamBalanceRefresher) *GroupUpstreamBalanceRefreshRunner {
-	svc := NewGroupUpstreamBalanceRefreshRunner(groupRepo, accountRepo, refresher)
+func ProvideGroupUpstreamBalanceRefreshRunner(
+	groupRepo GroupRepository,
+	accountRepo AccountRepository,
+	refresher groupUpstreamBalanceRefresher,
+	lockCache LeaderLockCache,
+	db *sql.DB,
+) *GroupUpstreamBalanceRefreshRunner {
+	svc := newGroupUpstreamBalanceRefreshRunner(groupRepo, accountRepo, refresher, lockCache, db)
 	svc.Start()
 	return svc
 }
