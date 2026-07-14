@@ -18,6 +18,8 @@ const (
 	defaultZenxiangLiyuTicketThreshold   = 5.0
 	defaultZenxiangLiyuDailyTicketLimit  = 3
 	defaultZenxiangLiyuLuckyProbability  = 50.0
+	ZenxiangLiyuTicketCapacity           = 5
+	ZenxiangLiyuTicketRetentionDays      = 2
 )
 
 var (
@@ -116,6 +118,9 @@ type ZenxiangLiyuStatus struct {
 	FreePlayUsed           bool                `json:"free_play_used"`
 	TicketUsageThreshold   float64             `json:"ticket_usage_threshold"`
 	DailyTicketLimit       int                 `json:"daily_ticket_limit"`
+	TicketCapacity         int                 `json:"ticket_capacity"`
+	TicketRetentionDays    int                 `json:"ticket_retention_days"`
+	TicketsAvailable       int                 `json:"tickets_available"`
 	LuckyCoinEnabled       bool                `json:"lucky_coin_enabled"`
 	LuckyCoinProbability   float64             `json:"lucky_coin_double_probability"`
 	TodayTicketsEarned     int                 `json:"today_tickets_earned"`
@@ -125,7 +130,6 @@ type ZenxiangLiyuStatus struct {
 	TodayTicketsAvailable  int                 `json:"today_tickets_available"`
 	NextTicketUsageTarget  float64             `json:"next_ticket_usage_target"`
 	NextTicketUsageMissing float64             `json:"next_ticket_usage_missing"`
-	TicketExpiresAt        time.Time           `json:"ticket_expires_at"`
 	Prizes                 []ZenxiangLiyuPrize `json:"prizes"`
 }
 
@@ -372,6 +376,7 @@ type ZenxiangLiyuRepository interface {
 	SaveGrant(ctx context.Context, grant ZenxiangLiyuGrant) (*ZenxiangLiyuGrant, error)
 	DeleteGrant(ctx context.Context, userID int64) error
 	CountGiftedTicketsOnDate(ctx context.Context, userID int64, playDate time.Time) (int, error)
+	SyncTicketBalance(ctx context.Context, userID int64, playDate time.Time, settings ZenxiangLiyuSettings) (int, error)
 	GiftTickets(ctx context.Context, gift ZenxiangLiyuTicketGift) (*ZenxiangLiyuTicketGift, error)
 	GetOverviewStats(ctx context.Context) (*ZenxiangLiyuOverviewStats, error)
 	ListUserStats(ctx context.Context, page, pageSize int, playDate time.Time) ([]ZenxiangLiyuUserStats, int, error)
@@ -553,6 +558,8 @@ func (s *ZenxiangLiyuService) GetStatus(ctx context.Context, userID int64) (*Zen
 		FreePlayUsageThreshold: zenxiangLiyuFreePlayUsageThreshold,
 		TicketUsageThreshold:   settings.EffectiveTicketUsageThreshold(),
 		DailyTicketLimit:       settings.EffectiveDailyTicketLimit(),
+		TicketCapacity:         ZenxiangLiyuTicketCapacity,
+		TicketRetentionDays:    ZenxiangLiyuTicketRetentionDays,
 		LuckyCoinEnabled:       settings.LuckyCoinEnabled,
 		LuckyCoinProbability:   settings.EffectiveLuckyCoinProbability(),
 		Prizes:                 prizes,
@@ -593,11 +600,15 @@ func (s *ZenxiangLiyuService) GetStatus(ctx context.Context, userID int64) (*Zen
 	}
 	status.TodayTicketsEarned = status.TodayTicketsFromUsage + status.TodayTicketsGranted
 	status.TodayTicketsUsed = status.TodayPlayCount
-	status.TodayTicketsAvailable = max(0, status.TodayTicketsEarned-status.TodayTicketsUsed)
+	status.TicketsAvailable, err = s.repo.SyncTicketBalance(ctx, userID, playDate, *settings)
+	if err != nil {
+		return nil, err
+	}
+	// Keep the legacy field populated for older clients while availability now comes from the persistent wallet.
+	status.TodayTicketsAvailable = status.TicketsAvailable
 	status.NextTicketUsageTarget, status.NextTicketUsageMissing = CalculateZenxiangLiyuNextTicketUsage(status.TodayUsageAmount, settings)
-	status.TicketExpiresAt = playDate.AddDate(0, 0, 1)
 	status.RemainingPlays = max(0, settings.DailyPlayLimit-status.TodayPlayCount)
-	status.CanPlay = status.TodayTicketsAvailable > 0
+	status.CanPlay = status.TicketsAvailable > 0
 	if !status.CanPlay {
 		status.Reason = ErrZenxiangLiyuNoTicket.Error()
 	}

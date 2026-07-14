@@ -65,6 +65,13 @@ func TestZenxiangLiyuRepositoryPlayAppliesAtomically(t *testing.T) {
 	mock.ExpectQuery(`SELECT COALESCE\(SUM\(ticket_count\), 0\)`).
 		WithArgs(int64(42), playDate).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	expectZenxiangLiyuTicketSync(mock, 42, playDate, usageEnd, 0, 1)
+	mock.ExpectQuery(`WITH next_batch AS`).
+		WithArgs(int64(42), usageStart).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(101))
+	mock.ExpectExec(`UPDATE zenxiang_liyu_ticket_wallets`).
+		WithArgs(int64(42)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectQuery(`UPDATE users SET balance = balance - \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
 		WithArgs(0.0, int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(12.0))
@@ -123,6 +130,13 @@ func TestZenxiangLiyuRepositoryPlayUsesFreePlayAfterDailyUsageThreshold(t *testi
 	mock.ExpectQuery(`SELECT COALESCE\(SUM\(ticket_count\), 0\)`).
 		WithArgs(int64(42), playDate).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	expectZenxiangLiyuTicketSync(mock, 42, playDate, usageEnd, 0, 1)
+	mock.ExpectQuery(`WITH next_batch AS`).
+		WithArgs(int64(42), usageStart).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(101))
+	mock.ExpectExec(`UPDATE zenxiang_liyu_ticket_wallets`).
+		WithArgs(int64(42)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectQuery(`UPDATE users SET balance = balance - \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
 		WithArgs(0.0, int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(1.0))
@@ -182,6 +196,13 @@ func TestZenxiangLiyuRepositoryPlayReturnsExistingRecordAfterUniqueConflict(t *t
 	mock.ExpectQuery(`SELECT COALESCE\(SUM\(ticket_count\), 0\)`).
 		WithArgs(int64(42), playDate).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	expectZenxiangLiyuTicketSync(mock, 42, playDate, usageEnd, 0, 1)
+	mock.ExpectQuery(`WITH next_batch AS`).
+		WithArgs(int64(42), usageStart).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(101))
+	mock.ExpectExec(`UPDATE zenxiang_liyu_ticket_wallets`).
+		WithArgs(int64(42)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectQuery(`UPDATE users SET balance = balance - \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
 		WithArgs(0.0, int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(12.0))
@@ -299,6 +320,115 @@ func TestZenxiangLiyuRepositoryGiftTicketsIsIdempotentByRequestID(t *testing.T) 
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestZenxiangLiyuRepositoryGiftTicketsCreditsPersistentWalletWithCap(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	playDate := time.Date(2026, time.July, 12, 0, 0, 0, 0, time.UTC)
+	createdAt := time.Date(2026, time.July, 12, 1, 0, 0, 0, time.UTC)
+	repo := &zenxiangLiyuRepository{db: db}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT email FROM users`).
+		WithArgs(int64(42), service.RoleUser, service.StatusActive).
+		WillReturnRows(sqlmock.NewRows([]string{"email"}).AddRow("user@example.com"))
+	mock.ExpectQuery(`INSERT INTO zenxiang_liyu_ticket_gifts`).
+		WithArgs("gift-new", int64(42), playDate, 3, (*int64)(nil), "客服补偿").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "request_id", "user_id", "play_date", "ticket_count", "granted_by", "notes", "created_at", "updated_at"}).
+			AddRow(12, "gift-new", 42, playDate, 3, nil, "客服补偿", createdAt, createdAt))
+	mock.ExpectExec(`INSERT INTO zenxiang_liyu_ticket_wallets`).
+		WithArgs(int64(42)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	expectZenxiangLiyuWalletReconcileAfterInsert(mock, 42, playDate, 0)
+	mock.ExpectExec(`INSERT INTO zenxiang_liyu_ticket_batches`).
+		WithArgs(int64(42), "gift-new", 3, zenxiangLiyuTicketExpiry(playDate)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE zenxiang_liyu_ticket_wallets`).
+		WithArgs(3, int64(42)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	gift, err := repo.GiftTickets(context.Background(), service.ZenxiangLiyuTicketGift{
+		RequestID: "gift-new", UserID: 42, PlayDate: playDate, TicketCount: 3, Notes: "客服补偿",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(12), gift.ID)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestZenxiangLiyuRepositorySyncTicketBalanceCapsAndConsumesOverflow(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	playDate := time.Date(2026, time.July, 12, 0, 0, 0, 0, time.UTC)
+	_, usageEnd := zenxiangLiyuUsageWindow(playDate)
+	repo := &zenxiangLiyuRepository{db: db}
+	settings := service.ZenxiangLiyuSettings{TicketUsageThreshold: 5, DailyTicketLimit: 3}
+
+	mock.ExpectBegin()
+	expectZenxiangLiyuTicketSync(mock, 42, playDate, usageEnd, 4, 3)
+	mock.ExpectCommit()
+	firstBalance, err := repo.SyncTicketBalance(context.Background(), 42, playDate, settings)
+	require.NoError(t, err)
+	require.Equal(t, service.ZenxiangLiyuTicketCapacity, firstBalance)
+
+	// The credited ledger has consumed the overflow, so a later sync cannot restore it.
+	mock.ExpectBegin()
+	expectZenxiangLiyuTicketSync(mock, 42, playDate, usageEnd, 5, 0)
+	mock.ExpectCommit()
+	secondBalance, err := repo.SyncTicketBalance(context.Background(), 42, playDate, settings)
+	require.NoError(t, err)
+	require.Equal(t, service.ZenxiangLiyuTicketCapacity, secondBalance)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestZenxiangLiyuRepositorySyncTicketBalanceExpiresOldBatches(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	playDate := time.Date(2026, time.July, 14, 0, 0, 0, 0, time.UTC)
+	asOf, usageEnd := zenxiangLiyuUsageWindow(playDate)
+	repo := &zenxiangLiyuRepository{db: db}
+	settings := service.ZenxiangLiyuSettings{TicketUsageThreshold: 5, DailyTicketLimit: 3}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO zenxiang_liyu_ticket_wallets`).
+		WithArgs(int64(42)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`SELECT balance FROM zenxiang_liyu_ticket_wallets`).
+		WithArgs(int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(2))
+	mock.ExpectExec(`UPDATE zenxiang_liyu_ticket_batches`).
+		WithArgs(int64(42), asOf).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`UPDATE zenxiang_liyu_ticket_wallets`).
+		WithArgs(service.ZenxiangLiyuTicketCapacity, int64(42), asOf).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(0))
+	mock.ExpectQuery(`WITH earned AS`).
+		WithArgs(int64(42), usageEnd, 5.0, 3, playDate).
+		WillReturnRows(sqlmock.NewRows([]string{"usage_date", "ticket_count"}).
+			AddRow(playDate.AddDate(0, 0, -2), 2))
+	mock.ExpectExec(`INSERT INTO zenxiang_liyu_ticket_usage_credits`).
+		WithArgs(int64(42), usageEnd, 5.0, 3, playDate).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	balance, err := repo.SyncTicketBalance(context.Background(), 42, playDate, settings)
+	require.NoError(t, err)
+	require.Zero(t, balance)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestZenxiangLiyuTicketExpiryKeepsTicketForTwoShanghaiCalendarDays(t *testing.T) {
+	playDate := time.Date(2026, time.July, 12, 0, 0, 0, 0, time.UTC)
+
+	require.Equal(t, time.Date(2026, time.July, 13, 16, 0, 0, 0, time.UTC), zenxiangLiyuTicketExpiry(playDate))
+}
+
 func TestZenxiangLiyuRepositoryPlayLuckyCoinAppliesOnce(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -407,4 +537,45 @@ func zenxiangLiyuSettingsRows() *sqlmock.Rows {
 		"ticket_usage_threshold", "daily_ticket_limit", "unit_sale_price", "unit_cost_price",
 		"lucky_coin_enabled", "lucky_coin_double_probability",
 	})
+}
+
+func expectZenxiangLiyuTicketSync(mock sqlmock.Sqlmock, userID int64, throughDate, throughEnd time.Time, currentBalance, newlyEarned int) {
+	mock.ExpectExec(`INSERT INTO zenxiang_liyu_ticket_wallets`).
+		WithArgs(userID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	expectZenxiangLiyuWalletReconcileAfterInsert(mock, userID, throughDate, currentBalance)
+	mock.ExpectQuery(`WITH earned AS`).
+		WithArgs(userID, throughEnd, 5.0, 3, throughDate).
+		WillReturnRows(func() *sqlmock.Rows {
+			rows := sqlmock.NewRows([]string{"usage_date", "ticket_count"})
+			if newlyEarned > 0 {
+				rows.AddRow(throughDate, newlyEarned)
+			}
+			return rows
+		}())
+	mock.ExpectExec(`INSERT INTO zenxiang_liyu_ticket_usage_credits`).
+		WithArgs(userID, throughEnd, 5.0, 3, throughDate).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	acceptedTickets := min(service.ZenxiangLiyuTicketCapacity-currentBalance, newlyEarned)
+	if acceptedTickets > 0 {
+		mock.ExpectExec(`INSERT INTO zenxiang_liyu_ticket_batches`).
+			WithArgs(userID, throughDate.Format("2006-01-02"), acceptedTickets, zenxiangLiyuTicketExpiry(throughDate)).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectQuery(`UPDATE zenxiang_liyu_ticket_wallets`).
+			WithArgs(service.ZenxiangLiyuTicketCapacity, acceptedTickets, userID).
+			WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(currentBalance + acceptedTickets))
+	}
+}
+
+func expectZenxiangLiyuWalletReconcileAfterInsert(mock sqlmock.Sqlmock, userID int64, asOfDate time.Time, currentBalance int) {
+	asOf, _ := zenxiangLiyuUsageWindow(asOfDate)
+	mock.ExpectQuery(`SELECT balance FROM zenxiang_liyu_ticket_wallets`).
+		WithArgs(userID).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(currentBalance))
+	mock.ExpectExec(`UPDATE zenxiang_liyu_ticket_batches`).
+		WithArgs(userID, asOf).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`UPDATE zenxiang_liyu_ticket_wallets`).
+		WithArgs(service.ZenxiangLiyuTicketCapacity, userID, asOf).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(currentBalance))
 }

@@ -36,12 +36,12 @@
             <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{{ formatAmount(currentBalance) }}</p>
           </div>
           <div class="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
-            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.todayTickets') }}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.availableTickets') }}</p>
             <div class="mt-1 flex items-baseline gap-2">
-              <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ status.today_tickets_available }}</p>
+              <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ status.tickets_available }}</p>
               <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">{{ t('zenxiangLiyu.ticketUnit') }}</span>
             </div>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.ticketEarnHint', { threshold: formatNumber(status.ticket_usage_threshold), limit: status.daily_ticket_limit }) }}</p>
+            <p class="mt-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">{{ t('zenxiangLiyu.ticketRetentionHint', { limit: status.ticket_capacity, days: status.ticket_retention_days }) }}</p>
             <p v-if="status.today_tickets_granted > 0" class="mt-1 text-xs font-medium text-primary-600 dark:text-primary-300">
               {{ t('zenxiangLiyu.ticketGiftHint', { count: status.today_tickets_granted }) }}
             </p>
@@ -49,7 +49,7 @@
           <div class="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.ticketProgress') }}</p>
             <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{{ status.today_tickets_used }} / {{ status.today_tickets_earned }}</p>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ nextTicketHint || t('zenxiangLiyu.ticketExpireHint') }}</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ nextTicketHint || t('zenxiangLiyu.ticketEarnHint', { threshold: formatNumber(status.ticket_usage_threshold), limit: status.daily_ticket_limit }) }}</p>
           </div>
         </section>
 
@@ -76,8 +76,8 @@
               </div>
 
               <p v-if="unavailableReason" class="mt-5 text-center text-sm text-amber-700 dark:text-amber-300">{{ unavailableReason }}</p>
-              <p v-else-if="status.today_tickets_available > 0" class="mt-5 text-center text-sm text-emerald-700 dark:text-emerald-300">
-                {{ t('zenxiangLiyu.ticketPlayHint', { count: status.today_tickets_available }) }}
+              <p v-else-if="status.tickets_available > 0" class="mt-5 text-center text-sm text-emerald-700 dark:text-emerald-300">
+                {{ t('zenxiangLiyu.ticketPlayHint', { count: status.tickets_available }) }}
               </p>
               <p v-else class="mt-5 text-center text-sm text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.noTicketHint', { threshold: formatNumber(status.ticket_usage_threshold) }) }}</p>
 

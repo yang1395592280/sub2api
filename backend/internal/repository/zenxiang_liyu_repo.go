@@ -375,6 +375,27 @@ func (r *zenxiangLiyuRepository) CountGiftedTicketsOnDate(ctx context.Context, u
 	return count, err
 }
 
+func (r *zenxiangLiyuRepository) SyncTicketBalance(ctx context.Context, userID int64, playDate time.Time, settings service.ZenxiangLiyuSettings) (_ int, err error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	balance, err := syncZenxiangLiyuTicketBalance(ctx, tx, userID, playDate, &settings)
+	if err != nil {
+		return 0, err
+	}
+	if err = tx.Commit(); err != nil {
+		return 0, err
+	}
+	return balance, nil
+}
+
 func (r *zenxiangLiyuRepository) GiftTickets(ctx context.Context, gift service.ZenxiangLiyuTicketGift) (*service.ZenxiangLiyuTicketGift, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -400,6 +421,7 @@ func (r *zenxiangLiyuRepository) GiftTickets(ctx context.Context, gift service.Z
 	}
 
 	stored := &service.ZenxiangLiyuTicketGift{UserEmail: userEmail}
+	inserted := true
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO zenxiang_liyu_ticket_gifts (request_id, user_id, play_date, ticket_count, granted_by, notes)
 		VALUES ($1, $2, $3, $4, $5, $6)
@@ -411,6 +433,7 @@ func (r *zenxiangLiyuRepository) GiftTickets(ctx context.Context, gift service.Z
 		&stored.GrantedBy, &stored.Notes, &stored.CreatedAt, &stored.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
+		inserted = false
 		err = tx.QueryRowContext(ctx, `
 			SELECT g.id, g.request_id, g.user_id, u.email, g.play_date, g.ticket_count, g.granted_by, g.notes, g.created_at, g.updated_at
 			FROM zenxiang_liyu_ticket_gifts g
@@ -423,6 +446,29 @@ func (r *zenxiangLiyuRepository) GiftTickets(ctx context.Context, gift service.Z
 	}
 	if err != nil {
 		return nil, err
+	}
+	if inserted {
+		balance, balanceErr := lockAndReconcileZenxiangLiyuTicketWallet(ctx, tx, gift.UserID, gift.PlayDate)
+		if balanceErr != nil {
+			return nil, balanceErr
+		}
+		acceptedTickets := min(service.ZenxiangLiyuTicketCapacity-balance, gift.TicketCount)
+		if acceptedTickets > 0 {
+			if _, err = tx.ExecContext(ctx, `
+				INSERT INTO zenxiang_liyu_ticket_batches (
+					user_id, source_type, source_key, granted_count, remaining_count, expires_at
+				) VALUES ($1, 'gift', $2, $3, $3, $4)`,
+				gift.UserID, gift.RequestID, acceptedTickets, zenxiangLiyuTicketExpiry(gift.PlayDate),
+			); err != nil {
+				return nil, err
+			}
+		}
+		if _, err = tx.ExecContext(ctx, `
+			UPDATE zenxiang_liyu_ticket_wallets
+			SET balance = balance + $1, updated_at = NOW()
+			WHERE user_id = $2`, acceptedTickets, gift.UserID); err != nil {
+			return nil, err
+		}
 	}
 	if err = tx.Commit(); err != nil {
 		return nil, err
@@ -575,8 +621,20 @@ func (r *zenxiangLiyuRepository) ResetUserDailyPlays(ctx context.Context, userID
 		}
 	}()
 
-	var playCount int
+	var playCount, previousResetCount int
 	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM zenxiang_liyu_records WHERE user_id = $1 AND play_date = $2`, userID, playDate).Scan(&playCount)
+	if err != nil {
+		return 0, err
+	}
+	err = tx.QueryRowContext(ctx, `
+		SELECT COALESCE(reset_count, 0)
+		FROM zenxiang_liyu_daily_resets
+		WHERE user_id = $1 AND play_date = $2`, userID, playDate,
+	).Scan(&previousResetCount)
+	if errors.Is(err, sql.ErrNoRows) {
+		previousResetCount = 0
+		err = nil
+	}
 	if err != nil {
 		return 0, err
 	}
@@ -589,6 +647,35 @@ func (r *zenxiangLiyuRepository) ResetUserDailyPlays(ctx context.Context, userID
 	)
 	if err != nil {
 		return 0, err
+	}
+	refundedTickets := max(0, playCount-previousResetCount)
+	if refundedTickets > 0 {
+		balance, balanceErr := lockAndReconcileZenxiangLiyuTicketWallet(ctx, tx, userID, playDate)
+		if balanceErr != nil {
+			return 0, balanceErr
+		}
+		acceptedTickets := min(service.ZenxiangLiyuTicketCapacity-balance, refundedTickets)
+		if acceptedTickets > 0 {
+			if _, err = tx.ExecContext(ctx, `
+				INSERT INTO zenxiang_liyu_ticket_batches (
+					user_id, source_type, source_key, granted_count, remaining_count, expires_at
+				) VALUES ($1, 'reset', $2, $3, $3, $4)
+				ON CONFLICT (user_id, source_type, source_key)
+				DO UPDATE SET granted_count = zenxiang_liyu_ticket_batches.granted_count + EXCLUDED.granted_count,
+				              remaining_count = zenxiang_liyu_ticket_batches.remaining_count + EXCLUDED.remaining_count,
+				              expires_at = EXCLUDED.expires_at,
+				              updated_at = NOW()`,
+				userID, playDate.Format("2006-01-02"), acceptedTickets, zenxiangLiyuTicketExpiry(playDate),
+			); err != nil {
+				return 0, err
+			}
+		}
+		if _, err = tx.ExecContext(ctx, `
+			UPDATE zenxiang_liyu_ticket_wallets
+			SET balance = balance + $1, updated_at = NOW()
+			WHERE user_id = $2`, acceptedTickets, userID); err != nil {
+			return 0, err
+		}
 	}
 	if err = tx.Commit(); err != nil {
 		return 0, err
@@ -692,9 +779,38 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 		return nil, err
 	}
 	earnedTickets += giftedTickets
-	availableTickets := earnedTickets - playCount
+	availableTickets, err := syncZenxiangLiyuTicketBalance(ctx, tx, cmd.UserID, cmd.PlayDate, settings)
+	if err != nil {
+		return nil, err
+	}
 	if availableTickets <= 0 {
 		return nil, service.ErrZenxiangLiyuNoTicket
+	}
+	var consumedBatchID int64
+	if err = tx.QueryRowContext(ctx, `
+		WITH next_batch AS (
+			SELECT id
+			FROM zenxiang_liyu_ticket_batches
+			WHERE user_id = $1 AND remaining_count > 0 AND expires_at > $2
+			ORDER BY expires_at, id
+			FOR UPDATE
+			LIMIT 1
+		)
+		UPDATE zenxiang_liyu_ticket_batches batch
+		SET remaining_count = remaining_count - 1, updated_at = NOW()
+		FROM next_batch
+		WHERE batch.id = next_batch.id
+		RETURNING batch.id`, cmd.UserID, playStart).Scan(&consumedBatchID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, service.ErrZenxiangLiyuNoTicket
+		}
+		return nil, err
+	}
+	if _, err = tx.ExecContext(ctx, `
+		UPDATE zenxiang_liyu_ticket_wallets
+		SET balance = balance - 1, updated_at = NOW()
+		WHERE user_id = $1 AND balance > 0`, cmd.UserID); err != nil {
+		return nil, err
 	}
 
 	var balanceAfterTicket float64
@@ -704,14 +820,14 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 	}
 
 	configSnapshot, err := json.Marshal(map[string]any{
-		"settings":                settings,
-		"prize":                   prize,
-		"free_play":               useFreePlay,
-		"today_usage_amount":      todayUsageAmount,
-		"today_tickets_earned":    earnedTickets,
-		"today_tickets_gifted":    giftedTickets,
-		"today_tickets_used":      playCount,
-		"today_tickets_available": availableTickets,
+		"settings":                 settings,
+		"prize":                    prize,
+		"free_play":                useFreePlay,
+		"today_usage_amount":       todayUsageAmount,
+		"today_tickets_earned":     earnedTickets,
+		"today_tickets_gifted":     giftedTickets,
+		"today_tickets_used":       playCount,
+		"tickets_available_before": availableTickets,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal zenxiang liyu config snapshot: %w", err)
@@ -952,6 +1068,181 @@ func getZenxiangLiyuGiftedTicketsForPlay(ctx context.Context, tx *sql.Tx, userID
 		WHERE user_id = $1 AND play_date = $2`, userID, playDate,
 	).Scan(&count)
 	return count, err
+}
+
+// syncZenxiangLiyuTicketBalance credits newly earned daily tickets once and keeps overflow from reappearing later.
+func syncZenxiangLiyuTicketBalance(ctx context.Context, tx *sql.Tx, userID int64, throughDate time.Time, settings *service.ZenxiangLiyuSettings) (int, error) {
+	if settings == nil || settings.EffectiveTicketUsageThreshold() <= 0 || settings.EffectiveDailyTicketLimit() <= 0 {
+		return 0, service.ErrZenxiangLiyuInvalidSettings
+	}
+	balance, err := lockAndReconcileZenxiangLiyuTicketWallet(ctx, tx, userID, throughDate)
+	if err != nil {
+		return 0, err
+	}
+
+	_, throughEnd := zenxiangLiyuUsageWindow(throughDate)
+	threshold := settings.EffectiveTicketUsageThreshold()
+	dailyLimit := settings.EffectiveDailyTicketLimit()
+	type dailyTicketCredit struct {
+		usageDate time.Time
+		count     int
+	}
+	creditRows, err := tx.QueryContext(ctx, `
+		WITH earned AS (
+			SELECT (created_at AT TIME ZONE 'Asia/Shanghai')::date AS usage_date,
+			       LEAST(FLOOR(SUM(actual_cost) / $3)::integer, $4) AS ticket_count
+			FROM usage_logs
+			WHERE user_id = $1 AND created_at < $2
+			  AND created_at >= (
+				COALESCE(
+					(SELECT ticket_carryover_started_on FROM zenxiang_liyu_settings WHERE id = 1),
+					$5::date
+				)::timestamp AT TIME ZONE 'Asia/Shanghai'
+			  )
+			  AND (
+				(created_at AT TIME ZONE 'Asia/Shanghai')::date = $5::date
+				OR NOT EXISTS (
+					SELECT 1 FROM zenxiang_liyu_ticket_usage_credits credited
+					WHERE credited.user_id = $1
+					  AND credited.usage_date = (usage_logs.created_at AT TIME ZONE 'Asia/Shanghai')::date
+				)
+			  )
+			GROUP BY (created_at AT TIME ZONE 'Asia/Shanghai')::date
+		)
+		SELECT earned.usage_date,
+		       GREATEST(earned.ticket_count - COALESCE(credited.ticket_count, 0), 0) AS ticket_count
+		FROM earned
+		LEFT JOIN zenxiang_liyu_ticket_usage_credits credited
+		  ON credited.user_id = $1 AND credited.usage_date = earned.usage_date
+		WHERE earned.ticket_count > COALESCE(credited.ticket_count, 0)
+		ORDER BY earned.usage_date`,
+		userID, throughEnd, threshold, dailyLimit, throughDate,
+	)
+	if err != nil {
+		return 0, err
+	}
+	credits := make([]dailyTicketCredit, 0)
+	for creditRows.Next() {
+		var credit dailyTicketCredit
+		if err := creditRows.Scan(&credit.usageDate, &credit.count); err != nil {
+			creditRows.Close()
+			return 0, err
+		}
+		credits = append(credits, credit)
+	}
+	if err := creditRows.Close(); err != nil {
+		return 0, err
+	}
+	if err := creditRows.Err(); err != nil {
+		return 0, err
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO zenxiang_liyu_ticket_usage_credits (user_id, usage_date, ticket_count)
+		SELECT $1, (created_at AT TIME ZONE 'Asia/Shanghai')::date,
+		       LEAST(FLOOR(SUM(actual_cost) / $3)::integer, $4)
+		FROM usage_logs
+		WHERE user_id = $1 AND created_at < $2
+		  AND created_at >= (
+			COALESCE(
+				(SELECT ticket_carryover_started_on FROM zenxiang_liyu_settings WHERE id = 1),
+				$5::date
+			)::timestamp AT TIME ZONE 'Asia/Shanghai'
+		  )
+		  AND (
+			(created_at AT TIME ZONE 'Asia/Shanghai')::date = $5::date
+			OR NOT EXISTS (
+				SELECT 1 FROM zenxiang_liyu_ticket_usage_credits credited
+				WHERE credited.user_id = $1
+				  AND credited.usage_date = (usage_logs.created_at AT TIME ZONE 'Asia/Shanghai')::date
+			)
+		  )
+		GROUP BY (created_at AT TIME ZONE 'Asia/Shanghai')::date
+		ON CONFLICT (user_id, usage_date)
+		DO UPDATE SET ticket_count = GREATEST(
+			zenxiang_liyu_ticket_usage_credits.ticket_count,
+			EXCLUDED.ticket_count
+		), updated_at = NOW()`, userID, throughEnd, threshold, dailyLimit, throughDate); err != nil {
+		return 0, err
+	}
+
+	asOf, _ := zenxiangLiyuUsageWindow(throughDate)
+	totalAccepted := 0
+	for _, credit := range credits {
+		expiresAt := zenxiangLiyuTicketExpiry(credit.usageDate)
+		acceptedTickets := min(service.ZenxiangLiyuTicketCapacity-balance-totalAccepted, credit.count)
+		if !expiresAt.After(asOf) || acceptedTickets <= 0 {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO zenxiang_liyu_ticket_batches (
+				user_id, source_type, source_key, granted_count, remaining_count, expires_at
+			) VALUES ($1, 'usage', $2, $3, $3, $4)
+			ON CONFLICT (user_id, source_type, source_key)
+			DO UPDATE SET granted_count = zenxiang_liyu_ticket_batches.granted_count + EXCLUDED.granted_count,
+			              remaining_count = zenxiang_liyu_ticket_batches.remaining_count + EXCLUDED.remaining_count,
+			              updated_at = NOW()`,
+			userID, credit.usageDate.Format("2006-01-02"), acceptedTickets, expiresAt,
+		); err != nil {
+			return 0, err
+		}
+		totalAccepted += acceptedTickets
+	}
+	if totalAccepted > 0 {
+		if err := tx.QueryRowContext(ctx, `
+			UPDATE zenxiang_liyu_ticket_wallets
+			SET balance = LEAST($1, balance + $2), updated_at = NOW()
+			WHERE user_id = $3
+			RETURNING balance`, service.ZenxiangLiyuTicketCapacity, totalAccepted, userID,
+		).Scan(&balance); err != nil {
+			return 0, err
+		}
+	}
+	return balance, nil
+}
+
+func lockAndReconcileZenxiangLiyuTicketWallet(ctx context.Context, tx *sql.Tx, userID int64, asOfDate time.Time) (int, error) {
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO zenxiang_liyu_ticket_wallets (user_id, balance)
+		VALUES ($1, 0)
+		ON CONFLICT (user_id) DO NOTHING`, userID); err != nil {
+		return 0, err
+	}
+
+	var balance int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT balance
+		FROM zenxiang_liyu_ticket_wallets
+		WHERE user_id = $1
+		FOR UPDATE`, userID).Scan(&balance); err != nil {
+		return 0, err
+	}
+
+	asOf, _ := zenxiangLiyuUsageWindow(asOfDate)
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE zenxiang_liyu_ticket_batches
+		SET remaining_count = 0, updated_at = NOW()
+		WHERE user_id = $1 AND remaining_count > 0 AND expires_at <= $2`, userID, asOf); err != nil {
+		return 0, err
+	}
+	if err := tx.QueryRowContext(ctx, `
+		UPDATE zenxiang_liyu_ticket_wallets
+		SET balance = LEAST($1, COALESCE((
+			SELECT SUM(remaining_count)
+			FROM zenxiang_liyu_ticket_batches
+			WHERE user_id = $2 AND remaining_count > 0 AND expires_at > $3
+		), 0)), updated_at = NOW()
+		WHERE user_id = $2
+		RETURNING balance`, service.ZenxiangLiyuTicketCapacity, userID, asOf).Scan(&balance); err != nil {
+		return 0, err
+	}
+	return balance, nil
+}
+
+func zenxiangLiyuTicketExpiry(playDate time.Time) time.Time {
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	start := time.Date(playDate.Year(), playDate.Month(), playDate.Day(), 0, 0, 0, 0, shanghai)
+	return start.AddDate(0, 0, service.ZenxiangLiyuTicketRetentionDays).UTC()
 }
 
 func zenxiangLiyuUsageWindow(playDate time.Time) (time.Time, time.Time) {

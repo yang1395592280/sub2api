@@ -27,6 +27,9 @@ export interface ZenxiangLiyuStatus {
   free_play_used: boolean
   ticket_usage_threshold: number
   daily_ticket_limit: number
+  ticket_capacity: number
+  ticket_retention_days: number
+  tickets_available: number
   today_tickets_earned: number
   today_tickets_from_usage: number
   today_tickets_granted: number
@@ -36,7 +39,6 @@ export interface ZenxiangLiyuStatus {
   next_ticket_usage_missing: number
   lucky_coin_enabled: boolean
   lucky_coin_double_probability: number
-  ticket_expires_at: string
   prizes: ZenxiangLiyuPrize[]
 }
 

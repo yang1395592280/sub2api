@@ -21,6 +21,7 @@ type zenxiangLiyuServiceTestRepository struct {
 	todayUsageAmount float64
 	freePlayUsed     bool
 	giftedTickets    int
+	ticketBalance    int
 	grantCalls       int
 	giftCalls        int
 	deleteCalls      int
@@ -118,6 +119,11 @@ func (r *zenxiangLiyuServiceTestRepository) CountGiftedTicketsOnDate(context.Con
 	defer r.mu.Unlock()
 	return r.giftedTickets, nil
 }
+func (r *zenxiangLiyuServiceTestRepository) SyncTicketBalance(context.Context, int64, time.Time, ZenxiangLiyuSettings) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.ticketBalance, nil
+}
 func (r *zenxiangLiyuServiceTestRepository) GiftTickets(_ context.Context, gift ZenxiangLiyuTicketGift) (*ZenxiangLiyuTicketGift, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -160,6 +166,7 @@ func newZenxiangLiyuServiceTestRepository(globalEnabled, granted bool) *zenxiang
 		granted:          granted,
 		balance:          10,
 		todayUsageAmount: 5.01,
+		ticketBalance:    1,
 	}
 }
 
@@ -394,6 +401,7 @@ func TestZenxiangLiyuStatusRejectsWhenNoTicketAvailable(t *testing.T) {
 	repo := newZenxiangLiyuServiceTestRepository(true, false)
 	repo.settings = ZenxiangLiyuSettings{GlobalEnabled: true, TicketUsageThreshold: 5, DailyTicketLimit: 3, DailyPlayLimit: 5}
 	repo.todayUsageAmount = 4.99
+	repo.ticketBalance = 0
 	svc := NewZenxiangLiyuService(repo, func() time.Time { return time.Unix(0, 0).UTC() }, rand.New(rand.NewSource(1)))
 
 	status, err := svc.GetStatus(context.Background(), 224)
@@ -414,6 +422,7 @@ func TestZenxiangLiyuStatusAllowsTicketAfterDailyUsageThreshold(t *testing.T) {
 	repo.balance = 0
 	repo.countUserPlays = 0
 	repo.todayUsageAmount = 5.01
+	repo.ticketBalance = 1
 	svc := NewZenxiangLiyuService(repo, func() time.Time { return time.Unix(0, 0).UTC() }, rand.New(rand.NewSource(1)))
 
 	status, err := svc.GetStatus(context.Background(), 224)
@@ -424,6 +433,9 @@ func TestZenxiangLiyuStatusAllowsTicketAfterDailyUsageThreshold(t *testing.T) {
 	require.InDelta(t, 5.01, status.TodayUsageAmount, 0.000001)
 	require.Equal(t, 1, status.TodayTicketsEarned)
 	require.Equal(t, 1, status.TodayTicketsAvailable)
+	require.Equal(t, 1, status.TicketsAvailable)
+	require.Equal(t, 5, status.TicketCapacity)
+	require.Equal(t, 2, status.TicketRetentionDays)
 	require.InDelta(t, 10, status.NextTicketUsageTarget, 0.000001)
 	require.InDelta(t, 4.99, status.NextTicketUsageMissing, 0.000001)
 }
@@ -433,6 +445,7 @@ func TestZenxiangLiyuStatusIncludesGiftedTickets(t *testing.T) {
 	repo.settings = ZenxiangLiyuSettings{GlobalEnabled: true, TicketUsageThreshold: 5, DailyTicketLimit: 3, DailyPlayLimit: 5}
 	repo.todayUsageAmount = 0
 	repo.giftedTickets = 2
+	repo.ticketBalance = 2
 	svc := NewZenxiangLiyuService(repo, func() time.Time { return time.Unix(0, 0).UTC() }, rand.New(rand.NewSource(1)))
 
 	status, err := svc.GetStatus(context.Background(), 224)
@@ -443,6 +456,9 @@ func TestZenxiangLiyuStatusIncludesGiftedTickets(t *testing.T) {
 	require.Equal(t, 2, status.TodayTicketsGranted)
 	require.Equal(t, 2, status.TodayTicketsEarned)
 	require.Equal(t, 2, status.TodayTicketsAvailable)
+	require.Equal(t, 2, status.TicketsAvailable)
+	require.Equal(t, 5, status.TicketCapacity)
+	require.Equal(t, 2, status.TicketRetentionDays)
 	require.InDelta(t, 5, status.NextTicketUsageTarget, 0.000001)
 }
 

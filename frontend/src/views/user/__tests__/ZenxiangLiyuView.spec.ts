@@ -27,6 +27,7 @@ vi.mock('vue-i18n', async () => {
           'zenxiangLiyu.insufficientBalance': `积分需大于 ${params?.amount} 积分才可参与`,
           'zenxiangLiyu.latestBalance': `最新积分：${params?.amount} 积分`,
           'zenxiangLiyu.nextTicketMissing': `距离下一张抽奖券还差 ${params?.amount} 积分`,
+          'zenxiangLiyu.ticketRetentionHint': `抽奖券有效期 ${params?.days} 天，最多累计 ${params?.limit} 张`,
           'zenxiangLiyu.finalRewardAmount': `最终奖励：${params?.amount}`,
           'zenxiangLiyu.finalRewardShort': `最终 ${params?.amount}`,
           'zenxiangLiyu.recordLuckyCoinWin': `翻倍 ${params?.amount}`,
@@ -56,6 +57,9 @@ const makePlayableStatus = () => ({
   free_play_used: false,
   ticket_usage_threshold: 5,
   daily_ticket_limit: 3,
+  ticket_capacity: 5,
+  ticket_retention_days: 2,
+  tickets_available: 1,
   today_tickets_earned: 1,
   today_tickets_used: 0,
   today_tickets_available: 1,
@@ -63,7 +67,6 @@ const makePlayableStatus = () => ({
   next_ticket_usage_missing: 5,
   lucky_coin_enabled: true,
   lucky_coin_double_probability: 50,
-  ticket_expires_at: '2026-07-11T16:00:00Z',
   prizes: [
     { id: 1, name: '1元', reward_amount: 1, probability: 70, enabled: true, sort_order: 1 },
     { id: 2, name: '3元', reward_amount: 3, probability: 30, enabled: true, sort_order: 2 },
@@ -134,6 +137,20 @@ describe('ZenxiangLiyuView', () => {
     expect(listZenxiangLiyuRecords).toHaveBeenCalledWith({ page: 1, page_size: 20 })
   })
 
+  it('shows the five-ticket cap and two-day retention period', async () => {
+    getZenxiangLiyuStatus.mockResolvedValue({
+      ...makePlayableStatus(),
+      tickets_available: 4,
+      today_tickets_available: 4,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('4')
+    expect(wrapper.text()).toContain('抽奖券有效期 2 天，最多累计 5 张')
+  })
+
   it('shows insufficient balance reason and disables play', async () => {
     getZenxiangLiyuStatus.mockResolvedValue({
       ...makePlayableStatus(),
@@ -196,7 +213,7 @@ describe('ZenxiangLiyuView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('zenxiangLiyu.todayTickets')
+    expect(wrapper.text()).toContain('zenxiangLiyu.availableTickets')
     expect(wrapper.text()).toContain('zenxiangLiyu.ticketPlayHint')
     expect(wrapper.find('[data-testid="zenxiang-play"]').attributes('disabled')).toBeUndefined()
   })
