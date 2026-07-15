@@ -1654,7 +1654,8 @@ const loadUserGroupRates = async () => {
 
 const loadPublicSettings = async () => {
   try {
-    publicSettings.value = await appStore.fetchPublicSettings()
+    const latestSettings = await appStore.fetchPublicSettings(true)
+    publicSettings.value = latestSettings ?? appStore.cachedPublicSettings
   } catch (error) {
     console.error('Failed to load public settings:', error)
   }

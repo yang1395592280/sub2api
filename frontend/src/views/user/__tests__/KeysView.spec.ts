@@ -7,7 +7,7 @@ import KeysView from '../KeysView.vue'
 
 const {
   listKeys,
-  getPublicSettings,
+  fetchPublicSettings,
   getDashboardApiKeysUsage,
   getAvailableGroups,
   getUserGroupRates,
@@ -18,7 +18,7 @@ const {
   nextStep,
 } = vi.hoisted(() => ({
   listKeys: vi.fn(),
-  getPublicSettings: vi.fn(),
+  fetchPublicSettings: vi.fn(),
   getDashboardApiKeysUsage: vi.fn(),
   getAvailableGroups: vi.fn(),
   getUserGroupRates: vi.fn(),
@@ -62,9 +62,6 @@ vi.mock('@/api', () => ({
     delete: vi.fn(),
     toggleStatus: vi.fn(),
   },
-  authAPI: {
-    getPublicSettings,
-  },
   usageAPI: {
     getDashboardApiKeysUsage,
   },
@@ -76,6 +73,8 @@ vi.mock('@/api', () => ({
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
+    fetchPublicSettings,
+    cachedPublicSettings: null,
     showError,
     showSuccess,
   }),
@@ -223,7 +222,11 @@ const mountView = async () => {
         SearchInput: SearchInputStub,
         Icon: IconStub,
         UseKeyModal: true,
-        EndpointPopover: true,
+        EndpointPopover: {
+          name: 'EndpointPopover',
+          props: ['apiBaseUrl', 'customEndpoints'],
+          template: '<div data-test="endpoint-popover" />',
+        },
         GroupBadge: true,
         GroupOptionItem: true,
         Teleport: true,
@@ -254,7 +257,7 @@ describe('user KeysView column settings', () => {
     localStorage.clear()
 
     listKeys.mockReset()
-    getPublicSettings.mockReset()
+    fetchPublicSettings.mockReset()
     getDashboardApiKeysUsage.mockReset()
     getAvailableGroups.mockReset()
     getUserGroupRates.mockReset()
@@ -271,7 +274,7 @@ describe('user KeysView column settings', () => {
       page_size: 20,
       pages: 1,
     })
-    getPublicSettings.mockResolvedValue({})
+    fetchPublicSettings.mockResolvedValue({})
     getDashboardApiKeysUsage.mockResolvedValue({ stats: {} })
     getAvailableGroups.mockResolvedValue([])
     getUserGroupRates.mockResolvedValue({})
@@ -295,6 +298,32 @@ describe('user KeysView column settings', () => {
     expect(visibleColumnKeys(wrapper)).not.toContain('rate_limit')
     expect(visibleColumnKeys(wrapper)).not.toContain('last_used_at')
     expect(visibleColumnKeys(wrapper)).not.toContain('last_used_ip')
+  })
+
+  it('refreshes public settings and passes primary and backup endpoints to the endpoint list', async () => {
+    fetchPublicSettings.mockResolvedValueOnce({
+      api_base_url: 'https://www.loomex.top',
+      custom_endpoints: [
+        {
+          name: '备用端点',
+          endpoint: 'https://www.loomex.lol',
+          description: '备用域名',
+        },
+      ],
+    })
+
+    const wrapper = await mountView()
+    const endpointPopover = wrapper.getComponent({ name: 'EndpointPopover' })
+
+    expect(fetchPublicSettings).toHaveBeenCalledWith(true)
+    expect(endpointPopover.props('apiBaseUrl')).toBe('https://www.loomex.top')
+    expect(endpointPopover.props('customEndpoints')).toEqual([
+      {
+        name: '备用端点',
+        endpoint: 'https://www.loomex.lol',
+        description: '备用域名',
+      },
+    ])
   })
 
   it('shows a hidden column when toggled and persists the preference', async () => {

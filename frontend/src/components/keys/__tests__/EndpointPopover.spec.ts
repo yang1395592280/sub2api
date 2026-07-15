@@ -67,4 +67,29 @@ describe('EndpointPopover', () => {
     expect(wrapper.find('button[aria-label="已复制到剪贴板"]').exists()).toBe(true)
   })
 
+  it('同时展示主端点和多个备用端点，且仅主端点标记为默认', () => {
+    const wrapper = mount(EndpointPopover, {
+      props: {
+        apiBaseUrl: 'https://www.loomex.top',
+        customEndpoints: [
+          {
+            name: '备用端点',
+            endpoint: 'https://www.loomex.lol',
+            description: '备用域名',
+          },
+          {
+            name: '第二备用端点',
+            endpoint: 'https://backup.example.com',
+            description: '第二备用域名',
+          },
+        ],
+      },
+    })
+
+    expect(wrapper.text()).toContain('https://www.loomex.top')
+    expect(wrapper.text()).toContain('https://www.loomex.lol')
+    expect(wrapper.text()).toContain('https://backup.example.com')
+    expect(wrapper.text().match(/默认/g)).toHaveLength(1)
+  })
+
 })
