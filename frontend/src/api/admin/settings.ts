@@ -926,7 +926,9 @@ export interface UpdateSettingsRequest {
  * @returns System settings
  */
 export async function getSettings(): Promise<SystemSettings> {
-  const { data } = await apiClient.get<SystemSettings>("/admin/settings");
+  const { data } = await apiClient.get<SystemSettings>("/admin/settings", {
+    params: { _ts: Date.now() },
+  });
   return data;
 }
 

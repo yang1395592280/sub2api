@@ -83,6 +83,7 @@ func (h *SettingHandler) SetNotificationEmailService(notificationEmailService *s
 // GetSettings 获取所有系统设置
 // GET /api/v1/admin/settings
 func (h *SettingHandler) GetSettings(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
 	settings, err := h.settingService.GetAllSettings(c.Request.Context())
 	if err != nil {
 		response.ErrorFrom(c, err)
