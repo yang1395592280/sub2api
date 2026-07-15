@@ -134,6 +134,9 @@ type UpdateSettingsRequest struct {
 	ContactInfo                 string                `json:"contact_info"`
 	DocURL                      string                `json:"doc_url"`
 	HomeContent                 string                `json:"home_content"`
+	JoinGroupEnabled            *bool                 `json:"join_group_enabled"`
+	JoinGroupURL                *string               `json:"join_group_url"`
+	JoinGroupPopupImage         *string               `json:"join_group_popup_image"`
 	HideCcsImportButton         bool                  `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled *bool                 `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL     *string               `json:"purchase_subscription_url"`
@@ -900,6 +903,18 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	if req.PurchaseSubscriptionURL != nil {
 		purchaseURL = strings.TrimSpace(*req.PurchaseSubscriptionURL)
 	}
+	joinGroupEnabled := previousSettings.JoinGroupEnabled
+	if req.JoinGroupEnabled != nil {
+		joinGroupEnabled = *req.JoinGroupEnabled
+	}
+	joinGroupURL := previousSettings.JoinGroupURL
+	if req.JoinGroupURL != nil {
+		joinGroupURL = strings.TrimSpace(*req.JoinGroupURL)
+	}
+	joinGroupPopupImage := previousSettings.JoinGroupPopupImage
+	if req.JoinGroupPopupImage != nil {
+		joinGroupPopupImage = strings.TrimSpace(*req.JoinGroupPopupImage)
+	}
 
 	// - 启用时要求 URL 合法且非空
 	// - 禁用时允许为空；若提供了 URL 也做基本校验，避免误配置
@@ -1266,6 +1281,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ContactInfo:                            req.ContactInfo,
 		DocURL:                                 req.DocURL,
 		HomeContent:                            req.HomeContent,
+		JoinGroupEnabled:                       joinGroupEnabled,
+		JoinGroupURL:                           joinGroupURL,
+		JoinGroupPopupImage:                    joinGroupPopupImage,
 		HideCcsImportButton:                    req.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:            purchaseEnabled,
 		PurchaseSubscriptionURL:                purchaseURL,
@@ -1773,6 +1791,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ContactInfo:                                            updatedSettings.ContactInfo,
 		DocURL:                                                 updatedSettings.DocURL,
 		HomeContent:                                            updatedSettings.HomeContent,
+		JoinGroupEnabled:                                       updatedSettings.JoinGroupEnabled,
+		JoinGroupURL:                                           updatedSettings.JoinGroupURL,
+		JoinGroupPopupImage:                                    updatedSettings.JoinGroupPopupImage,
 		HideCcsImportButton:                                    updatedSettings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:                            updatedSettings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                                updatedSettings.PurchaseSubscriptionURL,
