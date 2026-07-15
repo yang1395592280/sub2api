@@ -84,7 +84,7 @@ func TestAccountHandlerRefreshUpstreamBalance(t *testing.T) {
 		return jsonResponse(http.StatusOK, `{"remaining":1.25,"unit":"USD"}`), nil
 	}))
 
-	h := NewAccountHandler(newStubAdminService(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, balanceSvc, nil)
+	h := NewAccountHandler(newStubAdminService(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, balanceSvc, nil)
 	r := gin.New()
 	r.POST("/accounts/:id/upstream-balance/refresh", h.RefreshUpstreamBalance)
 

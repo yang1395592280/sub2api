@@ -83,7 +83,7 @@ func TestAccountHandler_TestUpstreamCheckinReturnsUpdatedAccount(t *testing.T) {
 		loc,
 	)
 
-	h := NewAccountHandler(newStubAdminService(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, checkinSvc)
+	h := NewAccountHandler(newStubAdminService(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, checkinSvc)
 	r := gin.New()
 	r.POST("/accounts/:id/upstream-checkin/test", h.TestUpstreamCheckin)
 
@@ -115,7 +115,7 @@ func TestAccountHandler_TestUpstreamCheckinRejectsNonSub2APIAccount(t *testing.T
 	}
 	checkinSvc := service.NewSub2APICheckinService(repo, nil, time.FixedZone("CST", 8*3600))
 
-	h := NewAccountHandler(newStubAdminService(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, checkinSvc)
+	h := NewAccountHandler(newStubAdminService(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, checkinSvc)
 	r := gin.New()
 	r.POST("/accounts/:id/upstream-checkin/test", h.TestUpstreamCheckin)
 

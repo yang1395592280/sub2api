@@ -539,7 +539,7 @@ func TestOpenAIAutoSchedulerOutcomeRecorderRecordsPassthroughHTTPOutcome(t *test
 		Schedulable: true,
 	}
 
-	_, err := svc.forwardOpenAIPassthrough(context.Background(), c, account, requestBody, "gpt-5.4", nil, false, time.Now())
+	_, err := svc.forwardOpenAIPassthrough(context.Background(), c, account, requestBody, requestBody, "gpt-5.4", false, nil, false, time.Now())
 	require.NoError(t, err)
 	require.NoError(t, recorder.Stop(context.Background()))
 

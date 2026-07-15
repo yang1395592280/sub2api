@@ -30,7 +30,7 @@ func setupAccountListRouter() (*gin.Engine, *stubAdminService) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	adminSvc := newStubAdminService()
-	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	router.GET("/api/v1/admin/accounts", handler.List)
 	return router, adminSvc
 }
@@ -82,7 +82,7 @@ func TestAccountHandlerListIncludesOpenAIAutoSchedulerSummaryForGroup(t *testing
 			},
 		},
 	}
-	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	handler.SetOpenAIAutoSchedulerAccountSummaryService(summarySvc)
 	router = gin.New()
 	router.GET("/api/v1/admin/accounts", handler.List)
@@ -116,7 +116,7 @@ func TestAccountHandlerListUsesFirstAccountGroupForOpenAIAutoSchedulerSummary(t 
 			},
 		},
 	}
-	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	handler.SetOpenAIAutoSchedulerAccountSummaryService(summarySvc)
 	router = gin.New()
 	router.GET("/api/v1/admin/accounts", handler.List)
