@@ -502,6 +502,35 @@ func (s *adminServiceImpl) BatchUpdateConcurrency(ctx context.Context, userIDs [
 	return affected, nil
 }
 
+func (s *adminServiceImpl) BatchUpdateLimits(ctx context.Context, userIDs []int64, concurrency, rpmLimit *int) (int, error) {
+	if concurrency == nil && rpmLimit == nil {
+		return 0, fmt.Errorf("at least one of concurrency or rpm_limit is required")
+	}
+	seen := make(map[int64]struct{}, len(userIDs))
+	cleaned := make([]int64, 0, len(userIDs))
+	for _, id := range userIDs {
+		if id > 0 {
+			if _, ok := seen[id]; !ok {
+				seen[id] = struct{}{}
+				cleaned = append(cleaned, id)
+			}
+		}
+	}
+	if len(cleaned) == 0 {
+		return 0, nil
+	}
+	affected, err := s.userRepo.BatchUpdateLimits(ctx, cleaned, concurrency, rpmLimit)
+	if err != nil {
+		return 0, err
+	}
+	if s.authCacheInvalidator != nil {
+		for _, id := range cleaned {
+			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, id)
+		}
+	}
+	return affected, nil
+}
+
 func (s *adminServiceImpl) BatchAddBalanceToUsers(ctx context.Context, userIDs []int64, balance float64, operation string, notes string) (int, error) {
 	if operation == "" {
 		operation = "add"

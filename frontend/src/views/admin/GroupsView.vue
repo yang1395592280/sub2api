@@ -384,6 +384,16 @@
                 <span class="text-xs">{{ t("common.edit") }}</span>
               </button>
               <button
+                data-testid="group-duplicate"
+                :disabled="duplicatingGroupIds.has(row.id)"
+                :title="duplicatingGroupIds.has(row.id) ? t('admin.groups.duplicating') : t('admin.groups.duplicate')"
+                @click="handleDuplicate(row)"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 disabled:opacity-50"
+              >
+                <Icon name="copy" size="sm" />
+                <span class="text-xs">{{ duplicatingGroupIds.has(row.id) ? t('admin.groups.duplicating') : t('admin.groups.duplicate') }}</span>
+              </button>
+              <button
                 @click="handleRateMultipliers(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-purple-600 dark:hover:bg-dark-700 dark:hover:text-purple-400"
               >
@@ -4110,6 +4120,7 @@ const showRPMOverridesModal = ref(false);
 const rpmOverridesGroup = ref<AdminGroup | null>(null);
 const showCapacityUsersModal = ref(false);
 const capacityUsersGroup = ref<AdminGroup | null>(null);
+const duplicatingGroupIds = ref(new Set<number>());
 const sortableGroups = ref<AdminGroup[]>([]);
 const createMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
 const editMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
@@ -5356,6 +5367,20 @@ const handleRPMOverrides = (group: AdminGroup) => {
 const handleCapacityUsers = (group: AdminGroup) => {
   capacityUsersGroup.value = group;
   showCapacityUsersModal.value = true;
+};
+
+const handleDuplicate = async (group: AdminGroup) => {
+  if (duplicatingGroupIds.value.has(group.id)) return;
+  duplicatingGroupIds.value.add(group.id);
+  try {
+    await adminAPI.groups.duplicate(group.id);
+    appStore.showSuccess(t("admin.groups.duplicateSuccess"));
+    await loadGroups();
+  } catch (error: any) {
+    appStore.showError(error.response?.data?.detail || error.message || t("admin.groups.duplicateFailed"));
+  } finally {
+    duplicatingGroupIds.value.delete(group.id);
+  }
 };
 
 const handleDelete = (group: AdminGroup) => {
