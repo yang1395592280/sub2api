@@ -320,6 +320,76 @@ func TestOpenAISchedulerOverviewServiceBuildsRankingFromSharedPolicyAndActualTra
 	require.Equal(t, now, repo.actualCall.EndTime)
 }
 
+func TestOpenAISchedulerOverviewServiceAggregatesRankingByPhysicalAccountAcrossModels(t *testing.T) {
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	price := 0.4
+	base := OpenAISchedulerHealthRecord{
+		GroupID: 33, GroupStatus: StatusActive, GroupAutoSchedulerEnabled: true,
+		AccountStatus: StatusActive, Schedulable: true, Endpoint: "responses", Transport: "http_sse",
+		State: OpenAIAutoSchedulerStateRunning, RealSampleCount: 20, LoadCapacity: 10,
+		ChannelPrice: &price, UpdatedAt: now.Add(-time.Second), ExpiresAt: now.Add(time.Minute),
+	}
+	health := func(accountID int64, name, model string, ttft float64) OpenAISchedulerHealthRecord {
+		record := base
+		record.AccountID = accountID
+		record.AccountName = name
+		record.ModelFamily = model
+		record.PredictedTTFTMS = ttft
+		return record
+	}
+	actual := func(accountID int64, model string, requests int64, p50 float64) OpenAISchedulerRankingActual {
+		return OpenAISchedulerRankingActual{
+			Key: OpenAISchedulerRankingActualKey{
+				AccountID: accountID, ModelFamily: model, Endpoint: "responses", Transport: "http_sse",
+			},
+			RequestCount: requests, TTFTP50MS: p50, TTFTP90MS: p50 * 2, EstimatedCost: float64(requests) * price,
+		}
+	}
+	repo := &openAISchedulerOverviewRepoStub{
+		healthItems: []OpenAISchedulerHealthRecord{
+			health(10, "account-a", "codex-auto-review", 800),
+			health(20, "account-b", "codex-auto-review", 1000),
+			health(10, "account-a", "gpt-5.4", 900),
+			health(20, "account-b", "gpt-5.4", 700),
+		},
+		actualItems: []OpenAISchedulerRankingActual{
+			actual(10, "codex-auto-review", 80, 850),
+			actual(20, "codex-auto-review", 20, 1050),
+			actual(10, "gpt-5.4", 10, 950),
+			actual(20, "gpt-5.4", 90, 750),
+		},
+	}
+	settings := DefaultOpenAIAutoSchedulerSettings()
+	settings.Enabled = true
+	settings.ShadowMode = false
+	svc := NewOpenAISchedulerOverviewService(repo)
+	svc.settings = openAISchedulerOverviewSettingsStub{settings: settings, engineEnabled: true}
+	svc.now = func() time.Time { return now }
+
+	got, err := svc.ListRankings(context.Background(), OpenAISchedulerRankingParams{
+		GroupID: 33, Window: time.Hour, Page: 1, PageSize: 20,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, got.Summary.CandidateCount)
+	require.Equal(t, int64(200), got.Summary.RequestCount)
+	require.Equal(t, int64(2), got.Total)
+	require.Len(t, got.Items, 2)
+	byAccountID := make(map[int64]OpenAISchedulerRankingItem, len(got.Items))
+	for _, item := range got.Items {
+		byAccountID[item.AccountID] = item
+	}
+	require.Len(t, byAccountID, 2)
+	require.Equal(t, 2, byAccountID[10].PartitionCount)
+	require.Equal(t, 2, byAccountID[20].PartitionCount)
+	require.Empty(t, byAccountID[10].Partition.ModelFamily)
+	require.Equal(t, int64(90), byAccountID[10].SelectedRequests)
+	require.Equal(t, int64(110), byAccountID[20].SelectedRequests)
+	require.InDelta(t, 0.45, byAccountID[10].ActualShare, 0.0001)
+	require.InDelta(t, 0.55, byAccountID[20].ActualShare, 0.0001)
+	require.InDelta(t, 1, byAccountID[10].TargetShare+byAccountID[20].TargetShare, 0.0001)
+}
+
 func TestOpenAISchedulerOverviewServiceMarksLegacyFallbackWhenEngineIsDisabled(t *testing.T) {
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
 	repo := &openAISchedulerOverviewRepoStub{healthItems: []OpenAISchedulerHealthRecord{{

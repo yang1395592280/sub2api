@@ -94,7 +94,7 @@ export default {
       },
       ranking: {
         pending: '等待策略计算', engineDisabled: '高级调度引擎未开启 · 当前使用上游兼容调度', globalDisabled: '自动调度全局未开启 · 当前使用高级 Legacy', groupDisabled: '当前分组未开启自动调度 · 当前使用高级 Legacy', shadowEffective: '{mode} · 影子计算，真实流量仍使用 Legacy', liveEffective: '{mode} · 真实生效',
-        candidates: '候选', eligible: '合格', lowConfidence: '低置信度', rejected: '排除', requests: '窗口请求', allEligibility: '全部资格', rank: '排名', qualification: '资格', utility: '综合效用', share: '目标 / 实际份额', target: '目标', actual: '实际', performance: '性能', stability: '稳定性', cost: '成本', decision: '决策摘要', noData: '当前分组暂无可排名账号', drawerLabel: '账号排名详情', scoreBreakdown: '综合效用拆解', runtimeFacts: '运行事实', confidence: '置信度', noDeviation: '份额偏差正常',
+        candidates: '真实账号', eligible: '合格', lowConfidence: '低置信度', rejected: '排除', requests: '窗口请求', allEligibility: '全部资格', rank: '排名', qualification: '资格', utility: '综合效用', share: '目标 / 实际份额', target: '目标', actual: '实际', performance: '性能', stability: '稳定性', cost: '成本', decision: '决策摘要', noData: '当前分组暂无可排名账号', drawerLabel: '账号排名详情', scoreBreakdown: '综合效用拆解', runtimeFacts: '运行事实', confidence: '置信度', noDeviation: '份额偏差正常', comprehensiveScope: '综合账号视图', comprehensiveAccount: '按真实账号汇总', aggregatedPartitions: '聚合 {count} 个调度维度',
         eligibility: { eligible: '合格', lowConfidence: '低置信度', latencyTail: '延迟尾部', hardRejected: '硬条件排除' },
         decisions: { highestUtility: '综合效用最高', weightedAllocation: '按目标份额分配', fallbackOnly: '仅作为回退候选', healthUnavailable: '健康数据不足', latencyBudgetExceeded: '超出延迟预算' },
         deviations: { healthLowConfidence: '健康置信度较低', insufficientSamples: '窗口样本不足', shadowMode: '影子模式不影响真实流量', legacyFallback: '真实流量由 Legacy 调度', other: '存在结构化偏差原因' },

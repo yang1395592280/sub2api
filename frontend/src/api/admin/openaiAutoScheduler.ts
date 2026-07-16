@@ -261,6 +261,7 @@ export interface OpenAISchedulerRankingSummary {
 
 export interface OpenAISchedulerRankingItem {
   partition: OpenAISchedulerRankingPartition
+  partition_count: number
   rank: number
   account_id: number
   account_name: string

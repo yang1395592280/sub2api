@@ -3,7 +3,7 @@
     <div v-if="open && item" class="fixed inset-0 z-50 flex justify-end bg-black/35" @click.self="emit('close')">
       <aside class="h-full w-full max-w-lg overflow-y-auto bg-white shadow-xl dark:bg-dark-900" :aria-label="t('admin.openaiAutoScheduler.ranking.drawerLabel')">
         <header class="sticky top-0 z-10 flex items-start justify-between border-b border-gray-200 bg-white px-5 py-4 dark:border-dark-700 dark:bg-dark-900">
-          <div class="min-w-0"><h2 class="truncate text-base font-semibold text-gray-950 dark:text-white">{{ item.account_name }}</h2><p class="text-xs text-gray-500">#{{ item.account_id }} · {{ item.partition.model_family }} · {{ item.partition.endpoint }}</p></div>
+          <div class="min-w-0"><h2 class="truncate text-base font-semibold text-gray-950 dark:text-white">{{ item.account_name }}</h2><p class="text-xs text-gray-500">#{{ item.account_id }} · {{ scopeLabel }}</p></div>
           <button type="button" class="rounded p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-800" :title="t('admin.openaiAutoScheduler.actions.close')" @click="emit('close')"><Icon name="x" size="sm" /></button>
         </header>
         <div class="space-y-6 px-5 py-5">
@@ -47,6 +47,13 @@ import { useI18n } from 'vue-i18n'
 const props = defineProps<{ open: boolean; item: OpenAISchedulerRankingItem | null }>()
 const emit = defineEmits<{ (event: 'close'): void }>()
 const { t } = useI18n()
+const scopeLabel = computed(() => {
+  if (!props.item) return ''
+  if (props.item.partition_count > 1) {
+    return t('admin.openaiAutoScheduler.ranking.aggregatedPartitions', { count: props.item.partition_count })
+  }
+  return [props.item.partition.model_family, props.item.partition.endpoint].filter(Boolean).join(' · ') || t('admin.openaiAutoScheduler.ranking.comprehensiveScope')
+})
 const scores = computed(() => props.item ? [
   { key: 'latency', label: t('admin.openaiAutoScheduler.ranking.scores.latency'), value: props.item.latency_score },
   { key: 'reliability', label: t('admin.openaiAutoScheduler.ranking.scores.reliability'), value: props.item.reliability_score },
