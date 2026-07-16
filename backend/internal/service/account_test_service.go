@@ -80,7 +80,7 @@ type AccountTestService struct {
 }
 
 type OpenAIAccountScheduleResultReporter interface {
-	ReportOpenAIAccountScheduleResult(accountID int64, success bool, firstTokenMs *int)
+	ReportOpenAIAccountScheduleResult(accountID int64, model string, success bool, firstTokenMs *int)
 }
 
 // NewAccountTestService creates a new AccountTestService
@@ -214,11 +214,11 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	return s.testClaudeAccountConnection(c, account, modelID)
 }
 
-func (s *AccountTestService) reportOpenAIAccountTestResult(accountID int64, success bool) {
+func (s *AccountTestService) reportOpenAIAccountTestResult(accountID int64, model string, success bool) {
 	if s == nil || s.openAIScheduleReporter == nil || accountID <= 0 {
 		return
 	}
-	s.openAIScheduleReporter.ReportOpenAIAccountScheduleResult(accountID, success, nil)
+	s.openAIScheduleReporter.ReportOpenAIAccountScheduleResult(accountID, model, success, nil)
 }
 
 // testClaudeAccountConnection tests an Anthropic Claude account's connection
@@ -523,11 +523,6 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 
 // testOpenAIAccountConnection tests an OpenAI account's connection
 func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account *Account, modelID string, prompt string, mode string) (err error) {
-	if account != nil {
-		defer func() {
-			s.reportOpenAIAccountTestResult(account.ID, err == nil)
-		}()
-	}
 	ctx := c.Request.Context()
 	mode = normalizeAccountTestMode(mode)
 
@@ -535,6 +530,11 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	testModelID := modelID
 	if testModelID == "" {
 		testModelID = openai.DefaultTestModel
+	}
+	if account != nil {
+		defer func() {
+			s.reportOpenAIAccountTestResult(account.ID, testModelID, err == nil)
+		}()
 	}
 
 	// Align test routing with gateway behavior: OpenAI accounts apply normal

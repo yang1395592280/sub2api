@@ -44,7 +44,10 @@ func ProvideAdminHandlers(
 	affiliateHandler *admin.AffiliateHandler,
 	complianceHandler *admin.ComplianceHandler,
 	zenxiangLiyuHandler *admin.ZenxiangLiyuHandler,
+	auditLogHandler *admin.AuditLogHandler,
+	upstreamBillingProbe *service.UpstreamBillingProbeService,
 ) *AdminHandlers {
+	accountHandler.SetUpstreamBillingProbeService(upstreamBillingProbe)
 	return &AdminHandlers{
 		Dashboard:              dashboardHandler,
 		User:                   userHandler,
@@ -81,6 +84,7 @@ func ProvideAdminHandlers(
 		Affiliate:              affiliateHandler,
 		Compliance:             complianceHandler,
 		ZenxiangLiyu:           zenxiangLiyuHandler,
+		AuditLog:               auditLogHandler,
 	}
 }
 
@@ -103,8 +107,8 @@ func ProvideAdminSettingHandler(settingService *service.SettingService, emailSer
 	return h
 }
 
-func ProvideAdminUserHandler(adminService service.AdminService, concurrencyService *service.ConcurrencyService, userPlatformQuotaRepo service.UserPlatformQuotaRepository, billingCache service.BillingCache, apiKeyRepo service.APIKeyRepository) *admin.UserHandler {
-	return admin.NewUserHandler(adminService, concurrencyService, userPlatformQuotaRepo, billingCache, apiKeyRepo)
+func ProvideAdminUserHandler(adminService service.AdminService, concurrencyService *service.ConcurrencyService, userPlatformQuotaRepo service.UserPlatformQuotaRepository, billingCache service.BillingCache, totpService *service.TotpService, userService *service.UserService, apiKeyRepo service.APIKeyRepository) *admin.UserHandler {
+	return admin.NewUserHandler(adminService, concurrencyService, userPlatformQuotaRepo, billingCache, totpService, userService, apiKeyRepo)
 }
 
 func ProvideZenxiangLiyuHandler(service *service.ZenxiangLiyuService) *ZenxiangLiyuHandler {
@@ -177,6 +181,7 @@ func ProvideHandlers(
 	paymentWebhookHandler *PaymentWebhookHandler,
 	availableChannelHandler *AvailableChannelHandler,
 	workbenchHandler *WorkbenchHandler,
+	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
 	zenxiangLiyuHandler *ZenxiangLiyuHandler,
 	_ *service.IdempotencyCoordinator,
@@ -200,6 +205,7 @@ func ProvideHandlers(
 		PaymentWebhook:   paymentWebhookHandler,
 		AvailableChannel: availableChannelHandler,
 		Workbench:        workbenchHandler,
+		AsyncImage:       asyncImageHandler,
 		BatchImage:       batchImageHandler,
 		ZenxiangLiyu:     zenxiangLiyuHandler,
 	}
@@ -224,6 +230,7 @@ var ProviderSet = wire.NewSet(
 	NewPaymentWebhookHandler,
 	NewAvailableChannelHandler,
 	NewWorkbenchHandler,
+	NewAsyncImageHandler,
 	NewBatchImageHandler,
 	ProvideZenxiangLiyuHandler,
 	ProvideAdminZenxiangLiyuHandler,
@@ -263,6 +270,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewPaymentHandler,
 	admin.NewAffiliateHandler,
 	admin.NewComplianceHandler,
+	admin.NewAuditLogHandler,
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,

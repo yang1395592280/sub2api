@@ -65,6 +65,12 @@ type AccountHandler struct {
 	sub2APICheckinService   *service.Sub2APICheckinService
 	openAIAutoScheduler     openAIAutoSchedulerAccountSummaryService
 	grokImportProber        grokUsageProber
+	upstreamBillingProbe    *service.UpstreamBillingProbeService
+}
+
+// SetUpstreamBillingProbeService attaches the optional remote billing probe service.
+func (h *AccountHandler) SetUpstreamBillingProbeService(probe *service.UpstreamBillingProbeService) {
+	h.upstreamBillingProbe = probe
 }
 
 type openAIAutoSchedulerAccountSummaryService interface {

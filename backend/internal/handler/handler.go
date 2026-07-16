@@ -41,6 +41,7 @@ type AdminHandlers struct {
 	Affiliate              *admin.AffiliateHandler
 	Compliance             *admin.ComplianceHandler
 	ZenxiangLiyu           *admin.ZenxiangLiyuHandler
+	AuditLog               *admin.AuditLogHandler
 }
 
 // Handlers contains all HTTP handlers
@@ -62,6 +63,7 @@ type Handlers struct {
 	PaymentWebhook   *PaymentWebhookHandler
 	AvailableChannel *AvailableChannelHandler
 	Workbench        *WorkbenchHandler
+	AsyncImage       *AsyncImageHandler
 	BatchImage       *BatchImageHandler
 	ZenxiangLiyu     *ZenxiangLiyuHandler
 }

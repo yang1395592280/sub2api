@@ -47,6 +47,8 @@ func TestRegisterAdminRoutesProtectsOpenAIAutoSchedulerOverviewWithAdminAuth(t *
 		&handler.Handlers{Admin: &handler.AdminHandlers{}},
 		servermiddleware.AdminAuthMiddleware(func(c *gin.Context) { c.AbortWithStatus(http.StatusUnauthorized) }),
 		nil,
+		nil,
+		nil,
 	)
 
 	rec := httptest.NewRecorder()

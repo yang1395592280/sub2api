@@ -83,7 +83,7 @@ type openAIAccountTestScheduleReportCall struct {
 	firstTokenMs *int
 }
 
-func (r *openAIAccountTestScheduleReporter) ReportOpenAIAccountScheduleResult(accountID int64, success bool, firstTokenMs *int) {
+func (r *openAIAccountTestScheduleReporter) ReportOpenAIAccountScheduleResult(accountID int64, model string, success bool, firstTokenMs *int) {
 	r.calls = append(r.calls, openAIAccountTestScheduleReportCall{
 		accountID:    accountID,
 		success:      success,

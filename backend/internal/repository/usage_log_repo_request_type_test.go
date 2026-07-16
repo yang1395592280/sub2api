@@ -60,6 +60,8 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			log.CacheCreation1hTokens,
 			log.ImageOutputTokens,
 			log.ImageOutputCost,
+			log.ImageInputTokens,
+			log.ImageInputCost,
 			log.InputCost,
 			log.OutputCost,
 			log.CacheCreationCost,
@@ -175,6 +177,8 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			log.CacheCreation1hTokens,
 			log.ImageOutputTokens,
 			log.ImageOutputCost,
+			log.ImageInputTokens,
+			log.ImageInputCost,
 			log.InputCost,
 			log.OutputCost,
 			log.CacheCreationCost,
@@ -303,11 +307,11 @@ func TestPrepareUsageLogInsertPersistsSchedulerTimingAfterFirstToken(t *testing.
 		CreatedAt:       time.Date(2025, 1, 5, 12, 0, 0, 0, time.UTC),
 	})
 
-	require.Equal(t, sql.NullInt64{Int64: 900, Valid: true}, prepared.args[32])
-	require.Equal(t, sql.NullInt64{Int64: 1180, Valid: true}, prepared.args[33])
-	require.Equal(t, sql.NullInt64{Int64: 20, Valid: true}, prepared.args[34])
-	require.Equal(t, sql.NullInt64{Int64: 200, Valid: true}, prepared.args[35])
-	require.Equal(t, sql.NullInt64{Int64: 60, Valid: true}, prepared.args[36])
+	require.Equal(t, sql.NullInt64{Int64: 900, Valid: true}, prepared.args[34])
+	require.Equal(t, sql.NullInt64{Int64: 1180, Valid: true}, prepared.args[35])
+	require.Equal(t, sql.NullInt64{Int64: 20, Valid: true}, prepared.args[36])
+	require.Equal(t, sql.NullInt64{Int64: 200, Valid: true}, prepared.args[37])
+	require.Equal(t, sql.NullInt64{Int64: 60, Valid: true}, prepared.args[38])
 }
 
 func TestPrepareUsageLogInsert_PersistsAPIKeyGroupSelectModeSnapshot(t *testing.T) {
@@ -365,11 +369,11 @@ func TestPrepareUsageLogInsert_PersistsImageSizeMetadata(t *testing.T) {
 		CreatedAt:          time.Date(2025, 1, 6, 12, 0, 0, 0, time.UTC),
 	})
 
-	require.Equal(t, sql.NullString{String: imageSize, Valid: true}, prepared.args[40])
-	require.Equal(t, sql.NullString{String: inputSize, Valid: true}, prepared.args[41])
-	require.Equal(t, sql.NullString{String: outputSize, Valid: true}, prepared.args[42])
-	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[43])
-	breakdownJSON, ok := prepared.args[44].(string)
+	require.Equal(t, sql.NullString{String: imageSize, Valid: true}, prepared.args[42])
+	require.Equal(t, sql.NullString{String: inputSize, Valid: true}, prepared.args[43])
+	require.Equal(t, sql.NullString{String: outputSize, Valid: true}, prepared.args[44])
+	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[45])
+	breakdownJSON, ok := prepared.args[46].(string)
 	require.True(t, ok)
 	require.JSONEq(t, `{"1K":1,"4K":1}`, breakdownJSON)
 }
@@ -393,9 +397,9 @@ func TestPrepareUsageLogInsert_PersistsChannelPriceSnapshot(t *testing.T) {
 
 	require.Contains(t, usageLogSelectColumns, "channel_price_snapshot")
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	require.Equal(t, &price, prepared.args[59])
-	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[60])
-	require.Equal(t, sql.NullTime{Time: refreshedAt, Valid: true}, prepared.args[61])
+	require.Equal(t, &price, prepared.args[61])
+	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[62])
+	require.Equal(t, sql.NullTime{Time: refreshedAt, Valid: true}, prepared.args[63])
 }
 
 func TestScanUsageLogSchedulerTimingAndChannelPriceSnapshot(t *testing.T) {
@@ -425,6 +429,8 @@ func TestScanUsageLogSchedulerTimingAndChannelPriceSnapshot(t *testing.T) {
 		0,                                 // cache_creation_1h_tokens
 		0,                                 // image_output_tokens
 		0.0,                               // image_output_cost
+		0,                                 // image_input_tokens
+		0.0,                               // image_input_cost
 		0.0,                               // input_cost
 		0.0,                               // output_cost
 		0.0,                               // cache_creation_cost
@@ -1093,6 +1099,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			0, 0, 0, 0, 0, 0,
 			0, 0.0, // image_output_tokens, image_output_cost
+			0, 0.0, // image_input_tokens, image_input_cost
 			0.0, 0.0, 0.0, 0.0, 0.8, 0.8,
 			1.0,
 			sql.NullFloat64{},
@@ -1173,6 +1180,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			6,                 // cache_creation_1h_tokens
 			0,                 // image_output_tokens
 			0.0,               // image_output_cost
+			0,                 // image_input_tokens
+			0.0,               // image_input_cost
 			0.1,               // input_cost
 			0.2,               // output_cost
 			0.3,               // cache_creation_cost
@@ -1243,6 +1252,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			1, 2, 3, 4, 5, 6,
 			0, 0.0, // image_output_tokens, image_output_cost
+			0, 0.0, // image_input_tokens, image_input_cost
 			0.1, 0.2, 0.3, 0.4, 1.0, 0.9,
 			1.0,
 			sql.NullFloat64{},
@@ -1308,6 +1318,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{Valid: true, String: service.APIKeyGroupSelectModeOpenAIAutoCheapest},
 			1, 2, 3, 4, 5, 6,
 			0, 0.0, // image_output_tokens, image_output_cost
+			0, 0.0, // image_input_tokens, image_input_cost
 			0.1, 0.2, 0.3, 0.4, 1.0, 0.9,
 			1.0,
 			sql.NullFloat64{},

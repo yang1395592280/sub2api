@@ -915,6 +915,48 @@ export interface OpenAIAutoSchedulerAccountSummary {
   last_checked_at?: string | null
 }
 
+export interface UpstreamBillingData {
+  object: 'sub2api.key_billing'
+  schema_version: 1
+  billing_scope: 'token'
+  group_rate_multiplier: number
+  user_rate_multiplier?: number
+  resolved_rate_multiplier: number
+  peak_rate_enabled: boolean
+  peak_start?: string
+  peak_end?: string
+  peak_rate_multiplier?: number
+  applied_peak_multiplier?: number
+  effective_rate_multiplier: number
+  timezone?: string
+  observed_at: string
+}
+
+export type UpstreamBillingProbeStatus = 'ok' | 'unsupported' | 'failed'
+
+export interface UpstreamBillingProbeSnapshot {
+  status: UpstreamBillingProbeStatus
+  data?: UpstreamBillingData
+  received_at?: string
+  fresh_until?: string
+  last_attempt_at: string
+  next_probe_at: string
+  failure_count?: number
+  http_status?: number
+  last_error?: string
+}
+
+export interface UpstreamBillingProbeSettings {
+  enabled: boolean
+  interval_minutes: number
+}
+
+export interface UpstreamBillingProbeResult {
+  account_id: number
+  snapshot?: UpstreamBillingProbeSnapshot
+  error?: string
+}
+
 export interface Account {
   id: number
   name: string
@@ -949,6 +991,8 @@ export interface Account {
     upstream_price_guard_actual_multiplier?: number
     upstream_price_guard_checked_at?: string
     upstream_price_guard_error?: string
+    upstream_billing_probe_enabled?: boolean
+    upstream_billing_probe?: UpstreamBillingProbeSnapshot
   } & Record<string, unknown>)
   proxy_id: number | null
   proxy_fallback_origin_id?: number | null
@@ -1485,6 +1529,8 @@ export interface UsageLog {
   image_output_size: string | null
   image_size_source: ImageSizeSource | null
   image_size_breakdown: ImageSizeBreakdown | null
+  image_input_tokens: number
+  image_input_cost: number
   image_output_tokens: number
   image_output_cost: number
 

@@ -838,7 +838,8 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },
     { path: '/admin/workbench', label: t('nav.adminWorkbench'), icon: SparklesIcon },
     { path: '/admin/zenxiang-liyu', label: t('nav.zenxiangLiyuOps'), icon: SparklesIcon, hideInSimpleMode: true },
-    { path: '/admin/user-spending-ranking', label: t('nav.userSpendingRanking'), icon: OrderIcon, hideInSimpleMode: true }
+    { path: '/admin/user-spending-ranking', label: t('nav.userSpendingRanking'), icon: OrderIcon, hideInSimpleMode: true },
+    { path: '/admin/audit-logs', label: t('nav.auditLogs'), icon: ShieldIcon, hideInSimpleMode: true }
   ]
 
   const visible = applyFeatureFlags(baseItems)

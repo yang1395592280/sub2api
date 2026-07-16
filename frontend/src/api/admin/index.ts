@@ -36,6 +36,7 @@ import adminComplianceAPI from './compliance'
 import adminWorkbenchAPI from './workbench'
 import openaiAutoSchedulerAPI from './openaiAutoScheduler'
 import adminZenxiangLiyuAPI from './zenxiangLiyu'
+import auditAPI from './audit'
 
 /**
  * Unified admin API object for convenient access
@@ -73,7 +74,8 @@ export const adminAPI = {
   compliance: adminComplianceAPI,
   workbench: adminWorkbenchAPI,
   openaiAutoScheduler: openaiAutoSchedulerAPI,
-  zenxiangLiyu: adminZenxiangLiyuAPI
+  zenxiangLiyu: adminZenxiangLiyuAPI,
+  audit: auditAPI
 }
 
 export {
@@ -109,12 +111,14 @@ export {
   adminComplianceAPI,
   adminWorkbenchAPI,
   openaiAutoSchedulerAPI,
-  adminZenxiangLiyuAPI
+  adminZenxiangLiyuAPI,
+  auditAPI
 }
 
 export default adminAPI
 
 // Re-export types used by components
+export type { AuditLog, AuditLogQuery, AuditLogListResponse } from './audit'
 export type { BalanceHistoryItem } from './users'
 export type { ErrorPassthroughRule, CreateRuleRequest, UpdateRuleRequest } from './errorPassthrough'
 export type { BackupAgentHealth, DataManagementConfig } from './dataManagement'

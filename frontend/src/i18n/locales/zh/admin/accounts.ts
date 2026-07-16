@@ -111,6 +111,7 @@ export default {
         notes: '备注',
         priority: '优先级',
         billingRateMultiplier: '账号倍率',
+        upstreamBillingRate: '上游声明倍率',
         weight: '权重',
         schedulerScore: '调度权值',
         status: '状态',
@@ -131,9 +132,34 @@ export default {
         baseShort: '普通',
         stickyShort: '粘性',
         ungrouped: '未分组',
-        hint: '显示格式为“分组名 / 基础分 / 粘性加分”。基础分按当前筛选条件限定的候选账号计算，包含优先级、负载、排队、错误率、首包延迟、重置窗口、额度余量等因子；粘性加分只在开启粘性加权时用于 previous_response_id 或 session_hash。分数越大越优先。'
+        hint: '显示格式为“分组名 / 基础分 / 粘性加分”。基础分按当前筛选条件限定的候选账号计算，包含优先级、负载、排队、错误率、首包延迟、重置窗口、额度余量、计费倍率等因子；粘性加分只在开启粘性加权时用于 previous_response_id 或 session_hash。分数越大越优先。'
       },
       usageWindowsHint: '“5h / 7d”是上游账号（如 OpenAI ChatGPT、Claude）官方的滚动用量窗口限制，由上游对账号设定，并非 sub2api 配置，也与你映射的模型无关。窗口滚动到期后用量会自动重置，无法在 sub2api 端解除该限制。',
+      upstreamBilling: {
+        trustWarning: '此倍率由上游站点针对当前 API Key 自行声明。Sub2API 无法验证该值是否与实际扣费一致；上游站点或中间代理可能返回伪造、过期或被篡改的数据。请结合账单、余额变化和实际用量自行核验。',
+        autoProbeSettings: '上游倍率自动探测',
+        intervalMinutes: '探测周期（分钟）',
+        autoProbe: '自动探测',
+        autoProbeHint: '启用后按全局探测周期查询此账号；全局探测关闭时不会执行。',
+        manualProbe: '立即探测上游倍率',
+        stale: '已过期',
+        unsupported: '不支持',
+        failed: '失败',
+        notProbed: '未探测',
+        groupRate: '分组默认：{value}x',
+        userRate: '用户专属倍率：{value}x',
+        peakRate: '高峰：{start}-{end}，{value}x（{timezone}）',
+        noPeakRate: '高峰倍率：未启用',
+        effectiveRate: '当前倍率：{value}x',
+        updatedAt: '更新时间：{value}',
+        settingsSaved: '上游倍率探测设置已保存',
+        settingsFailed: '保存上游倍率探测设置失败',
+        probeFailed: '探测上游倍率失败',
+        noEligibleAccounts: '请选择 OpenAI API Key 账号',
+        batchLimit: '每次最多探测 20 个账号',
+        batchCompleted: '已完成 {count} 个账号的倍率探测',
+        batchPartial: '倍率探测部分完成：成功 {success} 个，失败 {failed} 个'
+      },
       allPrivacyModes: '全部Privacy状态',
       privacyUnset: '未设置',
       privacyTrainingOff: '已关闭训练数据共享',
@@ -431,6 +457,7 @@ export default {
         refreshBalanceNoEligible: '所选账号中没有可刷新上游余额的 OpenAI 账号',
         refreshBalanceSuccess: '已成功刷新 {count} 个账号余额',
         refreshBalancePartial: '余额刷新部分完成：成功 {success} 个，失败 {failed} 个',
+        probeUpstreamBilling: '探测上游倍率',
         resetStatusSuccess: '已成功重置 {count} 个账号状态',
         refreshTokenSuccess: '已成功刷新 {count} 个账号令牌',
         partialSuccess: '操作部分完成：{success} 成功，{failed} 失败'
@@ -730,7 +757,11 @@ export default {
         hint: '开启后账号流量（对话/媒体/探测）改发指定地址；OAuth 授权与令牌刷新不受影响，仍走官方端点。',
         placeholder: 'https://relay.example.com/v1',
         required: '开启自定义上游地址后必须填写地址',
-        invalid: '上游地址格式不正确（需为 http(s):// 开头的完整地址）'
+        invalid: '上游地址格式不正确（需为 http(s):// 开头的完整地址）',
+        presets: {
+          cli: 'Grok Build CLI',
+          official: '官方 API'
+        }
       },
       autoPauseOnExpired: '过期自动暂停调度',
       autoPauseOnExpiredDesc: '启用后，账号过期将自动暂停调度',

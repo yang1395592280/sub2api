@@ -37,6 +37,7 @@
         >
           {{ t('admin.accounts.bulkActions.refreshBalance') }}
         </button>
+        <button @click="$emit('probe-upstream-billing')" class="btn btn-secondary btn-sm">{{ t('admin.accounts.bulkActions.probeUpstreamBilling') }}</button>
         <button @click="$emit('toggle-schedulable', true)" class="btn btn-success btn-sm">{{ t('admin.accounts.bulkActions.enableScheduling') }}</button>
         <button @click="$emit('toggle-schedulable', false)" class="btn btn-warning btn-sm">{{ t('admin.accounts.bulkActions.disableScheduling') }}</button>
         <button @click="$emit('edit-selected')" class="btn btn-primary btn-sm">{{ t('admin.accounts.bulkActions.edit') }}</button>
@@ -50,5 +51,20 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-withDefaults(defineProps<{ selectedIds: number[]; balanceRefreshing?: boolean }>(), { balanceRefreshing: false }); defineEmits(['delete', 'test-selected', 'edit-selected', 'edit-filtered', 'clear', 'select-page', 'toggle-schedulable', 'reset-status', 'refresh-token', 'refresh-balance']); const { t } = useI18n()
+withDefaults(defineProps<{ selectedIds: number[]; balanceRefreshing?: boolean }>(), { balanceRefreshing: false })
+defineEmits([
+  'delete',
+  'test-selected',
+  'edit-selected',
+  'edit-filtered',
+  'clear',
+  'select-page',
+  'toggle-schedulable',
+  'reset-status',
+  'refresh-token',
+  'refresh-balance',
+  'probe-upstream-billing'
+])
+
+const { t } = useI18n()
 </script>

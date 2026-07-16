@@ -155,6 +155,7 @@ export default {
         notes: 'Notes',
         priority: 'Priority',
         billingRateMultiplier: 'Billing Rate',
+        upstreamBillingRate: 'Upstream Declared Rate',
         weight: 'Weight',
         schedulerScore: 'Scheduler Score',
         status: 'Status',
@@ -175,9 +176,34 @@ export default {
         baseShort: 'Base',
         stickyShort: 'Sticky',
         ungrouped: 'Ungrouped',
-        hint: 'Displayed as "group / base score / sticky bonus". The base score is computed within the current filtered candidate set and includes priority, load, queue depth, error rate, first-token latency, reset window, quota headroom, and related factors. The sticky bonus applies only when sticky weighting is enabled for previous_response_id or session_hash. Higher scores are preferred.'
+        hint: 'Displayed as "group / base score / sticky bonus". The base score is computed within the current filtered candidate set and includes priority, load, queue depth, error rate, first-token latency, reset window, quota headroom, billing rate, and related factors. The sticky bonus applies only when sticky weighting is enabled for previous_response_id or session_hash. Higher scores are preferred.'
       },
       usageWindowsHint: '"5h / 7d" are the upstream account\'s official rolling usage windows (e.g. OpenAI ChatGPT, Claude). They are imposed by the upstream provider on the account itself — not configured by sub2api, and unrelated to the models you map. Usage resets automatically once each window rolls over, and the limit cannot be lifted from within sub2api.',
+      upstreamBilling: {
+        trustWarning: 'This rate is declared by the upstream site for the current API key. Sub2API cannot verify that it matches actual charges. The upstream site or an intermediary may return forged, stale, or modified data. Verify it against bills, balance changes, and actual usage.',
+        autoProbeSettings: 'Upstream rate auto probe',
+        intervalMinutes: 'Probe interval (minutes)',
+        autoProbe: 'Auto probe',
+        autoProbeHint: 'Probe this account on the global interval when global probing is enabled.',
+        manualProbe: 'Probe upstream rate now',
+        stale: 'Stale',
+        unsupported: 'Unsupported',
+        failed: 'Failed',
+        notProbed: 'Not probed',
+        groupRate: 'Group default: {value}x',
+        userRate: 'User rate: {value}x',
+        peakRate: 'Peak: {start}-{end}, {value}x ({timezone})',
+        noPeakRate: 'Peak rate: disabled',
+        effectiveRate: 'Current rate: {value}x',
+        updatedAt: 'Updated: {value}',
+        settingsSaved: 'Upstream rate probe settings saved',
+        settingsFailed: 'Failed to save upstream rate probe settings',
+        probeFailed: 'Failed to probe upstream rate',
+        noEligibleAccounts: 'Select OpenAI API key accounts',
+        batchLimit: 'A batch can probe at most 20 accounts',
+        batchCompleted: 'Probed {count} account(s)',
+        batchPartial: 'Probe partially completed: {success} succeeded, {failed} failed'
+      },
       allPrivacyModes: 'All Privacy States',
       privacyUnset: 'Unset',
       privacyTrainingOff: 'Training data sharing disabled',
@@ -327,6 +353,7 @@ export default {
         refreshBalanceNoEligible: 'No selected OpenAI account supports upstream balance refresh',
         refreshBalanceSuccess: 'Refreshed balance for {count} account(s)',
         refreshBalancePartial: 'Balance refresh partially completed: {success} succeeded, {failed} failed',
+        probeUpstreamBilling: 'Probe Upstream Rate',
         resetStatusSuccess: 'Successfully reset {count} account(s) status',
         refreshTokenSuccess: 'Successfully refreshed {count} account(s) token',
         partialSuccess: 'Partially completed: {success} succeeded, {failed} failed'
@@ -637,7 +664,11 @@ export default {
         hint: 'When enabled, account traffic (chat/media/probes) is forwarded to the specified address. OAuth authorization and token refresh are unaffected and stay on the official endpoints.',
         placeholder: 'https://relay.example.com/v1',
         required: 'An address is required when Custom Upstream URL is enabled',
-        invalid: 'Invalid upstream address (must be a full http(s):// URL)'
+        invalid: 'Invalid upstream address (must be a full http(s):// URL)',
+        presets: {
+          cli: 'Grok Build CLI',
+          official: 'Official API'
+        }
       },
       autoPauseOnExpired: 'Auto Pause On Expired',
       autoPauseOnExpiredDesc: 'When enabled, the account will auto pause scheduling after it expires',
