@@ -400,6 +400,7 @@ type OpenAIGatewayService struct {
 	openaiBalancedScheduler         *OpenAIBalancedScheduler
 	openAIAutoCheapestGroupResolver *OpenAIAutoCheapestGroupResolver
 	apiKeyEffectiveGroupUpdater     LastEffectiveGroupUpdater
+	openAIAutoCheapestGroupCircuit  OpenAIAutoCheapestGroupCircuit
 
 	openAIAutoSchedulerOutcomeRecorder *OpenAIAutoSchedulerOutcomeRecorder
 
@@ -500,6 +501,20 @@ func NewOpenAIGatewayService(
 	}
 	svc.logOpenAIWSModeBootstrap()
 	return svc
+}
+
+// SetOpenAIAutoCheapestGroupCircuit injects the distributed short-circuit.
+func (s *OpenAIGatewayService) SetOpenAIAutoCheapestGroupCircuit(circuit OpenAIAutoCheapestGroupCircuit) {
+	if s != nil {
+		s.openAIAutoCheapestGroupCircuit = circuit
+	}
+}
+
+func (s *OpenAIGatewayService) OpenAIAutoCheapestGroupCircuit() OpenAIAutoCheapestGroupCircuit {
+	if s == nil {
+		return nil
+	}
+	return s.openAIAutoCheapestGroupCircuit
 }
 
 // ResolveChannelMapping 解析渠道级模型映射（代理到 ChannelService）

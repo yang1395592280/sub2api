@@ -225,12 +225,27 @@ func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerOutcome(
 	healthMetadata ...openAIAutoSchedulerAttemptMetadata,
 ) {
 	model := strings.TrimSpace(requestedModel)
-	if s == nil || s.openAIAutoSchedulerOutcomeRecorder == nil || account == nil || account.ID <= 0 || account.Platform != PlatformOpenAI || groupID == nil || *groupID <= 0 || model == "" || strings.TrimSpace(outcome.EventType) == "" {
+	if s == nil || account == nil || account.ID <= 0 || account.Platform != PlatformOpenAI || groupID == nil || *groupID <= 0 || model == "" || strings.TrimSpace(outcome.EventType) == "" {
 		return
 	}
 	outcome.AccountID = account.ID
 	outcome.GroupID = *groupID
 	outcome.Model = model
+	if outcome.EventType == OpenAIAutoSchedulerEventSuccess {
+		if circuit := OpenAIAutoCheapestGroupCircuitFromContext(ctx); circuit != nil {
+			healthKey := openAIAutoCheapestGroupHealthKey(ctx, *groupID)
+			healthKey.Model = model
+			if len(healthMetadata) > 0 {
+				metadata := openAIAutoSchedulerHealthMetadataForAttempt(healthMetadata[0], nil)
+				healthKey.Endpoint = metadata.Endpoint
+				healthKey.Transport = string(metadata.Transport)
+			}
+			_ = circuit.RecordSuccess(ctx, healthKey)
+		}
+	}
+	if s.openAIAutoSchedulerOutcomeRecorder == nil {
+		return
+	}
 	if len(healthMetadata) > 0 {
 		metadata := openAIAutoSchedulerHealthMetadataForAttempt(healthMetadata[0], nil)
 		outcome.ModelFamily = metadata.ModelFamily
@@ -414,6 +429,15 @@ func (s *OpenAIGatewayService) resolveEffectiveOpenAIAPIKeys(ctx context.Context
 	}
 	keys := make([]*APIKey, 0, len(groups))
 	for i := range groups {
+		if _, failed := openAIAutoCheapestGroupFailureReason(ctx, groups[i].ID); failed {
+			continue
+		}
+		if s.openAIAutoCheapestGroupCircuit != nil {
+			allowed, err := s.openAIAutoCheapestGroupCircuit.Allow(ctx, openAIAutoCheapestGroupHealthKey(ctx, groups[i].ID))
+			if err == nil && !allowed {
+				continue
+			}
+		}
 		if effectiveKey := CloneAPIKeyForEffectiveGroup(apiKey, &groups[i]); effectiveKey != nil && effectiveKey.GroupID != nil {
 			keys = append(keys, effectiveKey)
 		}
@@ -446,6 +470,7 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithLoadAwareness(
 	excludedIDs map[int64]struct{},
 	requiredCapability OpenAIEndpointCapability,
 ) (*APIKey, *AccountSelectionResult, error) {
+	setOpenAIAutoCheapestGroupHealthContext(ctx, requestedModel, string(requiredCapability), "http_sse")
 	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
 		selection, err := s.selectAccountWithLoadAwareness(s.withOpenAIQuotaAutoPauseContext(ctx), apiKeyGroupID(apiKey), PlatformOpenAI, sessionHash, requestedModel, excludedIDs, false, requiredCapability)
 		return apiKey, selection, err
@@ -563,6 +588,7 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImage
 	requiredCapability OpenAIImagesCapability,
 	modelResolver func(*APIKey, string) string,
 ) (*APIKey, string, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	setOpenAIAutoCheapestGroupHealthContext(ctx, requestedModel, requiredEndpoint, string(requiredCapability))
 	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
 		routingModel := requestedModel
 		if modelResolver != nil {
@@ -622,6 +648,7 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 	requestPlatform string,
 	modelResolver func(*APIKey, string) string,
 ) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	setOpenAIAutoCheapestGroupHealthContext(ctx, requestedModel, requiredEndpoint, string(transport))
 	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
 		routingModel := requestedModel
 		if modelResolver != nil {

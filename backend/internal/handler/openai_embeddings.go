@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -77,6 +78,9 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 	setOpsEndpointContext(c, "", int16(service.RequestTypeSync))
 
 	autoGroupMode := apiKey.UsesOpenAIAutoCheapestGroup()
+	if autoGroupMode {
+		c.Request = c.Request.WithContext(service.PrepareOpenAIAutoCheapestRequestContext(c.Request.Context(), true, h.gatewayService.OpenAIAutoCheapestGroupCircuit()))
+	}
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
 	if autoGroupMode {
 		channelMapping = service.ChannelMappingResult{MappedModel: reqModel}
@@ -232,6 +236,9 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 						zap.Int("upstream_status", failoverErr.StatusCode),
 					)
 					return
+				}
+				if autoGroupMode && apiKeyForRequest != nil && apiKeyForRequest.GroupID != nil {
+					service.MarkOpenAIAutoCheapestGroupFailed(c.Request.Context(), *apiKeyForRequest.GroupID, fmt.Sprintf("upstream_%d", failoverErr.StatusCode))
 				}
 				h.gatewayService.RecordOpenAIAccountSwitch()
 				failedAccountIDs[account.ID] = struct{}{}

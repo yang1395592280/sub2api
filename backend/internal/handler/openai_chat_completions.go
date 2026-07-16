@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -96,6 +97,9 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 	}
 
 	autoGroupMode := apiKey.UsesOpenAIAutoCheapestGroup()
+	if autoGroupMode {
+		c.Request = c.Request.WithContext(service.PrepareOpenAIAutoCheapestRequestContext(c.Request.Context(), true, h.gatewayService.OpenAIAutoCheapestGroupCircuit()))
+	}
 	// 解析渠道级模型映射。自动分组需要等实际分组选出后再解析。
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
 	if autoGroupMode {
@@ -288,6 +292,9 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 					if !failoverErr.ShouldRetryNextAccount() {
 						h.handleFailoverExhausted(c, failoverErr, streamStarted)
 						return
+					}
+					if autoGroupMode && apiKeyForRequest != nil && apiKeyForRequest.GroupID != nil {
+						service.MarkOpenAIAutoCheapestGroupFailed(c.Request.Context(), *apiKeyForRequest.GroupID, fmt.Sprintf("upstream_%d", failoverErr.StatusCode))
 					}
 					// Pool mode: retry on the same account
 					if failoverErr.RetryableOnSameAccount {

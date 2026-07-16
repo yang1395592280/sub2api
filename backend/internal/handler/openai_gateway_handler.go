@@ -287,6 +287,9 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 
 	imageIntent := service.IsImageGenerationIntent("/v1/responses", reqModel, body)
 	autoGroupMode := apiKey.UsesOpenAIAutoCheapestGroup()
+	if autoGroupMode {
+		c.Request = c.Request.WithContext(service.PrepareOpenAIAutoCheapestRequestContext(c.Request.Context(), true, h.gatewayService.OpenAIAutoCheapestGroupCircuit()))
+	}
 	if !autoGroupMode && imageIntent && !service.GroupAllowsImageGeneration(apiKey.Group) {
 		h.errorResponse(c, http.StatusForbidden, "permission_error", service.ImageGenerationPermissionMessage())
 		return
@@ -535,6 +538,9 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 					if !failoverErr.ShouldRetryNextAccount() {
 						h.handleFailoverExhausted(c, failoverErr, streamStarted)
 						return
+					}
+					if autoGroupMode && apiKeyForRequest != nil && apiKeyForRequest.GroupID != nil {
+						service.MarkOpenAIAutoCheapestGroupFailed(c.Request.Context(), *apiKeyForRequest.GroupID, fmt.Sprintf("upstream_%d", failoverErr.StatusCode))
 					}
 					if openAIFirstOutputFailoverExhausted(failoverErr, &firstOutputTimeoutSwitchCount) {
 						h.handleFailoverExhausted(c, failoverErr, streamStarted)
@@ -839,6 +845,9 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	)
 
 	autoGroupModeMsg := apiKey.UsesOpenAIAutoCheapestGroup()
+	if autoGroupModeMsg {
+		c.Request = c.Request.WithContext(service.PrepareOpenAIAutoCheapestRequestContext(c.Request.Context(), true, h.gatewayService.OpenAIAutoCheapestGroupCircuit()))
+	}
 	// 检查分组是否允许 /v1/messages 调度。自动分组需要等实际分组选出后再检查。
 	if !autoGroupModeMsg && !allowOpenAICompatibleMessagesDispatch(apiKey) {
 		h.anthropicErrorResponse(c, http.StatusForbidden, "permission_error",
@@ -1109,6 +1118,9 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 					if !failoverErr.ShouldRetryNextAccount() {
 						h.handleAnthropicFailoverExhausted(c, failoverErr, streamStarted)
 						return
+					}
+					if autoGroupModeMsg && apiKeyForRequest != nil && apiKeyForRequest.GroupID != nil {
+						service.MarkOpenAIAutoCheapestGroupFailed(c.Request.Context(), *apiKeyForRequest.GroupID, fmt.Sprintf("upstream_%d", failoverErr.StatusCode))
 					}
 					// 池模式：同账号重试
 					if failoverErr.RetryableOnSameAccount {
@@ -1560,6 +1572,10 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	}
 
 	autoGroupModeWS := apiKey.UsesOpenAIAutoCheapestGroup()
+	if autoGroupModeWS {
+		ctx = service.PrepareOpenAIAutoCheapestRequestContext(ctx, true, h.gatewayService.OpenAIAutoCheapestGroupCircuit())
+		c.Request = c.Request.WithContext(ctx)
+	}
 	imageIntentWS := service.IsImageGenerationIntent("/v1/responses", reqModel, firstMessage)
 	if !autoGroupModeWS && imageIntentWS && !service.GroupAllowsImageGeneration(apiKey.Group) {
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, service.ImageGenerationPermissionMessage())
@@ -1655,6 +1671,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	switchCount := 0
 	failedAccountIDs := make(map[int64]struct{})
 	var lastFailoverErr *service.UpstreamFailoverError
+	var currentEffectiveAPIKey *service.APIKey
 	var turnTimings sync.Map
 	turnTimings.Store(1, firstTurnTiming)
 	timingForTurn := func(turn int) *service.OpenAIRequestTiming {
@@ -1674,6 +1691,9 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		if !failoverErr.ShouldRetryNextAccount() {
 			closeOpenAIWSFailoverExhausted(wsConn, failoverErr)
 			return false
+		}
+		if autoGroupModeWS && currentEffectiveAPIKey != nil && currentEffectiveAPIKey.GroupID != nil {
+			service.MarkOpenAIAutoCheapestGroupFailed(ctx, *currentEffectiveAPIKey.GroupID, fmt.Sprintf("upstream_%d", failoverErr.StatusCode))
 		}
 		if ctx.Err() != nil {
 			return false
@@ -1750,6 +1770,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		if apiKeyForRequest == nil {
 			apiKeyForRequest = apiKey
 		}
+		currentEffectiveAPIKey = apiKeyForRequest
 		if autoGroupModeWS {
 			if imageIntentWS && !service.GroupAllowsImageGeneration(apiKeyForRequest.Group) {
 				closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, service.ImageGenerationPermissionMessage())

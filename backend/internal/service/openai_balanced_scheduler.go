@@ -497,6 +497,9 @@ func normalizeOpenAIBalancedSettings(settings OpenAIBalancedSettings) OpenAIBala
 }
 
 func bestOpenAIBalancedTTFT(candidates []OpenAIBalancedCandidate) float64 {
+	if len(candidates) == 0 {
+		return 0
+	}
 	best := 0.0
 	bestTier := candidates[0].SelectionTier
 	for _, candidate := range candidates[1:] {

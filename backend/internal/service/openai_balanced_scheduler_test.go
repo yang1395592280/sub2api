@@ -110,6 +110,16 @@ func TestOpenAIBalancedSchedulerLatencyTailStrictlyPreservesLegacyOrder(t *testi
 	require.Equal(t, []int64{1, 2, 3}, result.OrderedAccountIDs)
 }
 
+func TestOpenAIBalancedSchedulerEmptyCandidatesDoesNotPanic(t *testing.T) {
+	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), OpenAIBalancedSelectionInput{
+		SessionAccountID: 1,
+		Settings:         OpenAIBalancedSettings{Mode: OpenAIAutoSchedulerModeBalanced, TopK: 3},
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, result.OrderedAccountIDs)
+}
+
 func TestOpenAIBalancedSchedulerUsesGroupPriority(t *testing.T) {
 	input := OpenAIBalancedSelectionInput{
 		Candidates: []OpenAIBalancedCandidate{
