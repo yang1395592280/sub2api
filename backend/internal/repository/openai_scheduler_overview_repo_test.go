@@ -95,15 +95,15 @@ func TestOpenAISchedulerOverviewRepositoryHealthUsesFixedCountAndRowsQueries(t *
 		WithArgs(filterArgs...).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	rowArgs := append(append([]driver.Value(nil), filterArgs...), 20, 20)
-	mock.ExpectQuery(`(?s)WITH health_rows AS.*g\.status AS group_status.*g\.openai_auto_scheduler_enabled AS group_auto_scheduler_enabled.*a\.status AS account_status.*a\.schedulable.*a\.temp_unschedulable_until.*a\.auto_pause_on_expired.*a\.expires_at AS account_expires_at.*a\.overload_until.*a\.rate_limit_reset_at.*CASE WHEN a\.load_factor > 0 THEN a\.load_factor WHEN a\.concurrency > 0 THEN a\.concurrency ELSE 1 END AS load_capacity.*SELECT account_id, account_name, group_id, group_status, group_auto_scheduler_enabled`).
+	mock.ExpectQuery(`(?s)WITH health_rows AS.*ag\.priority AS group_priority.*g\.status AS group_status.*g\.openai_auto_scheduler_enabled AS group_auto_scheduler_enabled.*a\.status AS account_status.*a\.schedulable.*a\.temp_unschedulable_until.*a\.auto_pause_on_expired.*a\.expires_at AS account_expires_at.*a\.overload_until.*a\.rate_limit_reset_at.*CASE WHEN a\.load_factor > 0 THEN a\.load_factor WHEN a\.concurrency > 0 THEN a\.concurrency ELSE 1 END AS load_capacity.*SELECT account_id, account_name, group_id, group_priority, group_status, group_auto_scheduler_enabled`).
 		WithArgs(rowArgs...).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"account_id", "account_name", "group_id", "group_status", "group_auto_scheduler_enabled",
+			"account_id", "account_name", "group_id", "group_priority", "group_status", "group_auto_scheduler_enabled",
 			"account_status", "schedulable", "temp_unschedulable_until", "temp_unschedulable_reason",
 			"auto_pause_on_expired", "account_expires_at", "overload_until", "rate_limit_reset_at",
 			"model_family", "endpoint", "transport", "state", "predicted_ttft_ms", "real_sample_count", "probe_sample_count", "error_rate",
 			"rate_limited_rate", "server_error_rate", "cooldown_until", "expires_at", "updated_at", "load_capacity", "channel_price",
-		}).AddRow(10, "primary", 33, service.StatusActive, true, service.StatusActive, true, tempBlockedUntil, "price guard", true, accountExpiresAt, overloadUntil, rateLimitResetAt, "gpt-5.4", "responses", "http_sse", "running", 1200.0, 20, 2, 0.01, 0.02, 0.03, nil, now.Add(time.Minute), now, 20, price))
+		}).AddRow(10, "primary", 33, 7, service.StatusActive, true, service.StatusActive, true, tempBlockedUntil, "price guard", true, accountExpiresAt, overloadUntil, rateLimitResetAt, "gpt-5.4", "responses", "http_sse", "running", 1200.0, 20, 2, 0.01, 0.02, 0.03, nil, now.Add(time.Minute), now, 20, price))
 
 	items, total, err := repo.ListOpenAISchedulerHealth(context.Background(), params)
 
@@ -111,6 +111,7 @@ func TestOpenAISchedulerOverviewRepositoryHealthUsesFixedCountAndRowsQueries(t *
 	require.Equal(t, int64(1), total)
 	require.Len(t, items, 1)
 	require.Equal(t, int64(10), items[0].AccountID)
+	require.Equal(t, 7, items[0].GroupPriority)
 	require.Equal(t, "gpt-5.4", items[0].ModelFamily)
 	require.Equal(t, 20, items[0].LoadCapacity)
 	require.Equal(t, service.StatusActive, items[0].AccountStatus)
@@ -144,4 +145,29 @@ func TestBuildOpenAISchedulerHealthQueriesSortsSnapshotAgeByInverseTimestamp(t *
 		Sort: "snapshot_age_ms", Order: "desc", Page: 1, PageSize: 20,
 	})
 	require.Contains(t, rowsQuery, "ORDER BY updated_at ASC")
+}
+
+func TestOpenAISchedulerOverviewRepositoryListsParameterizedRankingActuals(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	repo := newOpenAISchedulerOverviewRepositoryWithSQL(db)
+	start := time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC)
+	end := start.Add(time.Hour)
+
+	mock.ExpectQuery(`(?s)WITH normalized AS.*LOWER\(COALESCE\(NULLIF\(upstream_model.*CASE.*openai_ws_mode.*PERCENTILE_CONT\(0\.5\).*PERCENTILE_CONT\(0\.9\).*WHERE group_id = \$1 AND created_at >= \$2 AND created_at < \$3 AND model_family = \$4 AND endpoint = \$5 AND transport = \$6.*GROUP BY account_id, model_family, endpoint, transport`).
+		WithArgs(int64(33), start, end, "gpt-5.4", "responses", "http_sse").
+		WillReturnRows(sqlmock.NewRows([]string{"account_id", "model_family", "endpoint", "transport", "request_count", "ttft_p50", "ttft_p90", "estimated_cost"}).
+			AddRow(10, "gpt-5.4", "responses", "http_sse", 80, 750.0, 1200.0, 64.0))
+
+	items, err := repo.ListOpenAISchedulerRankingActual(context.Background(), service.OpenAISchedulerRankingActualParams{
+		GroupID: 33, StartTime: start, EndTime: end, ModelFamily: " GPT-5.4 ", Endpoint: " RESPONSES ", Transport: " HTTP_SSE ",
+	})
+
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, int64(10), items[0].Key.AccountID)
+	require.Equal(t, int64(80), items[0].RequestCount)
+	require.Equal(t, 1200.0, items[0].TTFTP90MS)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

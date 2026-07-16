@@ -108,6 +108,15 @@ func TestSettingService_OpenAIAutoSchedulerSettingsDefaultsAndNormalization(t *t
 	require.Equal(t, 800, settings.RecoveryStep)
 }
 
+func TestSettingService_ReportsAdvancedSchedulerEngineGate(t *testing.T) {
+	repo := &openAIAutoSchedulerSettingsRepoStub{values: map[string]string{openAIAdvancedSchedulerSettingKey: " true "}}
+	svc := NewSettingService(repo, &config.Config{})
+
+	require.True(t, svc.IsOpenAIAdvancedSchedulerEnabled(context.Background()))
+	repo.values[openAIAdvancedSchedulerSettingKey] = "false"
+	require.False(t, svc.IsOpenAIAdvancedSchedulerEnabled(context.Background()))
+}
+
 func TestNormalizeOpenAIAutoSchedulerSettings_BalancedDefaults(t *testing.T) {
 	got := normalizeOpenAIAutoSchedulerSettings(OpenAIAutoSchedulerSettings{})
 

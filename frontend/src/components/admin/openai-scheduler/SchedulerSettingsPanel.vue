@@ -7,7 +7,7 @@
           <span class="input-label mb-0">{{ t('admin.openaiAutoScheduler.settings.globalScheduler') }}</span>
           <Toggle :modelValue="form.enabled" @update:modelValue="form.enabled = $event" />
         </label>
-        <div><label class="input-label" for="scheduler-mode">{{ t('admin.openaiAutoScheduler.settings.mode') }}</label><select id="scheduler-mode" v-model="form.mode" class="input"><option value="legacy">{{ t('admin.openaiAutoScheduler.modes.legacy') }}</option><option value="balanced">{{ t('admin.openaiAutoScheduler.modes.balanced') }}</option></select></div>
+        <div><label class="input-label" for="scheduler-mode">{{ t('admin.openaiAutoScheduler.settings.mode') }}</label><select id="scheduler-mode" v-model="form.mode" class="input" @change="applyModePreset"><option value="legacy">{{ t('admin.openaiAutoScheduler.modes.legacy') }}</option><option value="balanced">{{ t('admin.openaiAutoScheduler.modes.balanced') }}</option><option value="performance_first">{{ t('admin.openaiAutoScheduler.modes.performance') }}</option><option value="cost_first">{{ t('admin.openaiAutoScheduler.modes.cost') }}</option><option value="efficiency">{{ t('admin.openaiAutoScheduler.modes.efficiency') }}</option></select></div>
         <label class="flex items-center justify-between gap-4 md:col-span-2 xl:col-span-1">
           <span class="input-label mb-0">{{ t('admin.openaiAutoScheduler.settings.shadowMode') }}</span>
           <Toggle :modelValue="form.shadow_mode" @update:modelValue="form.shadow_mode = $event" />
@@ -17,12 +17,28 @@
 
     <section class="border-b border-gray-200 pb-6 dark:border-dark-700">
       <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.openaiAutoScheduler.settings.balancedSelection') }}</h3>
-      <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <NumberField id="scheduler-top-k" v-model="form.top_k" :label="t('admin.openaiAutoScheduler.settings.topK')" :min="1" :max="10" />
         <NumberField id="scheduler-exploration" v-model="form.exploration_rate" :label="t('admin.openaiAutoScheduler.settings.explorationRate')" :min="0" :max="0.1" :step="0.01" />
         <NumberField id="scheduler-session-gap" v-model="form.session_escape_min_gap_ms" :label="t('admin.openaiAutoScheduler.settings.sessionEscapeGap')" :min="0" :max="30000" />
         <NumberField id="scheduler-session-ratio" v-model="form.session_escape_ratio" :label="t('admin.openaiAutoScheduler.settings.sessionEscapeRatio')" :min="0" :max="2" :step="0.05" />
         <NumberField id="scheduler-cost-weight" v-model="form.cost_weight" :label="t('admin.openaiAutoScheduler.settings.costWeight')" :min="0" :max="1" :step="0.05" />
+        <NumberField id="scheduler-temperature" v-model="form.temperature" :label="t('admin.openaiAutoScheduler.settings.temperature')" :min="0.01" :max="1" :step="0.01" />
+        <NumberField id="scheduler-max-share" v-model="form.max_account_share" :label="t('admin.openaiAutoScheduler.settings.maxAccountShare')" :min="0.01" :max="1" :step="0.05" />
+        <NumberField id="scheduler-low-confidence-share" v-model="form.low_confidence_max_share" :label="t('admin.openaiAutoScheduler.settings.lowConfidenceShare')" :min="0.01" :max="1" :step="0.05" />
+        <NumberField id="scheduler-latency-budget" v-model="form.latency_budget_ms" :label="t('admin.openaiAutoScheduler.settings.latencyBudget')" :min="1" :max="30000" />
+      </div>
+    </section>
+
+    <section class="border-b border-gray-200 pb-6 dark:border-dark-700">
+      <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.openaiAutoScheduler.settings.policyWeights') }}</h3>
+      <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        <NumberField id="scheduler-weight-latency" v-model="form.weights.latency" :label="t('admin.openaiAutoScheduler.ranking.scores.latency')" :min="0" :max="1" :step="0.01" />
+        <NumberField id="scheduler-weight-reliability" v-model="form.weights.reliability" :label="t('admin.openaiAutoScheduler.ranking.scores.reliability')" :min="0" :max="1" :step="0.01" />
+        <NumberField id="scheduler-weight-cost" v-model="form.weights.cost" :label="t('admin.openaiAutoScheduler.ranking.scores.cost')" :min="0" :max="1" :step="0.01" />
+        <NumberField id="scheduler-weight-capacity" v-model="form.weights.capacity" :label="t('admin.openaiAutoScheduler.ranking.scores.capacity')" :min="0" :max="1" :step="0.01" />
+        <NumberField id="scheduler-weight-quota" v-model="form.weights.quota" :label="t('admin.openaiAutoScheduler.ranking.scores.quota')" :min="0" :max="1" :step="0.01" />
+        <NumberField id="scheduler-weight-priority" v-model="form.weights.priority" :label="t('admin.openaiAutoScheduler.ranking.scores.priority')" :min="0" :max="1" :step="0.01" />
       </div>
     </section>
 
@@ -95,6 +111,11 @@ function normalizeSettings(value: OpenAIAutoSchedulerSettings) {
     health_ttl_seconds: value.health_ttl_seconds ?? 1800,
     real_sample_fresh_seconds: value.real_sample_fresh_seconds ?? 300,
     probe_jitter_seconds: value.probe_jitter_seconds ?? 0,
+    temperature: value.temperature ?? 0.18,
+    max_account_share: value.max_account_share ?? 0.7,
+    low_confidence_max_share: value.low_confidence_max_share ?? 0.1,
+    latency_budget_ms: value.latency_budget_ms ?? 1000,
+    weights: { ...(value.weights || { latency: 0.35, reliability: 0.25, cost: 0.15, capacity: 0.15, quota: 0.05, priority: 0.05 }) },
   }
 }
 
@@ -123,6 +144,14 @@ function submit(): void {
     half_open_success_threshold: Number(form.half_open_success_threshold),
     cost_weight: Number(form.cost_weight),
     recovery_step: Number(form.recovery_step),
+    temperature: Number(form.temperature),
+    max_account_share: Number(form.max_account_share),
+    low_confidence_max_share: Number(form.low_confidence_max_share),
+    latency_budget_ms: Number(form.latency_budget_ms),
+    weights: {
+      latency: Number(form.weights.latency), reliability: Number(form.weights.reliability), cost: Number(form.weights.cost),
+      capacity: Number(form.weights.capacity), quota: Number(form.weights.quota), priority: Number(form.weights.priority),
+    },
   })
 }
 
@@ -133,11 +162,27 @@ function validate(): string {
   if (form.session_escape_min_gap_ms < 0 || form.session_escape_min_gap_ms > 30000) return t('admin.openaiAutoScheduler.settings.errors.sessionGapRange')
   if (form.session_escape_ratio < 0 || form.session_escape_ratio > 2) return t('admin.openaiAutoScheduler.settings.errors.sessionRatioRange')
   if (form.cost_weight < 0 || form.cost_weight > 1) return t('admin.openaiAutoScheduler.settings.errors.costWeightRange')
+  if (form.temperature <= 0 || form.temperature > 1 || form.max_account_share <= 0 || form.max_account_share > 1 || form.low_confidence_max_share <= 0 || form.low_confidence_max_share > 1 || form.latency_budget_ms <= 0 || form.latency_budget_ms > 30000) return t('admin.openaiAutoScheduler.settings.errors.policyRange')
+  if (Object.values(form.weights).some((value) => value < 0 || value > 1) || Object.values(form.weights).reduce((sum, value) => sum + value, 0) <= 0) return t('admin.openaiAutoScheduler.settings.errors.weightsRange')
   if (form.probe_interval_seconds <= 0 || form.slow_threshold_ms <= 0 || form.consecutive_slow_breaker_threshold <= 0 || form.consecutive_error_breaker_threshold <= 0 || form.cooldown_seconds <= 0 || form.half_open_success_threshold <= 0 || form.recovery_step <= 0) return t('admin.openaiAutoScheduler.settings.errors.positiveRequired')
   if (form.severe_slow_threshold_ms < form.slow_threshold_ms) return t('admin.openaiAutoScheduler.settings.errors.severeThreshold')
   if (form.probe_jitter_seconds > form.probe_interval_seconds / 2) return t('admin.openaiAutoScheduler.settings.errors.jitterRange')
   if (form.health_ttl_seconds < 60 || form.health_ttl_seconds > 86400) return t('admin.openaiAutoScheduler.settings.errors.healthTTLRange')
   if (form.real_sample_fresh_seconds < 30 || form.real_sample_fresh_seconds > 3600) return t('admin.openaiAutoScheduler.settings.errors.realFreshnessRange')
   return ''
+}
+
+function applyModePreset(): void {
+  const presets = {
+    balanced: { temperature: 0.18, max: 0.7, weights: { latency: 0.35, reliability: 0.25, cost: 0.15, capacity: 0.15, quota: 0.05, priority: 0.05 } },
+    performance_first: { temperature: 0.1, max: 0.85, weights: { latency: 0.55, reliability: 0.25, cost: 0.05, capacity: 0.1, quota: 0.03, priority: 0.02 } },
+    cost_first: { temperature: 0.16, max: 0.75, weights: { latency: 0.2, reliability: 0.25, cost: 0.4, capacity: 0.08, quota: 0.04, priority: 0.03 } },
+    efficiency: { temperature: 0.14, max: 0.8, weights: { latency: 0.35, reliability: 0.25, cost: 0.25, capacity: 0.08, quota: 0.04, priority: 0.03 } },
+  } as const
+  const preset = presets[form.mode as keyof typeof presets]
+  if (!preset) return
+  form.temperature = preset.temperature
+  form.max_account_share = preset.max
+  Object.assign(form.weights, preset.weights)
 }
 </script>

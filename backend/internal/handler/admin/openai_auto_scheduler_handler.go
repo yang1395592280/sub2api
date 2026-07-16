@@ -39,6 +39,7 @@ type openAIAutoSchedulerAccountRepository interface {
 type openAISchedulerOverviewService interface {
 	GetOverview(ctx context.Context, params service.OpenAISchedulerOverviewParams) (service.OpenAISchedulerOverviewMetrics, error)
 	ListHealth(ctx context.Context, params service.OpenAISchedulerHealthParams) (*service.OpenAISchedulerHealthListResult, error)
+	ListRankings(ctx context.Context, params service.OpenAISchedulerRankingParams) (*service.OpenAISchedulerRankingResult, error)
 }
 
 // OpenAIAutoSchedulerHandler exposes admin APIs for OpenAI auto scheduler state.
@@ -127,6 +128,43 @@ func (h *OpenAIAutoSchedulerHandler) ListHealth(c *gin.Context) {
 		items = append(items, openAISchedulerHealthToResponse(item))
 	}
 	response.Paginated(c, items, result.Total, page, pageSize)
+}
+
+func (h *OpenAIAutoSchedulerHandler) ListRankings(c *gin.Context) {
+	if h == nil || h.overview == nil {
+		response.InternalError(c, "openai scheduler overview service is not configured")
+		return
+	}
+	groupID, ok := parseRequiredPositiveInt64Query(c, "group_id")
+	if !ok {
+		return
+	}
+	window, ok := parseOpenAISchedulerRankingWindow(c)
+	if !ok {
+		return
+	}
+	eligibility := strings.ToLower(strings.TrimSpace(c.Query("eligibility")))
+	if eligibility != "" && eligibility != service.OpenAISchedulerEligibilityEligible &&
+		eligibility != service.OpenAISchedulerEligibilityLowConfidence &&
+		eligibility != service.OpenAISchedulerEligibilityLatencyTail &&
+		eligibility != service.OpenAISchedulerEligibilityRejected {
+		response.BadRequest(c, "eligibility must be eligible, low_confidence, latency_tail, or hard_rejected")
+		return
+	}
+	page, pageSize := parseOpenAIAutoSchedulerPagination(c)
+	result, err := h.overview.ListRankings(c.Request.Context(), service.OpenAISchedulerRankingParams{
+		GroupID: groupID, Window: window,
+		ModelFamily: strings.ToLower(strings.TrimSpace(c.Query("model_family"))),
+		Endpoint:    strings.ToLower(strings.TrimSpace(c.Query("endpoint"))),
+		Transport:   strings.ToLower(strings.TrimSpace(c.Query("transport"))),
+		Eligibility: eligibility,
+		Page:        page, PageSize: pageSize,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
 }
 
 func (h *OpenAIAutoSchedulerHandler) GetSettings(c *gin.Context) {
@@ -456,8 +494,8 @@ type openAISchedulerHealthResponse struct {
 
 func validateOpenAIAutoSchedulerSettings(settings service.OpenAIAutoSchedulerSettings) string {
 	switch {
-	case settings.Mode != service.OpenAIAutoSchedulerModeLegacy && settings.Mode != service.OpenAIAutoSchedulerModeBalanced:
-		return "mode must be legacy or balanced"
+	case !service.IsSupportedOpenAISchedulerMode(settings.Mode):
+		return "mode must be legacy, balanced, performance_first, cost_first, or efficiency"
 	case settings.TopK < 1 || settings.TopK > 10:
 		return "top_k must be between 1 and 10"
 	case settings.ExplorationRate < 0 || settings.ExplorationRate > 0.10:
@@ -490,9 +528,44 @@ func validateOpenAIAutoSchedulerSettings(settings service.OpenAIAutoSchedulerSet
 		return "cost_weight must be between 0 and 1"
 	case settings.RecoveryStep <= 0:
 		return "recovery_step must be > 0"
+	case settings.Temperature <= 0 || settings.Temperature > 1:
+		return "temperature must be between 0 (exclusive) and 1"
+	case settings.MaxAccountShare <= 0 || settings.MaxAccountShare > 1:
+		return "max_account_share must be between 0 (exclusive) and 1"
+	case settings.LowConfidenceMaxShare <= 0 || settings.LowConfidenceMaxShare > 1:
+		return "low_confidence_max_share must be between 0 (exclusive) and 1"
+	case settings.LatencyBudgetMS <= 0 || settings.LatencyBudgetMS > 30000:
+		return "latency_budget_ms must be between 1 and 30000"
+	case settings.Weights.Latency < 0 || settings.Weights.Latency > 1 ||
+		settings.Weights.Reliability < 0 || settings.Weights.Reliability > 1 ||
+		settings.Weights.Cost < 0 || settings.Weights.Cost > 1 ||
+		settings.Weights.Capacity < 0 || settings.Weights.Capacity > 1 ||
+		settings.Weights.Quota < 0 || settings.Weights.Quota > 1 ||
+		settings.Weights.Priority < 0 || settings.Weights.Priority > 1:
+		return "each policy weight must be between 0 and 1"
+	case settings.Weights.Latency+settings.Weights.Reliability+settings.Weights.Cost+
+		settings.Weights.Capacity+settings.Weights.Quota+settings.Weights.Priority <= 0:
+		return "policy weights must have a positive total"
 	default:
 		return ""
 	}
+}
+
+func parseOpenAISchedulerRankingWindow(c *gin.Context) (time.Duration, bool) {
+	raw := strings.ToLower(strings.TrimSpace(c.DefaultQuery("window", "1h")))
+	windows := map[string]time.Duration{
+		"15m": 15 * time.Minute,
+		"1h":  time.Hour,
+		"6h":  6 * time.Hour,
+		"24h": 24 * time.Hour,
+		"7d":  7 * 24 * time.Hour,
+	}
+	window, ok := windows[raw]
+	if !ok {
+		response.BadRequest(c, "window must be one of 15m, 1h, 6h, 24h, 7d")
+		return 0, false
+	}
+	return window, true
 }
 
 func parseOpenAIAutoSchedulerPagination(c *gin.Context) (int, int) {

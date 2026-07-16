@@ -6,9 +6,9 @@
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
               <h1 class="text-lg font-semibold text-gray-950 dark:text-white">{{ t('admin.openaiAutoScheduler.title') }}</h1>
-              <span :class="modeBadgeClass">{{ settings?.mode === 'legacy' ? t('admin.openaiAutoScheduler.modes.legacy') : t('admin.openaiAutoScheduler.modes.balanced') }}</span>
+              <span :class="modeBadgeClass">{{ configuredModeLabel }}</span>
               <span v-if="settings?.shadow_mode" class="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">{{ t('admin.openaiAutoScheduler.modes.shadow') }}</span>
-              <span v-else-if="settings?.mode === 'balanced'" class="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">{{ t('admin.openaiAutoScheduler.modes.live') }}</span>
+              <span v-else-if="settings?.mode !== 'legacy'" class="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">{{ t('admin.openaiAutoScheduler.modes.live') }}</span>
             </div>
             <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ selectedGroup?.name || t('admin.openaiAutoScheduler.allGroups') }}</p>
           </div>
@@ -71,6 +71,17 @@
             @show-health-filter="showGroupHealth"
           />
 
+          <SchedulerRankingTable
+            v-else-if="activeTab === 'rankings'"
+            :result="rankings"
+            :loading="loading.rankings"
+            :groupName="selectedGroup?.name || '—'"
+            :filters="rankingFilters"
+            @filter="applyRankingFilters"
+            @page="setRankingPage"
+            @select="selectedRanking = $event"
+          />
+
           <SchedulerHealthTable
             v-else-if="activeTab === 'health'"
             :rows="healthPage.items"
@@ -114,6 +125,8 @@
         @reset="requestReset"
       />
 
+      <SchedulerRankingDrawer :open="Boolean(selectedRanking)" :item="selectedRanking" @close="selectedRanking = null" />
+
       <ConfirmDialog
         :show="Boolean(pendingReset)"
         :title="t('admin.openaiAutoScheduler.reset.title')"
@@ -136,12 +149,14 @@ import Icon from '@/components/icons/Icon.vue'
 import SchedulerOverview from '@/components/admin/openai-scheduler/SchedulerOverview.vue'
 import SchedulerGroupList from '@/components/admin/openai-scheduler/SchedulerGroupList.vue'
 import SchedulerHealthTable from '@/components/admin/openai-scheduler/SchedulerHealthTable.vue'
+import SchedulerRankingTable from '@/components/admin/openai-scheduler/SchedulerRankingTable.vue'
+import SchedulerRankingDrawer from '@/components/admin/openai-scheduler/SchedulerRankingDrawer.vue'
 import SchedulerAccountDrawer from '@/components/admin/openai-scheduler/SchedulerAccountDrawer.vue'
 import SchedulerEventsPanel from '@/components/admin/openai-scheduler/SchedulerEventsPanel.vue'
 import SchedulerSettingsPanel from '@/components/admin/openai-scheduler/SchedulerSettingsPanel.vue'
 import { useOpenAISchedulerDashboard, type OpenAISchedulerDashboardTab } from '@/composables/useOpenAISchedulerDashboard'
 import { useAppStore } from '@/stores/app'
-import type { OpenAIAutoSchedulerSettings, OpenAISchedulerHealthRow, OpenAISchedulerWindow } from '@/api/admin/openaiAutoScheduler'
+import type { OpenAIAutoSchedulerSettings, OpenAISchedulerHealthRow, OpenAISchedulerRankingItem, OpenAISchedulerWindow } from '@/api/admin/openaiAutoScheduler'
 import { useI18n } from 'vue-i18n'
 
 const appStore = useAppStore()
@@ -155,10 +170,12 @@ const {
   settings,
   groups,
   overview,
+  rankings,
   healthPage,
   eventsPage,
   drawerEvents,
   healthFilters,
+  rankingFilters,
   eventsPagination,
   loading,
   errors,
@@ -168,16 +185,20 @@ const {
   selectWindow,
   refreshActiveTab,
   applyHealthFilters,
+  applyRankingFilters,
   setHealthPage,
+  setRankingPage,
   setEventsPage,
   loadAccountEvents,
 } = dashboard
 
 const selectedAccount = ref<OpenAISchedulerHealthRow | null>(null)
+const selectedRanking = ref<OpenAISchedulerRankingItem | null>(null)
 const pendingReset = ref<OpenAISchedulerHealthRow | null>(null)
 
 const tabs = computed<Array<{ value: OpenAISchedulerDashboardTab; label: string }>>(() => [
   { value: 'overview', label: t('admin.openaiAutoScheduler.tabs.overview') },
+  { value: 'rankings', label: t('admin.openaiAutoScheduler.tabs.rankings') },
   { value: 'health', label: t('admin.openaiAutoScheduler.tabs.health') },
   { value: 'events', label: t('admin.openaiAutoScheduler.tabs.events') },
   { value: 'settings', label: t('admin.openaiAutoScheduler.tabs.settings') },
@@ -191,10 +212,16 @@ const windows: Array<{ value: OpenAISchedulerWindow; label: string }> = [
 ]
 
 const modeBadgeClass = computed(() => {
-  const live = settings.value?.mode === 'balanced' && !settings.value?.shadow_mode
+  const live = settings.value?.mode !== 'legacy' && !settings.value?.shadow_mode
   return live
     ? 'rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
     : 'rounded bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 dark:bg-sky-500/15 dark:text-sky-300'
+})
+
+const configuredModeLabel = computed(() => {
+  const mode = settings.value?.mode || 'legacy'
+  const key = ({ performance_first: 'performance', cost_first: 'cost' } as Record<string, string>)[mode] || mode
+  return t(`admin.openaiAutoScheduler.modes.${key}`)
 })
 
 async function handleGlobalToggle(enabled: boolean): Promise<void> {

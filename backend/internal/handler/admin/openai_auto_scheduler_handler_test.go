@@ -127,11 +127,21 @@ type fakeOpenAIAutoSchedulerProbeChecker struct {
 type fakeOpenAISchedulerOverviewService struct {
 	overview       service.OpenAISchedulerOverviewMetrics
 	health         *service.OpenAISchedulerHealthListResult
+	rankings       *service.OpenAISchedulerRankingResult
 	err            error
 	overviewParams service.OpenAISchedulerOverviewParams
 	healthParams   service.OpenAISchedulerHealthParams
+	rankingParams  service.OpenAISchedulerRankingParams
 	overviewCalls  int
 	healthCalls    int
+}
+
+func (s *fakeOpenAISchedulerOverviewService) ListRankings(_ context.Context, params service.OpenAISchedulerRankingParams) (*service.OpenAISchedulerRankingResult, error) {
+	s.rankingParams = params
+	if s.rankings == nil {
+		s.rankings = &service.OpenAISchedulerRankingResult{Items: []service.OpenAISchedulerRankingItem{}}
+	}
+	return s.rankings, s.err
 }
 
 func (s *fakeOpenAISchedulerOverviewService) GetOverview(_ context.Context, params service.OpenAISchedulerOverviewParams) (service.OpenAISchedulerOverviewMetrics, error) {
@@ -183,6 +193,7 @@ func setupOpenAISchedulerControlRouter(svc *fakeOpenAISchedulerOverviewService) 
 	h := NewOpenAIAutoSchedulerHandler(nil, nil, nil, nil, nil, svc)
 	group := router.Group("/api/v1/admin/openai-auto-scheduler")
 	group.GET("/overview", h.GetOverview)
+	group.GET("/rankings", h.ListRankings)
 	group.GET("/health", h.ListHealth)
 	return router
 }
@@ -249,6 +260,41 @@ func TestOpenAIAutoSchedulerHandler_ListHealthParsesBoundedFiltersAndPagination(
 	require.Contains(t, rec.Body.String(), `"decision":"context_required"`)
 	require.Contains(t, rec.Body.String(), `"sticky_escape_reason":null`)
 	require.Contains(t, rec.Body.String(), `"page_size":200`)
+}
+
+func TestOpenAIAutoSchedulerHandler_ListRankingsRequiresGroupAndParsesFilters(t *testing.T) {
+	svc := &fakeOpenAISchedulerOverviewService{rankings: &service.OpenAISchedulerRankingResult{
+		PolicyContext: service.OpenAISchedulerPolicyContext{EffectiveMode: "balanced", PolicyVersion: "v2"},
+		Items:         []service.OpenAISchedulerRankingItem{},
+		Page:          2,
+		PageSize:      200,
+	}}
+	router := setupOpenAISchedulerControlRouter(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/openai-auto-scheduler/rankings?group_id=33&window=15m&model_family=GPT-5.4&endpoint=RESPONSES&transport=HTTP_SSE&eligibility=ELIGIBLE&page=2&page_size=999", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(33), svc.rankingParams.GroupID)
+	require.Equal(t, 15*time.Minute, svc.rankingParams.Window)
+	require.Equal(t, "gpt-5.4", svc.rankingParams.ModelFamily)
+	require.Equal(t, "responses", svc.rankingParams.Endpoint)
+	require.Equal(t, "http_sse", svc.rankingParams.Transport)
+	require.Equal(t, "eligible", svc.rankingParams.Eligibility)
+	require.Equal(t, 2, svc.rankingParams.Page)
+	require.Equal(t, 200, svc.rankingParams.PageSize)
+	require.Contains(t, rec.Body.String(), `"effective_mode":"balanced"`)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/openai-auto-scheduler/rankings?group_id=33&window=2h", nil)
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/openai-auto-scheduler/rankings?group_id=33&eligibility=unknown", nil)
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestOpenAIAutoSchedulerHandler_ListHealthRejectsInvalidFilterAndPropagatesError(t *testing.T) {
@@ -357,6 +403,12 @@ func TestValidateOpenAIAutoSchedulerSettings_BalancedRanges(t *testing.T) {
 		{name: "real freshness above", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.RealSampleFreshSeconds = 3601 }},
 		{name: "probe jitter below", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.ProbeJitterSeconds = -1 }},
 		{name: "probe jitter above half interval", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.ProbeJitterSeconds = 31 }},
+		{name: "temperature", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.Temperature = 0 }},
+		{name: "max account share", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.MaxAccountShare = 1.01 }},
+		{name: "low confidence share", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.LowConfidenceMaxShare = 0 }},
+		{name: "latency budget", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.LatencyBudgetMS = 30001 }},
+		{name: "negative weight", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.Weights.Latency = -0.01 }},
+		{name: "zero weights", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.Weights = service.OpenAISchedulerPolicyWeights{} }},
 	}
 
 	for _, tt := range tests {
@@ -382,6 +434,13 @@ func TestValidateOpenAIAutoSchedulerSettings_BalancedRanges(t *testing.T) {
 		func(s *service.OpenAIAutoSchedulerSettings) { s.RealSampleFreshSeconds = 30 },
 		func(s *service.OpenAIAutoSchedulerSettings) { s.RealSampleFreshSeconds = 3600 },
 		func(s *service.OpenAIAutoSchedulerSettings) { s.ProbeJitterSeconds = 30 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.Mode = service.OpenAIAutoSchedulerModePerformance },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.Mode = service.OpenAIAutoSchedulerModeCost },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.Mode = service.OpenAIAutoSchedulerModeEfficiency },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.Temperature = 1 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.MaxAccountShare = 1 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.LowConfidenceMaxShare = 1 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.LatencyBudgetMS = 30000 },
 	} {
 		settings := valid
 		mutate(&settings)

@@ -155,6 +155,16 @@ describe('openai auto scheduler admin api', () => {
     expect(get).toHaveBeenCalledWith('/admin/openai-auto-scheduler/health', { params })
   })
 
+  it('requests scheduler rankings with policy partition filters', async () => {
+    const result = { policy_context: {}, summary: {}, items: [], total: 0, page: 1, page_size: 20 }
+    const params = { group_id: 33, window: '1h' as const, model_family: 'gpt-5.4', endpoint: 'responses', transport: 'http_sse', page: 1, page_size: 20 }
+    const controller = new AbortController()
+    get.mockResolvedValueOnce({ data: result })
+
+    await expect(openaiAutoSchedulerAPI.listRankings(params, { signal: controller.signal })).resolves.toEqual(result)
+    expect(get).toHaveBeenCalledWith('/admin/openai-auto-scheduler/rankings', { params, signal: controller.signal })
+  })
+
   it('uses explicit account routes for reset and probe actions', async () => {
     const resetResult = { message: 'score reset' }
     const probeResult = {

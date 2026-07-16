@@ -8,10 +8,13 @@ import type {
   OpenAISchedulerHealthParams,
   OpenAISchedulerHealthRow,
   OpenAISchedulerOverview,
+  OpenAISchedulerRankingParams,
+  OpenAISchedulerRankingResult,
+  OpenAISchedulerRankingWindow,
   OpenAISchedulerWindow,
 } from '@/api/admin/openaiAutoScheduler'
 
-export type OpenAISchedulerDashboardTab = 'overview' | 'health' | 'events' | 'settings'
+export type OpenAISchedulerDashboardTab = 'overview' | 'rankings' | 'health' | 'events' | 'settings'
 
 const emptyPage = <T>(): OpenAIAutoSchedulerListResponse<T> => ({
   items: [],
@@ -39,6 +42,7 @@ export function useOpenAISchedulerDashboard(pollIntervalMs = 15_000) {
   const settings = ref<OpenAIAutoSchedulerSettings | null>(null)
   const groups = ref<OpenAIAutoSchedulerGroup[]>([])
   const overview = ref<OpenAISchedulerOverview | null>(null)
+  const rankings = ref<OpenAISchedulerRankingResult | null>(null)
   const healthPage = ref<OpenAIAutoSchedulerListResponse<OpenAISchedulerHealthRow>>(emptyPage())
   const eventsPage = ref<OpenAIAutoSchedulerListResponse<OpenAIAutoSchedulerEvent>>(emptyPage())
   const drawerEvents = ref<OpenAIAutoSchedulerEvent[]>([])
@@ -47,6 +51,7 @@ export function useOpenAISchedulerDashboard(pollIntervalMs = 15_000) {
   const loading = reactive({
     initialize: false,
     overview: false,
+    rankings: false,
     health: false,
     events: false,
     settings: false,
@@ -59,6 +64,11 @@ export function useOpenAISchedulerDashboard(pollIntervalMs = 15_000) {
     sort: 'predicted_ttft_ms',
     order: 'desc',
   })
+  const rankingFilters = reactive<Omit<OpenAISchedulerRankingParams, 'group_id'>>({
+    window: '1h' as OpenAISchedulerRankingWindow,
+    page: 1,
+    page_size: 20,
+  })
   const eventsPagination = reactive({ page: 1, page_size: 20 })
 
   const selectedGroup = computed(
@@ -66,6 +76,7 @@ export function useOpenAISchedulerDashboard(pollIntervalMs = 15_000) {
   )
 
   let overviewController: AbortController | null = null
+  let rankingsController: AbortController | null = null
   let healthController: AbortController | null = null
   let eventsController: AbortController | null = null
   let drawerEventsController: AbortController | null = null
@@ -116,6 +127,32 @@ export function useOpenAISchedulerDashboard(pollIntervalMs = 15_000) {
       if (healthController === controller) {
         healthController = null
         loading.health = false
+      }
+    }
+  }
+
+  async function loadRankings(): Promise<void> {
+    if (!selectedGroupId.value) {
+      rankings.value = null
+      return
+    }
+    rankingsController?.abort()
+    const controller = new AbortController()
+    rankingsController = controller
+    loading.rankings = true
+    delete errors.rankings
+    try {
+      const result = await adminAPI.openaiAutoScheduler.listRankings(
+        { ...rankingFilters, group_id: selectedGroupId.value },
+        { signal: controller.signal }
+      )
+      if (!controller.signal.aborted && rankingsController === controller) rankings.value = result
+    } catch (error: unknown) {
+      if (!isCanceled(error) && rankingsController === controller) errors.rankings = errorMessage(error)
+    } finally {
+      if (rankingsController === controller) {
+        rankingsController = null
+        loading.rankings = false
       }
     }
   }
@@ -174,6 +211,7 @@ export function useOpenAISchedulerDashboard(pollIntervalMs = 15_000) {
 
   async function refreshActiveTab(): Promise<void> {
     if (activeTab.value === 'overview') return loadOverview()
+    if (activeTab.value === 'rankings') return loadRankings()
     if (activeTab.value === 'health') return loadHealth()
     if (activeTab.value === 'events') return loadEvents()
   }
@@ -218,6 +256,7 @@ export function useOpenAISchedulerDashboard(pollIntervalMs = 15_000) {
     if (selectedGroupId.value === groupId) return
     selectedGroupId.value = groupId
     healthFilters.page = 1
+    rankingFilters.page = 1
     eventsPagination.page = 1
     await refreshActiveTab()
   }
@@ -244,6 +283,17 @@ export function useOpenAISchedulerDashboard(pollIntervalMs = 15_000) {
   async function applyHealthFilters(next: Partial<OpenAISchedulerHealthParams>): Promise<void> {
     Object.assign(healthFilters, next, { page: next.page ?? 1 })
     await loadHealth()
+  }
+
+  async function applyRankingFilters(next: Partial<Omit<OpenAISchedulerRankingParams, 'group_id'>>): Promise<void> {
+    Object.assign(rankingFilters, next, { page: next.page ?? 1 })
+    await loadRankings()
+  }
+
+  async function setRankingPage(page: number, pageSize = rankingFilters.page_size || 20): Promise<void> {
+    rankingFilters.page = page
+    rankingFilters.page_size = pageSize
+    await loadRankings()
   }
 
   async function setHealthPage(page: number, pageSize = healthFilters.page_size || 20): Promise<void> {
@@ -276,6 +326,7 @@ export function useOpenAISchedulerDashboard(pollIntervalMs = 15_000) {
   async function setGlobalEnabled(enabled: boolean): Promise<void> {
     if (!settings.value) return
     await saveSettings({ ...settings.value, enabled })
+    if (activeTab.value === 'rankings') await loadRankings()
   }
 
   async function setGroupEnabled(groupId: number, enabled: boolean): Promise<void> {
@@ -284,6 +335,7 @@ export function useOpenAISchedulerDashboard(pollIntervalMs = 15_000) {
       const updated = await adminAPI.openaiAutoScheduler.updateGroup(groupId, { enabled })
       const index = groups.value.findIndex((group) => group.id === groupId)
       if (index >= 0) groups.value[index] = updated
+      if (activeTab.value === 'rankings' && selectedGroupId.value === groupId) await loadRankings()
     } finally {
       loading.action = false
     }
@@ -318,6 +370,7 @@ export function useOpenAISchedulerDashboard(pollIntervalMs = 15_000) {
   function dispose(): void {
     disposed = true
     overviewController?.abort()
+    rankingsController?.abort()
     healthController?.abort()
     eventsController?.abort()
     drawerEventsController?.abort()
@@ -335,10 +388,12 @@ export function useOpenAISchedulerDashboard(pollIntervalMs = 15_000) {
     settings,
     groups,
     overview,
+    rankings,
     healthPage,
     eventsPage,
     drawerEvents,
     healthFilters,
+    rankingFilters,
     eventsPagination,
     initialized,
     loading,
@@ -349,12 +404,15 @@ export function useOpenAISchedulerDashboard(pollIntervalMs = 15_000) {
     selectWindow,
     showGroupHealth,
     loadOverview,
+    loadRankings,
     loadHealth,
     loadEvents,
     loadAccountEvents,
     refreshActiveTab,
     applyHealthFilters,
+    applyRankingFilters,
     setHealthPage,
+    setRankingPage,
     setEventsPage,
     saveSettings,
     setGlobalEnabled,
