@@ -890,6 +890,16 @@ func (s *SettingService) GetOpenAIAutoSchedulerSettings(ctx context.Context) Ope
 	return defaults
 }
 
+// IsOpenAIAdvancedSchedulerEnabled exposes the compatibility engine gate to the
+// scheduler console. It is not used by the request hot path.
+func (s *SettingService) IsOpenAIAdvancedSchedulerEnabled(ctx context.Context) bool {
+	if s == nil || s.settingRepo == nil {
+		return false
+	}
+	value, err := s.settingRepo.GetValue(ctx, openAIAdvancedSchedulerSettingKey)
+	return err == nil && strings.EqualFold(strings.TrimSpace(value), "true")
+}
+
 func (s *SettingService) cachedOpenAIAutoSchedulerSettings(now time.Time) *cachedOpenAIAutoSchedulerSettings {
 	cached, _ := s.openAIAutoSchedulerCache.Load().(*cachedOpenAIAutoSchedulerSettings)
 	if cached == nil || !now.Before(cached.expiresAt) {

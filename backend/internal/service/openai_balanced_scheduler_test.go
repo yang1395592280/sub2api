@@ -215,7 +215,7 @@ func TestOpenAIBalancedSchedulerWithoutExplorationIsDeterministic(t *testing.T) 
 	}
 }
 
-func TestOpenAIBalancedSchedulerUsesSeededThreePercentExploration(t *testing.T) {
+func TestOpenAIBalancedSchedulerUsesRepeatableSoftmaxAllocation(t *testing.T) {
 	input := OpenAIBalancedSelectionInput{
 		RandomSeed: 81,
 		Candidates: []OpenAIBalancedCandidate{
@@ -230,7 +230,8 @@ func TestOpenAIBalancedSchedulerUsesSeededThreePercentExploration(t *testing.T) 
 	second, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), input)
 	require.NoError(t, err)
 	require.Equal(t, first.OrderedAccountIDs, second.OrderedAccountIDs)
-	require.NotEqual(t, int64(1), first.OrderedAccountIDs[0])
+	require.ElementsMatch(t, []int64{1, 2, 3}, first.OrderedAccountIDs)
+	require.Len(t, first.PolicyScores, 3)
 }
 
 func TestOpenAIBalancedSchedulerDefaultUsesRepeatableWeightedTopKOrder(t *testing.T) {
@@ -265,7 +266,8 @@ func TestOpenAIBalancedSchedulerExplorationNeverPromotesLatencyIneligibleCandida
 	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), input)
 	require.NoError(t, err)
 	require.Equal(t, 2, result.TopK)
-	require.Equal(t, []int64{2, 1, 3}, result.OrderedAccountIDs)
+	require.ElementsMatch(t, []int64{1, 2}, result.OrderedAccountIDs[:result.TopK])
+	require.Equal(t, int64(3), result.OrderedAccountIDs[2])
 }
 
 func TestOpenAIBalancedSchedulerExplorationDoesNotOverrideStrongPreviousResponse(t *testing.T) {
@@ -507,24 +509,27 @@ func TestOpenAIBalancedSchedulerLegacyModeSkipsBalancedHealthLoad(t *testing.T) 
 	require.Zero(t, repo.getCalls)
 }
 
-func TestOpenAIBalancedSchedulerHealthFallbackPreservesLegacyOrder(t *testing.T) {
+func TestOpenAIBalancedSchedulerHealthFallbackOnlyOnWholeStoreFailure(t *testing.T) {
 	now := time.Date(2026, 7, 14, 8, 0, 0, 0, time.UTC)
 	key1 := OpenAISchedulerHealthKey{AccountID: 1, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse"}
 	key2 := OpenAISchedulerHealthKey{AccountID: 2, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse"}
 	tests := []struct {
-		name   string
-		repo   *balancedSchedulerHealthRepoStub
-		keyTwo OpenAISchedulerHealthKey
+		name      string
+		repo      *balancedSchedulerHealthRepoStub
+		keyTwo    OpenAISchedulerHealthKey
+		wantOrder []int64
 	}{
-		{name: "repository error", repo: &balancedSchedulerHealthRepoStub{err: errors.New("health unavailable")}, keyTwo: key2},
+		{name: "repository error", repo: &balancedSchedulerHealthRepoStub{err: errors.New("health unavailable")}, keyTwo: key2, wantOrder: []int64{2, 1}},
 		{name: "missing snapshot", repo: &balancedSchedulerHealthRepoStub{states: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{
-			key1: {Key: key1, State: OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(time.Minute)},
-		}}, keyTwo: key2},
+			key1: {Key: key1, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 500, ExpiresAt: now.Add(time.Minute)},
+		}}, keyTwo: key2, wantOrder: []int64{1, 2}},
 		{name: "expired snapshot", repo: &balancedSchedulerHealthRepoStub{states: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{
-			key1: {Key: key1, State: OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(time.Minute)},
+			key1: {Key: key1, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 500, ExpiresAt: now.Add(time.Minute)},
 			key2: {Key: key2, State: OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(-time.Second)},
-		}}, keyTwo: key2},
-		{name: "incomplete key", repo: &balancedSchedulerHealthRepoStub{}, keyTwo: OpenAISchedulerHealthKey{AccountID: 2}},
+		}}, keyTwo: key2, wantOrder: []int64{1, 2}},
+		{name: "incomplete key", repo: &balancedSchedulerHealthRepoStub{states: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{
+			key1: {Key: key1, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 500, ExpiresAt: now.Add(time.Minute)},
+		}}, keyTwo: OpenAISchedulerHealthKey{AccountID: 2}, wantOrder: []int64{1, 2}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -538,13 +543,13 @@ func TestOpenAIBalancedSchedulerHealthFallbackPreservesLegacyOrder(t *testing.T)
 				Settings:                OpenAIBalancedSettings{TopK: 2},
 			})
 			require.NoError(t, err)
-			require.Equal(t, []int64{2, 1}, result.OrderedAccountIDs)
+			require.Equal(t, tt.wantOrder, result.OrderedAccountIDs)
 			require.LessOrEqual(t, tt.repo.getCalls, 1)
 		})
 	}
 }
 
-func TestOpenAIBalancedSchedulerShadowHealthFallbackDoesNotReportFalseAgreement(t *testing.T) {
+func TestOpenAIBalancedSchedulerShadowUsesPartialHealthWithoutChangingLegacyOrder(t *testing.T) {
 	now := time.Date(2026, 7, 14, 8, 0, 0, 0, time.UTC)
 	key1 := OpenAISchedulerHealthKey{AccountID: 1, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse"}
 	key2 := OpenAISchedulerHealthKey{AccountID: 2, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse"}
@@ -560,7 +565,7 @@ func TestOpenAIBalancedSchedulerShadowHealthFallbackDoesNotReportFalseAgreement(
 		},
 		HealthLoadAttempted: true,
 		HealthSnapshots: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{
-			key1: {Key: key1, State: OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(time.Minute)},
+			key1: {Key: key1, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 500, ExpiresAt: now.Add(time.Minute)},
 		},
 	})
 
@@ -568,7 +573,7 @@ func TestOpenAIBalancedSchedulerShadowHealthFallbackDoesNotReportFalseAgreement(
 	require.Equal(t, []int64{1, 2}, result.OrderedAccountIDs)
 	require.True(t, result.Shadow)
 	require.Equal(t, int64(1), result.LegacyAccountID)
-	require.Zero(t, result.ShadowAccountID)
+	require.Equal(t, int64(1), result.ShadowAccountID)
 	require.Zero(t, result.PredictedTTFTDifferenceMS)
-	require.Equal(t, "health_unavailable", result.ShadowReason)
+	require.Equal(t, "same_account", result.ShadowReason)
 }

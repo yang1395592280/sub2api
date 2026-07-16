@@ -11,6 +11,7 @@ const {
   updateGroup,
   getOverview,
   listHealth,
+  listRankings,
   listEvents,
   resetScore,
   probeScore,
@@ -23,6 +24,7 @@ const {
   updateGroup: vi.fn(),
   getOverview: vi.fn(),
   listHealth: vi.fn(),
+  listRankings: vi.fn(),
   listEvents: vi.fn(),
   resetScore: vi.fn(),
   probeScore: vi.fn(),
@@ -39,6 +41,7 @@ vi.mock('@/api/admin', () => ({
       updateGroup,
       getOverview,
       listHealth,
+      listRankings,
       listEvents,
       resetScore,
       probeScore,
@@ -126,6 +129,8 @@ const HealthStub = defineComponent({
   emits: ['select', 'probe', 'reset', 'filter', 'page'],
   template: '<div data-testid="health"><span>{{ rows.length }}</span><button data-testid="select-health" @click="$emit(\'select\', rows[0])">select</button><button data-testid="reset-health" @click="$emit(\'reset\', rows[0])">reset</button></div>',
 })
+const RankingStub = defineComponent({ props: ['result'], template: '<div data-testid="rankings">{{ result?.items?.length || 0 }}</div>' })
+const RankingDrawerStub = { template: '<div />' }
 const DrawerStub = defineComponent({ props: ['open', 'account'], template: '<div v-if="open" data-testid="drawer">{{ account?.account_name }}</div>' })
 const EventsStub = { template: '<div data-testid="events" />' }
 const SettingsStub = { template: '<div data-testid="settings" />' }
@@ -146,6 +151,8 @@ function mountView() {
         SchedulerGroupList: GroupListStub,
         SchedulerOverview: OverviewStub,
         SchedulerHealthTable: HealthStub,
+        SchedulerRankingTable: RankingStub,
+        SchedulerRankingDrawer: RankingDrawerStub,
         SchedulerAccountDrawer: DrawerStub,
         SchedulerEventsPanel: EventsStub,
         SchedulerSettingsPanel: SettingsStub,
@@ -172,6 +179,11 @@ describe('OpenAIAutoSchedulerView', () => {
       slow_causes: [],
     })
     listHealth.mockResolvedValue({ items: [healthRow], total: 1, page: 1, page_size: 20, pages: 1 })
+    listRankings.mockResolvedValue({
+      policy_context: { engine_enabled: true, global_enabled: true, group_enabled: true, configured_mode: 'balanced', effective_mode: 'balanced', shadow_mode: false, policy_version: 'v2', calculated_at: '2026-07-15T12:00:00Z' },
+      summary: { candidate_count: 1, eligible_count: 1, rejected_count: 0, low_confidence_count: 0, request_count: 10 },
+      items: [{ account_id: 12512 }], total: 1, page: 1, page_size: 20,
+    })
     listEvents.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 1 })
     resetScore.mockResolvedValue({ message: 'reset' })
     probeScore.mockResolvedValue({ success: true, event_type: 'probe_success', message: 'ok', latency_ms: 800, ttfb_ms: 600 })
@@ -184,11 +196,24 @@ describe('OpenAIAutoSchedulerView', () => {
     expect(wrapper.text()).toContain('OpenAI 调度控制台')
     expect(wrapper.text()).toContain('均衡模式')
     expect(wrapper.text()).toContain('影子观察')
-    expect(wrapper.findAll('[data-testid^="scheduler-tab-"]')).toHaveLength(4)
+    expect(wrapper.findAll('[data-testid^="scheduler-tab-"]')).toHaveLength(5)
     expect(getOverview).toHaveBeenCalledWith(
       { group_id: 33, window: '6h' },
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
+  })
+
+  it('loads account rankings for the selected group', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="scheduler-tab-rankings"]').trigger('click')
+    await flushPromises()
+
+    expect(listRankings).toHaveBeenCalledWith(
+      expect.objectContaining({ group_id: 33, window: '1h', page: 1, page_size: 20 }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+    expect(wrapper.get('[data-testid="rankings"]').text()).toContain('1')
   })
 
   it('loads account health when switching tabs', async () => {

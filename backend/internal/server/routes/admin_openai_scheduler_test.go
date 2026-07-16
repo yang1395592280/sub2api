@@ -26,12 +26,15 @@ func TestRegisterOpenAIAutoSchedulerRoutesExposesOverviewAndHealthBeforeMutation
 		indices[route.Method+" "+route.Path] = i
 	}
 	overview, hasOverview := indices["GET /api/v1/admin/openai-auto-scheduler/overview"]
+	rankings, hasRankings := indices["GET /api/v1/admin/openai-auto-scheduler/rankings"]
 	health, hasHealth := indices["GET /api/v1/admin/openai-auto-scheduler/health"]
 	reset, hasReset := indices["POST /api/v1/admin/openai-auto-scheduler/scores/accounts/:account_id/reset"]
 	require.True(t, hasOverview)
+	require.True(t, hasRankings)
 	require.True(t, hasHealth)
 	require.True(t, hasReset)
 	require.Less(t, overview, reset)
+	require.Less(t, rankings, reset)
 	require.Less(t, health, reset)
 }
 

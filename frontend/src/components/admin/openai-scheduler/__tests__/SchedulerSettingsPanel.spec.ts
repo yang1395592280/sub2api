@@ -69,4 +69,21 @@ describe('SchedulerSettingsPanel', () => {
     expect(wrapper.text()).toContain('会话逃逸差值必须在 0 到 30000 ms 之间')
     expect(wrapper.emitted('save')).toBeUndefined()
   })
+
+  it('applies the performance preset as one coherent policy', async () => {
+    const wrapper = mount(SchedulerSettingsPanel, {
+      props: { modelValue: settings, saving: false },
+      global: { plugins: [createSchedulerTestI18n()], stubs: { Toggle: true } },
+    })
+
+    await wrapper.get('#scheduler-mode').setValue('performance_first')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      mode: 'performance_first',
+      temperature: 0.1,
+      max_account_share: 0.85,
+      weights: { latency: 0.55, reliability: 0.25, cost: 0.05, capacity: 0.1, quota: 0.03, priority: 0.02 },
+    })
+  })
 })

@@ -2969,6 +2969,45 @@ func TestDefaultOpenAIAccountScheduler_RuntimeSettingsMapBalancedControls(t *tes
 	require.Equal(t, 1, repo.calls())
 }
 
+func TestDefaultOpenAIAccountScheduler_BalancedRuntimeSettingsHonorGlobalAndGroupGates(t *testing.T) {
+	groupID := int64(10127)
+	enabledSettings := enabledOpenAIAutoSchedulerSettings()
+	enabledSettings.Mode = OpenAIAutoSchedulerModeBalanced
+	enabledSettings.ShadowMode = false
+
+	tests := []struct {
+		name         string
+		settings     OpenAIAutoSchedulerSettings
+		groupEnabled bool
+		expectedMode string
+	}{
+		{name: "enabled group", settings: enabledSettings, groupEnabled: true, expectedMode: OpenAIAutoSchedulerModeBalanced},
+		{name: "disabled group", settings: enabledSettings, groupEnabled: false, expectedMode: OpenAIAutoSchedulerModeLegacy},
+		{name: "global disabled", settings: DefaultOpenAIAutoSchedulerSettings(), groupEnabled: true, expectedMode: OpenAIAutoSchedulerModeLegacy},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeOpenAIAutoSchedulerRepo{groups: map[int64]Group{
+				groupID: {
+					ID: groupID, Platform: PlatformOpenAI, Status: StatusActive,
+					OpenAIAutoSchedulerEnabled: tt.groupEnabled,
+				},
+			}}
+			autoScheduler := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: tt.settings})
+			gateway := &OpenAIGatewayService{openAIAutoSchedulerService: autoScheduler}
+			scheduler := &defaultOpenAIAccountScheduler{service: gateway}
+
+			req := scheduler.withOpenAIBalancedRuntimeSettings(context.Background(), OpenAIAccountScheduleRequest{GroupID: &groupID})
+
+			require.Equal(t, tt.expectedMode, req.balancedMode)
+			if tt.expectedMode == OpenAIAutoSchedulerModeLegacy {
+				require.False(t, req.balancedShadowMode)
+			}
+		})
+	}
+}
+
 func TestDefaultOpenAIAccountScheduler_ShadowKeepsLegacyPlanAndLiveUsesBalancedPlan(t *testing.T) {
 	accounts := []*Account{
 		{ID: 216440, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1},

@@ -16,7 +16,7 @@ export type OpenAIAutoSchedulerEventType =
 
 export interface OpenAIAutoSchedulerSettings {
   enabled: boolean
-  mode?: 'legacy' | 'balanced'
+  mode?: 'legacy' | 'balanced' | 'performance_first' | 'cost_first' | 'efficiency'
   shadow_mode?: boolean
   top_k?: number
   exploration_rate?: number
@@ -35,6 +35,20 @@ export interface OpenAIAutoSchedulerSettings {
   half_open_success_threshold: number
   cost_weight: number
   recovery_step: number
+  temperature?: number
+  max_account_share?: number
+  low_confidence_max_share?: number
+  latency_budget_ms?: number
+  weights?: OpenAISchedulerPolicyWeights
+}
+
+export interface OpenAISchedulerPolicyWeights {
+  latency: number
+  reliability: number
+  cost: number
+  capacity: number
+  quota: number
+  priority: number
 }
 
 export interface OpenAIAutoSchedulerGroup {
@@ -115,6 +129,7 @@ export interface OpenAIAutoSchedulerListResponse<T> {
 }
 
 export type OpenAISchedulerWindow = '1h' | '6h' | '24h' | '7d'
+export type OpenAISchedulerRankingWindow = '15m' | '1h' | '6h' | '24h' | '7d'
 
 export interface OpenAISchedulerRequestOptions {
   signal?: AbortSignal
@@ -204,6 +219,91 @@ export interface OpenAISchedulerHealthRow {
   cooldown_until: string | null
 }
 
+export type OpenAISchedulerEligibility = 'eligible' | 'low_confidence' | 'latency_tail' | 'hard_rejected'
+
+export interface OpenAISchedulerRankingParams {
+  group_id: number
+  window: OpenAISchedulerRankingWindow
+  model_family?: string
+  endpoint?: string
+  transport?: string
+  eligibility?: OpenAISchedulerEligibility | ''
+  page?: number
+  page_size?: number
+}
+
+export interface OpenAISchedulerRankingPartition {
+  group_id: number
+  model_family: string
+  endpoint: string
+  transport: string
+}
+
+export interface OpenAISchedulerPolicyContext {
+  engine_enabled: boolean
+  global_enabled: boolean
+  group_enabled: boolean
+  configured_mode: string
+  effective_mode: string
+  shadow_mode: boolean
+  fallback_reason?: string
+  policy_version: string
+  calculated_at: string
+}
+
+export interface OpenAISchedulerRankingSummary {
+  candidate_count: number
+  eligible_count: number
+  rejected_count: number
+  low_confidence_count: number
+  request_count: number
+}
+
+export interface OpenAISchedulerRankingItem {
+  partition: OpenAISchedulerRankingPartition
+  rank: number
+  account_id: number
+  account_name: string
+  eligibility: OpenAISchedulerEligibility
+  eligibility_reason: string
+  utility_score: number
+  target_share: number
+  actual_share: number
+  selected_requests: number
+  predicted_ttft_ms: number
+  ttft_p50_ms: number
+  ttft_p90_ms: number
+  error_rate: number
+  rate_limited_rate: number
+  server_error_rate: number
+  load_inflight: number
+  load_capacity: number
+  waiting_count: number
+  channel_price: number | null
+  estimated_cost: number
+  confidence: string
+  real_sample_count: number
+  probe_sample_count: number
+  snapshot_age_ms: number
+  latency_score: number
+  reliability_score: number
+  cost_score: number
+  capacity_score: number
+  quota_score: number
+  priority_score: number
+  deviation_reasons: string[]
+  decision_summary: string
+}
+
+export interface OpenAISchedulerRankingResult {
+  policy_context: OpenAISchedulerPolicyContext
+  summary: OpenAISchedulerRankingSummary
+  items: OpenAISchedulerRankingItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export interface OpenAIAutoSchedulerScoreActionParams {
   group_id: number
   model: string
@@ -287,6 +387,15 @@ export async function listHealth(
   return data
 }
 
+export async function listRankings(
+  params: OpenAISchedulerRankingParams,
+  options: OpenAISchedulerRequestOptions = {}
+): Promise<OpenAISchedulerRankingResult> {
+  const config = options.signal ? { params, signal: options.signal } : { params }
+  const { data } = await apiClient.get<OpenAISchedulerRankingResult>(`${basePath}/rankings`, config)
+  return data
+}
+
 export async function resetScore(
   accountId: number,
   params: OpenAIAutoSchedulerScoreActionParams
@@ -320,6 +429,7 @@ export const openaiAutoSchedulerAPI = {
   listEvents,
   getOverview,
   listHealth,
+  listRankings,
   resetScore,
   probeScore,
 }

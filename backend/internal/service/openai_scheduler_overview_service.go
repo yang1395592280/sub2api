@@ -79,6 +79,7 @@ type OpenAISchedulerHealthRecord struct {
 	GroupID                   int64
 	GroupStatus               string
 	GroupAutoSchedulerEnabled bool
+	GroupPriority             int
 	AccountStatus             string
 	Schedulable               bool
 	TempUnschedulableUntil    *time.Time
@@ -144,6 +145,10 @@ type OpenAISchedulerOverviewRepository interface {
 
 type openAISchedulerOverviewLoadService interface {
 	GetAccountsLoadBatch(context.Context, []AccountWithConcurrency) (map[int64]*AccountLoadInfo, error)
+}
+
+type openAISchedulerEngineSettingsProvider interface {
+	IsOpenAIAdvancedSchedulerEnabled(context.Context) bool
 }
 
 type OpenAISchedulerOverviewService struct {

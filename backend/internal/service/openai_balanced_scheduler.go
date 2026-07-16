@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"log/slog"
-	"sort"
 	"strings"
 	"time"
 
@@ -36,6 +35,10 @@ type OpenAIBalancedSettings struct {
 	SessionEscapeMinGapMS  float64
 	SessionEscapeRatio     float64
 	SessionEscapeErrorRate float64
+	Temperature            float64
+	MaxAccountShare        float64
+	LowConfidenceMaxShare  float64
+	Weights                OpenAISchedulerPolicyWeights
 }
 
 type OpenAIBalancedCandidate struct {
@@ -53,6 +56,8 @@ type OpenAIBalancedCandidate struct {
 	QuotaHeadroom       float64
 	LegacyOrderPosition int
 	SelectionTier       int
+	HealthConfidence    string
+	HardRejectedReason  string
 }
 
 type OpenAIBalancedSelectionInput struct {
@@ -78,6 +83,7 @@ type OpenAIBalancedSelectionResult struct {
 	ShadowAccountID           int64
 	PredictedTTFTDifferenceMS float64
 	ShadowReason              string
+	PolicyScores              []OpenAISchedulerPolicyCandidateScore
 }
 
 type OpenAIBalancedScheduler struct {
@@ -97,6 +103,10 @@ func DefaultOpenAIBalancedSettings() OpenAIBalancedSettings {
 		SessionEscapeMinGapMS:  openAIBalancedDefaultSessionEscapeGapMS,
 		SessionEscapeRatio:     openAIBalancedDefaultSessionEscapeRatio,
 		SessionEscapeErrorRate: openAIBalancedDefaultSessionErrorRate,
+		Temperature:            defaultOpenAISchedulerPolicyTemperature(OpenAIAutoSchedulerModeBalanced),
+		MaxAccountShare:        defaultOpenAISchedulerMaxAccountShare(OpenAIAutoSchedulerModeBalanced),
+		LowConfidenceMaxShare:  DefaultOpenAIAutoSchedulerSettings().LowConfidenceMaxShare,
+		Weights:                defaultOpenAISchedulerPolicyWeights(OpenAIAutoSchedulerModeBalanced),
 	}
 }
 
@@ -123,115 +133,62 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 		input.Candidates = loaded
 	}
 	candidates := make([]OpenAIBalancedCandidate, 0, len(input.Candidates))
-	rejectedAccountIDs := make([]int64, 0)
 	for _, candidate := range input.Candidates {
 		if candidate.AccountID <= 0 {
 			continue
 		}
-		state := normalizeOpenAIAutoSchedulerState(candidate.State)
-		if state == OpenAIAutoSchedulerStateOpen || state == OpenAIAutoSchedulerStateHalfOpen {
-			rejectedAccountIDs = append(rejectedAccountIDs, candidate.AccountID)
-			continue
-		}
-		candidate.State = state
+		candidate.State = normalizeOpenAIAutoSchedulerState(candidate.State)
 		candidates = append(candidates, candidate)
 	}
-
-	result := OpenAIBalancedSelectionResult{
-		CandidateCount:     len(candidates),
-		RejectedAccountIDs: rejectedAccountIDs,
+	activeCandidates := make([]OpenAIBalancedCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.State != OpenAIAutoSchedulerStateOpen && candidate.State != OpenAIAutoSchedulerStateHalfOpen {
+			activeCandidates = append(activeCandidates, candidate)
+		}
 	}
-	if len(candidates) == 0 {
+	stickyEscape := ""
+	policyCandidates := candidates
+	var escapedSticky OpenAIBalancedCandidate
+	escapedStickyFound := false
+	if input.SessionAccountID > 0 {
+		stickyEscape = openAIBalancedStickyEscapeReason(input.SessionAccountID, activeCandidates, bestOpenAIBalancedTTFT(activeCandidates), settings)
+		if stickyEscape != "" {
+			policyCandidates, escapedSticky, escapedStickyFound = removeOpenAIBalancedCandidate(policyCandidates, input.SessionAccountID)
+		}
+	}
+	evaluation := EvaluateOpenAISchedulerPolicy(policyCandidates, openAIAutoSchedulerSettingsFromBalanced(settings), input.RandomSeed)
+	ordered := evaluation.OrderedCandidates
+	if escapedStickyFound {
+		insertAt := evaluation.TopK
+		if insertAt > len(ordered) {
+			insertAt = len(ordered)
+		}
+		ordered = append(ordered, OpenAIBalancedCandidate{})
+		copy(ordered[insertAt+1:], ordered[insertAt:])
+		ordered[insertAt] = escapedSticky
+	}
+	result := OpenAIBalancedSelectionResult{
+		CandidateCount:     len(activeCandidates),
+		RejectedAccountIDs: evaluation.RejectedAccountIDs,
+		TopK:               evaluation.TopK,
+		PolicyScores:       evaluation.Scores,
+	}
+	if len(ordered) == 0 {
 		if settings.ShadowMode {
 			return openAIBalancedShadowResult(input, result), nil
 		}
 		return result, nil
 	}
 
-	bestTTFT := bestOpenAIBalancedTTFT(candidates)
-	eligible := make([]OpenAIBalancedCandidate, 0, len(candidates))
-	ineligible := make([]OpenAIBalancedCandidate, 0, len(candidates))
-	for _, candidate := range candidates {
-		if bestTTFT > 0 && candidate.PredictedTTFTMS > 0 && candidate.PredictedTTFTMS > bestTTFT+settings.LatencyBudgetMS {
-			ineligible = append(ineligible, candidate)
-			continue
-		}
-		eligible = append(eligible, candidate)
-	}
-	sort.SliceStable(eligible, func(i, j int) bool {
-		return isOpenAIBalancedCandidateBetter(eligible[i], eligible[j])
-	})
-	sort.SliceStable(ineligible, func(i, j int) bool {
-		return isOpenAIBalancedLatencyTailCandidateBetter(ineligible[i], ineligible[j])
-	})
-	stickyEscape := ""
 	if input.SessionAccountID > 0 {
-		stickyEscape = openAIBalancedStickyEscapeReason(input.SessionAccountID, candidates, bestTTFT, settings)
 		if stickyEscape == "" {
-			eligible, ineligible = promoteOpenAIBalancedCandidate(eligible, ineligible, input.SessionAccountID)
-		} else {
-			var escaped OpenAIBalancedCandidate
-			var found bool
-			eligible, escaped, found = removeOpenAIBalancedCandidate(eligible, input.SessionAccountID)
-			if !found {
-				ineligible, escaped, found = removeOpenAIBalancedCandidate(ineligible, input.SessionAccountID)
-			}
-			if found {
-				ineligible = insertOpenAIBalancedLatencyTailCandidate(ineligible, escaped, candidates)
-			}
+			ordered = moveOpenAIBalancedCandidateFirst(ordered, input.SessionAccountID)
 		}
 	}
 	if input.PreviousResponseAccountID > 0 {
-		eligible, ineligible = promoteOpenAIBalancedCandidate(eligible, ineligible, input.PreviousResponseAccountID)
+		ordered = moveOpenAIBalancedCandidateFirst(ordered, input.PreviousResponseAccountID)
 	}
-	latencyEligibleCount := len(eligible)
-	ordered := append(append(make([]OpenAIBalancedCandidate, 0, len(candidates)), eligible...), ineligible...)
-
-	topK := settings.TopK
-	if topK > latencyEligibleCount {
-		topK = latencyEligibleCount
-	}
-	result.TopK = topK
 	result.StickyEscapeReason = stickyEscape
-	if topK <= 0 {
-		return result, nil
-	}
-	balancedTop := ordered[:topK]
-	strongSticky := input.PreviousResponseAccountID > 0 || (input.SessionAccountID > 0 && stickyEscape == "")
-	if settings.ExplorationRate > 0 && len(balancedTop) > 1 {
-		rng := newOpenAISelectionRNG(input.RandomSeed)
-		if rng.nextFloat64() < settings.ExplorationRate {
-			targetIndex := 0
-			if strongSticky {
-				targetIndex = 1
-			}
-			explorable := make([]int, 0, len(balancedTop)-targetIndex-1)
-			for i := targetIndex + 1; i < len(balancedTop); i++ {
-				if balancedTop[i].AccountID != input.SessionAccountID &&
-					balancedTop[i].State == OpenAIAutoSchedulerStateRunning &&
-					balancedTop[i].WaitingCount == 0 && balancedTop[i].ErrorRate == 0 &&
-					balancedTop[i].RateLimitedRate == 0 && balancedTop[i].ServerErrorRate == 0 {
-					explorable = append(explorable, i)
-				}
-			}
-			if len(explorable) > 0 {
-				idx := explorable[int(rng.nextUint64()%uint64(len(explorable)))]
-				candidate := balancedTop[idx]
-				copy(balancedTop[targetIndex+1:idx+1], balancedTop[targetIndex:idx])
-				balancedTop[targetIndex] = candidate
-			}
-		} else {
-			weightedStart := 0
-			if strongSticky {
-				weightedStart = 1
-			}
-			weightedEnd := len(balancedTop)
-			if stickyEscape != "" && weightedEnd > weightedStart && balancedTop[weightedEnd-1].AccountID == input.SessionAccountID {
-				weightedEnd--
-			}
-			applyOpenAIBalancedRankWeightedOrder(balancedTop[weightedStart:weightedEnd], &rng)
-		}
-	}
 	result.OrderedAccountIDs = make([]int64, 0, len(ordered))
 	for _, candidate := range ordered {
 		result.OrderedAccountIDs = append(result.OrderedAccountIDs, candidate.AccountID)
@@ -240,6 +197,23 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 		result = openAIBalancedShadowResult(input, result)
 	}
 	return result, nil
+}
+
+func openAIAutoSchedulerSettingsFromBalanced(settings OpenAIBalancedSettings) OpenAIAutoSchedulerSettings {
+	result := DefaultOpenAIAutoSchedulerSettings()
+	result.Enabled = true
+	result.Mode = settings.Mode
+	result.ShadowMode = settings.ShadowMode
+	result.TopK = settings.TopK
+	result.ExplorationRate = settings.ExplorationRate
+	result.SessionEscapeMinGapMS = int(settings.SessionEscapeMinGapMS)
+	result.SessionEscapeRatio = settings.SessionEscapeRatio
+	result.LatencyBudgetMS = int(settings.LatencyBudgetMS)
+	result.Temperature = settings.Temperature
+	result.MaxAccountShare = settings.MaxAccountShare
+	result.LowConfidenceMaxShare = settings.LowConfidenceMaxShare
+	result.Weights = settings.Weights
+	return result
 }
 
 func openAIBalancedFallbackResult(input OpenAIBalancedSelectionInput, settings OpenAIBalancedSettings) OpenAIBalancedSelectionResult {
@@ -353,22 +327,16 @@ func (s *OpenAIBalancedScheduler) loadOpenAIBalancedHealthSnapshots(
 	for _, candidate := range candidates {
 		key := normalizeOpenAISchedulerHealthKey(candidate.HealthKey)
 		if !isCompleteOpenAISchedulerHealthKey(key) {
-			return nil, false
+			continue
 		}
 		keys = append(keys, key)
+	}
+	if len(keys) == 0 {
+		return nil, false
 	}
 	states, err := s.repo.GetBatch(ctx, keys)
 	if err != nil {
 		return nil, false
-	}
-	if now.IsZero() {
-		now = time.Now()
-	}
-	for _, key := range keys {
-		snapshot, ok := states[key]
-		if !ok || snapshot.ExpiresAt.IsZero() || !now.Before(snapshot.ExpiresAt) {
-			return nil, false
-		}
 	}
 	return states, true
 }
@@ -382,11 +350,14 @@ func hydrateOpenAIBalancedHealth(
 		now = time.Now()
 	}
 	candidates := append([]OpenAIBalancedCandidate(nil), input...)
+	hydratedCount := 0
 	for i := range candidates {
 		key := normalizeOpenAISchedulerHealthKey(candidates[i].HealthKey)
 		snapshot, ok := states[key]
 		if !ok || snapshot.ExpiresAt.IsZero() || !now.Before(snapshot.ExpiresAt) {
-			return nil, false
+			candidates[i].State = OpenAIAutoSchedulerStateRunning
+			candidates[i].HealthConfidence = "low"
+			continue
 		}
 		candidates[i].HealthKey = key
 		candidates[i].PredictedTTFTMS = snapshot.PredictedTTFTMS
@@ -394,6 +365,11 @@ func hydrateOpenAIBalancedHealth(
 		candidates[i].ErrorRate = snapshot.ErrorRate
 		candidates[i].RateLimitedRate = snapshot.RateLimitedRate
 		candidates[i].ServerErrorRate = snapshot.ServerErrorRate
+		candidates[i].HealthConfidence = "high"
+		hydratedCount++
+	}
+	if hydratedCount == 0 {
+		return nil, false
 	}
 	return candidates, true
 }
@@ -482,7 +458,7 @@ func (s *OpenAIGatewayService) openAIBalancedWSIngressTransport(account *Account
 func normalizeOpenAIBalancedSettings(settings OpenAIBalancedSettings) OpenAIBalancedSettings {
 	runtimeSettings := strings.TrimSpace(settings.Mode) != ""
 	settings.Mode = strings.ToLower(strings.TrimSpace(settings.Mode))
-	if settings.Mode != OpenAIAutoSchedulerModeLegacy && settings.Mode != OpenAIAutoSchedulerModeBalanced {
+	if !isSupportedOpenAISchedulerMode(settings.Mode) {
 		settings.Mode = OpenAIAutoSchedulerModeBalanced
 	}
 	if settings.TopK <= 0 {
@@ -502,6 +478,20 @@ func normalizeOpenAIBalancedSettings(settings OpenAIBalancedSettings) OpenAIBala
 	}
 	if settings.ExplorationRate < 0 || settings.ExplorationRate > 1 {
 		settings.ExplorationRate = 0
+	}
+	if settings.Temperature <= 0 {
+		settings.Temperature = defaultOpenAISchedulerPolicyTemperature(settings.Mode)
+	}
+	if settings.MaxAccountShare <= 0 || settings.MaxAccountShare > 1 {
+		settings.MaxAccountShare = defaultOpenAISchedulerMaxAccountShare(settings.Mode)
+	}
+	if settings.LowConfidenceMaxShare <= 0 || settings.LowConfidenceMaxShare > 1 {
+		settings.LowConfidenceMaxShare = DefaultOpenAIAutoSchedulerSettings().LowConfidenceMaxShare
+	}
+	if openAISchedulerPolicyWeightSum(settings.Weights) <= 0 {
+		settings.Weights = defaultOpenAISchedulerPolicyWeights(settings.Mode)
+	} else {
+		settings.Weights = normalizeOpenAISchedulerPolicyWeights(settings.Weights)
 	}
 	return settings
 }

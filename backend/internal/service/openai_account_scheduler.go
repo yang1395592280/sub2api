@@ -408,6 +408,14 @@ func (s *defaultOpenAIAccountScheduler) withOpenAIBalancedRuntimeSettings(
 	req OpenAIAccountScheduleRequest,
 ) OpenAIAccountScheduleRequest {
 	settings := s.openAIBalancedRuntimeSettingsForRequest(ctx)
+	// Production wiring always provides the auto-scheduler service. Keep directly
+	// constructed gateway services backward compatible, but enforce the global and
+	// group gates whenever the control-plane service is available.
+	if s != nil && s.service != nil && s.service.openAIAutoSchedulerService != nil &&
+		!s.service.openAIAutoSchedulerService.IsEnabledForGroup(ctx, req.GroupID) {
+		settings.Mode = OpenAIAutoSchedulerModeLegacy
+		settings.ShadowMode = false
+	}
 	req.balancedMode = settings.Mode
 	req.balancedShadowMode = settings.ShadowMode
 	req.balancedPolicySettings = OpenAIBalancedSettings{
@@ -415,10 +423,14 @@ func (s *defaultOpenAIAccountScheduler) withOpenAIBalancedRuntimeSettings(
 		ShadowMode:             settings.ShadowMode,
 		TopK:                   settings.TopK,
 		ExplorationRate:        settings.ExplorationRate,
-		LatencyBudgetMS:        openAIBalancedDefaultLatencyBudgetMS,
+		LatencyBudgetMS:        float64(settings.LatencyBudgetMS),
 		SessionEscapeMinGapMS:  float64(settings.SessionEscapeMinGapMS),
 		SessionEscapeRatio:     settings.SessionEscapeRatio,
 		SessionEscapeErrorRate: openAIBalancedDefaultSessionErrorRate,
+		Temperature:            settings.Temperature,
+		MaxAccountShare:        settings.MaxAccountShare,
+		LowConfidenceMaxShare:  settings.LowConfidenceMaxShare,
+		Weights:                settings.Weights,
 	}
 	return req
 }
@@ -474,7 +486,9 @@ func (s *defaultOpenAIAccountScheduler) openAIBalancedShadowDecisionForSticky(
 		return OpenAIBalancedSelectionResult{}, false
 	}
 	settings := req.balancedPolicySettings
-	settings.Mode = OpenAIAutoSchedulerModeBalanced
+	if !isSupportedOpenAISchedulerMode(settings.Mode) || settings.Mode == OpenAIAutoSchedulerModeLegacy {
+		settings.Mode = OpenAIAutoSchedulerModeBalanced
+	}
 	settings.ShadowMode = true
 	result, err := s.service.openaiBalancedScheduler.Order(ctx, OpenAIBalancedSelectionInput{
 		SessionAccountID:        legacyAccountID,

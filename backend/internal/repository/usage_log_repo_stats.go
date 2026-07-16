@@ -603,7 +603,7 @@ func buildOpenAISchedulerHealthQueries(params service.OpenAISchedulerHealthParam
 	offsetPlaceholder := len(rowsArgs)
 	rowsQuery := fmt.Sprintf(`
 		WITH health_rows AS (
-			SELECT a.id AS account_id, a.name AS account_name, ag.group_id,
+			SELECT a.id AS account_id, a.name AS account_name, ag.group_id, ag.priority AS group_priority,
 			       g.status AS group_status, g.openai_auto_scheduler_enabled AS group_auto_scheduler_enabled,
 			       a.status AS account_status, a.schedulable,
 			       a.temp_unschedulable_until, COALESCE(a.temp_unschedulable_reason, '') AS temp_unschedulable_reason,
@@ -624,7 +624,7 @@ func buildOpenAISchedulerHealthQueries(params service.OpenAISchedulerHealthParam
 			       a.channel_price
 			%s
 		)
-		SELECT account_id, account_name, group_id, group_status, group_auto_scheduler_enabled,
+		SELECT account_id, account_name, group_id, group_priority, group_status, group_auto_scheduler_enabled,
 		       account_status, schedulable,
 		       temp_unschedulable_until, temp_unschedulable_reason,
 		       auto_pause_on_expired, account_expires_at, overload_until, rate_limit_reset_at,
@@ -665,7 +665,7 @@ func (r *openAISchedulerOverviewRepository) ListOpenAISchedulerHealth(ctx contex
 		var cooldownUntil, expiresAt, updatedAt sql.NullTime
 		var channelPrice sql.NullFloat64
 		if err = rows.Scan(
-			&item.AccountID, &item.AccountName, &item.GroupID, &item.GroupStatus, &item.GroupAutoSchedulerEnabled,
+			&item.AccountID, &item.AccountName, &item.GroupID, &item.GroupPriority, &item.GroupStatus, &item.GroupAutoSchedulerEnabled,
 			&item.AccountStatus, &item.Schedulable,
 			&tempUnschedulableUntil, &item.TempUnschedulableReason,
 			&item.AutoPauseOnExpired, &accountExpiresAt, &overloadUntil, &rateLimitResetAt,
@@ -707,6 +707,82 @@ func (r *openAISchedulerOverviewRepository) ListOpenAISchedulerHealth(ctx contex
 		return nil, 0, err
 	}
 	return result, total, nil
+}
+
+func (r *openAISchedulerOverviewRepository) ListOpenAISchedulerRankingActual(
+	ctx context.Context,
+	params service.OpenAISchedulerRankingActualParams,
+) (result []service.OpenAISchedulerRankingActual, err error) {
+	if r == nil || r.sql == nil {
+		return []service.OpenAISchedulerRankingActual{}, nil
+	}
+	conditions := []string{"group_id = $1", "created_at >= $2", "created_at < $3"}
+	args := []any{params.GroupID, params.StartTime, params.EndTime}
+	appendFilter := func(column, value string) {
+		if value == "" {
+			return
+		}
+		args = append(args, value)
+		conditions = append(conditions, fmt.Sprintf("%s = $%d", column, len(args)))
+	}
+	appendFilter("model_family", strings.ToLower(strings.TrimSpace(params.ModelFamily)))
+	appendFilter("endpoint", strings.ToLower(strings.TrimSpace(params.Endpoint)))
+	appendFilter("transport", strings.ToLower(strings.TrimSpace(params.Transport)))
+	query := fmt.Sprintf(`
+		WITH normalized AS (
+			SELECT account_id,
+			       LOWER(COALESCE(NULLIF(upstream_model, ''), NULLIF(model, ''), '')) AS model_family,
+			       CASE
+			           WHEN LOWER(COALESCE(upstream_endpoint, '')) LIKE '%%chat%%completions%%' THEN 'chat_completions'
+			           WHEN LOWER(COALESCE(upstream_endpoint, '')) LIKE '%%embeddings%%' THEN 'embeddings'
+			           WHEN LOWER(COALESCE(upstream_endpoint, '')) LIKE '%%images%%edits%%' THEN 'images_edits'
+			           WHEN LOWER(COALESCE(upstream_endpoint, '')) LIKE '%%images%%generations%%' THEN 'images_generations'
+			           ELSE 'responses'
+			       END AS endpoint,
+			       CASE WHEN openai_ws_mode THEN 'responses_websockets_v2' ELSE 'http_sse' END AS transport,
+			       created_at, e2e_first_token_ms, first_token_ms,
+			       COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1) AS estimated_cost,
+			       group_id
+			FROM usage_logs
+			WHERE group_id = $1 AND created_at >= $2 AND created_at < $3
+		)
+		SELECT account_id, model_family, endpoint, transport,
+		       COUNT(*) AS request_count,
+		       COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY COALESCE(e2e_first_token_ms, first_token_ms))
+		           FILTER (WHERE COALESCE(e2e_first_token_ms, first_token_ms) IS NOT NULL), 0) AS ttft_p50,
+		       COALESCE(PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY COALESCE(e2e_first_token_ms, first_token_ms))
+		           FILTER (WHERE COALESCE(e2e_first_token_ms, first_token_ms) IS NOT NULL), 0) AS ttft_p90,
+		       COALESCE(SUM(estimated_cost), 0) AS estimated_cost
+		FROM normalized
+		WHERE %s
+		GROUP BY account_id, model_family, endpoint, transport
+		ORDER BY model_family, endpoint, transport, account_id
+	`, strings.Join(conditions, " AND "))
+	rows, err := r.sql.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+			result = nil
+		}
+	}()
+	result = make([]service.OpenAISchedulerRankingActual, 0)
+	for rows.Next() {
+		var item service.OpenAISchedulerRankingActual
+		if err = rows.Scan(
+			&item.Key.AccountID, &item.Key.ModelFamily, &item.Key.Endpoint, &item.Key.Transport,
+			&item.RequestCount, &item.TTFTP50MS, &item.TTFTP90MS, &item.EstimatedCost,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // GetAccountTodayStats 获取账号今日统计

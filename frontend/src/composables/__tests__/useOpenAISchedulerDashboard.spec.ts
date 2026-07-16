@@ -6,6 +6,7 @@ const {
   listGroups,
   getOverview,
   listHealth,
+  listRankings,
   listEvents,
   updateSettings,
   updateGroup,
@@ -16,6 +17,7 @@ const {
   listGroups: vi.fn(),
   getOverview: vi.fn(),
   listHealth: vi.fn(),
+  listRankings: vi.fn(),
   listEvents: vi.fn(),
   updateSettings: vi.fn(),
   updateGroup: vi.fn(),
@@ -30,6 +32,7 @@ vi.mock('@/api/admin', () => ({
       listGroups,
       getOverview,
       listHealth,
+      listRankings,
       listEvents,
       updateSettings,
       updateGroup,
@@ -87,6 +90,7 @@ describe('useOpenAISchedulerDashboard', () => {
     ])
     getOverview.mockResolvedValue({ ...emptyOverview })
     listHealth.mockResolvedValue({ ...emptyPage })
+    listRankings.mockResolvedValue({ policy_context: {}, summary: {}, items: [], total: 0, page: 1, page_size: 20 })
     listEvents.mockResolvedValue({ ...emptyPage })
   })
 
@@ -192,6 +196,20 @@ describe('useOpenAISchedulerDashboard', () => {
     expect(listHealth).toHaveBeenCalledTimes(1)
     expect(listHealth).toHaveBeenCalledWith(
       expect.objectContaining({ group_id: 82, page: 1 }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+    scope.stop()
+  })
+
+  it('loads rankings with a required group and independent one-hour window', async () => {
+    const scope = effectScope()
+    const dashboard = scope.run(() => useOpenAISchedulerDashboard())!
+    await dashboard.initialize()
+
+    await dashboard.selectTab('rankings')
+
+    expect(listRankings).toHaveBeenCalledWith(
+      expect.objectContaining({ group_id: 33, window: '1h', page: 1, page_size: 20 }),
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
     scope.stop()
