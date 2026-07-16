@@ -68,6 +68,7 @@ type OpenAISchedulerRankingActualRepository interface {
 
 type OpenAISchedulerRankingItem struct {
 	Partition         OpenAISchedulerRankingPartition `json:"partition"`
+	PartitionCount    int                             `json:"partition_count"`
 	Rank              int                             `json:"rank"`
 	AccountID         int64                           `json:"account_id"`
 	AccountName       string                          `json:"account_name"`
@@ -131,10 +132,7 @@ func (s *OpenAISchedulerOverviewService) ListRankings(ctx context.Context, param
 	if s.now != nil {
 		now = s.now()
 	}
-	records, _, err := s.repo.ListOpenAISchedulerHealth(ctx, OpenAISchedulerHealthParams{
-		GroupID: params.GroupID, ModelFamily: params.ModelFamily, Endpoint: params.Endpoint,
-		Transport: params.Transport, Sort: "account_id", Order: "asc", Page: 1, PageSize: openAISchedulerOverviewMaxPageSize,
-	})
+	records, err := s.listOpenAISchedulerRankingHealth(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -173,41 +171,34 @@ func (s *OpenAISchedulerOverviewService) ListRankings(ctx context.Context, param
 		partitions[partition] = append(partitions[partition], record)
 		groupEnabled = groupEnabled || record.GroupAutoSchedulerEnabled
 	}
-	items := make([]OpenAISchedulerRankingItem, 0, len(records))
-	summary := OpenAISchedulerRankingSummary{CandidateCount: len(records)}
-	for partition, partitionRecords := range partitions {
+	partitionKeys := make([]OpenAISchedulerRankingPartition, 0, len(partitions))
+	for partition := range partitions {
+		partitionKeys = append(partitionKeys, partition)
+	}
+	sort.Slice(partitionKeys, func(i, j int) bool {
+		left, right := partitionKeys[i], partitionKeys[j]
+		if left.ModelFamily != right.ModelFamily {
+			return left.ModelFamily < right.ModelFamily
+		}
+		if left.Endpoint != right.Endpoint {
+			return left.Endpoint < right.Endpoint
+		}
+		return left.Transport < right.Transport
+	})
+	partitionRankings := make(map[OpenAISchedulerRankingPartition][]OpenAISchedulerRankingItem, len(partitions))
+	for _, partition := range partitionKeys {
+		partitionRecords := partitions[partition]
 		partitionItems := buildOpenAISchedulerPartitionRanking(partition, partitionRecords, loadMap, actualByKey, settings, now)
-		for _, item := range partitionItems {
-			summary.RequestCount += item.SelectedRequests
-			switch item.Eligibility {
-			case OpenAISchedulerEligibilityEligible:
-				summary.EligibleCount++
-			case OpenAISchedulerEligibilityLowConfidence:
-				summary.LowConfidenceCount++
-			case OpenAISchedulerEligibilityRejected:
-				summary.RejectedCount++
-			}
-			if params.Eligibility == "" || item.Eligibility == params.Eligibility {
-				items = append(items, item)
-			}
+		partitionRankings[partition] = partitionItems
+	}
+	allItems := aggregateOpenAISchedulerAccountRankings(params, partitionKeys, partitionRankings)
+	summary := summarizeOpenAISchedulerAccountRankings(allItems)
+	items := make([]OpenAISchedulerRankingItem, 0, len(allItems))
+	for _, item := range allItems {
+		if params.Eligibility == "" || item.Eligibility == params.Eligibility {
+			items = append(items, item)
 		}
 	}
-	sort.SliceStable(items, func(i, j int) bool {
-		left, right := items[i], items[j]
-		if left.Partition.ModelFamily != right.Partition.ModelFamily {
-			return left.Partition.ModelFamily < right.Partition.ModelFamily
-		}
-		if left.Partition.Endpoint != right.Partition.Endpoint {
-			return left.Partition.Endpoint < right.Partition.Endpoint
-		}
-		if left.Partition.Transport != right.Partition.Transport {
-			return left.Partition.Transport < right.Partition.Transport
-		}
-		if left.Rank == 0 || right.Rank == 0 {
-			return left.Rank > right.Rank
-		}
-		return left.Rank < right.Rank
-	})
 	total := int64(len(items))
 	start := (params.Page - 1) * params.PageSize
 	if start > len(items) {
@@ -254,6 +245,26 @@ func (s *OpenAISchedulerOverviewService) ListRankings(ctx context.Context, param
 	}, nil
 }
 
+func (s *OpenAISchedulerOverviewService) listOpenAISchedulerRankingHealth(
+	ctx context.Context,
+	params OpenAISchedulerRankingParams,
+) ([]OpenAISchedulerHealthRecord, error) {
+	records := make([]OpenAISchedulerHealthRecord, 0)
+	for page := 1; ; page++ {
+		batch, total, err := s.repo.ListOpenAISchedulerHealth(ctx, OpenAISchedulerHealthParams{
+			GroupID: params.GroupID, ModelFamily: params.ModelFamily, Endpoint: params.Endpoint,
+			Transport: params.Transport, Sort: "account_id", Order: "asc", Page: page, PageSize: openAISchedulerOverviewMaxPageSize,
+		})
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, batch...)
+		if len(batch) == 0 || total <= int64(len(records)) || len(batch) < openAISchedulerOverviewMaxPageSize {
+			return records, nil
+		}
+	}
+}
+
 func appendUniqueOpenAISchedulerRankingReason(reasons []string, reason string) []string {
 	for _, existing := range reasons {
 		if existing == reason {
@@ -291,6 +302,7 @@ func buildOpenAISchedulerPartitionRanking(
 	settings OpenAIAutoSchedulerSettings,
 	now time.Time,
 ) []OpenAISchedulerRankingItem {
+	records = uniqueOpenAISchedulerPartitionRecords(records)
 	candidates := make([]OpenAIBalancedCandidate, 0, len(records))
 	recordByID := make(map[int64]OpenAISchedulerHealthRecord, len(records))
 	confidenceByID := make(map[int64]string, len(records))
@@ -334,7 +346,7 @@ func buildOpenAISchedulerPartitionRanking(
 			actualShare = float64(actual.RequestCount) / float64(totalRequests)
 		}
 		item := OpenAISchedulerRankingItem{
-			Partition: partition, Rank: score.Rank, AccountID: score.AccountID, AccountName: record.AccountName,
+			Partition: partition, PartitionCount: 1, Rank: score.Rank, AccountID: score.AccountID, AccountName: record.AccountName,
 			Eligibility: score.Eligibility, EligibilityReason: score.EligibilityReason,
 			UtilityScore: score.Utility * 100, TargetShare: score.TargetShare, ActualShare: actualShare,
 			SelectedRequests: actual.RequestCount, PredictedTTFTMS: record.PredictedTTFTMS,
@@ -360,6 +372,242 @@ func buildOpenAISchedulerPartitionRanking(
 		items = append(items, item)
 	}
 	return items
+}
+
+func uniqueOpenAISchedulerPartitionRecords(records []OpenAISchedulerHealthRecord) []OpenAISchedulerHealthRecord {
+	byAccountID := make(map[int64]OpenAISchedulerHealthRecord, len(records))
+	for _, record := range records {
+		current, exists := byAccountID[record.AccountID]
+		if !exists || record.UpdatedAt.After(current.UpdatedAt) {
+			byAccountID[record.AccountID] = record
+		}
+	}
+	result := make([]OpenAISchedulerHealthRecord, 0, len(byAccountID))
+	for _, record := range byAccountID {
+		result = append(result, record)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].AccountID < result[j].AccountID })
+	return result
+}
+
+type openAISchedulerAccountRankingAggregate struct {
+	item                  OpenAISchedulerRankingItem
+	metricWeight          float64
+	fallbackMetricCount   float64
+	fallbackPredictedTTFT float64
+	fallbackErrorRate     float64
+	fallbackRateLimited   float64
+	fallbackServerError   float64
+	fallbackTTFTP50       float64
+	fallbackTTFTP90       float64
+	ttftRequestWeight     float64
+	hasEligible           bool
+	hasLowConfidence      bool
+	hasLatencyTail        bool
+	reason                string
+}
+
+func aggregateOpenAISchedulerAccountRankings(
+	params OpenAISchedulerRankingParams,
+	partitionKeys []OpenAISchedulerRankingPartition,
+	partitionRankings map[OpenAISchedulerRankingPartition][]OpenAISchedulerRankingItem,
+) []OpenAISchedulerRankingItem {
+	partitionRequests := make(map[OpenAISchedulerRankingPartition]int64, len(partitionKeys))
+	var totalRequests int64
+	for _, partition := range partitionKeys {
+		for _, item := range partitionRankings[partition] {
+			partitionRequests[partition] += item.SelectedRequests
+		}
+		totalRequests += partitionRequests[partition]
+	}
+
+	aggregates := make(map[int64]*openAISchedulerAccountRankingAggregate)
+	for _, partition := range partitionKeys {
+		partitionWeight := 0.0
+		if totalRequests > 0 {
+			partitionWeight = float64(partitionRequests[partition]) / float64(totalRequests)
+		} else if len(partitionKeys) > 0 {
+			partitionWeight = 1 / float64(len(partitionKeys))
+		}
+		for _, source := range partitionRankings[partition] {
+			aggregate := aggregates[source.AccountID]
+			if aggregate == nil {
+				aggregate = &openAISchedulerAccountRankingAggregate{item: OpenAISchedulerRankingItem{
+					Partition: OpenAISchedulerRankingPartition{
+						GroupID: params.GroupID, ModelFamily: params.ModelFamily,
+						Endpoint: params.Endpoint, Transport: params.Transport,
+					},
+					AccountID: source.AccountID, AccountName: source.AccountName,
+					Confidence: "high", DeviationReasons: []string{},
+				}}
+				aggregates[source.AccountID] = aggregate
+			}
+			aggregate.item.PartitionCount++
+			if aggregate.item.PartitionCount == 1 {
+				aggregate.item.Partition = source.Partition
+			} else {
+				aggregate.item.Partition = OpenAISchedulerRankingPartition{
+					GroupID: params.GroupID, ModelFamily: params.ModelFamily,
+					Endpoint: params.Endpoint, Transport: params.Transport,
+				}
+			}
+
+			aggregate.item.TargetShare += partitionWeight * source.TargetShare
+			aggregate.item.UtilityScore += partitionWeight * source.UtilityScore
+			aggregate.item.LatencyScore += partitionWeight * source.LatencyScore
+			aggregate.item.ReliabilityScore += partitionWeight * source.ReliabilityScore
+			aggregate.item.CostScore += partitionWeight * source.CostScore
+			aggregate.item.CapacityScore += partitionWeight * source.CapacityScore
+			aggregate.item.QuotaScore += partitionWeight * source.QuotaScore
+			aggregate.item.PriorityScore += partitionWeight * source.PriorityScore
+
+			aggregate.item.SelectedRequests += source.SelectedRequests
+			aggregate.item.EstimatedCost += source.EstimatedCost
+			aggregate.item.RealSampleCount += source.RealSampleCount
+			aggregate.item.ProbeSampleCount += source.ProbeSampleCount
+			if source.SnapshotAgeMS > aggregate.item.SnapshotAgeMS {
+				aggregate.item.SnapshotAgeMS = source.SnapshotAgeMS
+			}
+			if source.LoadInflight > aggregate.item.LoadInflight {
+				aggregate.item.LoadInflight = source.LoadInflight
+			}
+			if source.LoadCapacity > aggregate.item.LoadCapacity {
+				aggregate.item.LoadCapacity = source.LoadCapacity
+			}
+			if source.WaitingCount > aggregate.item.WaitingCount {
+				aggregate.item.WaitingCount = source.WaitingCount
+			}
+			if aggregate.item.ChannelPrice == nil && source.ChannelPrice != nil {
+				price := *source.ChannelPrice
+				aggregate.item.ChannelPrice = &price
+			}
+			aggregate.item.Confidence = lowerOpenAISchedulerRankingConfidence(aggregate.item.Confidence, source.Confidence)
+			for _, reason := range source.DeviationReasons {
+				aggregate.item.DeviationReasons = appendUniqueOpenAISchedulerRankingReason(aggregate.item.DeviationReasons, reason)
+			}
+
+			aggregate.metricWeight += partitionWeight
+			aggregate.item.PredictedTTFTMS += partitionWeight * source.PredictedTTFTMS
+			aggregate.item.ErrorRate += partitionWeight * source.ErrorRate
+			aggregate.item.RateLimitedRate += partitionWeight * source.RateLimitedRate
+			aggregate.item.ServerErrorRate += partitionWeight * source.ServerErrorRate
+			aggregate.fallbackMetricCount++
+			aggregate.fallbackPredictedTTFT += source.PredictedTTFTMS
+			aggregate.fallbackErrorRate += source.ErrorRate
+			aggregate.fallbackRateLimited += source.RateLimitedRate
+			aggregate.fallbackServerError += source.ServerErrorRate
+			aggregate.fallbackTTFTP50 += source.TTFTP50MS
+			aggregate.fallbackTTFTP90 += source.TTFTP90MS
+			if source.SelectedRequests > 0 {
+				requestWeight := float64(source.SelectedRequests)
+				aggregate.item.TTFTP50MS += requestWeight * source.TTFTP50MS
+				aggregate.item.TTFTP90MS += requestWeight * source.TTFTP90MS
+				aggregate.ttftRequestWeight += requestWeight
+			}
+
+			switch source.Eligibility {
+			case OpenAISchedulerEligibilityEligible:
+				aggregate.hasEligible = true
+			case OpenAISchedulerEligibilityLowConfidence:
+				aggregate.hasLowConfidence = true
+			case OpenAISchedulerEligibilityLatencyTail:
+				aggregate.hasLatencyTail = true
+			}
+			if aggregate.reason == "" && source.EligibilityReason != "" {
+				aggregate.reason = source.EligibilityReason
+			}
+		}
+	}
+
+	items := make([]OpenAISchedulerRankingItem, 0, len(aggregates))
+	for _, aggregate := range aggregates {
+		item := aggregate.item
+		if totalRequests > 0 {
+			item.ActualShare = float64(item.SelectedRequests) / float64(totalRequests)
+		}
+		if aggregate.metricWeight > 0 {
+			item.PredictedTTFTMS /= aggregate.metricWeight
+			item.ErrorRate /= aggregate.metricWeight
+			item.RateLimitedRate /= aggregate.metricWeight
+			item.ServerErrorRate /= aggregate.metricWeight
+		} else if aggregate.fallbackMetricCount > 0 {
+			item.PredictedTTFTMS = aggregate.fallbackPredictedTTFT / aggregate.fallbackMetricCount
+			item.ErrorRate = aggregate.fallbackErrorRate / aggregate.fallbackMetricCount
+			item.RateLimitedRate = aggregate.fallbackRateLimited / aggregate.fallbackMetricCount
+			item.ServerErrorRate = aggregate.fallbackServerError / aggregate.fallbackMetricCount
+		}
+		if aggregate.ttftRequestWeight > 0 {
+			item.TTFTP50MS /= aggregate.ttftRequestWeight
+			item.TTFTP90MS /= aggregate.ttftRequestWeight
+		} else if aggregate.fallbackMetricCount > 0 {
+			item.TTFTP50MS = aggregate.fallbackTTFTP50 / aggregate.fallbackMetricCount
+			item.TTFTP90MS = aggregate.fallbackTTFTP90 / aggregate.fallbackMetricCount
+		}
+		switch {
+		case aggregate.hasEligible:
+			item.Eligibility = OpenAISchedulerEligibilityEligible
+		case aggregate.hasLowConfidence:
+			item.Eligibility = OpenAISchedulerEligibilityLowConfidence
+			item.EligibilityReason = aggregate.reason
+		case aggregate.hasLatencyTail:
+			item.Eligibility = OpenAISchedulerEligibilityLatencyTail
+			item.EligibilityReason = aggregate.reason
+		default:
+			item.Eligibility = OpenAISchedulerEligibilityRejected
+			item.EligibilityReason = aggregate.reason
+		}
+		items = append(items, item)
+	}
+
+	sort.SliceStable(items, func(i, j int) bool {
+		leftRanked := items[i].Eligibility == OpenAISchedulerEligibilityEligible || items[i].Eligibility == OpenAISchedulerEligibilityLowConfidence
+		rightRanked := items[j].Eligibility == OpenAISchedulerEligibilityEligible || items[j].Eligibility == OpenAISchedulerEligibilityLowConfidence
+		if leftRanked != rightRanked {
+			return leftRanked
+		}
+		if items[i].UtilityScore != items[j].UtilityScore {
+			return items[i].UtilityScore > items[j].UtilityScore
+		}
+		if items[i].TargetShare != items[j].TargetShare {
+			return items[i].TargetShare > items[j].TargetShare
+		}
+		return items[i].AccountID < items[j].AccountID
+	})
+	rank := 0
+	for index := range items {
+		if items[index].Eligibility == OpenAISchedulerEligibilityEligible || items[index].Eligibility == OpenAISchedulerEligibilityLowConfidence {
+			rank++
+			items[index].Rank = rank
+		}
+		items[index].DecisionSummary = openAISchedulerRankingDecisionSummary(OpenAISchedulerPolicyCandidateScore{
+			Rank: items[index].Rank, EligibilityReason: items[index].EligibilityReason, TargetShare: items[index].TargetShare,
+		})
+	}
+	return items
+}
+
+func summarizeOpenAISchedulerAccountRankings(items []OpenAISchedulerRankingItem) OpenAISchedulerRankingSummary {
+	summary := OpenAISchedulerRankingSummary{CandidateCount: len(items)}
+	for _, item := range items {
+		summary.RequestCount += item.SelectedRequests
+		switch item.Eligibility {
+		case OpenAISchedulerEligibilityEligible:
+			summary.EligibleCount++
+		case OpenAISchedulerEligibilityLowConfidence:
+			summary.LowConfidenceCount++
+		default:
+			summary.RejectedCount++
+		}
+	}
+	return summary
+}
+
+func lowerOpenAISchedulerRankingConfidence(left, right string) string {
+	level := map[string]int{"low": 1, "medium": 2, "high": 3}
+	if level[right] < level[left] {
+		return right
+	}
+	return left
 }
 
 func openAISchedulerRankingDeviationReasons(score OpenAISchedulerPolicyCandidateScore, actual OpenAISchedulerRankingActual) []string {

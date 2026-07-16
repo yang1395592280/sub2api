@@ -77,8 +77,8 @@
             <td class="px-3 py-3 text-center text-lg font-semibold text-gray-900 dark:text-white">{{ row.rank || '—' }}</td>
             <td class="px-3 py-3">
               <span class="block truncate font-medium text-gray-900 dark:text-white" :title="row.account_name">{{ row.account_name }}</span>
-              <span class="block truncate text-xs text-gray-500 dark:text-dark-400">#{{ row.account_id }} · {{ row.partition.model_family || '—' }}</span>
-              <span class="block truncate text-xs text-gray-400">{{ endpointLabel(row.partition.endpoint) }} · {{ transportLabel(row.partition.transport) }}</span>
+              <span class="block truncate text-xs text-gray-500 dark:text-dark-400">#{{ row.account_id }} · {{ accountScope(row) }}</span>
+              <span class="block truncate text-xs text-gray-400">{{ accountDimension(row) }}</span>
             </td>
             <td class="px-3 py-3"><span :class="eligibilityClass(row.eligibility)">{{ eligibilityLabel(row.eligibility) }}</span></td>
             <td class="px-3 py-3 text-right"><span class="text-base font-semibold text-gray-950 dark:text-white">{{ row.utility_score.toFixed(1) }}</span><span class="text-xs text-gray-400"> / 100</span></td>
@@ -131,13 +131,20 @@ const statusClass = computed(() => {
   return 'border-gray-200 bg-gray-50 text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-200'
 })
 const partitionSummary = computed(() => {
-  const partition = props.result?.items[0]?.partition
-  if (!partition) return '—'
-  return `${partition.model_family || '—'} / ${endpointLabel(partition.endpoint)} / ${transportLabel(partition.transport)}`
+  if (!props.result) return '—'
+  return t('admin.openaiAutoScheduler.ranking.comprehensiveScope')
 })
 
 function emitInput(key: keyof Omit<OpenAISchedulerRankingParams, 'group_id'>, event: Event): void { emit('filter', { [key]: (event.target as HTMLInputElement).value }) }
-function rankingKey(row: OpenAISchedulerRankingItem): string { return `${row.account_id}:${row.partition.model_family}:${row.partition.endpoint}:${row.partition.transport}` }
+function rankingKey(row: OpenAISchedulerRankingItem): string { return String(row.account_id) }
+function accountScope(row: OpenAISchedulerRankingItem): string {
+  if (row.partition_count > 1) return t('admin.openaiAutoScheduler.ranking.aggregatedPartitions', { count: row.partition_count })
+  return row.partition.model_family || t('admin.openaiAutoScheduler.ranking.comprehensiveScope')
+}
+function accountDimension(row: OpenAISchedulerRankingItem): string {
+  if (row.partition_count > 1) return t('admin.openaiAutoScheduler.ranking.comprehensiveAccount')
+  return `${endpointLabel(row.partition.endpoint)} · ${transportLabel(row.partition.transport)}`
+}
 function percent(value: number): string { return `${(Math.max(0, value || 0) * 100).toFixed(1)}%` }
 function duration(value?: number | null): string { return !value ? '—' : value >= 1000 ? `${(value / 1000).toFixed(2)}s` : `${Math.round(value)}ms` }
 function price(value?: number | null): string { return value == null ? '—' : `${Number(value.toFixed(4))}x` }
