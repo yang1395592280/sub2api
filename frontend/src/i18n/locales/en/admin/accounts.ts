@@ -879,8 +879,6 @@ export default {
         // OpenAI specific
         openai: {
           title: 'OpenAI Account Authorization',
-          mobileRefreshTokenAuth: 'Mobile refresh token',
-          accessTokenAuth: 'Access token',
           followSteps: 'Follow these steps to complete OpenAI account authorization:',
           step1GenerateUrl: 'Click the button below to generate the authorization URL',
           generateAuthUrl: 'Generate Auth URL',
@@ -908,6 +906,8 @@ export default {
           refreshTokenAuth: 'Manual RT Input',
           refreshTokenDesc: 'Enter your existing OpenAI Refresh Token(s). Supports batch input (one per line). The system will automatically validate and create accounts.',
           refreshTokenPlaceholder: 'Paste your OpenAI Refresh Token...\nSupports multiple, one per line',
+          mobileRefreshTokenAuth: 'Manual Mobile RT Input',
+          accessTokenAuth: 'Manual AT Input',
           codexSessionAuth: 'Codex OAuth auth.json / AT Import',
           codexSessionDesc: 'Paste a Codex OAuth auth.json or an accessToken. Accounts use the step 1 settings.',
           codexSessionInputLabel: 'Codex OAuth auth.json or accessToken',
