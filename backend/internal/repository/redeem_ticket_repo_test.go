@@ -41,7 +41,7 @@ func expectRedeemTicketWalletReconcile(mock sqlmock.Sqlmock, userID int64, balan
 func TestGrantRedeemTicketsAddsOneExpiringBatch(t *testing.T) {
 	repo, mock := newRedeemTicketRepoMock(t)
 	expectRedeemTicketWalletReconcile(mock, 42, 2)
-	mock.ExpectExec(`INSERT INTO zenxiang_liyu_ticket_batches`).
+	mock.ExpectExec(`(?s)INSERT INTO zenxiang_liyu_ticket_batches.*date \+ \$4::integer`).
 		WithArgs(int64(42), "TICKET-CODE", 2, service.ZenxiangLiyuTicketRetentionDays).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(`UPDATE zenxiang_liyu_ticket_wallets`).

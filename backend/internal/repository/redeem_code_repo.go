@@ -410,7 +410,7 @@ func (r *redeemCodeRepository) GrantRedeemTickets(ctx context.Context, userID in
 			user_id, source_type, source_key, granted_count, remaining_count, expires_at
 		) VALUES (
 			$1, 'redeem', $2, $3, $3,
-			(((NOW() AT TIME ZONE 'Asia/Shanghai')::date + $4)::timestamp AT TIME ZONE 'Asia/Shanghai')
+			(((NOW() AT TIME ZONE 'Asia/Shanghai')::date + $4::integer)::timestamp AT TIME ZONE 'Asia/Shanghai')
 		)`, userID, sourceKey, ticketCount, service.ZenxiangLiyuTicketRetentionDays)
 	if err != nil {
 		return err
