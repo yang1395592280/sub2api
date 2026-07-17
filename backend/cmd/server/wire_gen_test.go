@@ -30,11 +30,11 @@ func TestWireGenInjectsOpenAIAutoSchedulerIntoGateway(t *testing.T) {
 	selectorIndex := strings.Index(source, "openAIAutoSchedulerSelector := service.ProvideOpenAIAutoSchedulerSelector(openAIAutoSchedulerService)")
 	recorderIndex := strings.Index(source, "openAIAutoSchedulerOutcomeRecorder := service.ProvideOpenAIAutoSchedulerOutcomeRecorder(openAIAutoSchedulerService)")
 	gatewayIndex := strings.Index(source, "openAIGatewayService := service.ProvideOpenAIGatewayService(")
-	handlerIndex := strings.Index(source, "handler.NewOpenAIGatewayHandler")
+	handlerIndex := strings.Index(source, "handler.ProvideOpenAIGatewayHandler")
 	require.NotEqual(t, -1, selectorIndex, "OpenAI auto scheduler selector must be constructed by production wire")
 	require.NotEqual(t, -1, recorderIndex, "OpenAI auto scheduler outcome recorder must be constructed by production wire")
 	require.NotEqual(t, -1, gatewayIndex, "OpenAI gateway must be constructed through the provider that wires scheduler dependencies")
-	require.NotEqual(t, -1, handlerIndex, "OpenAI gateway handler construction must remain visible in production wire")
+	require.NotEqual(t, -1, handlerIndex, "OpenAI gateway handler provider must remain visible in production wire")
 	require.Contains(t, source, "openAIAutoSchedulerSelector, openAIAutoSchedulerService, openAIAutoSchedulerOutcomeRecorder")
 	require.Less(t, selectorIndex, gatewayIndex, "OpenAI auto scheduler selector must exist before gateway construction")
 	require.Less(t, recorderIndex, gatewayIndex, "OpenAI outcome recorder must exist before gateway construction")
@@ -176,6 +176,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // quotaFlusher
 		nil, // upstreamBillingProbe
 		nil, // auditLog
+		nil, // promptAudit
 	)
 
 	require.NotPanics(t, func() {

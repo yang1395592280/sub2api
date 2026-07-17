@@ -204,6 +204,9 @@ export default {
     zenxiangLiyuOps: '臻享礼遇运维',
     userSpendingRanking: '用户消费榜',
     riskControl: '风控中心',
+    securityAudit: '安全审计',
+    contentModeration: '内容审核',
+    promptAudit: '提示词审计',
     auditLogs: '操作日志',
   },
 
