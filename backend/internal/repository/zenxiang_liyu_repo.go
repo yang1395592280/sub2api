@@ -31,12 +31,15 @@ func (r *zenxiangLiyuRepository) GetSettings(ctx context.Context) (*service.Zenx
 		SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit,
 		       COALESCE(ticket_usage_threshold, 5), COALESCE(daily_ticket_limit, 3),
 		       COALESCE(unit_sale_price, 0.1), COALESCE(unit_cost_price, 0.05),
-		       COALESCE(lucky_coin_enabled, TRUE), COALESCE(lucky_coin_double_probability, 50)
+		       COALESCE(lucky_coin_enabled, TRUE), COALESCE(lucky_coin_double_probability, 50),
+		       COALESCE(guess_size_enabled, FALSE), COALESCE(guess_big_probability, 50),
+		       COALESCE(guess_small_probability, 50)
 		FROM zenxiang_liyu_settings WHERE id = 1`,
 	).Scan(
 		&settings.GlobalEnabled, &settings.TicketAmount, &settings.MinimumBalance, &settings.DailyPlayLimit,
 		&settings.TicketUsageThreshold, &settings.DailyTicketLimit, &settings.UnitSalePrice, &settings.UnitCostPrice,
 		&settings.LuckyCoinEnabled, &settings.LuckyCoinProbability,
+		&settings.GuessSizeEnabled, &settings.GuessBigProbability, &settings.GuessSmallProbability,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrZenxiangLiyuInvalidSettings
@@ -54,18 +57,23 @@ func (r *zenxiangLiyuRepository) UpdateSettings(ctx context.Context, settings se
 		SET global_enabled = $1, ticket_amount = $2, minimum_balance = $3, daily_play_limit = $4,
 		    ticket_usage_threshold = $5, daily_ticket_limit = $6,
 		    unit_sale_price = $7, unit_cost_price = $8,
-		    lucky_coin_enabled = $9, lucky_coin_double_probability = $10, updated_at = NOW()
+		    lucky_coin_enabled = $9, lucky_coin_double_probability = $10,
+		    guess_size_enabled = $11, guess_big_probability = $12, guess_small_probability = $13,
+		    updated_at = NOW()
 		WHERE id = 1
 		RETURNING global_enabled, ticket_amount, minimum_balance, daily_play_limit,
 		          ticket_usage_threshold, daily_ticket_limit, unit_sale_price, unit_cost_price,
-		          lucky_coin_enabled, lucky_coin_double_probability`,
+		          lucky_coin_enabled, lucky_coin_double_probability,
+		          guess_size_enabled, guess_big_probability, guess_small_probability`,
 		settings.GlobalEnabled, settings.TicketAmount, settings.MinimumBalance, settings.DailyPlayLimit,
 		settings.TicketUsageThreshold, settings.DailyTicketLimit, settings.UnitSalePrice, settings.UnitCostPrice,
 		settings.LuckyCoinEnabled, settings.LuckyCoinProbability,
+		settings.GuessSizeEnabled, settings.GuessBigProbability, settings.GuessSmallProbability,
 	).Scan(
 		&updated.GlobalEnabled, &updated.TicketAmount, &updated.MinimumBalance, &updated.DailyPlayLimit,
 		&updated.TicketUsageThreshold, &updated.DailyTicketLimit, &updated.UnitSalePrice, &updated.UnitCostPrice,
 		&updated.LuckyCoinEnabled, &updated.LuckyCoinProbability,
+		&updated.GuessSizeEnabled, &updated.GuessBigProbability, &updated.GuessSmallProbability,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrZenxiangLiyuInvalidSettings
@@ -281,6 +289,9 @@ func (r *zenxiangLiyuRepository) ListUserRecords(ctx context.Context, userID int
 		SELECT id, request_id, ticket_amount, reward_amount, user_net_amount,
 		       COALESCE(lucky_coin_played, FALSE), COALESCE(lucky_coin_outcome, ''),
 		       COALESCE(lucky_coin_adjustment, 0), balance_after_lucky,
+		       COALESCE(guess_size_played, FALSE), COALESCE(guess_size_choice, ''),
+		       COALESCE(guess_size_outcome, ''), COALESCE(guess_size_won, FALSE),
+		       COALESCE(guess_size_adjustment, 0), balance_after_guess_size,
 		       prize_id, prize_name_snapshot, probability_snapshot, created_at
 		FROM zenxiang_liyu_records
 		WHERE user_id = $1 AND created_at >= $2 AND created_at < $3
@@ -296,6 +307,8 @@ func (r *zenxiangLiyuRepository) ListUserRecords(ctx context.Context, userID int
 		if err := rows.Scan(
 			&record.ID, &record.RequestID, &record.TicketAmount, &record.RewardAmount, &record.UserNetAmount,
 			&record.LuckyCoinPlayed, &record.LuckyCoinOutcome, &record.LuckyCoinAdjustment, &record.BalanceAfterLucky,
+			&record.GuessSizePlayed, &record.GuessSizeChoice, &record.GuessSizeOutcome, &record.GuessSizeWon,
+			&record.GuessSizeAdjustment, &record.BalanceAfterGuess,
 			&record.PrizeID, &record.PrizeName, &record.Probability, &record.PlayedAt,
 		); err != nil {
 			return nil, 0, err
@@ -310,7 +323,7 @@ func (r *zenxiangLiyuRepository) GetUserDailySummary(ctx context.Context, userID
 	start, end := zenxiangLiyuUsageWindow(playDate)
 	err := r.db.QueryRowContext(ctx, `
 		SELECT COUNT(*), COALESCE(SUM(ticket_amount), 0),
-		       COALESCE(SUM(reward_amount + COALESCE(lucky_coin_adjustment, 0)), 0),
+		       COALESCE(SUM(reward_amount + COALESCE(lucky_coin_adjustment, 0) + COALESCE(guess_size_adjustment, 0)), 0),
 		       COALESCE(SUM(user_net_amount), 0)
 		FROM zenxiang_liyu_records
 		WHERE user_id = $1 AND created_at >= $2 AND created_at < $3`, userID, start, end).Scan(&summary.PlayCount, &summary.TicketAmount, &summary.RewardAmount, &summary.UserNetAmount)
@@ -371,6 +384,18 @@ func (r *zenxiangLiyuRepository) CountGiftedTicketsOnDate(ctx context.Context, u
 		SELECT COALESCE(SUM(ticket_count), 0)
 		FROM zenxiang_liyu_ticket_gifts
 		WHERE user_id = $1 AND play_date = $2`, userID, playDate,
+	).Scan(&count)
+	return count, err
+}
+
+func (r *zenxiangLiyuRepository) CountRedeemedTicketsOnDate(ctx context.Context, userID int64, playDate time.Time) (int, error) {
+	start, end := zenxiangLiyuUsageWindow(playDate)
+	var count int
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(granted_count), 0)
+		FROM zenxiang_liyu_ticket_batches
+		WHERE user_id = $1 AND source_type = 'redeem' AND created_at >= $2 AND created_at < $3`,
+		userID, start, end,
 	).Scan(&count)
 	return count, err
 }
@@ -500,7 +525,7 @@ func (r *zenxiangLiyuRepository) ListUserStats(ctx context.Context, page, pageSi
 		)
 		SELECT r.user_id, u.email, u.balance, COALESCE(ua.amount, 0), COUNT(*),
 			COALESCE(SUM(r.ticket_amount), 0),
-			COALESCE(SUM(r.reward_amount + COALESCE(r.lucky_coin_adjustment, 0)), 0),
+			COALESCE(SUM(r.reward_amount + COALESCE(r.lucky_coin_adjustment, 0) + COALESCE(r.guess_size_adjustment, 0)), 0),
 			COALESCE(SUM(r.user_net_amount), 0)
 		FROM zenxiang_liyu_records r
 		JOIN users u ON u.id = r.user_id
@@ -552,7 +577,7 @@ func (r *zenxiangLiyuRepository) ListPeriodStats(ctx context.Context, period str
 	rows, err := r.db.QueryContext(ctx, `
 		WITH base AS (
 			SELECT date_trunc($1, created_at AT TIME ZONE 'Asia/Shanghai')::date AS period_start,
-				user_id, ticket_amount, reward_amount + COALESCE(lucky_coin_adjustment, 0) AS reward_amount,
+				user_id, ticket_amount, reward_amount + COALESCE(lucky_coin_adjustment, 0) + COALESCE(guess_size_adjustment, 0) AS reward_amount,
 				user_net_amount, system_revenue, system_expense, system_profit,
 				prize_name_snapshot
 			FROM zenxiang_liyu_records
@@ -896,13 +921,15 @@ func (r *zenxiangLiyuRepository) PlayLuckyCoin(ctx context.Context, cmd service.
 	}()
 
 	var settings struct {
-		enabled     bool
-		probability float64
+		enabled          bool
+		probability      float64
+		guessSizeEnabled bool
 	}
 	err = tx.QueryRowContext(ctx, `
-		SELECT COALESCE(lucky_coin_enabled, TRUE), COALESCE(lucky_coin_double_probability, 50)
+		SELECT COALESCE(lucky_coin_enabled, TRUE), COALESCE(lucky_coin_double_probability, 50),
+		       COALESCE(guess_size_enabled, FALSE)
 		FROM zenxiang_liyu_settings WHERE id = 1 FOR SHARE`,
-	).Scan(&settings.enabled, &settings.probability)
+	).Scan(&settings.enabled, &settings.probability, &settings.guessSizeEnabled)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrZenxiangLiyuInvalidSettings
 	}
@@ -992,6 +1019,151 @@ func (r *zenxiangLiyuRepository) PlayLuckyCoin(ctx context.Context, cmd service.
 		DoubleProbability:  settings.probability,
 		PlayedAt:           playedAt,
 		LuckyCoinAvailable: false,
+		GuessSizeAvailable: settings.guessSizeEnabled,
+	}, nil
+}
+
+func (r *zenxiangLiyuRepository) PlayGuessSize(ctx context.Context, cmd service.ZenxiangLiyuGuessSizeCommand) (_ *service.ZenxiangLiyuGuessSizeResult, err error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	var enabled bool
+	var bigProbability, smallProbability float64
+	err = tx.QueryRowContext(ctx, `
+		SELECT COALESCE(guess_size_enabled, FALSE), COALESCE(guess_big_probability, 50),
+		       COALESCE(guess_small_probability, 50)
+		FROM zenxiang_liyu_settings WHERE id = 1 FOR SHARE`,
+	).Scan(&enabled, &bigProbability, &smallProbability)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrZenxiangLiyuInvalidSettings
+	}
+	if err != nil {
+		return nil, err
+	}
+	if bigProbability < 0 || smallProbability < 0 || math.Abs(bigProbability+smallProbability-100) > 0.000001 {
+		return nil, service.ErrZenxiangLiyuInvalidSettings
+	}
+
+	var record struct {
+		reward          float64
+		luckyPlayed     bool
+		luckyOutcome    string
+		guessPlayed     bool
+		guessChoice     string
+		guessOutcome    string
+		guessWon        bool
+		guessAdjustment float64
+		guessBigProb    float64
+		guessSmallProb  float64
+		balanceAfter    sql.NullFloat64
+		playedAt        sql.NullTime
+	}
+	err = tx.QueryRowContext(ctx, `
+		SELECT reward_amount::double precision, COALESCE(lucky_coin_played, FALSE),
+		       COALESCE(lucky_coin_outcome, ''), COALESCE(guess_size_played, FALSE),
+		       COALESCE(guess_size_choice, ''), COALESCE(guess_size_outcome, ''),
+		       COALESCE(guess_size_won, FALSE), COALESCE(guess_size_adjustment, 0),
+		       COALESCE(guess_big_probability_snapshot, 0), COALESCE(guess_small_probability_snapshot, 0),
+		       balance_after_guess_size, guess_size_played_at
+		FROM zenxiang_liyu_records
+		WHERE id = $1 AND user_id = $2 FOR UPDATE`, cmd.RecordID, cmd.UserID,
+	).Scan(
+		&record.reward, &record.luckyPlayed, &record.luckyOutcome, &record.guessPlayed,
+		&record.guessChoice, &record.guessOutcome, &record.guessWon, &record.guessAdjustment,
+		&record.guessBigProb, &record.guessSmallProb,
+		&record.balanceAfter, &record.playedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrZenxiangLiyuGuessSizeUnavailable
+	}
+	if err != nil {
+		return nil, err
+	}
+	if record.guessPlayed {
+		if record.guessChoice != cmd.Choice || !record.balanceAfter.Valid || !record.playedAt.Valid {
+			return nil, service.ErrZenxiangLiyuGuessSizeAlreadyPlayed
+		}
+		if err = tx.Commit(); err != nil {
+			return nil, err
+		}
+		return &service.ZenxiangLiyuGuessSizeResult{
+			RecordID: cmd.RecordID, Choice: record.guessChoice, Outcome: record.guessOutcome,
+			Won: record.guessWon, AdjustmentAmount: record.guessAdjustment, BalanceAfter: record.balanceAfter.Float64,
+			BigProbability: record.guessBigProb, SmallProbability: record.guessSmallProb, PlayedAt: record.playedAt.Time,
+			Skipped: record.guessChoice == "skip",
+		}, nil
+	}
+	if !record.luckyPlayed || (record.luckyOutcome != "double" && record.luckyOutcome != "zero") {
+		return nil, service.ErrZenxiangLiyuGuessSizeUnavailable
+	}
+	if !enabled && cmd.Choice != "skip" {
+		return nil, service.ErrZenxiangLiyuGuessSizeDisabled
+	}
+
+	outcome := "skipped"
+	won := false
+	adjustment := 0.0
+	if cmd.Choice != "skip" {
+		outcome = "small"
+		if cmd.Roll < bigProbability {
+			outcome = "big"
+		}
+		won = cmd.Choice == outcome
+		if won && record.luckyOutcome == "double" {
+			adjustment = math.Round(2*record.reward*zenxiangLiyuAmountScale) / zenxiangLiyuAmountScale
+		} else if won {
+			adjustment = math.Round(0.5*record.reward*zenxiangLiyuAmountScale) / zenxiangLiyuAmountScale
+		}
+	}
+
+	var balanceAfter float64
+	err = tx.QueryRowContext(ctx, `
+		UPDATE users SET balance = balance + $1, updated_at = NOW()
+		WHERE id = $2 AND deleted_at IS NULL RETURNING balance`, adjustment, cmd.UserID,
+	).Scan(&balanceAfter)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrUserNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var playedAt time.Time
+	err = tx.QueryRowContext(ctx, `
+		UPDATE zenxiang_liyu_records
+		SET guess_size_played = TRUE, guess_size_choice = $1, guess_size_outcome = $2,
+		    guess_size_won = $3, guess_size_adjustment = $4,
+		    guess_big_probability_snapshot = $5, guess_small_probability_snapshot = $6,
+		    guess_size_played_at = NOW(), balance_after_guess_size = $7,
+		    user_net_amount = user_net_amount + $4,
+		    system_expense = system_expense + $4,
+		    system_profit = system_profit - $4
+		WHERE id = $8 AND user_id = $9 AND COALESCE(guess_size_played, FALSE) = FALSE
+		RETURNING guess_size_played_at`,
+		cmd.Choice, outcome, won, adjustment, bigProbability, smallProbability,
+		balanceAfter, cmd.RecordID, cmd.UserID,
+	).Scan(&playedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrZenxiangLiyuGuessSizeAlreadyPlayed
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return &service.ZenxiangLiyuGuessSizeResult{
+		RecordID: cmd.RecordID, Choice: cmd.Choice, Outcome: outcome, Won: won,
+		AdjustmentAmount: adjustment, BalanceAfter: balanceAfter,
+		BigProbability: bigProbability, SmallProbability: smallProbability,
+		PlayedAt: playedAt, Skipped: cmd.Choice == "skip",
 	}, nil
 }
 
@@ -1010,12 +1182,15 @@ func getZenxiangLiyuSettingsForPlay(ctx context.Context, tx *sql.Tx) (*service.Z
 		SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit,
 		       COALESCE(ticket_usage_threshold, 5), COALESCE(daily_ticket_limit, 3),
 		       COALESCE(unit_sale_price, 0.1), COALESCE(unit_cost_price, 0.05),
-		       COALESCE(lucky_coin_enabled, TRUE), COALESCE(lucky_coin_double_probability, 50)
+		       COALESCE(lucky_coin_enabled, TRUE), COALESCE(lucky_coin_double_probability, 50),
+		       COALESCE(guess_size_enabled, FALSE), COALESCE(guess_big_probability, 50),
+		       COALESCE(guess_small_probability, 50)
 		FROM zenxiang_liyu_settings WHERE id = 1 FOR UPDATE`,
 	).Scan(
 		&settings.GlobalEnabled, &settings.TicketAmount, &settings.MinimumBalance, &settings.DailyPlayLimit,
 		&settings.TicketUsageThreshold, &settings.DailyTicketLimit, &settings.UnitSalePrice, &settings.UnitCostPrice,
 		&settings.LuckyCoinEnabled, &settings.LuckyCoinProbability,
+		&settings.GuessSizeEnabled, &settings.GuessBigProbability, &settings.GuessSmallProbability,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrZenxiangLiyuInvalidSettings

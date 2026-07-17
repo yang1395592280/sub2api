@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 	"time"
 
@@ -335,6 +337,97 @@ func (r *redeemCodeRepository) Use(ctx context.Context, id, userID int64) error 
 	}
 	if affected == 0 {
 		return service.ErrRedeemCodeUsed
+	}
+	return nil
+}
+
+func (r *redeemCodeRepository) GrantRedeemTickets(ctx context.Context, userID int64, sourceKey string, ticketCount int) error {
+	client := clientFromContext(ctx, r.client)
+	if _, err := client.ExecContext(ctx, `
+		INSERT INTO zenxiang_liyu_ticket_wallets (user_id, balance)
+		VALUES ($1, 0)
+		ON CONFLICT (user_id) DO NOTHING`, userID); err != nil {
+		return err
+	}
+
+	rows, err := client.QueryContext(ctx, `
+		SELECT balance FROM zenxiang_liyu_ticket_wallets
+		WHERE user_id = $1 FOR UPDATE`, userID)
+	if err != nil {
+		return err
+	}
+	var balance int
+	if !rows.Next() {
+		scanErr := rows.Err()
+		rows.Close()
+		if scanErr != nil {
+			return scanErr
+		}
+		return sql.ErrNoRows
+	}
+	if err = rows.Scan(&balance); err != nil {
+		rows.Close()
+		return err
+	}
+	if err = rows.Close(); err != nil {
+		return err
+	}
+
+	if _, err = client.ExecContext(ctx, `
+		UPDATE zenxiang_liyu_ticket_batches
+		SET remaining_count = 0, updated_at = NOW()
+		WHERE user_id = $1 AND remaining_count > 0 AND expires_at <= NOW()`, userID); err != nil {
+		return err
+	}
+	rows, err = client.QueryContext(ctx, `
+		UPDATE zenxiang_liyu_ticket_wallets
+		SET balance = COALESCE((
+			SELECT SUM(remaining_count) FROM zenxiang_liyu_ticket_batches
+			WHERE user_id = $1 AND remaining_count > 0 AND expires_at > NOW()
+		), 0), updated_at = NOW()
+		WHERE user_id = $1
+		RETURNING balance`, userID)
+	if err != nil {
+		return err
+	}
+	if !rows.Next() {
+		rows.Close()
+		return sql.ErrNoRows
+	}
+	if err = rows.Scan(&balance); err != nil {
+		rows.Close()
+		return err
+	}
+	if err = rows.Close(); err != nil {
+		return err
+	}
+	if balance+ticketCount > service.ZenxiangLiyuTicketCapacity {
+		return service.ErrRedeemTicketCapacity
+	}
+
+	_, err = client.ExecContext(ctx, `
+		INSERT INTO zenxiang_liyu_ticket_batches (
+			user_id, source_type, source_key, granted_count, remaining_count, expires_at
+		) VALUES (
+			$1, 'redeem', $2, $3, $3,
+			(((NOW() AT TIME ZONE 'Asia/Shanghai')::date + $4)::timestamp AT TIME ZONE 'Asia/Shanghai')
+		)`, userID, sourceKey, ticketCount, service.ZenxiangLiyuTicketRetentionDays)
+	if err != nil {
+		return err
+	}
+	result, err := client.ExecContext(ctx, `
+		UPDATE zenxiang_liyu_ticket_wallets
+		SET balance = balance + $1, updated_at = NOW()
+		WHERE user_id = $2`, ticketCount, userID)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return errors.New("lottery ticket wallet not found")
 	}
 	return nil
 }

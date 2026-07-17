@@ -47,7 +47,7 @@ func TestZenxiangLiyuRepositoryPlayAppliesAtomically(t *testing.T) {
 		WithArgs(int64(42), "req-2").
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 	mock.ExpectQuery(`SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit,`).
-		WillReturnRows(zenxiangLiyuSettingsRows().AddRow(true, 0.0, 10.0, 5, 5.0, 3, 0.1, 0.05, true, 50.0))
+		WillReturnRows(zenxiangLiyuSettingsRows().AddRow(true, 0.0, 10.0, 5, 5.0, 3, 0.1, 0.05, true, 50.0, false, 50.0, 50.0))
 	mock.ExpectQuery(`SELECT id, name, reward_amount, probability, enabled, sort_order FROM zenxiang_liyu_prizes WHERE enabled = TRUE ORDER BY sort_order, id FOR SHARE`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "reward_amount", "probability", "enabled", "sort_order"}).AddRow(7, "3 yuan", 3.0, 100.0, true, 1))
 	mock.ExpectQuery(`SELECT id, email, role, status, balance FROM users WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
@@ -112,7 +112,7 @@ func TestZenxiangLiyuRepositoryPlayUsesFreePlayAfterDailyUsageThreshold(t *testi
 		WithArgs(int64(42), "req-free").
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 	mock.ExpectQuery(`SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit,`).
-		WillReturnRows(zenxiangLiyuSettingsRows().AddRow(true, 0.0, 10.0, 5, 5.0, 3, 0.1, 0.05, true, 50.0))
+		WillReturnRows(zenxiangLiyuSettingsRows().AddRow(true, 0.0, 10.0, 5, 5.0, 3, 0.1, 0.05, true, 50.0, false, 50.0, 50.0))
 	mock.ExpectQuery(`SELECT id, name, reward_amount, probability, enabled, sort_order FROM zenxiang_liyu_prizes WHERE enabled = TRUE ORDER BY sort_order, id FOR SHARE`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "reward_amount", "probability", "enabled", "sort_order"}).AddRow(7, "3 yuan", 3.0, 100.0, true, 1))
 	mock.ExpectQuery(`SELECT id, email, role, status, balance FROM users WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
@@ -178,7 +178,7 @@ func TestZenxiangLiyuRepositoryPlayReturnsExistingRecordAfterUniqueConflict(t *t
 		WithArgs(int64(42), "req-conflict").
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 	mock.ExpectQuery(`SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit,`).
-		WillReturnRows(zenxiangLiyuSettingsRows().AddRow(true, 0.0, 10.0, 5, 5.0, 3, 0.1, 0.05, true, 50.0))
+		WillReturnRows(zenxiangLiyuSettingsRows().AddRow(true, 0.0, 10.0, 5, 5.0, 3, 0.1, 0.05, true, 50.0, false, 50.0, 50.0))
 	mock.ExpectQuery(`SELECT id, name, reward_amount, probability, enabled, sort_order FROM zenxiang_liyu_prizes WHERE enabled = TRUE ORDER BY sort_order, id FOR SHARE`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "reward_amount", "probability", "enabled", "sort_order"}).AddRow(7, "3 yuan", 3.0, 100.0, true, 1))
 	mock.ExpectQuery(`SELECT id, email, role, status, balance FROM users WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
@@ -272,7 +272,7 @@ func TestZenxiangLiyuRepositoryPlayChecksGrantInsideTransactionWhenGlobalDisable
 		WithArgs(int64(42), "req-grant").
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 	mock.ExpectQuery(`SELECT global_enabled, ticket_amount, minimum_balance, daily_play_limit,`).
-		WillReturnRows(zenxiangLiyuSettingsRows().AddRow(false, 0.0, 10.0, 5, 5.0, 3, 0.1, 0.05, true, 50.0))
+		WillReturnRows(zenxiangLiyuSettingsRows().AddRow(false, 0.0, 10.0, 5, 5.0, 3, 0.1, 0.05, true, 50.0, false, 50.0, 50.0))
 	mock.ExpectQuery(`SELECT enabled FROM zenxiang_liyu_user_grants WHERE user_id = \$1 FOR SHARE`).
 		WithArgs(int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"enabled"}).AddRow(false))
@@ -439,7 +439,7 @@ func TestZenxiangLiyuRepositoryPlayLuckyCoinAppliesOnce(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`SELECT COALESCE\(lucky_coin_enabled, TRUE\), COALESCE\(lucky_coin_double_probability, 50\)`).
-		WillReturnRows(sqlmock.NewRows([]string{"enabled", "probability"}).AddRow(true, 60.0))
+		WillReturnRows(sqlmock.NewRows([]string{"enabled", "probability", "guess_size_enabled"}).AddRow(true, 60.0, true))
 	mock.ExpectQuery(`SELECT id, reward_amount::double precision, COALESCE\(lucky_coin_played, FALSE\), balance_after_lucky`).
 		WithArgs(int64(9), int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "reward_amount", "lucky_coin_played", "balance_after_lucky"}).
@@ -472,7 +472,7 @@ func TestZenxiangLiyuRepositoryPlayLuckyCoinMissLosesHalfReward(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`SELECT COALESCE\(lucky_coin_enabled, TRUE\), COALESCE\(lucky_coin_double_probability, 50\)`).
-		WillReturnRows(sqlmock.NewRows([]string{"enabled", "probability"}).AddRow(true, 60.0))
+		WillReturnRows(sqlmock.NewRows([]string{"enabled", "probability", "guess_size_enabled"}).AddRow(true, 60.0, true))
 	mock.ExpectQuery(`SELECT id, reward_amount::double precision, COALESCE\(lucky_coin_played, FALSE\), balance_after_lucky`).
 		WithArgs(int64(9), int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "reward_amount", "lucky_coin_played", "balance_after_lucky"}).
@@ -504,7 +504,7 @@ func TestZenxiangLiyuRepositoryPlayLuckyCoinRollsBackWhenRecordWasAlreadyUpdated
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`SELECT COALESCE\(lucky_coin_enabled, TRUE\), COALESCE\(lucky_coin_double_probability, 50\)`).
-		WillReturnRows(sqlmock.NewRows([]string{"enabled", "probability"}).AddRow(true, 60.0))
+		WillReturnRows(sqlmock.NewRows([]string{"enabled", "probability", "guess_size_enabled"}).AddRow(true, 60.0, true))
 	mock.ExpectQuery(`SELECT id, reward_amount::double precision, COALESCE\(lucky_coin_played, FALSE\), balance_after_lucky`).
 		WithArgs(int64(9), int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "reward_amount", "lucky_coin_played", "balance_after_lucky"}).
@@ -523,6 +523,62 @@ func TestZenxiangLiyuRepositoryPlayLuckyCoinRollsBackWhenRecordWasAlreadyUpdated
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestZenxiangLiyuRepositoryPlayGuessSizeSettlements(t *testing.T) {
+	tests := []struct {
+		name         string
+		luckyOutcome string
+		choice       string
+		roll         float64
+		outcome      string
+		won          bool
+		adjustment   float64
+		balanceAfter float64
+	}{
+		{name: "lucky win doubles current reward again", luckyOutcome: "double", choice: "big", roll: 10, outcome: "big", won: true, adjustment: 4, balanceAfter: 14},
+		{name: "lucky loss win cancels net loss", luckyOutcome: "zero", choice: "small", roll: 80, outcome: "small", won: true, adjustment: 1, balanceAfter: 10},
+		{name: "guess miss preserves lucky loss", luckyOutcome: "zero", choice: "big", roll: 80, outcome: "small", won: false, adjustment: 0, balanceAfter: 9},
+		{name: "skip closes opportunity without adjustment", luckyOutcome: "zero", choice: "skip", roll: 10, outcome: "skipped", won: false, adjustment: 0, balanceAfter: 9},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, mock, err := sqlmock.New()
+			require.NoError(t, err)
+			defer db.Close()
+			repo := &zenxiangLiyuRepository{db: db}
+			playedAt := time.Date(2026, time.July, 14, 12, 0, 0, 0, time.UTC)
+
+			mock.ExpectBegin()
+			mock.ExpectQuery(`SELECT COALESCE\(guess_size_enabled, FALSE\), COALESCE\(guess_big_probability, 50\),`).
+				WillReturnRows(sqlmock.NewRows([]string{"enabled", "big", "small"}).AddRow(true, 50.0, 50.0))
+			mock.ExpectQuery(`SELECT reward_amount::double precision, COALESCE\(lucky_coin_played, FALSE\),`).
+				WithArgs(int64(9), int64(42)).
+				WillReturnRows(sqlmock.NewRows([]string{
+					"reward", "lucky_played", "lucky_outcome", "guess_played", "guess_choice",
+					"guess_outcome", "guess_won", "guess_adjustment", "guess_big", "guess_small", "balance_after", "played_at",
+				}).AddRow(2.0, true, tt.luckyOutcome, false, "", "", false, 0.0, 0.0, 0.0, nil, nil))
+			mock.ExpectQuery(`UPDATE users SET balance = balance \+ \$1`).
+				WithArgs(tt.adjustment, int64(42)).
+				WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(tt.balanceAfter))
+			mock.ExpectQuery(`UPDATE zenxiang_liyu_records`).
+				WithArgs(tt.choice, tt.outcome, tt.won, tt.adjustment, 50.0, 50.0, tt.balanceAfter, int64(9), int64(42)).
+				WillReturnRows(sqlmock.NewRows([]string{"guess_size_played_at"}).AddRow(playedAt))
+			mock.ExpectCommit()
+
+			result, err := repo.PlayGuessSize(context.Background(), service.ZenxiangLiyuGuessSizeCommand{
+				UserID: 42, RecordID: 9, Choice: tt.choice, Roll: tt.roll,
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, tt.outcome, result.Outcome)
+			require.Equal(t, tt.won, result.Won)
+			require.Equal(t, tt.adjustment, result.AdjustmentAmount)
+			require.Equal(t, tt.choice == "skip", result.Skipped)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
 func zenxiangLiyuRecordRows() *sqlmock.Rows {
 	return sqlmock.NewRows([]string{
 		"id", "request_id", "user_id", "ticket_amount", "reward_amount", "user_net_amount",
@@ -536,6 +592,7 @@ func zenxiangLiyuSettingsRows() *sqlmock.Rows {
 		"global_enabled", "ticket_amount", "minimum_balance", "daily_play_limit",
 		"ticket_usage_threshold", "daily_ticket_limit", "unit_sale_price", "unit_cost_price",
 		"lucky_coin_enabled", "lucky_coin_double_probability",
+		"guess_size_enabled", "guess_big_probability", "guess_small_probability",
 	})
 }
 

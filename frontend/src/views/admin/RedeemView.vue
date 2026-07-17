@@ -137,6 +137,9 @@
                   >({{ row.group.name }})</span
                 >
               </template>
+              <template v-else-if="row.type === 'lottery_ticket'">
+                {{ t('admin.redeem.ticketCountValue', { count: value }) }}
+              </template>
               <template v-else>{{ value }}</template>
             </span>
           </template>
@@ -301,6 +304,7 @@
                 type="number"
                 :step="generateForm.type === 'balance' ? '0.01' : '1'"
                 :min="generateForm.type === 'balance' ? '0.01' : '1'"
+                :max="generateForm.type === 'lottery_ticket' ? '5' : undefined"
                 required
                 class="input"
               />
@@ -735,6 +739,7 @@ const typeOptions = computed(() => [
   { value: 'balance', label: t('admin.redeem.balance') },
   { value: 'concurrency', label: t('admin.redeem.concurrency') },
   { value: 'subscription', label: t('admin.redeem.subscription') },
+  { value: 'lottery_ticket', label: t('admin.redeem.lotteryTicket') },
   { value: 'invitation', label: t('admin.redeem.invitation') }
 ])
 
@@ -743,6 +748,7 @@ const filterTypeOptions = computed(() => [
   { value: 'balance', label: t('admin.redeem.balance') },
   { value: 'concurrency', label: t('admin.redeem.concurrency') },
   { value: 'subscription', label: t('admin.redeem.subscription') },
+  { value: 'lottery_ticket', label: t('admin.redeem.lotteryTicket') },
   { value: 'invitation', label: t('admin.redeem.invitation') }
 ])
 
@@ -843,6 +849,8 @@ watch(
   (newType) => {
     if (newType === 'invitation') {
       generateForm.value = 0
+    } else if (newType === 'lottery_ticket') {
+      generateForm.value = 1
     } else if (generateForm.value === 0) {
       generateForm.value = 10
     }

@@ -33,12 +33,14 @@ export interface ZenxiangLiyuStatus {
   today_tickets_earned: number
   today_tickets_from_usage: number
   today_tickets_granted: number
+  today_tickets_redeemed: number
   today_tickets_used: number
   today_tickets_available: number
   next_ticket_usage_target: number
   next_ticket_usage_missing: number
   lucky_coin_enabled: boolean
   lucky_coin_double_probability: number
+  guess_size_enabled: boolean
   prizes: ZenxiangLiyuPrize[]
 }
 
@@ -69,6 +71,22 @@ export interface ZenxiangLiyuLuckyCoinResult {
   double_probability: number
   played_at: string
   lucky_coin_available: boolean
+  guess_size_available: boolean
+}
+
+export type ZenxiangLiyuGuessSizeChoice = 'big' | 'small' | 'skip'
+
+export interface ZenxiangLiyuGuessSizeResult {
+  record_id: number
+  choice: ZenxiangLiyuGuessSizeChoice
+  outcome: 'big' | 'small' | 'skipped'
+  won: boolean
+  adjustment_amount: number
+  balance_after: number
+  big_probability: number
+  small_probability: number
+  played_at: string
+  skipped: boolean
 }
 
 export interface ZenxiangLiyuRecord {
@@ -81,6 +99,12 @@ export interface ZenxiangLiyuRecord {
   lucky_coin_outcome?: string
   lucky_coin_adjustment: number
   balance_after_lucky?: number
+  guess_size_played: boolean
+  guess_size_choice?: string
+  guess_size_outcome?: string
+  guess_size_won: boolean
+  guess_size_adjustment: number
+  balance_after_guess_size?: number
   prize_id?: number
   prize_name: string
   probability: number
@@ -112,6 +136,14 @@ export async function playZenxiangLiyu(requestId: string): Promise<ZenxiangLiyuP
 
 export async function playZenxiangLiyuLuckyCoin(recordId: number): Promise<ZenxiangLiyuLuckyCoinResult> {
   const { data } = await apiClient.post<ZenxiangLiyuLuckyCoinResult>(`/zenxiang-liyu/records/${recordId}/lucky-coin`, {})
+  return data
+}
+
+export async function playZenxiangLiyuGuessSize(
+  recordId: number,
+  choice: ZenxiangLiyuGuessSizeChoice
+): Promise<ZenxiangLiyuGuessSizeResult> {
+  const { data } = await apiClient.post<ZenxiangLiyuGuessSizeResult>(`/zenxiang-liyu/records/${recordId}/guess-size`, { choice })
   return data
 }
 

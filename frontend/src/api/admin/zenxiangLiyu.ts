@@ -15,6 +15,9 @@ export interface ZenxiangLiyuSettings {
   unit_cost_price: number
   lucky_coin_enabled: boolean
   lucky_coin_double_probability: number
+  guess_size_enabled: boolean
+  guess_big_probability: number
+  guess_small_probability: number
 }
 
 export interface ZenxiangLiyuPrizeInput {

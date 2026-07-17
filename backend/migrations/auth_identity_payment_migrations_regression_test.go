@@ -279,6 +279,24 @@ func TestMigration181AllowsLuckyCoinHalfLoss(t *testing.T) {
 	require.Contains(t, sql, "RAISE EXCEPTION 'zenxiang_liyu_records are immutable'")
 }
 
+func TestMigration185AddsGuessSizeSettlementAllowlist(t *testing.T) {
+	content, err := FS.ReadFile("185_zenxiang_liyu_guess_size.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "guess_big_probability + guess_small_probability = 100")
+	require.Contains(t, sql, "OLD.guess_size_played = FALSE")
+	require.Contains(t, sql, "NEW.guess_size_played = TRUE")
+	require.Contains(t, sql, "NEW.guess_size_choice IN ('big', 'small', 'skip')")
+	require.Contains(t, sql, "NEW.guess_size_won = (NEW.guess_size_choice = NEW.guess_size_outcome)")
+	require.Contains(t, sql, "NEW.guess_size_adjustment = 2 * OLD.reward_amount")
+	require.Contains(t, sql, "NEW.guess_size_adjustment = ROUND(0.5 * OLD.reward_amount, 8)")
+	require.Contains(t, sql, "NEW.guess_size_won = FALSE AND NEW.guess_size_adjustment = 0")
+	require.Contains(t, sql, "NEW.user_net_amount = OLD.user_net_amount + NEW.guess_size_adjustment")
+	require.Contains(t, sql, "OLD.guess_size_played_at IS NULL")
+	require.Contains(t, sql, "RAISE EXCEPTION 'zenxiang_liyu_records are immutable'")
+}
+
 func TestMigration154AddsSparkShadowColumnsAndConstraintsWithoutHotIndexes(t *testing.T) {
 	content, err := FS.ReadFile("154_account_spark_shadow.sql")
 	require.NoError(t, err)

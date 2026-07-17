@@ -54,6 +54,21 @@
           </div>
           <div class="mt-4 grid gap-3 md:grid-cols-4">
             <div class="rounded-md bg-gray-50 px-3 py-2 text-sm dark:bg-dark-800">
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.zenxiangLiyu.guessSizeEnabled') }}</span>
+                <Toggle v-model="settingsForm.guess_size_enabled" />
+              </div>
+              <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ t('admin.zenxiangLiyu.guessSizeHint') }}</p>
+            </div>
+            <label><span class="input-label">{{ t('admin.zenxiangLiyu.guessBigProbability') }}</span><input v-model.number="settingsForm.guess_big_probability" type="number" min="0" max="100" step="0.01" class="input" /></label>
+            <label><span class="input-label">{{ t('admin.zenxiangLiyu.guessSmallProbability') }}</span><input v-model.number="settingsForm.guess_small_probability" type="number" min="0" max="100" step="0.01" class="input" /></label>
+            <div class="rounded-md px-3 py-2 text-sm" :class="guessProbabilityValid ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300'">
+              <p class="text-xs">{{ t('admin.zenxiangLiyu.guessProbabilityTotal') }}</p>
+              <p class="mt-1 font-semibold tabular-nums">{{ formatNumber(guessProbabilityTotal) }}%</p>
+            </div>
+          </div>
+          <div class="mt-4 grid gap-3 md:grid-cols-4">
+            <div class="rounded-md bg-gray-50 px-3 py-2 text-sm dark:bg-dark-800">
               <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.zenxiangLiyu.expectedRewardPerTicket') }}</p>
               <p class="mt-1 font-semibold text-gray-900 dark:text-white">{{ formatAmount(theoreticalExpense) }}</p>
             </div>
@@ -71,7 +86,7 @@
             </div>
           </div>
           <div class="mt-4 flex justify-end">
-            <button data-testid="zenxiang-save-settings" class="btn btn-primary" :disabled="savingSettings" @click="saveSettings">{{ t('admin.zenxiangLiyu.saveSettings') }}</button>
+            <button data-testid="zenxiang-save-settings" class="btn btn-primary" :disabled="savingSettings || !guessProbabilityValid" @click="saveSettings">{{ t('admin.zenxiangLiyu.saveSettings') }}</button>
           </div>
         </div>
 
@@ -203,7 +218,7 @@
                         </div>
                         <p v-else-if="expandedUserRecords.length === 0" class="py-4 text-center text-sm text-gray-500 dark:text-dark-400">{{ t('admin.zenxiangLiyu.userRecordsEmpty') }}</p>
                         <div v-else class="overflow-x-auto">
-                          <table class="w-full min-w-[760px] table-fixed text-xs">
+                          <table class="w-full min-w-[980px] table-fixed text-xs">
                             <thead>
                               <tr class="text-gray-500 dark:text-dark-400">
                                 <th class="w-40 p-2 text-left font-medium">{{ t('admin.zenxiangLiyu.userRecordPlayedAt') }}</th>
@@ -211,6 +226,8 @@
                                 <th class="w-28 p-2 text-right font-medium">{{ t('admin.zenxiangLiyu.userRecordOriginalReward') }}</th>
                                 <th class="w-28 p-2 text-left font-medium">{{ t('admin.zenxiangLiyu.userRecordLuckyResult') }}</th>
                                 <th class="w-28 p-2 text-right font-medium">{{ t('admin.zenxiangLiyu.userRecordAdjustment') }}</th>
+                                <th class="w-28 p-2 text-left font-medium">{{ t('admin.zenxiangLiyu.userRecordGuessResult') }}</th>
+                                <th class="w-28 p-2 text-right font-medium">{{ t('admin.zenxiangLiyu.userRecordGuessAdjustment') }}</th>
                                 <th class="w-28 p-2 text-right font-medium">{{ t('admin.zenxiangLiyu.userRecordFinalNet') }}</th>
                               </tr>
                             </thead>
@@ -221,6 +238,8 @@
                                 <td class="p-2 text-right tabular-nums text-gray-700 dark:text-dark-200">{{ formatAmount(record.reward_amount) }}</td>
                                 <td class="p-2" :class="luckyCoinResultClass(record)">{{ luckyCoinResultLabel(record) }}</td>
                                 <td class="p-2 text-right tabular-nums" :class="amountClass(record.lucky_coin_adjustment)">{{ formatSignedAmount(record.lucky_coin_adjustment) }}</td>
+                                <td class="p-2" :class="guessSizeResultClass(record)">{{ guessSizeResultLabel(record) }}</td>
+                                <td class="p-2 text-right tabular-nums" :class="amountClass(record.guess_size_adjustment)">{{ formatSignedAmount(record.guess_size_adjustment) }}</td>
                                 <td class="p-2 text-right font-semibold tabular-nums" :class="amountClass(record.user_net_amount)">{{ formatSignedAmount(record.user_net_amount) }}</td>
                               </tr>
                             </tbody>
@@ -313,7 +332,10 @@ const settingsForm = reactive({
   unit_sale_price: 0.1,
   unit_cost_price: 0.05,
   lucky_coin_enabled: true,
-  lucky_coin_double_probability: 50
+  lucky_coin_double_probability: 50,
+  guess_size_enabled: false,
+  guess_big_probability: 50,
+  guess_small_probability: 50
 })
 const prizes = ref<ZenxiangLiyuPrizeInput[]>([])
 const simulationPrizes = ref<ZenxiangLiyuPrizeInput[]>([])
@@ -351,6 +373,8 @@ const simulatorFields = computed(() => [
 ])
 const enabledPrizes = computed(() => prizes.value.filter((prize) => prize.enabled))
 const probabilityTotal = computed(() => enabledPrizes.value.reduce((sum, prize) => sum + Number(prize.probability || 0), 0))
+const guessProbabilityTotal = computed(() => Number(settingsForm.guess_big_probability || 0) + Number(settingsForm.guess_small_probability || 0))
+const guessProbabilityValid = computed(() => Math.abs(guessProbabilityTotal.value - 100) < 0.000001)
 const theoreticalExpense = computed(() => enabledPrizes.value.reduce((sum, prize) => sum + Number(prize.reward_amount || 0) * Number(prize.probability || 0) / 100, 0))
 const theoreticalProfit = computed(() => Number(settingsForm.ticket_usage_threshold || 0) - theoreticalExpense.value)
 const theoreticalProfitRate = computed(() => settingsForm.ticket_usage_threshold > 0 ? theoreticalProfit.value / settingsForm.ticket_usage_threshold : 0)
@@ -467,6 +491,19 @@ function luckyCoinResultLabel(record: ZenxiangLiyuRecord) {
 function luckyCoinResultClass(record: ZenxiangLiyuRecord) {
   if (!record.lucky_coin_played) return 'text-gray-500 dark:text-dark-400'
   return record.lucky_coin_outcome === 'double'
+    ? 'text-emerald-700 dark:text-emerald-300'
+    : 'text-rose-700 dark:text-rose-300'
+}
+function guessSizeResultLabel(record: ZenxiangLiyuRecord) {
+  if (!record.guess_size_played) return t('admin.zenxiangLiyu.userRecordGuessNotPlayed')
+  if (record.guess_size_choice === 'skip') return t('admin.zenxiangLiyu.userRecordGuessSkipped')
+  return record.guess_size_won
+    ? t('admin.zenxiangLiyu.userRecordGuessWon')
+    : t('admin.zenxiangLiyu.userRecordGuessMissed')
+}
+function guessSizeResultClass(record: ZenxiangLiyuRecord) {
+  if (!record.guess_size_played || record.guess_size_choice === 'skip') return 'text-gray-500 dark:text-dark-400'
+  return record.guess_size_won
     ? 'text-emerald-700 dark:text-emerald-300'
     : 'text-rose-700 dark:text-rose-300'
 }
@@ -592,6 +629,7 @@ async function selectTab(tab: typeof activeTab.value) {
 }
 async function reloadCurrentTab() { if (activeTab.value === 'stats') await loadStats(); else await loadCore() }
 async function saveSettings() {
+  if (!guessProbabilityValid.value) return
   savingSettings.value = true
   try {
     const saved = await adminAPI.zenxiangLiyu.updateSettings({ ...settingsForm })

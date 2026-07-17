@@ -41,6 +41,12 @@ func (s *stubZenxiangLiyuService) PlayLuckyCoin(_ context.Context, userID, recor
 	return &service.ZenxiangLiyuLuckyCoinResult{RecordID: recordID, Outcome: "double"}, nil
 }
 
+func (s *stubZenxiangLiyuService) PlayGuessSize(_ context.Context, userID, recordID int64, choice string) (*service.ZenxiangLiyuGuessSizeResult, error) {
+	s.lastUserID = userID
+	s.lastRecordID = recordID
+	return &service.ZenxiangLiyuGuessSizeResult{RecordID: recordID, Choice: choice}, nil
+}
+
 func (s *stubZenxiangLiyuService) ListUserRecords(context.Context, int64, int, int) ([]service.ZenxiangLiyuRecord, int, error) {
 	return nil, 0, nil
 }
@@ -128,6 +134,7 @@ func authenticatedZenxiangLiyuTestRouter(h *ZenxiangLiyuHandler) *gin.Engine {
 	router.GET("/zenxiang-liyu/status", h.GetStatus)
 	router.POST("/zenxiang-liyu/play", h.Play)
 	router.POST("/zenxiang-liyu/records/:id/lucky-coin", h.PlayLuckyCoin)
+	router.POST("/zenxiang-liyu/records/:id/guess-size", h.PlayGuessSize)
 	router.GET("/zenxiang-liyu/records", h.ListRecords)
 	router.GET("/zenxiang-liyu/daily-summary", h.GetDailySummary)
 	return router

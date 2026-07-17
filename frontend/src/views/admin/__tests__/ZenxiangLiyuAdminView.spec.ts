@@ -40,6 +40,9 @@ const settings = {
   unit_cost_price: 0.05,
   lucky_coin_enabled: true,
   lucky_coin_double_probability: 50,
+  guess_size_enabled: false,
+  guess_big_probability: 50,
+  guess_small_probability: 50,
 }
 const prizes = [
   { id: 1, name: '礼遇一档', reward_amount: 1, probability: 60, enabled: true, sort_order: 1 },

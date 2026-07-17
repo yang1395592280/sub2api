@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -16,12 +17,13 @@ import (
 )
 
 var (
-	ErrRedeemCodeNotFound  = infraerrors.NotFound("REDEEM_CODE_NOT_FOUND", "redeem code not found")
-	ErrRedeemCodeUsed      = infraerrors.Conflict("REDEEM_CODE_USED", "redeem code already used")
-	ErrRedeemCodeExpired   = infraerrors.Conflict("REDEEM_CODE_EXPIRED", "redeem code expired")
-	ErrInsufficientBalance = infraerrors.BadRequest("INSUFFICIENT_BALANCE", "insufficient balance")
-	ErrRedeemRateLimited   = infraerrors.TooManyRequests("REDEEM_RATE_LIMITED", "too many failed attempts, please try again later")
-	ErrRedeemCodeLocked    = infraerrors.Conflict("REDEEM_CODE_LOCKED", "redeem code is being processed, please try again")
+	ErrRedeemCodeNotFound   = infraerrors.NotFound("REDEEM_CODE_NOT_FOUND", "redeem code not found")
+	ErrRedeemCodeUsed       = infraerrors.Conflict("REDEEM_CODE_USED", "redeem code already used")
+	ErrRedeemCodeExpired    = infraerrors.Conflict("REDEEM_CODE_EXPIRED", "redeem code expired")
+	ErrInsufficientBalance  = infraerrors.BadRequest("INSUFFICIENT_BALANCE", "insufficient balance")
+	ErrRedeemRateLimited    = infraerrors.TooManyRequests("REDEEM_RATE_LIMITED", "too many failed attempts, please try again later")
+	ErrRedeemCodeLocked     = infraerrors.Conflict("REDEEM_CODE_LOCKED", "redeem code is being processed, please try again")
+	ErrRedeemTicketCapacity = infraerrors.Conflict("REDEEM_TICKET_CAPACITY_EXCEEDED", "not enough lottery ticket capacity")
 )
 
 const (
@@ -46,6 +48,10 @@ type RedeemCache interface {
 
 	AcquireRedeemLock(ctx context.Context, code string, ttl time.Duration) (bool, error)
 	ReleaseRedeemLock(ctx context.Context, code string) error
+}
+
+type RedeemTicketGranter interface {
+	GrantRedeemTickets(ctx context.Context, userID int64, sourceKey string, ticketCount int) error
 }
 
 type RedeemCodeRepository interface {
@@ -136,6 +142,7 @@ type RedeemService struct {
 	redeemRepo           RedeemCodeRepository
 	userRepo             UserRepository
 	redeemUserRepo       RedeemUserAdjustmentRepository
+	redeemTicketGranter  RedeemTicketGranter
 	subscriptionService  *SubscriptionService
 	cache                RedeemCache
 	billingCacheService  *BillingCacheService
@@ -156,10 +163,12 @@ func NewRedeemService(
 	affiliateService *AffiliateService,
 ) *RedeemService {
 	redeemUserRepo, _ := userRepo.(RedeemUserAdjustmentRepository)
+	redeemTicketGranter, _ := redeemRepo.(RedeemTicketGranter)
 	return &RedeemService{
 		redeemRepo:           redeemRepo,
 		userRepo:             userRepo,
 		redeemUserRepo:       redeemUserRepo,
+		redeemTicketGranter:  redeemTicketGranter,
 		subscriptionService:  subscriptionService,
 		cache:                cache,
 		billingCacheService:  billingCacheService,
@@ -200,6 +209,9 @@ func (s *RedeemService) GenerateCodes(ctx context.Context, req GenerateCodesRequ
 	// 邀请码类型不需要数值，其他类型需要非零值（支持负数用于退款）
 	if req.Type != RedeemTypeInvitation && req.Value == 0 {
 		return nil, errors.New("value must not be zero")
+	}
+	if req.Type == RedeemTypeLotteryTicket && !isValidRedeemTicketCount(req.Value) {
+		return nil, errors.New("lottery ticket value must be an integer between 1 and 5")
 	}
 
 	if req.Count > 1000 {
@@ -256,6 +268,9 @@ func (s *RedeemService) CreateCode(ctx context.Context, code *RedeemCode) error 
 	}
 	if code.Type != RedeemTypeInvitation && code.Value == 0 {
 		return errors.New("value must not be zero")
+	}
+	if code.Type == RedeemTypeLotteryTicket && !isValidRedeemTicketCount(code.Value) {
+		return errors.New("lottery ticket value must be an integer between 1 and 5")
 	}
 	if code.Status == "" {
 		code.Status = StatusUnused
@@ -420,6 +435,10 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	// 验证兑换码类型的前置条件。邀请码属于注册流程，不能通过普通兑换接口使用。
 	switch redeemCode.Type {
 	case RedeemTypeBalance, RedeemTypeConcurrency:
+	case RedeemTypeLotteryTicket:
+		if s.redeemTicketGranter == nil {
+			return nil, errors.New("lottery ticket redemption is not configured")
+		}
 	case RedeemTypeSubscription:
 		if redeemCode.GroupID == nil {
 			return nil, infraerrors.BadRequest("REDEEM_CODE_INVALID", "invalid subscription redeem code: missing group_id")
@@ -504,6 +523,11 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 			}
 		}
 
+	case RedeemTypeLotteryTicket:
+		if err := s.redeemTicketGranter.GrantRedeemTickets(txCtx, userID, redeemCode.Code, int(redeemCode.Value)); err != nil {
+			return nil, fmt.Errorf("grant lottery tickets: %w", err)
+		}
+
 	default:
 		return nil, unsupportedRedeemTypeError(redeemCode.Type)
 	}
@@ -528,6 +552,10 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	}
 
 	return redeemCode, nil
+}
+
+func isValidRedeemTicketCount(value float64) bool {
+	return value >= 1 && value <= ZenxiangLiyuTicketCapacity && value == math.Trunc(value)
 }
 
 // invalidateRedeemCaches 失效兑换相关的缓存

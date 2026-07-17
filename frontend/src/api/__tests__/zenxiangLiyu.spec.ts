@@ -14,6 +14,7 @@ import {
   getZenxiangLiyuStatus,
   listZenxiangLiyuRecords,
   playZenxiangLiyu,
+  playZenxiangLiyuGuessSize,
   playZenxiangLiyuLuckyCoin,
 } from '@/api/zenxiangLiyu'
 
@@ -48,6 +49,15 @@ describe('zenxiang liyu user api', () => {
     await expect(playZenxiangLiyuLuckyCoin(9)).resolves.toEqual(result)
 
     expect(post).toHaveBeenCalledWith('/zenxiang-liyu/records/9/lucky-coin', {})
+  })
+
+  it('posts guess size choice by record id', async () => {
+    const result = { record_id: 9, choice: 'big', outcome: 'big', won: true }
+    post.mockResolvedValueOnce({ data: result })
+
+    await expect(playZenxiangLiyuGuessSize(9, 'big')).resolves.toEqual(result)
+
+    expect(post).toHaveBeenCalledWith('/zenxiang-liyu/records/9/guess-size', { choice: 'big' })
   })
 
   it('loads records with pagination parameters', async () => {

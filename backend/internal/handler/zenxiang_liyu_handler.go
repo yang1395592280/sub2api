@@ -15,6 +15,7 @@ type zenxiangLiyuUserService interface {
 	GetStatus(ctx context.Context, userID int64) (*service.ZenxiangLiyuStatus, error)
 	Play(ctx context.Context, userID int64, requestID string) (*service.ZenxiangLiyuPlayResult, error)
 	PlayLuckyCoin(ctx context.Context, userID, recordID int64) (*service.ZenxiangLiyuLuckyCoinResult, error)
+	PlayGuessSize(ctx context.Context, userID, recordID int64, choice string) (*service.ZenxiangLiyuGuessSizeResult, error)
 	ListUserRecords(ctx context.Context, userID int64, page, pageSize int) ([]service.ZenxiangLiyuRecord, int, error)
 	GetUserDailySummary(ctx context.Context, userID int64) (*service.ZenxiangLiyuDailySummary, error)
 }
@@ -59,6 +60,10 @@ func NewZenxiangLiyuHandler(service zenxiangLiyuUserService) *ZenxiangLiyuHandle
 
 type zenxiangLiyuPlayRequest struct {
 	RequestID string `json:"request_id" binding:"required"`
+}
+
+type zenxiangLiyuGuessSizeRequest struct {
+	Choice string `json:"choice" binding:"required,oneof=big small skip"`
 }
 
 // GetStatus returns the current user's eligibility and prize display data.
@@ -118,6 +123,30 @@ func (h *ZenxiangLiyuHandler) PlayLuckyCoin(c *gin.Context) {
 	response.Success(c, result)
 }
 
+func (h *ZenxiangLiyuHandler) PlayGuessSize(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	recordID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || recordID <= 0 {
+		response.BadRequest(c, "Invalid record ID")
+		return
+	}
+	var req zenxiangLiyuGuessSizeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	result, err := h.service.PlayGuessSize(c.Request.Context(), subject.UserID, recordID, req.Choice)
+	if err != nil {
+		handleZenxiangLiyuPlayError(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
 func handleZenxiangLiyuPlayError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, service.ErrZenxiangLiyuDisabled), errors.Is(err, service.ErrZenxiangLiyuUnauthorized):
@@ -128,7 +157,11 @@ func handleZenxiangLiyuPlayError(c *gin.Context, err error) {
 		errors.Is(err, service.ErrZenxiangLiyuNoTicket),
 		errors.Is(err, service.ErrZenxiangLiyuLuckyCoinDisabled),
 		errors.Is(err, service.ErrZenxiangLiyuLuckyCoinAlreadyPlayed),
-		errors.Is(err, service.ErrZenxiangLiyuLuckyCoinUnavailable):
+		errors.Is(err, service.ErrZenxiangLiyuLuckyCoinUnavailable),
+		errors.Is(err, service.ErrZenxiangLiyuGuessSizeDisabled),
+		errors.Is(err, service.ErrZenxiangLiyuGuessSizeUnavailable),
+		errors.Is(err, service.ErrZenxiangLiyuGuessSizeAlreadyPlayed),
+		errors.Is(err, service.ErrZenxiangLiyuGuessSizeInvalidChoice):
 		response.BadRequest(c, err.Error())
 	default:
 		response.InternalError(c, "Failed to play Zenxiang Liyu")

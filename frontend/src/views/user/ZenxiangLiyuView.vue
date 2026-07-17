@@ -45,6 +45,9 @@
             <p v-if="status.today_tickets_granted > 0" class="mt-1 text-xs font-medium text-primary-600 dark:text-primary-300">
               {{ t('zenxiangLiyu.ticketGiftHint', { count: status.today_tickets_granted }) }}
             </p>
+            <p v-if="status.today_tickets_redeemed > 0" class="mt-1 text-xs font-medium text-sky-600 dark:text-sky-300">
+              {{ t('zenxiangLiyu.ticketRedeemHint', { count: status.today_tickets_redeemed }) }}
+            </p>
           </div>
           <div class="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.ticketProgress') }}</p>
@@ -157,6 +160,8 @@
                 <div class="flex flex-wrap gap-2 text-xs sm:justify-end">
                   <span class="rounded-full px-2.5 py-1 font-medium" :class="recordRewardClass(record)">{{ t('zenxiangLiyu.finalRewardShort', { amount: signedAmount(recordFinalReward(record)) }) }}</span>
                   <span v-if="record.lucky_coin_played" class="rounded-full px-2.5 py-1 font-medium" :class="recordLuckyCoinClass(record)">{{ recordLuckyCoinText(record) }}</span>
+                  <span v-if="record.guess_size_played" class="rounded-full px-2.5 py-1 font-medium" :class="record.guess_size_won ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'">{{ recordGuessSizeText(record) }}</span>
+                  <button v-else-if="record.lucky_coin_played && status.guess_size_enabled" data-testid="zenxiang-guess-continue" type="button" class="text-xs font-medium text-sky-600 hover:text-sky-700 dark:text-sky-300" @click="resumeGuessSize(record)">{{ t('zenxiangLiyu.guessSizeContinue') }}</button>
                   <span class="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ t('zenxiangLiyu.ticketUsedShort') }}</span>
                   <span class="rounded-full px-2.5 py-1 font-semibold" :class="recordNetClass(record.user_net_amount)">{{ t('zenxiangLiyu.netShort', { amount: signedAmount(record.user_net_amount) }) }}</span>
                 </div>
@@ -201,8 +206,27 @@
               <div class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.luckyCoinResultTitle') }}</div>
               <div class="mt-1 text-base font-semibold">{{ luckyCoinResultText }}</div>
             </div>
+            <div v-if="guessSizeStage !== 'hidden'" class="mt-4 rounded-lg border border-sky-200 bg-sky-50 p-4 text-left dark:border-sky-900 dark:bg-sky-950/30">
+              <p class="text-xs font-medium text-sky-700 dark:text-sky-300">{{ t('zenxiangLiyu.guessSizeTitle') }}</p>
+              <p v-if="guessSizeStage === 'prompt'" class="mt-1 text-sm text-gray-700 dark:text-gray-200">{{ guessSizePromptText }}</p>
+              <p v-else-if="guessSizeStage === 'choosing'" class="mt-1 text-sm text-gray-700 dark:text-gray-200">{{ t('zenxiangLiyu.guessSizeChoose') }}</p>
+              <p v-else-if="guessSizeResult?.skipped" class="mt-1 text-sm text-gray-700 dark:text-gray-200">{{ t('zenxiangLiyu.guessSizeSkipped') }}</p>
+              <p v-else-if="guessSizeResult" class="mt-1 text-sm font-semibold" :class="guessSizeResult.won ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'">{{ guessSizeResultText }}</p>
+              <p v-if="guessSizeError" class="mt-2 text-sm text-rose-600 dark:text-rose-300">{{ guessSizeError }}</p>
+            </div>
             <p v-if="luckyCoinError" class="mt-4 text-sm text-rose-600 dark:text-rose-300">{{ luckyCoinError }}</p>
-            <div class="mt-6 grid gap-2" :class="showLuckyCoinAction ? 'grid-cols-2' : 'grid-cols-1'">
+            <div v-if="guessSizeStage === 'prompt'" class="mt-6 grid grid-cols-2 gap-2">
+              <button data-testid="zenxiang-guess-decline" type="button" class="btn btn-secondary min-h-12" :disabled="guessSizePlaying" @click="submitGuessSize('skip')">{{ t('common.no') }}</button>
+              <button data-testid="zenxiang-guess-accept" type="button" class="btn btn-primary min-h-12" :disabled="guessSizePlaying" @click="guessSizeStage = 'choosing'">{{ t('common.yes') }}</button>
+            </div>
+            <div v-else-if="guessSizeStage === 'choosing'" class="mt-6 grid grid-cols-2 gap-2">
+              <button data-testid="zenxiang-guess-big" type="button" class="btn btn-primary min-h-14 text-lg" :disabled="guessSizePlaying" @click="submitGuessSize('big')">{{ t('zenxiangLiyu.guessBig') }}</button>
+              <button data-testid="zenxiang-guess-small" type="button" class="btn btn-secondary min-h-14 text-lg" :disabled="guessSizePlaying" @click="submitGuessSize('small')">{{ t('zenxiangLiyu.guessSmall') }}</button>
+            </div>
+            <div v-else-if="guessSizeStage === 'resolved'" class="mt-6">
+              <button type="button" class="btn btn-primary min-h-12 w-full" @click="showResultDialog = false">{{ t('common.confirm') }}</button>
+            </div>
+            <div v-else class="mt-6 grid gap-2" :class="showLuckyCoinAction ? 'grid-cols-2' : 'grid-cols-1'">
               <button type="button" class="btn btn-secondary min-h-14 w-full" @click="showResultDialog = false">{{ t('common.confirm') }}</button>
               <button
                 v-if="showLuckyCoinAction"
@@ -230,7 +254,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import { listZenxiangLiyuRecords, playZenxiangLiyu, playZenxiangLiyuLuckyCoin, type ZenxiangLiyuLuckyCoinResult, type ZenxiangLiyuPlayResult, type ZenxiangLiyuRecord } from '@/api/zenxiangLiyu'
+import { listZenxiangLiyuRecords, playZenxiangLiyu, playZenxiangLiyuGuessSize, playZenxiangLiyuLuckyCoin, type ZenxiangLiyuGuessSizeChoice, type ZenxiangLiyuGuessSizeResult, type ZenxiangLiyuLuckyCoinResult, type ZenxiangLiyuPlayResult, type ZenxiangLiyuRecord } from '@/api/zenxiangLiyu'
 import { useAuthStore, useZenxiangLiyuStore } from '@/stores'
 
 const SPIN_DURATION_MS = 4200
@@ -246,6 +270,10 @@ const result = ref<ZenxiangLiyuPlayResult | null>(null)
 const luckyCoinResult = ref<ZenxiangLiyuLuckyCoinResult | null>(null)
 const luckyCoinFlipping = ref(false)
 const luckyCoinError = ref('')
+const guessSizeResult = ref<ZenxiangLiyuGuessSizeResult | null>(null)
+const guessSizeStage = ref<'hidden' | 'prompt' | 'choosing' | 'resolved'>('hidden')
+const guessSizePlaying = ref(false)
+const guessSizeError = ref('')
 const todayRecords = ref<ZenxiangLiyuRecord[]>([])
 const wheelRotation = ref(0)
 const isSpinning = ref(false)
@@ -253,6 +281,7 @@ const showResultDialog = ref(false)
 const status = computed(() => zenxiangLiyuStore.status)
 const statusLoading = computed(() => zenxiangLiyuStore.loading)
 const currentBalance = computed(() => {
+  if (guessSizeResult.value) return guessSizeResult.value.balance_after
   if (luckyCoinResult.value) return luckyCoinResult.value.balance_after
   if (result.value) return result.value.balance_after_reward
   return status.value?.balance ?? authStore.user?.balance ?? 0
@@ -290,9 +319,9 @@ const canUseLuckyCoin = computed(() => Boolean(
   !luckyCoinFlipping.value
 ))
 const showLuckyCoinAction = computed(() => Boolean(canUseLuckyCoin.value || luckyCoinResult.value || luckyCoinFlipping.value))
-const latestResultBalance = computed(() => luckyCoinResult.value?.balance_after ?? result.value?.balance_after_reward ?? 0)
-const latestResultNetAmount = computed(() => Number(result.value?.user_net_amount ?? 0) + Number(luckyCoinResult.value?.adjustment_amount ?? 0))
-const finalRewardAmount = computed(() => Number(result.value?.reward_amount ?? 0) + Number(luckyCoinResult.value?.adjustment_amount ?? 0))
+const latestResultBalance = computed(() => guessSizeResult.value?.balance_after ?? luckyCoinResult.value?.balance_after ?? result.value?.balance_after_reward ?? 0)
+const latestResultNetAmount = computed(() => Number(result.value?.user_net_amount ?? 0) + Number(luckyCoinResult.value?.adjustment_amount ?? 0) + Number(guessSizeResult.value?.adjustment_amount ?? 0))
+const finalRewardAmount = computed(() => Number(result.value?.reward_amount ?? 0) + Number(luckyCoinResult.value?.adjustment_amount ?? 0) + Number(guessSizeResult.value?.adjustment_amount ?? 0))
 const finalRewardClass = computed(() => amountToneClass(finalRewardAmount.value))
 const luckyCoinButtonText = computed(() => {
   if (!luckyCoinResult.value) return t('zenxiangLiyu.luckyCoinDouble')
@@ -305,6 +334,17 @@ const luckyCoinResultText = computed(() => {
     return t('zenxiangLiyu.luckyCoinWinDetail', { amount: formatNumber(current.adjustment_amount) })
   }
   return t('zenxiangLiyu.luckyCoinLoseDetail', { amount: formatNumber(Math.abs(current.adjustment_amount)) })
+})
+const guessSizePromptText = computed(() => luckyCoinResult.value?.outcome === 'double'
+  ? t('zenxiangLiyu.guessSizeWinPrompt')
+  : t('zenxiangLiyu.guessSizeLosePrompt'))
+const guessSizeResultText = computed(() => {
+  const current = guessSizeResult.value
+  if (!current || current.skipped) return ''
+  const outcome = current.outcome === 'big' ? t('zenxiangLiyu.guessBig') : t('zenxiangLiyu.guessSmall')
+  if (current.won && luckyCoinResult.value?.outcome === 'zero') return t('zenxiangLiyu.guessSizeRecoveryWin', { outcome })
+  if (current.won) return t('zenxiangLiyu.guessSizeRewardWin', { outcome, amount: formatNumber(current.adjustment_amount) })
+  return t('zenxiangLiyu.guessSizeMiss', { outcome })
 })
 const nextTicketHint = computed(() => {
   const current = status.value
@@ -370,7 +410,7 @@ function recordNetClass(amount?: number): string {
 }
 
 function recordFinalReward(record: ZenxiangLiyuRecord): number {
-  return Number(record.reward_amount ?? 0) + Number(record.lucky_coin_adjustment ?? 0)
+  return Number(record.reward_amount ?? 0) + Number(record.lucky_coin_adjustment ?? 0) + Number(record.guess_size_adjustment ?? 0)
 }
 
 function recordRewardClass(record: ZenxiangLiyuRecord): string {
@@ -389,6 +429,50 @@ function recordLuckyCoinText(record: ZenxiangLiyuRecord): string {
   return record.lucky_coin_outcome === 'double'
     ? t('zenxiangLiyu.recordLuckyCoinWin', { amount })
     : t('zenxiangLiyu.recordLuckyCoinLose', { amount })
+}
+
+function recordGuessSizeText(record: ZenxiangLiyuRecord): string {
+  if (record.guess_size_choice === 'skip') return t('zenxiangLiyu.guessSizeSkippedShort')
+  const outcome = record.guess_size_outcome === 'big' ? t('zenxiangLiyu.guessBig') : t('zenxiangLiyu.guessSmall')
+  return record.guess_size_won
+    ? t('zenxiangLiyu.guessSizeWonShort', { outcome })
+    : t('zenxiangLiyu.guessSizeLostShort', { outcome })
+}
+
+function resumeGuessSize(record: ZenxiangLiyuRecord): void {
+  const luckyAdjustment = Number(record.lucky_coin_adjustment ?? 0)
+  result.value = {
+    id: record.id,
+    applied: false,
+    request_id: record.request_id,
+    prize_id: record.prize_id ?? 0,
+    prize_name: record.prize_name,
+    reward_amount: record.reward_amount,
+    ticket_amount: record.ticket_amount,
+    free_play: record.ticket_amount === 0,
+    user_net_amount: Number(record.user_net_amount ?? 0) - luckyAdjustment,
+    balance_before: 0,
+    balance_after_ticket: 0,
+    balance_after_reward: Number(record.balance_after_lucky ?? 0) - luckyAdjustment,
+    played_at: record.played_at,
+    lucky_coin_available: false,
+    lucky_coin_played: true,
+  }
+  luckyCoinResult.value = {
+    record_id: record.id,
+    outcome: record.lucky_coin_outcome === 'double' ? 'double' : 'zero',
+    original_reward: record.reward_amount,
+    adjustment_amount: luckyAdjustment,
+    balance_after: Number(record.balance_after_lucky ?? 0),
+    double_probability: Number(status.value?.lucky_coin_double_probability ?? 0),
+    played_at: record.played_at,
+    lucky_coin_available: false,
+    guess_size_available: true,
+  }
+  guessSizeResult.value = null
+  guessSizeError.value = ''
+  guessSizeStage.value = 'prompt'
+  showResultDialog.value = true
 }
 
 function wheelLabelStyle(index: number, count: number): Record<string, string> {
@@ -490,6 +574,10 @@ async function play(): Promise<void> {
   luckyCoinResult.value = null
   luckyCoinError.value = ''
   luckyCoinFlipping.value = false
+  guessSizeResult.value = null
+  guessSizeStage.value = 'hidden'
+  guessSizePlaying.value = false
+  guessSizeError.value = ''
   showResultDialog.value = false
   try {
     const playResult = await playZenxiangLiyu(newRequestId())
@@ -519,6 +607,7 @@ async function playLuckyCoin(): Promise<void> {
     await wait(900)
     const coinResult = await playZenxiangLiyuLuckyCoin(result.value.id)
     luckyCoinResult.value = coinResult
+    guessSizeStage.value = coinResult.guess_size_available ? 'prompt' : 'hidden'
     result.value = { ...result.value, lucky_coin_available: false, lucky_coin_played: true }
     todayRecords.value = mergeCurrentResultIntoRecords(todayRecords.value)
     await Promise.allSettled([
@@ -533,6 +622,23 @@ async function playLuckyCoin(): Promise<void> {
   }
 }
 
+async function submitGuessSize(choice: ZenxiangLiyuGuessSizeChoice): Promise<void> {
+  if (!result.value?.id || guessSizePlaying.value) return
+  guessSizePlaying.value = true
+  guessSizeError.value = ''
+  try {
+    const gameResult = await playZenxiangLiyuGuessSize(result.value.id, choice)
+    guessSizeResult.value = gameResult
+    guessSizeStage.value = 'resolved'
+    todayRecords.value = mergeCurrentResultIntoRecords(todayRecords.value)
+    await Promise.allSettled([loadStatus(true), loadTodayRecords(), authStore.refreshUser()])
+  } catch (error) {
+    guessSizeError.value = errorMessage(error, t('zenxiangLiyu.guessSizeFailed'))
+  } finally {
+    guessSizePlaying.value = false
+  }
+}
+
 onMounted(() => {
   void refreshStatus()
 })
@@ -542,7 +648,7 @@ function mergeCurrentResultIntoRecords(records: ZenxiangLiyuRecord[]): ZenxiangL
 
   const next = [...records]
   const index = next.findIndex((record) => record.id === result.value?.id)
-  const merged = applyLuckyCoinToRecord(index >= 0 ? next[index] : recordFromPlayResult(result.value))
+  const merged = applyPostGamesToRecord(index >= 0 ? next[index] : recordFromPlayResult(result.value))
   if (index >= 0) {
     next.splice(index, 1, merged)
   } else {
@@ -562,6 +668,9 @@ function recordFromPlayResult(playResult: ZenxiangLiyuPlayResult): ZenxiangLiyuR
     lucky_coin_played: playResult.lucky_coin_played,
     lucky_coin_outcome: '',
     lucky_coin_adjustment: 0,
+    guess_size_played: false,
+    guess_size_won: false,
+    guess_size_adjustment: 0,
     prize_id: playResult.prize_id,
     prize_name: playResult.prize_name,
     probability: prize?.probability ?? 0,
@@ -569,17 +678,27 @@ function recordFromPlayResult(playResult: ZenxiangLiyuPlayResult): ZenxiangLiyuR
   }
 }
 
-function applyLuckyCoinToRecord(record: ZenxiangLiyuRecord): ZenxiangLiyuRecord {
+function applyPostGamesToRecord(record: ZenxiangLiyuRecord): ZenxiangLiyuRecord {
   const coin = luckyCoinResult.value
-  if (!coin || coin.record_id !== record.id) return record
-
-  return {
+  const coinRecord = !coin || coin.record_id !== record.id ? record : {
     ...record,
     user_net_amount: Number(record.user_net_amount ?? 0) + Number(coin.adjustment_amount ?? 0),
     lucky_coin_played: true,
     lucky_coin_outcome: coin.outcome,
     lucky_coin_adjustment: coin.adjustment_amount,
     balance_after_lucky: coin.balance_after,
+  }
+  const guess = guessSizeResult.value
+  if (!guess || guess.record_id !== record.id) return coinRecord
+  return {
+    ...coinRecord,
+    user_net_amount: Number(coinRecord.user_net_amount ?? 0) + Number(guess.adjustment_amount ?? 0),
+    guess_size_played: true,
+    guess_size_choice: guess.choice,
+    guess_size_outcome: guess.outcome,
+    guess_size_won: guess.won,
+    guess_size_adjustment: guess.adjustment_amount,
+    balance_after_guess_size: guess.balance_after,
   }
 }
 </script>

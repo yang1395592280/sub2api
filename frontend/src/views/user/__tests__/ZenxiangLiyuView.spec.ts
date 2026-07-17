@@ -2,11 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
-const { getZenxiangLiyuStatus, listZenxiangLiyuRecords, playZenxiangLiyu, playZenxiangLiyuLuckyCoin } = vi.hoisted(() => ({
+const { getZenxiangLiyuStatus, listZenxiangLiyuRecords, playZenxiangLiyu, playZenxiangLiyuLuckyCoin, playZenxiangLiyuGuessSize } = vi.hoisted(() => ({
   getZenxiangLiyuStatus: vi.fn(),
   listZenxiangLiyuRecords: vi.fn(),
   playZenxiangLiyu: vi.fn(),
   playZenxiangLiyuLuckyCoin: vi.fn(),
+  playZenxiangLiyuGuessSize: vi.fn(),
 }))
 
 vi.mock('@/api/zenxiangLiyu', () => ({
@@ -14,6 +15,7 @@ vi.mock('@/api/zenxiangLiyu', () => ({
   listZenxiangLiyuRecords,
   playZenxiangLiyu,
   playZenxiangLiyuLuckyCoin,
+  playZenxiangLiyuGuessSize,
 }))
 
 vi.mock('vue-i18n', async () => {
@@ -32,6 +34,7 @@ vi.mock('vue-i18n', async () => {
           'zenxiangLiyu.finalRewardShort': `最终 ${params?.amount}`,
           'zenxiangLiyu.recordLuckyCoinWin': `翻倍 ${params?.amount}`,
           'zenxiangLiyu.recordLuckyCoinLose': `扣减 ${params?.amount}`,
+          'zenxiangLiyu.guessSizeContinue': '继续猜大小',
         }
         return messages[key] ?? key
       },
@@ -116,6 +119,7 @@ describe('ZenxiangLiyuView', () => {
     listZenxiangLiyuRecords.mockReset()
     playZenxiangLiyu.mockReset()
     playZenxiangLiyuLuckyCoin.mockReset()
+    playZenxiangLiyuGuessSize.mockReset()
     listZenxiangLiyuRecords.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
   })
 
@@ -324,5 +328,88 @@ describe('ZenxiangLiyuView', () => {
 
     expect(wrapper.text()).toContain('幸运金币已参与过')
     vi.useRealTimers()
+  })
+
+  it('offers guess size after a lucky win and doubles the current reward again', async () => {
+    vi.useFakeTimers()
+    getZenxiangLiyuStatus.mockResolvedValue(makePlayableStatus())
+    playZenxiangLiyu.mockResolvedValue(makePlayResult())
+    playZenxiangLiyuLuckyCoin.mockResolvedValue({
+      record_id: 9, outcome: 'double', original_reward: 3, adjustment_amount: 3,
+      balance_after: 16, double_probability: 50, played_at: '2026-07-10T00:00:00Z',
+      lucky_coin_available: false, guess_size_available: true,
+    })
+    playZenxiangLiyuGuessSize.mockResolvedValue({
+      record_id: 9, choice: 'big', outcome: 'big', won: true, adjustment_amount: 6,
+      balance_after: 22, big_probability: 50, small_probability: 50,
+      played_at: '2026-07-10T00:00:01Z', skipped: false,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="zenxiang-play"]').trigger('click')
+    await finishSpinAnimation()
+    await wrapper.get('[data-testid="zenxiang-lucky-coin"]').trigger('click')
+    vi.advanceTimersByTime(900)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="zenxiang-guess-accept"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="zenxiang-guess-accept"]').trigger('click')
+    await wrapper.get('[data-testid="zenxiang-guess-big"]').trigger('click')
+    await flushPromises()
+
+    expect(playZenxiangLiyuGuessSize).toHaveBeenCalledWith(9, 'big')
+    expect(wrapper.text()).toContain('最终奖励：+12')
+    expect(wrapper.text()).toContain('最新积分：22 积分')
+    vi.useRealTimers()
+  })
+
+  it('resumes an unfinished guess size game from today records after refresh', async () => {
+    getZenxiangLiyuStatus.mockResolvedValue({
+      ...makePlayableStatus(),
+      guess_size_enabled: true,
+    })
+    listZenxiangLiyuRecords.mockResolvedValue({
+      items: [{
+        id: 9,
+        request_id: 'request-id',
+        ticket_amount: 2,
+        reward_amount: 3,
+        user_net_amount: 4,
+        lucky_coin_played: true,
+        lucky_coin_outcome: 'double',
+        lucky_coin_adjustment: 3,
+        balance_after_lucky: 16,
+        guess_size_played: false,
+        guess_size_won: false,
+        guess_size_adjustment: 0,
+        prize_id: 2,
+        prize_name: '3元',
+        probability: 30,
+        played_at: '2026-07-10T00:00:00Z',
+      }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    playZenxiangLiyuGuessSize.mockResolvedValue({
+      record_id: 9, choice: 'big', outcome: 'small', won: false, adjustment_amount: 0,
+      balance_after: 16, big_probability: 50, small_probability: 50,
+      played_at: '2026-07-10T00:00:01Z', skipped: false,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('继续猜大小')
+    await wrapper.get('[data-testid="zenxiang-guess-continue"]').trigger('click')
+    expect(wrapper.find('[data-testid="zenxiang-guess-accept"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="zenxiang-guess-accept"]').trigger('click')
+    await wrapper.get('[data-testid="zenxiang-guess-big"]').trigger('click')
+    await flushPromises()
+
+    expect(playZenxiangLiyuGuessSize).toHaveBeenCalledWith(9, 'big')
   })
 })

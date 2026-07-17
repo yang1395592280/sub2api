@@ -34,32 +34,42 @@ var (
 	ErrZenxiangLiyuLuckyCoinDisabled       = errors.New("zenxiang liyu lucky coin disabled")
 	ErrZenxiangLiyuLuckyCoinAlreadyPlayed  = errors.New("zenxiang liyu lucky coin already played")
 	ErrZenxiangLiyuLuckyCoinUnavailable    = errors.New("zenxiang liyu lucky coin unavailable")
+	ErrZenxiangLiyuGuessSizeDisabled       = errors.New("zenxiang liyu guess size is disabled")
+	ErrZenxiangLiyuGuessSizeUnavailable    = errors.New("zenxiang liyu guess size unavailable")
+	ErrZenxiangLiyuGuessSizeAlreadyPlayed  = errors.New("zenxiang liyu guess size already played")
+	ErrZenxiangLiyuGuessSizeInvalidChoice  = errors.New("zenxiang liyu guess size invalid choice")
 )
 
 type ZenxiangLiyuSettings struct {
-	GlobalEnabled        bool    `json:"global_enabled"`
-	TicketAmount         float64 `json:"ticket_amount"`
-	MinimumBalance       float64 `json:"minimum_balance"`
-	DailyPlayLimit       int     `json:"daily_play_limit"`
-	TicketUsageThreshold float64 `json:"ticket_usage_threshold"`
-	DailyTicketLimit     int     `json:"daily_ticket_limit"`
-	UnitSalePrice        float64 `json:"unit_sale_price"`
-	UnitCostPrice        float64 `json:"unit_cost_price"`
-	LuckyCoinEnabled     bool    `json:"lucky_coin_enabled"`
-	LuckyCoinProbability float64 `json:"lucky_coin_double_probability"`
+	GlobalEnabled         bool    `json:"global_enabled"`
+	TicketAmount          float64 `json:"ticket_amount"`
+	MinimumBalance        float64 `json:"minimum_balance"`
+	DailyPlayLimit        int     `json:"daily_play_limit"`
+	TicketUsageThreshold  float64 `json:"ticket_usage_threshold"`
+	DailyTicketLimit      int     `json:"daily_ticket_limit"`
+	UnitSalePrice         float64 `json:"unit_sale_price"`
+	UnitCostPrice         float64 `json:"unit_cost_price"`
+	LuckyCoinEnabled      bool    `json:"lucky_coin_enabled"`
+	LuckyCoinProbability  float64 `json:"lucky_coin_double_probability"`
+	GuessSizeEnabled      bool    `json:"guess_size_enabled"`
+	GuessBigProbability   float64 `json:"guess_big_probability"`
+	GuessSmallProbability float64 `json:"guess_small_probability"`
 }
 
 type ZenxiangLiyuSettingsUpdate struct {
-	GlobalEnabled        bool    `json:"global_enabled"`
-	TicketAmount         float64 `json:"ticket_amount"`
-	MinimumBalance       float64 `json:"minimum_balance"`
-	DailyPlayLimit       int     `json:"daily_play_limit"`
-	TicketUsageThreshold float64 `json:"ticket_usage_threshold"`
-	DailyTicketLimit     int     `json:"daily_ticket_limit"`
-	UnitSalePrice        float64 `json:"unit_sale_price"`
-	UnitCostPrice        float64 `json:"unit_cost_price"`
-	LuckyCoinEnabled     bool    `json:"lucky_coin_enabled"`
-	LuckyCoinProbability float64 `json:"lucky_coin_double_probability"`
+	GlobalEnabled         bool    `json:"global_enabled"`
+	TicketAmount          float64 `json:"ticket_amount"`
+	MinimumBalance        float64 `json:"minimum_balance"`
+	DailyPlayLimit        int     `json:"daily_play_limit"`
+	TicketUsageThreshold  float64 `json:"ticket_usage_threshold"`
+	DailyTicketLimit      int     `json:"daily_ticket_limit"`
+	UnitSalePrice         float64 `json:"unit_sale_price"`
+	UnitCostPrice         float64 `json:"unit_cost_price"`
+	LuckyCoinEnabled      bool    `json:"lucky_coin_enabled"`
+	LuckyCoinProbability  float64 `json:"lucky_coin_double_probability"`
+	GuessSizeEnabled      bool    `json:"guess_size_enabled"`
+	GuessBigProbability   float64 `json:"guess_big_probability"`
+	GuessSmallProbability float64 `json:"guess_small_probability"`
 }
 
 func (u ZenxiangLiyuSettingsUpdate) Settings() ZenxiangLiyuSettings {
@@ -75,6 +85,10 @@ func (u ZenxiangLiyuSettingsUpdate) Settings() ZenxiangLiyuSettings {
 	}
 	if settings.UnitCostPrice == 0 {
 		settings.UnitCostPrice = 0.05
+	}
+	if settings.GuessBigProbability == 0 && settings.GuessSmallProbability == 0 {
+		settings.GuessBigProbability = 50
+		settings.GuessSmallProbability = 50
 	}
 	return settings
 }
@@ -123,9 +137,11 @@ type ZenxiangLiyuStatus struct {
 	TicketsAvailable       int                 `json:"tickets_available"`
 	LuckyCoinEnabled       bool                `json:"lucky_coin_enabled"`
 	LuckyCoinProbability   float64             `json:"lucky_coin_double_probability"`
+	GuessSizeEnabled       bool                `json:"guess_size_enabled"`
 	TodayTicketsEarned     int                 `json:"today_tickets_earned"`
 	TodayTicketsFromUsage  int                 `json:"today_tickets_from_usage"`
 	TodayTicketsGranted    int                 `json:"today_tickets_granted"`
+	TodayTicketsRedeemed   int                 `json:"today_tickets_redeemed"`
 	TodayTicketsUsed       int                 `json:"today_tickets_used"`
 	TodayTicketsAvailable  int                 `json:"today_tickets_available"`
 	NextTicketUsageTarget  float64             `json:"next_ticket_usage_target"`
@@ -173,6 +189,27 @@ type ZenxiangLiyuLuckyCoinResult struct {
 	DoubleProbability  float64   `json:"double_probability"`
 	PlayedAt           time.Time `json:"played_at"`
 	LuckyCoinAvailable bool      `json:"lucky_coin_available"`
+	GuessSizeAvailable bool      `json:"guess_size_available"`
+}
+
+type ZenxiangLiyuGuessSizeCommand struct {
+	UserID   int64
+	RecordID int64
+	Choice   string
+	Roll     float64
+}
+
+type ZenxiangLiyuGuessSizeResult struct {
+	RecordID         int64     `json:"record_id"`
+	Choice           string    `json:"choice"`
+	Outcome          string    `json:"outcome"`
+	Won              bool      `json:"won"`
+	AdjustmentAmount float64   `json:"adjustment_amount"`
+	BalanceAfter     float64   `json:"balance_after"`
+	BigProbability   float64   `json:"big_probability"`
+	SmallProbability float64   `json:"small_probability"`
+	PlayedAt         time.Time `json:"played_at"`
+	Skipped          bool      `json:"skipped"`
 }
 
 type ZenxiangLiyuSimulationRequest struct {
@@ -253,6 +290,12 @@ type ZenxiangLiyuRecord struct {
 	LuckyCoinOutcome    string    `json:"lucky_coin_outcome,omitempty"`
 	LuckyCoinAdjustment float64   `json:"lucky_coin_adjustment"`
 	BalanceAfterLucky   *float64  `json:"balance_after_lucky,omitempty"`
+	GuessSizePlayed     bool      `json:"guess_size_played"`
+	GuessSizeChoice     string    `json:"guess_size_choice,omitempty"`
+	GuessSizeOutcome    string    `json:"guess_size_outcome,omitempty"`
+	GuessSizeWon        bool      `json:"guess_size_won"`
+	GuessSizeAdjustment float64   `json:"guess_size_adjustment"`
+	BalanceAfterGuess   *float64  `json:"balance_after_guess_size,omitempty"`
 	PrizeID             *int64    `json:"prize_id,omitempty"`
 	PrizeName           string    `json:"prize_name"`
 	Probability         float64   `json:"probability"`
@@ -387,6 +430,14 @@ type ZenxiangLiyuRepository interface {
 	PlayLuckyCoin(ctx context.Context, cmd ZenxiangLiyuLuckyCoinCommand) (*ZenxiangLiyuLuckyCoinResult, error)
 }
 
+type ZenxiangLiyuGuessSizeRepository interface {
+	PlayGuessSize(ctx context.Context, cmd ZenxiangLiyuGuessSizeCommand) (*ZenxiangLiyuGuessSizeResult, error)
+}
+
+type ZenxiangLiyuRedeemedTicketCounter interface {
+	CountRedeemedTicketsOnDate(ctx context.Context, userID int64, playDate time.Time) (int, error)
+}
+
 func (s *ZenxiangLiyuService) ListUserRecords(ctx context.Context, userID int64, page, pageSize int) ([]ZenxiangLiyuRecord, int, error) {
 	return s.ListUserRecordsByDate(ctx, userID, s.playDate(), page, pageSize)
 }
@@ -487,10 +538,12 @@ func normalizedZenxiangLiyuPageSize(pageSize int) int {
 }
 
 type ZenxiangLiyuService struct {
-	repo  ZenxiangLiyuRepository
-	clock func() time.Time
-	rng   *rand.Rand
-	rngMu sync.Mutex
+	repo                  ZenxiangLiyuRepository
+	guessRepo             ZenxiangLiyuGuessSizeRepository
+	redeemedTicketCounter ZenxiangLiyuRedeemedTicketCounter
+	clock                 func() time.Time
+	rng                   *rand.Rand
+	rngMu                 sync.Mutex
 }
 
 func NewZenxiangLiyuService(repo ZenxiangLiyuRepository, clock func() time.Time, rng *rand.Rand) *ZenxiangLiyuService {
@@ -500,7 +553,9 @@ func NewZenxiangLiyuService(repo ZenxiangLiyuRepository, clock func() time.Time,
 	if rng == nil {
 		rng = rand.New(rand.NewSource(clock().UnixNano()))
 	}
-	return &ZenxiangLiyuService{repo: repo, clock: clock, rng: rng}
+	guessRepo, _ := repo.(ZenxiangLiyuGuessSizeRepository)
+	redeemedTicketCounter, _ := repo.(ZenxiangLiyuRedeemedTicketCounter)
+	return &ZenxiangLiyuService{repo: repo, guessRepo: guessRepo, redeemedTicketCounter: redeemedTicketCounter, clock: clock, rng: rng}
 }
 
 func ValidateZenxiangLiyuPrizes(prizes []ZenxiangLiyuPrize) error {
@@ -562,6 +617,7 @@ func (s *ZenxiangLiyuService) GetStatus(ctx context.Context, userID int64) (*Zen
 		TicketRetentionDays:    ZenxiangLiyuTicketRetentionDays,
 		LuckyCoinEnabled:       settings.LuckyCoinEnabled,
 		LuckyCoinProbability:   settings.EffectiveLuckyCoinProbability(),
+		GuessSizeEnabled:       settings.GuessSizeEnabled,
 		Prizes:                 prizes,
 	}
 	if !settings.GlobalEnabled {
@@ -598,7 +654,13 @@ func (s *ZenxiangLiyuService) GetStatus(ctx context.Context, userID int64) (*Zen
 	if err != nil {
 		return nil, err
 	}
-	status.TodayTicketsEarned = status.TodayTicketsFromUsage + status.TodayTicketsGranted
+	if s.redeemedTicketCounter != nil {
+		status.TodayTicketsRedeemed, err = s.redeemedTicketCounter.CountRedeemedTicketsOnDate(ctx, userID, playDate)
+		if err != nil {
+			return nil, err
+		}
+	}
+	status.TodayTicketsEarned = status.TodayTicketsFromUsage + status.TodayTicketsGranted + status.TodayTicketsRedeemed
 	status.TodayTicketsUsed = status.TodayPlayCount
 	status.TicketsAvailable, err = s.repo.SyncTicketBalance(ctx, userID, playDate, *settings)
 	if err != nil {
@@ -630,6 +692,19 @@ func (s *ZenxiangLiyuService) PlayLuckyCoin(ctx context.Context, userID, recordI
 		return nil, ErrZenxiangLiyuInvalidSettings
 	}
 	return s.repo.PlayLuckyCoin(ctx, ZenxiangLiyuLuckyCoinCommand{UserID: userID, RecordID: recordID, Roll: s.randomFloat64() * 100})
+}
+
+func (s *ZenxiangLiyuService) PlayGuessSize(ctx context.Context, userID, recordID int64, choice string) (*ZenxiangLiyuGuessSizeResult, error) {
+	choice = strings.ToLower(strings.TrimSpace(choice))
+	if choice != "big" && choice != "small" && choice != "skip" {
+		return nil, ErrZenxiangLiyuGuessSizeInvalidChoice
+	}
+	if s.guessRepo == nil || userID <= 0 || recordID <= 0 {
+		return nil, ErrZenxiangLiyuInvalidSettings
+	}
+	return s.guessRepo.PlayGuessSize(ctx, ZenxiangLiyuGuessSizeCommand{
+		UserID: userID, RecordID: recordID, Choice: choice, Roll: s.randomFloat64() * 100,
+	})
 }
 
 func (s *ZenxiangLiyuService) ListPeriodStats(ctx context.Context, period string) ([]ZenxiangLiyuPeriodStats, error) {
@@ -676,7 +751,10 @@ func (s *ZenxiangLiyuService) UpdateSettings(ctx context.Context, req ZenxiangLi
 	if settings.TicketAmount < 0 || settings.MinimumBalance < 0 || settings.DailyPlayLimit <= 0 ||
 		settings.TicketUsageThreshold <= 0 || settings.DailyTicketLimit <= 0 ||
 		settings.UnitSalePrice < 0 || settings.UnitCostPrice < 0 ||
-		settings.LuckyCoinProbability < 0 || settings.LuckyCoinProbability > 100 {
+		settings.LuckyCoinProbability < 0 || settings.LuckyCoinProbability > 100 ||
+		settings.GuessBigProbability < 0 || settings.GuessBigProbability > 100 ||
+		settings.GuessSmallProbability < 0 || settings.GuessSmallProbability > 100 ||
+		math.Abs(settings.GuessBigProbability+settings.GuessSmallProbability-100) > zenxiangLiyuProbabilityEpsilon {
 		return nil, ErrZenxiangLiyuInvalidSettings
 	}
 	if s.repo == nil {

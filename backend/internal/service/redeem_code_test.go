@@ -57,3 +57,11 @@ func TestRedeemCodeExpiry(t *testing.T) {
 		})
 	}
 }
+
+func TestRedeemLotteryTicketCountValidation(t *testing.T) {
+	require.True(t, isValidRedeemTicketCount(1))
+	require.True(t, isValidRedeemTicketCount(5))
+	require.False(t, isValidRedeemTicketCount(0))
+	require.False(t, isValidRedeemTicketCount(1.5))
+	require.False(t, isValidRedeemTicketCount(6))
+}

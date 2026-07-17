@@ -1684,6 +1684,9 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 	if input.ExpiresAt != nil && !input.ExpiresAt.After(time.Now()) {
 		return nil, ErrRedeemCodeExpired
 	}
+	if input.Type == RedeemTypeLotteryTicket && !isValidRedeemTicketCount(input.Value) {
+		return nil, errors.New("lottery ticket value must be an integer between 1 and 5")
+	}
 
 	// 如果是订阅类型，验证必须有 GroupID
 	if input.Type == RedeemTypeSubscription {
