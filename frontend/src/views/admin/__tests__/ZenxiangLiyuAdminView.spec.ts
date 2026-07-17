@@ -171,7 +171,7 @@ describe('ZenxiangLiyuAdminView', () => {
       items: [{
         id: userId, request_id: `request-${userId}`, ticket_amount: 0, reward_amount: userId === 42 ? 1 : 2,
         user_net_amount: userId === 42 ? -0.5 : 2, lucky_coin_played: userId === 42,
-        lucky_coin_outcome: userId === 42 ? 'zero' : '', lucky_coin_adjustment: userId === 42 ? -1.5 : 0,
+        lucky_coin_outcome: userId === 42 ? 'zero' : '', lucky_coin_adjustment: userId === 42 ? -2 : 0,
         prize_name: userId === 42 ? '礼遇一档' : '礼遇二档', probability: 50, played_at: '2026-07-13T10:00:00Z',
       }],
       total: 1, page: 1, page_size: 100, pages: 1,
@@ -187,7 +187,7 @@ describe('ZenxiangLiyuAdminView', () => {
       date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), page: 1, page_size: 100,
     })
     expect(wrapper.get('[data-testid="zenxiang-user-stats-details-42"]').text()).toContain('礼遇一档')
-    expect(wrapper.get('[data-testid="zenxiang-user-stats-details-42"]').text()).toContain('-1.5')
+    expect(wrapper.get('[data-testid="zenxiang-user-stats-details-42"]').text()).toContain('-2')
     expect(wrapper.get('[data-testid="zenxiang-user-stats-details-42"]').text()).toContain('-0.5')
 
     await wrapper.get('[data-testid="zenxiang-user-stats-toggle-42"]').trigger('click')

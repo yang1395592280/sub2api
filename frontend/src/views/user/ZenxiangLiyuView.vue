@@ -171,8 +171,8 @@
           <p v-else class="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.noTodayRecords') }}</p>
         </section>
 
-        <div v-if="showResultDialog && result" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/45 px-4 py-6" role="dialog" aria-modal="true">
-          <div class="result-dialog w-full max-w-sm rounded-xl border border-emerald-200 bg-white p-6 text-center shadow-2xl dark:border-emerald-900 dark:bg-gray-900">
+        <div v-if="showResultDialog && result" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/55 px-3 py-4 sm:px-4 sm:py-6" role="dialog" aria-modal="true">
+          <div class="result-dialog max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-lg border border-emerald-200 bg-white p-4 text-center shadow-2xl sm:p-6 dark:border-emerald-900 dark:bg-gray-900">
             <p class="text-sm font-medium text-emerald-600 dark:text-emerald-300">{{ t('zenxiangLiyu.resultDialogEyebrow') }}</p>
             <h2 class="mt-2 text-2xl font-semibold text-gray-950 dark:text-white">{{ result.prize_name }}</h2>
             <p class="reward-burst mt-3 text-4xl font-bold" :class="finalRewardClass">{{ signedAmountWithUnit(finalRewardAmount) }}</p>
@@ -206,22 +206,67 @@
               <div class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.luckyCoinResultTitle') }}</div>
               <div class="mt-1 text-base font-semibold">{{ luckyCoinResultText }}</div>
             </div>
-            <div v-if="guessSizeStage !== 'hidden'" class="mt-4 rounded-lg border border-sky-200 bg-sky-50 p-4 text-left dark:border-sky-900 dark:bg-sky-950/30">
-              <p class="text-xs font-medium text-sky-700 dark:text-sky-300">{{ t('zenxiangLiyu.guessSizeTitle') }}</p>
-              <p v-if="guessSizeStage === 'prompt'" class="mt-1 text-sm text-gray-700 dark:text-gray-200">{{ guessSizePromptText }}</p>
-              <p v-else-if="guessSizeStage === 'choosing'" class="mt-1 text-sm text-gray-700 dark:text-gray-200">{{ t('zenxiangLiyu.guessSizeChoose') }}</p>
-              <p v-else-if="guessSizeResult?.skipped" class="mt-1 text-sm text-gray-700 dark:text-gray-200">{{ t('zenxiangLiyu.guessSizeSkipped') }}</p>
-              <p v-else-if="guessSizeResult" class="mt-1 text-sm font-semibold" :class="guessSizeResult.won ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'">{{ guessSizeResultText }}</p>
-              <p v-if="guessSizeError" class="mt-2 text-sm text-rose-600 dark:text-rose-300">{{ guessSizeError }}</p>
+            <div
+              v-if="guessSizeStage !== 'hidden'"
+              class="guess-game mt-4 text-left"
+              :class="{
+                'guess-game--rolling': guessAnimationPhase === 'rolling',
+                'guess-game--won': guessAnimationPhase === 'won',
+                'guess-game--lost': guessAnimationPhase === 'lost',
+              }"
+            >
+              <div class="guess-game__heading">
+                <p class="text-xs font-semibold uppercase text-cyan-200">{{ t('zenxiangLiyu.guessSizeTitle') }}</p>
+                <span v-if="selectedGuessChoice" class="guess-game__choice">
+                  {{ t('zenxiangLiyu.guessSizeYourChoice', { choice: selectedGuessChoice === 'big' ? t('zenxiangLiyu.guessBig') : t('zenxiangLiyu.guessSmall') }) }}
+                </span>
+              </div>
+
+              <div
+                v-if="guessSizeStage === 'choosing' || (guessSizeStage === 'resolved' && !guessSizeResult?.skipped)"
+                data-testid="zenxiang-guess-arena"
+                class="guess-arena"
+                aria-live="polite"
+              >
+                <span v-for="index in 8" :key="index" class="guess-arena__ray" :style="{ '--ray-index': index - 1 }"></span>
+                <div class="guess-arena__ring guess-arena__ring--outer"></div>
+                <div class="guess-arena__ring guess-arena__ring--inner"></div>
+                <div class="guess-token" :class="{ 'guess-token--rolling': guessAnimationPhase === 'rolling' }">
+                  <div v-if="guessAnimationPhase === 'rolling'" class="guess-token__cycler" aria-hidden="true">
+                    <span>{{ t('zenxiangLiyu.guessBig') }}</span>
+                    <span>{{ t('zenxiangLiyu.guessSmall') }}</span>
+                  </div>
+                  <span v-else-if="guessSizeResult" class="guess-token__result">
+                    {{ guessSizeResult.outcome === 'big' ? t('zenxiangLiyu.guessBig') : t('zenxiangLiyu.guessSmall') }}
+                  </span>
+                  <span v-else class="guess-token__ready">?</span>
+                </div>
+                <div class="guess-arena__status">
+                  <span v-if="guessAnimationPhase === 'rolling'">{{ t('zenxiangLiyu.guessSizeRevealing') }}</span>
+                  <span v-else-if="guessSizeResult">{{ t('zenxiangLiyu.guessSizeOpened', { outcome: guessSizeResult.outcome === 'big' ? t('zenxiangLiyu.guessBig') : t('zenxiangLiyu.guessSmall') }) }}</span>
+                  <span v-else>{{ t('zenxiangLiyu.guessSizeChoose') }}</span>
+                </div>
+              </div>
+
+              <p v-if="guessSizeStage === 'prompt'" class="mt-2 text-sm leading-6 text-gray-100">{{ guessSizePromptText }}</p>
+              <p v-else-if="guessSizeResult?.skipped" class="mt-2 text-sm text-gray-200">{{ t('zenxiangLiyu.guessSizeSkipped') }}</p>
+              <p v-else-if="guessSizeResult" class="mt-3 text-sm font-semibold" :class="guessSizeResult.won ? 'text-emerald-300' : 'text-rose-300'">{{ guessSizeResultText }}</p>
+              <p v-if="guessSizeError" class="mt-2 text-sm text-rose-300">{{ guessSizeError }}</p>
             </div>
             <p v-if="luckyCoinError" class="mt-4 text-sm text-rose-600 dark:text-rose-300">{{ luckyCoinError }}</p>
             <div v-if="guessSizeStage === 'prompt'" class="mt-6 grid grid-cols-2 gap-2">
               <button data-testid="zenxiang-guess-decline" type="button" class="btn btn-secondary min-h-12" :disabled="guessSizePlaying" @click="submitGuessSize('skip')">{{ t('common.no') }}</button>
               <button data-testid="zenxiang-guess-accept" type="button" class="btn btn-primary min-h-12" :disabled="guessSizePlaying" @click="guessSizeStage = 'choosing'">{{ t('common.yes') }}</button>
             </div>
-            <div v-else-if="guessSizeStage === 'choosing'" class="mt-6 grid grid-cols-2 gap-2">
-              <button data-testid="zenxiang-guess-big" type="button" class="btn btn-primary min-h-14 text-lg" :disabled="guessSizePlaying" @click="submitGuessSize('big')">{{ t('zenxiangLiyu.guessBig') }}</button>
-              <button data-testid="zenxiang-guess-small" type="button" class="btn btn-secondary min-h-14 text-lg" :disabled="guessSizePlaying" @click="submitGuessSize('small')">{{ t('zenxiangLiyu.guessSmall') }}</button>
+            <div v-else-if="guessSizeStage === 'choosing'" class="mt-4 grid grid-cols-2 gap-3">
+              <button data-testid="zenxiang-guess-big" type="button" class="guess-choice-button guess-choice-button--big" :disabled="guessSizePlaying" @click="submitGuessSize('big')">
+                <span class="guess-choice-button__icon" aria-hidden="true">↑</span>
+                <span>{{ t('zenxiangLiyu.guessBig') }}</span>
+              </button>
+              <button data-testid="zenxiang-guess-small" type="button" class="guess-choice-button guess-choice-button--small" :disabled="guessSizePlaying" @click="submitGuessSize('small')">
+                <span class="guess-choice-button__icon" aria-hidden="true">↓</span>
+                <span>{{ t('zenxiangLiyu.guessSmall') }}</span>
+              </button>
             </div>
             <div v-else-if="guessSizeStage === 'resolved'" class="mt-6">
               <button type="button" class="btn btn-primary min-h-12 w-full" @click="showResultDialog = false">{{ t('common.confirm') }}</button>
@@ -258,6 +303,7 @@ import { listZenxiangLiyuRecords, playZenxiangLiyu, playZenxiangLiyuGuessSize, p
 import { useAuthStore, useZenxiangLiyuStore } from '@/stores'
 
 const SPIN_DURATION_MS = 4200
+const GUESS_REVEAL_DURATION_MS = 1800
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -274,6 +320,8 @@ const guessSizeResult = ref<ZenxiangLiyuGuessSizeResult | null>(null)
 const guessSizeStage = ref<'hidden' | 'prompt' | 'choosing' | 'resolved'>('hidden')
 const guessSizePlaying = ref(false)
 const guessSizeError = ref('')
+const selectedGuessChoice = ref<'big' | 'small' | null>(null)
+const guessAnimationPhase = ref<'idle' | 'rolling' | 'won' | 'lost'>('idle')
 const todayRecords = ref<ZenxiangLiyuRecord[]>([])
 const wheelRotation = ref(0)
 const isSpinning = ref(false)
@@ -344,6 +392,7 @@ const guessSizeResultText = computed(() => {
   const outcome = current.outcome === 'big' ? t('zenxiangLiyu.guessBig') : t('zenxiangLiyu.guessSmall')
   if (current.won && luckyCoinResult.value?.outcome === 'zero') return t('zenxiangLiyu.guessSizeRecoveryWin', { outcome })
   if (current.won) return t('zenxiangLiyu.guessSizeRewardWin', { outcome, amount: formatNumber(current.adjustment_amount) })
+  if (luckyCoinResult.value?.outcome === 'double') return t('zenxiangLiyu.guessSizeRewardMiss', { outcome })
   return t('zenxiangLiyu.guessSizeMiss', { outcome })
 })
 const nextTicketHint = computed(() => {
@@ -471,6 +520,8 @@ function resumeGuessSize(record: ZenxiangLiyuRecord): void {
   }
   guessSizeResult.value = null
   guessSizeError.value = ''
+  selectedGuessChoice.value = null
+  guessAnimationPhase.value = 'idle'
   guessSizeStage.value = 'prompt'
   showResultDialog.value = true
 }
@@ -578,6 +629,8 @@ async function play(): Promise<void> {
   guessSizeStage.value = 'hidden'
   guessSizePlaying.value = false
   guessSizeError.value = ''
+  selectedGuessChoice.value = null
+  guessAnimationPhase.value = 'idle'
   showResultDialog.value = false
   try {
     const playResult = await playZenxiangLiyu(newRequestId())
@@ -626,13 +679,24 @@ async function submitGuessSize(choice: ZenxiangLiyuGuessSizeChoice): Promise<voi
   if (!result.value?.id || guessSizePlaying.value) return
   guessSizePlaying.value = true
   guessSizeError.value = ''
+  if (choice !== 'skip') {
+    selectedGuessChoice.value = choice
+    guessAnimationPhase.value = 'rolling'
+  }
   try {
-    const gameResult = await playZenxiangLiyuGuessSize(result.value.id, choice)
+    const gameResult = choice === 'skip'
+      ? await playZenxiangLiyuGuessSize(result.value.id, choice)
+      : (await Promise.all([
+          playZenxiangLiyuGuessSize(result.value.id, choice),
+          wait(GUESS_REVEAL_DURATION_MS),
+        ]))[0]
     guessSizeResult.value = gameResult
+    guessAnimationPhase.value = gameResult.skipped ? 'idle' : gameResult.won ? 'won' : 'lost'
     guessSizeStage.value = 'resolved'
     todayRecords.value = mergeCurrentResultIntoRecords(todayRecords.value)
     await Promise.allSettled([loadStatus(true), loadTodayRecords(), authStore.refreshUser()])
   } catch (error) {
+    guessAnimationPhase.value = 'idle'
     guessSizeError.value = errorMessage(error, t('zenxiangLiyu.guessSizeFailed'))
   } finally {
     guessSizePlaying.value = false
@@ -816,6 +880,282 @@ function applyPostGamesToRecord(record: ZenxiangLiyuRecord): ZenxiangLiyuRecord 
   animation: reward-burst 0.42s cubic-bezier(0.2, 0.85, 0.25, 1.2);
 }
 
+.guess-game {
+  --guess-accent: 34 211 238;
+  position: relative;
+  overflow: hidden;
+  min-height: 5.5rem;
+  border: 1px solid rgb(var(--guess-accent) / 0.46);
+  border-radius: 0.5rem;
+  background:
+    linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px),
+    rgb(9 14 24);
+  background-size: 20px 20px;
+  padding: 1rem;
+  color: white;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.035),
+    0 12px 28px rgb(8 145 178 / 0.16);
+  transition: border-color 0.35s ease, box-shadow 0.35s ease;
+}
+
+.guess-game::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 18%, rgb(var(--guess-accent) / 0.1) 50%, transparent 82%);
+  content: '';
+  transform: translateX(-110%);
+}
+
+.guess-game--rolling::before {
+  animation: guess-scan 0.75s linear infinite;
+}
+
+.guess-game--won {
+  --guess-accent: 52 211 153;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.04),
+    0 14px 32px rgb(16 185 129 / 0.24);
+}
+
+.guess-game--lost {
+  --guess-accent: 251 113 133;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.04),
+    0 14px 32px rgb(225 29 72 / 0.22);
+}
+
+.guess-game__heading {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  min-height: 1.25rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.guess-game__choice {
+  overflow: hidden;
+  color: rgb(226 232 240);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.guess-arena {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 11.5rem;
+  place-items: center;
+  overflow: hidden;
+  margin-top: 0.75rem;
+  border-block: 1px solid rgb(var(--guess-accent) / 0.2);
+  isolation: isolate;
+}
+
+.guess-arena::before,
+.guess-arena::after {
+  position: absolute;
+  top: 50%;
+  z-index: -1;
+  width: 28%;
+  height: 2px;
+  background: rgb(var(--guess-accent) / 0.55);
+  content: '';
+  box-shadow: 0 0 16px rgb(var(--guess-accent) / 0.62);
+}
+
+.guess-arena::before {
+  left: 0;
+}
+
+.guess-arena::after {
+  right: 0;
+}
+
+.guess-arena__ray {
+  --ray-angle: calc(var(--ray-index) * 45deg);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: -1;
+  width: 48%;
+  height: 1px;
+  background: linear-gradient(90deg, rgb(var(--guess-accent) / 0.5), transparent);
+  transform: rotate(var(--ray-angle));
+  transform-origin: left center;
+}
+
+.guess-game--rolling .guess-arena__ray {
+  animation: guess-ray-pulse 0.9s ease-in-out infinite alternate;
+  animation-delay: calc(var(--ray-index) * -90ms);
+}
+
+.guess-arena__ring {
+  position: absolute;
+  border: 1px solid rgb(var(--guess-accent) / 0.34);
+  border-radius: 9999px;
+}
+
+.guess-arena__ring::before,
+.guess-arena__ring::after {
+  position: absolute;
+  width: 0.55rem;
+  height: 0.55rem;
+  border: 2px solid rgb(var(--guess-accent) / 0.82);
+  content: '';
+  transform: rotate(45deg);
+}
+
+.guess-arena__ring::before {
+  top: -0.3rem;
+  left: calc(50% - 0.275rem);
+}
+
+.guess-arena__ring::after {
+  right: calc(50% - 0.275rem);
+  bottom: -0.3rem;
+}
+
+.guess-arena__ring--outer {
+  width: 8.5rem;
+  height: 8.5rem;
+}
+
+.guess-arena__ring--inner {
+  width: 6.6rem;
+  height: 6.6rem;
+  border-style: dashed;
+}
+
+.guess-game--rolling .guess-arena__ring--outer {
+  animation: guess-ring-spin 2.4s linear infinite;
+}
+
+.guess-game--rolling .guess-arena__ring--inner {
+  animation: guess-ring-spin 1.2s linear infinite reverse;
+}
+
+.guess-token {
+  position: relative;
+  display: grid;
+  width: 5.1rem;
+  height: 5.1rem;
+  place-items: center;
+  overflow: hidden;
+  border: 2px solid rgb(var(--guess-accent) / 0.78);
+  border-radius: 9999px;
+  background: rgb(15 23 42);
+  color: rgb(240 249 255);
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow:
+    inset 0 0 20px rgb(var(--guess-accent) / 0.18),
+    0 0 26px rgb(var(--guess-accent) / 0.34);
+  transform-style: preserve-3d;
+}
+
+.guess-token--rolling {
+  animation: guess-token-flip 0.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+.guess-token__cycler {
+  position: absolute;
+  inset: 0;
+}
+
+.guess-token__cycler span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  animation: guess-face-cycle 0.5s steps(1, end) infinite;
+}
+
+.guess-token__cycler span:last-child {
+  animation-delay: -0.25s;
+}
+
+.guess-token__result {
+  animation: guess-result-impact 0.55s cubic-bezier(0.18, 0.9, 0.28, 1.35);
+}
+
+.guess-token__ready {
+  color: rgb(148 163 184);
+}
+
+.guess-arena__status {
+  position: absolute;
+  right: 0;
+  bottom: 0.45rem;
+  left: 0;
+  color: rgb(203 213 225);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1rem;
+  text-align: center;
+}
+
+.guess-game--rolling .guess-arena__status {
+  color: rgb(var(--guess-accent));
+  animation: guess-status-pulse 0.75s ease-in-out infinite alternate;
+}
+
+.guess-choice-button {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 4rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  color: white;
+  font-size: 1rem;
+  font-weight: 750;
+  letter-spacing: 0;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18);
+  transition: transform 0.18s ease, filter 0.18s ease, box-shadow 0.18s ease;
+}
+
+.guess-choice-button--big {
+  border-color: rgb(251 113 133 / 0.72);
+  background: rgb(190 18 60);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    0 8px 18px rgb(190 18 60 / 0.22);
+}
+
+.guess-choice-button--small {
+  border-color: rgb(34 211 238 / 0.72);
+  background: rgb(8 145 178);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    0 8px 18px rgb(8 145 178 / 0.22);
+}
+
+.guess-choice-button:not(:disabled):hover {
+  filter: brightness(1.08) saturate(1.08);
+  transform: translateY(-2px);
+}
+
+.guess-choice-button:disabled {
+  cursor: wait;
+  filter: saturate(0.55);
+  opacity: 0.68;
+}
+
+.guess-choice-button__icon {
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
 .lucky-result-panel {
   border-radius: 1rem;
   padding: 0.85rem 1rem;
@@ -933,6 +1273,69 @@ function applyPostGamesToRecord(record: ZenxiangLiyuRecord): ZenxiangLiyuRecord 
   }
 }
 
+@keyframes guess-scan {
+  to {
+    transform: translateX(110%);
+  }
+}
+
+@keyframes guess-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes guess-ray-pulse {
+  from {
+    opacity: 0.22;
+    transform: rotate(var(--ray-angle)) scaleX(0.72);
+  }
+  to {
+    opacity: 0.88;
+    transform: rotate(var(--ray-angle)) scaleX(1.08);
+  }
+}
+
+@keyframes guess-token-flip {
+  0% {
+    transform: perspective(420px) rotateY(0deg) scale(0.96);
+  }
+  50% {
+    transform: perspective(420px) rotateY(180deg) scale(1.08);
+  }
+  100% {
+    transform: perspective(420px) rotateY(360deg) scale(0.96);
+  }
+}
+
+@keyframes guess-face-cycle {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+
+@keyframes guess-result-impact {
+  0% {
+    filter: blur(8px);
+    opacity: 0;
+    transform: scale(2.1) rotate(-12deg);
+  }
+  100% {
+    filter: blur(0);
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes guess-status-pulse {
+  to {
+    opacity: 0.52;
+  }
+}
+
 @keyframes lucky-shine {
   to {
     transform: translateX(45%) rotate(10deg);
@@ -953,6 +1356,19 @@ function applyPostGamesToRecord(record: ZenxiangLiyuRecord): ZenxiangLiyuRecord 
 @keyframes zenxiang-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guess-game *,
+  .guess-game::before,
+  .guess-choice-button,
+  .lucky-coin-card,
+  .reward-burst {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 </style>

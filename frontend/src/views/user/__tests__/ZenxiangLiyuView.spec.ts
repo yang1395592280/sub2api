@@ -359,12 +359,17 @@ describe('ZenxiangLiyuView', () => {
     await flushPromises()
 
     expect(playZenxiangLiyuGuessSize).toHaveBeenCalledWith(9, 'big')
+    expect(wrapper.get('[data-testid="zenxiang-guess-arena"]').classes()).toContain('guess-arena')
+    expect(wrapper.text()).toContain('zenxiangLiyu.guessSizeRevealing')
+    vi.advanceTimersByTime(1800)
+    await flushPromises()
     expect(wrapper.text()).toContain('最终奖励：+12')
     expect(wrapper.text()).toContain('最新积分：22 积分')
     vi.useRealTimers()
   })
 
-  it('resumes an unfinished guess size game from today records after refresh', async () => {
+  it('resumes an unfinished guess size game and applies the negative four-times miss result', async () => {
+    vi.useFakeTimers()
     getZenxiangLiyuStatus.mockResolvedValue({
       ...makePlayableStatus(),
       guess_size_enabled: true,
@@ -394,8 +399,8 @@ describe('ZenxiangLiyuView', () => {
       pages: 1,
     })
     playZenxiangLiyuGuessSize.mockResolvedValue({
-      record_id: 9, choice: 'big', outcome: 'small', won: false, adjustment_amount: 0,
-      balance_after: 16, big_probability: 50, small_probability: 50,
+      record_id: 9, choice: 'big', outcome: 'small', won: false, adjustment_amount: -18,
+      balance_after: -2, big_probability: 50, small_probability: 50,
       played_at: '2026-07-10T00:00:01Z', skipped: false,
     })
 
@@ -411,5 +416,9 @@ describe('ZenxiangLiyuView', () => {
     await flushPromises()
 
     expect(playZenxiangLiyuGuessSize).toHaveBeenCalledWith(9, 'big')
+    vi.advanceTimersByTime(1800)
+    await flushPromises()
+    expect(wrapper.text()).toContain('最终奖励：-12')
+    expect(wrapper.text()).toContain('最新积分：-2 积分')
   })
 })

@@ -297,6 +297,19 @@ func TestMigration185AddsGuessSizeSettlementAllowlist(t *testing.T) {
 	require.Contains(t, sql, "RAISE EXCEPTION 'zenxiang_liyu_records are immutable'")
 }
 
+func TestMigration186AppliesZenxiangLiyuRiskRules(t *testing.T) {
+	content, err := FS.ReadFile("186_zenxiang_liyu_risk_rules.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "NEW.lucky_coin_adjustment = ROUND(-2 * OLD.reward_amount, 8)")
+	require.Contains(t, sql, "NEW.guess_size_adjustment = ROUND(2 * OLD.reward_amount, 8)")
+	require.Contains(t, sql, "NEW.guess_size_adjustment = ROUND(-6 * OLD.reward_amount, 8)")
+	require.Contains(t, sql, "NEW.guess_size_adjustment = ROUND(-(OLD.reward_amount + OLD.lucky_coin_adjustment), 8)")
+	require.Contains(t, sql, "OLD.lucky_coin_outcome = 'zero' AND NEW.guess_size_won = FALSE")
+	require.Contains(t, sql, "RAISE EXCEPTION 'zenxiang_liyu_records are immutable'")
+}
+
 func TestMigration154AddsSparkShadowColumnsAndConstraintsWithoutHotIndexes(t *testing.T) {
 	content, err := FS.ReadFile("154_account_spark_shadow.sql")
 	require.NoError(t, err)

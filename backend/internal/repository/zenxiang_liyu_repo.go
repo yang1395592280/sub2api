@@ -966,7 +966,7 @@ func (r *zenxiangLiyuRepository) PlayLuckyCoin(ctx context.Context, cmd service.
 	}
 
 	outcome := "zero"
-	adjustment := math.Round(-1.5*record.reward*zenxiangLiyuAmountScale) / zenxiangLiyuAmountScale
+	adjustment := math.Round(-2*record.reward*zenxiangLiyuAmountScale) / zenxiangLiyuAmountScale
 	if cmd.Roll < settings.probability {
 		outcome = "double"
 		adjustment = record.reward
@@ -1055,6 +1055,7 @@ func (r *zenxiangLiyuRepository) PlayGuessSize(ctx context.Context, cmd service.
 		reward          float64
 		luckyPlayed     bool
 		luckyOutcome    string
+		luckyAdjustment float64
 		guessPlayed     bool
 		guessChoice     string
 		guessOutcome    string
@@ -1067,7 +1068,8 @@ func (r *zenxiangLiyuRepository) PlayGuessSize(ctx context.Context, cmd service.
 	}
 	err = tx.QueryRowContext(ctx, `
 		SELECT reward_amount::double precision, COALESCE(lucky_coin_played, FALSE),
-		       COALESCE(lucky_coin_outcome, ''), COALESCE(guess_size_played, FALSE),
+		       COALESCE(lucky_coin_outcome, ''), COALESCE(lucky_coin_adjustment, 0),
+		       COALESCE(guess_size_played, FALSE),
 		       COALESCE(guess_size_choice, ''), COALESCE(guess_size_outcome, ''),
 		       COALESCE(guess_size_won, FALSE), COALESCE(guess_size_adjustment, 0),
 		       COALESCE(guess_big_probability_snapshot, 0), COALESCE(guess_small_probability_snapshot, 0),
@@ -1075,7 +1077,7 @@ func (r *zenxiangLiyuRepository) PlayGuessSize(ctx context.Context, cmd service.
 		FROM zenxiang_liyu_records
 		WHERE id = $1 AND user_id = $2 FOR UPDATE`, cmd.RecordID, cmd.UserID,
 	).Scan(
-		&record.reward, &record.luckyPlayed, &record.luckyOutcome, &record.guessPlayed,
+		&record.reward, &record.luckyPlayed, &record.luckyOutcome, &record.luckyAdjustment, &record.guessPlayed,
 		&record.guessChoice, &record.guessOutcome, &record.guessWon, &record.guessAdjustment,
 		&record.guessBigProb, &record.guessSmallProb,
 		&record.balanceAfter, &record.playedAt,
@@ -1119,7 +1121,10 @@ func (r *zenxiangLiyuRepository) PlayGuessSize(ctx context.Context, cmd service.
 		if won && record.luckyOutcome == "double" {
 			adjustment = math.Round(2*record.reward*zenxiangLiyuAmountScale) / zenxiangLiyuAmountScale
 		} else if won {
-			adjustment = math.Round(0.5*record.reward*zenxiangLiyuAmountScale) / zenxiangLiyuAmountScale
+			// Recover the exact settled loss so pending records from older rules also return to zero.
+			adjustment = math.Round(-(record.reward+record.luckyAdjustment)*zenxiangLiyuAmountScale) / zenxiangLiyuAmountScale
+		} else if record.luckyOutcome == "double" {
+			adjustment = math.Round(-6*record.reward*zenxiangLiyuAmountScale) / zenxiangLiyuAmountScale
 		}
 	}
 

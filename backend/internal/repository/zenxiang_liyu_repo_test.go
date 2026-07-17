@@ -462,7 +462,7 @@ func TestZenxiangLiyuRepositoryPlayLuckyCoinAppliesOnce(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestZenxiangLiyuRepositoryPlayLuckyCoinMissLosesHalfReward(t *testing.T) {
+func TestZenxiangLiyuRepositoryPlayLuckyCoinMissLosesOriginalReward(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -478,10 +478,10 @@ func TestZenxiangLiyuRepositoryPlayLuckyCoinMissLosesHalfReward(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "reward_amount", "lucky_coin_played", "balance_after_lucky"}).
 			AddRow(9, 0.33333333, false, nil))
 	mock.ExpectQuery(`UPDATE users`).
-		WithArgs(-0.5, int64(42)).
-		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(8.5))
+		WithArgs(-0.66666666, int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(8.33333334))
 	mock.ExpectQuery(`UPDATE zenxiang_liyu_records`).
-		WithArgs("zero", -0.5, 8.5, int64(9), int64(42)).
+		WithArgs("zero", -0.66666666, 8.33333334, int64(9), int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"lucky_coin_played_at"}).AddRow(playedAt))
 	mock.ExpectCommit()
 
@@ -489,8 +489,8 @@ func TestZenxiangLiyuRepositoryPlayLuckyCoinMissLosesHalfReward(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, "zero", result.Outcome)
-	require.Equal(t, -0.5, result.AdjustmentAmount)
-	require.InDelta(t, 8.5, result.BalanceAfter, 0.000001)
+	require.Equal(t, -0.66666666, result.AdjustmentAmount)
+	require.InDelta(t, 8.33333334, result.BalanceAfter, 0.000001)
 	require.Equal(t, playedAt, result.PlayedAt)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -527,6 +527,7 @@ func TestZenxiangLiyuRepositoryPlayGuessSizeSettlements(t *testing.T) {
 	tests := []struct {
 		name         string
 		luckyOutcome string
+		luckyAdjust  float64
 		choice       string
 		roll         float64
 		outcome      string
@@ -534,10 +535,12 @@ func TestZenxiangLiyuRepositoryPlayGuessSizeSettlements(t *testing.T) {
 		adjustment   float64
 		balanceAfter float64
 	}{
-		{name: "lucky win doubles current reward again", luckyOutcome: "double", choice: "big", roll: 10, outcome: "big", won: true, adjustment: 4, balanceAfter: 14},
-		{name: "lucky loss win cancels net loss", luckyOutcome: "zero", choice: "small", roll: 80, outcome: "small", won: true, adjustment: 1, balanceAfter: 10},
-		{name: "guess miss preserves lucky loss", luckyOutcome: "zero", choice: "big", roll: 80, outcome: "small", won: false, adjustment: 0, balanceAfter: 9},
-		{name: "skip closes opportunity without adjustment", luckyOutcome: "zero", choice: "skip", roll: 10, outcome: "skipped", won: false, adjustment: 0, balanceAfter: 9},
+		{name: "lucky win doubles current reward again", luckyOutcome: "double", luckyAdjust: 2, choice: "big", roll: 10, outcome: "big", won: true, adjustment: 4, balanceAfter: 14},
+		{name: "lucky win guess miss flips reward negative", luckyOutcome: "double", luckyAdjust: 2, choice: "big", roll: 80, outcome: "small", won: false, adjustment: -12, balanceAfter: -2},
+		{name: "lucky loss win cancels net loss", luckyOutcome: "zero", luckyAdjust: -4, choice: "small", roll: 80, outcome: "small", won: true, adjustment: 2, balanceAfter: 10},
+		{name: "legacy lucky loss win recovers exact settled loss", luckyOutcome: "zero", luckyAdjust: -3, choice: "small", roll: 80, outcome: "small", won: true, adjustment: 1, balanceAfter: 10},
+		{name: "guess miss preserves lucky loss", luckyOutcome: "zero", luckyAdjust: -4, choice: "big", roll: 80, outcome: "small", won: false, adjustment: 0, balanceAfter: 8},
+		{name: "skip closes opportunity without adjustment", luckyOutcome: "zero", luckyAdjust: -4, choice: "skip", roll: 10, outcome: "skipped", won: false, adjustment: 0, balanceAfter: 8},
 	}
 
 	for _, tt := range tests {
@@ -554,9 +557,9 @@ func TestZenxiangLiyuRepositoryPlayGuessSizeSettlements(t *testing.T) {
 			mock.ExpectQuery(`SELECT reward_amount::double precision, COALESCE\(lucky_coin_played, FALSE\),`).
 				WithArgs(int64(9), int64(42)).
 				WillReturnRows(sqlmock.NewRows([]string{
-					"reward", "lucky_played", "lucky_outcome", "guess_played", "guess_choice",
+					"reward", "lucky_played", "lucky_outcome", "lucky_adjustment", "guess_played", "guess_choice",
 					"guess_outcome", "guess_won", "guess_adjustment", "guess_big", "guess_small", "balance_after", "played_at",
-				}).AddRow(2.0, true, tt.luckyOutcome, false, "", "", false, 0.0, 0.0, 0.0, nil, nil))
+				}).AddRow(2.0, true, tt.luckyOutcome, tt.luckyAdjust, false, "", "", false, 0.0, 0.0, 0.0, nil, nil))
 			mock.ExpectQuery(`UPDATE users SET balance = balance \+ \$1`).
 				WithArgs(tt.adjustment, int64(42)).
 				WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(tt.balanceAfter))
