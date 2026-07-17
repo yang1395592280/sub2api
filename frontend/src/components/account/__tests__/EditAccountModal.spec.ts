@@ -522,6 +522,45 @@ describe('EditAccountModal', () => {
     expect(channelPriceInput.attributes('step')).toBe('any')
   })
 
+  it('loads and submits the manually maintained upstream group name', async () => {
+    const account = buildAccount()
+    account.extra = {
+      upstream_group: '旧上游分组',
+      custom: 'kept'
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const input = wrapper.get('[data-testid="upstream-group-name"]')
+    expect((input.element as HTMLInputElement).value).toBe('旧上游分组')
+
+    await input.setValue('  Walk AI Pro  ')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.upstream_group).toBe('Walk AI Pro')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.custom).toBe('kept')
+  })
+
+  it('removes the manually maintained upstream group name when cleared', async () => {
+    const account = buildAccount()
+    account.extra = { upstream_group: '旧上游分组' }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    await wrapper.get('[data-testid="upstream-group-name"]').setValue('   ')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('upstream_group')
+  })
+
   it('submits OpenAI compact mode and compact-only model mapping', async () => {
     const account = buildAccount()
     account.extra = {

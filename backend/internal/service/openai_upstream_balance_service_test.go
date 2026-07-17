@@ -78,9 +78,15 @@ func (r *openAIUpstreamBalanceRepoStub) BulkUpdate(_ context.Context, ids []int6
 
 func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIUsageRemaining(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v1/usage", r.URL.Path)
-		require.Equal(t, "Bearer sk-upstream", r.Header.Get("Authorization"))
-		_, _ = w.Write([]byte(`{"remaining":12.34,"unit":"USD","balance":99}`))
+		switch r.URL.Path {
+		case "/v1/usage":
+			require.Equal(t, "Bearer sk-upstream", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"remaining":12.34,"unit":"USD","balance":99}`))
+		case "/v1/sub2api/billing":
+			http.NotFound(w, r)
+		default:
+			http.NotFound(w, r)
+		}
 	}))
 	defer srv.Close()
 
@@ -105,6 +111,51 @@ func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIUsageRemaining(t *testing.T)
 	require.Equal(t, "USD", repo.updatedExtra["upstream_balance_unit"])
 	require.Equal(t, "ok", repo.updatedExtra["upstream_balance_status"])
 	require.Equal(t, "kept", account.Extra["existing"])
+}
+
+func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIBillingFallbackWritesChannelPrice(t *testing.T) {
+	billingCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/usage":
+			require.Equal(t, "Bearer sk-upstream", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"remaining":46.04182761,"unit":"USD"}`))
+		case "/v1/sub2api/billing":
+			billingCalls++
+			require.Equal(t, "Bearer sk-upstream", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"object":"sub2api.key_billing","schema_version":1,"billing_scope":"token","group_rate_multiplier":0.1,"resolved_rate_multiplier":0.1,"peak_rate_enabled":false,"effective_rate_multiplier":0.1,"observed_at":"2026-07-17T10:33:43.684117965Z"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	repo := &openAIUpstreamBalanceRepoStub{
+		account: &Account{
+			ID:       30,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Extra:    map[string]any{"upstream_group": "Walk AI Pro"},
+			Credentials: map[string]any{
+				"base_url": srv.URL + "/v1",
+				"api_key":  "sk-upstream",
+			},
+		},
+	}
+
+	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+	account, err := svc.Refresh(context.Background(), 30)
+	require.NoError(t, err)
+	require.Equal(t, 1, billingCalls)
+	require.Equal(t, 46.04182761, repo.updatedExtra["upstream_balance_remaining"])
+	require.Equal(t, 0.1, repo.updatedExtra["upstream_group_rate_multiplier"])
+	require.Equal(t, 0.1, repo.updatedExtra["upstream_effective_rate_multiplier"])
+	require.Equal(t, "sub2api_billing", repo.updatedExtra["upstream_rate_source"])
+	require.NotNil(t, repo.updatedChannelPrice)
+	require.Equal(t, 0.1, *repo.updatedChannelPrice)
+	require.NotNil(t, account.ChannelPrice)
+	require.Equal(t, 0.1, *account.ChannelPrice)
+	require.Equal(t, "Walk AI Pro", account.Extra["upstream_group"])
 }
 
 func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIUsageGroup(t *testing.T) {
@@ -174,6 +225,7 @@ func TestOpenAIUpstreamBalanceServiceRefresh_AnthropicAPIKeySub2APIUsageGroup(t 
 }
 
 func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveRate(t *testing.T) {
+	billingCalls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/usage":
@@ -185,6 +237,9 @@ func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveR
 		case "/api/v1/groups/rates":
 			require.Equal(t, "Bearer admin-token", r.Header.Get("Authorization"))
 			_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"23":0.17,"4":0.09}}`))
+		case "/v1/sub2api/billing":
+			billingCalls++
+			http.Error(w, "billing fallback should not be called", http.StatusInternalServerError)
 		default:
 			http.NotFound(w, r)
 		}
@@ -220,6 +275,7 @@ func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveR
 	require.Equal(t, 0.4, repo.updatedExtra["upstream_group_rate_multiplier"])
 	require.Equal(t, 0.09, repo.updatedExtra["upstream_effective_rate_multiplier"])
 	require.Equal(t, "user_group_rate", repo.updatedExtra["upstream_rate_source"])
+	require.Zero(t, billingCalls)
 	require.NotNil(t, repo.updatedChannelPrice)
 	require.Equal(t, 0.09, *repo.updatedChannelPrice)
 }

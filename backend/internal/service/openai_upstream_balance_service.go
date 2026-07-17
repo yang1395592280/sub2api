@@ -256,7 +256,38 @@ func (s *OpenAIUpstreamBalanceService) probeSub2API(ctx context.Context, account
 	if strings.TrimSpace(snapshot.Group) == "" {
 		s.enrichSub2APIAdminMetadata(ctx, account, baseURL, apiKey, &snapshot)
 	}
+	// 部分上游的用量接口不返回分组/倍率，管理端凭据又可能受会话绑定或
+	// 人机验证限制。保留原有识别顺序，仅在仍无法得到价格时使用 API Key
+	// 自省当前实际计费倍率，避免余额刷新成功但渠道价格一直为空。
+	if openAIUpstreamBalanceChannelPrice(snapshot) == nil {
+		s.enrichSub2APIBillingRate(ctx, baseURL, apiKey, &snapshot)
+	}
 	return snapshot, nil
+}
+
+func (s *OpenAIUpstreamBalanceService) enrichSub2APIBillingRate(ctx context.Context, baseURL, apiKey string, snapshot *OpenAIUpstreamBalanceSnapshot) {
+	if snapshot == nil || openAIUpstreamBalanceChannelPrice(*snapshot) != nil {
+		return
+	}
+
+	var body json.RawMessage
+	if err := s.doJSONGET(ctx, buildOpenAIEndpointURL(baseURL, "/v1/sub2api/billing"), apiKey, &body); err != nil {
+		return
+	}
+	data, err := parseUpstreamBillingProbeResponse(body)
+	if err != nil {
+		return
+	}
+
+	if groupRate, ok := getFloat64(data, "group_rate_multiplier"); ok && groupRate > 0 {
+		snapshot.GroupRateMultiplier = &groupRate
+	}
+	effectiveRate, ok := getFloat64(data, "effective_rate_multiplier")
+	if !ok || effectiveRate <= 0 {
+		return
+	}
+	snapshot.EffectiveRateMultiplier = &effectiveRate
+	snapshot.RateSource = "sub2api_billing"
 }
 
 func (s *OpenAIUpstreamBalanceService) probeNewAPI(ctx context.Context, account *Account, baseURL, apiKey string) (OpenAIUpstreamBalanceSnapshot, error) {

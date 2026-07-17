@@ -1648,7 +1648,10 @@
         <ProxySelector v-model="form.proxy_id" :proxies="proxies" />
       </div>
 
-      <div class="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div
+        class="grid grid-cols-2 gap-4"
+        :class="showUpstreamGroupNameInput ? 'lg:grid-cols-6' : 'lg:grid-cols-5'"
+      >
         <div>
           <label class="input-label">{{ t('admin.accounts.concurrency') }}</label>
           <input v-model.number="form.concurrency" type="number" min="1" class="input"
@@ -1681,6 +1684,18 @@
           <label class="input-label">{{ t('admin.accounts.channelPrice') }}</label>
           <input v-model.number="form.channel_price" type="number" min="0.000001" step="any" class="input" />
           <p class="input-hint">{{ t('admin.accounts.channelPriceHint') }}</p>
+        </div>
+        <div v-if="showUpstreamGroupNameInput">
+          <label class="input-label">{{ t('admin.accounts.upstreamGroupName') }}</label>
+          <input
+            v-model="upstreamGroupName"
+            type="text"
+            maxlength="100"
+            class="input"
+            :placeholder="t('admin.accounts.upstreamGroupNamePlaceholder')"
+            data-testid="upstream-group-name"
+          />
+          <p class="input-hint">{{ t('admin.accounts.upstreamGroupNameHint') }}</p>
         </div>
       </div>
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
@@ -3415,6 +3430,12 @@ const form = reactive({
   expires_at: null as number | null
 })
 
+const upstreamGroupName = ref('')
+const showUpstreamGroupNameInput = computed(() =>
+  props.account?.type === 'apikey' &&
+  (props.account.platform === 'openai' || props.account.platform === 'anthropic')
+)
+
 const statusOptions = computed(() => {
   const options = [
     { value: 'active', label: t('common.active') },
@@ -3603,6 +3624,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   mixedScheduling.value = false
   allowOverages.value = false
 	const extra = newAccount.extra as Record<string, unknown> | undefined
+	upstreamGroupName.value = typeof extra?.upstream_group === 'string' ? extra.upstream_group.trim() : ''
 	mixedScheduling.value = extra?.mixed_scheduling === true
 	allowOverages.value = extra?.allow_overages === true
 	autoPause5hThreshold.value = typeof extra?.auto_pause_5h_threshold === 'number' ? extra.auto_pause_5h_threshold * 100 : null
@@ -5169,6 +5191,20 @@ const handleSubmit = async () => {
       }
       // Quota notify config
       writeQuotaNotifyToExtra(newExtra, 'update')
+      updatePayload.extra = newExtra
+    }
+
+    // 上游分组名称允许手工维护；自动刷新成功识别到分组时仍会写入同一字段覆盖旧值。
+    if (showUpstreamGroupNameInput.value) {
+      const currentExtra = (updatePayload.extra as Record<string, unknown>) ||
+        (props.account.extra as Record<string, unknown>) || {}
+      const newExtra: Record<string, unknown> = { ...currentExtra }
+      const normalizedUpstreamGroupName = upstreamGroupName.value.trim()
+      if (normalizedUpstreamGroupName) {
+        newExtra.upstream_group = normalizedUpstreamGroupName
+      } else {
+        delete newExtra.upstream_group
+      }
       updatePayload.extra = newExtra
     }
 
