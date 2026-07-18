@@ -194,6 +194,46 @@ func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIUsageGroup(t *testing.T) {
 	require.Equal(t, 0.08, *repo.updatedChannelPrice)
 }
 
+func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APINestedAPIKeyGroup(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/usage", r.URL.Path)
+		require.Equal(t, "Bearer sk-upstream", r.Header.Get("Authorization"))
+		_, _ = w.Write([]byte(`{
+			"remaining":10,
+			"unit":"USD",
+			"api_key":{
+				"id":374,
+				"group_id":5,
+				"group":{"id":5,"name":"codex-team low price","rate_multiplier":0.02}
+			}
+		}`))
+	}))
+	defer srv.Close()
+
+	repo := &openAIUpstreamBalanceRepoStub{
+		account: &Account{
+			ID:       31,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"base_url": srv.URL + "/v1",
+				"api_key":  "sk-upstream",
+			},
+		},
+	}
+
+	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+	_, err := svc.Refresh(context.Background(), 31)
+	require.NoError(t, err)
+	require.Equal(t, "sub2api", repo.updatedExtra["upstream_balance_provider"])
+	require.Equal(t, 10.0, repo.updatedExtra["upstream_balance_remaining"])
+	require.Equal(t, "codex-team low price", repo.updatedExtra["upstream_group"])
+	require.Equal(t, int64(5), repo.updatedExtra["upstream_group_id"])
+	require.Equal(t, 0.02, repo.updatedExtra["upstream_group_rate_multiplier"])
+	require.NotNil(t, repo.updatedChannelPrice)
+	require.Equal(t, 0.02, *repo.updatedChannelPrice)
+}
+
 func TestOpenAIUpstreamBalanceServiceRefresh_AnthropicAPIKeySub2APIUsageGroup(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v1/usage", r.URL.Path)

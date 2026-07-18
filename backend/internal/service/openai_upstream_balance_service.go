@@ -1056,6 +1056,16 @@ func getOpenAIUpstreamGroupName(payload map[string]any) string {
 	if value := strings.TrimSpace(getString(group, "name")); value != "" {
 		return value
 	}
+	// 部分 Sub2API 渠道把当前密钥及其分组放在 api_key 下，而余额仍在顶层。
+	// 兼容该结构，避免余额刷新成功但分组与渠道价格无法同步。
+	apiKey, _ := payload["api_key"].(map[string]any)
+	if value := strings.TrimSpace(getString(apiKey, "group_name")); value != "" {
+		return value
+	}
+	group, _ = apiKey["group"].(map[string]any)
+	if value := strings.TrimSpace(getString(group, "name")); value != "" {
+		return value
+	}
 	return ""
 }
 
@@ -1073,6 +1083,14 @@ func getOpenAIUpstreamGroupID(payload map[string]any) *int64 {
 	if id, ok := getInt64(group, "id"); ok {
 		return &id
 	}
+	apiKey, _ := payload["api_key"].(map[string]any)
+	if id, ok := getInt64(apiKey, "group_id"); ok {
+		return &id
+	}
+	group, _ = apiKey["group"].(map[string]any)
+	if id, ok := getInt64(group, "id"); ok {
+		return &id
+	}
 	return nil
 }
 
@@ -1086,6 +1104,16 @@ func getOpenAIUpstreamGroupRateMultiplier(payload map[string]any) *float64 {
 		}
 	}
 	group, _ := payload["group"].(map[string]any)
+	if rate, ok := getFloat64(group, "rate_multiplier"); ok {
+		return &rate
+	}
+	apiKey, _ := payload["api_key"].(map[string]any)
+	for _, key := range []string{"group_rate_multiplier", "rate_multiplier"} {
+		if rate, ok := getFloat64(apiKey, key); ok {
+			return &rate
+		}
+	}
+	group, _ = apiKey["group"].(map[string]any)
 	if rate, ok := getFloat64(group, "rate_multiplier"); ok {
 		return &rate
 	}
