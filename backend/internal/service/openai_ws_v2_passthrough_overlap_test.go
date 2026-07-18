@@ -86,7 +86,7 @@ func (d *openAIWSStaticClientDialer) Dial(context.Context, string, http.Header, 
 	return d.conn, http.StatusSwitchingProtocols, nil, nil
 }
 
-func TestOpenAIGatewayService_PassthroughOverlappingTurnsKeepFIFOOutcomeIdentity(t *testing.T) {
+func TestOpenAIGatewayService_PassthroughSerialTurnsKeepFIFOOutcomeIdentity(t *testing.T) {
 	tests := []struct {
 		name           string
 		completeSecond bool
@@ -193,12 +193,12 @@ func TestOpenAIGatewayService_PassthroughOverlappingTurnsKeepFIFOOutcomeIdentity
 			_, _, err = client.Read(context.Background())
 			require.NoError(t, err)
 			time.Sleep(60 * time.Millisecond)
-			require.NoError(t, client.Write(context.Background(), coderws.MessageText, []byte(`{"type":"response.create","model":"gpt-5.1","service_tier":"flex","reasoning":{"effort":"low"}}`)))
-			require.Contains(t, string(readTestChannel(t, upstream.writes)), "gpt-5.1")
-
 			upstream.events <- []byte(`{"type":"response.completed","response":{"id":"resp_overlap_1","usage":{"input_tokens":100,"output_tokens":50}}}`)
 			_, _, err = client.Read(context.Background())
 			require.NoError(t, err)
+
+			require.NoError(t, client.Write(context.Background(), coderws.MessageText, []byte(`{"type":"response.create","model":"gpt-5.1","service_tier":"flex","reasoning":{"effort":"low"}}`)))
+			require.Contains(t, string(readTestChannel(t, upstream.writes)), "gpt-5.1")
 			if tt.completeSecond {
 				upstream.events <- []byte(`{"type":"response.completed","response":{"id":"resp_overlap_2","usage":{"input_tokens":100,"output_tokens":50}}}`)
 				_, _, err = client.Read(context.Background())
@@ -210,7 +210,7 @@ func TestOpenAIGatewayService_PassthroughOverlappingTurnsKeepFIFOOutcomeIdentity
 			case serverErr := <-serverErrCh:
 				require.NoError(t, serverErr)
 			case <-time.After(5 * time.Second):
-				t.Fatal("等待 overlapping passthrough 结束超时")
+				t.Fatal("等待 serial passthrough 结束超时")
 			}
 			require.NoError(t, recorder.Stop(context.Background()))
 			outcomes := sink.snapshot()
@@ -444,7 +444,11 @@ func TestOpenAIGatewayService_PassthroughFollowupLocalRejectCompletesLifecycleOn
 			require.NoError(t, client.Write(context.Background(), coderws.MessageText, secondFrame))
 			if tt.configureFastBlock {
 				readCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-				_, _, _ = client.Read(readCtx)
+				for {
+					if _, _, readErr := client.Read(readCtx); readErr != nil {
+						break
+					}
+				}
 				cancel()
 			}
 

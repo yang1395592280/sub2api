@@ -80,8 +80,15 @@ func TestAccountHandlerRefreshUpstreamBalance(t *testing.T) {
 			"upstream_balance_updated_at": time.Now().UTC().Format(time.RFC3339),
 		},
 	}, roundTripClient(func(req *http.Request) (*http.Response, error) {
-		require.Equal(t, "https://up.example/v1/usage", req.URL.String())
-		return jsonResponse(http.StatusOK, `{"remaining":1.25,"unit":"USD"}`), nil
+		switch req.URL.String() {
+		case "https://up.example/v1/usage":
+			return jsonResponse(http.StatusOK, `{"remaining":1.25,"unit":"USD"}`), nil
+		case "https://up.example/v1/sub2api/billing":
+			return jsonResponse(http.StatusOK, `{"effective_rate_multiplier":0.4}`), nil
+		default:
+			require.FailNow(t, "unexpected upstream request", req.URL.String())
+			return nil, nil
+		}
 	}))
 
 	h := NewAccountHandler(newStubAdminService(), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, balanceSvc, nil)
