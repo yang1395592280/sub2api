@@ -1476,7 +1476,7 @@ function getUpstreamGroupTitle(row: Account): string {
 }
 
 function getUpstreamPriceGuardText(row: Account): string {
-  return getUpstreamPriceGuardLabel(row.extra)
+  return getUpstreamPriceGuardLabel(row.extra, row.channel_price)
 }
 
 function getUpstreamPriceGuardClass(row: Account): string {

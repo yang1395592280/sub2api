@@ -42,4 +42,18 @@ describe('getUpstreamPriceGuardLabel', () => {
     expect(getUpstreamPriceGuardLabel({ upstream_price_guard_status: 'unsupported' })).toBe('价格未知')
     expect(getUpstreamPriceGuardLabel({ upstream_price_guard_status: 'error' })).toBe('价格检查失败')
   })
+
+  it('hides a stale unsupported state when the current channel price is known and within the limit', () => {
+    expect(getUpstreamPriceGuardLabel({
+      upstream_price_guard_status: 'unsupported',
+      upstream_price_guard_max_multiplier: 0.05
+    }, 0.04)).toBe('')
+  })
+
+  it('keeps warning when the current channel price exceeds the cached guard limit', () => {
+    expect(getUpstreamPriceGuardLabel({
+      upstream_price_guard_status: 'unsupported',
+      upstream_price_guard_max_multiplier: 0.03
+    }, 0.04)).toBe('价格超限 0.04x > 0.03x')
+  })
 })
