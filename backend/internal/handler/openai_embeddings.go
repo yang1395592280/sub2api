@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -241,9 +240,6 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 						zap.Int("upstream_status", failoverErr.StatusCode),
 					)
 					return
-				}
-				if autoGroupMode && apiKeyForRequest != nil && apiKeyForRequest.GroupID != nil {
-					service.MarkOpenAIAutoCheapestGroupFailed(c.Request.Context(), *apiKeyForRequest.GroupID, fmt.Sprintf("upstream_%d", failoverErr.StatusCode))
 				}
 				h.gatewayService.RecordOpenAIAccountSwitch()
 				failedAccountIDs[account.ID] = struct{}{}

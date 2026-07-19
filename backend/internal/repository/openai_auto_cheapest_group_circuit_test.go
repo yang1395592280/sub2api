@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOpenAIAutoCheapestGroupCircuit_OpensAfterSecondFailure(t *testing.T) {
+func TestOpenAIAutoCheapestGroupCircuit_OpensAfterFirstExhaustion(t *testing.T) {
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	circuit := NewOpenAIAutoCheapestGroupCircuit(rdb)
@@ -21,11 +21,7 @@ func TestOpenAIAutoCheapestGroupCircuit_OpensAfterSecondFailure(t *testing.T) {
 	allowed, err := circuit.Allow(ctx, key)
 	require.NoError(t, err)
 	require.True(t, allowed)
-	require.NoError(t, circuit.RecordFailure(ctx, key, "upstream_503"))
-	allowed, err = circuit.Allow(ctx, key)
-	require.NoError(t, err)
-	require.True(t, allowed)
-	require.NoError(t, circuit.RecordFailure(ctx, key, "upstream_503"))
+	require.NoError(t, circuit.RecordFailure(ctx, key, "no_available_accounts"))
 	allowed, err = circuit.Allow(ctx, key)
 	require.NoError(t, err)
 	require.False(t, allowed)

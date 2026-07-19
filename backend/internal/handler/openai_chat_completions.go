@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -297,9 +296,6 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 					if !failoverErr.ShouldRetryNextAccount() {
 						h.handleFailoverExhausted(c, failoverErr, streamStarted)
 						return
-					}
-					if autoGroupMode && apiKeyForRequest != nil && apiKeyForRequest.GroupID != nil {
-						service.MarkOpenAIAutoCheapestGroupFailed(c.Request.Context(), *apiKeyForRequest.GroupID, fmt.Sprintf("upstream_%d", failoverErr.StatusCode))
 					}
 					// Pool mode: retry on the same account
 					if failoverErr.RetryableOnSameAccount {

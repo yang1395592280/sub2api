@@ -1,11 +1,12 @@
 package service
 
-// 本文件由 openai_gateway_service.go 纯移动拆分而来：粘性会话哈希、账号选择与
-// 负载感知调度、配额自动暂停判定、并发槽位获取。仅做代码搬迁，无任何行为变更。
+// 本文件承载粘性会话哈希、账号选择与负载感知调度、配额自动暂停判定、
+// 并发槽位获取，以及 OpenAI 自动最低价分组的逐组降级。
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -428,7 +429,7 @@ func (s *OpenAIGatewayService) resolveEffectiveOpenAIAPIKeys(ctx context.Context
 	}
 	keys := make([]*APIKey, 0, len(groups))
 	for i := range groups {
-		if _, failed := openAIAutoCheapestGroupFailureReason(ctx, groups[i].ID); failed {
+		if _, exhausted := openAIAutoCheapestGroupExhaustionReason(ctx, groups[i].ID); exhausted {
 			continue
 		}
 		if s.openAIAutoCheapestGroupCircuit != nil {
@@ -445,6 +446,15 @@ func (s *OpenAIGatewayService) resolveEffectiveOpenAIAPIKeys(ctx context.Context
 		return nil, ErrNoAvailableAccounts
 	}
 	return keys, nil
+}
+
+func markOpenAIAutoCheapestGroupExhaustedIfNeeded(ctx context.Context, groupID int64, selection *AccountSelectionResult, err error) {
+	if groupID <= 0 {
+		return
+	}
+	if errors.Is(err, ErrNoAvailableAccounts) || (err == nil && (selection == nil || selection.Account == nil || !selection.Acquired)) {
+		markOpenAIAutoCheapestGroupExhausted(ctx, groupID, "no_available_accounts")
+	}
 }
 
 func (s *OpenAIGatewayService) recordLastEffectiveGroupBestEffort(ctx context.Context, apiKey *APIKey) {
@@ -488,6 +498,7 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithLoadAwareness(
 			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
 			return effectiveKey, selection, nil
 		}
+		markOpenAIAutoCheapestGroupExhaustedIfNeeded(ctx, *effectiveKey.GroupID, selection, err)
 		if err == nil && selection != nil && selection.Account != nil {
 			lastErr = ErrNoAvailableAccounts
 			continue
@@ -622,6 +633,7 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImage
 			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
 			return effectiveKey, routingModel, selection, decision, nil
 		}
+		markOpenAIAutoCheapestGroupExhaustedIfNeeded(ctx, *effectiveKey.GroupID, selection, err)
 		if err == nil && selection != nil && selection.Account != nil {
 			lastErr = ErrNoAvailableAccounts
 			continue
@@ -697,6 +709,7 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
 			return effectiveKey, selection, decision, nil
 		}
+		markOpenAIAutoCheapestGroupExhaustedIfNeeded(ctx, *effectiveKey.GroupID, selection, err)
 		if err == nil && selection != nil && selection.Account != nil {
 			lastErr = ErrNoAvailableAccounts
 			continue

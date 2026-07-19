@@ -7,23 +7,38 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOpenAIAutoCheapestRequestContextSkipsFailedGroup(t *testing.T) {
+func TestOpenAIAutoCheapestRequestContextSkipsExhaustedGroup(t *testing.T) {
 	ctx := PrepareOpenAIAutoCheapestRequestContext(context.Background(), true)
 
-	MarkOpenAIAutoCheapestGroupFailed(ctx, 10, "upstream_503")
+	markOpenAIAutoCheapestGroupExhausted(ctx, 10, "no_available_accounts")
 
-	reason, failed := openAIAutoCheapestGroupFailureReason(ctx, 10)
-	require.True(t, failed)
-	require.Equal(t, "upstream_503", reason)
-	_, failed = openAIAutoCheapestGroupFailureReason(ctx, 20)
-	require.False(t, failed)
+	reason, exhausted := openAIAutoCheapestGroupExhaustionReason(ctx, 10)
+	require.True(t, exhausted)
+	require.Equal(t, "no_available_accounts", reason)
+	_, exhausted = openAIAutoCheapestGroupExhaustionReason(ctx, 20)
+	require.False(t, exhausted)
 }
 
 func TestOpenAIAutoCheapestRequestContextDisabledIsNoop(t *testing.T) {
 	ctx := PrepareOpenAIAutoCheapestRequestContext(context.Background(), false)
 
-	MarkOpenAIAutoCheapestGroupFailed(ctx, 10, "upstream_503")
+	markOpenAIAutoCheapestGroupExhausted(ctx, 10, "no_available_accounts")
 
-	_, failed := openAIAutoCheapestGroupFailureReason(ctx, 10)
-	require.False(t, failed)
+	_, exhausted := openAIAutoCheapestGroupExhaustionReason(ctx, 10)
+	require.False(t, exhausted)
+}
+
+func TestMarkOpenAIAutoCheapestGroupExhaustedIfNeededOnlyMarksEmptySelection(t *testing.T) {
+	circuit := &autoCheapestCircuitStub{}
+	ctx := PrepareOpenAIAutoCheapestRequestContext(context.Background(), true, circuit)
+	account := &Account{ID: 99}
+
+	markOpenAIAutoCheapestGroupExhaustedIfNeeded(ctx, 10, &AccountSelectionResult{Account: account, Acquired: true}, nil)
+	require.Equal(t, 0, circuit.calls)
+
+	markOpenAIAutoCheapestGroupExhaustedIfNeeded(ctx, 10, nil, ErrNoAvailableAccounts)
+	require.Equal(t, 1, circuit.calls)
+	reason, exhausted := openAIAutoCheapestGroupExhaustionReason(ctx, 10)
+	require.True(t, exhausted)
+	require.Equal(t, "no_available_accounts", reason)
 }
