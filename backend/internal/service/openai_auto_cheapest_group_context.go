@@ -35,9 +35,11 @@ func PrepareOpenAIAutoCheapestRequestContext(ctx context.Context, enabled bool, 
 	})
 }
 
-// MarkOpenAIAutoCheapestGroupFailed prevents the current request from trying
-// another account in a group that already returned a transient upstream error.
-func MarkOpenAIAutoCheapestGroupFailed(ctx context.Context, groupID int64, reason string) {
+// markOpenAIAutoCheapestGroupExhausted prevents the current request from
+// repeatedly scanning a group only after account selection has confirmed that
+// the group has no usable candidates. A single account failure stays at account
+// scope so other accounts in the same, cheaper group can still run.
+func markOpenAIAutoCheapestGroupExhausted(ctx context.Context, groupID int64, reason string) {
 	if ctx == nil || groupID <= 0 {
 		return
 	}
@@ -66,7 +68,9 @@ func MarkOpenAIAutoCheapestGroupFailed(ctx context.Context, groupID int64, reaso
 
 func setOpenAIAutoCheapestGroupHealthContext(ctx context.Context, model, endpoint, transport string) {
 	state, _ := ctx.Value(openAIAutoCheapestFailureStateKey{}).(*openAIAutoCheapestFailureState)
-	if state == nil { return }
+	if state == nil {
+		return
+	}
 	state.mu.Lock()
 	state.model = model
 	state.endpoint = endpoint
@@ -77,7 +81,9 @@ func setOpenAIAutoCheapestGroupHealthContext(ctx context.Context, model, endpoin
 func openAIAutoCheapestGroupHealthKey(ctx context.Context, groupID int64) OpenAIAutoCheapestGroupHealthKey {
 	key := OpenAIAutoCheapestGroupHealthKey{GroupID: groupID}
 	state, _ := ctx.Value(openAIAutoCheapestFailureStateKey{}).(*openAIAutoCheapestFailureState)
-	if state == nil { return key }
+	if state == nil {
+		return key
+	}
 	state.mu.RLock()
 	key.Model = state.model
 	key.Endpoint = state.endpoint
@@ -97,7 +103,7 @@ func OpenAIAutoCheapestGroupCircuitFromContext(ctx context.Context) OpenAIAutoCh
 	return state.circuit
 }
 
-func openAIAutoCheapestGroupFailureReason(ctx context.Context, groupID int64) (string, bool) {
+func openAIAutoCheapestGroupExhaustionReason(ctx context.Context, groupID int64) (string, bool) {
 	if ctx == nil || groupID <= 0 {
 		return "", false
 	}

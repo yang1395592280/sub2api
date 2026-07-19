@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -325,9 +324,6 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 							zap.Int("upstream_status", failoverErr.StatusCode),
 						)
 						return
-					}
-					if autoGroupMode && apiKeyForRequest != nil && apiKeyForRequest.GroupID != nil {
-						service.MarkOpenAIAutoCheapestGroupFailed(c.Request.Context(), *apiKeyForRequest.GroupID, fmt.Sprintf("upstream_%d", failoverErr.StatusCode))
 					}
 					if failoverErr.RetryableOnSameAccount {
 						retryLimit := account.GetPoolModeRetryCount()

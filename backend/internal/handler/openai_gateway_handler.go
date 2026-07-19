@@ -562,9 +562,6 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 						h.handleFailoverExhausted(c, failoverErr, streamStarted)
 						return
 					}
-					if autoGroupMode && apiKeyForRequest != nil && apiKeyForRequest.GroupID != nil {
-						service.MarkOpenAIAutoCheapestGroupFailed(c.Request.Context(), *apiKeyForRequest.GroupID, fmt.Sprintf("upstream_%d", failoverErr.StatusCode))
-					}
 					if openAIFirstOutputFailoverExhausted(failoverErr, &firstOutputTimeoutSwitchCount) {
 						h.handleFailoverExhausted(c, failoverErr, streamStarted)
 						return
@@ -1143,9 +1140,6 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 						h.handleAnthropicFailoverExhausted(c, failoverErr, streamStarted)
 						return
 					}
-					if autoGroupModeMsg && apiKeyForRequest != nil && apiKeyForRequest.GroupID != nil {
-						service.MarkOpenAIAutoCheapestGroupFailed(c.Request.Context(), *apiKeyForRequest.GroupID, fmt.Sprintf("upstream_%d", failoverErr.StatusCode))
-					}
 					// 池模式：同账号重试
 					if failoverErr.RetryableOnSameAccount {
 						retryLimit := account.GetPoolModeRetryCount()
@@ -1699,7 +1693,6 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	switchCount := 0
 	failedAccountIDs := make(map[int64]struct{})
 	var lastFailoverErr *service.UpstreamFailoverError
-	var currentEffectiveAPIKey *service.APIKey
 	var turnTimings sync.Map
 	turnTimings.Store(1, firstTurnTiming)
 	timingForTurn := func(turn int) *service.OpenAIRequestTiming {
@@ -1719,9 +1712,6 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		if !failoverErr.ShouldRetryNextAccount() {
 			closeOpenAIWSFailoverExhausted(wsConn, failoverErr)
 			return false
-		}
-		if autoGroupModeWS && currentEffectiveAPIKey != nil && currentEffectiveAPIKey.GroupID != nil {
-			service.MarkOpenAIAutoCheapestGroupFailed(ctx, *currentEffectiveAPIKey.GroupID, fmt.Sprintf("upstream_%d", failoverErr.StatusCode))
 		}
 		if ctx.Err() != nil {
 			return false
@@ -1807,7 +1797,6 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		if apiKeyForRequest == nil {
 			apiKeyForRequest = apiKey
 		}
-		currentEffectiveAPIKey = apiKeyForRequest
 		if autoGroupModeWS {
 			if imageIntentWS && !service.GroupAllowsImageGeneration(apiKeyForRequest.Group) {
 				closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, service.ImageGenerationPermissionMessage())

@@ -57,6 +57,87 @@ func TestOpenAIAutoCheapestSelection_TriesNextGroupWhenCheapestUnavailable(t *te
 	require.Nil(t, apiKey.GroupID)
 }
 
+func TestOpenAIAutoCheapestSelection_ExhaustsCheapGroupBeforeHigherRateGroup(t *testing.T) {
+	cheapGroupID := int64(101)
+	expensiveGroupID := int64(102)
+	cheapFailed := Account{ID: 1001, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, GroupIDs: []int64{cheapGroupID}}
+	cheapAvailable := Account{ID: 1002, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, GroupIDs: []int64{cheapGroupID}}
+	expensiveAvailable := Account{ID: 2001, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, GroupIDs: []int64{expensiveGroupID}}
+	circuit := &autoCheapestCircuitStub{}
+	svc := &OpenAIGatewayService{
+		accountRepo: schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: []Account{
+			cheapFailed,
+			cheapAvailable,
+			expensiveAvailable,
+		}}},
+		cache:              &schedulerTestGatewayCache{},
+		cfg:                newSchedulerTestSubscriptionPriorityConfig(),
+		rateLimitService:   newOpenAIAdvancedSchedulerRateLimitService("true"),
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+	}
+	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(&fakeAvailableOpenAIGroupsProvider{
+		groups: []Group{
+			{ID: cheapGroupID, Name: "cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1},
+			{ID: expensiveGroupID, Name: "expensive", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.15},
+		},
+	}), nil)
+	svc.SetOpenAIAutoCheapestGroupCircuit(circuit)
+	apiKey := &APIKey{ID: 1, UserID: 9, GroupSelectMode: APIKeyGroupSelectModeOpenAIAutoCheapest}
+	ctx := PrepareOpenAIAutoCheapestRequestContext(context.Background(), true, circuit)
+
+	effectiveKey, selection, _, err := svc.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
+		ctx,
+		apiKey,
+		"",
+		"",
+		"gpt-5.6-sol",
+		map[int64]struct{}{cheapFailed.ID: {}},
+		OpenAIUpstreamTransportAny,
+		OpenAISchedulerEndpointResponses,
+		OpenAIEndpointCapabilityChatCompletions,
+		false,
+		false,
+		true,
+		PlatformOpenAI,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, effectiveKey)
+	require.Equal(t, &cheapGroupID, effectiveKey.GroupID)
+	require.NotNil(t, selection)
+	require.Equal(t, cheapAvailable.ID, selection.Account.ID)
+	require.Equal(t, 0, circuit.calls)
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+
+	effectiveKey, selection, _, err = svc.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
+		ctx,
+		apiKey,
+		"",
+		"",
+		"gpt-5.6-sol",
+		map[int64]struct{}{cheapFailed.ID: {}, cheapAvailable.ID: {}},
+		OpenAIUpstreamTransportAny,
+		OpenAISchedulerEndpointResponses,
+		OpenAIEndpointCapabilityChatCompletions,
+		false,
+		false,
+		true,
+		PlatformOpenAI,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, effectiveKey)
+	require.Equal(t, &expensiveGroupID, effectiveKey.GroupID)
+	require.NotNil(t, selection)
+	require.Equal(t, expensiveAvailable.ID, selection.Account.ID)
+	require.Equal(t, 1, circuit.calls)
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+}
+
 func TestCandidateGroups_FiltersOpenAIAndSortsByEffectiveRate(t *testing.T) {
 	provider := &fakeAvailableOpenAIGroupsProvider{
 		groups: []Group{

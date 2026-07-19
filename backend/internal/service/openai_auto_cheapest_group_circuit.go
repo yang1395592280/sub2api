@@ -46,5 +46,5 @@ func (k OpenAIAutoCheapestGroupHealthKey) Valid() bool { return k.GroupID > 0 }
 const (
 	OpenAIAutoCheapestFailureWindow = 60 * time.Second
 	OpenAIAutoCheapestCooldown      = 60 * time.Second
-	OpenAIAutoCheapestFailureLimit  = int64(2)
+	OpenAIAutoCheapestFailureLimit  = int64(1)
 )
