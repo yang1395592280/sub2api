@@ -187,6 +187,12 @@ func (s *OpenAIGatewayService) SetOpenAIBalancedScheduler(scheduler *OpenAIBalan
 	s.openaiBalancedScheduler = scheduler
 }
 
+func (s *OpenAIGatewayService) SetOpenAISchedulerExplorationCache(cache OpenAISchedulerExplorationCache) {
+	if s != nil {
+		s.openaiExplorationCache = cache
+	}
+}
+
 func (s *OpenAIGatewayService) SetOpenAIAutoSchedulerOutcomeRecorder(recorder *OpenAIAutoSchedulerOutcomeRecorder) {
 	if s == nil {
 		return
@@ -328,12 +334,17 @@ func openAIAutoSchedulerSuccessOutcome(c *gin.Context, forwardStartedAt time.Tim
 func openAIAutoSchedulerErrorOutcome(forwardStartedAt time.Time, statusCode *int, err error) OpenAIAutoSchedulerRecordInput {
 	latencyMS := int(time.Since(forwardStartedAt).Milliseconds())
 	eventType := OpenAIAutoSchedulerEventError
-	if statusCode != nil && *statusCode == http.StatusTooManyRequests {
-		eventType = OpenAIAutoSchedulerEventRateLimited
-	}
 	message := ""
 	if err != nil {
 		message = truncateString(err.Error(), 512)
+	}
+	if statusCode != nil {
+		switch {
+		case *statusCode == http.StatusTooManyRequests:
+			eventType = OpenAIAutoSchedulerEventRateLimited
+		case isOpenAIAutoSchedulerRequestScopedError(*statusCode, message):
+			eventType = OpenAIAutoSchedulerEventRequestError
+		}
 	}
 	return OpenAIAutoSchedulerRecordInput{
 		EventType:  eventType,
@@ -341,6 +352,22 @@ func openAIAutoSchedulerErrorOutcome(forwardStartedAt time.Time, statusCode *int
 		StatusCode: statusCode,
 		Message:    message,
 	}
+}
+
+func isOpenAIAutoSchedulerRequestScopedError(statusCode int, message string) bool {
+	switch statusCode {
+	case http.StatusBadRequest, http.StatusNotFound, http.StatusConflict,
+		http.StatusRequestEntityTooLarge, http.StatusUnprocessableEntity:
+		return true
+	case http.StatusForbidden:
+		message = strings.ToLower(strings.TrimSpace(message))
+		for _, marker := range []string{"content policy", "safety system", "policy violation", "moderation"} {
+			if strings.Contains(message, marker) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type openAIUpstreamAttemptContextKey struct{}

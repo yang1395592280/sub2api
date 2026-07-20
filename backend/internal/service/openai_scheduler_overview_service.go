@@ -58,6 +58,19 @@ type OpenAISchedulerOverviewMetrics struct {
 	Groups         []OpenAISchedulerGroupSummary
 	Trend          []OpenAISchedulerTrendPoint
 	SlowCauses     []OpenAISchedulerSlowCause
+	Runtime        OpenAISchedulerRuntimeMetrics
+}
+
+type OpenAISchedulerRuntimeMetrics struct {
+	ExplorationAllowedTotal      int64
+	ExplorationRejectedTotal     int64
+	ExplorationIntervalTotal     int64
+	ExplorationHourlyTotal       int64
+	ExplorationErrorTotal        int64
+	LowConfidenceFallbackTotal   int64
+	UnifiedHealthReadsTotal      int64
+	UnifiedHealthDimensionsTotal int64
+	UnifiedHealthFallbacksTotal  int64
 }
 
 type OpenAISchedulerHealthParams struct {
@@ -151,10 +164,20 @@ type openAISchedulerEngineSettingsProvider interface {
 	IsOpenAIAdvancedSchedulerEnabled(context.Context) bool
 }
 
+type openAISchedulerRuntimeMetricsProvider interface {
+	SnapshotOpenAIAccountSchedulerMetrics() OpenAIAccountSchedulerMetricsSnapshot
+}
+
+type openAISchedulerSummaryMetricsProvider interface {
+	SnapshotSummaryMetrics() OpenAIAutoSchedulerSummaryMetricsSnapshot
+}
+
 type OpenAISchedulerOverviewService struct {
 	repo     OpenAISchedulerOverviewRepository
 	loads    openAISchedulerOverviewLoadService
 	settings OpenAIAutoSchedulerSettingsProvider
+	runtime  openAISchedulerRuntimeMetricsProvider
+	summary  openAISchedulerSummaryMetricsProvider
 	now      func() time.Time
 }
 
@@ -166,10 +189,14 @@ func ProvideOpenAISchedulerOverviewService(
 	repo OpenAISchedulerOverviewRepository,
 	loads *ConcurrencyService,
 	settings *SettingService,
+	runtime *OpenAIGatewayService,
+	summary *OpenAIAutoSchedulerService,
 ) *OpenAISchedulerOverviewService {
 	svc := NewOpenAISchedulerOverviewService(repo)
 	svc.loads = loads
 	svc.settings = settings
+	svc.runtime = runtime
+	svc.summary = summary
 	return svc
 }
 
@@ -206,6 +233,21 @@ func (s *OpenAISchedulerOverviewService) GetOverview(ctx context.Context, params
 	}
 	if metrics.SlowCauses == nil {
 		metrics.SlowCauses = []OpenAISchedulerSlowCause{}
+	}
+	if s.runtime != nil {
+		snapshot := s.runtime.SnapshotOpenAIAccountSchedulerMetrics()
+		metrics.Runtime.ExplorationAllowedTotal = snapshot.ExplorationAllowedTotal
+		metrics.Runtime.ExplorationRejectedTotal = snapshot.ExplorationRejectedTotal
+		metrics.Runtime.ExplorationIntervalTotal = snapshot.ExplorationIntervalTotal
+		metrics.Runtime.ExplorationHourlyTotal = snapshot.ExplorationHourlyTotal
+		metrics.Runtime.ExplorationErrorTotal = snapshot.ExplorationErrorTotal
+		metrics.Runtime.LowConfidenceFallbackTotal = snapshot.LowConfidenceFallbackTotal
+	}
+	if s.summary != nil {
+		snapshot := s.summary.SnapshotSummaryMetrics()
+		metrics.Runtime.UnifiedHealthReadsTotal = snapshot.UnifiedReadsTotal
+		metrics.Runtime.UnifiedHealthDimensionsTotal = snapshot.UnifiedDimensionsTotal
+		metrics.Runtime.UnifiedHealthFallbacksTotal = snapshot.LegacyFallbacksTotal
 	}
 	return metrics, nil
 }

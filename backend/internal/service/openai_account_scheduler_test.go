@@ -3432,6 +3432,112 @@ func TestDefaultOpenAIAccountScheduler_SoftStickyUsesRuntimeEscapeThresholds(t *
 	require.Equal(t, "ttft", scheduler.openAIBalancedSoftStickyEscapeReason(req, accounts[0].ID))
 }
 
+type openAISchedulerExplorationCacheStub struct {
+	allowed bool
+	outcome OpenAISchedulerExplorationReservationOutcome
+	err     error
+	calls   int
+	key     OpenAISchedulerHealthKey
+}
+
+func (c *openAISchedulerExplorationCacheStub) ReserveWithOutcome(_ context.Context, key OpenAISchedulerHealthKey, _ time.Duration, _ int) (OpenAISchedulerExplorationReservationOutcome, error) {
+	c.calls++
+	c.key = key
+	if c.err != nil {
+		return "", c.err
+	}
+	if c.outcome != "" {
+		return c.outcome, nil
+	}
+	if c.allowed {
+		return OpenAISchedulerExplorationReservationAllowed, nil
+	}
+	return OpenAISchedulerExplorationReservationDenied, nil
+}
+
+func (c *openAISchedulerExplorationCacheStub) Reserve(_ context.Context, key OpenAISchedulerHealthKey, _ time.Duration, _ int) (bool, error) {
+	c.calls++
+	c.key = key
+	return c.allowed, c.err
+}
+
+func TestDefaultOpenAIAccountScheduler_ExplorationReservationFailsClosedOnCacheError(t *testing.T) {
+	cache := &openAISchedulerExplorationCacheStub{err: errors.New("redis unavailable")}
+	gateway := &OpenAIGatewayService{openaiExplorationCache: cache}
+	scheduler := &defaultOpenAIAccountScheduler{service: gateway}
+	key := OpenAISchedulerHealthKey{AccountID: 42, ModelFamily: "gpt-5", Endpoint: "responses", Transport: "http_sse"}
+	req := OpenAIAccountScheduleRequest{balancedPolicySettings: DefaultOpenAIBalancedSettings()}
+
+	allowed := scheduler.reserveOpenAISchedulerExploration(context.Background(), req, openAIAccountCandidateScore{
+		account: &Account{ID: 42}, schedulerHealthKey: key,
+	})
+
+	require.False(t, allowed)
+	require.Equal(t, 1, cache.calls)
+	require.Equal(t, key, cache.key)
+	require.Equal(t, int64(1), scheduler.SnapshotMetrics().ExplorationErrorTotal)
+}
+
+func TestDefaultOpenAIAccountScheduler_ExplorationReservationMetricsClassifyDenials(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		outcome      OpenAISchedulerExplorationReservationOutcome
+		assertMetric func(OpenAIAccountSchedulerMetricsSnapshot) int64
+	}{
+		{name: "minimum interval", outcome: OpenAISchedulerExplorationReservationMinimumInterval, assertMetric: func(snapshot OpenAIAccountSchedulerMetricsSnapshot) int64 { return snapshot.ExplorationIntervalTotal }},
+		{name: "hourly limit", outcome: OpenAISchedulerExplorationReservationHourlyLimit, assertMetric: func(snapshot OpenAIAccountSchedulerMetricsSnapshot) int64 { return snapshot.ExplorationHourlyTotal }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cache := &openAISchedulerExplorationCacheStub{outcome: tt.outcome}
+			scheduler := &defaultOpenAIAccountScheduler{service: &OpenAIGatewayService{openaiExplorationCache: cache}}
+			allowed := scheduler.reserveOpenAISchedulerExploration(context.Background(), OpenAIAccountScheduleRequest{balancedPolicySettings: DefaultOpenAIBalancedSettings()}, openAIAccountCandidateScore{
+				account: &Account{ID: 42}, schedulerHealthKey: OpenAISchedulerHealthKey{AccountID: 42, ModelFamily: "gpt-5", Endpoint: "responses", Transport: "http_sse"},
+			})
+			require.False(t, allowed)
+			require.Equal(t, int64(1), tt.assertMetric(scheduler.SnapshotMetrics()))
+		})
+	}
+}
+
+func TestDefaultOpenAIAccountScheduler_ExplorationReservationDeniedContinuesWithNormalCandidate(t *testing.T) {
+	cache := &openAISchedulerExplorationCacheStub{allowed: false}
+	acquireOrder := []int64{}
+	concurrency := schedulerTestConcurrencyCache{acquireOrder: &acquireOrder}
+	accounts := []*Account{
+		{ID: 4201, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1},
+		{ID: 4202, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1},
+	}
+	scheduler := &defaultOpenAIAccountScheduler{service: &OpenAIGatewayService{
+		openaiExplorationCache: cache,
+		concurrencyService:     NewConcurrencyService(concurrency),
+	}}
+	req := OpenAIAccountScheduleRequest{Platform: PlatformOpenAI, balancedPolicySettings: DefaultOpenAIBalancedSettings()}
+	selectionOrder := []openAIAccountCandidateScore{
+		{account: accounts[0], loadInfo: &AccountLoadInfo{AccountID: accounts[0].ID}, schedulerTrafficClass: OpenAISchedulerTrafficExploration, schedulerHealthKey: OpenAISchedulerHealthKey{AccountID: accounts[0].ID, ModelFamily: "gpt-5", Endpoint: "responses", Transport: "http_sse"}},
+		{account: accounts[1], loadInfo: &AccountLoadInfo{AccountID: accounts[1].ID}, schedulerTrafficClass: OpenAISchedulerTrafficNormal},
+	}
+
+	selection, _, err := scheduler.tryAcquireOpenAISelectionOrderWithBudget(context.Background(), req, selectionOrder, newOpenAISelectionProbeBudget())
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.Equal(t, accounts[1].ID, selection.Account.ID)
+	require.Equal(t, []int64{accounts[0].ID, accounts[1].ID}, acquireOrder)
+	require.Equal(t, 1, cache.calls)
+	require.Equal(t, int64(1), scheduler.SnapshotMetrics().ExplorationRejectedTotal)
+	selection.ReleaseFunc()
+}
+
+func TestDefaultOpenAIAccountScheduler_RecordsActualLowConfidenceFallbackSelection(t *testing.T) {
+	account := &Account{ID: 4203, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1}
+	scheduler := &defaultOpenAIAccountScheduler{service: &OpenAIGatewayService{}}
+	selection, _, err := scheduler.tryAcquireOpenAISelectionOrderWithBudget(context.Background(), OpenAIAccountScheduleRequest{Platform: PlatformOpenAI}, []openAIAccountCandidateScore{{
+		account: account, loadInfo: &AccountLoadInfo{AccountID: account.ID}, schedulerTrafficClass: OpenAISchedulerTrafficFallback, schedulerEligibility: OpenAISchedulerEligibilityLowConfidence,
+	}}, newOpenAISelectionProbeBudget())
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.Equal(t, int64(1), scheduler.SnapshotMetrics().LowConfidenceFallbackTotal)
+}
+
 func TestDefaultOpenAIAccountScheduler_ComputesStickyShadowDecisionWithoutChangingLegacyAccount(t *testing.T) {
 	accounts := []*Account{
 		{ID: 216444, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1},
@@ -3562,7 +3668,7 @@ func TestOpenAIGatewayService_SelectAccountBalancedCompactStaleRetryHonorsCircui
 	require.ElementsMatch(t, []OpenAISchedulerHealthKey{busyKey, staleKey}, healthRepo.keys)
 }
 
-func TestOpenAIGatewayService_SelectAccountWithScheduler_BalancedHealthFallbackUsesLegacyOrder(t *testing.T) {
+func TestOpenAIGatewayService_SelectAccountWithScheduler_BalancedHealthFallbackOnlyOnStoreFailure(t *testing.T) {
 	groupID := int64(10127)
 	legacyFirst := Account{ID: 21650, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID}}
 	healthFirst := Account{ID: 21651, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 100, GroupIDs: []int64{groupID}}
@@ -3576,10 +3682,11 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_BalancedHealthFallbackU
 		healthKey: {Key: healthKey, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 200, ExpiresAt: now.Add(time.Hour)},
 	}
 	tests := []struct {
-		name string
-		repo *balancedSchedulerHealthRepoStub
+		name       string
+		repo       *balancedSchedulerHealthRepoStub
+		expectedID int64
 	}{
-		{name: "repository error", repo: &balancedSchedulerHealthRepoStub{err: errors.New("health unavailable")}},
+		{name: "repository error", repo: &balancedSchedulerHealthRepoStub{err: errors.New("health unavailable")}, expectedID: legacyFirst.ID},
 		{name: "missing snapshot", repo: &balancedSchedulerHealthRepoStub{states: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{legacyKey: freshStates[legacyKey]}}},
 		{name: "expired snapshot", repo: &balancedSchedulerHealthRepoStub{states: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{
 			legacyKey: freshStates[legacyKey],
@@ -3601,7 +3708,11 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_BalancedHealthFallbackU
 			selection, _, err := svc.SelectAccountWithScheduler(context.Background(), &groupID, "", "", "gpt-5.4", nil, OpenAIUpstreamTransportAny, false)
 			require.NoError(t, err)
 			require.NotNil(t, selection)
-			require.Equal(t, legacyFirst.ID, selection.Account.ID)
+			if tt.expectedID > 0 {
+				require.Equal(t, tt.expectedID, selection.Account.ID)
+			} else {
+				require.Contains(t, []int64{legacyFirst.ID, healthFirst.ID}, selection.Account.ID)
+			}
 			require.Equal(t, 1, tt.repo.getCalls)
 		})
 	}

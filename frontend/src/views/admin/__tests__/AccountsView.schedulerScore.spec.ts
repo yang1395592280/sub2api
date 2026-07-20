@@ -69,6 +69,7 @@ const DataTableStub = {
     <div data-test="data-table">
       <div v-for="row in data" :key="row.id" :data-test="'scheduler-score-' + row.id">
         <slot name="cell-scheduler_score" :row="row" />
+        <div v-if="row.openai_auto_scheduler" :data-test="'openai-health-' + row.id"><slot name="cell-openai_auto_scheduler" :row="row" /></div>
       </div>
     </div>
   `
@@ -176,9 +177,23 @@ describe('admin AccountsView scheduler score column', () => {
           id: 3,
           name: 'no-score',
           platform: 'anthropic'
+        },
+        {
+          ...baseAccount,
+          id: 4,
+          name: 'unified-health',
+          openai_auto_scheduler: {
+            state: 'observing',
+            speed_priority: 1,
+            speed_ms: 123,
+            status_source: 'unified_health',
+            available_dimensions: 1,
+            health_dimensions: 2,
+            stale_dimensions: 1
+          }
         }
       ],
-      total: 3,
+      total: 4,
       page: 1,
       page_size: 20,
       pages: 1
@@ -216,6 +231,16 @@ describe('admin AccountsView scheduler score column', () => {
     expect(groupedCell.exists()).toBe(true)
     expect(groupedCell.text()).toContain('group-five')
     expect(groupedCell.text()).toContain('2')
+  })
+
+  it('renders unified health dimensions and stale count through i18n', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const cell = wrapper.find('[data-test="openai-health-4"]')
+    expect(cell.text()).toContain('admin.accounts.schedulerHealth.states.observing')
+    expect(cell.text()).toContain('admin.accounts.schedulerHealth.unified')
+    expect(cell.text()).toContain('admin.accounts.schedulerHealth.stale')
   })
 
   it('keeps scheduler score hidden for old saved column settings until the admin opts in again', async () => {

@@ -3,9 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"math"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -79,12 +82,32 @@ type OpenAIAutoSchedulerEventListResult struct {
 	Total int64
 }
 
+type OpenAIAutoSchedulerSummaryMetricsSnapshot struct {
+	UnifiedReadsTotal      int64
+	UnifiedDimensionsTotal int64
+	LegacyFallbacksTotal   int64
+}
+
 type OpenAIAutoSchedulerService struct {
-	repo             OpenAIAutoSchedulerRepository
-	settingsProvider OpenAIAutoSchedulerSettingsProvider
-	healthSink       *OpenAISchedulerHealthEventSink
-	mu               sync.Mutex
-	keyLocks         map[string]*sync.Mutex
+	repo              OpenAIAutoSchedulerRepository
+	settingsProvider  OpenAIAutoSchedulerSettingsProvider
+	healthSink        *OpenAISchedulerHealthEventSink
+	mu                sync.Mutex
+	keyLocks          map[string]*sync.Mutex
+	unifiedReads      atomic.Int64
+	unifiedDimensions atomic.Int64
+	legacyFallbacks   atomic.Int64
+}
+
+func (s *OpenAIAutoSchedulerService) SnapshotSummaryMetrics() OpenAIAutoSchedulerSummaryMetricsSnapshot {
+	if s == nil {
+		return OpenAIAutoSchedulerSummaryMetricsSnapshot{}
+	}
+	return OpenAIAutoSchedulerSummaryMetricsSnapshot{
+		UnifiedReadsTotal:      s.unifiedReads.Load(),
+		UnifiedDimensionsTotal: s.unifiedDimensions.Load(),
+		LegacyFallbacksTotal:   s.legacyFallbacks.Load(),
+	}
 }
 
 func NewOpenAIAutoSchedulerService(repo OpenAIAutoSchedulerRepository, settingsProvider OpenAIAutoSchedulerSettingsProvider) *OpenAIAutoSchedulerService {
@@ -369,6 +392,9 @@ func (s *OpenAIAutoSchedulerService) ListAccountSummaries(ctx context.Context, g
 	if len(requested) == 0 {
 		return out, nil
 	}
+	if unified, ok := s.listUnifiedAccountSummaries(ctx, schedulableAccounts, requested, probeModel); ok {
+		return unified, nil
+	}
 	states, err := s.repo.ListScoreStatesForSummary(ctx, groupID, probeModel)
 	if err != nil {
 		return nil, err
@@ -381,6 +407,7 @@ func (s *OpenAIAutoSchedulerService) ListAccountSummaries(ctx context.Context, g
 		speedMS, hasSpeed := openAIAutoSchedulerSpeedMS(state)
 		summary := OpenAIAutoSchedulerAccountSummary{
 			State:         normalizeOpenAIAutoSchedulerState(state.State),
+			StatusSource:  OpenAIAutoSchedulerStatusSourceLegacy,
 			ProbeModel:    probeModel,
 			LastTtfbMS:    copyOpenAIAutoSchedulerIntPtr(state.LastTtfbMS),
 			LastLatencyMS: copyOpenAIAutoSchedulerIntPtr(state.LastLatencyMS),
@@ -429,6 +456,140 @@ func (s *OpenAIAutoSchedulerService) ListAccountSummaries(ctx context.Context, g
 		priority++
 	}
 	return out, nil
+}
+
+func (s *OpenAIAutoSchedulerService) listUnifiedAccountSummaries(
+	ctx context.Context,
+	schedulableAccounts []Account,
+	requested map[int64]struct{},
+	probeModel string,
+) (map[int64]OpenAIAutoSchedulerAccountSummary, bool) {
+	if s == nil || s.healthSink == nil || s.healthSink.repo == nil {
+		return nil, false
+	}
+	repo, ok := s.healthSink.repo.(OpenAISchedulerHealthSummaryRepository)
+	if !ok {
+		return nil, false
+	}
+	accountIDs := make([]int64, 0, len(schedulableAccounts))
+	for _, account := range schedulableAccounts {
+		if account.ID > 0 {
+			accountIDs = append(accountIDs, account.ID)
+		}
+	}
+	snapshots, err := repo.ListByAccountIDs(ctx, accountIDs)
+	s.unifiedReads.Add(1)
+	if err != nil {
+		s.legacyFallbacks.Add(1)
+		slog.Warn("openai_auto_scheduler: unified account summary unavailable, falling back to legacy score", "error", err)
+		return nil, false
+	}
+	s.unifiedDimensions.Add(int64(len(snapshots)))
+	byAccount := make(map[int64][]OpenAISchedulerHealthSnapshot, len(accountIDs))
+	for _, snapshot := range snapshots {
+		if snapshot.Key.AccountID > 0 {
+			byAccount[snapshot.Key.AccountID] = append(byAccount[snapshot.Key.AccountID], snapshot)
+		}
+	}
+	now := time.Now()
+	all := make(map[int64]OpenAIAutoSchedulerAccountSummary, len(accountIDs))
+	for _, accountID := range accountIDs {
+		all[accountID] = aggregateOpenAISchedulerAccountHealth(byAccount[accountID], probeModel, now)
+	}
+	rankable := make([]int64, 0, len(all))
+	for accountID, summary := range all {
+		if summary.State == OpenAIAutoSchedulerStateRunning && summary.SpeedMS != nil {
+			rankable = append(rankable, accountID)
+		}
+	}
+	sort.SliceStable(rankable, func(i, j int) bool {
+		left, right := all[rankable[i]], all[rankable[j]]
+		if *left.SpeedMS != *right.SpeedMS {
+			return *left.SpeedMS < *right.SpeedMS
+		}
+		return rankable[i] < rankable[j]
+	})
+	for index, accountID := range rankable {
+		summary := all[accountID]
+		summary.SpeedPriority = index + 1
+		all[accountID] = summary
+	}
+	out := make(map[int64]OpenAIAutoSchedulerAccountSummary, len(requested))
+	for accountID := range requested {
+		if summary, ok := all[accountID]; ok {
+			out[accountID] = summary
+		}
+	}
+	return out, true
+}
+
+func aggregateOpenAISchedulerAccountHealth(
+	snapshots []OpenAISchedulerHealthSnapshot,
+	probeModel string,
+	now time.Time,
+) OpenAIAutoSchedulerAccountSummary {
+	summary := OpenAIAutoSchedulerAccountSummary{
+		State:        OpenAIAutoSchedulerStateObserving,
+		StatusSource: OpenAIAutoSchedulerStatusSourceUnified,
+		ProbeModel:   probeModel,
+		Reason:       "health_missing",
+	}
+	openDimensions := 0
+	halfOpenDimensions := 0
+	for _, snapshot := range snapshots {
+		summary.HealthDimensions++
+		if snapshot.ExpiresAt.IsZero() || !now.Before(snapshot.ExpiresAt) {
+			summary.StaleDimensions++
+			continue
+		}
+		state := normalizeOpenAIAutoSchedulerState(snapshot.State)
+		switch state {
+		case OpenAIAutoSchedulerStateRunning, OpenAIAutoSchedulerStateObserving:
+			summary.AvailableDimensions++
+			if snapshot.PredictedTTFTMS > 0 && (summary.SpeedMS == nil || snapshot.PredictedTTFTMS < float64(*summary.SpeedMS)) {
+				speedMS := int(math.Round(snapshot.PredictedTTFTMS))
+				summary.SpeedMS = &speedMS
+			}
+		case OpenAIAutoSchedulerStateHalfOpen:
+			halfOpenDimensions++
+		case OpenAIAutoSchedulerStateOpen:
+			openDimensions++
+		}
+		summary.LastCheckedAt = latestOpenAISchedulerSummaryTime(summary.LastCheckedAt, snapshot.LastRealAt, snapshot.LastProbeAt)
+	}
+	freshDimensions := summary.HealthDimensions - summary.StaleDimensions
+	switch {
+	case summary.AvailableDimensions > 0 && summary.AvailableDimensions == freshDimensions && summary.StaleDimensions == 0:
+		summary.State = OpenAIAutoSchedulerStateRunning
+		summary.Reason = "all_dimensions_available"
+	case summary.AvailableDimensions > 0:
+		summary.State = OpenAIAutoSchedulerStateObserving
+		summary.Reason = "partially_available"
+	case halfOpenDimensions > 0:
+		summary.State = OpenAIAutoSchedulerStateHalfOpen
+		summary.Reason = "all_dimensions_recovery_only"
+	case openDimensions > 0:
+		summary.State = OpenAIAutoSchedulerStateOpen
+		summary.Reason = "all_dimensions_circuit_open"
+	case summary.HealthDimensions > 0:
+		summary.State = OpenAIAutoSchedulerStateObserving
+		summary.Reason = "health_stale"
+	}
+	return summary
+}
+
+func latestOpenAISchedulerSummaryTime(current *time.Time, candidates ...*time.Time) *time.Time {
+	latest := current
+	for _, candidate := range candidates {
+		if candidate == nil {
+			continue
+		}
+		if latest == nil || candidate.After(*latest) {
+			value := *candidate
+			latest = &value
+		}
+	}
+	return latest
 }
 
 func (s *OpenAIAutoSchedulerService) ResetScore(ctx context.Context, accountID, groupID int64, model string) error {

@@ -442,6 +442,19 @@ type openAISchedulerOverviewResponse struct {
 	Groups         []openAISchedulerGroupResponse     `json:"groups"`
 	Trend          []openAISchedulerTrendResponse     `json:"trend"`
 	SlowCauses     []openAISchedulerSlowCauseResponse `json:"slow_causes"`
+	Runtime        openAISchedulerRuntimeResponse     `json:"runtime"`
+}
+
+type openAISchedulerRuntimeResponse struct {
+	ExplorationAllowedTotal      int64 `json:"exploration_allowed_total"`
+	ExplorationRejectedTotal     int64 `json:"exploration_rejected_total"`
+	ExplorationIntervalTotal     int64 `json:"exploration_interval_total"`
+	ExplorationHourlyTotal       int64 `json:"exploration_hourly_total"`
+	ExplorationErrorTotal        int64 `json:"exploration_error_total"`
+	LowConfidenceFallbackTotal   int64 `json:"low_confidence_fallback_total"`
+	UnifiedHealthReadsTotal      int64 `json:"unified_health_reads_total"`
+	UnifiedHealthDimensionsTotal int64 `json:"unified_health_dimensions_total"`
+	UnifiedHealthFallbacksTotal  int64 `json:"unified_health_fallbacks_total"`
 }
 
 type openAISchedulerGroupResponse struct {
@@ -500,6 +513,12 @@ func validateOpenAIAutoSchedulerSettings(settings service.OpenAIAutoSchedulerSet
 		return "top_k must be between 1 and 10"
 	case settings.ExplorationRate < 0 || settings.ExplorationRate > 0.10:
 		return "exploration_rate must be between 0 and 0.10"
+	case settings.ExplorationBudget < 0 || settings.ExplorationBudget > 0.10:
+		return "exploration_budget must be between 0 and 0.10"
+	case settings.ExplorationMinIntervalSeconds < 30 || settings.ExplorationMinIntervalSeconds > 3600:
+		return "exploration_min_interval_seconds must be between 30 and 3600"
+	case settings.ExplorationMaxRealSamplesPerHour < 1 || settings.ExplorationMaxRealSamplesPerHour > 60:
+		return "exploration_max_real_samples_per_hour must be between 1 and 60"
 	case settings.SessionEscapeMinGapMS < 0 || settings.SessionEscapeMinGapMS > 30000:
 		return "session_escape_min_gap_ms must be between 0 and 30000"
 	case settings.SessionEscapeRatio < 0 || settings.SessionEscapeRatio > 2:
@@ -776,6 +795,17 @@ func openAISchedulerOverviewToResponse(metrics service.OpenAISchedulerOverviewMe
 		E2ETTFTP50MS: positiveOpenAISchedulerFloatPtr(metrics.E2EP50MS), E2ETTFTP90MS: positiveOpenAISchedulerFloatPtr(metrics.E2EP90MS),
 		SelectionP95MS: positiveOpenAISchedulerFloatPtr(metrics.SelectionP95MS), ProbeRatio: metrics.ProbeRatio,
 		Groups: groups, Trend: trend, SlowCauses: slowCauses,
+		Runtime: openAISchedulerRuntimeResponse{
+			ExplorationAllowedTotal:      metrics.Runtime.ExplorationAllowedTotal,
+			ExplorationRejectedTotal:     metrics.Runtime.ExplorationRejectedTotal,
+			ExplorationIntervalTotal:     metrics.Runtime.ExplorationIntervalTotal,
+			ExplorationHourlyTotal:       metrics.Runtime.ExplorationHourlyTotal,
+			ExplorationErrorTotal:        metrics.Runtime.ExplorationErrorTotal,
+			LowConfidenceFallbackTotal:   metrics.Runtime.LowConfidenceFallbackTotal,
+			UnifiedHealthReadsTotal:      metrics.Runtime.UnifiedHealthReadsTotal,
+			UnifiedHealthDimensionsTotal: metrics.Runtime.UnifiedHealthDimensionsTotal,
+			UnifiedHealthFallbacksTotal:  metrics.Runtime.UnifiedHealthFallbacksTotal,
+		},
 	}
 }
 

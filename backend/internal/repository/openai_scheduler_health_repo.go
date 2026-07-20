@@ -51,6 +51,27 @@ func (r *openAISchedulerHealthRepository) GetBatch(
 	return result, nil
 }
 
+func (r *openAISchedulerHealthRepository) ListByAccountIDs(
+	ctx context.Context,
+	accountIDs []int64,
+) ([]service.OpenAISchedulerHealthSnapshot, error) {
+	accountIDs = uniquePositiveOpenAIHealthAccountIDs(accountIDs)
+	if len(accountIDs) == 0 {
+		return []service.OpenAISchedulerHealthSnapshot{}, nil
+	}
+	entities, err := r.client.OpenAISchedulerHealthState.Query().
+		Where(openaischedulerhealthstate.AccountIDIn(accountIDs...)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]service.OpenAISchedulerHealthSnapshot, 0, len(entities))
+	for _, entity := range entities {
+		result = append(result, openAISchedulerHealthEntityToService(entity))
+	}
+	return result, nil
+}
+
 func (r *openAISchedulerHealthRepository) Upsert(ctx context.Context, snapshot service.OpenAISchedulerHealthSnapshot) error {
 	snapshot.Key = normalizeOpenAIHealthKey(snapshot.Key)
 	upsert := r.client.OpenAISchedulerHealthState.Create().
@@ -111,6 +132,22 @@ func normalizeUniqueOpenAIHealthKeys(keys []service.OpenAISchedulerHealthKey) []
 	return unique
 }
 
+func uniquePositiveOpenAIHealthAccountIDs(accountIDs []int64) []int64 {
+	result := make([]int64, 0, len(accountIDs))
+	seen := make(map[int64]struct{}, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if accountID <= 0 {
+			continue
+		}
+		if _, ok := seen[accountID]; ok {
+			continue
+		}
+		seen[accountID] = struct{}{}
+		result = append(result, accountID)
+	}
+	return result
+}
+
 func normalizeOpenAIHealthKey(key service.OpenAISchedulerHealthKey) service.OpenAISchedulerHealthKey {
 	key.ModelFamily = strings.ToLower(strings.TrimSpace(key.ModelFamily))
 	key.Endpoint = strings.ToLower(strings.TrimSpace(key.Endpoint))
@@ -144,3 +181,4 @@ func openAISchedulerHealthEntityToService(entity *dbent.OpenAISchedulerHealthSta
 }
 
 var _ service.OpenAISchedulerHealthRepository = (*openAISchedulerHealthRepository)(nil)
+var _ service.OpenAISchedulerHealthSummaryRepository = (*openAISchedulerHealthRepository)(nil)

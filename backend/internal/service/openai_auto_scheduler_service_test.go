@@ -786,6 +786,76 @@ func TestOpenAIAutoSchedulerService_ListAccountSummariesIgnoresUnschedulableStat
 	require.Equal(t, 1, summaries[2].SpeedPriority)
 }
 
+type openAISchedulerHealthSummaryRepoStub struct {
+	snapshots []OpenAISchedulerHealthSnapshot
+	err       error
+}
+
+func (r *openAISchedulerHealthSummaryRepoStub) GetBatch(context.Context, []OpenAISchedulerHealthKey) (map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot, error) {
+	return map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{}, nil
+}
+
+func (r *openAISchedulerHealthSummaryRepoStub) Upsert(context.Context, OpenAISchedulerHealthSnapshot) error {
+	return nil
+}
+
+func (r *openAISchedulerHealthSummaryRepoStub) ListByAccountIDs(context.Context, []int64) ([]OpenAISchedulerHealthSnapshot, error) {
+	return r.snapshots, r.err
+}
+
+func TestOpenAIAutoSchedulerService_ListAccountSummariesUsesUnifiedAvailability(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		states: map[string]OpenAIAutoSchedulerScoreState{
+			openAIAutoSchedulerStateKey(1, 10, "gpt-5.5"): {AccountID: 1, GroupID: 10, Model: "gpt-5.5", State: OpenAIAutoSchedulerStateOpen},
+		},
+		accounts: map[int64][]Account{10: {{ID: 1}, {ID: 2}}},
+	}
+	now := time.Now()
+	healthRepo := &openAISchedulerHealthSummaryRepoStub{snapshots: []OpenAISchedulerHealthSnapshot{
+		{Key: OpenAISchedulerHealthKey{AccountID: 1, ModelFamily: "gpt-5", Endpoint: "responses", Transport: "http_sse"}, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 450, ExpiresAt: now.Add(time.Hour)},
+		{Key: OpenAISchedulerHealthKey{AccountID: 1, ModelFamily: "gpt-5", Endpoint: "chat_completions", Transport: "http_sse"}, State: OpenAIAutoSchedulerStateOpen, ExpiresAt: now.Add(time.Hour)},
+		{Key: OpenAISchedulerHealthKey{AccountID: 2, ModelFamily: "gpt-5", Endpoint: "responses", Transport: "http_sse"}, State: OpenAIAutoSchedulerStateOpen, ExpiresAt: now.Add(time.Hour)},
+	}}
+	settingsProvider := fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()}
+	svc := NewOpenAIAutoSchedulerService(repo, settingsProvider)
+	svc.healthSink = NewOpenAISchedulerHealthEventSink(healthRepo, settingsProvider)
+
+	summaries, err := svc.ListAccountSummaries(context.Background(), 10, []int64{1, 2})
+
+	require.NoError(t, err)
+	require.Equal(t, OpenAIAutoSchedulerStateObserving, summaries[1].State)
+	require.Equal(t, OpenAIAutoSchedulerStatusSourceUnified, summaries[1].StatusSource)
+	require.Equal(t, 2, summaries[1].HealthDimensions)
+	require.Equal(t, 1, summaries[1].AvailableDimensions)
+	require.Equal(t, ptrOpenAIAutoSchedulerInt(450), summaries[1].SpeedMS)
+	require.Equal(t, OpenAIAutoSchedulerStateOpen, summaries[2].State)
+	require.Equal(t, "all_dimensions_circuit_open", summaries[2].Reason)
+	require.Zero(t, repo.summaryCalls, "unified health must replace the legacy score read")
+	require.Equal(t, OpenAIAutoSchedulerSummaryMetricsSnapshot{UnifiedReadsTotal: 1, UnifiedDimensionsTotal: 3}, svc.SnapshotSummaryMetrics())
+}
+
+func TestOpenAIAutoSchedulerService_ListAccountSummariesFallsBackWhenUnifiedReadFails(t *testing.T) {
+	repo := &fakeOpenAIAutoSchedulerRepo{
+		states: map[string]OpenAIAutoSchedulerScoreState{
+			openAIAutoSchedulerStateKey(1, 10, "gpt-5.5"): {AccountID: 1, GroupID: 10, Model: "gpt-5.5", State: OpenAIAutoSchedulerStateRunning},
+		},
+		accounts: map[int64][]Account{10: {{ID: 1}}},
+	}
+	settings := enabledOpenAIAutoSchedulerSettings()
+	settings.ProbeModel = "gpt-5.5"
+	healthRepo := &openAISchedulerHealthSummaryRepoStub{err: errors.New("health unavailable")}
+	settingsProvider := fakeOpenAIAutoSchedulerSettingsProvider{settings: settings}
+	svc := NewOpenAIAutoSchedulerService(repo, settingsProvider)
+	svc.healthSink = NewOpenAISchedulerHealthEventSink(healthRepo, settingsProvider)
+
+	summaries, err := svc.ListAccountSummaries(context.Background(), 10, []int64{1})
+
+	require.NoError(t, err)
+	require.Equal(t, OpenAIAutoSchedulerStatusSourceLegacy, summaries[1].StatusSource)
+	require.Equal(t, 1, repo.summaryCalls)
+	require.Equal(t, OpenAIAutoSchedulerSummaryMetricsSnapshot{UnifiedReadsTotal: 1, LegacyFallbacksTotal: 1}, svc.SnapshotSummaryMetrics())
+}
+
 func enabledOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {
 	settings := DefaultOpenAIAutoSchedulerSettings()
 	settings.Enabled = true

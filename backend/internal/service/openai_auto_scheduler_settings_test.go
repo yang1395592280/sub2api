@@ -122,7 +122,12 @@ func TestNormalizeOpenAIAutoSchedulerSettings_BalancedDefaults(t *testing.T) {
 
 	require.Equal(t, "balanced", got.Mode)
 	require.Equal(t, 3, got.TopK)
+	require.True(t, got.AdaptiveTopKEnabled)
 	require.InDelta(t, 0.03, got.ExplorationRate, 0.0001)
+	require.InDelta(t, 0.05, got.ExplorationBudget, 0.0001)
+	require.Equal(t, 600, got.ExplorationMinIntervalSeconds)
+	require.Equal(t, 6, got.ExplorationMaxRealSamplesPerHour)
+	require.True(t, got.StaleOpenRequiresProbe)
 	require.Equal(t, 1000, got.SessionEscapeMinGapMS)
 	require.InDelta(t, 0.25, got.SessionEscapeRatio, 0.0001)
 	require.Equal(t, 1800, got.HealthTTLSeconds)

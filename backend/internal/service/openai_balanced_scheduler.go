@@ -26,11 +26,22 @@ const (
 	OpenAISchedulerEndpointImagesEdit      = openAISchedulerHealthEndpointImagesEdit
 )
 
+const (
+	OpenAISchedulerHealthSnapshotFresh   = "fresh"
+	OpenAISchedulerHealthSnapshotMissing = "missing"
+	OpenAISchedulerHealthSnapshotStale   = "stale"
+)
+
 type OpenAIBalancedSettings struct {
 	Mode                   string
 	ShadowMode             bool
 	TopK                   int
+	AdaptiveTopKEnabled    bool
 	ExplorationRate        float64
+	ExplorationBudget      float64
+	ExplorationMinInterval time.Duration
+	ExplorationMaxSamples  int
+	StaleOpenRequiresProbe bool
 	LatencyBudgetMS        float64
 	SessionEscapeMinGapMS  float64
 	SessionEscapeRatio     float64
@@ -42,22 +53,25 @@ type OpenAIBalancedSettings struct {
 }
 
 type OpenAIBalancedCandidate struct {
-	AccountID           int64
-	HealthKey           OpenAISchedulerHealthKey
-	PredictedTTFTMS     float64
-	State               string
-	ErrorRate           float64
-	RateLimitedRate     float64
-	ServerErrorRate     float64
-	WaitingCount        int
-	LoadRate            int
-	GroupPriority       int
-	Price               float64
-	QuotaHeadroom       float64
-	LegacyOrderPosition int
-	SelectionTier       int
-	HealthConfidence    string
-	HardRejectedReason  string
+	AccountID            int64
+	HealthKey            OpenAISchedulerHealthKey
+	PredictedTTFTMS      float64
+	State                string
+	ErrorRate            float64
+	RateLimitedRate      float64
+	ServerErrorRate      float64
+	WaitingCount         int
+	LoadRate             int
+	GroupPriority        int
+	Price                float64
+	QuotaHeadroom        float64
+	LegacyOrderPosition  int
+	SelectionTier        int
+	HealthConfidence     string
+	HealthSnapshotStatus string
+	LastRealSampleAge    time.Duration
+	HasRealSample        bool
+	HardRejectedReason   string
 }
 
 type OpenAIBalancedSelectionInput struct {
@@ -70,6 +84,7 @@ type OpenAIBalancedSelectionInput struct {
 	Now                       time.Time
 	HealthSnapshots           map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot
 	HealthLoadAttempted       bool
+	HealthLoadSucceeded       bool
 }
 
 type OpenAIBalancedSelectionResult struct {
@@ -98,7 +113,12 @@ func DefaultOpenAIBalancedSettings() OpenAIBalancedSettings {
 	return OpenAIBalancedSettings{
 		Mode:                   OpenAIAutoSchedulerModeBalanced,
 		TopK:                   openAIBalancedDefaultTopK,
+		AdaptiveTopKEnabled:    true,
 		ExplorationRate:        openAIBalancedDefaultExplorationRate,
+		ExplorationBudget:      DefaultOpenAIAutoSchedulerSettings().ExplorationBudget,
+		ExplorationMinInterval: time.Duration(DefaultOpenAIAutoSchedulerSettings().ExplorationMinIntervalSeconds) * time.Second,
+		ExplorationMaxSamples:  DefaultOpenAIAutoSchedulerSettings().ExplorationMaxRealSamplesPerHour,
+		StaleOpenRequiresProbe: true,
 		LatencyBudgetMS:        openAIBalancedDefaultLatencyBudgetMS,
 		SessionEscapeMinGapMS:  openAIBalancedDefaultSessionEscapeGapMS,
 		SessionEscapeRatio:     openAIBalancedDefaultSessionEscapeRatio,
@@ -116,6 +136,9 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 		return legacyOpenAIBalancedSelectionResult(input, settings), nil
 	}
 	if input.HealthLoadAttempted {
+		if !input.HealthLoadSucceeded && input.HealthSnapshots == nil {
+			return openAIBalancedFallbackResult(input, settings), nil
+		}
 		loaded, ok := hydrateOpenAIBalancedHealth(input.Candidates, input.HealthSnapshots, input.Now)
 		if !ok {
 			return openAIBalancedFallbackResult(input, settings), nil
@@ -141,8 +164,12 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 		candidates = append(candidates, candidate)
 	}
 	activeCandidates := make([]OpenAIBalancedCandidate, 0, len(candidates))
+	policySettings := openAIAutoSchedulerSettingsFromBalanced(settings)
+	eligibilityByAccount := make(map[int64]SchedulerEligibility, len(candidates))
 	for _, candidate := range candidates {
-		if candidate.State != OpenAIAutoSchedulerStateOpen && candidate.State != OpenAIAutoSchedulerStateHalfOpen {
+		eligibility := EvaluateOpenAISchedulerCandidateEligibility(candidate, policySettings)
+		eligibilityByAccount[candidate.AccountID] = eligibility
+		if eligibility.Eligible {
 			activeCandidates = append(activeCandidates, candidate)
 		}
 	}
@@ -151,12 +178,18 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 	var escapedSticky OpenAIBalancedCandidate
 	escapedStickyFound := false
 	if input.SessionAccountID > 0 {
-		stickyEscape = openAIBalancedStickyEscapeReason(input.SessionAccountID, activeCandidates, bestOpenAIBalancedTTFT(activeCandidates), settings)
-		if stickyEscape != "" {
+		if eligibility, ok := eligibilityByAccount[input.SessionAccountID]; ok && !eligibility.Eligible {
+			stickyEscape = eligibility.RejectionCode
+		} else if ok && eligibility.Confidence == "low" {
+			stickyEscape = eligibility.RejectionCode
+		} else {
+			stickyEscape = openAIBalancedStickyEscapeReason(input.SessionAccountID, activeCandidates, bestOpenAIBalancedTTFT(activeCandidates), settings)
+		}
+		if stickyEscape != "" && eligibilityByAccount[input.SessionAccountID].Eligible {
 			policyCandidates, escapedSticky, escapedStickyFound = removeOpenAIBalancedCandidate(policyCandidates, input.SessionAccountID)
 		}
 	}
-	evaluation := EvaluateOpenAISchedulerPolicy(policyCandidates, openAIAutoSchedulerSettingsFromBalanced(settings), input.RandomSeed)
+	evaluation := EvaluateOpenAISchedulerPolicy(policyCandidates, policySettings, input.RandomSeed)
 	ordered := evaluation.OrderedCandidates
 	if escapedStickyFound {
 		insertAt := evaluation.TopK
@@ -205,7 +238,12 @@ func openAIAutoSchedulerSettingsFromBalanced(settings OpenAIBalancedSettings) Op
 	result.Mode = settings.Mode
 	result.ShadowMode = settings.ShadowMode
 	result.TopK = settings.TopK
+	result.AdaptiveTopKEnabled = settings.AdaptiveTopKEnabled
 	result.ExplorationRate = settings.ExplorationRate
+	result.ExplorationBudget = settings.ExplorationBudget
+	result.ExplorationMinIntervalSeconds = int(settings.ExplorationMinInterval / time.Second)
+	result.ExplorationMaxRealSamplesPerHour = settings.ExplorationMaxSamples
+	result.StaleOpenRequiresProbe = settings.StaleOpenRequiresProbe
 	result.SessionEscapeMinGapMS = int(settings.SessionEscapeMinGapMS)
 	result.SessionEscapeRatio = settings.SessionEscapeRatio
 	result.LatencyBudgetMS = int(settings.LatencyBudgetMS)
@@ -350,13 +388,26 @@ func hydrateOpenAIBalancedHealth(
 		now = time.Now()
 	}
 	candidates := append([]OpenAIBalancedCandidate(nil), input...)
-	hydratedCount := 0
 	for i := range candidates {
 		key := normalizeOpenAISchedulerHealthKey(candidates[i].HealthKey)
 		snapshot, ok := states[key]
 		if !ok || snapshot.ExpiresAt.IsZero() || !now.Before(snapshot.ExpiresAt) {
-			candidates[i].State = OpenAIAutoSchedulerStateRunning
+			candidates[i].HealthKey = key
 			candidates[i].HealthConfidence = "low"
+			if !ok {
+				candidates[i].State = OpenAIAutoSchedulerStateRunning
+				candidates[i].HealthSnapshotStatus = OpenAISchedulerHealthSnapshotMissing
+				continue
+			}
+			candidates[i].State = normalizeOpenAIAutoSchedulerState(snapshot.State)
+			candidates[i].HealthSnapshotStatus = OpenAISchedulerHealthSnapshotStale
+			if snapshot.LastRealAt != nil {
+				candidates[i].HasRealSample = true
+				candidates[i].LastRealSampleAge = now.Sub(*snapshot.LastRealAt)
+				if candidates[i].LastRealSampleAge < 0 {
+					candidates[i].LastRealSampleAge = 0
+				}
+			}
 			continue
 		}
 		candidates[i].HealthKey = key
@@ -366,10 +417,14 @@ func hydrateOpenAIBalancedHealth(
 		candidates[i].RateLimitedRate = snapshot.RateLimitedRate
 		candidates[i].ServerErrorRate = snapshot.ServerErrorRate
 		candidates[i].HealthConfidence = "high"
-		hydratedCount++
-	}
-	if hydratedCount == 0 {
-		return nil, false
+		candidates[i].HealthSnapshotStatus = OpenAISchedulerHealthSnapshotFresh
+		if snapshot.LastRealAt != nil {
+			candidates[i].HasRealSample = true
+			candidates[i].LastRealSampleAge = now.Sub(*snapshot.LastRealAt)
+			if candidates[i].LastRealSampleAge < 0 {
+				candidates[i].LastRealSampleAge = 0
+			}
+		}
 	}
 	return candidates, true
 }
@@ -463,6 +518,15 @@ func normalizeOpenAIBalancedSettings(settings OpenAIBalancedSettings) OpenAIBala
 	}
 	if settings.TopK <= 0 {
 		settings.TopK = openAIBalancedDefaultTopK
+	}
+	if settings.ExplorationBudget < 0 || settings.ExplorationBudget > 0.10 {
+		settings.ExplorationBudget = DefaultOpenAIAutoSchedulerSettings().ExplorationBudget
+	}
+	if settings.ExplorationMinInterval <= 0 {
+		settings.ExplorationMinInterval = time.Duration(DefaultOpenAIAutoSchedulerSettings().ExplorationMinIntervalSeconds) * time.Second
+	}
+	if settings.ExplorationMaxSamples <= 0 {
+		settings.ExplorationMaxSamples = DefaultOpenAIAutoSchedulerSettings().ExplorationMaxRealSamplesPerHour
 	}
 	if settings.LatencyBudgetMS <= 0 {
 		settings.LatencyBudgetMS = openAIBalancedDefaultLatencyBudgetMS

@@ -23,10 +23,14 @@ const (
 	OpenAIAutoSchedulerEventSlow         = "slow"
 	OpenAIAutoSchedulerEventSevereSlow   = "severe_slow"
 	OpenAIAutoSchedulerEventError        = "error"
+	OpenAIAutoSchedulerEventRequestError = "request_error"
 	OpenAIAutoSchedulerEventRateLimited  = "rate_limited"
 	OpenAIAutoSchedulerEventProbeSuccess = "probe_success"
 	OpenAIAutoSchedulerEventProbeError   = "probe_error"
 	OpenAIAutoSchedulerEventManualReset  = "manual_reset"
+
+	OpenAIAutoSchedulerStatusSourceUnified = "unified_health"
+	OpenAIAutoSchedulerStatusSourceLegacy  = "legacy_score"
 )
 
 type OpenAISchedulerPolicyWeights struct {
@@ -43,7 +47,12 @@ type OpenAIAutoSchedulerSettings struct {
 	Mode                             string                       `json:"mode"`
 	ShadowMode                       bool                         `json:"shadow_mode"`
 	TopK                             int                          `json:"top_k"`
+	AdaptiveTopKEnabled              bool                         `json:"adaptive_top_k_enabled"`
 	ExplorationRate                  float64                      `json:"exploration_rate"`
+	ExplorationBudget                float64                      `json:"exploration_budget"`
+	ExplorationMinIntervalSeconds    int                          `json:"exploration_min_interval_seconds"`
+	ExplorationMaxRealSamplesPerHour int                          `json:"exploration_max_real_samples_per_hour"`
+	StaleOpenRequiresProbe           bool                         `json:"stale_open_requires_probe"`
 	SessionEscapeMinGapMS            int                          `json:"session_escape_min_gap_ms"`
 	SessionEscapeRatio               float64                      `json:"session_escape_ratio"`
 	HealthTTLSeconds                 int                          `json:"health_ttl_seconds"`
@@ -68,7 +77,12 @@ type OpenAIAutoSchedulerSettings struct {
 	modeSet                   bool
 	shadowModeSet             bool
 	topKSet                   bool
+	adaptiveTopKEnabledSet    bool
 	explorationRateSet        bool
+	explorationBudgetSet      bool
+	explorationMinIntervalSet bool
+	explorationMaxSamplesSet  bool
+	staleOpenRequiresProbeSet bool
 	sessionEscapeMinGapMSSet  bool
 	sessionEscapeRatioSet     bool
 	healthTTLSecondsSet       bool
@@ -96,7 +110,12 @@ func (s *OpenAIAutoSchedulerSettings) UnmarshalJSON(data []byte) error {
 	_, s.modeSet = fields["mode"]
 	_, s.shadowModeSet = fields["shadow_mode"]
 	_, s.topKSet = fields["top_k"]
+	_, s.adaptiveTopKEnabledSet = fields["adaptive_top_k_enabled"]
 	_, s.explorationRateSet = fields["exploration_rate"]
+	_, s.explorationBudgetSet = fields["exploration_budget"]
+	_, s.explorationMinIntervalSet = fields["exploration_min_interval_seconds"]
+	_, s.explorationMaxSamplesSet = fields["exploration_max_real_samples_per_hour"]
+	_, s.staleOpenRequiresProbeSet = fields["stale_open_requires_probe"]
 	_, s.sessionEscapeMinGapMSSet = fields["session_escape_min_gap_ms"]
 	_, s.sessionEscapeRatioSet = fields["session_escape_ratio"]
 	_, s.healthTTLSecondsSet = fields["health_ttl_seconds"]
@@ -166,15 +185,19 @@ type OpenAIAutoSchedulerDailySample struct {
 }
 
 type OpenAIAutoSchedulerAccountSummary struct {
-	State         string
-	SpeedPriority int
-	SpeedMS       *int
-	ProbeModel    string
-	LastTtfbMS    *int
-	LastLatencyMS *int
-	LastError     *string
-	Reason        string
-	LastCheckedAt *time.Time
+	State               string
+	StatusSource        string
+	HealthDimensions    int
+	AvailableDimensions int
+	StaleDimensions     int
+	SpeedPriority       int
+	SpeedMS             *int
+	ProbeModel          string
+	LastTtfbMS          *int
+	LastLatencyMS       *int
+	LastError           *string
+	Reason              string
+	LastCheckedAt       *time.Time
 }
 
 const (
@@ -188,7 +211,12 @@ func DefaultOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {
 		Mode:                             OpenAIAutoSchedulerModeBalanced,
 		ShadowMode:                       true,
 		TopK:                             3,
+		AdaptiveTopKEnabled:              true,
 		ExplorationRate:                  0.03,
+		ExplorationBudget:                0.05,
+		ExplorationMinIntervalSeconds:    600,
+		ExplorationMaxRealSamplesPerHour: 6,
+		StaleOpenRequiresProbe:           true,
 		SessionEscapeMinGapMS:            1000,
 		SessionEscapeRatio:               0.25,
 		HealthTTLSeconds:                 int(openAISchedulerHealthStateTTL / time.Second),
@@ -212,7 +240,12 @@ func DefaultOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {
 		modeSet:                          true,
 		shadowModeSet:                    true,
 		topKSet:                          true,
+		adaptiveTopKEnabledSet:           true,
 		explorationRateSet:               true,
+		explorationBudgetSet:             true,
+		explorationMinIntervalSet:        true,
+		explorationMaxSamplesSet:         true,
+		staleOpenRequiresProbeSet:        true,
 		sessionEscapeMinGapMSSet:         true,
 		sessionEscapeRatioSet:            true,
 		healthTTLSecondsSet:              true,
@@ -242,12 +275,37 @@ func normalizeOpenAIAutoSchedulerSettings(settings OpenAIAutoSchedulerSettings) 
 	} else if settings.TopK > 10 {
 		settings.TopK = 10
 	}
+	if !settings.adaptiveTopKEnabledSet {
+		settings.AdaptiveTopKEnabled = defaults.AdaptiveTopKEnabled
+	}
 	if !settings.explorationRateSet {
 		settings.ExplorationRate = defaults.ExplorationRate
 	} else if settings.ExplorationRate < 0 {
 		settings.ExplorationRate = 0
 	} else if settings.ExplorationRate > 0.10 {
 		settings.ExplorationRate = 0.10
+	}
+	if !settings.explorationBudgetSet {
+		settings.ExplorationBudget = defaults.ExplorationBudget
+	} else if settings.ExplorationBudget < 0 {
+		settings.ExplorationBudget = 0
+	} else if settings.ExplorationBudget > 0.10 {
+		settings.ExplorationBudget = 0.10
+	}
+	if !settings.explorationMinIntervalSet || settings.ExplorationMinIntervalSeconds <= 0 {
+		settings.ExplorationMinIntervalSeconds = defaults.ExplorationMinIntervalSeconds
+	} else if settings.ExplorationMinIntervalSeconds < 30 {
+		settings.ExplorationMinIntervalSeconds = 30
+	} else if settings.ExplorationMinIntervalSeconds > 3600 {
+		settings.ExplorationMinIntervalSeconds = 3600
+	}
+	if !settings.explorationMaxSamplesSet || settings.ExplorationMaxRealSamplesPerHour <= 0 {
+		settings.ExplorationMaxRealSamplesPerHour = defaults.ExplorationMaxRealSamplesPerHour
+	} else if settings.ExplorationMaxRealSamplesPerHour > 60 {
+		settings.ExplorationMaxRealSamplesPerHour = 60
+	}
+	if !settings.staleOpenRequiresProbeSet {
+		settings.StaleOpenRequiresProbe = defaults.StaleOpenRequiresProbe
 	}
 	if !settings.sessionEscapeMinGapMSSet {
 		settings.SessionEscapeMinGapMS = defaults.SessionEscapeMinGapMS

@@ -9,6 +9,7 @@ export type OpenAIAutoSchedulerEventType =
   | 'slow'
   | 'severe_slow'
   | 'error'
+  | 'request_error'
   | 'rate_limited'
   | 'probe_success'
   | 'probe_error'
@@ -19,7 +20,12 @@ export interface OpenAIAutoSchedulerSettings {
   mode?: 'legacy' | 'balanced' | 'performance_first' | 'cost_first' | 'efficiency'
   shadow_mode?: boolean
   top_k?: number
+  adaptive_top_k_enabled?: boolean
   exploration_rate?: number
+  exploration_budget?: number
+  exploration_min_interval_seconds?: number
+  exploration_max_real_samples_per_hour?: number
+  stale_open_requires_probe?: boolean
   session_escape_min_gap_ms?: number
   session_escape_ratio?: number
   health_ttl_seconds?: number
@@ -169,6 +175,19 @@ export interface OpenAISchedulerOverview {
   groups: OpenAISchedulerGroupSummary[]
   trend: OpenAISchedulerTrendPoint[]
   slow_causes: OpenAISchedulerSlowCause[]
+  runtime: OpenAISchedulerRuntimeMetrics
+}
+
+export interface OpenAISchedulerRuntimeMetrics {
+  exploration_allowed_total: number
+  exploration_rejected_total: number
+  exploration_interval_total: number
+  exploration_hourly_total: number
+  exploration_error_total: number
+  low_confidence_fallback_total: number
+  unified_health_reads_total: number
+  unified_health_dimensions_total: number
+  unified_health_fallbacks_total: number
 }
 
 export type OpenAISchedulerHealthSort =
@@ -267,6 +286,7 @@ export interface OpenAISchedulerRankingItem {
   account_name: string
   eligibility: OpenAISchedulerEligibility
   eligibility_reason: string
+  traffic_class?: 'normal' | 'exploration' | 'fallback' | 'mixed'
   utility_score: number
   target_share: number
   actual_share: number

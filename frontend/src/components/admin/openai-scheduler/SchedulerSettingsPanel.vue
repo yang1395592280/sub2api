@@ -19,7 +19,12 @@
       <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.openaiAutoScheduler.settings.balancedSelection') }}</h3>
       <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <NumberField id="scheduler-top-k" v-model="form.top_k" :label="t('admin.openaiAutoScheduler.settings.topK')" :min="1" :max="10" />
+        <label class="flex items-center justify-between gap-4"><span class="input-label mb-0">{{ t('admin.openaiAutoScheduler.settings.adaptiveTopK') }}</span><Toggle :modelValue="form.adaptive_top_k_enabled" @update:modelValue="form.adaptive_top_k_enabled = $event" /></label>
         <NumberField id="scheduler-exploration" v-model="form.exploration_rate" :label="t('admin.openaiAutoScheduler.settings.explorationRate')" :min="0" :max="0.1" :step="0.01" />
+        <NumberField id="scheduler-exploration-budget" v-model="form.exploration_budget" :label="t('admin.openaiAutoScheduler.settings.explorationBudget')" :min="0" :max="0.1" :step="0.01" />
+        <NumberField id="scheduler-exploration-interval" v-model="form.exploration_min_interval_seconds" :label="t('admin.openaiAutoScheduler.settings.explorationMinInterval')" :min="30" :max="3600" />
+        <NumberField id="scheduler-exploration-max-hour" v-model="form.exploration_max_real_samples_per_hour" :label="t('admin.openaiAutoScheduler.settings.explorationMaxPerHour')" :min="1" :max="60" />
+        <label class="flex items-center justify-between gap-4"><span class="input-label mb-0">{{ t('admin.openaiAutoScheduler.settings.staleOpenRequiresProbe') }}</span><Toggle :modelValue="form.stale_open_requires_probe" @update:modelValue="form.stale_open_requires_probe = $event" /></label>
         <NumberField id="scheduler-session-gap" v-model="form.session_escape_min_gap_ms" :label="t('admin.openaiAutoScheduler.settings.sessionEscapeGap')" :min="0" :max="30000" />
         <NumberField id="scheduler-session-ratio" v-model="form.session_escape_ratio" :label="t('admin.openaiAutoScheduler.settings.sessionEscapeRatio')" :min="0" :max="2" :step="0.05" />
         <NumberField id="scheduler-cost-weight" v-model="form.cost_weight" :label="t('admin.openaiAutoScheduler.settings.costWeight')" :min="0" :max="1" :step="0.05" />
@@ -105,7 +110,12 @@ function normalizeSettings(value: OpenAIAutoSchedulerSettings) {
     mode: value.mode || 'balanced',
     shadow_mode: value.shadow_mode ?? true,
     top_k: value.top_k ?? 3,
+    adaptive_top_k_enabled: value.adaptive_top_k_enabled ?? true,
     exploration_rate: value.exploration_rate ?? 0.03,
+    exploration_budget: value.exploration_budget ?? 0.05,
+    exploration_min_interval_seconds: value.exploration_min_interval_seconds ?? 600,
+    exploration_max_real_samples_per_hour: value.exploration_max_real_samples_per_hour ?? 6,
+    stale_open_requires_probe: value.stale_open_requires_probe ?? true,
     session_escape_min_gap_ms: value.session_escape_min_gap_ms ?? 1000,
     session_escape_ratio: value.session_escape_ratio ?? 0.25,
     health_ttl_seconds: value.health_ttl_seconds ?? 1800,
@@ -129,7 +139,12 @@ function submit(): void {
     shadow_mode: Boolean(form.shadow_mode),
     probe_model: String(form.probe_model || '').trim(),
     top_k: Number(form.top_k),
+    adaptive_top_k_enabled: Boolean(form.adaptive_top_k_enabled),
     exploration_rate: Number(form.exploration_rate),
+    exploration_budget: Number(form.exploration_budget),
+    exploration_min_interval_seconds: Number(form.exploration_min_interval_seconds),
+    exploration_max_real_samples_per_hour: Number(form.exploration_max_real_samples_per_hour),
+    stale_open_requires_probe: Boolean(form.stale_open_requires_probe),
     session_escape_min_gap_ms: Number(form.session_escape_min_gap_ms),
     session_escape_ratio: Number(form.session_escape_ratio),
     health_ttl_seconds: Number(form.health_ttl_seconds),
@@ -159,6 +174,8 @@ function validate(): string {
   if (!form.probe_model.trim()) return t('admin.openaiAutoScheduler.settings.errors.probeModelRequired')
   if (form.top_k < 1 || form.top_k > 10) return t('admin.openaiAutoScheduler.settings.errors.topKRange')
   if (form.exploration_rate < 0 || form.exploration_rate > 0.1) return t('admin.openaiAutoScheduler.settings.errors.explorationRange')
+  if (form.exploration_budget < 0 || form.exploration_budget > 0.1 || form.exploration_min_interval_seconds < 30 || form.exploration_min_interval_seconds > 3600) return t('admin.openaiAutoScheduler.settings.errors.explorationPolicyRange')
+  if (form.exploration_max_real_samples_per_hour < 1 || form.exploration_max_real_samples_per_hour > 60) return t('admin.openaiAutoScheduler.settings.errors.explorationMaxPerHourRange')
   if (form.session_escape_min_gap_ms < 0 || form.session_escape_min_gap_ms > 30000) return t('admin.openaiAutoScheduler.settings.errors.sessionGapRange')
   if (form.session_escape_ratio < 0 || form.session_escape_ratio > 2) return t('admin.openaiAutoScheduler.settings.errors.sessionRatioRange')
   if (form.cost_weight < 0 || form.cost_weight > 1) return t('admin.openaiAutoScheduler.settings.errors.costWeightRange')

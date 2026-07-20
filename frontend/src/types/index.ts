@@ -905,6 +905,10 @@ export interface UpstreamCheckinStatusSnapshot {
 
 export interface OpenAIAutoSchedulerAccountSummary {
   state: 'running' | 'observing' | 'open' | 'half_open'
+  status_source?: 'unified_health' | 'legacy_score'
+  health_dimensions?: number
+  available_dimensions?: number
+  stale_dimensions?: number
   speed_priority: number
   speed_ms?: number | null
   probe_model: string

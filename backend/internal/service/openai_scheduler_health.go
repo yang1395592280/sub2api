@@ -34,3 +34,10 @@ type OpenAISchedulerHealthRepository interface {
 	GetBatch(context.Context, []OpenAISchedulerHealthKey) (map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot, error)
 	Upsert(context.Context, OpenAISchedulerHealthSnapshot) error
 }
+
+// OpenAISchedulerHealthSummaryRepository provides the bounded account-level
+// read used by the account management page. Scheduling hot paths still use
+// exact health keys through OpenAISchedulerHealthRepository.GetBatch.
+type OpenAISchedulerHealthSummaryRepository interface {
+	ListByAccountIDs(context.Context, []int64) ([]OpenAISchedulerHealthSnapshot, error)
+}

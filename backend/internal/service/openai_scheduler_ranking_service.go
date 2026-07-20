@@ -74,6 +74,7 @@ type OpenAISchedulerRankingItem struct {
 	AccountName       string                          `json:"account_name"`
 	Eligibility       string                          `json:"eligibility"`
 	EligibilityReason string                          `json:"eligibility_reason"`
+	TrafficClass      string                          `json:"traffic_class"`
 	UtilityScore      float64                         `json:"utility_score"`
 	TargetShare       float64                         `json:"target_share"`
 	ActualShare       float64                         `json:"actual_share"`
@@ -347,7 +348,7 @@ func buildOpenAISchedulerPartitionRanking(
 		}
 		item := OpenAISchedulerRankingItem{
 			Partition: partition, PartitionCount: 1, Rank: score.Rank, AccountID: score.AccountID, AccountName: record.AccountName,
-			Eligibility: score.Eligibility, EligibilityReason: score.EligibilityReason,
+			Eligibility: score.Eligibility, EligibilityReason: score.EligibilityReason, TrafficClass: score.TrafficClass,
 			UtilityScore: score.Utility * 100, TargetShare: score.TargetShare, ActualShare: actualShare,
 			SelectedRequests: actual.RequestCount, PredictedTTFTMS: record.PredictedTTFTMS,
 			TTFTP50MS: actual.TTFTP50MS, TTFTP90MS: actual.TTFTP90MS,
@@ -445,10 +446,14 @@ func aggregateOpenAISchedulerAccountRankings(
 			aggregate.item.PartitionCount++
 			if aggregate.item.PartitionCount == 1 {
 				aggregate.item.Partition = source.Partition
+				aggregate.item.TrafficClass = source.TrafficClass
 			} else {
 				aggregate.item.Partition = OpenAISchedulerRankingPartition{
 					GroupID: params.GroupID, ModelFamily: params.ModelFamily,
 					Endpoint: params.Endpoint, Transport: params.Transport,
+				}
+				if aggregate.item.TrafficClass != source.TrafficClass {
+					aggregate.item.TrafficClass = "mixed"
 				}
 			}
 

@@ -180,6 +180,28 @@ func TestOpenAISchedulerHealthRepository_GetBatchEmptyUsesZeroSelects(t *testing
 	require.Zero(t, queryLog.Count())
 }
 
+func TestOpenAISchedulerHealthRepository_ListByAccountIDsUsesOneSelect(t *testing.T) {
+	ctx := context.Background()
+	repo, _, queryLog := newOpenAISchedulerHealthRepoSQLite(t)
+	now := time.Now()
+	for _, snapshot := range []service.OpenAISchedulerHealthSnapshot{
+		{Key: service.OpenAISchedulerHealthKey{AccountID: 10, ModelFamily: "gpt-5", Endpoint: "responses", Transport: "http_sse"}, State: service.OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(time.Hour)},
+		{Key: service.OpenAISchedulerHealthKey{AccountID: 10, ModelFamily: "gpt-5", Endpoint: "chat_completions", Transport: "http_sse"}, State: service.OpenAIAutoSchedulerStateOpen, ExpiresAt: now.Add(time.Hour)},
+		{Key: service.OpenAISchedulerHealthKey{AccountID: 11, ModelFamily: "gpt-5", Endpoint: "responses", Transport: "http_sse"}, State: service.OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(time.Hour)},
+	} {
+		require.NoError(t, repo.Upsert(ctx, snapshot))
+	}
+	queryLog.Reset()
+
+	summaryRepo := repo.(service.OpenAISchedulerHealthSummaryRepository)
+	got, err := summaryRepo.ListByAccountIDs(ctx, []int64{10, 10, 0, -1})
+
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	require.Equal(t, 1, queryLog.Count())
+	require.Contains(t, queryLog.Only(), "account_id")
+}
+
 func TestOpenAISchedulerHealthRepository_UpsertUpdatesNormalizedUniqueKeyAndClearsNullableTimes(t *testing.T) {
 	ctx := context.Background()
 	repo, client, queryLog := newOpenAISchedulerHealthRepoSQLite(t)

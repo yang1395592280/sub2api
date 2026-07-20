@@ -329,10 +329,10 @@ describe('admin AccountsView — 账号行展示', () => {
     const wrapper = mountViewWithRow()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('正常')
+    expect(wrapper.text()).toContain('admin.accounts.schedulerHealth.states.running')
     expect(wrapper.text()).toContain('#1')
     expect(wrapper.text()).toContain('220ms')
-    expect(wrapper.text()).toContain('gpt-5.5')
+    expect(wrapper.text()).toContain('admin.accounts.schedulerHealth.legacy')
 
     wrapper.unmount()
   })

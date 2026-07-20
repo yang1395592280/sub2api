@@ -61,7 +61,7 @@ func TestWireGenInjectsOpenAIBalancedSchedulerIntoGateway(t *testing.T) {
 	gatewayIndex := strings.Index(source, "openAIGatewayService := service.ProvideOpenAIGatewayService(")
 	require.NotEqual(t, -1, balancedIndex)
 	require.NotEqual(t, -1, gatewayIndex)
-	require.Contains(t, source, "openAIAutoSchedulerOutcomeRecorder, openAIBalancedScheduler, openAIAutoCheapestGroupCircuit, apiKeyService, apiKeyRepository")
+	require.Contains(t, source, "openAIAutoSchedulerOutcomeRecorder, openAIBalancedScheduler, openAISchedulerExplorationCache, openAIAutoCheapestGroupCircuit, apiKeyService, apiKeyRepository")
 	require.Less(t, balancedIndex, gatewayIndex)
 
 	providerBody, err := os.ReadFile("../../internal/service/wire.go")
@@ -69,6 +69,7 @@ func TestWireGenInjectsOpenAIBalancedSchedulerIntoGateway(t *testing.T) {
 	providerSource := string(providerBody)
 	require.Contains(t, providerSource, "return NewOpenAIBalancedScheduler(repo)")
 	require.Contains(t, providerSource, "svc.SetOpenAIBalancedScheduler(openAIBalancedScheduler)")
+	require.Contains(t, providerSource, "svc.SetOpenAISchedulerExplorationCache(openAIExplorationCache)")
 }
 
 func TestWireGenInjectsOpenAIAutoSchedulerIntoAccountHandler(t *testing.T) {

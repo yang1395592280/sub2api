@@ -80,7 +80,7 @@
               <span class="block truncate text-xs text-gray-500 dark:text-dark-400">#{{ row.account_id }} · {{ accountScope(row) }}</span>
               <span class="block truncate text-xs text-gray-400">{{ accountDimension(row) }}</span>
             </td>
-            <td class="px-3 py-3"><span :class="eligibilityClass(row.eligibility)">{{ eligibilityLabel(row.eligibility) }}</span></td>
+            <td class="px-3 py-3"><span :class="eligibilityClass(row.eligibility)">{{ eligibilityLabel(row.eligibility) }}</span><span class="mt-1 block text-xs text-gray-500 dark:text-dark-400">{{ trafficClassLabel(row.traffic_class) }}</span></td>
             <td class="px-3 py-3 text-right"><span class="text-base font-semibold text-gray-950 dark:text-white">{{ row.utility_score.toFixed(1) }}</span><span class="text-xs text-gray-400"> / 100</span></td>
             <td class="px-3 py-3">
               <span class="block font-semibold text-primary-600 dark:text-primary-400">{{ percent(row.target_share) }} {{ t('admin.openaiAutoScheduler.ranking.target') }}</span>
@@ -153,6 +153,7 @@ function transportLabel(value: string): string { return { http_sse: 'HTTP / SSE'
 function modeLabel(value: string): string { return t(`admin.openaiAutoScheduler.modes.${({ performance_first: 'performance', cost_first: 'cost', efficiency: 'efficiency' } as Record<string, string>)[value] || value}`) }
 function eligibilityLabel(value: string): string { return t(`admin.openaiAutoScheduler.ranking.eligibility.${({ low_confidence: 'lowConfidence', latency_tail: 'latencyTail', hard_rejected: 'hardRejected' } as Record<string, string>)[value] || value}`) }
 function eligibilityClass(value: string): string { const colors: Record<string, string> = { eligible: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300', low_confidence: 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300', latency_tail: 'bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300', hard_rejected: 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300' }; return `inline-flex rounded px-2 py-1 text-xs font-medium ${colors[value] || colors.hard_rejected}` }
+function trafficClassLabel(value?: string): string { return t(`admin.openaiAutoScheduler.ranking.trafficClass.${value || 'fallback'}`) }
 function decisionLabel(value: string): string { return t(`admin.openaiAutoScheduler.ranking.decisions.${({ highest_utility: 'highestUtility', weighted_allocation: 'weightedAllocation', fallback_only: 'fallbackOnly', health_unavailable: 'healthUnavailable', latency_budget_exceeded: 'latencyBudgetExceeded' } as Record<string, string>)[value] || 'fallbackOnly'}`) }
 function deviationLabel(values: string[]): string { if (!values?.length) return t('admin.openaiAutoScheduler.ranking.noDeviation'); return values.map((value) => t(`admin.openaiAutoScheduler.ranking.deviations.${({ health_low_confidence: 'healthLowConfidence', insufficient_window_samples: 'insufficientSamples', shadow_mode: 'shadowMode', legacy_fallback: 'legacyFallback' } as Record<string, string>)[value] || 'other'}`)).join(' · ') }
 function formatCalculatedAt(value?: string): string { return value ? new Date(value).toLocaleTimeString() : '—' }

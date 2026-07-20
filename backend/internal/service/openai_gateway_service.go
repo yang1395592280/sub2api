@@ -416,6 +416,7 @@ type OpenAIGatewayService struct {
 	openAIAutoSchedulerSelector     *OpenAIAutoSchedulerSelector
 	openAIAutoSchedulerService      *OpenAIAutoSchedulerService
 	openaiBalancedScheduler         *OpenAIBalancedScheduler
+	openaiExplorationCache          OpenAISchedulerExplorationCache
 	openAIAutoCheapestGroupResolver *OpenAIAutoCheapestGroupResolver
 	apiKeyEffectiveGroupUpdater     LastEffectiveGroupUpdater
 	openAIAutoCheapestGroupCircuit  OpenAIAutoCheapestGroupCircuit

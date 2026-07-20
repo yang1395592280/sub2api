@@ -151,6 +151,10 @@ func ApplyOpenAISchedulerHealthEvent(
 	if event.OccurredAt.IsZero() {
 		event.OccurredAt = now
 	}
+	if event.EventType == OpenAIAutoSchedulerEventRequestError {
+		current.ExpiresAt = now.Add(settings.StateTTL)
+		return current
+	}
 
 	previousSamples := current.RealSampleCount + current.ProbeSampleCount
 	alpha := settings.RealSampleAlpha
