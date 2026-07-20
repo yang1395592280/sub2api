@@ -209,6 +209,52 @@ func TestOpenAIBalancedSchedulerExcludesOpenAndHalfOpen(t *testing.T) {
 	require.Equal(t, 1, result.CandidateCount)
 }
 
+func TestOpenAIBalancedSchedulerStickyCannotReuseStaleOpenSnapshot(t *testing.T) {
+	now := time.Now()
+	staleKey := OpenAISchedulerHealthKey{AccountID: 1, ModelFamily: "gpt-5", Endpoint: OpenAISchedulerEndpointResponses, Transport: string(OpenAIUpstreamTransportHTTPSSE)}
+	staleRunningKey := OpenAISchedulerHealthKey{AccountID: 2, ModelFamily: "gpt-5", Endpoint: OpenAISchedulerEndpointResponses, Transport: string(OpenAIUpstreamTransportHTTPSSE)}
+	repo := &balancedSchedulerHealthRepoStub{states: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{
+		staleKey:        {Key: staleKey, State: OpenAIAutoSchedulerStateOpen, PredictedTTFTMS: 100, ExpiresAt: now.Add(-time.Second)},
+		staleRunningKey: {Key: staleRunningKey, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 500, ExpiresAt: now.Add(-time.Second)},
+	}}
+	settings := DefaultOpenAIBalancedSettings()
+	settings.ShadowMode = false
+	input := OpenAIBalancedSelectionInput{
+		SessionAccountID: 1,
+		Candidates: []OpenAIBalancedCandidate{
+			{AccountID: 1, HealthKey: staleKey},
+			{AccountID: 2, HealthKey: staleRunningKey},
+		},
+		Settings: settings,
+		Now:      now,
+	}
+
+	result, err := NewOpenAIBalancedScheduler(repo).Order(context.Background(), input)
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{2}, result.OrderedAccountIDs)
+	require.Equal(t, []int64{1}, result.RejectedAccountIDs)
+	require.Equal(t, "health_stale_recovery_required", result.StickyEscapeReason)
+	require.Equal(t, 1, result.CandidateCount)
+}
+
+func TestOpenAIBalancedSchedulerMissingHealthRemovesStickyPriority(t *testing.T) {
+	settings := DefaultOpenAIBalancedSettings()
+	settings.ShadowMode = false
+	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), OpenAIBalancedSelectionInput{
+		SessionAccountID: 1,
+		Candidates: []OpenAIBalancedCandidate{
+			{AccountID: 1, State: OpenAIAutoSchedulerStateRunning, HealthConfidence: "low", HealthSnapshotStatus: OpenAISchedulerHealthSnapshotMissing},
+			{AccountID: 2, PredictedTTFTMS: 500, State: OpenAIAutoSchedulerStateRunning, HealthConfidence: "high", HealthSnapshotStatus: OpenAISchedulerHealthSnapshotFresh},
+		},
+		Settings: settings,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{2, 1}, result.OrderedAccountIDs)
+	require.Equal(t, "health_missing", result.StickyEscapeReason)
+}
+
 func TestOpenAIBalancedSchedulerWithoutExplorationIsDeterministic(t *testing.T) {
 	input := OpenAIBalancedSelectionInput{
 		Candidates: []OpenAIBalancedCandidate{

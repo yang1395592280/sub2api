@@ -203,6 +203,7 @@ func TestOpenAIAutoSchedulerHandler_GetOverviewValidatesWindowAndMapsResponse(t 
 		svc := &fakeOpenAISchedulerOverviewService{overview: service.OpenAISchedulerOverviewMetrics{
 			E2EP50MS: 2970, E2EP90MS: 7210, SelectionP95MS: 18, ProbeRatio: 0.24,
 			SlowCauses: []service.OpenAISchedulerSlowCause{{Reason: "queue", Count: 2, Ratio: 0.5}},
+			Runtime:    service.OpenAISchedulerRuntimeMetrics{ExplorationAllowedTotal: 8, UnifiedHealthFallbacksTotal: 2},
 		}}
 		router := setupOpenAISchedulerControlRouter(svc)
 		rec := httptest.NewRecorder()
@@ -216,6 +217,8 @@ func TestOpenAIAutoSchedulerHandler_GetOverviewValidatesWindowAndMapsResponse(t 
 		require.Contains(t, rec.Body.String(), `"selection_p95_ms":18`)
 		require.Contains(t, rec.Body.String(), `"probe_ratio":0.24`)
 		require.Contains(t, rec.Body.String(), `"reason":"queue"`)
+		require.Contains(t, rec.Body.String(), `"exploration_allowed_total":8`)
+		require.Contains(t, rec.Body.String(), `"unified_health_fallbacks_total":2`)
 	})
 
 	t.Run("rejects unsupported window", func(t *testing.T) {
@@ -393,6 +396,12 @@ func TestValidateOpenAIAutoSchedulerSettings_BalancedRanges(t *testing.T) {
 		{name: "top k above", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.TopK = 11 }},
 		{name: "exploration below", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationRate = -0.01 }},
 		{name: "exploration above", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationRate = 0.11 }},
+		{name: "exploration budget below", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationBudget = -0.01 }},
+		{name: "exploration budget above", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationBudget = 0.11 }},
+		{name: "exploration interval below", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationMinIntervalSeconds = 29 }},
+		{name: "exploration interval above", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationMinIntervalSeconds = 3601 }},
+		{name: "exploration max per hour below", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationMaxRealSamplesPerHour = 0 }},
+		{name: "exploration max per hour above", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationMaxRealSamplesPerHour = 61 }},
 		{name: "escape gap below", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.SessionEscapeMinGapMS = -1 }},
 		{name: "escape gap above", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.SessionEscapeMinGapMS = 30001 }},
 		{name: "escape ratio below", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.SessionEscapeRatio = -0.01 }},
@@ -425,6 +434,12 @@ func TestValidateOpenAIAutoSchedulerSettings_BalancedRanges(t *testing.T) {
 		func(s *service.OpenAIAutoSchedulerSettings) { s.TopK = 10 },
 		func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationRate = 0 },
 		func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationRate = 0.10 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationBudget = 0 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationBudget = 0.10 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationMinIntervalSeconds = 30 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationMinIntervalSeconds = 3600 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationMaxRealSamplesPerHour = 1 },
+		func(s *service.OpenAIAutoSchedulerSettings) { s.ExplorationMaxRealSamplesPerHour = 60 },
 		func(s *service.OpenAIAutoSchedulerSettings) { s.SessionEscapeMinGapMS = 0 },
 		func(s *service.OpenAIAutoSchedulerSettings) { s.SessionEscapeMinGapMS = 30000 },
 		func(s *service.OpenAIAutoSchedulerSettings) { s.SessionEscapeRatio = 0 },

@@ -93,6 +93,17 @@ describe('openai auto scheduler admin api', () => {
       groups: [],
       trend: [],
       slow_causes: [],
+      runtime: {
+        exploration_allowed_total: 0,
+        exploration_rejected_total: 0,
+        exploration_interval_total: 0,
+        exploration_hourly_total: 0,
+        exploration_error_total: 0,
+        low_confidence_fallback_total: 0,
+        unified_health_reads_total: 0,
+        unified_health_dimensions_total: 0,
+        unified_health_fallbacks_total: 0,
+      },
     }
     const controller = new AbortController()
     get.mockResolvedValueOnce({ data: overview })

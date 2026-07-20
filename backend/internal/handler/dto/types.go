@@ -305,15 +305,19 @@ type Account struct {
 }
 
 type OpenAIAutoSchedulerAccountSummary struct {
-	State         string     `json:"state"`
-	SpeedPriority int        `json:"speed_priority"`
-	SpeedMS       *int       `json:"speed_ms,omitempty"`
-	ProbeModel    string     `json:"probe_model"`
-	LastTtfbMS    *int       `json:"last_ttfb_ms,omitempty"`
-	LastLatencyMS *int       `json:"last_latency_ms,omitempty"`
-	LastError     *string    `json:"last_error,omitempty"`
-	Reason        string     `json:"reason,omitempty"`
-	LastCheckedAt *time.Time `json:"last_checked_at,omitempty"`
+	State               string     `json:"state"`
+	StatusSource        string     `json:"status_source"`
+	HealthDimensions    int        `json:"health_dimensions"`
+	AvailableDimensions int        `json:"available_dimensions"`
+	StaleDimensions     int        `json:"stale_dimensions"`
+	SpeedPriority       int        `json:"speed_priority"`
+	SpeedMS             *int       `json:"speed_ms,omitempty"`
+	ProbeModel          string     `json:"probe_model"`
+	LastTtfbMS          *int       `json:"last_ttfb_ms,omitempty"`
+	LastLatencyMS       *int       `json:"last_latency_ms,omitempty"`
+	LastError           *string    `json:"last_error,omitempty"`
+	Reason              string     `json:"reason,omitempty"`
+	LastCheckedAt       *time.Time `json:"last_checked_at,omitempty"`
 }
 
 type AccountGroup struct {

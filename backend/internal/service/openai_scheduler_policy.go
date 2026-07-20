@@ -3,6 +3,8 @@ package service
 import (
 	"math"
 	"sort"
+	"strings"
+	"time"
 )
 
 const (
@@ -10,7 +12,21 @@ const (
 	OpenAISchedulerEligibilityLowConfidence = "low_confidence"
 	OpenAISchedulerEligibilityLatencyTail   = "latency_tail"
 	OpenAISchedulerEligibilityRejected      = "hard_rejected"
+
+	OpenAISchedulerTrafficNormal      = "normal"
+	OpenAISchedulerTrafficExploration = "exploration"
+	OpenAISchedulerTrafficFallback    = "fallback"
 )
+
+type SchedulerEligibility struct {
+	AccountID     int64
+	HealthKey     OpenAISchedulerHealthKey
+	Eligible      bool
+	RecoveryOnly  bool
+	Confidence    string
+	RejectionCode string
+	SnapshotAge   time.Duration
+}
 
 type OpenAISchedulerPolicyCandidateScore struct {
 	AccountID         int64
@@ -25,6 +41,7 @@ type OpenAISchedulerPolicyCandidateScore struct {
 	PriorityScore     float64
 	Utility           float64
 	TargetShare       float64
+	TrafficClass      string
 }
 
 type OpenAISchedulerPolicyEvaluation struct {
@@ -86,7 +103,8 @@ func EvaluateOpenAISchedulerPolicy(
 		}
 	}
 
-	eligible := make([]openAISchedulerScoredCandidate, 0, len(candidates))
+	normal := make([]openAISchedulerScoredCandidate, 0, len(candidates))
+	lowConfidence := make([]openAISchedulerScoredCandidate, 0, len(candidates))
 	tail := make([]openAISchedulerScoredCandidate, 0)
 	rejected := make([]openAISchedulerScoredCandidate, 0)
 	for _, candidate := range candidates {
@@ -98,44 +116,95 @@ func EvaluateOpenAISchedulerPolicy(
 			rejected = append(rejected, item)
 		case OpenAISchedulerEligibilityLatencyTail:
 			tail = append(tail, item)
+		case OpenAISchedulerEligibilityLowConfidence:
+			lowConfidence = append(lowConfidence, item)
 		default:
-			eligible = append(eligible, item)
+			normal = append(normal, item)
 		}
 	}
 
-	sort.SliceStable(eligible, func(i, j int) bool {
-		if eligible[i].score.Utility != eligible[j].score.Utility {
-			return eligible[i].score.Utility > eligible[j].score.Utility
-		}
-		return eligible[i].candidate.AccountID < eligible[j].candidate.AccountID
-	})
+	sortOpenAISchedulerCandidatesByUtility(normal)
+	sortOpenAISchedulerCandidatesByUtility(lowConfidence)
 	sort.SliceStable(tail, func(i, j int) bool {
 		return tail[i].candidate.LegacyOrderPosition < tail[j].candidate.LegacyOrderPosition
 	})
 
-	topK := settings.TopK
-	if topK > len(eligible) {
-		topK = len(eligible)
-	}
+	topK := effectiveOpenAISchedulerTopK(len(normal), settings)
 	result.TopK = topK
+	primary := make([]openAISchedulerScoredCandidate, 0, topK+len(lowConfidence))
+	primaryShares := make([]float64, 0, cap(primary))
 	if topK > 0 {
-		shares := openAISchedulerPolicyShares(eligible[:topK], settings)
-		for i := 0; i < topK; i++ {
-			eligible[i].score.TargetShare = shares[i]
+		exploitation := normal[:topK]
+		exploitationShares := openAISchedulerPolicyShares(exploitation, settings)
+		exploration := dueOpenAISchedulerExplorationCandidates(lowConfidence, settings)
+		explorationBudget := feasibleOpenAISchedulerExplorationBudget(exploration, settings)
+		for i := range exploitationShares {
+			exploitationShares[i] *= 1 - explorationBudget
+			exploitation[i].score.TargetShare = exploitationShares[i]
+			exploitation[i].score.TrafficClass = OpenAISchedulerTrafficNormal
 		}
-		weighted := weightedOpenAISchedulerPolicyOrder(eligible[:topK], shares, randomSeed)
-		copy(eligible[:topK], weighted)
+		primary = append(primary, exploitation...)
+		primaryShares = append(primaryShares, exploitationShares...)
+		if len(exploration) > 0 && explorationBudget > 0 {
+			share := explorationBudget / float64(len(exploration))
+			for i := range exploration {
+				exploration[i].score.TargetShare = share
+				exploration[i].score.TrafficClass = OpenAISchedulerTrafficExploration
+				primary = append(primary, exploration[i])
+				primaryShares = append(primaryShares, share)
+			}
+		}
+	} else if len(lowConfidence) > 0 {
+		// Availability wins when every candidate is low confidence. This explicit
+		// degraded mode is the only case where the exploration budget cannot be
+		// enforced because there is no normal pool to receive the remainder.
+		result.TopK = effectiveOpenAISchedulerTopK(len(lowConfidence), settings)
+		primary = append(primary, lowConfidence[:result.TopK]...)
+		primaryShares = openAISchedulerDegradedShares(primary, settings)
+		for i := range primary {
+			primary[i].score.TargetShare = primaryShares[i]
+			primary[i].score.TrafficClass = OpenAISchedulerTrafficFallback
+		}
+	}
+	weightedPrimary := weightedOpenAISchedulerPolicyOrder(primary, primaryShares, randomSeed)
+	selected := make(map[int64]struct{}, len(primary))
+	for _, item := range primary {
+		selected[item.candidate.AccountID] = struct{}{}
+	}
+	for i := range normal {
+		if normal[i].score.TrafficClass == "" {
+			normal[i].score.TrafficClass = OpenAISchedulerTrafficFallback
+		}
+	}
+	for i := range lowConfidence {
+		if lowConfidence[i].score.TrafficClass == "" {
+			lowConfidence[i].score.TrafficClass = OpenAISchedulerTrafficFallback
+		}
 	}
 
-	ordered := append(append(make([]openAISchedulerScoredCandidate, 0, len(eligible)+len(tail)), eligible...), tail...)
+	ordered := append([]openAISchedulerScoredCandidate(nil), weightedPrimary...)
+	for _, pool := range [][]openAISchedulerScoredCandidate{normal, lowConfidence} {
+		for _, item := range pool {
+			if _, ok := selected[item.candidate.AccountID]; !ok {
+				ordered = append(ordered, item)
+			}
+		}
+	}
+	ordered = append(ordered, tail...)
 	result.OrderedCandidates = make([]OpenAIBalancedCandidate, 0, len(ordered))
 	scoresByID := make(map[int64]OpenAISchedulerPolicyCandidateScore, len(ordered))
-	for _, item := range ordered {
-		result.OrderedCandidates = append(result.OrderedCandidates, item.candidate)
+	for _, item := range primary {
 		scoresByID[item.candidate.AccountID] = item.score
 	}
+	for _, item := range ordered {
+		result.OrderedCandidates = append(result.OrderedCandidates, item.candidate)
+		if _, ok := scoresByID[item.candidate.AccountID]; !ok {
+			scoresByID[item.candidate.AccountID] = item.score
+		}
+	}
 
-	ranked := append([]openAISchedulerScoredCandidate(nil), eligible...)
+	ranked := append([]openAISchedulerScoredCandidate(nil), normal...)
+	ranked = append(ranked, lowConfidence...)
 	sort.SliceStable(ranked, func(i, j int) bool {
 		if ranked[i].score.Utility != ranked[j].score.Utility {
 			return ranked[i].score.Utility > ranked[j].score.Utility
@@ -156,6 +225,56 @@ func EvaluateOpenAISchedulerPolicy(
 	return result
 }
 
+func EvaluateOpenAISchedulerCandidateEligibility(
+	candidate OpenAIBalancedCandidate,
+	settings OpenAIAutoSchedulerSettings,
+) SchedulerEligibility {
+	result := SchedulerEligibility{
+		AccountID:  candidate.AccountID,
+		HealthKey:  candidate.HealthKey,
+		Eligible:   true,
+		Confidence: "high",
+	}
+	if candidate.HardRejectedReason != "" {
+		result.Eligible = false
+		result.RejectionCode = candidate.HardRejectedReason
+		return result
+	}
+	state := normalizeOpenAIAutoSchedulerState(candidate.State)
+	snapshotStatus := strings.ToLower(strings.TrimSpace(candidate.HealthSnapshotStatus))
+	if snapshotStatus == OpenAISchedulerHealthSnapshotStale {
+		result.Confidence = "low"
+		result.RejectionCode = "health_stale"
+		result.SnapshotAge = candidate.LastRealSampleAge
+		if settings.StaleOpenRequiresProbe && (state == OpenAIAutoSchedulerStateOpen || state == OpenAIAutoSchedulerStateHalfOpen) {
+			result.Eligible = false
+			result.RecoveryOnly = true
+			result.RejectionCode = "health_stale_recovery_required"
+		}
+		return result
+	}
+	if state == OpenAIAutoSchedulerStateOpen {
+		result.Eligible = false
+		result.RejectionCode = "circuit_open"
+		return result
+	}
+	if state == OpenAIAutoSchedulerStateHalfOpen {
+		result.Eligible = false
+		result.RecoveryOnly = true
+		result.RejectionCode = "half_open_recovery_only"
+		return result
+	}
+	if snapshotStatus == OpenAISchedulerHealthSnapshotMissing || candidate.HealthConfidence == "low" || candidate.PredictedTTFTMS <= 0 {
+		result.Confidence = "low"
+		if snapshotStatus == OpenAISchedulerHealthSnapshotMissing {
+			result.RejectionCode = "health_missing"
+		} else {
+			result.RejectionCode = "health_unavailable"
+		}
+	}
+	return result
+}
+
 func scoreOpenAISchedulerPolicyCandidate(
 	candidate OpenAIBalancedCandidate,
 	settings OpenAIAutoSchedulerSettings,
@@ -164,20 +283,15 @@ func scoreOpenAISchedulerPolicyCandidate(
 	minSelectionTier int,
 ) OpenAISchedulerPolicyCandidateScore {
 	score := OpenAISchedulerPolicyCandidateScore{AccountID: candidate.AccountID, Eligibility: OpenAISchedulerEligibilityEligible}
-	if candidate.HardRejectedReason != "" {
+	eligibility := EvaluateOpenAISchedulerCandidateEligibility(candidate, settings)
+	if !eligibility.Eligible {
 		score.Eligibility = OpenAISchedulerEligibilityRejected
-		score.EligibilityReason = candidate.HardRejectedReason
+		score.EligibilityReason = eligibility.RejectionCode
 		return score
 	}
-	state := normalizeOpenAIAutoSchedulerState(candidate.State)
-	if state == OpenAIAutoSchedulerStateOpen || state == OpenAIAutoSchedulerStateHalfOpen {
-		score.Eligibility = OpenAISchedulerEligibilityRejected
-		score.EligibilityReason = state
-		return score
-	}
-	if candidate.HealthConfidence == "low" || candidate.PredictedTTFTMS <= 0 {
+	if eligibility.Confidence == "low" {
 		score.Eligibility = OpenAISchedulerEligibilityLowConfidence
-		score.EligibilityReason = "health_unavailable"
+		score.EligibilityReason = eligibility.RejectionCode
 	}
 	if bestTTFT > 0 && candidate.PredictedTTFTMS > bestTTFT+float64(settings.LatencyBudgetMS) {
 		score.Eligibility = OpenAISchedulerEligibilityLatencyTail
@@ -215,6 +329,95 @@ func scoreOpenAISchedulerPolicyCandidate(
 			weights.Priority*score.PriorityScore,
 	)
 	return score
+}
+
+func sortOpenAISchedulerCandidatesByUtility(candidates []openAISchedulerScoredCandidate) {
+	sort.SliceStable(candidates, func(i, j int) bool {
+		if candidates[i].score.Utility != candidates[j].score.Utility {
+			return candidates[i].score.Utility > candidates[j].score.Utility
+		}
+		return candidates[i].candidate.AccountID < candidates[j].candidate.AccountID
+	})
+}
+
+func effectiveOpenAISchedulerTopK(candidateCount int, settings OpenAIAutoSchedulerSettings) int {
+	if candidateCount <= 0 {
+		return 0
+	}
+	topK := settings.TopK
+	if settings.AdaptiveTopKEnabled {
+		adaptive := 0
+		switch {
+		case candidateCount <= 2:
+			adaptive = candidateCount
+		case candidateCount <= 5:
+			adaptive = 3
+		case candidateCount <= 10:
+			adaptive = 4
+		case candidateCount <= 20:
+			adaptive = 5
+		default:
+			adaptive = 6
+		}
+		if adaptive > topK {
+			topK = adaptive
+		}
+	}
+	if topK > candidateCount {
+		topK = candidateCount
+	}
+	return topK
+}
+
+func dueOpenAISchedulerExplorationCandidates(
+	candidates []openAISchedulerScoredCandidate,
+	settings OpenAIAutoSchedulerSettings,
+) []openAISchedulerScoredCandidate {
+	result := make([]openAISchedulerScoredCandidate, 0, len(candidates))
+	minimumAge := time.Duration(settings.ExplorationMinIntervalSeconds) * time.Second
+	for _, candidate := range candidates {
+		if !candidate.candidate.HasRealSample || candidate.candidate.LastRealSampleAge >= minimumAge {
+			result = append(result, candidate)
+		}
+	}
+	sort.SliceStable(result, func(i, j int) bool {
+		left, right := result[i].candidate, result[j].candidate
+		if left.HasRealSample != right.HasRealSample {
+			return !left.HasRealSample
+		}
+		if left.LastRealSampleAge != right.LastRealSampleAge {
+			return left.LastRealSampleAge > right.LastRealSampleAge
+		}
+		return left.AccountID < right.AccountID
+	})
+	return result
+}
+
+func feasibleOpenAISchedulerExplorationBudget(candidates []openAISchedulerScoredCandidate, settings OpenAIAutoSchedulerSettings) float64 {
+	if len(candidates) == 0 || settings.ExplorationBudget <= 0 {
+		return 0
+	}
+	perAccountCap := settings.LowConfidenceMaxShare
+	switch {
+	case len(candidates) == 1:
+		perAccountCap = math.Min(perAccountCap, 0.15)
+	case len(candidates) <= 3:
+		perAccountCap = math.Min(perAccountCap, 0.10)
+	default:
+		perAccountCap = math.Min(perAccountCap, 0.05)
+	}
+	return math.Min(settings.ExplorationBudget, perAccountCap*float64(len(candidates)))
+}
+
+func openAISchedulerDegradedShares(candidates []openAISchedulerScoredCandidate, settings OpenAIAutoSchedulerSettings) []float64 {
+	shares := make([]float64, len(candidates))
+	if len(candidates) == 0 {
+		return shares
+	}
+	for i := range shares {
+		shares[i] = 1 / float64(len(shares))
+	}
+	return shares
 }
 
 func openAISchedulerPolicyShares(candidates []openAISchedulerScoredCandidate, settings OpenAIAutoSchedulerSettings) []float64 {

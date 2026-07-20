@@ -301,7 +301,11 @@
                 #{{ row.openai_auto_scheduler.speed_priority || '-' }} · {{ formatOpenAIAutoSchedulerSpeed(row.openai_auto_scheduler.speed_ms) }}
               </span>
               <span class="text-xs text-gray-500 dark:text-dark-400">
-                {{ row.openai_auto_scheduler.probe_model }}
+                <template v-if="row.openai_auto_scheduler.status_source === 'unified_health'">
+                  {{ t('admin.accounts.schedulerHealth.unified', { available: row.openai_auto_scheduler.available_dimensions || 0, total: row.openai_auto_scheduler.health_dimensions || 0 }) }}
+                  <template v-if="row.openai_auto_scheduler.stale_dimensions"> · {{ t('admin.accounts.schedulerHealth.stale', { count: row.openai_auto_scheduler.stale_dimensions }) }}</template>
+                </template>
+                <template v-else>{{ t('admin.accounts.schedulerHealth.legacy', { model: row.openai_auto_scheduler.probe_model }) }}</template>
               </span>
             </div>
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
@@ -1470,13 +1474,8 @@ function supportsUpstreamBalanceRefresh(account: Account): boolean {
 }
 
 function openAIAutoSchedulerStateLabel(state: string): string {
-  const labels: Record<string, string> = {
-    running: '正常',
-    observing: '观察中',
-    open: '熔断中',
-    half_open: '半开探测'
-  }
-  return labels[state] || state || '-'
+  const knownStates = new Set(['running', 'observing', 'open', 'half_open'])
+  return knownStates.has(state) ? t(`admin.accounts.schedulerHealth.states.${state}`) : state || '-'
 }
 
 function openAIAutoSchedulerStateClass(state: string): string {

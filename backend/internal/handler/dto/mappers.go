@@ -442,15 +442,19 @@ func AccountFromService(a *service.Account) *Account {
 
 func OpenAIAutoSchedulerAccountSummaryFromService(s service.OpenAIAutoSchedulerAccountSummary) *OpenAIAutoSchedulerAccountSummary {
 	return &OpenAIAutoSchedulerAccountSummary{
-		State:         s.State,
-		SpeedPriority: s.SpeedPriority,
-		SpeedMS:       s.SpeedMS,
-		ProbeModel:    s.ProbeModel,
-		LastTtfbMS:    s.LastTtfbMS,
-		LastLatencyMS: s.LastLatencyMS,
-		LastError:     s.LastError,
-		Reason:        s.Reason,
-		LastCheckedAt: s.LastCheckedAt,
+		State:               s.State,
+		StatusSource:        s.StatusSource,
+		HealthDimensions:    s.HealthDimensions,
+		AvailableDimensions: s.AvailableDimensions,
+		StaleDimensions:     s.StaleDimensions,
+		SpeedPriority:       s.SpeedPriority,
+		SpeedMS:             s.SpeedMS,
+		ProbeModel:          s.ProbeModel,
+		LastTtfbMS:          s.LastTtfbMS,
+		LastLatencyMS:       s.LastLatencyMS,
+		LastError:           s.LastError,
+		Reason:              s.Reason,
+		LastCheckedAt:       s.LastCheckedAt,
 	}
 }
 

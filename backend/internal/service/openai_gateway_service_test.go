@@ -1420,6 +1420,27 @@ func TestOpenAIAutoSchedulerSuccessOutcomeClassifiesWSSemanticRateLimit(t *testi
 	require.Equal(t, "Rate limit exceeded", outcome.Message)
 }
 
+func TestOpenAIAutoSchedulerErrorOutcomeSeparatesRequestAndAccountErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+		message    string
+		want       string
+	}{
+		{name: "bad request", statusCode: http.StatusBadRequest, message: "invalid input", want: OpenAIAutoSchedulerEventRequestError},
+		{name: "content policy forbidden", statusCode: http.StatusForbidden, message: "content policy violation", want: OpenAIAutoSchedulerEventRequestError},
+		{name: "credential forbidden", statusCode: http.StatusForbidden, message: "insufficient account scope", want: OpenAIAutoSchedulerEventError},
+		{name: "rate limit", statusCode: http.StatusTooManyRequests, message: "slow down", want: OpenAIAutoSchedulerEventRateLimited},
+		{name: "server error", statusCode: http.StatusBadGateway, message: "upstream failed", want: OpenAIAutoSchedulerEventError},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			outcome := openAIAutoSchedulerErrorOutcome(time.Now(), &tt.statusCode, errors.New(tt.message))
+			require.Equal(t, tt.want, outcome.EventType)
+		})
+	}
+}
+
 func TestOpenAIAutoSchedulerIncompleteWithStatusPenalizesLegacyScore(t *testing.T) {
 	for _, tt := range []struct {
 		name      string

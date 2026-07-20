@@ -38,7 +38,12 @@ describe('SchedulerSettingsPanel', () => {
     expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
       mode: 'balanced',
       top_k: 3,
+      adaptive_top_k_enabled: true,
       exploration_rate: 0.03,
+      exploration_budget: 0.05,
+      exploration_min_interval_seconds: 600,
+      exploration_max_real_samples_per_hour: 6,
+      stale_open_requires_probe: true,
       session_escape_min_gap_ms: 1000,
       session_escape_ratio: 0.25,
       health_ttl_seconds: 1800,

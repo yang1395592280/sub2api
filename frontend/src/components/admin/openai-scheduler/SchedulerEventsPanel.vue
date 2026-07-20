@@ -76,7 +76,7 @@ function eventKey(event: OpenAIAutoSchedulerEvent): string {
 }
 
 function eventLabel(event: string): string {
-  return { success: t('admin.openaiAutoScheduler.events.types.success'), slow: t('admin.openaiAutoScheduler.events.types.slow'), severe_slow: t('admin.openaiAutoScheduler.events.types.severeSlow'), error: t('admin.openaiAutoScheduler.events.types.error'), rate_limited: t('admin.openaiAutoScheduler.events.types.rateLimited'), probe_success: t('admin.openaiAutoScheduler.events.types.probeSuccess'), probe_error: t('admin.openaiAutoScheduler.events.types.probeError'), manual_reset: t('admin.openaiAutoScheduler.events.types.manualReset') }[event] || event
+  return { success: t('admin.openaiAutoScheduler.events.types.success'), slow: t('admin.openaiAutoScheduler.events.types.slow'), severe_slow: t('admin.openaiAutoScheduler.events.types.severeSlow'), error: t('admin.openaiAutoScheduler.events.types.error'), request_error: t('admin.openaiAutoScheduler.events.types.requestError'), rate_limited: t('admin.openaiAutoScheduler.events.types.rateLimited'), probe_success: t('admin.openaiAutoScheduler.events.types.probeSuccess'), probe_error: t('admin.openaiAutoScheduler.events.types.probeError'), manual_reset: t('admin.openaiAutoScheduler.events.types.manualReset') }[event] || event
 }
 
 function eventClass(event: string): string {

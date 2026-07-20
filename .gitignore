@@ -145,6 +145,7 @@ docs/superpowers/*
 !docs/superpowers/specs/
 docs/superpowers/specs/*
 !docs/superpowers/specs/2026-07-15-openai-scheduler-policy-ranking-design.md
+!docs/superpowers/specs/2026-07-20-openai-scheduler-runtime-configuration-and-fairness-optimization.md
 .serena/
 .codex/
 frontend/coverage/

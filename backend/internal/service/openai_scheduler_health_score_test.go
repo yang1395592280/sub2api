@@ -78,6 +78,22 @@ func TestApplyOpenAISchedulerHealthEvent(t *testing.T) {
 		require.Equal(t, OpenAIAutoSchedulerStateOpen, got.State)
 	})
 
+	t.Run("request error keeps account health unchanged", func(t *testing.T) {
+		status := 400
+		current := OpenAISchedulerHealthSnapshot{
+			State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 500,
+			RealSampleCount: 4, ErrorRate: 0.25, ConsecutiveError: 1,
+		}
+		got := ApplyOpenAISchedulerHealthEvent(now, current, OpenAISchedulerHealthEvent{
+			Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventRequestError, StatusCode: &status, OccurredAt: now,
+		}, settings)
+		require.Equal(t, current.State, got.State)
+		require.Equal(t, current.RealSampleCount, got.RealSampleCount)
+		require.Equal(t, current.ErrorRate, got.ErrorRate)
+		require.Equal(t, current.ConsecutiveError, got.ConsecutiveError)
+		require.Equal(t, now.Add(settings.StateTTL), got.ExpiresAt)
+	})
+
 	t.Run("first TTFT initializes prediction after an error-only sample", func(t *testing.T) {
 		got := ApplyOpenAISchedulerHealthEvent(now, OpenAISchedulerHealthSnapshot{
 			State: OpenAIAutoSchedulerStateObserving, RealSampleCount: 1, ErrorRate: 1,

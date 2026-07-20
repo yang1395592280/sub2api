@@ -17,6 +17,17 @@ const overview = {
   ],
   trend: [{ bucket: '2026-07-14T10:00:00Z', e2e_ttft_p50_ms: 2970, e2e_ttft_p90_ms: 7210 }],
   slow_causes: [{ reason: 'upstream_ttft' as const, count: 12, ratio: 0.6 }],
+  runtime: {
+    exploration_allowed_total: 8,
+    exploration_rejected_total: 0,
+    exploration_interval_total: 3,
+    exploration_hourly_total: 2,
+    exploration_error_total: 1,
+    low_confidence_fallback_total: 4,
+    unified_health_reads_total: 10,
+    unified_health_dimensions_total: 40,
+    unified_health_fallbacks_total: 2,
+  },
 }
 
 describe('SchedulerOverview', () => {
@@ -31,6 +42,9 @@ describe('SchedulerOverview', () => {
     expect(wrapper.text()).toContain('18ms')
     expect(wrapper.text()).toContain('24%')
     expect(wrapper.text()).toContain('上游首字延迟')
+    expect(wrapper.text()).toContain('当前实例自启动累计')
+    expect(wrapper.text()).toContain('探索放行')
+    expect(wrapper.text()).toContain('低置信降级命中')
     expect(wrapper.get('[data-testid="ttft-chart"]').text()).toBe('1')
   })
 

@@ -44,6 +44,10 @@ type OpenAIAutoSchedulerProbeChecker interface {
 	Check(ctx context.Context, account *Account, model string, timeout time.Duration) OpenAIAutoSchedulerProbeResult
 }
 
+type openAIAutoSchedulerDimensionProbeChecker interface {
+	CheckHealth(ctx context.Context, account *Account, key OpenAISchedulerHealthKey, timeout time.Duration) OpenAIAutoSchedulerProbeResult
+}
+
 type OpenAIAutoSchedulerProbeRunner struct {
 	svc                 openAIAutoSchedulerProbeRunnerService
 	settingsProvider    OpenAIAutoSchedulerSettingsProvider
@@ -246,6 +250,8 @@ func (r *OpenAIAutoSchedulerProbeRunner) runOnce(ctx context.Context) {
 
 	model := selectOpenAIAutoSchedulerProbeModel(settings)
 	plans := make(map[OpenAISchedulerHealthKey]*openAIAutoSchedulerProbePlanItem)
+	accountsByID := make(map[int64]Account)
+	groupIDsByAccount := make(map[int64][]int64)
 	for i := range groups {
 		if cycleCtx.Err() != nil {
 			return
@@ -261,6 +267,10 @@ func (r *OpenAIAutoSchedulerProbeRunner) runOnce(ctx context.Context) {
 				return
 			}
 			account := accounts[i]
+			accountsByID[account.ID] = account
+			if !containsOpenAIAutoSchedulerProbeGroup(groupIDsByAccount[account.ID], group.ID) {
+				groupIDsByAccount[account.ID] = append(groupIDsByAccount[account.ID], group.ID)
+			}
 			healthKey := openAIAutoSchedulerProbeHealthKey(&account, model)
 			if !isCompleteOpenAISchedulerHealthKey(healthKey) {
 				continue
@@ -270,6 +280,11 @@ func (r *OpenAIAutoSchedulerProbeRunner) runOnce(ctx context.Context) {
 			})
 		}
 	}
+	planNow := time.Now()
+	if r.now != nil {
+		planNow = r.now()
+	}
+	r.mergeOpenAIAutoSchedulerRecoveryProbePlans(cycleCtx, plans, accountsByID, groupIDsByAccount, planNow)
 	if len(plans) == 0 {
 		return
 	}
@@ -284,10 +299,7 @@ func (r *OpenAIAutoSchedulerProbeRunner) runOnce(ctx context.Context) {
 		healthSnapshots = map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{}
 	}
 
-	now := time.Now()
-	if r.now != nil {
-		now = r.now()
-	}
+	now := planNow
 	var cycleWG sync.WaitGroup
 	for key, plan := range plans {
 		if cycleCtx.Err() != nil {
@@ -327,7 +339,12 @@ func (r *OpenAIAutoSchedulerProbeRunner) runProbe(ctx context.Context, plan open
 	probeCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	result := r.checker.Check(probeCtx, &plan.account, plan.model, timeout)
+	var result OpenAIAutoSchedulerProbeResult
+	if checker, ok := r.checker.(openAIAutoSchedulerDimensionProbeChecker); ok {
+		result = checker.CheckHealth(probeCtx, &plan.account, plan.healthKey, timeout)
+	} else {
+		result = r.checker.Check(probeCtx, &plan.account, plan.model, timeout)
+	}
 	eventType := classifyOpenAIAutoSchedulerProbeEvent(result, settings)
 	message := strings.TrimSpace(result.Message)
 	if result.Err != nil && message == "" {
@@ -354,6 +371,58 @@ func (r *OpenAIAutoSchedulerProbeRunner) runProbe(ctx context.Context, plan open
 			slog.Warn("openai_auto_scheduler_probe: record failed", "account_id", plan.account.ID, "group_id", groupID, "error", err)
 		}
 	}
+}
+
+func (r *OpenAIAutoSchedulerProbeRunner) mergeOpenAIAutoSchedulerRecoveryProbePlans(
+	ctx context.Context,
+	plans map[OpenAISchedulerHealthKey]*openAIAutoSchedulerProbePlanItem,
+	accountsByID map[int64]Account,
+	groupIDsByAccount map[int64][]int64,
+	now time.Time,
+) {
+	if r == nil || r.healthSink == nil || r.healthSink.repo == nil || len(accountsByID) == 0 {
+		return
+	}
+	repo, ok := r.healthSink.repo.(OpenAISchedulerHealthSummaryRepository)
+	if !ok {
+		return
+	}
+	accountIDs := make([]int64, 0, len(accountsByID))
+	for accountID := range accountsByID {
+		accountIDs = append(accountIDs, accountID)
+	}
+	snapshots, err := repo.ListByAccountIDs(ctx, accountIDs)
+	if err != nil {
+		slog.Warn("openai_auto_scheduler_probe: list recovery dimensions failed", "error", err)
+		return
+	}
+	for _, snapshot := range snapshots {
+		key := normalizeOpenAISchedulerHealthKey(snapshot.Key)
+		account, exists := accountsByID[key.AccountID]
+		if !exists || !isOpenAIAutoSchedulerDimensionProbeSupported(key) || !isOpenAIAutoSchedulerRecoveryProbeDue(snapshot, now) {
+			continue
+		}
+		mergeOpenAIAutoSchedulerProbePlanItem(plans, openAIAutoSchedulerProbePlanItem{
+			account: account, healthKey: key, groupIDs: groupIDsByAccount[key.AccountID], model: key.ModelFamily,
+		})
+	}
+}
+
+func isOpenAIAutoSchedulerDimensionProbeSupported(key OpenAISchedulerHealthKey) bool {
+	key = normalizeOpenAISchedulerHealthKey(key)
+	if key.Transport != string(OpenAIUpstreamTransportHTTPSSE) {
+		return false
+	}
+	return key.Endpoint == openAISchedulerHealthEndpointResponses || key.Endpoint == openAISchedulerHealthEndpointChat
+}
+
+func isOpenAIAutoSchedulerRecoveryProbeDue(snapshot OpenAISchedulerHealthSnapshot, now time.Time) bool {
+	state := normalizeOpenAIAutoSchedulerState(snapshot.State)
+	if state == OpenAIAutoSchedulerStateOpen && snapshot.CooldownUntil != nil && now.Before(*snapshot.CooldownUntil) {
+		return false
+	}
+	return state == OpenAIAutoSchedulerStateOpen || state == OpenAIAutoSchedulerStateHalfOpen ||
+		snapshot.ExpiresAt.IsZero() || !now.Before(snapshot.ExpiresAt)
 }
 
 func mergeOpenAIAutoSchedulerProbePlanItem(plans map[OpenAISchedulerHealthKey]*openAIAutoSchedulerProbePlanItem, item openAIAutoSchedulerProbePlanItem) {
@@ -530,19 +599,26 @@ func NewOpenAIAutoSchedulerProbeChecker(httpUpstream HTTPUpstream, tlsFPProfileS
 }
 
 func (c *openAIAutoSchedulerProbeHTTPChecker) Check(ctx context.Context, account *Account, model string, timeout time.Duration) OpenAIAutoSchedulerProbeResult {
+	return c.CheckHealth(ctx, account, openAIAutoSchedulerProbeHealthKey(account, model), timeout)
+}
+
+func (c *openAIAutoSchedulerProbeHTTPChecker) CheckHealth(ctx context.Context, account *Account, key OpenAISchedulerHealthKey, timeout time.Duration) OpenAIAutoSchedulerProbeResult {
 	if c == nil || c.httpUpstream == nil || account == nil {
 		return OpenAIAutoSchedulerProbeResult{Err: errors.New("probe checker not configured")}
 	}
 	if !account.IsOpenAI() {
 		return OpenAIAutoSchedulerProbeResult{Err: errors.New("account is not openai")}
 	}
+	key = normalizeOpenAISchedulerHealthKey(key)
+	if !isOpenAIAutoSchedulerDimensionProbeSupported(key) {
+		return OpenAIAutoSchedulerProbeResult{Err: errors.New("probe health dimension is unsupported")}
+	}
 
 	baseURL := account.GetOpenAIBaseURL()
 	if baseURL == "" {
 		baseURL = "https://api.openai.com"
 	}
-	upstreamModel := normalizeOpenAIModelForUpstream(account, account.GetMappedModel(model))
-	targetURL, payload, accept := openAIAutoSchedulerProbeRequest(baseURL, upstreamModel, account)
+	targetURL, payload, accept := openAIAutoSchedulerProbeRequestForHealthKey(baseURL, key, account)
 
 	callCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -586,6 +662,20 @@ func (c *openAIAutoSchedulerProbeHTTPChecker) Check(ctx context.Context, account
 		return OpenAIAutoSchedulerProbeResult{LatencyMS: &latencyMS, TtfbMS: &ttfbMS, Err: errors.New("empty probe response")}
 	}
 	return OpenAIAutoSchedulerProbeResult{Success: true, LatencyMS: &latencyMS, TtfbMS: &ttfbMS}
+}
+
+func openAIAutoSchedulerProbeRequestForHealthKey(baseURL string, key OpenAISchedulerHealthKey, account *Account) (string, []byte, string) {
+	if key.Endpoint == openAISchedulerHealthEndpointChat {
+		payload, _ := json.Marshal(map[string]any{
+			"model":    key.ModelFamily,
+			"messages": []map[string]any{{"role": "user", "content": "probe"}},
+			"stream":   true,
+		})
+		return buildOpenAIChatCompletionsURL(baseURL), payload, "text/event-stream"
+	}
+	isOAuth := account != nil && account.IsOAuth()
+	payload, _ := json.Marshal(createOpenAITestPayload(key.ModelFamily, isOAuth))
+	return buildOpenAIResponsesURL(baseURL), payload, "text/event-stream"
 }
 
 func openAIAutoSchedulerProbeRequest(baseURL string, upstreamModel string, account *Account) (string, []byte, string) {

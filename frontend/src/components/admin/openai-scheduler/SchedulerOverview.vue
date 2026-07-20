@@ -16,6 +16,19 @@
       </div>
     </div>
 
+    <section class="border-y border-gray-200 py-3 dark:border-dark-700">
+      <div class="mb-2 flex items-center justify-between gap-3">
+        <h3 class="text-xs font-semibold text-gray-700 dark:text-dark-200">{{ t('admin.openaiAutoScheduler.overview.runtimeCounters') }}</h3>
+        <span class="text-xs text-gray-400 dark:text-dark-500">{{ t('admin.openaiAutoScheduler.overview.currentInstance') }}</span>
+      </div>
+      <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-xs md:grid-cols-3 xl:grid-cols-6">
+        <div v-for="counter in runtimeCounters" :key="counter.key" class="min-w-0">
+          <dt class="truncate text-gray-500 dark:text-dark-400" :title="counter.label">{{ counter.label }}</dt>
+          <dd class="mt-0.5 font-semibold tabular-nums text-gray-900 dark:text-white">{{ counter.value }}</dd>
+        </div>
+      </dl>
+    </section>
+
     <div
       v-if="highestAlert"
       class="flex items-center justify-between gap-4 border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200"
@@ -79,6 +92,18 @@ const metrics = computed(() => [
   { key: 'probe', label: t('admin.openaiAutoScheduler.overview.probeRatio'), value: formatPercent(props.overview?.probe_ratio), note: t('admin.openaiAutoScheduler.overview.probeRatioNote') },
 ])
 
+const runtimeCounters = computed(() => {
+  const runtime = props.overview?.runtime
+  return [
+    { key: 'exploration-allowed', label: t('admin.openaiAutoScheduler.overview.explorationAllowed'), value: formatCount(runtime?.exploration_allowed_total) },
+    { key: 'exploration-interval', label: t('admin.openaiAutoScheduler.overview.explorationInterval'), value: formatCount(runtime?.exploration_interval_total) },
+    { key: 'exploration-hourly', label: t('admin.openaiAutoScheduler.overview.explorationHourly'), value: formatCount(runtime?.exploration_hourly_total) },
+    { key: 'exploration-errors', label: t('admin.openaiAutoScheduler.overview.explorationErrors'), value: formatCount(runtime?.exploration_error_total) },
+    { key: 'low-confidence-fallback', label: t('admin.openaiAutoScheduler.overview.lowConfidenceFallback'), value: formatCount(runtime?.low_confidence_fallback_total) },
+    { key: 'health-fallback', label: t('admin.openaiAutoScheduler.overview.healthFallback'), value: formatCount(runtime?.unified_health_fallbacks_total) }
+  ]
+})
+
 const highestAlert = computed(() => {
   const priority = { critical: 3, warning: 2, ok: 1, disabled: 0 }
   return [...(props.overview?.groups || [])]
@@ -95,6 +120,10 @@ function formatDuration(value?: number | null): string {
 function formatPercent(value?: number | null): string {
   if (value == null) return '—'
   return `${Math.round(value * 100)}%`
+}
+
+function formatCount(value?: number | null): string {
+  return value == null ? '—' : new Intl.NumberFormat().format(value)
 }
 
 function slowCauseLabel(reason: string): string {

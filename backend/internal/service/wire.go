@@ -751,6 +751,7 @@ func ProvideOpenAIGatewayService(
 	openAIAutoSchedulerService *OpenAIAutoSchedulerService,
 	openAIAutoSchedulerOutcomeRecorder *OpenAIAutoSchedulerOutcomeRecorder,
 	openAIBalancedScheduler *OpenAIBalancedScheduler,
+	openAIExplorationCache OpenAISchedulerExplorationCache,
 	openAIAutoCheapestGroupCircuit OpenAIAutoCheapestGroupCircuit,
 	apiKeyService *APIKeyService,
 	apiKeyRepo APIKeyRepository,
@@ -782,6 +783,7 @@ func ProvideOpenAIGatewayService(
 	svc.SetOpenAIAutoScheduler(openAIAutoSchedulerSelector, openAIAutoSchedulerService)
 	svc.SetOpenAIAutoSchedulerOutcomeRecorder(openAIAutoSchedulerOutcomeRecorder)
 	svc.SetOpenAIBalancedScheduler(openAIBalancedScheduler)
+	svc.SetOpenAISchedulerExplorationCache(openAIExplorationCache)
 	svc.SetOpenAIAutoCheapestGroupCircuit(openAIAutoCheapestGroupCircuit)
 	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(apiKeyService), apiKeyRepo)
 	return svc

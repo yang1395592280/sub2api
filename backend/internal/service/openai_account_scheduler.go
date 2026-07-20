@@ -86,6 +86,7 @@ type OpenAIAccountScheduleRequest struct {
 	ExcludedIDs             map[int64]struct{}
 	balancedHealthSnapshots map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot
 	balancedHealthAttempted bool
+	balancedHealthLoaded    bool
 	balancedAccountsReady   bool
 	balancedAccounts        []*Account
 	balancedLoadRequest     []AccountWithConcurrency
@@ -111,17 +112,23 @@ type OpenAIAccountScheduleDecision struct {
 }
 
 type OpenAIAccountSchedulerMetricsSnapshot struct {
-	SelectTotal              int64
-	StickyPreviousHitTotal   int64
-	StickySessionHitTotal    int64
-	LoadBalanceSelectTotal   int64
-	AccountSwitchTotal       int64
-	SchedulerLatencyMsTotal  int64
-	SchedulerLatencyMsAvg    float64
-	StickyHitRatio           float64
-	AccountSwitchRate        float64
-	LoadSkewAvg              float64
-	RuntimeStatsAccountCount int
+	SelectTotal                int64
+	StickyPreviousHitTotal     int64
+	StickySessionHitTotal      int64
+	LoadBalanceSelectTotal     int64
+	AccountSwitchTotal         int64
+	SchedulerLatencyMsTotal    int64
+	SchedulerLatencyMsAvg      float64
+	StickyHitRatio             float64
+	AccountSwitchRate          float64
+	LoadSkewAvg                float64
+	RuntimeStatsAccountCount   int
+	ExplorationAllowedTotal    int64
+	ExplorationRejectedTotal   int64
+	ExplorationIntervalTotal   int64
+	ExplorationHourlyTotal     int64
+	ExplorationErrorTotal      int64
+	LowConfidenceFallbackTotal int64
 }
 
 type OpenAIAccountScheduler interface {
@@ -139,6 +146,12 @@ type openAIAccountSchedulerMetrics struct {
 	accountSwitchTotal     atomic.Int64
 	latencyMsTotal         atomic.Int64
 	loadSkewMilliTotal     atomic.Int64
+	explorationAllowed     atomic.Int64
+	explorationRejected    atomic.Int64
+	explorationInterval    atomic.Int64
+	explorationHourly      atomic.Int64
+	explorationError       atomic.Int64
+	lowConfidenceFallback  atomic.Int64
 }
 
 type openAIAccountLoadPlan struct {
@@ -495,7 +508,12 @@ func (s *defaultOpenAIAccountScheduler) withOpenAIBalancedRuntimeSettings(
 		Mode:                   settings.Mode,
 		ShadowMode:             settings.ShadowMode,
 		TopK:                   settings.TopK,
+		AdaptiveTopKEnabled:    settings.AdaptiveTopKEnabled,
 		ExplorationRate:        settings.ExplorationRate,
+		ExplorationBudget:      settings.ExplorationBudget,
+		ExplorationMinInterval: time.Duration(settings.ExplorationMinIntervalSeconds) * time.Second,
+		ExplorationMaxSamples:  settings.ExplorationMaxRealSamplesPerHour,
+		StaleOpenRequiresProbe: settings.StaleOpenRequiresProbe,
 		LatencyBudgetMS:        float64(settings.LatencyBudgetMS),
 		SessionEscapeMinGapMS:  float64(settings.SessionEscapeMinGapMS),
 		SessionEscapeRatio:     settings.SessionEscapeRatio,
@@ -572,6 +590,7 @@ func (s *defaultOpenAIAccountScheduler) openAIBalancedShadowDecisionForSticky(
 		Now:                     now,
 		HealthSnapshots:         req.balancedHealthSnapshots,
 		HealthLoadAttempted:     req.balancedHealthAttempted,
+		HealthLoadSucceeded:     req.balancedHealthLoaded || req.balancedHealthSnapshots != nil,
 	})
 	return result, err == nil
 }
@@ -729,14 +748,17 @@ func (s *defaultOpenAIAccountScheduler) shouldEscapeStickyAccount(accountID int6
 }
 
 type openAIAccountCandidateScore struct {
-	account   *Account
-	loadInfo  *AccountLoadInfo
-	loadKnown bool
-	score     float64
-	priority  int
-	errorRate float64
-	ttft      float64
-	hasTTFT   bool
+	account               *Account
+	loadInfo              *AccountLoadInfo
+	loadKnown             bool
+	score                 float64
+	priority              int
+	errorRate             float64
+	ttft                  float64
+	hasTTFT               bool
+	schedulerTrafficClass string
+	schedulerEligibility  string
+	schedulerHealthKey    OpenAISchedulerHealthKey
 }
 
 type openAIAccountCandidateHeap []openAIAccountCandidateScore
@@ -1195,14 +1217,17 @@ func (s *defaultOpenAIAccountScheduler) applyOpenAIBalancedSelectionOrder(
 		legacyPositions[candidate.account.ID] = len(legacyPositions)
 	}
 	balancedCandidates := make([]OpenAIBalancedCandidate, 0, len(plan.candidates))
+	healthKeyByAccount := make(map[int64]OpenAISchedulerHealthKey, len(plan.candidates))
 	now := time.Now()
 	for _, candidate := range plan.candidates {
 		if candidate.account == nil || candidate.loadInfo == nil {
 			continue
 		}
-		balancedCandidates = append(balancedCandidates, openAIBalancedCandidateForAccount(
+		balancedCandidate := openAIBalancedCandidateForAccount(
 			s.service, req, candidate.account, candidate.loadInfo, legacyPositions[candidate.account.ID], now,
-		))
+		)
+		balancedCandidates = append(balancedCandidates, balancedCandidate)
+		healthKeyByAccount[candidate.account.ID] = balancedCandidate.HealthKey
 	}
 	previousResponseAccountID := req.StickyPreviousAccountID
 	sessionAccountID := req.StickyAccountID
@@ -1224,6 +1249,7 @@ func (s *defaultOpenAIAccountScheduler) applyOpenAIBalancedSelectionOrder(
 		Now:                       now,
 		HealthSnapshots:           req.balancedHealthSnapshots,
 		HealthLoadAttempted:       req.balancedHealthAttempted,
+		HealthLoadSucceeded:       req.balancedHealthLoaded || req.balancedHealthSnapshots != nil,
 	})
 	if err != nil || (len(result.OrderedAccountIDs) == 0 && len(result.RejectedAccountIDs) == 0) {
 		return
@@ -1254,9 +1280,16 @@ func (s *defaultOpenAIAccountScheduler) applyOpenAIBalancedSelectionOrder(
 			candidatesByID[candidate.account.ID] = candidate
 		}
 	}
+	policyScoresByID := make(map[int64]OpenAISchedulerPolicyCandidateScore, len(result.PolicyScores))
+	for _, score := range result.PolicyScores {
+		policyScoresByID[score.AccountID] = score
+	}
 	selectionOrder := make([]openAIAccountCandidateScore, 0, len(orderedIDs))
 	for _, accountID := range orderedIDs {
 		if candidate, ok := candidatesByID[accountID]; ok {
+			candidate.schedulerTrafficClass = policyScoresByID[accountID].TrafficClass
+			candidate.schedulerEligibility = policyScoresByID[accountID].Eligibility
+			candidate.schedulerHealthKey = healthKeyByAccount[accountID]
 			selectionOrder = append(selectionOrder, candidate)
 		}
 	}
@@ -1484,6 +1517,13 @@ func (s *defaultOpenAIAccountScheduler) tryAcquireOpenAISelectionOrderWithBudget
 			release(result)
 			continue
 		}
+		if candidate.schedulerTrafficClass == OpenAISchedulerTrafficExploration {
+			candidate.schedulerHealthKey = s.service.openAIBalancedHealthKeyForCandidate(fresh, req)
+			if !s.reserveOpenAISchedulerExploration(ctx, req, candidate) {
+				release(result)
+				continue
+			}
+		}
 
 		if fresh.Concurrency != candidate.account.Concurrency {
 			release(result)
@@ -1501,6 +1541,9 @@ func (s *defaultOpenAIAccountScheduler) tryAcquireOpenAISelectionOrderWithBudget
 		if req.SessionHash != "" && !req.PreserveStickyBinding {
 			_ = s.service.BindStickySession(ctx, req.GroupID, req.SessionHash, fresh.ID)
 		}
+		if candidate.schedulerTrafficClass == OpenAISchedulerTrafficFallback && candidate.schedulerEligibility == OpenAISchedulerEligibilityLowConfidence {
+			s.metrics.lowConfidenceFallback.Add(1)
+		}
 		return &AccountSelectionResult{
 			Account:     fresh,
 			Acquired:    true,
@@ -1508,6 +1551,45 @@ func (s *defaultOpenAIAccountScheduler) tryAcquireOpenAISelectionOrderWithBudget
 		}, compactBlocked, nil
 	}
 	return nil, compactBlocked, nil
+}
+
+func (s *defaultOpenAIAccountScheduler) reserveOpenAISchedulerExploration(
+	ctx context.Context,
+	req OpenAIAccountScheduleRequest,
+	candidate openAIAccountCandidateScore,
+) bool {
+	if s == nil || s.service == nil || s.service.openaiExplorationCache == nil {
+		return true
+	}
+	settings := normalizeOpenAIBalancedSettings(req.balancedPolicySettings)
+	outcome := OpenAISchedulerExplorationReservationDenied
+	var err error
+	if detailed, ok := s.service.openaiExplorationCache.(OpenAISchedulerDetailedExplorationCache); ok {
+		outcome, err = detailed.ReserveWithOutcome(ctx, candidate.schedulerHealthKey, settings.ExplorationMinInterval, settings.ExplorationMaxSamples)
+	} else {
+		var allowed bool
+		allowed, err = s.service.openaiExplorationCache.Reserve(ctx, candidate.schedulerHealthKey, settings.ExplorationMinInterval, settings.ExplorationMaxSamples)
+		if allowed {
+			outcome = OpenAISchedulerExplorationReservationAllowed
+		}
+	}
+	if err != nil {
+		s.metrics.explorationError.Add(1)
+		slog.Warn("openai_scheduler_exploration_reservation_failed", "account_id", candidate.account.ID, "error", err)
+		return false
+	}
+	switch outcome {
+	case OpenAISchedulerExplorationReservationAllowed:
+		s.metrics.explorationAllowed.Add(1)
+		return true
+	case OpenAISchedulerExplorationReservationMinimumInterval:
+		s.metrics.explorationInterval.Add(1)
+	case OpenAISchedulerExplorationReservationHourlyLimit:
+		s.metrics.explorationHourly.Add(1)
+	default:
+		s.metrics.explorationRejected.Add(1)
+	}
+	return false
 }
 
 func (s *defaultOpenAIAccountScheduler) tryAcquireOpenAIAccountSlot(
@@ -1795,11 +1877,22 @@ func (s *defaultOpenAIAccountScheduler) isOpenAIBalancedCircuitRejected(
 		return false
 	}
 	snapshot, ok := req.balancedHealthSnapshots[key]
-	if !ok || snapshot.ExpiresAt.IsZero() || !time.Now().Before(snapshot.ExpiresAt) {
+	if !ok {
 		return false
 	}
-	state := normalizeOpenAIAutoSchedulerState(snapshot.State)
-	return state == OpenAIAutoSchedulerStateOpen || state == OpenAIAutoSchedulerStateHalfOpen
+	now := time.Now()
+	status := OpenAISchedulerHealthSnapshotFresh
+	confidence := "high"
+	if snapshot.ExpiresAt.IsZero() || !now.Before(snapshot.ExpiresAt) {
+		status = OpenAISchedulerHealthSnapshotStale
+		confidence = "low"
+	}
+	settings := openAIAutoSchedulerSettingsFromBalanced(req.balancedPolicySettings)
+	eligibility := EvaluateOpenAISchedulerCandidateEligibility(OpenAIBalancedCandidate{
+		AccountID: account.ID, HealthKey: key, State: snapshot.State,
+		HealthConfidence: confidence, HealthSnapshotStatus: status,
+	}, settings)
+	return !eligibility.Eligible
 }
 
 func (s *defaultOpenAIAccountScheduler) openAIBalancedSoftStickyEscapeReason(
@@ -1826,12 +1919,15 @@ func (s *defaultOpenAIAccountScheduler) openAIBalancedSoftStickyEscapeReason(
 		return ""
 	}
 	running := hydrated[:0]
+	policySettings := openAIAutoSchedulerSettingsFromBalanced(req.balancedPolicySettings)
 	for _, candidate := range hydrated {
-		state := normalizeOpenAIAutoSchedulerState(candidate.State)
-		if state == OpenAIAutoSchedulerStateOpen || state == OpenAIAutoSchedulerStateHalfOpen {
+		eligibility := EvaluateOpenAISchedulerCandidateEligibility(candidate, policySettings)
+		if candidate.AccountID == accountID && eligibility.Confidence == "low" {
+			return eligibility.RejectionCode
+		}
+		if !eligibility.Eligible {
 			continue
 		}
-		candidate.State = state
 		running = append(running, candidate)
 	}
 	if len(running) == 0 {
@@ -1871,6 +1967,7 @@ func (s *defaultOpenAIAccountScheduler) preloadOpenAIBalancedHealth(
 	req.balancedHealthAttempted = true
 	states, ok := s.service.openaiBalancedScheduler.loadOpenAIBalancedHealthSnapshots(ctx, candidates, now)
 	if ok {
+		req.balancedHealthLoaded = true
 		req.balancedHealthSnapshots = states
 	}
 	return req
@@ -2209,13 +2306,19 @@ func (s *defaultOpenAIAccountScheduler) SnapshotMetrics() OpenAIAccountScheduler
 	loadSkewTotal := s.metrics.loadSkewMilliTotal.Load()
 
 	snapshot := OpenAIAccountSchedulerMetricsSnapshot{
-		SelectTotal:              selectTotal,
-		StickyPreviousHitTotal:   prevHit,
-		StickySessionHitTotal:    sessionHit,
-		LoadBalanceSelectTotal:   s.metrics.loadBalanceSelectTotal.Load(),
-		AccountSwitchTotal:       switchTotal,
-		SchedulerLatencyMsTotal:  latencyTotal,
-		RuntimeStatsAccountCount: s.stats.size(),
+		SelectTotal:                selectTotal,
+		StickyPreviousHitTotal:     prevHit,
+		StickySessionHitTotal:      sessionHit,
+		LoadBalanceSelectTotal:     s.metrics.loadBalanceSelectTotal.Load(),
+		AccountSwitchTotal:         switchTotal,
+		SchedulerLatencyMsTotal:    latencyTotal,
+		RuntimeStatsAccountCount:   s.stats.size(),
+		ExplorationAllowedTotal:    s.metrics.explorationAllowed.Load(),
+		ExplorationRejectedTotal:   s.metrics.explorationRejected.Load(),
+		ExplorationIntervalTotal:   s.metrics.explorationInterval.Load(),
+		ExplorationHourlyTotal:     s.metrics.explorationHourly.Load(),
+		ExplorationErrorTotal:      s.metrics.explorationError.Load(),
+		LowConfidenceFallbackTotal: s.metrics.lowConfidenceFallback.Load(),
 	}
 	if selectTotal > 0 {
 		snapshot.SchedulerLatencyMsAvg = float64(latencyTotal) / float64(selectTotal)

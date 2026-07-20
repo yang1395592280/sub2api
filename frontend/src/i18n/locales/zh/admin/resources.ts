@@ -81,7 +81,8 @@ export default {
         e2eP50: '端到端首字 P50', e2eP90: '端到端首字 P90', selectionP95: '选择阶段 P95', probeRatio: '探测样本占比',
         typicalExperience: '典型用户体验', tailExperience: '尾部用户体验', routingProxy: '以路由耗时代理', probeRatioNote: '探测 / 全部健康样本',
         trend: '端到端首字趋势', realRequests: '真实用户请求', noTrend: '暂无首字趋势数据', slowCauses: '慢请求原因', noSlowRequests: '暂无慢请求',
-        causeUpstream: '上游首字延迟', causeQueue: '并发排队', causeRetry: '请求重试', viewAccounts: '查看账号'
+        causeUpstream: '上游首字延迟', causeQueue: '并发排队', causeRetry: '请求重试', viewAccounts: '查看账号',
+        runtimeCounters: '调度运行计数', currentInstance: '当前实例自启动累计', explorationAllowed: '探索放行', explorationInterval: '间隔拒绝', explorationHourly: '小时上限拒绝', explorationErrors: '探索缓存错误', lowConfidenceFallback: '低置信降级命中', healthFallback: '旧健康评分回退'
       },
       health: {
         allStates: '全部状态', allEndpoints: '全部端点', allTransports: '全部传输', model: '模型', sort: '排序',
@@ -96,19 +97,20 @@ export default {
         pending: '等待策略计算', engineDisabled: '高级调度引擎未开启 · 当前使用上游兼容调度', globalDisabled: '自动调度全局未开启 · 当前使用高级 Legacy', groupDisabled: '当前分组未开启自动调度 · 当前使用高级 Legacy', shadowEffective: '{mode} · 影子计算，真实流量仍使用 Legacy', liveEffective: '{mode} · 真实生效',
         candidates: '真实账号', eligible: '合格', lowConfidence: '低置信度', rejected: '排除', requests: '窗口请求', allEligibility: '全部资格', rank: '排名', qualification: '资格', utility: '综合效用', share: '目标 / 实际份额', target: '目标', actual: '实际', performance: '性能', stability: '稳定性', cost: '成本', decision: '决策摘要', noData: '当前分组暂无可排名账号', drawerLabel: '账号排名详情', scoreBreakdown: '综合效用拆解', runtimeFacts: '运行事实', confidence: '置信度', noDeviation: '份额偏差正常', comprehensiveScope: '综合账号视图', comprehensiveAccount: '按真实账号汇总', aggregatedPartitions: '聚合 {count} 个调度维度',
         eligibility: { eligible: '合格', lowConfidence: '低置信度', latencyTail: '延迟尾部', hardRejected: '硬条件排除' },
+        trafficClass: { normal: '正常分配', exploration: '受控探索', fallback: '仅回退', mixed: '混合流量' },
         decisions: { highestUtility: '综合效用最高', weightedAllocation: '按目标份额分配', fallbackOnly: '仅作为回退候选', healthUnavailable: '健康数据不足', latencyBudgetExceeded: '超出延迟预算' },
         deviations: { healthLowConfidence: '健康置信度较低', insufficientSamples: '窗口样本不足', shadowMode: '影子模式不影响真实流量', legacyFallback: '真实流量由 Legacy 调度', other: '存在结构化偏差原因' },
         scores: { latency: '延迟', reliability: '可靠性', cost: '成本', capacity: '容量', quota: '配额', priority: '优先级' }
       },
       events: {
         time: '时间', accountModel: '账号 / 模型', result: '结果', latency: '延迟', scoreChange: '健康分变化', detail: '详情', ttfb: 'TTFB', totalDuration: '总耗时', noData: '暂无调度事件',
-        types: { success: '请求成功', slow: '慢响应', severeSlow: '严重慢响应', error: '请求错误', rateLimited: '上游限流', probeSuccess: '探测成功', probeError: '探测失败', manualReset: '手动重置' }
+        types: { success: '请求成功', slow: '慢响应', severeSlow: '严重慢响应', error: '账号错误', requestError: '请求参数或内容错误', rateLimited: '上游限流', probeSuccess: '探测成功', probeError: '探测失败', manualReset: '手动重置' }
       },
       settings: {
-        runtime: '运行模式', globalScheduler: '全局调度', mode: '模式', shadowMode: '影子观察', balancedSelection: '策略与流量分配', topK: 'Top-K', explorationRate: '探索率', sessionEscapeGap: '会话逃逸差值 (ms)', sessionEscapeRatio: '会话逃逸比例', costWeight: '兼容成本权重', temperature: '分配温度', maxAccountShare: '单账号最大份额', lowConfidenceShare: '低置信度最大份额', latencyBudget: '延迟预算 (ms)', policyWeights: '综合效用权重',
+        runtime: '运行模式', globalScheduler: '全局调度', mode: '模式', shadowMode: '影子观察', balancedSelection: '策略与流量分配', topK: '基础 Top-K', adaptiveTopK: '自适应 Top-K', explorationRate: 'Top-K 内探索率', explorationBudget: '低置信探索预算', explorationMinInterval: '最小探索间隔 (秒)', explorationMaxPerHour: '每维度每小时探索上限', staleOpenRequiresProbe: '过期熔断须先探测', sessionEscapeGap: '会话逃逸差值 (ms)', sessionEscapeRatio: '会话逃逸比例', costWeight: '兼容成本权重', temperature: '分配温度', maxAccountShare: '单账号最大份额', lowConfidenceShare: '低置信度最大份额', latencyBudget: '延迟预算 (ms)', policyWeights: '综合效用权重',
         breaker: '慢响应与熔断', slowThreshold: '慢响应阈值 (ms)', severeThreshold: '严重慢响应阈值 (ms)', consecutiveSlow: '连续慢响应', consecutiveErrors: '连续错误', cooldown: '冷却时间 (秒)', recoverySamples: '恢复成功样本', recoveryStep: '恢复步长',
         healthProbe: '健康与探测', probeModel: '探测模型', probeInterval: '探测间隔 (秒)', probeJitter: '探测抖动 (秒)', healthTTL: '健康 TTL (秒)', realFreshness: '真实样本新鲜期 (秒)', save: '保存配置', saving: '保存中',
-        errors: { probeModelRequired: '探测模型不能为空', topKRange: 'Top-K 必须在 1 到 10 之间', explorationRange: '探索率必须在 0 到 0.1 之间', sessionGapRange: '会话逃逸差值必须在 0 到 30000 ms 之间', sessionRatioRange: '会话逃逸比例必须在 0 到 2 之间', costWeightRange: '成本权重必须在 0 到 1 之间', policyRange: '温度和份额必须在 0 到 1 之间，延迟预算必须在 1 到 30000 ms 之间', weightsRange: '各维度权重必须在 0 到 1 之间且合计大于 0', positiveRequired: '探测、熔断和恢复参数必须大于 0', severeThreshold: '严重慢响应阈值不能低于慢响应阈值', jitterRange: '探测抖动不能超过探测间隔的一半', healthTTLRange: '健康 TTL 必须在 60 到 86400 秒之间', realFreshnessRange: '真实样本新鲜期必须在 30 到 3600 秒之间' }
+        errors: { probeModelRequired: '探测模型不能为空', topKRange: 'Top-K 必须在 1 到 10 之间', explorationRange: '探索率必须在 0 到 0.1 之间', explorationPolicyRange: '探索预算必须在 0 到 0.1 之间，最小间隔必须在 30 到 3600 秒之间', explorationMaxPerHourRange: '每维度每小时探索上限必须在 1 到 60 之间', sessionGapRange: '会话逃逸差值必须在 0 到 30000 ms 之间', sessionRatioRange: '会话逃逸比例必须在 0 到 2 之间', costWeightRange: '成本权重必须在 0 到 1 之间', policyRange: '温度和份额必须在 0 到 1 之间，延迟预算必须在 1 到 30000 ms 之间', weightsRange: '各维度权重必须在 0 到 1 之间且合计大于 0', positiveRequired: '探测、熔断和恢复参数必须大于 0', severeThreshold: '严重慢响应阈值不能低于慢响应阈值', jitterRange: '探测抖动不能超过探测间隔的一半', healthTTLRange: '健康 TTL 必须在 60 到 86400 秒之间', realFreshnessRange: '真实样本新鲜期必须在 30 到 3600 秒之间' }
       },
       actions: { manualProbe: '手动探测', resetHealth: '重置健康状态', close: '关闭', retry: '重试', confirmReset: '确认重置' },
       reset: { title: '重置账号健康状态', message: '确认重置 {name} (#{id}) 的调度健康状态？' },

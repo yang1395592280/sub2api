@@ -55,6 +55,22 @@ type openAISchedulerOverviewSettingsStub struct {
 	engineEnabled bool
 }
 
+type openAISchedulerRuntimeMetricsStub struct {
+	metrics OpenAIAccountSchedulerMetricsSnapshot
+}
+
+func (s openAISchedulerRuntimeMetricsStub) SnapshotOpenAIAccountSchedulerMetrics() OpenAIAccountSchedulerMetricsSnapshot {
+	return s.metrics
+}
+
+type openAISchedulerSummaryMetricsStub struct {
+	metrics OpenAIAutoSchedulerSummaryMetricsSnapshot
+}
+
+func (s openAISchedulerSummaryMetricsStub) SnapshotSummaryMetrics() OpenAIAutoSchedulerSummaryMetricsSnapshot {
+	return s.metrics
+}
+
 func (s openAISchedulerOverviewSettingsStub) IsOpenAIAdvancedSchedulerEnabled(context.Context) bool {
 	return s.engineEnabled
 }
@@ -72,6 +88,13 @@ func TestOpenAISchedulerOverviewServiceBuildsControlConsoleMetrics(t *testing.T)
 		Groups:         []OpenAISchedulerGroupSummary{{ID: 33, Name: "Codex", Enabled: true, AccountCount: 4, E2EP90MS: 7210}},
 	}}
 	svc := NewOpenAISchedulerOverviewService(repo)
+	svc.runtime = openAISchedulerRuntimeMetricsStub{metrics: OpenAIAccountSchedulerMetricsSnapshot{
+		ExplorationAllowedTotal: 8, ExplorationIntervalTotal: 3, ExplorationHourlyTotal: 2,
+		ExplorationErrorTotal: 1, LowConfidenceFallbackTotal: 4,
+	}}
+	svc.summary = openAISchedulerSummaryMetricsStub{metrics: OpenAIAutoSchedulerSummaryMetricsSnapshot{
+		UnifiedReadsTotal: 10, UnifiedDimensionsTotal: 40, LegacyFallbacksTotal: 2,
+	}}
 	svc.now = func() time.Time { return time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC) }
 
 	got, err := svc.GetOverview(context.Background(), OpenAISchedulerOverviewParams{GroupID: 33, Window: 6 * time.Hour})
@@ -85,6 +108,9 @@ func TestOpenAISchedulerOverviewServiceBuildsControlConsoleMetrics(t *testing.T)
 	require.Equal(t, 6*time.Hour, repo.overviewCall.Window)
 	require.Equal(t, 33, int(repo.overviewCall.GroupID))
 	require.Equal(t, "ok", got.Groups[0].AlertLevel)
+	require.Equal(t, int64(8), got.Runtime.ExplorationAllowedTotal)
+	require.Equal(t, int64(3), got.Runtime.ExplorationIntervalTotal)
+	require.Equal(t, int64(2), got.Runtime.UnifiedHealthFallbacksTotal)
 	require.Equal(t, svc.now(), repo.overviewCall.EndTime)
 	require.Equal(t, svc.now().Add(-6*time.Hour), repo.overviewCall.StartTime)
 }

@@ -94,6 +94,25 @@ func (r *fakeOpenAIAutoSchedulerProbeHealthRepo) Upsert(_ context.Context, snaps
 	return r.err
 }
 
+func (r *fakeOpenAIAutoSchedulerProbeHealthRepo) ListByAccountIDs(_ context.Context, accountIDs []int64) ([]OpenAISchedulerHealthSnapshot, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.err != nil {
+		return nil, r.err
+	}
+	requested := make(map[int64]struct{}, len(accountIDs))
+	for _, accountID := range accountIDs {
+		requested[accountID] = struct{}{}
+	}
+	result := make([]OpenAISchedulerHealthSnapshot, 0, len(r.states))
+	for _, snapshot := range r.states {
+		if _, ok := requested[snapshot.Key.AccountID]; ok {
+			result = append(result, snapshot)
+		}
+	}
+	return result, nil
+}
+
 type fakeOpenAIAutoSchedulerProbeLeaderLock struct {
 	mu       sync.Mutex
 	acquire  bool
@@ -364,6 +383,36 @@ func TestOpenAIAutoSchedulerProbeRunner_DeduplicatePhysicalKeyUsesResolvedActual
 		AccountID: 1, ModelFamily: "actual-upstream-model", Endpoint: openAISchedulerHealthEndpointChat,
 		Transport: string(OpenAIUpstreamTransportHTTPSSE),
 	}, openAIAutoSchedulerProbeHealthKey(account, "gpt-5.4"))
+}
+
+func TestOpenAIAutoSchedulerProbeRunnerAddsDueRecoveryDimensions(t *testing.T) {
+	now := time.Now()
+	account := Account{ID: 7, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	dueStale := OpenAISchedulerHealthKey{AccountID: 7, ModelFamily: "gpt-5.5", Endpoint: openAISchedulerHealthEndpointResponses, Transport: string(OpenAIUpstreamTransportHTTPSSE)}
+	dueHalfOpen := OpenAISchedulerHealthKey{AccountID: 7, ModelFamily: "gpt-5.6", Endpoint: openAISchedulerHealthEndpointChat, Transport: string(OpenAIUpstreamTransportHTTPSSE)}
+	cooling := OpenAISchedulerHealthKey{AccountID: 7, ModelFamily: "gpt-5.7", Endpoint: openAISchedulerHealthEndpointResponses, Transport: string(OpenAIUpstreamTransportHTTPSSE)}
+	unsupportedWS := OpenAISchedulerHealthKey{AccountID: 7, ModelFamily: "gpt-5.8", Endpoint: openAISchedulerHealthEndpointResponses, Transport: string(OpenAIUpstreamTransportResponsesWebsocketV2)}
+	cooldownUntil := now.Add(time.Minute)
+	healthRepo := &fakeOpenAIAutoSchedulerProbeHealthRepo{states: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{
+		dueStale:      {Key: dueStale, State: OpenAIAutoSchedulerStateRunning, ExpiresAt: now.Add(-time.Second)},
+		dueHalfOpen:   {Key: dueHalfOpen, State: OpenAIAutoSchedulerStateHalfOpen, ExpiresAt: now.Add(time.Hour)},
+		cooling:       {Key: cooling, State: OpenAIAutoSchedulerStateOpen, CooldownUntil: &cooldownUntil, ExpiresAt: now.Add(time.Hour)},
+		unsupportedWS: {Key: unsupportedWS, State: OpenAIAutoSchedulerStateHalfOpen, ExpiresAt: now.Add(time.Hour)},
+	}}
+	runner := newOpenAIAutoSchedulerProbeRunner(nil, nil, nil, nil, NewOpenAISchedulerHealthEventSink(healthRepo, nil), nil, nil, nil)
+	t.Cleanup(runner.Stop)
+	plans := map[OpenAISchedulerHealthKey]*openAIAutoSchedulerProbePlanItem{}
+
+	runner.mergeOpenAIAutoSchedulerRecoveryProbePlans(
+		context.Background(), plans, map[int64]Account{7: account}, map[int64][]int64{7: {10, 11}}, now,
+	)
+
+	require.Len(t, plans, 2)
+	require.Contains(t, plans, dueStale)
+	require.Contains(t, plans, dueHalfOpen)
+	require.ElementsMatch(t, []int64{10, 11}, plans[dueStale].groupIDs)
+	require.NotContains(t, plans, cooling)
+	require.NotContains(t, plans, unsupportedWS)
 }
 
 func TestOpenAIAutoSchedulerProbeRunner_LeaderSkipsCycleAndReleasesOwnedLease(t *testing.T) {

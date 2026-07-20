@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -101,6 +102,67 @@ func TestEvaluateOpenAISchedulerPolicyKeepsLatencyAndCapabilityTailsOutOfTargetS
 	require.Equal(t, OpenAISchedulerEligibilityLatencyTail, scores[3].Eligibility)
 	require.Zero(t, scores[2].TargetShare)
 	require.Zero(t, scores[3].TargetShare)
+}
+
+func TestEvaluateOpenAISchedulerPolicyExploresLowConfidenceCandidatesOutsideTopK(t *testing.T) {
+	settings := DefaultOpenAIAutoSchedulerSettings()
+	settings.TopK = 1
+	settings.AdaptiveTopKEnabled = false
+	settings.ExplorationBudget = 0.05
+	settings.LowConfidenceMaxShare = 0.10
+	evaluation := EvaluateOpenAISchedulerPolicy([]OpenAIBalancedCandidate{
+		{AccountID: 1, PredictedTTFTMS: 500, State: OpenAIAutoSchedulerStateRunning, HealthConfidence: "high"},
+		{AccountID: 2, State: OpenAIAutoSchedulerStateRunning, HealthConfidence: "low"},
+		{AccountID: 3, State: OpenAIAutoSchedulerStateRunning, HealthConfidence: "low"},
+		{AccountID: 4, State: OpenAIAutoSchedulerStateRunning, HealthConfidence: "low"},
+	}, settings, 17)
+
+	scores := policyScoresByAccount(evaluation.Scores)
+	require.InDelta(t, 0.95, scores[1].TargetShare, 0.000001)
+	for _, accountID := range []int64{2, 3, 4} {
+		require.Equal(t, OpenAISchedulerTrafficExploration, scores[accountID].TrafficClass)
+		require.InDelta(t, 0.05/3, scores[accountID].TargetShare, 0.000001)
+	}
+	require.InDelta(t, 1, policyTargetShareSum(evaluation.Scores), 0.000001)
+}
+
+func TestEvaluateOpenAISchedulerPolicySkipsRecentLowConfidenceExploration(t *testing.T) {
+	settings := DefaultOpenAIAutoSchedulerSettings()
+	settings.TopK = 1
+	settings.AdaptiveTopKEnabled = false
+	settings.ExplorationBudget = 0.05
+	evaluation := EvaluateOpenAISchedulerPolicy([]OpenAIBalancedCandidate{
+		{AccountID: 1, PredictedTTFTMS: 500, State: OpenAIAutoSchedulerStateRunning, HealthConfidence: "high"},
+		{AccountID: 2, State: OpenAIAutoSchedulerStateRunning, HealthConfidence: "low", HasRealSample: true, LastRealSampleAge: time.Minute},
+	}, settings, 19)
+
+	scores := policyScoresByAccount(evaluation.Scores)
+	require.InDelta(t, 1, scores[1].TargetShare, 0.000001)
+	require.Zero(t, scores[2].TargetShare)
+	require.Equal(t, OpenAISchedulerTrafficFallback, scores[2].TrafficClass)
+}
+
+func TestEvaluateOpenAISchedulerPolicyAdaptiveTopKExpandsLargePool(t *testing.T) {
+	settings := DefaultOpenAIAutoSchedulerSettings()
+	settings.TopK = 2
+	settings.AdaptiveTopKEnabled = true
+	candidates := make([]OpenAIBalancedCandidate, 0, 10)
+	for accountID := int64(1); accountID <= 10; accountID++ {
+		candidates = append(candidates, OpenAIBalancedCandidate{
+			AccountID: accountID, PredictedTTFTMS: 500, State: OpenAIAutoSchedulerStateRunning, HealthConfidence: "high",
+		})
+	}
+
+	evaluation := EvaluateOpenAISchedulerPolicy(candidates, settings, 23)
+
+	require.Equal(t, 4, evaluation.TopK)
+	targeted := 0
+	for _, score := range evaluation.Scores {
+		if score.TargetShare > 0 {
+			targeted++
+		}
+	}
+	require.Equal(t, 4, targeted)
 }
 
 func TestOpenAIAutoSchedulerSettingsMapsLegacyCostWeightIntoPolicyWeights(t *testing.T) {
