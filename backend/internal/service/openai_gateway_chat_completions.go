@@ -258,9 +258,23 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 
 	// 6. Build upstream request
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
+	reasoningEffortValue := strings.TrimSpace(gjson.GetBytes(responsesBody, "reasoning.effort").String())
+	firstOutputTimeout := time.Duration(0)
+	if clientStream && account.Platform == PlatformOpenAI {
+		firstOutputTimeout = s.openAIFirstOutputTimeoutWithContext(ctx, reasoningEffortValue)
+	}
+	var headerGuard *openAIFirstOutputHeaderGuard
+	if firstOutputTimeout > 0 {
+		upstreamCtx, headerGuard = newOpenAIFirstOutputHeaderGuard(upstreamCtx, releaseUpstreamCtx, startTime.Add(firstOutputTimeout))
+	}
 	upstreamReq, err := s.buildUpstreamRequest(upstreamCtx, c, account, responsesBody, token, true, promptCacheKey, false)
-	releaseUpstreamCtx()
+	if headerGuard == nil {
+		releaseUpstreamCtx()
+	}
 	if err != nil {
+		if headerGuard != nil {
+			headerGuard.close()
+		}
 		return nil, fmt.Errorf("build upstream request: %w", err)
 	}
 
@@ -280,8 +294,21 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 		Transport:   OpenAIUpstreamTransportHTTPSSE,
 	})
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+	if headerGuard != nil && headerGuard.stopHeaderWait() {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		headerGuard.close()
+		return nil, s.newOpenAIFirstOutputTimeoutError(ctx, c, account, startTime, originalModel, reasoningEffortValue, firstOutputTimeout, "response_headers", nil)
+	}
 	if err != nil {
+		if headerGuard != nil {
+			headerGuard.close()
+		}
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+	}
+	if headerGuard != nil {
+		resp.Body = &openAIRequestContextReadCloser{ReadCloser: resp.Body, cleanup: headerGuard.close}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -319,7 +346,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	var forwardResult *OpenAIForwardResult
 	var handleErr error
 	if clientStream {
-		forwardResult, handleErr = s.handleChatStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, startTime, len(body))
+		forwardResult, handleErr = s.handleChatStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, reasoningEffortValue, firstOutputTimeout, startTime, len(body))
 	} else {
 		forwardResult, handleErr = s.handleChatBufferedStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, startTime)
 	}
@@ -513,6 +540,8 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 	originalModel string,
 	billingModel string,
 	upstreamModel string,
+	reasoningEffort string,
+	firstOutputTimeout time.Duration,
 	startTime time.Time,
 	requestBodyLen int,
 ) (*OpenAIForwardResult, error) {
@@ -527,13 +556,31 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 
 	var usage OpenAIUsage
 	var firstTokenMs *int
-	firstChunk := true
 	clientDisconnected := false
 	clientOutputStarted := false
 	pendingSSE := make([]string, 0, 4)
 	refusalDetector := newOpenAIChatSilentRefusalDetector(requestBodyLen)
 	var streamFailoverErr *UpstreamFailoverError
 	var streamNonFailoverErr error
+	var firstOutputTimer *time.Timer
+	if firstOutputTimeout > 0 {
+		remaining := time.Until(startTime.Add(firstOutputTimeout))
+		if remaining <= 0 {
+			remaining = time.Nanosecond
+		}
+		firstOutputTimer = time.NewTimer(remaining)
+		defer firstOutputTimer.Stop()
+	}
+	var firstOutputCh <-chan time.Time
+	if firstOutputTimer != nil {
+		firstOutputCh = firstOutputTimer.C
+	}
+	stopFirstOutputTimer := func() {
+		if firstOutputTimer != nil {
+			firstOutputTimer.Stop()
+			firstOutputCh = nil
+		}
+	}
 
 	scanner := s.newUpstreamSSEScanner(resp.Body)
 
@@ -566,12 +613,6 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 	}
 
 	processDataLine := func(payload string) bool {
-		if firstChunk {
-			firstChunk = false
-			ms := int(time.Since(startTime).Milliseconds())
-			firstTokenMs = &ms
-		}
-
 		var event apicompat.ResponsesStreamEvent
 		if err := json.Unmarshal([]byte(payload), &event); err != nil {
 			logger.L().Warn("openai chat_completions stream: failed to parse event",
@@ -667,6 +708,17 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 		}
 
 		chunks := apicompat.ResponsesEventToChatChunks(&event, state)
+		if firstTokenMs == nil {
+			for i := range chunks {
+				if !chatChunkStartsResponsesOutput(&chunks[i]) {
+					continue
+				}
+				ms := int(time.Since(startTime).Milliseconds())
+				firstTokenMs = &ms
+				stopFirstOutputTimer()
+				break
+			}
+		}
 		if !clientDisconnected {
 			for _, chunk := range chunks {
 				refusalDetector.ObserveChatChunk(chunk)
@@ -678,7 +730,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 					)
 					continue
 				}
-				if !clientOutputStarted && !refusalDetector.ShouldReleaseClientOutput() {
+				if !clientOutputStarted && ((firstOutputTimeout > 0 && firstTokenMs == nil) || !refusalDetector.ShouldReleaseClientOutput()) {
 					pendingSSE = append(pendingSSE, sse)
 					continue
 				}
@@ -731,7 +783,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 				if err != nil {
 					continue
 				}
-				if !clientOutputStarted && !refusalDetector.ShouldReleaseClientOutput() {
+				if !clientOutputStarted && ((firstOutputTimeout > 0 && firstTokenMs == nil) || !refusalDetector.ShouldReleaseClientOutput()) {
 					pendingSSE = append(pendingSSE, sse)
 					continue
 				}
@@ -823,7 +875,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 	}
 
 	// No keepalive: fast synchronous path
-	if streamInterval <= 0 && keepaliveInterval <= 0 {
+	if streamInterval <= 0 && keepaliveInterval <= 0 && firstOutputTimeout <= 0 {
 		var parser openAICompatSSEFrameParser
 		for scanner.Scan() {
 			line := scanner.Text()
@@ -948,11 +1000,25 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 			)
 			return resultWithUsage(), fmt.Errorf("stream data interval timeout")
 
+		case <-firstOutputCh:
+			if firstTokenMs != nil {
+				stopFirstOutputTimer()
+				continue
+			}
+			_ = resp.Body.Close()
+			return resultWithUsage(), s.newOpenAIFirstOutputTimeoutError(
+				c.Request.Context(), c, account, startTime, originalModel, reasoningEffort,
+				firstOutputTimeout, "semantic_output", resp.Header,
+			)
+
 		case <-keepaliveCh:
 			if clientDisconnected {
 				continue
 			}
 			if refusalDetector.Enabled() && !clientOutputStarted {
+				continue
+			}
+			if firstTokenMs == nil && firstOutputTimeout > 0 {
 				continue
 			}
 			if time.Since(lastDataAt) < keepaliveInterval {

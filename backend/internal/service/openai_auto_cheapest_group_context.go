@@ -6,15 +6,17 @@ import (
 )
 
 type openAIAutoCheapestFailureState struct {
-	mu           sync.RWMutex
-	failedGroups map[int64]string
-	circuit      OpenAIAutoCheapestGroupCircuit
-	model        string
-	endpoint     string
-	transport    string
+	mu            sync.RWMutex
+	failedGroups  map[int64]string
+	circuit       OpenAIAutoCheapestGroupCircuit
+	model         string
+	endpoint      string
+	transport     string
+	strictQuality bool
 }
 
 type openAIAutoCheapestFailureStateKey struct{}
+type openAIAutoCheapestQualifiedOnlyKey struct{}
 
 // PrepareOpenAIAutoCheapestRequestContext attaches request-local group failure
 // state. Fixed-group API keys do not need this state and keep their old path.
@@ -101,6 +103,51 @@ func OpenAIAutoCheapestGroupCircuitFromContext(ctx context.Context) OpenAIAutoCh
 		return nil
 	}
 	return state.circuit
+}
+
+// RequireOpenAIAutoCheapestQualifiedFailover disables the availability
+// fallback for later account selections in the current auto-cheapest request.
+// It is used after a first-output timeout so the next attempt cannot spend the
+// remaining latency budget on another low-confidence or slow account.
+func RequireOpenAIAutoCheapestQualifiedFailover(ctx context.Context) {
+	if ctx == nil {
+		return
+	}
+	state, _ := ctx.Value(openAIAutoCheapestFailureStateKey{}).(*openAIAutoCheapestFailureState)
+	if state == nil {
+		return
+	}
+	state.mu.Lock()
+	state.strictQuality = true
+	state.mu.Unlock()
+}
+
+func openAIAutoCheapestRequiresQualifiedFailover(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	state, _ := ctx.Value(openAIAutoCheapestFailureStateKey{}).(*openAIAutoCheapestFailureState)
+	if state == nil {
+		return false
+	}
+	state.mu.RLock()
+	defer state.mu.RUnlock()
+	return state.strictQuality
+}
+
+func withOpenAIAutoCheapestQualifiedOnly(ctx context.Context) context.Context {
+	if ctx == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, openAIAutoCheapestQualifiedOnlyKey{}, true)
+}
+
+func openAIAutoCheapestQualifiedOnly(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	qualifiedOnly, _ := ctx.Value(openAIAutoCheapestQualifiedOnlyKey{}).(bool)
+	return qualifiedOnly
 }
 
 func openAIAutoCheapestGroupExhaustionReason(ctx context.Context, groupID int64) (string, bool) {

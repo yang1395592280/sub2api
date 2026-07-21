@@ -28,9 +28,16 @@ const (
 )
 
 var (
-	errOpenAIFirstOutputStageLimit   = errors.New("openai first-output staging limit exceeded")
-	errOpenAIFirstOutputScannerLimit = errors.New("openai pre-output scanner token limit exceeded")
+	errOpenAIFirstOutputStageLimit    = errors.New("openai first-output staging limit exceeded")
+	errOpenAIFirstOutputScannerLimit  = errors.New("openai pre-output scanner token limit exceeded")
+	errOpenAIFirstOutputHeaderTimeout = errors.New("openai first-output response header timeout")
 )
+
+const GatewayFailureReasonFirstOutputTimeout GatewayFailureReason = "first_output_timeout"
+
+func IsOpenAIFirstOutputTimeoutError(err *UpstreamFailoverError) bool {
+	return err != nil && err.Reason == GatewayFailureReasonFirstOutputTimeout
+}
 
 type openAIFirstOutputStage struct {
 	limit      int64
@@ -230,14 +237,35 @@ func (s *openAIFirstOutputStage) Close() error {
 }
 
 func (s *OpenAIGatewayService) openAIFirstOutputTimeout(reasoningEffort string) time.Duration {
-	if s == nil || s.cfg == nil || s.cfg.Gateway.OpenAIFirstOutputTimeoutSeconds <= 0 {
+	return s.openAIFirstOutputTimeoutWithContext(context.Background(), reasoningEffort)
+}
+
+func (s *OpenAIGatewayService) openAIFirstOutputTimeoutWithContext(ctx context.Context, reasoningEffort string) time.Duration {
+	if s == nil {
 		return 0
 	}
-	seconds := s.cfg.Gateway.OpenAIFirstOutputTimeoutSeconds
+	seconds := 0
+	highEffortSeconds := 0
+	if s.cfg != nil {
+		seconds = s.cfg.Gateway.OpenAIFirstOutputTimeoutSeconds
+		highEffortSeconds = s.cfg.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds
+	}
+	if s.settingService != nil {
+		settings := s.settingService.GetOpenAIAutoSchedulerSettings(ctx)
+		if settings.firstOutputTimeoutSet {
+			seconds = settings.FirstOutputTimeoutSeconds
+		}
+		if settings.highEffortFirstOutputTimeoutSet {
+			highEffortSeconds = settings.HighEffortFirstOutputTimeoutSeconds
+		}
+	}
+	if seconds <= 0 {
+		return 0
+	}
 	switch strings.ToLower(strings.TrimSpace(reasoningEffort)) {
 	case "high", "xhigh", "max":
-		if override := s.cfg.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds; override > 0 {
-			seconds = override
+		if highEffortSeconds > 0 {
+			seconds = highEffortSeconds
 		}
 	}
 	return time.Duration(seconds) * time.Second
@@ -271,9 +299,12 @@ func (s *OpenAIGatewayService) newOpenAIFirstOutputTimeoutError(
 		s.rateLimitService.HandleStreamTimeout(ctx, account, originalModel)
 	}
 	return &UpstreamFailoverError{
-		StatusCode:      http.StatusGatewayTimeout,
-		ResponseBody:    []byte(`{"error":{"type":"first_output_timeout","message":"Upstream produced no output before the deadline"}}`),
-		ResponseHeaders: responseHeaders.Clone(), SafeToFailoverAfterWrite: true,
+		StatusCode:               http.StatusGatewayTimeout,
+		ResponseBody:             []byte(`{"error":{"type":"first_output_timeout","message":"Upstream produced no output before the deadline"}}`),
+		ResponseHeaders:          responseHeaders.Clone(),
+		SafeToFailoverAfterWrite: true,
+		Reason:                   GatewayFailureReasonFirstOutputTimeout,
+		NextAccountAction:        NextAccountRetry,
 	}
 }
 

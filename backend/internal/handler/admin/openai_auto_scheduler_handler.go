@@ -555,6 +555,12 @@ func validateOpenAIAutoSchedulerSettings(settings service.OpenAIAutoSchedulerSet
 		return "low_confidence_max_share must be between 0 (exclusive) and 1"
 	case settings.LatencyBudgetMS <= 0 || settings.LatencyBudgetMS > 30000:
 		return "latency_budget_ms must be between 1 and 30000"
+	case settings.FirstOutputTimeoutSeconds < 0 || settings.FirstOutputTimeoutSeconds > 600 ||
+		(settings.FirstOutputTimeoutSeconds > 0 && settings.FirstOutputTimeoutSeconds < 5):
+		return "first_output_timeout_seconds must be 0 or between 5 and 600 seconds"
+	case settings.HighEffortFirstOutputTimeoutSeconds < 0 || settings.HighEffortFirstOutputTimeoutSeconds > 1800 ||
+		(settings.HighEffortFirstOutputTimeoutSeconds > 0 && settings.HighEffortFirstOutputTimeoutSeconds < 30):
+		return "high_effort_first_output_timeout_seconds must be 0 or between 30 and 1800 seconds"
 	case settings.Weights.Latency < 0 || settings.Weights.Latency > 1 ||
 		settings.Weights.Reliability < 0 || settings.Weights.Reliability > 1 ||
 		settings.Weights.Cost < 0 || settings.Weights.Cost > 1 ||

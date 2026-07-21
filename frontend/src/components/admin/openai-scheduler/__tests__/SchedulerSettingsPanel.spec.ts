@@ -24,6 +24,8 @@ const settings = {
   half_open_success_threshold: 3,
   cost_weight: 0.2,
   recovery_step: 800,
+  first_output_timeout_seconds: 0,
+  high_effort_first_output_timeout_seconds: 0,
 }
 
 describe('SchedulerSettingsPanel', () => {
@@ -48,7 +50,37 @@ describe('SchedulerSettingsPanel', () => {
       session_escape_ratio: 0.25,
       health_ttl_seconds: 1800,
       probe_jitter_seconds: 6,
+      first_output_timeout_seconds: 0,
+      high_effort_first_output_timeout_seconds: 0,
     })
+  })
+
+  it('validates and emits first output timeout settings', async () => {
+    const wrapper = mount(SchedulerSettingsPanel, {
+      props: { modelValue: settings, saving: false },
+      global: { plugins: [createSchedulerTestI18n()], stubs: { Toggle: true } },
+    })
+
+    await wrapper.get<HTMLInputElement>('#scheduler-first-output-timeout').setValue('10')
+    await wrapper.get<HTMLInputElement>('#scheduler-high-effort-first-output-timeout').setValue('60')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      first_output_timeout_seconds: 10,
+      high_effort_first_output_timeout_seconds: 60,
+    })
+  })
+
+  it('rejects an enabled timeout below its minimum', async () => {
+    const wrapper = mount(SchedulerSettingsPanel, {
+      props: { modelValue: settings, saving: false },
+      global: { plugins: [createSchedulerTestI18n()], stubs: { Toggle: true } },
+    })
+    await wrapper.get<HTMLInputElement>('#scheduler-first-output-timeout').setValue('4')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.text()).toContain('普通首字超时必须为 0 或 5 到 600 秒')
+    expect(wrapper.emitted('save')).toBeUndefined()
   })
 
   it('blocks invalid threshold ordering', async () => {

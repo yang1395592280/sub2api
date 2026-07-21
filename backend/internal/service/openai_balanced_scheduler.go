@@ -44,6 +44,7 @@ type OpenAIBalancedSettings struct {
 	StaleOpenRequiresProbe bool
 	RealSampleFreshSeconds int
 	LatencyBudgetMS        float64
+	SlowThresholdMS        float64
 	SessionEscapeMinGapMS  float64
 	SessionEscapeRatio     float64
 	SessionEscapeErrorRate float64
@@ -131,6 +132,7 @@ func DefaultOpenAIBalancedSettings() OpenAIBalancedSettings {
 		StaleOpenRequiresProbe: true,
 		RealSampleFreshSeconds: DefaultOpenAIAutoSchedulerSettings().RealSampleFreshSeconds,
 		LatencyBudgetMS:        openAIBalancedDefaultLatencyBudgetMS,
+		SlowThresholdMS:        float64(DefaultOpenAIAutoSchedulerSettings().SlowThresholdMS),
 		SessionEscapeMinGapMS:  openAIBalancedDefaultSessionEscapeGapMS,
 		SessionEscapeRatio:     openAIBalancedDefaultSessionEscapeRatio,
 		SessionEscapeErrorRate: openAIBalancedDefaultSessionErrorRate,
@@ -311,6 +313,7 @@ func openAIAutoSchedulerSettingsFromBalanced(settings OpenAIBalancedSettings) Op
 	result.SessionEscapeMinGapMS = int(settings.SessionEscapeMinGapMS)
 	result.SessionEscapeRatio = settings.SessionEscapeRatio
 	result.LatencyBudgetMS = int(settings.LatencyBudgetMS)
+	result.SlowThresholdMS = int(settings.SlowThresholdMS)
 	result.Temperature = settings.Temperature
 	result.MaxAccountShare = settings.MaxAccountShare
 	result.LowConfidenceMaxShare = settings.LowConfidenceMaxShare
@@ -603,6 +606,9 @@ func normalizeOpenAIBalancedSettings(settings OpenAIBalancedSettings) OpenAIBala
 	}
 	if settings.LatencyBudgetMS <= 0 {
 		settings.LatencyBudgetMS = openAIBalancedDefaultLatencyBudgetMS
+	}
+	if settings.SlowThresholdMS <= 0 {
+		settings.SlowThresholdMS = float64(DefaultOpenAIAutoSchedulerSettings().SlowThresholdMS)
 	}
 	if settings.SessionEscapeMinGapMS < 0 || (!runtimeSettings && settings.SessionEscapeMinGapMS == 0) {
 		settings.SessionEscapeMinGapMS = openAIBalancedDefaultSessionEscapeGapMS

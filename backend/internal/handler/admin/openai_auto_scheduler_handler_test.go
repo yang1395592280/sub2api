@@ -416,6 +416,10 @@ func TestValidateOpenAIAutoSchedulerSettings_BalancedRanges(t *testing.T) {
 		{name: "max account share", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.MaxAccountShare = 1.01 }},
 		{name: "low confidence share", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.LowConfidenceMaxShare = 0 }},
 		{name: "latency budget", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.LatencyBudgetMS = 30001 }},
+		{name: "first output timeout below", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.FirstOutputTimeoutSeconds = 4 }},
+		{name: "first output timeout above", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.FirstOutputTimeoutSeconds = 601 }},
+		{name: "high effort first output timeout below", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.HighEffortFirstOutputTimeoutSeconds = 29 }},
+		{name: "high effort first output timeout above", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.HighEffortFirstOutputTimeoutSeconds = 1801 }},
 		{name: "negative weight", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.Weights.Latency = -0.01 }},
 		{name: "zero weights", mutate: func(s *service.OpenAIAutoSchedulerSettings) { s.Weights = service.OpenAISchedulerPolicyWeights{} }},
 	}

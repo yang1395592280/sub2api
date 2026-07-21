@@ -562,6 +562,9 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 						h.handleFailoverExhausted(c, failoverErr, streamStarted)
 						return
 					}
+					if service.IsOpenAIFirstOutputTimeoutError(failoverErr) {
+						service.RequireOpenAIAutoCheapestQualifiedFailover(c.Request.Context())
+					}
 					if openAIFirstOutputFailoverExhausted(failoverErr, &firstOutputTimeoutSwitchCount) {
 						h.handleFailoverExhausted(c, failoverErr, streamStarted)
 						return
@@ -1691,6 +1694,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	)
 	maxAccountSwitches := h.maxAccountSwitches
 	switchCount := 0
+	firstOutputTimeoutSwitchCount := 0
 	failedAccountIDs := make(map[int64]struct{})
 	var lastFailoverErr *service.UpstreamFailoverError
 	var turnTimings sync.Map
@@ -1710,6 +1714,13 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		}
 		releaseAccountSlot()
 		if !failoverErr.ShouldRetryNextAccount() {
+			closeOpenAIWSFailoverExhausted(wsConn, failoverErr)
+			return false
+		}
+		if service.IsOpenAIFirstOutputTimeoutError(failoverErr) {
+			service.RequireOpenAIAutoCheapestQualifiedFailover(ctx)
+		}
+		if openAIFirstOutputFailoverExhausted(failoverErr, &firstOutputTimeoutSwitchCount) {
 			closeOpenAIWSFailoverExhausted(wsConn, failoverErr)
 			return false
 		}
@@ -2582,7 +2593,7 @@ func openAIRequestAllowsFailoverReplay(c *gin.Context) bool {
 }
 
 func openAIFirstOutputFailoverExhausted(failoverErr *service.UpstreamFailoverError, switchCount *int) bool {
-	if failoverErr == nil || !failoverErr.SafeToFailoverAfterWrite || switchCount == nil {
+	if failoverErr == nil || (!service.IsOpenAIFirstOutputTimeoutError(failoverErr) && !failoverErr.SafeToFailoverAfterWrite) || switchCount == nil {
 		return false
 	}
 	if *switchCount >= maxOpenAIFirstOutputTimeoutSwitches {
