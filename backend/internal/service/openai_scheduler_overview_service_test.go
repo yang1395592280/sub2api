@@ -308,8 +308,8 @@ func TestOpenAISchedulerOverviewServiceBuildsRankingFromSharedPolicyAndActualTra
 	partition := OpenAISchedulerRankingPartition{GroupID: 33, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse"}
 	repo := &openAISchedulerOverviewRepoStub{
 		healthItems: []OpenAISchedulerHealthRecord{
-			{AccountID: 10, AccountName: "fast", GroupID: 33, GroupPriority: 1, GroupStatus: StatusActive, GroupAutoSchedulerEnabled: true, AccountStatus: StatusActive, Schedulable: true, ModelFamily: partition.ModelFamily, Endpoint: partition.Endpoint, Transport: partition.Transport, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 700, RealSampleCount: 50, ErrorRate: 0.01, LoadCapacity: 10, ChannelPrice: &fastPrice, UpdatedAt: now.Add(-time.Second), ExpiresAt: now.Add(time.Minute)},
-			{AccountID: 20, AccountName: "cheap", GroupID: 33, GroupPriority: 2, GroupStatus: StatusActive, GroupAutoSchedulerEnabled: true, AccountStatus: StatusActive, Schedulable: true, ModelFamily: partition.ModelFamily, Endpoint: partition.Endpoint, Transport: partition.Transport, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 1100, RealSampleCount: 30, ErrorRate: 0.02, LoadCapacity: 10, ChannelPrice: &cheapPrice, UpdatedAt: now.Add(-2 * time.Second), ExpiresAt: now.Add(time.Minute)},
+			{AccountID: 10, AccountName: "fast", GroupID: 33, GroupPriority: 1, GroupStatus: StatusActive, GroupAutoSchedulerEnabled: true, AccountStatus: StatusActive, Schedulable: true, ModelFamily: partition.ModelFamily, Endpoint: partition.Endpoint, Transport: partition.Transport, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 700, RealSampleCount: 50, LastRealAt: openAISchedulerOverviewTimePtr(now.Add(-time.Second)), ErrorRate: 0.01, LoadCapacity: 10, ChannelPrice: &fastPrice, UpdatedAt: now.Add(-time.Second), ExpiresAt: now.Add(time.Minute)},
+			{AccountID: 20, AccountName: "cheap", GroupID: 33, GroupPriority: 2, GroupStatus: StatusActive, GroupAutoSchedulerEnabled: true, AccountStatus: StatusActive, Schedulable: true, ModelFamily: partition.ModelFamily, Endpoint: partition.Endpoint, Transport: partition.Transport, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 1100, RealSampleCount: 30, LastRealAt: openAISchedulerOverviewTimePtr(now.Add(-2 * time.Second)), ErrorRate: 0.02, LoadCapacity: 10, ChannelPrice: &cheapPrice, UpdatedAt: now.Add(-2 * time.Second), ExpiresAt: now.Add(time.Minute)},
 		},
 		actualItems: []OpenAISchedulerRankingActual{
 			{Key: OpenAISchedulerRankingActualKey{AccountID: 10, ModelFamily: partition.ModelFamily, Endpoint: partition.Endpoint, Transport: partition.Transport}, RequestCount: 80, TTFTP50MS: 750, TTFTP90MS: 1200, EstimatedCost: 64},
@@ -353,7 +353,7 @@ func TestOpenAISchedulerOverviewServiceAggregatesRankingByPhysicalAccountAcrossM
 		GroupID: 33, GroupStatus: StatusActive, GroupAutoSchedulerEnabled: true,
 		AccountStatus: StatusActive, Schedulable: true, Endpoint: "responses", Transport: "http_sse",
 		State: OpenAIAutoSchedulerStateRunning, RealSampleCount: 20, LoadCapacity: 10,
-		ChannelPrice: &price, UpdatedAt: now.Add(-time.Second), ExpiresAt: now.Add(time.Minute),
+		ChannelPrice: &price, LastRealAt: openAISchedulerOverviewTimePtr(now.Add(-time.Second)), UpdatedAt: now.Add(-time.Second), ExpiresAt: now.Add(time.Minute),
 	}
 	health := func(accountID int64, name, model string, ttft float64) OpenAISchedulerHealthRecord {
 		record := base
@@ -421,7 +421,7 @@ func TestOpenAISchedulerOverviewServiceMarksLegacyFallbackWhenEngineIsDisabled(t
 	repo := &openAISchedulerOverviewRepoStub{healthItems: []OpenAISchedulerHealthRecord{{
 		AccountID: 10, AccountName: "primary", GroupID: 33, GroupStatus: StatusActive, GroupAutoSchedulerEnabled: true,
 		AccountStatus: StatusActive, Schedulable: true, ModelFamily: "gpt-5.4", Endpoint: "responses", Transport: "http_sse",
-		State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 800, RealSampleCount: 20, UpdatedAt: now, ExpiresAt: now.Add(time.Minute),
+		State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 800, RealSampleCount: 20, LastRealAt: openAISchedulerOverviewTimePtr(now), UpdatedAt: now, ExpiresAt: now.Add(time.Minute),
 	}}}
 	settings := DefaultOpenAIAutoSchedulerSettings()
 	settings.Enabled = true
@@ -436,4 +436,8 @@ func TestOpenAISchedulerOverviewServiceMarksLegacyFallbackWhenEngineIsDisabled(t
 	require.Equal(t, OpenAIAutoSchedulerModeLegacy, got.PolicyContext.EffectiveMode)
 	require.Equal(t, "engine_disabled", got.PolicyContext.FallbackReason)
 	require.Contains(t, got.Items[0].DeviationReasons, "legacy_fallback")
+}
+
+func openAISchedulerOverviewTimePtr(value time.Time) *time.Time {
+	return &value
 }

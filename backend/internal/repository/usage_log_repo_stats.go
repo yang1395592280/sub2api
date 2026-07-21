@@ -619,7 +619,7 @@ func buildOpenAISchedulerHealthQueries(params service.OpenAISchedulerHealthParam
 			       COALESCE(hs.error_rate, 0) AS error_rate,
 			       COALESCE(hs.rate_limited_rate, 0) AS rate_limited_rate,
 			       COALESCE(hs.server_error_rate, 0) AS server_error_rate,
-			       hs.cooldown_until, hs.expires_at, hs.updated_at,
+			       hs.cooldown_until, hs.expires_at, hs.last_real_at, hs.updated_at,
 			       CASE WHEN a.load_factor > 0 THEN a.load_factor WHEN a.concurrency > 0 THEN a.concurrency ELSE 1 END AS load_capacity,
 			       a.channel_price
 			%s
@@ -631,7 +631,7 @@ func buildOpenAISchedulerHealthQueries(params service.OpenAISchedulerHealthParam
 		       model_family, endpoint, transport, state,
 		       predicted_ttft_ms, real_sample_count, probe_sample_count,
 		       error_rate, rate_limited_rate, server_error_rate, cooldown_until, expires_at,
-		       updated_at, load_capacity, channel_price
+		       last_real_at, updated_at, load_capacity, channel_price
 		FROM health_rows
 		ORDER BY %s %s NULLS LAST, account_id ASC, group_id ASC, model_family ASC, endpoint ASC, transport ASC
 		LIMIT $%d OFFSET $%d
@@ -662,7 +662,7 @@ func (r *openAISchedulerOverviewRepository) ListOpenAISchedulerHealth(ctx contex
 	for rows.Next() {
 		var item service.OpenAISchedulerHealthRecord
 		var tempUnschedulableUntil, accountExpiresAt, overloadUntil, rateLimitResetAt sql.NullTime
-		var cooldownUntil, expiresAt, updatedAt sql.NullTime
+		var cooldownUntil, expiresAt, lastRealAt, updatedAt sql.NullTime
 		var channelPrice sql.NullFloat64
 		if err = rows.Scan(
 			&item.AccountID, &item.AccountName, &item.GroupID, &item.GroupPriority, &item.GroupStatus, &item.GroupAutoSchedulerEnabled,
@@ -672,7 +672,7 @@ func (r *openAISchedulerOverviewRepository) ListOpenAISchedulerHealth(ctx contex
 			&item.ModelFamily, &item.Endpoint, &item.Transport,
 			&item.State, &item.PredictedTTFTMS, &item.RealSampleCount,
 			&item.ProbeSampleCount, &item.ErrorRate, &item.RateLimitedRate, &item.ServerErrorRate,
-			&cooldownUntil, &expiresAt, &updatedAt, &item.LoadCapacity, &channelPrice,
+			&cooldownUntil, &expiresAt, &lastRealAt, &updatedAt, &item.LoadCapacity, &channelPrice,
 		); err != nil {
 			return nil, 0, err
 		}
@@ -693,6 +693,9 @@ func (r *openAISchedulerOverviewRepository) ListOpenAISchedulerHealth(ctx contex
 		}
 		if expiresAt.Valid {
 			item.ExpiresAt = expiresAt.Time
+		}
+		if lastRealAt.Valid {
+			item.LastRealAt = &lastRealAt.Time
 		}
 		if updatedAt.Valid {
 			item.UpdatedAt = updatedAt.Time

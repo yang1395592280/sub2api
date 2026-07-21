@@ -627,16 +627,18 @@ func openAISchedulerRankingDeviationReasons(score OpenAISchedulerPolicyCandidate
 }
 
 func openAISchedulerRankingConfidence(record OpenAISchedulerHealthRecord, settings OpenAIAutoSchedulerSettings, now time.Time) string {
-	if record.ExpiresAt.IsZero() || !now.Before(record.ExpiresAt) || record.ModelFamily == "" || record.Endpoint == "" || record.Transport == "" {
-		return "low"
+	if record.ModelFamily == "" || record.Endpoint == "" || record.Transport == "" {
+		return OpenAISchedulerHealthConfidenceLow
 	}
-	if record.RealSampleCount > 0 && !record.UpdatedAt.IsZero() && now.Sub(record.UpdatedAt) <= time.Duration(settings.RealSampleFreshSeconds)*time.Second {
-		return "high"
-	}
-	if record.RealSampleCount+record.ProbeSampleCount > 0 {
-		return "medium"
-	}
-	return "low"
+	return classifyOpenAISchedulerHealthConfidence(
+		record.State,
+		record.ExpiresAt,
+		record.RealSampleCount,
+		record.ProbeSampleCount,
+		record.LastRealAt,
+		now,
+		settings.RealSampleFreshSeconds,
+	)
 }
 
 func openAISchedulerRankingDecisionSummary(score OpenAISchedulerPolicyCandidateScore) string {

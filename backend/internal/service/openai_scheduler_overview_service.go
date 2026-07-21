@@ -113,6 +113,7 @@ type OpenAISchedulerHealthRecord struct {
 	ServerErrorRate           float64
 	CooldownUntil             *time.Time
 	ExpiresAt                 time.Time
+	LastRealAt                *time.Time
 	UpdatedAt                 time.Time
 	LoadCapacity              int
 	ChannelPrice              *float64

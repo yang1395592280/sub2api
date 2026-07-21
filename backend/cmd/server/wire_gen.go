@@ -151,7 +151,9 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	openAIAutoSchedulerService := service.ProvideOpenAIAutoSchedulerService(openAIAutoSchedulerRepository, settingService, openAISchedulerHealthEventSink)
 	openAIAutoSchedulerSelector := service.ProvideOpenAIAutoSchedulerSelector(openAIAutoSchedulerService)
 	openAIAutoSchedulerOutcomeRecorder := service.ProvideOpenAIAutoSchedulerOutcomeRecorder(openAIAutoSchedulerService)
-	openAIBalancedScheduler := service.ProvideOpenAIBalancedScheduler(openAISchedulerHealthRepository)
+	openAISchedulerDecisionAuditRepository := repository.NewOpenAISchedulerDecisionAuditRepository(db)
+	openAISchedulerDecisionAuditRecorder := service.ProvideOpenAISchedulerDecisionAuditRecorder(openAISchedulerDecisionAuditRepository)
+	openAIBalancedScheduler := service.ProvideOpenAIBalancedScheduler(openAISchedulerHealthRepository, openAISchedulerDecisionAuditRecorder)
 	openAISchedulerExplorationCache := repository.NewOpenAISchedulerExplorationCache(redisClient)
 	openAIAutoCheapestGroupCircuit := repository.NewOpenAIAutoCheapestGroupCircuit(redisClient)
 	openAIGatewayService := service.ProvideOpenAIGatewayService(accountRepository, usageLogRepository, usageBillingRepository, userRepository, userSubscriptionRepository, userGroupRateRepository, gatewayCache, configConfig, schedulerSnapshotService, concurrencyService, billingService, rateLimitService, billingCacheService, httpUpstream, deferredService, openAITokenProvider, grokTokenProvider, modelPricingResolver, channelService, balanceNotifyService, settingService, serviceUserPlatformQuotaRepository, openAIAutoSchedulerSelector, openAIAutoSchedulerService, openAIAutoSchedulerOutcomeRecorder, openAIBalancedScheduler, openAISchedulerExplorationCache, openAIAutoCheapestGroupCircuit, apiKeyService, apiKeyRepository)
@@ -342,7 +344,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	paymentOrderExpiryService := service.ProvidePaymentOrderExpiryService(paymentService, leaderLockCache, db)
 	channelMonitorRunner := service.ProvideChannelMonitorRunner(channelMonitorService, settingService)
 	userPlatformQuotaUsageFlusher := service.ProvideUserPlatformQuotaUsageFlusher(configConfig, billingCache, serviceUserPlatformQuotaRepository, timingWheelService)
-	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, opsService, opsIngressRejectAggregator, apiKeyService, authCacheInvalidationWorker, schedulerSnapshotService, tokenRefreshService, accountExpiryService, proxyExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, batchImageCleanupService, batchImageWorkerRuntime, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, grokOAuthService, sub2APICheckinService, groupUpstreamBalanceRefreshRunner, openAIGatewayService, openAIAutoSchedulerProbeRunner, openAIAutoSchedulerOutcomeRecorder, scheduledTestRunnerService, backupService, paymentOrderExpiryService, channelMonitorRunner, userPlatformQuotaUsageFlusher, upstreamBillingProbeService, auditLogService, promptService)
+	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, opsService, opsIngressRejectAggregator, apiKeyService, authCacheInvalidationWorker, schedulerSnapshotService, tokenRefreshService, accountExpiryService, proxyExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, batchImageCleanupService, batchImageWorkerRuntime, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, grokOAuthService, sub2APICheckinService, groupUpstreamBalanceRefreshRunner, openAIGatewayService, openAIAutoSchedulerProbeRunner, openAIAutoSchedulerOutcomeRecorder, openAISchedulerDecisionAuditRecorder, scheduledTestRunnerService, backupService, paymentOrderExpiryService, channelMonitorRunner, userPlatformQuotaUsageFlusher, upstreamBillingProbeService, auditLogService, promptService)
 	application := &Application{
 		Server:      httpServer,
 		PromptAudit: promptService,
@@ -407,6 +409,7 @@ func provideCleanup(
 	openAIGateway *service.OpenAIGatewayService,
 	openAIAutoSchedulerProbeRunner *service.OpenAIAutoSchedulerProbeRunner,
 	openAIAutoSchedulerOutcomeRecorder *service.OpenAIAutoSchedulerOutcomeRecorder,
+	openAISchedulerDecisionAuditRecorder *service.OpenAISchedulerDecisionAuditRecorder,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	backupSvc *service.BackupService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
@@ -617,6 +620,12 @@ func provideCleanup(
 			{"OpenAIAutoSchedulerOutcomeRecorder", func() error {
 				if openAIAutoSchedulerOutcomeRecorder != nil {
 					return openAIAutoSchedulerOutcomeRecorder.Stop(ctx)
+				}
+				return nil
+			}},
+			{"OpenAISchedulerDecisionAuditRecorder", func() error {
+				if openAISchedulerDecisionAuditRecorder != nil {
+					return openAISchedulerDecisionAuditRecorder.Stop(ctx)
 				}
 				return nil
 			}},

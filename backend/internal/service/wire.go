@@ -704,8 +704,17 @@ func ProvideOpenAISchedulerHealthEventSink(
 	return NewOpenAISchedulerHealthEventSink(repo, settingsProvider)
 }
 
-func ProvideOpenAIBalancedScheduler(repo OpenAISchedulerHealthRepository) *OpenAIBalancedScheduler {
-	return NewOpenAIBalancedScheduler(repo)
+func ProvideOpenAISchedulerDecisionAuditRecorder(
+	repo OpenAISchedulerDecisionAuditRepository,
+) *OpenAISchedulerDecisionAuditRecorder {
+	return NewOpenAISchedulerDecisionAuditRecorder(repo, openAISchedulerDecisionAuditQueueSize)
+}
+
+func ProvideOpenAIBalancedScheduler(
+	repo OpenAISchedulerHealthRepository,
+	audit *OpenAISchedulerDecisionAuditRecorder,
+) *OpenAIBalancedScheduler {
+	return NewOpenAIBalancedScheduler(repo, audit)
 }
 
 func ProvideOpenAIAutoSchedulerService(
@@ -845,6 +854,7 @@ var ProviderSet = wire.NewSet(
 	ProvideSub2APICheckinService,
 	ProvideGroupUpstreamBalanceRefreshRunner,
 	ProvideOpenAISchedulerHealthEventSink,
+	ProvideOpenAISchedulerDecisionAuditRecorder,
 	ProvideOpenAIBalancedScheduler,
 	ProvideOpenAISchedulerOverviewService,
 	ProvideOpenAIAutoSchedulerService,

@@ -104,6 +104,22 @@ func TestEvaluateOpenAISchedulerPolicyKeepsLatencyAndCapabilityTailsOutOfTargetS
 	require.Zero(t, scores[3].TargetShare)
 }
 
+func TestEvaluateOpenAISchedulerPolicyDoesNotUseLowConfidenceTTFTAsNormalLatencyBaseline(t *testing.T) {
+	settings := DefaultOpenAIAutoSchedulerSettings()
+	settings.TopK = 1
+	settings.AdaptiveTopKEnabled = false
+	settings.LatencyBudgetMS = 1000
+	evaluation := EvaluateOpenAISchedulerPolicy([]OpenAIBalancedCandidate{
+		{AccountID: 1, PredictedTTFTMS: 4000, State: OpenAIAutoSchedulerStateRunning, HealthConfidence: OpenAISchedulerHealthConfidenceHigh},
+		{AccountID: 2, PredictedTTFTMS: 100, State: OpenAIAutoSchedulerStateObserving, HealthConfidence: OpenAISchedulerHealthConfidenceLow},
+	}, settings, 3)
+
+	scores := policyScoresByAccount(evaluation.Scores)
+	require.Equal(t, OpenAISchedulerEligibilityEligible, scores[1].Eligibility)
+	require.Greater(t, scores[1].TargetShare, 0.9)
+	require.Equal(t, OpenAISchedulerEligibilityLowConfidence, scores[2].Eligibility)
+}
+
 func TestEvaluateOpenAISchedulerPolicyExploresLowConfidenceCandidatesOutsideTopK(t *testing.T) {
 	settings := DefaultOpenAIAutoSchedulerSettings()
 	settings.TopK = 1

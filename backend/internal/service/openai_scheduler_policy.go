@@ -78,8 +78,8 @@ func EvaluateOpenAISchedulerPolicy(
 		}
 	}
 	for _, candidate := range candidates {
-		state := normalizeOpenAIAutoSchedulerState(candidate.State)
-		if state != OpenAIAutoSchedulerStateOpen && state != OpenAIAutoSchedulerStateHalfOpen &&
+		eligibility := EvaluateOpenAISchedulerCandidateEligibility(candidate, settings)
+		if eligibility.Eligible && eligibility.Confidence == OpenAISchedulerHealthConfidenceHigh &&
 			candidate.SelectionTier == minSelectionTier && candidate.PredictedTTFTMS > 0 &&
 			(bestTTFT == 0 || candidate.PredictedTTFTMS < bestTTFT) {
 			bestTTFT = candidate.PredictedTTFTMS
@@ -100,6 +100,16 @@ func EvaluateOpenAISchedulerPolicy(
 		}
 		if candidate.WaitingCount > maxWaiting {
 			maxWaiting = candidate.WaitingCount
+		}
+	}
+	if bestTTFT == 0 {
+		for _, candidate := range candidates {
+			state := normalizeOpenAIAutoSchedulerState(candidate.State)
+			if state != OpenAIAutoSchedulerStateOpen && state != OpenAIAutoSchedulerStateHalfOpen &&
+				candidate.SelectionTier == minSelectionTier && candidate.PredictedTTFTMS > 0 &&
+				(bestTTFT == 0 || candidate.PredictedTTFTMS < bestTTFT) {
+				bestTTFT = candidate.PredictedTTFTMS
+			}
 		}
 	}
 
@@ -264,7 +274,11 @@ func EvaluateOpenAISchedulerCandidateEligibility(
 		result.RejectionCode = "half_open_recovery_only"
 		return result
 	}
-	if snapshotStatus == OpenAISchedulerHealthSnapshotMissing || candidate.HealthConfidence == "low" || candidate.PredictedTTFTMS <= 0 {
+	confidence := strings.ToLower(strings.TrimSpace(candidate.HealthConfidence))
+	if snapshotStatus == OpenAISchedulerHealthSnapshotMissing ||
+		confidence == OpenAISchedulerHealthConfidenceLow ||
+		confidence == OpenAISchedulerHealthConfidenceMedium ||
+		candidate.PredictedTTFTMS <= 0 {
 		result.Confidence = "low"
 		if snapshotStatus == OpenAISchedulerHealthSnapshotMissing {
 			result.RejectionCode = "health_missing"

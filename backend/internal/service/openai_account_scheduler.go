@@ -514,6 +514,7 @@ func (s *defaultOpenAIAccountScheduler) withOpenAIBalancedRuntimeSettings(
 		ExplorationMinInterval: time.Duration(settings.ExplorationMinIntervalSeconds) * time.Second,
 		ExplorationMaxSamples:  settings.ExplorationMaxRealSamplesPerHour,
 		StaleOpenRequiresProbe: settings.StaleOpenRequiresProbe,
+		RealSampleFreshSeconds: settings.RealSampleFreshSeconds,
 		LatencyBudgetMS:        float64(settings.LatencyBudgetMS),
 		SessionEscapeMinGapMS:  float64(settings.SessionEscapeMinGapMS),
 		SessionEscapeRatio:     settings.SessionEscapeRatio,
@@ -582,6 +583,7 @@ func (s *defaultOpenAIAccountScheduler) openAIBalancedShadowDecisionForSticky(
 	}
 	settings.ShadowMode = true
 	result, err := s.service.openaiBalancedScheduler.Order(ctx, OpenAIBalancedSelectionInput{
+		GroupID:                 openAIAccountScheduleGroupID(req.GroupID),
 		SessionAccountID:        legacyAccountID,
 		Candidates:              candidates,
 		LegacyOrderedAccountIDs: legacyIDs,
@@ -759,6 +761,7 @@ type openAIAccountCandidateScore struct {
 	schedulerTrafficClass string
 	schedulerEligibility  string
 	schedulerHealthKey    OpenAISchedulerHealthKey
+	schedulerTargetShare  float64
 }
 
 type openAIAccountCandidateHeap []openAIAccountCandidateScore
@@ -1240,6 +1243,7 @@ func (s *defaultOpenAIAccountScheduler) applyOpenAIBalancedSelectionOrder(
 		policySettings = DefaultOpenAIBalancedSettings()
 	}
 	result, err := s.service.openaiBalancedScheduler.Order(ctx, OpenAIBalancedSelectionInput{
+		GroupID:                   openAIAccountScheduleGroupID(req.GroupID),
 		PreviousResponseAccountID: previousResponseAccountID,
 		SessionAccountID:          sessionAccountID,
 		Candidates:                balancedCandidates,
@@ -1290,6 +1294,7 @@ func (s *defaultOpenAIAccountScheduler) applyOpenAIBalancedSelectionOrder(
 			candidate.schedulerTrafficClass = policyScoresByID[accountID].TrafficClass
 			candidate.schedulerEligibility = policyScoresByID[accountID].Eligibility
 			candidate.schedulerHealthKey = healthKeyByAccount[accountID]
+			candidate.schedulerTargetShare = policyScoresByID[accountID].TargetShare
 			selectionOrder = append(selectionOrder, candidate)
 		}
 	}
@@ -1543,6 +1548,7 @@ func (s *defaultOpenAIAccountScheduler) tryAcquireOpenAISelectionOrderWithBudget
 		}
 		if candidate.schedulerTrafficClass == OpenAISchedulerTrafficFallback && candidate.schedulerEligibility == OpenAISchedulerEligibilityLowConfidence {
 			s.metrics.lowConfidenceFallback.Add(1)
+			s.recordOpenAISchedulerDecisionAudit(req, candidate, OpenAISchedulerAuditLowConfidence, "selected")
 		}
 		return &AccountSelectionResult{
 			Account:     fresh,
@@ -1575,21 +1581,57 @@ func (s *defaultOpenAIAccountScheduler) reserveOpenAISchedulerExploration(
 	}
 	if err != nil {
 		s.metrics.explorationError.Add(1)
+		s.recordOpenAISchedulerDecisionAudit(req, candidate, OpenAISchedulerAuditExplorationError, "reservation_error")
 		slog.Warn("openai_scheduler_exploration_reservation_failed", "account_id", candidate.account.ID, "error", err)
 		return false
 	}
 	switch outcome {
 	case OpenAISchedulerExplorationReservationAllowed:
 		s.metrics.explorationAllowed.Add(1)
+		s.recordOpenAISchedulerDecisionAudit(req, candidate, OpenAISchedulerAuditExplorationAllowed, "allowed")
 		return true
 	case OpenAISchedulerExplorationReservationMinimumInterval:
 		s.metrics.explorationInterval.Add(1)
+		s.recordOpenAISchedulerDecisionAudit(req, candidate, OpenAISchedulerAuditExplorationRejected, "minimum_interval")
 	case OpenAISchedulerExplorationReservationHourlyLimit:
 		s.metrics.explorationHourly.Add(1)
+		s.recordOpenAISchedulerDecisionAudit(req, candidate, OpenAISchedulerAuditExplorationRejected, "hourly_limit")
 	default:
 		s.metrics.explorationRejected.Add(1)
+		s.recordOpenAISchedulerDecisionAudit(req, candidate, OpenAISchedulerAuditExplorationRejected, "denied")
 	}
 	return false
+}
+
+func (s *defaultOpenAIAccountScheduler) recordOpenAISchedulerDecisionAudit(
+	req OpenAIAccountScheduleRequest,
+	candidate openAIAccountCandidateScore,
+	eventType string,
+	reason string,
+) {
+	if s == nil || s.service == nil || s.service.openaiBalancedScheduler == nil || s.service.openaiBalancedScheduler.audit == nil || candidate.account == nil {
+		return
+	}
+	event := openAISchedulerDecisionAuditFromSettings(req.balancedPolicySettings)
+	event.EventType = eventType
+	event.GroupID = openAIAccountScheduleGroupID(req.GroupID)
+	event.AccountID = candidate.account.ID
+	event.ModelFamily = candidate.schedulerHealthKey.ModelFamily
+	event.Endpoint = candidate.schedulerHealthKey.Endpoint
+	event.Transport = candidate.schedulerHealthKey.Transport
+	event.Reason = reason
+	event.Confidence = OpenAISchedulerHealthConfidenceLow
+	event.Eligibility = candidate.schedulerEligibility
+	event.TrafficClass = candidate.schedulerTrafficClass
+	event.TargetShare = candidate.schedulerTargetShare
+	s.service.openaiBalancedScheduler.audit.TryRecord(event)
+}
+
+func openAIAccountScheduleGroupID(groupID *int64) int64 {
+	if groupID == nil {
+		return 0
+	}
+	return *groupID
 }
 
 func (s *defaultOpenAIAccountScheduler) tryAcquireOpenAIAccountSlot(
@@ -1882,10 +1924,17 @@ func (s *defaultOpenAIAccountScheduler) isOpenAIBalancedCircuitRejected(
 	}
 	now := time.Now()
 	status := OpenAISchedulerHealthSnapshotFresh
-	confidence := "high"
+	confidence := classifyOpenAISchedulerHealthConfidence(
+		snapshot.State,
+		snapshot.ExpiresAt,
+		snapshot.RealSampleCount,
+		snapshot.ProbeSampleCount,
+		snapshot.LastRealAt,
+		now,
+		req.balancedPolicySettings.RealSampleFreshSeconds,
+	)
 	if snapshot.ExpiresAt.IsZero() || !now.Before(snapshot.ExpiresAt) {
 		status = OpenAISchedulerHealthSnapshotStale
-		confidence = "low"
 	}
 	settings := openAIAutoSchedulerSettingsFromBalanced(req.balancedPolicySettings)
 	eligibility := EvaluateOpenAISchedulerCandidateEligibility(OpenAIBalancedCandidate{
@@ -1914,7 +1963,12 @@ func (s *defaultOpenAIAccountScheduler) openAIBalancedSoftStickyEscapeReason(
 		}
 		candidates = append(candidates, openAIBalancedCandidateForAccount(s.service, req, account, loadInfo, 0, now))
 	}
-	hydrated, ok := hydrateOpenAIBalancedHealth(candidates, req.balancedHealthSnapshots, now)
+	hydrated, ok := hydrateOpenAIBalancedHealth(
+		candidates,
+		req.balancedHealthSnapshots,
+		now,
+		req.balancedPolicySettings.RealSampleFreshSeconds,
+	)
 	if !ok || len(hydrated) == 0 {
 		return ""
 	}
@@ -1922,7 +1976,7 @@ func (s *defaultOpenAIAccountScheduler) openAIBalancedSoftStickyEscapeReason(
 	policySettings := openAIAutoSchedulerSettingsFromBalanced(req.balancedPolicySettings)
 	for _, candidate := range hydrated {
 		eligibility := EvaluateOpenAISchedulerCandidateEligibility(candidate, policySettings)
-		if candidate.AccountID == accountID && eligibility.Confidence == "low" {
+		if candidate.AccountID == accountID && eligibility.Confidence == OpenAISchedulerHealthConfidenceLow {
 			return eligibility.RejectionCode
 		}
 		if !eligibility.Eligible {

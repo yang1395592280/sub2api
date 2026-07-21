@@ -5,6 +5,12 @@ import (
 	"time"
 )
 
+const (
+	OpenAISchedulerHealthConfidenceHigh   = "high"
+	OpenAISchedulerHealthConfidenceMedium = "medium"
+	OpenAISchedulerHealthConfidenceLow    = "low"
+)
+
 type OpenAISchedulerHealthKey struct {
 	AccountID   int64
 	ModelFamily string
@@ -40,4 +46,43 @@ type OpenAISchedulerHealthRepository interface {
 // exact health keys through OpenAISchedulerHealthRepository.GetBatch.
 type OpenAISchedulerHealthSummaryRepository interface {
 	ListByAccountIDs(context.Context, []int64) ([]OpenAISchedulerHealthSnapshot, error)
+}
+
+func classifyOpenAISchedulerHealthConfidence(
+	state string,
+	expiresAt time.Time,
+	realSampleCount int64,
+	probeSampleCount int64,
+	lastRealAt *time.Time,
+	now time.Time,
+	realSampleFreshSeconds int,
+) string {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if expiresAt.IsZero() || !now.Before(expiresAt) {
+		return OpenAISchedulerHealthConfidenceLow
+	}
+
+	switch normalizeOpenAIAutoSchedulerState(state) {
+	case OpenAIAutoSchedulerStateOpen, OpenAIAutoSchedulerStateHalfOpen, OpenAIAutoSchedulerStateObserving:
+		return OpenAISchedulerHealthConfidenceLow
+	}
+
+	if realSampleFreshSeconds <= 0 {
+		realSampleFreshSeconds = DefaultOpenAIAutoSchedulerSettings().RealSampleFreshSeconds
+	}
+	if realSampleCount > 0 && lastRealAt != nil {
+		age := now.Sub(*lastRealAt)
+		if age < 0 {
+			age = 0
+		}
+		if age <= time.Duration(realSampleFreshSeconds)*time.Second {
+			return OpenAISchedulerHealthConfidenceHigh
+		}
+	}
+	if realSampleCount+probeSampleCount > 0 {
+		return OpenAISchedulerHealthConfidenceMedium
+	}
+	return OpenAISchedulerHealthConfidenceLow
 }

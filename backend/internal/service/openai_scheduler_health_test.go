@@ -47,6 +47,39 @@ func TestOpenAISchedulerHealthContract(t *testing.T) {
 	})
 }
 
+func TestClassifyOpenAISchedulerHealthConfidence(t *testing.T) {
+	now := time.Date(2026, 7, 21, 8, 0, 0, 0, time.UTC)
+	freshRealAt := now.Add(-time.Minute)
+	staleRealAt := now.Add(-10 * time.Minute)
+	freshExpiry := now.Add(time.Hour)
+
+	tests := []struct {
+		name         string
+		state        string
+		expiresAt    time.Time
+		realSamples  int64
+		probeSamples int64
+		lastRealAt   *time.Time
+		want         string
+	}{
+		{name: "fresh real running", state: OpenAIAutoSchedulerStateRunning, expiresAt: freshExpiry, realSamples: 1, lastRealAt: &freshRealAt, want: OpenAISchedulerHealthConfidenceHigh},
+		{name: "probe only running", state: OpenAIAutoSchedulerStateRunning, expiresAt: freshExpiry, probeSamples: 1, want: OpenAISchedulerHealthConfidenceMedium},
+		{name: "stale real running", state: OpenAIAutoSchedulerStateRunning, expiresAt: freshExpiry, realSamples: 1, lastRealAt: &staleRealAt, want: OpenAISchedulerHealthConfidenceMedium},
+		{name: "observing stays low with fresh real", state: OpenAIAutoSchedulerStateObserving, expiresAt: freshExpiry, realSamples: 10, lastRealAt: &freshRealAt, want: OpenAISchedulerHealthConfidenceLow},
+		{name: "open stays low", state: OpenAIAutoSchedulerStateOpen, expiresAt: freshExpiry, realSamples: 10, lastRealAt: &freshRealAt, want: OpenAISchedulerHealthConfidenceLow},
+		{name: "expired stays low", state: OpenAIAutoSchedulerStateRunning, expiresAt: now.Add(-time.Second), realSamples: 10, lastRealAt: &freshRealAt, want: OpenAISchedulerHealthConfidenceLow},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := classifyOpenAISchedulerHealthConfidence(
+				tt.state, tt.expiresAt, tt.realSamples, tt.probeSamples, tt.lastRealAt, now, 180,
+			)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 type structFieldType struct {
 	name string
 	typ  reflect.Type

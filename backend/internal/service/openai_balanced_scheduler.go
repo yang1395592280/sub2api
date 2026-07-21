@@ -42,6 +42,7 @@ type OpenAIBalancedSettings struct {
 	ExplorationMinInterval time.Duration
 	ExplorationMaxSamples  int
 	StaleOpenRequiresProbe bool
+	RealSampleFreshSeconds int
 	LatencyBudgetMS        float64
 	SessionEscapeMinGapMS  float64
 	SessionEscapeRatio     float64
@@ -75,6 +76,7 @@ type OpenAIBalancedCandidate struct {
 }
 
 type OpenAIBalancedSelectionInput struct {
+	GroupID                   int64
 	PreviousResponseAccountID int64
 	SessionAccountID          int64
 	Candidates                []OpenAIBalancedCandidate
@@ -102,11 +104,19 @@ type OpenAIBalancedSelectionResult struct {
 }
 
 type OpenAIBalancedScheduler struct {
-	repo OpenAISchedulerHealthRepository
+	repo  OpenAISchedulerHealthRepository
+	audit *OpenAISchedulerDecisionAuditRecorder
 }
 
-func NewOpenAIBalancedScheduler(repo OpenAISchedulerHealthRepository) *OpenAIBalancedScheduler {
-	return &OpenAIBalancedScheduler{repo: repo}
+func NewOpenAIBalancedScheduler(
+	repo OpenAISchedulerHealthRepository,
+	audits ...*OpenAISchedulerDecisionAuditRecorder,
+) *OpenAIBalancedScheduler {
+	scheduler := &OpenAIBalancedScheduler{repo: repo}
+	if len(audits) > 0 {
+		scheduler.audit = audits[0]
+	}
+	return scheduler
 }
 
 func DefaultOpenAIBalancedSettings() OpenAIBalancedSettings {
@@ -119,6 +129,7 @@ func DefaultOpenAIBalancedSettings() OpenAIBalancedSettings {
 		ExplorationMinInterval: time.Duration(DefaultOpenAIAutoSchedulerSettings().ExplorationMinIntervalSeconds) * time.Second,
 		ExplorationMaxSamples:  DefaultOpenAIAutoSchedulerSettings().ExplorationMaxRealSamplesPerHour,
 		StaleOpenRequiresProbe: true,
+		RealSampleFreshSeconds: DefaultOpenAIAutoSchedulerSettings().RealSampleFreshSeconds,
 		LatencyBudgetMS:        openAIBalancedDefaultLatencyBudgetMS,
 		SessionEscapeMinGapMS:  openAIBalancedDefaultSessionEscapeGapMS,
 		SessionEscapeRatio:     openAIBalancedDefaultSessionEscapeRatio,
@@ -137,21 +148,29 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 	}
 	if input.HealthLoadAttempted {
 		if !input.HealthLoadSucceeded && input.HealthSnapshots == nil {
-			return openAIBalancedFallbackResult(input, settings), nil
+			result := openAIBalancedFallbackResult(input, settings)
+			s.recordShadowDecision(input, result, settings)
+			return result, nil
 		}
-		loaded, ok := hydrateOpenAIBalancedHealth(input.Candidates, input.HealthSnapshots, input.Now)
+		loaded, ok := hydrateOpenAIBalancedHealth(input.Candidates, input.HealthSnapshots, input.Now, settings.RealSampleFreshSeconds)
 		if !ok {
-			return openAIBalancedFallbackResult(input, settings), nil
+			result := openAIBalancedFallbackResult(input, settings)
+			s.recordShadowDecision(input, result, settings)
+			return result, nil
 		}
 		input.Candidates = loaded
 	} else if s != nil && s.repo != nil {
 		states, ok := s.loadOpenAIBalancedHealthSnapshots(ctx, input.Candidates, input.Now)
 		if !ok {
-			return openAIBalancedFallbackResult(input, settings), nil
+			result := openAIBalancedFallbackResult(input, settings)
+			s.recordShadowDecision(input, result, settings)
+			return result, nil
 		}
-		loaded, ok := hydrateOpenAIBalancedHealth(input.Candidates, states, input.Now)
+		loaded, ok := hydrateOpenAIBalancedHealth(input.Candidates, states, input.Now, settings.RealSampleFreshSeconds)
 		if !ok {
-			return openAIBalancedFallbackResult(input, settings), nil
+			result := openAIBalancedFallbackResult(input, settings)
+			s.recordShadowDecision(input, result, settings)
+			return result, nil
 		}
 		input.Candidates = loaded
 	}
@@ -208,7 +227,9 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 	}
 	if len(ordered) == 0 {
 		if settings.ShadowMode {
-			return openAIBalancedShadowResult(input, result), nil
+			result = openAIBalancedShadowResult(input, result)
+			s.recordShadowDecision(input, result, settings)
+			return result, nil
 		}
 		return result, nil
 	}
@@ -228,8 +249,50 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 	}
 	if settings.ShadowMode {
 		result = openAIBalancedShadowResult(input, result)
+		s.recordShadowDecision(input, result, settings)
 	}
 	return result, nil
+}
+
+func (s *OpenAIBalancedScheduler) recordShadowDecision(
+	input OpenAIBalancedSelectionInput,
+	result OpenAIBalancedSelectionResult,
+	settings OpenAIBalancedSettings,
+) {
+	if s == nil || s.audit == nil || !result.Shadow {
+		return
+	}
+	event := openAISchedulerDecisionAuditFromSettings(settings)
+	event.EventType = OpenAISchedulerAuditShadowDecision
+	event.GroupID = input.GroupID
+	event.AccountID = result.ShadowAccountID
+	event.LegacyAccountID = result.LegacyAccountID
+	event.Reason = result.ShadowReason
+	event.PredictedTTFTDifferenceMS = result.PredictedTTFTDifferenceMS
+	event.CandidateCount = result.CandidateCount
+	event.TopK = result.TopK
+	event.CreatedAt = input.Now
+
+	for _, candidate := range input.Candidates {
+		if candidate.AccountID != result.ShadowAccountID {
+			continue
+		}
+		event.ModelFamily = candidate.HealthKey.ModelFamily
+		event.Endpoint = candidate.HealthKey.Endpoint
+		event.Transport = candidate.HealthKey.Transport
+		event.Confidence = candidate.HealthConfidence
+		break
+	}
+	for _, score := range result.PolicyScores {
+		if score.AccountID != result.ShadowAccountID {
+			continue
+		}
+		event.Eligibility = score.Eligibility
+		event.TrafficClass = score.TrafficClass
+		event.TargetShare = score.TargetShare
+		break
+	}
+	s.audit.TryRecord(event)
 }
 
 func openAIAutoSchedulerSettingsFromBalanced(settings OpenAIBalancedSettings) OpenAIAutoSchedulerSettings {
@@ -244,6 +307,7 @@ func openAIAutoSchedulerSettingsFromBalanced(settings OpenAIBalancedSettings) Op
 	result.ExplorationMinIntervalSeconds = int(settings.ExplorationMinInterval / time.Second)
 	result.ExplorationMaxRealSamplesPerHour = settings.ExplorationMaxSamples
 	result.StaleOpenRequiresProbe = settings.StaleOpenRequiresProbe
+	result.RealSampleFreshSeconds = settings.RealSampleFreshSeconds
 	result.SessionEscapeMinGapMS = int(settings.SessionEscapeMinGapMS)
 	result.SessionEscapeRatio = settings.SessionEscapeRatio
 	result.LatencyBudgetMS = int(settings.LatencyBudgetMS)
@@ -383,6 +447,7 @@ func hydrateOpenAIBalancedHealth(
 	input []OpenAIBalancedCandidate,
 	states map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot,
 	now time.Time,
+	realSampleFreshSeconds int,
 ) ([]OpenAIBalancedCandidate, bool) {
 	if now.IsZero() {
 		now = time.Now()
@@ -416,7 +481,15 @@ func hydrateOpenAIBalancedHealth(
 		candidates[i].ErrorRate = snapshot.ErrorRate
 		candidates[i].RateLimitedRate = snapshot.RateLimitedRate
 		candidates[i].ServerErrorRate = snapshot.ServerErrorRate
-		candidates[i].HealthConfidence = "high"
+		candidates[i].HealthConfidence = classifyOpenAISchedulerHealthConfidence(
+			snapshot.State,
+			snapshot.ExpiresAt,
+			snapshot.RealSampleCount,
+			snapshot.ProbeSampleCount,
+			snapshot.LastRealAt,
+			now,
+			realSampleFreshSeconds,
+		)
 		candidates[i].HealthSnapshotStatus = OpenAISchedulerHealthSnapshotFresh
 		if snapshot.LastRealAt != nil {
 			candidates[i].HasRealSample = true
@@ -551,6 +624,9 @@ func normalizeOpenAIBalancedSettings(settings OpenAIBalancedSettings) OpenAIBala
 	}
 	if settings.LowConfidenceMaxShare <= 0 || settings.LowConfidenceMaxShare > 1 {
 		settings.LowConfidenceMaxShare = DefaultOpenAIAutoSchedulerSettings().LowConfidenceMaxShare
+	}
+	if settings.RealSampleFreshSeconds <= 0 {
+		settings.RealSampleFreshSeconds = DefaultOpenAIAutoSchedulerSettings().RealSampleFreshSeconds
 	}
 	if openAISchedulerPolicyWeightSum(settings.Weights) <= 0 {
 		settings.Weights = defaultOpenAISchedulerPolicyWeights(settings.Mode)
