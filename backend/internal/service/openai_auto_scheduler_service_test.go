@@ -694,6 +694,7 @@ func TestOpenAIAutoSchedulerService_RecordConcurrentErrorsTripsBreaker(t *testin
 
 func TestOpenAIAutoSchedulerService_ListAccountSummariesRanksBySpeed(t *testing.T) {
 	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{10: enabledOpenAIAutoSchedulerGroup(10)},
 		states: map[string]OpenAIAutoSchedulerScoreState{},
 		accounts: map[int64][]Account{
 			10: {{ID: 1}, {ID: 2}},
@@ -718,6 +719,7 @@ func TestOpenAIAutoSchedulerService_ListAccountSummariesRanksBySpeed(t *testing.
 
 func TestOpenAIAutoSchedulerService_ListAccountSummariesRanksRunningAccountsOnly(t *testing.T) {
 	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{10: enabledOpenAIAutoSchedulerGroup(10)},
 		states: map[string]OpenAIAutoSchedulerScoreState{},
 		accounts: map[int64][]Account{
 			10: {{ID: 1}, {ID: 2}},
@@ -740,6 +742,7 @@ func TestOpenAIAutoSchedulerService_ListAccountSummariesRanksRunningAccountsOnly
 
 func TestOpenAIAutoSchedulerService_ListAccountSummariesRanksWithinWholeGroup(t *testing.T) {
 	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{10: enabledOpenAIAutoSchedulerGroup(10)},
 		states: map[string]OpenAIAutoSchedulerScoreState{},
 		accounts: map[int64][]Account{
 			10: {{ID: 1}, {ID: 2}},
@@ -766,6 +769,7 @@ func TestOpenAIAutoSchedulerService_ListAccountSummariesRanksWithinWholeGroup(t 
 
 func TestOpenAIAutoSchedulerService_ListAccountSummariesIgnoresUnschedulableStateRanks(t *testing.T) {
 	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{10: enabledOpenAIAutoSchedulerGroup(10)},
 		states: map[string]OpenAIAutoSchedulerScoreState{},
 		accounts: map[int64][]Account{
 			10: {{ID: 2}},
@@ -784,6 +788,64 @@ func TestOpenAIAutoSchedulerService_ListAccountSummariesIgnoresUnschedulableStat
 	require.NoError(t, err)
 	require.NotContains(t, summaries, int64(1))
 	require.Equal(t, 1, summaries[2].SpeedPriority)
+}
+
+func TestOpenAIAutoSchedulerService_ListAccountSummariesRequiresSchedulerEnabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings OpenAIAutoSchedulerSettings
+		group    Group
+	}{
+		{
+			name:     "global disabled",
+			settings: DefaultOpenAIAutoSchedulerSettings(),
+			group:    enabledOpenAIAutoSchedulerGroup(10),
+		},
+		{
+			name:     "group disabled",
+			settings: enabledOpenAIAutoSchedulerSettings(),
+			group: Group{
+				ID:                         10,
+				Platform:                   PlatformOpenAI,
+				Status:                     StatusActive,
+				OpenAIAutoSchedulerEnabled: false,
+				Hydrated:                   true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeOpenAIAutoSchedulerRepo{
+				groups: map[int64]Group{10: tt.group},
+				states: map[string]OpenAIAutoSchedulerScoreState{
+					openAIAutoSchedulerStateKey(1, 10, "gpt-5.4"): {
+						AccountID: 1,
+						GroupID:   10,
+						Model:     "gpt-5.4",
+						State:     OpenAIAutoSchedulerStateRunning,
+					},
+				},
+				accounts: map[int64][]Account{10: {{ID: 1}}},
+			}
+			settingsProvider := fakeOpenAIAutoSchedulerSettingsProvider{settings: tt.settings}
+			healthRepo := &openAISchedulerHealthSummaryRepoStub{snapshots: []OpenAISchedulerHealthSnapshot{{
+				Key:             OpenAISchedulerHealthKey{AccountID: 1, ModelFamily: "gpt-5", Endpoint: "responses", Transport: "http_sse"},
+				State:           OpenAIAutoSchedulerStateRunning,
+				PredictedTTFTMS: 450,
+				ExpiresAt:       time.Now().Add(time.Hour),
+			}}}
+			svc := NewOpenAIAutoSchedulerService(repo, settingsProvider)
+			svc.healthSink = NewOpenAISchedulerHealthEventSink(healthRepo, settingsProvider)
+
+			summaries, err := svc.ListAccountSummaries(context.Background(), 10, []int64{1})
+
+			require.NoError(t, err)
+			require.Empty(t, summaries)
+			require.Zero(t, repo.summaryCalls)
+			require.Equal(t, OpenAIAutoSchedulerSummaryMetricsSnapshot{}, svc.SnapshotSummaryMetrics())
+		})
+	}
 }
 
 type openAISchedulerHealthSummaryRepoStub struct {
@@ -805,6 +867,7 @@ func (r *openAISchedulerHealthSummaryRepoStub) ListByAccountIDs(context.Context,
 
 func TestOpenAIAutoSchedulerService_ListAccountSummariesUsesUnifiedAvailability(t *testing.T) {
 	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{10: enabledOpenAIAutoSchedulerGroup(10)},
 		states: map[string]OpenAIAutoSchedulerScoreState{
 			openAIAutoSchedulerStateKey(1, 10, "gpt-5.5"): {AccountID: 1, GroupID: 10, Model: "gpt-5.5", State: OpenAIAutoSchedulerStateOpen},
 		},
@@ -836,6 +899,7 @@ func TestOpenAIAutoSchedulerService_ListAccountSummariesUsesUnifiedAvailability(
 
 func TestOpenAIAutoSchedulerService_ListAccountSummariesFallsBackWhenUnifiedReadFails(t *testing.T) {
 	repo := &fakeOpenAIAutoSchedulerRepo{
+		groups: map[int64]Group{10: enabledOpenAIAutoSchedulerGroup(10)},
 		states: map[string]OpenAIAutoSchedulerScoreState{
 			openAIAutoSchedulerStateKey(1, 10, "gpt-5.5"): {AccountID: 1, GroupID: 10, Model: "gpt-5.5", State: OpenAIAutoSchedulerStateRunning},
 		},
@@ -860,6 +924,16 @@ func enabledOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {
 	settings := DefaultOpenAIAutoSchedulerSettings()
 	settings.Enabled = true
 	return settings
+}
+
+func enabledOpenAIAutoSchedulerGroup(id int64) Group {
+	return Group{
+		ID:                         id,
+		Platform:                   PlatformOpenAI,
+		Status:                     StatusActive,
+		OpenAIAutoSchedulerEnabled: true,
+		Hydrated:                   true,
+	}
 }
 
 func ptrOpenAIAutoSchedulerInt64(v int64) *int64 {

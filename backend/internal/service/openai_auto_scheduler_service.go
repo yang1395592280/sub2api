@@ -364,6 +364,9 @@ func (s *OpenAIAutoSchedulerService) ListAccountSummaries(ctx context.Context, g
 	if s == nil || s.repo == nil || groupID <= 0 || len(accountIDs) == 0 {
 		return out, nil
 	}
+	if !s.IsEnabledForGroup(ctx, &groupID) {
+		return out, nil
+	}
 	settings := s.settings(ctx)
 	probeModel := settings.ProbeModel
 	schedulableAccounts, err := s.repo.ListSchedulableOpenAIAccountsByGroup(ctx, groupID)
