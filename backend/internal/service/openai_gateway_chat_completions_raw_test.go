@@ -481,6 +481,8 @@ func TestHandleChatStreamingResponse_SilentRefusalReasoningSummaryExempt(t *test
 		"gpt-5.5",
 		"gpt-5.5",
 		"gpt-5.5",
+		"",
+		0,
 		time.Now(),
 		openAISilentRefusalMinRequestBodyBytes,
 	)

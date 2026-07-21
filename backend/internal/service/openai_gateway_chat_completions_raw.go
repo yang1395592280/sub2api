@@ -2,12 +2,15 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
@@ -170,8 +173,23 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	if customUA == "" && account.IsGrokOAuth() {
 		customUA = "sub2api-grok/1.0"
 	}
-	resp, err := s.sendCCUpstreamRequest(ctx, c, account, targetURL, upstreamBody, clientStream, token, customUA, grokCacheIdentity)
+	reasoningEffortValue := ""
+	if reasoningEffort != nil {
+		reasoningEffortValue = *reasoningEffort
+	}
+	firstOutputTimeout := time.Duration(0)
+	firstOutputDeadline := time.Time{}
+	if clientStream && account.Platform == PlatformOpenAI {
+		firstOutputTimeout = s.openAIFirstOutputTimeoutWithContext(ctx, reasoningEffortValue)
+		if firstOutputTimeout > 0 {
+			firstOutputDeadline = startTime.Add(firstOutputTimeout)
+		}
+	}
+	resp, err := s.sendCCUpstreamRequest(ctx, c, account, targetURL, upstreamBody, clientStream, token, customUA, grokCacheIdentity, firstOutputDeadline)
 	if err != nil {
+		if errors.Is(err, errOpenAIFirstOutputHeaderTimeout) {
+			return nil, s.newOpenAIFirstOutputTimeoutError(ctx, c, account, startTime, originalModel, reasoningEffortValue, firstOutputTimeout, "response_headers", nil)
+		}
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -214,7 +232,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	var forwardResult *OpenAIForwardResult
 	var forwardErr error
 	if clientStream {
-		forwardResult, forwardErr = s.streamRawChatCompletions(c, resp, account, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime, len(body))
+		forwardResult, forwardErr = s.streamRawChatCompletions(c, resp, account, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, firstOutputTimeout, startTime, len(body))
 	} else {
 		forwardResult, forwardErr = s.bufferRawChatCompletions(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 	}
@@ -255,6 +273,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	upstreamModel string,
 	reasoningEffort *string,
 	serviceTier *string,
+	firstOutputTimeout time.Duration,
 	startTime time.Time,
 	requestBodyLen int,
 ) (*OpenAIForwardResult, error) {
@@ -268,12 +287,29 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	clientOutputStarted := false
 	pendingLines := make([]string, 0, 8)
 	refusalDetector := newOpenAIChatSilentRefusalDetector(requestBodyLen)
+	var firstOutputTimedOut atomic.Bool
+	var firstOutputResolved atomic.Bool
+	var firstOutputTimer *time.Timer
+	if firstOutputTimeout > 0 {
+		remaining := time.Until(startTime.Add(firstOutputTimeout))
+		if remaining <= 0 {
+			remaining = time.Nanosecond
+		}
+		firstOutputTimer = time.AfterFunc(remaining, func() {
+			if !firstOutputResolved.CompareAndSwap(false, true) {
+				return
+			}
+			firstOutputTimedOut.Store(true)
+			_ = resp.Body.Close()
+		})
+		defer firstOutputTimer.Stop()
+	}
 
 	writeLine := func(line string) {
 		if clientDisconnected {
 			return
 		}
-		if !clientOutputStarted && !refusalDetector.ShouldReleaseClientOutput() {
+		if !clientOutputStarted && ((firstOutputTimeout > 0 && firstTokenMs == nil) || !refusalDetector.ShouldReleaseClientOutput()) {
 			pendingLines = append(pendingLines, line)
 			return
 		}
@@ -312,8 +348,15 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 					usage = *u
 				}
 				if firstTokenMs == nil && !usageOnlyChunk {
-					elapsed := int(time.Since(startTime).Milliseconds())
-					firstTokenMs = &elapsed
+					var chunk apicompat.ChatCompletionsChunk
+					if json.Unmarshal([]byte(payload), &chunk) == nil && chatChunkStartsResponsesOutput(&chunk) &&
+						firstOutputResolved.CompareAndSwap(false, true) {
+						elapsed := int(time.Since(startTime).Milliseconds())
+						firstTokenMs = &elapsed
+						if firstOutputTimer != nil {
+							firstOutputTimer.Stop()
+						}
+					}
 				}
 			}
 		}
@@ -330,6 +373,16 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 		}
 	}
 
+	if firstOutputTimedOut.Load() && firstTokenMs == nil {
+		reasoningEffortValue := ""
+		if reasoningEffort != nil {
+			reasoningEffortValue = *reasoningEffort
+		}
+		return nil, s.newOpenAIFirstOutputTimeoutError(
+			c.Request.Context(), c, account, startTime, originalModel, reasoningEffortValue,
+			firstOutputTimeout, "semantic_output", resp.Header,
+		)
+	}
 	if err := scanner.Err(); err != nil {
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 			logger.L().Warn("openai chat_completions raw: stream read error",

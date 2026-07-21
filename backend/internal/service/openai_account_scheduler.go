@@ -84,6 +84,7 @@ type OpenAIAccountScheduleRequest struct {
 	RequiredImageCapability OpenAIImagesCapability
 	RequireCompact          bool
 	ExcludedIDs             map[int64]struct{}
+	QualifiedOnly           bool
 	balancedHealthSnapshots map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot
 	balancedHealthAttempted bool
 	balancedHealthLoaded    bool
@@ -406,6 +407,10 @@ func (s *defaultOpenAIAccountScheduler) Select(
 		decision.LatencyMs = time.Since(start).Milliseconds()
 		s.metrics.recordSelect(decision)
 	}()
+	if (req.QualifiedOnly || req.StickyAccountID > 0 || req.StickyPreviousAccountID > 0) && req.balancedMode != OpenAIAutoSchedulerModeLegacy {
+		req = s.prepareOpenAIBalancedHealth(ctx, req)
+	}
+	req = s.applyOpenAIQualifiedOnly(req)
 
 	previousResponseID := strings.TrimSpace(req.PreviousResponseID)
 	if previousResponseID != "" && normalizeOpenAICompatiblePlatform(req.Platform) == PlatformOpenAI &&
@@ -440,10 +445,6 @@ func (s *defaultOpenAIAccountScheduler) Select(
 			}
 			return selection, decision, nil
 		}
-	}
-
-	if (req.StickyAccountID > 0 || req.StickyPreviousAccountID > 0) && req.balancedMode != OpenAIAutoSchedulerModeLegacy {
-		req = s.prepareOpenAIBalancedHealth(ctx, req)
 	}
 
 	if !req.StickyWeighted {
@@ -516,6 +517,7 @@ func (s *defaultOpenAIAccountScheduler) withOpenAIBalancedRuntimeSettings(
 		StaleOpenRequiresProbe: settings.StaleOpenRequiresProbe,
 		RealSampleFreshSeconds: settings.RealSampleFreshSeconds,
 		LatencyBudgetMS:        float64(settings.LatencyBudgetMS),
+		SlowThresholdMS:        float64(settings.SlowThresholdMS),
 		SessionEscapeMinGapMS:  float64(settings.SessionEscapeMinGapMS),
 		SessionEscapeRatio:     settings.SessionEscapeRatio,
 		SessionEscapeErrorRate: openAIBalancedDefaultSessionErrorRate,
@@ -524,6 +526,60 @@ func (s *defaultOpenAIAccountScheduler) withOpenAIBalancedRuntimeSettings(
 		LowConfidenceMaxShare:  settings.LowConfidenceMaxShare,
 		Weights:                settings.Weights,
 	}
+	return req
+}
+
+func (s *defaultOpenAIAccountScheduler) applyOpenAIQualifiedOnly(req OpenAIAccountScheduleRequest) OpenAIAccountScheduleRequest {
+	if !req.QualifiedOnly || req.balancedMode == OpenAIAutoSchedulerModeLegacy || req.balancedShadowMode ||
+		!req.balancedHealthLoaded || len(req.balancedAccounts) == 0 {
+		return req
+	}
+
+	now := time.Now()
+	candidates := make([]OpenAIBalancedCandidate, 0, len(req.balancedAccounts))
+	for index, account := range req.balancedAccounts {
+		if account == nil {
+			continue
+		}
+		loadInfo := req.balancedLoadMap[account.ID]
+		if loadInfo == nil {
+			loadInfo = &AccountLoadInfo{AccountID: account.ID}
+		}
+		candidates = append(candidates, openAIBalancedCandidateForAccount(s.service, req, account, loadInfo, index, now))
+	}
+	hydrated, ok := hydrateOpenAIBalancedHealth(candidates, req.balancedHealthSnapshots, now, req.balancedPolicySettings.RealSampleFreshSeconds)
+	if !ok {
+		return req
+	}
+	evaluation := EvaluateOpenAISchedulerPolicy(hydrated, openAIAutoSchedulerSettingsFromBalanced(req.balancedPolicySettings), deriveOpenAISelectionSeed(req))
+	qualified := make(map[int64]struct{}, len(evaluation.Scores))
+	for _, score := range evaluation.Scores {
+		if score.Eligibility == OpenAISchedulerEligibilityEligible && score.PredictedTTFTMS > 0 &&
+			score.PredictedTTFTMS <= req.balancedPolicySettings.SlowThresholdMS {
+			qualified[score.AccountID] = struct{}{}
+		}
+	}
+
+	excluded := cloneExcludedAccountIDs(req.ExcludedIDs)
+	if excluded == nil {
+		excluded = make(map[int64]struct{})
+	}
+	filteredAccounts := make([]*Account, 0, len(qualified))
+	filteredLoadRequest := make([]AccountWithConcurrency, 0, len(qualified))
+	for _, account := range req.balancedAccounts {
+		if account == nil {
+			continue
+		}
+		if _, allowed := qualified[account.ID]; !allowed {
+			excluded[account.ID] = struct{}{}
+			continue
+		}
+		filteredAccounts = append(filteredAccounts, account)
+		filteredLoadRequest = append(filteredLoadRequest, AccountWithConcurrency{ID: account.ID, MaxConcurrency: account.EffectiveLoadFactor()})
+	}
+	req.ExcludedIDs = excluded
+	req.balancedAccounts = filteredAccounts
+	req.balancedLoadRequest = filteredLoadRequest
 	return req
 }
 
@@ -2774,6 +2830,7 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 		RequiredImageCapability: requiredImageCapability,
 		RequireCompact:          requireCompact,
 		ExcludedIDs:             excludedIDs,
+		QualifiedOnly:           openAIAutoCheapestQualifiedOnly(ctx),
 	})
 }
 

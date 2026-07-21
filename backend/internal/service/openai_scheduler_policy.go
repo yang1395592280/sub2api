@@ -30,6 +30,7 @@ type SchedulerEligibility struct {
 
 type OpenAISchedulerPolicyCandidateScore struct {
 	AccountID         int64
+	PredictedTTFTMS   float64
 	Eligibility       string
 	EligibilityReason string
 	Rank              int
@@ -296,7 +297,11 @@ func scoreOpenAISchedulerPolicyCandidate(
 	minPriority, maxPriority, maxWaiting int,
 	minSelectionTier int,
 ) OpenAISchedulerPolicyCandidateScore {
-	score := OpenAISchedulerPolicyCandidateScore{AccountID: candidate.AccountID, Eligibility: OpenAISchedulerEligibilityEligible}
+	score := OpenAISchedulerPolicyCandidateScore{
+		AccountID:       candidate.AccountID,
+		PredictedTTFTMS: candidate.PredictedTTFTMS,
+		Eligibility:     OpenAISchedulerEligibilityEligible,
+	}
 	eligibility := EvaluateOpenAISchedulerCandidateEligibility(candidate, settings)
 	if !eligibility.Eligible {
 		score.Eligibility = OpenAISchedulerEligibilityRejected

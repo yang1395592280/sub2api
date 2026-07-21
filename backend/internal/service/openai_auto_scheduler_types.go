@@ -43,57 +43,61 @@ type OpenAISchedulerPolicyWeights struct {
 }
 
 type OpenAIAutoSchedulerSettings struct {
-	Enabled                          bool                         `json:"enabled"`
-	Mode                             string                       `json:"mode"`
-	ShadowMode                       bool                         `json:"shadow_mode"`
-	TopK                             int                          `json:"top_k"`
-	AdaptiveTopKEnabled              bool                         `json:"adaptive_top_k_enabled"`
-	ExplorationRate                  float64                      `json:"exploration_rate"`
-	ExplorationBudget                float64                      `json:"exploration_budget"`
-	ExplorationMinIntervalSeconds    int                          `json:"exploration_min_interval_seconds"`
-	ExplorationMaxRealSamplesPerHour int                          `json:"exploration_max_real_samples_per_hour"`
-	StaleOpenRequiresProbe           bool                         `json:"stale_open_requires_probe"`
-	SessionEscapeMinGapMS            int                          `json:"session_escape_min_gap_ms"`
-	SessionEscapeRatio               float64                      `json:"session_escape_ratio"`
-	HealthTTLSeconds                 int                          `json:"health_ttl_seconds"`
-	RealSampleFreshSeconds           int                          `json:"real_sample_fresh_seconds"`
-	ProbeJitterSeconds               int                          `json:"probe_jitter_seconds"`
-	ProbeModel                       string                       `json:"probe_model"`
-	ProbeIntervalSeconds             int                          `json:"probe_interval_seconds"`
-	SlowThresholdMS                  int                          `json:"slow_threshold_ms"`
-	SevereSlowThresholdMS            int                          `json:"severe_slow_threshold_ms"`
-	ConsecutiveSlowBreakerThreshold  int                          `json:"consecutive_slow_breaker_threshold"`
-	ConsecutiveErrorBreakerThreshold int                          `json:"consecutive_error_breaker_threshold"`
-	CooldownSeconds                  int                          `json:"cooldown_seconds"`
-	HalfOpenSuccessThreshold         int                          `json:"half_open_success_threshold"`
-	CostWeight                       float64                      `json:"cost_weight"`
-	RecoveryStep                     int                          `json:"recovery_step"`
-	Temperature                      float64                      `json:"temperature"`
-	MaxAccountShare                  float64                      `json:"max_account_share"`
-	LowConfidenceMaxShare            float64                      `json:"low_confidence_max_share"`
-	LatencyBudgetMS                  int                          `json:"latency_budget_ms"`
-	Weights                          OpenAISchedulerPolicyWeights `json:"weights"`
+	Enabled                             bool                         `json:"enabled"`
+	Mode                                string                       `json:"mode"`
+	ShadowMode                          bool                         `json:"shadow_mode"`
+	TopK                                int                          `json:"top_k"`
+	AdaptiveTopKEnabled                 bool                         `json:"adaptive_top_k_enabled"`
+	ExplorationRate                     float64                      `json:"exploration_rate"`
+	ExplorationBudget                   float64                      `json:"exploration_budget"`
+	ExplorationMinIntervalSeconds       int                          `json:"exploration_min_interval_seconds"`
+	ExplorationMaxRealSamplesPerHour    int                          `json:"exploration_max_real_samples_per_hour"`
+	StaleOpenRequiresProbe              bool                         `json:"stale_open_requires_probe"`
+	SessionEscapeMinGapMS               int                          `json:"session_escape_min_gap_ms"`
+	SessionEscapeRatio                  float64                      `json:"session_escape_ratio"`
+	HealthTTLSeconds                    int                          `json:"health_ttl_seconds"`
+	RealSampleFreshSeconds              int                          `json:"real_sample_fresh_seconds"`
+	ProbeJitterSeconds                  int                          `json:"probe_jitter_seconds"`
+	ProbeModel                          string                       `json:"probe_model"`
+	ProbeIntervalSeconds                int                          `json:"probe_interval_seconds"`
+	SlowThresholdMS                     int                          `json:"slow_threshold_ms"`
+	SevereSlowThresholdMS               int                          `json:"severe_slow_threshold_ms"`
+	ConsecutiveSlowBreakerThreshold     int                          `json:"consecutive_slow_breaker_threshold"`
+	ConsecutiveErrorBreakerThreshold    int                          `json:"consecutive_error_breaker_threshold"`
+	CooldownSeconds                     int                          `json:"cooldown_seconds"`
+	HalfOpenSuccessThreshold            int                          `json:"half_open_success_threshold"`
+	CostWeight                          float64                      `json:"cost_weight"`
+	RecoveryStep                        int                          `json:"recovery_step"`
+	Temperature                         float64                      `json:"temperature"`
+	MaxAccountShare                     float64                      `json:"max_account_share"`
+	LowConfidenceMaxShare               float64                      `json:"low_confidence_max_share"`
+	LatencyBudgetMS                     int                          `json:"latency_budget_ms"`
+	FirstOutputTimeoutSeconds           int                          `json:"first_output_timeout_seconds"`
+	HighEffortFirstOutputTimeoutSeconds int                          `json:"high_effort_first_output_timeout_seconds"`
+	Weights                             OpenAISchedulerPolicyWeights `json:"weights"`
 
-	modeSet                   bool
-	shadowModeSet             bool
-	topKSet                   bool
-	adaptiveTopKEnabledSet    bool
-	explorationRateSet        bool
-	explorationBudgetSet      bool
-	explorationMinIntervalSet bool
-	explorationMaxSamplesSet  bool
-	staleOpenRequiresProbeSet bool
-	sessionEscapeMinGapMSSet  bool
-	sessionEscapeRatioSet     bool
-	healthTTLSecondsSet       bool
-	realSampleFreshSecondsSet bool
-	probeJitterSecondsSet     bool
-	costWeightSet             bool
-	temperatureSet            bool
-	maxAccountShareSet        bool
-	lowConfidenceMaxShareSet  bool
-	latencyBudgetMSSet        bool
-	weightsSet                bool
+	modeSet                         bool
+	shadowModeSet                   bool
+	topKSet                         bool
+	adaptiveTopKEnabledSet          bool
+	explorationRateSet              bool
+	explorationBudgetSet            bool
+	explorationMinIntervalSet       bool
+	explorationMaxSamplesSet        bool
+	staleOpenRequiresProbeSet       bool
+	sessionEscapeMinGapMSSet        bool
+	sessionEscapeRatioSet           bool
+	healthTTLSecondsSet             bool
+	realSampleFreshSecondsSet       bool
+	probeJitterSecondsSet           bool
+	costWeightSet                   bool
+	temperatureSet                  bool
+	maxAccountShareSet              bool
+	lowConfidenceMaxShareSet        bool
+	latencyBudgetMSSet              bool
+	firstOutputTimeoutSet           bool
+	highEffortFirstOutputTimeoutSet bool
+	weightsSet                      bool
 }
 
 func (s *OpenAIAutoSchedulerSettings) UnmarshalJSON(data []byte) error {
@@ -126,6 +130,8 @@ func (s *OpenAIAutoSchedulerSettings) UnmarshalJSON(data []byte) error {
 	_, s.maxAccountShareSet = fields["max_account_share"]
 	_, s.lowConfidenceMaxShareSet = fields["low_confidence_max_share"]
 	_, s.latencyBudgetMSSet = fields["latency_budget_ms"]
+	_, s.firstOutputTimeoutSet = fields["first_output_timeout_seconds"]
+	_, s.highEffortFirstOutputTimeoutSet = fields["high_effort_first_output_timeout_seconds"]
 	_, s.weightsSet = fields["weights"]
 	return nil
 }
@@ -207,56 +213,58 @@ const (
 
 func DefaultOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {
 	return OpenAIAutoSchedulerSettings{
-		Enabled:                          false,
-		Mode:                             OpenAIAutoSchedulerModeBalanced,
-		ShadowMode:                       true,
-		TopK:                             3,
-		AdaptiveTopKEnabled:              true,
-		ExplorationRate:                  0.03,
-		ExplorationBudget:                0.05,
-		ExplorationMinIntervalSeconds:    600,
-		ExplorationMaxRealSamplesPerHour: 6,
-		StaleOpenRequiresProbe:           true,
-		SessionEscapeMinGapMS:            1000,
-		SessionEscapeRatio:               0.25,
-		HealthTTLSeconds:                 int(openAISchedulerHealthStateTTL / time.Second),
-		RealSampleFreshSeconds:           openAISchedulerHealthRealFreshSeconds,
-		ProbeJitterSeconds:               0,
-		ProbeModel:                       OpenAIAutoSchedulerDefaultProbeModel,
-		ProbeIntervalSeconds:             60,
-		SlowThresholdMS:                  10000,
-		SevereSlowThresholdMS:            20000,
-		ConsecutiveSlowBreakerThreshold:  3,
-		ConsecutiveErrorBreakerThreshold: 2,
-		CooldownSeconds:                  120,
-		HalfOpenSuccessThreshold:         3,
-		CostWeight:                       0.2,
-		RecoveryStep:                     800,
-		Temperature:                      0.18,
-		MaxAccountShare:                  0.70,
-		LowConfidenceMaxShare:            0.10,
-		LatencyBudgetMS:                  1000,
-		Weights:                          defaultOpenAISchedulerPolicyWeights(OpenAIAutoSchedulerModeBalanced),
-		modeSet:                          true,
-		shadowModeSet:                    true,
-		topKSet:                          true,
-		adaptiveTopKEnabledSet:           true,
-		explorationRateSet:               true,
-		explorationBudgetSet:             true,
-		explorationMinIntervalSet:        true,
-		explorationMaxSamplesSet:         true,
-		staleOpenRequiresProbeSet:        true,
-		sessionEscapeMinGapMSSet:         true,
-		sessionEscapeRatioSet:            true,
-		healthTTLSecondsSet:              true,
-		realSampleFreshSecondsSet:        true,
-		probeJitterSecondsSet:            true,
-		costWeightSet:                    true,
-		temperatureSet:                   true,
-		maxAccountShareSet:               true,
-		lowConfidenceMaxShareSet:         true,
-		latencyBudgetMSSet:               true,
-		weightsSet:                       true,
+		Enabled:                             false,
+		Mode:                                OpenAIAutoSchedulerModeBalanced,
+		ShadowMode:                          true,
+		TopK:                                3,
+		AdaptiveTopKEnabled:                 true,
+		ExplorationRate:                     0.03,
+		ExplorationBudget:                   0.05,
+		ExplorationMinIntervalSeconds:       600,
+		ExplorationMaxRealSamplesPerHour:    6,
+		StaleOpenRequiresProbe:              true,
+		SessionEscapeMinGapMS:               1000,
+		SessionEscapeRatio:                  0.25,
+		HealthTTLSeconds:                    int(openAISchedulerHealthStateTTL / time.Second),
+		RealSampleFreshSeconds:              openAISchedulerHealthRealFreshSeconds,
+		ProbeJitterSeconds:                  0,
+		ProbeModel:                          OpenAIAutoSchedulerDefaultProbeModel,
+		ProbeIntervalSeconds:                60,
+		SlowThresholdMS:                     10000,
+		SevereSlowThresholdMS:               20000,
+		ConsecutiveSlowBreakerThreshold:     3,
+		ConsecutiveErrorBreakerThreshold:    2,
+		CooldownSeconds:                     120,
+		HalfOpenSuccessThreshold:            3,
+		CostWeight:                          0.2,
+		RecoveryStep:                        800,
+		Temperature:                         0.18,
+		MaxAccountShare:                     0.70,
+		LowConfidenceMaxShare:               0.10,
+		LatencyBudgetMS:                     1000,
+		FirstOutputTimeoutSeconds:           0,
+		HighEffortFirstOutputTimeoutSeconds: 0,
+		Weights:                             defaultOpenAISchedulerPolicyWeights(OpenAIAutoSchedulerModeBalanced),
+		modeSet:                             true,
+		shadowModeSet:                       true,
+		topKSet:                             true,
+		adaptiveTopKEnabledSet:              true,
+		explorationRateSet:                  true,
+		explorationBudgetSet:                true,
+		explorationMinIntervalSet:           true,
+		explorationMaxSamplesSet:            true,
+		staleOpenRequiresProbeSet:           true,
+		sessionEscapeMinGapMSSet:            true,
+		sessionEscapeRatioSet:               true,
+		healthTTLSecondsSet:                 true,
+		realSampleFreshSecondsSet:           true,
+		probeJitterSecondsSet:               true,
+		costWeightSet:                       true,
+		temperatureSet:                      true,
+		maxAccountShareSet:                  true,
+		lowConfidenceMaxShareSet:            true,
+		latencyBudgetMSSet:                  true,
+		weightsSet:                          true,
 	}
 }
 
@@ -399,6 +407,26 @@ func normalizeOpenAIAutoSchedulerSettings(settings OpenAIAutoSchedulerSettings) 
 		settings.LatencyBudgetMS = defaults.LatencyBudgetMS
 	} else if settings.LatencyBudgetMS > 30000 {
 		settings.LatencyBudgetMS = 30000
+	}
+	if settings.FirstOutputTimeoutSeconds <= 0 {
+		settings.FirstOutputTimeoutSeconds = defaults.FirstOutputTimeoutSeconds
+	} else if settings.FirstOutputTimeoutSeconds < 5 {
+		settings.FirstOutputTimeoutSeconds = 5
+	} else if settings.FirstOutputTimeoutSeconds > 600 {
+		settings.FirstOutputTimeoutSeconds = 600
+	}
+	if settings.FirstOutputTimeoutSeconds > 0 {
+		settings.firstOutputTimeoutSet = true
+	}
+	if settings.HighEffortFirstOutputTimeoutSeconds <= 0 {
+		settings.HighEffortFirstOutputTimeoutSeconds = defaults.HighEffortFirstOutputTimeoutSeconds
+	} else if settings.HighEffortFirstOutputTimeoutSeconds < 30 {
+		settings.HighEffortFirstOutputTimeoutSeconds = 30
+	} else if settings.HighEffortFirstOutputTimeoutSeconds > 1800 {
+		settings.HighEffortFirstOutputTimeoutSeconds = 1800
+	}
+	if settings.HighEffortFirstOutputTimeoutSeconds > 0 {
+		settings.highEffortFirstOutputTimeoutSet = true
 	}
 	if !settings.weightsSet || openAISchedulerPolicyWeightSum(settings.Weights) <= 0 {
 		settings.Weights = defaultOpenAISchedulerPolicyWeights(settings.Mode)

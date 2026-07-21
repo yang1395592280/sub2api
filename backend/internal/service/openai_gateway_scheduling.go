@@ -642,35 +642,50 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImage
 	if err != nil {
 		return nil, requestedModel, nil, OpenAIAccountScheduleDecision{}, err
 	}
-	var lastDecision OpenAIAccountScheduleDecision
-	var lastErr error
-	for _, effectiveKey := range keys {
-		if effectiveKey == nil || effectiveKey.GroupID == nil {
-			continue
-		}
-		routingModel := requestedModel
-		if modelResolver != nil {
-			if resolved := strings.TrimSpace(modelResolver(effectiveKey, requestedModel)); resolved != "" {
-				routingModel = resolved
+	selectPass := func(passCtx context.Context, markExhausted bool) (*APIKey, string, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+		var lastDecision OpenAIAccountScheduleDecision
+		var lastErr error
+		for _, effectiveKey := range keys {
+			if effectiveKey == nil || effectiveKey.GroupID == nil {
+				continue
 			}
+			routingModel := requestedModel
+			if modelResolver != nil {
+				if resolved := strings.TrimSpace(modelResolver(effectiveKey, requestedModel)); resolved != "" {
+					routingModel = resolved
+				}
+			}
+			selection, decision, err := s.SelectAccountWithSchedulerForImages(passCtx, effectiveKey.GroupID, sessionHash, routingModel, requiredEndpoint, excludedIDs, requiredCapability)
+			lastDecision = decision
+			if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
+				s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
+				return effectiveKey, routingModel, selection, decision, nil
+			}
+			if markExhausted {
+				markOpenAIAutoCheapestGroupExhaustedIfNeeded(ctx, *effectiveKey.GroupID, selection, err)
+			}
+			if err == nil && selection != nil && selection.Account != nil {
+				lastErr = ErrNoAvailableAccounts
+				continue
+			}
+			lastErr = err
 		}
-		selection, decision, err := s.SelectAccountWithSchedulerForImages(ctx, effectiveKey.GroupID, sessionHash, routingModel, requiredEndpoint, excludedIDs, requiredCapability)
-		lastDecision = decision
-		if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
-			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
-			return effectiveKey, routingModel, selection, decision, nil
-		}
-		markOpenAIAutoCheapestGroupExhaustedIfNeeded(ctx, *effectiveKey.GroupID, selection, err)
-		if err == nil && selection != nil && selection.Account != nil {
+		if lastErr == nil {
 			lastErr = ErrNoAvailableAccounts
-			continue
 		}
-		lastErr = err
-	}
-	if lastErr != nil {
 		return nil, requestedModel, nil, lastDecision, lastErr
 	}
-	return nil, requestedModel, nil, lastDecision, ErrNoAvailableAccounts
+
+	qualityCtx := withOpenAIAutoCheapestQualifiedOnly(ctx)
+	effectiveKey, routingModel, selection, decision, qualityErr := selectPass(qualityCtx, false)
+	if qualityErr == nil {
+		return effectiveKey, routingModel, selection, decision, nil
+	}
+	if openAIAutoCheapestRequiresQualifiedFailover(ctx) {
+		return effectiveKey, routingModel, selection, decision, qualityErr
+	}
+	slog.Info("openai_auto_cheapest_quality_fallback", "endpoint", requiredEndpoint, "model", requestedModel)
+	return selectPass(ctx, true)
 }
 
 func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapability(
@@ -704,49 +719,64 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 	if err != nil {
 		return nil, nil, OpenAIAccountScheduleDecision{}, err
 	}
-	var lastDecision OpenAIAccountScheduleDecision
-	var lastErr error
-	for _, effectiveKey := range keys {
-		if effectiveKey == nil || effectiveKey.GroupID == nil {
-			continue
-		}
-		routingModel := requestedModel
-		if modelResolver != nil {
-			if resolved := strings.TrimSpace(modelResolver(effectiveKey, requestedModel)); resolved != "" {
-				routingModel = resolved
+	selectPass := func(passCtx context.Context, markExhausted bool) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+		var lastDecision OpenAIAccountScheduleDecision
+		var lastErr error
+		for _, effectiveKey := range keys {
+			if effectiveKey == nil || effectiveKey.GroupID == nil {
+				continue
 			}
+			routingModel := requestedModel
+			if modelResolver != nil {
+				if resolved := strings.TrimSpace(modelResolver(effectiveKey, requestedModel)); resolved != "" {
+					routingModel = resolved
+				}
+			}
+			selection, decision, err := s.SelectAccountWithSchedulerForCapability(
+				passCtx,
+				effectiveKey.GroupID,
+				previousResponseID,
+				sessionHash,
+				routingModel,
+				excludedIDs,
+				transport,
+				requiredEndpoint,
+				requiredCapability,
+				requireCompact,
+				previousResponseCanMove,
+				useUpstreamTokenCost,
+				requestPlatform,
+			)
+			lastDecision = decision
+			if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
+				s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
+				return effectiveKey, selection, decision, nil
+			}
+			if markExhausted {
+				markOpenAIAutoCheapestGroupExhaustedIfNeeded(ctx, *effectiveKey.GroupID, selection, err)
+			}
+			if err == nil && selection != nil && selection.Account != nil {
+				lastErr = ErrNoAvailableAccounts
+				continue
+			}
+			lastErr = err
 		}
-		selection, decision, err := s.SelectAccountWithSchedulerForCapability(
-			ctx,
-			effectiveKey.GroupID,
-			previousResponseID,
-			sessionHash,
-			routingModel,
-			excludedIDs,
-			transport,
-			requiredEndpoint,
-			requiredCapability,
-			requireCompact,
-			previousResponseCanMove,
-			useUpstreamTokenCost,
-			requestPlatform,
-		)
-		lastDecision = decision
-		if err == nil && selection != nil && selection.Account != nil && selection.Acquired {
-			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
-			return effectiveKey, selection, decision, nil
-		}
-		markOpenAIAutoCheapestGroupExhaustedIfNeeded(ctx, *effectiveKey.GroupID, selection, err)
-		if err == nil && selection != nil && selection.Account != nil {
+		if lastErr == nil {
 			lastErr = ErrNoAvailableAccounts
-			continue
 		}
-		lastErr = err
-	}
-	if lastErr != nil {
 		return nil, nil, lastDecision, lastErr
 	}
-	return nil, nil, lastDecision, ErrNoAvailableAccounts
+
+	qualityCtx := withOpenAIAutoCheapestQualifiedOnly(ctx)
+	effectiveKey, selection, decision, qualityErr := selectPass(qualityCtx, false)
+	if qualityErr == nil {
+		return effectiveKey, selection, decision, nil
+	}
+	if openAIAutoCheapestRequiresQualifiedFailover(ctx) {
+		return effectiveKey, selection, decision, qualityErr
+	}
+	slog.Info("openai_auto_cheapest_quality_fallback", "endpoint", requiredEndpoint, "model", requestedModel)
+	return selectPass(ctx, true)
 }
 
 func noAvailableOpenAISelectionError(requestedModel string, compactBlocked bool) error {

@@ -133,6 +133,8 @@ func TestNormalizeOpenAIAutoSchedulerSettings_BalancedDefaults(t *testing.T) {
 	require.Equal(t, 1800, got.HealthTTLSeconds)
 	require.Equal(t, 300, got.RealSampleFreshSeconds)
 	require.Equal(t, 0, got.ProbeJitterSeconds)
+	require.Zero(t, got.FirstOutputTimeoutSeconds)
+	require.Zero(t, got.HighEffortFirstOutputTimeoutSeconds)
 }
 
 func TestSettingService_OpenAIAutoSchedulerOldJSONDefaultsToShadow(t *testing.T) {
@@ -148,6 +150,8 @@ func TestSettingService_OpenAIAutoSchedulerOldJSONDefaultsToShadow(t *testing.T)
 	require.Equal(t, 3, settings.TopK)
 	require.Equal(t, 1800, settings.HealthTTLSeconds)
 	require.Equal(t, 300, settings.RealSampleFreshSeconds)
+	require.Zero(t, settings.FirstOutputTimeoutSeconds)
+	require.Zero(t, settings.HighEffortFirstOutputTimeoutSeconds)
 }
 
 func TestSettingService_OpenAIAutoSchedulerExplicitShadowFalseSurvivesDecodeAndPersist(t *testing.T) {
@@ -326,17 +330,19 @@ func TestSettingService_SetOpenAIAutoSchedulerSettingsPersistsNormalizedJSON(t *
 	svc := NewSettingService(repo, &config.Config{})
 
 	require.NoError(t, svc.SetOpenAIAutoSchedulerSettings(context.Background(), OpenAIAutoSchedulerSettings{
-		Enabled:                          true,
-		ProbeModel:                       "  gpt-5.5  ",
-		ProbeIntervalSeconds:             -10,
-		SlowThresholdMS:                  5000,
-		SevereSlowThresholdMS:            4000,
-		ConsecutiveSlowBreakerThreshold:  1,
-		ConsecutiveErrorBreakerThreshold: 1,
-		CooldownSeconds:                  30,
-		HalfOpenSuccessThreshold:         1,
-		CostWeight:                       -1,
-		RecoveryStep:                     1200,
+		Enabled:                             true,
+		ProbeModel:                          "  gpt-5.5  ",
+		ProbeIntervalSeconds:                -10,
+		SlowThresholdMS:                     5000,
+		SevereSlowThresholdMS:               4000,
+		ConsecutiveSlowBreakerThreshold:     1,
+		ConsecutiveErrorBreakerThreshold:    1,
+		CooldownSeconds:                     30,
+		HalfOpenSuccessThreshold:            1,
+		CostWeight:                          -1,
+		RecoveryStep:                        1200,
+		FirstOutputTimeoutSeconds:           10,
+		HighEffortFirstOutputTimeoutSeconds: 60,
 	}))
 
 	var saved OpenAIAutoSchedulerSettings
@@ -347,4 +353,6 @@ func TestSettingService_SetOpenAIAutoSchedulerSettingsPersistsNormalizedJSON(t *
 	require.Equal(t, 5000, saved.SlowThresholdMS)
 	require.Equal(t, 5000, saved.SevereSlowThresholdMS)
 	require.Equal(t, 0.0, saved.CostWeight)
+	require.Equal(t, 10, saved.FirstOutputTimeoutSeconds)
+	require.Equal(t, 60, saved.HighEffortFirstOutputTimeoutSeconds)
 }
