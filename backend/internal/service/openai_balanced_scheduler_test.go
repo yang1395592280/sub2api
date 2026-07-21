@@ -462,6 +462,43 @@ func TestOpenAIBalancedSchedulerLoadsHealthInOneBatch(t *testing.T) {
 	require.Equal(t, []int64{2, 1}, result.OrderedAccountIDs)
 }
 
+func TestHydrateOpenAIBalancedHealthKeepsObservingAndProbeOnlyCandidatesOutOfHighConfidence(t *testing.T) {
+	now := time.Date(2026, 7, 21, 8, 0, 0, 0, time.UTC)
+	lastRealAt := now.Add(-time.Minute)
+	keys := []OpenAISchedulerHealthKey{
+		{AccountID: 1, ModelFamily: "gpt-5.5", Endpoint: "responses", Transport: "http_sse"},
+		{AccountID: 2, ModelFamily: "gpt-5.5", Endpoint: "responses", Transport: "http_sse"},
+		{AccountID: 3, ModelFamily: "gpt-5.5", Endpoint: "responses", Transport: "http_sse"},
+	}
+	states := map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{
+		keys[0]: {Key: keys[0], State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 800, RealSampleCount: 5, LastRealAt: &lastRealAt, ExpiresAt: now.Add(time.Hour)},
+		keys[1]: {Key: keys[1], State: OpenAIAutoSchedulerStateObserving, PredictedTTFTMS: 300, RealSampleCount: 5, LastRealAt: &lastRealAt, ExpiresAt: now.Add(time.Hour)},
+		keys[2]: {Key: keys[2], State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 400, ProbeSampleCount: 5, ExpiresAt: now.Add(time.Hour)},
+	}
+
+	candidates, ok := hydrateOpenAIBalancedHealth([]OpenAIBalancedCandidate{
+		{AccountID: 1, HealthKey: keys[0]},
+		{AccountID: 2, HealthKey: keys[1]},
+		{AccountID: 3, HealthKey: keys[2]},
+	}, states, now, 180)
+	require.True(t, ok)
+	require.Equal(t, OpenAISchedulerHealthConfidenceHigh, candidates[0].HealthConfidence)
+	require.Equal(t, OpenAISchedulerHealthConfidenceLow, candidates[1].HealthConfidence)
+	require.Equal(t, OpenAISchedulerHealthConfidenceMedium, candidates[2].HealthConfidence)
+
+	settings := DefaultOpenAIAutoSchedulerSettings()
+	settings.TopK = 1
+	settings.AdaptiveTopKEnabled = false
+	settings.ExplorationBudget = 0.05
+	evaluation := EvaluateOpenAISchedulerPolicy(candidates, settings, 17)
+	scores := policyScoresByAccount(evaluation.Scores)
+	require.Equal(t, OpenAISchedulerEligibilityEligible, scores[1].Eligibility)
+	require.Equal(t, OpenAISchedulerEligibilityLowConfidence, scores[2].Eligibility)
+	require.Equal(t, OpenAISchedulerEligibilityLowConfidence, scores[3].Eligibility)
+	require.LessOrEqual(t, scores[2].TargetShare, settings.LowConfidenceMaxShare)
+	require.LessOrEqual(t, scores[3].TargetShare, settings.LowConfidenceMaxShare)
+}
+
 func TestOpenAIBalancedSchedulerShadowReturnsFullLegacyOrderAndRecordsComparison(t *testing.T) {
 	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), OpenAIBalancedSelectionInput{
 		Candidates: []OpenAIBalancedCandidate{

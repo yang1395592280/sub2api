@@ -57,17 +57,20 @@ func TestWireGenInjectsOpenAIBalancedSchedulerIntoGateway(t *testing.T) {
 	require.NoError(t, err)
 
 	source := string(body)
-	balancedIndex := strings.Index(source, "openAIBalancedScheduler := service.ProvideOpenAIBalancedScheduler(openAISchedulerHealthRepository)")
+	auditIndex := strings.Index(source, "openAISchedulerDecisionAuditRecorder := service.ProvideOpenAISchedulerDecisionAuditRecorder(openAISchedulerDecisionAuditRepository)")
+	balancedIndex := strings.Index(source, "openAIBalancedScheduler := service.ProvideOpenAIBalancedScheduler(openAISchedulerHealthRepository, openAISchedulerDecisionAuditRecorder)")
 	gatewayIndex := strings.Index(source, "openAIGatewayService := service.ProvideOpenAIGatewayService(")
+	require.NotEqual(t, -1, auditIndex)
 	require.NotEqual(t, -1, balancedIndex)
 	require.NotEqual(t, -1, gatewayIndex)
 	require.Contains(t, source, "openAIAutoSchedulerOutcomeRecorder, openAIBalancedScheduler, openAISchedulerExplorationCache, openAIAutoCheapestGroupCircuit, apiKeyService, apiKeyRepository")
+	require.Less(t, auditIndex, balancedIndex)
 	require.Less(t, balancedIndex, gatewayIndex)
 
 	providerBody, err := os.ReadFile("../../internal/service/wire.go")
 	require.NoError(t, err)
 	providerSource := string(providerBody)
-	require.Contains(t, providerSource, "return NewOpenAIBalancedScheduler(repo)")
+	require.Contains(t, providerSource, "return NewOpenAIBalancedScheduler(repo, audit)")
 	require.Contains(t, providerSource, "svc.SetOpenAIBalancedScheduler(openAIBalancedScheduler)")
 	require.Contains(t, providerSource, "svc.SetOpenAISchedulerExplorationCache(openAIExplorationCache)")
 }
@@ -174,6 +177,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // openAIGateway
 		nil, // openAIAutoSchedulerProbeRunner
 		nil, // openAIAutoSchedulerOutcomeRecorder
+		nil, // openAISchedulerDecisionAuditRecorder
 		nil, // scheduledTestRunner
 		nil, // backupSvc
 		nil, // paymentOrderExpiry

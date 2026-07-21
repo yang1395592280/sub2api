@@ -65,3 +65,31 @@ func TestOpenAISchedulerHealthStateMigrationContract(t *testing.T) {
 	require.Contains(t, sql, "create index if not exists idx_openai_scheduler_health_expiry")
 	require.Contains(t, sql, "on openai_scheduler_health_states(expires_at)")
 }
+
+func TestOpenAISchedulerDecisionAuditMigrationContract(t *testing.T) {
+	migration, err := FS.ReadFile("187_openai_scheduler_decision_audits.sql")
+	require.NoError(t, err)
+
+	sql := strings.ToLower(string(migration))
+	require.Contains(t, sql, "create table if not exists openai_scheduler_decision_audits")
+	for _, column := range []string{
+		"event_type varchar(40) not null",
+		"group_id bigint not null default 0",
+		"account_id bigint not null default 0",
+		"legacy_account_id bigint not null default 0",
+		"confidence varchar(20) not null default ''",
+		"eligibility varchar(32) not null default ''",
+		"traffic_class varchar(20) not null default ''",
+		"created_at timestamptz not null default now()",
+	} {
+		require.Contains(t, sql, column)
+	}
+	for _, index := range []string{
+		"idx_openai_scheduler_decision_audits_created",
+		"idx_openai_scheduler_decision_audits_type_created",
+		"idx_openai_scheduler_decision_audits_group_created",
+		"idx_openai_scheduler_decision_audits_account_created",
+	} {
+		require.Contains(t, sql, index)
+	}
+}

@@ -3209,12 +3209,13 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_BalancedPreservesHardFi
 	fastBusy := Account{ID: 21642, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 10, GroupIDs: []int64{groupID}, Extra: map[string]any{"openai_compact_supported": true}}
 	fallback := Account{ID: 21643, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID}, Extra: map[string]any{"openai_compact_supported": true}}
 	now := time.Now()
+	lastRealAt := now.Add(-time.Second)
 	healthKeyService := &OpenAIGatewayService{}
 	fastKey := healthKeyService.openAIBalancedHealthKeyForCandidate(&fastBusy, OpenAIAccountScheduleRequest{RequestedModel: "gpt-5.4", RequiredEndpoint: openAISchedulerHealthEndpointResponses, RequiredTransport: OpenAIUpstreamTransportAny, RequireCompact: true})
 	fallbackKey := healthKeyService.openAIBalancedHealthKeyForCandidate(&fallback, OpenAIAccountScheduleRequest{RequestedModel: "gpt-5.4", RequiredEndpoint: openAISchedulerHealthEndpointResponses, RequiredTransport: OpenAIUpstreamTransportAny, RequireCompact: true})
 	healthRepo := &balancedSchedulerHealthRepoStub{states: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{
-		fastKey:     {Key: fastKey, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 200, ExpiresAt: now.Add(time.Hour)},
-		fallbackKey: {Key: fallbackKey, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 500, ExpiresAt: now.Add(time.Hour)},
+		fastKey:     {Key: fastKey, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 200, RealSampleCount: 1, LastRealAt: &lastRealAt, ExpiresAt: now.Add(time.Hour)},
+		fallbackKey: {Key: fallbackKey, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: 500, RealSampleCount: 1, LastRealAt: &lastRealAt, ExpiresAt: now.Add(time.Hour)},
 	}}
 	acquireOrder := []int64{}
 	svc := &OpenAIGatewayService{
@@ -3421,11 +3422,13 @@ func TestDefaultOpenAIAccountScheduler_SoftStickyUsesRuntimeEscapeThresholds(t *
 		},
 	}
 	now := time.Now()
+	lastRealAt := now.Add(-time.Second)
 	for i, account := range accounts {
 		key := gateway.openAIBalancedHealthKeyForCandidate(account, req)
 		req.balancedHealthSnapshots[key] = OpenAISchedulerHealthSnapshot{
 			Key: key, State: OpenAIAutoSchedulerStateRunning,
-			PredictedTTFTMS: []float64{900, 500}[i], ExpiresAt: now.Add(time.Hour),
+			PredictedTTFTMS: []float64{900, 500}[i], RealSampleCount: 1,
+			LastRealAt: &lastRealAt, ExpiresAt: now.Add(time.Hour),
 		}
 	}
 

@@ -109,6 +109,7 @@ func provideCleanup(
 	openAIGateway *service.OpenAIGatewayService,
 	openAIAutoSchedulerProbeRunner *service.OpenAIAutoSchedulerProbeRunner,
 	openAIAutoSchedulerOutcomeRecorder *service.OpenAIAutoSchedulerOutcomeRecorder,
+	openAISchedulerDecisionAuditRecorder *service.OpenAISchedulerDecisionAuditRecorder,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	backupSvc *service.BackupService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
@@ -320,6 +321,12 @@ func provideCleanup(
 			{"OpenAIAutoSchedulerOutcomeRecorder", func() error {
 				if openAIAutoSchedulerOutcomeRecorder != nil {
 					return openAIAutoSchedulerOutcomeRecorder.Stop(ctx)
+				}
+				return nil
+			}},
+			{"OpenAISchedulerDecisionAuditRecorder", func() error {
+				if openAISchedulerDecisionAuditRecorder != nil {
+					return openAISchedulerDecisionAuditRecorder.Stop(ctx)
 				}
 				return nil
 			}},

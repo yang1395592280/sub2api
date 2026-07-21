@@ -102,8 +102,8 @@ func TestOpenAISchedulerOverviewRepositoryHealthUsesFixedCountAndRowsQueries(t *
 			"account_status", "schedulable", "temp_unschedulable_until", "temp_unschedulable_reason",
 			"auto_pause_on_expired", "account_expires_at", "overload_until", "rate_limit_reset_at",
 			"model_family", "endpoint", "transport", "state", "predicted_ttft_ms", "real_sample_count", "probe_sample_count", "error_rate",
-			"rate_limited_rate", "server_error_rate", "cooldown_until", "expires_at", "updated_at", "load_capacity", "channel_price",
-		}).AddRow(10, "primary", 33, 7, service.StatusActive, true, service.StatusActive, true, tempBlockedUntil, "price guard", true, accountExpiresAt, overloadUntil, rateLimitResetAt, "gpt-5.4", "responses", "http_sse", "running", 1200.0, 20, 2, 0.01, 0.02, 0.03, nil, now.Add(time.Minute), now, 20, price))
+			"rate_limited_rate", "server_error_rate", "cooldown_until", "expires_at", "last_real_at", "updated_at", "load_capacity", "channel_price",
+		}).AddRow(10, "primary", 33, 7, service.StatusActive, true, service.StatusActive, true, tempBlockedUntil, "price guard", true, accountExpiresAt, overloadUntil, rateLimitResetAt, "gpt-5.4", "responses", "http_sse", "running", 1200.0, 20, 2, 0.01, 0.02, 0.03, nil, now.Add(time.Minute), now.Add(-time.Second), now, 20, price))
 
 	items, total, err := repo.ListOpenAISchedulerHealth(context.Background(), params)
 
@@ -122,6 +122,7 @@ func TestOpenAISchedulerOverviewRepositoryHealthUsesFixedCountAndRowsQueries(t *
 	require.Equal(t, accountExpiresAt, *items[0].AccountExpiresAt)
 	require.Equal(t, overloadUntil, *items[0].OverloadUntil)
 	require.Equal(t, rateLimitResetAt, *items[0].RateLimitResetAt)
+	require.Equal(t, now.Add(-time.Second), *items[0].LastRealAt)
 	require.Equal(t, &price, items[0].ChannelPrice)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
