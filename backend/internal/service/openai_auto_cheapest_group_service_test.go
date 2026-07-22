@@ -116,6 +116,133 @@ func TestOpenAIAutoCheapestSelection_PriceTierBeforeHigherGroup(t *testing.T) {
 	require.Zero(t, circuit.calls)
 }
 
+func TestOpenAIAutoCheapestSelection_PrefersLowestChannelPriceAmongQualifiedAccounts(t *testing.T) {
+	groupID := int64(113)
+	observingPrice := 0.03
+	cheapHealthyPrice := 0.04
+	expensiveHealthyPrice := 0.05
+	observing := Account{
+		ID: 11301, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive,
+		Schedulable: true, Concurrency: 1, GroupIDs: []int64{groupID}, ChannelPrice: &observingPrice,
+	}
+	cheapHealthy := Account{
+		ID: 11302, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive,
+		Schedulable: true, Concurrency: 1, GroupIDs: []int64{groupID}, ChannelPrice: &cheapHealthyPrice,
+	}
+	expensiveHealthy := Account{
+		ID: 11303, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive,
+		Schedulable: true, Concurrency: 1, GroupIDs: []int64{groupID}, ChannelPrice: &expensiveHealthyPrice,
+		Extra: map[string]any{"openai_apikey_responses_websockets_v2_enabled": true},
+	}
+
+	settings := enabledOpenAIAutoSchedulerSettings()
+	settings.Mode = OpenAIAutoSchedulerModePerformance
+	settings.ShadowMode = false
+	settings.TopK = 1
+	settings.AdaptiveTopKEnabled = false
+	settings.ExplorationBudget = 0
+	settings.Weights = defaultOpenAISchedulerPolicyWeights(OpenAIAutoSchedulerModePerformance)
+	cfg := newSchedulerTestSubscriptionPriorityConfig()
+	cfg.Gateway.OpenAIWS.Enabled = true
+	cfg.Gateway.OpenAIWS.APIKeyEnabled = true
+	cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
+	cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds = 3600
+	svc := &OpenAIGatewayService{
+		accountRepo: schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: []Account{
+			observing, cheapHealthy, expensiveHealthy,
+		}}},
+		cache: &schedulerTestGatewayCache{sessionBindings: map[string]int64{
+			"openai:auto_price_session": expensiveHealthy.ID,
+		}},
+		cfg:              cfg,
+		rateLimitService: newOpenAIAdvancedSchedulerRateLimitService("true"),
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{acquireResults: map[int64]bool{
+			observing.ID: true, cheapHealthy.ID: true, expensiveHealthy.ID: true,
+		}}),
+	}
+	svc.openAIAutoSchedulerService = NewOpenAIAutoSchedulerService(&fakeOpenAIAutoSchedulerRepo{groups: map[int64]Group{
+		groupID: {ID: groupID, Platform: PlatformOpenAI, Status: StatusActive, OpenAIAutoSchedulerEnabled: true},
+	}}, fakeOpenAIAutoSchedulerSettingsProvider{settings: settings})
+	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(&fakeAvailableOpenAIGroupsProvider{groups: []Group{
+		{ID: groupID, Name: "plus", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1},
+	}}), nil)
+
+	req := OpenAIAccountScheduleRequest{
+		RequestedModel: "gpt-5.6-sol", RequiredEndpoint: OpenAISchedulerEndpointResponses,
+		RequiredTransport: OpenAIUpstreamTransportAny,
+	}
+	now := time.Now()
+	lastRealAt := now.Add(-time.Second)
+	healthRepo := &balancedSchedulerHealthRepoStub{states: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{}}
+	for _, sample := range []struct {
+		account *Account
+		ttft    float64
+	}{
+		{account: &cheapHealthy, ttft: 800},
+		{account: &expensiveHealthy, ttft: 100},
+	} {
+		key := svc.openAIBalancedHealthKeyForCandidate(sample.account, req)
+		healthRepo.states[key] = OpenAISchedulerHealthSnapshot{
+			Key: key, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: sample.ttft,
+			RealSampleCount: 2, LastRealAt: &lastRealAt, ExpiresAt: now.Add(time.Hour),
+		}
+	}
+	svc.SetOpenAIBalancedScheduler(NewOpenAIBalancedScheduler(healthRepo))
+
+	apiKey := &APIKey{ID: 1, UserID: 9, GroupSelectMode: APIKeyGroupSelectModeOpenAIAutoCheapest}
+	ctx := PrepareOpenAIAutoCheapestRequestContext(context.Background(), true)
+	effectiveKey, selection, _, err := svc.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
+		ctx, apiKey, "", "", req.RequestedModel, nil, req.RequiredTransport, req.RequiredEndpoint,
+		OpenAIEndpointCapabilityChatCompletions, false, false, true, PlatformOpenAI,
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, &groupID, effectiveKey.GroupID)
+	require.Equal(t, cheapHealthy.ID, selection.Account.ID)
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+
+	effectiveKey, selection, decision, err := svc.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
+		ctx, apiKey, "", "auto_price_session", req.RequestedModel, nil, req.RequiredTransport, req.RequiredEndpoint,
+		OpenAIEndpointCapabilityChatCompletions, false, false, true, PlatformOpenAI,
+	)
+	require.NoError(t, err)
+	require.Equal(t, &groupID, effectiveKey.GroupID)
+	require.Equal(t, cheapHealthy.ID, selection.Account.ID)
+	require.False(t, decision.StickySessionHit)
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+
+	effectiveKey, selection, _, err = svc.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
+		ctx, apiKey, "", "", req.RequestedModel, map[int64]struct{}{cheapHealthy.ID: {}}, req.RequiredTransport,
+		req.RequiredEndpoint, OpenAIEndpointCapabilityChatCompletions, false, false, true, PlatformOpenAI,
+	)
+	require.NoError(t, err)
+	require.Equal(t, &groupID, effectiveKey.GroupID)
+	require.Equal(t, expensiveHealthy.ID, selection.Account.ID)
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+
+	store := svc.getOpenAIWSStateStore()
+	require.NoError(t, store.BindResponseAccount(ctx, groupID, "resp_auto_price", expensiveHealthy.ID, time.Hour))
+	effectiveKey, selection, decision, err = svc.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
+		ctx, apiKey, "resp_auto_price", "", req.RequestedModel, nil, req.RequiredTransport, req.RequiredEndpoint,
+		OpenAIEndpointCapabilityChatCompletions, false, false, true, PlatformOpenAI,
+	)
+	require.NoError(t, err)
+	require.Equal(t, &groupID, effectiveKey.GroupID)
+	require.Equal(t, expensiveHealthy.ID, selection.Account.ID)
+	require.True(t, decision.StickyPreviousHit)
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+
+	require.False(t, openAIAutoCheapestChannelPricePriority(context.Background()))
+}
+
 func TestOpenAIAutoCheapestImageSelection_PriceTierBeforeHigherGroup(t *testing.T) {
 	cheapGroupID := int64(121)
 	expensiveGroupID := int64(122)

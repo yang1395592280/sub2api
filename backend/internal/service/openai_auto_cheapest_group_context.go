@@ -18,6 +18,8 @@ type openAIAutoCheapestFailureState struct {
 type openAIAutoCheapestFailureStateKey struct{}
 type openAIAutoCheapestQualifiedOnlyKey struct{}
 
+type openAIAutoCheapestChannelPricePriorityKey struct{}
+
 // PrepareOpenAIAutoCheapestRequestContext attaches request-local group failure
 // state. Fixed-group API keys do not need this state and keep their old path.
 func PrepareOpenAIAutoCheapestRequestContext(ctx context.Context, enabled bool, circuit ...OpenAIAutoCheapestGroupCircuit) context.Context {
@@ -148,6 +150,25 @@ func openAIAutoCheapestQualifiedOnly(ctx context.Context) bool {
 	}
 	qualifiedOnly, _ := ctx.Value(openAIAutoCheapestQualifiedOnlyKey{}).(bool)
 	return qualifiedOnly
+}
+
+// withOpenAIAutoCheapestChannelPricePriority marks account selections made for
+// an auto-cheapest API key. Health and capability filtering still run first;
+// this marker only makes channel price the primary order within the surviving
+// accounts of the current user-price group.
+func withOpenAIAutoCheapestChannelPricePriority(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, openAIAutoCheapestChannelPricePriorityKey{}, true)
+}
+
+func openAIAutoCheapestChannelPricePriority(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	enabled, _ := ctx.Value(openAIAutoCheapestChannelPricePriorityKey{}).(bool)
+	return enabled
 }
 
 func openAIAutoCheapestGroupExhaustionReason(ctx context.Context, groupID int64) (string, bool) {

@@ -85,6 +85,7 @@ type OpenAIAccountScheduleRequest struct {
 	RequireCompact          bool
 	ExcludedIDs             map[int64]struct{}
 	QualifiedOnly           bool
+	channelPriceFirst       bool
 	balancedHealthSnapshots map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot
 	balancedHealthAttempted bool
 	balancedHealthLoaded    bool
@@ -707,6 +708,18 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 	if s.isOpenAIBalancedCircuitRejected(req, account) {
 		return nil, true, nil
 	}
+	if req.channelPriceFirst {
+		if lowerPrice, ok := lowerOpenAIChannelPrice(req.balancedAccounts, account); ok {
+			slog.Info("sticky_escape_triggered",
+				"account_id", account.ID,
+				"reason", "channel_price",
+				"source", "auto_cheapest",
+				"channel_price", account.EffectiveChannelPrice(),
+				"lower_channel_price", lowerPrice,
+			)
+			return nil, true, nil
+		}
+	}
 	if reason := s.openAIBalancedSoftStickyEscapeReason(req, account.ID); reason != "" {
 		slog.Info("sticky_escape_triggered", "account_id", account.ID, "reason", reason, "source", "unified_health")
 		return nil, true, nil
@@ -1244,7 +1257,44 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlanWithBalanced(
 	if applyBalanced {
 		s.applyOpenAIBalancedSelectionOrder(ctx, req, &plan)
 	}
+	if req.channelPriceFirst {
+		plan.selectionOrder = prioritizeOpenAISelectionOrderByChannelPrice(plan.selectionOrder)
+	}
 	return plan
+}
+
+func prioritizeOpenAISelectionOrderByChannelPrice(selectionOrder []openAIAccountCandidateScore) []openAIAccountCandidateScore {
+	ordered := append([]openAIAccountCandidateScore(nil), selectionOrder...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].account == nil {
+			return false
+		}
+		if ordered[j].account == nil {
+			return true
+		}
+		return ordered[i].account.EffectiveChannelPrice() < ordered[j].account.EffectiveChannelPrice()
+	})
+	return ordered
+}
+
+func lowerOpenAIChannelPrice(accounts []*Account, selected *Account) (float64, bool) {
+	if selected == nil {
+		return 0, false
+	}
+	selectedPrice := selected.EffectiveChannelPrice()
+	lowerPrice := selectedPrice
+	found := false
+	for _, account := range accounts {
+		if account == nil || account.ID == selected.ID {
+			continue
+		}
+		price := account.EffectiveChannelPrice()
+		if price < lowerPrice {
+			lowerPrice = price
+			found = true
+		}
+	}
+	return lowerPrice, found
 }
 
 func (s *defaultOpenAIAccountScheduler) applyOpenAIBalancedSelectionOrder(
@@ -2831,6 +2881,7 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 		RequireCompact:          requireCompact,
 		ExcludedIDs:             excludedIDs,
 		QualifiedOnly:           openAIAutoCheapestQualifiedOnly(ctx),
+		channelPriceFirst:       openAIAutoCheapestChannelPricePriority(ctx),
 	})
 }
 
