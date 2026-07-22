@@ -5,6 +5,8 @@
 适用分支：`feature/openai-auto-cheapest-quality-failover`  
 基线版本：`v0.1.161.5`
 
+> 后续策略变更：从 2026-07-22 起，普通请求改为“逐价格层级选择”，即每个价格组先选择达标账号，再执行组内可用性兜底，确认整组不可用后才进入更高价格组。首字超时后的严格重试仍保留跨组质量优先。
+
 关联文档：
 
 - [OpenAI 调度与自动最优惠分组稳定性修复方案](./2026-07-16-openai-scheduler-and-auto-cheapest-reliability-fix.md)

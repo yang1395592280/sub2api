@@ -14,7 +14,7 @@ func TestEffectiveOpenAIGroupRate_UsesUserRateOverride(t *testing.T) {
 	require.Equal(t, 0.12, got)
 }
 
-func TestOpenAIAutoCheapestSelection_QualityFirstAcrossGroups(t *testing.T) {
+func TestOpenAIAutoCheapestSelection_PriceTierBeforeHigherGroup(t *testing.T) {
 	cheapGroupID := int64(111)
 	expensiveGroupID := int64(112)
 	cheapSlow := Account{ID: 1101, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, GroupIDs: []int64{cheapGroupID}}
@@ -29,6 +29,10 @@ func TestOpenAIAutoCheapestSelection_QualityFirstAcrossGroups(t *testing.T) {
 			cheapSlow.ID: true, cheapFast.ID: true, expensiveFast.ID: true,
 		}}),
 	}
+	svc.openAIAutoSchedulerService = NewOpenAIAutoSchedulerService(&fakeOpenAIAutoSchedulerRepo{groups: map[int64]Group{
+		cheapGroupID:     {ID: cheapGroupID, Platform: PlatformOpenAI, Status: StatusActive, OpenAIAutoSchedulerEnabled: true},
+		expensiveGroupID: {ID: expensiveGroupID, Platform: PlatformOpenAI, Status: StatusActive, OpenAIAutoSchedulerEnabled: false},
+	}}, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
 	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(&fakeAvailableOpenAIGroupsProvider{groups: []Group{
 		{ID: cheapGroupID, Name: "cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1},
 		{ID: expensiveGroupID, Name: "expensive", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.2},
@@ -73,8 +77,23 @@ func TestOpenAIAutoCheapestSelection_QualityFirstAcrossGroups(t *testing.T) {
 		selection.ReleaseFunc()
 	}
 
-	// Once the only qualified cheap account failed, the slow cheap account must
-	// not delay the request before the qualified stable group is attempted.
+	// A usable account in the current price tier wins before a qualified account
+	// in a more expensive group.
+	effectiveKey, selection, _, err = svc.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
+		ctx, apiKey, "", "", req.RequestedModel, map[int64]struct{}{cheapFast.ID: {}}, req.RequiredTransport, req.RequiredEndpoint,
+		OpenAIEndpointCapabilityChatCompletions, false, false, true, PlatformOpenAI,
+	)
+	require.NoError(t, err)
+	require.Equal(t, &cheapGroupID, effectiveKey.GroupID)
+	require.Equal(t, cheapSlow.ID, selection.Account.ID)
+	require.Zero(t, circuit.calls)
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+
+	// After a first-output timeout, strict quality mode may escape to a more
+	// expensive qualified account instead of retrying the slow cheap account.
+	RequireOpenAIAutoCheapestQualifiedFailover(ctx)
 	effectiveKey, selection, _, err = svc.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
 		ctx, apiKey, "", "", req.RequestedModel, map[int64]struct{}{cheapFast.ID: {}}, req.RequiredTransport, req.RequiredEndpoint,
 		OpenAIEndpointCapabilityChatCompletions, false, false, true, PlatformOpenAI,
@@ -87,7 +106,6 @@ func TestOpenAIAutoCheapestSelection_QualityFirstAcrossGroups(t *testing.T) {
 		selection.ReleaseFunc()
 	}
 
-	RequireOpenAIAutoCheapestQualifiedFailover(ctx)
 	effectiveKey, selection, _, err = svc.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
 		ctx, apiKey, "", "", req.RequestedModel, map[int64]struct{}{cheapFast.ID: {}, expensiveFast.ID: {}}, req.RequiredTransport, req.RequiredEndpoint,
 		OpenAIEndpointCapabilityChatCompletions, false, false, true, PlatformOpenAI,
@@ -96,6 +114,67 @@ func TestOpenAIAutoCheapestSelection_QualityFirstAcrossGroups(t *testing.T) {
 	require.Nil(t, effectiveKey)
 	require.Nil(t, selection)
 	require.Zero(t, circuit.calls)
+}
+
+func TestOpenAIAutoCheapestImageSelection_PriceTierBeforeHigherGroup(t *testing.T) {
+	cheapGroupID := int64(121)
+	expensiveGroupID := int64(122)
+	cheapSlow := Account{ID: 12101, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, GroupIDs: []int64{cheapGroupID}}
+	expensiveFast := Account{ID: 12201, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, GroupIDs: []int64{expensiveGroupID}}
+	circuit := &autoCheapestCircuitStub{}
+	svc := &OpenAIGatewayService{
+		accountRepo: schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: []Account{cheapSlow, expensiveFast}}},
+		cache:       &schedulerTestGatewayCache{}, cfg: newSchedulerTestSubscriptionPriorityConfig(),
+		rateLimitService: newOpenAIAdvancedSchedulerRateLimitService("true"),
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{acquireResults: map[int64]bool{
+			cheapSlow.ID: true, expensiveFast.ID: true,
+		}}),
+	}
+	svc.openAIAutoSchedulerService = NewOpenAIAutoSchedulerService(&fakeOpenAIAutoSchedulerRepo{groups: map[int64]Group{
+		cheapGroupID:     {ID: cheapGroupID, Platform: PlatformOpenAI, Status: StatusActive, OpenAIAutoSchedulerEnabled: true},
+		expensiveGroupID: {ID: expensiveGroupID, Platform: PlatformOpenAI, Status: StatusActive, OpenAIAutoSchedulerEnabled: false},
+	}}, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
+	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(&fakeAvailableOpenAIGroupsProvider{groups: []Group{
+		{ID: cheapGroupID, Name: "cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1},
+		{ID: expensiveGroupID, Name: "expensive", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.2},
+	}}), nil)
+	svc.SetOpenAIAutoCheapestGroupCircuit(circuit)
+
+	req := OpenAIAccountScheduleRequest{
+		RequestedModel: "gpt-image-1", RequiredEndpoint: OpenAISchedulerEndpointImagesGen,
+		RequiredTransport: OpenAIUpstreamTransportHTTPSSE, RequiredImageCapability: OpenAIImagesCapabilityBasic,
+	}
+	now := time.Now()
+	lastRealAt := now.Add(-time.Second)
+	healthRepo := &balancedSchedulerHealthRepoStub{states: map[OpenAISchedulerHealthKey]OpenAISchedulerHealthSnapshot{}}
+	for _, sample := range []struct {
+		account *Account
+		ttft    float64
+	}{
+		{account: &cheapSlow, ttft: 15_000},
+		{account: &expensiveFast, ttft: 300},
+	} {
+		key := svc.openAIBalancedHealthKeyForCandidate(sample.account, req)
+		healthRepo.states[key] = OpenAISchedulerHealthSnapshot{
+			Key: key, State: OpenAIAutoSchedulerStateRunning, PredictedTTFTMS: sample.ttft,
+			RealSampleCount: 2, LastRealAt: &lastRealAt, ExpiresAt: now.Add(time.Hour),
+		}
+	}
+	svc.SetOpenAIBalancedScheduler(NewOpenAIBalancedScheduler(healthRepo))
+	apiKey := &APIKey{ID: 1, UserID: 9, GroupSelectMode: APIKeyGroupSelectModeOpenAIAutoCheapest}
+	ctx := PrepareOpenAIAutoCheapestRequestContext(context.Background(), true, circuit)
+
+	effectiveKey, selection, _, err := svc.SelectEffectiveOpenAIAccountWithSchedulerForImages(
+		ctx, apiKey, "", req.RequestedModel, req.RequiredEndpoint, nil, req.RequiredImageCapability,
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, &cheapGroupID, effectiveKey.GroupID)
+	require.Equal(t, cheapSlow.ID, selection.Account.ID)
+	require.Zero(t, circuit.calls)
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
 }
 
 func TestOpenAIAutoCheapestSelection_FirstOutputTimeoutDisablesLowQualityFallback(t *testing.T) {
@@ -226,9 +305,9 @@ func TestOpenAIAutoCheapestSelection_ExhaustsCheapGroupBeforeHigherRateGroup(t *
 	require.Equal(t, &expensiveGroupID, effectiveKey.GroupID)
 	require.NotNil(t, selection)
 	require.Equal(t, expensiveAvailable.ID, selection.Account.ID)
-	// The quality pass must not turn a request-local absence into a cross-request
-	// group circuit failure. The original availability fallback owns exhaustion.
-	require.Equal(t, 0, circuit.calls)
+	// Only the availability pass may confirm exhaustion and open the group
+	// circuit; the qualified pass alone never does so.
+	require.Equal(t, 1, circuit.calls)
 	if selection.ReleaseFunc != nil {
 		selection.ReleaseFunc()
 	}
