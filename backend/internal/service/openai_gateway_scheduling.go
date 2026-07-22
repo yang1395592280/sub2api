@@ -642,7 +642,8 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImage
 	if err != nil {
 		return nil, requestedModel, nil, OpenAIAccountScheduleDecision{}, err
 	}
-	qualityCtx := withOpenAIAutoCheapestQualifiedOnly(ctx)
+	selectionCtx := withOpenAIAutoCheapestChannelPricePriority(ctx)
+	qualityCtx := withOpenAIAutoCheapestQualifiedOnly(selectionCtx)
 	strictQuality := openAIAutoCheapestRequiresQualifiedFailover(ctx)
 	var lastDecision OpenAIAccountScheduleDecision
 	var lastErr error
@@ -669,7 +670,7 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImage
 		}
 
 		slog.Info("openai_auto_cheapest_quality_fallback", "group_id", *effectiveKey.GroupID, "endpoint", requiredEndpoint, "model", requestedModel)
-		selection, decision, availabilityErr := s.SelectAccountWithSchedulerForImages(ctx, effectiveKey.GroupID, sessionHash, routingModel, requiredEndpoint, excludedIDs, requiredCapability)
+		selection, decision, availabilityErr := s.SelectAccountWithSchedulerForImages(selectionCtx, effectiveKey.GroupID, sessionHash, routingModel, requiredEndpoint, excludedIDs, requiredCapability)
 		lastDecision = decision
 		if availabilityErr == nil && selection != nil && selection.Account != nil && selection.Acquired {
 			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
@@ -719,7 +720,8 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 	if err != nil {
 		return nil, nil, OpenAIAccountScheduleDecision{}, err
 	}
-	qualityCtx := withOpenAIAutoCheapestQualifiedOnly(ctx)
+	selectionCtx := withOpenAIAutoCheapestChannelPricePriority(ctx)
+	qualityCtx := withOpenAIAutoCheapestQualifiedOnly(selectionCtx)
 	strictQuality := openAIAutoCheapestRequiresQualifiedFailover(ctx)
 	var lastDecision OpenAIAccountScheduleDecision
 	var lastErr error
@@ -763,7 +765,7 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 		}
 
 		slog.Info("openai_auto_cheapest_quality_fallback", "group_id", *effectiveKey.GroupID, "endpoint", requiredEndpoint, "model", requestedModel)
-		selection, decision, availabilityErr := selectAccount(ctx)
+		selection, decision, availabilityErr := selectAccount(selectionCtx)
 		lastDecision = decision
 		if availabilityErr == nil && selection != nil && selection.Account != nil && selection.Acquired {
 			s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
