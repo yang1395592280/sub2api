@@ -1176,6 +1176,22 @@ FROM (
     WHERE user_id = $1
       AND COALESCE(lucky_coin_played, FALSE) = TRUE
       AND COALESCE(lucky_coin_adjustment, 0) <> 0
+    UNION ALL
+    SELECT (-2200000000 - id) AS entry_id,
+           request_id || '-GUESS-SIZE' AS code,
+           'zenxiang_liyu_reward' AS entry_type,
+           guess_size_adjustment AS amount,
+           CASE WHEN guess_size_adjustment > 0 THEN '猜大小奖励' ELSE '猜大小扣减' END AS source_label,
+           CASE WHEN guess_size_adjustment > 0
+                THEN '猜大小命中：' || prize_name_snapshot
+                ELSE '猜大小未中：' || prize_name_snapshot
+           END AS source_detail,
+           'zenxiang_liyu_records:' || id || ':guess_size' AS reference_id,
+           COALESCE(guess_size_played_at, created_at) AS created_at
+    FROM zenxiang_liyu_records
+    WHERE user_id = $1
+      AND COALESCE(guess_size_played, FALSE) = TRUE
+      AND COALESCE(guess_size_adjustment, 0) <> 0
 ) entries
 ORDER BY created_at DESC, entry_id DESC
 OFFSET $2
@@ -1234,6 +1250,12 @@ FROM (
     WHERE user_id = $1
       AND COALESCE(lucky_coin_played, FALSE) = TRUE
       AND COALESCE(lucky_coin_adjustment, 0) <> 0
+    UNION ALL
+    SELECT id
+    FROM zenxiang_liyu_records
+    WHERE user_id = $1
+      AND COALESCE(guess_size_played, FALSE) = TRUE
+      AND COALESCE(guess_size_adjustment, 0) <> 0
 ) entries`, userID)
 	if err != nil {
 		return 0, err
