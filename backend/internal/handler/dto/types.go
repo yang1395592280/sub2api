@@ -139,6 +139,7 @@ type Group struct {
 
 	// OpenAI 自动评分调度开关（需配合全局开关生效）。
 	OpenAIAutoSchedulerEnabled            bool    `json:"openai_auto_scheduler_enabled"`
+	AllowAutoCheapestScheduling           bool    `json:"allow_auto_cheapest_scheduling"`
 	UpstreamBalanceRefreshEnabled         bool    `json:"upstream_balance_refresh_enabled"`
 	UpstreamBalanceRefreshIntervalSeconds int     `json:"upstream_balance_refresh_interval_seconds"`
 	UpstreamPriceMaxMultiplier            float64 `json:"upstream_price_max_multiplier"`

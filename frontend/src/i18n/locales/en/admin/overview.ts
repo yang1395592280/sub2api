@@ -1108,6 +1108,8 @@ export default {
       },
       openaiMessages: {
         title: 'OpenAI Messages Dispatch',
+        allowAutoCheapest: 'Allow auto cheapest group dispatch',
+        allowAutoCheapestHint: 'When disabled, this OpenAI group is excluded from price-based auto cheapest dispatch.',
         allowDispatch: 'Allow /v1/messages dispatch',
         allowDispatchHint: 'When enabled, API keys in this OpenAI group can dispatch requests through /v1/messages endpoint',
         familyMappingTitle: 'Family Default Mapping',

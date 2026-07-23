@@ -34,8 +34,8 @@ func TestOpenAIAutoCheapestSelection_PriceTierBeforeHigherGroup(t *testing.T) {
 		expensiveGroupID: {ID: expensiveGroupID, Platform: PlatformOpenAI, Status: StatusActive, OpenAIAutoSchedulerEnabled: false},
 	}}, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
 	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(&fakeAvailableOpenAIGroupsProvider{groups: []Group{
-		{ID: cheapGroupID, Name: "cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1},
-		{ID: expensiveGroupID, Name: "expensive", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.2},
+		{ID: cheapGroupID, Name: "cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, AllowAutoCheapestScheduling: true},
+		{ID: expensiveGroupID, Name: "expensive", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.2, AllowAutoCheapestScheduling: true},
 	}}), nil)
 	svc.SetOpenAIAutoCheapestGroupCircuit(circuit)
 
@@ -164,7 +164,7 @@ func TestOpenAIAutoCheapestSelection_PrefersLowestChannelPriceAmongQualifiedAcco
 		groupID: {ID: groupID, Platform: PlatformOpenAI, Status: StatusActive, OpenAIAutoSchedulerEnabled: true},
 	}}, fakeOpenAIAutoSchedulerSettingsProvider{settings: settings})
 	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(&fakeAvailableOpenAIGroupsProvider{groups: []Group{
-		{ID: groupID, Name: "plus", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1},
+		{ID: groupID, Name: "plus", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, AllowAutoCheapestScheduling: true},
 	}}), nil)
 
 	req := OpenAIAccountScheduleRequest{
@@ -262,8 +262,8 @@ func TestOpenAIAutoCheapestImageSelection_PriceTierBeforeHigherGroup(t *testing.
 		expensiveGroupID: {ID: expensiveGroupID, Platform: PlatformOpenAI, Status: StatusActive, OpenAIAutoSchedulerEnabled: false},
 	}}, fakeOpenAIAutoSchedulerSettingsProvider{settings: enabledOpenAIAutoSchedulerSettings()})
 	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(&fakeAvailableOpenAIGroupsProvider{groups: []Group{
-		{ID: cheapGroupID, Name: "cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1},
-		{ID: expensiveGroupID, Name: "expensive", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.2},
+		{ID: cheapGroupID, Name: "cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, AllowAutoCheapestScheduling: true},
+		{ID: expensiveGroupID, Name: "expensive", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.2, AllowAutoCheapestScheduling: true},
 	}}), nil)
 	svc.SetOpenAIAutoCheapestGroupCircuit(circuit)
 
@@ -338,8 +338,8 @@ func TestOpenAIAutoCheapestSelection_TriesNextGroupWhenCheapestUnavailable(t *te
 	nextID := int64(20)
 	apiKey := &APIKey{ID: 1, UserID: 9, GroupSelectMode: APIKeyGroupSelectModeOpenAIAutoCheapest}
 	groups := []Group{
-		{ID: cheapID, Name: "cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1},
-		{ID: nextID, Name: "next", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.2},
+		{ID: cheapID, Name: "cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, AllowAutoCheapestScheduling: true},
+		{ID: nextID, Name: "next", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.2, AllowAutoCheapestScheduling: true},
 	}
 	var attempted []int64
 	got, err := SelectFirstEffectiveOpenAIGroupForTest(apiKey, groups, func(effective *APIKey) error {
@@ -377,8 +377,8 @@ func TestOpenAIAutoCheapestSelection_ExhaustsCheapGroupBeforeHigherRateGroup(t *
 	}
 	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(&fakeAvailableOpenAIGroupsProvider{
 		groups: []Group{
-			{ID: cheapGroupID, Name: "cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1},
-			{ID: expensiveGroupID, Name: "expensive", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.15},
+			{ID: cheapGroupID, Name: "cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, AllowAutoCheapestScheduling: true},
+			{ID: expensiveGroupID, Name: "expensive", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.15, AllowAutoCheapestScheduling: true},
 		},
 	}), nil)
 	svc.SetOpenAIAutoCheapestGroupCircuit(circuit)
@@ -444,9 +444,9 @@ func TestCandidateGroups_FiltersOpenAIAndSortsByEffectiveRate(t *testing.T) {
 	provider := &fakeAvailableOpenAIGroupsProvider{
 		groups: []Group{
 			{ID: 1, Name: "claude", Platform: PlatformAnthropic, Status: StatusActive, RateMultiplier: 0.01},
-			{ID: 2, Name: "openai-mid", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.2, SortOrder: 20},
-			{ID: 3, Name: "openai-cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, SortOrder: 30},
-			{ID: 4, Name: "openai-disabled", Platform: PlatformOpenAI, Status: StatusDisabled, RateMultiplier: 0.05},
+			{ID: 2, Name: "openai-mid", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.2, SortOrder: 20, AllowAutoCheapestScheduling: true},
+			{ID: 3, Name: "openai-cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, SortOrder: 30, AllowAutoCheapestScheduling: true},
+			{ID: 4, Name: "openai-disabled", Platform: PlatformOpenAI, Status: StatusDisabled, RateMultiplier: 0.05, AllowAutoCheapestScheduling: true},
 		},
 		rates: map[int64]float64{2: 0.08},
 	}
@@ -461,9 +461,9 @@ func TestCandidateGroups_FiltersOpenAIAndSortsByEffectiveRate(t *testing.T) {
 func TestCandidateGroups_FiltersByMaxEffectiveRateMultiplier(t *testing.T) {
 	provider := &fakeAvailableOpenAIGroupsProvider{
 		groups: []Group{
-			{ID: 1, Name: "cheap-default", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1},
-			{ID: 2, Name: "override-cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 1.5},
-			{ID: 3, Name: "too-expensive", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.9},
+			{ID: 1, Name: "cheap-default", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, AllowAutoCheapestScheduling: true},
+			{ID: 2, Name: "override-cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 1.5, AllowAutoCheapestScheduling: true},
+			{ID: 3, Name: "too-expensive", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.9, AllowAutoCheapestScheduling: true},
 		},
 		rates: map[int64]float64{2: 0.2},
 	}
@@ -479,8 +479,8 @@ func TestCandidateGroups_FiltersByMaxEffectiveRateMultiplier(t *testing.T) {
 func TestCandidateGroups_ZeroMaxRateMultiplierMeansUnlimited(t *testing.T) {
 	provider := &fakeAvailableOpenAIGroupsProvider{
 		groups: []Group{
-			{ID: 1, Name: "cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1},
-			{ID: 2, Name: "expensive", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 1.5},
+			{ID: 1, Name: "cheap", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, AllowAutoCheapestScheduling: true},
+			{ID: 2, Name: "expensive", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 1.5, AllowAutoCheapestScheduling: true},
 		},
 	}
 	resolver := NewOpenAIAutoCheapestGroupResolver(provider)
@@ -495,9 +495,9 @@ func TestCandidateGroups_ZeroMaxRateMultiplierMeansUnlimited(t *testing.T) {
 func TestCandidateGroups_TieBreaksBySortOrderThenID(t *testing.T) {
 	provider := &fakeAvailableOpenAIGroupsProvider{
 		groups: []Group{
-			{ID: 7, Name: "g7", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, SortOrder: 20},
-			{ID: 5, Name: "g5", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, SortOrder: 10},
-			{ID: 6, Name: "g6", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, SortOrder: 10},
+			{ID: 7, Name: "g7", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, SortOrder: 20, AllowAutoCheapestScheduling: true},
+			{ID: 5, Name: "g5", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, SortOrder: 10, AllowAutoCheapestScheduling: true},
+			{ID: 6, Name: "g6", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, SortOrder: 10, AllowAutoCheapestScheduling: true},
 		},
 	}
 	resolver := NewOpenAIAutoCheapestGroupResolver(provider)
@@ -506,6 +506,21 @@ func TestCandidateGroups_TieBreaksBySortOrderThenID(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, []int64{5, 6, 7}, groupIDsForTest(got))
+}
+
+func TestCandidateGroups_ExcludesGroupsThatDisableAutoCheapestScheduling(t *testing.T) {
+	provider := &fakeAvailableOpenAIGroupsProvider{
+		groups: []Group{
+			{ID: 1, Name: "excluded-cheapest", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.05},
+			{ID: 2, Name: "eligible", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, AllowAutoCheapestScheduling: true},
+		},
+	}
+	resolver := NewOpenAIAutoCheapestGroupResolver(provider)
+
+	got, err := resolver.CandidateGroups(context.Background(), 42, nil)
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{2}, groupIDsForTest(got))
 }
 
 type fakeAvailableOpenAIGroupsProvider struct {

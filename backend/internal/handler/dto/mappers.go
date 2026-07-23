@@ -235,6 +235,7 @@ func groupFromServiceBase(g *service.Group) Group {
 		FallbackGroupIDOnInvalidRequest:       g.FallbackGroupIDOnInvalidRequest,
 		AllowMessagesDispatch:                 g.AllowMessagesDispatch,
 		OpenAIAutoSchedulerEnabled:            g.OpenAIAutoSchedulerEnabled,
+		AllowAutoCheapestScheduling:           g.AllowAutoCheapestScheduling,
 		UpstreamBalanceRefreshEnabled:         g.UpstreamBalanceRefreshEnabled,
 		UpstreamBalanceRefreshIntervalSeconds: g.UpstreamBalanceRefreshIntervalSeconds,
 		UpstreamPriceMaxMultiplier:            g.UpstreamPriceMaxMultiplier,

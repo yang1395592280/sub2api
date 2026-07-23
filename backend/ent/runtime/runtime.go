@@ -1113,30 +1113,34 @@ func init() {
 	groupDescOpenaiAutoSchedulerEnabled := groupFields[45].Descriptor()
 	// group.DefaultOpenaiAutoSchedulerEnabled holds the default value on creation for the openai_auto_scheduler_enabled field.
 	group.DefaultOpenaiAutoSchedulerEnabled = groupDescOpenaiAutoSchedulerEnabled.Default.(bool)
+	// groupDescAllowAutoCheapestScheduling is the schema descriptor for allow_auto_cheapest_scheduling field.
+	groupDescAllowAutoCheapestScheduling := groupFields[46].Descriptor()
+	// group.DefaultAllowAutoCheapestScheduling holds the default value on creation for the allow_auto_cheapest_scheduling field.
+	group.DefaultAllowAutoCheapestScheduling = groupDescAllowAutoCheapestScheduling.Default.(bool)
 	// groupDescUpstreamBalanceRefreshEnabled is the schema descriptor for upstream_balance_refresh_enabled field.
-	groupDescUpstreamBalanceRefreshEnabled := groupFields[46].Descriptor()
+	groupDescUpstreamBalanceRefreshEnabled := groupFields[47].Descriptor()
 	// group.DefaultUpstreamBalanceRefreshEnabled holds the default value on creation for the upstream_balance_refresh_enabled field.
 	group.DefaultUpstreamBalanceRefreshEnabled = groupDescUpstreamBalanceRefreshEnabled.Default.(bool)
 	// groupDescUpstreamBalanceRefreshIntervalSeconds is the schema descriptor for upstream_balance_refresh_interval_seconds field.
-	groupDescUpstreamBalanceRefreshIntervalSeconds := groupFields[47].Descriptor()
+	groupDescUpstreamBalanceRefreshIntervalSeconds := groupFields[48].Descriptor()
 	// group.DefaultUpstreamBalanceRefreshIntervalSeconds holds the default value on creation for the upstream_balance_refresh_interval_seconds field.
 	group.DefaultUpstreamBalanceRefreshIntervalSeconds = groupDescUpstreamBalanceRefreshIntervalSeconds.Default.(int)
 	// groupDescUpstreamPriceMaxMultiplier is the schema descriptor for upstream_price_max_multiplier field.
-	groupDescUpstreamPriceMaxMultiplier := groupFields[48].Descriptor()
+	groupDescUpstreamPriceMaxMultiplier := groupFields[49].Descriptor()
 	// group.DefaultUpstreamPriceMaxMultiplier holds the default value on creation for the upstream_price_max_multiplier field.
 	group.DefaultUpstreamPriceMaxMultiplier = groupDescUpstreamPriceMaxMultiplier.Default.(float64)
 	// groupDescRpmLimit is the schema descriptor for rpm_limit field.
-	groupDescRpmLimit := groupFields[49].Descriptor()
+	groupDescRpmLimit := groupFields[50].Descriptor()
 	// group.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	group.DefaultRpmLimit = groupDescRpmLimit.Default.(int)
 	// groupDescMaxReasoningEffort is the schema descriptor for max_reasoning_effort field.
-	groupDescMaxReasoningEffort := groupFields[50].Descriptor()
+	groupDescMaxReasoningEffort := groupFields[51].Descriptor()
 	// group.DefaultMaxReasoningEffort holds the default value on creation for the max_reasoning_effort field.
 	group.DefaultMaxReasoningEffort = groupDescMaxReasoningEffort.Default.(string)
 	// group.MaxReasoningEffortValidator is a validator for the "max_reasoning_effort" field. It is called by the builders before save.
 	group.MaxReasoningEffortValidator = groupDescMaxReasoningEffort.Validators[0].(func(string) error)
 	// groupDescReasoningEffortMappings is the schema descriptor for reasoning_effort_mappings field.
-	groupDescReasoningEffortMappings := groupFields[51].Descriptor()
+	groupDescReasoningEffortMappings := groupFields[52].Descriptor()
 	// group.DefaultReasoningEffortMappings holds the default value on creation for the reasoning_effort_mappings field.
 	group.DefaultReasoningEffortMappings = groupDescReasoningEffortMappings.Default.([]domain.ReasoningEffortMapping)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()

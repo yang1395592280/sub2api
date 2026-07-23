@@ -21330,6 +21330,7 @@ type GroupMutation struct {
 	messages_dispatch_model_config               *domain.OpenAIMessagesDispatchModelConfig
 	models_list_config                           *domain.GroupModelsListConfig
 	openai_auto_scheduler_enabled                *bool
+	allow_auto_cheapest_scheduling               *bool
 	upstream_balance_refresh_enabled             *bool
 	upstream_balance_refresh_interval_seconds    *int
 	addupstream_balance_refresh_interval_seconds *int
@@ -23861,6 +23862,42 @@ func (m *GroupMutation) ResetOpenaiAutoSchedulerEnabled() {
 	m.openai_auto_scheduler_enabled = nil
 }
 
+// SetAllowAutoCheapestScheduling sets the "allow_auto_cheapest_scheduling" field.
+func (m *GroupMutation) SetAllowAutoCheapestScheduling(b bool) {
+	m.allow_auto_cheapest_scheduling = &b
+}
+
+// AllowAutoCheapestScheduling returns the value of the "allow_auto_cheapest_scheduling" field in the mutation.
+func (m *GroupMutation) AllowAutoCheapestScheduling() (r bool, exists bool) {
+	v := m.allow_auto_cheapest_scheduling
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAllowAutoCheapestScheduling returns the old "allow_auto_cheapest_scheduling" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldAllowAutoCheapestScheduling(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAllowAutoCheapestScheduling is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAllowAutoCheapestScheduling requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAllowAutoCheapestScheduling: %w", err)
+	}
+	return oldValue.AllowAutoCheapestScheduling, nil
+}
+
+// ResetAllowAutoCheapestScheduling resets all changes to the "allow_auto_cheapest_scheduling" field.
+func (m *GroupMutation) ResetAllowAutoCheapestScheduling() {
+	m.allow_auto_cheapest_scheduling = nil
+}
+
 // SetUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field.
 func (m *GroupMutation) SetUpstreamBalanceRefreshEnabled(b bool) {
 	m.upstream_balance_refresh_enabled = &b
@@ -24510,7 +24547,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 55)
+	fields := make([]string, 0, 56)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -24658,6 +24695,9 @@ func (m *GroupMutation) Fields() []string {
 	if m.openai_auto_scheduler_enabled != nil {
 		fields = append(fields, group.FieldOpenaiAutoSchedulerEnabled)
 	}
+	if m.allow_auto_cheapest_scheduling != nil {
+		fields = append(fields, group.FieldAllowAutoCheapestScheduling)
+	}
 	if m.upstream_balance_refresh_enabled != nil {
 		fields = append(fields, group.FieldUpstreamBalanceRefreshEnabled)
 	}
@@ -24782,6 +24822,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.ModelsListConfig()
 	case group.FieldOpenaiAutoSchedulerEnabled:
 		return m.OpenaiAutoSchedulerEnabled()
+	case group.FieldAllowAutoCheapestScheduling:
+		return m.AllowAutoCheapestScheduling()
 	case group.FieldUpstreamBalanceRefreshEnabled:
 		return m.UpstreamBalanceRefreshEnabled()
 	case group.FieldUpstreamBalanceRefreshIntervalSeconds:
@@ -24901,6 +24943,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldModelsListConfig(ctx)
 	case group.FieldOpenaiAutoSchedulerEnabled:
 		return m.OldOpenaiAutoSchedulerEnabled(ctx)
+	case group.FieldAllowAutoCheapestScheduling:
+		return m.OldAllowAutoCheapestScheduling(ctx)
 	case group.FieldUpstreamBalanceRefreshEnabled:
 		return m.OldUpstreamBalanceRefreshEnabled(ctx)
 	case group.FieldUpstreamBalanceRefreshIntervalSeconds:
@@ -25264,6 +25308,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetOpenaiAutoSchedulerEnabled(v)
+		return nil
+	case group.FieldAllowAutoCheapestScheduling:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAllowAutoCheapestScheduling(v)
 		return nil
 	case group.FieldUpstreamBalanceRefreshEnabled:
 		v, ok := value.(bool)
@@ -25880,6 +25931,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldOpenaiAutoSchedulerEnabled:
 		m.ResetOpenaiAutoSchedulerEnabled()
+		return nil
+	case group.FieldAllowAutoCheapestScheduling:
+		m.ResetAllowAutoCheapestScheduling()
 		return nil
 	case group.FieldUpstreamBalanceRefreshEnabled:
 		m.ResetUpstreamBalanceRefreshEnabled()

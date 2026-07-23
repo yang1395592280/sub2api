@@ -1106,6 +1106,8 @@ export default {
       },
       openaiMessages: {
         title: 'OpenAI Messages 调度配置',
+        allowAutoCheapest: '允许自动最优惠分组调度',
+        allowAutoCheapestHint: '关闭后，此 OpenAI 分组不会参与自动最优惠分组按价格排序的调度。',
         allowDispatch: '允许 /v1/messages 调度',
         allowDispatchHint: '启用后，此 OpenAI 分组的 API Key 可以通过 /v1/messages 端点调度请求',
         familyMappingTitle: '系列默认映射',

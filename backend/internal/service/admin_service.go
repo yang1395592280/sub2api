@@ -290,6 +290,7 @@ type CreateGroupInput struct {
 	MessagesDispatchModelConfig           OpenAIMessagesDispatchModelConfig
 	ModelsListConfig                      GroupModelsListConfig
 	OpenAIAutoSchedulerEnabled            bool
+	AllowAutoCheapestScheduling           *bool
 	UpstreamBalanceRefreshEnabled         bool
 	UpstreamBalanceRefreshIntervalSeconds int
 	UpstreamPriceMaxMultiplier            float64
@@ -354,6 +355,7 @@ type UpdateGroupInput struct {
 	MessagesDispatchModelConfig           *OpenAIMessagesDispatchModelConfig
 	ModelsListConfig                      *GroupModelsListConfig
 	OpenAIAutoSchedulerEnabled            *bool
+	AllowAutoCheapestScheduling           *bool
 	UpstreamBalanceRefreshEnabled         *bool
 	UpstreamBalanceRefreshIntervalSeconds *int
 	UpstreamPriceMaxMultiplier            *float64

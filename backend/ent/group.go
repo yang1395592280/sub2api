@@ -117,6 +117,8 @@ type Group struct {
 	ModelsListConfig domain.GroupModelsListConfig `json:"models_list_config,omitempty"`
 	// Enable OpenAI automatic score-based scheduling for this group.
 	OpenaiAutoSchedulerEnabled bool `json:"openai_auto_scheduler_enabled,omitempty"`
+	// 是否允许 OpenAI 自动最优惠分组调度到此分组
+	AllowAutoCheapestScheduling bool `json:"allow_auto_cheapest_scheduling,omitempty"`
 	// 是否启用分组级上游余额定时刷新
 	UpstreamBalanceRefreshEnabled bool `json:"upstream_balance_refresh_enabled,omitempty"`
 	// 分组级上游余额刷新间隔秒数
@@ -237,7 +239,7 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelsListConfig, group.FieldReasoningEffortMappings:
 			values[i] = new([]byte)
-		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldOpenaiAutoSchedulerEnabled, group.FieldUpstreamBalanceRefreshEnabled:
+		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldOpenaiAutoSchedulerEnabled, group.FieldAllowAutoCheapestScheduling, group.FieldUpstreamBalanceRefreshEnabled:
 			values[i] = new(sql.NullBool)
 		case group.FieldRateMultiplier, group.FieldPeakRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k, group.FieldBatchImageDiscountMultiplier, group.FieldBatchImageHoldMultiplier, group.FieldVideoRateMultiplier, group.FieldVideoPrice480p, group.FieldVideoPrice720p, group.FieldVideoPrice1080p, group.FieldWebSearchPricePerCall, group.FieldUpstreamPriceMaxMultiplier:
 			values[i] = new(sql.NullFloat64)
@@ -585,6 +587,12 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.OpenaiAutoSchedulerEnabled = value.Bool
 			}
+		case group.FieldAllowAutoCheapestScheduling:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field allow_auto_cheapest_scheduling", values[i])
+			} else if value.Valid {
+				_m.AllowAutoCheapestScheduling = value.Bool
+			}
 		case group.FieldUpstreamBalanceRefreshEnabled:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field upstream_balance_refresh_enabled", values[i])
@@ -875,6 +883,9 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("openai_auto_scheduler_enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.OpenaiAutoSchedulerEnabled))
+	builder.WriteString(", ")
+	builder.WriteString("allow_auto_cheapest_scheduling=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AllowAutoCheapestScheduling))
 	builder.WriteString(", ")
 	builder.WriteString("upstream_balance_refresh_enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.UpstreamBalanceRefreshEnabled))

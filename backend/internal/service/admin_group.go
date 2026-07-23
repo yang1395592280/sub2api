@@ -19,6 +19,13 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 )
 
+func boolValueOrDefault(value *bool, fallback bool) bool {
+	if value == nil {
+		return fallback
+	}
+	return *value
+}
+
 // Group management implementations
 func (s *adminServiceImpl) ListGroups(ctx context.Context, page, pageSize int, platform, status, search string, isExclusive *bool, sortBy, sortOrder string) ([]Group, int64, error) {
 	params := pagination.PaginationParams{Page: page, PageSize: pageSize, SortBy: sortBy, SortOrder: sortOrder}
@@ -322,6 +329,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		MessagesDispatchModelConfig:           normalizeOpenAIMessagesDispatchModelConfig(input.MessagesDispatchModelConfig),
 		ModelsListConfig:                      normalizeGroupModelsListConfig(input.ModelsListConfig),
 		OpenAIAutoSchedulerEnabled:            input.OpenAIAutoSchedulerEnabled,
+		AllowAutoCheapestScheduling:           boolValueOrDefault(input.AllowAutoCheapestScheduling, true),
 		UpstreamBalanceRefreshEnabled:         input.UpstreamBalanceRefreshEnabled,
 		UpstreamBalanceRefreshIntervalSeconds: upstreamBalanceRefreshIntervalSeconds,
 		UpstreamPriceMaxMultiplier:            input.UpstreamPriceMaxMultiplier,
@@ -644,6 +652,9 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if input.OpenAIAutoSchedulerEnabled != nil {
 		group.OpenAIAutoSchedulerEnabled = *input.OpenAIAutoSchedulerEnabled
+	}
+	if input.AllowAutoCheapestScheduling != nil {
+		group.AllowAutoCheapestScheduling = *input.AllowAutoCheapestScheduling
 	}
 	upstreamPriceGuardConfigTouched := input.UpstreamBalanceRefreshEnabled != nil ||
 		input.UpstreamBalanceRefreshIntervalSeconds != nil ||

@@ -1107,6 +1107,7 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		MessagesDispatchModelConfig:           g.MessagesDispatchModelConfig,
 		ModelsListConfig:                      g.ModelsListConfig,
 		OpenAIAutoSchedulerEnabled:            g.OpenaiAutoSchedulerEnabled,
+		AllowAutoCheapestScheduling:           g.AllowAutoCheapestScheduling,
 		UpstreamBalanceRefreshEnabled:         g.UpstreamBalanceRefreshEnabled,
 		UpstreamBalanceRefreshIntervalSeconds: g.UpstreamBalanceRefreshIntervalSeconds,
 		UpstreamPriceMaxMultiplier:            g.UpstreamPriceMaxMultiplier,

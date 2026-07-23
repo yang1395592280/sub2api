@@ -280,6 +280,11 @@ func OpenaiAutoSchedulerEnabled(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldOpenaiAutoSchedulerEnabled, v))
 }
 
+// AllowAutoCheapestScheduling applies equality check predicate on the "allow_auto_cheapest_scheduling" field. It's identical to AllowAutoCheapestSchedulingEQ.
+func AllowAutoCheapestScheduling(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldAllowAutoCheapestScheduling, v))
+}
+
 // UpstreamBalanceRefreshEnabled applies equality check predicate on the "upstream_balance_refresh_enabled" field. It's identical to UpstreamBalanceRefreshEnabledEQ.
 func UpstreamBalanceRefreshEnabled(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldUpstreamBalanceRefreshEnabled, v))
@@ -2098,6 +2103,16 @@ func OpenaiAutoSchedulerEnabledEQ(v bool) predicate.Group {
 // OpenaiAutoSchedulerEnabledNEQ applies the NEQ predicate on the "openai_auto_scheduler_enabled" field.
 func OpenaiAutoSchedulerEnabledNEQ(v bool) predicate.Group {
 	return predicate.Group(sql.FieldNEQ(FieldOpenaiAutoSchedulerEnabled, v))
+}
+
+// AllowAutoCheapestSchedulingEQ applies the EQ predicate on the "allow_auto_cheapest_scheduling" field.
+func AllowAutoCheapestSchedulingEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldAllowAutoCheapestScheduling, v))
+}
+
+// AllowAutoCheapestSchedulingNEQ applies the NEQ predicate on the "allow_auto_cheapest_scheduling" field.
+func AllowAutoCheapestSchedulingNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldAllowAutoCheapestScheduling, v))
 }
 
 // UpstreamBalanceRefreshEnabledEQ applies the EQ predicate on the "upstream_balance_refresh_enabled" field.

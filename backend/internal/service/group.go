@@ -91,6 +91,7 @@ type Group struct {
 	MessagesDispatchModelConfig           OpenAIMessagesDispatchModelConfig
 	ModelsListConfig                      GroupModelsListConfig
 	OpenAIAutoSchedulerEnabled            bool
+	AllowAutoCheapestScheduling           bool
 	UpstreamBalanceRefreshEnabled         bool
 	UpstreamBalanceRefreshIntervalSeconds int
 	UpstreamPriceMaxMultiplier            float64

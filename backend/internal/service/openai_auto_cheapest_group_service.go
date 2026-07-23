@@ -91,6 +91,9 @@ func (r *OpenAIAutoCheapestGroupResolver) CandidateGroups(ctx context.Context, u
 		if group.Status != StatusActive {
 			continue
 		}
+		if !group.AllowAutoCheapestScheduling {
+			continue
+		}
 		if maxRateMultiplier != nil && *maxRateMultiplier > 0 && EffectiveOpenAIGroupRate(group, userRates) > *maxRateMultiplier {
 			continue
 		}

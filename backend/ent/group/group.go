@@ -114,6 +114,8 @@ const (
 	FieldModelsListConfig = "models_list_config"
 	// FieldOpenaiAutoSchedulerEnabled holds the string denoting the openai_auto_scheduler_enabled field in the database.
 	FieldOpenaiAutoSchedulerEnabled = "openai_auto_scheduler_enabled"
+	// FieldAllowAutoCheapestScheduling holds the string denoting the allow_auto_cheapest_scheduling field in the database.
+	FieldAllowAutoCheapestScheduling = "allow_auto_cheapest_scheduling"
 	// FieldUpstreamBalanceRefreshEnabled holds the string denoting the upstream_balance_refresh_enabled field in the database.
 	FieldUpstreamBalanceRefreshEnabled = "upstream_balance_refresh_enabled"
 	// FieldUpstreamBalanceRefreshIntervalSeconds holds the string denoting the upstream_balance_refresh_interval_seconds field in the database.
@@ -250,6 +252,7 @@ var Columns = []string{
 	FieldMessagesDispatchModelConfig,
 	FieldModelsListConfig,
 	FieldOpenaiAutoSchedulerEnabled,
+	FieldAllowAutoCheapestScheduling,
 	FieldUpstreamBalanceRefreshEnabled,
 	FieldUpstreamBalanceRefreshIntervalSeconds,
 	FieldUpstreamPriceMaxMultiplier,
@@ -367,6 +370,8 @@ var (
 	DefaultModelsListConfig domain.GroupModelsListConfig
 	// DefaultOpenaiAutoSchedulerEnabled holds the default value on creation for the "openai_auto_scheduler_enabled" field.
 	DefaultOpenaiAutoSchedulerEnabled bool
+	// DefaultAllowAutoCheapestScheduling holds the default value on creation for the "allow_auto_cheapest_scheduling" field.
+	DefaultAllowAutoCheapestScheduling bool
 	// DefaultUpstreamBalanceRefreshEnabled holds the default value on creation for the "upstream_balance_refresh_enabled" field.
 	DefaultUpstreamBalanceRefreshEnabled bool
 	// DefaultUpstreamBalanceRefreshIntervalSeconds holds the default value on creation for the "upstream_balance_refresh_interval_seconds" field.
@@ -614,6 +619,11 @@ func ByDefaultMappedModel(opts ...sql.OrderTermOption) OrderOption {
 // ByOpenaiAutoSchedulerEnabled orders the results by the openai_auto_scheduler_enabled field.
 func ByOpenaiAutoSchedulerEnabled(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldOpenaiAutoSchedulerEnabled, opts...).ToFunc()
+}
+
+// ByAllowAutoCheapestScheduling orders the results by the allow_auto_cheapest_scheduling field.
+func ByAllowAutoCheapestScheduling(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAllowAutoCheapestScheduling, opts...).ToFunc()
 }
 
 // ByUpstreamBalanceRefreshEnabled orders the results by the upstream_balance_refresh_enabled field.

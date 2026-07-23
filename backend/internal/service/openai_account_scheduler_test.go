@@ -1371,7 +1371,7 @@ func TestOpenAIGatewayService_SelectEffectiveAccountUsesMappedModelForBalancedHe
 				if mode == "auto_effective_group" {
 					apiKey = &APIKey{ID: 1, UserID: 9, GroupSelectMode: APIKeyGroupSelectModeOpenAIAutoCheapest}
 					svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(&fakeAvailableOpenAIGroupsProvider{
-						groups: []Group{{ID: groupID, Name: "effective", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1}},
+						groups: []Group{{ID: groupID, Name: "effective", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 0.1, AllowAutoCheapestScheduling: true}},
 					}), nil)
 				}
 				modelResolver := func(candidate *APIKey, model string) string {

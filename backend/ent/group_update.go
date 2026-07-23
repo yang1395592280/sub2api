@@ -906,6 +906,20 @@ func (_u *GroupUpdate) SetNillableOpenaiAutoSchedulerEnabled(v *bool) *GroupUpda
 	return _u
 }
 
+// SetAllowAutoCheapestScheduling sets the "allow_auto_cheapest_scheduling" field.
+func (_u *GroupUpdate) SetAllowAutoCheapestScheduling(v bool) *GroupUpdate {
+	_u.mutation.SetAllowAutoCheapestScheduling(v)
+	return _u
+}
+
+// SetNillableAllowAutoCheapestScheduling sets the "allow_auto_cheapest_scheduling" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableAllowAutoCheapestScheduling(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetAllowAutoCheapestScheduling(*v)
+	}
+	return _u
+}
+
 // SetUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field.
 func (_u *GroupUpdate) SetUpstreamBalanceRefreshEnabled(v bool) *GroupUpdate {
 	_u.mutation.SetUpstreamBalanceRefreshEnabled(v)
@@ -1582,6 +1596,9 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.OpenaiAutoSchedulerEnabled(); ok {
 		_spec.SetField(group.FieldOpenaiAutoSchedulerEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.AllowAutoCheapestScheduling(); ok {
+		_spec.SetField(group.FieldAllowAutoCheapestScheduling, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.UpstreamBalanceRefreshEnabled(); ok {
 		_spec.SetField(group.FieldUpstreamBalanceRefreshEnabled, field.TypeBool, value)
@@ -2799,6 +2816,20 @@ func (_u *GroupUpdateOne) SetNillableOpenaiAutoSchedulerEnabled(v *bool) *GroupU
 	return _u
 }
 
+// SetAllowAutoCheapestScheduling sets the "allow_auto_cheapest_scheduling" field.
+func (_u *GroupUpdateOne) SetAllowAutoCheapestScheduling(v bool) *GroupUpdateOne {
+	_u.mutation.SetAllowAutoCheapestScheduling(v)
+	return _u
+}
+
+// SetNillableAllowAutoCheapestScheduling sets the "allow_auto_cheapest_scheduling" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableAllowAutoCheapestScheduling(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetAllowAutoCheapestScheduling(*v)
+	}
+	return _u
+}
+
 // SetUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field.
 func (_u *GroupUpdateOne) SetUpstreamBalanceRefreshEnabled(v bool) *GroupUpdateOne {
 	_u.mutation.SetUpstreamBalanceRefreshEnabled(v)
@@ -3505,6 +3536,9 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.OpenaiAutoSchedulerEnabled(); ok {
 		_spec.SetField(group.FieldOpenaiAutoSchedulerEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.AllowAutoCheapestScheduling(); ok {
+		_spec.SetField(group.FieldAllowAutoCheapestScheduling, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.UpstreamBalanceRefreshEnabled(); ok {
 		_spec.SetField(group.FieldUpstreamBalanceRefreshEnabled, field.TypeBool, value)

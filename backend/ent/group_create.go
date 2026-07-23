@@ -691,6 +691,20 @@ func (_c *GroupCreate) SetNillableOpenaiAutoSchedulerEnabled(v *bool) *GroupCrea
 	return _c
 }
 
+// SetAllowAutoCheapestScheduling sets the "allow_auto_cheapest_scheduling" field.
+func (_c *GroupCreate) SetAllowAutoCheapestScheduling(v bool) *GroupCreate {
+	_c.mutation.SetAllowAutoCheapestScheduling(v)
+	return _c
+}
+
+// SetNillableAllowAutoCheapestScheduling sets the "allow_auto_cheapest_scheduling" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableAllowAutoCheapestScheduling(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetAllowAutoCheapestScheduling(*v)
+	}
+	return _c
+}
+
 // SetUpstreamBalanceRefreshEnabled sets the "upstream_balance_refresh_enabled" field.
 func (_c *GroupCreate) SetUpstreamBalanceRefreshEnabled(v bool) *GroupCreate {
 	_c.mutation.SetUpstreamBalanceRefreshEnabled(v)
@@ -1028,6 +1042,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultOpenaiAutoSchedulerEnabled
 		_c.mutation.SetOpenaiAutoSchedulerEnabled(v)
 	}
+	if _, ok := _c.mutation.AllowAutoCheapestScheduling(); !ok {
+		v := group.DefaultAllowAutoCheapestScheduling
+		_c.mutation.SetAllowAutoCheapestScheduling(v)
+	}
 	if _, ok := _c.mutation.UpstreamBalanceRefreshEnabled(); !ok {
 		v := group.DefaultUpstreamBalanceRefreshEnabled
 		_c.mutation.SetUpstreamBalanceRefreshEnabled(v)
@@ -1195,6 +1213,9 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.OpenaiAutoSchedulerEnabled(); !ok {
 		return &ValidationError{Name: "openai_auto_scheduler_enabled", err: errors.New(`ent: missing required field "Group.openai_auto_scheduler_enabled"`)}
+	}
+	if _, ok := _c.mutation.AllowAutoCheapestScheduling(); !ok {
+		return &ValidationError{Name: "allow_auto_cheapest_scheduling", err: errors.New(`ent: missing required field "Group.allow_auto_cheapest_scheduling"`)}
 	}
 	if _, ok := _c.mutation.UpstreamBalanceRefreshEnabled(); !ok {
 		return &ValidationError{Name: "upstream_balance_refresh_enabled", err: errors.New(`ent: missing required field "Group.upstream_balance_refresh_enabled"`)}
@@ -1441,6 +1462,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.OpenaiAutoSchedulerEnabled(); ok {
 		_spec.SetField(group.FieldOpenaiAutoSchedulerEnabled, field.TypeBool, value)
 		_node.OpenaiAutoSchedulerEnabled = value
+	}
+	if value, ok := _c.mutation.AllowAutoCheapestScheduling(); ok {
+		_spec.SetField(group.FieldAllowAutoCheapestScheduling, field.TypeBool, value)
+		_node.AllowAutoCheapestScheduling = value
 	}
 	if value, ok := _c.mutation.UpstreamBalanceRefreshEnabled(); ok {
 		_spec.SetField(group.FieldUpstreamBalanceRefreshEnabled, field.TypeBool, value)
@@ -2393,6 +2418,18 @@ func (u *GroupUpsert) SetOpenaiAutoSchedulerEnabled(v bool) *GroupUpsert {
 // UpdateOpenaiAutoSchedulerEnabled sets the "openai_auto_scheduler_enabled" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateOpenaiAutoSchedulerEnabled() *GroupUpsert {
 	u.SetExcluded(group.FieldOpenaiAutoSchedulerEnabled)
+	return u
+}
+
+// SetAllowAutoCheapestScheduling sets the "allow_auto_cheapest_scheduling" field.
+func (u *GroupUpsert) SetAllowAutoCheapestScheduling(v bool) *GroupUpsert {
+	u.Set(group.FieldAllowAutoCheapestScheduling, v)
+	return u
+}
+
+// UpdateAllowAutoCheapestScheduling sets the "allow_auto_cheapest_scheduling" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateAllowAutoCheapestScheduling() *GroupUpsert {
+	u.SetExcluded(group.FieldAllowAutoCheapestScheduling)
 	return u
 }
 
@@ -3434,6 +3471,20 @@ func (u *GroupUpsertOne) SetOpenaiAutoSchedulerEnabled(v bool) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateOpenaiAutoSchedulerEnabled() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateOpenaiAutoSchedulerEnabled()
+	})
+}
+
+// SetAllowAutoCheapestScheduling sets the "allow_auto_cheapest_scheduling" field.
+func (u *GroupUpsertOne) SetAllowAutoCheapestScheduling(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetAllowAutoCheapestScheduling(v)
+	})
+}
+
+// UpdateAllowAutoCheapestScheduling sets the "allow_auto_cheapest_scheduling" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateAllowAutoCheapestScheduling() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateAllowAutoCheapestScheduling()
 	})
 }
 
@@ -4656,6 +4707,20 @@ func (u *GroupUpsertBulk) SetOpenaiAutoSchedulerEnabled(v bool) *GroupUpsertBulk
 func (u *GroupUpsertBulk) UpdateOpenaiAutoSchedulerEnabled() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateOpenaiAutoSchedulerEnabled()
+	})
+}
+
+// SetAllowAutoCheapestScheduling sets the "allow_auto_cheapest_scheduling" field.
+func (u *GroupUpsertBulk) SetAllowAutoCheapestScheduling(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetAllowAutoCheapestScheduling(v)
+	})
+}
+
+// UpdateAllowAutoCheapestScheduling sets the "allow_auto_cheapest_scheduling" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateAllowAutoCheapestScheduling() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateAllowAutoCheapestScheduling()
 	})
 }
 

@@ -133,6 +133,7 @@ type CreateGroupRequest struct {
 	MessagesDispatchModelConfig           service.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
 	ModelsListConfig                      service.GroupModelsListConfig             `json:"models_list_config"`
 	OpenAIAutoSchedulerEnabled            bool                                      `json:"openai_auto_scheduler_enabled"`
+	AllowAutoCheapestScheduling           *bool                                     `json:"allow_auto_cheapest_scheduling"`
 	UpstreamBalanceRefreshEnabled         bool                                      `json:"upstream_balance_refresh_enabled"`
 	UpstreamBalanceRefreshIntervalSeconds int                                       `json:"upstream_balance_refresh_interval_seconds"`
 	UpstreamPriceMaxMultiplier            float64                                   `json:"upstream_price_max_multiplier"`
@@ -195,6 +196,7 @@ type UpdateGroupRequest struct {
 	MessagesDispatchModelConfig           *service.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
 	ModelsListConfig                      *service.GroupModelsListConfig             `json:"models_list_config"`
 	OpenAIAutoSchedulerEnabled            *bool                                      `json:"openai_auto_scheduler_enabled"`
+	AllowAutoCheapestScheduling           *bool                                      `json:"allow_auto_cheapest_scheduling"`
 	UpstreamBalanceRefreshEnabled         *bool                                      `json:"upstream_balance_refresh_enabled"`
 	UpstreamBalanceRefreshIntervalSeconds *int                                       `json:"upstream_balance_refresh_interval_seconds"`
 	UpstreamPriceMaxMultiplier            *float64                                   `json:"upstream_price_max_multiplier"`
@@ -372,6 +374,7 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		MessagesDispatchModelConfig:           req.MessagesDispatchModelConfig,
 		ModelsListConfig:                      req.ModelsListConfig,
 		OpenAIAutoSchedulerEnabled:            req.OpenAIAutoSchedulerEnabled,
+		AllowAutoCheapestScheduling:           req.AllowAutoCheapestScheduling,
 		UpstreamBalanceRefreshEnabled:         req.UpstreamBalanceRefreshEnabled,
 		UpstreamBalanceRefreshIntervalSeconds: req.UpstreamBalanceRefreshIntervalSeconds,
 		UpstreamPriceMaxMultiplier:            req.UpstreamPriceMaxMultiplier,
@@ -483,6 +486,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		MessagesDispatchModelConfig:           req.MessagesDispatchModelConfig,
 		ModelsListConfig:                      req.ModelsListConfig,
 		OpenAIAutoSchedulerEnabled:            req.OpenAIAutoSchedulerEnabled,
+		AllowAutoCheapestScheduling:           req.AllowAutoCheapestScheduling,
 		UpstreamBalanceRefreshEnabled:         req.UpstreamBalanceRefreshEnabled,
 		UpstreamBalanceRefreshIntervalSeconds: req.UpstreamBalanceRefreshIntervalSeconds,
 		UpstreamPriceMaxMultiplier:            req.UpstreamPriceMaxMultiplier,

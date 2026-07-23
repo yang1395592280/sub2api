@@ -96,6 +96,7 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 		SetMessagesDispatchModelConfig(groupIn.MessagesDispatchModelConfig).
 		SetModelsListConfig(groupIn.ModelsListConfig).
 		SetOpenaiAutoSchedulerEnabled(groupIn.OpenAIAutoSchedulerEnabled).
+		SetAllowAutoCheapestScheduling(groupIn.AllowAutoCheapestScheduling).
 		SetUpstreamBalanceRefreshEnabled(groupIn.UpstreamBalanceRefreshEnabled).
 		SetUpstreamBalanceRefreshIntervalSeconds(groupIn.UpstreamBalanceRefreshIntervalSeconds).
 		SetUpstreamPriceMaxMultiplier(groupIn.UpstreamPriceMaxMultiplier).
@@ -265,6 +266,7 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetMessagesDispatchModelConfig(groupIn.MessagesDispatchModelConfig).
 		SetModelsListConfig(groupIn.ModelsListConfig).
 		SetOpenaiAutoSchedulerEnabled(groupIn.OpenAIAutoSchedulerEnabled).
+		SetAllowAutoCheapestScheduling(groupIn.AllowAutoCheapestScheduling).
 		SetUpstreamBalanceRefreshEnabled(groupIn.UpstreamBalanceRefreshEnabled).
 		SetUpstreamBalanceRefreshIntervalSeconds(groupIn.UpstreamBalanceRefreshIntervalSeconds).
 		SetUpstreamPriceMaxMultiplier(groupIn.UpstreamPriceMaxMultiplier).

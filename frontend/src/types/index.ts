@@ -557,6 +557,7 @@ export interface Group {
   // OpenAI Messages 调度开关（用户侧需要此字段判断是否展示 Claude Code 教程）
   allow_messages_dispatch?: boolean
   openai_auto_scheduler_enabled?: boolean
+  allow_auto_cheapest_scheduling?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   require_oauth_only: boolean
@@ -706,6 +707,7 @@ export interface CreateGroupRequest {
   models_list_config?: ModelsListConfig
   allow_messages_dispatch?: boolean
   openai_auto_scheduler_enabled?: boolean
+  allow_auto_cheapest_scheduling?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   model_routing?: Record<string, number[]> | null
@@ -760,6 +762,7 @@ export interface UpdateGroupRequest {
   models_list_config?: ModelsListConfig
   allow_messages_dispatch?: boolean
   openai_auto_scheduler_enabled?: boolean
+  allow_auto_cheapest_scheduling?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   model_routing?: Record<string, number[]> | null

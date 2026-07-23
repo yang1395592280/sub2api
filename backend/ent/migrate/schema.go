@@ -887,6 +887,7 @@ var (
 		{Name: "messages_dispatch_model_config", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
 		{Name: "models_list_config", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
 		{Name: "openai_auto_scheduler_enabled", Type: field.TypeBool, Default: false},
+		{Name: "allow_auto_cheapest_scheduling", Type: field.TypeBool, Default: true},
 		{Name: "upstream_balance_refresh_enabled", Type: field.TypeBool, Default: false},
 		{Name: "upstream_balance_refresh_interval_seconds", Type: field.TypeInt, Default: 600},
 		{Name: "upstream_price_max_multiplier", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(10,4)"}},

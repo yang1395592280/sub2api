@@ -219,6 +219,9 @@ func (Group) Fields() []ent.Field {
 		field.Bool("openai_auto_scheduler_enabled").
 			Default(false).
 			Comment("Enable OpenAI automatic score-based scheduling for this group."),
+		field.Bool("allow_auto_cheapest_scheduling").
+			Default(true).
+			Comment("是否允许 OpenAI 自动最优惠分组调度到此分组"),
 		field.Bool("upstream_balance_refresh_enabled").
 			Default(false).
 			Comment("是否启用分组级上游余额定时刷新"),

@@ -314,6 +314,38 @@ describe('admin GroupsView upstream price guard settings', () => {
     )
   })
 
+  it('submits disabled auto cheapest scheduling from the OpenAI group editor', async () => {
+    const existingGroup = createAdminGroup({
+      platform: 'openai',
+      allow_auto_cheapest_scheduling: true
+    })
+    listGroups.mockResolvedValueOnce({
+      items: [existingGroup],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-test="group-edit-button"]').trigger('click')
+    await flushPromises()
+
+    const autoCheapestSwitch = wrapper.get('[data-test="edit-group-allow-auto-cheapest-scheduling"]')
+    expect(autoCheapestSwitch.attributes('aria-checked')).toBe('true')
+    await autoCheapestSwitch.trigger('click')
+    expect(autoCheapestSwitch.attributes('aria-checked')).toBe('false')
+
+    await wrapper.get('#edit-group-form').trigger('submit')
+    await flushPromises()
+
+    expect(updateGroup).toHaveBeenCalledWith(
+      existingGroup.id,
+      expect.objectContaining({ allow_auto_cheapest_scheduling: false })
+    )
+  })
+
   it('blocks create when upstream refresh interval is below 60 seconds', async () => {
     const wrapper = await mountView()
 
