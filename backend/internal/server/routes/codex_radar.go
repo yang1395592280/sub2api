@@ -204,18 +204,29 @@ func transformCodexRadarHTML(source []byte) ([]byte, error) {
 	}
 
 	var head *html.Node
-	var community *html.Node
+	var removableNodes []*html.Node
 	var walk func(*html.Node)
 	walk = func(node *html.Node) {
 		if node.Type == html.ElementNode {
 			if node.Data == "head" {
 				head = node
 			}
+			shouldRemove := false
 			for _, attribute := range node.Attr {
 				if attribute.Key == "id" && attribute.Val == "codex-community" {
-					community = node
-					break
+					shouldRemove = true
 				}
+				if attribute.Key == "class" {
+					for _, className := range strings.Fields(attribute.Val) {
+						if className == "site-announcement-hint" || className == "site-announcement-actions" {
+							shouldRemove = true
+							break
+						}
+					}
+				}
+			}
+			if shouldRemove {
+				removableNodes = append(removableNodes, node)
 			}
 		}
 		for child := node.FirstChild; child != nil; child = child.NextSibling {
@@ -227,8 +238,10 @@ func transformCodexRadarHTML(source []byte) ([]byte, error) {
 	if head == nil {
 		return nil, fmt.Errorf("Codex Radar HTML has no head element")
 	}
-	if community != nil && community.Parent != nil {
-		community.Parent.RemoveChild(community)
+	for _, node := range removableNodes {
+		if node.Parent != nil {
+			node.Parent.RemoveChild(node)
+		}
 	}
 
 	base := &html.Node{
@@ -243,7 +256,7 @@ func transformCodexRadarHTML(source []byte) ([]byte, error) {
 	head.InsertBefore(script, base.NextSibling)
 
 	style := &html.Node{Type: html.ElementNode, Data: "style"}
-	style.AppendChild(&html.Node{Type: html.TextNode, Data: "#codex-community{display:none!important}"})
+	style.AppendChild(&html.Node{Type: html.TextNode, Data: "#codex-community,.site-announcement-hint,.site-announcement-actions{display:none!important}"})
 	head.AppendChild(style)
 
 	var output bytes.Buffer
@@ -263,6 +276,11 @@ const codexRadarFetchBridge = `(function(){
 	      clear:function(){memory={};}
 	    }});}catch(storageError){}
   }
+  try{
+    if(!window.localStorage.getItem("codex_radar_theme")){
+      window.localStorage.setItem("codex_radar_theme","light");
+    }
+  }catch(themeStorageError){}
   var originalFetch=window.fetch.bind(window);
   var localProxy=new URL("/api/v1/codex-radar/upstream",window.location.href).href;
   function rewrite(value){
