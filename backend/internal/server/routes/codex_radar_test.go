@@ -16,7 +16,7 @@ func TestCodexRadarEmbedRemovesCommunitySectionAndInjectsBridge(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/", r.URL.Path)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write([]byte(`<!doctype html><html><head><title>Radar</title></head><body><main>content</main><section id="codex-community"><p>remove me</p></section></body></html>`))
+		_, _ = w.Write([]byte(`<!doctype html><html><head><title>Radar</title></head><body><section class="site-announcement"><p>keep announcement</p><p class="site-announcement-hint">quick links</p><div class="site-announcement-actions"><a href="#codex-community">join community</a></div></section><main>content</main><section id="codex-community"><p>remove me</p></section></body></html>`))
 	}))
 	t.Cleanup(upstream.Close)
 
@@ -32,8 +32,12 @@ func TestCodexRadarEmbedRemovesCommunitySectionAndInjectsBridge(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.NotContains(t, recorder.Body.String(), "remove me")
 	require.NotContains(t, recorder.Body.String(), `<section id="codex-community"`)
+	require.NotContains(t, recorder.Body.String(), "quick links")
+	require.NotContains(t, recorder.Body.String(), "join community")
+	require.Contains(t, recorder.Body.String(), "keep announcement")
 	require.Contains(t, recorder.Body.String(), `<base href="https://codexradar.com/"`)
 	require.Contains(t, recorder.Body.String(), "/api/v1/codex-radar/upstream")
+	require.Contains(t, recorder.Body.String(), `codex_radar_theme","light")`)
 	require.Equal(t, "SAMEORIGIN", recorder.Header().Get("X-Frame-Options"))
 	require.Contains(t, recorder.Header().Get("Content-Security-Policy"), "frame-ancestors 'self'")
 }
