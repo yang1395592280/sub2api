@@ -201,6 +201,7 @@ export default {
     channelMonitor: '渠道监控',
     channelStatus: '渠道状态',
     workbench: '工作台',
+    codexRadar: 'Codex雷达',
     adminWorkbench: '工作台管理',
     openaiAutoScheduler: 'OpenAI 自动调度',
     zenxiangLiyu: '臻享礼遇',
@@ -211,6 +212,11 @@ export default {
     contentModeration: '内容审核',
     promptAudit: '提示词审计',
     auditLogs: '操作日志',
+  },
+
+  codexRadar: {
+    title: 'Codex雷达',
+    loading: '正在加载 Codex 雷达...'
   },
 
   workbench: {

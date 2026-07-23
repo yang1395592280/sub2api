@@ -201,6 +201,7 @@ export default {
     channelMonitor: 'Channel Monitor',
     channelStatus: 'Channel Status',
     workbench: 'Workbench',
+    codexRadar: 'Codex Radar',
     adminWorkbench: 'Workbench Management',
     openaiAutoScheduler: 'OpenAI Auto Scheduler',
     zenxiangLiyu: 'Premium Rewards',
@@ -211,6 +212,11 @@ export default {
     contentModeration: 'Content Moderation',
     promptAudit: 'Prompt Audit',
     auditLogs: 'Audit Logs',
+  },
+
+  codexRadar: {
+    title: 'Codex Radar',
+    loading: 'Loading Codex Radar...'
   },
 
   workbench: {
