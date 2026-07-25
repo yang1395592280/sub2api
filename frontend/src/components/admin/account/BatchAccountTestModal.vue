@@ -101,18 +101,46 @@
               {{ t('admin.accounts.bulkOpenAIStatsPlan') }}
             </div>
             <div class="grid grid-cols-2 gap-1.5 text-xs">
-              <div class="rounded bg-white/70 px-2 py-1 dark:bg-dark-800/60">
+              <button
+                type="button"
+                data-testid="openai-stat-plan-free"
+                :aria-pressed="activeOpenAIFilter === 'plan-free'"
+                class="rounded bg-white/70 px-2 py-1 text-left transition-colors hover:bg-white dark:bg-dark-800/60 dark:hover:bg-dark-700"
+                :class="{ 'ring-2 ring-emerald-500 dark:ring-emerald-400': activeOpenAIFilter === 'plan-free' }"
+                @click="toggleOpenAIFilter('plan-free')"
+              >
                 {{ t('admin.accounts.bulkOpenAIStatsFree') }}：{{ openAIStats.free }}
-              </div>
-              <div class="rounded bg-white/70 px-2 py-1 dark:bg-dark-800/60">
+              </button>
+              <button
+                type="button"
+                data-testid="openai-stat-plan-plus"
+                :aria-pressed="activeOpenAIFilter === 'plan-plus'"
+                class="rounded bg-white/70 px-2 py-1 text-left transition-colors hover:bg-white dark:bg-dark-800/60 dark:hover:bg-dark-700"
+                :class="{ 'ring-2 ring-emerald-500 dark:ring-emerald-400': activeOpenAIFilter === 'plan-plus' }"
+                @click="toggleOpenAIFilter('plan-plus')"
+              >
                 {{ t('admin.accounts.bulkOpenAIStatsPlus') }}：{{ openAIStats.plus }}
-              </div>
-              <div class="rounded bg-white/70 px-2 py-1 dark:bg-dark-800/60">
+              </button>
+              <button
+                type="button"
+                data-testid="openai-stat-plan-other"
+                :aria-pressed="activeOpenAIFilter === 'plan-other'"
+                class="rounded bg-white/70 px-2 py-1 text-left transition-colors hover:bg-white dark:bg-dark-800/60 dark:hover:bg-dark-700"
+                :class="{ 'ring-2 ring-emerald-500 dark:ring-emerald-400': activeOpenAIFilter === 'plan-other' }"
+                @click="toggleOpenAIFilter('plan-other')"
+              >
                 {{ t('admin.accounts.bulkOpenAIStatsOther') }}：{{ openAIStats.other }}
-              </div>
-              <div class="rounded bg-white/70 px-2 py-1 dark:bg-dark-800/60">
+              </button>
+              <button
+                type="button"
+                data-testid="openai-stat-plan-unknown"
+                :aria-pressed="activeOpenAIFilter === 'plan-unknown'"
+                class="rounded bg-white/70 px-2 py-1 text-left transition-colors hover:bg-white dark:bg-dark-800/60 dark:hover:bg-dark-700"
+                :class="{ 'ring-2 ring-emerald-500 dark:ring-emerald-400': activeOpenAIFilter === 'plan-unknown' }"
+                @click="toggleOpenAIFilter('plan-unknown')"
+              >
                 {{ t('admin.accounts.bulkOpenAIStatsUnknown') }}：{{ openAIStats.planUnknown }}
-              </div>
+              </button>
             </div>
           </div>
 
@@ -121,16 +149,56 @@
               {{ t('admin.accounts.bulkOpenAIStatsSevenDayUsage') }}
             </div>
             <div class="grid grid-cols-2 gap-1.5 text-xs">
-              <div class="rounded bg-white/70 px-2 py-1 dark:bg-dark-800/60">
+              <button
+                type="button"
+                data-testid="openai-stat-usage-low"
+                :aria-pressed="activeOpenAIFilter === 'usage-low'"
+                class="rounded bg-white/70 px-2 py-1 text-left transition-colors hover:bg-white dark:bg-dark-800/60 dark:hover:bg-dark-700"
+                :class="{ 'ring-2 ring-emerald-500 dark:ring-emerald-400': activeOpenAIFilter === 'usage-low' }"
+                @click="toggleOpenAIFilter('usage-low')"
+              >
                 {{ t('admin.accounts.bulkOpenAIStatsUsageLow') }}：{{ openAIStats.usageLow }}
-              </div>
-              <div class="rounded bg-white/70 px-2 py-1 dark:bg-dark-800/60">
+              </button>
+              <button
+                type="button"
+                data-testid="openai-stat-usage-high"
+                :aria-pressed="activeOpenAIFilter === 'usage-high'"
+                class="rounded bg-white/70 px-2 py-1 text-left transition-colors hover:bg-white dark:bg-dark-800/60 dark:hover:bg-dark-700"
+                :class="{ 'ring-2 ring-emerald-500 dark:ring-emerald-400': activeOpenAIFilter === 'usage-high' }"
+                @click="toggleOpenAIFilter('usage-high')"
+              >
                 {{ t('admin.accounts.bulkOpenAIStatsUsageHigh') }}：{{ openAIStats.usageHigh }}
-              </div>
-              <div class="col-span-2 rounded bg-white/70 px-2 py-1 dark:bg-dark-800/60">
+              </button>
+              <button
+                type="button"
+                data-testid="openai-stat-usage-unknown"
+                :aria-pressed="activeOpenAIFilter === 'usage-unknown'"
+                class="col-span-2 rounded bg-white/70 px-2 py-1 text-left transition-colors hover:bg-white dark:bg-dark-800/60 dark:hover:bg-dark-700"
+                :class="{ 'ring-2 ring-emerald-500 dark:ring-emerald-400': activeOpenAIFilter === 'usage-unknown' }"
+                @click="toggleOpenAIFilter('usage-unknown')"
+              >
                 {{ t('admin.accounts.bulkOpenAIStatsUsageUnknown') }}：{{ openAIStats.usageUnknown }}
-              </div>
+              </button>
             </div>
+          </div>
+
+          <div v-if="activeOpenAIFilter" class="flex items-center justify-between gap-2 border-t border-emerald-200 pt-2 text-xs dark:border-emerald-800">
+            <span>
+              {{
+                t('admin.accounts.bulkOpenAIStatsFilterActive', {
+                  label: activeOpenAIFilterLabel,
+                  count: filteredTestEntries.length
+                })
+              }}
+            </span>
+            <button
+              type="button"
+              data-testid="openai-stat-clear-filter"
+              class="font-medium underline underline-offset-2 hover:no-underline"
+              @click="clearOpenAIFilter"
+            >
+              {{ t('admin.accounts.bulkOpenAIStatsClearFilter') }}
+            </button>
           </div>
         </div>
       </div>
@@ -150,7 +218,7 @@
           </div>
 
           <div
-            v-for="entry in testEntries"
+            v-for="entry in filteredTestEntries"
             :key="entry.accountId"
             class="mb-3 rounded-xl border px-3 py-2"
             :class="entry.cardClass"
@@ -174,6 +242,12 @@
                 {{ line.text }}
               </div>
             </div>
+          </div>
+          <div
+            v-if="status !== 'idle' && activeOpenAIFilter && filteredTestEntries.length === 0"
+            class="flex min-h-24 items-center justify-center rounded-xl border border-dashed border-gray-700 px-3 text-center text-sm text-gray-500"
+          >
+            {{ t('admin.accounts.bulkOpenAIStatsNoMatches') }}
           </div>
 
           <div
@@ -290,6 +364,15 @@ interface TestEntry {
   statusLabel: string
 }
 
+type OpenAIFilter =
+  | 'plan-free'
+  | 'plan-plus'
+  | 'plan-other'
+  | 'plan-unknown'
+  | 'usage-low'
+  | 'usage-high'
+  | 'usage-unknown'
+
 interface OpenAIBatchStats {
   completed: number
   free: number
@@ -343,6 +426,8 @@ const failedEmails = ref<string[]>([])
 const selectedConcurrency = ref(20)
 const concurrencyOptions = [5, 10, 20, 50]
 const openAIStats = ref<OpenAIBatchStats>(createEmptyOpenAIStats())
+const activeOpenAIFilter = ref<OpenAIFilter | null>(null)
+const openAIClassifications = ref<Record<number, { plan: OpenAIFilter; usage: OpenAIFilter }>>({})
 
 const openAIAccounts = computed(() => props.accounts.filter(
   (account) => account.platform === 'openai' && account.type === 'oauth'
@@ -359,6 +444,28 @@ const failureBreakdown = computed(() => Object.entries(failureCategories.value)
     if (right.count !== left.count) return right.count - left.count
     return left.category.localeCompare(right.category)
   }))
+
+const filteredTestEntries = computed(() => {
+  if (!activeOpenAIFilter.value) return testEntries.value
+  return testEntries.value.filter((entry) => {
+    const classification = openAIClassifications.value[entry.accountId]
+    if (!classification) return false
+    return classification.plan === activeOpenAIFilter.value || classification.usage === activeOpenAIFilter.value
+  })
+})
+
+const activeOpenAIFilterLabel = computed(() => {
+  switch (activeOpenAIFilter.value) {
+    case 'plan-free': return t('admin.accounts.bulkOpenAIStatsFree')
+    case 'plan-plus': return t('admin.accounts.bulkOpenAIStatsPlus')
+    case 'plan-other': return t('admin.accounts.bulkOpenAIStatsOther')
+    case 'plan-unknown': return t('admin.accounts.bulkOpenAIStatsUnknown')
+    case 'usage-low': return t('admin.accounts.bulkOpenAIStatsUsageLow')
+    case 'usage-high': return t('admin.accounts.bulkOpenAIStatsUsageHigh')
+    case 'usage-unknown': return t('admin.accounts.bulkOpenAIStatsUsageUnknown')
+    default: return ''
+  }
+})
 
 const getTestEndpoint = (account: Account) => `/api/v1/admin/accounts/${account.id}/test`
 
@@ -423,6 +530,25 @@ const resetState = () => {
   successEmails.value = []
   failedEmails.value = []
   openAIStats.value = createEmptyOpenAIStats()
+  activeOpenAIFilter.value = null
+  openAIClassifications.value = {}
+}
+
+const toggleOpenAIFilter = (filter: OpenAIFilter) => {
+  activeOpenAIFilter.value = activeOpenAIFilter.value === filter ? null : filter
+  scrollTerminalToTop()
+}
+
+const clearOpenAIFilter = () => {
+  activeOpenAIFilter.value = null
+  scrollTerminalToTop()
+}
+
+const scrollTerminalToTop = async () => {
+  await nextTick()
+  if (terminalRef.value) {
+    terminalRef.value.scrollTop = 0
+  }
 }
 
 const handleClose = () => {
@@ -625,36 +751,50 @@ const getSevenDayUsedPercent = (quota: OpenAIQuotaUsage): number | null => {
   return sevenDayWindow.used_percent
 }
 
-const recordOpenAIQuota = (quota: OpenAIQuotaUsage) => {
+const recordOpenAIQuota = (accountId: number, quota: OpenAIQuotaUsage) => {
   const planType = quota.plan_type?.trim().toLowerCase() || ''
+  let planFilter: OpenAIFilter
   if (planType.includes('free')) {
     openAIStats.value.free += 1
+    planFilter = 'plan-free'
   } else if (planType.includes('plus')) {
     openAIStats.value.plus += 1
+    planFilter = 'plan-plus'
   } else if (planType) {
     openAIStats.value.other += 1
+    planFilter = 'plan-other'
   } else {
     openAIStats.value.planUnknown += 1
+    planFilter = 'plan-unknown'
   }
 
   const usedPercent = getSevenDayUsedPercent(quota)
+  let usageFilter: OpenAIFilter
   if (usedPercent === null) {
     openAIStats.value.usageUnknown += 1
+    usageFilter = 'usage-unknown'
   } else if (usedPercent <= 5) {
     openAIStats.value.usageLow += 1
+    usageFilter = 'usage-low'
   } else {
     openAIStats.value.usageHigh += 1
+    usageFilter = 'usage-high'
   }
+  openAIClassifications.value[accountId] = { plan: planFilter, usage: usageFilter }
 }
 
 const queryOpenAIStats = async () => {
   await runAccountsWithConcurrency(openAIAccounts.value, async (account) => {
     try {
       const quota = await adminAPI.accounts.queryOpenAIQuota(account.id)
-      recordOpenAIQuota(quota)
+      recordOpenAIQuota(account.id, quota)
     } catch {
       openAIStats.value.planUnknown += 1
       openAIStats.value.usageUnknown += 1
+      openAIClassifications.value[account.id] = {
+        plan: 'plan-unknown',
+        usage: 'usage-unknown'
+      }
     } finally {
       openAIStats.value.completed += 1
     }
@@ -686,7 +826,7 @@ const downloadEmails = (emails: string[], filename: string) => {
 }
 
 const copyOutput = () => {
-  const text = testEntries.value
+  const text = filteredTestEntries.value
     .map((entry) => {
       const body = entry.lines.map((line) => line.text).filter(Boolean)
       return [`=== ${entry.accountName} (#${entry.accountId}) ===`, `${t('admin.accounts.testLinkLabel')}：${entry.endpoint}`, ...body].join('\n')
