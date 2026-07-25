@@ -28,9 +28,9 @@ vi.mock('vue-i18n', () => ({
   })
 }))
 
-const mountModal = () =>
+const mountModal = (groups: any[] = []) =>
   mount(ImportDataModal, {
-    props: { show: true },
+    props: { show: true, groups },
     global: {
       stubs: {
         BaseDialog: { template: '<div><slot /><slot name="footer" /></div>' }
@@ -173,6 +173,50 @@ describe('ImportDataModal', () => {
       skip_default_group_bind: true
     })
     expect(showSuccess).toHaveBeenCalledWith('admin.accounts.dataImportSuccess')
+  })
+
+  it('将弹窗选择的分组应用到本次导入账号', async () => {
+    const { adminAPI } = await import('@/api/admin')
+    vi.mocked(adminAPI.accounts.importData).mockResolvedValue({
+      proxy_created: 0,
+      proxy_reused: 0,
+      proxy_failed: 0,
+      account_created: 1,
+      account_failed: 0
+    })
+
+    const wrapper = mountModal([
+      {
+        id: 12,
+        name: 'OpenAI Group',
+        platform: 'openai',
+        rate_multiplier: 1,
+        subscription_type: 'standard',
+        account_count: 0
+      }
+    ])
+    const fileInput = wrapper.find('input[type="file"]')
+    setInputFiles(fileInput.element, [
+      makeJsonFile(
+        'grouped.json',
+        JSON.stringify({
+          exported_at: '2026-07-05T00:00:00Z',
+          proxies: [],
+          accounts: [{ name: 'a' }]
+        })
+      )
+    ])
+
+    await fileInput.trigger('change')
+    await wrapper.find('input[type="checkbox"]').setValue(true)
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(adminAPI.accounts.importData).toHaveBeenCalledWith({
+      data: expect.objectContaining({ accounts: [{ name: 'a' }] }),
+      group_ids: [12],
+      skip_default_group_bind: true
+    })
   })
 
   it('部分成功时关闭弹窗仍通知父组件刷新', async () => {
