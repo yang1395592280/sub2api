@@ -76,6 +76,63 @@
             </div>
           </div>
         </div>
+
+        <div
+          v-if="status !== 'idle' && openAIAccounts.length > 0"
+          data-testid="openai-batch-stats"
+          class="space-y-3 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-200"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <div class="font-semibold">
+              {{ t('admin.accounts.bulkOpenAIStatsTitle') }}
+            </div>
+            <div class="text-xs tabular-nums text-emerald-600 dark:text-emerald-300">
+              {{
+                t('admin.accounts.bulkOpenAIStatsProgress', {
+                  current: openAIStats.completed,
+                  total: openAIAccounts.length
+                })
+              }}
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <div class="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+              {{ t('admin.accounts.bulkOpenAIStatsPlan') }}
+            </div>
+            <div class="grid grid-cols-2 gap-1.5 text-xs">
+              <div class="rounded bg-white/70 px-2 py-1 dark:bg-dark-800/60">
+                {{ t('admin.accounts.bulkOpenAIStatsFree') }}：{{ openAIStats.free }}
+              </div>
+              <div class="rounded bg-white/70 px-2 py-1 dark:bg-dark-800/60">
+                {{ t('admin.accounts.bulkOpenAIStatsPlus') }}：{{ openAIStats.plus }}
+              </div>
+              <div class="rounded bg-white/70 px-2 py-1 dark:bg-dark-800/60">
+                {{ t('admin.accounts.bulkOpenAIStatsOther') }}：{{ openAIStats.other }}
+              </div>
+              <div class="rounded bg-white/70 px-2 py-1 dark:bg-dark-800/60">
+                {{ t('admin.accounts.bulkOpenAIStatsUnknown') }}：{{ openAIStats.planUnknown }}
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <div class="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+              {{ t('admin.accounts.bulkOpenAIStatsSevenDayUsage') }}
+            </div>
+            <div class="grid grid-cols-2 gap-1.5 text-xs">
+              <div class="rounded bg-white/70 px-2 py-1 dark:bg-dark-800/60">
+                {{ t('admin.accounts.bulkOpenAIStatsUsageLow') }}：{{ openAIStats.usageLow }}
+              </div>
+              <div class="rounded bg-white/70 px-2 py-1 dark:bg-dark-800/60">
+                {{ t('admin.accounts.bulkOpenAIStatsUsageHigh') }}：{{ openAIStats.usageHigh }}
+              </div>
+              <div class="col-span-2 rounded bg-white/70 px-2 py-1 dark:bg-dark-800/60">
+                {{ t('admin.accounts.bulkOpenAIStatsUsageUnknown') }}：{{ openAIStats.usageUnknown }}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="group relative">
@@ -213,6 +270,7 @@ import Select from '@/components/common/Select.vue'
 import { Icon } from '@/components/icons'
 import { useClipboard } from '@/composables/useClipboard'
 import { adminAPI } from '@/api/admin'
+import type { OpenAIQuotaUsage, OpenAIRateLimitWindow } from '@/api/admin/accounts'
 import type { Account, ClaudeModel } from '@/types'
 
 interface OutputLine {
@@ -231,6 +289,31 @@ interface TestEntry {
   statusClass: string
   statusLabel: string
 }
+
+interface OpenAIBatchStats {
+  completed: number
+  free: number
+  plus: number
+  other: number
+  planUnknown: number
+  usageLow: number
+  usageHigh: number
+  usageUnknown: number
+}
+
+const createEmptyOpenAIStats = (): OpenAIBatchStats => ({
+  completed: 0,
+  free: 0,
+  plus: 0,
+  other: 0,
+  planUnknown: 0,
+  usageLow: 0,
+  usageHigh: 0,
+  usageUnknown: 0
+})
+
+const SEVEN_DAYS_SECONDS = 7 * 24 * 60 * 60
+const SIX_DAYS_SECONDS = 6 * 24 * 60 * 60
 
 const props = defineProps<{
   show: boolean
@@ -259,6 +342,11 @@ const successEmails = ref<string[]>([])
 const failedEmails = ref<string[]>([])
 const selectedConcurrency = ref(20)
 const concurrencyOptions = [5, 10, 20, 50]
+const openAIStats = ref<OpenAIBatchStats>(createEmptyOpenAIStats())
+
+const openAIAccounts = computed(() => props.accounts.filter(
+  (account) => account.platform === 'openai' && account.type === 'oauth'
+))
 
 const formatConnectDuration = (durationMs: number) => {
   const seconds = Math.max(0, durationMs) / 1000
@@ -334,6 +422,7 @@ const resetState = () => {
   failureCategories.value = {}
   successEmails.value = []
   failedEmails.value = []
+  openAIStats.value = createEmptyOpenAIStats()
 }
 
 const handleClose = () => {
@@ -488,24 +577,88 @@ const testSingleAccount = async (account: Account) => {
   }
 }
 
-const runWithConcurrency = async () => {
-  const concurrency = Math.max(1, Math.min(selectedConcurrency.value, props.accounts.length))
+const runAccountsWithConcurrency = async (
+  accounts: Account[],
+  task: (account: Account) => Promise<void>
+) => {
+  if (accounts.length === 0) return
+
+  const concurrency = Math.max(1, Math.min(selectedConcurrency.value, accounts.length))
   let nextIndex = 0
 
   const worker = async () => {
-    while (nextIndex < props.accounts.length) {
-      const account = props.accounts[nextIndex]
+    while (nextIndex < accounts.length) {
+      const account = accounts[nextIndex]
       nextIndex += 1
-      const success = await testSingleAccount(account)
-      if (success) {
-        successCount.value += 1
-      } else {
-        failedCount.value += 1
-      }
+      await task(account)
     }
   }
 
   await Promise.all(Array.from({ length: concurrency }, () => worker()))
+}
+
+const runWithConcurrency = async () => {
+  await runAccountsWithConcurrency(props.accounts, async (account) => {
+    const success = await testSingleAccount(account)
+    if (success) {
+      successCount.value += 1
+    } else {
+      failedCount.value += 1
+    }
+  })
+}
+
+const getSevenDayUsedPercent = (quota: OpenAIQuotaUsage): number | null => {
+  const windows = [
+    quota.rate_limit?.primary_window,
+    quota.rate_limit?.secondary_window
+  ].filter((window): window is OpenAIRateLimitWindow => Boolean(window))
+
+  const sevenDayWindow = windows
+    .filter((window) => window.limit_window_seconds >= SIX_DAYS_SECONDS)
+    .sort((left, right) => (
+      Math.abs(left.limit_window_seconds - SEVEN_DAYS_SECONDS) -
+      Math.abs(right.limit_window_seconds - SEVEN_DAYS_SECONDS)
+    ))[0]
+
+  if (!sevenDayWindow || !Number.isFinite(sevenDayWindow.used_percent)) return null
+  return sevenDayWindow.used_percent
+}
+
+const recordOpenAIQuota = (quota: OpenAIQuotaUsage) => {
+  const planType = quota.plan_type?.trim().toLowerCase() || ''
+  if (planType.includes('free')) {
+    openAIStats.value.free += 1
+  } else if (planType.includes('plus')) {
+    openAIStats.value.plus += 1
+  } else if (planType) {
+    openAIStats.value.other += 1
+  } else {
+    openAIStats.value.planUnknown += 1
+  }
+
+  const usedPercent = getSevenDayUsedPercent(quota)
+  if (usedPercent === null) {
+    openAIStats.value.usageUnknown += 1
+  } else if (usedPercent <= 5) {
+    openAIStats.value.usageLow += 1
+  } else {
+    openAIStats.value.usageHigh += 1
+  }
+}
+
+const queryOpenAIStats = async () => {
+  await runAccountsWithConcurrency(openAIAccounts.value, async (account) => {
+    try {
+      const quota = await adminAPI.accounts.queryOpenAIQuota(account.id)
+      recordOpenAIQuota(quota)
+    } catch {
+      openAIStats.value.planUnknown += 1
+      openAIStats.value.usageUnknown += 1
+    } finally {
+      openAIStats.value.completed += 1
+    }
+  })
 }
 
 const startBatchTest = async () => {
@@ -515,6 +668,7 @@ const startBatchTest = async () => {
   status.value = 'connecting'
 
   await runWithConcurrency()
+  await queryOpenAIStats()
 
   status.value = failedCount.value > 0 ? 'error' : 'success'
   errorMessage.value = failedCount.value > 0 ? t('admin.accounts.bulkTestHasFailures') : ''
