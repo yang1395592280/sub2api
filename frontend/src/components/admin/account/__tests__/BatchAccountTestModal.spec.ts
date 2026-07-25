@@ -3,8 +3,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import BatchAccountTestModal from '../BatchAccountTestModal.vue'
 
-const { getAvailableModels, localStorageMock } = vi.hoisted(() => ({
+const { getAvailableModels, queryOpenAIQuota, localStorageMock } = vi.hoisted(() => ({
   getAvailableModels: vi.fn(),
+  queryOpenAIQuota: vi.fn(),
   localStorageMock: {
     getItem: vi.fn(() => 'test-token'),
     setItem: vi.fn(),
@@ -21,7 +22,8 @@ Object.defineProperty(globalThis, 'localStorage', {
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
-      getAvailableModels
+      getAvailableModels,
+      queryOpenAIQuota
     }
   }
 }))
@@ -120,9 +122,22 @@ describe('BatchAccountTestModal', () => {
 
   beforeEach(() => {
     getAvailableModels.mockReset()
+    queryOpenAIQuota.mockReset()
     getAvailableModels.mockResolvedValue([
       { id: 'gpt-5.4', display_name: 'GPT-5.4' }
     ])
+    queryOpenAIQuota.mockResolvedValue({
+      plan_type: 'free',
+      rate_limit: {
+        secondary_window: {
+          used_percent: 2,
+          limit_window_seconds: 604800,
+          reset_after_seconds: 100,
+          reset_at: 0
+        }
+      },
+      fetched_at: 0
+    })
 
     global.fetch = vi.fn()
       .mockResolvedValueOnce({
@@ -353,6 +368,93 @@ describe('BatchAccountTestModal', () => {
     expect(wrapper.text()).toContain('admin.accounts.bulkTestFailureBreakdownTitle')
     expect(wrapper.text()).toContain('admin.accounts.bulkTestFailureCategory:HTTP 429,2')
     expect(wrapper.text()).toContain('admin.accounts.bulkTestFailureCategory:HTTP 401,1')
+  })
+
+  it('summarizes OpenAI plans and seven-day usage after connection tests', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue('data: {"type":"content","text":"ok"}\n')
+    } as any)
+    queryOpenAIQuota.mockImplementation((id: number) => {
+      if (id === 1) {
+        return Promise.resolve({
+          plan_type: 'free',
+          rate_limit: {
+            secondary_window: {
+              used_percent: 5,
+              limit_window_seconds: 604800,
+              reset_after_seconds: 100,
+              reset_at: 0
+            }
+          },
+          fetched_at: 0
+        })
+      }
+      if (id === 2) {
+        return Promise.resolve({
+          plan_type: 'PLUS',
+          rate_limit: {
+            secondary_window: {
+              used_percent: 5.1,
+              limit_window_seconds: 604800,
+              reset_after_seconds: 100,
+              reset_at: 0
+            }
+          },
+          fetched_at: 0
+        })
+      }
+      if (id === 3) {
+        return Promise.resolve({
+          plan_type: 'team',
+          rate_limit: {
+            secondary_window: {
+              used_percent: 20,
+              limit_window_seconds: 604800,
+              reset_after_seconds: 100,
+              reset_at: 0
+            }
+          },
+          fetched_at: 0
+        })
+      }
+      return Promise.reject(new Error('quota unavailable'))
+    })
+
+    const wrapper = mount(BatchAccountTestModal, {
+      props: {
+        show: false,
+        accounts: [
+          buildAccount(1, 'A'),
+          buildAccount(2, 'B'),
+          buildAccount(3, 'C'),
+          buildAccount(4, 'D')
+        ]
+      },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          Select: SelectStub,
+          Icon: true
+        }
+      }
+    })
+
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    await wrapper.findAll('button').at(-1)?.trigger('click')
+    await flushPromises()
+
+    expect(queryOpenAIQuota).toHaveBeenCalledTimes(4)
+    expect(wrapper.get('[data-testid="openai-batch-stats"]').text()).toContain('admin.accounts.bulkOpenAIStatsProgress:4,4')
+    expect(wrapper.text()).toContain('admin.accounts.bulkOpenAIStatsFree：1')
+    expect(wrapper.text()).toContain('admin.accounts.bulkOpenAIStatsPlus：1')
+    expect(wrapper.text()).toContain('admin.accounts.bulkOpenAIStatsOther：1')
+    expect(wrapper.text()).toContain('admin.accounts.bulkOpenAIStatsUnknown：1')
+    expect(wrapper.text()).toContain('admin.accounts.bulkOpenAIStatsUsageLow：1')
+    expect(wrapper.text()).toContain('admin.accounts.bulkOpenAIStatsUsageHigh：2')
+    expect(wrapper.text()).toContain('admin.accounts.bulkOpenAIStatsUsageUnknown：1')
   })
 
   it('falls back to account name when extra.email_address is missing', async () => {
