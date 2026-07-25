@@ -455,6 +455,27 @@ describe('BatchAccountTestModal', () => {
     expect(wrapper.text()).toContain('admin.accounts.bulkOpenAIStatsUsageLow：1')
     expect(wrapper.text()).toContain('admin.accounts.bulkOpenAIStatsUsageHigh：2')
     expect(wrapper.text()).toContain('admin.accounts.bulkOpenAIStatsUsageUnknown：1')
+
+    await wrapper.get('[data-testid="openai-stat-plan-plus"]').trigger('click')
+    expect(wrapper.text()).toContain('=== B (#2) ===')
+    expect(wrapper.text()).not.toContain('=== A (#1) ===')
+    expect(wrapper.text()).not.toContain('=== C (#3) ===')
+    expect(wrapper.text()).not.toContain('=== D (#4) ===')
+    expect(wrapper.text()).toContain('admin.accounts.bulkOpenAIStatsFilterActive:admin.accounts.bulkOpenAIStatsPlus,1')
+
+    await wrapper.get('[data-testid="openai-stat-plan-plus"]').trigger('click')
+    expect(wrapper.text()).toContain('=== A (#1) ===')
+    expect(wrapper.text()).toContain('=== D (#4) ===')
+
+    await wrapper.get('[data-testid="openai-stat-usage-high"]').trigger('click')
+    expect(wrapper.text()).toContain('=== B (#2) ===')
+    expect(wrapper.text()).toContain('=== C (#3) ===')
+    expect(wrapper.text()).not.toContain('=== A (#1) ===')
+    expect(wrapper.text()).not.toContain('=== D (#4) ===')
+
+    await wrapper.get('[data-testid="openai-stat-clear-filter"]').trigger('click')
+    expect(wrapper.text()).toContain('=== A (#1) ===')
+    expect(wrapper.text()).toContain('=== D (#4) ===')
   })
 
   it('falls back to account name when extra.email_address is missing', async () => {
