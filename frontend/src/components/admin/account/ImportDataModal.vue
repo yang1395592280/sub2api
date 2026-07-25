@@ -51,6 +51,13 @@
         />
       </div>
 
+      <div>
+        <GroupSelector v-model="selectedGroupIds" :groups="groups" />
+        <p class="mt-1.5 text-xs text-gray-500 dark:text-dark-400">
+          {{ t('admin.accounts.dataImportGroupsHint') }}
+        </p>
+      </div>
+
       <div
         v-if="result"
         class="space-y-2 rounded-xl border border-gray-200 p-4 dark:border-dark-700"
@@ -99,12 +106,14 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import GroupSelector from '@/components/common/GroupSelector.vue'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
-import type { AdminDataImportResult, AdminDataPayload } from '@/types'
+import type { AdminDataImportResult, AdminDataPayload, AdminGroup } from '@/types'
 
 interface Props {
   show: boolean
+  groups?: AdminGroup[]
 }
 
 interface Emits {
@@ -112,7 +121,9 @@ interface Emits {
   (e: 'imported'): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  groups: () => []
+})
 const emit = defineEmits<Emits>()
 
 const { t } = useI18n()
@@ -120,6 +131,7 @@ const appStore = useAppStore()
 
 const importing = ref(false)
 const files = ref<File[]>([])
+const selectedGroupIds = ref<number[]>([])
 const dragDepth = ref(0)
 const dragActive = computed(() => dragDepth.value > 0)
 const hasCreatedData = ref(false)
@@ -140,6 +152,7 @@ watch(
   (open) => {
     if (open) {
       files.value = []
+      selectedGroupIds.value = []
       dragDepth.value = 0
       hasCreatedData.value = false
       result.value = null
@@ -295,6 +308,7 @@ const handleImport = async () => {
 
     const res = await adminAPI.accounts.importData({
       data: dataPayload,
+      group_ids: selectedGroupIds.value.length > 0 ? [...selectedGroupIds.value] : undefined,
       skip_default_group_bind: true
     })
 
