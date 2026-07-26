@@ -499,6 +499,8 @@ export interface PaginationConfig {
 
 export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'composite'
 
+export type GroupRole = 'standard' | 'self_hosted_pool'
+
 export type SubscriptionType = 'standard' | 'subscription'
 
 export interface OpenAIMessagesDispatchModelConfig {
@@ -518,6 +520,10 @@ export interface Group {
   name: string
   description: string | null
   platform: GroupPlatform
+  group_role: GroupRole
+  self_hosted_pool_group_id: number | null
+  self_hosted_pool_group_name?: string
+  self_hosted_pool_group_status?: 'active' | 'inactive'
   rate_multiplier: number
   rpm_limit?: number // Group-level RPM cap (0 = unlimited); overrides user-level rpm_limit when set
   max_reasoning_effort?: string // OpenAI/Codex reasoning ceiling; empty means unlimited
@@ -586,6 +592,7 @@ export interface AdminGroup extends Group {
   account_count?: number
   active_account_count?: number
   rate_limited_account_count?: number
+  referenced_group_count?: number
 
   // OpenAI Messages 调度配置（仅 openai 平台使用）
   default_mapped_model?: string
@@ -733,6 +740,8 @@ export interface CreateGroupRequest {
   name: string
   description?: string | null
   platform?: GroupPlatform
+  group_role?: GroupRole
+  self_hosted_pool_group_id?: number | null
   rate_multiplier?: number
   is_exclusive?: boolean
   subscription_type?: SubscriptionType
@@ -788,6 +797,8 @@ export interface UpdateGroupRequest {
   name?: string
   description?: string | null
   platform?: GroupPlatform
+  group_role?: GroupRole
+  self_hosted_pool_group_id?: number | null
   rate_multiplier?: number
   is_exclusive?: boolean
   status?: 'active' | 'inactive'

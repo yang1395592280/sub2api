@@ -1068,6 +1068,8 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		Name:                                  g.Name,
 		Description:                           derefString(g.Description),
 		Platform:                              g.Platform,
+		GroupRole:                             g.GroupRole,
+		SelfHostedPoolGroupID:                 g.SelfHostedPoolGroupID,
 		RateMultiplier:                        g.RateMultiplier,
 		IsExclusive:                           g.IsExclusive,
 		Status:                                g.Status,

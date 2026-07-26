@@ -133,22 +133,24 @@ func (c *gatewayCache) SaveLiveCall(ctx context.Context, record *service.LiveCal
 		return fmt.Errorf("invalid live call record")
 	}
 	values := map[string]any{
-		"call_id":          record.CallID,
-		"account_id":       record.AccountID,
-		"api_key_id":       record.APIKeyID,
-		"user_id":          record.UserID,
-		"group_id":         record.GroupID,
-		"subscription_id":  record.SubscriptionID,
-		"lease_id":         record.LeaseID,
-		"model":            record.Model,
-		"created_at":       record.CreatedAt.UnixMilli(),
-		"expires_at":       record.ExpiresAt.UnixMilli(),
-		"controller":       record.Controller,
-		"controller_owner": record.ControllerOwner,
-		"user_agent":       record.UserAgent,
-		"ip_address":       record.IPAddress,
-		"inbound_endpoint": record.InboundEndpoint,
-		"attestation":      record.AttestationCiphertext,
+		"call_id":            record.CallID,
+		"account_id":         record.AccountID,
+		"api_key_id":         record.APIKeyID,
+		"user_id":            record.UserID,
+		"group_id":           record.GroupID,
+		"effective_group_id": record.EffectiveGroupID,
+		"rate_multiplier":    record.RateMultiplier,
+		"subscription_id":    record.SubscriptionID,
+		"lease_id":           record.LeaseID,
+		"model":              record.Model,
+		"created_at":         record.CreatedAt.UnixMilli(),
+		"expires_at":         record.ExpiresAt.UnixMilli(),
+		"controller":         record.Controller,
+		"controller_owner":   record.ControllerOwner,
+		"user_agent":         record.UserAgent,
+		"ip_address":         record.IPAddress,
+		"inbound_endpoint":   record.InboundEndpoint,
+		"attestation":        record.AttestationCiphertext,
 	}
 	key := liveCallKey(record.CallHash)
 	pipe := c.rdb.TxPipeline()
@@ -170,6 +172,10 @@ func (c *gatewayCache) GetLiveCall(ctx context.Context, callHash string) (*servi
 		value, _ := strconv.ParseInt(values[field], 10, 64)
 		return value
 	}
+	parseFloat := func(field string) float64 {
+		value, _ := strconv.ParseFloat(values[field], 64)
+		return value
+	}
 	createdAt := time.UnixMilli(parseInt("created_at"))
 	expiresAt := time.UnixMilli(parseInt("expires_at"))
 	return &service.LiveCallRecord{
@@ -179,6 +185,8 @@ func (c *gatewayCache) GetLiveCall(ctx context.Context, callHash string) (*servi
 		APIKeyID:              parseInt("api_key_id"),
 		UserID:                parseInt("user_id"),
 		GroupID:               parseInt("group_id"),
+		EffectiveGroupID:      parseInt("effective_group_id"),
+		RateMultiplier:        parseFloat("rate_multiplier"),
 		SubscriptionID:        parseInt("subscription_id"),
 		LeaseID:               values["lease_id"],
 		Model:                 values["model"],

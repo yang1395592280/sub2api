@@ -278,6 +278,15 @@ func (s *RedeemService) CreateCode(ctx context.Context, code *RedeemCode) error 
 	if code.IsExpired() {
 		return ErrRedeemCodeExpired
 	}
+	if code.GroupID != nil && s.subscriptionService != nil && s.subscriptionService.groupRepo != nil {
+		group, err := s.subscriptionService.groupRepo.GetByID(ctx, *code.GroupID)
+		if err != nil {
+			return fmt.Errorf("group not found: %w", err)
+		}
+		if err := validateDirectlyAssignableGroup(group); err != nil {
+			return err
+		}
+	}
 
 	if err := s.redeemRepo.Create(ctx, code); err != nil {
 		return fmt.Errorf("create redeem code: %w", err)
@@ -331,6 +340,15 @@ func (s *RedeemService) BatchUpdate(ctx context.Context, input *RedeemCodeBatchU
 	}
 	if input.Fields.GroupID.Set && input.Fields.GroupID.Value != nil && *input.Fields.GroupID.Value <= 0 {
 		return nil, infraerrors.BadRequest("REDEEM_CODE_GROUP_ID_INVALID", "group_id must be positive")
+	}
+	if input.Fields.GroupID.Set && input.Fields.GroupID.Value != nil && s.subscriptionService != nil && s.subscriptionService.groupRepo != nil {
+		group, err := s.subscriptionService.groupRepo.GetByID(ctx, *input.Fields.GroupID.Value)
+		if err != nil {
+			return nil, fmt.Errorf("group not found: %w", err)
+		}
+		if err := validateDirectlyAssignableGroup(group); err != nil {
+			return nil, err
+		}
 	}
 
 	updated, err := s.redeemRepo.BatchUpdate(ctx, ids, input.Fields)

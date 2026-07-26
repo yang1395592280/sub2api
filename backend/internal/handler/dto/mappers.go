@@ -186,6 +186,7 @@ func GroupFromServiceAdmin(g *service.Group) *AdminGroup {
 		AccountCount:                g.AccountCount,
 		ActiveAccountCount:          g.ActiveAccountCount,
 		RateLimitedAccountCount:     g.RateLimitedAccountCount,
+		ReferencedGroupCount:        g.ReferencedGroupCount,
 		SortOrder:                   g.SortOrder,
 	}
 	if len(g.AccountGroups) > 0 {
@@ -204,6 +205,10 @@ func groupFromServiceBase(g *service.Group) Group {
 		Name:                                  g.Name,
 		Description:                           g.Description,
 		Platform:                              g.Platform,
+		GroupRole:                             g.GroupRole,
+		SelfHostedPoolGroupID:                 g.SelfHostedPoolGroupID,
+		SelfHostedPoolGroupName:               g.SelfHostedPoolName,
+		SelfHostedPoolGroupStatus:             g.SelfHostedPoolStatus,
 		RateMultiplier:                        g.RateMultiplier,
 		IsExclusive:                           g.IsExclusive,
 		Status:                                g.Status,

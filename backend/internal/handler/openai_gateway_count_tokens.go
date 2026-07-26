@@ -122,38 +122,35 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 		return
 	}
 	routingModel := service.NormalizeOpenAICompatRequestedModel(reqModel)
-	preferredMappedModel := resolveOpenAIMessagesDispatchMappedModel(apiKey, reqModel)
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", parsedReq.Stream))
 
 	setOpsRequestContext(c, reqModel, false)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(false, false)))
 
-	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
 	mappedBodyForMessages := newOpenAIModelMappedBodyCache(body, h.gatewayService.ReplaceModelInBody)
 
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
-		reqLog.Info("openai_count_tokens.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
-		if retryAfter > 0 {
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
+	autoGroupMode := apiKey.UsesOpenAIAutoCheapestGroup()
+	if !autoGroupMode {
+		if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
+			reqLog.Info("openai_count_tokens.billing_eligibility_check_failed", zap.Error(err))
+			status, code, message, retryAfter := billingErrorDetails(err)
+			if retryAfter > 0 {
+				c.Header("Retry-After", strconv.Itoa(retryAfter))
+			}
+			h.anthropicErrorResponse(c, status, code, message)
+			return
 		}
-		h.anthropicErrorResponse(c, status, code, message)
-		return
 	}
 
 	requestStart := time.Now()
 	sessionHash := h.gatewayService.GenerateSessionHash(c, body)
-	currentRoutingModel := routingModel
-	if preferredMappedModel != "" {
-		currentRoutingModel = preferredMappedModel
-	}
-	selection, _, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
+	effectiveAPIKey, selectedRoutingModel, selection, _, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
 		c.Request.Context(),
-		apiKey.GroupID,
+		apiKey,
 		"",
 		sessionHash,
-		currentRoutingModel,
+		routingModel,
 		nil,
 		service.OpenAIUpstreamTransportAny,
 		"",
@@ -162,12 +159,18 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 		false,
 		false,
 		openAICompatibleRequestPlatform(c.Request.Context(), apiKey),
+		func(candidate *service.APIKey, _ string) string {
+			if mapped := resolveOpenAIMessagesDispatchMappedModel(candidate, reqModel); mapped != "" {
+				return mapped
+			}
+			return routingModel
+		},
 	)
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
 	if err != nil {
 		requestPlatform := openAICompatibleRequestPlatform(c.Request.Context(), apiKey)
 		reqLog.Warn("openai_count_tokens.account_select_failed", zap.Error(openAICompatibleSelectionErrorForLog(err, requestPlatform)))
-		cls := classifyOpenAICompatibleNoAccountErrorFromGin(c, h.gatewayService, apiKey, currentRoutingModel, reqModel)
+		cls := classifyOpenAICompatibleNoAccountErrorFromGin(c, h.gatewayService, apiKey, routingModel, reqModel)
 		if !cls.ModelNotFound {
 			markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
 		}
@@ -175,7 +178,7 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 		return
 	}
 	if selection == nil || selection.Account == nil {
-		cls := classifyOpenAICompatibleNoAccountErrorFromGin(c, h.gatewayService, apiKey, currentRoutingModel, reqModel)
+		cls := classifyOpenAICompatibleNoAccountErrorFromGin(c, h.gatewayService, apiKey, routingModel, reqModel)
 		if !cls.ModelNotFound {
 			markOpsRoutingCapacityLimited(c)
 		}
@@ -184,12 +187,28 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 	}
 
 	account := selection.Account
+	apiKeyForRequest := effectiveAPIKey
+	if apiKeyForRequest == nil {
+		apiKeyForRequest = apiKey
+	}
+	if autoGroupMode {
+		if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKeyForRequest.User, apiKeyForRequest, apiKeyForRequest.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKeyForRequest)); err != nil {
+			status, code, message, retryAfter := billingErrorDetails(err)
+			if retryAfter > 0 {
+				c.Header("Retry-After", strconv.Itoa(retryAfter))
+			}
+			h.anthropicErrorResponse(c, status, code, message)
+			return
+		}
+	}
+	c.Set("api_key", apiKeyForRequest)
 	setOpsSelectedAccount(c, account.ID, account.Platform)
 	if selection.Acquired && selection.ReleaseFunc != nil {
 		defer selection.ReleaseFunc()
 	}
+	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKeyForRequest.GroupID, reqModel)
 	forwardBody := mappedBodyForMessages(channelMapping.Mapped, channelMapping.MappedModel)
-	defaultMappedModel := preferredMappedModel
+	defaultMappedModel := selectedRoutingModel
 
 	if err := h.gatewayService.ForwardCountTokensAsAnthropic(c.Request.Context(), c, account, forwardBody, defaultMappedModel); err != nil {
 		reqLog.Error("openai_count_tokens.forward_failed", zap.Int64("account_id", account.ID), zap.Error(err))

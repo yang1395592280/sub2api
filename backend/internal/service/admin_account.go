@@ -546,6 +546,9 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 	}
 
 	// 检查混合渠道风险（除非用户已确认）
+	if err := s.validateAccountGroupRoles(ctx, input.Platform, groupIDs); err != nil {
+		return nil, err
+	}
 	if len(groupIDs) > 0 && !input.SkipMixedChannelCheck {
 		if err := s.checkMixedChannelRisk(ctx, 0, input.Platform, groupIDs); err != nil {
 			return nil, err
@@ -809,6 +812,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		if err := s.validateGroupIDsExist(ctx, *input.GroupIDs); err != nil {
 			return nil, err
 		}
+		if err := s.validateAccountGroupRoles(ctx, account.Platform, *input.GroupIDs); err != nil {
+			return nil, err
+		}
 
 		// 检查混合渠道风险（除非用户已确认）
 		if !input.SkipMixedChannelCheck {
@@ -922,12 +928,27 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 
 	// 预取所有目标账号，供凭据守卫/代理守卫/混合渠道检查共用，避免多次 DB 查询。
 	var cachedTargets []*Account
-	if len(input.Credentials) > 0 || input.ProxyID != nil || needMixedChannelCheck || hasLongContextBillingUpdate || input.ProbeEnabled != nil {
+	if len(input.Credentials) > 0 || input.ProxyID != nil || input.GroupIDs != nil || needMixedChannelCheck || hasLongContextBillingUpdate || input.ProbeEnabled != nil {
 		loaded, err := s.accountRepo.GetByIDs(ctx, input.AccountIDs)
 		if err != nil {
 			return nil, err
 		}
 		cachedTargets = loaded
+	}
+	if input.GroupIDs != nil {
+		validatedPlatforms := make(map[string]struct{})
+		for _, target := range cachedTargets {
+			if target == nil {
+				continue
+			}
+			if _, ok := validatedPlatforms[target.Platform]; ok {
+				continue
+			}
+			if err := s.validateAccountGroupRoles(ctx, target.Platform, *input.GroupIDs); err != nil {
+				return nil, err
+			}
+			validatedPlatforms[target.Platform] = struct{}{}
+		}
 	}
 	if input.ProbeEnabled != nil {
 		targetsByID := make(map[int64]*Account, len(cachedTargets))
@@ -1485,6 +1506,19 @@ func (s *adminServiceImpl) validateGroupIDsExist(ctx context.Context, groupIDs [
 	for _, groupID := range groupIDs {
 		if _, err := s.groupRepo.GetByID(ctx, groupID); err != nil {
 			return fmt.Errorf("get group: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *adminServiceImpl) validateAccountGroupRoles(ctx context.Context, accountPlatform string, groupIDs []int64) error {
+	for _, groupID := range groupIDs {
+		group, err := s.groupRepo.GetByIDLite(ctx, groupID)
+		if err != nil {
+			return fmt.Errorf("get group: %w", err)
+		}
+		if group.IsSelfHostedPool() && accountPlatform != PlatformOpenAI {
+			return infraerrors.BadRequest("SELF_HOSTED_POOL_ACCOUNT_PLATFORM_MISMATCH", "only openai accounts can be added to a self-hosted account pool")
 		}
 	}
 	return nil

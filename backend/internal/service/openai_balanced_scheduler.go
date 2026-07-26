@@ -78,6 +78,10 @@ type OpenAIBalancedCandidate struct {
 
 type OpenAIBalancedSelectionInput struct {
 	GroupID                   int64
+	AccountSourceGroupID      int64
+	AccountSourceType         string
+	PoolGroupID               int64
+	PoolFallbackReason        string
 	PreviousResponseAccountID int64
 	SessionAccountID          int64
 	Candidates                []OpenAIBalancedCandidate
@@ -267,6 +271,11 @@ func (s *OpenAIBalancedScheduler) recordShadowDecision(
 	event := openAISchedulerDecisionAuditFromSettings(settings)
 	event.EventType = OpenAISchedulerAuditShadowDecision
 	event.GroupID = input.GroupID
+	event.EffectiveGroupID = input.GroupID
+	event.AccountSourceGroupID = input.AccountSourceGroupID
+	event.AccountSourceType = input.AccountSourceType
+	event.PoolGroupID = input.PoolGroupID
+	event.PoolFallbackReason = input.PoolFallbackReason
 	event.AccountID = result.ShadowAccountID
 	event.LegacyAccountID = result.LegacyAccountID
 	event.Reason = result.ShadowReason

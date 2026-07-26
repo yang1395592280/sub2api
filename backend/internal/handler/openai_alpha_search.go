@@ -83,8 +83,6 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 		return
 	}
 
-	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, requestedModel)
-	forwardBody := openAIModelMappedBody(body, channelMapping.Mapped, channelMapping.MappedModel, h.gatewayService.ReplaceModelInBody)
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
 
@@ -96,13 +94,16 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 		defer userRelease()
 	}
 
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
-		status, code, message, retryAfter := billingErrorDetails(err)
-		if retryAfter > 0 {
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
+	autoGroupMode := apiKey.UsesOpenAIAutoCheapestGroup()
+	if !autoGroupMode {
+		if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
+			status, code, message, retryAfter := billingErrorDetails(err)
+			if retryAfter > 0 {
+				c.Header("Retry-After", strconv.Itoa(retryAfter))
+			}
+			h.errorResponse(c, status, code, message)
+			return
 		}
-		h.errorResponse(c, status, code, message)
-		return
 	}
 
 	searchID := strings.TrimSpace(gjson.GetBytes(body, "id").String())
@@ -114,9 +115,9 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 	routingStart := time.Now()
 
 	for {
-		selection, _, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
+		effectiveAPIKey, _, selection, _, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
 			c.Request.Context(),
-			apiKey.GroupID,
+			apiKey,
 			"",
 			sessionHash,
 			requestedModel,
@@ -128,6 +129,7 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 			false,
 			false,
 			service.PlatformOpenAI,
+			h.openAIChannelMappedModelResolver(c.Request.Context()),
 		)
 		if err != nil || selection == nil || selection.Account == nil {
 			if failoverClientGone(c) {
@@ -151,8 +153,25 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 		}
 
 		account := selection.Account
+		apiKeyForRequest := effectiveAPIKey
+		if apiKeyForRequest == nil {
+			apiKeyForRequest = apiKey
+		}
+		if autoGroupMode {
+			if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKeyForRequest.User, apiKeyForRequest, apiKeyForRequest.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKeyForRequest)); err != nil {
+				status, code, message, retryAfter := billingErrorDetails(err)
+				if retryAfter > 0 {
+					c.Header("Retry-After", strconv.Itoa(retryAfter))
+				}
+				h.errorResponse(c, status, code, message)
+				return
+			}
+		}
+		c.Set("api_key", apiKeyForRequest)
+		channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKeyForRequest.GroupID, requestedModel)
+		forwardBody := openAIModelMappedBody(body, channelMapping.Mapped, channelMapping.MappedModel, h.gatewayService.ReplaceModelInBody)
 		setOpsSelectedAccount(c, account.ID, account.Platform)
-		accountRelease, acquired := h.acquireResponsesAccountSlot(c, apiKey.GroupID, sessionHash, selection, false, &streamStarted, reqLog)
+		accountRelease, acquired := h.acquireResponsesAccountSlot(c, apiKeyForRequest.GroupID, sessionHash, selection, false, &streamStarted, reqLog)
 		if !acquired {
 			return
 		}
@@ -171,7 +190,7 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 		if err == nil {
 			h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, account.GetMappedModel(requestedModel), true, nil)
 			if result != nil {
-				h.recordAlphaSearchUsage(c, apiKey, account, subscription, channelMapping, requestedModel, body, result, subject.UserID)
+				h.recordAlphaSearchUsage(c, apiKeyForRequest, account, subscription, channelMapping, requestedModel, body, result, subject.UserID)
 			}
 			return
 		}

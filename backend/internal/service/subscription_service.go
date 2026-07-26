@@ -221,6 +221,9 @@ func (s *SubscriptionService) assignOrExtendSubscription(ctx context.Context, in
 	if err != nil {
 		return nil, false, fmt.Errorf("group not found: %w", err)
 	}
+	if err := validateDirectlyAssignableGroup(group); err != nil {
+		return nil, false, err
+	}
 	if !group.IsSubscriptionType() {
 		return nil, false, ErrGroupNotSubscriptionType
 	}
@@ -493,6 +496,9 @@ func (s *SubscriptionService) assignSubscriptionWithReuse(ctx context.Context, i
 	group, err := s.groupRepo.GetByID(ctx, input.GroupID)
 	if err != nil {
 		return nil, false, fmt.Errorf("group not found: %w", err)
+	}
+	if err := validateDirectlyAssignableGroup(group); err != nil {
+		return nil, false, err
 	}
 	if !group.IsSubscriptionType() {
 		return nil, false, ErrGroupNotSubscriptionType

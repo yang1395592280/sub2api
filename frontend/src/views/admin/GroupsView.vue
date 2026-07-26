@@ -155,6 +155,58 @@
             </span>
           </template>
 
+          <template #cell-group_role="{ row }">
+            <div class="space-y-1 text-xs">
+              <span
+                :class="[
+                  'inline-flex items-center rounded px-2 py-0.5 font-medium',
+                  row.group_role === 'self_hosted_pool'
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
+                    : 'bg-gray-100 text-gray-700 dark:bg-dark-600 dark:text-gray-300',
+                ]"
+              >
+                {{
+                  row.group_role === "self_hosted_pool"
+                    ? t("admin.groups.roles.selfHostedPool")
+                    : t("admin.groups.roles.standard")
+                }}
+              </span>
+              <div
+                v-if="row.group_role === 'self_hosted_pool'"
+                class="text-gray-500 dark:text-gray-400"
+              >
+                {{
+                  t("admin.groups.pool.referencedBy", {
+                    count: row.referenced_group_count || 0,
+                  })
+                }}
+              </div>
+              <div
+                v-else-if="row.self_hosted_pool_group_id"
+                class="flex flex-wrap items-center gap-1 text-gray-500 dark:text-gray-400"
+              >
+                <span>{{ row.self_hosted_pool_group_name }}</span>
+                <span
+                  :class="[
+                    'rounded px-1.5 py-0.5',
+                    row.self_hosted_pool_group_status === 'active'
+                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
+                      : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300',
+                  ]"
+                >
+                  {{
+                    row.self_hosted_pool_group_status === "active"
+                      ? t("admin.accounts.status.active")
+                      : t("admin.accounts.status.inactive")
+                  }}
+                </span>
+              </div>
+              <div v-else class="text-gray-400">
+                {{ t("admin.groups.pool.notBound") }}
+              </div>
+            </div>
+          </template>
+
           <template #cell-billing_type="{ row }">
             <div class="space-y-1">
               <!-- Type Badge -->
@@ -404,6 +456,7 @@
                 }}</span>
               </button>
               <button
+                v-if="row.group_role !== 'self_hosted_pool'"
                 @click="handleRateMultipliers(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-purple-600 dark:hover:bg-dark-700 dark:hover:text-purple-400"
               >
@@ -413,6 +466,7 @@
                 }}</span>
               </button>
               <button
+                v-if="row.group_role !== 'self_hosted_pool'"
                 @click="handleRPMOverrides(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-orange-600 dark:hover:bg-dark-700 dark:hover:text-orange-400"
               >
@@ -496,9 +550,35 @@
             v-model="createForm.platform"
             :options="platformOptions"
             data-tour="group-form-platform"
-            @change="createForm.copy_accounts_from_group_ids = []"
+            @change="handleCreatePlatformChange"
           />
           <p class="input-hint">{{ t("admin.groups.platformHint") }}</p>
+        </div>
+        <div v-if="createForm.platform === 'openai'">
+          <label class="input-label">{{ t("admin.groups.form.groupRole") }}</label>
+          <Select
+            v-model="createForm.group_role"
+            :options="groupRoleOptions"
+            data-test="create-group-role"
+            @change="handleCreateGroupRoleChange"
+          />
+          <p class="input-hint">{{ t("admin.groups.pool.roleHint") }}</p>
+        </div>
+        <div
+          v-if="
+            createForm.platform === 'openai' &&
+            createForm.group_role === 'standard'
+          "
+        >
+          <label class="input-label">{{ t("admin.groups.form.selfHostedPool") }}</label>
+          <Select
+            v-model="createForm.self_hosted_pool_group_id"
+            :options="selfHostedPoolOptions"
+            :placeholder="t('admin.groups.pool.selectPlaceholder')"
+            data-test="create-self-hosted-pool"
+            searchable
+          />
+          <p class="input-hint">{{ t("admin.groups.pool.bindingHint") }}</p>
         </div>
         <!-- 从分组复制账号 -->
         <div v-if="copyAccountsGroupOptions.length > 0">
@@ -589,6 +669,7 @@
           </select>
           <p class="input-hint">{{ t("admin.groups.copyAccounts.hint") }}</p>
         </div>
+        <template v-if="createForm.group_role === 'standard'">
         <div>
           <label class="input-label">{{
             t("admin.groups.form.rateMultiplier")
@@ -2000,6 +2081,7 @@
             {{ t("admin.groups.modelRouting.addRule") }}
           </button>
         </div>
+        </template>
       </form>
 
       <template #footer>
@@ -2088,6 +2170,42 @@
             data-tour="group-form-platform"
           />
           <p class="input-hint">{{ t("admin.groups.platformNotEditable") }}</p>
+        </div>
+        <div v-if="editForm.platform === 'openai'">
+          <label class="input-label">{{ t("admin.groups.form.groupRole") }}</label>
+          <Select
+            v-model="editForm.group_role"
+            :options="groupRoleOptions"
+            :disabled="true"
+            data-test="edit-group-role"
+          />
+          <p class="input-hint">{{ t("admin.groups.pool.roleNotEditable") }}</p>
+        </div>
+        <div
+          v-if="
+            editForm.platform === 'openai' &&
+            editForm.group_role === 'standard'
+          "
+        >
+          <label class="input-label">{{ t("admin.groups.form.selfHostedPool") }}</label>
+          <Select
+            v-model="editForm.self_hosted_pool_group_id"
+            :options="selfHostedPoolOptionsForEdit"
+            :placeholder="t('admin.groups.pool.selectPlaceholder')"
+            data-test="edit-self-hosted-pool"
+            searchable
+          />
+          <p class="input-hint">{{ t("admin.groups.pool.bindingHint") }}</p>
+        </div>
+        <div>
+          <label class="input-label">{{ t("admin.groups.form.status") }}</label>
+          <Select v-model="editForm.status" :options="editStatusOptions" />
+          <p
+            v-if="editForm.group_role === 'self_hosted_pool' && editForm.status === 'inactive'"
+            class="input-hint text-amber-600 dark:text-amber-400"
+          >
+            {{ t("admin.groups.pool.inactiveHint") }}
+          </p>
         </div>
         <!-- 从分组复制账号（编辑时） -->
         <div v-if="copyAccountsGroupOptionsForEdit.length > 0">
@@ -2180,6 +2298,7 @@
             {{ t("admin.groups.copyAccounts.hintEdit") }}
           </p>
         </div>
+        <template v-if="editForm.group_role === 'standard'">
         <div>
           <label class="input-label">{{
             t("admin.groups.form.rateMultiplier")
@@ -2322,11 +2441,6 @@
             </span>
           </div>
         </div>
-        <div>
-          <label class="input-label">{{ t("admin.groups.form.status") }}</label>
-          <Select v-model="editForm.status" :options="editStatusOptions" />
-        </div>
-
         <!-- Subscription Configuration -->
         <div class="mt-4 border-t pt-4">
           <div>
@@ -3613,6 +3727,7 @@
             {{ t("admin.groups.modelRouting.addRule") }}
           </button>
         </div>
+        </template>
       </form>
 
       <template #footer>
@@ -4202,6 +4317,7 @@ import type {
   CompositeRouteEndpoint,
   CompositeRouteMatchType,
   GroupPlatform,
+  GroupRole,
   SubscriptionType,
 } from "@/types";
 import type { Column } from "@/components/common/types";
@@ -4281,6 +4397,11 @@ const allColumns = computed<Column[]>(() => [
     key: "platform",
     label: t("admin.groups.columns.platform"),
     sortable: true,
+  },
+  {
+    key: "group_role",
+    label: t("admin.groups.columns.roleAndPool"),
+    sortable: false,
   },
   {
     key: "billing_type",
@@ -4456,6 +4577,14 @@ const platformFilterOptions = computed(() => [
   { value: "composite", label: "Composite" },
 ]);
 
+const groupRoleOptions = computed(() => [
+  { value: "standard", label: t("admin.groups.roles.standard") },
+  {
+    value: "self_hosted_pool",
+    label: t("admin.groups.roles.selfHostedPool"),
+  },
+]);
+
 const compositeRoutePlatformOptions = computed(() => [
   { value: "anthropic", label: "Anthropic" },
   { value: "openai", label: "OpenAI" },
@@ -4617,6 +4746,28 @@ const copyAccountsGroupOptionsForEdit = computed(() => {
 });
 
 const groups = ref<AdminGroup[]>([]);
+const allGroupsForPoolSelection = ref<AdminGroup[]>([]);
+const selfHostedPoolOptions = computed(() => [
+  { value: null, label: t("admin.groups.pool.noPool") },
+  ...allGroupsForPoolSelection.value
+    .filter(
+      (group) =>
+        group.platform === "openai" &&
+        group.group_role === "self_hosted_pool",
+    )
+    .map((group) => ({
+      value: group.id,
+      label:
+        group.status === "active"
+          ? group.name
+          : `${group.name} (${t("admin.accounts.status.inactive")})`,
+    })),
+]);
+const selfHostedPoolOptionsForEdit = computed(() =>
+  selfHostedPoolOptions.value.filter(
+    (option) => option.value === null || option.value !== editingGroup.value?.id,
+  ),
+);
 const loading = ref(false);
 type GroupUsageSummary = {
   today_cost: number;
@@ -4740,6 +4891,8 @@ const createForm = reactive({
   name: "",
   description: "",
   platform: "anthropic" as GroupPlatform,
+  group_role: "standard" as GroupRole,
+  self_hosted_pool_group_id: null as number | null,
   rate_multiplier: 1.0,
   is_exclusive: false,
   subscription_type: "standard" as SubscriptionType,
@@ -5093,6 +5246,8 @@ const editForm = reactive({
   name: "",
   description: "",
   platform: "anthropic" as GroupPlatform,
+  group_role: "standard" as GroupRole,
+  self_hosted_pool_group_id: null as number | null,
   rate_multiplier: 1.0,
   is_exclusive: false,
   status: "active" as "active" | "inactive",
@@ -5422,6 +5577,15 @@ const loadGroups = async () => {
   }
 };
 
+const loadSelfHostedPoolGroups = async () => {
+  try {
+    allGroupsForPoolSelection.value =
+      await adminAPI.groups.getAllIncludingInactive();
+  } catch (error) {
+    console.error("Error loading self-hosted account pools:", error);
+  }
+};
+
 const formatCost = (cost: number): string => {
   if (cost >= 1000) return cost.toFixed(0);
   if (cost >= 100) return cost.toFixed(1);
@@ -5534,7 +5698,20 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
 
 const openCreateModal = () => {
   showCreateModal.value = true;
+  void loadSelfHostedPoolGroups();
   loadModelsListCandidates("create", 0, createForm.platform);
+};
+
+const handleCreatePlatformChange = () => {
+  createForm.copy_accounts_from_group_ids = [];
+  if (createForm.platform !== "openai") {
+    createForm.group_role = "standard";
+    createForm.self_hosted_pool_group_id = null;
+  }
+};
+
+const handleCreateGroupRoleChange = () => {
+  createForm.self_hosted_pool_group_id = null;
 };
 
 const closeCreateModal = () => {
@@ -5546,6 +5723,8 @@ const closeCreateModal = () => {
   createForm.name = "";
   createForm.description = "";
   createForm.platform = "anthropic";
+  createForm.group_role = "standard";
+  createForm.self_hosted_pool_group_id = null;
   createForm.rate_multiplier = 1.0;
   createForm.is_exclusive = false;
   createForm.subscription_type = "standard";
@@ -5782,6 +5961,8 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.name = group.name;
   editForm.description = group.description || "";
   editForm.platform = group.platform;
+  editForm.group_role = group.group_role || "standard";
+  editForm.self_hosted_pool_group_id = group.self_hosted_pool_group_id ?? null;
   editForm.rate_multiplier = group.rate_multiplier;
   editForm.is_exclusive = group.is_exclusive;
   editForm.status = group.status;
@@ -5886,6 +6067,8 @@ const closeEditModal = () => {
   editForm.web_search_price_per_call = null;
   resetMessagesDispatchFormState(editForm);
   editForm.allow_live = false;
+  editForm.group_role = "standard";
+  editForm.self_hosted_pool_group_id = null;
   resetModelsListState(editModelsListState);
 };
 
@@ -6480,6 +6663,7 @@ const saveSortOrder = async () => {
 
 onMounted(() => {
   loadGroups();
+  void loadSelfHostedPoolGroups();
   void loadLiveCapability();
   loadModelsListCandidates("create", 0, createForm.platform);
   document.addEventListener("click", handleClickOutside);

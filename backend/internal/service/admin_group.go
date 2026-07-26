@@ -302,14 +302,108 @@ func groupSupportsOAuthOnlyFilter(platform string) bool {
 		platform == PlatformComposite
 }
 
+func normalizeGroupRole(role string) (string, error) {
+	role = strings.TrimSpace(role)
+	if role == "" {
+		return GroupRoleStandard, nil
+	}
+	if role != GroupRoleStandard && role != GroupRoleSelfHostedPool {
+		return "", infraerrors.Newf(http.StatusBadRequest, "INVALID_GROUP_ROLE", "unsupported group role %q", role)
+	}
+	return role, nil
+}
+
+func sanitizeSelfHostedPoolGroup(group *Group) {
+	if group == nil || !group.IsSelfHostedPool() {
+		return
+	}
+	group.Platform = PlatformOpenAI
+	group.SelfHostedPoolGroupID = nil
+	group.RateMultiplier = 1
+	group.PeakRateEnabled = false
+	group.PeakStart = ""
+	group.PeakEnd = ""
+	group.PeakRateMultiplier = 1
+	group.IsExclusive = true
+	group.SubscriptionType = SubscriptionTypeStandard
+	group.DailyLimitUSD = nil
+	group.WeeklyLimitUSD = nil
+	group.MonthlyLimitUSD = nil
+	group.FallbackGroupID = nil
+	group.FallbackGroupIDOnInvalidRequest = nil
+	group.OpenAIAutoSchedulerEnabled = false
+	group.AllowAutoCheapestScheduling = false
+	group.UpstreamBalanceRefreshEnabled = false
+	group.UpstreamPriceMaxMultiplier = 0
+	group.RPMLimit = 0
+}
+
+func (s *adminServiceImpl) validateSelfHostedPoolReference(ctx context.Context, currentGroupID int64, platform, role string, poolGroupID *int64) error {
+	if role == GroupRoleSelfHostedPool {
+		if platform != PlatformOpenAI {
+			return infraerrors.BadRequest("SELF_HOSTED_POOL_OPENAI_ONLY", "self-hosted account pools must use the openai platform")
+		}
+		if poolGroupID != nil {
+			return infraerrors.BadRequest("SELF_HOSTED_POOL_NESTING_NOT_ALLOWED", "self-hosted account pools cannot reference another pool")
+		}
+		return nil
+	}
+	if poolGroupID == nil {
+		return nil
+	}
+	if platform != PlatformOpenAI {
+		return infraerrors.BadRequest("SELF_HOSTED_POOL_OPENAI_ONLY", "only standard openai groups can reference a self-hosted account pool")
+	}
+	if *poolGroupID <= 0 || *poolGroupID == currentGroupID {
+		return infraerrors.BadRequest("INVALID_SELF_HOSTED_POOL", "a group cannot reference itself as a self-hosted account pool")
+	}
+	pool, err := s.groupRepo.GetByIDLite(ctx, *poolGroupID)
+	if err != nil {
+		return infraerrors.Newf(http.StatusBadRequest, "INVALID_SELF_HOSTED_POOL", "self-hosted account pool not found: %v", err)
+	}
+	if pool.Platform != PlatformOpenAI || !pool.IsSelfHostedPool() {
+		return infraerrors.BadRequest("INVALID_SELF_HOSTED_POOL", "referenced group must be an openai self-hosted account pool")
+	}
+	return nil
+}
+
+func (s *adminServiceImpl) validateSelfHostedPoolAccounts(ctx context.Context, accountIDs []int64) error {
+	if len(accountIDs) == 0 {
+		return nil
+	}
+	accounts, err := s.accountRepo.GetByIDs(ctx, accountIDs)
+	if err != nil {
+		return err
+	}
+	for _, account := range accounts {
+		if account != nil && account.Platform != PlatformOpenAI {
+			return infraerrors.BadRequest("SELF_HOSTED_POOL_ACCOUNT_PLATFORM_MISMATCH", "only openai accounts can be added to a self-hosted account pool")
+		}
+	}
+	return nil
+}
+
 func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupInput) (*Group, error) {
+	platform := input.Platform
+	groupRole, err := normalizeGroupRole(input.GroupRole)
+	if err != nil {
+		return nil, err
+	}
+	if platform == "" {
+		if groupRole == GroupRoleSelfHostedPool {
+			platform = PlatformOpenAI
+		} else {
+			platform = PlatformAnthropic
+		}
+	}
+	if groupRole == GroupRoleSelfHostedPool {
+		input.RateMultiplier = 1
+	}
 	if input.RateMultiplier <= 0 {
 		return nil, errors.New("rate_multiplier must be > 0")
 	}
-
-	platform := input.Platform
-	if platform == "" {
-		platform = PlatformAnthropic
+	if err := s.validateSelfHostedPoolReference(ctx, 0, platform, groupRole, input.SelfHostedPoolGroupID); err != nil {
+		return nil, err
 	}
 	maxReasoningEffort, err := normalizeMaxReasoningEffortForPlatform(platform, input.MaxReasoningEffort)
 	if err != nil {
@@ -449,12 +543,19 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		if err != nil {
 			return nil, fmt.Errorf("failed to get accounts from source groups: %w", err)
 		}
+		if groupRole == GroupRoleSelfHostedPool {
+			if err := s.validateSelfHostedPoolAccounts(ctx, accountIDsToCopy); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	group := &Group{
 		Name:                                  input.Name,
 		Description:                           input.Description,
 		Platform:                              platform,
+		GroupRole:                             groupRole,
+		SelfHostedPoolGroupID:                 input.SelfHostedPoolGroupID,
 		RateMultiplier:                        input.RateMultiplier,
 		IsExclusive:                           input.IsExclusive,
 		Status:                                StatusActive,
@@ -503,6 +604,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		MaxReasoningEffort:                    maxReasoningEffort,
 		ReasoningEffortMappings:               reasoningEffortMappings,
 	}
+	sanitizeSelfHostedPoolGroup(group)
 	sanitizeGroupMessagesDispatchFields(group)
 	if group.Platform != PlatformOpenAI {
 		group.AllowLive = false
@@ -643,6 +745,31 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if input.Platform != "" {
 		group.Platform = input.Platform
+	}
+	currentRole, err := normalizeGroupRole(group.GroupRole)
+	if err != nil {
+		return nil, err
+	}
+	group.GroupRole = currentRole
+	if input.GroupRole != nil {
+		requestedRole, roleErr := normalizeGroupRole(*input.GroupRole)
+		if roleErr != nil {
+			return nil, roleErr
+		}
+		if requestedRole != currentRole {
+			return nil, infraerrors.BadRequest("GROUP_ROLE_IMMUTABLE", "group role cannot be changed after creation")
+		}
+	}
+	if input.SelfHostedPoolGroupIDSet {
+		if input.SelfHostedPoolGroupID == nil || *input.SelfHostedPoolGroupID <= 0 {
+			group.SelfHostedPoolGroupID = nil
+		} else {
+			poolID := *input.SelfHostedPoolGroupID
+			group.SelfHostedPoolGroupID = &poolID
+		}
+	}
+	if err := s.validateSelfHostedPoolReference(ctx, id, group.Platform, group.GroupRole, group.SelfHostedPoolGroupID); err != nil {
+		return nil, err
 	}
 	if input.RateMultiplier != nil {
 		if *input.RateMultiplier <= 0 {
@@ -864,6 +991,7 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		}
 		group.ReasoningEffortMappings = reasoningEffortMappings
 	}
+	sanitizeSelfHostedPoolGroup(group)
 	sanitizeGroupMessagesDispatchFields(group)
 	if group.Platform != PlatformOpenAI {
 		group.AllowLive = false
@@ -910,6 +1038,11 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		accountIDsToCopy, err := s.groupRepo.GetAccountIDsByGroupIDs(ctx, uniqueSourceGroupIDs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get accounts from source groups: %w", err)
+		}
+		if group.IsSelfHostedPool() {
+			if err := s.validateSelfHostedPoolAccounts(ctx, accountIDsToCopy); err != nil {
+				return nil, err
+			}
 		}
 
 		// 先清空当前分组的所有账号绑定
@@ -972,6 +1105,23 @@ func (s *adminServiceImpl) applyGroupUpstreamPriceGuardBestEffort(ctx context.Co
 }
 
 func (s *adminServiceImpl) DeleteGroup(ctx context.Context, id int64) error {
+	group, err := s.groupRepo.GetByIDLite(ctx, id)
+	if err != nil {
+		return err
+	}
+	if group.IsSelfHostedPool() {
+		if counter, ok := s.groupRepo.(interface {
+			CountSelfHostedPoolReferences(context.Context, int64) (int64, error)
+		}); ok {
+			count, countErr := counter.CountSelfHostedPoolReferences(ctx, id)
+			if countErr != nil {
+				return countErr
+			}
+			if count > 0 {
+				return infraerrors.Newf(http.StatusConflict, "SELF_HOSTED_POOL_IN_USE", "self-hosted account pool is referenced by %d group(s); remove the associations first", count)
+			}
+		}
+	}
 	var groupKeys []string
 	if s.authCacheInvalidator != nil {
 		keys, err := s.apiKeyRepo.ListKeysByGroupID(ctx, id)
@@ -1319,6 +1469,9 @@ func (s *adminServiceImpl) ReplaceUserGroup(ctx context.Context, userID, oldGrou
 	// 验证新分组存在且为活跃的专属标准分组
 	newGroup, err := s.groupRepo.GetByID(ctx, newGroupID)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateDirectlyAssignableGroup(newGroup); err != nil {
 		return nil, err
 	}
 	if newGroup.Status != StatusActive {

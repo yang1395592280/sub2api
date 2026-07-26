@@ -7,6 +7,7 @@ import GroupsView from '../GroupsView.vue'
 const {
   listGroups,
   getAllGroups,
+  getAllGroupsIncludingInactive,
   getModelsListCandidates,
   getUsageSummary,
   getCapacitySummary,
@@ -19,6 +20,7 @@ const {
 } = vi.hoisted(() => ({
   listGroups: vi.fn(),
   getAllGroups: vi.fn(),
+  getAllGroupsIncludingInactive: vi.fn(),
   getModelsListCandidates: vi.fn(),
   getUsageSummary: vi.fn(),
   getCapacitySummary: vi.fn(),
@@ -35,6 +37,7 @@ const messages: Record<string, string> = {
   'admin.groups.columns.name': 'Name',
   'admin.groups.columns.id': 'ID',
   'admin.groups.columns.platform': 'Platform',
+  'admin.groups.columns.roleAndPool': 'Role / Pool',
   'admin.groups.columns.billingType': 'Billing Type',
   'admin.groups.columns.rateMultiplier': 'Rate Multiplier',
   'admin.groups.columns.type': 'Type',
@@ -50,6 +53,7 @@ vi.mock('@/api/admin', () => ({
     groups: {
       list: listGroups,
       getAll: getAllGroups,
+      getAllIncludingInactive: getAllGroupsIncludingInactive,
       getModelsListCandidates,
       getUsageSummary,
       getCapacitySummary,
@@ -227,6 +231,7 @@ describe('admin GroupsView column settings', () => {
 
     listGroups.mockReset()
     getAllGroups.mockReset()
+    getAllGroupsIncludingInactive.mockReset()
     getModelsListCandidates.mockReset()
     getUsageSummary.mockReset()
     getCapacitySummary.mockReset()
@@ -245,6 +250,7 @@ describe('admin GroupsView column settings', () => {
       pages: 1,
     })
     getAllGroups.mockResolvedValue([])
+    getAllGroupsIncludingInactive.mockResolvedValue([])
     getModelsListCandidates.mockResolvedValue([])
     getUsageSummary.mockResolvedValue([])
     getCapacitySummary.mockResolvedValue([])
@@ -263,6 +269,7 @@ describe('admin GroupsView column settings', () => {
     expect(columnKeys(wrapper)).toEqual([
       'name',
       'platform',
+      'group_role',
       'billing_type',
       'rate_multiplier',
       'is_exclusive',
@@ -289,6 +296,7 @@ describe('admin GroupsView column settings', () => {
       'name',
       'id',
       'platform',
+      'group_role',
       'billing_type',
       'rate_multiplier',
       'is_exclusive',
@@ -307,6 +315,7 @@ describe('admin GroupsView column settings', () => {
     expect(columnKeys(wrapper)).toEqual([
       'name',
       'platform',
+      'group_role',
       'billing_type',
       'rate_multiplier',
       'is_exclusive',
@@ -330,6 +339,7 @@ describe('admin GroupsView column settings', () => {
     expect(columnKeys(wrapper)).toEqual([
       'name',
       'platform',
+      'group_role',
       'billing_type',
       'rate_multiplier',
       'is_exclusive',
@@ -353,6 +363,7 @@ describe('admin GroupsView column settings', () => {
       'name',
       'id',
       'platform',
+      'group_role',
       'billing_type',
       'rate_multiplier',
       'is_exclusive',

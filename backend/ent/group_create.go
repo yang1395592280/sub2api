@@ -217,6 +217,34 @@ func (_c *GroupCreate) SetNillablePlatform(v *string) *GroupCreate {
 	return _c
 }
 
+// SetGroupRole sets the "group_role" field.
+func (_c *GroupCreate) SetGroupRole(v string) *GroupCreate {
+	_c.mutation.SetGroupRole(v)
+	return _c
+}
+
+// SetNillableGroupRole sets the "group_role" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableGroupRole(v *string) *GroupCreate {
+	if v != nil {
+		_c.SetGroupRole(*v)
+	}
+	return _c
+}
+
+// SetSelfHostedPoolGroupID sets the "self_hosted_pool_group_id" field.
+func (_c *GroupCreate) SetSelfHostedPoolGroupID(v int64) *GroupCreate {
+	_c.mutation.SetSelfHostedPoolGroupID(v)
+	return _c
+}
+
+// SetNillableSelfHostedPoolGroupID sets the "self_hosted_pool_group_id" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableSelfHostedPoolGroupID(v *int64) *GroupCreate {
+	if v != nil {
+		_c.SetSelfHostedPoolGroupID(*v)
+	}
+	return _c
+}
+
 // SetSubscriptionType sets the "subscription_type" field.
 func (_c *GroupCreate) SetSubscriptionType(v string) *GroupCreate {
 	_c.mutation.SetSubscriptionType(v)
@@ -968,6 +996,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultPlatform
 		_c.mutation.SetPlatform(v)
 	}
+	if _, ok := _c.mutation.GroupRole(); !ok {
+		v := group.DefaultGroupRole
+		_c.mutation.SetGroupRole(v)
+	}
 	if _, ok := _c.mutation.SubscriptionType(); !ok {
 		v := group.DefaultSubscriptionType
 		_c.mutation.SetSubscriptionType(v)
@@ -1154,6 +1186,14 @@ func (_c *GroupCreate) check() error {
 	if v, ok := _c.mutation.Platform(); ok {
 		if err := group.PlatformValidator(v); err != nil {
 			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "Group.platform": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.GroupRole(); !ok {
+		return &ValidationError{Name: "group_role", err: errors.New(`ent: missing required field "Group.group_role"`)}
+	}
+	if v, ok := _c.mutation.GroupRole(); ok {
+		if err := group.GroupRoleValidator(v); err != nil {
+			return &ValidationError{Name: "group_role", err: fmt.Errorf(`ent: validator failed for field "Group.group_role": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.SubscriptionType(); !ok {
@@ -1343,6 +1383,14 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Platform(); ok {
 		_spec.SetField(group.FieldPlatform, field.TypeString, value)
 		_node.Platform = value
+	}
+	if value, ok := _c.mutation.GroupRole(); ok {
+		_spec.SetField(group.FieldGroupRole, field.TypeString, value)
+		_node.GroupRole = value
+	}
+	if value, ok := _c.mutation.SelfHostedPoolGroupID(); ok {
+		_spec.SetField(group.FieldSelfHostedPoolGroupID, field.TypeInt64, value)
+		_node.SelfHostedPoolGroupID = &value
 	}
 	if value, ok := _c.mutation.SubscriptionType(); ok {
 		_spec.SetField(group.FieldSubscriptionType, field.TypeString, value)
@@ -1837,6 +1885,42 @@ func (u *GroupUpsert) SetPlatform(v string) *GroupUpsert {
 // UpdatePlatform sets the "platform" field to the value that was provided on create.
 func (u *GroupUpsert) UpdatePlatform() *GroupUpsert {
 	u.SetExcluded(group.FieldPlatform)
+	return u
+}
+
+// SetGroupRole sets the "group_role" field.
+func (u *GroupUpsert) SetGroupRole(v string) *GroupUpsert {
+	u.Set(group.FieldGroupRole, v)
+	return u
+}
+
+// UpdateGroupRole sets the "group_role" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateGroupRole() *GroupUpsert {
+	u.SetExcluded(group.FieldGroupRole)
+	return u
+}
+
+// SetSelfHostedPoolGroupID sets the "self_hosted_pool_group_id" field.
+func (u *GroupUpsert) SetSelfHostedPoolGroupID(v int64) *GroupUpsert {
+	u.Set(group.FieldSelfHostedPoolGroupID, v)
+	return u
+}
+
+// UpdateSelfHostedPoolGroupID sets the "self_hosted_pool_group_id" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateSelfHostedPoolGroupID() *GroupUpsert {
+	u.SetExcluded(group.FieldSelfHostedPoolGroupID)
+	return u
+}
+
+// AddSelfHostedPoolGroupID adds v to the "self_hosted_pool_group_id" field.
+func (u *GroupUpsert) AddSelfHostedPoolGroupID(v int64) *GroupUpsert {
+	u.Add(group.FieldSelfHostedPoolGroupID, v)
+	return u
+}
+
+// ClearSelfHostedPoolGroupID clears the value of the "self_hosted_pool_group_id" field.
+func (u *GroupUpsert) ClearSelfHostedPoolGroupID() *GroupUpsert {
+	u.SetNull(group.FieldSelfHostedPoolGroupID)
 	return u
 }
 
@@ -2801,6 +2885,48 @@ func (u *GroupUpsertOne) SetPlatform(v string) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdatePlatform() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdatePlatform()
+	})
+}
+
+// SetGroupRole sets the "group_role" field.
+func (u *GroupUpsertOne) SetGroupRole(v string) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetGroupRole(v)
+	})
+}
+
+// UpdateGroupRole sets the "group_role" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateGroupRole() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateGroupRole()
+	})
+}
+
+// SetSelfHostedPoolGroupID sets the "self_hosted_pool_group_id" field.
+func (u *GroupUpsertOne) SetSelfHostedPoolGroupID(v int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSelfHostedPoolGroupID(v)
+	})
+}
+
+// AddSelfHostedPoolGroupID adds v to the "self_hosted_pool_group_id" field.
+func (u *GroupUpsertOne) AddSelfHostedPoolGroupID(v int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddSelfHostedPoolGroupID(v)
+	})
+}
+
+// UpdateSelfHostedPoolGroupID sets the "self_hosted_pool_group_id" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateSelfHostedPoolGroupID() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSelfHostedPoolGroupID()
+	})
+}
+
+// ClearSelfHostedPoolGroupID clears the value of the "self_hosted_pool_group_id" field.
+func (u *GroupUpsertOne) ClearSelfHostedPoolGroupID() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearSelfHostedPoolGroupID()
 	})
 }
 
@@ -4051,6 +4177,48 @@ func (u *GroupUpsertBulk) SetPlatform(v string) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdatePlatform() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdatePlatform()
+	})
+}
+
+// SetGroupRole sets the "group_role" field.
+func (u *GroupUpsertBulk) SetGroupRole(v string) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetGroupRole(v)
+	})
+}
+
+// UpdateGroupRole sets the "group_role" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateGroupRole() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateGroupRole()
+	})
+}
+
+// SetSelfHostedPoolGroupID sets the "self_hosted_pool_group_id" field.
+func (u *GroupUpsertBulk) SetSelfHostedPoolGroupID(v int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSelfHostedPoolGroupID(v)
+	})
+}
+
+// AddSelfHostedPoolGroupID adds v to the "self_hosted_pool_group_id" field.
+func (u *GroupUpsertBulk) AddSelfHostedPoolGroupID(v int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddSelfHostedPoolGroupID(v)
+	})
+}
+
+// UpdateSelfHostedPoolGroupID sets the "self_hosted_pool_group_id" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateSelfHostedPoolGroupID() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSelfHostedPoolGroupID()
+	})
+}
+
+// ClearSelfHostedPoolGroupID clears the value of the "self_hosted_pool_group_id" field.
+func (u *GroupUpsertBulk) ClearSelfHostedPoolGroupID() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearSelfHostedPoolGroupID()
 	})
 }
 

@@ -79,6 +79,21 @@ func isAccountBlockedByGroupUpstreamPriceGuard(account *Account, groupID *int64)
 	return *account.ChannelPrice > maxMultiplier
 }
 
+func (s *OpenAIGatewayService) isAccountBlockedByOpenAIGroupUpstreamPriceGuard(ctx context.Context, account *Account, groupID *int64) bool {
+	if isAccountBlockedByGroupUpstreamPriceGuard(account, groupID) {
+		return true
+	}
+	if account == nil || groupID == nil || *groupID <= 0 || account.ChannelPrice == nil || *account.ChannelPrice <= 0 {
+		return false
+	}
+	effectiveGroup := openAIEffectiveGroupFromContext(ctx)
+	if effectiveGroup == nil && s != nil && s.schedulerSnapshot != nil {
+		effectiveGroup, _ = s.schedulerSnapshot.GetGroupByID(ctx, *groupID)
+	}
+	return effectiveGroup != nil && effectiveGroup.ID == *groupID && effectiveGroup.UpstreamPriceMaxMultiplier > 0 &&
+		*account.ChannelPrice > effectiveGroup.UpstreamPriceMaxMultiplier
+}
+
 func accountGroupUpstreamPriceMaxMultiplier(account *Account, groupID int64) (float64, bool) {
 	if account == nil || groupID <= 0 {
 		return 0, false

@@ -208,6 +208,9 @@ func (h *OpenAIAutoSchedulerHandler) ListGroups(c *gin.Context) {
 	}
 	out := make([]openAIAutoSchedulerGroupResponse, 0, len(groups))
 	for _, group := range groups {
+		if group.IsSelfHostedPool() {
+			continue
+		}
 		out = append(out, openAIAutoSchedulerGroupToResponse(group))
 	}
 	response.Success(c, out)
@@ -240,6 +243,10 @@ func (h *OpenAIAutoSchedulerHandler) UpdateGroup(c *gin.Context) {
 	}
 	if group.Platform != service.PlatformOpenAI {
 		response.BadRequest(c, "OpenAI auto scheduler can only be toggled for OpenAI groups")
+		return
+	}
+	if group.IsSelfHostedPool() {
+		response.BadRequest(c, "self-hosted account pools cannot enable the OpenAI auto scheduler")
 		return
 	}
 	updated, err := h.adminSvc.UpdateGroup(c.Request.Context(), id, &service.UpdateGroupInput{

@@ -132,7 +132,31 @@ func normalizeUserRole(role, fallback string) (string, error) {
 	return role, nil
 }
 
+func (s *adminServiceImpl) validateDirectlyAssignableGroupIDs(ctx context.Context, groupIDs []int64) error {
+	seen := make(map[int64]struct{}, len(groupIDs))
+	for _, groupID := range groupIDs {
+		if groupID <= 0 {
+			continue
+		}
+		if _, ok := seen[groupID]; ok {
+			continue
+		}
+		seen[groupID] = struct{}{}
+		group, err := s.groupRepo.GetByIDLite(ctx, groupID)
+		if err != nil {
+			return err
+		}
+		if err := validateDirectlyAssignableGroup(group); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInput) (*User, error) {
+	if err := s.validateDirectlyAssignableGroupIDs(ctx, input.AllowedGroups); err != nil {
+		return nil, err
+	}
 	balance := 0.0
 	if input.Balance != nil {
 		balance = *input.Balance
@@ -208,6 +232,20 @@ func (s *adminServiceImpl) assignDefaultSubscriptions(ctx context.Context, userI
 }
 
 func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *UpdateUserInput) (*User, error) {
+	if input.AllowedGroups != nil {
+		if err := s.validateDirectlyAssignableGroupIDs(ctx, *input.AllowedGroups); err != nil {
+			return nil, err
+		}
+	}
+	if input.GroupRates != nil {
+		groupIDs := make([]int64, 0, len(input.GroupRates))
+		for groupID := range input.GroupRates {
+			groupIDs = append(groupIDs, groupID)
+		}
+		if err := s.validateDirectlyAssignableGroupIDs(ctx, groupIDs); err != nil {
+			return nil, err
+		}
+	}
 	// 校验用户专属分组倍率：必须 > 0（nil 合法，表示清除专属倍率）
 	if input.GroupRates != nil {
 		for groupID, rate := range input.GroupRates {
@@ -568,6 +606,9 @@ func (s *adminServiceImpl) BatchAddBalanceToUsers(ctx context.Context, userIDs [
 func (s *adminServiceImpl) BatchAddUsersToGroup(ctx context.Context, userIDs []int64, groupID int64) (*BatchAddUsersToGroupResult, error) {
 	group, err := s.groupRepo.GetByID(ctx, groupID)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateDirectlyAssignableGroup(group); err != nil {
 		return nil, err
 	}
 	if !group.IsActive() {
@@ -1720,8 +1761,14 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 		if err != nil {
 			return nil, fmt.Errorf("group not found: %w", err)
 		}
+		if err := validateDirectlyAssignableGroup(group); err != nil {
+			return nil, err
+		}
 		if !group.IsSubscriptionType() {
 			return nil, errors.New("group must be subscription type")
+		}
+		if err := validateDirectlyAssignableGroup(group); err != nil {
+			return nil, err
 		}
 	}
 

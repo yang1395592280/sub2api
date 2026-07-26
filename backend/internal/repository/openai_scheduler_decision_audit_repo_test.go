@@ -18,6 +18,8 @@ func TestOpenAISchedulerDecisionAuditRepositoryInsertsExplicitColumns(t *testing
 	createdAt := time.Date(2026, 7, 21, 8, 0, 0, 0, time.FixedZone("CST", 8*60*60))
 	event := service.OpenAISchedulerDecisionAuditEvent{
 		EventType: service.OpenAISchedulerAuditShadowDecision, GroupID: 82, AccountID: 12818, LegacyAccountID: 11892,
+		EffectiveGroupID: 82, AccountSourceGroupID: 99, AccountSourceType: service.GroupRoleSelfHostedPool,
+		PoolGroupID: 99, PoolFallbackReason: "",
 		ModelFamily: "gpt-5.5", Endpoint: "responses", Transport: "http_sse", Reason: "balanced_order_changed",
 		Confidence: service.OpenAISchedulerHealthConfidenceLow, Eligibility: service.OpenAISchedulerEligibilityLowConfidence,
 		TrafficClass: service.OpenAISchedulerTrafficExploration, PredictedTTFTDifferenceMS: -4200, TargetShare: 0.05,
@@ -28,7 +30,9 @@ func TestOpenAISchedulerDecisionAuditRepositoryInsertsExplicitColumns(t *testing
 
 	mock.ExpectExec(`INSERT INTO openai_scheduler_decision_audits`).
 		WithArgs(
-			event.EventType, event.GroupID, event.AccountID, event.LegacyAccountID,
+			event.EventType, event.GroupID, event.EffectiveGroupID, event.AccountSourceGroupID, event.AccountSourceType,
+			event.PoolGroupID, event.PoolFallbackReason,
+			event.AccountID, event.LegacyAccountID,
 			event.ModelFamily, event.Endpoint, event.Transport, event.Reason, event.Confidence, event.Eligibility, event.TrafficClass,
 			event.PredictedTTFTDifferenceMS, event.TargetShare, event.CandidateCount, event.TopK,
 			event.SchedulerMode, event.ShadowMode, event.ExplorationRate, event.ExplorationBudget,

@@ -41,6 +41,18 @@ func TestOpenAIEntryPointsResolveChannelMappedModelBeforeScheduling(t *testing.T
 			resolverSelector:  "SelectEffectiveOpenAIAccountWithSchedulerForImagesAndModelResolver",
 			wantResolverCalls: 1,
 		},
+		{
+			file:              "openai_gateway_count_tokens.go",
+			legacySelector:    "SelectEffectiveOpenAIAccountWithSchedulerForCapability",
+			resolverSelector:  "SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver",
+			wantResolverCalls: 1,
+		},
+		{
+			file:              "openai_alpha_search.go",
+			legacySelector:    "SelectEffectiveOpenAIAccountWithSchedulerForCapability",
+			resolverSelector:  "SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver",
+			wantResolverCalls: 1,
+		},
 	}
 
 	for _, tt := range tests {

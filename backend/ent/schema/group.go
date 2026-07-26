@@ -77,6 +77,14 @@ func (Group) Fields() []ent.Field {
 		field.String("platform").
 			MaxLen(50).
 			Default(domain.PlatformAnthropic),
+		field.String("group_role").
+			MaxLen(32).
+			Default("standard").
+			Comment("分组角色：standard 普通业务分组，self_hosted_pool OpenAI 自建号池"),
+		field.Int64("self_hosted_pool_group_id").
+			Optional().
+			Nillable().
+			Comment("普通 OpenAI 分组优先使用的自建号池分组 ID；允许多个分组引用同一号池"),
 		field.String("subscription_type").
 			MaxLen(20).
 			Default(domain.SubscriptionTypeStandard),
@@ -275,6 +283,8 @@ func (Group) Indexes() []ent.Index {
 		// name 字段已在 Fields() 中声明 Unique()，无需重复索引
 		index.Fields("status"),
 		index.Fields("platform"),
+		index.Fields("group_role"),
+		index.Fields("self_hosted_pool_group_id"),
 		index.Fields("subscription_type"),
 		index.Fields("is_exclusive"),
 		index.Fields("deleted_at"),

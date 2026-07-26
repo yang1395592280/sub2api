@@ -222,6 +222,47 @@ func (_u *GroupUpdate) SetNillablePlatform(v *string) *GroupUpdate {
 	return _u
 }
 
+// SetGroupRole sets the "group_role" field.
+func (_u *GroupUpdate) SetGroupRole(v string) *GroupUpdate {
+	_u.mutation.SetGroupRole(v)
+	return _u
+}
+
+// SetNillableGroupRole sets the "group_role" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableGroupRole(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetGroupRole(*v)
+	}
+	return _u
+}
+
+// SetSelfHostedPoolGroupID sets the "self_hosted_pool_group_id" field.
+func (_u *GroupUpdate) SetSelfHostedPoolGroupID(v int64) *GroupUpdate {
+	_u.mutation.ResetSelfHostedPoolGroupID()
+	_u.mutation.SetSelfHostedPoolGroupID(v)
+	return _u
+}
+
+// SetNillableSelfHostedPoolGroupID sets the "self_hosted_pool_group_id" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableSelfHostedPoolGroupID(v *int64) *GroupUpdate {
+	if v != nil {
+		_u.SetSelfHostedPoolGroupID(*v)
+	}
+	return _u
+}
+
+// AddSelfHostedPoolGroupID adds value to the "self_hosted_pool_group_id" field.
+func (_u *GroupUpdate) AddSelfHostedPoolGroupID(v int64) *GroupUpdate {
+	_u.mutation.AddSelfHostedPoolGroupID(v)
+	return _u
+}
+
+// ClearSelfHostedPoolGroupID clears the value of the "self_hosted_pool_group_id" field.
+func (_u *GroupUpdate) ClearSelfHostedPoolGroupID() *GroupUpdate {
+	_u.mutation.ClearSelfHostedPoolGroupID()
+	return _u
+}
+
 // SetSubscriptionType sets the "subscription_type" field.
 func (_u *GroupUpdate) SetSubscriptionType(v string) *GroupUpdate {
 	_u.mutation.SetSubscriptionType(v)
@@ -1327,6 +1368,11 @@ func (_u *GroupUpdate) check() error {
 			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "Group.platform": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.GroupRole(); ok {
+		if err := group.GroupRoleValidator(v); err != nil {
+			return &ValidationError{Name: "group_role", err: fmt.Errorf(`ent: validator failed for field "Group.group_role": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.SubscriptionType(); ok {
 		if err := group.SubscriptionTypeValidator(v); err != nil {
 			return &ValidationError{Name: "subscription_type", err: fmt.Errorf(`ent: validator failed for field "Group.subscription_type": %w`, err)}
@@ -1407,6 +1453,18 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(group.FieldPlatform, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.GroupRole(); ok {
+		_spec.SetField(group.FieldGroupRole, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.SelfHostedPoolGroupID(); ok {
+		_spec.SetField(group.FieldSelfHostedPoolGroupID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedSelfHostedPoolGroupID(); ok {
+		_spec.AddField(group.FieldSelfHostedPoolGroupID, field.TypeInt64, value)
+	}
+	if _u.mutation.SelfHostedPoolGroupIDCleared() {
+		_spec.ClearField(group.FieldSelfHostedPoolGroupID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.SubscriptionType(); ok {
 		_spec.SetField(group.FieldSubscriptionType, field.TypeString, value)
@@ -2146,6 +2204,47 @@ func (_u *GroupUpdateOne) SetNillablePlatform(v *string) *GroupUpdateOne {
 	if v != nil {
 		_u.SetPlatform(*v)
 	}
+	return _u
+}
+
+// SetGroupRole sets the "group_role" field.
+func (_u *GroupUpdateOne) SetGroupRole(v string) *GroupUpdateOne {
+	_u.mutation.SetGroupRole(v)
+	return _u
+}
+
+// SetNillableGroupRole sets the "group_role" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableGroupRole(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetGroupRole(*v)
+	}
+	return _u
+}
+
+// SetSelfHostedPoolGroupID sets the "self_hosted_pool_group_id" field.
+func (_u *GroupUpdateOne) SetSelfHostedPoolGroupID(v int64) *GroupUpdateOne {
+	_u.mutation.ResetSelfHostedPoolGroupID()
+	_u.mutation.SetSelfHostedPoolGroupID(v)
+	return _u
+}
+
+// SetNillableSelfHostedPoolGroupID sets the "self_hosted_pool_group_id" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableSelfHostedPoolGroupID(v *int64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetSelfHostedPoolGroupID(*v)
+	}
+	return _u
+}
+
+// AddSelfHostedPoolGroupID adds value to the "self_hosted_pool_group_id" field.
+func (_u *GroupUpdateOne) AddSelfHostedPoolGroupID(v int64) *GroupUpdateOne {
+	_u.mutation.AddSelfHostedPoolGroupID(v)
+	return _u
+}
+
+// ClearSelfHostedPoolGroupID clears the value of the "self_hosted_pool_group_id" field.
+func (_u *GroupUpdateOne) ClearSelfHostedPoolGroupID() *GroupUpdateOne {
+	_u.mutation.ClearSelfHostedPoolGroupID()
 	return _u
 }
 
@@ -3267,6 +3366,11 @@ func (_u *GroupUpdateOne) check() error {
 			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "Group.platform": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.GroupRole(); ok {
+		if err := group.GroupRoleValidator(v); err != nil {
+			return &ValidationError{Name: "group_role", err: fmt.Errorf(`ent: validator failed for field "Group.group_role": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.SubscriptionType(); ok {
 		if err := group.SubscriptionTypeValidator(v); err != nil {
 			return &ValidationError{Name: "subscription_type", err: fmt.Errorf(`ent: validator failed for field "Group.subscription_type": %w`, err)}
@@ -3364,6 +3468,18 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(group.FieldPlatform, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.GroupRole(); ok {
+		_spec.SetField(group.FieldGroupRole, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.SelfHostedPoolGroupID(); ok {
+		_spec.SetField(group.FieldSelfHostedPoolGroupID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedSelfHostedPoolGroupID(); ok {
+		_spec.AddField(group.FieldSelfHostedPoolGroupID, field.TypeInt64, value)
+	}
+	if _u.mutation.SelfHostedPoolGroupIDCleared() {
+		_spec.ClearField(group.FieldSelfHostedPoolGroupID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.SubscriptionType(); ok {
 		_spec.SetField(group.FieldSubscriptionType, field.TypeString, value)
