@@ -105,6 +105,7 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // channel_price_snapshot
 			sqlmock.AnyArg(), // channel_price_source
 			sqlmock.AnyArg(), // channel_price_refreshed_at
+			sqlmock.AnyArg(), // session_id
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), createdAt))
@@ -222,6 +223,7 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // channel_price_snapshot
 			sqlmock.AnyArg(), // channel_price_source
 			sqlmock.AnyArg(), // channel_price_refreshed_at
+			sqlmock.AnyArg(), // session_id
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(100), createdAt))
@@ -474,6 +476,7 @@ func TestScanUsageLogSchedulerTimingAndChannelPriceSnapshot(t *testing.T) {
 		price,                             // channel_price_snapshot
 		source,                            // channel_price_source
 		refreshedAt,                       // channel_price_refreshed_at
+		nil,                               // session_id
 		createdAt,                         // created_at
 	}
 
@@ -1138,6 +1141,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{},
 			sql.NullString{},
 			sql.NullTime{},
+			sql.NullString{}, // session_id
 			now,
 		}})
 		require.NoError(t, err)
@@ -1225,6 +1229,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{}, // channel_price_snapshot
 			sql.NullString{},  // channel_price_source
 			sql.NullTime{},    // channel_price_refreshed_at
+			sql.NullString{},  // session_id
 			now,
 		}})
 		require.NoError(t, err)
@@ -1291,6 +1296,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{}, // channel_price_snapshot
 			sql.NullString{},  // channel_price_source
 			sql.NullTime{},    // channel_price_refreshed_at
+			sql.NullString{},  // session_id
 			now,
 		}})
 		require.NoError(t, err)
@@ -1357,6 +1363,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{}, // channel_price_snapshot
 			sql.NullString{},  // channel_price_source
 			sql.NullTime{},    // channel_price_refreshed_at
+			sql.NullString{},  // session_id
 			now,
 		}})
 		require.NoError(t, err)

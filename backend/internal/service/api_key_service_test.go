@@ -273,6 +273,9 @@ func (s *apiKeyServiceUserSubRepoStub) BatchUpdateExpiredStatus(context.Context)
 func (s *apiKeyServiceUserRepoStub) Create(context.Context, *User) error {
 	panic("unexpected Create call")
 }
+func (s *apiKeyServiceUserRepoStub) CreateWithEmailAliasGuard(context.Context, *User) error {
+	panic("unexpected CreateWithEmailAliasGuard call")
+}
 func (s *apiKeyServiceUserRepoStub) GetByID(context.Context, int64) (*User, error) {
 	if s.user == nil {
 		return nil, ErrUserNotFound
@@ -339,6 +342,9 @@ func (s *apiKeyServiceUserRepoStub) BatchUpdateLimits(context.Context, []int64, 
 }
 func (s *apiKeyServiceUserRepoStub) ExistsByEmail(context.Context, string) (bool, error) {
 	panic("unexpected ExistsByEmail call")
+}
+func (s *apiKeyServiceUserRepoStub) ExistsByEmailAlias(context.Context, string) (bool, error) {
+	panic("unexpected ExistsByEmailAlias call")
 }
 func (s *apiKeyServiceUserRepoStub) RemoveGroupFromAllowedGroups(context.Context, int64) (int64, error) {
 	panic("unexpected RemoveGroupFromAllowedGroups call")

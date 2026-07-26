@@ -64,6 +64,7 @@ vi.mock('@/api/admin', () => ({
       getUsageSummary,
       getCapacitySummary,
       getGroupCapacityUsers,
+      getLiveCapability: vi.fn().mockResolvedValue({ supported: true }),
       update: updateGroup,
       delete: vi.fn(),
       updateSortOrder: vi.fn()

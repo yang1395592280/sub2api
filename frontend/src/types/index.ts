@@ -558,6 +558,8 @@ export interface Group {
   allow_messages_dispatch?: boolean
   openai_auto_scheduler_enabled?: boolean
   allow_auto_cheapest_scheduling?: boolean
+  // OpenAI Live 接口开关
+  allow_live: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   require_oauth_only: boolean
@@ -765,6 +767,7 @@ export interface CreateGroupRequest {
   allow_messages_dispatch?: boolean
   openai_auto_scheduler_enabled?: boolean
   allow_auto_cheapest_scheduling?: boolean
+  allow_live?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   model_routing?: Record<string, number[]> | null
@@ -820,6 +823,7 @@ export interface UpdateGroupRequest {
   allow_messages_dispatch?: boolean
   openai_auto_scheduler_enabled?: boolean
   allow_auto_cheapest_scheduling?: boolean
+  allow_live?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   model_routing?: Record<string, number[]> | null
@@ -1076,7 +1080,10 @@ export interface OllamaCloudUsageState {
 
 export interface OllamaCloudUsageSettings {
   enabled: boolean
+  /** Max wait while model requests keep arriving (minutes). */
   interval_minutes: number
+  /** Trailing quiet period after the latest model request (minutes). */
+  debounce_minutes: number
 }
 
 export interface Account {
@@ -1602,7 +1609,7 @@ export interface CodexSessionImportResult {
 // ==================== Usage & Redeem Types ====================
 
 export type RedeemCodeType = 'balance' | 'concurrency' | 'subscription' | 'invitation' | 'lottery_ticket'
-export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2' | 'cyber'
+export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2' | 'cyber' | 'live'
 export type ImageSizeSource = 'output' | 'input' | 'default' | 'legacy'
 export type ImageSizeBreakdown = Record<string, number>
 
