@@ -113,7 +113,6 @@ const BaseDialogStub = defineComponent({
 })
 
 const SelectStub = defineComponent({
-  name: 'Select',
   props: {
     modelValue: {
       type: [String, Number, Boolean, null],

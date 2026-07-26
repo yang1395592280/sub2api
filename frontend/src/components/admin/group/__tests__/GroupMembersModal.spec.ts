@@ -2,7 +2,6 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import GroupMembersModal from '../GroupMembersModal.vue'
 import { adminAPI } from '@/api/admin'
-import en from '@/i18n/locales/en'
 import zh from '@/i18n/locales/zh'
 
 const showError = vi.fn()
@@ -113,7 +112,7 @@ describe('GroupMembersModal', () => {
     const wrapper = mountModal({ id: 13, name: '公开分组' })
     await flushPromises()
 
-    expect(wrapper.text()).toContain('这是公开标准分组，所有用户都可访问，因此没有固定的用户名单。')
+    expect(wrapper.text()).toContain('公开分组没有固定成员，所有用户都可选择使用。')
     expect(wrapper.find('[data-testid="group-members-empty-state"]').exists()).toBe(true)
   })
 
@@ -165,15 +164,15 @@ describe('GroupMembersModal', () => {
       [1],
       expect.any(String)
     )
-    expect(wrapper.text()).toContain('今天')
-    expect(wrapper.text()).toContain('昨天')
+    expect(wrapper.text()).toContain('今日用量')
+    expect(wrapper.text()).toContain('昨日用量')
     expect(wrapper.text()).toContain('2.6K req')
     expect(wrapper.text()).toContain('232.90M token')
     expect(wrapper.text()).toContain('A $281.55')
     expect(wrapper.text()).toContain('U $41.79')
     expect(wrapper.find('[data-testid="member-usage-comparison-1"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="member-usage-today-1"]').text()).toContain('今天')
-    expect(wrapper.find('[data-testid="member-usage-yesterday-1"]').text()).toContain('昨天')
+    expect(wrapper.find('[data-testid="member-usage-today-1"]').text()).toContain('今日用量')
+    expect(wrapper.find('[data-testid="member-usage-yesterday-1"]').text()).toContain('昨日用量')
   })
 
   it('does not render usage section or request usage comparison for non-exclusive fixed members', async () => {
@@ -242,6 +241,6 @@ describe('GroupMembersModal', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('alice')
-    expect(wrapper.text()).toContain('用量加载失败')
+    expect(wrapper.text()).toContain('加载成员用量失败')
   })
 })

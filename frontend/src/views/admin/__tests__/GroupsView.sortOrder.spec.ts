@@ -12,6 +12,7 @@ const {
   getModelsListCandidates,
   getUsageSummary,
   getCapacitySummary,
+  getLiveCapability,
   showError,
   showSuccess,
 } = vi.hoisted(() => ({
@@ -21,6 +22,7 @@ const {
   getModelsListCandidates: vi.fn(),
   getUsageSummary: vi.fn(),
   getCapacitySummary: vi.fn(),
+  getLiveCapability: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
 }));
@@ -34,6 +36,7 @@ vi.mock("@/api/admin", () => ({
       getModelsListCandidates,
       getUsageSummary,
       getCapacitySummary,
+      getLiveCapability,
     },
   },
 }));
@@ -169,6 +172,7 @@ describe("GroupsView sort order modal", () => {
     getModelsListCandidates.mockResolvedValue([]);
     getUsageSummary.mockResolvedValue([]);
     getCapacitySummary.mockResolvedValue([]);
+    getLiveCapability.mockResolvedValue({ supported: true });
   });
 
   it("opens groups sorted by sort_order and saves arrow-adjusted order", async () => {
