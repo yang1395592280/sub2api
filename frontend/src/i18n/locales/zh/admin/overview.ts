@@ -835,6 +835,7 @@ export default {
         name: '名称',
         id: 'ID',
         platform: '平台',
+        roleAndPool: '角色 / 号池',
         rateMultiplier: '费率倍数',
         rpmOverride: 'RPM 覆盖',
         rpmOverrideHint: '该用户在此分组的 RPM 上限；留空 = 使用分组默认；0 = 不限制',
@@ -870,6 +871,8 @@ export default {
         name: '名称',
         description: '描述',
         platform: '平台',
+        groupRole: '分组角色',
+        selfHostedPool: '优先自建号池',
         rateMultiplier: '费率倍数',
         status: '状态',
         exclusive: '专属分组',
@@ -925,6 +928,20 @@ export default {
           '公开分组费率 0.8，您可以创建一个费率 0.7 的专属分组，手动分配给 VIP 用户，让他们享受更优惠的价格。'
       },
       rateMultiplierHint: '1.0 = 标准费率，0.5 = 半价，2.0 = 双倍',
+      roles: {
+        standard: '普通分组',
+        selfHostedPool: '自建号池'
+      },
+      pool: {
+        roleHint: '自建号池只提供可调度账号，不承载用户权限、倍率或计费配置。',
+        roleNotEditable: '分组角色创建后不可更改。',
+        selectPlaceholder: '选择自建号池（可选）',
+        noPool: '不绑定自建号池',
+        bindingHint: '请求会先调度所选号池；号池不可用后再调度本组账号。倍率和用量归属始终按当前普通分组计算。同一个号池可被多个普通分组共享。',
+        inactiveHint: '关闭后，所有关联分组将跳过此号池并直接调度各自账号。',
+        referencedBy: '被 {count} 个普通分组引用',
+        notBound: '未绑定号池'
+      },
       platforms: {
         all: '全部平台',
         anthropic: 'Anthropic',

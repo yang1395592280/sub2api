@@ -56,10 +56,15 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 	if groupIn == nil {
 		return errors.New("group is nil")
 	}
+	if groupIn.GroupRole == "" {
+		groupIn.GroupRole = service.GroupRoleStandard
+	}
 	builder := client.Group.Create().
 		SetName(groupIn.Name).
 		SetDescription(groupIn.Description).
 		SetPlatform(groupIn.Platform).
+		SetGroupRole(groupIn.GroupRole).
+		SetNillableSelfHostedPoolGroupID(groupIn.SelfHostedPoolGroupID).
 		SetRateMultiplier(groupIn.RateMultiplier).
 		SetSortOrder(groupIn.SortOrder).
 		SetIsExclusive(groupIn.IsExclusive).
@@ -216,7 +221,62 @@ func (r *groupRepository) GetByID(ctx context.Context, id int64) (*service.Group
 		out.ActiveAccountCount = c.Active
 		out.RateLimitedAccountCount = c.RateLimited
 	}
+	r.hydrateSelfHostedPoolMetadata(ctx, []*service.Group{out})
 	return out, nil
+}
+
+func (r *groupRepository) CountSelfHostedPoolReferences(ctx context.Context, poolGroupID int64) (int64, error) {
+	count, err := r.client.Group.Query().
+		Where(group.SelfHostedPoolGroupIDEQ(poolGroupID)).
+		Count(ctx)
+	return int64(count), err
+}
+
+func (r *groupRepository) hydrateSelfHostedPoolMetadata(ctx context.Context, groups []*service.Group) {
+	poolIDs := make([]int64, 0, len(groups))
+	listedPoolIDs := make([]int64, 0, len(groups))
+	for _, item := range groups {
+		if item == nil {
+			continue
+		}
+		if item.SelfHostedPoolGroupID != nil {
+			poolIDs = append(poolIDs, *item.SelfHostedPoolGroupID)
+		}
+		if item.IsSelfHostedPool() {
+			listedPoolIDs = append(listedPoolIDs, item.ID)
+		}
+	}
+	poolIDs = uniquePositiveInt64s(poolIDs)
+	if len(poolIDs) > 0 {
+		rows, err := r.client.Group.Query().Where(group.IDIn(poolIDs...)).All(ctx)
+		if err == nil {
+			byID := make(map[int64]*dbent.Group, len(rows))
+			for _, row := range rows {
+				byID[row.ID] = row
+			}
+			for _, item := range groups {
+				if item == nil || item.SelfHostedPoolGroupID == nil {
+					continue
+				}
+				if row := byID[*item.SelfHostedPoolGroupID]; row != nil {
+					item.SelfHostedPoolName = row.Name
+					item.SelfHostedPoolStatus = row.Status
+				}
+			}
+		}
+	}
+	listedPoolIDs = uniquePositiveInt64s(listedPoolIDs)
+	for _, poolID := range listedPoolIDs {
+		count, err := r.CountSelfHostedPoolReferences(ctx, poolID)
+		if err != nil {
+			continue
+		}
+		for _, item := range groups {
+			if item != nil && item.ID == poolID {
+				item.ReferencedGroupCount = count
+			}
+		}
+	}
 }
 
 func (r *groupRepository) GetByIDLite(ctx context.Context, id int64) (*service.Group, error) {
@@ -235,6 +295,7 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetName(groupIn.Name).
 		SetDescription(groupIn.Description).
 		SetPlatform(groupIn.Platform).
+		SetGroupRole(groupIn.GroupRole).
 		SetRateMultiplier(groupIn.RateMultiplier).
 		SetIsExclusive(groupIn.IsExclusive).
 		SetStatus(groupIn.Status).
@@ -279,6 +340,12 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetPeakStart(groupIn.PeakStart).
 		SetPeakEnd(groupIn.PeakEnd).
 		SetPeakRateMultiplier(groupIn.PeakRateMultiplier)
+
+	if groupIn.SelfHostedPoolGroupID != nil {
+		builder = builder.SetSelfHostedPoolGroupID(*groupIn.SelfHostedPoolGroupID)
+	} else {
+		builder = builder.ClearSelfHostedPoolGroupID()
+	}
 
 	// 显式处理可空字段：nil 需要 clear，非 nil 需要 set。
 	if groupIn.DailyLimitUSD != nil {
@@ -438,6 +505,11 @@ func (r *groupRepository) ListWithFilters(ctx context.Context, params pagination
 			outGroups[i].RateLimitedAccountCount = c.RateLimited
 		}
 	}
+	groupPointers := make([]*service.Group, 0, len(outGroups))
+	for i := range outGroups {
+		groupPointers = append(groupPointers, &outGroups[i])
+	}
+	r.hydrateSelfHostedPoolMetadata(ctx, groupPointers)
 
 	return outGroups, paginationResultFromTotal(int64(total), params), nil
 }

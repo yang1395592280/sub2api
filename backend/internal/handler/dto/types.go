@@ -93,13 +93,17 @@ type APIKey struct {
 }
 
 type Group struct {
-	ID             int64   `json:"id"`
-	Name           string  `json:"name"`
-	Description    string  `json:"description"`
-	Platform       string  `json:"platform"`
-	RateMultiplier float64 `json:"rate_multiplier"`
-	IsExclusive    bool    `json:"is_exclusive"`
-	Status         string  `json:"status"`
+	ID                        int64   `json:"id"`
+	Name                      string  `json:"name"`
+	Description               string  `json:"description"`
+	Platform                  string  `json:"platform"`
+	GroupRole                 string  `json:"group_role"`
+	SelfHostedPoolGroupID     *int64  `json:"self_hosted_pool_group_id"`
+	SelfHostedPoolGroupName   string  `json:"self_hosted_pool_group_name,omitempty"`
+	SelfHostedPoolGroupStatus string  `json:"self_hosted_pool_group_status,omitempty"`
+	RateMultiplier            float64 `json:"rate_multiplier"`
+	IsExclusive               bool    `json:"is_exclusive"`
+	Status                    string  `json:"status"`
 
 	SubscriptionType string   `json:"subscription_type"`
 	DailyLimitUSD    *float64 `json:"daily_limit_usd"`
@@ -185,6 +189,7 @@ type AdminGroup struct {
 	AccountCount            int64          `json:"account_count,omitempty"`
 	ActiveAccountCount      int64          `json:"active_account_count,omitempty"`
 	RateLimitedAccountCount int64          `json:"rate_limited_account_count,omitempty"`
+	ReferencedGroupCount    int64          `json:"referenced_group_count,omitempty"`
 
 	// 分组排序
 	SortOrder int `json:"sort_order"`

@@ -302,6 +302,18 @@ func TestOpenAIAutoCheapestImageSelection_PriceTierBeforeHigherGroup(t *testing.
 	if selection.ReleaseFunc != nil {
 		selection.ReleaseFunc()
 	}
+
+	RequireOpenAIAutoCheapestQualifiedFailover(ctx)
+	effectiveKey, selection, _, err = svc.SelectEffectiveOpenAIAccountWithSchedulerForImages(
+		ctx, apiKey, "", req.RequestedModel, req.RequiredEndpoint, nil, req.RequiredImageCapability,
+	)
+	require.NoError(t, err)
+	require.Equal(t, &expensiveGroupID, effectiveKey.GroupID)
+	require.Equal(t, expensiveFast.ID, selection.Account.ID)
+	require.Zero(t, circuit.calls)
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
 }
 
 func TestOpenAIAutoCheapestSelection_FirstOutputTimeoutDisablesLowQualityFallback(t *testing.T) {
@@ -521,6 +533,111 @@ func TestCandidateGroups_ExcludesGroupsThatDisableAutoCheapestScheduling(t *test
 
 	require.NoError(t, err)
 	require.Equal(t, []int64{2}, groupIDsForTest(got))
+}
+
+func TestCandidateGroups_ExcludesSelfHostedAccountPools(t *testing.T) {
+	provider := &fakeAvailableOpenAIGroupsProvider{
+		groups: []Group{
+			{ID: 1, Name: "pool", Platform: PlatformOpenAI, GroupRole: GroupRoleSelfHostedPool, Status: StatusActive, RateMultiplier: 0.01, AllowAutoCheapestScheduling: true},
+			{ID: 2, Name: "standard", Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, Status: StatusActive, RateMultiplier: 0.15, AllowAutoCheapestScheduling: true},
+		},
+	}
+
+	got, err := NewOpenAIAutoCheapestGroupResolver(provider).CandidateGroups(context.Background(), 42, nil)
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{2}, groupIDsForTest(got))
+}
+
+func TestOpenAIAccountSourceGroupIDs_PoolThenEffectiveAndDisabledSkip(t *testing.T) {
+	effectiveID := int64(15)
+	poolID := int64(99)
+	svc := &OpenAIGatewayService{}
+	effective := &Group{
+		ID: effectiveID, Platform: PlatformOpenAI, GroupRole: GroupRoleStandard,
+		SelfHostedPoolGroupID: &poolID, SelfHostedPoolStatus: StatusActive,
+	}
+
+	sources := svc.openAIAccountSourceGroupIDs(context.Background(), &effectiveID, effective)
+	require.Len(t, sources, 2)
+	require.Equal(t, poolID, *sources[0])
+	require.Equal(t, effectiveID, *sources[1])
+
+	effective.SelfHostedPoolStatus = StatusDisabled
+	sources = svc.openAIAccountSourceGroupIDs(context.Background(), &effectiveID, effective)
+	require.Len(t, sources, 1)
+	require.Equal(t, effectiveID, *sources[0])
+}
+
+func TestAutoCheapestSharedPoolStageOrder(t *testing.T) {
+	poolID := int64(99)
+	groups := []Group{
+		{ID: 10, Name: "0.10", Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, Status: StatusActive, RateMultiplier: 0.10, AllowAutoCheapestScheduling: true},
+		{ID: 15, Name: "0.15", Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, Status: StatusActive, RateMultiplier: 0.15, AllowAutoCheapestScheduling: true, SelfHostedPoolGroupID: &poolID, SelfHostedPoolStatus: StatusActive},
+		{ID: 20, Name: "0.20", Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, Status: StatusActive, RateMultiplier: 0.20, AllowAutoCheapestScheduling: true, SelfHostedPoolGroupID: &poolID, SelfHostedPoolStatus: StatusActive},
+	}
+	candidates, err := NewOpenAIAutoCheapestGroupResolver(&fakeAvailableOpenAIGroupsProvider{groups: groups}).CandidateGroups(context.Background(), 42, nil)
+	require.NoError(t, err)
+
+	var stages []int64
+	var auditedPoolIDs []int64
+	var fallbackReasons []string
+	svc := &OpenAIGatewayService{}
+	for i := range candidates {
+		effective := &candidates[i]
+		effectiveID := effective.ID
+		_, err := svc.selectOpenAIAccountAcrossSources(context.Background(), &effectiveID, effective, func(stageCtx context.Context) (*AccountSelectionResult, error) {
+			sourceID := openAIAccountSourceGroupFromContext(stageCtx, &effectiveID)
+			stages = append(stages, *sourceID)
+			metadata := openAIPoolStageMetadataFromContext(stageCtx)
+			auditedPoolIDs = append(auditedPoolIDs, metadata.PoolGroupID)
+			fallbackReasons = append(fallbackReasons, metadata.FallbackReason)
+			return nil, ErrNoAvailableAccounts
+		})
+		require.ErrorIs(t, err, ErrNoAvailableAccounts)
+	}
+
+	require.Equal(t, []int64{10, 99, 15, 99, 20}, stages)
+	require.Equal(t, []int64{0, 99, 99, 99, 99}, auditedPoolIDs)
+	require.Equal(t, []string{"", "", "no_available_accounts", "", "no_available_accounts"}, fallbackReasons)
+}
+
+func TestSelectAccountWithLoadAwareness_UsesSourceMembershipAndEffectivePriceGuard(t *testing.T) {
+	effectiveID := int64(15)
+	poolID := int64(99)
+	poolPriority := 1
+	groupPriority := 1
+	poolPrice := 0.2
+	groupPrice := 0.1
+	effective := &Group{ID: effectiveID, Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, UpstreamPriceMaxMultiplier: 0.15}
+	poolAccount := Account{
+		ID: 9901, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1,
+		ChannelPrice: &poolPrice, GroupIDs: []int64{poolID}, AccountGroups: []AccountGroup{{GroupID: poolID, Priority: poolPriority}},
+	}
+	groupAccount := Account{
+		ID: 1501, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1,
+		ChannelPrice: &groupPrice, GroupIDs: []int64{effectiveID}, AccountGroups: []AccountGroup{{GroupID: effectiveID, Priority: groupPriority}},
+	}
+	svc := &OpenAIGatewayService{
+		accountRepo: schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: []Account{poolAccount, groupAccount}}},
+		cfg:         newSchedulerTestSubscriptionPriorityConfig(),
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{acquireResults: map[int64]bool{
+			poolAccount.ID: true, groupAccount.ID: true,
+		}}),
+	}
+	ctx := withOpenAIEffectiveGroup(context.Background(), effective)
+	ctx = withOpenAIAccountSourceGroup(ctx, &poolID)
+
+	selection, err := svc.selectAccountWithLoadAwareness(ctx, &effectiveID, PlatformOpenAI, "", "gpt-5.6-sol", nil, false, "", false)
+
+	require.ErrorIs(t, err, ErrNoAvailableAccounts)
+	require.Nil(t, selection)
+
+	effective.UpstreamPriceMaxMultiplier = 0.25
+	selection, err = svc.selectAccountWithLoadAwareness(ctx, &effectiveID, PlatformOpenAI, "", "gpt-5.6-sol", nil, false, "", false)
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.Equal(t, poolAccount.ID, selection.Account.ID)
 }
 
 type fakeAvailableOpenAIGroupsProvider struct {

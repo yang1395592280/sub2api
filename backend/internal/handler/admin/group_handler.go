@@ -43,6 +43,25 @@ type optionalLimitField struct {
 	value *float64
 }
 
+type optionalInt64Field struct {
+	set   bool
+	value *int64
+}
+
+func (f *optionalInt64Field) UnmarshalJSON(data []byte) error {
+	f.set = true
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		f.value = nil
+		return nil
+	}
+	var value int64
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	f.value = &value
+	return nil
+}
+
 func (f *optionalLimitField) UnmarshalJSON(data []byte) error {
 	f.set = true
 
@@ -98,15 +117,17 @@ func NewGroupHandler(adminService service.AdminService, dashboardService *servic
 
 // CreateGroupRequest represents create group request
 type CreateGroupRequest struct {
-	Name             string             `json:"name" binding:"required"`
-	Description      string             `json:"description"`
-	Platform         string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok composite"`
-	RateMultiplier   float64            `json:"rate_multiplier"`
-	IsExclusive      bool               `json:"is_exclusive"`
-	SubscriptionType string             `json:"subscription_type" binding:"omitempty,oneof=standard subscription"`
-	DailyLimitUSD    optionalLimitField `json:"daily_limit_usd"`
-	WeeklyLimitUSD   optionalLimitField `json:"weekly_limit_usd"`
-	MonthlyLimitUSD  optionalLimitField `json:"monthly_limit_usd"`
+	Name                  string             `json:"name" binding:"required"`
+	Description           string             `json:"description"`
+	Platform              string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok composite"`
+	GroupRole             string             `json:"group_role" binding:"omitempty,oneof=standard self_hosted_pool"`
+	SelfHostedPoolGroupID *int64             `json:"self_hosted_pool_group_id"`
+	RateMultiplier        float64            `json:"rate_multiplier"`
+	IsExclusive           bool               `json:"is_exclusive"`
+	SubscriptionType      string             `json:"subscription_type" binding:"omitempty,oneof=standard subscription"`
+	DailyLimitUSD         optionalLimitField `json:"daily_limit_usd"`
+	WeeklyLimitUSD        optionalLimitField `json:"weekly_limit_usd"`
+	MonthlyLimitUSD       optionalLimitField `json:"monthly_limit_usd"`
 	// 图片生成计费配置（antigravity 和 gemini 平台使用，负数表示清除配置）
 	AllowImageGeneration            bool     `json:"allow_image_generation"`
 	AllowBatchImageGeneration       bool     `json:"allow_batch_image_generation"`
@@ -161,16 +182,18 @@ type CreateGroupRequest struct {
 
 // UpdateGroupRequest represents update group request
 type UpdateGroupRequest struct {
-	Name             string             `json:"name"`
-	Description      *string            `json:"description"`
-	Platform         string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok composite"`
-	RateMultiplier   *float64           `json:"rate_multiplier"`
-	IsExclusive      *bool              `json:"is_exclusive"`
-	Status           string             `json:"status" binding:"omitempty,oneof=active inactive"`
-	SubscriptionType string             `json:"subscription_type" binding:"omitempty,oneof=standard subscription"`
-	DailyLimitUSD    optionalLimitField `json:"daily_limit_usd"`
-	WeeklyLimitUSD   optionalLimitField `json:"weekly_limit_usd"`
-	MonthlyLimitUSD  optionalLimitField `json:"monthly_limit_usd"`
+	Name                  string             `json:"name"`
+	Description           *string            `json:"description"`
+	Platform              string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok composite"`
+	GroupRole             *string            `json:"group_role" binding:"omitempty,oneof=standard self_hosted_pool"`
+	SelfHostedPoolGroupID optionalInt64Field `json:"self_hosted_pool_group_id"`
+	RateMultiplier        *float64           `json:"rate_multiplier"`
+	IsExclusive           *bool              `json:"is_exclusive"`
+	Status                string             `json:"status" binding:"omitempty,oneof=active inactive"`
+	SubscriptionType      string             `json:"subscription_type" binding:"omitempty,oneof=standard subscription"`
+	DailyLimitUSD         optionalLimitField `json:"daily_limit_usd"`
+	WeeklyLimitUSD        optionalLimitField `json:"weekly_limit_usd"`
+	MonthlyLimitUSD       optionalLimitField `json:"monthly_limit_usd"`
 	// 图片生成计费配置（antigravity 和 gemini 平台使用，负数表示清除配置）
 	AllowImageGeneration            *bool    `json:"allow_image_generation"`
 	AllowBatchImageGeneration       *bool    `json:"allow_batch_image_generation"`
@@ -491,6 +514,8 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		Name:                                  req.Name,
 		Description:                           req.Description,
 		Platform:                              req.Platform,
+		GroupRole:                             req.GroupRole,
+		SelfHostedPoolGroupID:                 req.SelfHostedPoolGroupID,
 		RateMultiplier:                        req.RateMultiplier,
 		IsExclusive:                           req.IsExclusive,
 		SubscriptionType:                      req.SubscriptionType,
@@ -603,6 +628,9 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		Name:                                  req.Name,
 		Description:                           req.Description,
 		Platform:                              req.Platform,
+		GroupRole:                             req.GroupRole,
+		SelfHostedPoolGroupID:                 req.SelfHostedPoolGroupID.value,
+		SelfHostedPoolGroupIDSet:              req.SelfHostedPoolGroupID.set,
 		RateMultiplier:                        req.RateMultiplier,
 		IsExclusive:                           req.IsExclusive,
 		Status:                                req.Status,

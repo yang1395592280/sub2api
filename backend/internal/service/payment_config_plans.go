@@ -132,12 +132,26 @@ func (s *PaymentConfigService) ListPlansForSale(ctx context.Context) ([]*dbent.S
 	return s.entClient.SubscriptionPlan.Query().Where(subscriptionplan.ForSaleEQ(true)).Order(subscriptionplan.BySortOrder()).All(ctx)
 }
 
+func (s *PaymentConfigService) validateAssignablePlanGroup(ctx context.Context, groupID int64) error {
+	groupRow, err := s.entClient.Group.Get(ctx, groupID)
+	if err != nil {
+		return fmt.Errorf("get subscription plan group %d: %w", groupID, err)
+	}
+	if groupRow.GroupRole == GroupRoleSelfHostedPool {
+		return ErrSelfHostedPoolNotAssignable
+	}
+	return nil
+}
+
 func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanRequest) (*dbent.SubscriptionPlan, error) {
 	if err := validatePlanRequired(req.Name, req.GroupID, req.Price, req.ValidityDays, req.ValidityUnit, req.OriginalPrice); err != nil {
 		return nil, err
 	}
 	currency, err := normalizePlanCurrency(req.Currency)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.validateAssignablePlanGroup(ctx, req.GroupID); err != nil {
 		return nil, err
 	}
 	b := s.entClient.SubscriptionPlan.Create().
@@ -157,6 +171,11 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req UpdatePlanRequest) (*dbent.SubscriptionPlan, error) {
 	if err := validatePlanPatch(req); err != nil {
 		return nil, err
+	}
+	if req.GroupID != nil {
+		if err := s.validateAssignablePlanGroup(ctx, *req.GroupID); err != nil {
+			return nil, err
+		}
 	}
 	u := s.entClient.SubscriptionPlan.UpdateOneID(id)
 	if req.GroupID != nil {

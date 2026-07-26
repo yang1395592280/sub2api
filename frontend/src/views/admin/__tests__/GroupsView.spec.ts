@@ -9,6 +9,7 @@ const {
   updateGroup,
   listGroups,
   getAllGroups,
+  getAllGroupsIncludingInactive,
   getModelsListCandidates,
   getUsageSummary,
   getCapacitySummary,
@@ -23,6 +24,7 @@ const {
   updateGroup: vi.fn(),
   listGroups: vi.fn(),
   getAllGroups: vi.fn(),
+  getAllGroupsIncludingInactive: vi.fn(),
   getModelsListCandidates: vi.fn(),
   getUsageSummary: vi.fn(),
   getCapacitySummary: vi.fn(),
@@ -60,6 +62,7 @@ vi.mock('@/api/admin', () => ({
       create: createGroup,
       list: listGroups,
       getAll: getAllGroups,
+      getAllIncludingInactive: getAllGroupsIncludingInactive,
       getModelsListCandidates,
       getUsageSummary,
       getCapacitySummary,
@@ -104,6 +107,8 @@ const createAdminGroup = (overrides: Partial<AdminGroup> = {}): AdminGroup => ({
   name: 'Core Anthropic',
   description: null,
   platform: 'anthropic',
+  group_role: 'standard',
+  self_hosted_pool_group_id: null,
   rate_multiplier: 1,
   rpm_limit: 0,
   is_exclusive: false,
@@ -169,10 +174,18 @@ const DataTableStub = {
 const SelectStub = {
   props: ['modelValue', 'options'],
   emits: ['update:modelValue', 'change'],
+  methods: {
+    handleChange(event: Event) {
+      const value = (event.target as HTMLSelectElement).value
+      const option = this.options.find((item: { value: unknown }) => String(item.value ?? '') === value)
+      this.$emit('update:modelValue', option?.value ?? null)
+      this.$emit('change')
+    }
+  },
   template: `
     <select
       :value="modelValue"
-      @change="$emit('update:modelValue', $event.target.value); $emit('change')"
+      @change="handleChange"
     >
       <option v-for="option in options" :key="String(option.value)" :value="option.value">
         {{ option.label }}
@@ -221,6 +234,7 @@ describe('admin GroupsView upstream price guard settings', () => {
     updateGroup.mockReset()
     listGroups.mockReset()
     getAllGroups.mockReset()
+    getAllGroupsIncludingInactive.mockReset()
     getModelsListCandidates.mockReset()
     getUsageSummary.mockReset()
     getCapacitySummary.mockReset()
@@ -241,6 +255,7 @@ describe('admin GroupsView upstream price guard settings', () => {
       pages: 1
     })
     getAllGroups.mockResolvedValue([])
+    getAllGroupsIncludingInactive.mockResolvedValue([])
     getModelsListCandidates.mockResolvedValue([])
     getUsageSummary.mockResolvedValue([])
     getCapacitySummary.mockResolvedValue([])
@@ -273,6 +288,59 @@ describe('admin GroupsView upstream price guard settings', () => {
       upstream_balance_refresh_interval_seconds: 600,
       upstream_price_max_multiplier: 0.08
     })
+  })
+
+  it('creates a self-hosted pool without showing standard group settings', async () => {
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-tour="groups-create-btn"]').trigger('click')
+    await wrapper.get('[data-tour="group-form-platform"]').setValue('openai')
+    await flushPromises()
+    await wrapper.get('[data-test="create-group-role"]').setValue('self_hosted_pool')
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="group-upstream-refresh-enabled"]').exists()).toBe(false)
+    await wrapper.get('[data-tour="group-form-name"]').setValue('共享自建号池')
+    await wrapper.get('#create-group-form').trigger('submit')
+    await flushPromises()
+
+    expect(createGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platform: 'openai',
+        group_role: 'self_hosted_pool',
+        self_hosted_pool_group_id: null
+      })
+    )
+  })
+
+  it('allows a standard group to bind an inactive shared pool', async () => {
+    const pool = createAdminGroup({
+      id: 99,
+      name: '共享号池',
+      platform: 'openai',
+      group_role: 'self_hosted_pool',
+      status: 'inactive'
+    })
+    getAllGroupsIncludingInactive.mockResolvedValue([pool])
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-tour="groups-create-btn"]').trigger('click')
+    await wrapper.get('[data-tour="group-form-platform"]').setValue('openai')
+    await flushPromises()
+
+    const poolSelect = wrapper.get('[data-test="create-self-hosted-pool"]')
+    expect(poolSelect.text()).toContain('共享号池')
+    await poolSelect.setValue('99')
+    await wrapper.get('[data-tour="group-form-name"]').setValue('0.15 分组')
+    await wrapper.get('#create-group-form').trigger('submit')
+    await flushPromises()
+
+    expect(createGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        group_role: 'standard',
+        self_hosted_pool_group_id: 99
+      })
+    )
   })
 
   it('hydrates and submits upstream settings in edit payload', async () => {

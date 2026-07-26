@@ -88,6 +88,9 @@ func (r *OpenAIAutoCheapestGroupResolver) CandidateGroups(ctx context.Context, u
 		if group.Platform != PlatformOpenAI {
 			continue
 		}
+		if group.IsSelfHostedPool() {
+			continue
+		}
 		if group.Status != StatusActive {
 			continue
 		}

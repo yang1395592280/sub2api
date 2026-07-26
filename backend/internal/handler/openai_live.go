@@ -100,7 +100,7 @@ func (h *OpenAIGatewayHandler) Live(c *gin.Context) {
 	defer userRelease()
 
 	identity := liveCallIdentity(c, apiKey, subject.UserID, subscription)
-	created, err := h.gatewayService.CreateLiveCall(c.Request.Context(), request, identity, subject.Concurrency)
+	created, err := h.gatewayService.CreateLiveCall(c.Request.Context(), request, identity, apiKey, subject.Concurrency)
 	if err != nil {
 		h.writeLiveCreateError(c, err)
 		return

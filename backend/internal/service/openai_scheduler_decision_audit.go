@@ -22,6 +22,11 @@ const (
 type OpenAISchedulerDecisionAuditEvent struct {
 	EventType                 string
 	GroupID                   int64
+	EffectiveGroupID          int64
+	AccountSourceGroupID      int64
+	AccountSourceType         string
+	PoolGroupID               int64
+	PoolFallbackReason        string
 	AccountID                 int64
 	LegacyAccountID           int64
 	ModelFamily               string

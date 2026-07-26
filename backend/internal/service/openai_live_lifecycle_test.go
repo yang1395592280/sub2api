@@ -254,18 +254,20 @@ func TestRunLiveControllerClosesExpiredSession(t *testing.T) {
 
 func TestFinalizeLiveCallIsIdempotentAndWritesZeroUsage(t *testing.T) {
 	record := &LiveCallRecord{
-		CallID:          "call_secret",
-		CallHash:        hashLiveCallID("call_secret"),
-		AccountID:       11,
-		APIKeyID:        22,
-		UserID:          33,
-		GroupID:         44,
-		LeaseID:         "lease-1",
-		Model:           "gpt-live-test",
-		CreatedAt:       time.Now().Add(-time.Second),
-		ExpiresAt:       time.Now().Add(time.Hour),
-		Controller:      LiveControllerPending,
-		InboundEndpoint: "/v1/live",
+		CallID:           "call_secret",
+		CallHash:         hashLiveCallID("call_secret"),
+		AccountID:        11,
+		APIKeyID:         22,
+		UserID:           33,
+		GroupID:          44,
+		EffectiveGroupID: 55,
+		RateMultiplier:   0.15,
+		LeaseID:          "lease-1",
+		Model:            "gpt-live-test",
+		CreatedAt:        time.Now().Add(-time.Second),
+		ExpiresAt:        time.Now().Add(time.Hour),
+		Controller:       LiveControllerPending,
+		InboundEndpoint:  "/v1/live",
 	}
 	store := &liveTestStore{}
 	require.NoError(t, store.SaveLiveCall(context.Background(), record, time.Hour))
@@ -295,6 +297,9 @@ func TestFinalizeLiveCallIsIdempotentAndWritesZeroUsage(t *testing.T) {
 	require.Zero(t, log.OutputTokens)
 	require.Zero(t, log.TotalCost)
 	require.Zero(t, log.ActualCost)
+	require.NotNil(t, log.GroupID)
+	require.Equal(t, record.EffectiveGroupID, *log.GroupID)
+	require.Equal(t, record.RateMultiplier, log.RateMultiplier)
 }
 
 func TestGetLiveCallForIdentityRejectsMismatchedCaller(t *testing.T) {

@@ -842,6 +842,7 @@ export default {
         name: 'Name',
         id: 'ID',
         platform: 'Platform',
+        roleAndPool: 'Role / Pool',
         rateMultiplier: 'Rate Multiplier',
         rpmOverride: 'RPM Override',
         rpmOverrideHint: 'Per-user RPM cap in this group; empty = group default; 0 = unlimited',
@@ -888,6 +889,8 @@ export default {
         name: 'Name',
         description: 'Description',
         platform: 'Platform',
+        groupRole: 'Group Role',
+        selfHostedPool: 'Preferred Self-hosted Pool',
         rateMultiplier: 'Rate Multiplier',
         status: 'Status',
         exclusive: 'Exclusive Group',
@@ -943,6 +946,20 @@ export default {
       groupUpdatedSuccess: 'Group updated successfully',
       groupDeletedSuccess: 'Group deleted successfully',
       rateMultiplierHint: 'Cost multiplier for this group (e.g., 1.5 = 150% of base cost)',
+      roles: {
+        standard: 'Standard Group',
+        selfHostedPool: 'Self-hosted Pool'
+      },
+      pool: {
+        roleHint: 'A self-hosted pool only supplies schedulable accounts. It does not own user access, rates, or billing settings.',
+        roleNotEditable: 'The group role cannot be changed after creation.',
+        selectPlaceholder: 'Select a self-hosted pool (optional)',
+        noPool: 'No self-hosted pool',
+        bindingHint: 'Requests use the selected pool first, then this group after the pool is exhausted. Rates and usage always belong to this standard group. One pool can be shared by multiple standard groups.',
+        inactiveHint: 'When disabled, every linked group skips this pool and schedules its own accounts directly.',
+        referencedBy: 'Used by {count} standard group(s)',
+        notBound: 'No pool linked'
+      },
       exclusiveHint: 'Exclusive group, manually assign to specific users',
       exclusiveTooltip: {
         title: 'What is an exclusive group?',

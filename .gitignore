@@ -147,6 +147,10 @@ docs/superpowers/specs/*
 !docs/superpowers/specs/2026-07-15-openai-scheduler-policy-ranking-design.md
 !docs/superpowers/specs/2026-07-20-openai-scheduler-runtime-configuration-and-fairness-optimization.md
 !docs/superpowers/specs/2026-07-21-openai-auto-cheapest-quality-first-failover.md
+!docs/superpowers/specs/2026-07-26-openai-self-hosted-account-pool-requirements.md
+!docs/superpowers/plans/
+docs/superpowers/plans/*
+!docs/superpowers/plans/2026-07-26-openai-self-hosted-account-pool-development.md
 .serena/
 .codex/
 frontend/coverage/

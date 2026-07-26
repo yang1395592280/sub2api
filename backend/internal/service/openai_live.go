@@ -121,6 +121,7 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 	ctx context.Context,
 	request *LiveCallRequest,
 	identity LiveCallIdentity,
+	apiKey *APIKey,
 	userMaxConcurrency int,
 ) (*LiveCallCreated, error) {
 	if err := ValidateLiveCallRequest(request); err != nil {
@@ -141,13 +142,17 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 
 	excluded := make(map[int64]struct{})
 	var lastErr error
+	model := strings.TrimSpace(gjson.GetBytes(request.Session, "model").String())
+	if model == "" {
+		model = "gpt-live"
+	}
 	for attempt := 0; attempt <= 3; attempt++ {
-		selection, _, selectErr := s.SelectAccountWithSchedulerForCapability(
+		effectiveAPIKey, selection, _, selectErr := s.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
 			ctx,
-			identity.GroupID,
+			apiKey,
 			"",
 			uuid.NewString(),
-			"",
+			model,
 			excluded,
 			OpenAIUpstreamTransportHTTPSSE,
 			"",
@@ -155,6 +160,7 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 			false,
 			false,
 			false,
+			PlatformOpenAI,
 		)
 		if selectErr != nil {
 			if lastErr != nil {
@@ -202,9 +208,13 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 		}
 
 		now := time.Now()
-		model := strings.TrimSpace(gjson.GetBytes(request.Session, "model").String())
-		if model == "" {
-			model = "gpt-live"
+		effectiveGroupID := liveGroupID(identity.GroupID)
+		rateMultiplier := 1.0
+		if effectiveAPIKey != nil && effectiveAPIKey.GroupID != nil {
+			effectiveGroupID = *effectiveAPIKey.GroupID
+			if effectiveAPIKey.Group != nil {
+				rateMultiplier = s.ResolveUserGroupRateMultiplier(ctx, identity.UserID, effectiveGroupID, effectiveAPIKey.Group.RateMultiplier)
+			}
 		}
 		record := &LiveCallRecord{
 			CallID:                created.CallID,
@@ -213,6 +223,8 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 			APIKeyID:              identity.APIKeyID,
 			UserID:                identity.UserID,
 			GroupID:               liveGroupID(identity.GroupID),
+			EffectiveGroupID:      effectiveGroupID,
+			RateMultiplier:        rateMultiplier,
 			SubscriptionID:        liveGroupID(identity.SubscriptionID),
 			LeaseID:               leaseID,
 			Model:                 model,
@@ -771,6 +783,14 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 	if record.SubscriptionID > 0 {
 		billingType = BillingTypeSubscription
 	}
+	effectiveGroupID := record.EffectiveGroupID
+	if effectiveGroupID <= 0 {
+		effectiveGroupID = record.GroupID
+	}
+	rateMultiplier := record.RateMultiplier
+	if rateMultiplier <= 0 {
+		rateMultiplier = 1
+	}
 	_, _ = s.usageLogRepo.Create(context.Background(), &UsageLog{
 		UserID:           record.UserID,
 		APIKeyID:         record.APIKeyID,
@@ -778,9 +798,9 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 		RequestID:        record.CallHash,
 		Model:            record.Model,
 		RequestedModel:   record.Model,
-		GroupID:          liveOptionalID(record.GroupID),
+		GroupID:          liveOptionalID(effectiveGroupID),
 		SubscriptionID:   liveOptionalID(record.SubscriptionID),
-		RateMultiplier:   1,
+		RateMultiplier:   rateMultiplier,
 		BillingType:      billingType,
 		RequestType:      RequestTypeLive,
 		DurationMs:       &duration,

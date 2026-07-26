@@ -125,6 +125,16 @@ func Platform(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldPlatform, v))
 }
 
+// GroupRole applies equality check predicate on the "group_role" field. It's identical to GroupRoleEQ.
+func GroupRole(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGroupRole, v))
+}
+
+// SelfHostedPoolGroupID applies equality check predicate on the "self_hosted_pool_group_id" field. It's identical to SelfHostedPoolGroupIDEQ.
+func SelfHostedPoolGroupID(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldSelfHostedPoolGroupID, v))
+}
+
 // SubscriptionType applies equality check predicate on the "subscription_type" field. It's identical to SubscriptionTypeEQ.
 func SubscriptionType(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldSubscriptionType, v))
@@ -1018,6 +1028,121 @@ func PlatformEqualFold(v string) predicate.Group {
 // PlatformContainsFold applies the ContainsFold predicate on the "platform" field.
 func PlatformContainsFold(v string) predicate.Group {
 	return predicate.Group(sql.FieldContainsFold(FieldPlatform, v))
+}
+
+// GroupRoleEQ applies the EQ predicate on the "group_role" field.
+func GroupRoleEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldGroupRole, v))
+}
+
+// GroupRoleNEQ applies the NEQ predicate on the "group_role" field.
+func GroupRoleNEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldGroupRole, v))
+}
+
+// GroupRoleIn applies the In predicate on the "group_role" field.
+func GroupRoleIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldGroupRole, vs...))
+}
+
+// GroupRoleNotIn applies the NotIn predicate on the "group_role" field.
+func GroupRoleNotIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldGroupRole, vs...))
+}
+
+// GroupRoleGT applies the GT predicate on the "group_role" field.
+func GroupRoleGT(v string) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldGroupRole, v))
+}
+
+// GroupRoleGTE applies the GTE predicate on the "group_role" field.
+func GroupRoleGTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldGroupRole, v))
+}
+
+// GroupRoleLT applies the LT predicate on the "group_role" field.
+func GroupRoleLT(v string) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldGroupRole, v))
+}
+
+// GroupRoleLTE applies the LTE predicate on the "group_role" field.
+func GroupRoleLTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldGroupRole, v))
+}
+
+// GroupRoleContains applies the Contains predicate on the "group_role" field.
+func GroupRoleContains(v string) predicate.Group {
+	return predicate.Group(sql.FieldContains(FieldGroupRole, v))
+}
+
+// GroupRoleHasPrefix applies the HasPrefix predicate on the "group_role" field.
+func GroupRoleHasPrefix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasPrefix(FieldGroupRole, v))
+}
+
+// GroupRoleHasSuffix applies the HasSuffix predicate on the "group_role" field.
+func GroupRoleHasSuffix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasSuffix(FieldGroupRole, v))
+}
+
+// GroupRoleEqualFold applies the EqualFold predicate on the "group_role" field.
+func GroupRoleEqualFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldEqualFold(FieldGroupRole, v))
+}
+
+// GroupRoleContainsFold applies the ContainsFold predicate on the "group_role" field.
+func GroupRoleContainsFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldContainsFold(FieldGroupRole, v))
+}
+
+// SelfHostedPoolGroupIDEQ applies the EQ predicate on the "self_hosted_pool_group_id" field.
+func SelfHostedPoolGroupIDEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldSelfHostedPoolGroupID, v))
+}
+
+// SelfHostedPoolGroupIDNEQ applies the NEQ predicate on the "self_hosted_pool_group_id" field.
+func SelfHostedPoolGroupIDNEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldSelfHostedPoolGroupID, v))
+}
+
+// SelfHostedPoolGroupIDIn applies the In predicate on the "self_hosted_pool_group_id" field.
+func SelfHostedPoolGroupIDIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldSelfHostedPoolGroupID, vs...))
+}
+
+// SelfHostedPoolGroupIDNotIn applies the NotIn predicate on the "self_hosted_pool_group_id" field.
+func SelfHostedPoolGroupIDNotIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldSelfHostedPoolGroupID, vs...))
+}
+
+// SelfHostedPoolGroupIDGT applies the GT predicate on the "self_hosted_pool_group_id" field.
+func SelfHostedPoolGroupIDGT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldSelfHostedPoolGroupID, v))
+}
+
+// SelfHostedPoolGroupIDGTE applies the GTE predicate on the "self_hosted_pool_group_id" field.
+func SelfHostedPoolGroupIDGTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldSelfHostedPoolGroupID, v))
+}
+
+// SelfHostedPoolGroupIDLT applies the LT predicate on the "self_hosted_pool_group_id" field.
+func SelfHostedPoolGroupIDLT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldSelfHostedPoolGroupID, v))
+}
+
+// SelfHostedPoolGroupIDLTE applies the LTE predicate on the "self_hosted_pool_group_id" field.
+func SelfHostedPoolGroupIDLTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldSelfHostedPoolGroupID, v))
+}
+
+// SelfHostedPoolGroupIDIsNil applies the IsNil predicate on the "self_hosted_pool_group_id" field.
+func SelfHostedPoolGroupIDIsNil() predicate.Group {
+	return predicate.Group(sql.FieldIsNull(FieldSelfHostedPoolGroupID))
+}
+
+// SelfHostedPoolGroupIDNotNil applies the NotNil predicate on the "self_hosted_pool_group_id" field.
+func SelfHostedPoolGroupIDNotNil() predicate.Group {
+	return predicate.Group(sql.FieldNotNull(FieldSelfHostedPoolGroupID))
 }
 
 // SubscriptionTypeEQ applies the EQ predicate on the "subscription_type" field.

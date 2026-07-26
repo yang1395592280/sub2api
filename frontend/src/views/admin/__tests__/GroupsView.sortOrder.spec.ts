@@ -8,6 +8,7 @@ import type { AdminGroup } from "@/types";
 const {
   listGroups,
   getAllGroups,
+  getAllGroupsIncludingInactive,
   updateSortOrder,
   getModelsListCandidates,
   getUsageSummary,
@@ -18,6 +19,7 @@ const {
 } = vi.hoisted(() => ({
   listGroups: vi.fn(),
   getAllGroups: vi.fn(),
+  getAllGroupsIncludingInactive: vi.fn(),
   updateSortOrder: vi.fn(),
   getModelsListCandidates: vi.fn(),
   getUsageSummary: vi.fn(),
@@ -32,6 +34,7 @@ vi.mock("@/api/admin", () => ({
     groups: {
       list: listGroups,
       getAll: getAllGroups,
+      getAllIncludingInactive: getAllGroupsIncludingInactive,
       updateSortOrder,
       getModelsListCandidates,
       getUsageSummary,
@@ -168,6 +171,7 @@ describe("GroupsView sort order modal", () => {
     vi.clearAllMocks();
     listGroups.mockResolvedValue({ items: [], total: 0, pages: 0 });
     getAllGroups.mockResolvedValue([]);
+    getAllGroupsIncludingInactive.mockResolvedValue([]);
     updateSortOrder.mockResolvedValue({ message: "ok" });
     getModelsListCandidates.mockResolvedValue([]);
     getUsageSummary.mockResolvedValue([]);

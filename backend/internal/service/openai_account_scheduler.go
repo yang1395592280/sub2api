@@ -66,7 +66,12 @@ var openAIAdvancedSchedulerSettingCache atomic.Value // *cachedOpenAIAdvancedSch
 var openAIAdvancedSchedulerSettingSF singleflight.Group
 
 type OpenAIAccountScheduleRequest struct {
-	GroupID                 *int64
+	GroupID *int64
+	// AccountSourceGroupID limits account membership and membership priority.
+	// GroupID remains the effective business, billing, sticky and policy group.
+	AccountSourceGroupID    *int64
+	PoolGroupID             int64
+	PoolFallbackReason      string
 	Platform                string
 	SessionHash             string
 	StickyAccountID         int64
@@ -103,15 +108,38 @@ type OpenAIAccountScheduleRequest struct {
 }
 
 type OpenAIAccountScheduleDecision struct {
-	Layer               string
-	StickyPreviousHit   bool
-	StickySessionHit    bool
-	CandidateCount      int
-	TopK                int
-	LatencyMs           int64
-	LoadSkew            float64
-	SelectedAccountID   int64
-	SelectedAccountType string
+	Layer                string
+	StickyPreviousHit    bool
+	StickySessionHit     bool
+	CandidateCount       int
+	TopK                 int
+	LatencyMs            int64
+	LoadSkew             float64
+	SelectedAccountID    int64
+	SelectedAccountType  string
+	EffectiveGroupID     int64
+	AccountSourceGroupID int64
+	AccountSourceType    string
+	PoolGroupID          int64
+	PoolFallbackReason   string
+}
+
+func openAIAccountSourceGroupID(req OpenAIAccountScheduleRequest) *int64 {
+	if req.AccountSourceGroupID != nil {
+		return req.AccountSourceGroupID
+	}
+	return req.GroupID
+}
+
+func openAIUsesSeparateAccountSource(req OpenAIAccountScheduleRequest) bool {
+	return openAIAccountScheduleGroupID(req.GroupID) != openAIAccountScheduleGroupID(openAIAccountSourceGroupID(req))
+}
+
+func openAIAccountScheduleSourceType(req OpenAIAccountScheduleRequest) string {
+	if openAIUsesSeparateAccountSource(req) {
+		return GroupRoleSelfHostedPool
+	}
+	return "effective_group"
 }
 
 type OpenAIAccountSchedulerMetricsSnapshot struct {
@@ -402,7 +430,16 @@ func (s *defaultOpenAIAccountScheduler) Select(
 	ctx context.Context,
 	req OpenAIAccountScheduleRequest,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-	decision := OpenAIAccountScheduleDecision{}
+	decision := OpenAIAccountScheduleDecision{
+		EffectiveGroupID:     openAIAccountScheduleGroupID(req.GroupID),
+		AccountSourceGroupID: openAIAccountScheduleGroupID(openAIAccountSourceGroupID(req)),
+		AccountSourceType:    "effective_group",
+		PoolGroupID:          req.PoolGroupID,
+		PoolFallbackReason:   req.PoolFallbackReason,
+	}
+	if decision.AccountSourceGroupID > 0 && decision.AccountSourceGroupID != decision.EffectiveGroupID {
+		decision.AccountSourceType = GroupRoleSelfHostedPool
+	}
 	req = s.withOpenAIBalancedRuntimeSettings(ctx, req)
 	start := time.Now()
 	defer func() {
@@ -697,12 +734,20 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		return nil, false, nil
 	}
-	account = s.service.recheckSelectedOpenAIAccountFromDB(ctx, account, req.GroupID, req.Platform, req.RequestedModel, req.RequireCompact, req.RequiredCapability)
-	if account == nil || !s.service.openAIAccountMatchesSchedulingGroup(account, req.GroupID) || !s.isAccountTransportCompatible(account, req.RequiredTransport) {
-		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
+	// A sticky account owned by the effective group is expected to miss the pool
+	// stage. Preserve the effective-group binding so the following fallback stage
+	// can still reuse it.
+	if openAIUsesSeparateAccountSource(req) && !s.service.openAIAccountMatchesSchedulingGroup(account, openAIAccountSourceGroupID(req)) {
 		return nil, false, nil
 	}
-	if isAccountBlockedByGroupUpstreamPriceGuard(account, req.GroupID) {
+	account = s.service.recheckSelectedOpenAIAccountFromDB(ctx, account, openAIAccountSourceGroupID(req), req.Platform, req.RequestedModel, req.RequireCompact, req.RequiredCapability)
+	if account == nil || !s.service.openAIAccountMatchesSchedulingGroup(account, openAIAccountSourceGroupID(req)) || !s.isAccountTransportCompatible(account, req.RequiredTransport) {
+		if !openAIUsesSeparateAccountSource(req) {
+			_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
+		}
+		return nil, false, nil
+	}
+	if s.service.isAccountBlockedByOpenAIGroupUpstreamPriceGuard(ctx, account, req.GroupID) {
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		return nil, false, nil
 	}
@@ -1089,7 +1134,7 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlanWithBalanced(
 		return plan
 	}
 
-	initialPriority := openAIAccountSchedulingPriority(candidates[0].account, req.GroupID)
+	initialPriority := openAIAccountSchedulingPriority(candidates[0].account, openAIAccountSourceGroupID(req))
 	minPriority, maxPriority := initialPriority, initialPriority
 	minPrice, maxPrice := candidates[0].account.EffectiveChannelPrice(), candidates[0].account.EffectiveChannelPrice()
 	maxWaiting := 1
@@ -1099,7 +1144,7 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlanWithBalanced(
 	hasTTFTSample := false
 	for i := range candidates {
 		candidate := &candidates[i]
-		candidate.priority = openAIAccountSchedulingPriority(candidate.account, req.GroupID)
+		candidate.priority = openAIAccountSchedulingPriority(candidate.account, openAIAccountSourceGroupID(req))
 		if candidate.priority < minPriority {
 			minPriority = candidate.priority
 		}
@@ -1351,6 +1396,10 @@ func (s *defaultOpenAIAccountScheduler) applyOpenAIBalancedSelectionOrder(
 	}
 	result, err := s.service.openaiBalancedScheduler.Order(ctx, OpenAIBalancedSelectionInput{
 		GroupID:                   openAIAccountScheduleGroupID(req.GroupID),
+		AccountSourceGroupID:      openAIAccountScheduleGroupID(openAIAccountSourceGroupID(req)),
+		AccountSourceType:         openAIAccountScheduleSourceType(req),
+		PoolGroupID:               req.PoolGroupID,
+		PoolFallbackReason:        req.PoolFallbackReason,
 		PreviousResponseAccountID: previousResponseAccountID,
 		SessionAccountID:          sessionAccountID,
 		Candidates:                balancedCandidates,
@@ -1428,7 +1477,7 @@ func openAIBalancedCandidateForAccount(
 		HealthKey:           service.openAIBalancedHealthKeyForCandidate(account, req),
 		WaitingCount:        loadInfo.WaitingCount,
 		LoadRate:            loadInfo.LoadRate,
-		GroupPriority:       openAIAccountSchedulingPriority(account, req.GroupID),
+		GroupPriority:       openAIAccountSchedulingPriority(account, openAIAccountSourceGroupID(req)),
 		Price:               account.EffectiveChannelPrice(),
 		QuotaHeadroom:       openAIQuotaHeadroomFactor(account, now),
 		LegacyOrderPosition: legacyPosition,
@@ -1511,7 +1560,7 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 		selectionOrder = appendSelectionOrder(selectionOrder, supported, plan.topK)
 		selectionOrder = appendSelectionOrder(selectionOrder, unknown, plan.topK)
 		if remaining := plan.topK - len(selectionOrder); remaining > 0 && len(plan.staleSnapshotCompactRetry) > 0 && s.service != nil && s.service.schedulerSnapshot != nil {
-			retryCandidates := sortOpenAICompactRetryCandidates(plan.staleSnapshotCompactRetry, req.GroupID)
+			retryCandidates := sortOpenAICompactRetryCandidates(plan.staleSnapshotCompactRetry, openAIAccountSourceGroupID(req))
 			healthEligibleRetry := retryCandidates[:0]
 			for _, candidate := range retryCandidates {
 				if candidate.account != nil && s.isOpenAIBalancedCircuitRejected(req, candidate.account) {
@@ -1615,12 +1664,12 @@ func (s *defaultOpenAIAccountScheduler) tryAcquireOpenAISelectionOrderWithBudget
 			release(result)
 			break
 		}
-		fresh = s.service.recheckSelectedOpenAIAccountFromDB(ctx, fresh, req.GroupID, req.Platform, req.RequestedModel, false, req.RequiredCapability)
+		fresh = s.service.recheckSelectedOpenAIAccountFromDB(ctx, fresh, openAIAccountSourceGroupID(req), req.Platform, req.RequestedModel, false, req.RequiredCapability)
 		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
 			release(result)
 			continue
 		}
-		if isAccountBlockedByGroupUpstreamPriceGuard(fresh, req.GroupID) {
+		if s.service.isAccountBlockedByOpenAIGroupUpstreamPriceGuard(ctx, fresh, req.GroupID) {
 			release(result)
 			continue
 		}
@@ -1722,6 +1771,11 @@ func (s *defaultOpenAIAccountScheduler) recordOpenAISchedulerDecisionAudit(
 	event := openAISchedulerDecisionAuditFromSettings(req.balancedPolicySettings)
 	event.EventType = eventType
 	event.GroupID = openAIAccountScheduleGroupID(req.GroupID)
+	event.EffectiveGroupID = openAIAccountScheduleGroupID(req.GroupID)
+	event.AccountSourceGroupID = openAIAccountScheduleGroupID(openAIAccountSourceGroupID(req))
+	event.AccountSourceType = openAIAccountScheduleSourceType(req)
+	event.PoolGroupID = req.PoolGroupID
+	event.PoolFallbackReason = req.PoolFallbackReason
 	event.AccountID = candidate.account.ID
 	event.ModelFamily = candidate.schedulerHealthKey.ModelFamily
 	event.Endpoint = candidate.schedulerHealthKey.Endpoint
@@ -1787,24 +1841,27 @@ func (s *defaultOpenAIAccountScheduler) tryFallbackToWeightedSticky(
 		if s.openAIBalancedSoftStickyEscapeReason(req, account.ID) != "" {
 			continue
 		}
-		if isAccountBlockedByGroupUpstreamPriceGuard(account, req.GroupID) {
+		if s.service.isAccountBlockedByOpenAIGroupUpstreamPriceGuard(ctx, account, req.GroupID) {
 			continue
 		}
 		if !s.isAccountRequestCompatible(ctx, account, req) || !s.isAccountTransportCompatible(account, req.RequiredTransport) {
 			continue
 		}
-		account = s.service.recheckSelectedOpenAIAccountFromDB(ctx, account, req.GroupID, req.Platform, req.RequestedModel, req.RequireCompact, req.RequiredCapability)
+		if openAIUsesSeparateAccountSource(req) && !s.service.openAIAccountMatchesSchedulingGroup(account, openAIAccountSourceGroupID(req)) {
+			continue
+		}
+		account = s.service.recheckSelectedOpenAIAccountFromDB(ctx, account, openAIAccountSourceGroupID(req), req.Platform, req.RequestedModel, req.RequireCompact, req.RequiredCapability)
 		if account == nil {
-			if accountID == req.StickyAccountID && strings.TrimSpace(req.SessionHash) != "" {
+			if !openAIUsesSeparateAccountSource(req) && accountID == req.StickyAccountID && strings.TrimSpace(req.SessionHash) != "" {
 				_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, req.SessionHash)
 			}
 			continue
 		}
-		if isAccountBlockedByGroupUpstreamPriceGuard(account, req.GroupID) {
+		if s.service.isAccountBlockedByOpenAIGroupUpstreamPriceGuard(ctx, account, req.GroupID) {
 			continue
 		}
-		if !s.service.openAIAccountMatchesSchedulingGroup(account, req.GroupID) {
-			if accountID == req.StickyAccountID && strings.TrimSpace(req.SessionHash) != "" {
+		if !s.service.openAIAccountMatchesSchedulingGroup(account, openAIAccountSourceGroupID(req)) {
+			if !openAIUsesSeparateAccountSource(req) && accountID == req.StickyAccountID && strings.TrimSpace(req.SessionHash) != "" {
 				_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, req.SessionHash)
 			}
 			continue
@@ -2007,7 +2064,7 @@ func (s *defaultOpenAIAccountScheduler) prepareOpenAIAccountCandidates(
 	ctx context.Context,
 	req OpenAIAccountScheduleRequest,
 ) (OpenAIAccountScheduleRequest, error) {
-	accounts, err := s.service.listSchedulableAccounts(ctx, req.GroupID, req.Platform)
+	accounts, err := s.service.listSchedulableAccounts(ctx, openAIAccountSourceGroupID(req), req.Platform)
 	if err != nil {
 		return req, err
 	}
@@ -2042,7 +2099,7 @@ func (s *defaultOpenAIAccountScheduler) prepareOpenAIAccountCandidates(
 			filterStats.exclude("runtime_blocked")
 			continue
 		}
-		if isAccountBlockedByGroupUpstreamPriceGuard(account, req.GroupID) {
+		if s.service.isAccountBlockedByOpenAIGroupUpstreamPriceGuard(ctx, account, req.GroupID) {
 			filterStats.exclude("upstream_price_guard")
 			continue
 		}
@@ -2413,11 +2470,11 @@ func (s *defaultOpenAIAccountScheduler) finishLoadBalanceSelectionFallback(
 			if !s.consumeOpenAISelectionDBRecheck(budget) {
 				return nil, candidateCount, topK, loadSkew, noAvailableOpenAISelectionError(req.RequestedModel, compactBlocked, filterStats.summary("selection_order_exhausted"))
 			}
-			fresh = s.service.recheckSelectedOpenAIAccountFromDB(ctx, fresh, req.GroupID, req.Platform, req.RequestedModel, false, req.RequiredCapability)
+			fresh = s.service.recheckSelectedOpenAIAccountFromDB(ctx, fresh, openAIAccountSourceGroupID(req), req.Platform, req.RequestedModel, false, req.RequiredCapability)
 			if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
 				continue
 			}
-			if isAccountBlockedByGroupUpstreamPriceGuard(fresh, req.GroupID) {
+			if s.service.isAccountBlockedByOpenAIGroupUpstreamPriceGuard(ctx, fresh, req.GroupID) {
 				continue
 			}
 			if req.RequireCompact && openAICompactSupportTier(fresh) == 0 {
@@ -2868,7 +2925,18 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
 	ctx = s.withOpenAIQuotaAutoPauseContext(ctx)
 	platform = normalizeOpenAICompatiblePlatform(platform)
-	decision := OpenAIAccountScheduleDecision{}
+	accountSourceGroupID := openAIAccountSourceGroupFromContext(ctx, groupID)
+	decision := OpenAIAccountScheduleDecision{
+		EffectiveGroupID:     openAIAccountScheduleGroupID(groupID),
+		AccountSourceGroupID: openAIAccountScheduleGroupID(accountSourceGroupID),
+		AccountSourceType:    "effective_group",
+	}
+	poolStage := openAIPoolStageMetadataFromContext(ctx)
+	decision.PoolGroupID = poolStage.PoolGroupID
+	decision.PoolFallbackReason = poolStage.FallbackReason
+	if decision.AccountSourceGroupID > 0 && decision.AccountSourceGroupID != decision.EffectiveGroupID {
+		decision.AccountSourceType = GroupRoleSelfHostedPool
+	}
 	scheduler := s.getOpenAIAccountScheduler(ctx)
 	if scheduler == nil {
 		decision.Layer = openAIAccountScheduleLayerLoadBalance
@@ -2946,6 +3014,9 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 
 	return scheduler.Select(ctx, OpenAIAccountScheduleRequest{
 		GroupID:                 groupID,
+		AccountSourceGroupID:    accountSourceGroupID,
+		PoolGroupID:             poolStage.PoolGroupID,
+		PoolFallbackReason:      poolStage.FallbackReason,
 		Platform:                platform,
 		SessionHash:             sessionHash,
 		StickyAccountID:         stickyAccountID,

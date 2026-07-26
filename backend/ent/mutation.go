@@ -22329,6 +22329,9 @@ type GroupMutation struct {
 	status                                       *string
 	duplicate_operation_id                       *string
 	platform                                     *string
+	group_role                                   *string
+	self_hosted_pool_group_id                    *int64
+	addself_hosted_pool_group_id                 *int64
 	subscription_type                            *string
 	daily_limit_usd                              *float64
 	adddaily_limit_usd                           *float64
@@ -23098,6 +23101,112 @@ func (m *GroupMutation) OldPlatform(ctx context.Context) (v string, err error) {
 // ResetPlatform resets all changes to the "platform" field.
 func (m *GroupMutation) ResetPlatform() {
 	m.platform = nil
+}
+
+// SetGroupRole sets the "group_role" field.
+func (m *GroupMutation) SetGroupRole(s string) {
+	m.group_role = &s
+}
+
+// GroupRole returns the value of the "group_role" field in the mutation.
+func (m *GroupMutation) GroupRole() (r string, exists bool) {
+	v := m.group_role
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGroupRole returns the old "group_role" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldGroupRole(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGroupRole is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGroupRole requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGroupRole: %w", err)
+	}
+	return oldValue.GroupRole, nil
+}
+
+// ResetGroupRole resets all changes to the "group_role" field.
+func (m *GroupMutation) ResetGroupRole() {
+	m.group_role = nil
+}
+
+// SetSelfHostedPoolGroupID sets the "self_hosted_pool_group_id" field.
+func (m *GroupMutation) SetSelfHostedPoolGroupID(i int64) {
+	m.self_hosted_pool_group_id = &i
+	m.addself_hosted_pool_group_id = nil
+}
+
+// SelfHostedPoolGroupID returns the value of the "self_hosted_pool_group_id" field in the mutation.
+func (m *GroupMutation) SelfHostedPoolGroupID() (r int64, exists bool) {
+	v := m.self_hosted_pool_group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSelfHostedPoolGroupID returns the old "self_hosted_pool_group_id" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldSelfHostedPoolGroupID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSelfHostedPoolGroupID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSelfHostedPoolGroupID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSelfHostedPoolGroupID: %w", err)
+	}
+	return oldValue.SelfHostedPoolGroupID, nil
+}
+
+// AddSelfHostedPoolGroupID adds i to the "self_hosted_pool_group_id" field.
+func (m *GroupMutation) AddSelfHostedPoolGroupID(i int64) {
+	if m.addself_hosted_pool_group_id != nil {
+		*m.addself_hosted_pool_group_id += i
+	} else {
+		m.addself_hosted_pool_group_id = &i
+	}
+}
+
+// AddedSelfHostedPoolGroupID returns the value that was added to the "self_hosted_pool_group_id" field in this mutation.
+func (m *GroupMutation) AddedSelfHostedPoolGroupID() (r int64, exists bool) {
+	v := m.addself_hosted_pool_group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearSelfHostedPoolGroupID clears the value of the "self_hosted_pool_group_id" field.
+func (m *GroupMutation) ClearSelfHostedPoolGroupID() {
+	m.self_hosted_pool_group_id = nil
+	m.addself_hosted_pool_group_id = nil
+	m.clearedFields[group.FieldSelfHostedPoolGroupID] = struct{}{}
+}
+
+// SelfHostedPoolGroupIDCleared returns if the "self_hosted_pool_group_id" field was cleared in this mutation.
+func (m *GroupMutation) SelfHostedPoolGroupIDCleared() bool {
+	_, ok := m.clearedFields[group.FieldSelfHostedPoolGroupID]
+	return ok
+}
+
+// ResetSelfHostedPoolGroupID resets all changes to the "self_hosted_pool_group_id" field.
+func (m *GroupMutation) ResetSelfHostedPoolGroupID() {
+	m.self_hosted_pool_group_id = nil
+	m.addself_hosted_pool_group_id = nil
+	delete(m.clearedFields, group.FieldSelfHostedPoolGroupID)
 }
 
 // SetSubscriptionType sets the "subscription_type" field.
@@ -25637,7 +25746,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 57)
+	fields := make([]string, 0, 59)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -25679,6 +25788,12 @@ func (m *GroupMutation) Fields() []string {
 	}
 	if m.platform != nil {
 		fields = append(fields, group.FieldPlatform)
+	}
+	if m.group_role != nil {
+		fields = append(fields, group.FieldGroupRole)
+	}
+	if m.self_hosted_pool_group_id != nil {
+		fields = append(fields, group.FieldSelfHostedPoolGroupID)
 	}
 	if m.subscription_type != nil {
 		fields = append(fields, group.FieldSubscriptionType)
@@ -25845,6 +25960,10 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.DuplicateOperationID()
 	case group.FieldPlatform:
 		return m.Platform()
+	case group.FieldGroupRole:
+		return m.GroupRole()
+	case group.FieldSelfHostedPoolGroupID:
+		return m.SelfHostedPoolGroupID()
 	case group.FieldSubscriptionType:
 		return m.SubscriptionType()
 	case group.FieldDailyLimitUsd:
@@ -25968,6 +26087,10 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldDuplicateOperationID(ctx)
 	case group.FieldPlatform:
 		return m.OldPlatform(ctx)
+	case group.FieldGroupRole:
+		return m.OldGroupRole(ctx)
+	case group.FieldSelfHostedPoolGroupID:
+		return m.OldSelfHostedPoolGroupID(ctx)
 	case group.FieldSubscriptionType:
 		return m.OldSubscriptionType(ctx)
 	case group.FieldDailyLimitUsd:
@@ -26160,6 +26283,20 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetPlatform(v)
+		return nil
+	case group.FieldGroupRole:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGroupRole(v)
+		return nil
+	case group.FieldSelfHostedPoolGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSelfHostedPoolGroupID(v)
 		return nil
 	case group.FieldSubscriptionType:
 		v, ok := value.(string)
@@ -26476,6 +26613,9 @@ func (m *GroupMutation) AddedFields() []string {
 	if m.addpeak_rate_multiplier != nil {
 		fields = append(fields, group.FieldPeakRateMultiplier)
 	}
+	if m.addself_hosted_pool_group_id != nil {
+		fields = append(fields, group.FieldSelfHostedPoolGroupID)
+	}
 	if m.adddaily_limit_usd != nil {
 		fields = append(fields, group.FieldDailyLimitUsd)
 	}
@@ -26551,6 +26691,8 @@ func (m *GroupMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedRateMultiplier()
 	case group.FieldPeakRateMultiplier:
 		return m.AddedPeakRateMultiplier()
+	case group.FieldSelfHostedPoolGroupID:
+		return m.AddedSelfHostedPoolGroupID()
 	case group.FieldDailyLimitUsd:
 		return m.AddedDailyLimitUsd()
 	case group.FieldWeeklyLimitUsd:
@@ -26615,6 +26757,13 @@ func (m *GroupMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddPeakRateMultiplier(v)
+		return nil
+	case group.FieldSelfHostedPoolGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSelfHostedPoolGroupID(v)
 		return nil
 	case group.FieldDailyLimitUsd:
 		v, ok := value.(float64)
@@ -26780,6 +26929,9 @@ func (m *GroupMutation) ClearedFields() []string {
 	if m.FieldCleared(group.FieldDuplicateOperationID) {
 		fields = append(fields, group.FieldDuplicateOperationID)
 	}
+	if m.FieldCleared(group.FieldSelfHostedPoolGroupID) {
+		fields = append(fields, group.FieldSelfHostedPoolGroupID)
+	}
 	if m.FieldCleared(group.FieldDailyLimitUsd) {
 		fields = append(fields, group.FieldDailyLimitUsd)
 	}
@@ -26841,6 +26993,9 @@ func (m *GroupMutation) ClearField(name string) error {
 		return nil
 	case group.FieldDuplicateOperationID:
 		m.ClearDuplicateOperationID()
+		return nil
+	case group.FieldSelfHostedPoolGroupID:
+		m.ClearSelfHostedPoolGroupID()
 		return nil
 	case group.FieldDailyLimitUsd:
 		m.ClearDailyLimitUsd()
@@ -26930,6 +27085,12 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldPlatform:
 		m.ResetPlatform()
+		return nil
+	case group.FieldGroupRole:
+		m.ResetGroupRole()
+		return nil
+	case group.FieldSelfHostedPoolGroupID:
+		m.ResetSelfHostedPoolGroupID()
 		return nil
 	case group.FieldSubscriptionType:
 		m.ResetSubscriptionType()

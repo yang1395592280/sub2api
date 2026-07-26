@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 )
 
@@ -17,12 +18,29 @@ type ReasoningEffortMapping = domain.ReasoningEffortMapping
 const DefaultUpstreamBalanceRefreshIntervalSeconds = 600
 const MinUpstreamBalanceRefreshIntervalSeconds = 60
 
+const (
+	GroupRoleStandard       = "standard"
+	GroupRoleSelfHostedPool = "self_hosted_pool"
+)
+
+var ErrSelfHostedPoolNotAssignable = infraerrors.BadRequest(
+	"SELF_HOSTED_POOL_NOT_ASSIGNABLE",
+	"self-hosted account pools cannot be assigned to users, API keys, subscriptions, redeem codes, or payment plans",
+)
+
 type Group struct {
-	ID             int64
-	Name           string
-	Description    string
-	Platform       string
-	RateMultiplier float64
+	ID          int64
+	Name        string
+	Description string
+	Platform    string
+	GroupRole   string
+	// SelfHostedPoolGroupID is only meaningful for standard OpenAI groups.
+	// The referenced pool contributes accounts but never replaces this group's billing context.
+	SelfHostedPoolGroupID *int64
+	SelfHostedPoolName    string
+	SelfHostedPoolStatus  string
+	ReferencedGroupCount  int64
+	RateMultiplier        float64
 	// 高峰时段倍率：peak_rate_enabled 为 true 且当前时刻处于 [PeakStart, PeakEnd) 时，
 	// token 计费倍率额外乘以 PeakRateMultiplier。详见 PeakMultiplierAt。
 	PeakRateEnabled    bool
@@ -118,6 +136,17 @@ type Group struct {
 
 func (g *Group) IsActive() bool {
 	return g.Status == StatusActive
+}
+
+func (g *Group) IsSelfHostedPool() bool {
+	return g != nil && g.GroupRole == GroupRoleSelfHostedPool
+}
+
+func validateDirectlyAssignableGroup(group *Group) error {
+	if group != nil && group.IsSelfHostedPool() {
+		return ErrSelfHostedPoolNotAssignable
+	}
+	return nil
 }
 
 func (g *Group) IsSubscriptionType() bool {

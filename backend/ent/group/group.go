@@ -44,6 +44,10 @@ const (
 	FieldDuplicateOperationID = "duplicate_operation_id"
 	// FieldPlatform holds the string denoting the platform field in the database.
 	FieldPlatform = "platform"
+	// FieldGroupRole holds the string denoting the group_role field in the database.
+	FieldGroupRole = "group_role"
+	// FieldSelfHostedPoolGroupID holds the string denoting the self_hosted_pool_group_id field in the database.
+	FieldSelfHostedPoolGroupID = "self_hosted_pool_group_id"
 	// FieldSubscriptionType holds the string denoting the subscription_type field in the database.
 	FieldSubscriptionType = "subscription_type"
 	// FieldDailyLimitUsd holds the string denoting the daily_limit_usd field in the database.
@@ -219,6 +223,8 @@ var Columns = []string{
 	FieldStatus,
 	FieldDuplicateOperationID,
 	FieldPlatform,
+	FieldGroupRole,
+	FieldSelfHostedPoolGroupID,
 	FieldSubscriptionType,
 	FieldDailyLimitUsd,
 	FieldWeeklyLimitUsd,
@@ -325,6 +331,10 @@ var (
 	DefaultPlatform string
 	// PlatformValidator is a validator for the "platform" field. It is called by the builders before save.
 	PlatformValidator func(string) error
+	// DefaultGroupRole holds the default value on creation for the "group_role" field.
+	DefaultGroupRole string
+	// GroupRoleValidator is a validator for the "group_role" field. It is called by the builders before save.
+	GroupRoleValidator func(string) error
 	// DefaultSubscriptionType holds the default value on creation for the "subscription_type" field.
 	DefaultSubscriptionType string
 	// SubscriptionTypeValidator is a validator for the "subscription_type" field. It is called by the builders before save.
@@ -469,6 +479,16 @@ func ByDuplicateOperationID(opts ...sql.OrderTermOption) OrderOption {
 // ByPlatform orders the results by the platform field.
 func ByPlatform(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPlatform, opts...).ToFunc()
+}
+
+// ByGroupRole orders the results by the group_role field.
+func ByGroupRole(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGroupRole, opts...).ToFunc()
+}
+
+// BySelfHostedPoolGroupID orders the results by the self_hosted_pool_group_id field.
+func BySelfHostedPoolGroupID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSelfHostedPoolGroupID, opts...).ToFunc()
 }
 
 // BySubscriptionType orders the results by the subscription_type field.
