@@ -63,6 +63,8 @@ type APIKeyAuthGroupSnapshot struct {
 	ID                              int64    `json:"id"`
 	Name                            string   `json:"name"`
 	Platform                        string   `json:"platform"`
+	GroupRole                       string   `json:"group_role"`
+	SelfHostedPoolGroupID           *int64   `json:"self_hosted_pool_group_id,omitempty"`
 	IsExclusive                     bool     `json:"is_exclusive"`
 	Status                          string   `json:"status"`
 	SubscriptionType                string   `json:"subscription_type"`

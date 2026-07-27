@@ -8,6 +8,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type selfHostedPoolLookupGroupRepo struct {
+	GroupRepository
+	groups map[int64]*Group
+}
+
+func (r selfHostedPoolLookupGroupRepo) GetByID(_ context.Context, id int64) (*Group, error) {
+	return r.groups[id], nil
+}
+
 func TestEffectiveOpenAIGroupRate_UsesUserRateOverride(t *testing.T) {
 	group := Group{ID: 10, RateMultiplier: 0.3}
 	got := EffectiveOpenAIGroupRate(group, map[int64]float64{10: 0.12})
@@ -565,6 +574,37 @@ func TestOpenAIAccountSourceGroupIDs_PoolThenEffectiveAndDisabledSkip(t *testing
 
 	effective.SelfHostedPoolStatus = StatusDisabled
 	sources = svc.openAIAccountSourceGroupIDs(context.Background(), &effectiveID, effective)
+	require.Len(t, sources, 1)
+	require.Equal(t, effectiveID, *sources[0])
+}
+
+func TestOpenAIAccountSourceGroupIDs_FixedGroupAfterAuthSnapshotRoundTrip(t *testing.T) {
+	effectiveID := int64(15)
+	poolID := int64(99)
+	authService := &APIKeyService{}
+	snapshot := authService.snapshotFromAPIKey(context.Background(), &APIKey{
+		ID: 1, UserID: 2, GroupID: &effectiveID, Status: StatusActive,
+		User: &User{ID: 2, Status: StatusActive, Role: RoleUser},
+		Group: &Group{
+			ID: effectiveID, Platform: PlatformOpenAI, GroupRole: GroupRoleStandard,
+			Status: StatusActive, SelfHostedPoolGroupID: &poolID,
+		},
+	})
+	restored := authService.snapshotToAPIKey("k-fixed", snapshot)
+	require.NotNil(t, restored)
+	require.NotNil(t, restored.Group)
+
+	groupRepo := selfHostedPoolLookupGroupRepo{groups: map[int64]*Group{
+		poolID: {ID: poolID, Platform: PlatformOpenAI, GroupRole: GroupRoleSelfHostedPool, Status: StatusActive},
+	}}
+	gateway := &OpenAIGatewayService{schedulerSnapshot: NewSchedulerSnapshotService(nil, nil, nil, groupRepo, nil)}
+	sources := gateway.openAIAccountSourceGroupIDs(context.Background(), restored.GroupID, restored.Group)
+	require.Len(t, sources, 2)
+	require.Equal(t, poolID, *sources[0])
+	require.Equal(t, effectiveID, *sources[1])
+
+	groupRepo.groups[poolID].Status = StatusDisabled
+	sources = gateway.openAIAccountSourceGroupIDs(context.Background(), restored.GroupID, restored.Group)
 	require.Len(t, sources, 1)
 	require.Equal(t, effectiveID, *sources[0])
 }

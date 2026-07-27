@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 19 // v19: include OpenAI Live gate plus scheduler, pricing, and reasoning fields
+const apiKeyAuthSnapshotVersion = 20 // v20: preserve OpenAI self-hosted pool bindings in group snapshots
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -385,6 +385,8 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			ID:                              apiKey.Group.ID,
 			Name:                            apiKey.Group.Name,
 			Platform:                        apiKey.Group.Platform,
+			GroupRole:                       apiKey.Group.GroupRole,
+			SelfHostedPoolGroupID:           apiKey.Group.SelfHostedPoolGroupID,
 			IsExclusive:                     apiKey.Group.IsExclusive,
 			Status:                          apiKey.Group.Status,
 			SubscriptionType:                apiKey.Group.SubscriptionType,
@@ -475,6 +477,8 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			ID:                              snapshot.Group.ID,
 			Name:                            snapshot.Group.Name,
 			Platform:                        snapshot.Group.Platform,
+			GroupRole:                       snapshot.Group.GroupRole,
+			SelfHostedPoolGroupID:           snapshot.Group.SelfHostedPoolGroupID,
 			IsExclusive:                     snapshot.Group.IsExclusive,
 			Status:                          snapshot.Group.Status,
 			Hydrated:                        true,

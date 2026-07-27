@@ -333,6 +333,45 @@ func TestAPIKeyAuthSnapshotRoundTrip_PreservesGroupSelectionMetadata(t *testing.
 	require.Equal(t, &maxRate, roundTrip.OpenAIAutoGroupMaxRateMultiplier)
 }
 
+func TestAPIKeyAuthSnapshotRoundTrip_PreservesSelfHostedPoolBinding(t *testing.T) {
+	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
+	groupID := int64(15)
+	poolID := int64(99)
+	apiKey := &APIKey{
+		ID:      10,
+		UserID:  20,
+		GroupID: &groupID,
+		Key:     "k-self-hosted-pool",
+		Status:  StatusActive,
+		User: &User{
+			ID:     20,
+			Status: StatusActive,
+			Role:   RoleUser,
+		},
+		Group: &Group{
+			ID:                    groupID,
+			Name:                  "rate-015",
+			Platform:              PlatformOpenAI,
+			GroupRole:             GroupRoleStandard,
+			SelfHostedPoolGroupID: &poolID,
+			Status:                StatusActive,
+			RateMultiplier:        0.15,
+		},
+	}
+
+	snapshot := svc.snapshotFromAPIKey(context.Background(), apiKey)
+	require.NotNil(t, snapshot)
+	require.NotNil(t, snapshot.Group)
+	require.Equal(t, GroupRoleStandard, snapshot.Group.GroupRole)
+	require.Equal(t, poolID, *snapshot.Group.SelfHostedPoolGroupID)
+
+	roundTrip := svc.snapshotToAPIKey(apiKey.Key, snapshot)
+	require.NotNil(t, roundTrip)
+	require.NotNil(t, roundTrip.Group)
+	require.Equal(t, GroupRoleStandard, roundTrip.Group.GroupRole)
+	require.Equal(t, poolID, *roundTrip.Group.SelfHostedPoolGroupID)
+}
+
 func TestAPIKeyService_SnapshotRoundTrip_PreservesReasoningEffortPolicy(t *testing.T) {
 	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
 	groupID := int64(9)
