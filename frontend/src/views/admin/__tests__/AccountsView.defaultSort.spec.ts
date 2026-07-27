@@ -92,6 +92,10 @@ function mountView() {
         ImportDataModal: true,
         ReAuthAccountModal: true,
         AccountTestModal: true,
+        BatchAccountTestModal: {
+          emits: ['filter-accounts'],
+          template: '<button data-test="apply-batch-filter" @click="$emit(\'filter-accounts\', [\'plus-a@example.com\', \'plus-b@example.com\'])" />'
+        },
         AccountStatsModal: true,
         ScheduledTestsPanel: true,
         SyncFromCrsModal: true,
@@ -169,6 +173,24 @@ describe('admin AccountsView default sort', () => {
       expect.objectContaining({
         sort_by: 'created_at',
         sort_order: 'desc'
+      }),
+      expect.any(Object)
+    )
+  })
+
+  it('applies a batch-test category to the parent account search', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    listAccounts.mockClear()
+
+    await wrapper.get('[data-test="apply-batch-filter"]').trigger('click')
+    await flushPromises()
+
+    expect(listAccounts).toHaveBeenCalledWith(
+      1,
+      20,
+      expect.objectContaining({
+        search: 'plus-a@example.com, plus-b@example.com'
       }),
       expect.any(Object)
     )

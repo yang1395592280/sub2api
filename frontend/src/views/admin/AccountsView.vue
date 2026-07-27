@@ -486,7 +486,12 @@
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
-    <BatchAccountTestModal :show="showBatchTest" :accounts="batchTestingAccounts" @close="closeBatchTestModal" />
+    <BatchAccountTestModal
+      :show="showBatchTest"
+      :accounts="batchTestingAccounts"
+      @close="closeBatchTestModal"
+      @filter-accounts="handleBatchTestFilterAccounts"
+    />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
     <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @duplicate="handleDuplicateAccount" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" />
@@ -1952,7 +1957,23 @@ const accountMatchesCurrentFilters = (account: Account) => {
     }
   }
   const search = String(filters.search || '').trim().toLowerCase()
-  if (search && !account.name.toLowerCase().includes(search)) return false
+  if (search) {
+    const searchTerms = search
+      .split(',')
+      .map(term => term.trim())
+      .filter(Boolean)
+    const accountName = account.name.trim().toLowerCase()
+    const accountEmail = typeof account.extra?.email_address === 'string'
+      ? account.extra.email_address.trim().toLowerCase()
+      : ''
+    if (searchTerms.length > 1) {
+      if (!searchTerms.some(term => term === accountName || term === accountEmail)) return false
+    } else if (search.includes('@')) {
+      if (search !== accountName && search !== accountEmail) return false
+    } else if (!accountName.includes(search)) {
+      return false
+    }
+  }
   return true
 }
 const mergeRuntimeFields = (oldAccount: Account, updatedAccount: Account): Account => ({
@@ -2082,6 +2103,13 @@ const handleExportData = async () => {
 const accountExportStepUp = useStepUp()
 const closeTestModal = () => { showTest.value = false; testingAcc.value = null }
 const closeBatchTestModal = () => { showBatchTest.value = false; batchTestingAccounts.value = [] }
+const handleBatchTestFilterAccounts = async (accountNames: string[]) => {
+  if (accountNames.length === 0) return
+  closeBatchTestModal()
+  clearSelection()
+  params.search = accountNames.join(', ')
+  await reload()
+}
 const closeStatsModal = () => { showStats.value = false; statsAcc.value = null }
 const closeReAuthModal = () => { showReAuth.value = false; reAuthAcc.value = null }
 const handleTest = (a: Account) => { testingAcc.value = a; showTest.value = true }
