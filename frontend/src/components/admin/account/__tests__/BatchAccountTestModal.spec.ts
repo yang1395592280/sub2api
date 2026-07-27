@@ -457,25 +457,59 @@ describe('BatchAccountTestModal', () => {
     expect(wrapper.text()).toContain('admin.accounts.bulkOpenAIStatsUsageUnknown：1')
 
     await wrapper.get('[data-testid="openai-stat-plan-plus"]').trigger('click')
+    expect(wrapper.emitted('filter-accounts')).toEqual([[['B']]])
     expect(wrapper.text()).toContain('=== B (#2) ===')
-    expect(wrapper.text()).not.toContain('=== A (#1) ===')
-    expect(wrapper.text()).not.toContain('=== C (#3) ===')
-    expect(wrapper.text()).not.toContain('=== D (#4) ===')
-    expect(wrapper.text()).toContain('admin.accounts.bulkOpenAIStatsFilterActive:admin.accounts.bulkOpenAIStatsPlus,1')
-
-    await wrapper.get('[data-testid="openai-stat-plan-plus"]').trigger('click')
     expect(wrapper.text()).toContain('=== A (#1) ===')
+    expect(wrapper.text()).toContain('=== C (#3) ===')
     expect(wrapper.text()).toContain('=== D (#4) ===')
 
     await wrapper.get('[data-testid="openai-stat-usage-high"]').trigger('click')
-    expect(wrapper.text()).toContain('=== B (#2) ===')
-    expect(wrapper.text()).toContain('=== C (#3) ===')
-    expect(wrapper.text()).not.toContain('=== A (#1) ===')
-    expect(wrapper.text()).not.toContain('=== D (#4) ===')
+    expect(wrapper.emitted('filter-accounts')).toEqual([[['B']], [['B', 'C']]])
+  })
 
-    await wrapper.get('[data-testid="openai-stat-clear-filter"]').trigger('click')
-    expect(wrapper.text()).toContain('=== A (#1) ===')
-    expect(wrapper.text()).toContain('=== D (#4) ===')
+  it('uses account emails for the parent-page filter and disables empty categories', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue('data: {"type":"content","text":"ok"}\n')
+    } as any)
+    queryOpenAIQuota.mockResolvedValue({
+      plan_type: 'plus',
+      rate_limit: {
+        secondary_window: {
+          used_percent: 8,
+          limit_window_seconds: 604800,
+          reset_after_seconds: 100,
+          reset_at: 0
+        }
+      },
+      fetched_at: 0
+    })
+
+    const wrapper = mount(BatchAccountTestModal, {
+      props: {
+        show: false,
+        accounts: [
+          { ...buildAccount(1, 'display-name'), extra: { email_address: 'plus@example.com' } }
+        ]
+      },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          Select: SelectStub,
+          Icon: true
+        }
+      }
+    })
+
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    await wrapper.findAll('button').at(-1)?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="openai-stat-plan-free"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-testid="openai-stat-plan-plus"]').trigger('click')
+    expect(wrapper.emitted('filter-accounts')).toEqual([[['plus@example.com']]])
   })
 
   it('falls back to account name when extra.email_address is missing', async () => {

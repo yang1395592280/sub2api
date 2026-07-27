@@ -669,6 +669,39 @@ func (s *AccountRepoSuite) TestListWithFilters_EmailSearchMatchesAccountNameAndE
 	s.Require().Equal("visible-name@example.com", accounts[0].Name)
 }
 
+func (s *AccountRepoSuite) TestListWithFilters_MultipleAccountIdentifiers() {
+	mustCreateAccount(s.T(), s.client, &service.Account{
+		Name:   "first-account",
+		Status: service.StatusActive,
+		Extra: map[string]any{
+			"email_address": "first@example.com",
+		},
+	})
+	mustCreateAccount(s.T(), s.client, &service.Account{
+		Name:   "second@example.com",
+		Status: service.StatusActive,
+	})
+	mustCreateAccount(s.T(), s.client, &service.Account{
+		Name:   "second@example.com-shadow",
+		Status: service.StatusActive,
+	})
+
+	accounts, page, err := s.repo.ListWithFilters(
+		s.ctx,
+		pagination.PaginationParams{Page: 1, PageSize: 10},
+		"",
+		"",
+		"",
+		"first@example.com, second@example.com",
+		0,
+		"",
+	)
+	s.Require().NoError(err)
+	s.Require().Len(accounts, 2)
+	s.Require().Equal(int64(2), page.Total)
+	s.Require().ElementsMatch([]string{"first-account", "second@example.com"}, []string{accounts[0].Name, accounts[1].Name})
+}
+
 // --- ListByGroup / ListActive / ListByPlatform ---
 
 func (s *AccountRepoSuite) TestListByGroup() {

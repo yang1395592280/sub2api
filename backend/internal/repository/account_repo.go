@@ -815,6 +815,53 @@ func (r *accountRepository) List(ctx context.Context, params pagination.Paginati
 	return r.ListWithFilters(ctx, params, "", "", "", "", 0, "")
 }
 
+const maxAccountSearchTerms = 100
+
+func splitAccountSearchTerms(search string) []string {
+	parts := strings.Split(search, ",")
+	if len(parts) < 2 {
+		return nil
+	}
+
+	terms := make([]string, 0, min(len(parts), maxAccountSearchTerms))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		term := strings.ToLower(strings.TrimSpace(part))
+		if term == "" {
+			continue
+		}
+		if _, exists := seen[term]; exists {
+			continue
+		}
+		seen[term] = struct{}{}
+		terms = append(terms, term)
+		if len(terms) == maxAccountSearchTerms {
+			break
+		}
+	}
+	if len(terms) < 2 {
+		return nil
+	}
+	return terms
+}
+
+func accountExactIdentifierPredicate(needle string) dbpredicate.Account {
+	return dbpredicate.Account(func(s *entsql.Selector) {
+		s.Where(entsql.P(func(b *entsql.Builder) {
+			b.WriteString("(").
+				WriteString("LOWER(TRIM(").
+				WriteString(s.C(dbaccount.FieldExtra)).
+				WriteString("->>'email_address')) = ").
+				Arg(needle).
+				WriteString(" OR LOWER(TRIM(").
+				Ident(s.C(dbaccount.FieldName)).
+				WriteString(")) = ").
+				Arg(needle).
+				WriteString(")")
+		}))
+	})
+}
+
 func (r *accountRepository) accountListFilteredQuery(platform, accountType, status, search string, groupID int64, privacyMode string) *dbent.AccountQuery {
 	q := r.client.Account.Query()
 
@@ -887,22 +934,14 @@ func (r *accountRepository) accountListFilteredQuery(platform, accountType, stat
 	}
 	if search != "" {
 		trimmed := strings.TrimSpace(search)
-		if strings.Contains(trimmed, "@") {
-			needle := strings.ToLower(trimmed)
-			q = q.Where(dbpredicate.Account(func(s *entsql.Selector) {
-				s.Where(entsql.P(func(b *entsql.Builder) {
-					b.WriteString("(").
-						WriteString("LOWER(TRIM(").
-						WriteString(s.C(dbaccount.FieldExtra)).
-						WriteString("->>'email_address')) = ").
-						Arg(needle).
-						WriteString(" OR LOWER(TRIM(").
-						Ident(s.C(dbaccount.FieldName)).
-						WriteString(")) = ").
-						Arg(needle).
-						WriteString(")")
-				}))
-			}))
+		if terms := splitAccountSearchTerms(trimmed); len(terms) > 0 {
+			predicates := make([]dbpredicate.Account, 0, len(terms))
+			for _, term := range terms {
+				predicates = append(predicates, accountExactIdentifierPredicate(term))
+			}
+			q = q.Where(dbaccount.Or(predicates...))
+		} else if strings.Contains(trimmed, "@") {
+			q = q.Where(accountExactIdentifierPredicate(strings.ToLower(trimmed)))
 		} else {
 			q = q.Where(dbaccount.NameContainsFold(search))
 		}
