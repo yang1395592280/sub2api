@@ -13,7 +13,13 @@ import (
 
 func TestAdminService_CreateUser_Success(t *testing.T) {
 	repo := &userRepoStub{nextID: 10}
-	svc := &adminServiceImpl{userRepo: repo}
+	svc := &adminServiceImpl{
+		userRepo: repo,
+		groupRepo: &groupRepoStubForAdmin{getByIDByID: map[int64]*Group{
+			3: {ID: 3},
+			5: {ID: 5},
+		}},
+	}
 	balance := 12.5
 
 	input := &CreateUserInput{

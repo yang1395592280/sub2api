@@ -247,6 +247,9 @@ func (s *groupRepoStubForBatchAddGroup) ListActive(context.Context) ([]Group, er
 func (s *groupRepoStubForBatchAddGroup) ListActiveByPlatform(context.Context, string) ([]Group, error) {
 	panic("unexpected")
 }
+func (s *groupRepoStubForBatchAddGroup) ListUpstreamBalanceRefreshEnabled(context.Context) ([]Group, error) {
+	panic("unexpected")
+}
 func (s *groupRepoStubForBatchAddGroup) ExistsByName(context.Context, string) (bool, error) {
 	panic("unexpected")
 }

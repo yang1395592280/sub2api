@@ -653,7 +653,7 @@ func TestForwardAsChatCompletions_UnknownResponsesSupportFallbackUsesVersionedCh
 	require.NoError(t, recorder.Stop(context.Background()))
 	records := sink.snapshot()
 	require.Len(t, records, 2)
-	require.Equal(t, OpenAIAutoSchedulerEventError, records[0].EventType)
+	require.Equal(t, OpenAIAutoSchedulerEventRequestError, records[0].EventType)
 	require.Equal(t, OpenAIAutoSchedulerEventSuccess, records[1].EventType)
 }
 
@@ -698,7 +698,7 @@ func TestBufferRawChatCompletions_RejectsOversizedResponse(t *testing.T) {
 	require.Equal(t, http.StatusBadGateway, rec.Code)
 }
 
-func TestForwardAsRawChatCompletions_Malformed2xxKeepsOverbrush429Count(t *testing.T) {
+func TestForwardAsRawChatCompletions_Malformed2xxResetsOverbrush429Count(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":false}`)
@@ -717,14 +717,14 @@ func TestForwardAsRawChatCompletions_Malformed2xxKeepsOverbrush429Count(t *testi
 	}
 	account := rawChatCompletionsTestAccount()
 	account.Extra = map[string]any{"openai_overbrush_enabled": true}
-	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+	svc.openaiOverbrush429Counts.Store(account.ID, 1)
 
 	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, account, body, "")
 
-	require.Error(t, err)
-	require.Nil(t, result)
+	require.NoError(t, err)
+	require.NotNil(t, result)
 	_, has429Count := svc.openaiOverbrush429Counts.Load(account.ID)
-	require.True(t, has429Count)
+	require.False(t, has429Count)
 }
 
 func rawChatCompletionsTestConfig() *config.Config {

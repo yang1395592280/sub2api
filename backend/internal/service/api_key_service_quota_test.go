@@ -184,12 +184,13 @@ func TestAPIKeyService_UpdateQuotaUsed_UsesAtomicStatePath(t *testing.T) {
 func TestAPIKeyService_Update_ReactivatesQuotaExhaustedWhenQuotaUnlimited(t *testing.T) {
 	repo := &apiKeyRepoStub{
 		apiKey: &APIKey{
-			ID:        10,
-			UserID:    7,
-			Key:       "sk-test-unlimited",
-			Status:    StatusAPIKeyQuotaExhausted,
-			Quota:     10,
-			QuotaUsed: 12,
+			ID:              10,
+			UserID:          7,
+			Key:             "sk-test-unlimited",
+			GroupSelectMode: APIKeyGroupSelectModeOpenAIAutoCheapest,
+			Status:          StatusAPIKeyQuotaExhausted,
+			Quota:           10,
+			QuotaUsed:       12,
 		},
 	}
 	svc := &APIKeyService{apiKeyRepo: repo}

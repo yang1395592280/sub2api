@@ -220,6 +220,10 @@ func (s *stubUserRepo) RemoveGroupFromAllowedGroups(ctx context.Context, groupID
 	panic("unexpected RemoveGroupFromAllowedGroups call")
 }
 
+func (s *stubUserRepo) ListAllowedUsersByGroupID(context.Context, int64) ([]service.User, error) {
+	panic("unexpected ListAllowedUsersByGroupID call")
+}
+
 func (s *stubUserRepo) RemoveGroupFromUserAllowedGroups(ctx context.Context, userID int64, groupID int64) error {
 	panic("unexpected RemoveGroupFromUserAllowedGroups call")
 }

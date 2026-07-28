@@ -68,7 +68,7 @@ func TestForwardAsAnthropic_ForceChatCompletionsNonStreaming(t *testing.T) {
 	}
 
 	account := forceChatMessagesFallbackAccount()
-	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+	svc.openaiOverbrush429Counts.Store(account.ID, 1)
 
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
@@ -126,7 +126,7 @@ func TestForwardAsAnthropic_ForceChatCompletionsStreamingClosesOpenBlockOnDone(t
 	}
 
 	account := forceChatMessagesFallbackAccount()
-	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+	svc.openaiOverbrush429Counts.Store(account.ID, 1)
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -188,7 +188,7 @@ func TestForwardAsAnthropic_ForceChatCompletionsStreamingToolCallAggregation(t *
 	}
 
 	account := forceChatMessagesFallbackAccount()
-	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+	svc.openaiOverbrush429Counts.Store(account.ID, 1)
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -233,7 +233,7 @@ func TestForwardAsAnthropic_ForceChatCompletionsStreamingLengthMapsToMaxTokens(t
 	}
 
 	account := forceChatMessagesFallbackAccount()
-	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+	svc.openaiOverbrush429Counts.Store(account.ID, 1)
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -348,12 +348,11 @@ func TestForwardAsAnthropic_ForceChatCompletionsStreamReadErrorSkipsFinalize(t *
 	}
 
 	account := forceChatMessagesFallbackAccount()
-	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+	svc.openaiOverbrush429Counts.Store(account.ID, 1)
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "stream usage incomplete")
-	require.NotNil(t, result)
-	require.True(t, result.Stream)
+	require.Nil(t, result)
 
 	out := rec.Body.String()
 	require.Contains(t, out, `"text":"he"`, "delta emitted before the failure must reach the client")

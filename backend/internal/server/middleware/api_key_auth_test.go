@@ -1590,6 +1590,10 @@ func (r *stubApiKeyRepo) ClearGroupIDByGroupID(ctx context.Context, groupID int6
 	return 0, errors.New("not implemented")
 }
 
+func (r *stubApiKeyRepo) ClearGroupIDByUserAndGroup(context.Context, int64, int64) (int64, error) {
+	return 0, errors.New("not implemented")
+}
+
 func (r *stubApiKeyRepo) UpdateGroupIDByUserAndGroup(ctx context.Context, userID, oldGroupID, newGroupID int64) (int64, error) {
 	return 0, errors.New("not implemented")
 }
@@ -1614,6 +1618,10 @@ func (r *stubApiKeyRepo) UpdateLastUsed(ctx context.Context, id int64, usedAt ti
 	if r.updateLastUsed != nil {
 		return r.updateLastUsed(ctx, id, usedAt)
 	}
+	return nil
+}
+
+func (r *stubApiKeyRepo) UpdateLastEffectiveGroup(context.Context, int64, int64, time.Time) error {
 	return nil
 }
 

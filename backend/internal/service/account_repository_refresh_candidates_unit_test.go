@@ -12,6 +12,10 @@ func (s *accountRepoStub) ListSub2APICheckinCandidates(context.Context, int) ([]
 	panic("unexpected ListSub2APICheckinCandidates call")
 }
 
+func (s *accountRepoStub) ListUpstreamBalanceRefreshCandidatesByGroupID(context.Context, int64, int) ([]Account, error) {
+	panic("unexpected ListUpstreamBalanceRefreshCandidatesByGroupID call")
+}
+
 func (r *openAIAccountTestRepo) ListOAuthRefreshCandidates(context.Context) ([]Account, error) {
 	panic("unexpected ListOAuthRefreshCandidates call")
 }
@@ -36,10 +40,18 @@ func (m *mockAccountRepoForPlatform) ListSub2APICheckinCandidates(context.Contex
 	panic("unexpected ListSub2APICheckinCandidates call")
 }
 
+func (m *mockAccountRepoForPlatform) ListUpstreamBalanceRefreshCandidatesByGroupID(context.Context, int64, int) ([]Account, error) {
+	panic("unexpected ListUpstreamBalanceRefreshCandidatesByGroupID call")
+}
+
 func (m *mockAccountRepoForGemini) ListOAuthRefreshCandidates(context.Context) ([]Account, error) {
 	return m.ListActive(context.Background())
 }
 
 func (m *mockAccountRepoForGemini) ListSub2APICheckinCandidates(context.Context, int) ([]Account, error) {
 	panic("unexpected ListSub2APICheckinCandidates call")
+}
+
+func (m *mockAccountRepoForGemini) ListUpstreamBalanceRefreshCandidatesByGroupID(context.Context, int64, int) ([]Account, error) {
+	panic("unexpected ListUpstreamBalanceRefreshCandidatesByGroupID call")
 }

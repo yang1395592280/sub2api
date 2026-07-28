@@ -71,7 +71,7 @@ func TestForwardResponses_ForceChatCompletionsMalformed2xxKeepsOverbrush429Count
 		}},
 	}
 	account := forceChatResponsesFallbackAccount()
-	require.True(t, svc.shouldSkipOpenAI429LimitForOverbrush(context.Background(), account, http.StatusTooManyRequests))
+	svc.openaiOverbrush429Counts.Store(account.ID, 1)
 
 	result, err := svc.Forward(context.Background(), c, account, body)
 

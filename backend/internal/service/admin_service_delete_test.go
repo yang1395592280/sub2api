@@ -220,7 +220,7 @@ func (s *groupRepoStub) GetByID(ctx context.Context, id int64) (*Group, error) {
 }
 
 func (s *groupRepoStub) GetByIDLite(ctx context.Context, id int64) (*Group, error) {
-	panic("unexpected GetByIDLite call")
+	return &Group{ID: id}, nil
 }
 
 func (s *groupRepoStub) Update(ctx context.Context, group *Group) error {
@@ -250,6 +250,10 @@ func (s *groupRepoStub) ListActive(ctx context.Context) ([]Group, error) {
 
 func (s *groupRepoStub) ListActiveByPlatform(ctx context.Context, platform string) ([]Group, error) {
 	panic("unexpected ListActiveByPlatform call")
+}
+
+func (s *groupRepoStub) ListUpstreamBalanceRefreshEnabled(context.Context) ([]Group, error) {
+	panic("unexpected ListUpstreamBalanceRefreshEnabled call")
 }
 
 func (s *groupRepoStub) ExistsByName(ctx context.Context, name string) (bool, error) {
