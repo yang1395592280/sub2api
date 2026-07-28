@@ -72,6 +72,7 @@ type OpenAIAutoSchedulerSettings struct {
 	MaxAccountShare                     float64                      `json:"max_account_share"`
 	LowConfidenceMaxShare               float64                      `json:"low_confidence_max_share"`
 	LatencyBudgetMS                     int                          `json:"latency_budget_ms"`
+	EarlySSEPreambleFlushEnabled        bool                         `json:"early_sse_preamble_flush_enabled"`
 	FirstOutputTimeoutSeconds           int                          `json:"first_output_timeout_seconds"`
 	HighEffortFirstOutputTimeoutSeconds int                          `json:"high_effort_first_output_timeout_seconds"`
 	Weights                             OpenAISchedulerPolicyWeights `json:"weights"`
@@ -242,6 +243,7 @@ func DefaultOpenAIAutoSchedulerSettings() OpenAIAutoSchedulerSettings {
 		MaxAccountShare:                     0.70,
 		LowConfidenceMaxShare:               0.10,
 		LatencyBudgetMS:                     1000,
+		EarlySSEPreambleFlushEnabled:        false,
 		FirstOutputTimeoutSeconds:           0,
 		HighEffortFirstOutputTimeoutSeconds: 0,
 		Weights:                             defaultOpenAISchedulerPolicyWeights(OpenAIAutoSchedulerModeBalanced),

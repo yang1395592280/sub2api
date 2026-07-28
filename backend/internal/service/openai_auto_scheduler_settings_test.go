@@ -133,6 +133,7 @@ func TestNormalizeOpenAIAutoSchedulerSettings_BalancedDefaults(t *testing.T) {
 	require.Equal(t, 1800, got.HealthTTLSeconds)
 	require.Equal(t, 300, got.RealSampleFreshSeconds)
 	require.Equal(t, 0, got.ProbeJitterSeconds)
+	require.False(t, got.EarlySSEPreambleFlushEnabled)
 	require.Zero(t, got.FirstOutputTimeoutSeconds)
 	require.Zero(t, got.HighEffortFirstOutputTimeoutSeconds)
 }
@@ -150,6 +151,7 @@ func TestSettingService_OpenAIAutoSchedulerOldJSONDefaultsToShadow(t *testing.T)
 	require.Equal(t, 3, settings.TopK)
 	require.Equal(t, 1800, settings.HealthTTLSeconds)
 	require.Equal(t, 300, settings.RealSampleFreshSeconds)
+	require.False(t, settings.EarlySSEPreambleFlushEnabled)
 	require.Zero(t, settings.FirstOutputTimeoutSeconds)
 	require.Zero(t, settings.HighEffortFirstOutputTimeoutSeconds)
 }
@@ -167,6 +169,21 @@ func TestSettingService_OpenAIAutoSchedulerExplicitShadowFalseSurvivesDecodeAndP
 	var saved map[string]any
 	require.NoError(t, json.Unmarshal([]byte(repo.values[SettingKeyOpenAIAutoSchedulerSettings]), &saved))
 	require.Equal(t, false, saved["shadow_mode"])
+}
+
+func TestSettingService_OpenAIAutoSchedulerEarlyPreambleFlushSurvivesDecodeAndPersist(t *testing.T) {
+	repo := &openAIAutoSchedulerSettingsRepoStub{values: map[string]string{
+		SettingKeyOpenAIAutoSchedulerSettings: `{"early_sse_preamble_flush_enabled":true}`,
+	}}
+	svc := NewSettingService(repo, &config.Config{})
+
+	settings := svc.GetOpenAIAutoSchedulerSettings(context.Background())
+	require.True(t, settings.EarlySSEPreambleFlushEnabled)
+
+	require.NoError(t, svc.SetOpenAIAutoSchedulerSettings(context.Background(), settings))
+	var saved map[string]any
+	require.NoError(t, json.Unmarshal([]byte(repo.values[SettingKeyOpenAIAutoSchedulerSettings]), &saved))
+	require.Equal(t, true, saved["early_sse_preamble_flush_enabled"])
 }
 
 func TestSettingService_OpenAIAutoSchedulerSettingsReadFailureUsesStaleLastGood(t *testing.T) {

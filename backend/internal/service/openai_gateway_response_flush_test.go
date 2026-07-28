@@ -288,6 +288,28 @@ func TestOpenAIResponseFlush_PreambleWithoutTerminalRemainsBufferedForFailover(t
 	require.Empty(t, flushes)
 }
 
+func TestOpenAIResponseFlush_EarlyPreambleFlushCommitsCompleteEventAndDisablesFailover(t *testing.T) {
+	body := "data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_early\"}}\n\n"
+	recorder := newOpenAIResponseFlushRecorder()
+
+	result, err := runOpenAIResponseFlushTest(
+		recorder,
+		io.NopCloser(strings.NewReader(body)),
+		config.GatewayConfig{},
+		func(svc *OpenAIGatewayService) { svc.settingService = newOpenAIEarlyPreambleFlushSettingService() },
+	)
+
+	require.ErrorContains(t, err, "missing terminal event")
+	var failoverErr *UpstreamFailoverError
+	require.False(t, errors.As(err, &failoverErr))
+	require.NotNil(t, result)
+	require.Nil(t, result.firstTokenMs, "preamble must not pollute semantic TTFT metrics")
+	gotBody, flushes := recorder.snapshot()
+	require.Equal(t, body, gotBody)
+	require.Equal(t, []string{body}, flushes)
+	require.True(t, strings.HasSuffix(flushes[0], "\n\n"))
+}
+
 func TestOpenAIResponseFlush_CanceledAfterOutputFlushesResidualWithoutErrorEvent(t *testing.T) {
 	body := "data: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n"
 	recorder := newOpenAIResponseFlushRecorder()
@@ -453,7 +475,7 @@ func TestOpenAIResponseFlush_ClientDisconnectStillDrainsUsage(t *testing.T) {
 	require.Len(t, flushes, 1)
 }
 
-func runOpenAIResponseFlushTest(recorder *openAIResponseFlushRecorder, body io.ReadCloser, gatewayCfg config.GatewayConfig) (*openaiStreamingResult, error) {
+func runOpenAIResponseFlushTest(recorder *openAIResponseFlushRecorder, body io.ReadCloser, gatewayCfg config.GatewayConfig, setups ...func(*OpenAIGatewayService)) (*openaiStreamingResult, error) {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
@@ -461,12 +483,21 @@ func runOpenAIResponseFlushTest(recorder *openAIResponseFlushRecorder, body io.R
 		cfg:           &config.Config{Gateway: gatewayCfg},
 		toolCorrector: NewCodexToolCorrector(),
 	}
+	for _, setup := range setups {
+		setup(svc)
+	}
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       body,
 	}
 	return svc.handleStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI}, time.Now(), "gpt-5", "gpt-5")
+}
+
+func newOpenAIEarlyPreambleFlushSettingService() *SettingService {
+	return NewSettingService(&openAIAutoSchedulerSettingsRepoStub{values: map[string]string{
+		SettingKeyOpenAIAutoSchedulerSettings: `{"early_sse_preamble_flush_enabled":true}`,
+	}}, &config.Config{})
 }
 
 func runOpenAIResponseFlushTestAsync(recorder *openAIResponseFlushRecorder, body io.ReadCloser, gatewayCfg config.GatewayConfig) (<-chan *openaiStreamingResult, <-chan error) {

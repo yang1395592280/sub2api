@@ -45,6 +45,7 @@ export interface OpenAIAutoSchedulerSettings {
   max_account_share?: number
   low_confidence_max_share?: number
   latency_budget_ms?: number
+  early_sse_preamble_flush_enabled?: boolean
   first_output_timeout_seconds?: number
   high_effort_first_output_timeout_seconds?: number
   weights?: OpenAISchedulerPolicyWeights

@@ -222,6 +222,9 @@ func (s *OpenAIGatewayService) shouldFailoverOpenAIUpstreamResponse(statusCode i
 	if isOpenAIContextWindowError(upstreamMsg, upstreamBody) {
 		return false
 	}
+	if isOpenAIRequestPolicyRejection(statusCode, upstreamBody) {
+		return false
+	}
 	if isOpenAIRequestBodyTooLargeError(statusCode, upstreamMsg, upstreamBody) {
 		return true
 	}
@@ -229,6 +232,42 @@ func (s *OpenAIGatewayService) shouldFailoverOpenAIUpstreamResponse(statusCode i
 		return true
 	}
 	return isOpenAITransientProcessingError(statusCode, upstreamMsg, upstreamBody)
+}
+
+func isOpenAIRequestPolicyRejection(statusCode int, responseBody []byte) bool {
+	if statusCode != http.StatusBadRequest && statusCode != http.StatusForbidden {
+		return false
+	}
+	code := strings.ToLower(strings.TrimSpace(extractUpstreamErrorCode(responseBody)))
+	switch code {
+	case "cyber_policy", "content_policy", "content_policy_violation", "safety_policy_violation":
+		return true
+	default:
+		return false
+	}
+}
+
+func isOpenAIModelAccessForbidden(statusCode int, responseBody []byte) bool {
+	if statusCode != http.StatusForbidden {
+		return false
+	}
+	code := strings.ToLower(strings.TrimSpace(extractUpstreamErrorCode(responseBody)))
+	switch code {
+	case "model_access_denied", "model_not_allowed", "unsupported_model":
+		return true
+	}
+	message := strings.ToLower(strings.TrimSpace(extractUpstreamErrorMessage(responseBody)))
+	for _, marker := range []string{
+		"does not have access to model",
+		"do not have access to model",
+		"model is not available for your account",
+		"model is not enabled for your account",
+	} {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // OpenAIRequestBodyTooLargeClientMessage is the fixed downstream message used

@@ -68,6 +68,16 @@ func runPassthroughFlushTest(
 	failAfterWrites int,
 	setups ...func(*gin.Context),
 ) (*openaiStreamingResultPassthrough, *httptest.ResponseRecorder, *passthroughFlushTestWriter, error) {
+	return runPassthroughFlushTestWithServiceSetup(t, body, failAfterWrites, nil, setups...)
+}
+
+func runPassthroughFlushTestWithServiceSetup(
+	t *testing.T,
+	body io.ReadCloser,
+	failAfterWrites int,
+	serviceSetup func(*OpenAIGatewayService),
+	setups ...func(*gin.Context),
+) (*openaiStreamingResultPassthrough, *httptest.ResponseRecorder, *passthroughFlushTestWriter, error) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
@@ -87,6 +97,9 @@ func runPassthroughFlushTest(
 	svc := &OpenAIGatewayService{cfg: &config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	}}
+	if serviceSetup != nil {
+		serviceSetup(svc)
+	}
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
@@ -143,6 +156,26 @@ func TestOpenAIStreamingPassthroughKeepsPreamblePendingUntilFirstOutputBoundary(
 		len(preamble) + len(firstOutput),
 		len(upstream),
 	}, writer.flushBodyLengths)
+}
+
+func TestOpenAIStreamingPassthroughEarlyPreambleFlushDisablesTransparentFailover(t *testing.T) {
+	preamble := "event: response.created\n" +
+		`data: {"type":"response.created","response":{"id":"resp_early"}}` + "\n\n"
+	failedEvent := "event: response.failed\n" +
+		`data: {"type":"response.failed","error":{"code":"server_error","message":"upstream processing failed"}}` + "\n\n"
+
+	_, recorder, writer, err := runPassthroughFlushTestWithServiceSetup(
+		t,
+		io.NopCloser(strings.NewReader(preamble+failedEvent)),
+		-1,
+		func(svc *OpenAIGatewayService) { svc.settingService = newOpenAIEarlyPreambleFlushSettingService() },
+	)
+
+	require.Error(t, err)
+	var failoverErr *UpstreamFailoverError
+	require.False(t, errors.As(err, &failoverErr))
+	require.Equal(t, preamble+failedEvent, recorder.Body.String())
+	require.Equal(t, []int{len(preamble), len(preamble) + len(failedEvent)}, writer.flushBodyLengths)
 }
 
 func TestOpenAIStreamingPassthroughFlushesTerminalEventAtEOFWithoutBlankLine(t *testing.T) {

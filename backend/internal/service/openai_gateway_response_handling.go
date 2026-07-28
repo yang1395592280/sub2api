@@ -43,8 +43,11 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 }
 
 func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel, reasoningEffort string) (*openaiStreamingResult, error) {
+	earlyPreambleFlush := s.openAIEarlySSEPreambleFlushEnabled(ctx, account)
 	firstOutputTimeout := time.Duration(0)
-	if account != nil && account.Platform == PlatformOpenAI {
+	if account != nil && account.Platform == PlatformOpenAI && !earlyPreambleFlush {
+		// Early preamble flush commits the downstream response, so a later semantic
+		// output timeout can no longer switch accounts transparently.
 		firstOutputTimeout = s.openAIFirstOutputTimeoutWithContext(ctx, reasoningEffort)
 	}
 	guardFirstOutput := firstOutputTimeout > 0
@@ -515,9 +518,10 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			if needModelReplace && mappedModel != "" && strings.Contains(line, mappedModel) {
 				line = s.replaceModelInSSELine(line, mappedModel, originalModel)
 			}
-			startsClientOutput := forceFlushFailedEvent || openAIStreamDataStartsClientOutput(data, eventType)
+			startsSemanticOutput := forceFlushFailedEvent || openAIStreamDataStartsClientOutput(data, eventType)
+			startsClientOutput := startsSemanticOutput || (earlyPreambleFlush && openAIStreamEventIsPreamble(eventType))
 			if guardFirstOutput {
-				eventStartsClientOutput = eventStartsClientOutput || startsClientOutput
+				eventStartsClientOutput = eventStartsClientOutput || startsSemanticOutput
 			}
 
 			// 写入客户端（客户端断开后继续 drain 上游）
@@ -538,7 +542,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			}
 
 			// Record first token time
-			if !guardFirstOutput && firstTokenMs == nil && startsClientOutput {
+			if !guardFirstOutput && firstTokenMs == nil && startsSemanticOutput {
 				ms := int(time.Since(startTime).Milliseconds())
 				firstTokenMs = &ms
 				stopFirstOutputTimer()
