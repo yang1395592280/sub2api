@@ -74,6 +74,49 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_S
 	require.Equal(t, group.MessagesDispatchModelConfig, got.Group.MessagesDispatchModelConfig)
 }
 
+func TestAPIKeyRepository_GetByKeyForAuth_PreservesSelfHostedPoolMetadata_SQLite(t *testing.T) {
+	repo, client := newAPIKeyRepoSQLite(t)
+	ctx := context.Background()
+	user := mustCreateAPIKeyRepoUser(t, ctx, client, "getbykey-auth-self-hosted-pool@test.com")
+
+	pool, err := client.Group.Create().
+		SetName("self-hosted-pool").
+		SetPlatform(service.PlatformOpenAI).
+		SetGroupRole(service.GroupRoleSelfHostedPool).
+		SetStatus(service.StatusActive).
+		SetSubscriptionType(service.SubscriptionTypeStandard).
+		SetRateMultiplier(1).
+		Save(ctx)
+	require.NoError(t, err)
+
+	group, err := client.Group.Create().
+		SetName("standard-with-self-hosted-pool").
+		SetPlatform(service.PlatformOpenAI).
+		SetGroupRole(service.GroupRoleStandard).
+		SetSelfHostedPoolGroupID(pool.ID).
+		SetStatus(service.StatusActive).
+		SetSubscriptionType(service.SubscriptionTypeStandard).
+		SetRateMultiplier(0.3).
+		Save(ctx)
+	require.NoError(t, err)
+
+	key := &service.APIKey{
+		UserID:  user.ID,
+		Key:     "sk-getbykey-auth-self-hosted-pool",
+		Name:    "Self-hosted Pool Key",
+		GroupID: &group.ID,
+		Status:  service.StatusActive,
+	}
+	require.NoError(t, repo.Create(ctx, key))
+
+	got, err := repo.GetByKeyForAuth(ctx, key.Key)
+	require.NoError(t, err)
+	require.NotNil(t, got.Group)
+	require.Equal(t, service.GroupRoleStandard, got.Group.GroupRole)
+	require.NotNil(t, got.Group.SelfHostedPoolGroupID)
+	require.Equal(t, pool.ID, *got.Group.SelfHostedPoolGroupID)
+}
+
 func TestAPIKeyRepository_GetByKeyForAuth_PreservesUpstreamPriceGuardConfig_SQLite(t *testing.T) {
 	repo, client := newAPIKeyRepoSQLite(t)
 	ctx := context.Background()

@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 20 // v20: preserve OpenAI self-hosted pool bindings in group snapshots
+const apiKeyAuthSnapshotVersion = 21 // v21: rebuild snapshots from auth queries that include self-hosted pool metadata
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
