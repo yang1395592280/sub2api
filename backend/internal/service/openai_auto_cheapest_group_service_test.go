@@ -625,6 +625,7 @@ func TestAutoCheapestSharedPoolStageOrder(t *testing.T) {
 	}
 
 	var stages []int64
+	var effectiveGroupIDs []int64
 	var auditedPoolIDs []int64
 	var fallbackReasons []string
 	svc := &OpenAIGatewayService{}
@@ -632,14 +633,16 @@ func TestAutoCheapestSharedPoolStageOrder(t *testing.T) {
 		stageCtx := openAIAutoCheapestStageContext(context.Background(), stage)
 		sourceID := openAIAccountSourceGroupFromContext(stageCtx, stage.effectiveKey.GroupID)
 		stages = append(stages, *sourceID)
+		effectiveGroupIDs = append(effectiveGroupIDs, *stage.effectiveKey.GroupID)
 		metadata := openAIPoolStageMetadataFromContext(stageCtx)
 		auditedPoolIDs = append(auditedPoolIDs, metadata.PoolGroupID)
 		fallbackReasons = append(fallbackReasons, metadata.FallbackReason)
 	}
 
-	require.Equal(t, []int64{99, 99, 10, 15, 20}, stages)
-	require.Equal(t, []int64{99, 99, 0, 99, 99}, auditedPoolIDs)
-	require.Equal(t, []string{"", "", "", "no_available_accounts", "no_available_accounts"}, fallbackReasons)
+	require.Equal(t, []int64{99, 10, 15, 20}, stages)
+	require.Equal(t, []int64{15, 10, 15, 20}, effectiveGroupIDs)
+	require.Equal(t, []int64{99, 0, 99, 99}, auditedPoolIDs)
+	require.Equal(t, []string{"", "", "no_available_accounts", "no_available_accounts"}, fallbackReasons)
 }
 
 func TestOpenAIAutoCheapestSelection_PrefersSelfHostedPoolBeforeCheaperBusinessGroup(t *testing.T) {

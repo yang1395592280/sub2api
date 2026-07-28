@@ -734,10 +734,15 @@ func (s *OpenAIGatewayService) openAIAutoCheapestAccountSourceStages(ctx context
 	}
 
 	stages := make([]openAIAutoCheapestAccountSourceStage, 0, len(resolved)*2)
+	seenPoolGroupIDs := make(map[int64]struct{}, len(resolved))
 	for _, item := range resolved {
 		if item.poolGroupID <= 0 || len(item.sources) < 2 {
 			continue
 		}
+		if _, seen := seenPoolGroupIDs[item.poolGroupID]; seen {
+			continue
+		}
+		seenPoolGroupIDs[item.poolGroupID] = struct{}{}
 		stages = append(stages, openAIAutoCheapestAccountSourceStage{
 			effectiveKey:  item.effectiveKey,
 			sourceGroupID: item.sources[0],

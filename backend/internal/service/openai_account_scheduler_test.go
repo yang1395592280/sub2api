@@ -3541,6 +3541,67 @@ func TestDefaultOpenAIAccountScheduler_BalancedRuntimeSettingsHonorGlobalAndGrou
 	}
 }
 
+func TestDefaultOpenAIAccountScheduler_SelfHostedPoolForcesLegacyRuntimeMode(t *testing.T) {
+	effectiveGroupID := int64(10127)
+	poolGroupID := int64(10128)
+	settings := enabledOpenAIAutoSchedulerSettings()
+	settings.Mode = OpenAIAutoSchedulerModePerformance
+	settings.ShadowMode = true
+	repo := &fakeOpenAIAutoSchedulerRepo{groups: map[int64]Group{
+		effectiveGroupID: {
+			ID: effectiveGroupID, Platform: PlatformOpenAI, Status: StatusActive,
+			OpenAIAutoSchedulerEnabled: true,
+		},
+	}}
+	gateway := &OpenAIGatewayService{
+		openAIAutoSchedulerService: NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: settings}),
+	}
+	scheduler := &defaultOpenAIAccountScheduler{service: gateway}
+
+	poolReq := scheduler.withOpenAIBalancedRuntimeSettings(context.Background(), OpenAIAccountScheduleRequest{
+		GroupID: &effectiveGroupID, AccountSourceGroupID: &poolGroupID, PoolGroupID: poolGroupID,
+	})
+	require.Equal(t, OpenAIAutoSchedulerModeLegacy, poolReq.balancedMode)
+	require.False(t, poolReq.balancedShadowMode)
+
+	fallbackReq := scheduler.withOpenAIBalancedRuntimeSettings(context.Background(), OpenAIAccountScheduleRequest{
+		GroupID: &effectiveGroupID, AccountSourceGroupID: &effectiveGroupID,
+		PoolGroupID: poolGroupID, PoolFallbackReason: "no_available_accounts",
+	})
+	require.Equal(t, OpenAIAutoSchedulerModeBalanced, fallbackReq.balancedMode)
+	require.False(t, fallbackReq.balancedShadowMode)
+}
+
+func TestDefaultOpenAIAccountScheduler_SelfHostedPoolBypassesTemporaryHealthBlock(t *testing.T) {
+	effectiveGroupID := int64(10129)
+	poolGroupID := int64(10130)
+	account := &Account{ID: 216451, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true}
+	selector := NewOpenAIAutoSchedulerSelector(&fakeAutoSchedulerSelectorService{
+		enabledGroups: map[int64]bool{effectiveGroupID: true},
+		states: map[int64]OpenAIAutoSchedulerScoreState{
+			account.ID: {
+				AccountID: account.ID, GroupID: effectiveGroupID, Model: "gpt-5",
+				State: OpenAIAutoSchedulerStateOpen, CooldownUntil: ptrSelectorTime(time.Now().Add(time.Minute)),
+			},
+		},
+	})
+	gateway := &OpenAIGatewayService{openAIAutoSchedulerSelector: selector}
+	scheduler := &defaultOpenAIAccountScheduler{service: gateway}
+
+	poolCompatible, poolReason := scheduler.isAccountRequestCompatibleReason(context.Background(), account, OpenAIAccountScheduleRequest{
+		GroupID: &effectiveGroupID, AccountSourceGroupID: &poolGroupID, PoolGroupID: poolGroupID, RequestedModel: "gpt-5",
+	})
+	require.True(t, poolCompatible)
+	require.Empty(t, poolReason)
+
+	fallbackCompatible, fallbackReason := scheduler.isAccountRequestCompatibleReason(context.Background(), account, OpenAIAccountScheduleRequest{
+		GroupID: &effectiveGroupID, AccountSourceGroupID: &effectiveGroupID, PoolGroupID: poolGroupID,
+		PoolFallbackReason: "no_available_accounts", RequestedModel: "gpt-5",
+	})
+	require.False(t, fallbackCompatible)
+	require.Equal(t, "auto_scheduler_temporarily_blocked", fallbackReason)
+}
+
 func TestDefaultOpenAIAccountScheduler_ShadowKeepsLegacyPlanAndLiveUsesBalancedPlan(t *testing.T) {
 	accounts := []*Account{
 		{ID: 216440, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1},
