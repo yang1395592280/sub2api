@@ -618,28 +618,117 @@ func TestAutoCheapestSharedPoolStageOrder(t *testing.T) {
 	}
 	candidates, err := NewOpenAIAutoCheapestGroupResolver(&fakeAvailableOpenAIGroupsProvider{groups: groups}).CandidateGroups(context.Background(), 42, nil)
 	require.NoError(t, err)
+	apiKey := &APIKey{ID: 1, UserID: 42, GroupSelectMode: APIKeyGroupSelectModeOpenAIAutoCheapest}
+	keys := make([]*APIKey, 0, len(candidates))
+	for i := range candidates {
+		keys = append(keys, CloneAPIKeyForEffectiveGroup(apiKey, &candidates[i]))
+	}
 
 	var stages []int64
 	var auditedPoolIDs []int64
 	var fallbackReasons []string
 	svc := &OpenAIGatewayService{}
-	for i := range candidates {
-		effective := &candidates[i]
-		effectiveID := effective.ID
-		_, err := svc.selectOpenAIAccountAcrossSources(context.Background(), &effectiveID, effective, func(stageCtx context.Context) (*AccountSelectionResult, error) {
-			sourceID := openAIAccountSourceGroupFromContext(stageCtx, &effectiveID)
-			stages = append(stages, *sourceID)
-			metadata := openAIPoolStageMetadataFromContext(stageCtx)
-			auditedPoolIDs = append(auditedPoolIDs, metadata.PoolGroupID)
-			fallbackReasons = append(fallbackReasons, metadata.FallbackReason)
-			return nil, ErrNoAvailableAccounts
-		})
-		require.ErrorIs(t, err, ErrNoAvailableAccounts)
+	for _, stage := range svc.openAIAutoCheapestAccountSourceStages(context.Background(), keys) {
+		stageCtx := openAIAutoCheapestStageContext(context.Background(), stage)
+		sourceID := openAIAccountSourceGroupFromContext(stageCtx, stage.effectiveKey.GroupID)
+		stages = append(stages, *sourceID)
+		metadata := openAIPoolStageMetadataFromContext(stageCtx)
+		auditedPoolIDs = append(auditedPoolIDs, metadata.PoolGroupID)
+		fallbackReasons = append(fallbackReasons, metadata.FallbackReason)
 	}
 
-	require.Equal(t, []int64{10, 99, 15, 99, 20}, stages)
-	require.Equal(t, []int64{0, 99, 99, 99, 99}, auditedPoolIDs)
-	require.Equal(t, []string{"", "", "no_available_accounts", "", "no_available_accounts"}, fallbackReasons)
+	require.Equal(t, []int64{99, 99, 10, 15, 20}, stages)
+	require.Equal(t, []int64{99, 99, 0, 99, 99}, auditedPoolIDs)
+	require.Equal(t, []string{"", "", "", "no_available_accounts", "no_available_accounts"}, fallbackReasons)
+}
+
+func TestOpenAIAutoCheapestSelection_PrefersSelfHostedPoolBeforeCheaperBusinessGroup(t *testing.T) {
+	cheapGroupID := int64(10)
+	pooledGroupID := int64(15)
+	poolID := int64(99)
+	cheapUpstream := Account{
+		ID: 1001, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive,
+		Schedulable: true, Concurrency: 1, GroupIDs: []int64{cheapGroupID},
+	}
+	selfHosted := Account{
+		ID: 9901, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive,
+		Schedulable: true, Concurrency: 1, GroupIDs: []int64{poolID},
+	}
+	newService := func() *OpenAIGatewayService {
+		svc := &OpenAIGatewayService{
+			accountRepo:      schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: []Account{cheapUpstream, selfHosted}}},
+			cache:            &schedulerTestGatewayCache{},
+			cfg:              newSchedulerTestSubscriptionPriorityConfig(),
+			rateLimitService: newOpenAIAdvancedSchedulerRateLimitService("true", "true"),
+			concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{acquireResults: map[int64]bool{
+				cheapUpstream.ID: true,
+				selfHosted.ID:    true,
+			}}),
+		}
+		svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(&fakeAvailableOpenAIGroupsProvider{groups: []Group{
+			{ID: cheapGroupID, Name: "cheap-upstream", Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, Status: StatusActive, RateMultiplier: 0.10, AllowAutoCheapestScheduling: true},
+			{ID: pooledGroupID, Name: "self-hosted-first", Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, Status: StatusActive, RateMultiplier: 0.15, AllowAutoCheapestScheduling: true, SelfHostedPoolGroupID: &poolID, SelfHostedPoolStatus: StatusActive},
+		}}), nil)
+		return svc
+	}
+	apiKey := &APIKey{ID: 1, UserID: 42, GroupSelectMode: APIKeyGroupSelectModeOpenAIAutoCheapest}
+
+	t.Run("load awareness", func(t *testing.T) {
+		svc := newService()
+		effectiveKey, selection, err := svc.SelectEffectiveOpenAIAccountWithLoadAwareness(
+			context.Background(), apiKey, "", "gpt-5.6-sol", nil, OpenAIEndpointCapabilityChatCompletions,
+		)
+		require.NoError(t, err)
+		require.Equal(t, &pooledGroupID, effectiveKey.GroupID)
+		require.Equal(t, selfHosted.ID, selection.Account.ID)
+		if selection.ReleaseFunc != nil {
+			selection.ReleaseFunc()
+		}
+	})
+
+	t.Run("advanced scheduler", func(t *testing.T) {
+		svc := newService()
+		effectiveKey, selection, _, err := svc.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
+			context.Background(), apiKey, "", "", "gpt-5.6-sol", nil,
+			OpenAIUpstreamTransportHTTPSSE, OpenAISchedulerEndpointResponses,
+			OpenAIEndpointCapabilityChatCompletions, false, false, true, PlatformOpenAI,
+		)
+		require.NoError(t, err)
+		require.Equal(t, &pooledGroupID, effectiveKey.GroupID)
+		require.Equal(t, selfHosted.ID, selection.Account.ID)
+		if selection.ReleaseFunc != nil {
+			selection.ReleaseFunc()
+		}
+	})
+
+	t.Run("images scheduler", func(t *testing.T) {
+		svc := newService()
+		effectiveKey, selection, _, err := svc.SelectEffectiveOpenAIAccountWithSchedulerForImages(
+			context.Background(), apiKey, "", "gpt-image-1", OpenAISchedulerEndpointImagesGen,
+			nil, OpenAIImagesCapabilityBasic,
+		)
+		require.NoError(t, err)
+		require.Equal(t, &pooledGroupID, effectiveKey.GroupID)
+		require.Equal(t, selfHosted.ID, selection.Account.ID)
+		if selection.ReleaseFunc != nil {
+			selection.ReleaseFunc()
+		}
+	})
+
+	t.Run("pool exhausted falls back by cheapest group", func(t *testing.T) {
+		svc := newService()
+		effectiveKey, selection, _, err := svc.SelectEffectiveOpenAIAccountWithSchedulerForCapability(
+			context.Background(), apiKey, "", "", "gpt-5.6-sol", map[int64]struct{}{selfHosted.ID: {}},
+			OpenAIUpstreamTransportHTTPSSE, OpenAISchedulerEndpointResponses,
+			OpenAIEndpointCapabilityChatCompletions, false, false, true, PlatformOpenAI,
+		)
+		require.NoError(t, err)
+		require.Equal(t, &cheapGroupID, effectiveKey.GroupID)
+		require.Equal(t, cheapUpstream.ID, selection.Account.ID)
+		if selection.ReleaseFunc != nil {
+			selection.ReleaseFunc()
+		}
+	})
 }
 
 func TestSelectAccountWithLoadAwareness_UsesSourceMembershipAndEffectivePriceGuard(t *testing.T) {
