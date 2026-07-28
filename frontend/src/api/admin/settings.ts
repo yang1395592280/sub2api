@@ -1227,11 +1227,43 @@ export async function getOpenAIOverbrushSettings(): Promise<OpenAIOverbrushSetti
   return data;
 }
 
+// ==================== Panel Rate Limit Settings ====================
+
+/**
+ * Panel API rate limit settings.
+ * Authenticated panel endpoints are limited per user account (reverse-proxy
+ * safe); public endpoints are limited per publicly routable client IP.
+ */
+export interface PanelRateLimitSettings {
+  enabled: boolean;
+  user_rpm: number;
+  heavy_rpm: number;
+  exempt_admin: boolean;
+  public_ip_rpm: number;
+}
+
+export async function getPanelRateLimitSettings(): Promise<PanelRateLimitSettings> {
+  const { data } = await apiClient.get<PanelRateLimitSettings>(
+    "/admin/settings/panel-rate-limit",
+  );
+  return data;
+}
+
 export async function updateOpenAIOverbrushSettings(
   settings: OpenAIOverbrushSettings,
 ): Promise<OpenAIOverbrushSettings> {
   const { data } = await apiClient.put<OpenAIOverbrushSettings>(
     "/admin/settings/openai-overbrush",
+    settings,
+  );
+  return data;
+}
+
+export async function updatePanelRateLimitSettings(
+  settings: PanelRateLimitSettings,
+): Promise<PanelRateLimitSettings> {
+  const { data } = await apiClient.put<PanelRateLimitSettings>(
+    "/admin/settings/panel-rate-limit",
     settings,
   );
   return data;
@@ -1466,6 +1498,8 @@ export const settingsAPI = {
   updateRateLimit429CooldownSettings,
   getOpenAIOverbrushSettings,
   updateOpenAIOverbrushSettings,
+  getPanelRateLimitSettings,
+  updatePanelRateLimitSettings,
   getStreamTimeoutSettings,
   updateStreamTimeoutSettings,
   getRectifierSettings,

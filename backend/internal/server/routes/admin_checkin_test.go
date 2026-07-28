@@ -28,6 +28,7 @@ func TestRegisterAdminRoutes_ExposesUpstreamCheckinTest(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/42/upstream-checkin/test", nil)

@@ -49,6 +49,7 @@ func TestRegisterAdminRoutesProtectsOpenAIAutoSchedulerOverviewWithAdminAuth(t *
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	rec := httptest.NewRecorder()
