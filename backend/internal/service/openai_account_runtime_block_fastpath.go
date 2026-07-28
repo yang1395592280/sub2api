@@ -51,6 +51,9 @@ func (s *OpenAIGatewayService) handleOpenAIAccountUpstreamError(ctx context.Cont
 	if account != nil && account.Platform == PlatformGrok && isGrokContentPolicyRejection(statusCode, responseBody) {
 		return false
 	}
+	if account != nil && account.Platform == PlatformOpenAI && isOpenAIRequestPolicyRejection(statusCode, responseBody) {
+		return false
+	}
 	// Any non-2xx upstream HTTP response means the model request was actually sent.
 	if s != nil {
 		scheduleOllamaCloudUsageActivity(s.deferredService, account)
@@ -78,6 +81,9 @@ func (s *OpenAIGatewayService) handleOpenAIAccountUpstreamError(ctx context.Cont
 	}
 	stateCtx = withTempUnschedulableModel(stateCtx, canonicalModel)
 	if s.rateLimitService != nil && len(canonicalModel) > 0 && s.rateLimitService.HandleUpstreamModelNotFound(stateCtx, account, canonicalModel[0], statusCode, responseBody) {
+		return true
+	}
+	if s.rateLimitService != nil && len(canonicalModel) > 0 && s.rateLimitService.HandleOpenAIModelAccessForbidden(stateCtx, account, canonicalModel[0], statusCode, responseBody) {
 		return true
 	}
 	// Isolate a custom temporary-unschedulable match to the known upstream

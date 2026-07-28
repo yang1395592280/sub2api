@@ -86,3 +86,53 @@ func TestRateLimitService_HandleUpstreamError_OpenAI403ThresholdDisables(t *test
 	require.Contains(t, repo.lastErrorMsg, "workspace forbidden by policy")
 	require.Contains(t, repo.lastErrorMsg, "consecutive_403=3/3")
 }
+
+func TestOpenAI403ModelAccessFailureOnlyCoolsDownAccountModel(t *testing.T) {
+	repo := &errorPolicyRepoStub{}
+	counter := &openAI403CounterCacheStub{counts: []int64{1}}
+	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	rateLimitService.SetOpenAI403CounterCache(counter)
+	gateway := &OpenAIGatewayService{rateLimitService: rateLimitService}
+	account := &Account{ID: 303, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+
+	shouldDisable := gateway.handleOpenAIAccountUpstreamError(
+		context.Background(),
+		account,
+		http.StatusForbidden,
+		http.Header{},
+		[]byte(`{"error":{"code":"model_access_denied","message":"You do not have access to model gpt-5.5"}}`),
+		"gpt-5.5",
+	)
+
+	require.True(t, shouldDisable)
+	require.Len(t, repo.modelRateLimitCalls, 1)
+	require.Equal(t, account.ID, repo.modelRateLimitCalls[0].accountID)
+	require.Equal(t, "gpt-5.5", repo.modelRateLimitCalls[0].scope)
+	require.Len(t, counter.counts, 1, "model-scoped 403 must not increment account-level 403 failures")
+	require.Zero(t, repo.setErrCalls)
+	require.Zero(t, repo.tempCalls)
+}
+
+func TestOpenAI403ContentPolicyDoesNotCoolDownAccount(t *testing.T) {
+	repo := &errorPolicyRepoStub{}
+	counter := &openAI403CounterCacheStub{counts: []int64{1}}
+	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	rateLimitService.SetOpenAI403CounterCache(counter)
+	gateway := &OpenAIGatewayService{rateLimitService: rateLimitService}
+	account := &Account{ID: 304, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+
+	shouldDisable := gateway.handleOpenAIAccountUpstreamError(
+		context.Background(),
+		account,
+		http.StatusForbidden,
+		http.Header{},
+		[]byte(`{"error":{"code":"content_policy_violation","message":"request blocked"}}`),
+		"gpt-5.5",
+	)
+
+	require.False(t, shouldDisable)
+	require.Len(t, counter.counts, 1)
+	require.Empty(t, repo.modelRateLimitCalls)
+	require.Zero(t, repo.setErrCalls)
+	require.Zero(t, repo.tempCalls)
+}

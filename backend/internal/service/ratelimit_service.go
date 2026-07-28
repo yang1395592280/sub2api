@@ -80,6 +80,26 @@ const (
 	openAI403CounterWindowMinutes   = 180
 )
 
+// HandleOpenAIModelAccessForbidden isolates explicit model permission failures
+// to the account/model pair so unrelated models remain schedulable.
+func (s *RateLimitService) HandleOpenAIModelAccessForbidden(ctx context.Context, account *Account, model string, statusCode int, responseBody []byte) bool {
+	model = strings.TrimSpace(model)
+	if s == nil || s.accountRepo == nil || account == nil || account.Platform != PlatformOpenAI || model == "" ||
+		!account.ShouldHandleErrorCode(statusCode) || !isOpenAIModelAccessForbidden(statusCode, responseBody) {
+		return false
+	}
+
+	until := time.Now().Add(time.Duration(openAI403CooldownMinutesDefault) * time.Minute)
+	reason := buildForbiddenErrorMessage("OpenAI model access forbidden (403):", extractUpstreamErrorMessage(responseBody), responseBody, "model access denied")
+	if err := s.accountRepo.SetModelRateLimit(ctx, account.ID, model, until, reason); err != nil {
+		slog.Warn("openai_model_access_forbidden_set_failed", "account_id", account.ID, "model", model, "error", err)
+		// The current request still needs another account even if persistence fails.
+		return true
+	}
+	slog.Warn("openai_model_access_forbidden", "account_id", account.ID, "model", model, "until", until)
+	return true
+}
+
 // NewRateLimitService 创建RateLimitService实例
 func NewRateLimitService(accountRepo AccountRepository, usageRepo UsageLogRepository, cfg *config.Config, geminiQuotaService *GeminiQuotaService, tempUnschedCache TempUnschedCache) *RateLimitService {
 	return &RateLimitService{

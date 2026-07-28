@@ -52,7 +52,19 @@ describe('SchedulerSettingsPanel', () => {
       probe_jitter_seconds: 6,
       first_output_timeout_seconds: 0,
       high_effort_first_output_timeout_seconds: 0,
+      early_sse_preamble_flush_enabled: false,
     })
+  })
+
+  it('emits the early SSE preamble flush switch explicitly', async () => {
+    const wrapper = mount(SchedulerSettingsPanel, {
+      props: { modelValue: { ...settings, early_sse_preamble_flush_enabled: true }, saving: false },
+      global: { plugins: [createSchedulerTestI18n()], stubs: { Toggle: true } },
+    })
+
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({ early_sse_preamble_flush_enabled: true })
   })
 
   it('validates and emits first output timeout settings', async () => {

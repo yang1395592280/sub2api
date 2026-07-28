@@ -635,6 +635,7 @@ func (s *OpenAIGatewayService) handleErrorResponsePassthrough(
 	// 错误体在下方统一重建。cyber 是上游网络安全策略拦截，不冷却账号，
 	// 故下方跳过 handleOpenAIAccountUpstreamError（避免自定义 temp-unschedulable 规则误冷却）。
 	cyberHit, cyberCode, cyberMsg := detectOpenAICyberPolicy(body)
+	requestPolicyHit := account != nil && account.Platform == PlatformOpenAI && isOpenAIRequestPolicyRejection(resp.StatusCode, body)
 	if cyberHit {
 		MarkOpsCyberPolicy(c, CyberPolicyMark{
 			Code:           cyberCode,
@@ -657,8 +658,8 @@ func (s *OpenAIGatewayService) handleErrorResponsePassthrough(
 	setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
 	logOpenAIInstructionsRequiredDebug(ctx, c, account, resp.StatusCode, upstreamMsg, requestBody, body)
 	// 错误体虽不会原样透传，运行态账号状态仍需更新，避免粘性路由继续复用
-	// 刚被限流的账号。cyber 例外：不冷却账号。
-	if !cyberHit {
+	// 刚被限流的账号。请求级内容策略拒绝不是账号故障，不参与冷却。
+	if !cyberHit && !requestPolicyHit {
 		reqModel, _, _ := extractOpenAIRequestMetaFromBody(requestBody)
 		canonicalModel := canonicalOpenAIAccountSchedulingModel(account, reqModel)
 		_ = s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, body, canonicalModel)
@@ -759,6 +760,13 @@ func openAIStreamEventIsPreamble(eventType string) bool {
 	default:
 		return false
 	}
+}
+
+func (s *OpenAIGatewayService) openAIEarlySSEPreambleFlushEnabled(ctx context.Context, account *Account) bool {
+	if s == nil || s.settingService == nil || account == nil || account.Platform != PlatformOpenAI {
+		return false
+	}
+	return s.settingService.GetOpenAIAutoSchedulerSettings(ctx).EarlySSEPreambleFlushEnabled
 }
 
 func openAIStreamDataStartsClientOutput(data, eventType string) bool {
@@ -986,6 +994,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	originalModel string,
 	mappedModel string,
 ) (*openaiStreamingResultPassthrough, error) {
+	earlyPreambleFlush := s.openAIEarlySSEPreambleFlushEnabled(ctx, account)
 	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 
 	// SSE headers
@@ -1062,6 +1071,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	for documentScanner.Scan() {
 		line := documentScanner.Text()
 		lineStartsClientOutput := false
+		lineStartsSemanticOutput := false
 		forceFlushFailedEvent := false
 		if data, ok := extractOpenAISSEDataLine(line); ok {
 			dataBytes := []byte(data)
@@ -1153,8 +1163,10 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				trimmedData = strings.TrimSpace(string(sanitizedData))
 				line = "data: " + string(sanitizedData)
 			}
-			lineStartsClientOutput = forceFlushFailedEvent || openAIStreamDataStartsClientOutput(trimmedData, eventType)
-			if firstTokenMs == nil && lineStartsClientOutput && trimmedData != "[DONE]" {
+			lineStartsSemanticOutput = forceFlushFailedEvent || openAIStreamDataStartsClientOutput(trimmedData, eventType)
+			lineStartsClientOutput = lineStartsSemanticOutput ||
+				(earlyPreambleFlush && openAIStreamEventIsPreamble(eventType))
+			if firstTokenMs == nil && lineStartsSemanticOutput && trimmedData != "[DONE]" {
 				ms := int(time.Since(startTime).Milliseconds())
 				firstTokenMs = &ms
 			}

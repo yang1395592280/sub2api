@@ -18,6 +18,15 @@ type stubCodexRestrictionDetector struct {
 	result CodexClientRestrictionDetectionResult
 }
 
+func TestOpenAIRequestPolicyRejectionDoesNotFailOver(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	body := []byte(`{"error":{"code":"content_policy_violation","message":"request blocked"}}`)
+
+	require.True(t, isOpenAIRequestPolicyRejection(http.StatusForbidden, body))
+	require.False(t, svc.shouldFailoverOpenAIUpstreamResponse(http.StatusForbidden, "request blocked", body))
+	require.False(t, isOpenAIRequestPolicyRejection(http.StatusForbidden, []byte(`{"error":{"code":"model_access_denied"}}`)))
+}
+
 func (s *stubCodexRestrictionDetector) Detect(_ *gin.Context, _ *Account, _ CodexRestrictionPolicy, _ []byte) CodexClientRestrictionDetectionResult {
 	return s.result
 }

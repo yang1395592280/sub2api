@@ -18,6 +18,10 @@
     <section class="border-b border-gray-200 pb-6 dark:border-dark-700">
       <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.openaiAutoScheduler.settings.firstOutput') }}</h3>
       <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <label class="flex items-center justify-between gap-4 sm:col-span-2">
+          <span class="input-label mb-0">{{ t('admin.openaiAutoScheduler.settings.earlySSEPreambleFlush') }}</span>
+          <Toggle :modelValue="form.early_sse_preamble_flush_enabled" @update:modelValue="form.early_sse_preamble_flush_enabled = $event" />
+        </label>
         <NumberField id="scheduler-first-output-timeout" v-model="form.first_output_timeout_seconds" :label="t('admin.openaiAutoScheduler.settings.firstOutputTimeout')" :min="0" :max="600" />
         <NumberField id="scheduler-high-effort-first-output-timeout" v-model="form.high_effort_first_output_timeout_seconds" :label="t('admin.openaiAutoScheduler.settings.highEffortFirstOutputTimeout')" :min="0" :max="1800" />
       </div>
@@ -133,6 +137,7 @@ function normalizeSettings(value: OpenAIAutoSchedulerSettings) {
     max_account_share: value.max_account_share ?? 0.7,
     low_confidence_max_share: value.low_confidence_max_share ?? 0.1,
     latency_budget_ms: value.latency_budget_ms ?? 1000,
+    early_sse_preamble_flush_enabled: value.early_sse_preamble_flush_enabled ?? false,
     first_output_timeout_seconds: value.first_output_timeout_seconds ?? 0,
     high_effort_first_output_timeout_seconds: value.high_effort_first_output_timeout_seconds ?? 0,
     weights: { ...(value.weights || { latency: 0.35, reliability: 0.25, cost: 0.15, capacity: 0.15, quota: 0.05, priority: 0.05 }) },
@@ -173,6 +178,7 @@ function submit(): void {
     max_account_share: Number(form.max_account_share),
     low_confidence_max_share: Number(form.low_confidence_max_share),
     latency_budget_ms: Number(form.latency_budget_ms),
+    early_sse_preamble_flush_enabled: Boolean(form.early_sse_preamble_flush_enabled),
     first_output_timeout_seconds: Number(form.first_output_timeout_seconds),
     high_effort_first_output_timeout_seconds: Number(form.high_effort_first_output_timeout_seconds),
     weights: {
