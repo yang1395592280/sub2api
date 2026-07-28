@@ -135,6 +135,10 @@ func openAIUsesSeparateAccountSource(req OpenAIAccountScheduleRequest) bool {
 	return openAIAccountScheduleGroupID(req.GroupID) != openAIAccountScheduleGroupID(openAIAccountSourceGroupID(req))
 }
 
+func openAIUsesSelfHostedPoolAccountSource(req OpenAIAccountScheduleRequest) bool {
+	return req.PoolGroupID > 0 && openAIUsesSeparateAccountSource(req)
+}
+
 func openAIAccountScheduleSourceType(req OpenAIAccountScheduleRequest) string {
 	if openAIUsesSeparateAccountSource(req) {
 		return GroupRoleSelfHostedPool
@@ -534,6 +538,14 @@ func (s *defaultOpenAIAccountScheduler) withOpenAIBalancedRuntimeSettings(
 	req OpenAIAccountScheduleRequest,
 ) OpenAIAccountScheduleRequest {
 	settings := s.openAIBalancedRuntimeSettingsForRequest(ctx)
+	// A linked self-hosted pool is a hard-priority account source. Keep hard
+	// eligibility and concurrency checks below, but do not let health scoring,
+	// slow-TTFT circuits, or exploration reject the entire pool before normal
+	// upstream fallback is considered.
+	if openAIUsesSelfHostedPoolAccountSource(req) {
+		settings.Mode = OpenAIAutoSchedulerModeLegacy
+		settings.ShadowMode = false
+	}
 	// Production wiring always provides the auto-scheduler service. Keep directly
 	// constructed gateway services backward compatible, but enforce the global and
 	// group gates whenever the control-plane service is available.
@@ -2552,7 +2564,9 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 		}
 		return false, reason
 	}
-	if req.GroupID != nil && s != nil && s.service != nil &&
+	// The health cooldown is a soft scheduling signal. A hard-priority self-hosted
+	// pool still observes the runtime, quota, model, and capability gates above/below.
+	if !openAIUsesSelfHostedPoolAccountSource(req) && req.GroupID != nil && s != nil && s.service != nil &&
 		s.service.isOpenAIAutoSchedulerAccountTemporarilyBlocked(ctx, req.GroupID, req.RequestedModel, account.ID) {
 		return false, "auto_scheduler_temporarily_blocked"
 	}
