@@ -44,7 +44,7 @@ func (s *apiKeyCreateUpdateRepoStub) GetByKeyForAuth(context.Context, string) (*
 	panic("unexpected GetByKeyForAuth call")
 }
 
-func (s *apiKeyCreateUpdateRepoStub) Update(ctx context.Context, key *APIKey) error {
+func (s *apiKeyCreateUpdateRepoStub) Update(ctx context.Context, key *APIKey, _ APIKeyUpdateFields) error {
 	cloned := *key
 	s.updated = &cloned
 	return nil
@@ -292,7 +292,7 @@ func (s *apiKeyServiceUserRepoStub) GetByEmail(context.Context, string) (*User, 
 func (s *apiKeyServiceUserRepoStub) GetFirstAdmin(context.Context) (*User, error) {
 	panic("unexpected GetFirstAdmin call")
 }
-func (s *apiKeyServiceUserRepoStub) Update(context.Context, *User) error {
+func (s *apiKeyServiceUserRepoStub) Update(context.Context, *User, UserUpdateFields) error {
 	panic("unexpected Update call")
 }
 func (s *apiKeyServiceUserRepoStub) Delete(context.Context, int64) error {
@@ -327,6 +327,12 @@ func (s *apiKeyServiceUserRepoStub) UpdateBalance(context.Context, int64, float6
 }
 func (s *apiKeyServiceUserRepoStub) DeductBalance(context.Context, int64, float64) error {
 	panic("unexpected DeductBalance call")
+}
+func (s *apiKeyServiceUserRepoStub) AdjustBalance(context.Context, int64, float64) (BalanceChange, error) {
+	panic("unexpected AdjustBalance call")
+}
+func (s *apiKeyServiceUserRepoStub) SetBalance(context.Context, int64, float64) (BalanceChange, error) {
+	panic("unexpected SetBalance call")
 }
 func (s *apiKeyServiceUserRepoStub) UpdateConcurrency(context.Context, int64, int) error {
 	panic("unexpected UpdateConcurrency call")

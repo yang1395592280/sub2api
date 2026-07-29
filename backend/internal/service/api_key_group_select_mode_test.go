@@ -36,7 +36,7 @@ func (s *apiKeyEffectiveGroupRepoStub) GetByKeyForAuth(context.Context, string) 
 	panic("unexpected GetByKeyForAuth call")
 }
 
-func (s *apiKeyEffectiveGroupRepoStub) Update(context.Context, *APIKey) error {
+func (s *apiKeyEffectiveGroupRepoStub) Update(context.Context, *APIKey, APIKeyUpdateFields) error {
 	panic("unexpected Update call")
 }
 
