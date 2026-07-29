@@ -1664,6 +1664,13 @@ export interface UsageLog {
   openai_ws_mode?: boolean
   duration_ms: number | null
   first_token_ms: number | null
+  e2e_first_token_ms?: number | null
+  body_read_ms?: number | null
+  preprocess_ms?: number | null
+  user_queue_ms?: number | null
+  routing_ms?: number | null
+  queue_ms?: number | null
+  retry_ms?: number | null
 
   // 图片生成字段
   image_count: number

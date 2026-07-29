@@ -106,6 +106,9 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // channel_price_source
 			sqlmock.AnyArg(), // channel_price_refreshed_at
 			sqlmock.AnyArg(), // session_id
+			sqlmock.AnyArg(), // body_read_ms
+			sqlmock.AnyArg(), // preprocess_ms
+			sqlmock.AnyArg(), // user_queue_ms
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), createdAt))
@@ -224,6 +227,9 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // channel_price_source
 			sqlmock.AnyArg(), // channel_price_refreshed_at
 			sqlmock.AnyArg(), // session_id
+			sqlmock.AnyArg(), // body_read_ms
+			sqlmock.AnyArg(), // preprocess_ms
+			sqlmock.AnyArg(), // user_queue_ms
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(100), createdAt))
@@ -292,6 +298,9 @@ func TestPrepareUsageLogInsert_ArgCountMatchesTypes(t *testing.T) {
 func TestPrepareUsageLogInsertPersistsSchedulerTimingAfterFirstToken(t *testing.T) {
 	firstTokenMs := 900
 	e2eFirstTokenMs := 1180
+	bodyReadMs := 10
+	preprocessMs := 30
+	userQueueMs := 40
 	routingMs := 20
 	queueMs := 200
 	retryMs := 60
@@ -303,6 +312,9 @@ func TestPrepareUsageLogInsertPersistsSchedulerTimingAfterFirstToken(t *testing.
 		Model:           "gpt-5.5",
 		FirstTokenMs:    &firstTokenMs,
 		E2EFirstTokenMs: &e2eFirstTokenMs,
+		BodyReadMs:      &bodyReadMs,
+		PreprocessMs:    &preprocessMs,
+		UserQueueMs:     &userQueueMs,
 		RoutingMs:       &routingMs,
 		QueueMs:         &queueMs,
 		RetryMs:         &retryMs,
@@ -314,6 +326,9 @@ func TestPrepareUsageLogInsertPersistsSchedulerTimingAfterFirstToken(t *testing.
 	require.Equal(t, sql.NullInt64{Int64: 20, Valid: true}, prepared.args[36])
 	require.Equal(t, sql.NullInt64{Int64: 200, Valid: true}, prepared.args[37])
 	require.Equal(t, sql.NullInt64{Int64: 60, Valid: true}, prepared.args[38])
+	require.Equal(t, sql.NullInt64{Int64: 10, Valid: true}, prepared.args[65])
+	require.Equal(t, sql.NullInt64{Int64: 30, Valid: true}, prepared.args[66])
+	require.Equal(t, sql.NullInt64{Int64: 40, Valid: true}, prepared.args[67])
 }
 
 func TestPrepareUsageLogInsert_PersistsAPIKeyGroupSelectModeSnapshot(t *testing.T) {
@@ -477,6 +492,9 @@ func TestScanUsageLogSchedulerTimingAndChannelPriceSnapshot(t *testing.T) {
 		source,                            // channel_price_source
 		refreshedAt,                       // channel_price_refreshed_at
 		nil,                               // session_id
+		int64(10),                         // body_read_ms
+		int64(30),                         // preprocess_ms
+		int64(40),                         // user_queue_ms
 		createdAt,                         // created_at
 	}
 
@@ -488,6 +506,9 @@ func TestScanUsageLogSchedulerTimingAndChannelPriceSnapshot(t *testing.T) {
 	require.Equal(t, 20, *got.RoutingMs)
 	require.Equal(t, 200, *got.QueueMs)
 	require.Equal(t, 60, *got.RetryMs)
+	require.Equal(t, 10, *got.BodyReadMs)
+	require.Equal(t, 30, *got.PreprocessMs)
+	require.Equal(t, 40, *got.UserQueueMs)
 	require.InDelta(t, price, *got.ChannelPriceSnapshot, 0.000001)
 	require.NotNil(t, got.ChannelPriceSource)
 	require.Equal(t, source, *got.ChannelPriceSource)
@@ -1159,6 +1180,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullTime{},
 			sql.NullString{}, // session_id
+			sql.NullInt64{},  // body_read_ms
+			sql.NullInt64{},  // preprocess_ms
+			sql.NullInt64{},  // user_queue_ms
 			now,
 		}})
 		require.NoError(t, err)
@@ -1247,6 +1271,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // channel_price_source
 			sql.NullTime{},    // channel_price_refreshed_at
 			sql.NullString{},  // session_id
+			sql.NullInt64{},   // body_read_ms
+			sql.NullInt64{},   // preprocess_ms
+			sql.NullInt64{},   // user_queue_ms
 			now,
 		}})
 		require.NoError(t, err)
@@ -1314,6 +1341,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // channel_price_source
 			sql.NullTime{},    // channel_price_refreshed_at
 			sql.NullString{},  // session_id
+			sql.NullInt64{},   // body_read_ms
+			sql.NullInt64{},   // preprocess_ms
+			sql.NullInt64{},   // user_queue_ms
 			now,
 		}})
 		require.NoError(t, err)
@@ -1381,6 +1411,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // channel_price_source
 			sql.NullTime{},    // channel_price_refreshed_at
 			sql.NullString{},  // session_id
+			sql.NullInt64{},   // body_read_ms
+			sql.NullInt64{},   // preprocess_ms
+			sql.NullInt64{},   // user_queue_ms
 			now,
 		}})
 		require.NoError(t, err)

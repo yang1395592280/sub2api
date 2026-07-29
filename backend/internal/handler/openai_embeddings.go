@@ -47,7 +47,9 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 		return
 	}
 
+	bodyReadStartedAt := time.Now()
 	body, err := pkghttputil.ReadRequestBodyWithPrealloc(c.Request)
+	timing.AddBodyRead(time.Since(bodyReadStartedAt))
 	if err != nil {
 		if maxErr, ok := extractMaxBytesError(err); ok {
 			h.errorResponse(c, http.StatusRequestEntityTooLarge, "invalid_request_error", buildBodyTooLargeMessage(maxErr.Limit))
@@ -60,6 +62,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Request body is empty")
 		return
 	}
+	preprocessStartedAt := time.Now()
 	if !gjson.ValidBytes(body) {
 		logRequestBodyParseFailure(reqLog, body, nil)
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
@@ -97,7 +100,10 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
 
+	timing.AddPreprocess(time.Since(preprocessStartedAt))
+	userQueueStartedAt := time.Now()
 	userReleaseFunc, acquired := h.acquireResponsesUserSlot(c, subject.UserID, subject.Concurrency, false, &streamStarted, reqLog)
+	timing.AddUserQueue(time.Since(userQueueStartedAt))
 	if !acquired {
 		return
 	}

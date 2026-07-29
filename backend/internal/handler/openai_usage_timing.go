@@ -17,6 +17,9 @@ func applyOpenAIForwardTiming(c *gin.Context, preForwardE2EFirstTokenMs int, res
 		return
 	}
 	snapshot := timing.Snapshot()
+	result.BodyReadMs = openAIIntPtr(snapshot.BodyReadMS)
+	result.PreprocessMs = openAIIntPtr(snapshot.PreprocessMS)
+	result.UserQueueMs = openAIIntPtr(snapshot.UserQueueMS)
 	result.RoutingMs = openAIIntPtr(snapshot.RoutingMS)
 	result.QueueMs = openAIIntPtr(snapshot.QueueMS)
 	result.RetryMs = openAIIntPtr(snapshot.RetryMS)

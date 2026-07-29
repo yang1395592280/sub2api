@@ -11,9 +11,12 @@ const openAIRequestTimingContextKey = "sub2api.openai_request_timing"
 
 // OpenAIRequestTimingSnapshot is an immutable view of completed scheduling phases.
 type OpenAIRequestTimingSnapshot struct {
-	RoutingMS int
-	QueueMS   int
-	RetryMS   int
+	BodyReadMS   int
+	PreprocessMS int
+	UserQueueMS  int
+	RoutingMS    int
+	QueueMS      int
+	RetryMS      int
 }
 
 // OpenAIRequestTiming tracks request-scoped OpenAI scheduling durations.
@@ -22,9 +25,33 @@ type OpenAIRequestTiming struct {
 	now            func() time.Time
 	startedAt      time.Time
 	routingStarted time.Time
+	bodyRead       time.Duration
+	preprocess     time.Duration
+	userQueue      time.Duration
 	routing        time.Duration
 	queue          time.Duration
 	retry          time.Duration
+}
+
+// AddBodyRead records time spent receiving and reading the request body.
+func (t *OpenAIRequestTiming) AddBodyRead(duration time.Duration) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.bodyRead += duration
+}
+
+// AddPreprocess records validation and request preparation before user queueing.
+func (t *OpenAIRequestTiming) AddPreprocess(duration time.Duration) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.preprocess += duration
+}
+
+// AddUserQueue records time spent acquiring local request concurrency slots.
+func (t *OpenAIRequestTiming) AddUserQueue(duration time.Duration) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.userQueue += duration
 }
 
 func newOpenAIRequestTiming(now func() time.Time) *OpenAIRequestTiming {
@@ -108,9 +135,12 @@ func (t *OpenAIRequestTiming) Snapshot() OpenAIRequestTimingSnapshot {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return OpenAIRequestTimingSnapshot{
-		RoutingMS: int(t.routing.Milliseconds()),
-		QueueMS:   int(t.queue.Milliseconds()),
-		RetryMS:   int(t.retry.Milliseconds()),
+		BodyReadMS:   int(t.bodyRead.Milliseconds()),
+		PreprocessMS: int(t.preprocess.Milliseconds()),
+		UserQueueMS:  int(t.userQueue.Milliseconds()),
+		RoutingMS:    int(t.routing.Milliseconds()),
+		QueueMS:      int(t.queue.Milliseconds()),
+		RetryMS:      int(t.retry.Milliseconds()),
 	}
 }
 
@@ -119,6 +149,9 @@ func applyOpenAIWSTurnTiming(timing *OpenAIRequestTiming, forwardStartedAt time.
 		return
 	}
 	snapshot := timing.Snapshot()
+	result.BodyReadMs = &snapshot.BodyReadMS
+	result.PreprocessMs = &snapshot.PreprocessMS
+	result.UserQueueMs = &snapshot.UserQueueMS
 	result.RoutingMs = &snapshot.RoutingMS
 	result.QueueMs = &snapshot.QueueMS
 	result.RetryMs = &snapshot.RetryMS

@@ -46,6 +46,18 @@ const messages: Record<string, string> = {
   'usage.imageSizeNotRecorded': 'not recorded',
   'usage.imageSizeLegacyUnstandardized': 'legacy unstandardized',
   'usage.imageSizeUnknown': 'unknown',
+	'usage.latencyE2EFirstToken': 'End-to-end',
+	'usage.latencyFirstToken': 'First token',
+	'usage.latencyUpstreamFirstToken': 'Upstream',
+	'usage.latencyDuration': 'Total',
+	'usage.latencyBreakdown': 'Latency breakdown',
+	'usage.latencyBodyRead': 'Request body',
+	'usage.latencyPreprocess': 'Preprocessing',
+	'usage.latencyUserQueue': 'Local concurrency wait',
+	'usage.latencyRouting': 'Routing',
+	'usage.latencyAccountQueue': 'Account queue',
+	'usage.latencyRetry': 'Retry wait',
+	'usage.latencyOtherPreForward': 'Other pre-forward',
   'usage.imageUnitPrice': 'Per-image price',
   'usage.imageTotalPrice': 'Image total price',
   'admin.usage.billingModeToken': 'Token',
@@ -74,6 +86,7 @@ const DataTableStub = {
         <slot name="cell-billing_mode" :row="row" />
         <slot name="cell-tokens" :row="row" />
         <slot name="cell-cost" :row="row" />
+		<slot name="cell-latency" :row="row" />
       </div>
     </div>
   `,
@@ -121,6 +134,78 @@ describe('admin UsageTable tooltip', () => {
       toJSON: () => ({}),
     } as DOMRect)
   })
+
+	it('shows end-to-end and upstream first-token latency with a phase breakdown', async () => {
+		const wrapper = mount(UsageTable, {
+			props: {
+				data: [{
+					...baseImageRow,
+					request_id: 'req-latency-breakdown',
+					duration_ms: 3000,
+					first_token_ms: 1000,
+					e2e_first_token_ms: 1600,
+					body_read_ms: 10,
+					preprocess_ms: 20,
+					user_queue_ms: 30,
+					routing_ms: 40,
+					queue_ms: 50,
+					retry_ms: 60,
+				}],
+				loading: false,
+				columns: [],
+			},
+			global: {
+				stubs: {
+					DataTable: DataTableStub,
+					EmptyState: true,
+					Icon: true,
+					Teleport: true,
+				},
+			},
+		})
+
+		await wrapper.get('[data-testid="latency-breakdown-trigger"]').trigger('mouseenter')
+		await nextTick()
+
+		const text = wrapper.text()
+		expect(text).toContain('End-to-end1.60s')
+		expect(text).toContain('Upstream1.00s')
+		expect(text).toContain('Request body10ms')
+		expect(text).toContain('Preprocessing20ms')
+		expect(text).toContain('Local concurrency wait30ms')
+		expect(text).toContain('Routing40ms')
+		expect(text).toContain('Account queue50ms')
+		expect(text).toContain('Retry wait60ms')
+		expect(text).toContain('Other pre-forward390ms')
+	})
+
+	it('falls back to upstream first-token latency for historical rows', () => {
+		const wrapper = mount(UsageTable, {
+			props: {
+				data: [{
+					...baseImageRow,
+					request_id: 'req-legacy-latency',
+					duration_ms: 2500,
+					first_token_ms: 1200,
+				}],
+				loading: false,
+				columns: [],
+			},
+			global: {
+				stubs: {
+					DataTable: DataTableStub,
+					EmptyState: true,
+					Icon: true,
+					Teleport: true,
+				},
+			},
+		})
+
+		expect(wrapper.text()).toContain('First token1.20s')
+		expect(wrapper.text()).not.toContain('End-to-end')
+		expect(wrapper.text()).not.toContain('Upstream')
+		expect(wrapper.find('[data-testid="latency-breakdown-trigger"]').exists()).toBe(false)
+	})
 
   it('marks group cells only when the usage row was recorded as OpenAI auto cheapest', () => {
     const wrapper = mount(UsageTable, {

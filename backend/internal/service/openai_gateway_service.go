@@ -254,6 +254,9 @@ type OpenAIForwardResult struct {
 	Duration              time.Duration
 	FirstTokenMs          *int
 	E2EFirstTokenMs       *int
+	BodyReadMs            *int
+	PreprocessMs          *int
+	UserQueueMs           *int
 	RoutingMs             *int
 	QueueMs               *int
 	RetryMs               *int

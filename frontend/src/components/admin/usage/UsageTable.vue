@@ -206,20 +206,37 @@
 
         <!-- 合并首字/总耗时的健康度列：左侧色条上端随首字档、下端随总耗时档，中段(40%-60%)短渐变过渡，便于纵向扫视整体健康状况 -->
         <template #cell-latency="{ row }">
-          <div class="flex items-stretch gap-2">
+          <div class="flex min-w-[150px] items-stretch gap-2">
             <span
               class="w-1 shrink-0 rounded-full"
-              :class="row.first_token_ms != null
-                ? ['bg-gradient-to-b from-40% to-60%', LATENCY_BAR_FROM_CLASSES[firstTokenSeverity(row.first_token_ms)], LATENCY_BAR_TO_CLASSES[durationSeverity(row.duration_ms ?? 0)]]
+              :class="displayFirstTokenMs(row) != null
+                ? ['bg-gradient-to-b from-40% to-60%', LATENCY_BAR_FROM_CLASSES[firstTokenSeverity(displayFirstTokenMs(row) ?? 0)], LATENCY_BAR_TO_CLASSES[durationSeverity(row.duration_ms ?? 0)]]
                 : LATENCY_BAR_CLASSES[durationSeverity(row.duration_ms ?? 0)]"
               aria-hidden="true"
             ></span>
-            <div class="grid grid-cols-[max-content_max-content] items-baseline gap-x-2 gap-y-0.5 text-xs">
-              <span class="text-gray-400 dark:text-gray-500">{{ t('usage.latencyFirstToken') }}</span>
-              <span v-if="row.first_token_ms != null" class="font-medium tabular-nums" :class="LATENCY_TEXT_CLASSES[firstTokenSeverity(row.first_token_ms)]">{{ formatDuration(row.first_token_ms) }}</span>
+            <div class="grid grid-cols-[max-content_max-content_max-content] items-baseline gap-x-2 gap-y-0.5 text-xs">
+              <span class="text-gray-400 dark:text-gray-500">{{ t(displayFirstTokenLabel(row)) }}</span>
+              <span v-if="displayFirstTokenMs(row) != null" class="font-medium tabular-nums" :class="LATENCY_TEXT_CLASSES[firstTokenSeverity(displayFirstTokenMs(row) ?? 0)]">{{ formatDuration(displayFirstTokenMs(row)) }}</span>
               <span v-else class="text-gray-400 dark:text-gray-500">-</span>
+              <span></span>
+              <template v-if="row.e2e_first_token_ms != null && row.first_token_ms != null">
+                <span class="text-gray-400 dark:text-gray-500">{{ t('usage.latencyUpstreamFirstToken') }}</span>
+                <span class="font-medium tabular-nums text-gray-600 dark:text-gray-300">{{ formatDuration(row.first_token_ms) }}</span>
+                <span></span>
+              </template>
               <span class="text-gray-400 dark:text-gray-500">{{ t('usage.latencyDuration') }}</span>
               <span class="font-medium tabular-nums" :class="LATENCY_TEXT_CLASSES[durationSeverity(row.duration_ms ?? 0)]">{{ formatDuration(row.duration_ms) }}</span>
+              <div
+                v-if="hasLatencyBreakdown(row)"
+                class="group relative"
+                data-testid="latency-breakdown-trigger"
+                @mouseenter="showLatencyTooltip($event, row)"
+                @mouseleave="hideLatencyTooltip"
+              >
+                <div class="flex h-4 w-4 cursor-help items-center justify-center rounded text-gray-400 transition-colors group-hover:bg-gray-100 group-hover:text-primary-500 dark:group-hover:bg-gray-700" :title="t('usage.latencyBreakdown')">
+                  <Icon name="infoCircle" size="xs" />
+                </div>
+              </div>
             </div>
           </div>
         </template>
@@ -245,6 +262,29 @@
       </DataTable>
     </div>
   </div>
+
+  <!-- Latency Breakdown Tooltip Portal -->
+  <Teleport to="body">
+    <div
+      v-if="latencyTooltipVisible && latencyTooltipData"
+      class="pointer-events-none fixed z-[9999] -translate-x-full -translate-y-1/2"
+      :style="{
+        left: latencyTooltipPosition.x + 'px',
+        top: latencyTooltipPosition.y + 'px'
+      }"
+    >
+      <div class="min-w-[240px] rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-xs text-white shadow-xl dark:border-gray-600 dark:bg-gray-800">
+        <div class="mb-1.5 font-semibold text-gray-200">{{ t('usage.latencyBreakdown') }}</div>
+        <div class="grid grid-cols-[max-content_max-content] gap-x-5 gap-y-1">
+          <template v-for="phase in latencyBreakdown(latencyTooltipData)" :key="phase.key">
+            <span class="text-gray-400">{{ t(`usage.${phase.key}`) }}</span>
+            <span class="text-right font-medium tabular-nums text-white">{{ formatDuration(phase.value) }}</span>
+          </template>
+        </div>
+        <div class="absolute left-full top-1/2 h-0 w-0 -translate-y-1/2 border-b-[6px] border-l-[6px] border-t-[6px] border-b-transparent border-l-gray-900 border-t-transparent dark:border-l-gray-800"></div>
+      </div>
+    </div>
+  </Teleport>
 
   <!-- Token Tooltip Portal -->
   <Teleport to="body">
@@ -559,6 +599,37 @@ const props = withDefaults(defineProps<Props>(), {
   showUpstreamEndpoint: true,
   flat: false
 })
+
+const displayFirstTokenMs = (row: AdminUsageLog): number | null =>
+  row.e2e_first_token_ms ?? row.first_token_ms ?? null
+
+const displayFirstTokenLabel = (row: AdminUsageLog): string =>
+  row.e2e_first_token_ms != null ? 'usage.latencyE2EFirstToken' : 'usage.latencyFirstToken'
+
+const hasLatencyBreakdown = (row: AdminUsageLog): boolean =>
+  row.e2e_first_token_ms != null && (
+    row.body_read_ms != null || row.preprocess_ms != null || row.user_queue_ms != null ||
+    row.routing_ms != null || row.queue_ms != null || row.retry_ms != null
+  )
+
+const latencyBreakdown = (row: AdminUsageLog): Array<{ key: string; value: number }> => {
+  const phases = [
+    { key: 'latencyBodyRead', value: row.body_read_ms ?? 0 },
+    { key: 'latencyPreprocess', value: row.preprocess_ms ?? 0 },
+    { key: 'latencyUserQueue', value: row.user_queue_ms ?? 0 },
+    { key: 'latencyRouting', value: row.routing_ms ?? 0 },
+    { key: 'latencyAccountQueue', value: row.queue_ms ?? 0 },
+    { key: 'latencyRetry', value: row.retry_ms ?? 0 },
+  ]
+  if (row.e2e_first_token_ms != null && row.first_token_ms != null) {
+    const knownPreForward = phases.reduce((total, phase) => total + phase.value, 0)
+    phases.push({
+      key: 'latencyOtherPreForward',
+      value: Math.max(row.e2e_first_token_ms - row.first_token_ms - knownPreForward, 0),
+    })
+  }
+  return phases
+}
 const emit = defineEmits<{
   userClick: [userID: number, email?: string]
   sort: [key: string, order: 'asc' | 'desc']
@@ -605,6 +676,11 @@ const tooltipData = ref<AdminUsageLog | null>(null)
 const tokenTooltipVisible = ref(false)
 const tokenTooltipPosition = ref({ x: 0, y: 0 })
 const tokenTooltipData = ref<AdminUsageLog | null>(null)
+
+// Tooltip state - latency breakdown
+const latencyTooltipVisible = ref(false)
+const latencyTooltipPosition = ref({ x: 0, y: 0 })
+const latencyTooltipData = ref<AdminUsageLog | null>(null)
 
 const getRequestTypeLabel = (row: AdminUsageLog): string => {
   const requestType = resolveUsageRequestType(row)
@@ -670,5 +746,19 @@ const showTokenTooltip = (event: MouseEvent, row: AdminUsageLog) => {
 const hideTokenTooltip = () => {
   tokenTooltipVisible.value = false
   tokenTooltipData.value = null
+}
+
+const showLatencyTooltip = (event: MouseEvent, row: AdminUsageLog) => {
+  const target = event.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  latencyTooltipData.value = row
+  latencyTooltipPosition.value.x = rect.left - 8
+  latencyTooltipPosition.value.y = rect.top + rect.height / 2
+  latencyTooltipVisible.value = true
+}
+
+const hideLatencyTooltip = () => {
+  latencyTooltipVisible.value = false
+  latencyTooltipData.value = null
 }
 </script>

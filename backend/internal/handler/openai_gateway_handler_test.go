@@ -148,6 +148,9 @@ func TestApplyOpenAIForwardTimingCopiesSchedulerPhasesAndPreservesFirstToken(t *
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	timing := service.BeginOpenAIRequestTiming(c)
+	timing.AddBodyRead(10 * time.Millisecond)
+	timing.AddPreprocess(20 * time.Millisecond)
+	timing.AddUserQueue(30 * time.Millisecond)
 	timing.AddQueue(25 * time.Millisecond)
 	timing.AddRetry(7 * time.Millisecond)
 	firstTokenMs := 900
@@ -157,6 +160,9 @@ func TestApplyOpenAIForwardTimingCopiesSchedulerPhasesAndPreservesFirstToken(t *
 
 	require.Equal(t, 900, *result.FirstTokenMs)
 	require.Equal(t, 1180, *result.E2EFirstTokenMs)
+	require.Equal(t, 10, *result.BodyReadMs)
+	require.Equal(t, 20, *result.PreprocessMs)
+	require.Equal(t, 30, *result.UserQueueMs)
 	require.Equal(t, 0, *result.RoutingMs)
 	require.Equal(t, 25, *result.QueueMs)
 	require.Equal(t, 7, *result.RetryMs)
@@ -171,6 +177,9 @@ func TestApplyOpenAIForwardTimingLeavesE2EUnsetWithoutFirstToken(t *testing.T) {
 	applyOpenAIForwardTiming(c, 280, result)
 
 	require.Nil(t, result.E2EFirstTokenMs)
+	require.NotNil(t, result.BodyReadMs)
+	require.NotNil(t, result.PreprocessMs)
+	require.NotNil(t, result.UserQueueMs)
 	require.NotNil(t, result.RoutingMs)
 	require.NotNil(t, result.QueueMs)
 	require.NotNil(t, result.RetryMs)
@@ -287,6 +296,9 @@ func TestOpenAIResponsesSuccessBridgesTimingIntoUsageLog(t *testing.T) {
 	case usageLog := <-usageRepo.created:
 		require.NotNil(t, usageLog.FirstTokenMs)
 		require.NotNil(t, usageLog.E2EFirstTokenMs)
+		require.NotNil(t, usageLog.BodyReadMs)
+		require.NotNil(t, usageLog.PreprocessMs)
+		require.NotNil(t, usageLog.UserQueueMs)
 		require.NotNil(t, usageLog.RoutingMs)
 		require.NotNil(t, usageLog.QueueMs)
 		require.NotNil(t, usageLog.RetryMs)

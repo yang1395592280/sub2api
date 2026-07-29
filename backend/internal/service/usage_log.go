@@ -182,6 +182,9 @@ type UsageLog struct {
 	DurationMs      *int
 	FirstTokenMs    *int
 	E2EFirstTokenMs *int
+	BodyReadMs      *int
+	PreprocessMs    *int
+	UserQueueMs     *int
 	RoutingMs       *int
 	QueueMs         *int
 	RetryMs         *int

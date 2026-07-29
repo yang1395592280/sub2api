@@ -89,6 +89,9 @@ var usageLogInsertArgTypes = [...]string{
 	"text",        // channel_price_source
 	"timestamptz", // channel_price_refreshed_at
 	"text",        // session_id
+	"integer",     // body_read_ms
+	"integer",     // preprocess_ms
+	"integer",     // user_queue_ms
 	"timestamptz", // created_at
 }
 
@@ -294,6 +297,9 @@ func (r *usageLogRepository) createSingle(ctx context.Context, sqlq sqlExecutor,
 			channel_price_source,
 			channel_price_refreshed_at,
 			session_id,
+			body_read_ms,
+			preprocess_ms,
+			user_queue_ms,
 			created_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7,
@@ -301,7 +307,7 @@ func (r *usageLogRepository) createSingle(ctx context.Context, sqlq sqlExecutor,
 			$12, $13, $14, $15,
 			$16, $17, $18, $19,
 			$20, $21, $22, $23, $24, $25,
-			$26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66
+			$26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66, $67, $68, $69
 		)
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 		RETURNING id, created_at
@@ -758,6 +764,9 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 			channel_price_source,
 			channel_price_refreshed_at,
 			session_id,
+			body_read_ms,
+			preprocess_ms,
+			user_queue_ms,
 			created_at
 		) AS (VALUES `)
 
@@ -855,6 +864,9 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 				channel_price_source,
 				channel_price_refreshed_at,
 				session_id,
+				body_read_ms,
+				preprocess_ms,
+				user_queue_ms,
 				created_at
 			)
 			SELECT
@@ -923,6 +935,9 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 				channel_price_source,
 				channel_price_refreshed_at,
 				session_id,
+				body_read_ms,
+				preprocess_ms,
+				user_queue_ms,
 				created_at
 			FROM input
 			ON CONFLICT (request_id, api_key_id) DO NOTHING
@@ -1031,6 +1046,9 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			channel_price_source,
 			channel_price_refreshed_at,
 			session_id,
+			body_read_ms,
+			preprocess_ms,
+			user_queue_ms,
 			created_at
 		) AS (VALUES `)
 
@@ -1125,6 +1143,9 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			channel_price_source,
 			channel_price_refreshed_at,
 			session_id,
+			body_read_ms,
+			preprocess_ms,
+			user_queue_ms,
 			created_at
 		)
 		SELECT
@@ -1193,6 +1214,9 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			channel_price_source,
 			channel_price_refreshed_at,
 			session_id,
+			body_read_ms,
+			preprocess_ms,
+			user_queue_ms,
 			created_at
 		FROM input
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
@@ -1269,6 +1293,9 @@ func execUsageLogInsertNoResult(ctx context.Context, sqlq sqlExecutor, prepared 
 			channel_price_source,
 			channel_price_refreshed_at,
 			session_id,
+			body_read_ms,
+			preprocess_ms,
+			user_queue_ms,
 			created_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7,
@@ -1276,7 +1303,7 @@ func execUsageLogInsertNoResult(ctx context.Context, sqlq sqlExecutor, prepared 
 			$12, $13, $14, $15,
 			$16, $17, $18, $19,
 			$20, $21, $22, $23, $24, $25,
-			$26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66
+			$26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66, $67, $68, $69
 		)
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 	`, prepared.args...)
@@ -1325,6 +1352,9 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 	billingMode := nullString(log.BillingMode)
 	channelPriceRefreshedAt := nullTime(log.ChannelPriceRefreshedAt)
 	sessionID := nullString(log.SessionID)
+	bodyRead := nullInt(log.BodyReadMs)
+	preprocess := nullInt(log.PreprocessMs)
+	userQueue := nullInt(log.UserQueueMs)
 	requestedModel := strings.TrimSpace(log.RequestedModel)
 	if requestedModel == "" {
 		requestedModel = strings.TrimSpace(log.Model)
@@ -1407,6 +1437,9 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 			nullString(log.ChannelPriceSource),
 			channelPriceRefreshedAt,
 			sessionID, // session_id
+			bodyRead,
+			preprocess,
+			userQueue,
 			createdAt,
 		},
 	}

@@ -309,6 +309,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	usageLog.DurationMs = &durationMs
 	usageLog.FirstTokenMs = result.FirstTokenMs
 	usageLog.E2EFirstTokenMs = result.E2EFirstTokenMs
+	usageLog.BodyReadMs = result.BodyReadMs
+	usageLog.PreprocessMs = result.PreprocessMs
+	usageLog.UserQueueMs = result.UserQueueMs
 	usageLog.RoutingMs = result.RoutingMs
 	usageLog.QueueMs = result.QueueMs
 	usageLog.RetryMs = result.RetryMs
