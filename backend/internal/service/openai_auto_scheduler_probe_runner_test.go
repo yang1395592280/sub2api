@@ -385,6 +385,13 @@ func TestOpenAIAutoSchedulerProbeRunner_DeduplicatePhysicalKeyUsesResolvedActual
 	}, openAIAutoSchedulerProbeHealthKey(account, "gpt-5.4"))
 }
 
+func TestOpenAIAutoSchedulerProbeRequestUsesBaseModelForEffortDimension(t *testing.T) {
+	key := OpenAISchedulerHealthKey{ModelFamily: "gpt-5.6-sol#effort=xhigh", Endpoint: openAISchedulerHealthEndpointResponses}
+	_, payload, _ := openAIAutoSchedulerProbeRequestForHealthKey("https://example.com", key, &Account{Type: AccountTypeAPIKey})
+	require.Equal(t, "gpt-5.6-sol", gjson.GetBytes(payload, "model").String())
+	require.Equal(t, "xhigh", gjson.GetBytes(payload, "reasoning.effort").String())
+}
+
 func TestOpenAIAutoSchedulerProbeRunnerAddsDueRecoveryDimensions(t *testing.T) {
 	now := time.Now()
 	account := Account{ID: 7, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}

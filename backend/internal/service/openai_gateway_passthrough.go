@@ -202,7 +202,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 			// a failover so the handler switches to a healthy account.
 			forwardErr := s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
 			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, openAIAutoSchedulerErrorOutcome(startTime, nil, forwardErr),
-				openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamPassthroughModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
+				openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamPassthroughModel, ReasoningEffort: openAIReasoningEffortValue(reasoningEffort), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
 			return nil, forwardErr
 		}
 		if resp.StatusCode < 400 {
@@ -225,7 +225,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 
 		statusCode := resp.StatusCode
 		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, errors.New(resp.Status)),
-			openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamPassthroughModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
+			openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamPassthroughModel, ReasoningEffort: openAIReasoningEffortValue(reasoningEffort), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
 
 		// 透传模式默认保持原样代理；容量错误以及 API-key 上游的瞬时
 		// 5xx 应先触发多账号 failover，且此时尚未写入下游响应。
@@ -249,7 +249,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		if err != nil {
 			statusCode := resp.StatusCode
 			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, err),
-				openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamPassthroughModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
+				openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamPassthroughModel, ReasoningEffort: openAIReasoningEffortValue(reasoningEffort), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
 			return nil, err
 		}
 		usage = result.usage
@@ -262,7 +262,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		if err != nil {
 			statusCode := resp.StatusCode
 			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, err),
-				openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamPassthroughModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
+				openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamPassthroughModel, ReasoningEffort: openAIReasoningEffortValue(reasoningEffort), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
 			return nil, err
 		}
 		usage = result.usage

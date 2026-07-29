@@ -761,12 +761,12 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				wsResult.BillingModel = imageBillingModel
 			}
 			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerSuccessOutcome(c, startTime, wsResult),
-				openAIAutoSchedulerHealthMetadataForAttempt(openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: wsDecision.Transport}, wsResult))
+				openAIAutoSchedulerHealthMetadataForAttempt(openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, ReasoningEffort: ExtractOpenAIReasoningEffortForScheduling(body, upstreamModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: wsDecision.Transport}, wsResult))
 			return wsResult, nil
 		}
 		s.writeOpenAIWSFallbackErrorResponse(c, account, wsErr)
 		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerErrorOutcome(startTime, openAIAutoSchedulerStatusCodeForError(wsErr), wsErr),
-			openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: wsDecision.Transport})
+			openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, ReasoningEffort: ExtractOpenAIReasoningEffortForScheduling(body, upstreamModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: wsDecision.Transport})
 		return nil, wsErr
 	}
 
@@ -837,7 +837,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			// unschedule the account on durable faults (e.g. rejected proxy credentials).
 			forwardErr := s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
 			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerErrorOutcome(startTime, nil, forwardErr),
-				openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
+				openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, ReasoningEffort: ExtractOpenAIReasoningEffortForScheduling(body, upstreamModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
 			return nil, forwardErr
 		}
 		if headerGuard != nil {
@@ -891,7 +891,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			}
 			statusCode := resp.StatusCode
 			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, errors.New(upstreamMsg)),
-				openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
+				openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, ReasoningEffort: ExtractOpenAIReasoningEffortForScheduling(body, upstreamModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
 			if s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody) {
 				upstreamDetail := ""
 				if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
@@ -940,7 +940,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			if err != nil {
 				statusCode := resp.StatusCode
 				s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, err),
-					openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
+					openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, ReasoningEffort: ExtractOpenAIReasoningEffortForScheduling(body, upstreamModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
 				return nil, err
 			}
 			usage = streamResult.usage
@@ -953,7 +953,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			if err != nil {
 				statusCode := resp.StatusCode
 				s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, err),
-					openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
+					openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, ReasoningEffort: ExtractOpenAIReasoningEffortForScheduling(body, upstreamModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
 				return nil, err
 			}
 			usage = nonStreamResult.usage
@@ -999,7 +999,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 		s.ResetOpenAIOverbrush429Count(account)
 		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), originalModel, openAIAutoSchedulerSuccessOutcome(c, startTime, forwardResult),
-			openAIAutoSchedulerHealthMetadataForAttempt(openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE}, forwardResult))
+			openAIAutoSchedulerHealthMetadataForAttempt(openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamModel, ReasoningEffort: ExtractOpenAIReasoningEffortForScheduling(body, upstreamModel), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE}, forwardResult))
 		return forwardResult, nil
 	}
 }

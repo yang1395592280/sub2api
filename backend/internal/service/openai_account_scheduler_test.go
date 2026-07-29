@@ -1,11 +1,14 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +16,29 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 )
+
+func TestOpenAISelectionOrderEmptyWarningIsPoolScopedAndRateLimited(t *testing.T) {
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	openAISelectionOrderEmptyWarnings.Store(0)
+	t.Cleanup(func() {
+		slog.SetDefault(previousLogger)
+		openAISelectionOrderEmptyWarnings.Store(0)
+	})
+
+	scheduler := &defaultOpenAIAccountScheduler{}
+	req := OpenAIAccountScheduleRequest{RequestedModel: "gpt-5.6-sol", ReasoningEffort: "xhigh", balancedMode: OpenAIAutoSchedulerModeBalanced}
+	for range 3 {
+		_, _, _, _, err := scheduler.finishLoadBalanceSelectionFallback(
+			context.Background(), req, openAIAccountLoadSelectionAttempt{}, nil, openAISelectionFilterStats{pool: 2},
+		)
+		require.Error(t, err)
+	}
+	require.Equal(t, 2, strings.Count(logs.String(), "openai_scheduler_selection_order_empty"))
+	require.Contains(t, logs.String(), "pool=2")
+	require.Contains(t, logs.String(), "reasoning_effort=xhigh")
+}
 
 type openAISnapshotCacheStub struct {
 	SchedulerCache

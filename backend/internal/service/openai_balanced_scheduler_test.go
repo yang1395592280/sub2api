@@ -120,6 +120,45 @@ func TestOpenAIBalancedSchedulerEmptyCandidatesDoesNotPanic(t *testing.T) {
 	require.Empty(t, result.OrderedAccountIDs)
 }
 
+func TestOpenAIBalancedSchedulerKeepsOneSlowOnlyDegradedCandidate(t *testing.T) {
+	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), OpenAIBalancedSelectionInput{
+		LegacyOrderedAccountIDs: []int64{2, 1},
+		Candidates: []OpenAIBalancedCandidate{
+			{AccountID: 1, State: OpenAIAutoSchedulerStateOpen, ConsecutiveSlow: 3},
+			{AccountID: 2, State: OpenAIAutoSchedulerStateOpen, ConsecutiveSlow: 2},
+		},
+		Settings: DefaultOpenAIBalancedSettings(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, []int64{2}, result.OrderedAccountIDs)
+	require.NotContains(t, result.RejectedAccountIDs, int64(2))
+}
+
+func TestOpenAIBalancedSchedulerDoesNotFallbackFromRealErrors(t *testing.T) {
+	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), OpenAIBalancedSelectionInput{
+		LegacyOrderedAccountIDs: []int64{1},
+		Candidates: []OpenAIBalancedCandidate{
+			{AccountID: 1, State: OpenAIAutoSchedulerStateOpen, ConsecutiveSlow: 2, ConsecutiveError: 1, ErrorRate: 0.2},
+		},
+		Settings: DefaultOpenAIBalancedSettings(),
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.OrderedAccountIDs)
+}
+
+func TestOpenAIBalancedSchedulerSeparatesExpensiveReasoningEffortHealth(t *testing.T) {
+	account := &Account{ID: 9, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	svc := &OpenAIGatewayService{}
+	base := OpenAIAccountScheduleRequest{RequestedModel: "gpt-5.6-sol", RequiredEndpoint: OpenAISchedulerEndpointResponses, RequiredTransport: OpenAIUpstreamTransportHTTPSSE}
+	high := base
+	high.ReasoningEffort = "high"
+	xhigh := base
+	xhigh.ReasoningEffort = "xhigh"
+	require.Equal(t, "gpt-5.6-sol", svc.openAIBalancedHealthKeyForCandidate(account, base).ModelFamily)
+	require.Equal(t, "gpt-5.6-sol#effort=high", svc.openAIBalancedHealthKeyForCandidate(account, high).ModelFamily)
+	require.Equal(t, "gpt-5.6-sol#effort=xhigh", svc.openAIBalancedHealthKeyForCandidate(account, xhigh).ModelFamily)
+}
+
 func TestOpenAIBalancedSchedulerUsesGroupPriority(t *testing.T) {
 	input := OpenAIBalancedSelectionInput{
 		Candidates: []OpenAIBalancedCandidate{

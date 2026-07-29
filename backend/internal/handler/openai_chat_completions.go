@@ -187,6 +187,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			true,
 			requestPlatform,
 			h.openAIChannelMappedModelResolver(c.Request.Context()),
+			service.ExtractOpenAIReasoningEffortForScheduling(body, reqModel),
 		)
 		timing.EndRouting()
 		if err != nil {

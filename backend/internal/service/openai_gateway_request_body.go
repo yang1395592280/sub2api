@@ -798,6 +798,21 @@ func extractOpenAIReasoningEffortFromBody(body []byte, modelCandidates ...string
 	return &value
 }
 
+// ExtractOpenAIReasoningEffortForScheduling returns the normalized request
+// dimension used by account health selection. Only expensive effort levels
+// receive an independent health bucket.
+func ExtractOpenAIReasoningEffortForScheduling(body []byte, modelCandidates ...string) string {
+	value := extractOpenAIReasoningEffortFromBody(body, modelCandidates...)
+	if value == nil {
+		return ""
+	}
+	effort := normalizeOpenAIReasoningEffort(*value)
+	if effort == "high" || effort == "xhigh" {
+		return effort
+	}
+	return ""
+}
+
 func extractOpenAIServiceTier(reqBody map[string]any) *string {
 	if reqBody == nil {
 		return nil

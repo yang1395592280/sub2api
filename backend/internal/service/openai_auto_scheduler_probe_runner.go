@@ -403,7 +403,7 @@ func (r *OpenAIAutoSchedulerProbeRunner) mergeOpenAIAutoSchedulerRecoveryProbePl
 			continue
 		}
 		mergeOpenAIAutoSchedulerProbePlanItem(plans, openAIAutoSchedulerProbePlanItem{
-			account: account, healthKey: key, groupIDs: groupIDsByAccount[key.AccountID], model: key.ModelFamily,
+			account: account, healthKey: key, groupIDs: groupIDsByAccount[key.AccountID], model: openAISchedulerHealthBaseModel(key.ModelFamily),
 		})
 	}
 }
@@ -665,17 +665,31 @@ func (c *openAIAutoSchedulerProbeHTTPChecker) CheckHealth(ctx context.Context, a
 }
 
 func openAIAutoSchedulerProbeRequestForHealthKey(baseURL string, key OpenAISchedulerHealthKey, account *Account) (string, []byte, string) {
+	model, reasoningEffort := splitOpenAISchedulerHealthModelFamily(key.ModelFamily)
 	if key.Endpoint == openAISchedulerHealthEndpointChat {
-		payload, _ := json.Marshal(map[string]any{
-			"model":    key.ModelFamily,
+		request := map[string]any{
+			"model":    model,
 			"messages": []map[string]any{{"role": "user", "content": "probe"}},
 			"stream":   true,
-		})
+		}
+		if reasoningEffort != "" {
+			request["reasoning_effort"] = reasoningEffort
+		}
+		payload, _ := json.Marshal(request)
 		return buildOpenAIChatCompletionsURL(baseURL), payload, "text/event-stream"
 	}
 	isOAuth := account != nil && account.IsOAuth()
-	payload, _ := json.Marshal(createOpenAITestPayload(key.ModelFamily, isOAuth))
+	request := createOpenAITestPayload(model, isOAuth)
+	if reasoningEffort != "" {
+		request["reasoning"] = map[string]any{"effort": reasoningEffort}
+	}
+	payload, _ := json.Marshal(request)
 	return buildOpenAIResponsesURL(baseURL), payload, "text/event-stream"
+}
+
+func openAISchedulerHealthBaseModel(modelFamily string) string {
+	model, _ := splitOpenAISchedulerHealthModelFamily(modelFamily)
+	return model
 }
 
 func openAIAutoSchedulerProbeRequest(baseURL string, upstreamModel string, account *Account) (string, []byte, string) {

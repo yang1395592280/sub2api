@@ -227,9 +227,10 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 		proxyURL = account.Proxy.URL()
 	}
 	armOpenAIUpstreamAttempt(ctx, openAIAutoSchedulerAttemptMetadata{
-		ModelFamily: gjson.GetBytes(body, "model").String(),
-		Endpoint:    openAISchedulerHealthEndpointChat,
-		Transport:   OpenAIUpstreamTransportHTTPSSE,
+		ModelFamily:     gjson.GetBytes(body, "model").String(),
+		ReasoningEffort: ExtractOpenAIReasoningEffortForScheduling(body, gjson.GetBytes(body, "model").String()),
+		Endpoint:        openAISchedulerHealthEndpointChat,
+		Transport:       OpenAIUpstreamTransportHTTPSSE,
 	})
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	if headerGuard != nil && headerGuard.stopHeaderWait() {

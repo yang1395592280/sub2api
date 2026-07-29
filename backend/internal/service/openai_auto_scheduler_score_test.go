@@ -31,12 +31,11 @@ func TestOpenAIAutoSchedulerScore_ErrorTriggersCircuit(t *testing.T) {
 	require.Less(t, state.FinalScore, 1000)
 }
 
-func TestOpenAIAutoSchedulerScore_SlowResponsesDegradeThenRecover(t *testing.T) {
+func TestOpenAIAutoSchedulerScore_SlowResponsesOnlyDegradeWeight(t *testing.T) {
 	settings := DefaultOpenAIAutoSchedulerSettings()
 	settings.Enabled = true
 	settings.SlowThresholdMS = 10000
 	settings.ConsecutiveSlowBreakerThreshold = 3
-	settings.HalfOpenSuccessThreshold = 2
 	now := time.Date(2026, 6, 28, 12, 0, 0, 0, time.UTC)
 	state := NewOpenAIAutoSchedulerScoreState(10, 20, "gpt-5")
 
@@ -46,21 +45,16 @@ func TestOpenAIAutoSchedulerScore_SlowResponsesDegradeThenRecover(t *testing.T) 
 			LatencyMS: ptrOpenAIAutoSchedulerInt(12000),
 		}, settings)
 	}
-	require.Equal(t, OpenAIAutoSchedulerStateOpen, state.State)
+	require.Equal(t, OpenAIAutoSchedulerStateObserving, state.State)
+	require.Nil(t, state.CooldownUntil)
+	require.Less(t, state.FinalScore, 6000)
 
-	state.CooldownUntil = ptrOpenAIAutoSchedulerTime(now.Add(-time.Second))
 	state = ApplyOpenAIAutoSchedulerEvent(now.Add(time.Minute), state, OpenAIAutoSchedulerEventInput{
-		EventType: OpenAIAutoSchedulerEventProbeSuccess,
+		EventType: OpenAIAutoSchedulerEventSuccess,
 		LatencyMS: ptrOpenAIAutoSchedulerInt(1100),
 	}, settings)
-	require.Equal(t, OpenAIAutoSchedulerStateHalfOpen, state.State)
-
-	state = ApplyOpenAIAutoSchedulerEvent(now.Add(2*time.Minute), state, OpenAIAutoSchedulerEventInput{
-		EventType: OpenAIAutoSchedulerEventProbeSuccess,
-		LatencyMS: ptrOpenAIAutoSchedulerInt(900),
-	}, settings)
 	require.Equal(t, OpenAIAutoSchedulerStateRunning, state.State)
-	require.Greater(t, state.FinalScore, 6000)
+	require.Nil(t, state.CooldownUntil)
 }
 
 func TestOpenAIAutoSchedulerScore_TracksCountsAndRates(t *testing.T) {

@@ -37,6 +37,13 @@ var explicitOpenAIHeaderSessionNames = []string{
 	codeBuddyConversationHeader,
 }
 
+func firstOpenAISchedulerReasoningEffort(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return normalizeOpenAIReasoningEffort(values[0])
+}
+
 // explicitOpenAIHeaderSessionID resolves stable conversation identifiers sent
 // by OpenAI-compatible clients. Keep this list limited to session-scoped
 // fields: request/message IDs rotate every turn and would defeat sticky routing
@@ -834,8 +841,9 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapab
 	previousResponseCanMove bool,
 	useUpstreamTokenCost bool,
 	requestPlatform string,
+	reasoningEffort ...string,
 ) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-	return s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredEndpoint, requiredCapability, requireCompact, previousResponseCanMove, useUpstreamTokenCost, requestPlatform, nil)
+	return s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredEndpoint, requiredCapability, requireCompact, previousResponseCanMove, useUpstreamTokenCost, requestPlatform, nil, firstOpenAISchedulerReasoningEffort(reasoningEffort))
 }
 
 func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
@@ -853,7 +861,9 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapab
 	useUpstreamTokenCost bool,
 	requestPlatform string,
 	modelResolver func(*APIKey, string) string,
+	reasoningEffort ...string,
 ) (*APIKey, string, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	effort := firstOpenAISchedulerReasoningEffort(reasoningEffort)
 	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
 		routingModel := requestedModel
 		if modelResolver != nil {
@@ -862,11 +872,11 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForCapab
 			}
 		}
 		selection, decision, err := s.selectOpenAIAccountAcrossSourcesWithDecision(ctx, apiKeyGroupID(apiKey), apiKey.Group, func(stageCtx context.Context) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-			return s.SelectAccountWithSchedulerForCapability(stageCtx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredEndpoint, requiredCapability, requireCompact, previousResponseCanMove, useUpstreamTokenCost, requestPlatform)
+			return s.SelectAccountWithSchedulerForCapability(stageCtx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredEndpoint, requiredCapability, requireCompact, previousResponseCanMove, useUpstreamTokenCost, requestPlatform, effort)
 		})
 		return apiKey, routingModel, selection, decision, err
 	}
-	effectiveKey, selection, decision, err := s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredEndpoint, requiredCapability, requireCompact, previousResponseCanMove, useUpstreamTokenCost, requestPlatform, modelResolver)
+	effectiveKey, selection, decision, err := s.selectEffectiveOpenAIAccountWithSchedulerForCapability(ctx, apiKey, previousResponseID, sessionHash, requestedModel, excludedIDs, transport, requiredEndpoint, requiredCapability, requireCompact, previousResponseCanMove, useUpstreamTokenCost, requestPlatform, modelResolver, effort)
 	if effectiveKey == nil {
 		return nil, requestedModel, selection, decision, err
 	}
@@ -887,6 +897,7 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImage
 	requiredEndpoint string,
 	excludedIDs map[int64]struct{},
 	requiredCapability OpenAIImagesCapability,
+	reasoningEffort ...string,
 ) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
 	effectiveKey, _, selection, decision, err := s.SelectEffectiveOpenAIAccountWithSchedulerForImagesAndModelResolver(
 		ctx,
@@ -897,6 +908,7 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImage
 		excludedIDs,
 		requiredCapability,
 		nil,
+		firstOpenAISchedulerReasoningEffort(reasoningEffort),
 	)
 	return effectiveKey, selection, decision, err
 }
@@ -910,7 +922,9 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImage
 	excludedIDs map[int64]struct{},
 	requiredCapability OpenAIImagesCapability,
 	modelResolver func(*APIKey, string) string,
+	reasoningEffort ...string,
 ) (*APIKey, string, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	effort := firstOpenAISchedulerReasoningEffort(reasoningEffort)
 	setOpenAIAutoCheapestGroupHealthContext(ctx, requestedModel, requiredEndpoint, string(requiredCapability))
 	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
 		routingModel := requestedModel
@@ -920,7 +934,7 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImage
 			}
 		}
 		selection, decision, err := s.selectOpenAIAccountAcrossSourcesWithDecision(ctx, apiKeyGroupID(apiKey), apiKey.Group, func(stageCtx context.Context) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-			return s.SelectAccountWithSchedulerForImages(stageCtx, apiKeyGroupID(apiKey), sessionHash, routingModel, requiredEndpoint, excludedIDs, requiredCapability)
+			return s.SelectAccountWithSchedulerForImages(stageCtx, apiKeyGroupID(apiKey), sessionHash, routingModel, requiredEndpoint, excludedIDs, requiredCapability, effort)
 		})
 		return apiKey, routingModel, selection, decision, err
 	}
@@ -943,11 +957,11 @@ func (s *OpenAIGatewayService) SelectEffectiveOpenAIAccountWithSchedulerForImage
 
 		stageCtx := openAIAutoCheapestStageContext(selectionCtx, stage)
 		qualityStageCtx := withOpenAIAutoCheapestQualifiedOnly(stageCtx)
-		selection, decision, availabilityErr := s.SelectAccountWithSchedulerForImages(qualityStageCtx, effectiveKey.GroupID, sessionHash, routingModel, requiredEndpoint, excludedIDs, requiredCapability)
+		selection, decision, availabilityErr := s.SelectAccountWithSchedulerForImages(qualityStageCtx, effectiveKey.GroupID, sessionHash, routingModel, requiredEndpoint, excludedIDs, requiredCapability, effort)
 		if availabilityErr != nil || selection == nil || selection.Account == nil {
 			if !strictQuality {
 				slog.Info("openai_auto_cheapest_quality_fallback", "group_id", *effectiveKey.GroupID, "endpoint", requiredEndpoint, "model", requestedModel)
-				selection, decision, availabilityErr = s.SelectAccountWithSchedulerForImages(stageCtx, effectiveKey.GroupID, sessionHash, routingModel, requiredEndpoint, excludedIDs, requiredCapability)
+				selection, decision, availabilityErr = s.SelectAccountWithSchedulerForImages(stageCtx, effectiveKey.GroupID, sessionHash, routingModel, requiredEndpoint, excludedIDs, requiredCapability, effort)
 			}
 		}
 		lastDecision = decision
@@ -985,6 +999,7 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 	useUpstreamTokenCost bool,
 	requestPlatform string,
 	modelResolver func(*APIKey, string) string,
+	reasoningEffort string,
 ) (*APIKey, *AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
 	setOpenAIAutoCheapestGroupHealthContext(ctx, requestedModel, requiredEndpoint, string(transport))
 	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
@@ -995,7 +1010,7 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 			}
 		}
 		selection, decision, err := s.selectOpenAIAccountAcrossSourcesWithDecision(ctx, apiKeyGroupID(apiKey), apiKey.Group, func(stageCtx context.Context) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-			return s.SelectAccountWithSchedulerForCapability(stageCtx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredEndpoint, requiredCapability, requireCompact, previousResponseCanMove, useUpstreamTokenCost, requestPlatform)
+			return s.SelectAccountWithSchedulerForCapability(stageCtx, apiKeyGroupID(apiKey), previousResponseID, sessionHash, routingModel, excludedIDs, transport, requiredEndpoint, requiredCapability, requireCompact, previousResponseCanMove, useUpstreamTokenCost, requestPlatform, reasoningEffort)
 		})
 		return apiKey, selection, decision, err
 	}
@@ -1030,6 +1045,7 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 				previousResponseCanMove,
 				useUpstreamTokenCost,
 				requestPlatform,
+				reasoningEffort,
 			)
 		}
 

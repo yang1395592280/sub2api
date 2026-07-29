@@ -53,6 +53,17 @@ func ApplyOpenAIAutoSchedulerEvent(now time.Time, state OpenAIAutoSchedulerScore
 
 	state = updateOpenAIAutoSchedulerCounters(state, input)
 
+	if state.State == OpenAIAutoSchedulerStateOpen && isOpenAIAutoSchedulerSuccessEvent(input.EventType) &&
+		state.ConsecutiveSlowCount > 0 && state.ConsecutiveErrorCount == 0 && state.ErrorRate == 0 {
+		state.State = OpenAIAutoSchedulerStateRunning
+		state.ConsecutiveSuccessCount = 1
+		state.ConsecutiveSlowCount = 0
+		state.CooldownUntil = nil
+		state.Reason = "legacy slow-only circuit recovered"
+		state.RecoveryScore = clampScore(settings.RecoveryStep)
+		state.FinalScore = calculateOpenAIAutoSchedulerFinalScore(state, settings)
+		return state
+	}
 	if state.State == OpenAIAutoSchedulerStateOpen && openAIAutoSchedulerCooldownExpired(now, state.CooldownUntil) && isOpenAIAutoSchedulerSuccessEvent(input.EventType) {
 		state.State = OpenAIAutoSchedulerStateHalfOpen
 		state.ConsecutiveSuccessCount = 1
@@ -83,14 +94,20 @@ func ApplyOpenAIAutoSchedulerEvent(now time.Time, state OpenAIAutoSchedulerScore
 		}
 	case OpenAIAutoSchedulerEventSlow, OpenAIAutoSchedulerEventSevereSlow:
 		state.ConsecutiveSlowCount++
-		state.ConsecutiveErrorCount = 0
 		state.ConsecutiveSuccessCount = 0
 		state.LatencyScore = slowPenaltyForOpenAIAutoScheduler(input.EventType, input.LatencyMS, settings)
 		state.RecoveryScore = 0
 		state.Reason = input.EventType
-		if state.ConsecutiveSlowCount >= settings.ConsecutiveSlowBreakerThreshold {
-			state = openOpenAIAutoSchedulerCircuit(now, state, settings, "consecutive slow responses")
-		} else {
+		switch state.State {
+		case OpenAIAutoSchedulerStateOpen:
+			if state.ConsecutiveErrorCount == 0 && state.ErrorRate == 0 {
+				state.State = OpenAIAutoSchedulerStateObserving
+				state.CooldownUntil = nil
+			}
+		case OpenAIAutoSchedulerStateHalfOpen:
+			// A slow but successful half-open request is inconclusive.
+		default:
+			state.ConsecutiveErrorCount = 0
 			state.State = OpenAIAutoSchedulerStateObserving
 		}
 	case OpenAIAutoSchedulerEventError, OpenAIAutoSchedulerEventProbeError, OpenAIAutoSchedulerEventRateLimited:

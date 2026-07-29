@@ -490,6 +490,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			!imageIntent,
 			requestPlatform,
 			h.openAIChannelMappedModelResolver(c.Request.Context()),
+			service.ExtractOpenAIReasoningEffortForScheduling(body, reqModel),
 		)
 		timing.EndRouting()
 		if err != nil {
@@ -1100,6 +1101,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 				}
 				return service.NormalizeOpenAICompatRequestedModel(model)
 			},
+			service.ExtractOpenAIReasoningEffortForScheduling(body, currentRoutingModel),
 		)
 		timing.EndRouting()
 		if err != nil {
@@ -1888,6 +1890,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			!imageIntentWS,
 			requestPlatform,
 			wsSelectionModelResolver,
+			service.ExtractOpenAIReasoningEffortForScheduling(firstMessage, reqModel),
 		)
 		firstTurnTiming.EndRouting()
 		if err != nil {

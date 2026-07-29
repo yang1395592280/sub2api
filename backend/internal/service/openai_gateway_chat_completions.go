@@ -291,9 +291,10 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 		proxyURL = account.Proxy.URL()
 	}
 	armOpenAIUpstreamAttempt(ctx, openAIAutoSchedulerAttemptMetadata{
-		ModelFamily: upstreamModel,
-		Endpoint:    openAISchedulerHealthEndpointResponses,
-		Transport:   OpenAIUpstreamTransportHTTPSSE,
+		ModelFamily:     upstreamModel,
+		ReasoningEffort: ExtractOpenAIReasoningEffortForScheduling(body, upstreamModel),
+		Endpoint:        openAISchedulerHealthEndpointResponses,
+		Transport:       OpenAIUpstreamTransportHTTPSSE,
 	})
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	if headerGuard != nil && headerGuard.stopHeaderWait() {

@@ -535,7 +535,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				}
 			}
 			turnStartedAt := time.Now()
-			attemptMetadata := openAIWSIngressAttemptMetadata(account, currentBridgePayload.originalModel, OpenAIUpstreamTransportHTTPSSE)
+			attemptMetadata := openAIWSIngressAttemptMetadata(account, currentBridgePayload.originalModel, OpenAIUpstreamTransportHTTPSSE, currentBridgePayload.payloadRaw)
 			result, bridgeErr := s.proxyOpenAIWSHTTPBridgeTurn(
 				ctx,
 				c,
@@ -1553,7 +1553,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			)
 		}
 
-		attemptMetadata := openAIWSIngressAttemptMetadata(account, currentOriginalModel, OpenAIUpstreamTransportResponsesWebsocketV2)
+		attemptMetadata := openAIWSIngressAttemptMetadata(account, currentOriginalModel, OpenAIUpstreamTransportResponsesWebsocketV2, currentPayload)
 		result, relayErr := sendAndRelay(turn, sessionLease, currentPayload, currentPayloadBytes, currentOriginalModel, currentImageBillingModel, currentImageSizeTier, currentImageInputSize)
 		if relayErr != nil {
 			lastTurnClean = false
@@ -1706,14 +1706,19 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	}
 }
 
-func openAIWSIngressAttemptMetadata(account *Account, originalModel string, transport OpenAIUpstreamTransport) openAIAutoSchedulerAttemptMetadata {
+func openAIWSIngressAttemptMetadata(account *Account, originalModel string, transport OpenAIUpstreamTransport, payload ...[]byte) openAIAutoSchedulerAttemptMetadata {
 	upstreamModel := strings.TrimSpace(originalModel)
 	if account != nil {
 		upstreamModel = resolveOpenAIAccountUpstreamModelForRequest(account, originalModel, false)
 	}
+	reasoningEffort := ""
+	if len(payload) > 0 {
+		reasoningEffort = ExtractOpenAIReasoningEffortForScheduling(payload[0], upstreamModel, originalModel)
+	}
 	return openAIAutoSchedulerHealthMetadataForAttempt(openAIAutoSchedulerAttemptMetadata{
-		ModelFamily: upstreamModel,
-		Endpoint:    openAISchedulerHealthEndpointResponses,
-		Transport:   transport,
+		ModelFamily:     upstreamModel,
+		ReasoningEffort: reasoningEffort,
+		Endpoint:        openAISchedulerHealthEndpointResponses,
+		Transport:       transport,
 	}, nil)
 }

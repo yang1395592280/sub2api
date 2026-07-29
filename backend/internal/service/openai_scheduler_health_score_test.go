@@ -45,15 +45,15 @@ func TestApplyOpenAISchedulerHealthEvent(t *testing.T) {
 		require.Equal(t, 1, got.ConsecutiveSlow)
 	})
 
-	t.Run("severe slow opens after configured breaker", func(t *testing.T) {
+	t.Run("severe slow never opens hard circuit", func(t *testing.T) {
 		got := ApplyOpenAISchedulerHealthEvent(now, OpenAISchedulerHealthSnapshot{
 			State: OpenAIAutoSchedulerStateObserving, ConsecutiveSlow: 1, RealSampleCount: 1,
 		}, OpenAISchedulerHealthEvent{
 			Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventSevereSlow, TTFTMS: 2_500, OccurredAt: now,
 		}, settings)
-		require.Equal(t, OpenAIAutoSchedulerStateOpen, got.State)
+		require.Equal(t, OpenAIAutoSchedulerStateObserving, got.State)
 		require.Equal(t, 2, got.ConsecutiveSlow)
-		require.Equal(t, now.Add(time.Minute), *got.CooldownUntil)
+		require.Nil(t, got.CooldownUntil)
 	})
 
 	t.Run("429 updates error and rate limited rates", func(t *testing.T) {
@@ -120,7 +120,7 @@ func TestApplyOpenAISchedulerHealthEvent(t *testing.T) {
 		}, OpenAISchedulerHealthEvent{Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventSuccess, TTFTMS: 300, OccurredAt: now}, settings)
 		require.Equal(t, 300.0, got.PredictedTTFTMS)
 		require.Equal(t, int64(1), got.RealSampleCount)
-		require.Zero(t, got.ConsecutiveError)
+		require.Equal(t, 2, got.ConsecutiveError)
 		require.Equal(t, OpenAIAutoSchedulerStateRunning, got.State)
 	})
 
@@ -162,28 +162,36 @@ func TestApplyOpenAISchedulerHealthEvent(t *testing.T) {
 		require.Equal(t, 3, got.ConsecutiveError)
 	})
 
-	t.Run("slow-open circuit stays open with original cooldown after error", func(t *testing.T) {
-		opened := ApplyOpenAISchedulerHealthEvent(now, OpenAISchedulerHealthSnapshot{
-			State: OpenAIAutoSchedulerStateObserving, ConsecutiveSlow: 1, RealSampleCount: 1,
-		}, OpenAISchedulerHealthEvent{Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventSlow, TTFTMS: 1_500, OccurredAt: now}, settings)
-		require.Equal(t, OpenAIAutoSchedulerStateOpen, opened.State)
-		originalCooldown := *opened.CooldownUntil
-
-		got := ApplyOpenAISchedulerHealthEvent(now.Add(time.Second), opened, OpenAISchedulerHealthEvent{
-			Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventError, OccurredAt: now.Add(time.Second),
+	t.Run("legacy slow-only open circuit is released by slow success", func(t *testing.T) {
+		cooldown := now.Add(time.Minute)
+		got := ApplyOpenAISchedulerHealthEvent(now, OpenAISchedulerHealthSnapshot{
+			State: OpenAIAutoSchedulerStateOpen, ConsecutiveSlow: 2, CooldownUntil: &cooldown, RealSampleCount: 2,
+		}, OpenAISchedulerHealthEvent{
+			Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventSlow, TTFTMS: 1_500, OccurredAt: now,
 		}, settings)
-		require.Equal(t, OpenAIAutoSchedulerStateOpen, got.State)
-		require.Equal(t, originalCooldown, *got.CooldownUntil)
-		require.Equal(t, 1, got.ConsecutiveError)
+		require.Equal(t, OpenAIAutoSchedulerStateObserving, got.State)
+		require.Nil(t, got.CooldownUntil)
+		require.Equal(t, 3, got.ConsecutiveSlow)
+	})
+
+	t.Run("legacy slow-only open circuit is released by normal success", func(t *testing.T) {
+		cooldown := now.Add(time.Minute)
+		got := ApplyOpenAISchedulerHealthEvent(now, OpenAISchedulerHealthSnapshot{
+			State: OpenAIAutoSchedulerStateOpen, ConsecutiveSlow: 2, CooldownUntil: &cooldown, RealSampleCount: 2,
+		}, OpenAISchedulerHealthEvent{
+			Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventSuccess, TTFTMS: 500, OccurredAt: now,
+		}, settings)
+		require.Equal(t, OpenAIAutoSchedulerStateRunning, got.State)
+		require.Nil(t, got.CooldownUntil)
 		require.Zero(t, got.ConsecutiveSlow)
 	})
 
-	t.Run("half open slow immediately reopens", func(t *testing.T) {
+	t.Run("half open slow remains half open", func(t *testing.T) {
 		got := ApplyOpenAISchedulerHealthEvent(now, OpenAISchedulerHealthSnapshot{
 			State: OpenAIAutoSchedulerStateHalfOpen, ConsecutiveSuccess: 1, RealSampleCount: 1,
 		}, OpenAISchedulerHealthEvent{Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventSlow, TTFTMS: 1_500, OccurredAt: now}, settings)
-		require.Equal(t, OpenAIAutoSchedulerStateOpen, got.State)
-		require.Equal(t, now.Add(time.Minute), *got.CooldownUntil)
+		require.Equal(t, OpenAIAutoSchedulerStateHalfOpen, got.State)
+		require.Nil(t, got.CooldownUntil)
 		require.Equal(t, 1, got.ConsecutiveSlow)
 		require.Zero(t, got.ConsecutiveSuccess)
 	})

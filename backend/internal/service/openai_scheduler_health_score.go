@@ -46,9 +46,17 @@ type OpenAISchedulerHealthSettings struct {
 }
 
 type openAIAutoSchedulerAttemptMetadata struct {
-	ModelFamily string
-	Endpoint    string
-	Transport   OpenAIUpstreamTransport
+	ModelFamily     string
+	ReasoningEffort string
+	Endpoint        string
+	Transport       OpenAIUpstreamTransport
+}
+
+func openAIReasoningEffortValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
 }
 
 type OpenAISchedulerHealthEventSink struct {
@@ -196,6 +204,14 @@ func applyOpenAISchedulerHealthState(
 ) OpenAISchedulerHealthSnapshot {
 	stateBeforeEvent := current.State
 	isSuccess := eventType == OpenAIAutoSchedulerEventSuccess || eventType == OpenAIAutoSchedulerEventProbeSuccess
+	if current.State == OpenAIAutoSchedulerStateOpen && isSuccess && current.ConsecutiveSlow > 0 && !openAISchedulerHealthHasErrorEvidence(current) {
+		current.State = OpenAIAutoSchedulerStateRunning
+		current.ConsecutiveSuccess = 1
+		current.ConsecutiveSlow = 0
+		current.ConsecutiveError = 0
+		current.CooldownUntil = nil
+		return current
+	}
 	if current.State == OpenAIAutoSchedulerStateOpen && openAIAutoSchedulerCooldownExpired(now, current.CooldownUntil) && isSuccess {
 		current.State = OpenAIAutoSchedulerStateHalfOpen
 		current.ConsecutiveSuccess = 1
@@ -218,13 +234,22 @@ func applyOpenAISchedulerHealthState(
 		}
 	case OpenAIAutoSchedulerEventSlow, OpenAIAutoSchedulerEventSevereSlow:
 		current.ConsecutiveSlow++
-		current.ConsecutiveError = 0
 		current.ConsecutiveSuccess = 0
-		current = applyOpenAISchedulerBadHealthEventState(
-			now, current, stateBeforeEvent,
-			current.ConsecutiveSlow >= settings.ConsecutiveSlowBreakerThreshold,
-			settings,
-		)
+		// Slow responses are successful upstream requests. They lower the score,
+		// but must not open or extend a hard circuit. Release legacy circuits that
+		// have no error evidence so upgrades recover without a manual reset.
+		switch stateBeforeEvent {
+		case OpenAIAutoSchedulerStateOpen:
+			if !openAISchedulerHealthHasErrorEvidence(current) {
+				current.State = OpenAIAutoSchedulerStateObserving
+				current.CooldownUntil = nil
+			}
+		case OpenAIAutoSchedulerStateHalfOpen:
+			current.State = OpenAIAutoSchedulerStateHalfOpen
+		default:
+			current.ConsecutiveError = 0
+			current.State = OpenAIAutoSchedulerStateObserving
+		}
 	case OpenAIAutoSchedulerEventError, OpenAIAutoSchedulerEventProbeError, OpenAIAutoSchedulerEventRateLimited:
 		current.ConsecutiveError++
 		current.ConsecutiveSlow = 0
@@ -236,6 +261,10 @@ func applyOpenAISchedulerHealthState(
 		)
 	}
 	return current
+}
+
+func openAISchedulerHealthHasErrorEvidence(current OpenAISchedulerHealthSnapshot) bool {
+	return current.ConsecutiveError > 0 || current.ErrorRate > 0 || current.RateLimitedRate > 0 || current.ServerErrorRate > 0
 }
 
 func applyOpenAISchedulerBadHealthEventState(
@@ -330,13 +359,46 @@ func openAIAutoSchedulerHealthMetadataForAttempt(
 		if endpoint := strings.TrimSpace(result.UpstreamEndpoint); endpoint != "" {
 			attempt.Endpoint = endpoint
 		}
+		if result.ReasoningEffort != nil {
+			attempt.ReasoningEffort = *result.ReasoningEffort
+		}
 	}
-	attempt.ModelFamily = strings.ToLower(strings.TrimSpace(attempt.ModelFamily))
+	attempt.ModelFamily = composeOpenAISchedulerHealthModelFamily(attempt.ModelFamily, attempt.ReasoningEffort)
+	attempt.ReasoningEffort = normalizeOpenAIReasoningEffortForModel(attempt.ReasoningEffort, attempt.ModelFamily)
 	attempt.Endpoint = normalizeOpenAISchedulerHealthEndpoint(attempt.Endpoint)
 	if attempt.Transport == OpenAIUpstreamTransportResponsesWebsocketV2Ingress {
 		attempt.Transport = OpenAIUpstreamTransportResponsesWebsocketV2
 	}
 	return attempt
+}
+
+const openAISchedulerHealthEffortSeparator = "#effort="
+
+func composeOpenAISchedulerHealthModelFamily(model, reasoningEffort string) string {
+	baseModel, _ := splitOpenAISchedulerHealthModelFamily(model)
+	baseModel = strings.ToLower(strings.TrimSpace(baseModel))
+	effort := normalizeOpenAIReasoningEffortForModel(reasoningEffort, baseModel)
+	if effort == "max" {
+		effort = "xhigh"
+	}
+	if effort != "high" && effort != "xhigh" && effort != "max" {
+		return baseModel
+	}
+	return baseModel + openAISchedulerHealthEffortSeparator + effort
+}
+
+func splitOpenAISchedulerHealthModelFamily(value string) (model, reasoningEffort string) {
+	value = strings.ToLower(strings.TrimSpace(value))
+	index := strings.LastIndex(value, openAISchedulerHealthEffortSeparator)
+	if index <= 0 {
+		return value, ""
+	}
+	model = strings.TrimSpace(value[:index])
+	reasoningEffort = normalizeOpenAIReasoningEffortForModel(value[index+len(openAISchedulerHealthEffortSeparator):], model)
+	if reasoningEffort != "high" && reasoningEffort != "xhigh" && reasoningEffort != "max" {
+		return value, ""
+	}
+	return model, reasoningEffort
 }
 
 func normalizeOpenAISchedulerHealthEndpoint(endpoint string) string {

@@ -62,6 +62,8 @@ type OpenAIBalancedCandidate struct {
 	ErrorRate            float64
 	RateLimitedRate      float64
 	ServerErrorRate      float64
+	ConsecutiveSlow      int
+	ConsecutiveError     int
 	WaitingCount         int
 	LoadRate             int
 	GroupPriority        int
@@ -237,6 +239,9 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 			s.recordShadowDecision(input, result, settings)
 			return result, nil
 		}
+		if fallback, ok := openAIBalancedSlowOnlyFallback(candidates, input.LegacyOrderedAccountIDs, result, policySettings); ok {
+			return fallback, nil
+		}
 		return result, nil
 	}
 
@@ -258,6 +263,55 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 		s.recordShadowDecision(input, result, settings)
 	}
 	return result, nil
+}
+
+func openAIBalancedSlowOnlyFallback(
+	candidates []OpenAIBalancedCandidate,
+	legacyOrder []int64,
+	result OpenAIBalancedSelectionResult,
+	settings OpenAIAutoSchedulerSettings,
+) (OpenAIBalancedSelectionResult, bool) {
+	if len(candidates) == 0 {
+		return result, false
+	}
+	byID := make(map[int64]OpenAIBalancedCandidate, len(candidates))
+	for _, candidate := range candidates {
+		eligibility := EvaluateOpenAISchedulerCandidateEligibility(candidate, settings)
+		if eligibility.Eligible || candidate.ConsecutiveSlow <= 0 || candidate.ConsecutiveError > 0 ||
+			candidate.ErrorRate > 0 || candidate.RateLimitedRate > 0 || candidate.ServerErrorRate > 0 {
+			return result, false
+		}
+		byID[candidate.AccountID] = candidate
+	}
+	selectedID := int64(0)
+	for _, accountID := range legacyOrder {
+		if _, ok := byID[accountID]; ok {
+			selectedID = accountID
+			break
+		}
+	}
+	if selectedID == 0 {
+		selectedID = candidates[0].AccountID
+	}
+	result.OrderedAccountIDs = []int64{selectedID}
+	result.RejectedAccountIDs = removeOpenAIBalancedAccountID(result.RejectedAccountIDs, selectedID)
+	result.TopK = 1
+	result.CandidateCount = 1
+	result.PolicyScores = append(result.PolicyScores, OpenAISchedulerPolicyCandidateScore{
+		AccountID: selectedID, Eligibility: OpenAISchedulerEligibilityLowConfidence,
+		EligibilityReason: "slow_degraded_fallback", TrafficClass: OpenAISchedulerTrafficFallback,
+	})
+	return result, true
+}
+
+func removeOpenAIBalancedAccountID(accountIDs []int64, removed int64) []int64 {
+	result := make([]int64, 0, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if accountID != removed {
+			result = append(result, accountID)
+		}
+	}
+	return result
 }
 
 func (s *OpenAIBalancedScheduler) recordShadowDecision(
@@ -477,6 +531,11 @@ func hydrateOpenAIBalancedHealth(
 				continue
 			}
 			candidates[i].State = normalizeOpenAIAutoSchedulerState(snapshot.State)
+			candidates[i].ErrorRate = snapshot.ErrorRate
+			candidates[i].RateLimitedRate = snapshot.RateLimitedRate
+			candidates[i].ServerErrorRate = snapshot.ServerErrorRate
+			candidates[i].ConsecutiveSlow = snapshot.ConsecutiveSlow
+			candidates[i].ConsecutiveError = snapshot.ConsecutiveError
 			candidates[i].HealthSnapshotStatus = OpenAISchedulerHealthSnapshotStale
 			if snapshot.LastRealAt != nil {
 				candidates[i].HasRealSample = true
@@ -493,6 +552,8 @@ func hydrateOpenAIBalancedHealth(
 		candidates[i].ErrorRate = snapshot.ErrorRate
 		candidates[i].RateLimitedRate = snapshot.RateLimitedRate
 		candidates[i].ServerErrorRate = snapshot.ServerErrorRate
+		candidates[i].ConsecutiveSlow = snapshot.ConsecutiveSlow
+		candidates[i].ConsecutiveError = snapshot.ConsecutiveError
 		candidates[i].HealthConfidence = classifyOpenAISchedulerHealthConfidence(
 			snapshot.State,
 			snapshot.ExpiresAt,
@@ -570,7 +631,7 @@ func (s *OpenAIGatewayService) openAIBalancedHealthKeyForCandidate(account *Acco
 	}
 	return normalizeOpenAISchedulerHealthKey(OpenAISchedulerHealthKey{
 		AccountID:   account.ID,
-		ModelFamily: resolveOpenAIAccountUpstreamModelForRequest(account, req.RequestedModel, req.RequireCompact),
+		ModelFamily: composeOpenAISchedulerHealthModelFamily(resolveOpenAIAccountUpstreamModelForRequest(account, req.RequestedModel, req.RequireCompact), req.ReasoningEffort),
 		Endpoint:    endpoint,
 		Transport:   string(transport),
 	})
