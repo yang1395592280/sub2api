@@ -288,14 +288,12 @@ func normalizeAPIKeyGroupSelectMode(mode string) string {
 }
 
 func normalizeOpenAIAutoGroupMaxRateMultiplier(rate *float64) (*float64, error) {
-	if rate == nil {
-		return nil, nil
-	}
-	if *rate < 0 {
+	if rate != nil && *rate < 0 {
 		return nil, ErrInvalidAutoGroupMaxRate
 	}
-	if *rate == 0 {
-		return nil, nil
+	if rate == nil || *rate == 0 {
+		defaultRate := OpenAIAutoCheapestDefaultMaxRate
+		return &defaultRate, nil
 	}
 	return rate, nil
 }
@@ -785,6 +783,10 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 	}
 
 	if apiKey.UsesOpenAIAutoCheapestGroup() {
+		if apiKey.OpenAIAutoGroupMaxRateMultiplier == nil || *apiKey.OpenAIAutoGroupMaxRateMultiplier <= 0 {
+			defaultRate := OpenAIAutoCheapestDefaultMaxRate
+			apiKey.OpenAIAutoGroupMaxRateMultiplier = &defaultRate
+		}
 		apiKey.GroupID = nil
 		apiKey.Group = nil
 		req.GroupID = nil

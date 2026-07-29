@@ -57,7 +57,7 @@ func (APIKey) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Optional().
 			Nillable().
-			Comment("Maximum effective group rate multiplier for OpenAI auto cheapest selection (null/0 = unlimited)"),
+			Comment("Maximum effective group rate multiplier for OpenAI auto cheapest selection (defaults to 0.2 in auto mode)"),
 		field.String("status").
 			MaxLen(20).
 			Default(domain.StatusActive),

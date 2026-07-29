@@ -12,6 +12,7 @@ type openAIAutoCheapestFailureState struct {
 	model         string
 	endpoint      string
 	transport     string
+	userID        int64
 	strictQuality bool
 }
 
@@ -61,13 +62,24 @@ func markOpenAIAutoCheapestGroupExhausted(ctx context.Context, groupID int64, re
 	model := state.model
 	endpoint := state.endpoint
 	transport := state.transport
+	userID := state.userID
 	state.mu.Unlock()
 
 	// Count at most one failure per group in a request. Account-level retries
 	// within the same group must not consume the cross-request circuit budget.
 	if circuit != nil {
-		_ = circuit.RecordFailure(ctx, OpenAIAutoCheapestGroupHealthKey{GroupID: groupID, Model: model, Endpoint: endpoint, Transport: transport}, reason)
+		_ = circuit.RecordFailure(ctx, OpenAIAutoCheapestGroupHealthKey{GroupID: groupID, UserID: userID, Model: model, Endpoint: endpoint, Transport: transport}, reason)
 	}
+}
+
+func setOpenAIAutoCheapestGroupFailureUserContext(ctx context.Context, userID int64) {
+	state, _ := ctx.Value(openAIAutoCheapestFailureStateKey{}).(*openAIAutoCheapestFailureState)
+	if state == nil {
+		return
+	}
+	state.mu.Lock()
+	state.userID = userID
+	state.mu.Unlock()
 }
 
 func setOpenAIAutoCheapestGroupHealthContext(ctx context.Context, model, endpoint, transport string) {
@@ -92,6 +104,7 @@ func openAIAutoCheapestGroupHealthKey(ctx context.Context, groupID int64) OpenAI
 	key.Model = state.model
 	key.Endpoint = state.endpoint
 	key.Transport = state.transport
+	key.UserID = state.userID
 	state.mu.RUnlock()
 	return key
 }

@@ -473,6 +473,7 @@ func (s *OpenAIGatewayService) resolveEffectiveOpenAIAPIKeys(ctx context.Context
 	if apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup() {
 		return []*APIKey{apiKey}, nil
 	}
+	setOpenAIAutoCheapestGroupFailureUserContext(ctx, apiKey.UserID)
 	if s == nil || s.openAIAutoCheapestGroupResolver == nil {
 		return nil, ErrNoAvailableAccounts
 	}

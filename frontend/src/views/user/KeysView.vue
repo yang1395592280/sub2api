@@ -1434,7 +1434,7 @@ const formData = ref({
   name: '',
   group_id: null as number | null,
   group_select_mode: 'fixed' as ApiKeyGroupSelectMode,
-  openai_auto_group_max_rate_multiplier: null as number | null,
+  openai_auto_group_max_rate_multiplier: 0.2 as number | null,
   status: 'active' as 'active' | 'inactive',
   use_custom_key: false,
   custom_key: '',
@@ -1455,8 +1455,10 @@ const formData = ref({
 })
 
 const autoCheapestRateForm = ref({
-  maxRate: null as number | null,
+  maxRate: 0.2 as number | null,
 })
+
+const OPENAI_AUTO_CHEAPEST_DEFAULT_MAX_RATE = 0.2
 
 // 自定义Key验证
 const customKeyError = computed(() => {
@@ -1537,11 +1539,11 @@ const getLastEffectiveGroupName = (key: ApiKey): string => {
 }
 
 const getOpenAIAutoMaxRateLabel = (key: ApiKey): string => {
-  const maxRate = key.openai_auto_group_max_rate_multiplier
-  if (typeof maxRate === 'number' && Number.isFinite(maxRate) && maxRate > 0) {
-    return t('keys.openaiAutoCheapest.maxRateCurrent', { rate: maxRate })
-  }
-  return t('keys.openaiAutoCheapest.maxRateUnlimited')
+  const configuredRate = key.openai_auto_group_max_rate_multiplier
+  const maxRate = typeof configuredRate === 'number' && Number.isFinite(configuredRate) && configuredRate > 0
+    ? configuredRate
+    : OPENAI_AUTO_CHEAPEST_DEFAULT_MAX_RATE
+  return t('keys.openaiAutoCheapest.maxRateCurrent', { rate: maxRate })
 }
 
 const selectedGroupOptionValue = computed<KeyGroupOptionValue | null>({
@@ -1554,6 +1556,13 @@ const selectedGroupOptionValue = computed<KeyGroupOptionValue | null>({
     if (value === OPENAI_AUTO_CHEAPEST_GROUP_VALUE) {
       formData.value.group_select_mode = 'openai_auto_cheapest'
       formData.value.group_id = null
+      if (
+        !formData.value.openai_auto_group_max_rate_multiplier ||
+        formData.value.openai_auto_group_max_rate_multiplier <= 0
+      ) {
+        formData.value.openai_auto_group_max_rate_multiplier =
+          OPENAI_AUTO_CHEAPEST_DEFAULT_MAX_RATE
+      }
       return
     }
     formData.value.group_select_mode = 'fixed'
@@ -1704,7 +1713,10 @@ const editKey = (key: ApiKey) => {
     name: key.name,
     group_id: groupSelectMode === 'openai_auto_cheapest' ? null : key.group_id,
     group_select_mode: groupSelectMode,
-    openai_auto_group_max_rate_multiplier: key.openai_auto_group_max_rate_multiplier ?? null,
+    openai_auto_group_max_rate_multiplier:
+      groupSelectMode === 'openai_auto_cheapest'
+        ? (key.openai_auto_group_max_rate_multiplier ?? OPENAI_AUTO_CHEAPEST_DEFAULT_MAX_RATE)
+        : null,
     status: key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status,
     use_custom_key: false,
     custom_key: '',
@@ -1791,7 +1803,7 @@ const changeGroup = async (key: ApiKey, newGroupId: KeyGroupOptionValue | null) 
 
 const openAutoCheapestRateDialog = (key: ApiKey) => {
   autoCheapestRateKey.value = key
-  autoCheapestRateForm.value.maxRate = key.openai_auto_group_max_rate_multiplier ?? null
+  autoCheapestRateForm.value.maxRate = key.openai_auto_group_max_rate_multiplier ?? OPENAI_AUTO_CHEAPEST_DEFAULT_MAX_RATE
   showAutoCheapestRateDialog.value = true
 }
 
@@ -1799,20 +1811,22 @@ const closeAutoCheapestRateDialog = (force = false) => {
   if (autoCheapestRateSubmitting.value && !force) return
   showAutoCheapestRateDialog.value = false
   autoCheapestRateKey.value = null
-  autoCheapestRateForm.value.maxRate = null
+  autoCheapestRateForm.value.maxRate = OPENAI_AUTO_CHEAPEST_DEFAULT_MAX_RATE
 }
 
 const submitAutoCheapestRateDialog = async () => {
   const key = autoCheapestRateKey.value
   if (!key) return
   const rawMaxRate = Number(autoCheapestRateForm.value.maxRate)
-  const maxRate = Number.isFinite(rawMaxRate) && rawMaxRate > 0 ? rawMaxRate : null
+  const maxRate = Number.isFinite(rawMaxRate) && rawMaxRate > 0
+    ? rawMaxRate
+    : OPENAI_AUTO_CHEAPEST_DEFAULT_MAX_RATE
   autoCheapestRateSubmitting.value = true
   try {
     await keysAPI.update(key.id, {
       group_id: null,
       group_select_mode: 'openai_auto_cheapest',
-      openai_auto_group_max_rate_multiplier: maxRate ?? 0,
+      openai_auto_group_max_rate_multiplier: maxRate,
     })
     appStore.showSuccess(t('keys.groupChangedSuccess'))
     closeAutoCheapestRateDialog(true)
@@ -1895,10 +1909,10 @@ const handleSubmit = async () => {
     rate_limit_7d: formData.value.rate_limit_7d && formData.value.rate_limit_7d > 0 ? formData.value.rate_limit_7d : 0,
   } : { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 }
   const openAIAutoMaxRate =
-    formData.value.group_select_mode === 'openai_auto_cheapest' &&
-    formData.value.openai_auto_group_max_rate_multiplier &&
-    formData.value.openai_auto_group_max_rate_multiplier > 0
-      ? formData.value.openai_auto_group_max_rate_multiplier
+    formData.value.group_select_mode === 'openai_auto_cheapest'
+      ? formData.value.openai_auto_group_max_rate_multiplier && formData.value.openai_auto_group_max_rate_multiplier > 0
+        ? formData.value.openai_auto_group_max_rate_multiplier
+        : OPENAI_AUTO_CHEAPEST_DEFAULT_MAX_RATE
       : null
 
   submitting.value = true
@@ -1981,7 +1995,7 @@ const closeModals = () => {
     name: '',
     group_id: null,
     group_select_mode: 'fixed',
-    openai_auto_group_max_rate_multiplier: null,
+    openai_auto_group_max_rate_multiplier: OPENAI_AUTO_CHEAPEST_DEFAULT_MAX_RATE,
     status: 'active',
     use_custom_key: false,
     custom_key: '',

@@ -414,6 +414,25 @@ func TestAPIKeyServiceCreate_OpenAIAutoCheapestAllowsNilGroup(t *testing.T) {
 	require.NotNil(t, got)
 	require.Equal(t, APIKeyGroupSelectModeOpenAIAutoCheapest, repo.created.GroupSelectMode)
 	require.Nil(t, repo.created.GroupID)
+	require.NotNil(t, repo.created.OpenAIAutoGroupMaxRateMultiplier)
+	require.Equal(t, OpenAIAutoCheapestDefaultMaxRate, *repo.created.OpenAIAutoGroupMaxRateMultiplier)
+}
+
+func TestAPIKeyServiceCreate_OpenAIAutoCheapestZeroMaxRateUsesDefault(t *testing.T) {
+	zeroRate := 0.0
+	req := CreateAPIKeyRequest{
+		Name:                             "auto-default-budget",
+		GroupSelectMode:                  APIKeyGroupSelectModeOpenAIAutoCheapest,
+		OpenAIAutoGroupMaxRateMultiplier: &zeroRate,
+	}
+	svc, repo := newAPIKeyServiceCreateTestHarness(t)
+
+	got, err := svc.Create(context.Background(), 42, req)
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.NotNil(t, repo.created.OpenAIAutoGroupMaxRateMultiplier)
+	require.Equal(t, OpenAIAutoCheapestDefaultMaxRate, *repo.created.OpenAIAutoGroupMaxRateMultiplier)
 }
 
 func TestAPIKeyServiceCreate_OpenAIAutoCheapestStoresMaxRateMultiplier(t *testing.T) {
@@ -561,6 +580,8 @@ func TestAPIKeyServiceUpdate_OpenAIAutoCheapestIgnoresRequestedInvalidGroup(t *t
 	require.Equal(t, APIKeyGroupSelectModeOpenAIAutoCheapest, repo.updated.GroupSelectMode)
 	require.Nil(t, repo.updated.GroupID)
 	require.Nil(t, repo.updated.Group)
+	require.NotNil(t, repo.updated.OpenAIAutoGroupMaxRateMultiplier)
+	require.Equal(t, OpenAIAutoCheapestDefaultMaxRate, *repo.updated.OpenAIAutoGroupMaxRateMultiplier)
 }
 
 func ptrInt64(value int64) *int64 {

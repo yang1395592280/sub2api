@@ -17,6 +17,7 @@ const (
 const (
 	APIKeyGroupSelectModeFixed              = "fixed"
 	APIKeyGroupSelectModeOpenAIAutoCheapest = "openai_auto_cheapest"
+	OpenAIAutoCheapestDefaultMaxRate        = 0.2
 )
 
 // Rate limit window durations
@@ -49,7 +50,7 @@ type APIKey struct {
 	LastUsedIP           *string
 	LastEffectiveGroupID *int64
 	LastEffectiveGroupAt *time.Time
-	// nil or 0 means unlimited.
+	// Auto-cheapest keys default to OpenAIAutoCheapestDefaultMaxRate.
 	OpenAIAutoGroupMaxRateMultiplier *float64
 	CreatedAt                        time.Time
 	UpdatedAt                        time.Time

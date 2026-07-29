@@ -139,7 +139,7 @@ describe('KeysView OpenAI auto cheapest group', () => {
     fetchPublicSettings.mockResolvedValue({})
   })
 
-  it('submits auto cheapest mode with a null group id', async () => {
+  it('submits auto cheapest mode with a null group id and the default max rate', async () => {
     const wrapper = mount(KeysView, {
       global: {
         stubs: {
@@ -180,7 +180,7 @@ describe('KeysView OpenAI auto cheapest group', () => {
       undefined,
       { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 },
       'openai_auto_cheapest',
-      null,
+      0.2,
     )
     expect(showError).not.toHaveBeenCalledWith('keys.groupRequired')
   })
@@ -306,6 +306,8 @@ describe('KeysView OpenAI auto cheapest group', () => {
 
     expect(updateKey).not.toHaveBeenCalled()
     const maxRateInput = wrapper.get('[data-test="row-auto-cheapest-max-rate"]')
+
+    expect((maxRateInput.element as HTMLInputElement).value).toBe('0.2')
     await maxRateInput.setValue('0.25')
     await wrapper.get('[data-test="row-auto-cheapest-submit"]').trigger('click')
     await flushPromises()
@@ -314,6 +316,86 @@ describe('KeysView OpenAI auto cheapest group', () => {
       group_id: null,
       group_select_mode: 'openai_auto_cheapest',
       openai_auto_group_max_rate_multiplier: 0.25,
+    })
+
+    wrapper.unmount()
+  })
+
+  it('uses 0.2 when the inline auto cheapest max rate is cleared', async () => {
+    listKeys.mockResolvedValue({
+      items: [
+        {
+          id: 12,
+          key: 'sk-fixed-default-rate',
+          name: 'fixed-default-rate',
+          group_id: 1,
+          group_select_mode: 'fixed',
+          group: { id: 1, name: 'Default', platform: 'openai', rate_multiplier: 1 },
+          status: 'active',
+          ip_whitelist: [],
+          ip_blacklist: [],
+          quota: 0,
+          quota_used: 0,
+          rate_limit_5h: 0,
+          rate_limit_1d: 0,
+          rate_limit_7d: 0,
+          usage_5h: 0,
+          usage_1d: 0,
+          usage_7d: 0,
+          reset_5h_at: null,
+          reset_1d_at: null,
+          reset_7d_at: null,
+          created_at: '2026-06-30T00:00:00Z',
+          updated_at: '2026-06-30T00:00:00Z',
+          last_used_at: null,
+          expires_at: null,
+          last_effective_group_id: null,
+          last_effective_group_at: null,
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 10,
+      pages: 1,
+    })
+
+    const wrapper = mount(KeysView, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          AppLayout: Passthrough,
+          TablePageLayout: TablePageLayoutStub,
+          DataTable: DataTableStub,
+          Pagination: true,
+          BaseDialog: BaseDialogStub,
+          ConfirmDialog: true,
+          EmptyState: true,
+          SearchInput: true,
+          EndpointPopover: true,
+          UseKeyModal: true,
+          Icon: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    await wrapper.get('.group\\/dropdown button').trigger('click')
+    await flushPromises()
+    const autoButton = Array.from(document.body.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('keys.openaiAutoCheapest.label'),
+    )
+    autoButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+
+    const maxRateInput = wrapper.get('[data-test="row-auto-cheapest-max-rate"]')
+    await maxRateInput.setValue('')
+    await wrapper.get('[data-test="row-auto-cheapest-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(updateKey).toHaveBeenCalledWith(12, {
+      group_id: null,
+      group_select_mode: 'openai_auto_cheapest',
+      openai_auto_group_max_rate_multiplier: 0.2,
     })
 
     wrapper.unmount()

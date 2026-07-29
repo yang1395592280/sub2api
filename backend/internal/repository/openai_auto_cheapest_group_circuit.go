@@ -44,7 +44,9 @@ return 1
 `)
 
 func (c *openAIAutoCheapestGroupCircuit) Allow(ctx context.Context, key service.OpenAIAutoCheapestGroupHealthKey) (bool, error) {
-	if c == nil || c.rdb == nil || !key.Valid() { return true, nil }
+	if c == nil || c.rdb == nil || !key.Valid() {
+		return true, nil
+	}
 	result, err := allowOpenAIAutoCheapestProbeScript.Run(ctx, c.rdb, []string{openAIAutoCheapestGroupCircuitKey(key)}, time.Now().Unix()).Int()
 	return result == 1, err
 }
@@ -55,17 +57,26 @@ local now = tonumber(ARGV[1])
 local window = tonumber(ARGV[2])
 local limit = tonumber(ARGV[3])
 local cooldown = tonumber(ARGV[4])
+local user_id = tonumber(ARGV[5]) or 0
 local state = redis.call('HGET', key, 'state')
 if state == 'half_open' then
   redis.call('HSET', key, 'state', 'open', 'opened_at', now, 'cooldown_until', now + cooldown, 'probe', '0', 'successes', '0')
   redis.call('EXPIRE', key, cooldown)
   return 0
 end
+if user_id <= 0 then return 0 end
 local raw = redis.call('HMGET', key, 'window_start', 'failures')
 local start = tonumber(raw[1]) or 0
 local failures = tonumber(raw[2]) or 0
-if start == 0 or now - start >= window then start = now; failures = 0 end
+if start == 0 or now - start >= window then
+  redis.call('DEL', key)
+  start = now
+  failures = 0
+end
+local user_field = 'failed_user:' .. user_id
+if redis.call('HEXISTS', key, user_field) == 1 then return failures end
 failures = failures + 1
+redis.call('HSET', key, user_field, '1')
 if failures >= limit then
   redis.call('HSET', key, 'state', 'open', 'opened_at', now, 'cooldown_until', now + cooldown, 'window_start', start, 'failures', failures, 'probe', '0')
   redis.call('EXPIRE', key, cooldown)
@@ -77,13 +88,17 @@ return failures
 `)
 
 func (c *openAIAutoCheapestGroupCircuit) RecordFailure(ctx context.Context, key service.OpenAIAutoCheapestGroupHealthKey, reason string) error {
-	if c == nil || c.rdb == nil || !key.Valid() { return nil }
-	_, err := recordOpenAIAutoCheapestFailureScript.Run(ctx, c.rdb, []string{openAIAutoCheapestGroupCircuitKey(key)}, time.Now().Unix(), int64(service.OpenAIAutoCheapestFailureWindow/time.Second), service.OpenAIAutoCheapestFailureLimit, int64(service.OpenAIAutoCheapestCooldown/time.Second)).Result()
+	if c == nil || c.rdb == nil || !key.Valid() {
+		return nil
+	}
+	_, err := recordOpenAIAutoCheapestFailureScript.Run(ctx, c.rdb, []string{openAIAutoCheapestGroupCircuitKey(key)}, time.Now().Unix(), int64(service.OpenAIAutoCheapestFailureWindow/time.Second), service.OpenAIAutoCheapestFailureLimit, int64(service.OpenAIAutoCheapestCooldown/time.Second), key.UserID).Result()
 	return err
 }
 
 func (c *openAIAutoCheapestGroupCircuit) RecordSuccess(ctx context.Context, key service.OpenAIAutoCheapestGroupHealthKey) error {
-	if c == nil || c.rdb == nil || !key.Valid() { return nil }
+	if c == nil || c.rdb == nil || !key.Valid() {
+		return nil
+	}
 	redisKey := openAIAutoCheapestGroupCircuitKey(key)
 	state, err := c.rdb.HGet(ctx, redisKey, "state").Result()
 	if err == redis.Nil {

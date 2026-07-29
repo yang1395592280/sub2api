@@ -15,9 +15,10 @@ type OpenAIAutoCheapestGroupCircuit interface {
 }
 
 type OpenAIAutoCheapestGroupHealthKey struct {
-	GroupID int64
-	Model   string
-	Endpoint string
+	GroupID   int64
+	UserID    int64
+	Model     string
+	Endpoint  string
 	Transport string
 }
 
@@ -35,9 +36,13 @@ func NormalizeOpenAIAutoCheapestHealthModel(model string) string {
 
 func NormalizeOpenAIAutoCheapestHealthPart(value string) string {
 	value = strings.ToLower(strings.TrimSpace(value))
-	if value == "" { return "unknown" }
+	if value == "" {
+		return "unknown"
+	}
 	value = strings.NewReplacer("/", "_", ":", "_", " ", "_").Replace(value)
-	if len(value) > 64 { return value[:64] }
+	if len(value) > 64 {
+		return value[:64]
+	}
 	return value
 }
 
@@ -45,6 +50,8 @@ func (k OpenAIAutoCheapestGroupHealthKey) Valid() bool { return k.GroupID > 0 }
 
 const (
 	OpenAIAutoCheapestFailureWindow = 60 * time.Second
-	OpenAIAutoCheapestCooldown      = 60 * time.Second
-	OpenAIAutoCheapestFailureLimit  = int64(1)
+	OpenAIAutoCheapestCooldown      = 10 * time.Second
+	// Only distinct users consume the failure budget. One user's request shape,
+	// exclusions, or temporary account state must not disable a group globally.
+	OpenAIAutoCheapestFailureLimit = int64(2)
 )
