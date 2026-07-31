@@ -120,7 +120,7 @@ func TestApplyOpenAISchedulerHealthEvent(t *testing.T) {
 		}, OpenAISchedulerHealthEvent{Source: HealthSourceReal, EventType: OpenAIAutoSchedulerEventSuccess, TTFTMS: 300, OccurredAt: now}, settings)
 		require.Equal(t, 300.0, got.PredictedTTFTMS)
 		require.Equal(t, int64(1), got.RealSampleCount)
-		require.Equal(t, 2, got.ConsecutiveError)
+		require.Zero(t, got.ConsecutiveError)
 		require.Equal(t, OpenAIAutoSchedulerStateRunning, got.State)
 	})
 
@@ -145,7 +145,7 @@ func TestApplyOpenAISchedulerHealthEvent(t *testing.T) {
 		require.Equal(t, OpenAIAutoSchedulerStateOpen, got.State)
 		require.Equal(t, originalCooldown, *got.CooldownUntil)
 		require.Equal(t, 1, got.ConsecutiveSlow)
-		require.Zero(t, got.ConsecutiveError)
+		require.Equal(t, 2, got.ConsecutiveError)
 	})
 
 	t.Run("unexpired open circuit repeated error preserves original cooldown", func(t *testing.T) {

@@ -23,6 +23,8 @@ func TestSanitizedUpstreamPathSuffixRejectsNonConformingSegments(t *testing.T) {
 		"/compact?a=b",
 		"/compact#frag",
 		"/compact%2f..",
+		"/compact ",
+		" /compact",
 		"/100%",
 		"//double",
 		"/compact//detail",
@@ -114,6 +116,7 @@ func TestOpenAIResponsesRequestPathSuffixRejectsNonConformingSubpaths(t *testing
 		`/v1/responses/..\..\x`,
 		"/v1/responses/%3fa=b",
 		"/v1/responses/x%23frag",
+		"/v1/responses/compact%20",
 		"/v1/responses//double",
 	}
 	for _, path := range nonConformingPaths {
