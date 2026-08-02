@@ -128,6 +128,12 @@ const (
 	FieldUpstreamBalanceRefreshIntervalSeconds = "upstream_balance_refresh_interval_seconds"
 	// FieldUpstreamPriceMaxMultiplier holds the string denoting the upstream_price_max_multiplier field in the database.
 	FieldUpstreamPriceMaxMultiplier = "upstream_price_max_multiplier"
+	// FieldUpstreamPriceGroupingEnabled holds the string denoting the upstream_price_grouping_enabled field in the database.
+	FieldUpstreamPriceGroupingEnabled = "upstream_price_grouping_enabled"
+	// FieldUpstreamPriceGroupingMin holds the string denoting the upstream_price_grouping_min field in the database.
+	FieldUpstreamPriceGroupingMin = "upstream_price_grouping_min"
+	// FieldUpstreamPriceGroupingMax holds the string denoting the upstream_price_grouping_max field in the database.
+	FieldUpstreamPriceGroupingMax = "upstream_price_grouping_max"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// FieldMaxReasoningEffort holds the string denoting the max_reasoning_effort field in the database.
@@ -265,6 +271,9 @@ var Columns = []string{
 	FieldUpstreamBalanceRefreshEnabled,
 	FieldUpstreamBalanceRefreshIntervalSeconds,
 	FieldUpstreamPriceMaxMultiplier,
+	FieldUpstreamPriceGroupingEnabled,
+	FieldUpstreamPriceGroupingMin,
+	FieldUpstreamPriceGroupingMax,
 	FieldRpmLimit,
 	FieldMaxReasoningEffort,
 	FieldReasoningEffortMappings,
@@ -393,6 +402,12 @@ var (
 	DefaultUpstreamBalanceRefreshIntervalSeconds int
 	// DefaultUpstreamPriceMaxMultiplier holds the default value on creation for the "upstream_price_max_multiplier" field.
 	DefaultUpstreamPriceMaxMultiplier float64
+	// DefaultUpstreamPriceGroupingEnabled holds the default value on creation for the "upstream_price_grouping_enabled" field.
+	DefaultUpstreamPriceGroupingEnabled bool
+	// DefaultUpstreamPriceGroupingMin holds the default value on creation for the "upstream_price_grouping_min" field.
+	DefaultUpstreamPriceGroupingMin float64
+	// DefaultUpstreamPriceGroupingMax holds the default value on creation for the "upstream_price_grouping_max" field.
+	DefaultUpstreamPriceGroupingMax float64
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 	// DefaultMaxReasoningEffort holds the default value on creation for the "max_reasoning_effort" field.
@@ -669,6 +684,21 @@ func ByUpstreamBalanceRefreshIntervalSeconds(opts ...sql.OrderTermOption) OrderO
 // ByUpstreamPriceMaxMultiplier orders the results by the upstream_price_max_multiplier field.
 func ByUpstreamPriceMaxMultiplier(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUpstreamPriceMaxMultiplier, opts...).ToFunc()
+}
+
+// ByUpstreamPriceGroupingEnabled orders the results by the upstream_price_grouping_enabled field.
+func ByUpstreamPriceGroupingEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamPriceGroupingEnabled, opts...).ToFunc()
+}
+
+// ByUpstreamPriceGroupingMin orders the results by the upstream_price_grouping_min field.
+func ByUpstreamPriceGroupingMin(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamPriceGroupingMin, opts...).ToFunc()
+}
+
+// ByUpstreamPriceGroupingMax orders the results by the upstream_price_grouping_max field.
+func ByUpstreamPriceGroupingMax(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamPriceGroupingMax, opts...).ToFunc()
 }
 
 // ByRpmLimit orders the results by the rpm_limit field.

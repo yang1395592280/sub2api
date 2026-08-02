@@ -315,6 +315,21 @@ func UpstreamPriceMaxMultiplier(v float64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldUpstreamPriceMaxMultiplier, v))
 }
 
+// UpstreamPriceGroupingEnabled applies equality check predicate on the "upstream_price_grouping_enabled" field. It's identical to UpstreamPriceGroupingEnabledEQ.
+func UpstreamPriceGroupingEnabled(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldUpstreamPriceGroupingEnabled, v))
+}
+
+// UpstreamPriceGroupingMin applies equality check predicate on the "upstream_price_grouping_min" field. It's identical to UpstreamPriceGroupingMinEQ.
+func UpstreamPriceGroupingMin(v float64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldUpstreamPriceGroupingMin, v))
+}
+
+// UpstreamPriceGroupingMax applies equality check predicate on the "upstream_price_grouping_max" field. It's identical to UpstreamPriceGroupingMaxEQ.
+func UpstreamPriceGroupingMax(v float64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldUpstreamPriceGroupingMax, v))
+}
+
 // RpmLimit applies equality check predicate on the "rpm_limit" field. It's identical to RpmLimitEQ.
 func RpmLimit(v int) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldRpmLimit, v))
@@ -2343,6 +2358,96 @@ func UpstreamPriceMaxMultiplierLT(v float64) predicate.Group {
 // UpstreamPriceMaxMultiplierLTE applies the LTE predicate on the "upstream_price_max_multiplier" field.
 func UpstreamPriceMaxMultiplierLTE(v float64) predicate.Group {
 	return predicate.Group(sql.FieldLTE(FieldUpstreamPriceMaxMultiplier, v))
+}
+
+// UpstreamPriceGroupingEnabledEQ applies the EQ predicate on the "upstream_price_grouping_enabled" field.
+func UpstreamPriceGroupingEnabledEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldUpstreamPriceGroupingEnabled, v))
+}
+
+// UpstreamPriceGroupingEnabledNEQ applies the NEQ predicate on the "upstream_price_grouping_enabled" field.
+func UpstreamPriceGroupingEnabledNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldUpstreamPriceGroupingEnabled, v))
+}
+
+// UpstreamPriceGroupingMinEQ applies the EQ predicate on the "upstream_price_grouping_min" field.
+func UpstreamPriceGroupingMinEQ(v float64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldUpstreamPriceGroupingMin, v))
+}
+
+// UpstreamPriceGroupingMinNEQ applies the NEQ predicate on the "upstream_price_grouping_min" field.
+func UpstreamPriceGroupingMinNEQ(v float64) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldUpstreamPriceGroupingMin, v))
+}
+
+// UpstreamPriceGroupingMinIn applies the In predicate on the "upstream_price_grouping_min" field.
+func UpstreamPriceGroupingMinIn(vs ...float64) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldUpstreamPriceGroupingMin, vs...))
+}
+
+// UpstreamPriceGroupingMinNotIn applies the NotIn predicate on the "upstream_price_grouping_min" field.
+func UpstreamPriceGroupingMinNotIn(vs ...float64) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldUpstreamPriceGroupingMin, vs...))
+}
+
+// UpstreamPriceGroupingMinGT applies the GT predicate on the "upstream_price_grouping_min" field.
+func UpstreamPriceGroupingMinGT(v float64) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldUpstreamPriceGroupingMin, v))
+}
+
+// UpstreamPriceGroupingMinGTE applies the GTE predicate on the "upstream_price_grouping_min" field.
+func UpstreamPriceGroupingMinGTE(v float64) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldUpstreamPriceGroupingMin, v))
+}
+
+// UpstreamPriceGroupingMinLT applies the LT predicate on the "upstream_price_grouping_min" field.
+func UpstreamPriceGroupingMinLT(v float64) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldUpstreamPriceGroupingMin, v))
+}
+
+// UpstreamPriceGroupingMinLTE applies the LTE predicate on the "upstream_price_grouping_min" field.
+func UpstreamPriceGroupingMinLTE(v float64) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldUpstreamPriceGroupingMin, v))
+}
+
+// UpstreamPriceGroupingMaxEQ applies the EQ predicate on the "upstream_price_grouping_max" field.
+func UpstreamPriceGroupingMaxEQ(v float64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldUpstreamPriceGroupingMax, v))
+}
+
+// UpstreamPriceGroupingMaxNEQ applies the NEQ predicate on the "upstream_price_grouping_max" field.
+func UpstreamPriceGroupingMaxNEQ(v float64) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldUpstreamPriceGroupingMax, v))
+}
+
+// UpstreamPriceGroupingMaxIn applies the In predicate on the "upstream_price_grouping_max" field.
+func UpstreamPriceGroupingMaxIn(vs ...float64) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldUpstreamPriceGroupingMax, vs...))
+}
+
+// UpstreamPriceGroupingMaxNotIn applies the NotIn predicate on the "upstream_price_grouping_max" field.
+func UpstreamPriceGroupingMaxNotIn(vs ...float64) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldUpstreamPriceGroupingMax, vs...))
+}
+
+// UpstreamPriceGroupingMaxGT applies the GT predicate on the "upstream_price_grouping_max" field.
+func UpstreamPriceGroupingMaxGT(v float64) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldUpstreamPriceGroupingMax, v))
+}
+
+// UpstreamPriceGroupingMaxGTE applies the GTE predicate on the "upstream_price_grouping_max" field.
+func UpstreamPriceGroupingMaxGTE(v float64) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldUpstreamPriceGroupingMax, v))
+}
+
+// UpstreamPriceGroupingMaxLT applies the LT predicate on the "upstream_price_grouping_max" field.
+func UpstreamPriceGroupingMaxLT(v float64) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldUpstreamPriceGroupingMax, v))
+}
+
+// UpstreamPriceGroupingMaxLTE applies the LTE predicate on the "upstream_price_grouping_max" field.
+func UpstreamPriceGroupingMaxLTE(v float64) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldUpstreamPriceGroupingMax, v))
 }
 
 // RpmLimitEQ applies the EQ predicate on the "rpm_limit" field.

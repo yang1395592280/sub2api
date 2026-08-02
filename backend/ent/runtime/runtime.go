@@ -1209,18 +1209,30 @@ func init() {
 	groupDescUpstreamPriceMaxMultiplier := groupFields[52].Descriptor()
 	// group.DefaultUpstreamPriceMaxMultiplier holds the default value on creation for the upstream_price_max_multiplier field.
 	group.DefaultUpstreamPriceMaxMultiplier = groupDescUpstreamPriceMaxMultiplier.Default.(float64)
+	// groupDescUpstreamPriceGroupingEnabled is the schema descriptor for upstream_price_grouping_enabled field.
+	groupDescUpstreamPriceGroupingEnabled := groupFields[53].Descriptor()
+	// group.DefaultUpstreamPriceGroupingEnabled holds the default value on creation for the upstream_price_grouping_enabled field.
+	group.DefaultUpstreamPriceGroupingEnabled = groupDescUpstreamPriceGroupingEnabled.Default.(bool)
+	// groupDescUpstreamPriceGroupingMin is the schema descriptor for upstream_price_grouping_min field.
+	groupDescUpstreamPriceGroupingMin := groupFields[54].Descriptor()
+	// group.DefaultUpstreamPriceGroupingMin holds the default value on creation for the upstream_price_grouping_min field.
+	group.DefaultUpstreamPriceGroupingMin = groupDescUpstreamPriceGroupingMin.Default.(float64)
+	// groupDescUpstreamPriceGroupingMax is the schema descriptor for upstream_price_grouping_max field.
+	groupDescUpstreamPriceGroupingMax := groupFields[55].Descriptor()
+	// group.DefaultUpstreamPriceGroupingMax holds the default value on creation for the upstream_price_grouping_max field.
+	group.DefaultUpstreamPriceGroupingMax = groupDescUpstreamPriceGroupingMax.Default.(float64)
 	// groupDescRpmLimit is the schema descriptor for rpm_limit field.
-	groupDescRpmLimit := groupFields[53].Descriptor()
+	groupDescRpmLimit := groupFields[56].Descriptor()
 	// group.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	group.DefaultRpmLimit = groupDescRpmLimit.Default.(int)
 	// groupDescMaxReasoningEffort is the schema descriptor for max_reasoning_effort field.
-	groupDescMaxReasoningEffort := groupFields[54].Descriptor()
+	groupDescMaxReasoningEffort := groupFields[57].Descriptor()
 	// group.DefaultMaxReasoningEffort holds the default value on creation for the max_reasoning_effort field.
 	group.DefaultMaxReasoningEffort = groupDescMaxReasoningEffort.Default.(string)
 	// group.MaxReasoningEffortValidator is a validator for the "max_reasoning_effort" field. It is called by the builders before save.
 	group.MaxReasoningEffortValidator = groupDescMaxReasoningEffort.Validators[0].(func(string) error)
 	// groupDescReasoningEffortMappings is the schema descriptor for reasoning_effort_mappings field.
-	groupDescReasoningEffortMappings := groupFields[55].Descriptor()
+	groupDescReasoningEffortMappings := groupFields[58].Descriptor()
 	// group.DefaultReasoningEffortMappings holds the default value on creation for the reasoning_effort_mappings field.
 	group.DefaultReasoningEffortMappings = groupDescReasoningEffortMappings.Default.([]domain.ReasoningEffortMapping)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()

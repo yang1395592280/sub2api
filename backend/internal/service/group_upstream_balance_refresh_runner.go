@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
@@ -30,6 +31,10 @@ type groupUpstreamBalanceRefresher interface {
 type groupUpstreamBalanceRefreshStateRepository interface {
 	GetMultiple(ctx context.Context, keys []string) (map[string]string, error)
 	Set(ctx context.Context, key, value string) error
+}
+
+type upstreamPriceGroupingAccountRepository interface {
+	MoveAccountBetweenUpstreamPriceGroups(ctx context.Context, accountID int64, managedGroupIDs []int64, targetGroupID int64) (bool, error)
 }
 
 type GroupUpstreamBalanceRefreshRunner struct {
@@ -216,6 +221,7 @@ func (r *GroupUpstreamBalanceRefreshRunner) runOnce(ctx context.Context, now tim
 		slog.Warn("group_upstream_balance_refresh.list_groups_failed", "error", err)
 		return
 	}
+	priceGroupingGroups := collectUpstreamPriceGroupingGroups(groups)
 	r.loadDistributedLastRuns(ctx, groups)
 	plans := make(map[int64]*groupUpstreamBalanceRefreshPlanItem)
 	accountOrder := make([]int64, 0)
@@ -248,7 +254,7 @@ func (r *GroupUpstreamBalanceRefreshRunner) runOnce(ctx context.Context, now tim
 			return
 		}
 		plan := plans[accountID]
-		membershipResults, stopBatch := r.refreshAccount(ctx, plan, now)
+		membershipResults, stopBatch := r.refreshAccount(ctx, plan, priceGroupingGroups, now)
 		for _, result := range membershipResults {
 			state := groupStates[result.groupID]
 			if state == nil || state.pending <= 0 {
@@ -368,7 +374,7 @@ func groupRefreshPlanContainsGroup(groups []Group, groupID int64) bool {
 	return false
 }
 
-func (r *GroupUpstreamBalanceRefreshRunner) refreshAccount(ctx context.Context, plan *groupUpstreamBalanceRefreshPlanItem, now time.Time) (membershipResults []groupUpstreamBalanceRefreshMembershipResult, stopBatch bool) {
+func (r *GroupUpstreamBalanceRefreshRunner) refreshAccount(ctx context.Context, plan *groupUpstreamBalanceRefreshPlanItem, priceGroupingGroups []Group, now time.Time) (membershipResults []groupUpstreamBalanceRefreshMembershipResult, stopBatch bool) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			membershipResults = membershipResults[:0]
@@ -417,7 +423,98 @@ func (r *GroupUpstreamBalanceRefreshRunner) refreshAccount(ctx context.Context, 
 			return membershipResults, false
 		}
 	}
+	if err := r.applyUpstreamPriceGrouping(ctx, refreshed, priceGroupingGroups, now); err != nil {
+		slog.Warn("group_upstream_balance_refresh.price_grouping_failed", "account_id", plan.accountID, "error", err)
+		for i := range membershipResults {
+			membershipResults[i].failed = true
+		}
+	}
 	return membershipResults, false
+}
+
+func collectUpstreamPriceGroupingGroups(groups []Group) []Group {
+	result := make([]Group, 0, len(groups))
+	for i := range groups {
+		group := groups[i]
+		if group.Platform != PlatformOpenAI || group.IsSelfHostedPool() || !group.UpstreamPriceGroupingEnabled {
+			continue
+		}
+		if ValidateGroupUpstreamPriceGroupingConfig(&group) != nil {
+			continue
+		}
+		result = append(result, group)
+	}
+	return result
+}
+
+func upstreamPriceGroupingTarget(groups []Group, price float64) *Group {
+	if price <= 0 {
+		return nil
+	}
+	for i := range groups {
+		if price >= groups[i].UpstreamPriceGroupingMin && price <= groups[i].UpstreamPriceGroupingMax {
+			return &groups[i]
+		}
+	}
+	return nil
+}
+
+func accountBelongsToAnyGroup(account *Account, groupIDs map[int64]struct{}) bool {
+	if account == nil || len(groupIDs) == 0 {
+		return false
+	}
+	for _, groupID := range account.GroupIDs {
+		if _, ok := groupIDs[groupID]; ok {
+			return true
+		}
+	}
+	for i := range account.AccountGroups {
+		if _, ok := groupIDs[account.AccountGroups[i].GroupID]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *GroupUpstreamBalanceRefreshRunner) applyUpstreamPriceGrouping(ctx context.Context, account *Account, groups []Group, now time.Time) error {
+	if account == nil || account.Platform != PlatformOpenAI || account.ChannelPrice == nil || len(groups) == 0 {
+		return nil
+	}
+	managedGroupIDs := make([]int64, 0, len(groups))
+	managedGroupSet := make(map[int64]struct{}, len(groups))
+	for i := range groups {
+		managedGroupIDs = append(managedGroupIDs, groups[i].ID)
+		managedGroupSet[groups[i].ID] = struct{}{}
+	}
+	if !accountBelongsToAnyGroup(account, managedGroupSet) {
+		return nil
+	}
+	target := upstreamPriceGroupingTarget(groups, *account.ChannelPrice)
+	if target == nil {
+		return nil
+	}
+	mover, ok := r.accountRepo.(upstreamPriceGroupingAccountRepository)
+	if !ok {
+		return errors.New("account repository does not support upstream price grouping")
+	}
+	changed, err := mover.MoveAccountBetweenUpstreamPriceGroups(ctx, account.ID, managedGroupIDs, target.ID)
+	if err != nil || !changed {
+		return err
+	}
+	latest, err := r.accountRepo.GetByID(ctx, account.ID)
+	if err != nil {
+		return fmt.Errorf("reload account after upstream price grouping: %w", err)
+	}
+	if latest == nil {
+		return ErrAccountNotFound
+	}
+	if err := ApplyGroupUpstreamPriceGuard(ctx, r.accountRepo, latest, *target, now); err != nil {
+		return fmt.Errorf("apply target group upstream price guard: %w", err)
+	}
+	if !r.reloadAccountGuardState(ctx, latest) {
+		return errors.New("reload target group price guard state failed")
+	}
+	return nil
 }
 
 func terminalGroupMembershipResults(groups []Group) []groupUpstreamBalanceRefreshMembershipResult {

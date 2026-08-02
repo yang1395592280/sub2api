@@ -243,6 +243,17 @@ func (Group) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
 			Default(0).
 			Comment("分组级上游价格倍率上限，0 表示不限制"),
+		field.Bool("upstream_price_grouping_enabled").
+			Default(false).
+			Comment("是否在刷新渠道价格后按价格区间自动归入 OpenAI 普通分组"),
+		field.Float("upstream_price_grouping_min").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(12,6)"}).
+			Default(0).
+			Comment("OpenAI 渠道价格自动归组区间下限（包含）"),
+		field.Float("upstream_price_grouping_max").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(12,6)"}).
+			Default(0).
+			Comment("OpenAI 渠道价格自动归组区间上限（包含）"),
 
 		// 分组级每分钟请求数上限（0 = 不限制）。设置后优先于用户级兜底生效。
 		field.Int("rpm_limit").

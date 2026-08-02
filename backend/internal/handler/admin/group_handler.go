@@ -170,6 +170,9 @@ type CreateGroupRequest struct {
 	UpstreamBalanceRefreshEnabled         bool                                      `json:"upstream_balance_refresh_enabled"`
 	UpstreamBalanceRefreshIntervalSeconds int                                       `json:"upstream_balance_refresh_interval_seconds"`
 	UpstreamPriceMaxMultiplier            float64                                   `json:"upstream_price_max_multiplier"`
+	UpstreamPriceGroupingEnabled          bool                                      `json:"upstream_price_grouping_enabled"`
+	UpstreamPriceGroupingMin              float64                                   `json:"upstream_price_grouping_min"`
+	UpstreamPriceGroupingMax              float64                                   `json:"upstream_price_grouping_max"`
 	// 分组 RPM 上限（0 = 不限制）
 	RPMLimit int `json:"rpm_limit"`
 	// OpenAI/Codex 请求推理强度上限，空字符串表示不限制。
@@ -236,6 +239,9 @@ type UpdateGroupRequest struct {
 	UpstreamBalanceRefreshEnabled         *bool                                      `json:"upstream_balance_refresh_enabled"`
 	UpstreamBalanceRefreshIntervalSeconds *int                                       `json:"upstream_balance_refresh_interval_seconds"`
 	UpstreamPriceMaxMultiplier            *float64                                   `json:"upstream_price_max_multiplier"`
+	UpstreamPriceGroupingEnabled          *bool                                      `json:"upstream_price_grouping_enabled"`
+	UpstreamPriceGroupingMin              *float64                                   `json:"upstream_price_grouping_min"`
+	UpstreamPriceGroupingMax              *float64                                   `json:"upstream_price_grouping_max"`
 	// 分组 RPM 上限（0 = 不限制）；nil 表示未提供不改动
 	RPMLimit *int `json:"rpm_limit"`
 	// OpenAI/Codex 请求推理强度上限；空字符串清除，nil 不修改。
@@ -560,6 +566,9 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		UpstreamBalanceRefreshEnabled:         req.UpstreamBalanceRefreshEnabled,
 		UpstreamBalanceRefreshIntervalSeconds: req.UpstreamBalanceRefreshIntervalSeconds,
 		UpstreamPriceMaxMultiplier:            req.UpstreamPriceMaxMultiplier,
+		UpstreamPriceGroupingEnabled:          req.UpstreamPriceGroupingEnabled,
+		UpstreamPriceGroupingMin:              req.UpstreamPriceGroupingMin,
+		UpstreamPriceGroupingMax:              req.UpstreamPriceGroupingMax,
 		RPMLimit:                              req.RPMLimit,
 		MaxReasoningEffort:                    req.MaxReasoningEffort,
 		ReasoningEffortMappings:               req.ReasoningEffortMappings,
@@ -676,6 +685,9 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		UpstreamBalanceRefreshEnabled:         req.UpstreamBalanceRefreshEnabled,
 		UpstreamBalanceRefreshIntervalSeconds: req.UpstreamBalanceRefreshIntervalSeconds,
 		UpstreamPriceMaxMultiplier:            req.UpstreamPriceMaxMultiplier,
+		UpstreamPriceGroupingEnabled:          req.UpstreamPriceGroupingEnabled,
+		UpstreamPriceGroupingMin:              req.UpstreamPriceGroupingMin,
+		UpstreamPriceGroupingMax:              req.UpstreamPriceGroupingMax,
 		RPMLimit:                              req.RPMLimit,
 		MaxReasoningEffort:                    req.MaxReasoningEffort,
 		ReasoningEffortMappings:               req.ReasoningEffortMappings,

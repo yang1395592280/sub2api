@@ -335,7 +335,45 @@ func sanitizeSelfHostedPoolGroup(group *Group) {
 	group.AllowAutoCheapestScheduling = false
 	group.UpstreamBalanceRefreshEnabled = false
 	group.UpstreamPriceMaxMultiplier = 0
+	group.UpstreamPriceGroupingEnabled = false
+	group.UpstreamPriceGroupingMin = 0
+	group.UpstreamPriceGroupingMax = 0
 	group.RPMLimit = 0
+}
+
+func sanitizeUnsupportedUpstreamPriceGrouping(group *Group) {
+	if group == nil || (group.Platform == PlatformOpenAI && !group.IsSelfHostedPool()) {
+		return
+	}
+	group.UpstreamPriceGroupingEnabled = false
+	group.UpstreamPriceGroupingMin = 0
+	group.UpstreamPriceGroupingMax = 0
+}
+
+func (s *adminServiceImpl) validateUpstreamPriceGrouping(ctx context.Context, candidate *Group) error {
+	if err := ValidateGroupUpstreamPriceGroupingConfig(candidate); err != nil {
+		return infraerrors.BadRequest("INVALID_UPSTREAM_PRICE_GROUPING", err.Error())
+	}
+	if candidate == nil || !candidate.UpstreamPriceGroupingEnabled || candidate.Status != StatusActive {
+		return nil
+	}
+	existingGroups, err := s.groupRepo.ListActiveByPlatform(ctx, PlatformOpenAI)
+	if err != nil {
+		return fmt.Errorf("list OpenAI groups for upstream price grouping validation: %w", err)
+	}
+	for i := range existingGroups {
+		existing := &existingGroups[i]
+		if existing.ID == candidate.ID || existing.IsSelfHostedPool() || !existing.UpstreamPriceGroupingEnabled {
+			continue
+		}
+		if UpstreamPriceGroupingRangesOverlap(candidate, existing) {
+			return infraerrors.BadRequest(
+				"UPSTREAM_PRICE_GROUPING_RANGE_OVERLAP",
+				fmt.Sprintf("upstream price grouping range overlaps group %q [%.4f, %.4f]", existing.Name, existing.UpstreamPriceGroupingMin, existing.UpstreamPriceGroupingMax),
+			)
+		}
+	}
+	return nil
 }
 
 func (s *adminServiceImpl) validateSelfHostedPoolReference(ctx context.Context, currentGroupID int64, platform, role string, poolGroupID *int64) error {
@@ -600,11 +638,18 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		UpstreamBalanceRefreshEnabled:         input.UpstreamBalanceRefreshEnabled,
 		UpstreamBalanceRefreshIntervalSeconds: upstreamBalanceRefreshIntervalSeconds,
 		UpstreamPriceMaxMultiplier:            input.UpstreamPriceMaxMultiplier,
+		UpstreamPriceGroupingEnabled:          input.UpstreamPriceGroupingEnabled,
+		UpstreamPriceGroupingMin:              input.UpstreamPriceGroupingMin,
+		UpstreamPriceGroupingMax:              input.UpstreamPriceGroupingMax,
 		RPMLimit:                              input.RPMLimit,
 		MaxReasoningEffort:                    maxReasoningEffort,
 		ReasoningEffortMappings:               reasoningEffortMappings,
 	}
 	sanitizeSelfHostedPoolGroup(group)
+	sanitizeUnsupportedUpstreamPriceGrouping(group)
+	if err := s.validateUpstreamPriceGrouping(ctx, group); err != nil {
+		return nil, err
+	}
 	sanitizeGroupMessagesDispatchFields(group)
 	if group.Platform != PlatformOpenAI {
 		group.AllowLive = false
@@ -967,6 +1012,15 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.UpstreamPriceMaxMultiplier != nil {
 		group.UpstreamPriceMaxMultiplier = *input.UpstreamPriceMaxMultiplier
 	}
+	if input.UpstreamPriceGroupingEnabled != nil {
+		group.UpstreamPriceGroupingEnabled = *input.UpstreamPriceGroupingEnabled
+	}
+	if input.UpstreamPriceGroupingMin != nil {
+		group.UpstreamPriceGroupingMin = *input.UpstreamPriceGroupingMin
+	}
+	if input.UpstreamPriceGroupingMax != nil {
+		group.UpstreamPriceGroupingMax = *input.UpstreamPriceGroupingMax
+	}
 	if err := ValidateGroupUpstreamPriceGuardConfig(
 		group.UpstreamBalanceRefreshEnabled,
 		group.UpstreamBalanceRefreshIntervalSeconds,
@@ -992,6 +1046,10 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		group.ReasoningEffortMappings = reasoningEffortMappings
 	}
 	sanitizeSelfHostedPoolGroup(group)
+	sanitizeUnsupportedUpstreamPriceGrouping(group)
+	if err := s.validateUpstreamPriceGrouping(ctx, group); err != nil {
+		return nil, err
+	}
 	sanitizeGroupMessagesDispatchFields(group)
 	if group.Platform != PlatformOpenAI {
 		group.AllowLive = false

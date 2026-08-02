@@ -29,19 +29,29 @@ func (r *groupUpstreamRefreshGroupRepoStub) ListUpstreamBalanceRefreshEnabled(co
 
 type groupUpstreamRefreshAccountRepoStub struct {
 	AccountRepository
-	accounts      map[int64][]Account
-	accountErrs   map[int64]error
-	panicGroups   map[int64]bool
-	listCalls     []int64
-	extraUpdates  map[int64]map[string]any
-	extraHistory  map[int64][]map[string]any
-	onUpdateExtra func(context.Context, int64, map[string]any) error
-	tempReasons   map[int64]string
-	tempUntils    map[int64]*time.Time
-	getByIDCalls  []int64
-	getByIDErrs   map[int64]error
-	getByIDNils   map[int64]bool
-	getByIDPanics map[int64]bool
+	accounts                 map[int64][]Account
+	accountErrs              map[int64]error
+	panicGroups              map[int64]bool
+	listCalls                []int64
+	extraUpdates             map[int64]map[string]any
+	extraHistory             map[int64][]map[string]any
+	onUpdateExtra            func(context.Context, int64, map[string]any) error
+	tempReasons              map[int64]string
+	tempUntils               map[int64]*time.Time
+	getByIDCalls             []int64
+	getByIDErrs              map[int64]error
+	getByIDNils              map[int64]bool
+	getByIDPanics            map[int64]bool
+	getByIDAccounts          map[int64]*Account
+	priceGroupingMoves       []groupUpstreamPriceGroupingMove
+	priceGroupingMoveChanged bool
+	priceGroupingMoveErr     error
+}
+
+type groupUpstreamPriceGroupingMove struct {
+	accountID       int64
+	managedGroupIDs []int64
+	targetGroupID   int64
 }
 
 func (r *groupUpstreamRefreshAccountRepoStub) GetByID(_ context.Context, id int64) (*Account, error) {
@@ -55,7 +65,38 @@ func (r *groupUpstreamRefreshAccountRepoStub) GetByID(_ context.Context, id int6
 	if r.getByIDNils[id] {
 		return nil, nil
 	}
+	if account := r.getByIDAccounts[id]; account != nil {
+		cloned := *account
+		cloned.GroupIDs = append([]int64(nil), account.GroupIDs...)
+		cloned.AccountGroups = append([]AccountGroup(nil), account.AccountGroups...)
+		cloned.TempUnschedulableReason = r.tempReasons[id]
+		cloned.TempUnschedulableUntil = r.tempUntils[id]
+		return &cloned, nil
+	}
 	return &Account{ID: id, TempUnschedulableReason: r.tempReasons[id], TempUnschedulableUntil: r.tempUntils[id]}, nil
+}
+
+func (r *groupUpstreamRefreshAccountRepoStub) MoveAccountBetweenUpstreamPriceGroups(_ context.Context, accountID int64, managedGroupIDs []int64, targetGroupID int64) (bool, error) {
+	r.priceGroupingMoves = append(r.priceGroupingMoves, groupUpstreamPriceGroupingMove{
+		accountID: accountID, managedGroupIDs: append([]int64(nil), managedGroupIDs...), targetGroupID: targetGroupID,
+	})
+	if r.priceGroupingMoveErr != nil || !r.priceGroupingMoveChanged {
+		return r.priceGroupingMoveChanged, r.priceGroupingMoveErr
+	}
+	if account := r.getByIDAccounts[accountID]; account != nil {
+		managed := make(map[int64]struct{}, len(managedGroupIDs))
+		for _, groupID := range managedGroupIDs {
+			managed[groupID] = struct{}{}
+		}
+		groupIDs := make([]int64, 0, len(account.GroupIDs)+1)
+		for _, groupID := range account.GroupIDs {
+			if _, ok := managed[groupID]; !ok {
+				groupIDs = append(groupIDs, groupID)
+			}
+		}
+		account.GroupIDs = append(groupIDs, targetGroupID)
+	}
+	return true, nil
 }
 
 func (r *groupUpstreamRefreshAccountRepoStub) ListUpstreamBalanceRefreshCandidatesByGroupID(_ context.Context, groupID int64, _ int) ([]Account, error) {
@@ -193,6 +234,73 @@ func TestGroupUpstreamBalanceRefreshRunner_RunOnceRefreshesGroupAccounts(t *test
 
 	require.Equal(t, []int64{20}, balance.calls)
 	require.Equal(t, "ok", accountRepo.extraUpdates[20]["upstream_price_guard_status"])
+}
+
+func TestUpstreamPriceGroupingTargetUsesClosedRangesAndKeepsGaps(t *testing.T) {
+	groups := []Group{
+		{ID: 10, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.01, UpstreamPriceGroupingMax: 0.05},
+		{ID: 20, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.06, UpstreamPriceGroupingMax: 0.08},
+	}
+	tests := []struct {
+		price       float64
+		wantGroupID int64
+	}{
+		{price: 0.01, wantGroupID: 10},
+		{price: 0.05, wantGroupID: 10},
+		{price: 0.055, wantGroupID: 0},
+		{price: 0.06, wantGroupID: 20},
+		{price: 0.08, wantGroupID: 20},
+	}
+	for _, tt := range tests {
+		t.Run(strconv.FormatFloat(tt.price, 'f', -1, 64), func(t *testing.T) {
+			target := upstreamPriceGroupingTarget(groups, tt.price)
+			if tt.wantGroupID == 0 {
+				require.Nil(t, target)
+				return
+			}
+			require.NotNil(t, target)
+			require.Equal(t, tt.wantGroupID, target.ID)
+		})
+	}
+}
+
+func TestGroupUpstreamBalanceRefreshRunner_MovesOpenAIAccountWithinManagedPriceGroups(t *testing.T) {
+	groups := []Group{
+		{ID: 10, Name: "0.01-0.05", Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, Status: StatusActive, UpstreamBalanceRefreshEnabled: true, UpstreamBalanceRefreshIntervalSeconds: 600, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.01, UpstreamPriceGroupingMax: 0.05},
+		{ID: 20, Name: "0.06-0.08", Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, Status: StatusActive, UpstreamBalanceRefreshEnabled: true, UpstreamBalanceRefreshIntervalSeconds: 600, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.06, UpstreamPriceGroupingMax: 0.08},
+	}
+	price := 0.06
+	account := Account{ID: 42, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, ChannelPrice: &price, GroupIDs: []int64{10, 99}}
+	accountRepo := &groupUpstreamRefreshAccountRepoStub{
+		accounts:                 map[int64][]Account{10: {account}},
+		getByIDAccounts:          map[int64]*Account{42: &account},
+		priceGroupingMoveChanged: true,
+	}
+	runner := NewGroupUpstreamBalanceRefreshRunner(
+		&groupUpstreamRefreshGroupRepoStub{groups: groups},
+		accountRepo,
+		&groupUpstreamBalanceStub{refreshed: map[int64]*Account{42: &account}},
+	)
+
+	runner.runOnce(context.Background(), time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC))
+
+	require.Len(t, accountRepo.priceGroupingMoves, 1)
+	require.Equal(t, []int64{10, 20}, accountRepo.priceGroupingMoves[0].managedGroupIDs)
+	require.Equal(t, int64(20), accountRepo.priceGroupingMoves[0].targetGroupID)
+	require.ElementsMatch(t, []int64{99, 20}, accountRepo.getByIDAccounts[42].GroupIDs)
+	require.Equal(t, int64(20), accountRepo.extraHistory[42][len(accountRepo.extraHistory[42])-1]["upstream_price_guard_group_id"])
+}
+
+func TestCollectUpstreamPriceGroupingGroupsExcludesSelfHostedPools(t *testing.T) {
+	groups := []Group{
+		{ID: 10, Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, UpstreamBalanceRefreshEnabled: true, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.01, UpstreamPriceGroupingMax: 0.05},
+		{ID: 20, Platform: PlatformOpenAI, GroupRole: GroupRoleSelfHostedPool, UpstreamBalanceRefreshEnabled: true, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.06, UpstreamPriceGroupingMax: 0.08},
+	}
+
+	result := collectUpstreamPriceGroupingGroups(groups)
+
+	require.Len(t, result, 1)
+	require.Equal(t, int64(10), result[0].ID)
 }
 
 func TestGroupUpstreamBalanceRefreshRunner_RefreshesSharedAccountOnceAndFansOutPriceGuards(t *testing.T) {
