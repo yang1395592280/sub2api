@@ -294,6 +294,40 @@ func TestOpenAIBalancedSchedulerMissingHealthRemovesStickyPriority(t *testing.T)
 	require.Equal(t, "health_missing", result.StickyEscapeReason)
 }
 
+func TestOpenAIBalancedSchedulerPreservesHealthyStaleSession(t *testing.T) {
+	settings := DefaultOpenAIBalancedSettings()
+	settings.ShadowMode = false
+	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), OpenAIBalancedSelectionInput{
+		SessionAccountID: 1,
+		Candidates: []OpenAIBalancedCandidate{
+			{AccountID: 1, PredictedTTFTMS: 700, State: OpenAIAutoSchedulerStateRunning, HealthConfidence: OpenAISchedulerHealthConfidenceLow, HealthSnapshotStatus: OpenAISchedulerHealthSnapshotStale},
+			{AccountID: 2, PredictedTTFTMS: 500, State: OpenAIAutoSchedulerStateRunning, HealthConfidence: OpenAISchedulerHealthConfidenceHigh, HealthSnapshotStatus: OpenAISchedulerHealthSnapshotFresh},
+		},
+		Settings: settings,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.OrderedAccountIDs[0])
+	require.Empty(t, result.StickyEscapeReason)
+}
+
+func TestOpenAIBalancedSchedulerEscapesSlowStaleSession(t *testing.T) {
+	settings := DefaultOpenAIBalancedSettings()
+	settings.ShadowMode = false
+	result, err := NewOpenAIBalancedScheduler(nil).Order(context.Background(), OpenAIBalancedSelectionInput{
+		SessionAccountID: 1,
+		Candidates: []OpenAIBalancedCandidate{
+			{AccountID: 1, PredictedTTFTMS: 2500, State: OpenAIAutoSchedulerStateRunning, HealthConfidence: OpenAISchedulerHealthConfidenceLow, HealthSnapshotStatus: OpenAISchedulerHealthSnapshotStale},
+			{AccountID: 2, PredictedTTFTMS: 500, State: OpenAIAutoSchedulerStateRunning, HealthConfidence: OpenAISchedulerHealthConfidenceHigh, HealthSnapshotStatus: OpenAISchedulerHealthSnapshotFresh},
+		},
+		Settings: settings,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(2), result.OrderedAccountIDs[0])
+	require.Equal(t, "ttft", result.StickyEscapeReason)
+}
+
 func TestOpenAIBalancedSchedulerWithoutExplorationIsDeterministic(t *testing.T) {
 	input := OpenAIBalancedSelectionInput{
 		Candidates: []OpenAIBalancedCandidate{
