@@ -158,6 +158,25 @@ func TestEvaluateOpenAISchedulerPolicySkipsRecentLowConfidenceExploration(t *tes
 	require.Equal(t, OpenAISchedulerTrafficFallback, scores[2].TrafficClass)
 }
 
+func TestEvaluateOpenAISchedulerPolicyUsesUtilityWhenEveryCandidateIsLowConfidence(t *testing.T) {
+	settings := DefaultOpenAIAutoSchedulerSettings()
+	settings.TopK = 2
+	settings.AdaptiveTopKEnabled = false
+	settings.ExplorationRate = 0
+	settings.MaxAccountShare = 0.80
+	evaluation := EvaluateOpenAISchedulerPolicy([]OpenAIBalancedCandidate{
+		{AccountID: 1, PredictedTTFTMS: 500, State: OpenAIAutoSchedulerStateRunning, HealthConfidence: OpenAISchedulerHealthConfidenceLow},
+		{AccountID: 2, PredictedTTFTMS: 1200, State: OpenAIAutoSchedulerStateRunning, HealthConfidence: OpenAISchedulerHealthConfidenceLow},
+	}, settings, 21)
+
+	scores := policyScoresByAccount(evaluation.Scores)
+	require.Equal(t, OpenAISchedulerEligibilityLowConfidence, scores[1].Eligibility)
+	require.Equal(t, OpenAISchedulerEligibilityLowConfidence, scores[2].Eligibility)
+	require.Greater(t, scores[1].TargetShare, scores[2].TargetShare)
+	require.LessOrEqual(t, scores[1].TargetShare, settings.MaxAccountShare+0.000001)
+	require.InDelta(t, 1, policyTargetShareSum(evaluation.Scores), 0.000001)
+}
+
 func TestEvaluateOpenAISchedulerPolicyAdaptiveTopKExpandsLargePool(t *testing.T) {
 	settings := DefaultOpenAIAutoSchedulerSettings()
 	settings.TopK = 2

@@ -207,7 +207,9 @@ func (s *OpenAIBalancedScheduler) Order(ctx context.Context, input OpenAIBalance
 	if input.SessionAccountID > 0 {
 		if eligibility, ok := eligibilityByAccount[input.SessionAccountID]; ok && !eligibility.Eligible {
 			stickyEscape = eligibility.RejectionCode
-		} else if ok && eligibility.Confidence == "low" {
+			// Keep a session stable when stale health still has a usable TTFT. Queue,
+			// error and material TTFT gaps are evaluated by the branch below.
+		} else if ok && eligibility.Confidence == "low" && openAIBalancedCandidateTTFT(candidates, input.SessionAccountID) <= 0 {
 			stickyEscape = eligibility.RejectionCode
 		} else {
 			stickyEscape = openAIBalancedStickyEscapeReason(input.SessionAccountID, activeCandidates, bestOpenAIBalancedTTFT(activeCandidates), settings)

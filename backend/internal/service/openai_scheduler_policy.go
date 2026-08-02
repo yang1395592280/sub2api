@@ -433,10 +433,30 @@ func openAISchedulerDegradedShares(candidates []openAISchedulerScoredCandidate, 
 	if len(candidates) == 0 {
 		return shares
 	}
-	for i := range shares {
-		shares[i] = 1 / float64(len(shares))
+	if len(candidates) == 1 {
+		shares[0] = 1
+		return shares
 	}
-	return shares
+
+	// A pool can temporarily become entirely low confidence when real samples
+	// age out across sparse model dimensions. The last known TTFT and health
+	// signals are still more useful than equal distribution, which sends the
+	// same traffic to known-slow and known-fast accounts.
+	maxUtility := candidates[0].score.Utility
+	total := 0.0
+	for i, candidate := range candidates {
+		shares[i] = math.Exp((candidate.score.Utility - maxUtility) / settings.Temperature)
+		total += shares[i]
+	}
+	for i := range shares {
+		shares[i] /= total
+		shares[i] = (1-settings.ExplorationRate)*shares[i] + settings.ExplorationRate/float64(len(shares))
+	}
+	caps := make([]float64, len(shares))
+	for i := range caps {
+		caps[i] = settings.MaxAccountShare
+	}
+	return capAndRedistributeOpenAISchedulerShares(shares, caps)
 }
 
 func openAISchedulerPolicyShares(candidates []openAISchedulerScoredCandidate, settings OpenAIAutoSchedulerSettings) []float64 {
