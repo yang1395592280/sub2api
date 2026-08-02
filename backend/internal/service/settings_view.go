@@ -142,6 +142,7 @@ type SystemSettings struct {
 	JoinGroupEnabled            bool
 	JoinGroupURL                string
 	JoinGroupPopupImage         string
+	CompactHomeEnabled          bool
 	HideCcsImportButton         bool
 	PurchaseSubscriptionEnabled bool
 	PurchaseSubscriptionURL     string
@@ -311,6 +312,7 @@ type PublicSettings struct {
 	JoinGroupEnabled                 bool
 	JoinGroupURL                     string
 	JoinGroupPopupImage              string
+	CompactHomeEnabled               bool
 	HideCcsImportButton              bool
 
 	PurchaseSubscriptionEnabled bool

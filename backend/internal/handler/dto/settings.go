@@ -145,6 +145,7 @@ type SystemSettings struct {
 	JoinGroupEnabled            bool             `json:"join_group_enabled"`
 	JoinGroupURL                string           `json:"join_group_url"`
 	JoinGroupPopupImage         string           `json:"join_group_popup_image"`
+	CompactHomeEnabled          bool             `json:"compact_home_enabled"`
 	HideCcsImportButton         bool             `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled bool             `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL     string           `json:"purchase_subscription_url"`
@@ -350,6 +351,7 @@ type PublicSettings struct {
 	JoinGroupEnabled                 bool                     `json:"join_group_enabled"`
 	JoinGroupURL                     string                   `json:"join_group_url"`
 	JoinGroupPopupImage              string                   `json:"join_group_popup_image"`
+	CompactHomeEnabled               bool                     `json:"compact_home_enabled"`
 	HideCcsImportButton              bool                     `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled      bool                     `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL          string                   `json:"purchase_subscription_url"`

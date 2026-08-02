@@ -3,23 +3,23 @@ import { mount } from '@vue/test-utils'
 
 import AccountBulkActionsBar from '../AccountBulkActionsBar.vue'
 
-vi.mock('vue-i18n', async () => {
-  const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
-  return {
-    ...actual,
-    useI18n: () => ({
-      t: (key: string) => {
-        if (key === 'admin.accounts.bulkActions.refreshBalance') return '批量刷新余额'
-        return key
-      }
-    })
-  }
-})
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string) => key
+  })
+}))
+
+const baseProps = {
+  totalResults: 45,
+  selectingAll: false,
+  allResultsSelected: false
+}
 
 describe('AccountBulkActionsBar', () => {
   it('emits refresh-balance for selected accounts', async () => {
     const wrapper = mount(AccountBulkActionsBar, {
       props: {
+        ...baseProps,
         selectedIds: [1, 2]
       }
     })
@@ -32,6 +32,7 @@ describe('AccountBulkActionsBar', () => {
   it('disables refresh-balance while balance refresh is running', async () => {
     const wrapper = mount(AccountBulkActionsBar, {
       props: {
+        ...baseProps,
         selectedIds: [1, 2],
         balanceRefreshing: true
       }
@@ -42,5 +43,39 @@ describe('AccountBulkActionsBar', () => {
     expect(button.attributes('disabled')).toBeDefined()
     await button.trigger('click')
     expect(wrapper.emitted('refresh-balance')).toBeUndefined()
+  })
+
+  it('allows selecting all results before any row is selected', async () => {
+    const wrapper = mount(AccountBulkActionsBar, {
+      props: {
+        ...baseProps,
+        selectedIds: []
+      }
+    })
+
+    const button = wrapper.findAll('button').find(item =>
+      item.text().includes('admin.accounts.bulkActions.selectAllResults')
+    )
+
+    expect(button).toBeDefined()
+    await button!.trigger('click')
+    expect(wrapper.emitted('select-all-results')).toHaveLength(1)
+  })
+
+  it('preserves the upstream billing probe action', async () => {
+    const wrapper = mount(AccountBulkActionsBar, {
+      props: {
+        ...baseProps,
+        selectedIds: [1]
+      }
+    })
+
+    const button = wrapper.findAll('button').find(item =>
+      item.text().includes('admin.accounts.bulkActions.probeUpstreamBilling')
+    )
+
+    expect(button).toBeDefined()
+    await button!.trigger('click')
+    expect(wrapper.emitted('probe-upstream-billing')).toHaveLength(1)
   })
 })

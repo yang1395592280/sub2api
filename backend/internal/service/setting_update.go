@@ -323,6 +323,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyJoinGroupEnabled] = strconv.FormatBool(settings.JoinGroupEnabled)
 	updates[SettingKeyJoinGroupURL] = strings.TrimSpace(settings.JoinGroupURL)
 	updates[SettingKeyJoinGroupPopupImage] = strings.TrimSpace(settings.JoinGroupPopupImage)
+	updates[SettingKeyCompactHomeEnabled] = strconv.FormatBool(settings.CompactHomeEnabled)
 	updates[SettingKeyHideCcsImportButton] = strconv.FormatBool(settings.HideCcsImportButton)
 	updates[SettingKeyPurchaseSubscriptionEnabled] = strconv.FormatBool(settings.PurchaseSubscriptionEnabled)
 	updates[SettingKeyPurchaseSubscriptionURL] = strings.TrimSpace(settings.PurchaseSubscriptionURL)

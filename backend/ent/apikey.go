@@ -40,7 +40,7 @@ type APIKey struct {
 	LastEffectiveGroupID *int64 `json:"last_effective_group_id,omitempty"`
 	// LastEffectiveGroupAt holds the value of the "last_effective_group_at" field.
 	LastEffectiveGroupAt *time.Time `json:"last_effective_group_at,omitempty"`
-	// Maximum effective group rate multiplier for OpenAI auto cheapest selection (null/0 = unlimited)
+	// Maximum effective group rate multiplier for OpenAI auto cheapest selection (defaults to 0.2 in auto mode)
 	OpenaiAutoGroupMaxRateMultiplier *float64 `json:"openai_auto_group_max_rate_multiplier,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`

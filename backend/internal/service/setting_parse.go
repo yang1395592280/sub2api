@@ -333,6 +333,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		JoinGroupEnabled:                 settings[SettingKeyJoinGroupEnabled] == "true",
 		JoinGroupURL:                     strings.TrimSpace(settings[SettingKeyJoinGroupURL]),
 		JoinGroupPopupImage:              strings.TrimSpace(settings[SettingKeyJoinGroupPopupImage]),
+		CompactHomeEnabled:               settings[SettingKeyCompactHomeEnabled] == "true",
 		HideCcsImportButton:              settings[SettingKeyHideCcsImportButton] == "true",
 		PurchaseSubscriptionEnabled:      settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
 		PurchaseSubscriptionURL:          strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),

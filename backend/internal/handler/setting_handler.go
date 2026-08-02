@@ -70,6 +70,7 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		JoinGroupEnabled:                 settings.JoinGroupEnabled,
 		JoinGroupURL:                     settings.JoinGroupURL,
 		JoinGroupPopupImage:              settings.JoinGroupPopupImage,
+		CompactHomeEnabled:               settings.CompactHomeEnabled,
 		HideCcsImportButton:              settings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:      settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:          settings.PurchaseSubscriptionURL,

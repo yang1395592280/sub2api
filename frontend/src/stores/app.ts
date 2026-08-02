@@ -345,6 +345,7 @@ export const useAppStore = defineStore('app', () => {
         join_group_enabled: false,
         join_group_url: '',
         join_group_popup_image: '',
+        compact_home_enabled: false,
         hide_ccs_import_button: false,
         payment_enabled: false,
         table_default_page_size: 20,

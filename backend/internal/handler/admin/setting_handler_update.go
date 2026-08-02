@@ -145,6 +145,7 @@ type UpdateSettingsRequest struct {
 	JoinGroupEnabled            *bool                 `json:"join_group_enabled"`
 	JoinGroupURL                *string               `json:"join_group_url"`
 	JoinGroupPopupImage         *string               `json:"join_group_popup_image"`
+	CompactHomeEnabled          bool                  `json:"compact_home_enabled"`
 	HideCcsImportButton         bool                  `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled *bool                 `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL     *string               `json:"purchase_subscription_url"`
@@ -1448,6 +1449,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		JoinGroupEnabled:                       joinGroupEnabled,
 		JoinGroupURL:                           joinGroupURL,
 		JoinGroupPopupImage:                    joinGroupPopupImage,
+		CompactHomeEnabled:                     req.CompactHomeEnabled,
 		HideCcsImportButton:                    req.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:            purchaseEnabled,
 		PurchaseSubscriptionURL:                purchaseURL,
@@ -2003,6 +2005,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		JoinGroupEnabled:                                       updatedSettings.JoinGroupEnabled,
 		JoinGroupURL:                                           updatedSettings.JoinGroupURL,
 		JoinGroupPopupImage:                                    updatedSettings.JoinGroupPopupImage,
+		CompactHomeEnabled:                                     updatedSettings.CompactHomeEnabled,
 		HideCcsImportButton:                                    updatedSettings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:                            updatedSettings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                                updatedSettings.PurchaseSubscriptionURL,

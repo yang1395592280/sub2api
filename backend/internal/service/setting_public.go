@@ -182,6 +182,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyJoinGroupEnabled,
 		SettingKeyJoinGroupURL,
 		SettingKeyJoinGroupPopupImage,
+		SettingKeyCompactHomeEnabled,
 		SettingKeyHideCcsImportButton,
 		SettingKeyPurchaseSubscriptionEnabled,
 		SettingKeyPurchaseSubscriptionURL,
@@ -313,6 +314,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		JoinGroupEnabled:                 settings[SettingKeyJoinGroupEnabled] == "true",
 		JoinGroupURL:                     strings.TrimSpace(settings[SettingKeyJoinGroupURL]),
 		JoinGroupPopupImage:              strings.TrimSpace(settings[SettingKeyJoinGroupPopupImage]),
+		CompactHomeEnabled:               settings[SettingKeyCompactHomeEnabled] == "true",
 		HideCcsImportButton:              settings[SettingKeyHideCcsImportButton] == "true",
 		PurchaseSubscriptionEnabled:      settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
 		PurchaseSubscriptionURL:          strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
@@ -504,6 +506,7 @@ type PublicSettingsInjectionPayload struct {
 	JoinGroupEnabled                 bool                     `json:"join_group_enabled"`
 	JoinGroupURL                     string                   `json:"join_group_url"`
 	JoinGroupPopupImage              string                   `json:"join_group_popup_image"`
+	CompactHomeEnabled               bool                     `json:"compact_home_enabled"`
 	HideCcsImportButton              bool                     `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled      bool                     `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL          string                   `json:"purchase_subscription_url"`
@@ -579,6 +582,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		JoinGroupEnabled:                 settings.JoinGroupEnabled,
 		JoinGroupURL:                     settings.JoinGroupURL,
 		JoinGroupPopupImage:              settings.JoinGroupPopupImage,
+		CompactHomeEnabled:               settings.CompactHomeEnabled,
 		HideCcsImportButton:              settings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:      settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:          settings.PurchaseSubscriptionURL,

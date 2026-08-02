@@ -145,6 +145,9 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 	}
 
 	excluded := make(map[int64]struct{})
+	// Live 按通话时长计费，不属于 token 利润门的语义范围：显式豁免，避免
+	// 防御性装门按文本 D 过滤 Live 账号池且门与计费时刻不同源。
+	ctx = WithOpenAIProfitControlSuppressed(ctx)
 	var lastErr error
 	model := strings.TrimSpace(gjson.GetBytes(request.Session, "model").String())
 	if model == "" {
