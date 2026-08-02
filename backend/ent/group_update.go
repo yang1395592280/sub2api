@@ -1031,6 +1031,62 @@ func (_u *GroupUpdate) AddUpstreamPriceMaxMultiplier(v float64) *GroupUpdate {
 	return _u
 }
 
+// SetUpstreamPriceGroupingEnabled sets the "upstream_price_grouping_enabled" field.
+func (_u *GroupUpdate) SetUpstreamPriceGroupingEnabled(v bool) *GroupUpdate {
+	_u.mutation.SetUpstreamPriceGroupingEnabled(v)
+	return _u
+}
+
+// SetNillableUpstreamPriceGroupingEnabled sets the "upstream_price_grouping_enabled" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableUpstreamPriceGroupingEnabled(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetUpstreamPriceGroupingEnabled(*v)
+	}
+	return _u
+}
+
+// SetUpstreamPriceGroupingMin sets the "upstream_price_grouping_min" field.
+func (_u *GroupUpdate) SetUpstreamPriceGroupingMin(v float64) *GroupUpdate {
+	_u.mutation.ResetUpstreamPriceGroupingMin()
+	_u.mutation.SetUpstreamPriceGroupingMin(v)
+	return _u
+}
+
+// SetNillableUpstreamPriceGroupingMin sets the "upstream_price_grouping_min" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableUpstreamPriceGroupingMin(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetUpstreamPriceGroupingMin(*v)
+	}
+	return _u
+}
+
+// AddUpstreamPriceGroupingMin adds value to the "upstream_price_grouping_min" field.
+func (_u *GroupUpdate) AddUpstreamPriceGroupingMin(v float64) *GroupUpdate {
+	_u.mutation.AddUpstreamPriceGroupingMin(v)
+	return _u
+}
+
+// SetUpstreamPriceGroupingMax sets the "upstream_price_grouping_max" field.
+func (_u *GroupUpdate) SetUpstreamPriceGroupingMax(v float64) *GroupUpdate {
+	_u.mutation.ResetUpstreamPriceGroupingMax()
+	_u.mutation.SetUpstreamPriceGroupingMax(v)
+	return _u
+}
+
+// SetNillableUpstreamPriceGroupingMax sets the "upstream_price_grouping_max" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableUpstreamPriceGroupingMax(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetUpstreamPriceGroupingMax(*v)
+	}
+	return _u
+}
+
+// AddUpstreamPriceGroupingMax adds value to the "upstream_price_grouping_max" field.
+func (_u *GroupUpdate) AddUpstreamPriceGroupingMax(v float64) *GroupUpdate {
+	_u.mutation.AddUpstreamPriceGroupingMax(v)
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdate) SetRpmLimit(v int) *GroupUpdate {
 	_u.mutation.ResetRpmLimit()
@@ -1689,6 +1745,21 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedUpstreamPriceMaxMultiplier(); ok {
 		_spec.AddField(group.FieldUpstreamPriceMaxMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.UpstreamPriceGroupingEnabled(); ok {
+		_spec.SetField(group.FieldUpstreamPriceGroupingEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.UpstreamPriceGroupingMin(); ok {
+		_spec.SetField(group.FieldUpstreamPriceGroupingMin, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamPriceGroupingMin(); ok {
+		_spec.AddField(group.FieldUpstreamPriceGroupingMin, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.UpstreamPriceGroupingMax(); ok {
+		_spec.SetField(group.FieldUpstreamPriceGroupingMax, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamPriceGroupingMax(); ok {
+		_spec.AddField(group.FieldUpstreamPriceGroupingMax, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -3016,6 +3087,62 @@ func (_u *GroupUpdateOne) AddUpstreamPriceMaxMultiplier(v float64) *GroupUpdateO
 	return _u
 }
 
+// SetUpstreamPriceGroupingEnabled sets the "upstream_price_grouping_enabled" field.
+func (_u *GroupUpdateOne) SetUpstreamPriceGroupingEnabled(v bool) *GroupUpdateOne {
+	_u.mutation.SetUpstreamPriceGroupingEnabled(v)
+	return _u
+}
+
+// SetNillableUpstreamPriceGroupingEnabled sets the "upstream_price_grouping_enabled" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableUpstreamPriceGroupingEnabled(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetUpstreamPriceGroupingEnabled(*v)
+	}
+	return _u
+}
+
+// SetUpstreamPriceGroupingMin sets the "upstream_price_grouping_min" field.
+func (_u *GroupUpdateOne) SetUpstreamPriceGroupingMin(v float64) *GroupUpdateOne {
+	_u.mutation.ResetUpstreamPriceGroupingMin()
+	_u.mutation.SetUpstreamPriceGroupingMin(v)
+	return _u
+}
+
+// SetNillableUpstreamPriceGroupingMin sets the "upstream_price_grouping_min" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableUpstreamPriceGroupingMin(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetUpstreamPriceGroupingMin(*v)
+	}
+	return _u
+}
+
+// AddUpstreamPriceGroupingMin adds value to the "upstream_price_grouping_min" field.
+func (_u *GroupUpdateOne) AddUpstreamPriceGroupingMin(v float64) *GroupUpdateOne {
+	_u.mutation.AddUpstreamPriceGroupingMin(v)
+	return _u
+}
+
+// SetUpstreamPriceGroupingMax sets the "upstream_price_grouping_max" field.
+func (_u *GroupUpdateOne) SetUpstreamPriceGroupingMax(v float64) *GroupUpdateOne {
+	_u.mutation.ResetUpstreamPriceGroupingMax()
+	_u.mutation.SetUpstreamPriceGroupingMax(v)
+	return _u
+}
+
+// SetNillableUpstreamPriceGroupingMax sets the "upstream_price_grouping_max" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableUpstreamPriceGroupingMax(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetUpstreamPriceGroupingMax(*v)
+	}
+	return _u
+}
+
+// AddUpstreamPriceGroupingMax adds value to the "upstream_price_grouping_max" field.
+func (_u *GroupUpdateOne) AddUpstreamPriceGroupingMax(v float64) *GroupUpdateOne {
+	_u.mutation.AddUpstreamPriceGroupingMax(v)
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdateOne) SetRpmLimit(v int) *GroupUpdateOne {
 	_u.mutation.ResetRpmLimit()
@@ -3704,6 +3831,21 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.AddedUpstreamPriceMaxMultiplier(); ok {
 		_spec.AddField(group.FieldUpstreamPriceMaxMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.UpstreamPriceGroupingEnabled(); ok {
+		_spec.SetField(group.FieldUpstreamPriceGroupingEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.UpstreamPriceGroupingMin(); ok {
+		_spec.SetField(group.FieldUpstreamPriceGroupingMin, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamPriceGroupingMin(); ok {
+		_spec.AddField(group.FieldUpstreamPriceGroupingMin, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.UpstreamPriceGroupingMax(); ok {
+		_spec.SetField(group.FieldUpstreamPriceGroupingMax, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamPriceGroupingMax(); ok {
+		_spec.AddField(group.FieldUpstreamPriceGroupingMax, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)

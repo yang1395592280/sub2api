@@ -168,6 +168,9 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	requireColumn(t, tx, "groups", "upstream_balance_refresh_enabled", "boolean", 0, false)
 	requireColumn(t, tx, "groups", "upstream_balance_refresh_interval_seconds", "integer", 0, false)
 	requireColumn(t, tx, "groups", "upstream_price_max_multiplier", "numeric", 0, false)
+	requireColumn(t, tx, "groups", "upstream_price_grouping_enabled", "boolean", 0, false)
+	requireColumn(t, tx, "groups", "upstream_price_grouping_min", "numeric", 0, false)
+	requireColumn(t, tx, "groups", "upstream_price_grouping_max", "numeric", 0, false)
 }
 
 func TestMigrationsRunner_AuthIdentityAndPaymentSchemaStayAligned(t *testing.T) {

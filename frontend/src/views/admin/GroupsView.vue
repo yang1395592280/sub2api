@@ -734,6 +734,49 @@
             />
           </div>
         </div>
+        <div
+          v-if="createForm.platform === 'openai'"
+          class="grid grid-cols-1 gap-4 md:grid-cols-3"
+        >
+          <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <input
+              v-model="createForm.upstream_price_grouping_enabled"
+              type="checkbox"
+              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              :disabled="!createForm.upstream_balance_refresh_enabled"
+              data-test="group-upstream-price-grouping-enabled"
+            />
+            <span>{{ t("admin.groups.form.upstreamPriceGroupingEnabled") }}</span>
+          </label>
+          <div>
+            <label class="input-label">
+              {{ t("admin.groups.form.upstreamPriceGroupingMin") }}
+            </label>
+            <input
+              v-model.number="createForm.upstream_price_grouping_min"
+              type="number"
+              min="0.000001"
+              step="0.000001"
+              class="input"
+              :disabled="!createForm.upstream_balance_refresh_enabled || !createForm.upstream_price_grouping_enabled"
+              data-test="group-upstream-price-grouping-min"
+            />
+          </div>
+          <div>
+            <label class="input-label">
+              {{ t("admin.groups.form.upstreamPriceGroupingMax") }}
+            </label>
+            <input
+              v-model.number="createForm.upstream_price_grouping_max"
+              type="number"
+              min="0.000001"
+              step="0.000001"
+              class="input"
+              :disabled="!createForm.upstream_balance_refresh_enabled || !createForm.upstream_price_grouping_enabled"
+              data-test="group-upstream-price-grouping-max"
+            />
+          </div>
+        </div>
         <ReasoningEffortPolicyFields
           v-if="createForm.platform === 'openai'"
           ref="createReasoningEffortPolicyRef"
@@ -2359,6 +2402,49 @@
               step="0.0001"
               class="input"
               data-test="edit-group-upstream-price-max-multiplier"
+            />
+          </div>
+        </div>
+        <div
+          v-if="editForm.platform === 'openai'"
+          class="grid grid-cols-1 gap-4 md:grid-cols-3"
+        >
+          <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <input
+              v-model="editForm.upstream_price_grouping_enabled"
+              type="checkbox"
+              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              :disabled="!editForm.upstream_balance_refresh_enabled"
+              data-test="edit-group-upstream-price-grouping-enabled"
+            />
+            <span>{{ t("admin.groups.form.upstreamPriceGroupingEnabled") }}</span>
+          </label>
+          <div>
+            <label class="input-label">
+              {{ t("admin.groups.form.upstreamPriceGroupingMin") }}
+            </label>
+            <input
+              v-model.number="editForm.upstream_price_grouping_min"
+              type="number"
+              min="0.000001"
+              step="0.000001"
+              class="input"
+              :disabled="!editForm.upstream_balance_refresh_enabled || !editForm.upstream_price_grouping_enabled"
+              data-test="edit-group-upstream-price-grouping-min"
+            />
+          </div>
+          <div>
+            <label class="input-label">
+              {{ t("admin.groups.form.upstreamPriceGroupingMax") }}
+            </label>
+            <input
+              v-model.number="editForm.upstream_price_grouping_max"
+              type="number"
+              min="0.000001"
+              step="0.000001"
+              class="input"
+              :disabled="!editForm.upstream_balance_refresh_enabled || !editForm.upstream_price_grouping_enabled"
+              data-test="edit-group-upstream-price-grouping-max"
             />
           </div>
         </div>
@@ -4953,6 +5039,9 @@ const createForm = reactive({
   upstream_balance_refresh_enabled: false,
   upstream_balance_refresh_interval_seconds: 600,
   upstream_price_max_multiplier: 0,
+  upstream_price_grouping_enabled: false,
+  upstream_price_grouping_min: 0.01,
+  upstream_price_grouping_max: 0.05,
   max_reasoning_effort: "",
   reasoning_effort_mappings: [] as ReasoningEffortMappingRow[],
 });
@@ -5310,6 +5399,9 @@ const editForm = reactive({
   upstream_balance_refresh_enabled: false,
   upstream_balance_refresh_interval_seconds: 600,
   upstream_price_max_multiplier: 0,
+  upstream_price_grouping_enabled: false,
+  upstream_price_grouping_min: 0.01,
+  upstream_price_grouping_max: 0.05,
   max_reasoning_effort: "",
   reasoning_effort_mappings: [] as ReasoningEffortMappingRow[],
 });
@@ -5767,6 +5859,9 @@ const closeCreateModal = () => {
   createForm.upstream_balance_refresh_enabled = false;
   createForm.upstream_balance_refresh_interval_seconds = 600;
   createForm.upstream_price_max_multiplier = 0;
+  createForm.upstream_price_grouping_enabled = false;
+  createForm.upstream_price_grouping_min = 0.01;
+  createForm.upstream_price_grouping_max = 0.05;
   createForm.max_reasoning_effort = "";
   createForm.reasoning_effort_mappings = [];
   createReasoningEffortPolicyRef.value?.resetValidation();
@@ -5828,6 +5923,11 @@ const getUpstreamSettingsValidationErrors = (
     upstream_balance_refresh_enabled: boolean;
     upstream_balance_refresh_interval_seconds: number | string;
     upstream_price_max_multiplier: number | string;
+    platform: GroupPlatform;
+    group_role: GroupRole;
+    upstream_price_grouping_enabled: boolean;
+    upstream_price_grouping_min: number | string;
+    upstream_price_grouping_max: number | string;
   },
 ) => {
   const errors: string[] = [];
@@ -5839,6 +5939,25 @@ const getUpstreamSettingsValidationErrors = (
   }
   if (Number(form.upstream_price_max_multiplier) < 0) {
     errors.push(t("admin.groups.validation.upstreamPriceMaxMultiplierMin"));
+  }
+  if (
+    form.platform === "openai" &&
+    form.group_role === "standard" &&
+    form.upstream_price_grouping_enabled
+  ) {
+    if (!form.upstream_balance_refresh_enabled) {
+      errors.push(t("admin.groups.validation.upstreamPriceGroupingRequiresRefresh"));
+    } else if (
+      Number(form.upstream_price_grouping_min) <= 0 ||
+      Number(form.upstream_price_grouping_max) <= 0
+    ) {
+      errors.push(t("admin.groups.validation.upstreamPriceGroupingPositive"));
+    } else if (
+      Number(form.upstream_price_grouping_min) >
+      Number(form.upstream_price_grouping_max)
+    ) {
+      errors.push(t("admin.groups.validation.upstreamPriceGroupingOrder"));
+    }
   }
   return errors;
 };
@@ -5891,6 +6010,13 @@ const handleCreateGroup = async () => {
       upstream_price_max_multiplier: normalizeUpstreamPriceMaxMultiplier(
         createForm.upstream_price_max_multiplier,
       ),
+      upstream_price_grouping_enabled:
+        createForm.platform === "openai" &&
+        createForm.group_role === "standard" &&
+        createForm.upstream_balance_refresh_enabled &&
+        createForm.upstream_price_grouping_enabled,
+      upstream_price_grouping_min: Number(createForm.upstream_price_grouping_min),
+      upstream_price_grouping_max: Number(createForm.upstream_price_grouping_max),
       messages_dispatch_model_config:
         createForm.platform === "openai"
           ? messagesDispatchFormStateToConfig({
@@ -6029,6 +6155,12 @@ const handleEdit = async (group: AdminGroup) => {
     group.upstream_balance_refresh_interval_seconds ?? 600;
   editForm.upstream_price_max_multiplier =
     group.upstream_price_max_multiplier ?? 0;
+  editForm.upstream_price_grouping_enabled =
+    group.upstream_price_grouping_enabled ?? false;
+  editForm.upstream_price_grouping_min =
+    group.upstream_price_grouping_min ?? 0.01;
+  editForm.upstream_price_grouping_max =
+    group.upstream_price_grouping_max ?? 0.05;
   editForm.max_reasoning_effort = normalizeReasoningEffortForPlatform(
     group.platform,
     group.max_reasoning_effort,
@@ -6131,6 +6263,13 @@ const handleUpdateGroup = async () => {
       upstream_price_max_multiplier: normalizeUpstreamPriceMaxMultiplier(
         editForm.upstream_price_max_multiplier,
       ),
+      upstream_price_grouping_enabled:
+        editForm.platform === "openai" &&
+        editForm.group_role === "standard" &&
+        editForm.upstream_balance_refresh_enabled &&
+        editForm.upstream_price_grouping_enabled,
+      upstream_price_grouping_min: Number(editForm.upstream_price_grouping_min),
+      upstream_price_grouping_max: Number(editForm.upstream_price_grouping_max),
       messages_dispatch_model_config:
         editForm.platform === "openai"
           ? messagesDispatchFormStateToConfig({

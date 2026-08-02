@@ -22393,6 +22393,11 @@ type GroupMutation struct {
 	addupstream_balance_refresh_interval_seconds *int
 	upstream_price_max_multiplier                *float64
 	addupstream_price_max_multiplier             *float64
+	upstream_price_grouping_enabled              *bool
+	upstream_price_grouping_min                  *float64
+	addupstream_price_grouping_min               *float64
+	upstream_price_grouping_max                  *float64
+	addupstream_price_grouping_max               *float64
 	rpm_limit                                    *int
 	addrpm_limit                                 *int
 	max_reasoning_effort                         *string
@@ -25245,6 +25250,154 @@ func (m *GroupMutation) ResetUpstreamPriceMaxMultiplier() {
 	m.addupstream_price_max_multiplier = nil
 }
 
+// SetUpstreamPriceGroupingEnabled sets the "upstream_price_grouping_enabled" field.
+func (m *GroupMutation) SetUpstreamPriceGroupingEnabled(b bool) {
+	m.upstream_price_grouping_enabled = &b
+}
+
+// UpstreamPriceGroupingEnabled returns the value of the "upstream_price_grouping_enabled" field in the mutation.
+func (m *GroupMutation) UpstreamPriceGroupingEnabled() (r bool, exists bool) {
+	v := m.upstream_price_grouping_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamPriceGroupingEnabled returns the old "upstream_price_grouping_enabled" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldUpstreamPriceGroupingEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamPriceGroupingEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamPriceGroupingEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamPriceGroupingEnabled: %w", err)
+	}
+	return oldValue.UpstreamPriceGroupingEnabled, nil
+}
+
+// ResetUpstreamPriceGroupingEnabled resets all changes to the "upstream_price_grouping_enabled" field.
+func (m *GroupMutation) ResetUpstreamPriceGroupingEnabled() {
+	m.upstream_price_grouping_enabled = nil
+}
+
+// SetUpstreamPriceGroupingMin sets the "upstream_price_grouping_min" field.
+func (m *GroupMutation) SetUpstreamPriceGroupingMin(f float64) {
+	m.upstream_price_grouping_min = &f
+	m.addupstream_price_grouping_min = nil
+}
+
+// UpstreamPriceGroupingMin returns the value of the "upstream_price_grouping_min" field in the mutation.
+func (m *GroupMutation) UpstreamPriceGroupingMin() (r float64, exists bool) {
+	v := m.upstream_price_grouping_min
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamPriceGroupingMin returns the old "upstream_price_grouping_min" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldUpstreamPriceGroupingMin(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamPriceGroupingMin is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamPriceGroupingMin requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamPriceGroupingMin: %w", err)
+	}
+	return oldValue.UpstreamPriceGroupingMin, nil
+}
+
+// AddUpstreamPriceGroupingMin adds f to the "upstream_price_grouping_min" field.
+func (m *GroupMutation) AddUpstreamPriceGroupingMin(f float64) {
+	if m.addupstream_price_grouping_min != nil {
+		*m.addupstream_price_grouping_min += f
+	} else {
+		m.addupstream_price_grouping_min = &f
+	}
+}
+
+// AddedUpstreamPriceGroupingMin returns the value that was added to the "upstream_price_grouping_min" field in this mutation.
+func (m *GroupMutation) AddedUpstreamPriceGroupingMin() (r float64, exists bool) {
+	v := m.addupstream_price_grouping_min
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUpstreamPriceGroupingMin resets all changes to the "upstream_price_grouping_min" field.
+func (m *GroupMutation) ResetUpstreamPriceGroupingMin() {
+	m.upstream_price_grouping_min = nil
+	m.addupstream_price_grouping_min = nil
+}
+
+// SetUpstreamPriceGroupingMax sets the "upstream_price_grouping_max" field.
+func (m *GroupMutation) SetUpstreamPriceGroupingMax(f float64) {
+	m.upstream_price_grouping_max = &f
+	m.addupstream_price_grouping_max = nil
+}
+
+// UpstreamPriceGroupingMax returns the value of the "upstream_price_grouping_max" field in the mutation.
+func (m *GroupMutation) UpstreamPriceGroupingMax() (r float64, exists bool) {
+	v := m.upstream_price_grouping_max
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamPriceGroupingMax returns the old "upstream_price_grouping_max" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldUpstreamPriceGroupingMax(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamPriceGroupingMax is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamPriceGroupingMax requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamPriceGroupingMax: %w", err)
+	}
+	return oldValue.UpstreamPriceGroupingMax, nil
+}
+
+// AddUpstreamPriceGroupingMax adds f to the "upstream_price_grouping_max" field.
+func (m *GroupMutation) AddUpstreamPriceGroupingMax(f float64) {
+	if m.addupstream_price_grouping_max != nil {
+		*m.addupstream_price_grouping_max += f
+	} else {
+		m.addupstream_price_grouping_max = &f
+	}
+}
+
+// AddedUpstreamPriceGroupingMax returns the value that was added to the "upstream_price_grouping_max" field in this mutation.
+func (m *GroupMutation) AddedUpstreamPriceGroupingMax() (r float64, exists bool) {
+	v := m.addupstream_price_grouping_max
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUpstreamPriceGroupingMax resets all changes to the "upstream_price_grouping_max" field.
+func (m *GroupMutation) ResetUpstreamPriceGroupingMax() {
+	m.upstream_price_grouping_max = nil
+	m.addupstream_price_grouping_max = nil
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (m *GroupMutation) SetRpmLimit(i int) {
 	m.rpm_limit = &i
@@ -25746,7 +25899,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 59)
+	fields := make([]string, 0, 62)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -25915,6 +26068,15 @@ func (m *GroupMutation) Fields() []string {
 	if m.upstream_price_max_multiplier != nil {
 		fields = append(fields, group.FieldUpstreamPriceMaxMultiplier)
 	}
+	if m.upstream_price_grouping_enabled != nil {
+		fields = append(fields, group.FieldUpstreamPriceGroupingEnabled)
+	}
+	if m.upstream_price_grouping_min != nil {
+		fields = append(fields, group.FieldUpstreamPriceGroupingMin)
+	}
+	if m.upstream_price_grouping_max != nil {
+		fields = append(fields, group.FieldUpstreamPriceGroupingMax)
+	}
 	if m.rpm_limit != nil {
 		fields = append(fields, group.FieldRpmLimit)
 	}
@@ -26044,6 +26206,12 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.UpstreamBalanceRefreshIntervalSeconds()
 	case group.FieldUpstreamPriceMaxMultiplier:
 		return m.UpstreamPriceMaxMultiplier()
+	case group.FieldUpstreamPriceGroupingEnabled:
+		return m.UpstreamPriceGroupingEnabled()
+	case group.FieldUpstreamPriceGroupingMin:
+		return m.UpstreamPriceGroupingMin()
+	case group.FieldUpstreamPriceGroupingMax:
+		return m.UpstreamPriceGroupingMax()
 	case group.FieldRpmLimit:
 		return m.RpmLimit()
 	case group.FieldMaxReasoningEffort:
@@ -26171,6 +26339,12 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldUpstreamBalanceRefreshIntervalSeconds(ctx)
 	case group.FieldUpstreamPriceMaxMultiplier:
 		return m.OldUpstreamPriceMaxMultiplier(ctx)
+	case group.FieldUpstreamPriceGroupingEnabled:
+		return m.OldUpstreamPriceGroupingEnabled(ctx)
+	case group.FieldUpstreamPriceGroupingMin:
+		return m.OldUpstreamPriceGroupingMin(ctx)
+	case group.FieldUpstreamPriceGroupingMax:
+		return m.OldUpstreamPriceGroupingMax(ctx)
 	case group.FieldRpmLimit:
 		return m.OldRpmLimit(ctx)
 	case group.FieldMaxReasoningEffort:
@@ -26578,6 +26752,27 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetUpstreamPriceMaxMultiplier(v)
 		return nil
+	case group.FieldUpstreamPriceGroupingEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamPriceGroupingEnabled(v)
+		return nil
+	case group.FieldUpstreamPriceGroupingMin:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamPriceGroupingMin(v)
+		return nil
+	case group.FieldUpstreamPriceGroupingMax:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamPriceGroupingMax(v)
+		return nil
 	case group.FieldRpmLimit:
 		v, ok := value.(int)
 		if !ok {
@@ -26676,6 +26871,12 @@ func (m *GroupMutation) AddedFields() []string {
 	if m.addupstream_price_max_multiplier != nil {
 		fields = append(fields, group.FieldUpstreamPriceMaxMultiplier)
 	}
+	if m.addupstream_price_grouping_min != nil {
+		fields = append(fields, group.FieldUpstreamPriceGroupingMin)
+	}
+	if m.addupstream_price_grouping_max != nil {
+		fields = append(fields, group.FieldUpstreamPriceGroupingMax)
+	}
 	if m.addrpm_limit != nil {
 		fields = append(fields, group.FieldRpmLimit)
 	}
@@ -26733,6 +26934,10 @@ func (m *GroupMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedUpstreamBalanceRefreshIntervalSeconds()
 	case group.FieldUpstreamPriceMaxMultiplier:
 		return m.AddedUpstreamPriceMaxMultiplier()
+	case group.FieldUpstreamPriceGroupingMin:
+		return m.AddedUpstreamPriceGroupingMin()
+	case group.FieldUpstreamPriceGroupingMax:
+		return m.AddedUpstreamPriceGroupingMax()
 	case group.FieldRpmLimit:
 		return m.AddedRpmLimit()
 	}
@@ -26904,6 +27109,20 @@ func (m *GroupMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddUpstreamPriceMaxMultiplier(v)
+		return nil
+	case group.FieldUpstreamPriceGroupingMin:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUpstreamPriceGroupingMin(v)
+		return nil
+	case group.FieldUpstreamPriceGroupingMax:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUpstreamPriceGroupingMax(v)
 		return nil
 	case group.FieldRpmLimit:
 		v, ok := value.(int)
@@ -27211,6 +27430,15 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldUpstreamPriceMaxMultiplier:
 		m.ResetUpstreamPriceMaxMultiplier()
+		return nil
+	case group.FieldUpstreamPriceGroupingEnabled:
+		m.ResetUpstreamPriceGroupingEnabled()
+		return nil
+	case group.FieldUpstreamPriceGroupingMin:
+		m.ResetUpstreamPriceGroupingMin()
+		return nil
+	case group.FieldUpstreamPriceGroupingMax:
+		m.ResetUpstreamPriceGroupingMax()
 		return nil
 	case group.FieldRpmLimit:
 		m.ResetRpmLimit()

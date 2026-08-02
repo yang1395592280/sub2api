@@ -106,6 +106,9 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 		SetUpstreamBalanceRefreshEnabled(groupIn.UpstreamBalanceRefreshEnabled).
 		SetUpstreamBalanceRefreshIntervalSeconds(groupIn.UpstreamBalanceRefreshIntervalSeconds).
 		SetUpstreamPriceMaxMultiplier(groupIn.UpstreamPriceMaxMultiplier).
+		SetUpstreamPriceGroupingEnabled(groupIn.UpstreamPriceGroupingEnabled).
+		SetUpstreamPriceGroupingMin(groupIn.UpstreamPriceGroupingMin).
+		SetUpstreamPriceGroupingMax(groupIn.UpstreamPriceGroupingMax).
 		SetRpmLimit(groupIn.RPMLimit).
 		SetMaxReasoningEffort(groupIn.MaxReasoningEffort).
 		SetReasoningEffortMappings(groupIn.ReasoningEffortMappings).
@@ -333,6 +336,9 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetUpstreamBalanceRefreshEnabled(groupIn.UpstreamBalanceRefreshEnabled).
 		SetUpstreamBalanceRefreshIntervalSeconds(groupIn.UpstreamBalanceRefreshIntervalSeconds).
 		SetUpstreamPriceMaxMultiplier(groupIn.UpstreamPriceMaxMultiplier).
+		SetUpstreamPriceGroupingEnabled(groupIn.UpstreamPriceGroupingEnabled).
+		SetUpstreamPriceGroupingMin(groupIn.UpstreamPriceGroupingMin).
+		SetUpstreamPriceGroupingMax(groupIn.UpstreamPriceGroupingMax).
 		SetRpmLimit(groupIn.RPMLimit).
 		SetMaxReasoningEffort(groupIn.MaxReasoningEffort).
 		SetReasoningEffortMappings(groupIn.ReasoningEffortMappings).

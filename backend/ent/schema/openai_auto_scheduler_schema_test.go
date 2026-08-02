@@ -180,6 +180,9 @@ func TestGroupUpstreamPriceGuardSchemaFields(t *testing.T) {
 		"upstream_balance_refresh_enabled",
 		"upstream_balance_refresh_interval_seconds",
 		"upstream_price_max_multiplier",
+		"upstream_price_grouping_enabled",
+		"upstream_price_grouping_min",
+		"upstream_price_grouping_max",
 	)
 }
 

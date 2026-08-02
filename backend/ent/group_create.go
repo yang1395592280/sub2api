@@ -789,6 +789,48 @@ func (_c *GroupCreate) SetNillableUpstreamPriceMaxMultiplier(v *float64) *GroupC
 	return _c
 }
 
+// SetUpstreamPriceGroupingEnabled sets the "upstream_price_grouping_enabled" field.
+func (_c *GroupCreate) SetUpstreamPriceGroupingEnabled(v bool) *GroupCreate {
+	_c.mutation.SetUpstreamPriceGroupingEnabled(v)
+	return _c
+}
+
+// SetNillableUpstreamPriceGroupingEnabled sets the "upstream_price_grouping_enabled" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableUpstreamPriceGroupingEnabled(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetUpstreamPriceGroupingEnabled(*v)
+	}
+	return _c
+}
+
+// SetUpstreamPriceGroupingMin sets the "upstream_price_grouping_min" field.
+func (_c *GroupCreate) SetUpstreamPriceGroupingMin(v float64) *GroupCreate {
+	_c.mutation.SetUpstreamPriceGroupingMin(v)
+	return _c
+}
+
+// SetNillableUpstreamPriceGroupingMin sets the "upstream_price_grouping_min" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableUpstreamPriceGroupingMin(v *float64) *GroupCreate {
+	if v != nil {
+		_c.SetUpstreamPriceGroupingMin(*v)
+	}
+	return _c
+}
+
+// SetUpstreamPriceGroupingMax sets the "upstream_price_grouping_max" field.
+func (_c *GroupCreate) SetUpstreamPriceGroupingMax(v float64) *GroupCreate {
+	_c.mutation.SetUpstreamPriceGroupingMax(v)
+	return _c
+}
+
+// SetNillableUpstreamPriceGroupingMax sets the "upstream_price_grouping_max" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableUpstreamPriceGroupingMax(v *float64) *GroupCreate {
+	if v != nil {
+		_c.SetUpstreamPriceGroupingMax(*v)
+	}
+	return _c
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_c *GroupCreate) SetRpmLimit(v int) *GroupCreate {
 	_c.mutation.SetRpmLimit(v)
@@ -1108,6 +1150,18 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultUpstreamPriceMaxMultiplier
 		_c.mutation.SetUpstreamPriceMaxMultiplier(v)
 	}
+	if _, ok := _c.mutation.UpstreamPriceGroupingEnabled(); !ok {
+		v := group.DefaultUpstreamPriceGroupingEnabled
+		_c.mutation.SetUpstreamPriceGroupingEnabled(v)
+	}
+	if _, ok := _c.mutation.UpstreamPriceGroupingMin(); !ok {
+		v := group.DefaultUpstreamPriceGroupingMin
+		_c.mutation.SetUpstreamPriceGroupingMin(v)
+	}
+	if _, ok := _c.mutation.UpstreamPriceGroupingMax(); !ok {
+		v := group.DefaultUpstreamPriceGroupingMax
+		_c.mutation.SetUpstreamPriceGroupingMax(v)
+	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		v := group.DefaultRpmLimit
 		_c.mutation.SetRpmLimit(v)
@@ -1286,6 +1340,15 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.UpstreamPriceMaxMultiplier(); !ok {
 		return &ValidationError{Name: "upstream_price_max_multiplier", err: errors.New(`ent: missing required field "Group.upstream_price_max_multiplier"`)}
+	}
+	if _, ok := _c.mutation.UpstreamPriceGroupingEnabled(); !ok {
+		return &ValidationError{Name: "upstream_price_grouping_enabled", err: errors.New(`ent: missing required field "Group.upstream_price_grouping_enabled"`)}
+	}
+	if _, ok := _c.mutation.UpstreamPriceGroupingMin(); !ok {
+		return &ValidationError{Name: "upstream_price_grouping_min", err: errors.New(`ent: missing required field "Group.upstream_price_grouping_min"`)}
+	}
+	if _, ok := _c.mutation.UpstreamPriceGroupingMax(); !ok {
+		return &ValidationError{Name: "upstream_price_grouping_max", err: errors.New(`ent: missing required field "Group.upstream_price_grouping_max"`)}
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		return &ValidationError{Name: "rpm_limit", err: errors.New(`ent: missing required field "Group.rpm_limit"`)}
@@ -1551,6 +1614,18 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.UpstreamPriceMaxMultiplier(); ok {
 		_spec.SetField(group.FieldUpstreamPriceMaxMultiplier, field.TypeFloat64, value)
 		_node.UpstreamPriceMaxMultiplier = value
+	}
+	if value, ok := _c.mutation.UpstreamPriceGroupingEnabled(); ok {
+		_spec.SetField(group.FieldUpstreamPriceGroupingEnabled, field.TypeBool, value)
+		_node.UpstreamPriceGroupingEnabled = value
+	}
+	if value, ok := _c.mutation.UpstreamPriceGroupingMin(); ok {
+		_spec.SetField(group.FieldUpstreamPriceGroupingMin, field.TypeFloat64, value)
+		_node.UpstreamPriceGroupingMin = value
+	}
+	if value, ok := _c.mutation.UpstreamPriceGroupingMax(); ok {
+		_spec.SetField(group.FieldUpstreamPriceGroupingMax, field.TypeFloat64, value)
+		_node.UpstreamPriceGroupingMax = value
 	}
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -2599,6 +2674,54 @@ func (u *GroupUpsert) UpdateUpstreamPriceMaxMultiplier() *GroupUpsert {
 // AddUpstreamPriceMaxMultiplier adds v to the "upstream_price_max_multiplier" field.
 func (u *GroupUpsert) AddUpstreamPriceMaxMultiplier(v float64) *GroupUpsert {
 	u.Add(group.FieldUpstreamPriceMaxMultiplier, v)
+	return u
+}
+
+// SetUpstreamPriceGroupingEnabled sets the "upstream_price_grouping_enabled" field.
+func (u *GroupUpsert) SetUpstreamPriceGroupingEnabled(v bool) *GroupUpsert {
+	u.Set(group.FieldUpstreamPriceGroupingEnabled, v)
+	return u
+}
+
+// UpdateUpstreamPriceGroupingEnabled sets the "upstream_price_grouping_enabled" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateUpstreamPriceGroupingEnabled() *GroupUpsert {
+	u.SetExcluded(group.FieldUpstreamPriceGroupingEnabled)
+	return u
+}
+
+// SetUpstreamPriceGroupingMin sets the "upstream_price_grouping_min" field.
+func (u *GroupUpsert) SetUpstreamPriceGroupingMin(v float64) *GroupUpsert {
+	u.Set(group.FieldUpstreamPriceGroupingMin, v)
+	return u
+}
+
+// UpdateUpstreamPriceGroupingMin sets the "upstream_price_grouping_min" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateUpstreamPriceGroupingMin() *GroupUpsert {
+	u.SetExcluded(group.FieldUpstreamPriceGroupingMin)
+	return u
+}
+
+// AddUpstreamPriceGroupingMin adds v to the "upstream_price_grouping_min" field.
+func (u *GroupUpsert) AddUpstreamPriceGroupingMin(v float64) *GroupUpsert {
+	u.Add(group.FieldUpstreamPriceGroupingMin, v)
+	return u
+}
+
+// SetUpstreamPriceGroupingMax sets the "upstream_price_grouping_max" field.
+func (u *GroupUpsert) SetUpstreamPriceGroupingMax(v float64) *GroupUpsert {
+	u.Set(group.FieldUpstreamPriceGroupingMax, v)
+	return u
+}
+
+// UpdateUpstreamPriceGroupingMax sets the "upstream_price_grouping_max" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateUpstreamPriceGroupingMax() *GroupUpsert {
+	u.SetExcluded(group.FieldUpstreamPriceGroupingMax)
+	return u
+}
+
+// AddUpstreamPriceGroupingMax adds v to the "upstream_price_grouping_max" field.
+func (u *GroupUpsert) AddUpstreamPriceGroupingMax(v float64) *GroupUpsert {
+	u.Add(group.FieldUpstreamPriceGroupingMax, v)
 	return u
 }
 
@@ -3718,6 +3841,62 @@ func (u *GroupUpsertOne) AddUpstreamPriceMaxMultiplier(v float64) *GroupUpsertOn
 func (u *GroupUpsertOne) UpdateUpstreamPriceMaxMultiplier() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateUpstreamPriceMaxMultiplier()
+	})
+}
+
+// SetUpstreamPriceGroupingEnabled sets the "upstream_price_grouping_enabled" field.
+func (u *GroupUpsertOne) SetUpstreamPriceGroupingEnabled(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetUpstreamPriceGroupingEnabled(v)
+	})
+}
+
+// UpdateUpstreamPriceGroupingEnabled sets the "upstream_price_grouping_enabled" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateUpstreamPriceGroupingEnabled() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateUpstreamPriceGroupingEnabled()
+	})
+}
+
+// SetUpstreamPriceGroupingMin sets the "upstream_price_grouping_min" field.
+func (u *GroupUpsertOne) SetUpstreamPriceGroupingMin(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetUpstreamPriceGroupingMin(v)
+	})
+}
+
+// AddUpstreamPriceGroupingMin adds v to the "upstream_price_grouping_min" field.
+func (u *GroupUpsertOne) AddUpstreamPriceGroupingMin(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddUpstreamPriceGroupingMin(v)
+	})
+}
+
+// UpdateUpstreamPriceGroupingMin sets the "upstream_price_grouping_min" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateUpstreamPriceGroupingMin() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateUpstreamPriceGroupingMin()
+	})
+}
+
+// SetUpstreamPriceGroupingMax sets the "upstream_price_grouping_max" field.
+func (u *GroupUpsertOne) SetUpstreamPriceGroupingMax(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetUpstreamPriceGroupingMax(v)
+	})
+}
+
+// AddUpstreamPriceGroupingMax adds v to the "upstream_price_grouping_max" field.
+func (u *GroupUpsertOne) AddUpstreamPriceGroupingMax(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddUpstreamPriceGroupingMax(v)
+	})
+}
+
+// UpdateUpstreamPriceGroupingMax sets the "upstream_price_grouping_max" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateUpstreamPriceGroupingMax() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateUpstreamPriceGroupingMax()
 	})
 }
 
@@ -5010,6 +5189,62 @@ func (u *GroupUpsertBulk) AddUpstreamPriceMaxMultiplier(v float64) *GroupUpsertB
 func (u *GroupUpsertBulk) UpdateUpstreamPriceMaxMultiplier() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateUpstreamPriceMaxMultiplier()
+	})
+}
+
+// SetUpstreamPriceGroupingEnabled sets the "upstream_price_grouping_enabled" field.
+func (u *GroupUpsertBulk) SetUpstreamPriceGroupingEnabled(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetUpstreamPriceGroupingEnabled(v)
+	})
+}
+
+// UpdateUpstreamPriceGroupingEnabled sets the "upstream_price_grouping_enabled" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateUpstreamPriceGroupingEnabled() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateUpstreamPriceGroupingEnabled()
+	})
+}
+
+// SetUpstreamPriceGroupingMin sets the "upstream_price_grouping_min" field.
+func (u *GroupUpsertBulk) SetUpstreamPriceGroupingMin(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetUpstreamPriceGroupingMin(v)
+	})
+}
+
+// AddUpstreamPriceGroupingMin adds v to the "upstream_price_grouping_min" field.
+func (u *GroupUpsertBulk) AddUpstreamPriceGroupingMin(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddUpstreamPriceGroupingMin(v)
+	})
+}
+
+// UpdateUpstreamPriceGroupingMin sets the "upstream_price_grouping_min" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateUpstreamPriceGroupingMin() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateUpstreamPriceGroupingMin()
+	})
+}
+
+// SetUpstreamPriceGroupingMax sets the "upstream_price_grouping_max" field.
+func (u *GroupUpsertBulk) SetUpstreamPriceGroupingMax(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetUpstreamPriceGroupingMax(v)
+	})
+}
+
+// AddUpstreamPriceGroupingMax adds v to the "upstream_price_grouping_max" field.
+func (u *GroupUpsertBulk) AddUpstreamPriceGroupingMax(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddUpstreamPriceGroupingMax(v)
+	})
+}
+
+// UpdateUpstreamPriceGroupingMax sets the "upstream_price_grouping_max" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateUpstreamPriceGroupingMax() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateUpstreamPriceGroupingMax()
 	})
 }
 

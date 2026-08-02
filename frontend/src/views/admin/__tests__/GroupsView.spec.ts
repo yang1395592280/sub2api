@@ -46,6 +46,9 @@ const messages: Record<string, string> = {
   'admin.groups.form.upstreamBalanceRefreshEnabled': '启用上游余额自动刷新',
   'admin.groups.form.upstreamBalanceRefreshIntervalSeconds': '刷新间隔（秒）',
   'admin.groups.form.upstreamPriceMaxMultiplier': '价格倍率上限',
+  'admin.groups.form.upstreamPriceGroupingEnabled': '按渠道价格自动归组',
+  'admin.groups.form.upstreamPriceGroupingMin': '最低价格（含）',
+  'admin.groups.form.upstreamPriceGroupingMax': '最高价格（含）',
   'admin.groups.nameRequired': '请输入分组名称',
   'admin.groups.groupCreated': '分组创建成功',
   'admin.groups.groupUpdated': '分组更新成功',
@@ -126,6 +129,9 @@ const createAdminGroup = (overrides: Partial<AdminGroup> = {}): AdminGroup => ({
   upstream_balance_refresh_enabled: false,
   upstream_balance_refresh_interval_seconds: 600,
   upstream_price_max_multiplier: 0,
+  upstream_price_grouping_enabled: false,
+  upstream_price_grouping_min: 0,
+  upstream_price_grouping_max: 0,
   peak_rate_enabled: false,
   peak_start: '',
   peak_end: '',
@@ -290,6 +296,30 @@ describe('admin GroupsView upstream price guard settings', () => {
     })
   })
 
+  it('submits inclusive channel price grouping range for OpenAI groups', async () => {
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-tour="groups-create-btn"]').trigger('click')
+    await wrapper.get('[data-tour="group-form-platform"]').setValue('openai')
+    await flushPromises()
+    await wrapper.get('[data-tour="group-form-name"]').setValue('OpenAI 0.01-0.05')
+    await wrapper.get('[data-test="group-upstream-refresh-enabled"]').setValue(true)
+    await wrapper.get('[data-test="group-upstream-price-grouping-enabled"]').setValue(true)
+    await wrapper.get('[data-test="group-upstream-price-grouping-min"]').setValue('0.01')
+    await wrapper.get('[data-test="group-upstream-price-grouping-max"]').setValue('0.05')
+
+    await wrapper.get('#create-group-form').trigger('submit')
+    await flushPromises()
+
+    expect(createGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        upstream_price_grouping_enabled: true,
+        upstream_price_grouping_min: 0.01,
+        upstream_price_grouping_max: 0.05
+      })
+    )
+  })
+
   it('creates a self-hosted pool without showing standard group settings', async () => {
     const wrapper = await mountView()
 
@@ -300,6 +330,7 @@ describe('admin GroupsView upstream price guard settings', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-test="group-upstream-refresh-enabled"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="group-upstream-price-grouping-enabled"]').exists()).toBe(false)
     await wrapper.get('[data-tour="group-form-name"]').setValue('共享自建号池')
     await wrapper.get('#create-group-form').trigger('submit')
     await flushPromises()
@@ -345,9 +376,13 @@ describe('admin GroupsView upstream price guard settings', () => {
 
   it('hydrates and submits upstream settings in edit payload', async () => {
     const existingGroup = createAdminGroup({
+      platform: 'openai',
       upstream_balance_refresh_enabled: true,
       upstream_balance_refresh_interval_seconds: 900,
-      upstream_price_max_multiplier: 0.12
+      upstream_price_max_multiplier: 0.12,
+      upstream_price_grouping_enabled: true,
+      upstream_price_grouping_min: 0.06,
+      upstream_price_grouping_max: 0.08
     })
     listGroups.mockResolvedValueOnce({
       items: [existingGroup],
@@ -365,9 +400,14 @@ describe('admin GroupsView upstream price guard settings', () => {
     expect((wrapper.get('[data-test="edit-group-upstream-refresh-enabled"]').element as HTMLInputElement).checked).toBe(true)
     expect((wrapper.get('[data-test="edit-group-upstream-refresh-interval"]').element as HTMLInputElement).value).toBe('900')
     expect((wrapper.get('[data-test="edit-group-upstream-price-max-multiplier"]').element as HTMLInputElement).value).toBe('0.12')
+    expect((wrapper.get('[data-test="edit-group-upstream-price-grouping-enabled"]').element as HTMLInputElement).checked).toBe(true)
+    expect((wrapper.get('[data-test="edit-group-upstream-price-grouping-min"]').element as HTMLInputElement).value).toBe('0.06')
+    expect((wrapper.get('[data-test="edit-group-upstream-price-grouping-max"]').element as HTMLInputElement).value).toBe('0.08')
 
     await wrapper.get('[data-test="edit-group-upstream-refresh-interval"]').setValue('120')
     await wrapper.get('[data-test="edit-group-upstream-price-max-multiplier"]').setValue('0.05')
+    await wrapper.get('[data-test="edit-group-upstream-price-grouping-min"]').setValue('0.01')
+    await wrapper.get('[data-test="edit-group-upstream-price-grouping-max"]').setValue('0.05')
 
     await wrapper.get('#edit-group-form').trigger('submit')
     await flushPromises()
@@ -378,7 +418,10 @@ describe('admin GroupsView upstream price guard settings', () => {
       expect.objectContaining({
         upstream_balance_refresh_enabled: true,
         upstream_balance_refresh_interval_seconds: 120,
-        upstream_price_max_multiplier: 0.05
+        upstream_price_max_multiplier: 0.05,
+        upstream_price_grouping_enabled: true,
+        upstream_price_grouping_min: 0.01,
+        upstream_price_grouping_max: 0.05
       })
     )
   })

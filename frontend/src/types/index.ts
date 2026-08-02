@@ -576,6 +576,9 @@ export interface Group {
   upstream_balance_refresh_enabled: boolean
   upstream_balance_refresh_interval_seconds: number
   upstream_price_max_multiplier: number
+  upstream_price_grouping_enabled: boolean
+  upstream_price_grouping_min: number
+  upstream_price_grouping_max: number
   created_at: string
   updated_at: string
 }
@@ -792,6 +795,9 @@ export interface CreateGroupRequest {
   upstream_balance_refresh_enabled?: boolean
   upstream_balance_refresh_interval_seconds?: number
   upstream_price_max_multiplier?: number
+  upstream_price_grouping_enabled?: boolean
+  upstream_price_grouping_min?: number
+  upstream_price_grouping_max?: number
   // 从指定分组复制账号
   copy_accounts_from_group_ids?: number[]
 }
@@ -850,6 +856,9 @@ export interface UpdateGroupRequest {
   upstream_balance_refresh_enabled?: boolean
   upstream_balance_refresh_interval_seconds?: number
   upstream_price_max_multiplier?: number
+  upstream_price_grouping_enabled?: boolean
+  upstream_price_grouping_min?: number
+  upstream_price_grouping_max?: number
   copy_accounts_from_group_ids?: number[]
 }
 

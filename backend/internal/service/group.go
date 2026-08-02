@@ -114,6 +114,9 @@ type Group struct {
 	UpstreamBalanceRefreshEnabled         bool
 	UpstreamBalanceRefreshIntervalSeconds int
 	UpstreamPriceMaxMultiplier            float64
+	UpstreamPriceGroupingEnabled          bool
+	UpstreamPriceGroupingMin              float64
+	UpstreamPriceGroupingMax              float64
 
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制）。
 	// 一旦设置即接管该分组用户的限流（覆盖用户级 rpm_limit），可被 user-group rpm_override 进一步覆盖。
@@ -345,6 +348,33 @@ func ValidateGroupUpstreamPriceGuardConfig(enabled bool, intervalSeconds int, ma
 		return fmt.Errorf("upstream_balance_refresh_interval_seconds must be >= %d", MinUpstreamBalanceRefreshIntervalSeconds)
 	}
 	return nil
+}
+
+func ValidateGroupUpstreamPriceGroupingConfig(group *Group) error {
+	if group == nil || !group.UpstreamPriceGroupingEnabled {
+		return nil
+	}
+	if group.Platform != PlatformOpenAI || group.IsSelfHostedPool() {
+		return errors.New("upstream price grouping only supports standard OpenAI groups")
+	}
+	if !group.UpstreamBalanceRefreshEnabled {
+		return errors.New("upstream price grouping requires upstream balance auto refresh")
+	}
+	if group.UpstreamPriceGroupingMin <= 0 || group.UpstreamPriceGroupingMax <= 0 {
+		return errors.New("upstream price grouping range must be greater than 0")
+	}
+	if group.UpstreamPriceGroupingMin > group.UpstreamPriceGroupingMax {
+		return errors.New("upstream price grouping minimum cannot exceed maximum")
+	}
+	return nil
+}
+
+func UpstreamPriceGroupingRangesOverlap(a, b *Group) bool {
+	if a == nil || b == nil || !a.UpstreamPriceGroupingEnabled || !b.UpstreamPriceGroupingEnabled {
+		return false
+	}
+	return a.UpstreamPriceGroupingMin <= b.UpstreamPriceGroupingMax &&
+		b.UpstreamPriceGroupingMin <= a.UpstreamPriceGroupingMax
 }
 
 // NormalizePeakRateConfig 归一化最终落库的高峰配置，CreateGroup 与 UpdateGroup 两条写路径共用（唯一收口）：

@@ -1973,6 +1973,74 @@ func (r *accountRepository) BindGroups(ctx context.Context, accountID int64, gro
 	return nil
 }
 
+// MoveAccountBetweenUpstreamPriceGroups only replaces memberships managed by
+// OpenAI upstream-price grouping. Other account memberships remain untouched.
+func (r *accountRepository) MoveAccountBetweenUpstreamPriceGroups(ctx context.Context, accountID int64, managedGroupIDs []int64, targetGroupID int64) (bool, error) {
+	if r == nil || accountID <= 0 || targetGroupID <= 0 || len(managedGroupIDs) == 0 {
+		return false, nil
+	}
+	targetManaged := false
+	for _, groupID := range managedGroupIDs {
+		if groupID == targetGroupID {
+			targetManaged = true
+			break
+		}
+	}
+	if !targetManaged {
+		return false, errors.New("target group is outside upstream price grouping scope")
+	}
+	if r.client == nil {
+		return false, errors.New("account repository client is not configured")
+	}
+
+	tx, err := r.client.Tx(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	txCtx := dbent.NewTxContext(ctx, tx)
+	result, err := tx.Client().ExecContext(txCtx, `
+		WITH existing AS (
+			SELECT COALESCE(MIN(priority), 50) AS priority, COUNT(*) AS membership_count
+			FROM account_groups
+			WHERE account_id = $1 AND group_id = ANY($2)
+		), deleted AS (
+			DELETE FROM account_groups
+			WHERE account_id = $1 AND group_id = ANY($2) AND group_id <> $3
+			RETURNING group_id
+		), inserted AS (
+			INSERT INTO account_groups (account_id, group_id, priority, created_at)
+			SELECT $1, $3, existing.priority, NOW()
+			FROM existing
+			JOIN accounts ON accounts.id = $1 AND accounts.deleted_at IS NULL
+			WHERE existing.membership_count > 0
+			ON CONFLICT (account_id, group_id) DO NOTHING
+			RETURNING group_id
+		), changed AS (
+			SELECT group_id FROM deleted
+			UNION ALL
+			SELECT group_id FROM inserted
+		)
+		INSERT INTO scheduler_outbox (event_type, account_id, group_id, payload)
+		SELECT $4, $1, NULL, jsonb_build_object('group_ids', to_jsonb($2::bigint[]))
+		WHERE EXISTS (SELECT 1 FROM changed)
+	`, accountID, pq.Array(managedGroupIDs), targetGroupID, service.SchedulerOutboxEventAccountGroupsChanged)
+	if err != nil {
+		return false, err
+	}
+	changedRows, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	if changedRows > 0 {
+		r.syncSchedulerAccountSnapshot(ctx, accountID)
+	}
+	return changedRows > 0, nil
+}
+
 func (r *accountRepository) ListSchedulable(ctx context.Context) ([]service.Account, error) {
 	accounts, err := r.schedulableAccountsQuery(time.Now()).All(ctx)
 	if err != nil {
