@@ -176,6 +176,7 @@ function buildAccount() {
     concurrency: 1,
     priority: 1,
     rate_multiplier: 1,
+    upstream_recharge_ratio: 1,
     status: 'active',
     group_ids: [],
     expires_at: null,
@@ -861,6 +862,23 @@ describe('EditAccountModal', () => {
 	  expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.auto_pause_5h_threshold).toBe(0.95)
 	  expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.auto_pause_7d_threshold).toBe(0.96)
 	})
+
+  it('loads and submits the upstream recharge ratio', async () => {
+    const account = {
+      ...buildAccount(),
+      upstream_recharge_ratio: 10
+    }
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const input = wrapper.get('[data-testid="upstream-recharge-ratio"]')
+    expect((input.element as HTMLInputElement).value).toBe('10')
+
+    await input.setValue('20')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock.mock.calls[0]?.[1]?.upstream_recharge_ratio).toBe(20)
+  })
 
 	it('submits OpenAI quota auto-pause disable flag in extra', async () => {
 	  // Toggling the per-account disable flag must persist as auto_pause_5h_disabled

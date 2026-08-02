@@ -295,6 +295,27 @@ func (_u *AccountUpdate) ClearChannelPrice() *AccountUpdate {
 	return _u
 }
 
+// SetUpstreamRechargeRatio sets the "upstream_recharge_ratio" field.
+func (_u *AccountUpdate) SetUpstreamRechargeRatio(v float64) *AccountUpdate {
+	_u.mutation.ResetUpstreamRechargeRatio()
+	_u.mutation.SetUpstreamRechargeRatio(v)
+	return _u
+}
+
+// SetNillableUpstreamRechargeRatio sets the "upstream_recharge_ratio" field if the given value is not nil.
+func (_u *AccountUpdate) SetNillableUpstreamRechargeRatio(v *float64) *AccountUpdate {
+	if v != nil {
+		_u.SetUpstreamRechargeRatio(*v)
+	}
+	return _u
+}
+
+// AddUpstreamRechargeRatio adds value to the "upstream_recharge_ratio" field.
+func (_u *AccountUpdate) AddUpstreamRechargeRatio(v float64) *AccountUpdate {
+	_u.mutation.AddUpstreamRechargeRatio(v)
+	return _u
+}
+
 // SetStatus sets the "status" field.
 func (_u *AccountUpdate) SetStatus(v string) *AccountUpdate {
 	_u.mutation.SetStatus(v)
@@ -799,6 +820,11 @@ func (_u *AccountUpdate) check() error {
 			return &ValidationError{Name: "type", err: fmt.Errorf(`ent: validator failed for field "Account.type": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.UpstreamRechargeRatio(); ok {
+		if err := account.UpstreamRechargeRatioValidator(v); err != nil {
+			return &ValidationError{Name: "upstream_recharge_ratio", err: fmt.Errorf(`ent: validator failed for field "Account.upstream_recharge_ratio": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Status(); ok {
 		if err := account.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "Account.status": %w`, err)}
@@ -903,6 +929,12 @@ func (_u *AccountUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.ChannelPriceCleared() {
 		_spec.ClearField(account.FieldChannelPrice, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.UpstreamRechargeRatio(); ok {
+		_spec.SetField(account.FieldUpstreamRechargeRatio, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamRechargeRatio(); ok {
+		_spec.AddField(account.FieldUpstreamRechargeRatio, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(account.FieldStatus, field.TypeString, value)
@@ -1471,6 +1503,27 @@ func (_u *AccountUpdateOne) ClearChannelPrice() *AccountUpdateOne {
 	return _u
 }
 
+// SetUpstreamRechargeRatio sets the "upstream_recharge_ratio" field.
+func (_u *AccountUpdateOne) SetUpstreamRechargeRatio(v float64) *AccountUpdateOne {
+	_u.mutation.ResetUpstreamRechargeRatio()
+	_u.mutation.SetUpstreamRechargeRatio(v)
+	return _u
+}
+
+// SetNillableUpstreamRechargeRatio sets the "upstream_recharge_ratio" field if the given value is not nil.
+func (_u *AccountUpdateOne) SetNillableUpstreamRechargeRatio(v *float64) *AccountUpdateOne {
+	if v != nil {
+		_u.SetUpstreamRechargeRatio(*v)
+	}
+	return _u
+}
+
+// AddUpstreamRechargeRatio adds value to the "upstream_recharge_ratio" field.
+func (_u *AccountUpdateOne) AddUpstreamRechargeRatio(v float64) *AccountUpdateOne {
+	_u.mutation.AddUpstreamRechargeRatio(v)
+	return _u
+}
+
 // SetStatus sets the "status" field.
 func (_u *AccountUpdateOne) SetStatus(v string) *AccountUpdateOne {
 	_u.mutation.SetStatus(v)
@@ -1988,6 +2041,11 @@ func (_u *AccountUpdateOne) check() error {
 			return &ValidationError{Name: "type", err: fmt.Errorf(`ent: validator failed for field "Account.type": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.UpstreamRechargeRatio(); ok {
+		if err := account.UpstreamRechargeRatioValidator(v); err != nil {
+			return &ValidationError{Name: "upstream_recharge_ratio", err: fmt.Errorf(`ent: validator failed for field "Account.upstream_recharge_ratio": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Status(); ok {
 		if err := account.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "Account.status": %w`, err)}
@@ -2109,6 +2167,12 @@ func (_u *AccountUpdateOne) sqlSave(ctx context.Context) (_node *Account, err er
 	}
 	if _u.mutation.ChannelPriceCleared() {
 		_spec.ClearField(account.FieldChannelPrice, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.UpstreamRechargeRatio(); ok {
+		_spec.SetField(account.FieldUpstreamRechargeRatio, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamRechargeRatio(); ok {
+		_spec.AddField(account.FieldUpstreamRechargeRatio, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(account.FieldStatus, field.TypeString, value)

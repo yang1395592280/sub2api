@@ -120,6 +120,13 @@ func (Account) Fields() []ent.Field {
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "decimal(12,6)"}),
 
+		// upstream_recharge_ratio: 1 元实际成本兑换的上游额度。
+		// 刷新余额时，上游余额和上游倍率均除以该值，统一折算到实际成本口径。
+		field.Float("upstream_recharge_ratio").
+			Positive().
+			SchemaType(map[string]string{dialect.Postgres: "decimal(12,6)"}).
+			Default(1.0),
+
 		// status: 账户状态，如 "active", "error", "disabled"
 		field.String("status").
 			MaxLen(20).

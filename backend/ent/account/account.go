@@ -48,6 +48,8 @@ const (
 	FieldRateMultiplier = "rate_multiplier"
 	// FieldChannelPrice holds the string denoting the channel_price field in the database.
 	FieldChannelPrice = "channel_price"
+	// FieldUpstreamRechargeRatio holds the string denoting the upstream_recharge_ratio field in the database.
+	FieldUpstreamRechargeRatio = "upstream_recharge_ratio"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
 	// FieldErrorMessage holds the string denoting the error_message field in the database.
@@ -149,6 +151,7 @@ var Columns = []string{
 	FieldPriority,
 	FieldRateMultiplier,
 	FieldChannelPrice,
+	FieldUpstreamRechargeRatio,
 	FieldStatus,
 	FieldErrorMessage,
 	FieldLastUsedAt,
@@ -213,6 +216,10 @@ var (
 	DefaultPriority int
 	// DefaultRateMultiplier holds the default value on creation for the "rate_multiplier" field.
 	DefaultRateMultiplier float64
+	// DefaultUpstreamRechargeRatio holds the default value on creation for the "upstream_recharge_ratio" field.
+	DefaultUpstreamRechargeRatio float64
+	// UpstreamRechargeRatioValidator is a validator for the "upstream_recharge_ratio" field. It is called by the builders before save.
+	UpstreamRechargeRatioValidator func(float64) error
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
@@ -327,6 +334,11 @@ func ByRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
 // ByChannelPrice orders the results by the channel_price field.
 func ByChannelPrice(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldChannelPrice, opts...).ToFunc()
+}
+
+// ByUpstreamRechargeRatio orders the results by the upstream_recharge_ratio field.
+func ByUpstreamRechargeRatio(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamRechargeRatio, opts...).ToFunc()
 }
 
 // ByStatus orders the results by the status field.

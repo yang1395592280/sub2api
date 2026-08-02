@@ -1163,6 +1163,7 @@ export interface Account {
   priority: number
   rate_multiplier?: number // Account billing multiplier (>=0, 0 means free)
   channel_price?: number | null // Upstream channel price used by OpenAI scheduler
+  upstream_recharge_ratio: number // Upstream quota per 1 unit of actual recharge cost
   openai_auto_scheduler?: OpenAIAutoSchedulerAccountSummary | null
   status: 'active' | 'inactive' | 'error'
   error_message: string | null
@@ -1438,6 +1439,7 @@ export interface CreateAccountRequest {
   priority?: number
   rate_multiplier?: number // Account billing multiplier (>=0, 0 means free)
   channel_price?: number | null // Upstream channel price used by OpenAI scheduler
+  upstream_recharge_ratio?: number
   group_ids?: number[]
   expires_at?: number | null
   auto_pause_on_expired?: boolean
@@ -1457,6 +1459,7 @@ export interface UpdateAccountRequest {
   priority?: number
   rate_multiplier?: number // Account billing multiplier (>=0, 0 means free)
   channel_price?: number | null // Upstream channel price used by OpenAI scheduler
+  upstream_recharge_ratio?: number
   schedulable?: boolean
   status?: 'active' | 'inactive' | 'error'
   group_ids?: number[]
@@ -1545,6 +1548,7 @@ export interface AdminDataAccount {
   priority: number
   rate_multiplier?: number | null
   channel_price?: number | null
+  upstream_recharge_ratio?: number
   expires_at?: number | null
   auto_pause_on_expired?: boolean
 }

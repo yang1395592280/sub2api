@@ -288,16 +288,20 @@ func (s *adminServiceImpl) DuplicateAccount(ctx context.Context, id int64, actor
 		proxyID = source.ProxyFallbackOriginID
 	}
 	input := &CreateAccountInput{
-		Name:                  duplicateAccountName(source.Name),
-		Notes:                 cloneAccountValuePointer(source.Notes),
-		Platform:              source.Platform,
-		Type:                  source.Type,
-		Credentials:           credentials,
-		Extra:                 extra,
-		ProxyID:               cloneAccountValuePointer(proxyID),
-		Concurrency:           source.Concurrency,
-		Priority:              source.Priority,
-		RateMultiplier:        cloneAccountValuePointer(source.RateMultiplier),
+		Name:           duplicateAccountName(source.Name),
+		Notes:          cloneAccountValuePointer(source.Notes),
+		Platform:       source.Platform,
+		Type:           source.Type,
+		Credentials:    credentials,
+		Extra:          extra,
+		ProxyID:        cloneAccountValuePointer(proxyID),
+		Concurrency:    source.Concurrency,
+		Priority:       source.Priority,
+		RateMultiplier: cloneAccountValuePointer(source.RateMultiplier),
+		UpstreamRechargeRatio: func() *float64 {
+			ratio := source.EffectiveUpstreamRechargeRatio()
+			return &ratio
+		}(),
 		LoadFactor:            cloneAccountValuePointer(source.LoadFactor),
 		GroupIDs:              groupIDs,
 		ExpiresAt:             expiresAt,
@@ -460,17 +464,18 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 	delete(accountExtra, OllamaCloudUsageAutoRefreshExtraKey)
 	delete(accountExtra, OllamaCloudUsageSnapshotExtraKey)
 	account := &Account{
-		Name:        input.Name,
-		Notes:       normalizeAccountNotes(input.Notes),
-		Platform:    input.Platform,
-		Type:        input.Type,
-		Credentials: input.Credentials,
-		Extra:       accountExtra,
-		ProxyID:     input.ProxyID,
-		Concurrency: normalizeAccountConcurrency(input.Platform, input.Type, input.Concurrency),
-		Priority:    input.Priority,
-		Status:      StatusActive,
-		Schedulable: true,
+		Name:                  input.Name,
+		Notes:                 normalizeAccountNotes(input.Notes),
+		Platform:              input.Platform,
+		Type:                  input.Type,
+		Credentials:           input.Credentials,
+		Extra:                 accountExtra,
+		ProxyID:               input.ProxyID,
+		Concurrency:           normalizeAccountConcurrency(input.Platform, input.Type, input.Concurrency),
+		Priority:              input.Priority,
+		UpstreamRechargeRatio: 1.0,
+		Status:                StatusActive,
+		Schedulable:           true,
 	}
 	if input.ProbeEnabled != nil && *input.ProbeEnabled {
 		if !isUpstreamBillingProbeAccount(account) {
@@ -509,6 +514,12 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 			return nil, errors.New("channel_price must be > 0")
 		}
 		account.ChannelPrice = input.ChannelPrice
+	}
+	if input.UpstreamRechargeRatio != nil {
+		if *input.UpstreamRechargeRatio <= 0 {
+			return nil, errors.New("upstream_recharge_ratio must be > 0")
+		}
+		account.UpstreamRechargeRatio = *input.UpstreamRechargeRatio
 	}
 	if input.LoadFactor != nil && *input.LoadFactor > 0 {
 		if *input.LoadFactor > 10000 {
@@ -782,6 +793,12 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 			return nil, errors.New("channel_price must be > 0")
 		}
 		account.ChannelPrice = input.ChannelPrice
+	}
+	if input.UpstreamRechargeRatio != nil {
+		if *input.UpstreamRechargeRatio <= 0 {
+			return nil, errors.New("upstream_recharge_ratio must be > 0")
+		}
+		account.UpstreamRechargeRatio = *input.UpstreamRechargeRatio
 	}
 	if input.LoadFactor != nil {
 		if *input.LoadFactor <= 0 {

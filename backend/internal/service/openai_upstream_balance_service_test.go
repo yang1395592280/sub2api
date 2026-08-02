@@ -158,6 +158,37 @@ func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIBillingFallbackWritesChannel
 	require.Equal(t, "Walk AI Pro", account.Extra["upstream_group"])
 }
 
+func TestOpenAIUpstreamBalanceServiceRefresh_AppliesUpstreamRechargeRatio(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/usage", r.URL.Path)
+		_, _ = w.Write([]byte(`{"remaining":100,"unit":"USD","group_id":2,"group":{"id":2,"name":"Tenfold","rate_multiplier":10}}`))
+	}))
+	defer srv.Close()
+
+	repo := &openAIUpstreamBalanceRepoStub{
+		account: &Account{
+			ID:                    32,
+			Platform:              PlatformOpenAI,
+			Type:                  AccountTypeAPIKey,
+			UpstreamRechargeRatio: 10,
+			Credentials: map[string]any{
+				"base_url": srv.URL + "/v1",
+				"api_key":  "sk-upstream",
+			},
+		},
+	}
+
+	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+	account, err := svc.Refresh(context.Background(), 32)
+	require.NoError(t, err)
+	require.Equal(t, 10.0, repo.updatedExtra["upstream_balance_remaining"])
+	require.Equal(t, 1.0, repo.updatedExtra["upstream_group_rate_multiplier"])
+	require.NotNil(t, repo.updatedChannelPrice)
+	require.Equal(t, 1.0, *repo.updatedChannelPrice)
+	require.NotNil(t, account.ChannelPrice)
+	require.Equal(t, 1.0, *account.ChannelPrice)
+}
+
 func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIUsageGroup(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v1/usage", r.URL.Path)

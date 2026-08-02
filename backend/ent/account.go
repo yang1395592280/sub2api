@@ -51,6 +51,8 @@ type Account struct {
 	RateMultiplier float64 `json:"rate_multiplier,omitempty"`
 	// ChannelPrice holds the value of the "channel_price" field.
 	ChannelPrice *float64 `json:"channel_price,omitempty"`
+	// UpstreamRechargeRatio holds the value of the "upstream_recharge_ratio" field.
+	UpstreamRechargeRatio float64 `json:"upstream_recharge_ratio,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
 	// ErrorMessage holds the value of the "error_message" field.
@@ -175,7 +177,7 @@ func (*Account) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case account.FieldAutoPauseOnExpired, account.FieldSchedulable:
 			values[i] = new(sql.NullBool)
-		case account.FieldRateMultiplier, account.FieldChannelPrice:
+		case account.FieldRateMultiplier, account.FieldChannelPrice, account.FieldUpstreamRechargeRatio:
 			values[i] = new(sql.NullFloat64)
 		case account.FieldID, account.FieldProxyID, account.FieldProxyFallbackOriginID, account.FieldConcurrency, account.FieldLoadFactor, account.FieldPriority, account.FieldParentAccountID:
 			values[i] = new(sql.NullInt64)
@@ -309,6 +311,12 @@ func (_m *Account) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ChannelPrice = new(float64)
 				*_m.ChannelPrice = value.Float64
+			}
+		case account.FieldUpstreamRechargeRatio:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field upstream_recharge_ratio", values[i])
+			} else if value.Valid {
+				_m.UpstreamRechargeRatio = value.Float64
 			}
 		case account.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -543,6 +551,9 @@ func (_m *Account) String() string {
 		builder.WriteString("channel_price=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("upstream_recharge_ratio=")
+	builder.WriteString(fmt.Sprintf("%v", _m.UpstreamRechargeRatio))
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(_m.Status)

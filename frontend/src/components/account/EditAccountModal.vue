@@ -1670,7 +1670,7 @@
 
       <div
         class="grid grid-cols-2 gap-4"
-        :class="showUpstreamGroupNameInput ? 'lg:grid-cols-6' : 'lg:grid-cols-5'"
+        :class="showUpstreamGroupNameInput ? 'lg:grid-cols-4 xl:grid-cols-7' : 'lg:grid-cols-5'"
       >
         <div>
           <label class="input-label">{{ t('admin.accounts.concurrency') }}</label>
@@ -1704,6 +1704,18 @@
           <label class="input-label">{{ t('admin.accounts.channelPrice') }}</label>
           <input v-model.number="form.channel_price" type="number" min="0.000001" step="any" class="input" />
           <p class="input-hint">{{ t('admin.accounts.channelPriceHint') }}</p>
+        </div>
+        <div v-if="showUpstreamGroupNameInput">
+          <label class="input-label">{{ t('admin.accounts.upstreamRechargeRatio') }}</label>
+          <input
+            v-model.number="form.upstream_recharge_ratio"
+            type="number"
+            min="0.000001"
+            step="any"
+            class="input"
+            data-testid="upstream-recharge-ratio"
+          />
+          <p class="input-hint">{{ t('admin.accounts.upstreamRechargeRatioHint') }}</p>
         </div>
         <div v-if="showUpstreamGroupNameInput">
           <label class="input-label">{{ t('admin.accounts.upstreamGroupName') }}</label>
@@ -3461,6 +3473,7 @@ const form = reactive({
   priority: 1,
   rate_multiplier: 1,
   channel_price: null as number | null,
+  upstream_recharge_ratio: 1,
   status: 'active' as 'active' | 'inactive' | 'error',
   group_ids: [] as number[],
   expires_at: null as number | null
@@ -3636,6 +3649,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   form.priority = newAccount.priority
   form.rate_multiplier = newAccount.rate_multiplier ?? 1
   form.channel_price = newAccount.channel_price ?? null
+  form.upstream_recharge_ratio = newAccount.upstream_recharge_ratio ?? 1
   form.status = (newAccount.status === 'active' || newAccount.status === 'inactive' || newAccount.status === 'error')
     ? newAccount.status
     : 'active'
@@ -4504,6 +4518,12 @@ const handleSubmit = async () => {
 
   const updatePayload: Record<string, unknown> = { ...form }
   try {
+    const rechargeRatio = Number(updatePayload.upstream_recharge_ratio)
+    if (!Number.isFinite(rechargeRatio) || rechargeRatio <= 0) {
+      appStore.showError(t('admin.accounts.upstreamRechargeRatioInvalid'))
+      return
+    }
+    updatePayload.upstream_recharge_ratio = rechargeRatio
     const normalizedChannelPrice = normalizeChannelPriceInput(updatePayload.channel_price)
     if (normalizedChannelPrice === null) {
       appStore.showError(t('admin.accounts.channelPriceInvalid'))

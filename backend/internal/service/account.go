@@ -33,16 +33,18 @@ type Account struct {
 	Priority                int
 	// RateMultiplier 账号计费倍率（>=0，允许 0 表示该账号计费为 0）。
 	// 使用指针用于兼容旧版本调度缓存（Redis）中缺字段的情况：nil 表示按 1.0 处理。
-	RateMultiplier     *float64
-	ChannelPrice       *float64 // 上游渠道真实价格；nil 表示未配置，调度按 1.0 处理
-	LoadFactor         *int     // 调度负载因子；nil 表示使用 Concurrency
-	Status             string
-	ErrorMessage       string
-	LastUsedAt         *time.Time
-	ExpiresAt          *time.Time
-	AutoPauseOnExpired bool
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	RateMultiplier *float64
+	ChannelPrice   *float64 // 上游渠道真实价格；nil 表示未配置，调度按 1.0 处理
+	// UpstreamRechargeRatio 表示 1 元实际成本兑换的上游额度；旧缓存缺字段时按 1 处理。
+	UpstreamRechargeRatio float64
+	LoadFactor            *int // 调度负载因子；nil 表示使用 Concurrency
+	Status                string
+	ErrorMessage          string
+	LastUsedAt            *time.Time
+	ExpiresAt             *time.Time
+	AutoPauseOnExpired    bool
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 
 	Schedulable bool
 
@@ -168,6 +170,13 @@ func (a *Account) EffectiveChannelPrice() float64 {
 		return 1.0
 	}
 	return *a.ChannelPrice
+}
+
+func (a *Account) EffectiveUpstreamRechargeRatio() float64 {
+	if a == nil || a.UpstreamRechargeRatio <= 0 {
+		return 1.0
+	}
+	return a.UpstreamRechargeRatio
 }
 
 func (a *Account) EffectiveLoadFactor() int {

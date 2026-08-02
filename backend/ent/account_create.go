@@ -209,6 +209,20 @@ func (_c *AccountCreate) SetNillableChannelPrice(v *float64) *AccountCreate {
 	return _c
 }
 
+// SetUpstreamRechargeRatio sets the "upstream_recharge_ratio" field.
+func (_c *AccountCreate) SetUpstreamRechargeRatio(v float64) *AccountCreate {
+	_c.mutation.SetUpstreamRechargeRatio(v)
+	return _c
+}
+
+// SetNillableUpstreamRechargeRatio sets the "upstream_recharge_ratio" field if the given value is not nil.
+func (_c *AccountCreate) SetNillableUpstreamRechargeRatio(v *float64) *AccountCreate {
+	if v != nil {
+		_c.SetUpstreamRechargeRatio(*v)
+	}
+	return _c
+}
+
 // SetStatus sets the "status" field.
 func (_c *AccountCreate) SetStatus(v string) *AccountCreate {
 	_c.mutation.SetStatus(v)
@@ -579,6 +593,10 @@ func (_c *AccountCreate) defaults() error {
 		v := account.DefaultRateMultiplier
 		_c.mutation.SetRateMultiplier(v)
 	}
+	if _, ok := _c.mutation.UpstreamRechargeRatio(); !ok {
+		v := account.DefaultUpstreamRechargeRatio
+		_c.mutation.SetUpstreamRechargeRatio(v)
+	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := account.DefaultStatus
 		_c.mutation.SetStatus(v)
@@ -644,6 +662,14 @@ func (_c *AccountCreate) check() error {
 	}
 	if _, ok := _c.mutation.RateMultiplier(); !ok {
 		return &ValidationError{Name: "rate_multiplier", err: errors.New(`ent: missing required field "Account.rate_multiplier"`)}
+	}
+	if _, ok := _c.mutation.UpstreamRechargeRatio(); !ok {
+		return &ValidationError{Name: "upstream_recharge_ratio", err: errors.New(`ent: missing required field "Account.upstream_recharge_ratio"`)}
+	}
+	if v, ok := _c.mutation.UpstreamRechargeRatio(); ok {
+		if err := account.UpstreamRechargeRatioValidator(v); err != nil {
+			return &ValidationError{Name: "upstream_recharge_ratio", err: fmt.Errorf(`ent: validator failed for field "Account.upstream_recharge_ratio": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.Status(); !ok {
 		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "Account.status"`)}
@@ -758,6 +784,10 @@ func (_c *AccountCreate) createSpec() (*Account, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ChannelPrice(); ok {
 		_spec.SetField(account.FieldChannelPrice, field.TypeFloat64, value)
 		_node.ChannelPrice = &value
+	}
+	if value, ok := _c.mutation.UpstreamRechargeRatio(); ok {
+		_spec.SetField(account.FieldUpstreamRechargeRatio, field.TypeFloat64, value)
+		_node.UpstreamRechargeRatio = value
 	}
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(account.FieldStatus, field.TypeString, value)
@@ -1206,6 +1236,24 @@ func (u *AccountUpsert) AddChannelPrice(v float64) *AccountUpsert {
 // ClearChannelPrice clears the value of the "channel_price" field.
 func (u *AccountUpsert) ClearChannelPrice() *AccountUpsert {
 	u.SetNull(account.FieldChannelPrice)
+	return u
+}
+
+// SetUpstreamRechargeRatio sets the "upstream_recharge_ratio" field.
+func (u *AccountUpsert) SetUpstreamRechargeRatio(v float64) *AccountUpsert {
+	u.Set(account.FieldUpstreamRechargeRatio, v)
+	return u
+}
+
+// UpdateUpstreamRechargeRatio sets the "upstream_recharge_ratio" field to the value that was provided on create.
+func (u *AccountUpsert) UpdateUpstreamRechargeRatio() *AccountUpsert {
+	u.SetExcluded(account.FieldUpstreamRechargeRatio)
+	return u
+}
+
+// AddUpstreamRechargeRatio adds v to the "upstream_recharge_ratio" field.
+func (u *AccountUpsert) AddUpstreamRechargeRatio(v float64) *AccountUpsert {
+	u.Add(account.FieldUpstreamRechargeRatio, v)
 	return u
 }
 
@@ -1809,6 +1857,27 @@ func (u *AccountUpsertOne) UpdateChannelPrice() *AccountUpsertOne {
 func (u *AccountUpsertOne) ClearChannelPrice() *AccountUpsertOne {
 	return u.Update(func(s *AccountUpsert) {
 		s.ClearChannelPrice()
+	})
+}
+
+// SetUpstreamRechargeRatio sets the "upstream_recharge_ratio" field.
+func (u *AccountUpsertOne) SetUpstreamRechargeRatio(v float64) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetUpstreamRechargeRatio(v)
+	})
+}
+
+// AddUpstreamRechargeRatio adds v to the "upstream_recharge_ratio" field.
+func (u *AccountUpsertOne) AddUpstreamRechargeRatio(v float64) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.AddUpstreamRechargeRatio(v)
+	})
+}
+
+// UpdateUpstreamRechargeRatio sets the "upstream_recharge_ratio" field to the value that was provided on create.
+func (u *AccountUpsertOne) UpdateUpstreamRechargeRatio() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateUpstreamRechargeRatio()
 	})
 }
 
@@ -2622,6 +2691,27 @@ func (u *AccountUpsertBulk) UpdateChannelPrice() *AccountUpsertBulk {
 func (u *AccountUpsertBulk) ClearChannelPrice() *AccountUpsertBulk {
 	return u.Update(func(s *AccountUpsert) {
 		s.ClearChannelPrice()
+	})
+}
+
+// SetUpstreamRechargeRatio sets the "upstream_recharge_ratio" field.
+func (u *AccountUpsertBulk) SetUpstreamRechargeRatio(v float64) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetUpstreamRechargeRatio(v)
+	})
+}
+
+// AddUpstreamRechargeRatio adds v to the "upstream_recharge_ratio" field.
+func (u *AccountUpsertBulk) AddUpstreamRechargeRatio(v float64) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.AddUpstreamRechargeRatio(v)
+	})
+}
+
+// UpdateUpstreamRechargeRatio sets the "upstream_recharge_ratio" field to the value that was provided on create.
+func (u *AccountUpsertBulk) UpdateUpstreamRechargeRatio() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateUpstreamRechargeRatio()
 	})
 }
 

@@ -2829,7 +2829,10 @@
         <ProxySelector v-model="form.proxy_id" :proxies="proxies" />
       </div>
 
-      <div class="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div
+        class="grid grid-cols-2 gap-4"
+        :class="showUpstreamRechargeRatioInput ? 'lg:grid-cols-6' : 'lg:grid-cols-5'"
+      >
         <div>
           <label class="input-label">{{ t('admin.accounts.concurrency') }}</label>
           <input v-model.number="form.concurrency" type="number" min="1" class="input"
@@ -2862,6 +2865,18 @@
           <label class="input-label">{{ t('admin.accounts.channelPrice') }}</label>
           <input v-model.number="form.channel_price" type="number" min="0.000001" step="any" class="input" />
           <p class="input-hint">{{ t('admin.accounts.channelPriceHint') }}</p>
+        </div>
+        <div v-if="showUpstreamRechargeRatioInput">
+          <label class="input-label">{{ t('admin.accounts.upstreamRechargeRatio') }}</label>
+          <input
+            v-model.number="form.upstream_recharge_ratio"
+            type="number"
+            min="0.000001"
+            step="any"
+            class="input"
+            data-testid="upstream-recharge-ratio"
+          />
+          <p class="input-hint">{{ t('admin.accounts.upstreamRechargeRatioHint') }}</p>
         </div>
       </div>
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
@@ -4200,9 +4215,15 @@ const form = reactive({
   priority: 1,
   rate_multiplier: 1,
   channel_price: null as number | null,
+  upstream_recharge_ratio: 1,
   group_ids: [] as number[],
   expires_at: null as number | null
 })
+
+const showUpstreamRechargeRatioInput = computed(() =>
+  accountCategory.value === 'apikey' &&
+  (form.platform === 'openai' || form.platform === 'anthropic')
+)
 
 // Helper to check if current type needs OAuth flow
 const isOAuthFlow = computed(() => {
@@ -4751,6 +4772,7 @@ const resetForm = () => {
   form.priority = 1
   form.rate_multiplier = 1
   form.channel_price = null
+  form.upstream_recharge_ratio = 1
   form.group_ids = []
   form.expires_at = null
   accountCategory.value = 'oauth-based'
@@ -4957,6 +4979,12 @@ const buildAnthropicExtra = (base?: Record<string, unknown>): Record<string, unk
 
 // Helper function to create account with mixed channel warning handling
 const doCreateAccount = async (payload: CreateAccountRequest) => {
+  const rechargeRatio = Number(payload.upstream_recharge_ratio ?? 1)
+  if (!Number.isFinite(rechargeRatio) || rechargeRatio <= 0) {
+    appStore.showError(t('admin.accounts.upstreamRechargeRatioInvalid'))
+    return
+  }
+  payload.upstream_recharge_ratio = rechargeRatio
   const canContinue = await ensureAntigravityMixedChannelConfirmed(async () => {
     await submitCreateAccount(payload)
   })
@@ -5441,6 +5469,7 @@ const createAccountAndFinish = async (
     priority: form.priority,
     rate_multiplier: form.rate_multiplier,
     channel_price: form.channel_price || undefined,
+    upstream_recharge_ratio: form.upstream_recharge_ratio,
     group_ids: form.group_ids,
     expires_at: form.expires_at,
     auto_pause_on_expired: autoPauseOnExpired.value
@@ -5672,6 +5701,7 @@ const handleOpenAIExchange = async (authCode: string) => {
         priority: form.priority,
         rate_multiplier: form.rate_multiplier,
         channel_price: form.channel_price || undefined,
+        upstream_recharge_ratio: form.upstream_recharge_ratio,
         group_ids: form.group_ids,
         expires_at: form.expires_at,
         auto_pause_on_expired: autoPauseOnExpired.value
@@ -5955,6 +5985,7 @@ const handleOpenAIBatchRT = async (refreshTokenInput: string, clientId?: string)
             priority: form.priority,
             rate_multiplier: form.rate_multiplier,
             channel_price: form.channel_price || undefined,
+            upstream_recharge_ratio: form.upstream_recharge_ratio,
             group_ids: form.group_ids,
             expires_at: form.expires_at,
             auto_pause_on_expired: autoPauseOnExpired.value
@@ -6055,6 +6086,7 @@ const handleAntigravityValidateRT = async (refreshTokenInput: string) => {
           priority: form.priority,
           rate_multiplier: form.rate_multiplier,
           channel_price: form.channel_price || undefined,
+          upstream_recharge_ratio: form.upstream_recharge_ratio,
           group_ids: form.group_ids,
           expires_at: form.expires_at,
           auto_pause_on_expired: autoPauseOnExpired.value
@@ -6437,6 +6469,7 @@ const handleCookieAuth = async (sessionKey: string) => {
           priority: form.priority,
           rate_multiplier: form.rate_multiplier,
           channel_price: form.channel_price || undefined,
+          upstream_recharge_ratio: form.upstream_recharge_ratio,
           group_ids: form.group_ids,
           expires_at: form.expires_at,
           auto_pause_on_expired: autoPauseOnExpired.value

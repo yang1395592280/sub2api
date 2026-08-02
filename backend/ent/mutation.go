@@ -2665,6 +2665,8 @@ type AccountMutation struct {
 	addrate_multiplier          *float64
 	channel_price               *float64
 	addchannel_price            *float64
+	upstream_recharge_ratio     *float64
+	addupstream_recharge_ratio  *float64
 	status                      *string
 	error_message               *string
 	last_used_at                *time.Time
@@ -3572,6 +3574,62 @@ func (m *AccountMutation) ResetChannelPrice() {
 	m.channel_price = nil
 	m.addchannel_price = nil
 	delete(m.clearedFields, account.FieldChannelPrice)
+}
+
+// SetUpstreamRechargeRatio sets the "upstream_recharge_ratio" field.
+func (m *AccountMutation) SetUpstreamRechargeRatio(f float64) {
+	m.upstream_recharge_ratio = &f
+	m.addupstream_recharge_ratio = nil
+}
+
+// UpstreamRechargeRatio returns the value of the "upstream_recharge_ratio" field in the mutation.
+func (m *AccountMutation) UpstreamRechargeRatio() (r float64, exists bool) {
+	v := m.upstream_recharge_ratio
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamRechargeRatio returns the old "upstream_recharge_ratio" field's value of the Account entity.
+// If the Account object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountMutation) OldUpstreamRechargeRatio(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamRechargeRatio is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamRechargeRatio requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamRechargeRatio: %w", err)
+	}
+	return oldValue.UpstreamRechargeRatio, nil
+}
+
+// AddUpstreamRechargeRatio adds f to the "upstream_recharge_ratio" field.
+func (m *AccountMutation) AddUpstreamRechargeRatio(f float64) {
+	if m.addupstream_recharge_ratio != nil {
+		*m.addupstream_recharge_ratio += f
+	} else {
+		m.addupstream_recharge_ratio = &f
+	}
+}
+
+// AddedUpstreamRechargeRatio returns the value that was added to the "upstream_recharge_ratio" field in this mutation.
+func (m *AccountMutation) AddedUpstreamRechargeRatio() (r float64, exists bool) {
+	v := m.addupstream_recharge_ratio
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUpstreamRechargeRatio resets all changes to the "upstream_recharge_ratio" field.
+func (m *AccountMutation) ResetUpstreamRechargeRatio() {
+	m.upstream_recharge_ratio = nil
+	m.addupstream_recharge_ratio = nil
 }
 
 // SetStatus sets the "status" field.
@@ -4569,7 +4627,7 @@ func (m *AccountMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AccountMutation) Fields() []string {
-	fields := make([]string, 0, 32)
+	fields := make([]string, 0, 33)
 	if m.created_at != nil {
 		fields = append(fields, account.FieldCreatedAt)
 	}
@@ -4617,6 +4675,9 @@ func (m *AccountMutation) Fields() []string {
 	}
 	if m.channel_price != nil {
 		fields = append(fields, account.FieldChannelPrice)
+	}
+	if m.upstream_recharge_ratio != nil {
+		fields = append(fields, account.FieldUpstreamRechargeRatio)
 	}
 	if m.status != nil {
 		fields = append(fields, account.FieldStatus)
@@ -4706,6 +4767,8 @@ func (m *AccountMutation) Field(name string) (ent.Value, bool) {
 		return m.RateMultiplier()
 	case account.FieldChannelPrice:
 		return m.ChannelPrice()
+	case account.FieldUpstreamRechargeRatio:
+		return m.UpstreamRechargeRatio()
 	case account.FieldStatus:
 		return m.Status()
 	case account.FieldErrorMessage:
@@ -4779,6 +4842,8 @@ func (m *AccountMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldRateMultiplier(ctx)
 	case account.FieldChannelPrice:
 		return m.OldChannelPrice(ctx)
+	case account.FieldUpstreamRechargeRatio:
+		return m.OldUpstreamRechargeRatio(ctx)
 	case account.FieldStatus:
 		return m.OldStatus(ctx)
 	case account.FieldErrorMessage:
@@ -4932,6 +4997,13 @@ func (m *AccountMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetChannelPrice(v)
 		return nil
+	case account.FieldUpstreamRechargeRatio:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamRechargeRatio(v)
+		return nil
 	case account.FieldStatus:
 		v, ok := value.(string)
 		if !ok {
@@ -5070,6 +5142,9 @@ func (m *AccountMutation) AddedFields() []string {
 	if m.addchannel_price != nil {
 		fields = append(fields, account.FieldChannelPrice)
 	}
+	if m.addupstream_recharge_ratio != nil {
+		fields = append(fields, account.FieldUpstreamRechargeRatio)
+	}
 	return fields
 }
 
@@ -5090,6 +5165,8 @@ func (m *AccountMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedRateMultiplier()
 	case account.FieldChannelPrice:
 		return m.AddedChannelPrice()
+	case account.FieldUpstreamRechargeRatio:
+		return m.AddedUpstreamRechargeRatio()
 	}
 	return nil, false
 }
@@ -5140,6 +5217,13 @@ func (m *AccountMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddChannelPrice(v)
+		return nil
+	case account.FieldUpstreamRechargeRatio:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUpstreamRechargeRatio(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Account numeric field %s", name)
@@ -5326,6 +5410,9 @@ func (m *AccountMutation) ResetField(name string) error {
 		return nil
 	case account.FieldChannelPrice:
 		m.ResetChannelPrice()
+		return nil
+	case account.FieldUpstreamRechargeRatio:
+		m.ResetUpstreamRechargeRatio()
 		return nil
 	case account.FieldStatus:
 		m.ResetStatus()

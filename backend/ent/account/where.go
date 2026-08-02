@@ -125,6 +125,11 @@ func ChannelPrice(v float64) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldChannelPrice, v))
 }
 
+// UpstreamRechargeRatio applies equality check predicate on the "upstream_recharge_ratio" field. It's identical to UpstreamRechargeRatioEQ.
+func UpstreamRechargeRatio(v float64) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldUpstreamRechargeRatio, v))
+}
+
 // Status applies equality check predicate on the "status" field. It's identical to StatusEQ.
 func Status(v string) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldStatus, v))
@@ -898,6 +903,46 @@ func ChannelPriceIsNil() predicate.Account {
 // ChannelPriceNotNil applies the NotNil predicate on the "channel_price" field.
 func ChannelPriceNotNil() predicate.Account {
 	return predicate.Account(sql.FieldNotNull(FieldChannelPrice))
+}
+
+// UpstreamRechargeRatioEQ applies the EQ predicate on the "upstream_recharge_ratio" field.
+func UpstreamRechargeRatioEQ(v float64) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldUpstreamRechargeRatio, v))
+}
+
+// UpstreamRechargeRatioNEQ applies the NEQ predicate on the "upstream_recharge_ratio" field.
+func UpstreamRechargeRatioNEQ(v float64) predicate.Account {
+	return predicate.Account(sql.FieldNEQ(FieldUpstreamRechargeRatio, v))
+}
+
+// UpstreamRechargeRatioIn applies the In predicate on the "upstream_recharge_ratio" field.
+func UpstreamRechargeRatioIn(vs ...float64) predicate.Account {
+	return predicate.Account(sql.FieldIn(FieldUpstreamRechargeRatio, vs...))
+}
+
+// UpstreamRechargeRatioNotIn applies the NotIn predicate on the "upstream_recharge_ratio" field.
+func UpstreamRechargeRatioNotIn(vs ...float64) predicate.Account {
+	return predicate.Account(sql.FieldNotIn(FieldUpstreamRechargeRatio, vs...))
+}
+
+// UpstreamRechargeRatioGT applies the GT predicate on the "upstream_recharge_ratio" field.
+func UpstreamRechargeRatioGT(v float64) predicate.Account {
+	return predicate.Account(sql.FieldGT(FieldUpstreamRechargeRatio, v))
+}
+
+// UpstreamRechargeRatioGTE applies the GTE predicate on the "upstream_recharge_ratio" field.
+func UpstreamRechargeRatioGTE(v float64) predicate.Account {
+	return predicate.Account(sql.FieldGTE(FieldUpstreamRechargeRatio, v))
+}
+
+// UpstreamRechargeRatioLT applies the LT predicate on the "upstream_recharge_ratio" field.
+func UpstreamRechargeRatioLT(v float64) predicate.Account {
+	return predicate.Account(sql.FieldLT(FieldUpstreamRechargeRatio, v))
+}
+
+// UpstreamRechargeRatioLTE applies the LTE predicate on the "upstream_recharge_ratio" field.
+func UpstreamRechargeRatioLTE(v float64) predicate.Account {
+	return predicate.Account(sql.FieldLTE(FieldUpstreamRechargeRatio, v))
 }
 
 // StatusEQ applies the EQ predicate on the "status" field.

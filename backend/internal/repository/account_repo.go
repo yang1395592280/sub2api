@@ -123,6 +123,9 @@ func createAccountRecord(ctx context.Context, client *dbent.Client, account *ser
 	if account.ChannelPrice != nil {
 		builder.SetChannelPrice(*account.ChannelPrice)
 	}
+	if account.UpstreamRechargeRatio > 0 {
+		builder.SetUpstreamRechargeRatio(account.UpstreamRechargeRatio)
+	}
 	if account.LoadFactor != nil {
 		builder.SetLoadFactor(*account.LoadFactor)
 	}
@@ -490,6 +493,7 @@ func (r *accountRepository) updateLockedAccount(ctx context.Context, client *dbe
 	} else {
 		builder.ClearChannelPrice()
 	}
+	builder.SetUpstreamRechargeRatio(account.EffectiveUpstreamRechargeRatio())
 	if account.LoadFactor != nil {
 		builder.SetLoadFactor(*account.LoadFactor)
 	} else {
@@ -3533,6 +3537,7 @@ func accountEntityToService(m *dbent.Account) *service.Account {
 		Priority:                m.Priority,
 		RateMultiplier:          &rateMultiplier,
 		ChannelPrice:            m.ChannelPrice,
+		UpstreamRechargeRatio:   m.UpstreamRechargeRatio,
 		LoadFactor:              m.LoadFactor,
 		Status:                  m.Status,
 		ErrorMessage:            derefString(m.ErrorMessage),

@@ -82,6 +82,7 @@ func (s *OpenAIUpstreamBalanceService) Refresh(ctx context.Context, accountID in
 		}
 		updates = buildOpenAIUpstreamBalanceErrorUpdates(snapshot)
 	} else {
+		normalizeOpenAIUpstreamBalanceSnapshot(&snapshot, account.EffectiveUpstreamRechargeRatio())
 		updates = buildOpenAIUpstreamBalanceUpdates(snapshot)
 	}
 	if err := s.persistRefreshUpdates(ctx, account, updates, snapshot); err != nil {
@@ -105,6 +106,21 @@ func (s *OpenAIUpstreamBalanceService) Refresh(ctx context.Context, accountID in
 		account.ChannelPrice = channelPrice
 	}
 	return account, nil
+}
+
+func normalizeOpenAIUpstreamBalanceSnapshot(snapshot *OpenAIUpstreamBalanceSnapshot, rechargeRatio float64) {
+	if snapshot == nil || rechargeRatio <= 0 || rechargeRatio == 1 {
+		return
+	}
+	snapshot.Remaining /= rechargeRatio
+	if snapshot.GroupRateMultiplier != nil {
+		rate := *snapshot.GroupRateMultiplier / rechargeRatio
+		snapshot.GroupRateMultiplier = &rate
+	}
+	if snapshot.EffectiveRateMultiplier != nil {
+		rate := *snapshot.EffectiveRateMultiplier / rechargeRatio
+		snapshot.EffectiveRateMultiplier = &rate
+	}
 }
 
 func (s *OpenAIUpstreamBalanceService) persistRefreshUpdates(ctx context.Context, account *Account, updates map[string]any, snapshot OpenAIUpstreamBalanceSnapshot) error {

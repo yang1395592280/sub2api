@@ -1,0 +1,2 @@
+ALTER TABLE accounts
+    ADD COLUMN IF NOT EXISTS upstream_recharge_ratio DECIMAL(12,6) NOT NULL DEFAULT 1.0;

@@ -218,6 +218,7 @@ type Account struct {
 	Priority                int                            `json:"priority"`
 	RateMultiplier          float64                        `json:"rate_multiplier"`
 	ChannelPrice            *float64                       `json:"channel_price,omitempty"`
+	UpstreamRechargeRatio   float64                        `json:"upstream_recharge_ratio"`
 	Status                  string                         `json:"status"`
 	ErrorMessage            string                         `json:"error_message"`
 	LastUsedAt              *time.Time                     `json:"last_used_at"`
