@@ -444,11 +444,14 @@ type UpdateAccountInput struct {
 	LoadFactor            *int
 	Status                string
 	GroupIDs              *[]int64
-	ExpiresAt             *int64
-	AutoPauseOnExpired    *bool
-	ProbeEnabled          *bool
-	RateSyncEnabled       *bool
-	SkipMixedChannelCheck bool // 跳过混合渠道检查（用户已确认风险）
+	// PriceGroupingLockedGroupIDs is the explicit subset of GroupIDs that
+	// automatic OpenAI channel-price grouping must never remove.
+	PriceGroupingLockedGroupIDs *[]int64
+	ExpiresAt                   *int64
+	AutoPauseOnExpired          *bool
+	ProbeEnabled                *bool
+	RateSyncEnabled             *bool
+	SkipMixedChannelCheck       bool // 跳过混合渠道检查（用户已确认风险）
 }
 
 // BulkUpdateAccountsInput describes the payload for bulk updating accounts.

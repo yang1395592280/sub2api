@@ -25,6 +25,11 @@ func Priority(v int) predicate.AccountGroup {
 	return predicate.AccountGroup(sql.FieldEQ(FieldPriority, v))
 }
 
+// PriceGroupingLocked applies equality check predicate on the "price_grouping_locked" field. It's identical to PriceGroupingLockedEQ.
+func PriceGroupingLocked(v bool) predicate.AccountGroup {
+	return predicate.AccountGroup(sql.FieldEQ(FieldPriceGroupingLocked, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.AccountGroup {
 	return predicate.AccountGroup(sql.FieldEQ(FieldCreatedAt, v))
@@ -108,6 +113,16 @@ func PriorityLT(v int) predicate.AccountGroup {
 // PriorityLTE applies the LTE predicate on the "priority" field.
 func PriorityLTE(v int) predicate.AccountGroup {
 	return predicate.AccountGroup(sql.FieldLTE(FieldPriority, v))
+}
+
+// PriceGroupingLockedEQ applies the EQ predicate on the "price_grouping_locked" field.
+func PriceGroupingLockedEQ(v bool) predicate.AccountGroup {
+	return predicate.AccountGroup(sql.FieldEQ(FieldPriceGroupingLocked, v))
+}
+
+// PriceGroupingLockedNEQ applies the NEQ predicate on the "price_grouping_locked" field.
+func PriceGroupingLockedNEQ(v bool) predicate.AccountGroup {
+	return predicate.AccountGroup(sql.FieldNEQ(FieldPriceGroupingLocked, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

@@ -207,7 +207,8 @@ func (r *accountRepository) CreateWithAccountGroups(ctx context.Context, account
 			builders = append(builders, txClient.AccountGroup.Create().
 				SetAccountID(account.ID).
 				SetGroupID(groups[i].GroupID).
-				SetPriority(groups[i].Priority),
+				SetPriority(groups[i].Priority).
+				SetPriceGroupingLocked(groups[i].PriceGroupingLocked),
 			)
 		}
 		if _, err := txClient.AccountGroup.CreateBulk(builders...).Save(ctx); err != nil {
@@ -1991,10 +1992,37 @@ func (r *accountRepository) GetGroups(ctx context.Context, accountID int64) ([]s
 }
 
 func (r *accountRepository) BindGroups(ctx context.Context, accountID int64, groupIDs []int64) error {
+	return r.bindGroups(ctx, accountID, groupIDs, nil)
+}
+
+// BindGroupsWithPriceGroupingLocks replaces account memberships and explicitly
+// marks the subset that automatic OpenAI channel-price grouping must preserve.
+func (r *accountRepository) BindGroupsWithPriceGroupingLocks(ctx context.Context, accountID int64, groupIDs, lockedGroupIDs []int64) error {
+	return r.bindGroups(ctx, accountID, groupIDs, &lockedGroupIDs)
+}
+
+func (r *accountRepository) bindGroups(ctx context.Context, accountID int64, groupIDs []int64, explicitLockedGroupIDs *[]int64) error {
 	existingGroupIDs, err := r.loadAccountGroupIDs(ctx, accountID)
 	if err != nil {
 		return err
 	}
+	lockedGroupSet := make(map[int64]struct{})
+	if explicitLockedGroupIDs == nil {
+		existingLockedGroupIDs, err := r.loadPriceGroupingLockedGroupIDs(ctx, accountID)
+		if err != nil {
+			return err
+		}
+		for _, groupID := range existingLockedGroupIDs {
+			lockedGroupSet[groupID] = struct{}{}
+		}
+	} else {
+		for _, groupID := range *explicitLockedGroupIDs {
+			if groupID > 0 {
+				lockedGroupSet[groupID] = struct{}{}
+			}
+		}
+	}
+	groupIDs = uniquePositiveInt64s(groupIDs)
 	// 使用事务保证删除旧绑定与创建新绑定的原子性
 	tx, err := r.client.Tx(ctx)
 	if err != nil && !errors.Is(err, dbent.ErrTxStarted) {
@@ -2023,10 +2051,12 @@ func (r *accountRepository) BindGroups(ctx context.Context, accountID int64, gro
 
 	builders := make([]*dbent.AccountGroupCreate, 0, len(groupIDs))
 	for i, groupID := range groupIDs {
+		_, priceGroupingLocked := lockedGroupSet[groupID]
 		builders = append(builders, txClient.AccountGroup.Create().
 			SetAccountID(accountID).
 			SetGroupID(groupID).
-			SetPriority(i+1),
+			SetPriority(i+1).
+			SetPriceGroupingLocked(priceGroupingLocked),
 		)
 	}
 
@@ -2079,11 +2109,14 @@ func (r *accountRepository) MoveAccountBetweenUpstreamPriceGroups(ctx context.Co
 			WHERE account_id = $1 AND group_id = ANY($2)
 		), deleted AS (
 			DELETE FROM account_groups
-			WHERE account_id = $1 AND group_id = ANY($2) AND group_id <> $3
+			WHERE account_id = $1
+			  AND group_id = ANY($2)
+			  AND group_id <> $3
+			  AND price_grouping_locked = FALSE
 			RETURNING group_id
 		), inserted AS (
-			INSERT INTO account_groups (account_id, group_id, priority, created_at)
-			SELECT $1, $3, existing.priority, NOW()
+			INSERT INTO account_groups (account_id, group_id, priority, price_grouping_locked, created_at)
+			SELECT $1, $3, existing.priority, FALSE, NOW()
 			FROM existing
 			JOIN accounts ON accounts.id = $1 AND accounts.deleted_at IS NULL
 			WHERE existing.membership_count > 0
@@ -3497,11 +3530,12 @@ func (r *accountRepository) loadAccountGroups(ctx context.Context, accountIDs []
 		for _, ag := range entries {
 			groupSvc := groupMap[ag.GroupID]
 			agSvc := service.AccountGroup{
-				AccountID: ag.AccountID,
-				GroupID:   ag.GroupID,
-				Priority:  ag.Priority,
-				CreatedAt: ag.CreatedAt,
-				Group:     groupSvc,
+				AccountID:           ag.AccountID,
+				GroupID:             ag.GroupID,
+				Priority:            ag.Priority,
+				PriceGroupingLocked: ag.PriceGroupingLocked,
+				CreatedAt:           ag.CreatedAt,
+				Group:               groupSvc,
 			}
 			accountGroupsByAccount[ag.AccountID] = append(accountGroupsByAccount[ag.AccountID], agSvc)
 			groupIDsByAccount[ag.AccountID] = append(groupIDsByAccount[ag.AccountID], ag.GroupID)
@@ -3560,6 +3594,23 @@ func (r *accountRepository) loadAccountGroupIDs(ctx context.Context, accountID i
 	entries, err := r.client.AccountGroup.
 		Query().
 		Where(dbaccountgroup.AccountIDEQ(accountID)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(entries))
+	for _, entry := range entries {
+		ids = append(ids, entry.GroupID)
+	}
+	return ids, nil
+}
+
+func (r *accountRepository) loadPriceGroupingLockedGroupIDs(ctx context.Context, accountID int64) ([]int64, error) {
+	entries, err := r.client.AccountGroup.Query().
+		Where(
+			dbaccountgroup.AccountIDEQ(accountID),
+			dbaccountgroup.PriceGroupingLockedEQ(true),
+		).
 		All(ctx)
 	if err != nil {
 		return nil, err

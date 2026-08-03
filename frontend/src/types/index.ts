@@ -1277,6 +1277,7 @@ export interface AccountGroup {
   account_id: number
   group_id: number
   priority: number
+  price_grouping_locked?: boolean
   created_at: string
   account?: Account | null
   group?: Group | null
@@ -1482,6 +1483,7 @@ export interface UpdateAccountRequest {
   schedulable?: boolean
   status?: 'active' | 'inactive' | 'error'
   group_ids?: number[]
+  price_grouping_locked_group_ids?: number[]
   expires_at?: number | null
   auto_pause_on_expired?: boolean
   upstream_billing_probe_enabled?: boolean

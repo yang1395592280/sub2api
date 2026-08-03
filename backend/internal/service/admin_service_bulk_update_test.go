@@ -16,31 +16,32 @@ import (
 
 type accountRepoStubForBulkUpdate struct {
 	accountRepoStub
-	bulkUpdateErr       error
-	bulkUpdateIDs       []int64
-	bindGroupErrByID    map[int64]error
-	bindGroupsCalls     []int64
-	bindGroupsByAccount map[int64][]int64
-	createAccount       *Account
-	createID            int64
-	createErr           error
-	updatedAccounts     []*Account
-	updateErr           error
-	getByIDsAccounts    []*Account
-	getByIDsErr         error
-	getByIDsCalled      bool
-	getByIDsIDs         []int64
-	getByIDAccounts     map[int64]*Account
-	getByIDErrByID      map[int64]error
-	getByIDCalled       []int64
-	listByGroupData     map[int64][]Account
-	listByGroupErr      map[int64]error
-	listData            []Account
-	listResult          *pagination.PaginationResult
-	listErr             error
-	listCalled          bool
-	lastListParams      pagination.PaginationParams
-	lastListFilters     struct {
+	bulkUpdateErr         error
+	bulkUpdateIDs         []int64
+	bindGroupErrByID      map[int64]error
+	bindGroupsCalls       []int64
+	bindGroupsByAccount   map[int64][]int64
+	lockedGroupsByAccount map[int64][]int64
+	createAccount         *Account
+	createID              int64
+	createErr             error
+	updatedAccounts       []*Account
+	updateErr             error
+	getByIDsAccounts      []*Account
+	getByIDsErr           error
+	getByIDsCalled        bool
+	getByIDsIDs           []int64
+	getByIDAccounts       map[int64]*Account
+	getByIDErrByID        map[int64]error
+	getByIDCalled         []int64
+	listByGroupData       map[int64][]Account
+	listByGroupErr        map[int64]error
+	listData              []Account
+	listResult            *pagination.PaginationResult
+	listErr               error
+	listCalled            bool
+	lastListParams        pagination.PaginationParams
+	lastListFilters       struct {
 		platform    string
 		accountType string
 		status      string
@@ -80,6 +81,17 @@ func (s *accountRepoStubForBulkUpdate) BindGroups(_ context.Context, accountID i
 	if err, ok := s.bindGroupErrByID[accountID]; ok {
 		return err
 	}
+	return nil
+}
+
+func (s *accountRepoStubForBulkUpdate) BindGroupsWithPriceGroupingLocks(ctx context.Context, accountID int64, groupIDs, lockedGroupIDs []int64) error {
+	if err := s.BindGroups(ctx, accountID, groupIDs); err != nil {
+		return err
+	}
+	if s.lockedGroupsByAccount == nil {
+		s.lockedGroupsByAccount = make(map[int64][]int64)
+	}
+	s.lockedGroupsByAccount[accountID] = append([]int64{}, lockedGroupIDs...)
 	return nil
 }
 

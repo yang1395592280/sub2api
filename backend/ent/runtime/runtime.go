@@ -284,8 +284,12 @@ func init() {
 	accountgroupDescPriority := accountgroupFields[2].Descriptor()
 	// accountgroup.DefaultPriority holds the default value on creation for the priority field.
 	accountgroup.DefaultPriority = accountgroupDescPriority.Default.(int)
+	// accountgroupDescPriceGroupingLocked is the schema descriptor for price_grouping_locked field.
+	accountgroupDescPriceGroupingLocked := accountgroupFields[3].Descriptor()
+	// accountgroup.DefaultPriceGroupingLocked holds the default value on creation for the price_grouping_locked field.
+	accountgroup.DefaultPriceGroupingLocked = accountgroupDescPriceGroupingLocked.Default.(bool)
 	// accountgroupDescCreatedAt is the schema descriptor for created_at field.
-	accountgroupDescCreatedAt := accountgroupFields[3].Descriptor()
+	accountgroupDescCreatedAt := accountgroupFields[4].Descriptor()
 	// accountgroup.DefaultCreatedAt holds the default value on creation for the created_at field.
 	accountgroup.DefaultCreatedAt = accountgroupDescCreatedAt.Default.(func() time.Time)
 	announcementFields := schema.Announcement{}.Fields()

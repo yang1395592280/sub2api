@@ -166,12 +166,74 @@ func canDuplicateAccountType(accountType string) bool {
 	}
 }
 
+type priceGroupingLockedGroupBinder interface {
+	BindGroupsWithPriceGroupingLocks(ctx context.Context, accountID int64, groupIDs, lockedGroupIDs []int64) error
+}
+
+func normalizeLockedGroupIDs(groupIDs, lockedGroupIDs []int64) ([]int64, error) {
+	groupSet := make(map[int64]struct{}, len(groupIDs))
+	for _, groupID := range groupIDs {
+		if groupID > 0 {
+			groupSet[groupID] = struct{}{}
+		}
+	}
+	locked := make([]int64, 0, len(lockedGroupIDs))
+	seen := make(map[int64]struct{}, len(lockedGroupIDs))
+	for _, groupID := range lockedGroupIDs {
+		if groupID <= 0 {
+			continue
+		}
+		if _, ok := groupSet[groupID]; !ok {
+			return nil, infraerrors.BadRequest(
+				"PRICE_GROUPING_LOCK_NOT_BOUND",
+				"price grouping locked groups must also be present in group_ids",
+			)
+		}
+		if _, ok := seen[groupID]; ok {
+			continue
+		}
+		seen[groupID] = struct{}{}
+		locked = append(locked, groupID)
+	}
+	return locked, nil
+}
+
+func (s *adminServiceImpl) validatePriceGroupingLockedGroups(ctx context.Context, accountPlatform string, groupIDs, lockedGroupIDs []int64) ([]int64, error) {
+	lockedGroupIDs, err := normalizeLockedGroupIDs(groupIDs, lockedGroupIDs)
+	if err != nil || len(lockedGroupIDs) == 0 {
+		return lockedGroupIDs, err
+	}
+	if accountPlatform != PlatformOpenAI {
+		return nil, infraerrors.BadRequest(
+			"PRICE_GROUPING_LOCK_OPENAI_ONLY",
+			"price grouping locked groups only support OpenAI accounts",
+		)
+	}
+	for _, groupID := range lockedGroupIDs {
+		group, err := s.groupRepo.GetByIDLite(ctx, groupID)
+		if err != nil {
+			return nil, fmt.Errorf("get price grouping locked group: %w", err)
+		}
+		if group.Platform != PlatformOpenAI || group.GroupRole != GroupRoleStandard || group.IsSelfHostedPool() || !group.UpstreamPriceGroupingEnabled {
+			return nil, infraerrors.BadRequest(
+				"PRICE_GROUPING_LOCK_UNSUPPORTED_GROUP",
+				"locked memberships must reference standard OpenAI groups with channel-price grouping enabled",
+			)
+		}
+	}
+	return lockedGroupIDs, nil
+}
+
 func duplicateAccountGroups(source *Account) ([]AccountGroup, []int64) {
 	if len(source.AccountGroups) > 0 {
 		groups := make([]AccountGroup, 0, len(source.AccountGroups))
 		groupIDs := make([]int64, 0, len(source.AccountGroups))
 		for _, sourceGroup := range source.AccountGroups {
-			groups = append(groups, AccountGroup{GroupID: sourceGroup.GroupID, Priority: sourceGroup.Priority})
+			groups = append(groups, AccountGroup{
+				GroupID:             sourceGroup.GroupID,
+				Priority:            sourceGroup.Priority,
+				PriceGroupingLocked: sourceGroup.PriceGroupingLocked,
+			})
 			groupIDs = append(groupIDs, sourceGroup.GroupID)
 		}
 		return groups, groupIDs
@@ -873,6 +935,22 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 			}
 		}
 	}
+	effectiveGroupIDs := append([]int64(nil), account.GroupIDs...)
+	if input.GroupIDs != nil {
+		effectiveGroupIDs = append([]int64(nil), (*input.GroupIDs)...)
+	}
+	var normalizedLockedGroupIDs []int64
+	if input.PriceGroupingLockedGroupIDs != nil {
+		normalizedLockedGroupIDs, err = s.validatePriceGroupingLockedGroups(
+			ctx,
+			account.Platform,
+			effectiveGroupIDs,
+			*input.PriceGroupingLockedGroupIDs,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	billingSettingsAppliedAtomically := false
 	updater := s.accountBillingRepo
@@ -922,8 +1000,16 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	}
 
 	// 绑定分组
-	if input.GroupIDs != nil {
-		if err := s.accountRepo.BindGroups(ctx, account.ID, *input.GroupIDs); err != nil {
+	if input.GroupIDs != nil || input.PriceGroupingLockedGroupIDs != nil {
+		if input.PriceGroupingLockedGroupIDs != nil {
+			binder, ok := s.accountRepo.(priceGroupingLockedGroupBinder)
+			if !ok {
+				return nil, errors.New("account repository does not support price grouping locked memberships")
+			}
+			if err := binder.BindGroupsWithPriceGroupingLocks(ctx, account.ID, effectiveGroupIDs, normalizedLockedGroupIDs); err != nil {
+				return nil, err
+			}
+		} else if err := s.accountRepo.BindGroups(ctx, account.ID, effectiveGroupIDs); err != nil {
 			return nil, err
 		}
 	}
