@@ -2889,6 +2889,51 @@
         data-tour="account-form-groups"
       />
 
+      <div
+        v-if="!authStore.isSimpleMode && account?.platform === 'openai'"
+        data-testid="price-grouping-locks"
+      >
+        <label class="input-label">
+          {{ t('admin.accounts.priceGroupingLocks') }}
+          <span class="font-normal text-gray-400">
+            {{ t('common.selectedCount', { count: priceGroupingLockedGroupIds.length }) }}
+          </span>
+        </label>
+        <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">
+          {{ t('admin.accounts.priceGroupingLocksHint') }}
+        </p>
+        <div
+          class="grid max-h-32 grid-cols-1 gap-1 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2 sm:grid-cols-2 dark:border-dark-600 dark:bg-dark-800"
+        >
+          <label
+            v-for="group in priceGroupingLockableGroups"
+            :key="group.id"
+            class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 transition-colors hover:bg-white dark:hover:bg-dark-700"
+          >
+            <input
+              type="checkbox"
+              :value="group.id"
+              :checked="priceGroupingLockedGroupIds.includes(group.id)"
+              :data-testid="`price-grouping-lock-${group.id}`"
+              @change="handlePriceGroupingLockChange(group.id, ($event.target as HTMLInputElement).checked)"
+              class="h-3.5 w-3.5 shrink-0 rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-500"
+            />
+            <span class="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-200">
+              {{ group.name }}
+            </span>
+            <span class="shrink-0 text-xs text-gray-400">
+              [{{ group.upstream_price_grouping_min }}, {{ group.upstream_price_grouping_max }}]
+            </span>
+          </label>
+          <div
+            v-if="priceGroupingLockableGroups.length === 0"
+            class="py-2 text-center text-sm text-gray-500 sm:col-span-2 dark:text-gray-400"
+          >
+            {{ t('admin.accounts.priceGroupingLocksEmpty') }}
+          </div>
+        </div>
+      </div>
+
     </form>
 
     <template #footer>
@@ -3549,6 +3594,30 @@ const form = reactive({
   expires_at: null as number | null
 })
 
+const priceGroupingLockedGroupIds = ref<number[]>([])
+const priceGroupingLockableGroups = computed(() =>
+  props.groups.filter((group) =>
+    form.group_ids.includes(group.id) &&
+    group.platform === 'openai' &&
+    group.group_role === 'standard' &&
+    group.upstream_price_grouping_enabled
+  )
+)
+
+const handlePriceGroupingLockChange = (groupId: number, checked: boolean) => {
+  priceGroupingLockedGroupIds.value = checked
+    ? Array.from(new Set([...priceGroupingLockedGroupIds.value, groupId]))
+    : priceGroupingLockedGroupIds.value.filter((id) => id !== groupId)
+}
+
+watch(
+  () => form.group_ids,
+  (groupIds) => {
+    const selected = new Set(groupIds)
+    priceGroupingLockedGroupIds.value = priceGroupingLockedGroupIds.value.filter((id) => selected.has(id))
+  }
+)
+
 const upstreamGroupName = ref('')
 const showUpstreamGroupNameInput = computed(() =>
   props.account?.type === 'apikey' &&
@@ -3738,6 +3807,9 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     ? newAccount.status
     : 'active'
   form.group_ids = newAccount.group_ids || []
+  priceGroupingLockedGroupIds.value = (newAccount.account_groups || [])
+    .filter((accountGroup) => accountGroup.price_grouping_locked === true)
+    .map((accountGroup) => accountGroup.group_id)
   form.expires_at = newAccount.expires_at ?? null
 
   // Load intercept warmup requests setting (applies to all account types)
@@ -4606,6 +4678,9 @@ const handleSubmit = async () => {
   }
 
   const updatePayload: Record<string, unknown> = { ...form }
+  if (!authStore.isSimpleMode && props.account.platform === 'openai') {
+    updatePayload.price_grouping_locked_group_ids = [...priceGroupingLockedGroupIds.value]
+  }
   try {
     const rechargeRatio = Number(updatePayload.upstream_recharge_ratio)
     if (!Number.isFinite(rechargeRatio) || rechargeRatio <= 0) {

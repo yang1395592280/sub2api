@@ -308,13 +308,13 @@ function buildOpenAISetupTokenAccount() {
   } as any
 }
 
-function mountModal(account = buildAccount()) {
+function mountModal(account = buildAccount(), groups: any[] = []) {
   return mount(EditAccountModal, {
     props: {
       show: true,
       account,
       proxies: [],
-      groups: []
+      groups
     },
     global: {
       stubs: {
@@ -521,6 +521,46 @@ describe('EditAccountModal', () => {
     const channelPriceInput = wrapper.get('input[type="number"][min="0.000001"]')
 
     expect(channelPriceInput.attributes('step')).toBe('any')
+  })
+
+  it('loads and submits OpenAI price groups preserved during automatic grouping', async () => {
+    authIsSimpleMode.value = false
+    const account = {
+      ...buildAccount(),
+      group_ids: [15, 20, 30, 40],
+      account_groups: [
+        { account_id: 1, group_id: 15, priority: 1, price_grouping_locked: false },
+        { account_id: 1, group_id: 20, priority: 2, price_grouping_locked: true }
+      ]
+    }
+    const priceGroup = (id: number, overrides: Record<string, unknown> = {}) => ({
+      id,
+      name: `price-${id}`,
+      platform: 'openai',
+      group_role: 'standard',
+      upstream_price_grouping_enabled: true,
+      upstream_price_grouping_min: 0.06,
+      upstream_price_grouping_max: 0.08,
+      ...overrides
+    })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account, [
+      priceGroup(15),
+      priceGroup(20),
+      priceGroup(30, { group_role: 'self_hosted_pool' }),
+      priceGroup(40, { upstream_price_grouping_enabled: false })
+    ])
+
+    expect(wrapper.get<HTMLInputElement>('[data-testid="price-grouping-lock-20"]').element.checked).toBe(true)
+    expect(wrapper.find('[data-testid="price-grouping-lock-30"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="price-grouping-lock-40"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="price-grouping-lock-15"]').setValue(true)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.price_grouping_locked_group_ids).toEqual([20, 15])
   })
 
   it('loads and submits the manually maintained upstream group name', async () => {

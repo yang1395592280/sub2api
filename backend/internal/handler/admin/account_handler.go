@@ -160,25 +160,26 @@ type CreateAccountRequest struct {
 // UpdateAccountRequest represents update account request
 // 使用指针类型来区分"未提供"和"设置为0"
 type UpdateAccountRequest struct {
-	Name                    string         `json:"name"`
-	Notes                   *string        `json:"notes"`
-	Type                    string         `json:"type" binding:"omitempty,oneof=oauth setup-token apikey upstream bedrock service_account"`
-	Credentials             map[string]any `json:"credentials"`
-	Extra                   map[string]any `json:"extra"`
-	ProxyID                 *int64         `json:"proxy_id"`
-	Concurrency             *int           `json:"concurrency"`
-	Priority                *int           `json:"priority"`
-	RateMultiplier          *float64       `json:"rate_multiplier"`
-	ChannelPrice            *float64       `json:"channel_price"`
-	UpstreamRechargeRatio   *float64       `json:"upstream_recharge_ratio"`
-	LoadFactor              *int           `json:"load_factor"`
-	Status                  string         `json:"status" binding:"omitempty,oneof=active inactive error"`
-	GroupIDs                *[]int64       `json:"group_ids"`
-	ExpiresAt               *int64         `json:"expires_at"`
-	AutoPauseOnExpired      *bool          `json:"auto_pause_on_expired"`
-	ProbeEnabled            *bool          `json:"upstream_billing_probe_enabled"`
-	RateSyncEnabled         *bool          `json:"upstream_billing_rate_sync_enabled"`
-	ConfirmMixedChannelRisk *bool          `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
+	Name                        string         `json:"name"`
+	Notes                       *string        `json:"notes"`
+	Type                        string         `json:"type" binding:"omitempty,oneof=oauth setup-token apikey upstream bedrock service_account"`
+	Credentials                 map[string]any `json:"credentials"`
+	Extra                       map[string]any `json:"extra"`
+	ProxyID                     *int64         `json:"proxy_id"`
+	Concurrency                 *int           `json:"concurrency"`
+	Priority                    *int           `json:"priority"`
+	RateMultiplier              *float64       `json:"rate_multiplier"`
+	ChannelPrice                *float64       `json:"channel_price"`
+	UpstreamRechargeRatio       *float64       `json:"upstream_recharge_ratio"`
+	LoadFactor                  *int           `json:"load_factor"`
+	Status                      string         `json:"status" binding:"omitempty,oneof=active inactive error"`
+	GroupIDs                    *[]int64       `json:"group_ids"`
+	PriceGroupingLockedGroupIDs *[]int64       `json:"price_grouping_locked_group_ids"`
+	ExpiresAt                   *int64         `json:"expires_at"`
+	AutoPauseOnExpired          *bool          `json:"auto_pause_on_expired"`
+	ProbeEnabled                *bool          `json:"upstream_billing_probe_enabled"`
+	RateSyncEnabled             *bool          `json:"upstream_billing_rate_sync_enabled"`
+	ConfirmMixedChannelRisk     *bool          `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
 }
 
 // BulkUpdateAccountsRequest represents the payload for bulk editing accounts
@@ -1055,25 +1056,26 @@ func (h *AccountHandler) Update(c *gin.Context) {
 	skipCheck := req.ConfirmMixedChannelRisk != nil && *req.ConfirmMixedChannelRisk
 
 	account, err := h.adminService.UpdateAccount(c.Request.Context(), accountID, &service.UpdateAccountInput{
-		Name:                  req.Name,
-		Notes:                 req.Notes,
-		Type:                  req.Type,
-		Credentials:           req.Credentials,
-		Extra:                 req.Extra,
-		ProxyID:               req.ProxyID,
-		Concurrency:           req.Concurrency, // 指针类型，nil 表示未提供
-		Priority:              req.Priority,    // 指针类型，nil 表示未提供
-		RateMultiplier:        req.RateMultiplier,
-		ChannelPrice:          req.ChannelPrice,
-		UpstreamRechargeRatio: req.UpstreamRechargeRatio,
-		LoadFactor:            req.LoadFactor,
-		Status:                req.Status,
-		GroupIDs:              req.GroupIDs,
-		ExpiresAt:             req.ExpiresAt,
-		AutoPauseOnExpired:    req.AutoPauseOnExpired,
-		ProbeEnabled:          req.ProbeEnabled,
-		RateSyncEnabled:       req.RateSyncEnabled,
-		SkipMixedChannelCheck: skipCheck,
+		Name:                        req.Name,
+		Notes:                       req.Notes,
+		Type:                        req.Type,
+		Credentials:                 req.Credentials,
+		Extra:                       req.Extra,
+		ProxyID:                     req.ProxyID,
+		Concurrency:                 req.Concurrency, // 指针类型，nil 表示未提供
+		Priority:                    req.Priority,    // 指针类型，nil 表示未提供
+		RateMultiplier:              req.RateMultiplier,
+		ChannelPrice:                req.ChannelPrice,
+		UpstreamRechargeRatio:       req.UpstreamRechargeRatio,
+		LoadFactor:                  req.LoadFactor,
+		Status:                      req.Status,
+		GroupIDs:                    req.GroupIDs,
+		PriceGroupingLockedGroupIDs: req.PriceGroupingLockedGroupIDs,
+		ExpiresAt:                   req.ExpiresAt,
+		AutoPauseOnExpired:          req.AutoPauseOnExpired,
+		ProbeEnabled:                req.ProbeEnabled,
+		RateSyncEnabled:             req.RateSyncEnabled,
+		SkipMixedChannelCheck:       skipCheck,
 	})
 	if err != nil {
 		// 检查是否为混合渠道错误

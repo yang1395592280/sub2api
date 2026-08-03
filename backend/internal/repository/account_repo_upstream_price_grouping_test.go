@@ -22,7 +22,7 @@ func TestMoveAccountBetweenUpstreamPriceGroupsWritesMembershipAndOutboxAtomicall
 	repo := newAccountRepositoryWithSQL(client, db, nil)
 
 	mock.ExpectBegin()
-	mock.ExpectExec(`(?s)WITH existing AS .*DELETE FROM account_groups.*INSERT INTO account_groups.*INSERT INTO scheduler_outbox`).
+	mock.ExpectExec(`(?s)WITH existing AS .*DELETE FROM account_groups.*price_grouping_locked = FALSE.*INSERT INTO account_groups.*price_grouping_locked.*FALSE.*INSERT INTO scheduler_outbox`).
 		WithArgs(int64(42), sqlmock.AnyArg(), int64(20), service.SchedulerOutboxEventAccountGroupsChanged).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()

@@ -32,6 +32,9 @@ func (AccountGroup) Fields() []ent.Field {
 		field.Int64("group_id"),
 		field.Int("priority").
 			Default(50),
+		field.Bool("price_grouping_locked").
+			Default(false).
+			Comment("Whether OpenAI channel-price grouping must preserve this membership"),
 		field.Time("created_at").
 			Immutable().
 			Default(time.Now).

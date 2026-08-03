@@ -814,6 +814,38 @@ func (s *AccountRepoSuite) TestBindGroups_EmptyList() {
 	s.Require().Empty(groups, "expected 0 groups after binding empty list")
 }
 
+func (s *AccountRepoSuite) TestBindGroups_PreservesAndExplicitlyClearsPriceGroupingLocks() {
+	g1 := mustCreateGroup(s.T(), s.client, &service.Group{Name: "price-auto"})
+	g2 := mustCreateGroup(s.T(), s.client, &service.Group{Name: "price-pinned"})
+	account := mustCreateAccount(s.T(), s.client, &service.Account{Name: "price-pinned-account"})
+
+	s.Require().NoError(s.repo.BindGroupsWithPriceGroupingLocks(
+		s.ctx,
+		account.ID,
+		[]int64{g1.ID, g2.ID},
+		[]int64{g2.ID},
+	))
+
+	assertLocked := func(expected bool) {
+		entry, err := s.client.AccountGroup.Query().
+			Where(accountgroup.AccountIDEQ(account.ID), accountgroup.GroupIDEQ(g2.ID)).
+			Only(s.ctx)
+		s.Require().NoError(err)
+		s.Require().Equal(expected, entry.PriceGroupingLocked)
+	}
+
+	assertLocked(true)
+	s.Require().NoError(s.repo.BindGroups(s.ctx, account.ID, []int64{g1.ID, g2.ID}))
+	assertLocked(true)
+	s.Require().NoError(s.repo.BindGroupsWithPriceGroupingLocks(
+		s.ctx,
+		account.ID,
+		[]int64{g1.ID, g2.ID},
+		[]int64{},
+	))
+	assertLocked(false)
+}
+
 // --- Schedulable ---
 
 func (s *AccountRepoSuite) TestListSchedulable() {
