@@ -28,6 +28,31 @@ func TestUsageLogFromService_IncludesOpenAIWSMode(t *testing.T) {
 	require.False(t, UsageLogFromServiceAdmin(httpLog).OpenAIWSMode)
 }
 
+func TestUsageLogFromServiceAdmin_IncludesAccountNotesOnlyForAdmin(t *testing.T) {
+	t.Parallel()
+
+	notes := "tg: upstream-channel"
+	log := &service.UsageLog{
+		RequestID: "req_account_notes",
+		Model:     "gpt-5.6",
+		Account: &service.Account{
+			ID:    42,
+			Name:  "https://upstream.example",
+			Notes: &notes,
+		},
+	}
+
+	adminDTO := UsageLogFromServiceAdmin(log)
+	require.NotNil(t, adminDTO.Account)
+	require.Equal(t, int64(42), adminDTO.Account.ID)
+	require.Equal(t, notes, *adminDTO.Account.Notes)
+
+	userJSON, err := json.Marshal(UsageLogFromService(log))
+	require.NoError(t, err)
+	require.NotContains(t, string(userJSON), "upstream-channel")
+	require.NotContains(t, string(userJSON), `"account"`)
+}
+
 func TestUsageLogFromService_PrefersRequestTypeForLegacyFields(t *testing.T) {
 	t.Parallel()
 

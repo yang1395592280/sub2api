@@ -672,15 +672,16 @@ func redeemCodeFromServiceBase(rc *service.RedeemCode) RedeemCode {
 	return out
 }
 
-// AccountSummaryFromService returns a minimal AccountSummary for usage log display.
-// Only includes ID and Name - no sensitive fields like Credentials, Proxy, etc.
+// AccountSummaryFromService returns a minimal AccountSummary for admin usage log display.
+// Notes are admin-only metadata; sensitive connection fields remain excluded.
 func AccountSummaryFromService(a *service.Account) *AccountSummary {
 	if a == nil {
 		return nil
 	}
 	return &AccountSummary{
-		ID:   a.ID,
-		Name: a.Name,
+		ID:    a.ID,
+		Name:  a.Name,
+		Notes: a.Notes,
 	}
 }
 
@@ -767,7 +768,7 @@ func UsageLogFromService(l *service.UsageLog) *UsageLog {
 }
 
 // UsageLogFromServiceAdmin converts a service UsageLog to DTO for admin users.
-// It includes minimal Account info (ID, Name only) and IP address.
+// It includes minimal Account info (ID, Name, Notes) and IP address.
 func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 	if l == nil {
 		return nil

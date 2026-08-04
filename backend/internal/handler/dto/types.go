@@ -653,11 +653,12 @@ type UsageCleanupTask struct {
 	UpdatedAt    time.Time           `json:"updated_at"`
 }
 
-// AccountSummary is a minimal account info for usage log display.
+// AccountSummary is a minimal account info for admin usage log display.
 // It intentionally excludes sensitive fields like Credentials, Proxy, etc.
 type AccountSummary struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
+	ID    int64   `json:"id"`
+	Name  string  `json:"name"`
+	Notes *string `json:"notes,omitempty"`
 }
 
 type Setting struct {

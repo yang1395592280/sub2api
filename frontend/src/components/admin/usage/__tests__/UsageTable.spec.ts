@@ -82,6 +82,7 @@ const DataTableStub = {
     <div>
       <div v-for="row in data" :key="row.request_id">
         <slot name="cell-model" :row="row" :value="row.model" />
+        <slot name="cell-account_notes" :row="row" />
         <slot name="cell-group" :row="row" />
         <slot name="cell-billing_mode" :row="row" />
         <slot name="cell-tokens" :row="row" />
@@ -119,6 +120,33 @@ const baseImageRow = {
   image_size_source: null,
   image_size_breakdown: null,
 }
+
+describe('admin UsageTable account notes', () => {
+  it('renders the current account notes and an empty placeholder', () => {
+    const rows = [
+      { ...baseImageRow, request_id: 'req-with-notes', account: { id: 1, name: 'account-1', notes: 'tg: upstream-channel' } },
+      { ...baseImageRow, request_id: 'req-without-notes', account: { id: 2, name: 'account-2' } },
+    ]
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: rows,
+        columns: [{ key: 'account_notes', label: 'Notes' }],
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('tg: upstream-channel')
+    expect(wrapper.text()).toContain('-')
+  })
+})
 
 describe('admin UsageTable tooltip', () => {
   beforeEach(() => {

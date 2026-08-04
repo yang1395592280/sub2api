@@ -1744,6 +1744,7 @@ export interface UsageLog {
 export interface UsageLogAccountSummary {
   id: number
   name: string
+  notes?: string | null
 }
 
 export interface AdminUsageLog extends UsageLog {

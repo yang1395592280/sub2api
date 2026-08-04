@@ -52,6 +52,15 @@
           <span class="text-sm text-gray-900 dark:text-white">{{ row.account?.name || '-' }}</span>
         </template>
 
+        <template #cell-account_notes="{ row }">
+          <span
+            v-if="row.account?.notes"
+            :title="row.account.notes"
+            class="block max-w-xs whitespace-pre-wrap break-words text-sm leading-5 text-gray-600 dark:text-gray-300"
+          >{{ row.account.notes }}</span>
+          <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
+        </template>
+
         <template #cell-model="{ row }">
           <div v-if="row.model_mapping_chain && row.model_mapping_chain.includes('→')" class="space-y-0.5 text-xs">
             <div v-for="(step, i) in row.model_mapping_chain.split('→')" :key="i"
