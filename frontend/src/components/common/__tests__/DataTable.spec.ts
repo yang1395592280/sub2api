@@ -83,6 +83,60 @@ describe('DataTable', () => {
     expect(nameHeader.findAll('svg')[1].classes()).toContain('text-primary-600')
   })
 
+  it('fixes the configured leading columns using their measured widths', async () => {
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+      const widths: Record<string, number> = {
+        select: 52,
+        name: 240,
+        notes: 200,
+        status: 120
+      }
+      const width = widths[this.dataset.columnKey || ''] ?? 0
+      return {
+        x: 0,
+        y: 0,
+        top: 0,
+        right: width,
+        bottom: 40,
+        left: 0,
+        width,
+        height: 40,
+        toJSON: () => ({})
+      } as DOMRect
+    })
+
+    try {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [
+            { key: 'select', label: '' },
+            { key: 'name', label: 'Name' },
+            { key: 'notes', label: 'Notes' },
+            { key: 'status', label: 'Status' }
+          ],
+          data: [{ id: 1, name: 'Account', notes: 'Line 1\nLine 2', status: 'active' }],
+          stickyColumnCount: 2
+        }
+      })
+
+      await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick()
+
+      const selectHeader = wrapper.get('th[data-column-key="select"]')
+      const nameHeader = wrapper.get('th[data-column-key="name"]')
+      const notesHeader = wrapper.get('th[data-column-key="notes"]')
+      const statusHeader = wrapper.get('th[data-column-key="status"]')
+
+      expect(selectHeader.attributes('style')).toContain('left: 0px')
+      expect(nameHeader.attributes('style')).toContain('left: 52px')
+      expect(notesHeader.attributes('style')).toContain('left: 292px')
+      expect(notesHeader.classes()).toContain('sticky-col-left-boundary')
+      expect(statusHeader.classes()).not.toContain('sticky-col')
+    } finally {
+      rectSpy.mockRestore()
+    }
+  })
+
   it('renders every row with no virtual padding spacer for small datasets (virtualization off)', async () => {
     const data = Array.from({ length: 8 }, (_, i) => ({ id: i + 1, name: `Row ${i + 1}` }))
     const wrapper = mount(DataTable, {

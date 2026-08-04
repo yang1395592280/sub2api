@@ -64,7 +64,7 @@ vi.mock('vue-i18n', async () => {
 
 // Render the per-column header slots so we can assert the usage-window header hint.
 const DataTableStub = {
-  props: ['columns', 'data'],
+  props: ['columns', 'data', 'stickyColumnCount'],
   template: `
     <div data-test="data-table">
       <template v-for="column in columns" :key="column.key">
@@ -77,6 +77,9 @@ const DataTableStub = {
       </template>
       <div v-for="row in data" :key="row.id" data-test="account-rate">
         <slot name="cell-rate_multiplier" :row="row" />
+      </div>
+      <div v-for="row in data" :key="'notes-' + row.id" data-test="account-notes">
+        <slot name="cell-notes" :value="row.notes" />
       </div>
     </div>
   `
@@ -177,6 +180,41 @@ describe('admin AccountsView usage windows hint', () => {
     const columns = wrapper.getComponent(DataTableStub).props('columns') as Array<{ key: string }>
     expect(columns.filter(column => column.key === 'usage')).toHaveLength(1)
     expect(columns.some(column => column.key === 'ollama_cloud_usage')).toBe(false)
+  })
+
+  it('keeps notes beside the account name and preserves configured line breaks', async () => {
+    localStorage.setItem('account-hidden-columns', JSON.stringify(['notes', 'today_stats']))
+    localStorage.setItem('account-hidden-columns-version', 'scheduler-score-hidden-by-default')
+    listAccounts.mockResolvedValueOnce({
+      items: [{
+        id: 8,
+        name: 'multiline-notes-account',
+        notes: '备注1\n备注2\n备注3',
+        platform: 'openai',
+        type: 'apikey',
+        status: 'active',
+        schedulable: true,
+        created_at: '2026-08-04T00:00:00Z',
+        updated_at: '2026-08-04T00:00:00Z'
+      }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const table = wrapper.getComponent(DataTableStub)
+    const columns = table.props('columns') as Array<{ key: string }>
+    expect(columns.slice(0, 3).map(column => column.key)).toEqual(['select', 'name', 'notes'])
+    expect(table.props('stickyColumnCount')).toBe(2)
+
+    const notes = wrapper.get('[data-test="account-notes"] span')
+    expect(notes.text()).toBe('备注1\n备注2\n备注3')
+    expect(notes.classes()).toEqual(expect.arrayContaining(['whitespace-pre-wrap', 'break-words']))
+    expect(JSON.parse(localStorage.getItem('account-hidden-columns') || '[]')).not.toContain('notes')
   })
 
   it('renders the upstream billing trust warning next to the declared-rate column', async () => {
