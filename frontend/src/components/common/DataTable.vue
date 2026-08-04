@@ -105,7 +105,12 @@
           <th
             v-if="selectable"
             scope="col"
-            class="sticky-header-cell w-11 min-w-11 px-3 py-3 text-center"
+            data-selection-column
+            :class="[
+              'sticky-header-cell w-11 min-w-11 px-3 py-3 text-center',
+              { 'sticky-col sticky-col-left': stickyFirstColumn && stickyColumnCount > 0 }
+            ]"
+            :style="stickyFirstColumn && stickyColumnCount > 0 ? { left: '0px' } : undefined"
           >
             <input
               type="checkbox"
@@ -121,6 +126,7 @@
             v-for="(column, index) in columns"
             :key="column.key"
             scope="col"
+            :data-column-key="column.key"
             :aria-sort="column.sortable ? getColumnAriaSort(column.key) : undefined"
             :class="[
               'sticky-header-cell py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400',
@@ -129,6 +135,7 @@
               getStickyColumnClass(column, index),
               column.class
             ]"
+            :style="getStickyColumnStyle(column, index)"
             @click="column.sortable && handleSort(column.key)"
           >
             <div :class="['flex items-center space-x-1', getHeaderContentAlignmentClass(column)]">
@@ -169,10 +176,27 @@
       <tbody class="table-body divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900">
         <!-- Loading skeleton -->
         <tr v-if="loading" v-for="i in 5" :key="i">
-          <td v-if="selectable" class="w-11 min-w-11 px-3 py-4">
+          <td
+            v-if="selectable"
+            :class="[
+              'w-11 min-w-11 px-3 py-4',
+              { 'sticky-col sticky-col-left': stickyFirstColumn && stickyColumnCount > 0 }
+            ]"
+            :style="stickyFirstColumn && stickyColumnCount > 0 ? { left: '0px' } : undefined"
+          >
             <div class="mx-auto h-4 w-4 animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
           </td>
-          <td v-for="column in columns" :key="column.key" :class="['whitespace-nowrap py-4', getAdaptivePaddingClass()]">
+          <td
+            v-for="(column, colIndex) in columns"
+            :key="column.key"
+            :class="[
+              'whitespace-nowrap py-4',
+              getAdaptivePaddingClass(),
+              getStickyColumnClass(column, colIndex),
+              column.class
+            ]"
+            :style="getStickyColumnStyle(column, colIndex)"
+          >
             <div class="animate-pulse">
               <div class="h-4 w-3/4 rounded bg-gray-200 dark:bg-dark-700"></div>
             </div>
@@ -220,7 +244,14 @@
             }"
             @click="clickableRows && emit('rowClick', item.row)"
           >
-            <td v-if="selectable" class="w-11 min-w-11 px-3 py-4 text-center">
+            <td
+              v-if="selectable"
+              :class="[
+                'w-11 min-w-11 px-3 py-4 text-center',
+                { 'sticky-col sticky-col-left': stickyFirstColumn && stickyColumnCount > 0 }
+              ]"
+              :style="stickyFirstColumn && stickyColumnCount > 0 ? { left: '0px' } : undefined"
+            >
               <input
                 type="checkbox"
                 class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
@@ -240,6 +271,7 @@
                 getStickyColumnClass(column, colIndex),
                 column.class
               ]"
+              :style="getStickyColumnStyle(column, colIndex)"
             >
               <slot :name="`cell-${column.key}`"
                     :row="item.row"
@@ -287,6 +319,7 @@ const emit = defineEmits<{
 const tableWrapperRef = ref<HTMLElement | null>(null)
 const isScrollable = ref(false)
 const actionsColumnNeedsExpanding = ref(false)
+const stickyColumnOffsets = ref<Record<string, number>>({})
 
 // --- 虚拟滚动「整表空白」根治 ---
 // 根因:本组件根 .table-wrapper 为 flex:1 / min-h-0,高度由父级 flex 链决定。@tanstack 虚拟化器
@@ -314,6 +347,30 @@ const checkScrollable = () => {
   if (tableWrapperRef.value) {
     isScrollable.value = tableWrapperRef.value.scrollWidth > tableWrapperRef.value.clientWidth
   }
+}
+
+const updateStickyColumnOffsets = () => {
+  if (!tableWrapperRef.value || !props.stickyFirstColumn || props.stickyColumnCount <= 0) {
+    stickyColumnOffsets.value = {}
+    return
+  }
+
+  const headerCells = Array.from(
+    tableWrapperRef.value.querySelectorAll<HTMLElement>('thead th[data-column-key]')
+  )
+  const selectionHeader = tableWrapperRef.value.querySelector<HTMLElement>('thead th[data-selection-column]')
+  let left = props.selectable && selectionHeader
+    ? selectionHeader.getBoundingClientRect().width
+    : 0
+  const nextOffsets: Record<string, number> = {}
+
+  props.columns.forEach((column, index) => {
+    if (!isStickyColumn(index)) return
+    nextOffsets[column.key] = left
+    left += headerCells[index]?.getBoundingClientRect().width ?? 0
+  })
+
+  stickyColumnOffsets.value = nextOffsets
 }
 
 // 检查操作列是否需要展开
@@ -385,17 +442,25 @@ const detachDesktopTableTracking = () => {
 const attachDesktopTableTracking = () => {
   checkScrollable()
   checkActionsColumnWidth()
+  updateStickyColumnOffsets()
   if (tableWrapperRef.value && typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(() => {
       checkScrollable()
       checkActionsColumnWidth()
+      updateStickyColumnOffsets()
     })
     resizeObserver.observe(tableWrapperRef.value)
+    const table = tableWrapperRef.value.querySelector('table')
+    if (table) resizeObserver.observe(table)
+    tableWrapperRef.value
+      .querySelectorAll<HTMLElement>('thead th[data-column-key]')
+      .forEach(cell => resizeObserver?.observe(cell))
   } else {
     // 降级方案：不支持 ResizeObserver 时使用 window resize
     resizeHandler = () => {
       checkScrollable()
       checkActionsColumnWidth()
+      updateStickyColumnOffsets()
     }
     window.addEventListener('resize', resizeHandler)
   }
@@ -434,6 +499,8 @@ interface Props {
   data: any[]
   loading?: boolean
   stickyFirstColumn?: boolean
+  /** Number of leading data columns to keep fixed; a leading select column is fixed in addition. */
+  stickyColumnCount?: number
   stickyActionsColumn?: boolean
   expandableActions?: boolean
   actionsCount?: number // 操作按钮总数，用于判断是否需要展开功能
@@ -476,6 +543,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   loading: false,
   stickyFirstColumn: true,
+  stickyColumnCount: 1,
   stickyActionsColumn: true,
   expandableActions: true,
   defaultSortOrder: 'asc',
@@ -653,11 +721,12 @@ watch(
 // 数据/列变化时重新检查滚动状态
 // 注意：不能监听 actionsExpanded，因为 checkActionsColumnWidth 会临时修改它，会导致无限循环
 watch(
-  [() => props.data.length, columnsSignature],
+  [() => props.data, () => props.data.length, columnsSignature, () => props.stickyColumnCount],
   async () => {
     await nextTick()
     checkScrollable()
     checkActionsColumnWidth()
+    updateStickyColumnOffsets()
   },
   { flush: 'post' }
 )
@@ -852,23 +921,23 @@ const hasSelectColumn = computed(() => {
   return props.columns.length > 0 && props.columns[0].key === 'select'
 })
 
+const stickyColumnLimit = computed(() => {
+  const dataColumnCount = Math.max(0, Math.floor(props.stickyColumnCount))
+  return dataColumnCount + (hasSelectColumn.value ? 1 : 0)
+})
+
+const isStickyColumn = (index: number) => (
+  props.stickyFirstColumn && index < stickyColumnLimit.value
+)
+
 // 生成固定列的 CSS 类
 const getStickyColumnClass = (column: Column, index: number) => {
   const classes: string[] = []
 
-  if (props.stickyFirstColumn) {
-    // 如果第一列是勾选列，固定前两列（勾选+名称）
-    if (hasSelectColumn.value) {
-      if (index === 0) {
-        classes.push('sticky-col sticky-col-left-first')
-      } else if (index === 1) {
-        classes.push('sticky-col sticky-col-left-second')
-      }
-    } else {
-      // 否则只固定第一列
-      if (index === 0) {
-        classes.push('sticky-col sticky-col-left')
-      }
+  if (isStickyColumn(index)) {
+    classes.push('sticky-col sticky-col-left')
+    if (index === stickyColumnLimit.value - 1) {
+      classes.push('sticky-col-left-boundary')
     }
   }
 
@@ -879,6 +948,12 @@ const getStickyColumnClass = (column: Column, index: number) => {
 
   return classes.join(' ')
 }
+
+const getStickyColumnStyle = (column: Column, index: number) => (
+  isStickyColumn(index)
+    ? { left: `${stickyColumnOffsets.value[column.key] ?? 0}px` }
+    : undefined
+)
 
 // 根据列数自适应调整内边距
 const getAdaptivePaddingClass = () => {
@@ -953,7 +1028,6 @@ defineExpose({
 <style scoped>
 /* 表格横向滚动 */
 .table-wrapper {
-  --select-col-width: 52px; /* 勾选列宽度：px-6 (24px*2) + checkbox (16px) */
   position: relative;
   overflow-x: auto;
   overflow-y: auto;
@@ -998,19 +1072,9 @@ defineExpose({
   z-index: 20; /* 表体固定列 */
 }
 
-/* 单列固定（无勾选列时） */
+/* 固定列的具体 left 偏移由表头实际宽度计算 */
 .sticky-col-left {
   left: 0;
-}
-
-/* 双列固定（有勾选列时）：第一列（勾选） */
-.sticky-col-left-first {
-  left: 0;
-}
-
-/* 双列固定（有勾选列时）：第二列（名称） */
-.sticky-col-left-second {
-  left: var(--select-col-width);
 }
 
 /* 操作列固定 */
@@ -1041,22 +1105,8 @@ tbody tr:hover .sticky-col {
   background-color: rgb(31 41 55);
 }
 
-/* 阴影只在可滚动时显示 */
-/* 单列固定右侧阴影 */
-.is-scrollable .sticky-col-left::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 10px;
-  transform: translateX(100%);
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.08), transparent);
-  pointer-events: none;
-}
-
-/* 双列固定：只在第二列显示阴影 */
-.is-scrollable .sticky-col-left-second::after {
+/* 只在最后一个左侧固定列显示滚动阴影 */
+.is-scrollable .sticky-col-left-boundary::after {
   content: '';
   position: absolute;
   top: 0;
@@ -1082,8 +1132,7 @@ tbody tr:hover .sticky-col {
 }
 
 /* 暗色模式阴影 */
-.dark .is-scrollable .sticky-col-left::after,
-.dark .is-scrollable .sticky-col-left-second::after {
+.dark .is-scrollable .sticky-col-left-boundary::after {
   background: linear-gradient(to right, rgba(0, 0, 0, 0.2), transparent);
 }
 
