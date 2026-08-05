@@ -1062,6 +1062,43 @@ func TestUsageLogRepositoryGetUserSpendingRanking(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestUsageLogRepositoryGetUserSpendingRankingPreservesSummaryForOutOfRangePage(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+
+	rows := sqlmock.NewRows([]string{"user_id", "email", "username", "actual_cost", "requests", "tokens", "total", "total_actual_cost", "total_requests", "total_tokens"}).
+		AddRow(nil, nil, nil, nil, nil, nil, int64(23), 40.0, int64(30), int64(2600))
+
+	mock.ExpectQuery("LEFT JOIN ranked ON TRUE").
+		WithArgs(start, end, 12, 24).
+		WillReturnRows(rows)
+
+	got, err := repo.GetUserSpendingRanking(
+		context.Background(),
+		start,
+		end,
+		3,
+		12,
+		usagestats.RankingSortActualCost,
+		usagestats.RankingOrderDesc,
+	)
+	require.NoError(t, err)
+	require.Equal(t, &usagestats.UserSpendingRankingResponse{
+		Ranking:         []usagestats.UserSpendingRankingItem{},
+		TotalActualCost: 40.0,
+		TotalRequests:   30,
+		TotalTokens:     2600,
+		Total:           23,
+		Page:            3,
+		PageSize:        12,
+		Pages:           2,
+	}, got)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestBuildRequestTypeFilterConditionLegacyFallback(t *testing.T) {
 	tests := []struct {
 		name      string

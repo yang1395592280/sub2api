@@ -176,6 +176,14 @@ func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTi
 			WHERE u.created_at >= $1 AND u.created_at < $2
 			GROUP BY u.user_id, us.email, us.username
 		),
+		summary AS (
+			SELECT
+				COUNT(*) as total,
+				COALESCE(SUM(actual_cost), 0) as total_actual_cost,
+				COALESCE(SUM(requests), 0) as total_requests,
+				COALESCE(SUM(tokens), 0) as total_tokens
+			FROM user_spend
+		),
 		ranked AS (
 			SELECT
 				user_id,
@@ -183,27 +191,24 @@ func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTi
 				username,
 				actual_cost,
 				requests,
-				tokens,
-				COUNT(*) OVER () as total,
-				COALESCE(SUM(actual_cost) OVER (), 0) as total_actual_cost,
-				COALESCE(SUM(requests) OVER (), 0) as total_requests,
-				COALESCE(SUM(tokens) OVER (), 0) as total_tokens
+				tokens
 			FROM user_spend
 			ORDER BY %s
 			LIMIT $3 OFFSET $4
 		)
 		SELECT
-			user_id,
-			email,
-			username,
-			actual_cost,
-			requests,
-			tokens,
-			total,
-			total_actual_cost,
-			total_requests,
-			total_tokens
-		FROM ranked
+			ranked.user_id,
+			ranked.email,
+			ranked.username,
+			ranked.actual_cost,
+			ranked.requests,
+			ranked.tokens,
+			summary.total,
+			summary.total_actual_cost,
+			summary.total_requests,
+			summary.total_tokens
+		FROM summary
+		LEFT JOIN ranked ON TRUE
 		ORDER BY %s
 	`, orderClause, orderClause)
 
@@ -224,11 +229,23 @@ func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTi
 	totalRequests := int64(0)
 	totalTokens := int64(0)
 	for rows.Next() {
-		var row UserSpendingRankingItem
-		if err = rows.Scan(&row.UserID, &row.Email, &row.Username, &row.ActualCost, &row.Requests, &row.Tokens, &total, &totalActualCost, &totalRequests, &totalTokens); err != nil {
+		var userID, requests, tokens sql.NullInt64
+		var email, username sql.NullString
+		var actualCost sql.NullFloat64
+		if err = rows.Scan(&userID, &email, &username, &actualCost, &requests, &tokens, &total, &totalActualCost, &totalRequests, &totalTokens); err != nil {
 			return nil, err
 		}
-		ranking = append(ranking, row)
+		// summary 始终返回一行；越界页没有用户行时只保留汇总数据。
+		if userID.Valid {
+			ranking = append(ranking, UserSpendingRankingItem{
+				UserID:     userID.Int64,
+				Email:      email.String,
+				Username:   username.String,
+				ActualCost: actualCost.Float64,
+				Requests:   requests.Int64,
+				Tokens:     tokens.Int64,
+			})
+		}
 	}
 	if err = rows.Err(); err != nil {
 		return nil, err
