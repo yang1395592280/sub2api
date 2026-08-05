@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -74,15 +75,25 @@ func (r *affiliateTicketCampaignRepository) ProcessInviteRegistration(ctx contex
 	if strings.TrimSpace(inviteeIP) == "" {
 		inviteeIP = storedInviteeIP
 	}
+	inviterIP = canonicalCampaignIP(inviterIP)
+	inviteeIP = canonicalCampaignIP(inviteeIP)
 	if storedInviteeIP == "" && inviteeIP != "" {
 		if _, err = tx.ExecContext(ctx, `UPDATE user_affiliates SET registration_ip = $1, updated_at = NOW() WHERE user_id = $2`, inviteeIP, inviteeID); err != nil {
 			return nil, err
 		}
 	}
 
-	sameIP := inviterIP != "" && inviteeIP != "" && inviterIP == inviteeIP
 	status := "granted"
 	riskReason := ""
+	// The campaign must never award a ticket when the trusted proxy chain did
+	// not provide both registration addresses. A missing address is a
+	// deployment/configuration risk, not proof of abuse, so keep registration
+	// successful and record a non-rewarding event for auditability.
+	if !campaignIPUsable(inviterIP) || !campaignIPUsable(inviteeIP) {
+		status = "skipped"
+		riskReason = "trusted registration IP unavailable"
+	}
+	sameIP := status == "granted" && inviterIP == inviteeIP
 	if sameIP {
 		status = "blocked"
 		riskReason = "inviter and invitee registration IP are identical"
@@ -171,6 +182,24 @@ func (r *affiliateTicketCampaignRepository) ProcessInviteRegistration(ctx contex
 		return nil, err
 	}
 	return event, nil
+}
+
+func campaignIPUsable(raw string) bool {
+	addr, err := netip.ParseAddr(canonicalCampaignIP(raw))
+	if err != nil || !addr.IsValid() {
+		return false
+	}
+	// Private/loopback addresses are commonly reverse-proxy or container
+	// addresses. They are not reliable evidence for same-user detection.
+	return !addr.IsPrivate() && !addr.IsLoopback() && !addr.IsUnspecified() && !addr.IsLinkLocalUnicast()
+}
+
+func canonicalCampaignIP(raw string) string {
+	addr, err := netip.ParseAddr(strings.TrimSpace(raw))
+	if err != nil {
+		return ""
+	}
+	return addr.Unmap().String()
 }
 
 func (r *affiliateTicketCampaignRepository) ProcessInviteRecharge(ctx context.Context, inviteeID, orderID int64, amount float64, playDate time.Time) (_ *service.AffiliateTicketCampaignEvent, err error) {

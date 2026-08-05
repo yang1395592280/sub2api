@@ -28,3 +28,22 @@ func TestAffiliateTicketCampaignGrantDelta(t *testing.T) {
 		})
 	}
 }
+
+func TestCampaignIPUsable(t *testing.T) {
+	tests := []struct {
+		name string
+		ip   string
+		want bool
+	}{
+		{name: "public ipv4", ip: "8.8.8.8", want: true},
+		{name: "public ipv6", ip: "2001:4860:4860::8888", want: true},
+		{name: "private proxy address", ip: "10.0.0.5", want: false},
+		{name: "loopback", ip: "127.0.0.1", want: false},
+		{name: "invalid", ip: "not-an-ip", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, campaignIPUsable(tt.ip))
+		})
+	}
+}

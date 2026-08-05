@@ -195,5 +195,5 @@ func normalizeCampaignIP(raw string) string {
 	if addr, err := netip.ParseAddr(raw); err == nil {
 		return addr.Unmap().String()
 	}
-	return raw
+	return ""
 }

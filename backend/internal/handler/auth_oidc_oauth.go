@@ -692,7 +692,7 @@ func (h *AuthHandler) CompleteOIDCOAuthRegistration(c *gin.Context) {
 		return
 	}
 	tokenPair, user, err := h.authService.LoginOrRegisterOAuthWithTokenPairAndPromoCode(
-		service.WithRegistrationIP(c.Request.Context(), ip.GetClientIP(c)),
+		service.WithRegistrationIP(c.Request.Context(), ip.GetTrustedClientIP(c)),
 		email,
 		username,
 		req.InvitationCode,
@@ -1273,7 +1273,7 @@ func (h *AuthHandler) tryOIDCVerifiedEmailFastPath(
 		UpstreamMetadata: upstreamMetadata,
 	}
 	tokenPair, _, err := h.authService.LoginOrRegisterVerifiedEmailOAuthWithSignupCodes(
-		service.WithRegistrationIP(ctx, ip.GetClientIP(c)),
+		service.WithRegistrationIP(ctx, ip.GetTrustedClientIP(c)),
 		input,
 		"",
 		"",
