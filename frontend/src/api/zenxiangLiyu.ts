@@ -30,12 +30,15 @@ export interface ZenxiangLiyuStatus {
   ticket_capacity: number
   ticket_retention_days: number
   tickets_available: number
+  legacy_tickets_available?: number
   today_tickets_earned: number
   today_tickets_from_usage: number
   today_tickets_granted: number
   today_tickets_redeemed: number
   today_tickets_used: number
   today_tickets_available: number
+  today_tickets_from_affiliate?: number
+  affiliate_tickets_available?: number
   next_ticket_usage_target: number
   next_ticket_usage_missing: number
   lucky_coin_enabled: boolean

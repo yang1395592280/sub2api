@@ -402,6 +402,27 @@ export default {
       invitesDescription: '查看全站邀请关系和被邀请用户累计返利',
       rebatesDescription: '查看每一笔产生返利的充值订单',
       transfersDescription: '查看返利额度转入账户余额的提取流水',
+      ticketCampaign: {
+        title: '邀请抽奖券活动',
+        description: '查看邀请注册、首次充值奖励和风控命中记录',
+        searchPlaceholder: '邮箱、IP 或用户 ID',
+        allStatuses: '全部状态',
+        event: '事件',
+        inviter: '邀请人',
+        invitee: '被邀请人',
+        amount: '充值金额',
+        tickets: '赠券',
+        status: '状态',
+        risk: '风控原因',
+        createdAt: '时间',
+        register: '注册奖励',
+        recharge: '充值奖励',
+        granted: '已发放',
+        blocked: '已拦截',
+        frozen: '已冻结',
+        skipped: '未发放',
+        empty: '暂无活动记录'
+      },
       errors: {
         loadFailed: '加载邀请返利记录失败'
       },

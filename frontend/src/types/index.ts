@@ -152,6 +152,38 @@ export interface AffiliateInvitee {
   total_rebate: number
 }
 
+export interface AffiliateTicketCampaignDaily {
+  play_date: string
+  registered_count: number
+  recharge_count: number
+  ticket_count: number
+  daily_cap: number
+  tickets_remaining: number
+}
+
+export interface AffiliateTicketCampaignInvitee {
+  user_id: number
+  email: string
+  username: string
+  registered_at?: string
+  registration_status: string
+  recharge_qualified: boolean
+  ticket_status: string
+  risk_status: string
+}
+
+export interface AffiliateTicketCampaignDetail {
+  enabled: boolean
+  description: string
+  registration_pair: number
+  recharge_threshold: number
+  daily_cap: number
+  ticket_retention_days: number
+  existing_ticket_capacity: number
+  daily: AffiliateTicketCampaignDaily
+  invitees: AffiliateTicketCampaignInvitee[]
+}
+
 export interface UserAffiliateDetail {
   user_id: number
   aff_code: string
@@ -163,6 +195,7 @@ export interface UserAffiliateDetail {
   /** 当前用户作为邀请人时实际生效的返利比例（专属覆盖全局）。0-100。 */
   effective_rebate_rate_percent: number
   invitees: AffiliateInvitee[]
+  ticket_campaign?: AffiliateTicketCampaignDetail | null
 }
 
 export interface AffiliateTransferResponse {

@@ -337,6 +337,7 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder, l
 		if err := s.applyAffiliateRebateForOrder(ctx, o); err != nil {
 			return err
 		}
+		s.awardAffiliateTicketForRecharge(ctx, o)
 		// Code already created and redeemed — just mark completed
 		return s.markCompleted(ctx, o, lease, "RECHARGE_SUCCESS")
 	case redeemActionCreate:
@@ -353,7 +354,19 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder, l
 	if err := s.applyAffiliateRebateForOrder(ctx, o); err != nil {
 		return err
 	}
+	s.awardAffiliateTicketForRecharge(ctx, o)
 	return s.markCompleted(ctx, o, lease, "RECHARGE_SUCCESS")
+}
+
+func (s *PaymentService) awardAffiliateTicketForRecharge(ctx context.Context, o *dbent.PaymentOrder) {
+	if s == nil || s.affiliateService == nil || o == nil || o.ID <= 0 {
+		return
+	}
+	if err := s.affiliateService.ProcessInviteRecharge(ctx, o.UserID, o.ID, o.Amount); err != nil {
+		// Campaign rewards are intentionally fail-open for payment fulfillment;
+		// the unique event key makes the next fulfillment retry safe.
+		slog.Warn("affiliate ticket campaign reward failed", "orderID", o.ID, "userID", o.UserID, "error", err)
+	}
 }
 
 func (s *PaymentService) markCompleted(ctx context.Context, o *dbent.PaymentOrder, lease *paymentFulfillmentLease, auditAction string) error {

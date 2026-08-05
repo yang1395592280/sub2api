@@ -116,37 +116,40 @@ func (u ZenxiangLiyuPrizeUpdate) Prize() ZenxiangLiyuPrize {
 }
 
 type ZenxiangLiyuStatus struct {
-	Visible                bool                `json:"visible"`
-	CanPlay                bool                `json:"can_play"`
-	Reason                 string              `json:"reason,omitempty"`
-	Balance                float64             `json:"balance"`
-	TicketAmount           float64             `json:"ticket_amount"`
-	EffectiveTicketAmount  float64             `json:"effective_ticket_amount"`
-	MinimumBalance         float64             `json:"minimum_balance"`
-	DailyPlayLimit         int                 `json:"daily_play_limit"`
-	TodayPlayCount         int                 `json:"today_play_count"`
-	RemainingPlays         int                 `json:"remaining_plays"`
-	TodayUsageAmount       float64             `json:"today_usage_amount"`
-	FreePlayUsageThreshold float64             `json:"free_play_usage_threshold"`
-	FreePlayAvailable      bool                `json:"free_play_available"`
-	FreePlayUsed           bool                `json:"free_play_used"`
-	TicketUsageThreshold   float64             `json:"ticket_usage_threshold"`
-	DailyTicketLimit       int                 `json:"daily_ticket_limit"`
-	TicketCapacity         int                 `json:"ticket_capacity"`
-	TicketRetentionDays    int                 `json:"ticket_retention_days"`
-	TicketsAvailable       int                 `json:"tickets_available"`
-	LuckyCoinEnabled       bool                `json:"lucky_coin_enabled"`
-	LuckyCoinProbability   float64             `json:"lucky_coin_double_probability"`
-	GuessSizeEnabled       bool                `json:"guess_size_enabled"`
-	TodayTicketsEarned     int                 `json:"today_tickets_earned"`
-	TodayTicketsFromUsage  int                 `json:"today_tickets_from_usage"`
-	TodayTicketsGranted    int                 `json:"today_tickets_granted"`
-	TodayTicketsRedeemed   int                 `json:"today_tickets_redeemed"`
-	TodayTicketsUsed       int                 `json:"today_tickets_used"`
-	TodayTicketsAvailable  int                 `json:"today_tickets_available"`
-	NextTicketUsageTarget  float64             `json:"next_ticket_usage_target"`
-	NextTicketUsageMissing float64             `json:"next_ticket_usage_missing"`
-	Prizes                 []ZenxiangLiyuPrize `json:"prizes"`
+	Visible                   bool                `json:"visible"`
+	CanPlay                   bool                `json:"can_play"`
+	Reason                    string              `json:"reason,omitempty"`
+	Balance                   float64             `json:"balance"`
+	TicketAmount              float64             `json:"ticket_amount"`
+	EffectiveTicketAmount     float64             `json:"effective_ticket_amount"`
+	MinimumBalance            float64             `json:"minimum_balance"`
+	DailyPlayLimit            int                 `json:"daily_play_limit"`
+	TodayPlayCount            int                 `json:"today_play_count"`
+	RemainingPlays            int                 `json:"remaining_plays"`
+	TodayUsageAmount          float64             `json:"today_usage_amount"`
+	FreePlayUsageThreshold    float64             `json:"free_play_usage_threshold"`
+	FreePlayAvailable         bool                `json:"free_play_available"`
+	FreePlayUsed              bool                `json:"free_play_used"`
+	TicketUsageThreshold      float64             `json:"ticket_usage_threshold"`
+	DailyTicketLimit          int                 `json:"daily_ticket_limit"`
+	TicketCapacity            int                 `json:"ticket_capacity"`
+	TicketRetentionDays       int                 `json:"ticket_retention_days"`
+	TicketsAvailable          int                 `json:"tickets_available"`
+	LegacyTicketsAvailable    int                 `json:"legacy_tickets_available"`
+	LuckyCoinEnabled          bool                `json:"lucky_coin_enabled"`
+	LuckyCoinProbability      float64             `json:"lucky_coin_double_probability"`
+	GuessSizeEnabled          bool                `json:"guess_size_enabled"`
+	TodayTicketsEarned        int                 `json:"today_tickets_earned"`
+	TodayTicketsFromUsage     int                 `json:"today_tickets_from_usage"`
+	TodayTicketsGranted       int                 `json:"today_tickets_granted"`
+	TodayTicketsRedeemed      int                 `json:"today_tickets_redeemed"`
+	TodayTicketsUsed          int                 `json:"today_tickets_used"`
+	TodayTicketsAvailable     int                 `json:"today_tickets_available"`
+	TodayTicketsFromAffiliate int                 `json:"today_tickets_from_affiliate"`
+	AffiliateTicketsAvailable int                 `json:"affiliate_tickets_available"`
+	NextTicketUsageTarget     float64             `json:"next_ticket_usage_target"`
+	NextTicketUsageMissing    float64             `json:"next_ticket_usage_missing"`
+	Prizes                    []ZenxiangLiyuPrize `json:"prizes"`
 }
 
 type ZenxiangLiyuPlayCommand struct {
@@ -665,6 +668,17 @@ func (s *ZenxiangLiyuService) GetStatus(ctx context.Context, userID int64) (*Zen
 	status.TicketsAvailable, err = s.repo.SyncTicketBalance(ctx, userID, playDate, *settings)
 	if err != nil {
 		return nil, err
+	}
+	status.LegacyTicketsAvailable = status.TicketsAvailable
+	if campaignCounter, ok := s.repo.(interface {
+		CountAffiliateTicketsAvailable(context.Context, int64, time.Time) (int, error)
+	}); ok {
+		status.AffiliateTicketsAvailable, err = campaignCounter.CountAffiliateTicketsAvailable(ctx, userID, playDate)
+		if err != nil {
+			return nil, err
+		}
+		status.TodayTicketsFromAffiliate = status.AffiliateTicketsAvailable
+		status.TicketsAvailable += status.AffiliateTicketsAvailable
 	}
 	// Keep the legacy field populated for older clients while availability now comes from the persistent wallet.
 	status.TodayTicketsAvailable = status.TicketsAvailable

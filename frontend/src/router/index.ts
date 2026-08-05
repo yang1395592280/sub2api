@@ -731,6 +731,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/affiliates/ticket-campaign',
+    name: 'AdminAffiliateTicketCampaign',
+    component: () => import('@/views/admin/affiliates/AdminAffiliateTicketCampaignView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Invite Ticket Campaign',
+      titleKey: 'nav.affiliateTicketCampaign',
+      descriptionKey: 'admin.affiliates.ticketCampaign.description'
+    }
+  },
+  {
     path: '/admin/affiliates/rebates',
     name: 'AdminAffiliateRebates',
     component: () => import('@/views/admin/affiliates/AdminAffiliateRebatesView.vue'),

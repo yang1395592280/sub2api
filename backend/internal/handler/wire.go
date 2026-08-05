@@ -9,6 +9,12 @@ import (
 	"github.com/google/wire"
 )
 
+func ProvideAdminAffiliateHandler(affiliateService *service.AffiliateService, adminService service.AdminService, ticketCampaign *service.AffiliateTicketCampaignService) *admin.AffiliateHandler {
+	h := admin.NewAffiliateHandler(affiliateService, adminService)
+	h.SetTicketCampaign(ticketCampaign)
+	return h
+}
+
 // ProvideAdminHandlers creates the AdminHandlers struct
 func ProvideAdminHandlers(
 	dashboardHandler *admin.DashboardHandler,
@@ -340,7 +346,7 @@ var ProviderSet = wire.NewSet(
 	admin.ProvideOpenAIAutoSchedulerHandler,
 	admin.NewContentModerationHandler,
 	admin.NewPaymentHandler,
-	admin.NewAffiliateHandler,
+	ProvideAdminAffiliateHandler,
 	admin.NewComplianceHandler,
 	admin.NewAuditLogHandler,
 

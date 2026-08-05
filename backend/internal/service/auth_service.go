@@ -258,10 +258,15 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		if _, err := s.affiliateService.EnsureUserAffiliate(ctx, user.ID); err != nil {
 			logger.LegacyPrintf("service.auth", "[Auth] Failed to initialize affiliate profile for user %d: %v", user.ID, err)
 		}
+		if err := s.affiliateService.RecordRegistrationIP(ctx, user.ID, registrationIPFromContext(ctx)); err != nil {
+			logger.LegacyPrintf("service.auth", "[Auth] Failed to record registration IP for user %d: %v", user.ID, err)
+		}
 		if code := strings.TrimSpace(affiliateCode); code != "" {
 			if err := s.affiliateService.BindInviterByCode(ctx, user.ID, code); err != nil {
-				// 邀请返利码绑定失败不影响注册，只记录日志
 				logger.LegacyPrintf("service.auth", "[Auth] Failed to bind affiliate inviter for user %d: %v", user.ID, err)
+				if errors.Is(err, ErrAffiliateTicketCampaignRisk) {
+					return "", nil, ErrUserNotActive
+				}
 			}
 		}
 	}
@@ -836,6 +841,12 @@ func (s *AuthService) loginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 		}
 	}
 
+	if created {
+		// 风控可能在邀请绑定阶段将新账号置为 disabled，重新读取状态后再签发令牌。
+		if refreshed, refreshErr := s.userRepo.GetByID(ctx, user.ID); refreshErr == nil {
+			user = refreshed
+		}
+	}
 	if !user.IsActive() {
 		return nil, nil, ErrUserNotActive
 	}
@@ -977,6 +988,9 @@ func (s *AuthService) bindOAuthAffiliate(ctx context.Context, userID int64, affi
 	}
 	if _, err := s.affiliateService.EnsureUserAffiliate(ctx, userID); err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Failed to initialize affiliate profile for user %d: %v", userID, err)
+	}
+	if err := s.affiliateService.RecordRegistrationIP(ctx, userID, registrationIPFromContext(ctx)); err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Failed to record OAuth registration IP for user %d: %v", userID, err)
 	}
 	if code := strings.TrimSpace(affiliateCode); code != "" {
 		if err := s.affiliateService.BindInviterByCode(ctx, userID, code); err != nil {

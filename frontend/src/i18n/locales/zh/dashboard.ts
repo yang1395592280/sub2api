@@ -651,6 +651,19 @@ export default {
       line2: '被邀请用户充值后，你可获得 {rate} 的返利额度。',
       line3: '返利额度可随时转入账户余额。',
       line4: '新产生的返利需要经过冻结期后才能提现。'
+    },
+    ticketCampaign: {
+      title: '邀请抽奖券活动',
+      description: '邀请 2 位好友注册赠 1 张；每位好友首次充值满 10 元再赠 1 张。',
+      dailyProgress: '今日活动奖励 {current}/{cap} 张',
+      registerProgress: '今日邀请注册',
+      registerReward: '每满 2 位好友赠 1 张',
+      rechargeProgress: '首次充值达标好友',
+      rechargeReward: '每位首次充值满 {amount} 元赠 1 张',
+      ticketStatus: '今日活动券',
+      retention: '活动券有效期 {days} 天',
+      notice: '活动奖励仅统计通过你的邀请链接注册的好友；异常注册、重复账号或疑似刷奖励行为会被拦截。',
+      capacityNotice: '原有抽奖券最多累计 {limit} 张与本活动每日 10 张上限分开计算。'
     }
   },
 

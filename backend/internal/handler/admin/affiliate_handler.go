@@ -18,6 +18,7 @@ import (
 type AffiliateHandler struct {
 	affiliateService *service.AffiliateService
 	adminService     service.AdminService
+	ticketCampaign   *service.AffiliateTicketCampaignService
 }
 
 // NewAffiliateHandler creates a new admin affiliate handler.
@@ -26,6 +27,35 @@ func NewAffiliateHandler(affiliateService *service.AffiliateService, adminServic
 		affiliateService: affiliateService,
 		adminService:     adminService,
 	}
+}
+
+func (h *AffiliateHandler) SetTicketCampaign(campaign *service.AffiliateTicketCampaignService) {
+	if h != nil {
+		h.ticketCampaign = campaign
+	}
+}
+
+// ListTicketCampaignEvents returns invitation ticket reward and risk events.
+// GET /api/v1/admin/affiliates/ticket-campaign/events
+func (h *AffiliateHandler) ListTicketCampaignEvents(c *gin.Context) {
+	if h.ticketCampaign == nil {
+		response.Success(c, gin.H{"items": []any{}, "total": 0, "page": 1, "page_size": 20})
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	filter := service.AffiliateTicketCampaignEventFilter{
+		Search:    strings.TrimSpace(c.Query("search")),
+		Status:    strings.TrimSpace(c.Query("status")),
+		EventType: strings.TrimSpace(c.Query("event_type")),
+		Page:      page,
+		PageSize:  pageSize,
+	}
+	items, total, err := h.ticketCampaign.ListEvents(c.Request.Context(), filter)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, items, int64(total), page, pageSize)
 }
 
 // ListUsers returns paginated users with custom affiliate settings.

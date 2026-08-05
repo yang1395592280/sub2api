@@ -22,6 +22,7 @@ type zenxiangLiyuServiceTestRepository struct {
 	freePlayUsed     bool
 	giftedTickets    int
 	ticketBalance    int
+	affiliateTickets int
 	grantCalls       int
 	giftCalls        int
 	deleteCalls      int
@@ -123,6 +124,11 @@ func (r *zenxiangLiyuServiceTestRepository) SyncTicketBalance(context.Context, i
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.ticketBalance, nil
+}
+func (r *zenxiangLiyuServiceTestRepository) CountAffiliateTicketsAvailable(context.Context, int64, time.Time) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.affiliateTickets, nil
 }
 func (r *zenxiangLiyuServiceTestRepository) GiftTickets(_ context.Context, gift ZenxiangLiyuTicketGift) (*ZenxiangLiyuTicketGift, error) {
 	r.mu.Lock()
@@ -460,6 +466,21 @@ func TestZenxiangLiyuStatusIncludesGiftedTickets(t *testing.T) {
 	require.Equal(t, 5, status.TicketCapacity)
 	require.Equal(t, 2, status.TicketRetentionDays)
 	require.InDelta(t, 5, status.NextTicketUsageTarget, 0.000001)
+}
+
+func TestZenxiangLiyuStatusKeepsLegacyAndAffiliateTicketPoolsSeparate(t *testing.T) {
+	repo := newZenxiangLiyuServiceTestRepository(true, false)
+	repo.ticketBalance = 4
+	repo.affiliateTickets = 7
+	svc := NewZenxiangLiyuService(repo, func() time.Time { return time.Unix(0, 0).UTC() }, rand.New(rand.NewSource(1)))
+
+	status, err := svc.GetStatus(context.Background(), 224)
+
+	require.NoError(t, err)
+	require.True(t, status.CanPlay)
+	require.Equal(t, 4, status.LegacyTicketsAvailable)
+	require.Equal(t, 7, status.AffiliateTicketsAvailable)
+	require.Equal(t, 11, status.TicketsAvailable)
 }
 
 func TestZenxiangLiyuGiftTicketsUsesTodayAndValidatesCount(t *testing.T) {

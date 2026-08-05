@@ -89,6 +89,24 @@ export interface AffiliateUserOverview {
   history_quota: number
 }
 
+export interface AffiliateTicketCampaignEvent {
+  id: number
+  event_type: 'invite_register' | 'invite_recharge'
+  inviter_id: number
+  inviter_email: string
+  invitee_id: number
+  invitee_email: string
+  order_id?: number | null
+  play_date: string
+  amount: number
+  ticket_count: number
+  status: 'granted' | 'blocked' | 'frozen' | 'skipped'
+  risk_reason?: string
+  inviter_ip?: string
+  invitee_ip?: string
+  created_at: string
+}
+
 export interface UpdateAffiliateUserRequest {
   aff_code?: string
   aff_rebate_rate_percent?: number | null
@@ -215,6 +233,24 @@ export async function getUserOverview(
   return data
 }
 
+export async function listTicketCampaignEvents(
+  params: ListAffiliateRecordsParams & { status?: string; event_type?: string } = {},
+): Promise<PaginatedResponse<AffiliateTicketCampaignEvent>> {
+  const { data } = await apiClient.get<PaginatedResponse<AffiliateTicketCampaignEvent>>(
+    '/admin/affiliates/ticket-campaign/events',
+    {
+      params: {
+        page: params.page ?? 1,
+        page_size: params.page_size ?? 20,
+        search: params.search || undefined,
+        status: params.status || undefined,
+        event_type: params.event_type || undefined,
+      },
+    },
+  )
+  return data
+}
+
 export const affiliatesAPI = {
   listUsers,
   lookupUsers,
@@ -225,6 +261,7 @@ export const affiliatesAPI = {
   listRebateRecords,
   listTransferRecords,
   getUserOverview,
+  listTicketCampaignEvents,
 }
 
 export default affiliatesAPI

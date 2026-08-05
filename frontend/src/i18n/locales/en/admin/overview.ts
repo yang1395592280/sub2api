@@ -402,6 +402,27 @@ export default {
       invitesDescription: 'View site-wide inviter and invitee relationships',
       rebatesDescription: 'View recharge orders that generated affiliate rebates',
       transfersDescription: 'View affiliate quota transfers into account balance',
+      ticketCampaign: {
+        title: 'Invite Ticket Campaign',
+        description: 'Review registration, first-recharge rewards, and risk events',
+        searchPlaceholder: 'Email, IP, or user ID',
+        allStatuses: 'All statuses',
+        event: 'Event',
+        inviter: 'Inviter',
+        invitee: 'Invitee',
+        amount: 'Recharge amount',
+        tickets: 'Tickets',
+        status: 'Status',
+        risk: 'Risk reason',
+        createdAt: 'Created at',
+        register: 'Registration reward',
+        recharge: 'Recharge reward',
+        granted: 'Granted',
+        blocked: 'Blocked',
+        frozen: 'Frozen',
+        skipped: 'Skipped',
+        empty: 'No campaign events'
+      },
       errors: {
         loadFailed: 'Failed to load affiliate records'
       },

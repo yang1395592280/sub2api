@@ -82,6 +82,24 @@ func ProvideAuthService(
 	return svc
 }
 
+// ProvideAffiliateTicketCampaignService wires the invitation lottery-ticket
+// campaign independently from the legacy affiliate rebate flow.
+func ProvideAffiliateTicketCampaignService(repo AffiliateTicketCampaignRepository) *AffiliateTicketCampaignService {
+	return NewAffiliateTicketCampaignService(repo)
+}
+
+func ProvideAffiliateService(
+	repo AffiliateRepository,
+	settingService *SettingService,
+	authCacheInvalidator APIKeyAuthCacheInvalidator,
+	billingCacheService *BillingCacheService,
+	ticketCampaign *AffiliateTicketCampaignService,
+) *AffiliateService {
+	svc := NewAffiliateService(repo, settingService, authCacheInvalidator, billingCacheService)
+	svc.SetTicketCampaign(ticketCampaign)
+	return svc
+}
+
 // ProvideOAuthRefreshAPI creates OAuthRefreshAPI with the default lock TTL.
 func ProvideOAuthRefreshAPI(accountRepo AccountRepository, tokenCache GeminiTokenCache) *OAuthRefreshAPI {
 	return NewOAuthRefreshAPI(accountRepo, tokenCache)
@@ -998,7 +1016,8 @@ var ProviderSet = wire.NewSet(
 	NewChannelService,
 	NewModelPricingResolver,
 	NewContentModerationService,
-	NewAffiliateService,
+	ProvideAffiliateTicketCampaignService,
+	ProvideAffiliateService,
 	ProvidePaymentConfigService,
 	ProvidePaymentService,
 	ProvidePaymentOrderExpiryService,

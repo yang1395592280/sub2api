@@ -191,7 +191,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	_, user, err := h.authService.RegisterWithVerification(
-		c.Request.Context(),
+		service.WithRegistrationIP(c.Request.Context(), ip.GetClientIP(c)),
 		req.Email,
 		req.Password,
 		req.VerifyCode,

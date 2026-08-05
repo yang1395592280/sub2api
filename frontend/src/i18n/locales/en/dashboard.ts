@@ -646,6 +646,19 @@ export default {
       line2: 'When invitees recharge, you receive {rate} of the recharge as rebate quota.',
       line3: 'Transfer rebate quota to balance at any time.',
       line4: 'Newly earned rebates may have a waiting period before they can be transferred.'
+    },
+    ticketCampaign: {
+      title: 'Invite Lottery Ticket Campaign',
+      description: 'Invite 2 friends to register for 1 ticket; each friend who makes a first recharge of at least ¥10 earns 1 more ticket.',
+      dailyProgress: 'Today\'s campaign tickets {current}/{cap}',
+      registerProgress: 'Invited registrations today',
+      registerReward: '1 ticket for every 2 friends',
+      rechargeProgress: 'Friends with qualifying first recharge',
+      rechargeReward: '1 ticket per first recharge of ¥{amount}+',
+      ticketStatus: 'Campaign tickets today',
+      retention: 'Campaign tickets are valid for {days} days',
+      notice: 'Only friends who register through your invite link count. Suspicious, duplicate, or abusive accounts are blocked.',
+      capacityNotice: 'The legacy {limit}-ticket wallet notice is separate from this campaign\'s daily 10-ticket limit.'
     }
   },
 

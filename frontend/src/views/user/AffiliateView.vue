@@ -83,6 +83,43 @@
           </div>
         </div>
 
+        <div v-if="detail.ticket_campaign" class="card p-6">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.ticketCampaign.title') }}</h3>
+              <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ t('affiliate.ticketCampaign.description') }}</p>
+            </div>
+            <span class="rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+              {{ t('affiliate.ticketCampaign.dailyProgress', { current: detail.ticket_campaign.daily.ticket_count, cap: detail.ticket_campaign.daily.daily_cap }) }}
+            </span>
+          </div>
+
+          <div class="mt-4 grid gap-3 sm:grid-cols-3">
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-900">
+              <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('affiliate.ticketCampaign.registerProgress') }}</p>
+              <p class="mt-1 text-xl font-semibold text-gray-900 dark:text-white">
+                {{ detail.ticket_campaign.daily.registered_count }} / {{ detail.ticket_campaign.registration_pair }}
+              </p>
+              <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ t('affiliate.ticketCampaign.registerReward') }}</p>
+            </div>
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-900">
+              <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('affiliate.ticketCampaign.rechargeProgress') }}</p>
+              <p class="mt-1 text-xl font-semibold text-gray-900 dark:text-white">{{ detail.ticket_campaign.daily.recharge_count }}</p>
+              <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ t('affiliate.ticketCampaign.rechargeReward', { amount: detail.ticket_campaign.recharge_threshold }) }}</p>
+            </div>
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-900">
+              <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('affiliate.ticketCampaign.ticketStatus') }}</p>
+              <p class="mt-1 text-xl font-semibold text-emerald-600 dark:text-emerald-400">{{ detail.ticket_campaign.daily.ticket_count }} / {{ detail.ticket_campaign.daily.daily_cap }}</p>
+              <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ t('affiliate.ticketCampaign.retention', { days: detail.ticket_campaign.ticket_retention_days }) }}</p>
+            </div>
+          </div>
+
+          <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
+            <p>{{ t('affiliate.ticketCampaign.notice') }}</p>
+            <p class="mt-1 text-xs opacity-80">{{ t('affiliate.ticketCampaign.capacityNotice', { limit: detail.ticket_campaign.existing_ticket_capacity }) }}</p>
+          </div>
+        </div>
+
         <div class="card p-6">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>

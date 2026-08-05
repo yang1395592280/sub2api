@@ -421,6 +421,19 @@ func (r *zenxiangLiyuRepository) SyncTicketBalance(ctx context.Context, userID i
 	return balance, nil
 }
 
+// CountAffiliateTicketsAvailable reads the independent invitation-campaign
+// ticket pool. It deliberately does not apply the legacy five-ticket wallet
+// capacity; the two pools are displayed separately and consumed together.
+func (r *zenxiangLiyuRepository) CountAffiliateTicketsAvailable(ctx context.Context, userID int64, playDate time.Time) (int, error) {
+	start, _ := zenxiangLiyuUsageWindow(playDate)
+	var count int
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(remaining_count), 0)
+		FROM affiliate_ticket_campaign_batches
+		WHERE inviter_id = $1 AND remaining_count > 0 AND expires_at > $2`, userID, start).Scan(&count)
+	return count, err
+}
+
 func (r *zenxiangLiyuRepository) GiftTickets(ctx context.Context, gift service.ZenxiangLiyuTicketGift) (*service.ZenxiangLiyuTicketGift, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -808,11 +821,17 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 	if err != nil {
 		return nil, err
 	}
-	if availableTickets <= 0 {
+	affiliateTickets, err := countAffiliateTicketsForPlay(ctx, tx, cmd.UserID, playStart)
+	if err != nil {
+		return nil, err
+	}
+	totalAvailableTickets := availableTickets + affiliateTickets
+	if totalAvailableTickets <= 0 {
 		return nil, service.ErrZenxiangLiyuNoTicket
 	}
 	var consumedBatchID int64
-	if err = tx.QueryRowContext(ctx, `
+	if availableTickets > 0 {
+		err = tx.QueryRowContext(ctx, `
 		WITH next_batch AS (
 			SELECT id
 			FROM zenxiang_liyu_ticket_batches
@@ -825,17 +844,36 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 		SET remaining_count = remaining_count - 1, updated_at = NOW()
 		FROM next_batch
 		WHERE batch.id = next_batch.id
-		RETURNING batch.id`, cmd.UserID, playStart).Scan(&consumedBatchID); err != nil {
+		RETURNING batch.id`, cmd.UserID, playStart).Scan(&consumedBatchID)
+	} else {
+		err = tx.QueryRowContext(ctx, `
+		WITH next_batch AS (
+			SELECT id
+			FROM affiliate_ticket_campaign_batches
+			WHERE inviter_id = $1 AND remaining_count > 0 AND expires_at > $2
+			ORDER BY expires_at, id
+			FOR UPDATE
+			LIMIT 1
+		)
+		UPDATE affiliate_ticket_campaign_batches batch
+		SET remaining_count = remaining_count - 1, updated_at = NOW()
+		FROM next_batch
+		WHERE batch.id = next_batch.id
+		RETURNING batch.id`, cmd.UserID, playStart).Scan(&consumedBatchID)
+	}
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, service.ErrZenxiangLiyuNoTicket
 		}
 		return nil, err
 	}
-	if _, err = tx.ExecContext(ctx, `
-		UPDATE zenxiang_liyu_ticket_wallets
-		SET balance = balance - 1, updated_at = NOW()
-		WHERE user_id = $1 AND balance > 0`, cmd.UserID); err != nil {
-		return nil, err
+	if availableTickets > 0 {
+		if _, err = tx.ExecContext(ctx, `
+			UPDATE zenxiang_liyu_ticket_wallets
+			SET balance = balance - 1, updated_at = NOW()
+			WHERE user_id = $1 AND balance > 0`, cmd.UserID); err != nil {
+			return nil, err
+		}
 	}
 
 	var balanceAfterTicket float64
@@ -852,7 +890,7 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 		"today_tickets_earned":     earnedTickets,
 		"today_tickets_gifted":     giftedTickets,
 		"today_tickets_used":       playCount,
-		"tickets_available_before": availableTickets,
+		"tickets_available_before": totalAvailableTickets,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal zenxiang liyu config snapshot: %w", err)
@@ -1423,6 +1461,15 @@ func zenxiangLiyuTicketExpiry(playDate time.Time) time.Time {
 	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
 	start := time.Date(playDate.Year(), playDate.Month(), playDate.Day(), 0, 0, 0, 0, shanghai)
 	return start.AddDate(0, 0, service.ZenxiangLiyuTicketRetentionDays).UTC()
+}
+
+func countAffiliateTicketsForPlay(ctx context.Context, tx *sql.Tx, userID int64, asOf time.Time) (int, error) {
+	var count int
+	err := tx.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(remaining_count), 0)
+		FROM affiliate_ticket_campaign_batches
+		WHERE inviter_id = $1 AND remaining_count > 0 AND expires_at > $2`, userID, asOf).Scan(&count)
+	return count, err
 }
 
 func zenxiangLiyuUsageWindow(playDate time.Time) (time.Time, time.Time) {

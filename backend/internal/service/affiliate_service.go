@@ -90,8 +90,9 @@ type AffiliateDetail struct {
 	// EffectiveRebateRatePercent 是当前用户作为邀请人时实际生效的返利比例：
 	// 优先用户自己的专属比例（aff_rebate_rate_percent），否则回退到全局比例。
 	// 用于在用户的 /affiliate 页面直观展示「分享后能拿到多少」。
-	EffectiveRebateRatePercent float64            `json:"effective_rebate_rate_percent"`
-	Invitees                   []AffiliateInvitee `json:"invitees"`
+	EffectiveRebateRatePercent float64                        `json:"effective_rebate_rate_percent"`
+	Invitees                   []AffiliateInvitee             `json:"invitees"`
+	TicketCampaign             *AffiliateTicketCampaignDetail `json:"ticket_campaign,omitempty"`
 }
 
 type AffiliateRepository interface {
@@ -209,6 +210,16 @@ type AffiliateService struct {
 	settingService       *SettingService
 	authCacheInvalidator APIKeyAuthCacheInvalidator
 	billingCacheService  *BillingCacheService
+	ticketCampaign       *AffiliateTicketCampaignService
+}
+
+// SetTicketCampaign attaches the optional invitation ticket campaign. Keeping
+// it optional preserves existing affiliate behavior when the campaign tables
+// are unavailable during an upgrade.
+func (s *AffiliateService) SetTicketCampaign(campaign *AffiliateTicketCampaignService) {
+	if s != nil {
+		s.ticketCampaign = campaign
+	}
 }
 
 func NewAffiliateService(repo AffiliateRepository, settingService *SettingService, authCacheInvalidator APIKeyAuthCacheInvalidator, billingCacheService *BillingCacheService) *AffiliateService {
@@ -253,6 +264,16 @@ func (s *AffiliateService) GetAffiliateDetail(ctx context.Context, userID int64)
 	if err != nil {
 		return nil, err
 	}
+	var ticketCampaign *AffiliateTicketCampaignDetail
+	if s.ticketCampaign != nil {
+		ticketCampaign, err = s.ticketCampaign.GetDetail(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		for i := range ticketCampaign.Invitees {
+			ticketCampaign.Invitees[i].Email = maskEmail(ticketCampaign.Invitees[i].Email)
+		}
+	}
 	return &AffiliateDetail{
 		UserID:                     summary.UserID,
 		AffCode:                    summary.AffCode,
@@ -263,6 +284,7 @@ func (s *AffiliateService) GetAffiliateDetail(ctx context.Context, userID int64)
 		AffHistoryQuota:            summary.AffHistoryQuota,
 		EffectiveRebateRatePercent: s.resolveRebateRatePercent(ctx, summary),
 		Invitees:                   invitees,
+		TicketCampaign:             ticketCampaign,
 	}, nil
 }
 
@@ -308,7 +330,33 @@ func (s *AffiliateService) BindInviterByCode(ctx context.Context, userID int64, 
 	if !bound {
 		return ErrAffiliateAlreadyBound
 	}
+	if s.ticketCampaign != nil {
+		if err := s.ticketCampaign.OnInviteRegistration(ctx, inviterSummary.UserID, userID); err != nil {
+			if errors.Is(err, ErrAffiliateTicketCampaignRisk) {
+				return err
+			}
+			return err
+		}
+	}
 	return nil
+}
+
+// RecordRegistrationIP stores the first trusted client IP for a newly created
+// account. It is intentionally best-effort so the invitation feature cannot
+// make otherwise valid registration unavailable during a partial migration.
+func (s *AffiliateService) RecordRegistrationIP(ctx context.Context, userID int64, ip string) error {
+	if s == nil || s.ticketCampaign == nil {
+		return nil
+	}
+	return s.ticketCampaign.RecordRegistrationIP(ctx, userID, ip)
+}
+
+// ProcessInviteRecharge awards the first qualifying recharge for an invitee.
+func (s *AffiliateService) ProcessInviteRecharge(ctx context.Context, inviteeID, orderID int64, amount float64) error {
+	if s == nil || s.ticketCampaign == nil {
+		return nil
+	}
+	return s.ticketCampaign.OnInviteRecharge(ctx, inviteeID, orderID, amount)
 }
 
 func (s *AffiliateService) AccrueInviteRebate(ctx context.Context, inviteeUserID int64, baseRechargeAmount float64) (float64, error) {
