@@ -84,8 +84,8 @@ func ProvideAuthService(
 
 // ProvideAffiliateTicketCampaignService wires the invitation lottery-ticket
 // campaign independently from the legacy affiliate rebate flow.
-func ProvideAffiliateTicketCampaignService(repo AffiliateTicketCampaignRepository) *AffiliateTicketCampaignService {
-	return NewAffiliateTicketCampaignService(repo)
+func ProvideAffiliateTicketCampaignService(repo AffiliateTicketCampaignRepository, settingService *SettingService) *AffiliateTicketCampaignService {
+	return NewAffiliateTicketCampaignService(repo, settingService)
 }
 
 func ProvideAffiliateService(

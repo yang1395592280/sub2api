@@ -16,6 +16,10 @@ type affiliateTicketCampaignRepository struct {
 	db *sql.DB
 }
 
+type affiliateTicketCampaignQueryRower interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
 func NewAffiliateTicketCampaignRepository(db *sql.DB) service.AffiliateTicketCampaignRepository {
 	return &affiliateTicketCampaignRepository{db: db}
 }
@@ -30,6 +34,51 @@ func (r *affiliateTicketCampaignRepository) RecordRegistrationIP(ctx context.Con
 		    updated_at = NOW()
 		WHERE user_id = $2`, ip, userID)
 	return err
+}
+
+func (r *affiliateTicketCampaignRepository) GetEligibility(ctx context.Context, userID int64) (*service.AffiliateTicketCampaignEligibility, error) {
+	if r == nil || r.db == nil || userID <= 0 {
+		return emptyAffiliateTicketCampaignEligibility(), nil
+	}
+	return queryAffiliateTicketCampaignEligibility(ctx, r.db, userID)
+}
+
+func queryAffiliateTicketCampaignEligibility(ctx context.Context, queryer affiliateTicketCampaignQueryRower, userID int64) (*service.AffiliateTicketCampaignEligibility, error) {
+	result := emptyAffiliateTicketCampaignEligibility()
+	var status string
+	err := queryer.QueryRowContext(ctx, `
+		SELECT u.status,
+		       u.balance::double precision,
+		       EXISTS (
+		           SELECT 1 FROM usage_logs ul
+		           WHERE ul.user_id = u.id AND ul.actual_cost > 0
+		       ),
+		       COALESCE((
+		           SELECT SUM(ul.actual_cost) FROM usage_logs ul
+		           WHERE ul.user_id = u.id AND ul.actual_cost > 0
+		       ), 0)::double precision
+		FROM users u
+		WHERE u.id = $1 AND u.deleted_at IS NULL`, userID).
+		Scan(&status, &result.CurrentBalance, &result.HasUsageRecord, &result.HistoricalUsage)
+	if err != nil {
+		return nil, err
+	}
+	result.Eligible = affiliateTicketCampaignEligible(status, result.HasUsageRecord, result.HistoricalUsage, result.CurrentBalance)
+	return result, nil
+}
+
+func affiliateTicketCampaignEligible(status string, hasUsageRecord bool, historicalUsage, currentBalance float64) bool {
+	return status == service.StatusActive &&
+		hasUsageRecord &&
+		historicalUsage > service.AffiliateTicketCampaignUsageFloor &&
+		currentBalance > service.AffiliateTicketCampaignBalanceFloor
+}
+
+func emptyAffiliateTicketCampaignEligibility() *service.AffiliateTicketCampaignEligibility {
+	return &service.AffiliateTicketCampaignEligibility{
+		HistoricalUsageThreshold: service.AffiliateTicketCampaignUsageFloor,
+		BalanceThreshold:         service.AffiliateTicketCampaignBalanceFloor,
+	}
 }
 
 func (r *affiliateTicketCampaignRepository) ProcessInviteRegistration(ctx context.Context, inviterID, inviteeID int64, inviteeIP string, playDate time.Time) (_ *service.AffiliateTicketCampaignEvent, err error) {
@@ -82,6 +131,10 @@ func (r *affiliateTicketCampaignRepository) ProcessInviteRegistration(ctx contex
 			return nil, err
 		}
 	}
+	eligibility, eligibilityErr := queryAffiliateTicketCampaignEligibility(ctx, tx, inviterID)
+	if eligibilityErr != nil {
+		return nil, eligibilityErr
+	}
 
 	status := "granted"
 	riskReason := ""
@@ -93,7 +146,7 @@ func (r *affiliateTicketCampaignRepository) ProcessInviteRegistration(ctx contex
 		status = "skipped"
 		riskReason = "trusted registration IP unavailable"
 	}
-	sameIP := status == "granted" && inviterIP == inviteeIP
+	sameIP := campaignIPUsable(inviterIP) && campaignIPUsable(inviteeIP) && inviterIP == inviteeIP
 	if sameIP {
 		status = "blocked"
 		riskReason = "inviter and invitee registration IP are identical"
@@ -152,6 +205,10 @@ func (r *affiliateTicketCampaignRepository) ProcessInviteRegistration(ctx contex
 			}
 		}
 	}
+	if status == "granted" && !eligibility.Eligible {
+		status = "skipped"
+		riskReason = "inviter does not meet campaign eligibility"
+	}
 	if inviterStatus != service.StatusActive || inviteeStatus != service.StatusActive {
 		status = "skipped"
 		if riskReason == "" {
@@ -160,20 +217,36 @@ func (r *affiliateTicketCampaignRepository) ProcessInviteRegistration(ctx contex
 	}
 
 	event := &service.AffiliateTicketCampaignEvent{}
+	inviteeBonus := 0.0
+	if status == "granted" {
+		inviteeBonus = service.AffiliateTicketCampaignInviteeBonus
+	}
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO affiliate_ticket_campaign_events (
-			event_key, event_type, inviter_id, invitee_id, play_date, status,
+			event_key, event_type, inviter_id, invitee_id, play_date, amount, status,
 			risk_reason, inviter_ip, invitee_ip
-		) VALUES ($1, 'invite_register', $2, $3, $4, $5, $6, $7, $8)
+		) VALUES ($1, 'invite_register', $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id, event_type, inviter_id, invitee_id, play_date, amount, ticket_count,
 		          status, risk_reason, inviter_ip, invitee_ip, created_at`,
-		"invite_register:"+strconv.FormatInt(inviteeID, 10), inviterID, inviteeID, playDate, status, riskReason, inviterIP, inviteeIP,
+		"invite_register:"+strconv.FormatInt(inviteeID, 10), inviterID, inviteeID, playDate, inviteeBonus, status, riskReason, inviterIP, inviteeIP,
 	).Scan(&event.ID, &event.EventType, &event.InviterID, &event.InviteeID, &event.PlayDate, &event.Amount,
 		&event.TicketCount, &event.Status, &event.RiskReason, &event.InviterIP, &event.InviteeIP, &event.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
 	if status == "granted" {
+		result, updateErr := tx.ExecContext(ctx, `
+			UPDATE users SET balance = balance + $1, updated_at = NOW()
+			WHERE id = $2 AND status = $3 AND deleted_at IS NULL`, inviteeBonus, inviteeID, service.StatusActive)
+		if updateErr != nil {
+			return nil, updateErr
+		}
+		if affected, rowsErr := result.RowsAffected(); rowsErr != nil || affected != 1 {
+			if rowsErr != nil {
+				return nil, rowsErr
+			}
+			return nil, fmt.Errorf("credit affiliate campaign invitee bonus: user %d is unavailable", inviteeID)
+		}
 		if err = r.grantForDailyEvent(ctx, tx, event, playDate, true); err != nil {
 			return nil, err
 		}
@@ -247,6 +320,14 @@ func (r *affiliateTicketCampaignRepository) ProcessInviteRecharge(ctx context.Co
 
 	status := "granted"
 	riskReason := ""
+	eligibility, eligibilityErr := queryAffiliateTicketCampaignEligibility(ctx, tx, inviterID)
+	if eligibilityErr != nil {
+		return nil, eligibilityErr
+	}
+	if !eligibility.Eligible {
+		status = "skipped"
+		riskReason = "inviter does not meet campaign eligibility"
+	}
 	var hasPriorRecharge bool
 	if err = tx.QueryRowContext(ctx, `
 		SELECT EXISTS(

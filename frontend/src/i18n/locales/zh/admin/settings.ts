@@ -55,6 +55,8 @@ export default {
           description: '老用户邀请新用户注册，新用户充值后老用户按比例获得返利额度。默认关闭。',
           enabled: '启用邀请返利',
           enabledHint: '关闭后用户菜单中的邀请页面入口隐藏、注册时忽略邀请码、新充值不再产生返利。已有返利额度仍可转入余额。',
+          ticketCampaign: '邀请抽奖券活动',
+          ticketCampaignHint: '控制邀请抽奖券和新人体验额度的发放。关闭后不再产生新奖励，已发放的抽奖券仍按原有效期使用。',
           adminRechargeRebate: '管理员充值参与返利',
           adminRechargeRebateHint: '开启后，通过“用户管理 > 充值”增加的余额会产生邀请返利；设置余额和扣款不参与返利。',
           rebateRate: '全局返利比例',

@@ -321,7 +321,8 @@ type SystemSettings struct {
 	CyberSessionBlockTTLSeconds int  `json:"cyber_session_block_ttl_seconds"`
 
 	// Affiliate (邀请返利) feature switch
-	AffiliateEnabled bool `json:"affiliate_enabled"`
+	AffiliateEnabled               bool `json:"affiliate_enabled"`
+	AffiliateTicketCampaignEnabled bool `json:"affiliate_ticket_campaign_enabled"`
 
 	// OpenAI fast/flex policy
 	OpenAIFastPolicySettings *OpenAIFastPolicySettings `json:"openai_fast_policy_settings,omitempty"`

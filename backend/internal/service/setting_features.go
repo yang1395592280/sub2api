@@ -88,6 +88,17 @@ func (s *SettingService) IsAffiliateEnabled(ctx context.Context) bool {
 	return value == "true"
 }
 
+// IsAffiliateTicketCampaignEnabled reports whether new campaign rewards may
+// be issued. Missing settings default to enabled to preserve the deployed
+// campaign behavior; the admin switch can explicitly disable it.
+func (s *SettingService) IsAffiliateTicketCampaignEnabled(ctx context.Context) bool {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyAffiliateTicketCampaignEnabled)
+	if err != nil {
+		return true
+	}
+	return value != "false"
+}
+
 // IsAffiliateAdminRechargeEnabled reports whether admin balance
 // deposits should participate in the affiliate rebate program.
 func (s *SettingService) IsAffiliateAdminRechargeEnabled(ctx context.Context) bool {

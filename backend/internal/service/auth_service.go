@@ -267,6 +267,9 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 				if errors.Is(err, ErrAffiliateTicketCampaignRisk) {
 					return "", nil, ErrUserNotActive
 				}
+			} else if updatedUser, refreshErr := s.userRepo.GetByID(ctx, user.ID); refreshErr == nil {
+				// Campaign registration may atomically credit the new-user bonus.
+				user = updatedUser
 			}
 		}
 	}

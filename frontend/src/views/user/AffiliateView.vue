@@ -89,12 +89,71 @@
               <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.ticketCampaign.title') }}</h3>
               <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ t('affiliate.ticketCampaign.description') }}</p>
             </div>
-            <span class="rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
-              {{ t('affiliate.ticketCampaign.dailyProgress', { current: detail.ticket_campaign.daily.ticket_count, cap: detail.ticket_campaign.daily.daily_cap }) }}
+            <span
+              class="rounded-md px-3 py-1 text-xs font-semibold"
+              :class="detail.ticket_campaign.enabled
+                ? (detail.ticket_campaign.eligibility.eligible
+                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                  : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300')
+                : 'bg-gray-100 text-gray-600 dark:bg-dark-800 dark:text-dark-300'"
+            >
+              {{ !detail.ticket_campaign.enabled
+                ? t('affiliate.ticketCampaign.statusPaused')
+                : (detail.ticket_campaign.eligibility.eligible
+                  ? t('affiliate.ticketCampaign.statusEligible')
+                  : t('affiliate.ticketCampaign.statusPending')) }}
             </span>
           </div>
 
-          <div class="mt-4 grid gap-3 sm:grid-cols-3">
+          <div
+            v-if="!detail.ticket_campaign.enabled"
+            class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-300"
+          >
+            {{ t('affiliate.ticketCampaign.pausedNotice') }}
+          </div>
+
+          <div class="mt-4 border-y border-gray-200 py-4 dark:border-dark-700">
+            <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('affiliate.ticketCampaign.eligibilityTitle') }}</h4>
+            <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ t('affiliate.ticketCampaign.eligibilityDescription') }}</p>
+            <div class="mt-3 grid gap-3 sm:grid-cols-3">
+              <div>
+                <p class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ t('affiliate.ticketCampaign.usageRecord') }}</p>
+                <p class="mt-1 text-sm" :class="detail.ticket_campaign.eligibility.has_usage_record ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'">
+                  {{ detail.ticket_campaign.eligibility.has_usage_record ? t('affiliate.ticketCampaign.conditionMet') : t('affiliate.ticketCampaign.conditionPending') }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('affiliate.ticketCampaign.historicalUsageRule', { amount: formatCurrency(detail.ticket_campaign.eligibility.historical_usage_threshold) }) }}
+                </p>
+                <p class="mt-1 text-sm" :class="detail.ticket_campaign.eligibility.historical_usage > detail.ticket_campaign.eligibility.historical_usage_threshold ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'">
+                  {{ t('affiliate.ticketCampaign.currentValue', { amount: formatCurrency(detail.ticket_campaign.eligibility.historical_usage) }) }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('affiliate.ticketCampaign.balanceRule', { amount: formatCurrency(detail.ticket_campaign.eligibility.balance_threshold) }) }}
+                </p>
+                <p class="mt-1 text-sm" :class="detail.ticket_campaign.eligibility.current_balance > detail.ticket_campaign.eligibility.balance_threshold ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'">
+                  {{ t('affiliate.ticketCampaign.currentValue', { amount: formatCurrency(detail.ticket_campaign.eligibility.current_balance) }) }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+            <p class="text-sm font-medium text-emerald-800 dark:text-emerald-200">{{ t('affiliate.ticketCampaign.inviteeBonusTitle') }}</p>
+            <p class="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
+              {{ t('affiliate.ticketCampaign.inviteeBonusDescription', { amount: formatCurrency(detail.ticket_campaign.invitee_bonus) }) }}
+            </p>
+          </div>
+
+          <div v-if="detail.ticket_campaign.enabled" class="mt-4 flex items-center justify-between text-xs text-gray-500 dark:text-dark-400">
+            <span>{{ t('affiliate.ticketCampaign.rewardProgress') }}</span>
+            <span>{{ t('affiliate.ticketCampaign.dailyProgress', { current: detail.ticket_campaign.daily.ticket_count, cap: detail.ticket_campaign.daily.daily_cap }) }}</span>
+          </div>
+
+          <div v-if="detail.ticket_campaign.enabled" class="mt-3 grid gap-3 sm:grid-cols-3">
             <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-900">
               <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('affiliate.ticketCampaign.registerProgress') }}</p>
               <p class="mt-1 text-xl font-semibold text-gray-900 dark:text-white">
@@ -114,7 +173,7 @@
             </div>
           </div>
 
-          <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
+          <div v-if="detail.ticket_campaign.enabled" class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
             <p>{{ t('affiliate.ticketCampaign.notice') }}</p>
             <p class="mt-1 text-xs opacity-80">{{ t('affiliate.ticketCampaign.capacityNotice', { limit: detail.ticket_campaign.existing_ticket_capacity }) }}</p>
           </div>

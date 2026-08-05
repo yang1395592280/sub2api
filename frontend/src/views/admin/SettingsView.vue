@@ -7094,6 +7094,18 @@
               <div class="flex items-center justify-between">
                 <div>
                   <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.features.affiliate.ticketCampaign') }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t('admin.settings.features.affiliate.ticketCampaignHint') }}
+                  </p>
+                </div>
+                <Toggle v-model="form.affiliate_ticket_campaign_enabled" />
+              </div>
+
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
                     {{ t('admin.settings.features.affiliate.adminRechargeRebate') }}
                   </label>
                   <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -9567,6 +9579,7 @@ const form = reactive<SettingsForm>({
   model_plaza_description: '',
   // Affiliate (邀请返利) feature switch
   affiliate_enabled: false,
+  affiliate_ticket_campaign_enabled: true,
   // Allow user view error requests
   allow_user_view_error_requests: false,
 });
@@ -11190,6 +11203,7 @@ async function saveSettings() {
       model_plaza_description: form.model_plaza_description,
       // Affiliate (邀请返利) feature switch
       affiliate_enabled: form.affiliate_enabled,
+      affiliate_ticket_campaign_enabled: form.affiliate_ticket_campaign_enabled,
       allow_user_view_error_requests: form.allow_user_view_error_requests,
     };
 

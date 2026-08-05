@@ -53,6 +53,28 @@ func TestUpdateSettingsFullPayloadStillClearsSentEmptyFields(t *testing.T) {
 		"an explicitly sent empty value is a deliberate clear, not an omission")
 }
 
+func TestUpdateSettingsAffiliateTicketCampaignSwitchIsWritable(t *testing.T) {
+	h, repo := newStepUpSwitchTestHandler(t, map[string]string{
+		service.SettingKeyAffiliateTicketCampaignEnabled: "true",
+	})
+
+	rec := doUpdateSettings(t, h, map[string]any{"affiliate_ticket_campaign_enabled": false}, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "false", repo.values[service.SettingKeyAffiliateTicketCampaignEnabled])
+}
+
+func TestDiffSettingsDetectsAffiliateTicketCampaignSwitch(t *testing.T) {
+	changed := diffSettings(
+		&service.SystemSettings{AffiliateTicketCampaignEnabled: true},
+		&service.SystemSettings{AffiliateTicketCampaignEnabled: false},
+		nil,
+		nil,
+		UpdateSettingsRequest{},
+	)
+
+	require.Contains(t, changed, service.SettingKeyAffiliateTicketCampaignEnabled)
+}
+
 // smtp_from_email is the one request field whose JSON name differs from its
 // setting key; the alias keeps it from being treated as always-omitted.
 func TestUpdateSettingsSMTPFromAliasIsWritable(t *testing.T) {

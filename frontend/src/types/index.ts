@@ -172,6 +172,15 @@ export interface AffiliateTicketCampaignInvitee {
   risk_status: string
 }
 
+export interface AffiliateTicketCampaignEligibility {
+  eligible: boolean
+  has_usage_record: boolean
+  historical_usage: number
+  current_balance: number
+  historical_usage_threshold: number
+  balance_threshold: number
+}
+
 export interface AffiliateTicketCampaignDetail {
   enabled: boolean
   description: string
@@ -180,6 +189,8 @@ export interface AffiliateTicketCampaignDetail {
   daily_cap: number
   ticket_retention_days: number
   existing_ticket_capacity: number
+  invitee_bonus: number
+  eligibility: AffiliateTicketCampaignEligibility
   daily: AffiliateTicketCampaignDaily
   invitees: AffiliateTicketCampaignInvitee[]
 }

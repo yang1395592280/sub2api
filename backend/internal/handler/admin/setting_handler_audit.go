@@ -582,6 +582,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.AffiliateEnabled != after.AffiliateEnabled {
 		changed = append(changed, "affiliate_enabled")
 	}
+	if before.AffiliateTicketCampaignEnabled != after.AffiliateTicketCampaignEnabled {
+		changed = append(changed, "affiliate_ticket_campaign_enabled")
+	}
 	if before.RiskControlEnabled != after.RiskControlEnabled {
 		changed = append(changed, "risk_control_enabled")
 	}

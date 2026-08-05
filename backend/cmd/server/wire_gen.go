@@ -82,7 +82,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	subscriptionService := service.NewSubscriptionService(groupRepository, userSubscriptionRepository, billingCacheService, client, configConfig)
 	affiliateRepository := repository.NewAffiliateRepository(client, db)
 	affiliateTicketCampaignRepository := repository.NewAffiliateTicketCampaignRepository(db)
-	affiliateTicketCampaignService := service.ProvideAffiliateTicketCampaignService(affiliateTicketCampaignRepository)
+	affiliateTicketCampaignService := service.ProvideAffiliateTicketCampaignService(affiliateTicketCampaignRepository, settingService)
 	affiliateService := service.ProvideAffiliateService(affiliateRepository, settingService, apiKeyAuthCacheInvalidator, billingCacheService, affiliateTicketCampaignService)
 	authService := service.ProvideAuthService(client, userRepository, redeemCodeRepository, refreshTokenCache, configConfig, settingService, emailService, turnstileService, tencentCaptchaService, aliyunCaptchaService, emailQueueService, promoService, subscriptionService, affiliateService, serviceUserPlatformQuotaRepository)
 	userService := service.NewUserService(userRepository, settingRepository, apiKeyAuthCacheInvalidator, billingCache)

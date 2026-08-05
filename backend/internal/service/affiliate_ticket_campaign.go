@@ -13,6 +13,9 @@ const (
 	AffiliateTicketCampaignRegisterPair  = 2
 	AffiliateTicketCampaignRechargeFloor = 10.0
 	AffiliateTicketCampaignRetentionDays = 2
+	AffiliateTicketCampaignUsageFloor    = 20.0
+	AffiliateTicketCampaignBalanceFloor  = 10.0
+	AffiliateTicketCampaignInviteeBonus  = 1.0
 )
 
 var ErrAffiliateTicketCampaignRisk = errors.New("affiliate ticket campaign risk blocked")
@@ -37,16 +40,27 @@ type AffiliateTicketCampaignInvitee struct {
 	RiskStatus         string     `json:"risk_status"`
 }
 
+type AffiliateTicketCampaignEligibility struct {
+	Eligible                 bool    `json:"eligible"`
+	HasUsageRecord           bool    `json:"has_usage_record"`
+	HistoricalUsage          float64 `json:"historical_usage"`
+	CurrentBalance           float64 `json:"current_balance"`
+	HistoricalUsageThreshold float64 `json:"historical_usage_threshold"`
+	BalanceThreshold         float64 `json:"balance_threshold"`
+}
+
 type AffiliateTicketCampaignDetail struct {
-	Enabled                bool                             `json:"enabled"`
-	Description            string                           `json:"description"`
-	RegistrationPair       int                              `json:"registration_pair"`
-	RechargeThreshold      float64                          `json:"recharge_threshold"`
-	DailyCap               int                              `json:"daily_cap"`
-	TicketRetentionDays    int                              `json:"ticket_retention_days"`
-	ExistingTicketCapacity int                              `json:"existing_ticket_capacity"`
-	Daily                  AffiliateTicketCampaignDaily     `json:"daily"`
-	Invitees               []AffiliateTicketCampaignInvitee `json:"invitees"`
+	Enabled                bool                               `json:"enabled"`
+	Description            string                             `json:"description"`
+	RegistrationPair       int                                `json:"registration_pair"`
+	RechargeThreshold      float64                            `json:"recharge_threshold"`
+	DailyCap               int                                `json:"daily_cap"`
+	TicketRetentionDays    int                                `json:"ticket_retention_days"`
+	ExistingTicketCapacity int                                `json:"existing_ticket_capacity"`
+	InviteeBonus           float64                            `json:"invitee_bonus"`
+	Eligibility            AffiliateTicketCampaignEligibility `json:"eligibility"`
+	Daily                  AffiliateTicketCampaignDaily       `json:"daily"`
+	Invitees               []AffiliateTicketCampaignInvitee   `json:"invitees"`
 }
 
 type AffiliateTicketCampaignEvent struct {
@@ -81,18 +95,20 @@ type AffiliateTicketCampaignRepository interface {
 	RecordRegistrationIP(context.Context, int64, string) error
 	ProcessInviteRegistration(context.Context, int64, int64, string, time.Time) (*AffiliateTicketCampaignEvent, error)
 	ProcessInviteRecharge(context.Context, int64, int64, float64, time.Time) (*AffiliateTicketCampaignEvent, error)
+	GetEligibility(context.Context, int64) (*AffiliateTicketCampaignEligibility, error)
 	GetDaily(context.Context, int64, time.Time) (*AffiliateTicketCampaignDaily, error)
 	ListInvitees(context.Context, int64, int) ([]AffiliateTicketCampaignInvitee, error)
 	ListEvents(context.Context, AffiliateTicketCampaignEventFilter) ([]AffiliateTicketCampaignEvent, int, error)
 }
 
 type AffiliateTicketCampaignService struct {
-	repo  AffiliateTicketCampaignRepository
-	clock func() time.Time
+	repo           AffiliateTicketCampaignRepository
+	settingService *SettingService
+	clock          func() time.Time
 }
 
-func NewAffiliateTicketCampaignService(repo AffiliateTicketCampaignRepository) *AffiliateTicketCampaignService {
-	return &AffiliateTicketCampaignService{repo: repo, clock: time.Now}
+func NewAffiliateTicketCampaignService(repo AffiliateTicketCampaignRepository, settingService *SettingService) *AffiliateTicketCampaignService {
+	return &AffiliateTicketCampaignService{repo: repo, settingService: settingService, clock: time.Now}
 }
 
 func (s *AffiliateTicketCampaignService) SetClock(clock func() time.Time) {
@@ -102,7 +118,10 @@ func (s *AffiliateTicketCampaignService) SetClock(clock func() time.Time) {
 }
 
 func (s *AffiliateTicketCampaignService) Enabled(ctx context.Context) bool {
-	return s != nil && s.repo != nil
+	if s == nil || s.repo == nil {
+		return false
+	}
+	return s.settingService == nil || s.settingService.IsAffiliateTicketCampaignEnabled(ctx)
 }
 
 func (s *AffiliateTicketCampaignService) RecordRegistrationIP(ctx context.Context, userID int64, rawIP string) error {
@@ -113,7 +132,7 @@ func (s *AffiliateTicketCampaignService) RecordRegistrationIP(ctx context.Contex
 }
 
 func (s *AffiliateTicketCampaignService) OnInviteRegistration(ctx context.Context, inviterID, inviteeID int64) error {
-	if s == nil || s.repo == nil {
+	if !s.Enabled(ctx) {
 		return nil
 	}
 	event, err := s.repo.ProcessInviteRegistration(ctx, inviterID, inviteeID, registrationIPFromContext(ctx), campaignPlayDate(s.clock()))
@@ -127,7 +146,7 @@ func (s *AffiliateTicketCampaignService) OnInviteRegistration(ctx context.Contex
 }
 
 func (s *AffiliateTicketCampaignService) OnInviteRecharge(ctx context.Context, inviteeID, orderID int64, amount float64) error {
-	if s == nil || s.repo == nil {
+	if !s.Enabled(ctx) {
 		return nil
 	}
 	_, err := s.repo.ProcessInviteRecharge(ctx, inviteeID, orderID, amount, campaignPlayDate(s.clock()))
@@ -139,6 +158,10 @@ func (s *AffiliateTicketCampaignService) GetDetail(ctx context.Context, inviterI
 		return nil, nil
 	}
 	date := campaignPlayDate(s.clock())
+	eligibility, err := s.repo.GetEligibility(ctx, inviterID)
+	if err != nil {
+		return nil, err
+	}
 	daily, err := s.repo.GetDaily(ctx, inviterID, date)
 	if err != nil {
 		return nil, err
@@ -148,13 +171,15 @@ func (s *AffiliateTicketCampaignService) GetDetail(ctx context.Context, inviterI
 		return nil, err
 	}
 	return &AffiliateTicketCampaignDetail{
-		Enabled:                true,
-		Description:            "邀请 2 位好友注册赠 1 张；每位好友首次充值满 10 元再赠 1 张；每日最多获得 10 张；活动券有效期 2 天。",
+		Enabled:                s.Enabled(ctx),
+		Description:            "满足活动参与条件后，邀请 2 位好友注册可获 1 张抽奖券；好友首次充值满 10 元可再获 1 张。",
 		RegistrationPair:       AffiliateTicketCampaignRegisterPair,
 		RechargeThreshold:      AffiliateTicketCampaignRechargeFloor,
 		DailyCap:               AffiliateTicketCampaignDailyCap,
 		TicketRetentionDays:    AffiliateTicketCampaignRetentionDays,
 		ExistingTicketCapacity: ZenxiangLiyuTicketCapacity,
+		InviteeBonus:           AffiliateTicketCampaignInviteeBonus,
+		Eligibility:            *eligibility,
 		Daily:                  *daily,
 		Invitees:               invitees,
 	}, nil

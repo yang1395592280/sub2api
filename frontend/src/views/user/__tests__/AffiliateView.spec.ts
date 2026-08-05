@@ -113,4 +113,63 @@ describe('AffiliateView', () => {
       'affiliate.linkCopied',
     )
   })
+
+  it('shows server-provided campaign eligibility and the invitee bonus', async () => {
+    getAffiliateDetail.mockResolvedValueOnce({
+      user_id: 1,
+      aff_code: affiliateCode,
+      inviter_id: null,
+      aff_count: 3,
+      aff_quota: 0,
+      aff_frozen_quota: 0,
+      aff_history_quota: 0,
+      effective_rebate_rate_percent: 10,
+      invitees: [],
+      ticket_campaign: {
+        enabled: true,
+        description: '',
+        registration_pair: 2,
+        recharge_threshold: 10,
+        daily_cap: 10,
+        ticket_retention_days: 2,
+        existing_ticket_capacity: 5,
+        invitee_bonus: 1,
+        eligibility: {
+          eligible: true,
+          has_usage_record: true,
+          historical_usage: 21,
+          current_balance: 11,
+          historical_usage_threshold: 20,
+          balance_threshold: 10,
+        },
+        daily: {
+          play_date: '2026-08-05',
+          registered_count: 3,
+          recharge_count: 1,
+          ticket_count: 2,
+          daily_cap: 10,
+          tickets_remaining: 8,
+        },
+        invitees: [],
+      },
+    })
+
+    const wrapper = mount(AffiliateView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<main><slot /></main>' },
+          Icon: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('affiliate.ticketCampaign.statusEligible')
+    expect(wrapper.text()).toContain('affiliate.ticketCampaign.eligibilityDescription')
+    expect(wrapper.text()).toContain('affiliate.ticketCampaign.usageRecord')
+    expect(wrapper.text()).toContain('affiliate.ticketCampaign.historicalUsageRule')
+    expect(wrapper.text()).toContain('affiliate.ticketCampaign.balanceRule')
+    expect(wrapper.text()).toContain('affiliate.ticketCampaign.inviteeBonusDescription')
+    expect(wrapper.text()).not.toContain('affiliate.ticketCampaign.pausedNotice')
+  })
 })

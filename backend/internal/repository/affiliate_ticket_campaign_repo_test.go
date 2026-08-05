@@ -1,8 +1,12 @@
 package repository
 
 import (
+	"context"
 	"testing"
+	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,4 +50,77 @@ func TestCampaignIPUsable(t *testing.T) {
 			require.Equal(t, tt.want, campaignIPUsable(tt.ip))
 		})
 	}
+}
+
+func TestAffiliateTicketCampaignEligibilityRequiresStrictThresholds(t *testing.T) {
+	tests := []struct {
+		name     string
+		status   string
+		hasUsage bool
+		usage    float64
+		balance  float64
+		want     bool
+	}{
+		{name: "eligible", status: service.StatusActive, hasUsage: true, usage: 20.01, balance: 10.01, want: true},
+		{name: "usage threshold is strict", status: service.StatusActive, hasUsage: true, usage: 20, balance: 11},
+		{name: "balance threshold is strict", status: service.StatusActive, hasUsage: true, usage: 21, balance: 10},
+		{name: "usage record required", status: service.StatusActive, usage: 21, balance: 11},
+		{name: "active account required", status: service.StatusDisabled, hasUsage: true, usage: 21, balance: 11},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, affiliateTicketCampaignEligible(tt.status, tt.hasUsage, tt.usage, tt.balance))
+		})
+	}
+}
+
+func TestProcessInviteRegistrationCreditsInviteeBonusAtomically(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := &affiliateTicketCampaignRepository{db: db}
+	playDate := time.Date(2026, time.August, 5, 0, 0, 0, 0, time.UTC)
+	createdAt := time.Date(2026, time.August, 5, 10, 0, 0, 0, time.UTC)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT e\.id, e\.event_type.*FROM affiliate_ticket_campaign_events e.*WHERE event_key = \$1`).
+		WithArgs("invite_register:202").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectQuery(`SELECT inviter\.registration_ip, invitee\.registration_ip`).
+		WithArgs(int64(101), int64(202)).
+		WillReturnRows(sqlmock.NewRows([]string{"inviter_ip", "invitee_ip", "inviter_status", "invitee_status"}).
+			AddRow("8.8.8.8", "1.1.1.1", service.StatusActive, service.StatusActive))
+	mock.ExpectQuery(`SELECT u\.status, u\.balance::double precision, EXISTS`).
+		WithArgs(int64(101)).
+		WillReturnRows(sqlmock.NewRows([]string{"status", "balance", "has_usage", "historical_usage"}).
+			AddRow(service.StatusActive, 11.0, true, 21.0))
+	mock.ExpectQuery(`INSERT INTO affiliate_ticket_campaign_events`).
+		WithArgs("invite_register:202", int64(101), int64(202), playDate, 1.0, "granted", "", "8.8.8.8", "1.1.1.1").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "event_type", "inviter_id", "invitee_id", "play_date", "amount", "ticket_count",
+			"status", "risk_reason", "inviter_ip", "invitee_ip", "created_at",
+		}).AddRow(301, "invite_register", 101, 202, playDate, 1.0, 0, "granted", "", "8.8.8.8", "1.1.1.1", createdAt))
+	mock.ExpectExec(`UPDATE users SET balance = balance \+ \$1`).
+		WithArgs(1.0, int64(202), service.StatusActive).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO affiliate_ticket_campaign_daily`).
+		WithArgs(int64(101), playDate).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`SELECT registered_count, recharge_count, ticket_count`).
+		WithArgs(int64(101), playDate).
+		WillReturnRows(sqlmock.NewRows([]string{"registered_count", "recharge_count", "ticket_count"}).AddRow(0, 0, 0))
+	mock.ExpectExec(`UPDATE affiliate_ticket_campaign_daily`).
+		WithArgs(1, 0, 0, int64(101), playDate).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE affiliate_ticket_campaign_events`).
+		WithArgs(0, "granted", int64(301)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	event, err := repo.ProcessInviteRegistration(context.Background(), 101, 202, "1.1.1.1", playDate)
+	require.NoError(t, err)
+	require.Equal(t, 1.0, event.Amount)
+	require.Equal(t, "granted", event.Status)
+	require.NoError(t, mock.ExpectationsWereMet())
 }
