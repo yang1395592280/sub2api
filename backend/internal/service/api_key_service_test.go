@@ -200,6 +200,9 @@ func (s *apiKeyServiceUserSubRepoStub) Create(context.Context, *UserSubscription
 func (s *apiKeyServiceUserSubRepoStub) GetByID(context.Context, int64) (*UserSubscription, error) {
 	panic("unexpected GetByID call")
 }
+func (s *apiKeyServiceUserSubRepoStub) GetByIDForUpdate(context.Context, int64) (*UserSubscription, error) {
+	panic("unexpected GetByIDForUpdate call")
+}
 func (s *apiKeyServiceUserSubRepoStub) GetByIDIncludeDeleted(context.Context, int64) (*UserSubscription, error) {
 	panic("unexpected GetByIDIncludeDeleted call")
 }
