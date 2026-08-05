@@ -811,13 +811,29 @@ func newAPIKeyMatchesAPIKey(tokenKey, apiKey string) bool {
 
 func (s *OpenAIUpstreamBalanceService) fetchNewAPIUserSelfGroupRates(ctx context.Context, baseURL string, auth newAPIUserBalanceAuth) (map[string]float64, error) {
 	sessionCookie := strings.TrimSpace(auth.SessionCookie)
-	if sessionCookie == "" {
-		var err error
-		sessionCookie, err = s.loginNewAPIUserSession(ctx, baseURL, auth)
-		if err != nil {
-			return nil, err
+	if sessionCookie != "" {
+		if rates, err := s.fetchNewAPIUserSelfGroupRatesRequest(ctx, baseURL, auth, sessionCookie); err == nil {
+			return rates, nil
 		}
 	}
+	// new-api deployments commonly allow this endpoint with the user's access
+	// token alone. This is also important for proxied/CF sites where a browser
+	// session cookie is unavailable or the configured cookie has expired.
+	if rates, err := s.fetchNewAPIUserSelfGroupRatesRequest(ctx, baseURL, auth, ""); err == nil {
+		return rates, nil
+	}
+
+	// Fall back to a browser session only when the token-only request is not
+	// accepted (for example, older new-api versions or a site requiring CSRF).
+	var err error
+	sessionCookie, err = s.loginNewAPIUserSession(ctx, baseURL, auth)
+	if err != nil {
+		return nil, err
+	}
+	return s.fetchNewAPIUserSelfGroupRatesRequest(ctx, baseURL, auth, sessionCookie)
+}
+
+func (s *OpenAIUpstreamBalanceService) fetchNewAPIUserSelfGroupRatesRequest(ctx context.Context, baseURL string, auth newAPIUserBalanceAuth, sessionCookie string) (map[string]float64, error) {
 	var payload map[string]any
 	if err := s.doJSONGETWithHeaders(ctx, buildNewAPIUserSelfGroupsURL(baseURL), newAPIUserSessionHeaders(auth, sessionCookie), &payload); err != nil {
 		return nil, err

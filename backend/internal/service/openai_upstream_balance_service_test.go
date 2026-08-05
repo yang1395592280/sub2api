@@ -735,6 +735,43 @@ func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfResolvesGroupRate(t *
 	require.Equal(t, 0.18, *repo.updatedChannelPrice)
 }
 
+func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfResolvesGroupRateWithAccessTokenOnly(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/user/self":
+			_, _ = w.Write([]byte(`{"success":true,"data":{"id":114,"group":"default","quota":50000000}}`))
+		case "/api/token/search":
+			_, _ = w.Write([]byte(`{"success":true,"data":{"items":[{"id":80,"key":"abcd**********mnop","group":"GPT Pro 优惠分组"}]}}`))
+		case "/api/user/self/groups":
+			require.Equal(t, "user-access-token", r.Header.Get("Authorization"))
+			require.Equal(t, "114", r.Header.Get("New-Api-User"))
+			require.Empty(t, r.Header.Get("Cookie"))
+			_, _ = w.Write([]byte(`{"success":true,"data":{"GPT Pro 优惠分组":{"desc":"优惠分组","ratio":0.08}}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	repo := &openAIUpstreamBalanceRepoStub{account: &Account{
+		ID: 114, Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"base_url":                  srv.URL,
+			"api_key":                   "sk-abcdefghijklmnop",
+			"new_api_user_id":           "114",
+			"new_api_user_access_token": "user-access-token",
+		},
+	}}
+
+	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+	_, err := svc.Refresh(context.Background(), 114)
+	require.NoError(t, err)
+	require.Equal(t, "GPT Pro 优惠分组", repo.updatedExtra["upstream_group"])
+	require.Equal(t, 0.08, repo.updatedExtra["upstream_effective_rate_multiplier"])
+	require.NotNil(t, repo.updatedChannelPrice)
+	require.Equal(t, 0.08, *repo.updatedChannelPrice)
+}
+
 func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfLogsInForGroupRateWhenCookieMissing(t *testing.T) {
 	loginCalls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -757,6 +794,10 @@ func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIUserSelfLogsInForGroupRateWhe
 			http.SetCookie(w, &http.Cookie{Name: "new-api-session", Value: "auto"})
 			_, _ = w.Write([]byte(`{"success":true}`))
 		case "/api/user/self/groups":
+			if r.Header.Get("Cookie") == "" {
+				http.Error(w, "session required", http.StatusUnauthorized)
+				return
+			}
 			require.Equal(t, "new-api-session=auto", r.Header.Get("Cookie"))
 			require.Equal(t, "935", r.Header.Get("New-Api-User"))
 			_, _ = w.Write([]byte(`{"success":true,"data":{"Codex":{"desc":"Codex分组-0.18/刀","ratio":0.18}}}`))
