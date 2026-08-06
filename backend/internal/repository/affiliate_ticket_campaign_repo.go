@@ -593,12 +593,6 @@ func (r *affiliateTicketCampaignRepository) ListEvents(ctx context.Context, filt
 		if err := rows.Scan(campaignEventScanArgs(&item)...); err != nil {
 			return nil, 0, err
 		}
-		if item.InviterEmail != "" {
-			item.InviterEmail = maskCampaignEmail(item.InviterEmail)
-		}
-		if item.InviteeEmail != "" {
-			item.InviteeEmail = maskCampaignEmail(item.InviteeEmail)
-		}
 		items = append(items, item)
 	}
 	return items, total, rows.Err()
@@ -625,13 +619,4 @@ func maxInt(a, b int) int {
 		return a
 	}
 	return b
-}
-
-func maskCampaignEmail(email string) string {
-	parts := strings.SplitN(strings.TrimSpace(email), "@", 2)
-	if len(parts) != 2 || parts[0] == "" {
-		return "***"
-	}
-	local := []rune(parts[0])
-	return string(local[0]) + "***@" + parts[1]
 }
