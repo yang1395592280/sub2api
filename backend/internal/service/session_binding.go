@@ -17,6 +17,7 @@ var ErrSessionBindingMismatch = infraerrors.Unauthorized("SESSION_BINDING_MISMAT
 type SessionBinding struct {
 	IP        string
 	UserAgent string
+	DeviceID  string
 }
 
 // Hash 计算绑定指纹哈希（IP 与 UA 合并，任一变化哈希即变化）。
@@ -31,6 +32,16 @@ func (b *SessionBinding) Hash() string {
 	}
 	sum := sha256.Sum256([]byte(ip + "\n" + ua))
 	return hex.EncodeToString(sum[:16])
+}
+
+// DeviceHash returns the non-reversible campaign device summary. DeviceID is
+// a server-issued browser cookie; the raw identifier is never persisted.
+func (b *SessionBinding) DeviceHash() string {
+	if b == nil || strings.TrimSpace(b.DeviceID) == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(strings.TrimSpace(b.DeviceID)))
+	return hex.EncodeToString(sum[:])
 }
 
 type sessionBindingCtxKey struct{}

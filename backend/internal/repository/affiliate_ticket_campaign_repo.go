@@ -25,14 +25,26 @@ func NewAffiliateTicketCampaignRepository(db *sql.DB) service.AffiliateTicketCam
 }
 
 func (r *affiliateTicketCampaignRepository) RecordRegistrationIP(ctx context.Context, userID int64, ip string) error {
+	return r.RecordParticipation(ctx, userID, ip, "")
+}
+
+func (r *affiliateTicketCampaignRepository) RecordParticipation(ctx context.Context, userID int64, ip, deviceHash string) error {
+	ip = canonicalCampaignIP(ip)
+	if !campaignIPUsable(ip) {
+		ip = ""
+	}
+	deviceHash = canonicalCampaignDeviceHash(deviceHash)
 	if r == nil || r.db == nil || userID <= 0 || strings.TrimSpace(ip) == "" {
-		return nil
+		if r == nil || r.db == nil || userID <= 0 || strings.TrimSpace(deviceHash) == "" {
+			return nil
+		}
 	}
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE user_affiliates
-		SET registration_ip = CASE WHEN registration_ip = '' THEN $1 ELSE registration_ip END,
+		SET registration_ip = CASE WHEN registration_ip = '' AND $1 <> '' THEN $1 ELSE registration_ip END,
+		    campaign_device_hash = CASE WHEN campaign_device_hash = '' AND $2 <> '' THEN $2 ELSE campaign_device_hash END,
 		    updated_at = NOW()
-		WHERE user_id = $2`, ip, userID)
+		WHERE user_id = $3`, ip, deviceHash, userID)
 	return err
 }
 
@@ -81,7 +93,7 @@ func emptyAffiliateTicketCampaignEligibility() *service.AffiliateTicketCampaignE
 	}
 }
 
-func (r *affiliateTicketCampaignRepository) ProcessInviteRegistration(ctx context.Context, inviterID, inviteeID int64, inviteeIP string, playDate time.Time) (_ *service.AffiliateTicketCampaignEvent, err error) {
+func (r *affiliateTicketCampaignRepository) ProcessInviteRegistration(ctx context.Context, inviterID, inviteeID int64, inviteeIP, inviteeDeviceHash string, playDate time.Time) (_ *service.AffiliateTicketCampaignEvent, err error) {
 	if r == nil || r.db == nil || inviterID <= 0 || inviteeID <= 0 || inviterID == inviteeID {
 		return nil, nil
 	}
@@ -105,16 +117,18 @@ func (r *affiliateTicketCampaignRepository) ProcessInviteRegistration(ctx contex
 		return nil, scanErr
 	}
 
-	var inviterIP, storedInviteeIP, inviterStatus, inviteeStatus string
+	var inviterIP, storedInviteeIP, inviterDeviceHash, storedInviteeDeviceHash, inviterStatus, inviteeStatus string
 	err = tx.QueryRowContext(ctx, `
-		SELECT inviter.registration_ip, invitee.registration_ip, inviter_user.status, invitee_user.status
+		SELECT inviter.registration_ip, invitee.registration_ip,
+		       inviter.campaign_device_hash, invitee.campaign_device_hash,
+		       inviter_user.status, invitee_user.status
 		FROM user_affiliates inviter
 		JOIN user_affiliates invitee ON invitee.user_id = $2
 		JOIN users inviter_user ON inviter_user.id = inviter.user_id
 		JOIN users invitee_user ON invitee_user.id = invitee.user_id
 		WHERE inviter.user_id = $1 AND invitee.inviter_id = $1
 		FOR UPDATE OF inviter, invitee, inviter_user, invitee_user`, inviterID, inviteeID).
-		Scan(&inviterIP, &storedInviteeIP, &inviterStatus, &inviteeStatus)
+		Scan(&inviterIP, &storedInviteeIP, &inviterDeviceHash, &storedInviteeDeviceHash, &inviterStatus, &inviteeStatus)
 	if errorsIsNoRows(err) {
 		return nil, nil
 	}
@@ -124,10 +138,18 @@ func (r *affiliateTicketCampaignRepository) ProcessInviteRegistration(ctx contex
 	if strings.TrimSpace(inviteeIP) == "" {
 		inviteeIP = storedInviteeIP
 	}
+	if strings.TrimSpace(inviteeDeviceHash) == "" {
+		inviteeDeviceHash = storedInviteeDeviceHash
+	}
 	inviterIP = canonicalCampaignIP(inviterIP)
 	inviteeIP = canonicalCampaignIP(inviteeIP)
-	if storedInviteeIP == "" && inviteeIP != "" {
-		if _, err = tx.ExecContext(ctx, `UPDATE user_affiliates SET registration_ip = $1, updated_at = NOW() WHERE user_id = $2`, inviteeIP, inviteeID); err != nil {
+	inviterDeviceHash = canonicalCampaignDeviceHash(inviterDeviceHash)
+	inviteeDeviceHash = canonicalCampaignDeviceHash(inviteeDeviceHash)
+	if (storedInviteeIP == "" && inviteeIP != "") || (storedInviteeDeviceHash == "" && inviteeDeviceHash != "") {
+		if _, err = tx.ExecContext(ctx, `UPDATE user_affiliates
+			SET registration_ip = CASE WHEN registration_ip = '' THEN $1 ELSE registration_ip END,
+			    campaign_device_hash = CASE WHEN campaign_device_hash = '' THEN $2 ELSE campaign_device_hash END,
+			    updated_at = NOW() WHERE user_id = $3`, inviteeIP, inviteeDeviceHash, inviteeID); err != nil {
 			return nil, err
 		}
 	}
@@ -146,10 +168,10 @@ func (r *affiliateTicketCampaignRepository) ProcessInviteRegistration(ctx contex
 		status = "skipped"
 		riskReason = "trusted registration IP unavailable"
 	}
-	sameIP := campaignIPUsable(inviterIP) && campaignIPUsable(inviteeIP) && inviterIP == inviteeIP
-	if sameIP {
+	sameIP, sameDevice := campaignRegistrationRisk(inviterIP, inviteeIP, inviterDeviceHash, inviteeDeviceHash)
+	if sameDevice {
 		status = "blocked"
-		riskReason = "inviter and invitee registration IP are identical"
+		riskReason = "inviter and invitee share the same network and device"
 		if _, err = tx.ExecContext(ctx, `
 			UPDATE users SET status = $1, updated_at = NOW()
 			WHERE id = $2 AND role = $3 AND deleted_at IS NULL`, service.StatusDisabled, inviteeID, service.RoleUser); err != nil {
@@ -182,7 +204,7 @@ func (r *affiliateTicketCampaignRepository) ProcessInviteRegistration(ctx contex
 			WHERE b.event_id = e.id
 			  AND b.inviter_id = $1
 			  AND e.play_date = $2
-			  AND e.status = 'granted'`, inviterID, playDate, "frozen after identical-IP invitation risk"); err != nil {
+			  AND e.status = 'granted'`, inviterID, playDate, "frozen after same-network and same-device invitation risk"); err != nil {
 			return nil, err
 		}
 		var blockedCount int
@@ -200,10 +222,15 @@ func (r *affiliateTicketCampaignRepository) ProcessInviteRegistration(ctx contex
 			if _, err = tx.ExecContext(ctx, `
 				UPDATE user_affiliates
 				SET risk_status = 'blocked', risk_reason = $1, updated_at = NOW()
-				WHERE user_id = $2`, "repeated identical-IP invitation risk", inviterID); err != nil {
+				WHERE user_id = $2`, "repeated same-network and same-device invitation risk", inviterID); err != nil {
 				return nil, err
 			}
 		}
+	} else if sameIP {
+		// Shared office/home egress IPs are common. Keep the event eligible when
+		// the server-side session/device summaries differ, while leaving an
+		// audit hint for administrators.
+		riskReason = "identical registration IP with different device session"
 	}
 	if status == "granted" && !eligibility.Eligible {
 		status = "skipped"
@@ -273,6 +300,27 @@ func canonicalCampaignIP(raw string) string {
 		return ""
 	}
 	return addr.Unmap().String()
+}
+
+func canonicalCampaignDeviceHash(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if len(raw) > 128 {
+		return raw[:128]
+	}
+	return raw
+}
+
+func campaignRegistrationRisk(inviterIP, inviteeIP, inviterDeviceHash, inviteeDeviceHash string) (sameIP, sameDevice bool) {
+	inviterIP = canonicalCampaignIP(inviterIP)
+	inviteeIP = canonicalCampaignIP(inviteeIP)
+	sameIP = campaignIPUsable(inviterIP) && campaignIPUsable(inviteeIP) && inviterIP == inviteeIP
+	if !sameIP {
+		return false, false
+	}
+	inviterDeviceHash = canonicalCampaignDeviceHash(inviterDeviceHash)
+	inviteeDeviceHash = canonicalCampaignDeviceHash(inviteeDeviceHash)
+	sameDevice = inviterDeviceHash != "" && inviteeDeviceHash != "" && inviterDeviceHash == inviteeDeviceHash
+	return sameIP, sameDevice
 }
 
 func (r *affiliateTicketCampaignRepository) ProcessInviteRecharge(ctx context.Context, inviteeID, orderID int64, amount float64, playDate time.Time) (_ *service.AffiliateTicketCampaignEvent, err error) {

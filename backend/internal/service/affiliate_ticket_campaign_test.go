@@ -19,9 +19,19 @@ type affiliateTicketCampaignRepoStub struct {
 	AffiliateTicketCampaignRepository
 	registrationCalls int
 	rechargeCalls     int
+	participationID   int64
+	participationIP   string
+	participationHash string
 }
 
-func (r *affiliateTicketCampaignRepoStub) ProcessInviteRegistration(context.Context, int64, int64, string, time.Time) (*AffiliateTicketCampaignEvent, error) {
+func (r *affiliateTicketCampaignRepoStub) RecordParticipation(_ context.Context, userID int64, ip, deviceHash string) error {
+	r.participationID = userID
+	r.participationIP = ip
+	r.participationHash = deviceHash
+	return nil
+}
+
+func (r *affiliateTicketCampaignRepoStub) ProcessInviteRegistration(context.Context, int64, int64, string, string, time.Time) (*AffiliateTicketCampaignEvent, error) {
 	r.registrationCalls++
 	return nil, nil
 }
@@ -73,4 +83,18 @@ func TestAffiliateTicketCampaignSwitchGuardsRewardEvents(t *testing.T) {
 	require.NoError(t, svc.OnInviteRecharge(ctx, 2, 10, AffiliateTicketCampaignRechargeFloor))
 	require.Equal(t, 1, repo.registrationCalls)
 	require.Equal(t, 1, repo.rechargeCalls)
+}
+
+func TestCaptureParticipationUsesServerSessionContext(t *testing.T) {
+	repo := &affiliateTicketCampaignRepoStub{}
+	svc := NewAffiliateTicketCampaignService(repo, nil)
+	ctx := WithSessionBinding(context.Background(), &SessionBinding{
+		IP:       "8.8.8.8",
+		DeviceID: "server-issued-device-id",
+	})
+
+	require.NoError(t, svc.CaptureParticipation(ctx, 42))
+	require.Equal(t, int64(42), repo.participationID)
+	require.Equal(t, "8.8.8.8", repo.participationIP)
+	require.Equal(t, (&SessionBinding{DeviceID: "server-issued-device-id"}).DeviceHash(), repo.participationHash)
 }

@@ -266,6 +266,9 @@ func (s *AffiliateService) GetAffiliateDetail(ctx context.Context, userID int64)
 	}
 	var ticketCampaign *AffiliateTicketCampaignDetail
 	if s.ticketCampaign != nil {
+		// Best-effort capture for legacy accounts whose registration IP predates
+		// the campaign migration. The value is derived from server context only.
+		_ = s.ticketCampaign.CaptureParticipation(ctx, userID)
 		ticketCampaign, err = s.ticketCampaign.GetDetail(ctx, userID)
 		if err != nil {
 			return nil, err

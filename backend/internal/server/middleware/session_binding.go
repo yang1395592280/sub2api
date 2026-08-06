@@ -1,13 +1,22 @@
 package middleware
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
+)
+
+const (
+	persistentDeviceCookieName = "sub2api_device"
+	persistentDeviceCookieAge  = 365 * 24 * time.Hour
 )
 
 // SessionBindingContext 全局中间件：将请求的客户端 IP 与 User-Agent 注入
@@ -21,13 +30,65 @@ func SessionBindingContext(cfg *config.Config) gin.HandlerFunc {
 		ip.SetForwardedIPSettings(c, forwardedIPSettings.TrustForwardedIP, forwardedIPSettings.Headers)
 		userAgent := normalizePersistentText(c.Request.UserAgent(), maxPersistentUserAgentBytes)
 		c.Request.Header.Set("User-Agent", userAgent)
+		deviceID := persistentDeviceID(c)
 		binding := &service.SessionBinding{
 			IP:        ip.GetSecurityClientIP(c, forwardedIPSettings.TrustForwardedIP),
 			UserAgent: userAgent,
+			DeviceID:  deviceID,
 		}
 		c.Request = c.Request.WithContext(service.WithSessionBinding(c.Request.Context(), binding))
 		c.Next()
 	}
+}
+
+func persistentDeviceID(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	if value, err := c.Cookie(persistentDeviceCookieName); err == nil && validPersistentDeviceID(value) {
+		return value
+	}
+	value, err := newPersistentDeviceID()
+	if err != nil {
+		return ""
+	}
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     persistentDeviceCookieName,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   int(persistentDeviceCookieAge / time.Second),
+		HttpOnly: true,
+		Secure:   requestUsesHTTPS(c),
+		SameSite: http.SameSiteLaxMode,
+	})
+	return value
+}
+
+func newPersistentDeviceID() (string, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(raw), nil
+}
+
+func validPersistentDeviceID(value string) bool {
+	if len(value) != 64 {
+		return false
+	}
+	_, err := hex.DecodeString(value)
+	return err == nil
+}
+
+func requestUsesHTTPS(c *gin.Context) bool {
+	if c == nil || c.Request == nil {
+		return false
+	}
+	if c.Request.TLS != nil {
+		return true
+	}
+	proto := strings.TrimSpace(strings.Split(c.GetHeader("X-Forwarded-Proto"), ",")[0])
+	return strings.EqualFold(proto, "https")
 }
 
 // requestSessionBinding 返回当前请求的会话指纹，优先取 SessionBindingContext

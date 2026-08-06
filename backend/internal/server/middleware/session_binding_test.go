@@ -106,6 +106,32 @@ func TestSessionBindingContextBoundsPersistedUserAgent(t *testing.T) {
 	require.Equal(t, 200, w.Code)
 }
 
+func TestSessionBindingContextIssuesAndReusesDeviceCookie(t *testing.T) {
+	cfg := &config.Config{}
+	r := gin.New()
+	r.Use(SessionBindingContext(cfg))
+	var hashes []string
+	r.GET("/t", func(c *gin.Context) {
+		hashes = append(hashes, service.SessionBindingFromContext(c.Request.Context()).DeviceHash())
+		c.Status(200)
+	})
+
+	first := httptest.NewRecorder()
+	r.ServeHTTP(first, httptest.NewRequest("GET", "/t", nil))
+	require.NotEmpty(t, hashes[0])
+	cookies := first.Result().Cookies()
+	require.Len(t, cookies, 1)
+	require.Equal(t, persistentDeviceCookieName, cookies[0].Name)
+	require.True(t, cookies[0].HttpOnly)
+
+	second := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/t", nil)
+	req.AddCookie(cookies[0])
+	r.ServeHTTP(second, req)
+	require.Equal(t, hashes[0], hashes[1])
+	require.Empty(t, second.Result().Cookies())
+}
+
 // 未经过 SessionBindingContext 注入时（异常挂载顺序/单测直调），回退 trusted_proxies 链，
 // 等价于开关关闭时的历史行为。
 func TestSecurityClientIPFallsBackWithoutInjectedBinding(t *testing.T) {

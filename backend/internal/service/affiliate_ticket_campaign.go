@@ -93,7 +93,8 @@ type AffiliateTicketCampaignEventFilter struct {
 
 type AffiliateTicketCampaignRepository interface {
 	RecordRegistrationIP(context.Context, int64, string) error
-	ProcessInviteRegistration(context.Context, int64, int64, string, time.Time) (*AffiliateTicketCampaignEvent, error)
+	RecordParticipation(context.Context, int64, string, string) error
+	ProcessInviteRegistration(context.Context, int64, int64, string, string, time.Time) (*AffiliateTicketCampaignEvent, error)
 	ProcessInviteRecharge(context.Context, int64, int64, float64, time.Time) (*AffiliateTicketCampaignEvent, error)
 	GetEligibility(context.Context, int64) (*AffiliateTicketCampaignEligibility, error)
 	GetDaily(context.Context, int64, time.Time) (*AffiliateTicketCampaignDaily, error)
@@ -128,14 +129,28 @@ func (s *AffiliateTicketCampaignService) RecordRegistrationIP(ctx context.Contex
 	if s == nil || s.repo == nil || userID <= 0 {
 		return nil
 	}
-	return s.repo.RecordRegistrationIP(ctx, userID, normalizeCampaignIP(rawIP))
+	return s.repo.RecordParticipation(ctx, userID, normalizeCampaignIP(rawIP), campaignDeviceHashFromContext(ctx))
+}
+
+// CaptureParticipation records the first trusted network/device summary for
+// an existing user. This lets accounts created before the campaign migration
+// participate after a normal authenticated visit to the activity page.
+func (s *AffiliateTicketCampaignService) CaptureParticipation(ctx context.Context, userID int64) error {
+	if s == nil || s.repo == nil || userID <= 0 || !s.Enabled(ctx) {
+		return nil
+	}
+	binding := SessionBindingFromContext(ctx)
+	if binding == nil {
+		return nil
+	}
+	return s.repo.RecordParticipation(ctx, userID, normalizeCampaignIP(binding.IP), binding.DeviceHash())
 }
 
 func (s *AffiliateTicketCampaignService) OnInviteRegistration(ctx context.Context, inviterID, inviteeID int64) error {
 	if !s.Enabled(ctx) {
 		return nil
 	}
-	event, err := s.repo.ProcessInviteRegistration(ctx, inviterID, inviteeID, registrationIPFromContext(ctx), campaignPlayDate(s.clock()))
+	event, err := s.repo.ProcessInviteRegistration(ctx, inviterID, inviteeID, registrationIPFromContext(ctx), campaignDeviceHashFromContext(ctx), campaignPlayDate(s.clock()))
 	if err != nil {
 		return err
 	}
@@ -172,7 +187,7 @@ func (s *AffiliateTicketCampaignService) GetDetail(ctx context.Context, inviterI
 	}
 	return &AffiliateTicketCampaignDetail{
 		Enabled:                s.Enabled(ctx),
-		Description:            "满足活动参与条件后，邀请 2 位好友注册可获 1 张抽奖券；好友首次充值满 10 元可再获 1 张。",
+		Description:            "满足活动参与条件后，邀请 2 位好友注册可获 1 张抽奖券；好友首次充值满 10 元可再获 1 张。为保障活动公平，系统会综合网络环境与设备信息进行校验，同一单位网络下使用不同设备的正常邀请不受单一 IP 影响。",
 		RegistrationPair:       AffiliateTicketCampaignRegisterPair,
 		RechargeThreshold:      AffiliateTicketCampaignRechargeFloor,
 		DailyCap:               AffiliateTicketCampaignDailyCap,
@@ -210,6 +225,21 @@ func registrationIPFromContext(ctx context.Context) string {
 	}
 	value, _ := ctx.Value(campaignRegistrationIPContextKey{}).(string)
 	return normalizeCampaignIP(value)
+}
+
+func campaignDeviceHashFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	return normalizeCampaignDeviceHash(SessionBindingFromContext(ctx).DeviceHash())
+}
+
+func normalizeCampaignDeviceHash(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if len(raw) > 128 {
+		return raw[:128]
+	}
+	return raw
 }
 
 func normalizeCampaignIP(raw string) string {

@@ -74,6 +74,31 @@ func TestAffiliateTicketCampaignEligibilityRequiresStrictThresholds(t *testing.T
 	}
 }
 
+func TestCampaignRegistrationRiskRequiresSameNetworkAndDevice(t *testing.T) {
+	tests := []struct {
+		name           string
+		inviterIP      string
+		inviteeIP      string
+		inviterDevice  string
+		inviteeDevice  string
+		wantSameIP     bool
+		wantSameDevice bool
+	}{
+		{name: "shared company IP different devices", inviterIP: "8.8.8.8", inviteeIP: "8.8.8.8", inviterDevice: "device-a", inviteeDevice: "device-b", wantSameIP: true},
+		{name: "same network and same device", inviterIP: "8.8.8.8", inviteeIP: "8.8.8.8", inviterDevice: "device-a", inviteeDevice: "device-a", wantSameIP: true, wantSameDevice: true},
+		{name: "same network missing device evidence", inviterIP: "8.8.8.8", inviteeIP: "8.8.8.8", inviterDevice: "", inviteeDevice: "", wantSameIP: true},
+		{name: "different networks", inviterIP: "8.8.8.8", inviteeIP: "1.1.1.1", inviterDevice: "device-a", inviteeDevice: "device-a"},
+		{name: "private addresses are not trusted risk evidence", inviterIP: "192.168.1.10", inviteeIP: "192.168.1.10", inviterDevice: "device-a", inviteeDevice: "device-a"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sameIP, sameDevice := campaignRegistrationRisk(tt.inviterIP, tt.inviteeIP, tt.inviterDevice, tt.inviteeDevice)
+			require.Equal(t, tt.wantSameIP, sameIP)
+			require.Equal(t, tt.wantSameDevice, sameDevice)
+		})
+	}
+}
+
 func TestProcessInviteRegistrationCreditsInviteeBonusAtomically(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -89,8 +114,8 @@ func TestProcessInviteRegistrationCreditsInviteeBonusAtomically(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 	mock.ExpectQuery(`SELECT inviter\.registration_ip, invitee\.registration_ip`).
 		WithArgs(int64(101), int64(202)).
-		WillReturnRows(sqlmock.NewRows([]string{"inviter_ip", "invitee_ip", "inviter_status", "invitee_status"}).
-			AddRow("8.8.8.8", "1.1.1.1", service.StatusActive, service.StatusActive))
+		WillReturnRows(sqlmock.NewRows([]string{"inviter_ip", "invitee_ip", "inviter_device_hash", "invitee_device_hash", "inviter_status", "invitee_status"}).
+			AddRow("8.8.8.8", "1.1.1.1", "", "", service.StatusActive, service.StatusActive))
 	mock.ExpectQuery(`SELECT u\.status, u\.balance::double precision, EXISTS`).
 		WithArgs(int64(101)).
 		WillReturnRows(sqlmock.NewRows([]string{"status", "balance", "has_usage", "historical_usage"}).
@@ -118,7 +143,7 @@ func TestProcessInviteRegistrationCreditsInviteeBonusAtomically(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
-	event, err := repo.ProcessInviteRegistration(context.Background(), 101, 202, "1.1.1.1", playDate)
+	event, err := repo.ProcessInviteRegistration(context.Background(), 101, 202, "1.1.1.1", "", playDate)
 	require.NoError(t, err)
 	require.Equal(t, 1.0, event.Amount)
 	require.Equal(t, "granted", event.Status)
