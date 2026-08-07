@@ -421,7 +421,18 @@ export default {
         blocked: 'Blocked',
         frozen: 'Frozen',
         skipped: 'Skipped',
-        empty: 'No campaign events'
+        empty: 'No campaign events',
+        riskReasons: {
+          trustedRegistrationIpUnavailable: 'A trusted registration IP was unavailable for the inviter or invitee, so the reward was withheld to avoid an unsafe grant.',
+          sameNetworkAndDevice: 'The inviter and invitee used the same network and device fingerprint, indicating possible same-device batch registration. The reward was blocked and the invitee account was disabled.',
+          sameNetworkDifferentDevice: 'The inviter and invitee share a registration IP but have different device fingerprints. This may be a home or office network; it is recorded for review and does not affect this reward.',
+          ineligibleInviter: 'The inviter is not eligible: the account must be active, historical qualifying usage must exceed ¥20, and the current balance must exceed ¥10.',
+          inactiveAccount: 'The inviter or invitee account is not active, so this campaign reward was not issued.',
+          previousRecharge: 'The invitee completed another recharge previously, so this payment does not qualify as the first-recharge reward.',
+          relationshipUnderRiskControl: 'This invite relationship is under risk control because of a network or device association, so the recharge reward was blocked.',
+          frozenAfterRisk: 'The inviter\'s daily campaign rewards were frozen after a network and device association risk was detected; unused tickets were invalidated.',
+          repeatedRisk: 'The inviter repeatedly triggered network and device association risk and was disabled as a risk-controlled account.'
+        }
       },
       errors: {
         loadFailed: 'Failed to load affiliate records'

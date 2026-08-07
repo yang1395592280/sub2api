@@ -46,7 +46,7 @@
                 <td class="px-3 py-3">{{ event.amount > 0 ? `¥${event.amount.toFixed(2)}` : '-' }}</td>
                 <td class="px-3 py-3 font-semibold text-emerald-600 dark:text-emerald-400">{{ event.ticket_count }}</td>
                 <td class="px-3 py-3"><span :class="statusClass(event.status)">{{ t(`admin.affiliates.ticketCampaign.${event.status}`) }}</span></td>
-                <td class="max-w-64 truncate px-3 py-3 text-amber-700 dark:text-amber-300" :title="event.risk_reason || ''">{{ event.risk_reason || '-' }}</td>
+                <td class="max-w-md whitespace-normal break-words px-3 py-3 leading-5 text-amber-700 dark:text-amber-300" :title="formatRiskReason(event.risk_reason)">{{ formatRiskReason(event.risk_reason) }}</td>
                 <td class="px-3 py-3 text-gray-600 dark:text-dark-300">{{ formatDateTime(event.created_at) }}</td>
               </tr>
             </tbody>
@@ -80,6 +80,24 @@ const search = ref('')
 const status = ref('')
 const events = ref<AffiliateTicketCampaignEvent[]>([])
 const pagination = reactive({ page: 1, page_size: 20, total: 0 })
+
+const riskReasonKeys: Record<string, string> = {
+  'trusted registration IP unavailable': 'trustedRegistrationIpUnavailable',
+  'inviter and invitee share the same network and device': 'sameNetworkAndDevice',
+  'identical registration IP with different device session': 'sameNetworkDifferentDevice',
+  'inviter does not meet campaign eligibility': 'ineligibleInviter',
+  'inviter or invitee is not active': 'inactiveAccount',
+  'invitee has already completed an earlier recharge': 'previousRecharge',
+  'invite relationship is under risk control': 'relationshipUnderRiskControl',
+  'frozen after same-network and same-device invitation risk': 'frozenAfterRisk',
+  'repeated same-network and same-device invitation risk': 'repeatedRisk',
+}
+
+function formatRiskReason(reason?: string): string {
+  if (!reason) return '-'
+  const key = riskReasonKeys[reason]
+  return key ? t(`admin.affiliates.ticketCampaign.riskReasons.${key}`) : reason
+}
 
 function statusClass(value: string): string {
   if (value === 'granted') return 'text-emerald-600 dark:text-emerald-400'

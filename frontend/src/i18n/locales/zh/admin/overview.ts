@@ -421,7 +421,18 @@ export default {
         blocked: '已拦截',
         frozen: '已冻结',
         skipped: '未发放',
-        empty: '暂无活动记录'
+        empty: '暂无活动记录',
+        riskReasons: {
+          trustedRegistrationIpUnavailable: '无法获取可信的注册 IP：邀请人或被邀请人的注册网络信息缺失或不可信，为避免误发奖励，本次暂不发放。',
+          sameNetworkAndDevice: '检测到邀请人和被邀请人使用相同网络及设备标识，疑似同一设备批量注册，已拦截本次奖励并停用被邀请账号。',
+          sameNetworkDifferentDevice: '邀请人和被邀请人的注册 IP 相同，但设备标识不同，可能属于家庭或办公网络；该情况仅作风险记录，本次奖励不受影响。',
+          ineligibleInviter: '邀请人未满足活动资格：账号需处于正常状态、历史有效消费超过 ¥20，且当前余额超过 ¥10。',
+          inactiveAccount: '邀请人或被邀请人账号当前不是正常状态，本次活动奖励不予发放。',
+          previousRecharge: '被邀请人此前已完成过其他充值订单，本次充值不属于首次充值奖励。',
+          relationshipUnderRiskControl: '该邀请关系已被风控标记，存在网络或设备关联风险，本次充值奖励已拦截。',
+          frozenAfterRisk: '该邀请人的当日活动奖励因检测到网络及设备关联风险被冻结，未使用的抽奖券已失效。',
+          repeatedRisk: '该邀请人重复触发网络及设备关联风险，账号已被停用并标记为风控对象。'
+        }
       },
       errors: {
         loadFailed: '加载邀请返利记录失败'
