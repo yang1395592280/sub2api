@@ -343,6 +343,7 @@ func (s *adminServiceImpl) DuplicateAccount(ctx context.Context, id int64, actor
 		expiresAt = &unix
 	}
 	autoPauseOnExpired := source.AutoPauseOnExpired
+	autoGroupingEnabled := source.IsAutoGroupingEnabled()
 	groups, groupIDs := duplicateAccountGroups(source)
 	proxyID := source.ProxyID
 	if source.ProxyFallbackOriginID != nil {
@@ -368,6 +369,7 @@ func (s *adminServiceImpl) DuplicateAccount(ctx context.Context, id int64, actor
 		GroupIDs:              groupIDs,
 		ExpiresAt:             expiresAt,
 		AutoPauseOnExpired:    &autoPauseOnExpired,
+		AutoGroupingEnabled:   &autoGroupingEnabled,
 		SkipDefaultGroupBind:  true,
 		SkipMixedChannelCheck: true,
 	}
@@ -539,6 +541,7 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 		UpstreamRechargeRatio: 1.0,
 		Status:                StatusActive,
 		Schedulable:           true,
+		AutoGroupingEnabled:   func() *bool { v := true; return &v }(),
 	}
 	if input.ProbeEnabled != nil && *input.ProbeEnabled {
 		if !isUpstreamBillingProbeAccount(account) {
@@ -565,6 +568,9 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 		account.AutoPauseOnExpired = *input.AutoPauseOnExpired
 	} else {
 		account.AutoPauseOnExpired = true
+	}
+	if input.AutoGroupingEnabled != nil {
+		account.AutoGroupingEnabled = input.AutoGroupingEnabled
 	}
 	if input.RateMultiplier != nil {
 		if *input.RateMultiplier < 0 {
@@ -917,6 +923,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	}
 	if input.AutoPauseOnExpired != nil {
 		account.AutoPauseOnExpired = *input.AutoPauseOnExpired
+	}
+	if input.AutoGroupingEnabled != nil {
+		account.AutoGroupingEnabled = input.AutoGroupingEnabled
 	}
 
 	// 先验证分组是否存在（在任何写操作之前）

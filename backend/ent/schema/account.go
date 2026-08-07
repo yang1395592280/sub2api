@@ -153,6 +153,9 @@ func (Account) Fields() []ent.Field {
 		field.Bool("auto_pause_on_expired").
 			Default(true).
 			Comment("Auto pause scheduling when account expires."),
+		field.Bool("auto_grouping_enabled").
+			Default(true).
+			Comment("Whether the account participates in automatic channel-price grouping."),
 
 		// ========== 调度和速率限制相关字段 ==========
 		// 这些字段在 migrations/005_schema_parity.sql 中添加

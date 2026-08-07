@@ -63,6 +63,8 @@ type Account struct {
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 	// Auto pause scheduling when account expires.
 	AutoPauseOnExpired bool `json:"auto_pause_on_expired,omitempty"`
+	// Whether the account participates in automatic channel-price grouping.
+	AutoGroupingEnabled bool `json:"auto_grouping_enabled,omitempty"`
 	// Schedulable holds the value of the "schedulable" field.
 	Schedulable bool `json:"schedulable,omitempty"`
 	// RateLimitedAt holds the value of the "rate_limited_at" field.
@@ -175,7 +177,7 @@ func (*Account) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case account.FieldCredentials, account.FieldExtra:
 			values[i] = new([]byte)
-		case account.FieldAutoPauseOnExpired, account.FieldSchedulable:
+		case account.FieldAutoPauseOnExpired, account.FieldAutoGroupingEnabled, account.FieldSchedulable:
 			values[i] = new(sql.NullBool)
 		case account.FieldRateMultiplier, account.FieldChannelPrice, account.FieldUpstreamRechargeRatio:
 			values[i] = new(sql.NullFloat64)
@@ -350,6 +352,12 @@ func (_m *Account) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field auto_pause_on_expired", values[i])
 			} else if value.Valid {
 				_m.AutoPauseOnExpired = value.Bool
+			}
+		case account.FieldAutoGroupingEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field auto_grouping_enabled", values[i])
+			} else if value.Valid {
+				_m.AutoGroupingEnabled = value.Bool
 			}
 		case account.FieldSchedulable:
 			if value, ok := values[i].(*sql.NullBool); !ok {
@@ -575,6 +583,9 @@ func (_m *Account) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("auto_pause_on_expired=")
 	builder.WriteString(fmt.Sprintf("%v", _m.AutoPauseOnExpired))
+	builder.WriteString(", ")
+	builder.WriteString("auto_grouping_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AutoGroupingEnabled))
 	builder.WriteString(", ")
 	builder.WriteString("schedulable=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Schedulable))

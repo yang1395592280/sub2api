@@ -293,6 +293,20 @@ func (_c *AccountCreate) SetNillableAutoPauseOnExpired(v *bool) *AccountCreate {
 	return _c
 }
 
+// SetAutoGroupingEnabled sets the "auto_grouping_enabled" field.
+func (_c *AccountCreate) SetAutoGroupingEnabled(v bool) *AccountCreate {
+	_c.mutation.SetAutoGroupingEnabled(v)
+	return _c
+}
+
+// SetNillableAutoGroupingEnabled sets the "auto_grouping_enabled" field if the given value is not nil.
+func (_c *AccountCreate) SetNillableAutoGroupingEnabled(v *bool) *AccountCreate {
+	if v != nil {
+		_c.SetAutoGroupingEnabled(*v)
+	}
+	return _c
+}
+
 // SetSchedulable sets the "schedulable" field.
 func (_c *AccountCreate) SetSchedulable(v bool) *AccountCreate {
 	_c.mutation.SetSchedulable(v)
@@ -605,6 +619,10 @@ func (_c *AccountCreate) defaults() error {
 		v := account.DefaultAutoPauseOnExpired
 		_c.mutation.SetAutoPauseOnExpired(v)
 	}
+	if _, ok := _c.mutation.AutoGroupingEnabled(); !ok {
+		v := account.DefaultAutoGroupingEnabled
+		_c.mutation.SetAutoGroupingEnabled(v)
+	}
 	if _, ok := _c.mutation.Schedulable(); !ok {
 		v := account.DefaultSchedulable
 		_c.mutation.SetSchedulable(v)
@@ -681,6 +699,9 @@ func (_c *AccountCreate) check() error {
 	}
 	if _, ok := _c.mutation.AutoPauseOnExpired(); !ok {
 		return &ValidationError{Name: "auto_pause_on_expired", err: errors.New(`ent: missing required field "Account.auto_pause_on_expired"`)}
+	}
+	if _, ok := _c.mutation.AutoGroupingEnabled(); !ok {
+		return &ValidationError{Name: "auto_grouping_enabled", err: errors.New(`ent: missing required field "Account.auto_grouping_enabled"`)}
 	}
 	if _, ok := _c.mutation.Schedulable(); !ok {
 		return &ValidationError{Name: "schedulable", err: errors.New(`ent: missing required field "Account.schedulable"`)}
@@ -808,6 +829,10 @@ func (_c *AccountCreate) createSpec() (*Account, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.AutoPauseOnExpired(); ok {
 		_spec.SetField(account.FieldAutoPauseOnExpired, field.TypeBool, value)
 		_node.AutoPauseOnExpired = value
+	}
+	if value, ok := _c.mutation.AutoGroupingEnabled(); ok {
+		_spec.SetField(account.FieldAutoGroupingEnabled, field.TypeBool, value)
+		_node.AutoGroupingEnabled = value
 	}
 	if value, ok := _c.mutation.Schedulable(); ok {
 		_spec.SetField(account.FieldSchedulable, field.TypeBool, value)
@@ -1332,6 +1357,18 @@ func (u *AccountUpsert) SetAutoPauseOnExpired(v bool) *AccountUpsert {
 // UpdateAutoPauseOnExpired sets the "auto_pause_on_expired" field to the value that was provided on create.
 func (u *AccountUpsert) UpdateAutoPauseOnExpired() *AccountUpsert {
 	u.SetExcluded(account.FieldAutoPauseOnExpired)
+	return u
+}
+
+// SetAutoGroupingEnabled sets the "auto_grouping_enabled" field.
+func (u *AccountUpsert) SetAutoGroupingEnabled(v bool) *AccountUpsert {
+	u.Set(account.FieldAutoGroupingEnabled, v)
+	return u
+}
+
+// UpdateAutoGroupingEnabled sets the "auto_grouping_enabled" field to the value that was provided on create.
+func (u *AccountUpsert) UpdateAutoGroupingEnabled() *AccountUpsert {
+	u.SetExcluded(account.FieldAutoGroupingEnabled)
 	return u
 }
 
@@ -1969,6 +2006,20 @@ func (u *AccountUpsertOne) SetAutoPauseOnExpired(v bool) *AccountUpsertOne {
 func (u *AccountUpsertOne) UpdateAutoPauseOnExpired() *AccountUpsertOne {
 	return u.Update(func(s *AccountUpsert) {
 		s.UpdateAutoPauseOnExpired()
+	})
+}
+
+// SetAutoGroupingEnabled sets the "auto_grouping_enabled" field.
+func (u *AccountUpsertOne) SetAutoGroupingEnabled(v bool) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetAutoGroupingEnabled(v)
+	})
+}
+
+// UpdateAutoGroupingEnabled sets the "auto_grouping_enabled" field to the value that was provided on create.
+func (u *AccountUpsertOne) UpdateAutoGroupingEnabled() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateAutoGroupingEnabled()
 	})
 }
 
@@ -2803,6 +2854,20 @@ func (u *AccountUpsertBulk) SetAutoPauseOnExpired(v bool) *AccountUpsertBulk {
 func (u *AccountUpsertBulk) UpdateAutoPauseOnExpired() *AccountUpsertBulk {
 	return u.Update(func(s *AccountUpsert) {
 		s.UpdateAutoPauseOnExpired()
+	})
+}
+
+// SetAutoGroupingEnabled sets the "auto_grouping_enabled" field.
+func (u *AccountUpsertBulk) SetAutoGroupingEnabled(v bool) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetAutoGroupingEnabled(v)
+	})
+}
+
+// UpdateAutoGroupingEnabled sets the "auto_grouping_enabled" field to the value that was provided on create.
+func (u *AccountUpsertBulk) UpdateAutoGroupingEnabled() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateAutoGroupingEnabled()
 	})
 }
 

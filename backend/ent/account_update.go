@@ -404,6 +404,20 @@ func (_u *AccountUpdate) SetNillableAutoPauseOnExpired(v *bool) *AccountUpdate {
 	return _u
 }
 
+// SetAutoGroupingEnabled sets the "auto_grouping_enabled" field.
+func (_u *AccountUpdate) SetAutoGroupingEnabled(v bool) *AccountUpdate {
+	_u.mutation.SetAutoGroupingEnabled(v)
+	return _u
+}
+
+// SetNillableAutoGroupingEnabled sets the "auto_grouping_enabled" field if the given value is not nil.
+func (_u *AccountUpdate) SetNillableAutoGroupingEnabled(v *bool) *AccountUpdate {
+	if v != nil {
+		_u.SetAutoGroupingEnabled(*v)
+	}
+	return _u
+}
+
 // SetSchedulable sets the "schedulable" field.
 func (_u *AccountUpdate) SetSchedulable(v bool) *AccountUpdate {
 	_u.mutation.SetSchedulable(v)
@@ -959,6 +973,9 @@ func (_u *AccountUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AutoPauseOnExpired(); ok {
 		_spec.SetField(account.FieldAutoPauseOnExpired, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.AutoGroupingEnabled(); ok {
+		_spec.SetField(account.FieldAutoGroupingEnabled, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.Schedulable(); ok {
 		_spec.SetField(account.FieldSchedulable, field.TypeBool, value)
@@ -1612,6 +1629,20 @@ func (_u *AccountUpdateOne) SetNillableAutoPauseOnExpired(v *bool) *AccountUpdat
 	return _u
 }
 
+// SetAutoGroupingEnabled sets the "auto_grouping_enabled" field.
+func (_u *AccountUpdateOne) SetAutoGroupingEnabled(v bool) *AccountUpdateOne {
+	_u.mutation.SetAutoGroupingEnabled(v)
+	return _u
+}
+
+// SetNillableAutoGroupingEnabled sets the "auto_grouping_enabled" field if the given value is not nil.
+func (_u *AccountUpdateOne) SetNillableAutoGroupingEnabled(v *bool) *AccountUpdateOne {
+	if v != nil {
+		_u.SetAutoGroupingEnabled(*v)
+	}
+	return _u
+}
+
 // SetSchedulable sets the "schedulable" field.
 func (_u *AccountUpdateOne) SetSchedulable(v bool) *AccountUpdateOne {
 	_u.mutation.SetSchedulable(v)
@@ -2197,6 +2228,9 @@ func (_u *AccountUpdateOne) sqlSave(ctx context.Context) (_node *Account, err er
 	}
 	if value, ok := _u.mutation.AutoPauseOnExpired(); ok {
 		_spec.SetField(account.FieldAutoPauseOnExpired, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.AutoGroupingEnabled(); ok {
+		_spec.SetField(account.FieldAutoGroupingEnabled, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.Schedulable(); ok {
 		_spec.SetField(account.FieldSchedulable, field.TypeBool, value)

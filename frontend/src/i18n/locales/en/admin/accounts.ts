@@ -28,6 +28,8 @@ export default {
       priceGroupingLocks: 'Groups preserved during auto grouping',
       priceGroupingLocksHint: 'Keep this account in the selected groups when a channel-price refresh updates its automatic group. Select the groups above first.',
       priceGroupingLocksEmpty: 'No eligible OpenAI price groups are selected',
+      autoGroupingEnabled: 'Participate in automatic grouping',
+      autoGroupingEnabledHint: 'When disabled, this account will not switch groups based on channel price.',
       upstreamRechargeRatio: 'Upstream Recharge Ratio',
       upstreamRechargeRatioHint: 'Upstream quota received per 1 unit of actual cost. Enter 10 for 1:10; refreshed balance and channel price are divided by it.',
       upstreamRechargeRatioInvalid: 'Upstream recharge ratio must be greater than 0',

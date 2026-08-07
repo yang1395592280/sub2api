@@ -43,6 +43,7 @@ type Account struct {
 	LastUsedAt            *time.Time
 	ExpiresAt             *time.Time
 	AutoPauseOnExpired    bool
+	AutoGroupingEnabled   *bool
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 
@@ -137,6 +138,12 @@ type TempUnschedulableRule struct {
 
 func (a *Account) IsActive() bool {
 	return a.Status == StatusActive
+}
+
+// IsAutoGroupingEnabled returns whether this account participates in automatic grouping.
+// A nil value represents an older cache entry and keeps the historical default enabled.
+func (a *Account) IsAutoGroupingEnabled() bool {
+	return a == nil || a.AutoGroupingEnabled == nil || *a.AutoGroupingEnabled
 }
 
 // IsSyntheticUITest reports whether the account belongs to an isolated UI load-test

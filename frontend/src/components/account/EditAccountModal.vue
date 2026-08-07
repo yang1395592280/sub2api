@@ -2820,6 +2820,32 @@
           <Select v-model="form.status" :options="statusOptions" />
         </div>
 
+        <div v-if="account?.platform === 'openai'" class="mt-4 flex items-center justify-between">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.autoGroupingEnabled') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.autoGroupingEnabledHint') }}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            :aria-checked="autoGroupingEnabled"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              autoGroupingEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+            @click="autoGroupingEnabled = !autoGroupingEnabled"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                autoGroupingEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+
         <!-- Mixed Scheduling (only for antigravity accounts, read-only in edit mode) -->
         <div v-if="account?.platform === 'antigravity'" class="flex items-center gap-2">
           <label class="flex cursor-not-allowed items-center gap-2 opacity-60">
@@ -3594,6 +3620,8 @@ const form = reactive({
   expires_at: null as number | null
 })
 
+const autoGroupingEnabled = ref(true)
+
 const priceGroupingLockedGroupIds = ref<number[]>([])
 const priceGroupingLockableGroups = computed(() =>
   props.groups.filter((group) =>
@@ -3811,6 +3839,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     .filter((accountGroup) => accountGroup.price_grouping_locked === true)
     .map((accountGroup) => accountGroup.group_id)
   form.expires_at = newAccount.expires_at ?? null
+  autoGroupingEnabled.value = newAccount.auto_grouping_enabled !== false
 
   // Load intercept warmup requests setting (applies to all account types)
   const credentials = newAccount.credentials as Record<string, unknown> | undefined
@@ -4678,6 +4707,7 @@ const handleSubmit = async () => {
   }
 
   const updatePayload: Record<string, unknown> = { ...form }
+  updatePayload.auto_grouping_enabled = autoGroupingEnabled.value
   if (!authStore.isSimpleMode && props.account.platform === 'openai') {
     updatePayload.price_grouping_locked_group_ids = [...priceGroupingLockedGroupIds.value]
   }

@@ -291,6 +291,23 @@ func TestGroupUpstreamBalanceRefreshRunner_MovesOpenAIAccountWithinManagedPriceG
 	require.Equal(t, int64(20), accountRepo.extraHistory[42][len(accountRepo.extraHistory[42])-1]["upstream_price_guard_group_id"])
 }
 
+func TestGroupUpstreamBalanceRefreshRunner_SkipsAccountWithAutoGroupingDisabled(t *testing.T) {
+	groups := []Group{
+		{ID: 10, Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.01, UpstreamPriceGroupingMax: 0.05},
+		{ID: 20, Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.06, UpstreamPriceGroupingMax: 0.08},
+	}
+	price := 0.06
+	enabled := false
+	account := Account{ID: 43, Platform: PlatformOpenAI, ChannelPrice: &price, GroupIDs: []int64{10}, AutoGroupingEnabled: &enabled}
+	accountRepo := &groupUpstreamRefreshAccountRepoStub{priceGroupingMoveChanged: true}
+	runner := NewGroupUpstreamBalanceRefreshRunner(nil, accountRepo, nil)
+
+	err := runner.applyUpstreamPriceGrouping(context.Background(), &account, groups, time.Now())
+
+	require.NoError(t, err)
+	require.Empty(t, accountRepo.priceGroupingMoves)
+}
+
 func TestCollectUpstreamPriceGroupingGroupsExcludesSelfHostedPools(t *testing.T) {
 	groups := []Group{
 		{ID: 10, Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, UpstreamBalanceRefreshEnabled: true, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.01, UpstreamPriceGroupingMax: 0.05},

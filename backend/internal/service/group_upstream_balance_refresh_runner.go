@@ -477,7 +477,7 @@ func accountBelongsToAnyGroup(account *Account, groupIDs map[int64]struct{}) boo
 }
 
 func (r *GroupUpstreamBalanceRefreshRunner) applyUpstreamPriceGrouping(ctx context.Context, account *Account, groups []Group, now time.Time) error {
-	if account == nil || account.Platform != PlatformOpenAI || account.ChannelPrice == nil || len(groups) == 0 {
+	if account == nil || !account.IsAutoGroupingEnabled() || account.Platform != PlatformOpenAI || account.ChannelPrice == nil || len(groups) == 0 {
 		return nil
 	}
 	managedGroupIDs := make([]int64, 0, len(groups))

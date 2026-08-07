@@ -28,6 +28,8 @@ export default {
       priceGroupingLocks: '自动归组保留分组',
       priceGroupingLocksHint: '勾选后，刷新渠道价格进行自动归组时仍会保留账号在这些分组中。请先在上方选择分组。',
       priceGroupingLocksEmpty: '已选分组中没有可保留的 OpenAI 价格分组',
+      autoGroupingEnabled: '参与自动归组',
+      autoGroupingEnabledHint: '关闭后，该账号不会根据渠道价格自动切换分组，当前分组保持不变。',
       upstreamRechargeRatio: '上游充值比例',
       upstreamRechargeRatioHint: '1 元实际成本兑换的上游额度，例如 1:10 填 10；刷新余额和渠道价格时会按此折算。',
       upstreamRechargeRatioInvalid: '上游充值比例必须大于 0',

@@ -155,6 +155,11 @@ func AutoPauseOnExpired(v bool) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldAutoPauseOnExpired, v))
 }
 
+// AutoGroupingEnabled applies equality check predicate on the "auto_grouping_enabled" field. It's identical to AutoGroupingEnabledEQ.
+func AutoGroupingEnabled(v bool) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldAutoGroupingEnabled, v))
+}
+
 // Schedulable applies equality check predicate on the "schedulable" field. It's identical to SchedulableEQ.
 func Schedulable(v bool) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldSchedulable, v))
@@ -1193,6 +1198,16 @@ func AutoPauseOnExpiredEQ(v bool) predicate.Account {
 // AutoPauseOnExpiredNEQ applies the NEQ predicate on the "auto_pause_on_expired" field.
 func AutoPauseOnExpiredNEQ(v bool) predicate.Account {
 	return predicate.Account(sql.FieldNEQ(FieldAutoPauseOnExpired, v))
+}
+
+// AutoGroupingEnabledEQ applies the EQ predicate on the "auto_grouping_enabled" field.
+func AutoGroupingEnabledEQ(v bool) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldAutoGroupingEnabled, v))
+}
+
+// AutoGroupingEnabledNEQ applies the NEQ predicate on the "auto_grouping_enabled" field.
+func AutoGroupingEnabledNEQ(v bool) predicate.Account {
+	return predicate.Account(sql.FieldNEQ(FieldAutoGroupingEnabled, v))
 }
 
 // SchedulableEQ applies the EQ predicate on the "schedulable" field.

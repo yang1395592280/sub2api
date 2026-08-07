@@ -2672,6 +2672,7 @@ type AccountMutation struct {
 	last_used_at                *time.Time
 	expires_at                  *time.Time
 	auto_pause_on_expired       *bool
+	auto_grouping_enabled       *bool
 	schedulable                 *bool
 	rate_limited_at             *time.Time
 	rate_limit_reset_at         *time.Time
@@ -3851,6 +3852,42 @@ func (m *AccountMutation) ResetAutoPauseOnExpired() {
 	m.auto_pause_on_expired = nil
 }
 
+// SetAutoGroupingEnabled sets the "auto_grouping_enabled" field.
+func (m *AccountMutation) SetAutoGroupingEnabled(b bool) {
+	m.auto_grouping_enabled = &b
+}
+
+// AutoGroupingEnabled returns the value of the "auto_grouping_enabled" field in the mutation.
+func (m *AccountMutation) AutoGroupingEnabled() (r bool, exists bool) {
+	v := m.auto_grouping_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAutoGroupingEnabled returns the old "auto_grouping_enabled" field's value of the Account entity.
+// If the Account object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountMutation) OldAutoGroupingEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAutoGroupingEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAutoGroupingEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAutoGroupingEnabled: %w", err)
+	}
+	return oldValue.AutoGroupingEnabled, nil
+}
+
+// ResetAutoGroupingEnabled resets all changes to the "auto_grouping_enabled" field.
+func (m *AccountMutation) ResetAutoGroupingEnabled() {
+	m.auto_grouping_enabled = nil
+}
+
 // SetSchedulable sets the "schedulable" field.
 func (m *AccountMutation) SetSchedulable(b bool) {
 	m.schedulable = &b
@@ -4627,7 +4664,7 @@ func (m *AccountMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AccountMutation) Fields() []string {
-	fields := make([]string, 0, 33)
+	fields := make([]string, 0, 34)
 	if m.created_at != nil {
 		fields = append(fields, account.FieldCreatedAt)
 	}
@@ -4693,6 +4730,9 @@ func (m *AccountMutation) Fields() []string {
 	}
 	if m.auto_pause_on_expired != nil {
 		fields = append(fields, account.FieldAutoPauseOnExpired)
+	}
+	if m.auto_grouping_enabled != nil {
+		fields = append(fields, account.FieldAutoGroupingEnabled)
 	}
 	if m.schedulable != nil {
 		fields = append(fields, account.FieldSchedulable)
@@ -4779,6 +4819,8 @@ func (m *AccountMutation) Field(name string) (ent.Value, bool) {
 		return m.ExpiresAt()
 	case account.FieldAutoPauseOnExpired:
 		return m.AutoPauseOnExpired()
+	case account.FieldAutoGroupingEnabled:
+		return m.AutoGroupingEnabled()
 	case account.FieldSchedulable:
 		return m.Schedulable()
 	case account.FieldRateLimitedAt:
@@ -4854,6 +4896,8 @@ func (m *AccountMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldExpiresAt(ctx)
 	case account.FieldAutoPauseOnExpired:
 		return m.OldAutoPauseOnExpired(ctx)
+	case account.FieldAutoGroupingEnabled:
+		return m.OldAutoGroupingEnabled(ctx)
 	case account.FieldSchedulable:
 		return m.OldSchedulable(ctx)
 	case account.FieldRateLimitedAt:
@@ -5038,6 +5082,13 @@ func (m *AccountMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetAutoPauseOnExpired(v)
+		return nil
+	case account.FieldAutoGroupingEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAutoGroupingEnabled(v)
 		return nil
 	case account.FieldSchedulable:
 		v, ok := value.(bool)
@@ -5428,6 +5479,9 @@ func (m *AccountMutation) ResetField(name string) error {
 		return nil
 	case account.FieldAutoPauseOnExpired:
 		m.ResetAutoPauseOnExpired()
+		return nil
+	case account.FieldAutoGroupingEnabled:
+		m.ResetAutoGroupingEnabled()
 		return nil
 	case account.FieldSchedulable:
 		m.ResetSchedulable()

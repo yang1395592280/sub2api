@@ -1260,6 +1260,7 @@ export interface Account {
   last_used_at: string | null
   expires_at: number | null
   auto_pause_on_expired: boolean
+  auto_grouping_enabled: boolean
   created_at: string
   updated_at: string
   proxy?: Proxy
@@ -1534,6 +1535,7 @@ export interface CreateAccountRequest {
   group_ids?: number[]
   expires_at?: number | null
   auto_pause_on_expired?: boolean
+  auto_grouping_enabled?: boolean
   upstream_billing_probe_enabled?: boolean
   confirm_mixed_channel_risk?: boolean
 }
@@ -1557,6 +1559,7 @@ export interface UpdateAccountRequest {
   price_grouping_locked_group_ids?: number[]
   expires_at?: number | null
   auto_pause_on_expired?: boolean
+  auto_grouping_enabled?: boolean
   upstream_billing_probe_enabled?: boolean
   upstream_billing_rate_sync_enabled?: boolean
   confirm_mixed_channel_risk?: boolean
