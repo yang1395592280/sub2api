@@ -251,10 +251,10 @@ func (s *apiKeyServiceUserSubRepoStub) UpdateStatus(context.Context, int64, stri
 func (s *apiKeyServiceUserSubRepoStub) UpdateNotes(context.Context, int64, string) error {
 	panic("unexpected UpdateNotes call")
 }
-func (s *apiKeyServiceUserSubRepoStub) ActivateWindows(context.Context, int64, time.Time) error {
+func (s *apiKeyServiceUserSubRepoStub) ActivateWindows(context.Context, int64, time.Time, time.Time) error {
 	panic("unexpected ActivateWindows call")
 }
-func (s *apiKeyServiceUserSubRepoStub) ResetUsageWindows(context.Context, int64, bool, bool, bool, time.Time) error {
+func (s *apiKeyServiceUserSubRepoStub) ResetUsageWindows(context.Context, int64, bool, bool, bool, time.Time, time.Time) error {
 	panic("unexpected ResetUsageWindows call")
 }
 func (s *apiKeyServiceUserSubRepoStub) ResetDailyUsage(context.Context, int64, *time.Time, time.Time) error {

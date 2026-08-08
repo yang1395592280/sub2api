@@ -59,6 +59,8 @@ const openAISchedulerObservabilityIndexMigration = "182_openai_scheduler_observa
 const openAISchedulerObservabilityIndex = "idx_usage_logs_e2e_ttft_created_at"
 const latestAPIKeyIPIndexMigration = "174_add_usage_logs_api_key_latest_ip_index_notx.sql"
 const latestAPIKeyIPIndex = "idx_usage_logs_api_key_latest_ip"
+const usageLogsUpstreamModelMismatchIndexMigration = "195_add_usage_log_upstream_model_mismatch_index_notx.sql"
+const usageLogsUpstreamModelMismatchIndex = "idx_usage_logs_upstream_model_mismatch_created_at"
 
 type migrationChecksumCompatibilityRule struct {
 	fileChecksum       string
@@ -288,6 +290,8 @@ func prepareNonTransactionalMigration(ctx context.Context, db migrationConnectio
 		return dropInvalidIndexIfPresent(ctx, db, openAISchedulerObservabilityIndex)
 	case latestAPIKeyIPIndexMigration:
 		return dropInvalidIndexIfPresent(ctx, db, latestAPIKeyIPIndex)
+	case usageLogsUpstreamModelMismatchIndexMigration:
+		return dropInvalidIndexIfPresent(ctx, db, usageLogsUpstreamModelMismatchIndex)
 	default:
 		return nil
 	}

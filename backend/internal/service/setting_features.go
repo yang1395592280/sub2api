@@ -485,6 +485,7 @@ type TencentCaptchaConfig struct {
 	AppSecretKey   string
 	CloudSecretID  string
 	CloudSecretKey string
+	Region         string
 }
 
 // AliyunCaptchaConfig contains the credentials required by Aliyun Captcha 2.0's
@@ -513,6 +514,7 @@ func (s *SettingService) GetCaptchaProviderConfig(ctx context.Context) (CaptchaP
 		SettingKeyTencentCaptchaAppSecretKey,
 		SettingKeyTencentCaptchaCloudSecretID,
 		SettingKeyTencentCaptchaCloudSecretKey,
+		SettingKeyTencentCaptchaRegion,
 		SettingKeyAliyunCaptchaEnabled,
 		SettingKeyAliyunCaptchaAccessKeyID,
 		SettingKeyAliyunCaptchaAccessKeySecret,
@@ -531,6 +533,7 @@ func (s *SettingService) GetCaptchaProviderConfig(ctx context.Context) (CaptchaP
 			AppSecretKey:   values[SettingKeyTencentCaptchaAppSecretKey],
 			CloudSecretID:  values[SettingKeyTencentCaptchaCloudSecretID],
 			CloudSecretKey: values[SettingKeyTencentCaptchaCloudSecretKey],
+			Region:         normalizeTencentCaptchaRegion(values[SettingKeyTencentCaptchaRegion]),
 		},
 		Aliyun: AliyunCaptchaConfig{
 			Enabled:         values[SettingKeyAliyunCaptchaEnabled] == "true",

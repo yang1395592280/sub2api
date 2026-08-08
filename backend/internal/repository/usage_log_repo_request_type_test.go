@@ -48,6 +48,8 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			log.Model,
 			log.RequestedModel,
 			sqlmock.AnyArg(), // upstream_model
+			sqlmock.AnyArg(), // upstream_response_model
+			sqlmock.AnyArg(), // upstream_model_mismatch
 			sqlmock.AnyArg(), // group_id
 			sqlmock.AnyArg(), // group_name
 			sqlmock.AnyArg(), // subscription_id
@@ -168,10 +170,12 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			log.RequestID,
 			log.Model,
 			log.RequestedModel,
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
+			sqlmock.AnyArg(), // upstream_model
+			sqlmock.AnyArg(), // upstream_response_model
+			sqlmock.AnyArg(), // upstream_model_mismatch
+			sqlmock.AnyArg(), // group_id
 			sqlmock.AnyArg(), // group_name
-			sqlmock.AnyArg(),
+			sqlmock.AnyArg(), // subscription_id
 			sqlmock.AnyArg(), // api_key_group_select_mode
 			log.InputTokens,
 			log.OutputTokens,
@@ -254,8 +258,8 @@ func TestBuildUsageLogBestEffortInsertQuery_IncludesRequestedModelColumn(t *test
 	query, args := buildUsageLogBestEffortInsertQuery([]usageLogInsertPrepared{prepared})
 
 	require.Contains(t, query, "INSERT INTO usage_logs (")
-	require.Contains(t, query, "\n\t\t\tmodel,\n\t\t\trequested_model,\n\t\t\tupstream_model,")
-	require.Contains(t, query, "\n\t\t\trequest_id,\n\t\t\tmodel,\n\t\t\trequested_model,\n\t\t\tupstream_model,")
+	require.Contains(t, query, "\n\t\t\tmodel,\n\t\t\trequested_model,\n\t\t\tupstream_model,\n\t\t\tupstream_response_model,\n\t\t\tupstream_model_mismatch,")
+	require.Contains(t, query, "\n\t\t\trequest_id,\n\t\t\tmodel,\n\t\t\trequested_model,\n\t\t\tupstream_model,\n\t\t\tupstream_response_model,\n\t\t\tupstream_model_mismatch,")
 	require.Len(t, args, len(prepared.args))
 	require.Equal(t, prepared.args[5], args[5])
 }
@@ -321,14 +325,14 @@ func TestPrepareUsageLogInsertPersistsSchedulerTimingAfterFirstToken(t *testing.
 		CreatedAt:       time.Date(2025, 1, 5, 12, 0, 0, 0, time.UTC),
 	})
 
-	require.Equal(t, sql.NullInt64{Int64: 900, Valid: true}, prepared.args[34])
-	require.Equal(t, sql.NullInt64{Int64: 1180, Valid: true}, prepared.args[35])
-	require.Equal(t, sql.NullInt64{Int64: 20, Valid: true}, prepared.args[36])
-	require.Equal(t, sql.NullInt64{Int64: 200, Valid: true}, prepared.args[37])
-	require.Equal(t, sql.NullInt64{Int64: 60, Valid: true}, prepared.args[38])
-	require.Equal(t, sql.NullInt64{Int64: 10, Valid: true}, prepared.args[65])
-	require.Equal(t, sql.NullInt64{Int64: 30, Valid: true}, prepared.args[66])
-	require.Equal(t, sql.NullInt64{Int64: 40, Valid: true}, prepared.args[67])
+	require.Equal(t, sql.NullInt64{Int64: 900, Valid: true}, prepared.args[36])
+	require.Equal(t, sql.NullInt64{Int64: 1180, Valid: true}, prepared.args[37])
+	require.Equal(t, sql.NullInt64{Int64: 20, Valid: true}, prepared.args[38])
+	require.Equal(t, sql.NullInt64{Int64: 200, Valid: true}, prepared.args[39])
+	require.Equal(t, sql.NullInt64{Int64: 60, Valid: true}, prepared.args[40])
+	require.Equal(t, sql.NullInt64{Int64: 10, Valid: true}, prepared.args[67])
+	require.Equal(t, sql.NullInt64{Int64: 30, Valid: true}, prepared.args[68])
+	require.Equal(t, sql.NullInt64{Int64: 40, Valid: true}, prepared.args[69])
 }
 
 func TestPrepareUsageLogInsert_PersistsAPIKeyGroupSelectModeSnapshot(t *testing.T) {
@@ -344,7 +348,7 @@ func TestPrepareUsageLogInsert_PersistsAPIKeyGroupSelectModeSnapshot(t *testing.
 		CreatedAt:             time.Date(2025, 1, 5, 12, 0, 0, 0, time.UTC),
 	})
 
-	require.Equal(t, sql.NullString{String: mode, Valid: true}, prepared.args[10])
+	require.Equal(t, sql.NullString{String: mode, Valid: true}, prepared.args[12])
 }
 
 func TestPrepareUsageLogInsert_PersistsGroupNameSnapshot(t *testing.T) {
@@ -361,8 +365,8 @@ func TestPrepareUsageLogInsert_PersistsGroupNameSnapshot(t *testing.T) {
 		CreatedAt:         time.Date(2025, 1, 5, 12, 0, 0, 0, time.UTC),
 	})
 
-	require.Equal(t, sql.NullInt64{Int64: groupID, Valid: true}, prepared.args[7])
-	require.Equal(t, sql.NullString{String: groupName, Valid: true}, prepared.args[8])
+	require.Equal(t, sql.NullInt64{Int64: groupID, Valid: true}, prepared.args[9])
+	require.Equal(t, sql.NullString{String: groupName, Valid: true}, prepared.args[10])
 }
 
 func TestPrepareUsageLogInsert_PersistsImageSizeMetadata(t *testing.T) {
@@ -386,11 +390,11 @@ func TestPrepareUsageLogInsert_PersistsImageSizeMetadata(t *testing.T) {
 		CreatedAt:          time.Date(2025, 1, 6, 12, 0, 0, 0, time.UTC),
 	})
 
-	require.Equal(t, sql.NullString{String: imageSize, Valid: true}, prepared.args[42])
-	require.Equal(t, sql.NullString{String: inputSize, Valid: true}, prepared.args[43])
-	require.Equal(t, sql.NullString{String: outputSize, Valid: true}, prepared.args[44])
-	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[45])
-	breakdownJSON, ok := prepared.args[46].(string)
+	require.Equal(t, sql.NullString{String: imageSize, Valid: true}, prepared.args[44])
+	require.Equal(t, sql.NullString{String: inputSize, Valid: true}, prepared.args[45])
+	require.Equal(t, sql.NullString{String: outputSize, Valid: true}, prepared.args[46])
+	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[47])
+	breakdownJSON, ok := prepared.args[48].(string)
 	require.True(t, ok)
 	require.JSONEq(t, `{"1K":1,"4K":1}`, breakdownJSON)
 }
@@ -414,9 +418,9 @@ func TestPrepareUsageLogInsert_PersistsChannelPriceSnapshot(t *testing.T) {
 
 	require.Contains(t, usageLogSelectColumns, "channel_price_snapshot")
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	require.Equal(t, &price, prepared.args[61])
-	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[62])
-	require.Equal(t, sql.NullTime{Time: refreshedAt, Valid: true}, prepared.args[63])
+	require.Equal(t, &price, prepared.args[63])
+	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[64])
+	require.Equal(t, sql.NullTime{Time: refreshedAt, Valid: true}, prepared.args[65])
 }
 
 func TestScanUsageLogSchedulerTimingAndChannelPriceSnapshot(t *testing.T) {
@@ -434,6 +438,8 @@ func TestScanUsageLogSchedulerTimingAndChannelPriceSnapshot(t *testing.T) {
 		"gpt-5",             // model
 		"gpt-5",             // requested_model
 		nil,                 // upstream_model
+		nil,                 // upstream_response_model
+		nil,                 // upstream_model_mismatch
 		nil,                 // group_id
 		nil,                 // group_name
 		nil,                 // subscription_id
@@ -556,6 +562,12 @@ func (s scanStub) Scan(dest ...any) error {
 				*d = sql.NullFloat64{}
 			} else {
 				*d = sql.NullFloat64{Float64: value.(float64), Valid: true}
+			}
+		case *sql.NullBool:
+			if value == nil {
+				*d = sql.NullBool{}
+			} else {
+				*d = sql.NullBool{Bool: value.(bool), Valid: true}
 			}
 		case *sql.NullTime:
 			if value == nil {
@@ -1171,6 +1183,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			"gpt-image-2",
 			sql.NullString{Valid: true, String: "gpt-image-2"},
 			sql.NullString{},
+			sql.NullString{},
+			sql.NullBool{},
 			sql.NullInt64{},
 			sql.NullString{},
 			sql.NullInt64{},
@@ -1250,6 +1264,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			"gpt-5", // model
 			sql.NullString{Valid: true, String: "gpt-5"}, // requested_model
 			sql.NullString{},  // upstream_model
+			sql.NullString{},  // upstream_response_model
+			sql.NullBool{},    // upstream_model_mismatch
 			sql.NullInt64{},   // group_id
 			sql.NullString{},  // group_name
 			sql.NullInt64{},   // subscription_id
@@ -1332,6 +1348,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			"gpt-5",
 			sql.NullString{Valid: true, String: "gpt-5"},
 			sql.NullString{},
+			sql.NullString{},
+			sql.NullBool{},
 			sql.NullInt64{},
 			sql.NullString{},
 			sql.NullInt64{},
@@ -1402,6 +1420,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			"gpt-5.4",
 			sql.NullString{Valid: true, String: "gpt-5.4"},
 			sql.NullString{},
+			sql.NullString{},
+			sql.NullBool{},
 			sql.NullInt64{},
 			sql.NullString{},
 			sql.NullInt64{},
