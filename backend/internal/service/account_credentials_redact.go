@@ -9,6 +9,8 @@ var SensitiveCredentialKeys = []string{
 	"api_key", "session_key", "cookie", "new_api_user_access_token", "new_api_session_cookie",
 	"new_api_login_password",
 	"upstream_admin_access_token", "upstream_admin_password", "upstream_admin_refresh_token",
+	// Grok Web SSO / password (must never persist or echo after Build OAuth)
+	"password", "sso_token", "sso", "sso-rw", "clearTextPassword",
 	// 云服务凭据
 	"aws_secret_access_key", "aws_session_token",
 	"service_account_json", "service_account", "private_key",
