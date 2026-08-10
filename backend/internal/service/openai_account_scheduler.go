@@ -767,6 +767,15 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		return nil, false, nil
 	}
+	if req.Platform == PlatformGrok {
+		now := time.Now()
+		upstreamModel := canonicalOpenAIAccountSchedulingModel(account, req.RequestedModel)
+		if isGrokTeamModelRateLimited(account, upstreamModel, now) ||
+			isGrokModelQuotaBlocked(account.ID, upstreamModel, now) {
+			_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
+			return nil, false, nil
+		}
+	}
 	if s.isOpenAIBalancedCircuitRejected(req, account) {
 		return nil, true, nil
 	}
@@ -2107,6 +2116,7 @@ func (s *defaultOpenAIAccountScheduler) prepareOpenAIAccountCandidates(
 	loadReq := make([]AccountWithConcurrency, 0, len(accounts))
 	privacyBlocked := make([]*Account, 0)
 	filterStats := openAISelectionFilterStats{pool: len(accounts)}
+	now := time.Now()
 	for i := range accounts {
 		account := &accounts[i]
 		if req.ExcludedIDs != nil {
@@ -2130,6 +2140,17 @@ func (s *defaultOpenAIAccountScheduler) prepareOpenAIAccountCandidates(
 		if s.service.isAccountBlockedByOpenAIGroupUpstreamPriceGuard(ctx, account, req.GroupID) {
 			filterStats.exclude("upstream_price_guard")
 			continue
+		}
+		if req.Platform == PlatformGrok {
+			upstreamModel := canonicalOpenAIAccountSchedulingModel(account, req.RequestedModel)
+			if isGrokTeamModelRateLimited(account, upstreamModel, now) {
+				filterStats.exclude("grok_team_model_rate_limit")
+				continue
+			}
+			if isGrokModelQuotaBlocked(account.ID, upstreamModel, now) {
+				filterStats.exclude("grok_model_quota_block")
+				continue
+			}
 		}
 		// require_privacy_set: 跳过 privacy 未设置的账号并标记异常
 		if schedGroup != nil && schedGroup.RequirePrivacySet && !account.IsPrivacySet() {

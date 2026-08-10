@@ -822,6 +822,80 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_DefaultDisabled_AllowsG
 	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
 }
 
+func TestOpenAIAccountScheduler_PrepareCandidatesFiltersGrokModelCooldowns(t *testing.T) {
+	resetOpenAIAdvancedSchedulerSettingCacheForTest()
+
+	now := time.Now()
+	teamBlocked := Account{
+		ID: 36042, Platform: PlatformGrok, Type: AccountTypeOAuth,
+		Status: StatusActive, Schedulable: true, Concurrency: 1,
+		Credentials: map[string]any{"team_id": "scheduler-team-blocked-36042"},
+	}
+	modelBlocked := Account{
+		ID: 36043, Platform: PlatformGrok, Type: AccountTypeOAuth,
+		Status: StatusActive, Schedulable: true, Concurrency: 1,
+	}
+	available := Account{
+		ID: 36044, Platform: PlatformGrok, Type: AccountTypeOAuth,
+		Status: StatusActive, Schedulable: true, Concurrency: 1,
+		Credentials: map[string]any{"team_id": "scheduler-team-available-36044"},
+	}
+	markGrokTeamModelRateLimit(&teamBlocked, "grok-4.5", now.Add(time.Hour))
+	markGrokModelQuotaBlock(modelBlocked.ID, "grok-4.5", now.Add(time.Hour))
+
+	cfg := &config.Config{}
+	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	svc := &OpenAIGatewayService{
+		accountRepo: schedulerTestOpenAIAccountRepo{accounts: []Account{teamBlocked, modelBlocked, available}},
+		cfg:         cfg,
+	}
+	scheduler := &defaultOpenAIAccountScheduler{service: svc, stats: newOpenAIAccountRuntimeStats()}
+
+	prepared, err := scheduler.prepareOpenAIAccountCandidates(context.Background(), OpenAIAccountScheduleRequest{
+		Platform:       PlatformGrok,
+		RequestedModel: "grok-4.5",
+	})
+	require.NoError(t, err)
+	require.Len(t, prepared.balancedAccounts, 1)
+	require.Equal(t, available.ID, prepared.balancedAccounts[0].ID)
+	require.Equal(t, 1, prepared.balancedFilterStats.reasons["grok_team_model_rate_limit"])
+	require.Equal(t, 1, prepared.balancedFilterStats.reasons["grok_model_quota_block"])
+}
+
+func TestOpenAIAccountScheduler_StickyGrokTeamCooldownClearsBinding(t *testing.T) {
+	resetOpenAIAdvancedSchedulerSettingCacheForTest()
+
+	account := Account{
+		ID: 36045, Platform: PlatformGrok, Type: AccountTypeOAuth,
+		Status: StatusActive, Schedulable: true, Concurrency: 1,
+		Credentials: map[string]any{"team_id": "scheduler-sticky-team-36045"},
+	}
+	markGrokTeamModelRateLimit(&account, "grok-4.5", time.Now().Add(time.Hour))
+	cache := &schedulerTestGatewayCache{sessionBindings: make(map[string]int64)}
+	cfg := &config.Config{}
+	svc := &OpenAIGatewayService{
+		accountRepo: schedulerTestOpenAIAccountRepo{accounts: []Account{account}},
+		cache:       cache,
+		cfg:         cfg,
+	}
+	stickyKey := svc.openAISessionCacheKey("grok-sticky")
+	cache.sessionBindings[stickyKey] = account.ID
+	scheduler := &defaultOpenAIAccountScheduler{service: svc, stats: newOpenAIAccountRuntimeStats()}
+
+	selection, escaped, err := scheduler.selectBySessionHash(context.Background(), OpenAIAccountScheduleRequest{
+		Platform:           PlatformGrok,
+		SessionHash:        "grok-sticky",
+		RequestedModel:     "grok-4.5",
+		RequiredTransport:  OpenAIUpstreamTransportAny,
+		RequiredEndpoint:   OpenAISchedulerEndpointChatCompletions,
+		RequiredCapability: OpenAIEndpointCapabilityChatCompletions,
+	})
+	require.NoError(t, err)
+	require.Nil(t, selection)
+	require.False(t, escaped)
+	require.Equal(t, 1, cache.deletedSessions[stickyKey])
+}
+
 func TestOpenAIGatewayService_SelectAccountWithScheduler_GrokMediaCapabilityFiltersIneligibleAccounts(t *testing.T) {
 	resetOpenAIAdvancedSchedulerSettingCacheForTest()
 

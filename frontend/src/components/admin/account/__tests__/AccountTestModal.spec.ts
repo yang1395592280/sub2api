@@ -188,6 +188,37 @@ describe('AccountTestModal', () => {
     })
   })
 
+  it('grok 音视频事件会渲染可播放预览', async () => {
+    getAvailableModels.mockResolvedValue([
+      { id: 'grok-4.3', display_name: 'Grok 4.3' }
+    ])
+    global.fetch = vi.fn().mockResolvedValue(
+      createStreamResponse([
+        'data: {"type":"audio","audio_url":"data:audio/mpeg;base64,YXVkaW8=","mime_type":"audio/mpeg"}\n',
+        'data: {"type":"video","video_url":"https://example.com/result.mp4","mime_type":"video/mp4"}\n',
+        'data: {"type":"test_complete","success":true}\n'
+      ])
+    ) as any
+
+    const wrapper = mountModal({
+      id: 14,
+      name: 'Grok Media Account',
+      platform: 'grok',
+      type: 'oauth',
+      status: 'active'
+    })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    await (wrapper.vm as any).startTest()
+    await flushPromises()
+
+    expect(wrapper.get('audio').attributes('src')).toBe('data:audio/mpeg;base64,YXVkaW8=')
+    expect(wrapper.get('video').attributes('src')).toBe('https://example.com/result.mp4')
+    expect(wrapper.text()).toContain('audio/mpeg')
+    expect(wrapper.text()).toContain('video/mp4')
+  })
+
   it('OpenAI Compact 探测会携带 compact 测试模式', async () => {
     getAvailableModels.mockResolvedValue([
       { id: 'gpt-5.4', display_name: 'GPT-5.4' }

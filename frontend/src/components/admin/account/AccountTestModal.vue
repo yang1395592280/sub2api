@@ -1012,6 +1012,26 @@ const handleEvent = (event: {
       }
       break
 
+    case 'audio':
+      if (event.audio_url) {
+        generatedAudios.value.push({
+          url: event.audio_url,
+          mimeType: event.mime_type
+        })
+        addLine(t('admin.accounts.audioReceived', { count: generatedAudios.value.length }), 'text-purple-300')
+      }
+      break
+
+    case 'video':
+      if (event.video_url) {
+        generatedVideos.value.push({
+          url: event.video_url,
+          mimeType: event.mime_type
+        })
+        addLine(t('admin.accounts.videoReceived', { count: generatedVideos.value.length }), 'text-purple-300')
+      }
+      break
+
     case 'connect_timing':
       if (typeof event.connect_duration_ms === 'number') {
         addConnectTimingLine(event.connect_duration_ms)
