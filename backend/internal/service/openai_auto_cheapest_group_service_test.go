@@ -497,6 +497,23 @@ func TestCandidateGroups_FiltersByMaxEffectiveRateMultiplier(t *testing.T) {
 	require.Equal(t, []int64{1, 2}, groupIDsForTest(got))
 }
 
+func TestCandidateGroups_DynamicBillingUsesCappedMaximumForUserLimit(t *testing.T) {
+	provider := &fakeAvailableOpenAIGroupsProvider{groups: []Group{
+		{ID: 1, Name: "dynamic-within-limit", Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, SubscriptionType: SubscriptionTypeStandard, Status: StatusActive, AllowAutoCheapestScheduling: true, DynamicBillingEnabled: true, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.03, UpstreamPriceGroupingMax: 0.12},
+		{ID: 2, Name: "dynamic-above-limit", Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, SubscriptionType: SubscriptionTypeStandard, Status: StatusActive, AllowAutoCheapestScheduling: true, DynamicBillingEnabled: true, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.13, UpstreamPriceGroupingMax: 0.22},
+	}}
+	settings := NewSettingService(&dynamicBillingSettingRepoStub{values: map[string]string{
+		SettingKeyOpenAIDynamicBillingProfitMarkup: "0.03",
+	}}, nil)
+	resolver := NewOpenAIAutoCheapestGroupResolver(provider, settings)
+	maxRate := 0.15
+
+	got, err := resolver.CandidateGroups(context.Background(), 42, &maxRate)
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{1}, groupIDsForTest(got))
+}
+
 func TestCandidateGroups_ZeroMaxRateMultiplierMeansUnlimited(t *testing.T) {
 	provider := &fakeAvailableOpenAIGroupsProvider{
 		groups: []Group{

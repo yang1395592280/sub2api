@@ -240,6 +240,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyAffiliateEnabled,
 		SettingKeyRiskControlEnabled,
 		SettingKeyAllowUserViewErrorRequests,
+		SettingKeyOpenAIDynamicBillingProfitMarkup,
 	}
 
 	settings, err := s.settingRepo.GetMultiple(ctx, keys)
@@ -371,7 +372,8 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 
 		RiskControlEnabled: settings[SettingKeyRiskControlEnabled] == "true",
 
-		AllowUserViewErrorRequests: settings[SettingKeyAllowUserViewErrorRequests] == "true",
+		AllowUserViewErrorRequests:       settings[SettingKeyAllowUserViewErrorRequests] == "true",
+		OpenAIDynamicBillingProfitMarkup: parseOpenAIDynamicBillingProfitMarkup(settings[SettingKeyOpenAIDynamicBillingProfitMarkup]),
 	}, nil
 }
 
@@ -614,13 +616,14 @@ type PublicSettingsInjectionPayload struct {
 	ChannelMonitorDefaultIntervalSeconds int    `json:"channel_monitor_default_interval_seconds"`
 	// ChannelMonitorHideThroughput is public so the user UI can hide RPM/TPM
 	// without waiting for API redaction alone (defense in depth).
-	ChannelMonitorHideThroughput bool `json:"channel_monitor_hide_throughput"`
-	AvailableChannelsEnabled     bool `json:"available_channels_enabled"`
-	ModelPlazaEnabled            bool `json:"model_plaza_enabled"`
-	ModelPlazaRequireAuth        bool `json:"model_plaza_require_auth"`
-	AffiliateEnabled             bool `json:"affiliate_enabled"`
-	RiskControlEnabled           bool `json:"risk_control_enabled"`
-	AllowUserViewErrorRequests   bool `json:"allow_user_view_error_requests"`
+	ChannelMonitorHideThroughput     bool    `json:"channel_monitor_hide_throughput"`
+	AvailableChannelsEnabled         bool    `json:"available_channels_enabled"`
+	ModelPlazaEnabled                bool    `json:"model_plaza_enabled"`
+	ModelPlazaRequireAuth            bool    `json:"model_plaza_require_auth"`
+	AffiliateEnabled                 bool    `json:"affiliate_enabled"`
+	RiskControlEnabled               bool    `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests       bool    `json:"allow_user_view_error_requests"`
+	OpenAIDynamicBillingProfitMarkup float64 `json:"openai_dynamic_billing_profit_markup"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -703,6 +706,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		AffiliateEnabled:                     settings.AffiliateEnabled,
 		RiskControlEnabled:                   settings.RiskControlEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,
+		OpenAIDynamicBillingProfitMarkup:     settings.OpenAIDynamicBillingProfitMarkup,
 	}, nil
 }
 

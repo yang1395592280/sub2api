@@ -159,6 +159,7 @@ type Group struct {
 	UpstreamPriceGroupingEnabled          bool    `json:"upstream_price_grouping_enabled"`
 	UpstreamPriceGroupingMin              float64 `json:"upstream_price_grouping_min"`
 	UpstreamPriceGroupingMax              float64 `json:"upstream_price_grouping_max"`
+	DynamicBillingEnabled                 bool    `json:"dynamic_billing_enabled"`
 
 	// 账号过滤控制（仅 OpenAI/Antigravity 平台有效）
 	RequireOAuthOnly  bool `json:"require_oauth_only"`

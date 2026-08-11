@@ -893,6 +893,20 @@ func (_c *GroupCreate) SetNillableUpstreamPriceGroupingMax(v *float64) *GroupCre
 	return _c
 }
 
+// SetDynamicBillingEnabled sets the "dynamic_billing_enabled" field.
+func (_c *GroupCreate) SetDynamicBillingEnabled(v bool) *GroupCreate {
+	_c.mutation.SetDynamicBillingEnabled(v)
+	return _c
+}
+
+// SetNillableDynamicBillingEnabled sets the "dynamic_billing_enabled" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableDynamicBillingEnabled(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetDynamicBillingEnabled(*v)
+	}
+	return _c
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_c *GroupCreate) SetRpmLimit(v int) *GroupCreate {
 	_c.mutation.SetRpmLimit(v)
@@ -1266,6 +1280,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultUpstreamPriceGroupingMax
 		_c.mutation.SetUpstreamPriceGroupingMax(v)
 	}
+	if _, ok := _c.mutation.DynamicBillingEnabled(); !ok {
+		v := group.DefaultDynamicBillingEnabled
+		_c.mutation.SetDynamicBillingEnabled(v)
+	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		v := group.DefaultRpmLimit
 		_c.mutation.SetRpmLimit(v)
@@ -1485,6 +1503,9 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.UpstreamPriceGroupingMax(); !ok {
 		return &ValidationError{Name: "upstream_price_grouping_max", err: errors.New(`ent: missing required field "Group.upstream_price_grouping_max"`)}
+	}
+	if _, ok := _c.mutation.DynamicBillingEnabled(); !ok {
+		return &ValidationError{Name: "dynamic_billing_enabled", err: errors.New(`ent: missing required field "Group.dynamic_billing_enabled"`)}
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		return &ValidationError{Name: "rpm_limit", err: errors.New(`ent: missing required field "Group.rpm_limit"`)}
@@ -1791,6 +1812,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.UpstreamPriceGroupingMax(); ok {
 		_spec.SetField(group.FieldUpstreamPriceGroupingMax, field.TypeFloat64, value)
 		_node.UpstreamPriceGroupingMax = value
+	}
+	if value, ok := _c.mutation.DynamicBillingEnabled(); ok {
+		_spec.SetField(group.FieldDynamicBillingEnabled, field.TypeBool, value)
+		_node.DynamicBillingEnabled = value
 	}
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -3013,6 +3038,18 @@ func (u *GroupUpsert) UpdateUpstreamPriceGroupingMax() *GroupUpsert {
 // AddUpstreamPriceGroupingMax adds v to the "upstream_price_grouping_max" field.
 func (u *GroupUpsert) AddUpstreamPriceGroupingMax(v float64) *GroupUpsert {
 	u.Add(group.FieldUpstreamPriceGroupingMax, v)
+	return u
+}
+
+// SetDynamicBillingEnabled sets the "dynamic_billing_enabled" field.
+func (u *GroupUpsert) SetDynamicBillingEnabled(v bool) *GroupUpsert {
+	u.Set(group.FieldDynamicBillingEnabled, v)
+	return u
+}
+
+// UpdateDynamicBillingEnabled sets the "dynamic_billing_enabled" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateDynamicBillingEnabled() *GroupUpsert {
+	u.SetExcluded(group.FieldDynamicBillingEnabled)
 	return u
 }
 
@@ -4369,6 +4406,20 @@ func (u *GroupUpsertOne) AddUpstreamPriceGroupingMax(v float64) *GroupUpsertOne 
 func (u *GroupUpsertOne) UpdateUpstreamPriceGroupingMax() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateUpstreamPriceGroupingMax()
+	})
+}
+
+// SetDynamicBillingEnabled sets the "dynamic_billing_enabled" field.
+func (u *GroupUpsertOne) SetDynamicBillingEnabled(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetDynamicBillingEnabled(v)
+	})
+}
+
+// UpdateDynamicBillingEnabled sets the "dynamic_billing_enabled" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateDynamicBillingEnabled() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateDynamicBillingEnabled()
 	})
 }
 
@@ -5906,6 +5957,20 @@ func (u *GroupUpsertBulk) AddUpstreamPriceGroupingMax(v float64) *GroupUpsertBul
 func (u *GroupUpsertBulk) UpdateUpstreamPriceGroupingMax() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateUpstreamPriceGroupingMax()
+	})
+}
+
+// SetDynamicBillingEnabled sets the "dynamic_billing_enabled" field.
+func (u *GroupUpsertBulk) SetDynamicBillingEnabled(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetDynamicBillingEnabled(v)
+	})
+}
+
+// UpdateDynamicBillingEnabled sets the "dynamic_billing_enabled" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateDynamicBillingEnabled() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateDynamicBillingEnabled()
 	})
 }
 

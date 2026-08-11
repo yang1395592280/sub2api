@@ -147,6 +147,8 @@ type Group struct {
 	UpstreamPriceGroupingMin float64 `json:"upstream_price_grouping_min,omitempty"`
 	// OpenAI 渠道价格自动归组区间上限（包含）
 	UpstreamPriceGroupingMax float64 `json:"upstream_price_grouping_max,omitempty"`
+	// 是否按账号渠道价格加全局固定利润动态扣费，仅 OpenAI 普通余额分组可启用
+	DynamicBillingEnabled bool `json:"dynamic_billing_enabled,omitempty"`
 	// 分组 RPM 上限，0 表示不限制；设置后接管该分组用户的限流
 	RpmLimit int `json:"rpm_limit,omitempty"`
 	// OpenAI reasoning effort 上限；可选 minimal/low/medium/high/xhigh/max
@@ -267,7 +269,7 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case group.FieldVideoModelPrices, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelsListConfig, group.FieldReasoningEffortMappings:
 			values[i] = new([]byte)
-		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldAllowLive, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldOpenaiAutoSchedulerEnabled, group.FieldAllowAutoCheapestScheduling, group.FieldUpstreamBalanceRefreshEnabled, group.FieldUpstreamPriceGroupingEnabled, group.FieldProfitControlEnabled:
+		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldAllowLive, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldOpenaiAutoSchedulerEnabled, group.FieldAllowAutoCheapestScheduling, group.FieldUpstreamBalanceRefreshEnabled, group.FieldUpstreamPriceGroupingEnabled, group.FieldDynamicBillingEnabled, group.FieldProfitControlEnabled:
 			values[i] = new(sql.NullBool)
 		case group.FieldRateMultiplier, group.FieldPeakRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k, group.FieldBatchImageDiscountMultiplier, group.FieldBatchImageHoldMultiplier, group.FieldVideoRateMultiplier, group.FieldVideoPrice480p, group.FieldVideoPrice720p, group.FieldVideoPrice1080p, group.FieldWebSearchPricePerCall, group.FieldSearchPricePer1k, group.FieldAudioRealtimePricePerMin, group.FieldAudioTtsPricePerMillionChars, group.FieldAudioSttPricePerHour, group.FieldUpstreamPriceMaxMultiplier, group.FieldUpstreamPriceGroupingMin, group.FieldUpstreamPriceGroupingMax, group.FieldProfitMinMargin, group.FieldProfitSafetyBuffer:
 			values[i] = new(sql.NullFloat64)
@@ -712,6 +714,12 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.UpstreamPriceGroupingMax = value.Float64
 			}
+		case group.FieldDynamicBillingEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field dynamic_billing_enabled", values[i])
+			} else if value.Valid {
+				_m.DynamicBillingEnabled = value.Bool
+			}
 		case group.FieldRpmLimit:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field rpm_limit", values[i])
@@ -1057,6 +1065,9 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("upstream_price_grouping_max=")
 	builder.WriteString(fmt.Sprintf("%v", _m.UpstreamPriceGroupingMax))
+	builder.WriteString(", ")
+	builder.WriteString("dynamic_billing_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.DynamicBillingEnabled))
 	builder.WriteString(", ")
 	builder.WriteString("rpm_limit=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RpmLimit))

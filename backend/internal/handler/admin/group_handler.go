@@ -181,6 +181,7 @@ type CreateGroupRequest struct {
 	UpstreamPriceGroupingEnabled          bool                                      `json:"upstream_price_grouping_enabled"`
 	UpstreamPriceGroupingMin              float64                                   `json:"upstream_price_grouping_min"`
 	UpstreamPriceGroupingMax              float64                                   `json:"upstream_price_grouping_max"`
+	DynamicBillingEnabled                 bool                                      `json:"dynamic_billing_enabled"`
 	// 分组 RPM 上限（0 = 不限制）
 	RPMLimit int `json:"rpm_limit"`
 	// OpenAI/Codex 请求推理强度上限，空字符串表示不限制。
@@ -258,6 +259,7 @@ type UpdateGroupRequest struct {
 	UpstreamPriceGroupingEnabled          *bool                                      `json:"upstream_price_grouping_enabled"`
 	UpstreamPriceGroupingMin              *float64                                   `json:"upstream_price_grouping_min"`
 	UpstreamPriceGroupingMax              *float64                                   `json:"upstream_price_grouping_max"`
+	DynamicBillingEnabled                 *bool                                      `json:"dynamic_billing_enabled"`
 	// 分组 RPM 上限（0 = 不限制）；nil 表示未提供不改动
 	RPMLimit *int `json:"rpm_limit"`
 	// OpenAI/Codex 请求推理强度上限；空字符串清除，nil 不修改。
@@ -597,6 +599,7 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		UpstreamPriceGroupingEnabled:          req.UpstreamPriceGroupingEnabled,
 		UpstreamPriceGroupingMin:              req.UpstreamPriceGroupingMin,
 		UpstreamPriceGroupingMax:              req.UpstreamPriceGroupingMax,
+		DynamicBillingEnabled:                 req.DynamicBillingEnabled,
 		RPMLimit:                              req.RPMLimit,
 		MaxReasoningEffort:                    req.MaxReasoningEffort,
 		ReasoningEffortMappings:               req.ReasoningEffortMappings,
@@ -724,6 +727,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		UpstreamPriceGroupingEnabled:          req.UpstreamPriceGroupingEnabled,
 		UpstreamPriceGroupingMin:              req.UpstreamPriceGroupingMin,
 		UpstreamPriceGroupingMax:              req.UpstreamPriceGroupingMax,
+		DynamicBillingEnabled:                 req.DynamicBillingEnabled,
 		RPMLimit:                              req.RPMLimit,
 		MaxReasoningEffort:                    req.MaxReasoningEffort,
 		ReasoningEffortMappings:               req.ReasoningEffortMappings,

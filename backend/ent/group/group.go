@@ -144,6 +144,8 @@ const (
 	FieldUpstreamPriceGroupingMin = "upstream_price_grouping_min"
 	// FieldUpstreamPriceGroupingMax holds the string denoting the upstream_price_grouping_max field in the database.
 	FieldUpstreamPriceGroupingMax = "upstream_price_grouping_max"
+	// FieldDynamicBillingEnabled holds the string denoting the dynamic_billing_enabled field in the database.
+	FieldDynamicBillingEnabled = "dynamic_billing_enabled"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// FieldMaxReasoningEffort holds the string denoting the max_reasoning_effort field in the database.
@@ -295,6 +297,7 @@ var Columns = []string{
 	FieldUpstreamPriceGroupingEnabled,
 	FieldUpstreamPriceGroupingMin,
 	FieldUpstreamPriceGroupingMax,
+	FieldDynamicBillingEnabled,
 	FieldRpmLimit,
 	FieldMaxReasoningEffort,
 	FieldReasoningEffortMappings,
@@ -440,6 +443,8 @@ var (
 	DefaultUpstreamPriceGroupingMin float64
 	// DefaultUpstreamPriceGroupingMax holds the default value on creation for the "upstream_price_grouping_max" field.
 	DefaultUpstreamPriceGroupingMax float64
+	// DefaultDynamicBillingEnabled holds the default value on creation for the "dynamic_billing_enabled" field.
+	DefaultDynamicBillingEnabled bool
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 	// DefaultMaxReasoningEffort holds the default value on creation for the "max_reasoning_effort" field.
@@ -757,6 +762,11 @@ func ByUpstreamPriceGroupingMin(opts ...sql.OrderTermOption) OrderOption {
 // ByUpstreamPriceGroupingMax orders the results by the upstream_price_grouping_max field.
 func ByUpstreamPriceGroupingMax(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUpstreamPriceGroupingMax, opts...).ToFunc()
+}
+
+// ByDynamicBillingEnabled orders the results by the dynamic_billing_enabled field.
+func ByDynamicBillingEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDynamicBillingEnabled, opts...).ToFunc()
 }
 
 // ByRpmLimit orders the results by the rpm_limit field.

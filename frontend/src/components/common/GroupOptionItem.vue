@@ -26,7 +26,10 @@
     <div class="flex shrink-0 items-center gap-2 pt-0.5">
       <div class="flex shrink-0 flex-col items-end gap-1">
         <!-- Rate pill (platform color) -->
-        <span v-if="rateMultiplier !== undefined" :class="['inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold', ratePillClass]">
+        <span v-if="dynamicBillingEnabled" :class="['inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold', ratePillClass]">
+          {{ dynamicBillingText }}
+        </span>
+        <span v-else-if="rateMultiplier !== undefined" :class="['inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold', ratePillClass]">
           <template v-if="hasCustomRate">
             <span class="mr-1 line-through opacity-50">{{ rateMultiplier }}x</span>
             <span class="font-bold">{{ userRateMultiplier }}x</span>
@@ -78,6 +81,9 @@ interface Props {
   peakStart?: string
   peakEnd?: string
   peakRateMultiplier?: number
+  dynamicBillingEnabled?: boolean
+  dynamicBillingMin?: number
+  dynamicBillingMax?: number
   description?: string | null
   selected?: boolean
   showCheckmark?: boolean
@@ -88,12 +94,26 @@ const props = withDefaults(defineProps<Props>(), {
   selected: false,
   showCheckmark: true,
   userRateMultiplier: null,
-  peakRateEnabled: false
+  peakRateEnabled: false,
+  dynamicBillingEnabled: false
 })
+
+const formatDynamicRate = (value?: number) =>
+  Number(value ?? 0)
+    .toFixed(4)
+    .replace(/0+$/, '')
+    .replace(/\.$/, '')
+const dynamicBillingText = computed(() =>
+  t('groups.dynamicBillingRange', {
+    min: formatDynamicRate(props.dynamicBillingMin),
+    max: formatDynamicRate(props.dynamicBillingMax)
+  })
+)
 
 // Whether user has a custom rate different from default
 const hasCustomRate = computed(() => {
   return (
+    !props.dynamicBillingEnabled &&
     props.userRateMultiplier !== null &&
     props.userRateMultiplier !== undefined &&
     props.rateMultiplier !== undefined &&

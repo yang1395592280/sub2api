@@ -943,6 +943,7 @@ export default {
         upstreamPriceGroupingEnabled: 'Group automatically by channel price',
         upstreamPriceGroupingMin: 'Minimum price (inclusive)',
         upstreamPriceGroupingMax: 'Maximum price (inclusive)',
+        dynamicBillingEnabled: 'Enable dynamic billing (channel price + OpenAI fixed profit, capped at this group maximum)',
         rpmLimit: 'Requests Per Minute (RPM)',
         rpmLimitPlaceholder: '0 = unlimited',
         rpmLimitHint: 'Max requests per minute for each user in this group; 0 = unlimited. Once set, it takes over per-user rate limiting in this group (overrides the user-level rpm_limit fallback).',

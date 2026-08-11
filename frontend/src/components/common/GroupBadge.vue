@@ -17,7 +17,7 @@
         <span class="font-bold">{{ userRateMultiplier }}x</span>
       </template>
       <template v-else>
-        {{ labelText }}
+        {{ dynamicBillingEnabled ? dynamicBillingText : labelText }}
       </template>
     </span>
     <span v-if="hasPeakRate" :class="peakRateClass" :title="peakRateTitle">
@@ -52,6 +52,9 @@ interface Props {
    * 只关心费率、不关心有效期的场景）。
    */
   alwaysShowRate?: boolean
+  dynamicBillingEnabled?: boolean
+  dynamicBillingMin?: number
+  dynamicBillingMax?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -60,16 +63,30 @@ const props = withDefaults(defineProps<Props>(), {
   daysRemaining: null,
   userRateMultiplier: null,
   peakRateEnabled: false,
-  alwaysShowRate: false
+  alwaysShowRate: false,
+  dynamicBillingEnabled: false
 })
 
 const { t } = useI18n()
+
+const formatDynamicRate = (value?: number) =>
+  Number(value ?? 0)
+    .toFixed(4)
+    .replace(/0+$/, '')
+    .replace(/\.$/, '')
+const dynamicBillingText = computed(() =>
+  t('groups.dynamicBillingRange', {
+    min: formatDynamicRate(props.dynamicBillingMin),
+    max: formatDynamicRate(props.dynamicBillingMax)
+  })
+)
 
 const isSubscription = computed(() => props.subscriptionType === 'subscription')
 
 // 是否有专属倍率（且与默认倍率不同）
 const hasCustomRate = computed(() => {
   return (
+    !props.dynamicBillingEnabled &&
     props.userRateMultiplier !== null &&
     props.userRateMultiplier !== undefined &&
     props.rateMultiplier !== undefined &&
@@ -104,6 +121,7 @@ const showLabel = computed(() => {
   if (!props.showRate) return false
   // 订阅类型：显示天数或"订阅"
   if (isSubscription.value) return true
+  if (props.dynamicBillingEnabled) return true
   // 标准类型：显示倍率（包括专属倍率）
   return props.rateMultiplier !== undefined || hasCustomRate.value
 })

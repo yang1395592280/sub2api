@@ -14,6 +14,9 @@ export interface KeyGroupOption {
   peakStart?: string;
   peakEnd?: string;
   peakRateMultiplier?: number;
+  dynamicBillingEnabled?: boolean;
+  dynamicBillingMin?: number;
+  dynamicBillingMax?: number;
   subscriptionType: SubscriptionType;
   platform: GroupPlatform;
   kind?: "openai_auto_cheapest";
@@ -28,8 +31,10 @@ export function buildKeyGroupOptions(
     includeOpenAIAutoCheapest?: boolean
     openAIAutoCheapestLabel?: string
     openAIAutoCheapestDescription?: string
+    openAIDynamicProfitMarkup?: number
   } = {},
 ): KeyGroupOption[] {
+  const profitMarkup = Math.max(0, Number(options.openAIDynamicProfitMarkup) || 0)
   const result: KeyGroupOption[] = groups.map((group) => ({
     value: group.id,
     label: group.name,
@@ -40,6 +45,13 @@ export function buildKeyGroupOptions(
     peakStart: group.peak_start,
     peakEnd: group.peak_end,
     peakRateMultiplier: group.peak_rate_multiplier,
+    dynamicBillingEnabled: group.dynamic_billing_enabled,
+    dynamicBillingMin: group.dynamic_billing_enabled
+      ? group.upstream_price_grouping_min + profitMarkup
+      : undefined,
+    dynamicBillingMax: group.dynamic_billing_enabled
+      ? group.upstream_price_grouping_max + profitMarkup
+      : undefined,
     subscriptionType: group.subscription_type,
     platform: group.platform,
   }));

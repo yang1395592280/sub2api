@@ -286,6 +286,9 @@ func (Group) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "decimal(12,6)"}).
 			Default(0).
 			Comment("OpenAI 渠道价格自动归组区间上限（包含）"),
+		field.Bool("dynamic_billing_enabled").
+			Default(false).
+			Comment("是否按账号渠道价格加全局固定利润动态扣费，仅 OpenAI 普通余额分组可启用"),
 
 		// 分组级每分钟请求数上限（0 = 不限制）。设置后优先于用户级兜底生效。
 		field.Int("rpm_limit").

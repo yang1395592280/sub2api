@@ -1251,30 +1251,34 @@ func init() {
 	groupDescUpstreamPriceGroupingMax := groupFields[60].Descriptor()
 	// group.DefaultUpstreamPriceGroupingMax holds the default value on creation for the upstream_price_grouping_max field.
 	group.DefaultUpstreamPriceGroupingMax = groupDescUpstreamPriceGroupingMax.Default.(float64)
+	// groupDescDynamicBillingEnabled is the schema descriptor for dynamic_billing_enabled field.
+	groupDescDynamicBillingEnabled := groupFields[61].Descriptor()
+	// group.DefaultDynamicBillingEnabled holds the default value on creation for the dynamic_billing_enabled field.
+	group.DefaultDynamicBillingEnabled = groupDescDynamicBillingEnabled.Default.(bool)
 	// groupDescRpmLimit is the schema descriptor for rpm_limit field.
-	groupDescRpmLimit := groupFields[61].Descriptor()
+	groupDescRpmLimit := groupFields[62].Descriptor()
 	// group.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	group.DefaultRpmLimit = groupDescRpmLimit.Default.(int)
 	// groupDescMaxReasoningEffort is the schema descriptor for max_reasoning_effort field.
-	groupDescMaxReasoningEffort := groupFields[62].Descriptor()
+	groupDescMaxReasoningEffort := groupFields[63].Descriptor()
 	// group.DefaultMaxReasoningEffort holds the default value on creation for the max_reasoning_effort field.
 	group.DefaultMaxReasoningEffort = groupDescMaxReasoningEffort.Default.(string)
 	// group.MaxReasoningEffortValidator is a validator for the "max_reasoning_effort" field. It is called by the builders before save.
 	group.MaxReasoningEffortValidator = groupDescMaxReasoningEffort.Validators[0].(func(string) error)
 	// groupDescReasoningEffortMappings is the schema descriptor for reasoning_effort_mappings field.
-	groupDescReasoningEffortMappings := groupFields[63].Descriptor()
+	groupDescReasoningEffortMappings := groupFields[64].Descriptor()
 	// group.DefaultReasoningEffortMappings holds the default value on creation for the reasoning_effort_mappings field.
 	group.DefaultReasoningEffortMappings = groupDescReasoningEffortMappings.Default.([]domain.ReasoningEffortMapping)
 	// groupDescProfitControlEnabled is the schema descriptor for profit_control_enabled field.
-	groupDescProfitControlEnabled := groupFields[64].Descriptor()
+	groupDescProfitControlEnabled := groupFields[65].Descriptor()
 	// group.DefaultProfitControlEnabled holds the default value on creation for the profit_control_enabled field.
 	group.DefaultProfitControlEnabled = groupDescProfitControlEnabled.Default.(bool)
 	// groupDescProfitMinMargin is the schema descriptor for profit_min_margin field.
-	groupDescProfitMinMargin := groupFields[65].Descriptor()
+	groupDescProfitMinMargin := groupFields[66].Descriptor()
 	// group.DefaultProfitMinMargin holds the default value on creation for the profit_min_margin field.
 	group.DefaultProfitMinMargin = groupDescProfitMinMargin.Default.(float64)
 	// groupDescProfitSafetyBuffer is the schema descriptor for profit_safety_buffer field.
-	groupDescProfitSafetyBuffer := groupFields[66].Descriptor()
+	groupDescProfitSafetyBuffer := groupFields[67].Descriptor()
 	// group.DefaultProfitSafetyBuffer holds the default value on creation for the profit_safety_buffer field.
 	group.DefaultProfitSafetyBuffer = groupDescProfitSafetyBuffer.Default.(float64)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()
