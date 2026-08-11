@@ -5,16 +5,31 @@ import (
 	"math"
 )
 
+// EffectiveOpenAIDynamicBillingProfitMarkup resolves the optional per-group
+// override. A nil override inherits the global setting; zero explicitly means
+// that the group does not add fixed profit.
+func EffectiveOpenAIDynamicBillingProfitMarkup(group *Group, globalProfitMarkup float64) float64 {
+	if globalProfitMarkup < 0 || math.IsNaN(globalProfitMarkup) || math.IsInf(globalProfitMarkup, 0) {
+		globalProfitMarkup = 0
+	}
+	if group == nil || group.DynamicBillingProfitMarkup == nil {
+		return globalProfitMarkup
+	}
+	profitMarkup := *group.DynamicBillingProfitMarkup
+	if profitMarkup < 0 || math.IsNaN(profitMarkup) || math.IsInf(profitMarkup, 0) {
+		return globalProfitMarkup
+	}
+	return profitMarkup
+}
+
 // OpenAIDynamicBillingRange returns the user-visible multiplier interval. The
 // same upstream grouping range remains the single source of truth for account
-// movement; fixed profit only shifts the displayed and billed range.
-func OpenAIDynamicBillingRange(group *Group, profitMarkup float64) (float64, float64, bool) {
+// movement; effective fixed profit only shifts the displayed and billed range.
+func OpenAIDynamicBillingRange(group *Group, globalProfitMarkup float64) (float64, float64, bool) {
 	if group == nil || !group.DynamicBillingEnabled || !group.UpstreamPriceGroupingEnabled || group.Platform != PlatformOpenAI || group.GroupRole != GroupRoleStandard || group.SubscriptionType != SubscriptionTypeStandard {
 		return 0, 0, false
 	}
-	if profitMarkup < 0 || math.IsNaN(profitMarkup) || math.IsInf(profitMarkup, 0) {
-		profitMarkup = 0
-	}
+	profitMarkup := EffectiveOpenAIDynamicBillingProfitMarkup(group, globalProfitMarkup)
 	minRate := group.UpstreamPriceGroupingMin + profitMarkup
 	maxRate := group.UpstreamPriceGroupingMax + profitMarkup
 	if maxRate <= 0 || maxRate < minRate {
@@ -30,11 +45,12 @@ func ResolveOpenAIDynamicBillingMultiplier(ctx context.Context, apiKey *APIKey, 
 	if apiKey == nil || apiKey.Group == nil || !apiKey.Group.DynamicBillingEnabled {
 		return fallback
 	}
-	profitMarkup := 0.0
+	globalProfitMarkup := 0.0
 	if settings != nil {
-		profitMarkup = settings.GetOpenAIDynamicBillingProfitMarkup(ctx)
+		globalProfitMarkup = settings.GetOpenAIDynamicBillingProfitMarkup(ctx)
 	}
-	_, maxRate, enabled := OpenAIDynamicBillingRange(apiKey.Group, profitMarkup)
+	profitMarkup := EffectiveOpenAIDynamicBillingProfitMarkup(apiKey.Group, globalProfitMarkup)
+	_, maxRate, enabled := OpenAIDynamicBillingRange(apiKey.Group, globalProfitMarkup)
 	if !enabled {
 		return fallback
 	}

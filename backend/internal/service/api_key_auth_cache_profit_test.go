@@ -16,6 +16,7 @@ import (
 
 func profitAuthTestAPIKey() *APIKey {
 	groupID := int64(50)
+	dynamicBillingProfitMarkup := 0.04
 	return &APIKey{
 		ID:      82,
 		UserID:  40,
@@ -42,6 +43,7 @@ func profitAuthTestAPIKey() *APIKey {
 			ProfitMinMargin:              0.2,
 			ProfitSafetyBuffer:           0.05,
 			DynamicBillingEnabled:        true,
+			DynamicBillingProfitMarkup:   &dynamicBillingProfitMarkup,
 			UpstreamPriceGroupingEnabled: true,
 			UpstreamPriceGroupingMin:     0.03,
 			UpstreamPriceGroupingMax:     0.12,
@@ -58,7 +60,7 @@ func TestAPIKeyAuthSnapshotProfitControlRoundtrip(t *testing.T) {
 	snapshot := svc.snapshotFromAPIKey(context.Background(), apiKey)
 	require.NotNil(t, snapshot)
 	require.Equal(t, apiKeyAuthSnapshotVersion, snapshot.Version)
-	require.Equal(t, 23, snapshot.Version, "v23 起认证快照携带动态计费字段")
+	require.Equal(t, 24, snapshot.Version, "v24 起认证快照携带动态计费分组利润")
 
 	// 模拟 L2 缓存的完整 JSON 往返（与 apiKeyCache.SetAuthCache/GetAuthCache 同构）。
 	payload, err := json.Marshal(&APIKeyAuthCacheEntry{Snapshot: snapshot})
@@ -76,6 +78,8 @@ func TestAPIKeyAuthSnapshotProfitControlRoundtrip(t *testing.T) {
 	require.InDelta(t, 0.05, materialized.Group.ProfitSafetyBuffer, 1e-12)
 	require.InDelta(t, 0.06, materialized.Group.RateMultiplier, 1e-12)
 	require.True(t, materialized.Group.DynamicBillingEnabled)
+	require.NotNil(t, materialized.Group.DynamicBillingProfitMarkup)
+	require.InDelta(t, 0.04, *materialized.Group.DynamicBillingProfitMarkup, 1e-12)
 	require.True(t, materialized.Group.UpstreamPriceGroupingEnabled)
 	require.InDelta(t, 0.03, materialized.Group.UpstreamPriceGroupingMin, 1e-12)
 	require.InDelta(t, 0.12, materialized.Group.UpstreamPriceGroupingMax, 1e-12)

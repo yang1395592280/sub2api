@@ -47,10 +47,10 @@ export function buildKeyGroupOptions(
     peakRateMultiplier: group.peak_rate_multiplier,
     dynamicBillingEnabled: group.dynamic_billing_enabled,
     dynamicBillingMin: group.dynamic_billing_enabled
-      ? group.upstream_price_grouping_min + profitMarkup
+      ? group.upstream_price_grouping_min + effectiveDynamicBillingProfit(group, profitMarkup)
       : undefined,
     dynamicBillingMax: group.dynamic_billing_enabled
-      ? group.upstream_price_grouping_max + profitMarkup
+      ? group.upstream_price_grouping_max + effectiveDynamicBillingProfit(group, profitMarkup)
       : undefined,
     subscriptionType: group.subscription_type,
     platform: group.platform,
@@ -70,4 +70,11 @@ export function buildKeyGroupOptions(
     });
   }
   return result;
+}
+
+function effectiveDynamicBillingProfit(group: Group, globalProfitMarkup: number): number {
+  if (group.dynamic_billing_profit_markup === null || group.dynamic_billing_profit_markup === undefined) {
+    return globalProfitMarkup
+  }
+  return Math.max(0, Number(group.dynamic_billing_profit_markup) || 0)
 }

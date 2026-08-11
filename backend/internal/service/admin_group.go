@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -339,6 +340,7 @@ func sanitizeSelfHostedPoolGroup(group *Group) {
 	group.UpstreamPriceGroupingMin = 0
 	group.UpstreamPriceGroupingMax = 0
 	group.DynamicBillingEnabled = false
+	group.DynamicBillingProfitMarkup = nil
 	group.RPMLimit = 0
 }
 
@@ -356,10 +358,17 @@ func sanitizeUnsupportedDynamicBilling(group *Group) {
 		return
 	}
 	group.DynamicBillingEnabled = false
+	group.DynamicBillingProfitMarkup = nil
 }
 
 func validateDynamicBillingConfig(group *Group) error {
-	if group == nil || !group.DynamicBillingEnabled {
+	if group == nil {
+		return nil
+	}
+	if group.DynamicBillingProfitMarkup != nil && (*group.DynamicBillingProfitMarkup < 0 || math.IsNaN(*group.DynamicBillingProfitMarkup) || math.IsInf(*group.DynamicBillingProfitMarkup, 0)) {
+		return infraerrors.BadRequest("INVALID_DYNAMIC_BILLING_PROFIT_MARKUP", "dynamic billing group profit markup must be zero or greater")
+	}
+	if !group.DynamicBillingEnabled {
 		return nil
 	}
 	if !group.UpstreamPriceGroupingEnabled {
@@ -689,6 +698,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		UpstreamPriceGroupingMin:              input.UpstreamPriceGroupingMin,
 		UpstreamPriceGroupingMax:              input.UpstreamPriceGroupingMax,
 		DynamicBillingEnabled:                 input.DynamicBillingEnabled,
+		DynamicBillingProfitMarkup:            cloneGroupValuePointer(input.DynamicBillingProfitMarkup),
 		RPMLimit:                              input.RPMLimit,
 		MaxReasoningEffort:                    maxReasoningEffort,
 		ReasoningEffortMappings:               reasoningEffortMappings,
@@ -1106,6 +1116,9 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if input.DynamicBillingEnabled != nil {
 		group.DynamicBillingEnabled = *input.DynamicBillingEnabled
+	}
+	if input.DynamicBillingProfitMarkupSet {
+		group.DynamicBillingProfitMarkup = cloneGroupValuePointer(input.DynamicBillingProfitMarkup)
 	}
 	if err := ValidateGroupUpstreamPriceGuardConfig(
 		group.UpstreamBalanceRefreshEnabled,

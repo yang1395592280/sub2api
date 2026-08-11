@@ -252,6 +252,7 @@ func groupFromServiceBase(g *service.Group) Group {
 		UpstreamPriceGroupingMin:              g.UpstreamPriceGroupingMin,
 		UpstreamPriceGroupingMax:              g.UpstreamPriceGroupingMax,
 		DynamicBillingEnabled:                 g.DynamicBillingEnabled,
+		DynamicBillingProfitMarkup:            g.DynamicBillingProfitMarkup,
 		RequireOAuthOnly:                      g.RequireOAuthOnly,
 		RequirePrivacySet:                     g.RequirePrivacySet,
 		RPMLimit:                              g.RPMLimit,

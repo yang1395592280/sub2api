@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 23 // v23: include OpenAI group dynamic-billing metadata
+const apiKeyAuthSnapshotVersion = 24 // v24: include OpenAI group dynamic-billing profit override
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -435,6 +435,7 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			ProfitMinMargin:                 apiKey.Group.ProfitMinMargin,
 			ProfitSafetyBuffer:              apiKey.Group.ProfitSafetyBuffer,
 			DynamicBillingEnabled:           apiKey.Group.DynamicBillingEnabled,
+			DynamicBillingProfitMarkup:      apiKey.Group.DynamicBillingProfitMarkup,
 			UpstreamPriceGroupingEnabled:    apiKey.Group.UpstreamPriceGroupingEnabled,
 			UpstreamPriceGroupingMin:        apiKey.Group.UpstreamPriceGroupingMin,
 			UpstreamPriceGroupingMax:        apiKey.Group.UpstreamPriceGroupingMax,
@@ -540,6 +541,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			ProfitMinMargin:                 snapshot.Group.ProfitMinMargin,
 			ProfitSafetyBuffer:              snapshot.Group.ProfitSafetyBuffer,
 			DynamicBillingEnabled:           snapshot.Group.DynamicBillingEnabled,
+			DynamicBillingProfitMarkup:      snapshot.Group.DynamicBillingProfitMarkup,
 			UpstreamPriceGroupingEnabled:    snapshot.Group.UpstreamPriceGroupingEnabled,
 			UpstreamPriceGroupingMin:        snapshot.Group.UpstreamPriceGroupingMin,
 			UpstreamPriceGroupingMax:        snapshot.Group.UpstreamPriceGroupingMax,

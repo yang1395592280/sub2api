@@ -42,12 +42,15 @@ func EffectiveOpenAIGroupRate(group Group, userRates map[int64]float64) float64 
 	return group.RateMultiplier
 }
 
-func (r *OpenAIAutoCheapestGroupResolver) maximumAcceptedOpenAIGroupRate(ctx context.Context, group Group, userRates map[int64]float64) float64 {
-	profitMarkup := 0.0
-	if r != nil && r.settingService != nil {
-		profitMarkup = r.settingService.GetOpenAIDynamicBillingProfitMarkup(ctx)
+func effectiveOpenAIGroupRateWithProfit(group Group, userRates map[int64]float64, globalProfitMarkup float64) float64 {
+	if minRate, _, enabled := OpenAIDynamicBillingRange(&group, globalProfitMarkup); enabled {
+		return minRate
 	}
-	if _, maxRate, enabled := OpenAIDynamicBillingRange(&group, profitMarkup); enabled {
+	return EffectiveOpenAIGroupRate(group, userRates)
+}
+
+func maximumAcceptedOpenAIGroupRate(group Group, userRates map[int64]float64, globalProfitMarkup float64) float64 {
+	if _, maxRate, enabled := OpenAIDynamicBillingRange(&group, globalProfitMarkup); enabled {
 		return maxRate
 	}
 	return EffectiveOpenAIGroupRate(group, userRates)
@@ -98,6 +101,10 @@ func (r *OpenAIAutoCheapestGroupResolver) CandidateGroups(ctx context.Context, u
 	if err != nil {
 		return nil, err
 	}
+	globalProfitMarkup := 0.0
+	if r.settingService != nil {
+		globalProfitMarkup = r.settingService.GetOpenAIDynamicBillingProfitMarkup(ctx)
+	}
 
 	userRates, err := r.provider.GetUserGroupRates(ctx, userID)
 	if err != nil {
@@ -118,15 +125,15 @@ func (r *OpenAIAutoCheapestGroupResolver) CandidateGroups(ctx context.Context, u
 		if !group.AllowAutoCheapestScheduling {
 			continue
 		}
-		if maxRateMultiplier != nil && *maxRateMultiplier > 0 && r.maximumAcceptedOpenAIGroupRate(ctx, group, userRates) > *maxRateMultiplier {
+		if maxRateMultiplier != nil && *maxRateMultiplier > 0 && maximumAcceptedOpenAIGroupRate(group, userRates, globalProfitMarkup) > *maxRateMultiplier {
 			continue
 		}
 		candidates = append(candidates, group)
 	}
 
 	sort.SliceStable(candidates, func(i, j int) bool {
-		leftRate := EffectiveOpenAIGroupRate(candidates[i], userRates)
-		rightRate := EffectiveOpenAIGroupRate(candidates[j], userRates)
+		leftRate := effectiveOpenAIGroupRateWithProfit(candidates[i], userRates, globalProfitMarkup)
+		rightRate := effectiveOpenAIGroupRateWithProfit(candidates[j], userRates, globalProfitMarkup)
 		if leftRate != rightRate {
 			return leftRate < rightRate
 		}

@@ -1543,7 +1543,9 @@ const groupOptions = computed(() =>
 const dynamicBillingBoundary = (group: Group, boundary: 'min' | 'max'): number | undefined => {
   if (!group.dynamic_billing_enabled) return undefined
   const base = boundary === 'min' ? group.upstream_price_grouping_min : group.upstream_price_grouping_max
-  return base + Math.max(0, Number(publicSettings.value?.openai_dynamic_billing_profit_markup) || 0)
+  const globalProfit = Math.max(0, Number(publicSettings.value?.openai_dynamic_billing_profit_markup) || 0)
+  const groupProfit = group.dynamic_billing_profit_markup
+  return base + (groupProfit === null || groupProfit === undefined ? globalProfit : Math.max(0, Number(groupProfit) || 0))
 }
 
 const getLastEffectiveGroupName = (key: ApiKey): string => {
