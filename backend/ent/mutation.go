@@ -22583,6 +22583,7 @@ type GroupMutation struct {
 	addupstream_price_grouping_min               *float64
 	upstream_price_grouping_max                  *float64
 	addupstream_price_grouping_max               *float64
+	dynamic_billing_enabled                      *bool
 	rpm_limit                                    *int
 	addrpm_limit                                 *int
 	max_reasoning_effort                         *string
@@ -25917,6 +25918,42 @@ func (m *GroupMutation) ResetUpstreamPriceGroupingMax() {
 	m.addupstream_price_grouping_max = nil
 }
 
+// SetDynamicBillingEnabled sets the "dynamic_billing_enabled" field.
+func (m *GroupMutation) SetDynamicBillingEnabled(b bool) {
+	m.dynamic_billing_enabled = &b
+}
+
+// DynamicBillingEnabled returns the value of the "dynamic_billing_enabled" field in the mutation.
+func (m *GroupMutation) DynamicBillingEnabled() (r bool, exists bool) {
+	v := m.dynamic_billing_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDynamicBillingEnabled returns the old "dynamic_billing_enabled" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldDynamicBillingEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDynamicBillingEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDynamicBillingEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDynamicBillingEnabled: %w", err)
+	}
+	return oldValue.DynamicBillingEnabled, nil
+}
+
+// ResetDynamicBillingEnabled resets all changes to the "dynamic_billing_enabled" field.
+func (m *GroupMutation) ResetDynamicBillingEnabled() {
+	m.dynamic_billing_enabled = nil
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (m *GroupMutation) SetRpmLimit(i int) {
 	m.rpm_limit = &i
@@ -26566,7 +26603,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 70)
+	fields := make([]string, 0, 71)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -26759,6 +26796,9 @@ func (m *GroupMutation) Fields() []string {
 	if m.upstream_price_grouping_max != nil {
 		fields = append(fields, group.FieldUpstreamPriceGroupingMax)
 	}
+	if m.dynamic_billing_enabled != nil {
+		fields = append(fields, group.FieldDynamicBillingEnabled)
+	}
 	if m.rpm_limit != nil {
 		fields = append(fields, group.FieldRpmLimit)
 	}
@@ -26913,6 +26953,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.UpstreamPriceGroupingMin()
 	case group.FieldUpstreamPriceGroupingMax:
 		return m.UpstreamPriceGroupingMax()
+	case group.FieldDynamicBillingEnabled:
+		return m.DynamicBillingEnabled()
 	case group.FieldRpmLimit:
 		return m.RpmLimit()
 	case group.FieldMaxReasoningEffort:
@@ -27062,6 +27104,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldUpstreamPriceGroupingMin(ctx)
 	case group.FieldUpstreamPriceGroupingMax:
 		return m.OldUpstreamPriceGroupingMax(ctx)
+	case group.FieldDynamicBillingEnabled:
+		return m.OldDynamicBillingEnabled(ctx)
 	case group.FieldRpmLimit:
 		return m.OldRpmLimit(ctx)
 	case group.FieldMaxReasoningEffort:
@@ -27530,6 +27574,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetUpstreamPriceGroupingMax(v)
+		return nil
+	case group.FieldDynamicBillingEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDynamicBillingEnabled(v)
 		return nil
 	case group.FieldRpmLimit:
 		v, ok := value.(int)
@@ -28335,6 +28386,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldUpstreamPriceGroupingMax:
 		m.ResetUpstreamPriceGroupingMax()
+		return nil
+	case group.FieldDynamicBillingEnabled:
+		m.ResetDynamicBillingEnabled()
 		return nil
 	case group.FieldRpmLimit:
 		m.ResetRpmLimit()

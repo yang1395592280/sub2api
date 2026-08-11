@@ -61,7 +61,8 @@ export default {
 
   // Groups (shared)
   groups: {
-    subscription: 'Sub'
+    subscription: 'Sub',
+    dynamicBillingRange: 'Dynamic {min}x - {max}x'
   },
 
   imageApiDocs: {

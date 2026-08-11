@@ -16,20 +16,41 @@ type LastEffectiveGroupUpdater interface {
 }
 
 type OpenAIAutoCheapestGroupResolver struct {
-	provider AvailableOpenAIGroupsProvider
+	provider       AvailableOpenAIGroupsProvider
+	settingService *SettingService
 }
 
-func NewOpenAIAutoCheapestGroupResolver(provider AvailableOpenAIGroupsProvider) *OpenAIAutoCheapestGroupResolver {
-	return &OpenAIAutoCheapestGroupResolver{provider: provider}
+func NewOpenAIAutoCheapestGroupResolver(provider AvailableOpenAIGroupsProvider, settings ...*SettingService) *OpenAIAutoCheapestGroupResolver {
+	resolver := &OpenAIAutoCheapestGroupResolver{provider: provider}
+	if len(settings) > 0 {
+		resolver.settingService = settings[0]
+	}
+	return resolver
 }
 
 func EffectiveOpenAIGroupRate(group Group, userRates map[int64]float64) float64 {
+	if minRate, _, enabled := OpenAIDynamicBillingRange(&group, 0); enabled {
+		// Fixed profit is global, so sorting dynamic tiers by their raw lower bound
+		// produces the same order as sorting by their displayed minimum.
+		return minRate
+	}
 	if userRates != nil {
 		if rate, ok := userRates[group.ID]; ok {
 			return rate
 		}
 	}
 	return group.RateMultiplier
+}
+
+func (r *OpenAIAutoCheapestGroupResolver) maximumAcceptedOpenAIGroupRate(ctx context.Context, group Group, userRates map[int64]float64) float64 {
+	profitMarkup := 0.0
+	if r != nil && r.settingService != nil {
+		profitMarkup = r.settingService.GetOpenAIDynamicBillingProfitMarkup(ctx)
+	}
+	if _, maxRate, enabled := OpenAIDynamicBillingRange(&group, profitMarkup); enabled {
+		return maxRate
+	}
+	return EffectiveOpenAIGroupRate(group, userRates)
 }
 
 func CloneAPIKeyForEffectiveGroup(apiKey *APIKey, group *Group) *APIKey {
@@ -97,7 +118,7 @@ func (r *OpenAIAutoCheapestGroupResolver) CandidateGroups(ctx context.Context, u
 		if !group.AllowAutoCheapestScheduling {
 			continue
 		}
-		if maxRateMultiplier != nil && *maxRateMultiplier > 0 && EffectiveOpenAIGroupRate(group, userRates) > *maxRateMultiplier {
+		if maxRateMultiplier != nil && *maxRateMultiplier > 0 && r.maximumAcceptedOpenAIGroupRate(ctx, group, userRates) > *maxRateMultiplier {
 			continue
 		}
 		candidates = append(candidates, group)

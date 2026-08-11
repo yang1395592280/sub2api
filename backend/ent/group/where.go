@@ -350,6 +350,11 @@ func UpstreamPriceGroupingMax(v float64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldUpstreamPriceGroupingMax, v))
 }
 
+// DynamicBillingEnabled applies equality check predicate on the "dynamic_billing_enabled" field. It's identical to DynamicBillingEnabledEQ.
+func DynamicBillingEnabled(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldDynamicBillingEnabled, v))
+}
+
 // RpmLimit applies equality check predicate on the "rpm_limit" field. It's identical to RpmLimitEQ.
 func RpmLimit(v int) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldRpmLimit, v))
@@ -2693,6 +2698,16 @@ func UpstreamPriceGroupingMaxLT(v float64) predicate.Group {
 // UpstreamPriceGroupingMaxLTE applies the LTE predicate on the "upstream_price_grouping_max" field.
 func UpstreamPriceGroupingMaxLTE(v float64) predicate.Group {
 	return predicate.Group(sql.FieldLTE(FieldUpstreamPriceGroupingMax, v))
+}
+
+// DynamicBillingEnabledEQ applies the EQ predicate on the "dynamic_billing_enabled" field.
+func DynamicBillingEnabledEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldDynamicBillingEnabled, v))
+}
+
+// DynamicBillingEnabledNEQ applies the NEQ predicate on the "dynamic_billing_enabled" field.
+func DynamicBillingEnabledNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldDynamicBillingEnabled, v))
 }
 
 // RpmLimitEQ applies the EQ predicate on the "rpm_limit" field.

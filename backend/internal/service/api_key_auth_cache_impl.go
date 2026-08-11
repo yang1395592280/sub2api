@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 22 // v22: include self-hosted pool and group profit-control metadata
+const apiKeyAuthSnapshotVersion = 23 // v23: include OpenAI group dynamic-billing metadata
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -434,6 +434,10 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			ProfitControlEnabled:            apiKey.Group.ProfitControlEnabled,
 			ProfitMinMargin:                 apiKey.Group.ProfitMinMargin,
 			ProfitSafetyBuffer:              apiKey.Group.ProfitSafetyBuffer,
+			DynamicBillingEnabled:           apiKey.Group.DynamicBillingEnabled,
+			UpstreamPriceGroupingEnabled:    apiKey.Group.UpstreamPriceGroupingEnabled,
+			UpstreamPriceGroupingMin:        apiKey.Group.UpstreamPriceGroupingMin,
+			UpstreamPriceGroupingMax:        apiKey.Group.UpstreamPriceGroupingMax,
 		}
 	}
 	return snapshot
@@ -535,6 +539,10 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			ProfitControlEnabled:            snapshot.Group.ProfitControlEnabled,
 			ProfitMinMargin:                 snapshot.Group.ProfitMinMargin,
 			ProfitSafetyBuffer:              snapshot.Group.ProfitSafetyBuffer,
+			DynamicBillingEnabled:           snapshot.Group.DynamicBillingEnabled,
+			UpstreamPriceGroupingEnabled:    snapshot.Group.UpstreamPriceGroupingEnabled,
+			UpstreamPriceGroupingMin:        snapshot.Group.UpstreamPriceGroupingMin,
+			UpstreamPriceGroupingMax:        snapshot.Group.UpstreamPriceGroupingMax,
 		}
 	}
 	s.compileAPIKeyIPRules(apiKey)

@@ -179,6 +179,9 @@
                   :peak-start="row.group.peak_start"
                   :peak-end="row.group.peak_end"
                   :peak-rate-multiplier="row.group.peak_rate_multiplier"
+                  :dynamic-billing-enabled="row.group.dynamic_billing_enabled"
+                  :dynamic-billing-min="dynamicBillingBoundary(row.group, 'min')"
+                  :dynamic-billing-max="dynamicBillingBoundary(row.group, 'max')"
                 />
                 <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{
                   t('keys.noGroup')
@@ -520,6 +523,9 @@
                 :peak-start="(option as unknown as GroupOption).peakStart"
                 :peak-end="(option as unknown as GroupOption).peakEnd"
                 :peak-rate-multiplier="(option as unknown as GroupOption).peakRateMultiplier"
+                :dynamic-billing-enabled="(option as unknown as GroupOption).dynamicBillingEnabled"
+                :dynamic-billing-min="(option as unknown as GroupOption).dynamicBillingMin"
+                :dynamic-billing-max="(option as unknown as GroupOption).dynamicBillingMax"
               />
               <span v-else class="text-gray-400">{{ t('keys.selectGroup') }}</span>
             </template>
@@ -534,6 +540,9 @@
                 :peak-start="(option as unknown as GroupOption).peakStart"
                 :peak-end="(option as unknown as GroupOption).peakEnd"
                 :peak-rate-multiplier="(option as unknown as GroupOption).peakRateMultiplier"
+                :dynamic-billing-enabled="(option as unknown as GroupOption).dynamicBillingEnabled"
+                :dynamic-billing-min="(option as unknown as GroupOption).dynamicBillingMin"
+                :dynamic-billing-max="(option as unknown as GroupOption).dynamicBillingMax"
                 :description="(option as unknown as GroupOption).description"
                 :selected="selected"
               />
@@ -1203,6 +1212,9 @@
               :peak-start="option.peakStart"
               :peak-end="option.peakEnd"
               :peak-rate-multiplier="option.peakRateMultiplier"
+              :dynamic-billing-enabled="option.dynamicBillingEnabled"
+              :dynamic-billing-min="option.dynamicBillingMin"
+              :dynamic-billing-max="option.dynamicBillingMax"
               :description="option.description"
               :selected="
                 selectedKeyForGroup?.group_id === option.value ||
@@ -1523,9 +1535,16 @@ const groupOptions = computed(() =>
   buildKeyGroupOptions(groups.value, userGroupRates.value, {
     includeOpenAIAutoCheapest: true,
     openAIAutoCheapestLabel: t('keys.openaiAutoCheapest.label'),
-    openAIAutoCheapestDescription: t('keys.openaiAutoCheapest.description')
+    openAIAutoCheapestDescription: t('keys.openaiAutoCheapest.description'),
+    openAIDynamicProfitMarkup: publicSettings.value?.openai_dynamic_billing_profit_markup ?? 0
   })
 )
+
+const dynamicBillingBoundary = (group: Group, boundary: 'min' | 'max'): number | undefined => {
+  if (!group.dynamic_billing_enabled) return undefined
+  const base = boundary === 'min' ? group.upstream_price_grouping_min : group.upstream_price_grouping_max
+  return base + Math.max(0, Number(publicSettings.value?.openai_dynamic_billing_profit_markup) || 0)
+}
 
 const getLastEffectiveGroupName = (key: ApiKey): string => {
   if (key.last_effective_group?.name) {

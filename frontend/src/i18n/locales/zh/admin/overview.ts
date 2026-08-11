@@ -925,6 +925,7 @@ export default {
         upstreamPriceGroupingEnabled: '按渠道价格自动归组',
         upstreamPriceGroupingMin: '最低价格（含）',
         upstreamPriceGroupingMax: '最高价格（含）',
+        dynamicBillingEnabled: '启用动态扣费（渠道价格 + OpenAI 固定利润，按本分组最高价封顶）',
         rpmLimit: '每分钟请求数 (RPM)',
         rpmLimitPlaceholder: '0 表示不限制',
         rpmLimitHint: '每用户在本分组每分钟最大请求数，0 = 不限制；一旦设置即接管该用户的限流（覆盖用户级 rpm_limit）',

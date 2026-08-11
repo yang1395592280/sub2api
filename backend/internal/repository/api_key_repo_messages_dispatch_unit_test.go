@@ -38,6 +38,26 @@ func TestGroupEntityToService_PreservesMessagesDispatchModelConfig(t *testing.T)
 	require.Equal(t, group.VideoModelPrices, got.VideoModelPrices)
 }
 
+func TestGroupEntityToService_PreservesDynamicBillingConfig(t *testing.T) {
+	group := &dbent.Group{
+		ID:                           2,
+		Platform:                     service.PlatformOpenAI,
+		GroupRole:                    service.GroupRoleStandard,
+		SubscriptionType:             service.SubscriptionTypeStandard,
+		DynamicBillingEnabled:        true,
+		UpstreamPriceGroupingEnabled: true,
+		UpstreamPriceGroupingMin:     0.03,
+		UpstreamPriceGroupingMax:     0.12,
+	}
+
+	got := groupEntityToService(group)
+
+	require.NotNil(t, got)
+	require.True(t, got.DynamicBillingEnabled)
+	require.InDelta(t, 0.03, got.UpstreamPriceGroupingMin, 1e-12)
+	require.InDelta(t, 0.12, got.UpstreamPriceGroupingMax, 1e-12)
+}
+
 func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_SQLite(t *testing.T) {
 	repo, client := newAPIKeyRepoSQLite(t)
 	ctx := context.Background()

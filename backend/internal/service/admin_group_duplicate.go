@@ -153,6 +153,7 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 			Models:  append([]string(nil), source.ModelsListConfig.Models...),
 		},
 		AllowAutoCheapestScheduling: source.AllowAutoCheapestScheduling,
+		DynamicBillingEnabled:       source.DynamicBillingEnabled,
 		RPMLimit:                    source.RPMLimit,
 		MaxReasoningEffort:          source.MaxReasoningEffort,
 		ReasoningEffortMappings:     append([]ReasoningEffortMapping(nil), source.ReasoningEffortMappings...),

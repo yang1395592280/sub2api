@@ -777,6 +777,18 @@
             />
           </div>
         </div>
+        <label
+          v-if="createForm.platform === 'openai' && createForm.group_role === 'standard' && createForm.subscription_type === 'standard'"
+          class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+        >
+          <input
+            v-model="createForm.dynamic_billing_enabled"
+            type="checkbox"
+            class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            :disabled="!createForm.upstream_price_grouping_enabled"
+          />
+          <span>{{ t("admin.groups.form.dynamicBillingEnabled") }}</span>
+        </label>
         <ReasoningEffortPolicyFields
           v-if="supportsReasoningEffortPolicyPlatform(createForm.platform)"
           ref="createReasoningEffortPolicyRef"
@@ -2600,6 +2612,18 @@
             />
           </div>
         </div>
+        <label
+          v-if="editForm.platform === 'openai' && editForm.group_role === 'standard' && editForm.subscription_type === 'standard'"
+          class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+        >
+          <input
+            v-model="editForm.dynamic_billing_enabled"
+            type="checkbox"
+            class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            :disabled="!editForm.upstream_price_grouping_enabled"
+          />
+          <span>{{ t("admin.groups.form.dynamicBillingEnabled") }}</span>
+        </label>
         <ReasoningEffortPolicyFields
           v-if="supportsReasoningEffortPolicyPlatform(editForm.platform)"
           ref="editReasoningEffortPolicyRef"
@@ -5369,6 +5393,7 @@ const createForm = reactive({
   upstream_price_grouping_enabled: false,
   upstream_price_grouping_min: 0.01,
   upstream_price_grouping_max: 0.05,
+  dynamic_billing_enabled: false,
   max_reasoning_effort: "",
   reasoning_effort_mappings: [] as ReasoningEffortMappingRow[],
 });
@@ -5738,6 +5763,7 @@ const editForm = reactive({
   upstream_price_grouping_enabled: false,
   upstream_price_grouping_min: 0.01,
   upstream_price_grouping_max: 0.05,
+  dynamic_billing_enabled: false,
   max_reasoning_effort: "",
   reasoning_effort_mappings: [] as ReasoningEffortMappingRow[],
 });
@@ -6206,6 +6232,7 @@ const closeCreateModal = () => {
   createForm.upstream_price_grouping_enabled = false;
   createForm.upstream_price_grouping_min = 0.01;
   createForm.upstream_price_grouping_max = 0.05;
+  createForm.dynamic_billing_enabled = false;
   createForm.max_reasoning_effort = "";
   createForm.reasoning_effort_mappings = [];
   createReasoningEffortPolicyRef.value?.resetValidation();
@@ -6387,6 +6414,12 @@ const handleCreateGroup = async () => {
         createForm.upstream_price_grouping_enabled,
       upstream_price_grouping_min: Number(createForm.upstream_price_grouping_min),
       upstream_price_grouping_max: Number(createForm.upstream_price_grouping_max),
+      dynamic_billing_enabled:
+        createForm.platform === "openai" &&
+        createForm.group_role === "standard" &&
+        createForm.subscription_type === "standard" &&
+        createForm.upstream_price_grouping_enabled &&
+        createForm.dynamic_billing_enabled,
       messages_dispatch_model_config:
         createForm.platform === "openai"
           ? messagesDispatchFormStateToConfig({
@@ -6567,6 +6600,7 @@ const handleEdit = async (group: AdminGroup) => {
     group.upstream_price_grouping_min ?? 0.01;
   editForm.upstream_price_grouping_max =
     group.upstream_price_grouping_max ?? 0.05;
+  editForm.dynamic_billing_enabled = group.dynamic_billing_enabled ?? false;
   editForm.max_reasoning_effort = normalizeReasoningEffortForPlatform(
     group.platform,
     group.max_reasoning_effort,
@@ -6690,6 +6724,12 @@ const handleUpdateGroup = async () => {
         editForm.upstream_price_grouping_enabled,
       upstream_price_grouping_min: Number(editForm.upstream_price_grouping_min),
       upstream_price_grouping_max: Number(editForm.upstream_price_grouping_max),
+      dynamic_billing_enabled:
+        editForm.platform === "openai" &&
+        editForm.group_role === "standard" &&
+        editForm.subscription_type === "standard" &&
+        editForm.upstream_price_grouping_enabled &&
+        editForm.dynamic_billing_enabled,
       messages_dispatch_model_config:
         editForm.platform === "openai"
           ? messagesDispatchFormStateToConfig({

@@ -114,6 +114,7 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 		SetUpstreamPriceGroupingEnabled(groupIn.UpstreamPriceGroupingEnabled).
 		SetUpstreamPriceGroupingMin(groupIn.UpstreamPriceGroupingMin).
 		SetUpstreamPriceGroupingMax(groupIn.UpstreamPriceGroupingMax).
+		SetDynamicBillingEnabled(groupIn.DynamicBillingEnabled).
 		SetRpmLimit(groupIn.RPMLimit).
 		SetMaxReasoningEffort(groupIn.MaxReasoningEffort).
 		SetReasoningEffortMappings(groupIn.ReasoningEffortMappings).
@@ -348,6 +349,7 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetUpstreamPriceGroupingEnabled(groupIn.UpstreamPriceGroupingEnabled).
 		SetUpstreamPriceGroupingMin(groupIn.UpstreamPriceGroupingMin).
 		SetUpstreamPriceGroupingMax(groupIn.UpstreamPriceGroupingMax).
+		SetDynamicBillingEnabled(groupIn.DynamicBillingEnabled).
 		SetRpmLimit(groupIn.RPMLimit).
 		SetMaxReasoningEffort(groupIn.MaxReasoningEffort).
 		SetReasoningEffortMappings(groupIn.ReasoningEffortMappings).

@@ -61,7 +61,8 @@ export default {
 
   // Groups (shared)
   groups: {
-    subscription: '订阅'
+    subscription: '订阅',
+    dynamicBillingRange: '动态 {min}x - {max}x'
   },
 
   imageApiDocs: {
