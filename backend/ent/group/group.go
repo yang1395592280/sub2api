@@ -146,6 +146,8 @@ const (
 	FieldUpstreamPriceGroupingMax = "upstream_price_grouping_max"
 	// FieldDynamicBillingEnabled holds the string denoting the dynamic_billing_enabled field in the database.
 	FieldDynamicBillingEnabled = "dynamic_billing_enabled"
+	// FieldDynamicBillingProfitMarkup holds the string denoting the dynamic_billing_profit_markup field in the database.
+	FieldDynamicBillingProfitMarkup = "dynamic_billing_profit_markup"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// FieldMaxReasoningEffort holds the string denoting the max_reasoning_effort field in the database.
@@ -298,6 +300,7 @@ var Columns = []string{
 	FieldUpstreamPriceGroupingMin,
 	FieldUpstreamPriceGroupingMax,
 	FieldDynamicBillingEnabled,
+	FieldDynamicBillingProfitMarkup,
 	FieldRpmLimit,
 	FieldMaxReasoningEffort,
 	FieldReasoningEffortMappings,
@@ -767,6 +770,11 @@ func ByUpstreamPriceGroupingMax(opts ...sql.OrderTermOption) OrderOption {
 // ByDynamicBillingEnabled orders the results by the dynamic_billing_enabled field.
 func ByDynamicBillingEnabled(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDynamicBillingEnabled, opts...).ToFunc()
+}
+
+// ByDynamicBillingProfitMarkup orders the results by the dynamic_billing_profit_markup field.
+func ByDynamicBillingProfitMarkup(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDynamicBillingProfitMarkup, opts...).ToFunc()
 }
 
 // ByRpmLimit orders the results by the rpm_limit field.

@@ -907,6 +907,20 @@ func (_c *GroupCreate) SetNillableDynamicBillingEnabled(v *bool) *GroupCreate {
 	return _c
 }
 
+// SetDynamicBillingProfitMarkup sets the "dynamic_billing_profit_markup" field.
+func (_c *GroupCreate) SetDynamicBillingProfitMarkup(v float64) *GroupCreate {
+	_c.mutation.SetDynamicBillingProfitMarkup(v)
+	return _c
+}
+
+// SetNillableDynamicBillingProfitMarkup sets the "dynamic_billing_profit_markup" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableDynamicBillingProfitMarkup(v *float64) *GroupCreate {
+	if v != nil {
+		_c.SetDynamicBillingProfitMarkup(*v)
+	}
+	return _c
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_c *GroupCreate) SetRpmLimit(v int) *GroupCreate {
 	_c.mutation.SetRpmLimit(v)
@@ -1816,6 +1830,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.DynamicBillingEnabled(); ok {
 		_spec.SetField(group.FieldDynamicBillingEnabled, field.TypeBool, value)
 		_node.DynamicBillingEnabled = value
+	}
+	if value, ok := _c.mutation.DynamicBillingProfitMarkup(); ok {
+		_spec.SetField(group.FieldDynamicBillingProfitMarkup, field.TypeFloat64, value)
+		_node.DynamicBillingProfitMarkup = &value
 	}
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -3050,6 +3068,30 @@ func (u *GroupUpsert) SetDynamicBillingEnabled(v bool) *GroupUpsert {
 // UpdateDynamicBillingEnabled sets the "dynamic_billing_enabled" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateDynamicBillingEnabled() *GroupUpsert {
 	u.SetExcluded(group.FieldDynamicBillingEnabled)
+	return u
+}
+
+// SetDynamicBillingProfitMarkup sets the "dynamic_billing_profit_markup" field.
+func (u *GroupUpsert) SetDynamicBillingProfitMarkup(v float64) *GroupUpsert {
+	u.Set(group.FieldDynamicBillingProfitMarkup, v)
+	return u
+}
+
+// UpdateDynamicBillingProfitMarkup sets the "dynamic_billing_profit_markup" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateDynamicBillingProfitMarkup() *GroupUpsert {
+	u.SetExcluded(group.FieldDynamicBillingProfitMarkup)
+	return u
+}
+
+// AddDynamicBillingProfitMarkup adds v to the "dynamic_billing_profit_markup" field.
+func (u *GroupUpsert) AddDynamicBillingProfitMarkup(v float64) *GroupUpsert {
+	u.Add(group.FieldDynamicBillingProfitMarkup, v)
+	return u
+}
+
+// ClearDynamicBillingProfitMarkup clears the value of the "dynamic_billing_profit_markup" field.
+func (u *GroupUpsert) ClearDynamicBillingProfitMarkup() *GroupUpsert {
+	u.SetNull(group.FieldDynamicBillingProfitMarkup)
 	return u
 }
 
@@ -4420,6 +4462,34 @@ func (u *GroupUpsertOne) SetDynamicBillingEnabled(v bool) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateDynamicBillingEnabled() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateDynamicBillingEnabled()
+	})
+}
+
+// SetDynamicBillingProfitMarkup sets the "dynamic_billing_profit_markup" field.
+func (u *GroupUpsertOne) SetDynamicBillingProfitMarkup(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetDynamicBillingProfitMarkup(v)
+	})
+}
+
+// AddDynamicBillingProfitMarkup adds v to the "dynamic_billing_profit_markup" field.
+func (u *GroupUpsertOne) AddDynamicBillingProfitMarkup(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddDynamicBillingProfitMarkup(v)
+	})
+}
+
+// UpdateDynamicBillingProfitMarkup sets the "dynamic_billing_profit_markup" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateDynamicBillingProfitMarkup() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateDynamicBillingProfitMarkup()
+	})
+}
+
+// ClearDynamicBillingProfitMarkup clears the value of the "dynamic_billing_profit_markup" field.
+func (u *GroupUpsertOne) ClearDynamicBillingProfitMarkup() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearDynamicBillingProfitMarkup()
 	})
 }
 
@@ -5971,6 +6041,34 @@ func (u *GroupUpsertBulk) SetDynamicBillingEnabled(v bool) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdateDynamicBillingEnabled() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateDynamicBillingEnabled()
+	})
+}
+
+// SetDynamicBillingProfitMarkup sets the "dynamic_billing_profit_markup" field.
+func (u *GroupUpsertBulk) SetDynamicBillingProfitMarkup(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetDynamicBillingProfitMarkup(v)
+	})
+}
+
+// AddDynamicBillingProfitMarkup adds v to the "dynamic_billing_profit_markup" field.
+func (u *GroupUpsertBulk) AddDynamicBillingProfitMarkup(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddDynamicBillingProfitMarkup(v)
+	})
+}
+
+// UpdateDynamicBillingProfitMarkup sets the "dynamic_billing_profit_markup" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateDynamicBillingProfitMarkup() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateDynamicBillingProfitMarkup()
+	})
+}
+
+// ClearDynamicBillingProfitMarkup clears the value of the "dynamic_billing_profit_markup" field.
+func (u *GroupUpsertBulk) ClearDynamicBillingProfitMarkup() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearDynamicBillingProfitMarkup()
 	})
 }
 

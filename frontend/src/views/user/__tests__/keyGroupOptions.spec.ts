@@ -74,4 +74,25 @@ describe("buildKeyGroupOptions", () => {
     expect(groups[0].upstream_price_grouping_min).toBe(0.03);
     expect(groups[0].upstream_price_grouping_max).toBe(0.12);
   });
+
+  it("uses a per-group dynamic profit override including explicit zero", () => {
+    const groups = [
+      group({
+        id: 2,
+        name: "OpenAI Plus",
+        platform: "openai",
+        dynamic_billing_enabled: true,
+        dynamic_billing_profit_markup: 0,
+        upstream_price_grouping_min: 0.03,
+        upstream_price_grouping_max: 0.12,
+      }),
+    ];
+
+    const options = buildKeyGroupOptions(groups, {}, { openAIDynamicProfitMarkup: 0.03 });
+
+    expect(options[0]).toMatchObject({
+      dynamicBillingMin: 0.03,
+      dynamicBillingMax: 0.12,
+    });
+  });
 });

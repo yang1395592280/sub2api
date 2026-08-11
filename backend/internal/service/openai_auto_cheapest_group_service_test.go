@@ -514,6 +514,41 @@ func TestCandidateGroups_DynamicBillingUsesCappedMaximumForUserLimit(t *testing.
 	require.Equal(t, []int64{1}, groupIDsForTest(got))
 }
 
+func TestCandidateGroups_DynamicBillingSortsByGroupProfitOverride(t *testing.T) {
+	highProfit := 0.1
+	zeroProfit := 0.0
+	provider := &fakeAvailableOpenAIGroupsProvider{groups: []Group{
+		{ID: 1, Name: "lower-channel-higher-profit", Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, SubscriptionType: SubscriptionTypeStandard, Status: StatusActive, AllowAutoCheapestScheduling: true, DynamicBillingEnabled: true, DynamicBillingProfitMarkup: &highProfit, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.03, UpstreamPriceGroupingMax: 0.06},
+		{ID: 2, Name: "higher-channel-zero-profit", Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, SubscriptionType: SubscriptionTypeStandard, Status: StatusActive, AllowAutoCheapestScheduling: true, DynamicBillingEnabled: true, DynamicBillingProfitMarkup: &zeroProfit, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.08, UpstreamPriceGroupingMax: 0.12},
+	}}
+	settings := NewSettingService(&dynamicBillingSettingRepoStub{values: map[string]string{
+		SettingKeyOpenAIDynamicBillingProfitMarkup: "0.03",
+	}}, nil)
+	resolver := NewOpenAIAutoCheapestGroupResolver(provider, settings)
+
+	got, err := resolver.CandidateGroups(context.Background(), 42, nil)
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{2, 1}, groupIDsForTest(got))
+}
+
+func TestCandidateGroups_DynamicBillingGroupProfitOverrideAffectsUserLimit(t *testing.T) {
+	groupProfit := 0.05
+	provider := &fakeAvailableOpenAIGroupsProvider{groups: []Group{
+		{ID: 1, Name: "override-above-limit", Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, SubscriptionType: SubscriptionTypeStandard, Status: StatusActive, AllowAutoCheapestScheduling: true, DynamicBillingEnabled: true, DynamicBillingProfitMarkup: &groupProfit, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.03, UpstreamPriceGroupingMax: 0.12},
+	}}
+	settings := NewSettingService(&dynamicBillingSettingRepoStub{values: map[string]string{
+		SettingKeyOpenAIDynamicBillingProfitMarkup: "0.03",
+	}}, nil)
+	resolver := NewOpenAIAutoCheapestGroupResolver(provider, settings)
+	maxRate := 0.15
+
+	got, err := resolver.CandidateGroups(context.Background(), 42, &maxRate)
+
+	require.NoError(t, err)
+	require.Empty(t, got)
+}
+
 func TestCandidateGroups_ZeroMaxRateMultiplierMeansUnlimited(t *testing.T) {
 	provider := &fakeAvailableOpenAIGroupsProvider{
 		groups: []Group{

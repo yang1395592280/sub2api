@@ -39,12 +39,14 @@ func TestGroupEntityToService_PreservesMessagesDispatchModelConfig(t *testing.T)
 }
 
 func TestGroupEntityToService_PreservesDynamicBillingConfig(t *testing.T) {
+	groupProfit := 0.04
 	group := &dbent.Group{
 		ID:                           2,
 		Platform:                     service.PlatformOpenAI,
 		GroupRole:                    service.GroupRoleStandard,
 		SubscriptionType:             service.SubscriptionTypeStandard,
 		DynamicBillingEnabled:        true,
+		DynamicBillingProfitMarkup:   &groupProfit,
 		UpstreamPriceGroupingEnabled: true,
 		UpstreamPriceGroupingMin:     0.03,
 		UpstreamPriceGroupingMax:     0.12,
@@ -54,6 +56,8 @@ func TestGroupEntityToService_PreservesDynamicBillingConfig(t *testing.T) {
 
 	require.NotNil(t, got)
 	require.True(t, got.DynamicBillingEnabled)
+	require.NotNil(t, got.DynamicBillingProfitMarkup)
+	require.InDelta(t, 0.04, *got.DynamicBillingProfitMarkup, 1e-12)
 	require.InDelta(t, 0.03, got.UpstreamPriceGroupingMin, 1e-12)
 	require.InDelta(t, 0.12, got.UpstreamPriceGroupingMax, 1e-12)
 }

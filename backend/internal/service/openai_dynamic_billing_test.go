@@ -55,6 +55,34 @@ func TestResolveOpenAIDynamicBillingMultiplier_ChannelPricePlusProfit(t *testing
 	require.InDelta(t, 0.07, got, 1e-12)
 }
 
+func TestResolveOpenAIDynamicBillingMultiplier_GroupProfitOverridesGlobal(t *testing.T) {
+	settings := NewSettingService(&dynamicBillingSettingRepoStub{values: map[string]string{
+		SettingKeyOpenAIDynamicBillingProfitMarkup: "0.03",
+	}}, nil)
+	price := 0.04
+	groupProfit := 0.05
+	apiKey := dynamicBillingTestAPIKey()
+	apiKey.Group.DynamicBillingProfitMarkup = &groupProfit
+
+	got := ResolveOpenAIDynamicBillingMultiplier(context.Background(), apiKey, &Account{ChannelPrice: &price}, settings, 1)
+
+	require.InDelta(t, 0.09, got, 1e-12)
+}
+
+func TestResolveOpenAIDynamicBillingMultiplier_ZeroGroupProfitOverridesGlobal(t *testing.T) {
+	settings := NewSettingService(&dynamicBillingSettingRepoStub{values: map[string]string{
+		SettingKeyOpenAIDynamicBillingProfitMarkup: "0.03",
+	}}, nil)
+	price := 0.04
+	groupProfit := 0.0
+	apiKey := dynamicBillingTestAPIKey()
+	apiKey.Group.DynamicBillingProfitMarkup = &groupProfit
+
+	got := ResolveOpenAIDynamicBillingMultiplier(context.Background(), apiKey, &Account{ChannelPrice: &price}, settings, 1)
+
+	require.InDelta(t, 0.04, got, 1e-12)
+}
+
 func TestResolveOpenAIDynamicBillingMultiplier_CapsAtDynamicGroupMaximum(t *testing.T) {
 	settings := NewSettingService(&dynamicBillingSettingRepoStub{values: map[string]string{
 		SettingKeyOpenAIDynamicBillingProfitMarkup: "0.03",
@@ -99,6 +127,16 @@ func TestResolveOpenAIDynamicBillingMultiplier_GroupingDisabledKeepsFallback(t *
 func TestValidateDynamicBillingConfigRequiresGroupingRange(t *testing.T) {
 	group := dynamicBillingTestAPIKey().Group
 	group.UpstreamPriceGroupingEnabled = false
+
+	err := validateDynamicBillingConfig(group)
+
+	require.Error(t, err)
+}
+
+func TestValidateDynamicBillingConfigRejectsNegativeGroupProfit(t *testing.T) {
+	group := dynamicBillingTestAPIKey().Group
+	groupProfit := -0.01
+	group.DynamicBillingProfitMarkup = &groupProfit
 
 	err := validateDynamicBillingConfig(group)
 

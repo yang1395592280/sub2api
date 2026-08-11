@@ -115,6 +115,7 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 		SetUpstreamPriceGroupingMin(groupIn.UpstreamPriceGroupingMin).
 		SetUpstreamPriceGroupingMax(groupIn.UpstreamPriceGroupingMax).
 		SetDynamicBillingEnabled(groupIn.DynamicBillingEnabled).
+		SetNillableDynamicBillingProfitMarkup(groupIn.DynamicBillingProfitMarkup).
 		SetRpmLimit(groupIn.RPMLimit).
 		SetMaxReasoningEffort(groupIn.MaxReasoningEffort).
 		SetReasoningEffortMappings(groupIn.ReasoningEffortMappings).
@@ -350,6 +351,7 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetUpstreamPriceGroupingMin(groupIn.UpstreamPriceGroupingMin).
 		SetUpstreamPriceGroupingMax(groupIn.UpstreamPriceGroupingMax).
 		SetDynamicBillingEnabled(groupIn.DynamicBillingEnabled).
+		SetNillableDynamicBillingProfitMarkup(groupIn.DynamicBillingProfitMarkup).
 		SetRpmLimit(groupIn.RPMLimit).
 		SetMaxReasoningEffort(groupIn.MaxReasoningEffort).
 		SetReasoningEffortMappings(groupIn.ReasoningEffortMappings).
@@ -365,6 +367,11 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		builder = builder.SetSelfHostedPoolGroupID(*groupIn.SelfHostedPoolGroupID)
 	} else {
 		builder = builder.ClearSelfHostedPoolGroupID()
+	}
+	if groupIn.DynamicBillingProfitMarkup != nil {
+		builder = builder.SetDynamicBillingProfitMarkup(*groupIn.DynamicBillingProfitMarkup)
+	} else {
+		builder = builder.ClearDynamicBillingProfitMarkup()
 	}
 
 	// 显式处理可空字段：nil 需要 clear，非 nil 需要 set。

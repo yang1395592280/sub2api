@@ -132,6 +132,8 @@ const createAdminGroup = (overrides: Partial<AdminGroup> = {}): AdminGroup => ({
   upstream_price_grouping_enabled: false,
   upstream_price_grouping_min: 0,
   upstream_price_grouping_max: 0,
+  dynamic_billing_enabled: false,
+  dynamic_billing_profit_markup: null,
   peak_rate_enabled: false,
   peak_start: '',
   peak_end: '',
@@ -317,6 +319,83 @@ describe('admin GroupsView upstream price guard settings', () => {
         upstream_price_grouping_min: 0.01,
         upstream_price_grouping_max: 0.05
       })
+    )
+  })
+
+  it('submits a group-specific dynamic billing profit override', async () => {
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-tour="groups-create-btn"]').trigger('click')
+    await wrapper.get('[data-tour="group-form-platform"]').setValue('openai')
+    await flushPromises()
+    await wrapper.get('[data-tour="group-form-name"]').setValue('OpenAI Plus')
+    await wrapper.get('[data-test="group-upstream-refresh-enabled"]').setValue(true)
+    await wrapper.get('[data-test="group-upstream-price-grouping-enabled"]').setValue(true)
+    await wrapper.get('[data-test="group-dynamic-billing-enabled"]').setValue(true)
+    await flushPromises()
+    await wrapper.get('[data-test="group-dynamic-billing-profit-markup"]').setValue('0.04')
+
+    await wrapper.get('#create-group-form').trigger('submit')
+    await flushPromises()
+
+    expect(createGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dynamic_billing_enabled: true,
+        dynamic_billing_profit_markup: 0.04
+      })
+    )
+  })
+
+  it('shows the backend message when group saving fails', async () => {
+    createGroup.mockRejectedValueOnce({
+      response: {
+        data: {
+          message: 'upstream price grouping range overlaps group "OpenAI Plus" [0.0300, 0.1200]'
+        }
+      }
+    })
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-tour="groups-create-btn"]').trigger('click')
+    await wrapper.get('[data-tour="group-form-name"]').setValue('Conflicting Group')
+    await wrapper.get('#create-group-form').trigger('submit')
+    await flushPromises()
+
+    expect(showError).toHaveBeenCalledWith(
+      'upstream price grouping range overlaps group "OpenAI Plus" [0.0300, 0.1200]'
+    )
+  })
+
+  it('clears a group profit override to inherit the global setting', async () => {
+    const existingGroup = createAdminGroup({
+      platform: 'openai',
+      upstream_balance_refresh_enabled: true,
+      upstream_price_grouping_enabled: true,
+      upstream_price_grouping_min: 0.03,
+      upstream_price_grouping_max: 0.12,
+      dynamic_billing_enabled: true,
+      dynamic_billing_profit_markup: 0.04
+    })
+    listGroups.mockResolvedValueOnce({
+      items: [existingGroup],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-test="group-edit-button"]').trigger('click')
+    await flushPromises()
+    const profitInput = wrapper.get('[data-test="edit-group-dynamic-billing-profit-markup"]')
+    expect((profitInput.element as HTMLInputElement).value).toBe('0.04')
+    await profitInput.setValue('')
+    await wrapper.get('#edit-group-form').trigger('submit')
+    await flushPromises()
+
+    expect(updateGroup).toHaveBeenCalledWith(
+      existingGroup.id,
+      expect.objectContaining({ dynamic_billing_profit_markup: null })
     )
   })
 

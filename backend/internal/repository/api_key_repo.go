@@ -1166,6 +1166,7 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		UpstreamPriceGroupingMin:              g.UpstreamPriceGroupingMin,
 		UpstreamPriceGroupingMax:              g.UpstreamPriceGroupingMax,
 		DynamicBillingEnabled:                 g.DynamicBillingEnabled,
+		DynamicBillingProfitMarkup:            g.DynamicBillingProfitMarkup,
 		RPMLimit:                              g.RpmLimit,
 		MaxReasoningEffort:                    g.MaxReasoningEffort,
 		ReasoningEffortMappings:               g.ReasoningEffortMappings,

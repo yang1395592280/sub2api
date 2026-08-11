@@ -663,6 +663,7 @@ export interface Group {
   upstream_price_grouping_min: number
   upstream_price_grouping_max: number
   dynamic_billing_enabled: boolean
+  dynamic_billing_profit_markup: number | null
   created_at: string
   updated_at: string
 }
@@ -898,6 +899,7 @@ export interface CreateGroupRequest {
   upstream_price_grouping_min?: number
   upstream_price_grouping_max?: number
   dynamic_billing_enabled?: boolean
+  dynamic_billing_profit_markup?: number | null
   // 从指定分组复制账号
   copy_accounts_from_group_ids?: number[]
 }
@@ -969,6 +971,7 @@ export interface UpdateGroupRequest {
   upstream_price_grouping_min?: number
   upstream_price_grouping_max?: number
   dynamic_billing_enabled?: boolean
+  dynamic_billing_profit_markup?: number | null
   copy_accounts_from_group_ids?: number[]
 }
 
