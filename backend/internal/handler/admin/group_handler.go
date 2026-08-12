@@ -48,6 +48,25 @@ type optionalInt64Field struct {
 	value *int64
 }
 
+type optionalNullableFloatField struct {
+	set   bool
+	value *float64
+}
+
+func (f *optionalNullableFloatField) UnmarshalJSON(data []byte) error {
+	f.set = true
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		f.value = nil
+		return nil
+	}
+	var value float64
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	f.value = &value
+	return nil
+}
+
 func (f *optionalInt64Field) UnmarshalJSON(data []byte) error {
 	f.set = true
 	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
@@ -181,6 +200,8 @@ type CreateGroupRequest struct {
 	UpstreamPriceGroupingEnabled          bool                                      `json:"upstream_price_grouping_enabled"`
 	UpstreamPriceGroupingMin              float64                                   `json:"upstream_price_grouping_min"`
 	UpstreamPriceGroupingMax              float64                                   `json:"upstream_price_grouping_max"`
+	DynamicBillingEnabled                 bool                                      `json:"dynamic_billing_enabled"`
+	DynamicBillingProfitMarkup            optionalNullableFloatField                `json:"dynamic_billing_profit_markup"`
 	// 分组 RPM 上限（0 = 不限制）
 	RPMLimit int `json:"rpm_limit"`
 	// OpenAI/Codex 请求推理强度上限，空字符串表示不限制。
@@ -258,6 +279,8 @@ type UpdateGroupRequest struct {
 	UpstreamPriceGroupingEnabled          *bool                                      `json:"upstream_price_grouping_enabled"`
 	UpstreamPriceGroupingMin              *float64                                   `json:"upstream_price_grouping_min"`
 	UpstreamPriceGroupingMax              *float64                                   `json:"upstream_price_grouping_max"`
+	DynamicBillingEnabled                 *bool                                      `json:"dynamic_billing_enabled"`
+	DynamicBillingProfitMarkup            optionalNullableFloatField                 `json:"dynamic_billing_profit_markup"`
 	// 分组 RPM 上限（0 = 不限制）；nil 表示未提供不改动
 	RPMLimit *int `json:"rpm_limit"`
 	// OpenAI/Codex 请求推理强度上限；空字符串清除，nil 不修改。
@@ -597,6 +620,8 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		UpstreamPriceGroupingEnabled:          req.UpstreamPriceGroupingEnabled,
 		UpstreamPriceGroupingMin:              req.UpstreamPriceGroupingMin,
 		UpstreamPriceGroupingMax:              req.UpstreamPriceGroupingMax,
+		DynamicBillingEnabled:                 req.DynamicBillingEnabled,
+		DynamicBillingProfitMarkup:            req.DynamicBillingProfitMarkup.value,
 		RPMLimit:                              req.RPMLimit,
 		MaxReasoningEffort:                    req.MaxReasoningEffort,
 		ReasoningEffortMappings:               req.ReasoningEffortMappings,
@@ -724,6 +749,9 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		UpstreamPriceGroupingEnabled:          req.UpstreamPriceGroupingEnabled,
 		UpstreamPriceGroupingMin:              req.UpstreamPriceGroupingMin,
 		UpstreamPriceGroupingMax:              req.UpstreamPriceGroupingMax,
+		DynamicBillingEnabled:                 req.DynamicBillingEnabled,
+		DynamicBillingProfitMarkup:            req.DynamicBillingProfitMarkup.value,
+		DynamicBillingProfitMarkupSet:         req.DynamicBillingProfitMarkup.set,
 		RPMLimit:                              req.RPMLimit,
 		MaxReasoningEffort:                    req.MaxReasoningEffort,
 		ReasoningEffortMappings:               req.ReasoningEffortMappings,

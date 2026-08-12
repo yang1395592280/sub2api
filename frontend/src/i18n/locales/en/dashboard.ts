@@ -61,7 +61,8 @@ export default {
 
   // Groups (shared)
   groups: {
-    subscription: 'Sub'
+    subscription: 'Sub',
+    dynamicBillingRange: 'Dynamic {min}x - {max}x'
   },
 
   imageApiDocs: {
@@ -306,6 +307,9 @@ export default {
     accountCost: 'Cost',
     userBilled: 'User billed',
     accountBilled: 'Account billed',
+    billingMultiplier: 'Billed rate',
+    rateAndProfit: 'Rate / Profit',
+    profit: 'Profit',
     resetNow: 'Now',
     resetPending: 'Pending refresh',
     accountMultiplier: 'Account rate',

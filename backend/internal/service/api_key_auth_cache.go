@@ -136,6 +136,14 @@ type APIKeyAuthGroupSnapshot struct {
 	ProfitControlEnabled bool    `json:"profit_control_enabled"`
 	ProfitMinMargin      float64 `json:"profit_min_margin"`
 	ProfitSafetyBuffer   float64 `json:"profit_safety_buffer"`
+
+	// OpenAI 动态计费依赖账号渠道价归组区间和可选分组利润；全局默认利润
+	// 仍由 SettingService 读取。版本升级后旧快照会强制回源，避免新字段缺失。
+	DynamicBillingEnabled        bool     `json:"dynamic_billing_enabled"`
+	DynamicBillingProfitMarkup   *float64 `json:"dynamic_billing_profit_markup"`
+	UpstreamPriceGroupingEnabled bool     `json:"upstream_price_grouping_enabled"`
+	UpstreamPriceGroupingMin     float64  `json:"upstream_price_grouping_min"`
+	UpstreamPriceGroupingMax     float64  `json:"upstream_price_grouping_max"`
 }
 
 // APIKeyAuthCacheEntry 缓存条目，支持负缓存

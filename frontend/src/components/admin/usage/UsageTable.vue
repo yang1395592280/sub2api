@@ -231,6 +231,37 @@
           </div>
         </template>
 
+        <template #cell-rate="{ row }">
+          <div class="min-w-[116px] space-y-0.5 text-xs tabular-nums" data-testid="usage-rate-cell">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-gray-400 dark:text-gray-500">{{ t('usage.billingMultiplier') }}</span>
+              <span class="font-semibold text-primary-600 dark:text-primary-400" data-testid="usage-billing-multiplier">
+                {{ formatMultiplier(row.rate_multiplier ?? 1) }}x
+              </span>
+            </div>
+            <template v-if="showAccountBilling">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-gray-400 dark:text-gray-500">{{ t('usage.accountMultiplier') }}</span>
+                <span class="font-medium text-orange-600 dark:text-orange-400" data-testid="usage-account-multiplier">
+                  {{ formatMultiplier(row.account_rate_multiplier ?? 1) }}x
+                </span>
+              </div>
+              <div class="flex items-center justify-between gap-2 border-t border-gray-100 pt-0.5 dark:border-dark-700">
+                <span class="text-gray-400 dark:text-gray-500">{{ t('usage.profit') }}</span>
+                <span
+                  class="font-semibold"
+                  :class="usageProfit(row) < 0
+                    ? 'text-rose-600 dark:text-rose-400'
+                    : usageProfit(row) > 0
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-gray-500 dark:text-gray-400'"
+                  data-testid="usage-profit"
+                >{{ formatSignedCurrency(usageProfit(row)) }}</span>
+              </div>
+            </template>
+          </div>
+        </template>
+
         <!-- 合并首字/总耗时的健康度列：左侧色条上端随首字档、下端随总耗时档，中段(40%-60%)短渐变过渡，便于纵向扫视整体健康状况 -->
         <template #cell-latency="{ row }">
           <div class="flex min-w-[150px] items-stretch gap-2">
@@ -592,6 +623,18 @@ function accountBilled(row: { total_cost?: number | null; account_stats_cost?: n
   const base = row.account_stats_cost != null ? row.account_stats_cost : (row.total_cost ?? 0)
   const result = base * (row.account_rate_multiplier ?? 1)
   return Number.isNaN(result) ? 0 : result
+}
+
+function usageProfit(row: AdminUsageLog): number {
+  const result = (row.actual_cost ?? 0) - accountBilled(row)
+  return Number.isFinite(result) ? result : 0
+}
+
+function formatSignedCurrency(value: number): string {
+  const normalized = Math.abs(value) < 0.0000005 ? 0 : value
+  if (normalized > 0) return `+$${normalized.toFixed(6)}`
+  if (normalized < 0) return `-$${Math.abs(normalized).toFixed(6)}`
+  return '$0.000000'
 }
 
 

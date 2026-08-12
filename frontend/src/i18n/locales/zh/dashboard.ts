@@ -61,7 +61,8 @@ export default {
 
   // Groups (shared)
   groups: {
-    subscription: '订阅'
+    subscription: '订阅',
+    dynamicBillingRange: '动态 {min}x - {max}x'
   },
 
   imageApiDocs: {
@@ -311,6 +312,9 @@ export default {
     accountCost: '成本',
     userBilled: '用户扣费',
     accountBilled: '账号计费',
+    billingMultiplier: '扣费倍率',
+    rateAndProfit: '费率/盈利',
+    profit: '盈利',
     resetNow: '现在',
     resetPending: '待刷新',
     accountMultiplier: '账号倍率',

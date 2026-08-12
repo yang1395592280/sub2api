@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -338,6 +339,8 @@ func sanitizeSelfHostedPoolGroup(group *Group) {
 	group.UpstreamPriceGroupingEnabled = false
 	group.UpstreamPriceGroupingMin = 0
 	group.UpstreamPriceGroupingMax = 0
+	group.DynamicBillingEnabled = false
+	group.DynamicBillingProfitMarkup = nil
 	group.RPMLimit = 0
 }
 
@@ -348,6 +351,33 @@ func sanitizeUnsupportedUpstreamPriceGrouping(group *Group) {
 	group.UpstreamPriceGroupingEnabled = false
 	group.UpstreamPriceGroupingMin = 0
 	group.UpstreamPriceGroupingMax = 0
+}
+
+func sanitizeUnsupportedDynamicBilling(group *Group) {
+	if group == nil || (group.Platform == PlatformOpenAI && group.GroupRole == GroupRoleStandard && group.SubscriptionType == SubscriptionTypeStandard) {
+		return
+	}
+	group.DynamicBillingEnabled = false
+	group.DynamicBillingProfitMarkup = nil
+}
+
+func validateDynamicBillingConfig(group *Group) error {
+	if group == nil {
+		return nil
+	}
+	if group.DynamicBillingProfitMarkup != nil && (*group.DynamicBillingProfitMarkup < 0 || math.IsNaN(*group.DynamicBillingProfitMarkup) || math.IsInf(*group.DynamicBillingProfitMarkup, 0)) {
+		return infraerrors.BadRequest("INVALID_DYNAMIC_BILLING_PROFIT_MARKUP", "dynamic billing group profit markup must be zero or greater")
+	}
+	if !group.DynamicBillingEnabled {
+		return nil
+	}
+	if !group.UpstreamPriceGroupingEnabled {
+		return infraerrors.BadRequest("DYNAMIC_BILLING_REQUIRES_PRICE_RANGE", "dynamic billing requires upstream price grouping to be enabled")
+	}
+	if group.UpstreamPriceGroupingMin <= 0 || group.UpstreamPriceGroupingMax < group.UpstreamPriceGroupingMin {
+		return infraerrors.BadRequest("INVALID_DYNAMIC_BILLING_RANGE", "dynamic billing requires a valid positive upstream price grouping range")
+	}
+	return nil
 }
 
 func (s *adminServiceImpl) validateUpstreamPriceGrouping(ctx context.Context, candidate *Group) error {
@@ -667,13 +697,19 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		UpstreamPriceGroupingEnabled:          input.UpstreamPriceGroupingEnabled,
 		UpstreamPriceGroupingMin:              input.UpstreamPriceGroupingMin,
 		UpstreamPriceGroupingMax:              input.UpstreamPriceGroupingMax,
+		DynamicBillingEnabled:                 input.DynamicBillingEnabled,
+		DynamicBillingProfitMarkup:            cloneGroupValuePointer(input.DynamicBillingProfitMarkup),
 		RPMLimit:                              input.RPMLimit,
 		MaxReasoningEffort:                    maxReasoningEffort,
 		ReasoningEffortMappings:               reasoningEffortMappings,
 	}
 	sanitizeSelfHostedPoolGroup(group)
 	sanitizeUnsupportedUpstreamPriceGrouping(group)
+	sanitizeUnsupportedDynamicBilling(group)
 	if err := s.validateUpstreamPriceGrouping(ctx, group); err != nil {
+		return nil, err
+	}
+	if err := validateDynamicBillingConfig(group); err != nil {
 		return nil, err
 	}
 	sanitizeGroupMessagesDispatchFields(group)
@@ -1078,6 +1114,12 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.UpstreamPriceGroupingMax != nil {
 		group.UpstreamPriceGroupingMax = *input.UpstreamPriceGroupingMax
 	}
+	if input.DynamicBillingEnabled != nil {
+		group.DynamicBillingEnabled = *input.DynamicBillingEnabled
+	}
+	if input.DynamicBillingProfitMarkupSet {
+		group.DynamicBillingProfitMarkup = cloneGroupValuePointer(input.DynamicBillingProfitMarkup)
+	}
 	if err := ValidateGroupUpstreamPriceGuardConfig(
 		group.UpstreamBalanceRefreshEnabled,
 		group.UpstreamBalanceRefreshIntervalSeconds,
@@ -1104,7 +1146,11 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	sanitizeSelfHostedPoolGroup(group)
 	sanitizeUnsupportedUpstreamPriceGrouping(group)
+	sanitizeUnsupportedDynamicBilling(group)
 	if err := s.validateUpstreamPriceGrouping(ctx, group); err != nil {
+		return nil, err
+	}
+	if err := validateDynamicBillingConfig(group); err != nil {
 		return nil, err
 	}
 	sanitizeGroupMessagesDispatchFields(group)

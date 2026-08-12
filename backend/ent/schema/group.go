@@ -286,6 +286,14 @@ func (Group) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "decimal(12,6)"}).
 			Default(0).
 			Comment("OpenAI 渠道价格自动归组区间上限（包含）"),
+		field.Bool("dynamic_billing_enabled").
+			Default(false).
+			Comment("是否按账号渠道价格加有效固定利润动态扣费，仅 OpenAI 普通余额分组可启用"),
+		field.Float("dynamic_billing_profit_markup").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(12,6)"}).
+			Optional().
+			Nillable().
+			Comment("OpenAI 动态扣费分组固定利润；NULL 继承全局配置，0 表示不加利润"),
 
 		// 分组级每分钟请求数上限（0 = 不限制）。设置后优先于用户级兜底生效。
 		field.Int("rpm_limit").
