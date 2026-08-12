@@ -499,6 +499,10 @@ func OpenAIAutoSchedulerAccountSummaryFromService(s service.OpenAIAutoSchedulerA
 	}
 }
 
+func OpenAIAutoSchedulerAccountReliabilityFromService(s service.OpenAIAutoSchedulerAccountReliability) *OpenAIAutoSchedulerAccountReliability {
+	return &OpenAIAutoSchedulerAccountReliability{SampleCount: s.SampleCount, SuccessCount: s.SuccessCount, SlowCount: s.SlowCount, ErrorCount: s.ErrorCount, ActiveDays: s.ActiveDays, AvgTTFBMS: s.AvgTTFBMS, LastEventAt: s.LastEventAt, Recommendation: s.Recommendation}
+}
+
 func timeToUnixSeconds(value *time.Time) *int64 {
 	if value == nil {
 		return nil

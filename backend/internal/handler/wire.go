@@ -230,6 +230,7 @@ func ProvideAdminAccountHandler(
 		sub2APICheckinService,
 	)
 	h.SetOpenAIAutoSchedulerAccountSummaryService(openAIAutoSchedulerService)
+	h.SetOpenAIAutoSchedulerAccountReliabilityService(openAIAutoSchedulerService)
 	h.SetGrokImportProber(grokQuotaService)
 	return h
 }

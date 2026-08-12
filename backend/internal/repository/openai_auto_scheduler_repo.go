@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -13,6 +14,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscoreevent"
 	"github.com/Wei-Shaw/sub2api/ent/openaiautoschedulerscorestate"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/lib/pq"
 
 	entsql "entgo.io/ent/dialect/sql"
 )
@@ -315,6 +317,68 @@ func (r *openAIAutoSchedulerRepository) ListScoreEvents(ctx context.Context, par
 		})
 	}
 	return out, int64(total), nil
+}
+
+func (r *openAIAutoSchedulerRepository) ListAccountReliability(ctx context.Context, accountIDs []int64, since time.Time) (map[int64]service.OpenAIAutoSchedulerAccountReliability, error) {
+	out := make(map[int64]service.OpenAIAutoSchedulerAccountReliability, len(accountIDs))
+	if len(accountIDs) == 0 {
+		return out, nil
+	}
+	driver, ok := r.client.Driver().(*entsql.Driver)
+	if !ok {
+		return out, nil
+	}
+	rows, err := driver.DB().QueryContext(ctx, `
+		SELECT account_id, COUNT(*),
+		       COUNT(*) FILTER (WHERE event_type IN ('success', 'probe_success')),
+		       COUNT(*) FILTER (WHERE event_type IN ('slow', 'severe_slow')),
+		       COUNT(*) FILTER (WHERE event_type IN ('error', 'request_error', 'rate_limited', 'probe_error')),
+		       COUNT(DISTINCT (created_at AT TIME ZONE 'UTC')::date),
+		       AVG(NULLIF(COALESCE(ttfb_ms, latency_ms), 0)), MAX(created_at)
+		FROM openai_auto_scheduler_score_events
+		WHERE account_id = ANY($1) AND created_at >= $2
+		GROUP BY account_id`, pq.Array(accountIDs), since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var accountID int64
+		var item service.OpenAIAutoSchedulerAccountReliability
+		var avg sql.NullFloat64
+		var last sql.NullTime
+		if err := rows.Scan(&accountID, &item.SampleCount, &item.SuccessCount, &item.SlowCount, &item.ErrorCount, &item.ActiveDays, &avg, &last); err != nil {
+			return nil, err
+		}
+		if avg.Valid {
+			item.AvgTTFBMS = &avg.Float64
+		}
+		if last.Valid {
+			item.LastEventAt = &last.Time
+		}
+		item.Recommendation = accountReliabilityRecommendation(item)
+		out[accountID] = item
+	}
+	return out, rows.Err()
+}
+
+func accountReliabilityRecommendation(item service.OpenAIAutoSchedulerAccountReliability) string {
+	if item.SampleCount < 5 {
+		return "insufficient_data"
+	}
+	successRate := float64(item.SuccessCount) / float64(item.SampleCount)
+	slowRate := float64(item.SlowCount) / float64(item.SampleCount)
+	avg := float64(0)
+	if item.AvgTTFBMS != nil {
+		avg = *item.AvgTTFBMS
+	}
+	if successRate >= 0.97 && slowRate <= 0.08 && avg <= 2500 {
+		return "stable"
+	}
+	if successRate >= 0.90 && slowRate <= 0.20 && avg <= 5000 {
+		return "observe"
+	}
+	return "avoid"
 }
 
 func (r *openAIAutoSchedulerRepository) ListScoreDailySamples(ctx context.Context, params service.OpenAIAutoSchedulerListParams, since time.Time) (map[int64]service.OpenAIAutoSchedulerDailySample, error) {

@@ -1126,6 +1126,17 @@ export interface OpenAIAutoSchedulerAccountSummary {
   last_checked_at?: string | null
 }
 
+export interface OpenAIAutoSchedulerAccountReliability {
+  sample_count: number
+  success_count: number
+  slow_count: number
+  error_count: number
+  active_days: number
+  avg_ttfb_ms?: number | null
+  last_event_at?: string | null
+  recommendation: 'stable' | 'observe' | 'avoid' | 'insufficient_data' | string
+}
+
 export interface UpstreamBillingData {
   object: 'sub2api.key_billing'
   schema_version: 1
@@ -1277,6 +1288,7 @@ export interface Account {
     sticky_weighted_enabled: boolean
   } | null
   scheduler_scores?: AccountSchedulerGroupScore[] | null
+  openai_auto_scheduler_reliability?: OpenAIAutoSchedulerAccountReliability | null
   priority: number
   rate_multiplier?: number // Account billing multiplier (>=0, 0 means free)
   channel_price?: number | null // Upstream channel price used by OpenAI scheduler

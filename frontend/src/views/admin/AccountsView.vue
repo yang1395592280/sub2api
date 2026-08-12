@@ -318,6 +318,28 @@
             </div>
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
           </template>
+          <template #header-scheduler_reliability="{ column }">
+            <div class="flex items-center gap-1">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.accounts.schedulerReliability.hint')" width-class="w-80" />
+            </div>
+          </template>
+          <template #cell-scheduler_reliability="{ row }">
+            <div v-if="row.openai_auto_scheduler_reliability" class="min-w-[10rem] space-y-1">
+              <div class="flex items-center gap-1.5">
+                <span :class="reliabilityRecommendationClass(row.openai_auto_scheduler_reliability.recommendation)" class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
+                  <span class="h-1.5 w-1.5 rounded-full bg-current" />
+                  {{ reliabilityRecommendationLabel(row.openai_auto_scheduler_reliability.recommendation) }}
+                </span>
+                <span class="text-[11px] text-gray-500 dark:text-dark-400">{{ t('admin.accounts.schedulerReliability.activeDays', { count: row.openai_auto_scheduler_reliability.active_days }) }}</span>
+              </div>
+              <div class="text-[11px] leading-4 text-gray-600 dark:text-gray-300">
+                {{ reliabilitySuccessRate(row.openai_auto_scheduler_reliability) }}% {{ t('admin.accounts.schedulerReliability.successRate') }} · {{ formatReliabilityLatency(row.openai_auto_scheduler_reliability.avg_ttfb_ms) }}
+              </div>
+              <div class="text-[10px] text-gray-400 dark:text-dark-500">{{ t('admin.accounts.schedulerReliability.samples', { count: row.openai_auto_scheduler_reliability.sample_count }) }} · {{ t('admin.accounts.schedulerReliability.window') }}</div>
+            </div>
+            <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
+          </template>
           <template #cell-today_stats="{ row }">
             <AccountTodayStatsCell
               :stats="todayStatsByAccountId[String(row.id)] ?? null"
@@ -592,7 +614,7 @@ import { extractApiErrorMessage } from '@/utils/apiError'
 import { sanitizeUrl } from '@/utils/url'
 import { getFloatingPanelPosition } from '@/utils/floatingPanel'
 import { formatMultiplier } from '@/utils/formatters'
-import type { Account, AccountPlatform, AccountSchedulerGroupScore, AccountType, AccountUsageInfo, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel, UpstreamBillingProbeSnapshot } from '@/types'
+import type { Account, AccountPlatform, AccountSchedulerGroupScore, AccountType, AccountUsageInfo, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel, UpstreamBillingProbeSnapshot, OpenAIAutoSchedulerAccountReliability } from '@/types'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -1109,7 +1131,7 @@ const toggleColumn = (key: string) => {
       console.error('Failed to load account today stats after showing column:', error)
     })
   }
-  if (key === 'scheduler_score') {
+  if (key === 'scheduler_score' || key === 'scheduler_reliability') {
     // The server only returns scheduler scores when this column is visible, so reload the current page immediately.
     syncAccountListDerivedParams()
     load().catch((error) => {
@@ -1120,10 +1142,12 @@ const toggleColumn = (key: string) => {
 
 const isColumnVisible = (key: string) => !hiddenColumns.has(key)
 const shouldIncludeSchedulerScore = () => isColumnVisible('scheduler_score')
+const shouldIncludeSchedulerReliability = () => isColumnVisible('scheduler_reliability')
 const syncAccountListDerivedParams = () => {
   // Keep every load path, including auto-refresh and sorting, aligned with the current column visibility.
   const requestParams = params as any
   requestParams.include_scheduler_score = shouldIncludeSchedulerScore() ? '1' : '0'
+  requestParams.include_scheduler_reliability = shouldIncludeSchedulerReliability() ? '1' : '0'
 }
 
 const {
@@ -1146,6 +1170,7 @@ const {
     group: '',
     search: '',
     include_scheduler_score: shouldIncludeSchedulerScore() ? '1' : '0',
+    include_scheduler_reliability: shouldIncludeSchedulerReliability() ? '1' : '0',
     sort_by: sortState.sort_by,
     sort_order: sortState.sort_order
   }
@@ -1755,6 +1780,30 @@ function formatOpenAIAutoSchedulerSpeed(value?: number | null): string {
   return `${Math.round(value)}ms`
 }
 
+function reliabilityRecommendationLabel(value: string): string {
+  const key = ['stable', 'observe', 'avoid', 'insufficient_data'].includes(value) ? value : 'insufficient_data'
+  return t(`admin.accounts.schedulerReliability.recommendations.${key}`)
+}
+
+function reliabilityRecommendationClass(value: string): string {
+  switch (value) {
+    case 'stable': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+    case 'observe': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+    case 'avoid': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+    default: return 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-dark-300'
+  }
+}
+
+function reliabilitySuccessRate(value: OpenAIAutoSchedulerAccountReliability): string {
+  if (!value.sample_count) return '-'
+  return ((value.success_count / value.sample_count) * 100).toFixed(0)
+}
+
+function formatReliabilityLatency(value?: number | null): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '-'
+  return `${Math.round(value)}ms ${t('admin.accounts.schedulerReliability.ttfb')}`
+}
+
 // All available columns
 const allColumns = computed(() => {
   const c = [
@@ -1767,6 +1816,7 @@ const allColumns = computed(() => {
     { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
     { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },
     { key: 'openai_auto_scheduler', label: t('admin.accounts.columns.openaiAutoScheduler'), sortable: false },
+    { key: 'scheduler_reliability', label: t('admin.accounts.columns.schedulerReliability'), sortable: false },
     { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false }
   ]
   if (!authStore.isSimpleMode) {

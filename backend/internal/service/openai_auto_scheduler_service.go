@@ -32,6 +32,21 @@ type OpenAIAutoSchedulerRepository interface {
 	ListEnabledOpenAIGroups(ctx context.Context) ([]Group, error)
 }
 
+type OpenAIAutoSchedulerAccountReliability struct {
+	SampleCount    int64
+	SuccessCount   int64
+	SlowCount      int64
+	ErrorCount     int64
+	ActiveDays     int
+	AvgTTFBMS      *float64
+	LastEventAt    *time.Time
+	Recommendation string
+}
+
+type OpenAIAutoSchedulerAccountReliabilityRepository interface {
+	ListAccountReliability(ctx context.Context, accountIDs []int64, since time.Time) (map[int64]OpenAIAutoSchedulerAccountReliability, error)
+}
+
 type OpenAIAutoSchedulerRecordInput struct {
 	AccountID   int64
 	GroupID     int64
@@ -459,6 +474,18 @@ func (s *OpenAIAutoSchedulerService) ListAccountSummaries(ctx context.Context, g
 		priority++
 	}
 	return out, nil
+}
+
+func (s *OpenAIAutoSchedulerService) ListAccountReliability(ctx context.Context, accountIDs []int64, since time.Time) (map[int64]OpenAIAutoSchedulerAccountReliability, error) {
+	out := make(map[int64]OpenAIAutoSchedulerAccountReliability, len(accountIDs))
+	if s == nil || s.repo == nil || len(accountIDs) == 0 {
+		return out, nil
+	}
+	repo, ok := s.repo.(OpenAIAutoSchedulerAccountReliabilityRepository)
+	if !ok {
+		return out, nil
+	}
+	return repo.ListAccountReliability(ctx, accountIDs, since)
 }
 
 func (s *OpenAIAutoSchedulerService) listUnifiedAccountSummaries(
