@@ -1166,7 +1166,9 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 
 	// SSE headers
 	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
+	// Keep intermediaries from compressing SSE. When a compressed stream is
+	// interrupted, clients report a misleading response-body decoding error.
+	c.Header("Cache-Control", "no-cache, no-transform")
 	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no")
 	if v := resp.Header.Get("x-request-id"); v != "" {
@@ -1397,7 +1399,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			upstreamRequestID,
 			err,
 		)
-		return resultWithUsage(), fmt.Errorf("stream read error: %w", err)
+		return resultWithUsage(), newOpenAIUpstreamStreamReadError(err)
 	}
 	if sawFailedEvent {
 		return resultWithUsage(), fmt.Errorf("upstream response failed: %s", failedMessage)

@@ -70,7 +70,10 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 
 	// Set SSE response headers
 	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
+	// no-transform prevents reverse proxies/CDNs from compressing SSE. A
+	// truncated compressed stream is surfaced by clients as a response-body
+	// decoding error, obscuring the actual upstream disconnect.
+	c.Header("Cache-Control", "no-cache, no-transform")
 	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no")
 
@@ -91,7 +94,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		// These headers describe this gateway's SSE stream and are stable across
 		// account attempts. Keep them authoritative over upstream values.
 		c.Header("Content-Type", "text/event-stream")
-		c.Header("Cache-Control", "no-cache")
+		c.Header("Cache-Control", "no-cache, no-transform")
 		c.Header("Connection", "keep-alive")
 		c.Header("X-Accel-Buffering", "no")
 	}
@@ -418,8 +421,11 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			return resultWithUsage(), fmt.Errorf("stream usage incomplete after disconnect: %w", scanErr), true
 		}
 		s.recordOpenAIProxyStreamDisconnect(account, scanErr, upstreamRequestID)
-		sendErrorEvent("stream_read_error")
-		return resultWithUsage(), fmt.Errorf("stream read error: %w", scanErr), true
+		flushPending("Client disconnected before stream error was reported")
+		// Let the handler terminate Responses streams with a protocol-valid
+		// response.failed event. Injecting a generic type:error event here leaves
+		// strict clients reporting an incomplete stream and triggers a reconnect.
+		return resultWithUsage(), newOpenAIUpstreamStreamReadError(scanErr), true
 	}
 	processSSELine := func(line string, queueDrained bool) {
 		if streamEarlyErr != nil {

@@ -21,6 +21,65 @@ type openAIAutoCheapestQualifiedOnlyKey struct{}
 
 type openAIAutoCheapestChannelPricePriorityKey struct{}
 
+// OpenAIAutoCheapestRoutingReason returns a safe, request-local explanation
+// for an automatic-cheapest selection failure. It intentionally exposes only
+// a stable operational category, never account credentials or internal IDs.
+func OpenAIAutoCheapestRoutingReason(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	state, _ := ctx.Value(openAIAutoCheapestFailureStateKey{}).(*openAIAutoCheapestFailureState)
+	if state == nil {
+		return ""
+	}
+	state.mu.RLock()
+	defer state.mu.RUnlock()
+	var hasNoAvailable, hasNoEligible bool
+	for _, reason := range state.failedGroups {
+		switch reason {
+		case "circuit_open":
+			return "符合条件的自动调度分组已触发熔断"
+		case "no_available_accounts":
+			hasNoAvailable = true
+		case "no_eligible_groups":
+			hasNoEligible = true
+		}
+	}
+	if hasNoAvailable {
+		return "当前没有可用于该模型或接口的账号"
+	}
+	if hasNoEligible {
+		return "没有符合自动调度最高倍率限制的分组"
+	}
+	return ""
+}
+
+func noteOpenAIAutoCheapestGroupSkipped(ctx context.Context, groupID int64, reason string) {
+	if ctx == nil {
+		return
+	}
+	state, _ := ctx.Value(openAIAutoCheapestFailureStateKey{}).(*openAIAutoCheapestFailureState)
+	if state == nil {
+		return
+	}
+	state.mu.Lock()
+	if groupID <= 0 {
+		for id := range state.failedGroups {
+			if id <= 0 {
+				state.mu.Unlock()
+				return
+			}
+		}
+		state.failedGroups[0] = reason
+		state.mu.Unlock()
+		return
+	}
+	if _, exists := state.failedGroups[groupID]; !exists {
+		state.failedGroups[groupID] = reason
+	}
+	state.mu.Unlock()
+}
+
 // PrepareOpenAIAutoCheapestRequestContext attaches request-local group failure
 // state. Fixed-group API keys do not need this state and keep their old path.
 func PrepareOpenAIAutoCheapestRequestContext(ctx context.Context, enabled bool, circuit ...OpenAIAutoCheapestGroupCircuit) context.Context {

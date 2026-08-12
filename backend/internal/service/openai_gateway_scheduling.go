@@ -542,6 +542,7 @@ func (s *OpenAIGatewayService) resolveEffectiveOpenAIAPIKeys(ctx context.Context
 		return nil, err
 	}
 	if len(groups) == 0 {
+		noteOpenAIAutoCheapestGroupSkipped(ctx, 0, "no_eligible_groups")
 		return nil, ErrNoAvailableAccounts
 	}
 	keys := make([]*APIKey, 0, len(groups))
@@ -552,6 +553,7 @@ func (s *OpenAIGatewayService) resolveEffectiveOpenAIAPIKeys(ctx context.Context
 		if s.openAIAutoCheapestGroupCircuit != nil {
 			allowed, err := s.openAIAutoCheapestGroupCircuit.Allow(ctx, openAIAutoCheapestGroupHealthKey(ctx, groups[i].ID))
 			if err == nil && !allowed {
+				noteOpenAIAutoCheapestGroupSkipped(ctx, groups[i].ID, "circuit_open")
 				continue
 			}
 		}
@@ -560,6 +562,7 @@ func (s *OpenAIGatewayService) resolveEffectiveOpenAIAPIKeys(ctx context.Context
 		}
 	}
 	if len(keys) == 0 {
+		noteOpenAIAutoCheapestGroupSkipped(ctx, 0, "circuit_open")
 		return nil, ErrNoAvailableAccounts
 	}
 	return keys, nil

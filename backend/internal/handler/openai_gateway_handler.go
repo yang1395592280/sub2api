@@ -716,7 +716,10 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 				upstreamErrorAlreadyCommunicated := openAIForwardErrorAlreadyCommunicated(c, writerSizeBeforeForward, err)
 				wroteFallback := false
 				if !upstreamErrorAlreadyCommunicated {
-					wroteFallback = h.ensureForwardErrorResponse(c, streamStarted)
+					wroteFallback = h.ensureOpenAIStreamReadErrorResponse(c, err, streamStarted)
+					if !wroteFallback {
+						wroteFallback = h.ensureForwardErrorResponse(c, streamStarted)
+					}
 				}
 				fields := []zap.Field{
 					zap.Int64("account_id", account.ID),
@@ -2870,9 +2873,13 @@ func (h *OpenAIGatewayHandler) handleStreamingAwareErrorWithCode(
 
 func (h *OpenAIGatewayHandler) ensureOpenAIStreamReadErrorResponse(c *gin.Context, err error, streamStarted bool) bool {
 	code, message, ok := service.OpenAIUpstreamStreamReadErrorDetails(err)
-	if !ok || c == nil || c.Writer == nil || service.IsResponseCommitted(c) {
+	if !ok || c == nil || c.Writer == nil {
 		return false
 	}
+	// A stream-read error is reported after upstream output may already have
+	// been committed. That is exactly when Responses clients need a terminal
+	// response.failed event; do not reject it merely because the 200 stream has
+	// started.
 	if c.Writer.Written() {
 		streamStarted = true
 	}

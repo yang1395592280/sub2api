@@ -2141,7 +2141,13 @@ func TestOpenAIStreamingPostOutputDisconnectQuarantinesSharedProxyWithoutSameStr
 		require.Error(t, err)
 		var failoverErr *UpstreamFailoverError
 		require.False(t, errors.As(err, &failoverErr), "post-output disconnect must not fail over inside the same stream")
+		code, message, ok := OpenAIUpstreamStreamReadErrorDetails(err)
+		require.True(t, ok)
+		require.NotEmpty(t, code)
+		require.NotEmpty(t, message)
 		require.Contains(t, rec.Body.String(), "partial")
+		require.NotContains(t, rec.Body.String(), "stream_read_error")
+		require.Equal(t, "no-cache, no-transform", rec.Header().Get("Cache-Control"))
 	}
 
 	scheduler := &defaultOpenAIAccountScheduler{service: svc}
@@ -2925,7 +2931,12 @@ func TestOpenAIStreamingPassthroughPostOutputDisconnectQuarantinesSharedProxy(t 
 		require.Error(t, err)
 		var failoverErr *UpstreamFailoverError
 		require.False(t, errors.As(err, &failoverErr), "post-output disconnect must not fail over inside the same stream")
+		code, message, ok := OpenAIUpstreamStreamReadErrorDetails(err)
+		require.True(t, ok)
+		require.NotEmpty(t, code)
+		require.NotEmpty(t, message)
 		require.Contains(t, rec.Body.String(), "partial")
+		require.Equal(t, "no-cache, no-transform", rec.Header().Get("Cache-Control"))
 	}
 
 	require.True(t, svc.isOpenAIProxyStreamQuarantined(context.Background(), account))

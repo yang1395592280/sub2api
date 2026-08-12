@@ -69,6 +69,9 @@ func classifyNoAccountError(
 		ErrType: "api_error",
 		Message: "Service temporarily unavailable",
 	}
+	if reason := service.OpenAIAutoCheapestRoutingReason(ctx); reason != "" {
+		fallback.Message = "服务暂时不可用：" + reason
+	}
 
 	routingModel = strings.TrimSpace(routingModel)
 	displayModel = strings.TrimSpace(displayModel)

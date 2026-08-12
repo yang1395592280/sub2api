@@ -28,6 +28,16 @@ func TestOpenAIAutoCheapestRequestContextDisabledIsNoop(t *testing.T) {
 	require.False(t, exhausted)
 }
 
+func TestOpenAIAutoCheapestRoutingReason(t *testing.T) {
+	ctx := PrepareOpenAIAutoCheapestRequestContext(context.Background(), true)
+	noteOpenAIAutoCheapestGroupSkipped(ctx, 42, "circuit_open")
+	require.Contains(t, OpenAIAutoCheapestRoutingReason(ctx), "触发熔断")
+
+	ctx = PrepareOpenAIAutoCheapestRequestContext(context.Background(), true)
+	noteOpenAIAutoCheapestGroupSkipped(ctx, 0, "no_eligible_groups")
+	require.Contains(t, OpenAIAutoCheapestRoutingReason(ctx), "最高倍率限制")
+}
+
 func TestMarkOpenAIAutoCheapestGroupExhaustedIfNeededOnlyMarksEmptySelection(t *testing.T) {
 	circuit := &autoCheapestCircuitStub{}
 	ctx := PrepareOpenAIAutoCheapestRequestContext(context.Background(), true, circuit)
