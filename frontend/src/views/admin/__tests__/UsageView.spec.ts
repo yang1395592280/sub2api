@@ -36,6 +36,7 @@ const messages: Record<string, string> = {
 	'usage.sentUpstreamModel': 'Sent upstream model',
 	'usage.upstreamResponseModel': 'Upstream response model',
 	'usage.upstreamModelMismatch': 'Upstream model mismatch',
+	'usage.profit': 'Profit',
 	'common.yes': 'Yes',
 	'common.no': 'No',
 }
@@ -580,6 +581,10 @@ describe('admin UsageView model audit export', () => {
 				output_tokens: 1,
 				cache_read_tokens: 0,
 				cache_creation_tokens: 0,
+				total_cost: 1,
+				actual_cost: 0.08,
+				rate_multiplier: 0.08,
+				account_rate_multiplier: 0.05,
 				duration_ms: 10,
 			}],
 			total: 1,
@@ -616,8 +621,10 @@ describe('admin UsageView model audit export', () => {
 			'Upstream response model',
 			'Upstream model mismatch',
 		])
+		expect(headers).toContain('Profit')
 		const row = sheetAddAoa.mock.calls[0][1][0]
 		expect(row.slice(5, 9)).toEqual(['gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4', 'Yes'])
+		expect(row[headers.indexOf('Profit')]).toBe('0.030000')
 		expect(saveAs).toHaveBeenCalledTimes(1)
 	})
 })
