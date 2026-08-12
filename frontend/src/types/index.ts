@@ -323,7 +323,6 @@ export interface PublicSettings {
   service_quota_enabled: boolean
   affiliate_enabled: boolean
   allow_user_view_error_requests?: boolean
-  openai_dynamic_billing_profit_markup?: number
 }
 
 export interface AuthResponse {
@@ -662,8 +661,6 @@ export interface Group {
   upstream_price_grouping_enabled: boolean
   upstream_price_grouping_min: number
   upstream_price_grouping_max: number
-  dynamic_billing_enabled: boolean
-  dynamic_billing_profit_markup: number | null
   created_at: string
   updated_at: string
 }
@@ -898,8 +895,6 @@ export interface CreateGroupRequest {
   upstream_price_grouping_enabled?: boolean
   upstream_price_grouping_min?: number
   upstream_price_grouping_max?: number
-  dynamic_billing_enabled?: boolean
-  dynamic_billing_profit_markup?: number | null
   // 从指定分组复制账号
   copy_accounts_from_group_ids?: number[]
 }
@@ -970,8 +965,6 @@ export interface UpdateGroupRequest {
   upstream_price_grouping_enabled?: boolean
   upstream_price_grouping_min?: number
   upstream_price_grouping_max?: number
-  dynamic_billing_enabled?: boolean
-  dynamic_billing_profit_markup?: number | null
   copy_accounts_from_group_ids?: number[]
 }
 

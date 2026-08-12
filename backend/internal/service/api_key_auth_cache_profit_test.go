@@ -16,7 +16,6 @@ import (
 
 func profitAuthTestAPIKey() *APIKey {
 	groupID := int64(50)
-	dynamicBillingProfitMarkup := 0.04
 	return &APIKey{
 		ID:      82,
 		UserID:  40,
@@ -30,23 +29,17 @@ func profitAuthTestAPIKey() *APIKey {
 			Concurrency: 5,
 		},
 		Group: &Group{
-			ID:                           groupID,
-			Name:                         "VIP-roundtrip",
-			Platform:                     PlatformOpenAI,
-			GroupRole:                    GroupRoleStandard,
-			Status:                       StatusActive,
-			Hydrated:                     true,
-			RateMultiplier:               0.06,
-			SubscriptionType:             SubscriptionTypeStandard,
-			PeakRateEnabled:              false,
-			ProfitControlEnabled:         true,
-			ProfitMinMargin:              0.2,
-			ProfitSafetyBuffer:           0.05,
-			DynamicBillingEnabled:        true,
-			DynamicBillingProfitMarkup:   &dynamicBillingProfitMarkup,
-			UpstreamPriceGroupingEnabled: true,
-			UpstreamPriceGroupingMin:     0.03,
-			UpstreamPriceGroupingMax:     0.12,
+			ID:                   groupID,
+			Name:                 "VIP-roundtrip",
+			Platform:             PlatformOpenAI,
+			Status:               StatusActive,
+			Hydrated:             true,
+			RateMultiplier:       0.06,
+			SubscriptionType:     SubscriptionTypeStandard,
+			PeakRateEnabled:      false,
+			ProfitControlEnabled: true,
+			ProfitMinMargin:      0.2,
+			ProfitSafetyBuffer:   0.05,
 		},
 	}
 }
@@ -60,7 +53,7 @@ func TestAPIKeyAuthSnapshotProfitControlRoundtrip(t *testing.T) {
 	snapshot := svc.snapshotFromAPIKey(context.Background(), apiKey)
 	require.NotNil(t, snapshot)
 	require.Equal(t, apiKeyAuthSnapshotVersion, snapshot.Version)
-	require.Equal(t, 24, snapshot.Version, "v24 起认证快照携带动态计费分组利润")
+	require.Equal(t, 22, snapshot.Version, "v22 起认证快照携带自托管池与利润控制字段")
 
 	// 模拟 L2 缓存的完整 JSON 往返（与 apiKeyCache.SetAuthCache/GetAuthCache 同构）。
 	payload, err := json.Marshal(&APIKeyAuthCacheEntry{Snapshot: snapshot})
@@ -77,12 +70,6 @@ func TestAPIKeyAuthSnapshotProfitControlRoundtrip(t *testing.T) {
 	require.InDelta(t, 0.2, materialized.Group.ProfitMinMargin, 1e-12)
 	require.InDelta(t, 0.05, materialized.Group.ProfitSafetyBuffer, 1e-12)
 	require.InDelta(t, 0.06, materialized.Group.RateMultiplier, 1e-12)
-	require.True(t, materialized.Group.DynamicBillingEnabled)
-	require.NotNil(t, materialized.Group.DynamicBillingProfitMarkup)
-	require.InDelta(t, 0.04, *materialized.Group.DynamicBillingProfitMarkup, 1e-12)
-	require.True(t, materialized.Group.UpstreamPriceGroupingEnabled)
-	require.InDelta(t, 0.03, materialized.Group.UpstreamPriceGroupingMin, 1e-12)
-	require.InDelta(t, 0.12, materialized.Group.UpstreamPriceGroupingMax, 1e-12)
 
 	// 中间件语义：materialized.Group 进请求 ctx → 门必须按快照配置装上。
 	ctx := context.WithValue(context.Background(), ctxkey.Group, materialized.Group)

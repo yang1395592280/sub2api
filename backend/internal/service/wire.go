@@ -898,7 +898,7 @@ func ProvideOpenAIGatewayService(
 	svc.SetOpenAIBalancedScheduler(openAIBalancedScheduler)
 	svc.SetOpenAISchedulerExplorationCache(openAIExplorationCache)
 	svc.SetOpenAIAutoCheapestGroupCircuit(openAIAutoCheapestGroupCircuit)
-	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(apiKeyService, settingService), apiKeyRepo)
+	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(apiKeyService), apiKeyRepo)
 	return svc
 }
 

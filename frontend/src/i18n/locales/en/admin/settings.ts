@@ -1296,8 +1296,6 @@ export default {
         oauthRateTitle: 'OAuth scheduling reference rate',
         oauthRatePriorityDescription: 'When a group contains both API Key and OAuth accounts, this rate is used to order OAuth accounts alongside probed API Key billing rates.',
         oauthRateWeightedDescription: 'When a group contains both API Key and OAuth accounts, this rate is used for OAuth accounts when calculating the billing-rate score.',
-        dynamicBillingProfitTitle: 'OpenAI dynamic billing fixed profit',
-        dynamicBillingProfitDescription: 'Dynamic groups bill at channel price plus this fixed profit, capped by the group price-range maximum.',
         stickyWeightedTitle: 'Sticky weighting',
         stickyWeightedDescription: 'When enabled, previous_response_id and session_hash affinity are scored by the advanced scheduler. When disabled, sticky accounts keep the legacy hard-hit behavior.',
         subscriptionPriorityTitle: 'Subscription priority',

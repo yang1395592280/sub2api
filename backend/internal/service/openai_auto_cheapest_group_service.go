@@ -16,44 +16,20 @@ type LastEffectiveGroupUpdater interface {
 }
 
 type OpenAIAutoCheapestGroupResolver struct {
-	provider       AvailableOpenAIGroupsProvider
-	settingService *SettingService
+	provider AvailableOpenAIGroupsProvider
 }
 
-func NewOpenAIAutoCheapestGroupResolver(provider AvailableOpenAIGroupsProvider, settings ...*SettingService) *OpenAIAutoCheapestGroupResolver {
-	resolver := &OpenAIAutoCheapestGroupResolver{provider: provider}
-	if len(settings) > 0 {
-		resolver.settingService = settings[0]
-	}
-	return resolver
+func NewOpenAIAutoCheapestGroupResolver(provider AvailableOpenAIGroupsProvider) *OpenAIAutoCheapestGroupResolver {
+	return &OpenAIAutoCheapestGroupResolver{provider: provider}
 }
 
 func EffectiveOpenAIGroupRate(group Group, userRates map[int64]float64) float64 {
-	if minRate, _, enabled := OpenAIDynamicBillingRange(&group, 0); enabled {
-		// Fixed profit is global, so sorting dynamic tiers by their raw lower bound
-		// produces the same order as sorting by their displayed minimum.
-		return minRate
-	}
 	if userRates != nil {
 		if rate, ok := userRates[group.ID]; ok {
 			return rate
 		}
 	}
 	return group.RateMultiplier
-}
-
-func effectiveOpenAIGroupRateWithProfit(group Group, userRates map[int64]float64, globalProfitMarkup float64) float64 {
-	if minRate, _, enabled := OpenAIDynamicBillingRange(&group, globalProfitMarkup); enabled {
-		return minRate
-	}
-	return EffectiveOpenAIGroupRate(group, userRates)
-}
-
-func maximumAcceptedOpenAIGroupRate(group Group, userRates map[int64]float64, globalProfitMarkup float64) float64 {
-	if _, maxRate, enabled := OpenAIDynamicBillingRange(&group, globalProfitMarkup); enabled {
-		return maxRate
-	}
-	return EffectiveOpenAIGroupRate(group, userRates)
 }
 
 func CloneAPIKeyForEffectiveGroup(apiKey *APIKey, group *Group) *APIKey {
@@ -101,10 +77,6 @@ func (r *OpenAIAutoCheapestGroupResolver) CandidateGroups(ctx context.Context, u
 	if err != nil {
 		return nil, err
 	}
-	globalProfitMarkup := 0.0
-	if r.settingService != nil {
-		globalProfitMarkup = r.settingService.GetOpenAIDynamicBillingProfitMarkup(ctx)
-	}
 
 	userRates, err := r.provider.GetUserGroupRates(ctx, userID)
 	if err != nil {
@@ -125,15 +97,15 @@ func (r *OpenAIAutoCheapestGroupResolver) CandidateGroups(ctx context.Context, u
 		if !group.AllowAutoCheapestScheduling {
 			continue
 		}
-		if maxRateMultiplier != nil && *maxRateMultiplier > 0 && maximumAcceptedOpenAIGroupRate(group, userRates, globalProfitMarkup) > *maxRateMultiplier {
+		if maxRateMultiplier != nil && *maxRateMultiplier > 0 && EffectiveOpenAIGroupRate(group, userRates) > *maxRateMultiplier {
 			continue
 		}
 		candidates = append(candidates, group)
 	}
 
 	sort.SliceStable(candidates, func(i, j int) bool {
-		leftRate := effectiveOpenAIGroupRateWithProfit(candidates[i], userRates, globalProfitMarkup)
-		rightRate := effectiveOpenAIGroupRateWithProfit(candidates[j], userRates, globalProfitMarkup)
+		leftRate := EffectiveOpenAIGroupRate(candidates[i], userRates)
+		rightRate := EffectiveOpenAIGroupRate(candidates[j], userRates)
 		if leftRate != rightRate {
 			return leftRate < rightRate
 		}

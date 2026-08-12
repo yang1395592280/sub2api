@@ -17,40 +17,7 @@ import (
 const (
 	openAIAutoSchedulerSettingsCacheTTL  = 5 * time.Second
 	openAIAutoSchedulerSettingsDBTimeout = 2 * time.Second
-	openAIDynamicBillingMarkupCacheTTL   = 30 * time.Second
 )
-
-// GetOpenAIDynamicBillingProfitMarkup returns the cached global fixed profit.
-// Billing requests must not perform a database lookup; a short TTL makes an
-// administrator's setting change converge without adding a hot-path query.
-func (s *SettingService) GetOpenAIDynamicBillingProfitMarkup(ctx context.Context) float64 {
-	if s == nil || s.settingRepo == nil {
-		return 0
-	}
-	now := time.Now()
-	if cached, _ := s.openAIDynamicBillingMarkupCache.Load().(*cachedOpenAIDynamicBillingMarkup); cached != nil && now.Before(cached.expiresAt) {
-		return cached.value
-	}
-	value, err, _ := s.openAIDynamicBillingMarkupSF.Do(SettingKeyOpenAIDynamicBillingProfitMarkup, func() (any, error) {
-		if cached, _ := s.openAIDynamicBillingMarkupCache.Load().(*cachedOpenAIDynamicBillingMarkup); cached != nil && time.Now().Before(cached.expiresAt) {
-			return cached.value, nil
-		}
-		raw, err := s.settingRepo.GetValue(ctx, SettingKeyOpenAIDynamicBillingProfitMarkup)
-		if err != nil {
-			return float64(0), err
-		}
-		markup := parseOpenAIDynamicBillingProfitMarkup(raw)
-		s.openAIDynamicBillingMarkupCache.Store(&cachedOpenAIDynamicBillingMarkup{value: markup, expiresAt: time.Now().Add(openAIDynamicBillingMarkupCacheTTL)})
-		return markup, nil
-	})
-	if err != nil {
-		if cached, _ := s.openAIDynamicBillingMarkupCache.Load().(*cachedOpenAIDynamicBillingMarkup); cached != nil {
-			return cached.value
-		}
-		return 0
-	}
-	return value.(float64)
-}
 
 type cachedOpenAIAutoSchedulerSettings struct {
 	settings  OpenAIAutoSchedulerSettings

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -118,27 +117,25 @@ type WebSearchManagerBuilder func(cfg *WebSearchEmulationConfig, proxyURLs map[i
 
 // SettingService 系统设置服务
 type SettingService struct {
-	settingRepo                     SettingRepository
-	defaultSubGroupReader           DefaultSubscriptionGroupReader
-	proxyRepo                       ProxyRepository // for resolving websearch provider proxy URLs
-	cfg                             *config.Config
-	onUpdate                        func() // Callback when settings are updated (for cache invalidation)
-	version                         string // Application version
-	webSearchManagerBuilder         WebSearchManagerBuilder
-	antigravityUAVersionCache       atomic.Value // *cachedAntigravityUserAgentVersion
-	antigravityUAVersionSF          singleflight.Group
-	openAICodexUACache              atomic.Value // *cachedOpenAICodexUserAgent
-	openAICodexUASF                 singleflight.Group
-	openAICodexVersionCache         atomic.Value // *cachedOpenAICodexClientVersion
-	openAICodexVersionSF            singleflight.Group
-	codexRestrictionPolicyCache     atomic.Value // *cachedCodexRestrictionPolicy
-	codexRestrictionPolicySF        singleflight.Group
-	openAIAutoSchedulerCache        atomic.Value // *cachedOpenAIAutoSchedulerSettings
-	openAIAutoSchedulerSF           singleflight.Group
-	openAIAutoSchedulerCacheMu      sync.Mutex
-	openAIAutoSchedulerRevision     atomic.Uint64
-	openAIDynamicBillingMarkupCache atomic.Value // *cachedOpenAIDynamicBillingMarkup
-	openAIDynamicBillingMarkupSF    singleflight.Group
+	settingRepo                 SettingRepository
+	defaultSubGroupReader       DefaultSubscriptionGroupReader
+	proxyRepo                   ProxyRepository // for resolving websearch provider proxy URLs
+	cfg                         *config.Config
+	onUpdate                    func() // Callback when settings are updated (for cache invalidation)
+	version                     string // Application version
+	webSearchManagerBuilder     WebSearchManagerBuilder
+	antigravityUAVersionCache   atomic.Value // *cachedAntigravityUserAgentVersion
+	antigravityUAVersionSF      singleflight.Group
+	openAICodexUACache          atomic.Value // *cachedOpenAICodexUserAgent
+	openAICodexUASF             singleflight.Group
+	openAICodexVersionCache     atomic.Value // *cachedOpenAICodexClientVersion
+	openAICodexVersionSF        singleflight.Group
+	codexRestrictionPolicyCache atomic.Value // *cachedCodexRestrictionPolicy
+	codexRestrictionPolicySF    singleflight.Group
+	openAIAutoSchedulerCache    atomic.Value // *cachedOpenAIAutoSchedulerSettings
+	openAIAutoSchedulerSF       singleflight.Group
+	openAIAutoSchedulerCacheMu  sync.Mutex
+	openAIAutoSchedulerRevision atomic.Uint64
 
 	cyberSessionBlockRuntimeCache atomic.Value // *cachedCyberSessionBlockRuntime
 	cyberSessionBlockRuntimeSF    singleflight.Group
@@ -159,11 +156,6 @@ type SettingService struct {
 
 	channelMonitorRuntimeListenersMu sync.Mutex
 	channelMonitorRuntimeListeners   []func()
-}
-
-type cachedOpenAIDynamicBillingMarkup struct {
-	value     float64
-	expiresAt time.Time
 }
 
 // DefaultPlatformQuotaSetting 单 platform 三档限额（nil = 沿用上层；0 = 显式禁用；>0 = 上限）

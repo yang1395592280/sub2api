@@ -777,34 +777,6 @@
             />
           </div>
         </div>
-        <label
-          v-if="createForm.platform === 'openai' && createForm.group_role === 'standard' && createForm.subscription_type === 'standard'"
-          class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300"
-        >
-          <input
-            v-model="createForm.dynamic_billing_enabled"
-            type="checkbox"
-            class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-            :disabled="!createForm.upstream_price_grouping_enabled"
-            data-test="group-dynamic-billing-enabled"
-          />
-          <span>{{ t("admin.groups.form.dynamicBillingEnabled") }}</span>
-        </label>
-        <div
-          v-if="createForm.platform === 'openai' && createForm.group_role === 'standard' && createForm.subscription_type === 'standard' && createForm.dynamic_billing_enabled"
-        >
-          <label class="input-label">{{ t("admin.groups.form.dynamicBillingProfitMarkup") }}</label>
-          <input
-            v-model.number="createForm.dynamic_billing_profit_markup"
-            type="number"
-            min="0"
-            step="0.000001"
-            class="input"
-            :placeholder="t('admin.groups.form.dynamicBillingProfitMarkupPlaceholder')"
-            data-test="group-dynamic-billing-profit-markup"
-          />
-          <p class="input-hint">{{ t("admin.groups.form.dynamicBillingProfitMarkupHint") }}</p>
-        </div>
         <ReasoningEffortPolicyFields
           v-if="supportsReasoningEffortPolicyPlatform(createForm.platform)"
           ref="createReasoningEffortPolicyRef"
@@ -2627,34 +2599,6 @@
               data-test="edit-group-upstream-price-grouping-max"
             />
           </div>
-        </div>
-        <label
-          v-if="editForm.platform === 'openai' && editForm.group_role === 'standard' && editForm.subscription_type === 'standard'"
-          class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300"
-        >
-          <input
-            v-model="editForm.dynamic_billing_enabled"
-            type="checkbox"
-            class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-            :disabled="!editForm.upstream_price_grouping_enabled"
-            data-test="edit-group-dynamic-billing-enabled"
-          />
-          <span>{{ t("admin.groups.form.dynamicBillingEnabled") }}</span>
-        </label>
-        <div
-          v-if="editForm.platform === 'openai' && editForm.group_role === 'standard' && editForm.subscription_type === 'standard' && editForm.dynamic_billing_enabled"
-        >
-          <label class="input-label">{{ t("admin.groups.form.dynamicBillingProfitMarkup") }}</label>
-          <input
-            v-model.number="editForm.dynamic_billing_profit_markup"
-            type="number"
-            min="0"
-            step="0.000001"
-            class="input"
-            :placeholder="t('admin.groups.form.dynamicBillingProfitMarkupPlaceholder')"
-            data-test="edit-group-dynamic-billing-profit-markup"
-          />
-          <p class="input-hint">{{ t("admin.groups.form.dynamicBillingProfitMarkupHint") }}</p>
         </div>
         <ReasoningEffortPolicyFields
           v-if="supportsReasoningEffortPolicyPlatform(editForm.platform)"
@@ -4788,7 +4732,6 @@ import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import ReasoningEffortPolicyFields from "@/components/admin/group/ReasoningEffortPolicyFields.vue";
 import { VueDraggable } from "vue-draggable-plus";
 import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
-import { extractApiErrorMessage } from "@/utils/apiError";
 import { useKeyedDebouncedSearch } from "@/composables/useKeyedDebouncedSearch";
 import { getPersistedPageSize } from "@/composables/usePersistedPageSize";
 import {
@@ -5426,8 +5369,6 @@ const createForm = reactive({
   upstream_price_grouping_enabled: false,
   upstream_price_grouping_min: 0.01,
   upstream_price_grouping_max: 0.05,
-  dynamic_billing_enabled: false,
-  dynamic_billing_profit_markup: null as number | string | null,
   max_reasoning_effort: "",
   reasoning_effort_mappings: [] as ReasoningEffortMappingRow[],
 });
@@ -5797,8 +5738,6 @@ const editForm = reactive({
   upstream_price_grouping_enabled: false,
   upstream_price_grouping_min: 0.01,
   upstream_price_grouping_max: 0.05,
-  dynamic_billing_enabled: false,
-  dynamic_billing_profit_markup: null as number | string | null,
   max_reasoning_effort: "",
   reasoning_effort_mappings: [] as ReasoningEffortMappingRow[],
 });
@@ -6267,8 +6206,6 @@ const closeCreateModal = () => {
   createForm.upstream_price_grouping_enabled = false;
   createForm.upstream_price_grouping_min = 0.01;
   createForm.upstream_price_grouping_max = 0.05;
-  createForm.dynamic_billing_enabled = false;
-  createForm.dynamic_billing_profit_markup = null;
   createForm.max_reasoning_effort = "";
   createForm.reasoning_effort_mappings = [];
   createReasoningEffortPolicyRef.value?.resetValidation();
@@ -6335,8 +6272,6 @@ const getUpstreamSettingsValidationErrors = (
     upstream_price_grouping_enabled: boolean;
     upstream_price_grouping_min: number | string;
     upstream_price_grouping_max: number | string;
-    dynamic_billing_enabled: boolean;
-    dynamic_billing_profit_markup: number | string | null;
   },
 ) => {
   const errors: string[] = [];
@@ -6368,23 +6303,7 @@ const getUpstreamSettingsValidationErrors = (
       errors.push(t("admin.groups.validation.upstreamPriceGroupingOrder"));
     }
   }
-  if (
-    form.dynamic_billing_enabled &&
-    form.dynamic_billing_profit_markup !== null &&
-    form.dynamic_billing_profit_markup !== "" &&
-    (!Number.isFinite(Number(form.dynamic_billing_profit_markup)) ||
-      Number(form.dynamic_billing_profit_markup) < 0)
-  ) {
-    errors.push(t("admin.groups.validation.dynamicBillingProfitMarkupNonNegative"));
-  }
   return errors;
-};
-
-const normalizeDynamicBillingProfitMarkup = (
-  value: number | string | null,
-): number | null => {
-  if (value === null || value === "") return null;
-  return Number(value);
 };
 
 // 利润控制表单辅助（换算与校验逻辑见 groupsProfitControl.ts，便于单测）。
@@ -6468,20 +6387,6 @@ const handleCreateGroup = async () => {
         createForm.upstream_price_grouping_enabled,
       upstream_price_grouping_min: Number(createForm.upstream_price_grouping_min),
       upstream_price_grouping_max: Number(createForm.upstream_price_grouping_max),
-      dynamic_billing_enabled:
-        createForm.platform === "openai" &&
-        createForm.group_role === "standard" &&
-        createForm.subscription_type === "standard" &&
-        createForm.upstream_price_grouping_enabled &&
-        createForm.dynamic_billing_enabled,
-      dynamic_billing_profit_markup:
-        createForm.platform === "openai" &&
-        createForm.group_role === "standard" &&
-        createForm.subscription_type === "standard"
-          ? normalizeDynamicBillingProfitMarkup(
-              createForm.dynamic_billing_profit_markup,
-            )
-          : null,
       messages_dispatch_model_config:
         createForm.platform === "openai"
           ? messagesDispatchFormStateToConfig({
@@ -6562,7 +6467,9 @@ const handleCreateGroup = async () => {
       onboardingStore.nextStep(500);
     }
   } catch (error: any) {
-    appStore.showError(extractApiErrorMessage(error, t("admin.groups.failedToCreate")));
+    appStore.showError(
+      error.response?.data?.detail || t("admin.groups.failedToCreate"),
+    );
     console.error("Error creating group:", error);
     // Don't advance tour on error
   } finally {
@@ -6660,9 +6567,6 @@ const handleEdit = async (group: AdminGroup) => {
     group.upstream_price_grouping_min ?? 0.01;
   editForm.upstream_price_grouping_max =
     group.upstream_price_grouping_max ?? 0.05;
-  editForm.dynamic_billing_enabled = group.dynamic_billing_enabled ?? false;
-  editForm.dynamic_billing_profit_markup =
-    group.dynamic_billing_profit_markup ?? null;
   editForm.max_reasoning_effort = normalizeReasoningEffortForPlatform(
     group.platform,
     group.max_reasoning_effort,
@@ -6786,20 +6690,6 @@ const handleUpdateGroup = async () => {
         editForm.upstream_price_grouping_enabled,
       upstream_price_grouping_min: Number(editForm.upstream_price_grouping_min),
       upstream_price_grouping_max: Number(editForm.upstream_price_grouping_max),
-      dynamic_billing_enabled:
-        editForm.platform === "openai" &&
-        editForm.group_role === "standard" &&
-        editForm.subscription_type === "standard" &&
-        editForm.upstream_price_grouping_enabled &&
-        editForm.dynamic_billing_enabled,
-      dynamic_billing_profit_markup:
-        editForm.platform === "openai" &&
-        editForm.group_role === "standard" &&
-        editForm.subscription_type === "standard"
-          ? normalizeDynamicBillingProfitMarkup(
-              editForm.dynamic_billing_profit_markup,
-            )
-          : null,
       messages_dispatch_model_config:
         editForm.platform === "openai"
           ? messagesDispatchFormStateToConfig({
@@ -6878,7 +6768,9 @@ const handleUpdateGroup = async () => {
     closeEditModal();
     loadGroups();
   } catch (error: any) {
-    appStore.showError(extractApiErrorMessage(error, t("admin.groups.failedToUpdate")));
+    appStore.showError(
+      error.response?.data?.detail || t("admin.groups.failedToUpdate"),
+    );
     console.error("Error updating group:", error);
   } finally {
     submitting.value = false;

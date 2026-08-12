@@ -129,11 +129,6 @@ type Group struct {
 	UpstreamPriceGroupingEnabled          bool
 	UpstreamPriceGroupingMin              float64
 	UpstreamPriceGroupingMax              float64
-	// DynamicBillingEnabled makes the selected account's channel price the user
-	// billing multiplier after adding the effective OpenAI fixed profit and applying
-	// the group's displayed maximum as a cap. A nil group markup inherits the global setting.
-	DynamicBillingEnabled      bool
-	DynamicBillingProfitMarkup *float64
 
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制）。
 	// 一旦设置即接管该分组用户的限流（覆盖用户级 rpm_limit），可被 user-group rpm_override 进一步覆盖。

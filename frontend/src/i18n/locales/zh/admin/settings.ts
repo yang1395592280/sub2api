@@ -1290,8 +1290,6 @@ export default {
         oauthRateTitle: 'OAuth 调度参考倍率',
         oauthRatePriorityDescription: '同一分组同时包含 API Key 和 OAuth 账号时，OAuth 账号按此倍率与已探测的 API Key 计费倍率一起排序。',
         oauthRateWeightedDescription: '同一分组同时包含 API Key 和 OAuth 账号时，计算“计费倍率”得分时，OAuth 账号按此倍率参与计算。',
-        dynamicBillingProfitTitle: 'OpenAI 动态扣费固定利润',
-        dynamicBillingProfitDescription: '动态扣费分组按“账号渠道价格 + 此固定利润”扣费，并按分组价格区间的最高价封顶。',
         stickyWeightedTitle: '粘性加权',
         stickyWeightedDescription: '开启后 previous_response_id 和 session_hash 粘性进入高级调度打分；关闭时仍按旧逻辑硬命中粘性账号。',
         subscriptionPriorityTitle: '订阅优先',

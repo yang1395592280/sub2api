@@ -493,10 +493,6 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingPaymentVisibleMethodWxpayEnabled] = strconv.FormatBool(settings.PaymentVisibleMethodWxpayEnabled)
 	updates[SettingKeyOpenAILowUpstreamRatePriorityEnabled] = strconv.FormatBool(settings.OpenAILowUpstreamRatePriorityEnabled)
 	updates[SettingKeyOpenAIOAuthSchedulingRateMultiplier] = strconv.FormatFloat(settings.OpenAIOAuthSchedulingRateMultiplier, 'f', -1, 64)
-	if settings.OpenAIDynamicBillingProfitMarkup < 0 || math.IsNaN(settings.OpenAIDynamicBillingProfitMarkup) || math.IsInf(settings.OpenAIDynamicBillingProfitMarkup, 0) {
-		settings.OpenAIDynamicBillingProfitMarkup = 0
-	}
-	updates[SettingKeyOpenAIDynamicBillingProfitMarkup] = strconv.FormatFloat(settings.OpenAIDynamicBillingProfitMarkup, 'f', -1, 64)
 	updates[openAIAdvancedSchedulerSettingKey] = strconv.FormatBool(settings.OpenAIAdvancedSchedulerEnabled)
 	updates[SettingKeyOpenAIAdvancedSchedulerStickyWeightedEnabled] = strconv.FormatBool(settings.OpenAIAdvancedSchedulerStickyWeightedEnabled)
 	updates[SettingKeyOpenAIAdvancedSchedulerSubscriptionPriorityEnabled] = strconv.FormatBool(settings.OpenAIAdvancedSchedulerSubscriptionPriorityEnabled)
@@ -688,8 +684,6 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 	if settings == nil {
 		return
 	}
-	s.openAIDynamicBillingMarkupSF.Forget(SettingKeyOpenAIDynamicBillingProfitMarkup)
-	s.openAIDynamicBillingMarkupCache.Store(&cachedOpenAIDynamicBillingMarkup{value: settings.OpenAIDynamicBillingProfitMarkup, expiresAt: time.Now().Add(openAIDynamicBillingMarkupCacheTTL)})
 
 	// 先使 inflight singleflight 失效，再刷新缓存，缩小旧值覆盖新值的竞态窗口
 	versionBoundsSF.Forget("version_bounds")

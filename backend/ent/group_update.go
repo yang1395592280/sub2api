@@ -1207,47 +1207,6 @@ func (_u *GroupUpdate) AddUpstreamPriceGroupingMax(v float64) *GroupUpdate {
 	return _u
 }
 
-// SetDynamicBillingEnabled sets the "dynamic_billing_enabled" field.
-func (_u *GroupUpdate) SetDynamicBillingEnabled(v bool) *GroupUpdate {
-	_u.mutation.SetDynamicBillingEnabled(v)
-	return _u
-}
-
-// SetNillableDynamicBillingEnabled sets the "dynamic_billing_enabled" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableDynamicBillingEnabled(v *bool) *GroupUpdate {
-	if v != nil {
-		_u.SetDynamicBillingEnabled(*v)
-	}
-	return _u
-}
-
-// SetDynamicBillingProfitMarkup sets the "dynamic_billing_profit_markup" field.
-func (_u *GroupUpdate) SetDynamicBillingProfitMarkup(v float64) *GroupUpdate {
-	_u.mutation.ResetDynamicBillingProfitMarkup()
-	_u.mutation.SetDynamicBillingProfitMarkup(v)
-	return _u
-}
-
-// SetNillableDynamicBillingProfitMarkup sets the "dynamic_billing_profit_markup" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableDynamicBillingProfitMarkup(v *float64) *GroupUpdate {
-	if v != nil {
-		_u.SetDynamicBillingProfitMarkup(*v)
-	}
-	return _u
-}
-
-// AddDynamicBillingProfitMarkup adds value to the "dynamic_billing_profit_markup" field.
-func (_u *GroupUpdate) AddDynamicBillingProfitMarkup(v float64) *GroupUpdate {
-	_u.mutation.AddDynamicBillingProfitMarkup(v)
-	return _u
-}
-
-// ClearDynamicBillingProfitMarkup clears the value of the "dynamic_billing_profit_markup" field.
-func (_u *GroupUpdate) ClearDynamicBillingProfitMarkup() *GroupUpdate {
-	_u.mutation.ClearDynamicBillingProfitMarkup()
-	return _u
-}
-
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdate) SetRpmLimit(v int) *GroupUpdate {
 	_u.mutation.ResetRpmLimit()
@@ -2039,18 +1998,6 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedUpstreamPriceGroupingMax(); ok {
 		_spec.AddField(group.FieldUpstreamPriceGroupingMax, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.DynamicBillingEnabled(); ok {
-		_spec.SetField(group.FieldDynamicBillingEnabled, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.DynamicBillingProfitMarkup(); ok {
-		_spec.SetField(group.FieldDynamicBillingProfitMarkup, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.AddedDynamicBillingProfitMarkup(); ok {
-		_spec.AddField(group.FieldDynamicBillingProfitMarkup, field.TypeFloat64, value)
-	}
-	if _u.mutation.DynamicBillingProfitMarkupCleared() {
-		_spec.ClearField(group.FieldDynamicBillingProfitMarkup, field.TypeFloat64)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -3569,47 +3516,6 @@ func (_u *GroupUpdateOne) AddUpstreamPriceGroupingMax(v float64) *GroupUpdateOne
 	return _u
 }
 
-// SetDynamicBillingEnabled sets the "dynamic_billing_enabled" field.
-func (_u *GroupUpdateOne) SetDynamicBillingEnabled(v bool) *GroupUpdateOne {
-	_u.mutation.SetDynamicBillingEnabled(v)
-	return _u
-}
-
-// SetNillableDynamicBillingEnabled sets the "dynamic_billing_enabled" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableDynamicBillingEnabled(v *bool) *GroupUpdateOne {
-	if v != nil {
-		_u.SetDynamicBillingEnabled(*v)
-	}
-	return _u
-}
-
-// SetDynamicBillingProfitMarkup sets the "dynamic_billing_profit_markup" field.
-func (_u *GroupUpdateOne) SetDynamicBillingProfitMarkup(v float64) *GroupUpdateOne {
-	_u.mutation.ResetDynamicBillingProfitMarkup()
-	_u.mutation.SetDynamicBillingProfitMarkup(v)
-	return _u
-}
-
-// SetNillableDynamicBillingProfitMarkup sets the "dynamic_billing_profit_markup" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableDynamicBillingProfitMarkup(v *float64) *GroupUpdateOne {
-	if v != nil {
-		_u.SetDynamicBillingProfitMarkup(*v)
-	}
-	return _u
-}
-
-// AddDynamicBillingProfitMarkup adds value to the "dynamic_billing_profit_markup" field.
-func (_u *GroupUpdateOne) AddDynamicBillingProfitMarkup(v float64) *GroupUpdateOne {
-	_u.mutation.AddDynamicBillingProfitMarkup(v)
-	return _u
-}
-
-// ClearDynamicBillingProfitMarkup clears the value of the "dynamic_billing_profit_markup" field.
-func (_u *GroupUpdateOne) ClearDynamicBillingProfitMarkup() *GroupUpdateOne {
-	_u.mutation.ClearDynamicBillingProfitMarkup()
-	return _u
-}
-
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdateOne) SetRpmLimit(v int) *GroupUpdateOne {
 	_u.mutation.ResetRpmLimit()
@@ -4431,18 +4337,6 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.AddedUpstreamPriceGroupingMax(); ok {
 		_spec.AddField(group.FieldUpstreamPriceGroupingMax, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.DynamicBillingEnabled(); ok {
-		_spec.SetField(group.FieldDynamicBillingEnabled, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.DynamicBillingProfitMarkup(); ok {
-		_spec.SetField(group.FieldDynamicBillingProfitMarkup, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.AddedDynamicBillingProfitMarkup(); ok {
-		_spec.AddField(group.FieldDynamicBillingProfitMarkup, field.TypeFloat64, value)
-	}
-	if _u.mutation.DynamicBillingProfitMarkupCleared() {
-		_spec.ClearField(group.FieldDynamicBillingProfitMarkup, field.TypeFloat64)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)

@@ -967,8 +967,6 @@ var (
 		{Name: "upstream_price_grouping_enabled", Type: field.TypeBool, Default: false},
 		{Name: "upstream_price_grouping_min", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(12,6)"}},
 		{Name: "upstream_price_grouping_max", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(12,6)"}},
-		{Name: "dynamic_billing_enabled", Type: field.TypeBool, Default: false},
-		{Name: "dynamic_billing_profit_markup", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(12,6)"}},
 		{Name: "rpm_limit", Type: field.TypeInt, Default: 0},
 		{Name: "max_reasoning_effort", Type: field.TypeString, Size: 20, Default: ""},
 		{Name: "reasoning_effort_mappings", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},

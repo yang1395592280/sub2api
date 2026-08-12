@@ -350,16 +350,6 @@ func UpstreamPriceGroupingMax(v float64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldUpstreamPriceGroupingMax, v))
 }
 
-// DynamicBillingEnabled applies equality check predicate on the "dynamic_billing_enabled" field. It's identical to DynamicBillingEnabledEQ.
-func DynamicBillingEnabled(v bool) predicate.Group {
-	return predicate.Group(sql.FieldEQ(FieldDynamicBillingEnabled, v))
-}
-
-// DynamicBillingProfitMarkup applies equality check predicate on the "dynamic_billing_profit_markup" field. It's identical to DynamicBillingProfitMarkupEQ.
-func DynamicBillingProfitMarkup(v float64) predicate.Group {
-	return predicate.Group(sql.FieldEQ(FieldDynamicBillingProfitMarkup, v))
-}
-
 // RpmLimit applies equality check predicate on the "rpm_limit" field. It's identical to RpmLimitEQ.
 func RpmLimit(v int) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldRpmLimit, v))
@@ -2703,66 +2693,6 @@ func UpstreamPriceGroupingMaxLT(v float64) predicate.Group {
 // UpstreamPriceGroupingMaxLTE applies the LTE predicate on the "upstream_price_grouping_max" field.
 func UpstreamPriceGroupingMaxLTE(v float64) predicate.Group {
 	return predicate.Group(sql.FieldLTE(FieldUpstreamPriceGroupingMax, v))
-}
-
-// DynamicBillingEnabledEQ applies the EQ predicate on the "dynamic_billing_enabled" field.
-func DynamicBillingEnabledEQ(v bool) predicate.Group {
-	return predicate.Group(sql.FieldEQ(FieldDynamicBillingEnabled, v))
-}
-
-// DynamicBillingEnabledNEQ applies the NEQ predicate on the "dynamic_billing_enabled" field.
-func DynamicBillingEnabledNEQ(v bool) predicate.Group {
-	return predicate.Group(sql.FieldNEQ(FieldDynamicBillingEnabled, v))
-}
-
-// DynamicBillingProfitMarkupEQ applies the EQ predicate on the "dynamic_billing_profit_markup" field.
-func DynamicBillingProfitMarkupEQ(v float64) predicate.Group {
-	return predicate.Group(sql.FieldEQ(FieldDynamicBillingProfitMarkup, v))
-}
-
-// DynamicBillingProfitMarkupNEQ applies the NEQ predicate on the "dynamic_billing_profit_markup" field.
-func DynamicBillingProfitMarkupNEQ(v float64) predicate.Group {
-	return predicate.Group(sql.FieldNEQ(FieldDynamicBillingProfitMarkup, v))
-}
-
-// DynamicBillingProfitMarkupIn applies the In predicate on the "dynamic_billing_profit_markup" field.
-func DynamicBillingProfitMarkupIn(vs ...float64) predicate.Group {
-	return predicate.Group(sql.FieldIn(FieldDynamicBillingProfitMarkup, vs...))
-}
-
-// DynamicBillingProfitMarkupNotIn applies the NotIn predicate on the "dynamic_billing_profit_markup" field.
-func DynamicBillingProfitMarkupNotIn(vs ...float64) predicate.Group {
-	return predicate.Group(sql.FieldNotIn(FieldDynamicBillingProfitMarkup, vs...))
-}
-
-// DynamicBillingProfitMarkupGT applies the GT predicate on the "dynamic_billing_profit_markup" field.
-func DynamicBillingProfitMarkupGT(v float64) predicate.Group {
-	return predicate.Group(sql.FieldGT(FieldDynamicBillingProfitMarkup, v))
-}
-
-// DynamicBillingProfitMarkupGTE applies the GTE predicate on the "dynamic_billing_profit_markup" field.
-func DynamicBillingProfitMarkupGTE(v float64) predicate.Group {
-	return predicate.Group(sql.FieldGTE(FieldDynamicBillingProfitMarkup, v))
-}
-
-// DynamicBillingProfitMarkupLT applies the LT predicate on the "dynamic_billing_profit_markup" field.
-func DynamicBillingProfitMarkupLT(v float64) predicate.Group {
-	return predicate.Group(sql.FieldLT(FieldDynamicBillingProfitMarkup, v))
-}
-
-// DynamicBillingProfitMarkupLTE applies the LTE predicate on the "dynamic_billing_profit_markup" field.
-func DynamicBillingProfitMarkupLTE(v float64) predicate.Group {
-	return predicate.Group(sql.FieldLTE(FieldDynamicBillingProfitMarkup, v))
-}
-
-// DynamicBillingProfitMarkupIsNil applies the IsNil predicate on the "dynamic_billing_profit_markup" field.
-func DynamicBillingProfitMarkupIsNil() predicate.Group {
-	return predicate.Group(sql.FieldIsNull(FieldDynamicBillingProfitMarkup))
-}
-
-// DynamicBillingProfitMarkupNotNil applies the NotNil predicate on the "dynamic_billing_profit_markup" field.
-func DynamicBillingProfitMarkupNotNil() predicate.Group {
-	return predicate.Group(sql.FieldNotNull(FieldDynamicBillingProfitMarkup))
 }
 
 // RpmLimitEQ applies the EQ predicate on the "rpm_limit" field.

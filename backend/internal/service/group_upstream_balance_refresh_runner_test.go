@@ -264,30 +264,6 @@ func TestUpstreamPriceGroupingTargetUsesClosedRangesAndKeepsGaps(t *testing.T) {
 	}
 }
 
-func TestGroupUpstreamBalanceRefreshRunner_PriceAboveAllRangesKeepsGroupAndAppliesCurrentGuard(t *testing.T) {
-	groups := []Group{
-		{ID: 10, Platform: PlatformOpenAI, Status: StatusActive, UpstreamBalanceRefreshEnabled: true, UpstreamBalanceRefreshIntervalSeconds: 600, UpstreamPriceMaxMultiplier: 0.20, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.01, UpstreamPriceGroupingMax: 0.10},
-		{ID: 20, Platform: PlatformOpenAI, Status: StatusActive, UpstreamBalanceRefreshEnabled: true, UpstreamBalanceRefreshIntervalSeconds: 600, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.11, UpstreamPriceGroupingMax: 0.20},
-	}
-	price := 0.50
-	account := Account{ID: 42, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, ChannelPrice: &price, GroupIDs: []int64{10}}
-	accountRepo := &groupUpstreamRefreshAccountRepoStub{
-		accounts:        map[int64][]Account{10: {account}},
-		getByIDAccounts: map[int64]*Account{42: &account},
-	}
-	runner := NewGroupUpstreamBalanceRefreshRunner(
-		&groupUpstreamRefreshGroupRepoStub{groups: groups},
-		accountRepo,
-		&groupUpstreamBalanceStub{refreshed: map[int64]*Account{42: &account}},
-	)
-
-	runner.runOnce(context.Background(), time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC))
-
-	require.Empty(t, accountRepo.priceGroupingMoves)
-	require.Equal(t, []int64{10}, account.GroupIDs)
-	require.Contains(t, accountRepo.tempReasons[42], UpstreamPriceGuardReasonPrefix)
-}
-
 func TestGroupUpstreamBalanceRefreshRunner_MovesOpenAIAccountWithinManagedPriceGroups(t *testing.T) {
 	groups := []Group{
 		{ID: 10, Name: "0.01-0.05", Platform: PlatformOpenAI, GroupRole: GroupRoleStandard, Status: StatusActive, UpstreamBalanceRefreshEnabled: true, UpstreamBalanceRefreshIntervalSeconds: 600, UpstreamPriceGroupingEnabled: true, UpstreamPriceGroupingMin: 0.01, UpstreamPriceGroupingMax: 0.05},

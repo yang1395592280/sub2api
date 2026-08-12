@@ -263,7 +263,6 @@ type SystemSettings struct {
 	// OpenAI 账号调度
 	OpenAILowUpstreamRatePriorityEnabled                   bool
 	OpenAIOAuthSchedulingRateMultiplier                    float64
-	OpenAIDynamicBillingProfitMarkup                       float64 `json:"openai_dynamic_billing_profit_markup"`
 	OpenAIAdvancedSchedulerEnabled                         bool
 	OpenAIAdvancedSchedulerStickyWeightedEnabled           bool
 	OpenAIAdvancedSchedulerSubscriptionPriorityEnabled     bool
@@ -406,8 +405,7 @@ type PublicSettings struct {
 	RiskControlEnabled bool `json:"risk_control_enabled"`
 
 	// 允许终端用户在用量页查看自己的失败请求
-	AllowUserViewErrorRequests       bool    `json:"allow_user_view_error_requests"`
-	OpenAIDynamicBillingProfitMarkup float64 `json:"openai_dynamic_billing_profit_markup"`
+	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
 }
 
 type LoginAgreementDocument struct {

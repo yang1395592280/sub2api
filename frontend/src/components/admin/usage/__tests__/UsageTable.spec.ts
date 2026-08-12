@@ -27,8 +27,6 @@ const messages: Record<string, string> = {
   'usage.serviceTierFlex': 'Flex',
   'usage.serviceTierStandard': 'Standard',
   'usage.rate': 'Rate',
-  'usage.billingMultiplier': 'Billed rate',
-  'usage.profit': 'Profit',
   'usage.accountMultiplier': 'Account rate',
   'usage.original': 'Original',
   'usage.userBilled': 'User billed',
@@ -93,7 +91,6 @@ const DataTableStub = {
         <slot name="cell-group" :row="row" />
         <slot name="cell-billing_mode" :row="row" />
         <slot name="cell-tokens" :row="row" />
-        <slot name="cell-rate" :row="row" />
         <slot name="cell-cost" :row="row" />
 		<slot name="cell-latency" :row="row" />
       </div>
@@ -594,60 +591,6 @@ describe('admin UsageTable tooltip', () => {
     expect(text).toContain('Per-image price')
     expect(text).toContain('not recorded')
     expect(text).not.toContain('(2K)')
-  })
-})
-
-describe('usage rate and profit column', () => {
-  const rateRow = {
-    ...baseImageRow,
-    request_id: 'req-rate-profit',
-    rate_multiplier: 0.08,
-    account_rate_multiplier: 0.05,
-    total_cost: 1,
-    actual_cost: 0.08,
-  }
-
-  it('shows billed rate, account rate, and actual profit to admins', () => {
-    const wrapper = mount(UsageTable, {
-      props: {
-        data: [rateRow],
-        columns: [{ key: 'rate', label: 'Rate / Profit' }],
-      },
-      global: {
-        stubs: {
-          DataTable: DataTableStub,
-          EmptyState: true,
-          Icon: true,
-          Teleport: true,
-        },
-      },
-    })
-
-    expect(wrapper.get('[data-testid="usage-billing-multiplier"]').text()).toBe('0.08x')
-    expect(wrapper.get('[data-testid="usage-account-multiplier"]').text()).toBe('0.05x')
-    expect(wrapper.get('[data-testid="usage-profit"]').text()).toBe('+$0.030000')
-  })
-
-  it('only shows the billed rate to users', () => {
-    const wrapper = mount(UsageTable, {
-      props: {
-        data: [rateRow],
-        columns: [{ key: 'rate', label: 'Billed rate' }],
-        showAccountBilling: false,
-      },
-      global: {
-        stubs: {
-          DataTable: DataTableStub,
-          EmptyState: true,
-          Icon: true,
-          Teleport: true,
-        },
-      },
-    })
-
-    expect(wrapper.get('[data-testid="usage-billing-multiplier"]').text()).toBe('0.08x')
-    expect(wrapper.find('[data-testid="usage-account-multiplier"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="usage-profit"]').exists()).toBe(false)
   })
 })
 
