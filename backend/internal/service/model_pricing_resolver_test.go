@@ -850,6 +850,44 @@ func TestResolve_GroupPricingOverridesChannel(t *testing.T) {
 	require.InDelta(t, 2e-6, resolved.BasePricing.OutputPricePerToken, 1e-12)
 }
 
+func TestResolve_CompositeGroupPricingUsesResolvedTargetPlatform(t *testing.T) {
+	bs := newTestBillingServiceForResolver()
+	r := NewModelPricingResolver(nil, bs)
+	openAIInputPrice := 1e-6
+	anthropicInputPrice := 9e-6
+	group := &Group{Platform: PlatformComposite, ModelPricing: []ChannelModelPricing{
+		{Platform: PlatformAnthropic, Models: []string{"shared-model"}, BillingMode: BillingModeToken, InputPrice: &anthropicInputPrice},
+		{Platform: PlatformOpenAI, Models: []string{"shared-model"}, BillingMode: BillingModeToken, InputPrice: &openAIInputPrice},
+	}}
+
+	resolved := r.Resolve(WithResolvedTargetPlatform(context.Background(), PlatformOpenAI), PricingInput{
+		Model: "shared-model",
+		Group: group,
+	})
+
+	require.Equal(t, PricingSourceGroup, resolved.Source)
+	require.InDelta(t, openAIInputPrice, resolved.BasePricing.InputPricePerToken, 1e-12)
+}
+
+func TestResolve_CompositeGroupPricingFallsBackToCompositeEntry(t *testing.T) {
+	bs := newTestBillingServiceForResolver()
+	r := NewModelPricingResolver(nil, bs)
+	inputPrice := 2e-6
+	group := &Group{Platform: PlatformComposite, ModelPricing: []ChannelModelPricing{{
+		Platform:   PlatformComposite,
+		Models:     []string{"shared-model"},
+		InputPrice: &inputPrice,
+	}}}
+
+	resolved := r.Resolve(WithResolvedTargetPlatform(context.Background(), PlatformOpenAI), PricingInput{
+		Model: "shared-model",
+		Group: group,
+	})
+
+	require.Equal(t, PricingSourceGroup, resolved.Source)
+	require.InDelta(t, inputPrice, resolved.BasePricing.InputPricePerToken, 1e-12)
+}
+
 func TestResolve_GroupLongContextUsesPresetNotCustomIntervals(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
 	bs.fallbackPrices["claude-sonnet-4"].LongContextInputThreshold = 200000

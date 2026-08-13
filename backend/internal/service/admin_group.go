@@ -623,7 +623,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		DailyLimitUSD:                         dailyLimit,
 		WeeklyLimitUSD:                        weeklyLimit,
 		MonthlyLimitUSD:                       monthlyLimit,
-		LongContextPricingEnabled:             input.LongContextPricingEnabled,
+		LongContextPricingEnabled:             boolValueOrDefault(input.LongContextPricingEnabled, true),
 		ModelPricing:                          modelPricing,
 		AllowImageGeneration:                  allowImageGeneration,
 		AllowBatchImageGeneration:             allowBatchImageGeneration,

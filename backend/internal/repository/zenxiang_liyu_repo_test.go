@@ -66,6 +66,7 @@ func TestZenxiangLiyuRepositoryPlayAppliesAtomically(t *testing.T) {
 		WithArgs(int64(42), playDate).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 	expectZenxiangLiyuTicketSync(mock, 42, playDate, usageEnd, 0, 1)
+	expectZenxiangLiyuAffiliateTicketCount(mock, 42, usageStart, 0)
 	mock.ExpectQuery(`WITH next_batch AS`).
 		WithArgs(int64(42), usageStart).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(101))
@@ -131,6 +132,7 @@ func TestZenxiangLiyuRepositoryPlayUsesFreePlayAfterDailyUsageThreshold(t *testi
 		WithArgs(int64(42), playDate).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 	expectZenxiangLiyuTicketSync(mock, 42, playDate, usageEnd, 0, 1)
+	expectZenxiangLiyuAffiliateTicketCount(mock, 42, usageStart, 0)
 	mock.ExpectQuery(`WITH next_batch AS`).
 		WithArgs(int64(42), usageStart).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(101))
@@ -197,6 +199,7 @@ func TestZenxiangLiyuRepositoryPlayReturnsExistingRecordAfterUniqueConflict(t *t
 		WithArgs(int64(42), playDate).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 	expectZenxiangLiyuTicketSync(mock, 42, playDate, usageEnd, 0, 1)
+	expectZenxiangLiyuAffiliateTicketCount(mock, 42, usageStart, 0)
 	mock.ExpectQuery(`WITH next_batch AS`).
 		WithArgs(int64(42), usageStart).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(101))
@@ -625,6 +628,12 @@ func expectZenxiangLiyuTicketSync(mock sqlmock.Sqlmock, userID int64, throughDat
 			WithArgs(service.ZenxiangLiyuTicketCapacity, acceptedTickets, userID).
 			WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(currentBalance + acceptedTickets))
 	}
+}
+
+func expectZenxiangLiyuAffiliateTicketCount(mock sqlmock.Sqlmock, userID int64, expiresAfter time.Time, count int) {
+	mock.ExpectQuery(`SELECT COALESCE\(SUM\(remaining_count\), 0\) FROM affiliate_ticket_campaign_batches`).
+		WithArgs(userID, expiresAfter).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(count))
 }
 
 func expectZenxiangLiyuWalletReconcileAfterInsert(mock sqlmock.Sqlmock, userID int64, asOfDate time.Time, currentBalance int) {

@@ -341,6 +341,35 @@ func TestAdminService_CreateGroup_NilImagePricing(t *testing.T) {
 	require.Nil(t, repo.created.ImagePrice4K)
 }
 
+func TestAdminService_CreateGroup_DefaultsLongContextPricingEnabled(t *testing.T) {
+	repo := &groupRepoStubForAdmin{}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name:           "default-long-context",
+		Platform:       PlatformAnthropic,
+		RateMultiplier: 1,
+	})
+	require.NoError(t, err)
+	require.True(t, group.LongContextPricingEnabled)
+	require.True(t, repo.created.LongContextPricingEnabled)
+}
+
+func TestAdminService_CreateGroup_AllowsDisablingLongContextPricing(t *testing.T) {
+	repo := &groupRepoStubForAdmin{}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name:                      "disabled-long-context",
+		Platform:                  PlatformAnthropic,
+		RateMultiplier:            1,
+		LongContextPricingEnabled: testPtrBool(false),
+	})
+	require.NoError(t, err)
+	require.False(t, group.LongContextPricingEnabled)
+	require.False(t, repo.created.LongContextPricingEnabled)
+}
+
 func TestAdminService_CreateGroup_DefaultsGrokMediaGenerationEnabled(t *testing.T) {
 	repo := &groupRepoStubForAdmin{}
 	svc := &adminServiceImpl{groupRepo: repo}
