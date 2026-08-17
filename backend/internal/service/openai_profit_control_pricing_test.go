@@ -130,12 +130,8 @@ func TestProfitControl_ResponsesCapabilityUsesTextGateAtScheduler(t *testing.T) 
 	require.ErrorIs(t, err, ErrNoAvailableAccounts, "文本能力必须过利润门")
 
 	selection, _, err := svc.SelectAccountWithSchedulerForCapability(ctx, &groupID, "", "", "gpt-test", nil, OpenAIUpstreamTransportAny, "", OpenAIEndpointCapabilityResponses, false, false, true)
-	require.NoError(t, err, "生图意图不装门，保持既有调度")
-	require.NotNil(t, selection)
-	require.Equal(t, expensive.ID, selection.Account.ID)
-	if selection.ReleaseFunc != nil {
-		selection.ReleaseFunc()
-	}
+	require.ErrorIs(t, err, ErrNoAvailableAccounts, "Responses 文本能力必须经过利润门")
+	require.Nil(t, selection)
 }
 
 // 账号倍率缺失一律视为非法保守拒绝；手工或同步维护了倍率的任意账号类型都按

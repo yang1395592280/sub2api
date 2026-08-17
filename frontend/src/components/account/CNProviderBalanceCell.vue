@@ -113,7 +113,7 @@ const formatEntry = (entry: CNProviderBalanceEntry): string => {
 
 const balanceLabel = computed(() => {
   if (currentEntries.value.length === 0) {
-    return t('admin.accounts.grokBalance')?.trim() || 'Balance'
+    return t('admin.accounts.usageWindow.grokBalance')?.trim() || 'Balance'
   }
   return currentEntries.value.map(formatEntry).join(' · ')
 })
