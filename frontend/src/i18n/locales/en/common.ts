@@ -199,7 +199,7 @@ export default {
     github: 'GitHub',
     mySubscriptions: 'My Subscriptions',
     buySubscription: 'Recharge / Subscription',
-    redeemCodePurchase: 'Buy Redeem Codes',
+    redeemCodePurchase: 'Recharge',
     docs: 'Docs',
     myOrders: 'My Orders',
     orderManagement: 'Orders',
