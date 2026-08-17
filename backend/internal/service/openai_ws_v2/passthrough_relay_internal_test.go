@@ -411,25 +411,22 @@ func TestIsTokenEventCoverageBranches(t *testing.T) {
 	require.True(t, isTokenEvent("response.reasoning_summary_text.delta"))
 	require.True(t, isTokenEvent("response.output_text.done"))
 	require.True(t, isTokenEvent("response.function_call_arguments.done"))
-	require.False(t, isTokenEvent("response.output"))
-	require.False(t, isTokenEvent("response.output_audio.done"))
+	require.True(t, isTokenEvent("response.output"))
+	require.True(t, isTokenEvent("response.output_audio.done"))
 	require.False(t, isTokenEvent("response.content_part.done"))
 	require.False(t, isTokenEvent("response.output_item.done"))
-	require.False(t, isTokenEvent("response.output_text.annotation.added"))
-	require.False(t, isTokenEvent("response.done"))
+	require.True(t, isTokenEvent("response.output_text.annotation.added"))
+	require.True(t, isTokenEvent("response.done"))
 }
 
-func TestTerminalAndTokenEventSetsAreDisjoint(t *testing.T) {
+func TestTokenEventTerminalFallbackMatches171(t *testing.T) {
 	t.Parallel()
 
-	for _, eventType := range []string{
-		"response.completed",
-		"response.done",
-		"response.failed",
-		"response.incomplete",
-		"response.cancelled",
-		"response.canceled",
-	} {
+	require.True(t, isTerminalEvent("response.completed"))
+	require.True(t, isTokenEvent("response.completed"))
+	require.True(t, isTerminalEvent("response.done"))
+	require.True(t, isTokenEvent("response.done"))
+	for _, eventType := range []string{"response.failed", "response.incomplete", "response.cancelled", "response.canceled"} {
 		require.True(t, isTerminalEvent(eventType), eventType)
 		require.False(t, isTokenEvent(eventType), eventType)
 	}

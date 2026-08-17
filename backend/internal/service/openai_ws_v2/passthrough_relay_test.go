@@ -868,7 +868,7 @@ func (c *errorOnWriteFrameConn) Close() error {
 	return nil
 }
 
-func TestRelay_NoSemanticOutputTerminalSequence_FirstTokenMsNil(t *testing.T) {
+func TestRelay_NoDeltaTerminalSequence_UsesTerminalAsFirstTokenFallback(t *testing.T) {
 	t.Parallel()
 
 	for _, terminalEvent := range []string{"response.completed", "response.done"} {
@@ -914,9 +914,9 @@ func TestRelay_NoSemanticOutputTerminalSequence_FirstTokenMsNil(t *testing.T) {
 
 			require.Nil(t, relayExit)
 			require.Equal(t, terminalEvent, turn.TerminalEventType)
-			require.Nil(t, turn.FirstTokenMs)
+			require.NotNil(t, turn.FirstTokenMs)
 			require.Equal(t, terminalEvent, result.TerminalEventType)
-			require.Nil(t, result.FirstTokenMs)
+			require.NotNil(t, result.FirstTokenMs)
 			require.Equal(t, int64(5), result.UpstreamToClientFrames)
 		})
 	}

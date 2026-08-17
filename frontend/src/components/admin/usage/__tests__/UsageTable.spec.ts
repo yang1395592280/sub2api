@@ -179,21 +179,15 @@ describe('admin UsageTable tooltip', () => {
     } as DOMRect)
   })
 
-	it('shows end-to-end and upstream first-token latency with a phase breakdown', async () => {
+	it('shows the upstream first-token latency only', () => {
 		const wrapper = mount(UsageTable, {
 			props: {
 				data: [{
 					...baseImageRow,
-					request_id: 'req-latency-breakdown',
+					request_id: 'req-latency',
 					duration_ms: 3000,
 					first_token_ms: 1000,
 					e2e_first_token_ms: 1600,
-					body_read_ms: 10,
-					preprocess_ms: 20,
-					user_queue_ms: 30,
-					routing_ms: 40,
-					queue_ms: 50,
-					retry_ms: 60,
 				}],
 				loading: false,
 				columns: [],
@@ -208,19 +202,11 @@ describe('admin UsageTable tooltip', () => {
 			},
 		})
 
-		await wrapper.get('[data-testid="latency-breakdown-trigger"]').trigger('mouseenter')
-		await nextTick()
-
 		const text = wrapper.text()
-		expect(text).toContain('End-to-end1.60s')
-		expect(text).toContain('Upstream1.00s')
-		expect(text).toContain('Request body10ms')
-		expect(text).toContain('Preprocessing20ms')
-		expect(text).toContain('Local concurrency wait30ms')
-		expect(text).toContain('Routing40ms')
-		expect(text).toContain('Account queue50ms')
-		expect(text).toContain('Retry wait60ms')
-		expect(text).toContain('Other pre-forward390ms')
+		expect(text).toContain('First token1.00s')
+		expect(text).not.toContain('End-to-end')
+		expect(text).not.toContain('Upstream')
+		expect(text).not.toContain('Latency breakdown')
 	})
 
 	it('falls back to upstream first-token latency for historical rows', () => {
@@ -248,7 +234,6 @@ describe('admin UsageTable tooltip', () => {
 		expect(wrapper.text()).toContain('First token1.20s')
 		expect(wrapper.text()).not.toContain('End-to-end')
 		expect(wrapper.text()).not.toContain('Upstream')
-		expect(wrapper.find('[data-testid="latency-breakdown-trigger"]').exists()).toBe(false)
 	})
 
   it('marks group cells only when the usage row was recorded as OpenAI auto cheapest', () => {
