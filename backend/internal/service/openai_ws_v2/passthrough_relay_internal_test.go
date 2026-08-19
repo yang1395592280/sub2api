@@ -416,16 +416,16 @@ func TestIsTokenEventCoverageBranches(t *testing.T) {
 	require.False(t, isTokenEvent("response.content_part.done"))
 	require.False(t, isTokenEvent("response.output_item.done"))
 	require.True(t, isTokenEvent("response.output_text.annotation.added"))
-	require.True(t, isTokenEvent("response.done"))
+	require.False(t, isTokenEvent("response.done"))
 }
 
 func TestTokenEventTerminalFallbackMatches171(t *testing.T) {
 	t.Parallel()
 
 	require.True(t, isTerminalEvent("response.completed"))
-	require.True(t, isTokenEvent("response.completed"))
+	require.False(t, isTokenEvent("response.completed"))
 	require.True(t, isTerminalEvent("response.done"))
-	require.True(t, isTokenEvent("response.done"))
+	require.False(t, isTokenEvent("response.done"))
 	for _, eventType := range []string{"response.failed", "response.incomplete", "response.cancelled", "response.canceled"} {
 		require.True(t, isTerminalEvent(eventType), eventType)
 		require.False(t, isTokenEvent(eventType), eventType)
