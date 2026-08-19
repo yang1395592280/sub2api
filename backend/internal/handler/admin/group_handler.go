@@ -120,7 +120,7 @@ func NewGroupHandler(adminService service.AdminService, dashboardService *servic
 type CreateGroupRequest struct {
 	Name                      string                        `json:"name" binding:"required"`
 	Description               string                        `json:"description"`
-	Platform                  string                        `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok composite"`
+	Platform                  string                        `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok kimi zhipu deepseek composite"`
 	GroupRole                 string                        `json:"group_role" binding:"omitempty,oneof=standard self_hosted_pool"`
 	SelfHostedPoolGroupID     *int64                        `json:"self_hosted_pool_group_id"`
 	RateMultiplier            float64                       `json:"rate_multiplier"`
@@ -198,7 +198,7 @@ type CreateGroupRequest struct {
 type UpdateGroupRequest struct {
 	Name                      string                         `json:"name"`
 	Description               *string                        `json:"description"`
-	Platform                  string                         `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok composite"`
+	Platform                  string                         `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok kimi zhipu deepseek composite"`
 	GroupRole                 *string                        `json:"group_role" binding:"omitempty,oneof=standard self_hosted_pool"`
 	SelfHostedPoolGroupID     optionalInt64Field             `json:"self_hosted_pool_group_id"`
 	RateMultiplier            *float64                       `json:"rate_multiplier"`

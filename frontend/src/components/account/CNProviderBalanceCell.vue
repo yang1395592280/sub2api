@@ -113,7 +113,8 @@ const formatEntry = (entry: CNProviderBalanceEntry): string => {
 
 const balanceLabel = computed(() => {
   if (currentEntries.value.length === 0) {
-    return t('admin.accounts.usageWindow.grokBalance')?.trim() || 'Balance'
+	// CN 供应商使用自己的占位键，避免错误复用 Grok 的嵌套翻译键。
+	return t('admin.accounts.cnProviders.balance')
   }
   return currentEntries.value.map(formatEntry).join(' · ')
 })
