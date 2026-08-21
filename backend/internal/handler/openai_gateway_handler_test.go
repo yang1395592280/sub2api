@@ -2660,6 +2660,7 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 
 		time.Sleep(20 * time.Millisecond)
 		writeCtx, cancelWrite := context.WithTimeout(r.Context(), 3*time.Second)
+		_ = conn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.output_text.delta","response_id":"resp_ws_failover_ok","delta":"ok"}`))
 		_ = conn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.completed","response":{"id":"resp_ws_failover_ok","model":"gpt-5.1","usage":{"input_tokens":1,"output_tokens":1}}}`))
 		cancelWrite()
 		_ = conn.Close(coderws.StatusNormalClosure, "done")
@@ -2801,9 +2802,15 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 	require.NoError(t, err)
 
 	readCtx, cancelRead := context.WithTimeout(context.Background(), 5*time.Second)
-	_, event, err := clientConn.Read(readCtx)
+	var event []byte
+	for {
+		_, event, err = clientConn.Read(readCtx)
+		require.NoError(t, err)
+		if gjson.GetBytes(event, "type").String() == "response.completed" {
+			break
+		}
+	}
 	cancelRead()
-	require.NoError(t, err)
 	require.Equal(t, "response.completed", gjson.GetBytes(event, "type").String())
 	require.Equal(t, "resp_ws_failover_ok", gjson.GetBytes(event, "response.id").String())
 
@@ -3098,13 +3105,20 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 				}
 			}
 
-			response := fmt.Sprintf(
-				`{"type":"response.completed","response":{"id":"resp_usage_e2e_%d","model":%q,"usage":{"input_tokens":2,"output_tokens":1}}}`,
-				turn,
-				gjson.GetBytes(payload, "model").String(),
-			)
 			writeCtx, cancelWrite := context.WithTimeout(r.Context(), 3*time.Second)
-			writeErr := conn.Write(writeCtx, coderws.MessageText, []byte(response))
+			model := gjson.GetBytes(payload, "model").String()
+			writeErr := conn.Write(writeCtx, coderws.MessageText, []byte(fmt.Sprintf(
+				`{"type":"response.output_text.delta","response_id":"resp_usage_e2e_%d","delta":"ok"}`,
+				turn,
+			)))
+			if writeErr == nil {
+				response := fmt.Sprintf(
+					`{"type":"response.completed","response":{"id":"resp_usage_e2e_%d","model":%q,"usage":{"input_tokens":2,"output_tokens":1}}}`,
+					turn,
+					model,
+				)
+				writeErr = conn.Write(writeCtx, coderws.MessageText, []byte(response))
+			}
 			cancelWrite()
 			if writeErr != nil {
 				upstreamErrCh <- writeErr
@@ -3251,11 +3265,15 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	clientEvents := make([][]byte, 0, turnCount)
 	readCompleted := func() {
 		readCtx, cancelRead := context.WithTimeout(context.Background(), 3*time.Second)
-		_, event, readErr := clientConn.Read(readCtx)
-		cancelRead()
-		require.NoError(t, readErr)
-		require.Equal(t, "response.completed", gjson.GetBytes(event, "type").String())
-		clientEvents = append(clientEvents, append([]byte(nil), event...))
+		defer cancelRead()
+		for {
+			_, event, readErr := clientConn.Read(readCtx)
+			require.NoError(t, readErr)
+			if gjson.GetBytes(event, "type").String() == "response.completed" {
+				clientEvents = append(clientEvents, append([]byte(nil), event...))
+				return
+			}
+		}
 	}
 	readCompleted()
 	if turnCount == 2 {

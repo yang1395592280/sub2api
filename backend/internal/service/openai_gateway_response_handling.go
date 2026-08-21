@@ -595,18 +595,19 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			if needModelReplace && mappedModel != "" && strings.Contains(line, mappedModel) {
 				line = s.replaceModelInSSELine(line, mappedModel, originalModel)
 			}
-			startsSemanticOutput := forceFlushFailedEvent || openAIStreamDataStartsClientOutput(data, eventType)
-			startsClientOutput := startsSemanticOutput || (earlyPreambleFlush && openAIStreamEventIsPreamble(eventType))
-			startsVisibleOutput := startsSemanticOutput &&
-				(!openAIStreamEventTypeIsTerminal(eventType) || openAIStreamDataStartsVisibleOutput(data, eventType))
-			if guardFirstOutput {
-				eventStartsClientOutput = eventStartsClientOutput || startsSemanticOutput
+			startsClientOutput := forceFlushFailedEvent || openAIStreamDataStartsClientOutput(data, eventType)
+			if earlyPreambleFlush && openAIStreamEventIsPreamble(eventType) {
+				startsClientOutput = true
+			}
+			startsVisibleOutput := openAIStreamDataStartsVisibleOutput(data, eventType)
+			if stageFirstOutput {
+				eventStartsClientOutput = eventStartsClientOutput || startsClientOutput
 				eventStartsVisibleOutput = eventStartsVisibleOutput || startsVisibleOutput
 				if startsClientOutput {
 					firstOutputScanGuard.Store(false)
 				}
 			}
-			if startsSemanticOutput && !openAIStreamEventTypeIsTerminal(eventType) {
+			if startsClientOutput && !openAIStreamEventTypeIsTerminal(eventType) {
 				responsesSemanticOutputSeen = true
 			}
 			if account != nil && account.Platform == PlatformOpenAI &&
