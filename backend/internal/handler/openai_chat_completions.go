@@ -288,11 +288,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		if err == nil {
 			applyOpenAIForwardTiming(c, preForwardE2EFirstTokenMs, result)
 		}
-		cyberBlockKeyChat := ""
-		if service.GetOpsCyberPolicy(c) != nil {
-			cyberBlockKeyChat = service.CyberSessionBlockKey(apiKeyForRequest.ID, c, body)
-		}
-		h.recordCyberPolicyIfMarked(c, apiKeyForRequest, account, subscription, reqModel, err != nil, cyberBlockKeyChat, clientRequestedUsageFields(c, channelMapping, reqModel, ""), service.HashUsageRequestPayload(body))
+		h.recordCyberPolicyIfMarked(c, apiKeyForRequest, account, subscription, reqModel, err != nil, body, clientRequestedUsageFields(c, channelMapping, reqModel, ""), service.HashUsageRequestPayload(body))
 
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
 		upstreamLatencyMs, _ := getContextInt64(c, service.OpsUpstreamLatencyMsKey)

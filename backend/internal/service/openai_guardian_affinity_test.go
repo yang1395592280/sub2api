@@ -370,7 +370,7 @@ func TestOpenAIGatewayService_PreviousResponseHonorsGroupAndRequiredPrivacy(t *t
 
 			selection, decision, err := svc.SelectAccountWithSchedulerForCapability(
 				context.Background(), &groupID, responseID, "", codexAutoReviewModel,
-				nil, OpenAIUpstreamTransportAny, OpenAIEndpointCapabilityResponses,
+				nil, OpenAIUpstreamTransportAny, "", OpenAIEndpointCapabilityResponses,
 				false, false, true,
 			)
 			require.NoError(t, err)
@@ -437,7 +437,7 @@ func TestOpenAIGatewayService_PreviousResponseSimpleModeIgnoresGroupMembership(t
 
 	selection, decision, err := svc.SelectAccountWithSchedulerForCapability(
 		context.Background(), &groupID, responseID, "", codexAutoReviewModel,
-		nil, OpenAIUpstreamTransportAny, OpenAIEndpointCapabilityResponses,
+		nil, OpenAIUpstreamTransportAny, "", OpenAIEndpointCapabilityResponses,
 		false, false, true,
 	)
 	require.NoError(t, err)

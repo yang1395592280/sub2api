@@ -78,7 +78,8 @@ export const adminAPI = {
   workbench: adminWorkbenchAPI,
   openaiAutoScheduler: openaiAutoSchedulerAPI,
   zenxiangLiyu: adminZenxiangLiyuAPI,
-  audit: auditAPI
+  audit: auditAPI,
+  plugins: pluginsAPI
 }
 
 export {
@@ -116,7 +117,8 @@ export {
   adminWorkbenchAPI,
   openaiAutoSchedulerAPI,
   adminZenxiangLiyuAPI,
-  auditAPI
+  auditAPI,
+  pluginsAPI
 }
 
 export default adminAPI
@@ -129,6 +131,12 @@ export type { BackupAgentHealth, DataManagementConfig } from './dataManagement'
 export type { TLSFingerprintProfile, CreateProfileRequest, UpdateProfileRequest } from './tlsFingerprintProfile'
 export type { ContentModerationConfig, ContentModerationLog, ModerationMode } from './riskControl'
 export type { AdminWorkbenchConversation, AdminWorkbenchStats, AdminWorkbenchConversationDetail } from './workbench'
+export type {
+  PluginInstallation,
+  PluginCompatibility,
+  PluginUISession,
+  PluginTestResult
+} from './plugins'
 export type {
   OpenAIAutoSchedulerEvent,
   OpenAIAutoSchedulerEventType,

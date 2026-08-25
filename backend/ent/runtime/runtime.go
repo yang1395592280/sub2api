@@ -3,7 +3,7 @@
 package runtime
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/ent/account"
@@ -2906,7 +2906,7 @@ func init() {
 	// zenxiangliyurecordDescConfigSnapshot is the schema descriptor for config_snapshot field.
 	zenxiangliyurecordDescConfigSnapshot := zenxiangliyurecordFields[12].Descriptor()
 	// zenxiangliyurecord.DefaultConfigSnapshot holds the default value on creation for the config_snapshot field.
-	zenxiangliyurecord.DefaultConfigSnapshot = zenxiangliyurecordDescConfigSnapshot.Default.(func() json.RawMessage)
+	zenxiangliyurecord.DefaultConfigSnapshot = zenxiangliyurecordDescConfigSnapshot.Default.(func() jsontext.Value)
 	// zenxiangliyurecordDescCreatedAt is the schema descriptor for created_at field.
 	zenxiangliyurecordDescCreatedAt := zenxiangliyurecordFields[16].Descriptor()
 	// zenxiangliyurecord.DefaultCreatedAt holds the default value on creation for the created_at field.

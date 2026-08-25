@@ -790,7 +790,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 	}
 	account = s.service.recheckSelectedOpenAIAccountFromDB(ctx, account, openAIAccountSourceGroupID(req), req.Platform, req.RequestedModel, req.RequireCompact, req.RequiredCapability)
 	if account == nil || !s.service.openAIAccountMatchesSchedulingGroup(account, openAIAccountSourceGroupID(req)) || !s.isAccountTransportCompatible(account, req.RequiredTransport) {
-		if !openAIUsesSeparateAccountSource(req) {
+		if !req.PreserveStickyBinding && !openAIUsesSeparateAccountSource(req) {
 			_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		}
 		return nil, false, nil
@@ -2035,13 +2035,6 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	filtered := req.balancedAccounts
 	loadReq := req.balancedLoadRequest
 	filterStats := req.balancedFilterStats
-	if req.balancedPrivacyGroup != nil {
-		for _, account := range req.balancedPrivacyBlocked {
-			s.service.BlockAccountScheduling(account, time.Time{}, "privacy_not_set")
-			_ = s.service.accountRepo.SetError(ctx, account.ID,
-				fmt.Sprintf("Privacy not set, required by group [%s]", req.balancedPrivacyGroup.Name))
-		}
-	}
 	if len(filtered) == 0 {
 		return nil, 0, 0, 0, noAvailableOpenAISelectionError(req.RequestedModel, false, filterStats.summary(""))
 	}
@@ -3145,6 +3138,11 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 	decision.PoolFallbackReason = poolStage.FallbackReason
 	if decision.AccountSourceGroupID > 0 && decision.AccountSourceGroupID != decision.EffectiveGroupID {
 		decision.AccountSourceType = GroupRoleSelfHostedPool
+	}
+	preserveGuardianParentBinding := preserveOpenAIGuardianParentBinding(ctx, sessionHash)
+	guardianParentAccountID := int64(0)
+	if strings.TrimSpace(previousResponseID) == "" {
+		guardianParentAccountID = s.resolveOpenAIGuardianParentAccountID(ctx, groupID)
 	}
 	scheduler := s.getOpenAIAccountScheduler(ctx)
 	if scheduler == nil {

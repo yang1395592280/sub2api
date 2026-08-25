@@ -4,6 +4,7 @@ package ent
 
 import (
 	"encoding/json"
+	"encoding/json/jsontext"
 	"fmt"
 	"strings"
 	"time"
@@ -45,7 +46,7 @@ type ZenxiangLiyuRecord struct {
 	// ProbabilitySnapshot holds the value of the "probability_snapshot" field.
 	ProbabilitySnapshot float64 `json:"probability_snapshot,omitempty"`
 	// ConfigSnapshot holds the value of the "config_snapshot" field.
-	ConfigSnapshot json.RawMessage `json:"config_snapshot,omitempty"`
+	ConfigSnapshot jsontext.Value `json:"config_snapshot,omitempty"`
 	// BalanceBefore holds the value of the "balance_before" field.
 	BalanceBefore float64 `json:"balance_before,omitempty"`
 	// BalanceAfterTicket holds the value of the "balance_after_ticket" field.

@@ -423,6 +423,9 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 				)
 				continue
 			}
+			statusCode := resp.StatusCode
+			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, errors.New(resp.Status)),
+				openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamPassthroughModel, ReasoningEffort: openAIReasoningEffortValue(reasoningEffort), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
 
 			// 透传模式默认保持原样代理；容量错误以及 API-key 上游的瞬时
 			// 5xx 应先触发多账号 failover，且此时尚未写入下游响应。
@@ -433,15 +436,12 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 			return nil, s.handleErrorResponsePassthrough(ctx, resp, c, account, body, probeBody)
 		}
 
-		statusCode := resp.StatusCode
-		s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, errors.New(resp.Status)),
-			openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamPassthroughModel, ReasoningEffort: openAIReasoningEffortValue(reasoningEffort), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
-
-		// 透传模式默认保持原样代理；容量错误以及 API-key 上游的瞬时
-		// 5xx 应先触发多账号 failover，且此时尚未写入下游响应。
-		// probeBody 已在上方任务探测时读取过一次，直接复用避免重复读取。
-		if shouldFailoverOpenAIPassthroughResponse(account, resp.StatusCode, probeBody) {
-			return nil, s.handleFailoverErrorResponsePassthrough(ctx, resp, c, account, body, probeBody)
+		if mapping, ok := openAIResponsesClientToolMapping(c); ok && isEventStreamResponse(resp.Header) {
+			maxLineSize := defaultMaxLineSize
+			if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
+				maxLineSize = s.cfg.Gateway.MaxLineSize
+			}
+			resp.Body = newGrokResponsesClientToolStreamBody(resp.Body, mapping, maxLineSize)
 		}
 
 		// x-codex-turn-state 溯源：下游回传由 writeOpenAIPassthroughResponseHeaders
@@ -471,6 +471,9 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 					return nil, s.handleErrorResponsePassthrough(ctx, compactResp, c, account, body, compactBody)
 				}
 				_ = resp.Body.Close()
+				statusCode := resp.StatusCode
+				s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, handleErr),
+					openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamPassthroughModel, ReasoningEffort: openAIReasoningEffortValue(reasoningEffort), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
 				return nil, handleErr
 			}
 			usage = result.usage
@@ -498,6 +501,9 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 					return nil, s.handleErrorResponsePassthrough(ctx, compactResp, c, account, body, compactBody)
 				}
 				_ = resp.Body.Close()
+				statusCode := resp.StatusCode
+				s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, handleErr),
+					openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamPassthroughModel, ReasoningEffort: openAIReasoningEffortValue(reasoningEffort), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
 				return nil, handleErr
 			}
 			usage = result.usage
@@ -509,45 +515,6 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	}
 	defer func() { _ = resp.Body.Close() }()
 	serviceTier := extractOpenAIServiceTierFromBody(body)
-
-	// x-codex-turn-state 溯源：下游回传由 writeOpenAIPassthroughResponseHeaders
-	// 在各 handler 的写头点强制放行，铸造账号在此统一记录，供出站守卫剥离
-	// failover 换号后的跨账号回带（openai_codex_turn_state.go）。
-	if extractOpenAICodexTurnState(resp.Header) != "" {
-		s.noteOpenAICodexTurnStateProvenance(c, account)
-	}
-
-	var usage *OpenAIUsage
-	var firstTokenMs *int
-	responseID := ""
-	imageCount := 0
-	var imageOutputSizes []string
-	if reqStream {
-		result, err := s.handleStreamingResponsePassthrough(ctx, resp, c, account, startTime, reqModel, upstreamPassthroughModel)
-		if err != nil {
-			statusCode := resp.StatusCode
-			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, err),
-				openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamPassthroughModel, ReasoningEffort: openAIReasoningEffortValue(reasoningEffort), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
-			return nil, err
-		}
-		usage = result.usage
-		firstTokenMs = result.firstTokenMs
-		responseID = strings.TrimSpace(result.responseID)
-		imageCount = result.imageCount
-		imageOutputSizes = result.imageOutputSizes
-	} else {
-		result, err := s.handleNonStreamingResponsePassthrough(ctx, resp, c, reqModel, upstreamPassthroughModel)
-		if err != nil {
-			statusCode := resp.StatusCode
-			s.recordOpenAIAutoSchedulerOutcome(ctx, account, openAIAutoSchedulerGroupIDFromContext(c), reqModel, openAIAutoSchedulerErrorOutcome(startTime, &statusCode, err),
-				openAIAutoSchedulerAttemptMetadata{ModelFamily: upstreamPassthroughModel, ReasoningEffort: openAIReasoningEffortValue(reasoningEffort), Endpoint: openAISchedulerHealthEndpointResponses, Transport: OpenAIUpstreamTransportHTTPSSE})
-			return nil, err
-		}
-		usage = result.usage
-		responseID = strings.TrimSpace(result.responseID)
-		imageCount = result.imageCount
-		imageOutputSizes = result.imageOutputSizes
-	}
 	s.bindHTTPResponseAccount(ctx, c, account, responseID)
 
 	// 排除 spark 影子:其 codex_* 仅由 QueryUsage(/wham/usage bengalfox)更新(外审第7轮 P1)。
@@ -571,8 +538,9 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		UpstreamModel:                 upstreamPassthroughModel,
 		UpstreamResponseModel:         observedUpstreamResponseModel(c),
 		UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
+		UpstreamResponseServiceTier:   observedUpstreamResponseServiceTier(c),
 		UpstreamEndpoint:              "/v1/responses",
-		ServiceTier:                   serviceTier,
+		ServiceTier:                   resolvedOpenAIUpstreamServiceTier(c, serviceTier),
 		ReasoningEffort:               reasoningEffort,
 		Stream:                        reqStream,
 		OpenAIWSMode:                  false,

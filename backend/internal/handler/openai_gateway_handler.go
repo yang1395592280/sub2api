@@ -714,11 +714,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		if err == nil {
 			applyOpenAIForwardTiming(c, preForwardE2EFirstTokenMs, result)
 		}
-		cyberBlockKeyHTTP := ""
-		if service.GetOpsCyberPolicy(c) != nil {
-			cyberBlockKeyHTTP = service.CyberSessionBlockKey(apiKeyForRequest.ID, c, sessionHashBody)
-		}
-		h.recordCyberPolicyIfMarked(c, apiKeyForRequest, account, subscription, reqModel, err != nil, cyberBlockKeyHTTP, clientRequestedUsageFields(c, channelMapping, reqModel, ""), service.HashUsageRequestPayload(body))
+		h.recordCyberPolicyIfMarked(c, apiKeyForRequest, account, subscription, reqModel, err != nil, sessionHashBody, clientRequestedUsageFields(c, channelMapping, reqModel, ""), service.HashUsageRequestPayload(body))
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
 		upstreamLatencyMs, _ := getContextInt64(c, service.OpsUpstreamLatencyMsKey)
 		responseLatencyMs := forwardDurationMs
@@ -1339,11 +1335,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		if err == nil {
 			applyOpenAIForwardTiming(c, preForwardE2EFirstTokenMs, result)
 		}
-		cyberBlockKeyMsg := ""
-		if service.GetOpsCyberPolicy(c) != nil {
-			cyberBlockKeyMsg = service.CyberSessionBlockKey(apiKeyForRequest.ID, c, body)
-		}
-		h.recordCyberPolicyIfMarked(c, apiKeyForRequest, account, subscription, reqModel, err != nil, cyberBlockKeyMsg, clientRequestedUsageFields(c, channelMappingMsg, reqModel, ""), service.HashUsageRequestPayload(body))
+		h.recordCyberPolicyIfMarked(c, apiKeyForRequest, account, subscription, reqModel, err != nil, body, clientRequestedUsageFields(c, channelMappingMsg, reqModel, ""), service.HashUsageRequestPayload(body))
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
 		upstreamLatencyMs, _ := getContextInt64(c, service.OpsUpstreamLatencyMsKey)
 		responseLatencyMs := forwardDurationMs
@@ -2045,6 +2037,10 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 
 	// 解析渠道级模型映射。自动分组需要等实际分组选出后再解析。
 	channelMappingWS, _ := h.gatewayService.ResolveChannelMappingAndRestrict(ctx, apiKey.GroupID, reqModel)
+	wsForwardModel := reqModel
+	if channelMappingWS.Mapped && strings.TrimSpace(channelMappingWS.MappedModel) != "" {
+		wsForwardModel = strings.TrimSpace(channelMappingWS.MappedModel)
+	}
 	if autoGroupModeWS {
 		channelMappingWS = service.ChannelMappingResult{MappedModel: reqModel}
 	}
@@ -2173,7 +2169,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			service.RequireOpenAIAutoCheapestQualifiedFailover(ctx)
 		}
 		if openAIFirstOutputFailoverExhausted(failoverErr, &firstOutputTimeoutSwitchCount) {
-			closeOpenAIWSFailoverExhausted(wsConn, failoverErr)
+			closeOpenAIWSFailoverExhausted(c, wsConn, failoverErr)
 			return false
 		}
 		if ctx.Err() != nil {
@@ -2231,7 +2227,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		}
 		reqLog.Debug("openai.websocket_account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))
 		firstTurnTiming.BeginRouting()
-		effectiveAPIKey, _, selection, scheduleDecision, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
+		effectiveAPIKey, selectedRoutingModel, selection, scheduleDecision, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
 			ctx,
 			apiKey,
 			previousResponseID,
@@ -2271,6 +2267,9 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		}
 
 		account := selection.Account
+		if strings.TrimSpace(selectedRoutingModel) != "" {
+			wsForwardModel = strings.TrimSpace(selectedRoutingModel)
+		}
 		apiKeyForRequest := effectiveAPIKey
 		if apiKeyForRequest == nil {
 			apiKeyForRequest = apiKey
@@ -2546,7 +2545,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					turnUpstreamModel = turnRequestedModel
 				}
 				turnUsageFields := turnMapping.ToUsageFields(turnRequestedModel, turnUpstreamModel)
-				h.recordCyberPolicyIfMarked(c, apiKeyForRequest, account, subscription, turnRequestedModel, turnErr != nil, cyberBlockKey, turnUsageFields, requestPayloadHash)
+				h.recordCyberPolicyIfMarked(c, apiKeyForRequest, account, subscription, turnRequestedModel, turnErr != nil, cyberBlockBody, turnUsageFields, requestPayloadHash)
 				if service.GetOpsCyberPolicy(c) != nil {
 					cyberBlockedThisConn = true
 				}
@@ -2668,11 +2667,31 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 						zap.Int("retry_payload_bytes", len(retryPayload)),
 					)
 				}
-				if handleWSFailover(account, failoverErr) {
+				if waitForWSSameAccountRetry(account, failoverErr) {
+					if failoverErr.ShouldReportAccountScheduleFailure() {
+						h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, wsForwardModel, false, nil), false, nil, err)
+					}
+					if !ensureUserSlotHeld() {
+						return
+					}
+					if currentAccountRelease == nil {
+						accountRelease, acquired, acquireErr := h.concurrencyHelper.TryAcquireAccountSlot(ctx, account.ID, accountMaxConcurrency)
+						if acquireErr != nil || !acquired {
+							reqLog.Warn("openai.websocket_same_account_retry_slot_unavailable",
+								zap.Int64("account_id", account.ID),
+								zap.Error(acquireErr),
+							)
+							closeOpenAIClientWS(wsConn, coderws.StatusTryAgainLater, "account is busy, please retry later")
+							return
+						}
+						currentAccountRelease = wrapReleaseOnDone(ctx, accountRelease)
+					}
+					wsFirstMessage = wsAttemptMessage
 					firstTurnTiming.AddRetry(time.Since(retryStartedAt))
 					continue
 				}
 				if handleWSFailover(account, failoverErr) {
+					firstTurnTiming.AddRetry(time.Since(retryStartedAt))
 					break
 				}
 				return

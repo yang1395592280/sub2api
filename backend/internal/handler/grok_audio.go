@@ -44,28 +44,6 @@ func (h *OpenAIGatewayHandler) GrokRealtime(c *gin.Context) {
 		return
 	}
 
-	selection, _, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
-		c.Request.Context(),
-		apiKey.GroupID,
-		"",
-		"",
-		"grok-4.5",
-		nil,
-		service.OpenAIUpstreamTransportHTTPSSE,
-		"",
-		// Grok only advertises chat_completions + media capabilities on HEAD.
-		service.OpenAIEndpointCapabilityChatCompletions,
-		false,
-		false,
-		false,
-		service.PlatformGrok,
-	)
-	if err != nil || selection == nil || selection.Account == nil {
-		h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "No available Grok accounts")
-		return
-	}
-
-	var streamStarted bool
 	reqLog := requestLogger(c, "handler.openai_gateway.grok_realtime")
 	model := c.Query("model")
 	if strings.TrimSpace(model) == "" {
@@ -89,6 +67,7 @@ func (h *OpenAIGatewayHandler) GrokRealtime(c *gin.Context) {
 		candidate, _, selectErr := h.gatewayService.SelectAccountWithSchedulerForCapability(
 			c.Request.Context(), apiKey.GroupID, "", "", "", failed,
 			service.OpenAIUpstreamTransportHTTPSSE,
+			"",
 			service.OpenAIEndpointCapabilityChatCompletions,
 			false, false, false, service.PlatformGrok,
 		)

@@ -101,9 +101,6 @@ func (h *OpenAIGatewayHandler) ResponsesInputTokens(c *gin.Context) {
 		apiKey.GroupID,
 		sessionHash,
 		routingModel,
-		nil,
-		service.OpenAIUpstreamTransportAny,
-		"",
 		service.OpenAIEndpointCapabilityChatCompletions,
 		requestPlatform,
 	)
@@ -278,6 +275,9 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 		service.OpenAIUpstreamTransportAny,
 		"",
 		service.OpenAIEndpointCapabilityChatCompletions,
+		false,
+		false,
+		false,
 		openAICompatibleRequestPlatform(c.Request.Context(), apiKey),
 		func(candidate *service.APIKey, _ string) string {
 			if mapped := resolveOpenAIMessagesDispatchMappedModel(c, candidate, reqModel); mapped != "" {

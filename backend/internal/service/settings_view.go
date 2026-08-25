@@ -572,6 +572,23 @@ type RateLimit429CooldownSettings struct {
 	CooldownSeconds int `json:"cooldown_seconds"`
 }
 
+// OpenAIAPIKeyHealthBreakerSettings controls cross-instance failure counting for OpenAI pool API keys.
+type OpenAIAPIKeyHealthBreakerSettings struct {
+	Enabled          bool `json:"enabled"`
+	WindowMinutes    int  `json:"window_minutes"`
+	FailureThreshold int  `json:"failure_threshold"`
+	CooldownMinutes  int  `json:"cooldown_minutes"`
+}
+
+func DefaultOpenAIAPIKeyHealthBreakerSettings() *OpenAIAPIKeyHealthBreakerSettings {
+	return &OpenAIAPIKeyHealthBreakerSettings{
+		Enabled:          false,
+		WindowMinutes:    2,
+		FailureThreshold: 10,
+		CooldownMinutes:  5,
+	}
+}
+
 // OpenAIOverbrushSettings OpenAI OAuth 超刷配置
 type OpenAIOverbrushSettings struct {
 	// Consecutive429Threshold 连续 429 达到该次数后回归原有限流逻辑

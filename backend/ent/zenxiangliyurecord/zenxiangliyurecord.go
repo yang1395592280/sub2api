@@ -3,7 +3,7 @@
 package zenxiangliyurecord
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
@@ -109,7 +109,7 @@ var (
 	// PrizeNameSnapshotValidator is a validator for the "prize_name_snapshot" field. It is called by the builders before save.
 	PrizeNameSnapshotValidator func(string) error
 	// DefaultConfigSnapshot holds the default value on creation for the "config_snapshot" field.
-	DefaultConfigSnapshot func() json.RawMessage
+	DefaultConfigSnapshot func() jsontext.Value
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )

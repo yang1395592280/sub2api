@@ -22787,8 +22787,8 @@ type GroupMutation struct {
 	audio_stt_price_per_hour                     *float64
 	addaudio_stt_price_per_hour                  *float64
 	long_context_pricing_enabled                 *bool
-	model_pricing                                *json.RawMessage
-	appendmodel_pricing                          json.RawMessage
+	model_pricing                                *jsontext.Value
+	appendmodel_pricing                          jsontext.Value
 	claude_code_only                             *bool
 	fallback_group_id                            *int64
 	addfallback_group_id                         *int64
@@ -67982,8 +67982,8 @@ type ZenxiangLiyuRecordMutation struct {
 	prize_name_snapshot     *string
 	probability_snapshot    *float64
 	addprobability_snapshot *float64
-	config_snapshot         *json.RawMessage
-	appendconfig_snapshot   json.RawMessage
+	config_snapshot         *jsontext.Value
+	appendconfig_snapshot   jsontext.Value
 	balance_before          *float64
 	addbalance_before       *float64
 	balance_after_ticket    *float64
@@ -68685,13 +68685,13 @@ func (m *ZenxiangLiyuRecordMutation) ResetProbabilitySnapshot() {
 }
 
 // SetConfigSnapshot sets the "config_snapshot" field.
-func (m *ZenxiangLiyuRecordMutation) SetConfigSnapshot(jm json.RawMessage) {
-	m.config_snapshot = &jm
+func (m *ZenxiangLiyuRecordMutation) SetConfigSnapshot(j jsontext.Value) {
+	m.config_snapshot = &j
 	m.appendconfig_snapshot = nil
 }
 
 // ConfigSnapshot returns the value of the "config_snapshot" field in the mutation.
-func (m *ZenxiangLiyuRecordMutation) ConfigSnapshot() (r json.RawMessage, exists bool) {
+func (m *ZenxiangLiyuRecordMutation) ConfigSnapshot() (r jsontext.Value, exists bool) {
 	v := m.config_snapshot
 	if v == nil {
 		return
@@ -68702,7 +68702,7 @@ func (m *ZenxiangLiyuRecordMutation) ConfigSnapshot() (r json.RawMessage, exists
 // OldConfigSnapshot returns the old "config_snapshot" field's value of the ZenxiangLiyuRecord entity.
 // If the ZenxiangLiyuRecord object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *ZenxiangLiyuRecordMutation) OldConfigSnapshot(ctx context.Context) (v json.RawMessage, err error) {
+func (m *ZenxiangLiyuRecordMutation) OldConfigSnapshot(ctx context.Context) (v jsontext.Value, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldConfigSnapshot is only allowed on UpdateOne operations")
 	}
@@ -68716,13 +68716,13 @@ func (m *ZenxiangLiyuRecordMutation) OldConfigSnapshot(ctx context.Context) (v j
 	return oldValue.ConfigSnapshot, nil
 }
 
-// AppendConfigSnapshot adds jm to the "config_snapshot" field.
-func (m *ZenxiangLiyuRecordMutation) AppendConfigSnapshot(jm json.RawMessage) {
-	m.appendconfig_snapshot = append(m.appendconfig_snapshot, jm...)
+// AppendConfigSnapshot adds j to the "config_snapshot" field.
+func (m *ZenxiangLiyuRecordMutation) AppendConfigSnapshot(j jsontext.Value) {
+	m.appendconfig_snapshot = append(m.appendconfig_snapshot, j...)
 }
 
 // AppendedConfigSnapshot returns the list of values that were appended to the "config_snapshot" field in this mutation.
-func (m *ZenxiangLiyuRecordMutation) AppendedConfigSnapshot() (json.RawMessage, bool) {
+func (m *ZenxiangLiyuRecordMutation) AppendedConfigSnapshot() (jsontext.Value, bool) {
 	if len(m.appendconfig_snapshot) == 0 {
 		return nil, false
 	}
@@ -69258,7 +69258,7 @@ func (m *ZenxiangLiyuRecordMutation) SetField(name string, value ent.Value) erro
 		m.SetProbabilitySnapshot(v)
 		return nil
 	case zenxiangliyurecord.FieldConfigSnapshot:
-		v, ok := value.(json.RawMessage)
+		v, ok := value.(jsontext.Value)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}

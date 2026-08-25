@@ -162,8 +162,24 @@ func (s *AccountTestService) SetSettingService(settingService *SettingService) {
 	}
 }
 
+func (s *AccountTestService) SetPluginManager(pluginManager *PluginManager) {
+	if s != nil {
+		s.pluginManager = pluginManager
+	}
+}
+
 type OpenAIAccountScheduleResultReporter interface {
 	ReportOpenAIAccountScheduleResult(accountID int64, model string, success bool, firstTokenMs *int)
+}
+
+type openAIAccountScheduleResultReporterAdapter struct {
+	gateway *OpenAIGatewayService
+}
+
+func (a openAIAccountScheduleResultReporterAdapter) ReportOpenAIAccountScheduleResult(accountID int64, model string, success bool, firstTokenMs *int) {
+	if a.gateway != nil {
+		a.gateway.ReportOpenAIAccountScheduleResult(&Account{ID: accountID}, model, success, firstTokenMs)
+	}
 }
 
 // NewAccountTestService creates a new AccountTestService

@@ -4,7 +4,7 @@ package ent
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"time"
@@ -256,13 +256,13 @@ func (_u *ZenxiangLiyuRecordUpdate) AddProbabilitySnapshot(v float64) *ZenxiangL
 }
 
 // SetConfigSnapshot sets the "config_snapshot" field.
-func (_u *ZenxiangLiyuRecordUpdate) SetConfigSnapshot(v json.RawMessage) *ZenxiangLiyuRecordUpdate {
+func (_u *ZenxiangLiyuRecordUpdate) SetConfigSnapshot(v jsontext.Value) *ZenxiangLiyuRecordUpdate {
 	_u.mutation.SetConfigSnapshot(v)
 	return _u
 }
 
 // AppendConfigSnapshot appends value to the "config_snapshot" field.
-func (_u *ZenxiangLiyuRecordUpdate) AppendConfigSnapshot(v json.RawMessage) *ZenxiangLiyuRecordUpdate {
+func (_u *ZenxiangLiyuRecordUpdate) AppendConfigSnapshot(v jsontext.Value) *ZenxiangLiyuRecordUpdate {
 	_u.mutation.AppendConfigSnapshot(v)
 	return _u
 }
@@ -793,13 +793,13 @@ func (_u *ZenxiangLiyuRecordUpdateOne) AddProbabilitySnapshot(v float64) *Zenxia
 }
 
 // SetConfigSnapshot sets the "config_snapshot" field.
-func (_u *ZenxiangLiyuRecordUpdateOne) SetConfigSnapshot(v json.RawMessage) *ZenxiangLiyuRecordUpdateOne {
+func (_u *ZenxiangLiyuRecordUpdateOne) SetConfigSnapshot(v jsontext.Value) *ZenxiangLiyuRecordUpdateOne {
 	_u.mutation.SetConfigSnapshot(v)
 	return _u
 }
 
 // AppendConfigSnapshot appends value to the "config_snapshot" field.
-func (_u *ZenxiangLiyuRecordUpdateOne) AppendConfigSnapshot(v json.RawMessage) *ZenxiangLiyuRecordUpdateOne {
+func (_u *ZenxiangLiyuRecordUpdateOne) AppendConfigSnapshot(v jsontext.Value) *ZenxiangLiyuRecordUpdateOne {
 	_u.mutation.AppendConfigSnapshot(v)
 	return _u
 }

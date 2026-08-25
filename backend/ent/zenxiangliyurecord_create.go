@@ -4,7 +4,7 @@ package ent
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"time"
@@ -106,7 +106,7 @@ func (_c *ZenxiangLiyuRecordCreate) SetProbabilitySnapshot(v float64) *ZenxiangL
 }
 
 // SetConfigSnapshot sets the "config_snapshot" field.
-func (_c *ZenxiangLiyuRecordCreate) SetConfigSnapshot(v json.RawMessage) *ZenxiangLiyuRecordCreate {
+func (_c *ZenxiangLiyuRecordCreate) SetConfigSnapshot(v jsontext.Value) *ZenxiangLiyuRecordCreate {
 	_c.mutation.SetConfigSnapshot(v)
 	return _c
 }
@@ -627,7 +627,7 @@ func (u *ZenxiangLiyuRecordUpsert) AddProbabilitySnapshot(v float64) *ZenxiangLi
 }
 
 // SetConfigSnapshot sets the "config_snapshot" field.
-func (u *ZenxiangLiyuRecordUpsert) SetConfigSnapshot(v json.RawMessage) *ZenxiangLiyuRecordUpsert {
+func (u *ZenxiangLiyuRecordUpsert) SetConfigSnapshot(v jsontext.Value) *ZenxiangLiyuRecordUpsert {
 	u.Set(zenxiangliyurecord.FieldConfigSnapshot, v)
 	return u
 }
@@ -962,7 +962,7 @@ func (u *ZenxiangLiyuRecordUpsertOne) UpdateProbabilitySnapshot() *ZenxiangLiyuR
 }
 
 // SetConfigSnapshot sets the "config_snapshot" field.
-func (u *ZenxiangLiyuRecordUpsertOne) SetConfigSnapshot(v json.RawMessage) *ZenxiangLiyuRecordUpsertOne {
+func (u *ZenxiangLiyuRecordUpsertOne) SetConfigSnapshot(v jsontext.Value) *ZenxiangLiyuRecordUpsertOne {
 	return u.Update(func(s *ZenxiangLiyuRecordUpsert) {
 		s.SetConfigSnapshot(v)
 	})
@@ -1474,7 +1474,7 @@ func (u *ZenxiangLiyuRecordUpsertBulk) UpdateProbabilitySnapshot() *ZenxiangLiyu
 }
 
 // SetConfigSnapshot sets the "config_snapshot" field.
-func (u *ZenxiangLiyuRecordUpsertBulk) SetConfigSnapshot(v json.RawMessage) *ZenxiangLiyuRecordUpsertBulk {
+func (u *ZenxiangLiyuRecordUpsertBulk) SetConfigSnapshot(v jsontext.Value) *ZenxiangLiyuRecordUpsertBulk {
 	return u.Update(func(s *ZenxiangLiyuRecordUpsert) {
 		s.SetConfigSnapshot(v)
 	})
