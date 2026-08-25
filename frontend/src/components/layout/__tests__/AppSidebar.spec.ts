@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
+import zhCommon from '../../../i18n/locales/zh/common'
+
 const componentPath = resolve(dirname(fileURLToPath(import.meta.url)), '../AppSidebar.vue')
 const componentSource = readFileSync(componentPath, 'utf8')
 const stylePath = resolve(dirname(fileURLToPath(import.meta.url)), '../../../style.css')
@@ -55,6 +57,10 @@ describe('AppSidebar header styles', () => {
 })
 
 describe('redeem code purchase navigation', () => {
+  it('uses the redeem code purchase label in Chinese', () => {
+    expect(zhCommon.nav.redeemCodePurchase).toBe('兑换码购买')
+  })
+
   it('renders the user entry as a safe external link in a new tab', () => {
     expect(componentSource).toContain("label: t('nav.redeemCodePurchase')")
     expect(componentSource).toContain("externalUrl: redeemCodePurchaseUrl")
