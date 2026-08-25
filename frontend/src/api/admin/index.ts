@@ -38,6 +38,7 @@ import adminWorkbenchAPI from './workbench'
 import openaiAutoSchedulerAPI from './openaiAutoScheduler'
 import adminZenxiangLiyuAPI from './zenxiangLiyu'
 import auditAPI from './audit'
+import pluginsAPI from './plugins'
 
 /**
  * Unified admin API object for convenient access
