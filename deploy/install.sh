@@ -744,15 +744,18 @@ SyslogIdentifier=sub2api
 
 # Security hardening
 NoNewPrivileges=true
-ProtectSystem=strict
+# ProtectSystem=full is supported by older CentOS systemd releases.
+# The stricter value (strict) and ReadWritePaths are unavailable on some
+# supported hosts and would otherwise be ignored during unit parsing.
+ProtectSystem=full
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/opt/sub2api
 
 # Environment - Server configuration
 Environment=GIN_MODE=release
 Environment=SERVER_HOST=${SERVER_HOST}
 Environment=SERVER_PORT=${SERVER_PORT}
+Environment=DATA_DIR=/opt/sub2api/data
 
 [Install]
 WantedBy=multi-user.target
