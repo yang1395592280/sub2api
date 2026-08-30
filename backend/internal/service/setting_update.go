@@ -350,6 +350,9 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyHideCcsImportButton] = strconv.FormatBool(settings.HideCcsImportButton)
 	updates[SettingKeyPurchaseSubscriptionEnabled] = strconv.FormatBool(settings.PurchaseSubscriptionEnabled)
 	updates[SettingKeyPurchaseSubscriptionURL] = strings.TrimSpace(settings.PurchaseSubscriptionURL)
+	updates[SettingKeyRedeemCodePurchaseEnabled] = strconv.FormatBool(settings.RedeemCodePurchaseEnabled)
+	updates[SettingKeyRedeemCodePurchaseName] = strings.TrimSpace(settings.RedeemCodePurchaseName)
+	updates[SettingKeyRedeemCodePurchaseURL] = strings.TrimSpace(settings.RedeemCodePurchaseURL)
 	tableDefaultPageSize, tablePageSizeOptions := normalizeTablePreferences(
 		settings.TableDefaultPageSize,
 		settings.TablePageSizeOptions,

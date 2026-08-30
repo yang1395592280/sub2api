@@ -286,6 +286,9 @@ export interface PublicSettings {
   join_group_popup_image: string
   compact_home_enabled: boolean
   hide_ccs_import_button: boolean
+  redeem_code_purchase_enabled: boolean
+  redeem_code_purchase_name: string
+  redeem_code_purchase_url: string
   payment_enabled: boolean
   risk_control_enabled: boolean
   table_default_page_size: number

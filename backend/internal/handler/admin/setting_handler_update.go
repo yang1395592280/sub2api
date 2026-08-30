@@ -167,6 +167,9 @@ type UpdateSettingsRequest struct {
 	HideCcsImportButton         bool                  `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled *bool                 `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL     *string               `json:"purchase_subscription_url"`
+	RedeemCodePurchaseEnabled   *bool                 `json:"redeem_code_purchase_enabled"`
+	RedeemCodePurchaseName      *string               `json:"redeem_code_purchase_name"`
+	RedeemCodePurchaseURL       *string               `json:"redeem_code_purchase_url"`
 	TableDefaultPageSize        int                   `json:"table_default_page_size"`
 	TablePageSizeOptions        []int                 `json:"table_page_size_options"`
 	CustomMenuItems             *[]dto.CustomMenuItem `json:"custom_menu_items"`
@@ -1229,6 +1232,18 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	if req.PurchaseSubscriptionURL != nil {
 		purchaseURL = strings.TrimSpace(*req.PurchaseSubscriptionURL)
 	}
+	redeemCodePurchaseEnabled := previousSettings.RedeemCodePurchaseEnabled
+	if req.RedeemCodePurchaseEnabled != nil {
+		redeemCodePurchaseEnabled = *req.RedeemCodePurchaseEnabled
+	}
+	redeemCodePurchaseName := previousSettings.RedeemCodePurchaseName
+	if req.RedeemCodePurchaseName != nil {
+		redeemCodePurchaseName = strings.TrimSpace(*req.RedeemCodePurchaseName)
+	}
+	redeemCodePurchaseURL := previousSettings.RedeemCodePurchaseURL
+	if req.RedeemCodePurchaseURL != nil {
+		redeemCodePurchaseURL = strings.TrimSpace(*req.RedeemCodePurchaseURL)
+	}
 	joinGroupEnabled := previousSettings.JoinGroupEnabled
 	if req.JoinGroupEnabled != nil {
 		joinGroupEnabled = *req.JoinGroupEnabled
@@ -1256,6 +1271,22 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	} else if purchaseURL != "" {
 		if err := config.ValidateAbsoluteHTTPURL(purchaseURL); err != nil {
 			response.BadRequest(c, "Purchase Subscription URL must be an absolute http(s) URL")
+			return
+		}
+	}
+
+	if redeemCodePurchaseEnabled {
+		if redeemCodePurchaseURL == "" {
+			response.BadRequest(c, "Redeem code purchase URL is required when enabled")
+			return
+		}
+		if err := config.ValidateAbsoluteHTTPURL(redeemCodePurchaseURL); err != nil {
+			response.BadRequest(c, "Redeem code purchase URL must be an absolute http(s) URL")
+			return
+		}
+	} else if redeemCodePurchaseURL != "" {
+		if err := config.ValidateAbsoluteHTTPURL(redeemCodePurchaseURL); err != nil {
+			response.BadRequest(c, "Redeem code purchase URL must be an absolute http(s) URL")
 			return
 		}
 	}
@@ -1642,6 +1673,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		HideCcsImportButton:                    req.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:            purchaseEnabled,
 		PurchaseSubscriptionURL:                purchaseURL,
+		RedeemCodePurchaseEnabled:              redeemCodePurchaseEnabled,
+		RedeemCodePurchaseName:                 redeemCodePurchaseName,
+		RedeemCodePurchaseURL:                  redeemCodePurchaseURL,
 		TableDefaultPageSize:                   req.TableDefaultPageSize,
 		TablePageSizeOptions:                   req.TablePageSizeOptions,
 		CustomMenuItems:                        customMenuJSON,
@@ -2273,6 +2307,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		HideCcsImportButton:                                    updatedSettings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:                            updatedSettings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                                updatedSettings.PurchaseSubscriptionURL,
+		RedeemCodePurchaseEnabled:                              updatedSettings.RedeemCodePurchaseEnabled,
+		RedeemCodePurchaseName:                                 updatedSettings.RedeemCodePurchaseName,
+		RedeemCodePurchaseURL:                                  updatedSettings.RedeemCodePurchaseURL,
 		TableDefaultPageSize:                                   updatedSettings.TableDefaultPageSize,
 		TablePageSizeOptions:                                   updatedSettings.TablePageSizeOptions,
 		CustomMenuItems:                                        dto.ParseCustomMenuItems(updatedSettings.CustomMenuItems),

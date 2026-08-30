@@ -513,30 +513,6 @@ func (f UserSubscriptionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.V
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UserSubscriptionMutation", m)
 }
 
-// The WorkbenchConversationFunc type is an adapter to allow the use of ordinary
-// function as WorkbenchConversation mutator.
-type WorkbenchConversationFunc func(context.Context, *ent.WorkbenchConversationMutation) (ent.Value, error)
-
-// Mutate calls f(ctx, m).
-func (f WorkbenchConversationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	if mv, ok := m.(*ent.WorkbenchConversationMutation); ok {
-		return f(ctx, mv)
-	}
-	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.WorkbenchConversationMutation", m)
-}
-
-// The WorkbenchMessageFunc type is an adapter to allow the use of ordinary
-// function as WorkbenchMessage mutator.
-type WorkbenchMessageFunc func(context.Context, *ent.WorkbenchMessageMutation) (ent.Value, error)
-
-// Mutate calls f(ctx, m).
-func (f WorkbenchMessageFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	if mv, ok := m.(*ent.WorkbenchMessageMutation); ok {
-		return f(ctx, mv)
-	}
-	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.WorkbenchMessageMutation", m)
-}
-
 // The ZenxiangLiyuPrizeFunc type is an adapter to allow the use of ordinary
 // function as ZenxiangLiyuPrize mutator.
 type ZenxiangLiyuPrizeFunc func(context.Context, *ent.ZenxiangLiyuPrizeMutation) (ent.Value, error)

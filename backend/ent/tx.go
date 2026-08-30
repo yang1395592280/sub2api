@@ -98,10 +98,6 @@ type Tx struct {
 	UserPlatformQuota *UserPlatformQuotaClient
 	// UserSubscription is the client for interacting with the UserSubscription builders.
 	UserSubscription *UserSubscriptionClient
-	// WorkbenchConversation is the client for interacting with the WorkbenchConversation builders.
-	WorkbenchConversation *WorkbenchConversationClient
-	// WorkbenchMessage is the client for interacting with the WorkbenchMessage builders.
-	WorkbenchMessage *WorkbenchMessageClient
 	// ZenxiangLiyuPrize is the client for interacting with the ZenxiangLiyuPrize builders.
 	ZenxiangLiyuPrize *ZenxiangLiyuPrizeClient
 	// ZenxiangLiyuRecord is the client for interacting with the ZenxiangLiyuRecord builders.
@@ -283,8 +279,6 @@ func (tx *Tx) init() {
 	tx.UserAttributeValue = NewUserAttributeValueClient(tx.config)
 	tx.UserPlatformQuota = NewUserPlatformQuotaClient(tx.config)
 	tx.UserSubscription = NewUserSubscriptionClient(tx.config)
-	tx.WorkbenchConversation = NewWorkbenchConversationClient(tx.config)
-	tx.WorkbenchMessage = NewWorkbenchMessageClient(tx.config)
 	tx.ZenxiangLiyuPrize = NewZenxiangLiyuPrizeClient(tx.config)
 	tx.ZenxiangLiyuRecord = NewZenxiangLiyuRecordClient(tx.config)
 	tx.ZenxiangLiyuSetting = NewZenxiangLiyuSettingClient(tx.config)

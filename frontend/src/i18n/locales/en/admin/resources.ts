@@ -40,34 +40,6 @@ export default {
       autoRecoverHelp: 'Automatically recover account from error/rate-limited state on successful test'
     },
 
-    workbench: {
-      title: 'Workbench Management',
-      description: 'Review and clean up user workbench conversations, messages, and images',
-      totalConversations: 'Total Conversations',
-      totalMessages: 'Total Messages',
-      imageMessages: 'Image Messages',
-      expiredConversations: 'Expired Conversations',
-      imageBytes: 'Image Storage',
-      searchPlaceholder: 'Search users, titles, or messages...',
-      allModes: 'All modes',
-      allStatuses: 'All statuses',
-      hasImages: 'Images only',
-      selectedCount: '{count} conversations selected',
-      deleteSelected: 'Delete selected',
-      cleanupExpired: 'Clean up expired',
-      user: 'User',
-      conversation: 'Conversation',
-      mode: 'Mode',
-      images: 'Images',
-      updatedAt: 'Updated',
-      loadFailed: 'Failed to load workbench data',
-      detailLoadFailed: 'Failed to load conversation details',
-      deleteSelectedSuccess: 'Deleted {count} conversations',
-      deleteSelectedFailed: 'Failed to delete selected conversations',
-      cleanupSuccess: 'Cleaned up {count} expired conversations',
-      cleanupFailed: 'Failed to clean up expired conversations'
-    },
-
     openaiAutoScheduler: {
       title: 'OpenAI Scheduler Console',
       description: 'Review OpenAI scheduling performance, account health, events, and rollout settings',

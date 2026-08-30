@@ -17,7 +17,7 @@ const (
 const (
 	APIKeyGroupSelectModeFixed              = "fixed"
 	APIKeyGroupSelectModeOpenAIAutoCheapest = "openai_auto_cheapest"
-	OpenAIAutoCheapestDefaultMaxRate        = 0.2
+	OpenAIAutoCheapestDefaultMaxRate        = 0.3
 )
 
 // Rate limit window durations

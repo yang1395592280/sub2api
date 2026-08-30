@@ -57,8 +57,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
-	"github.com/Wei-Shaw/sub2api/ent/workbenchconversation"
-	"github.com/Wei-Shaw/sub2api/ent/workbenchmessage"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuprize"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyusetting"
@@ -156,10 +154,6 @@ type Client struct {
 	UserPlatformQuota *UserPlatformQuotaClient
 	// UserSubscription is the client for interacting with the UserSubscription builders.
 	UserSubscription *UserSubscriptionClient
-	// WorkbenchConversation is the client for interacting with the WorkbenchConversation builders.
-	WorkbenchConversation *WorkbenchConversationClient
-	// WorkbenchMessage is the client for interacting with the WorkbenchMessage builders.
-	WorkbenchMessage *WorkbenchMessageClient
 	// ZenxiangLiyuPrize is the client for interacting with the ZenxiangLiyuPrize builders.
 	ZenxiangLiyuPrize *ZenxiangLiyuPrizeClient
 	// ZenxiangLiyuRecord is the client for interacting with the ZenxiangLiyuRecord builders.
@@ -221,8 +215,6 @@ func (c *Client) init() {
 	c.UserAttributeValue = NewUserAttributeValueClient(c.config)
 	c.UserPlatformQuota = NewUserPlatformQuotaClient(c.config)
 	c.UserSubscription = NewUserSubscriptionClient(c.config)
-	c.WorkbenchConversation = NewWorkbenchConversationClient(c.config)
-	c.WorkbenchMessage = NewWorkbenchMessageClient(c.config)
 	c.ZenxiangLiyuPrize = NewZenxiangLiyuPrizeClient(c.config)
 	c.ZenxiangLiyuRecord = NewZenxiangLiyuRecordClient(c.config)
 	c.ZenxiangLiyuSetting = NewZenxiangLiyuSettingClient(c.config)
@@ -361,8 +353,6 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		UserAttributeValue:            NewUserAttributeValueClient(cfg),
 		UserPlatformQuota:             NewUserPlatformQuotaClient(cfg),
 		UserSubscription:              NewUserSubscriptionClient(cfg),
-		WorkbenchConversation:         NewWorkbenchConversationClient(cfg),
-		WorkbenchMessage:              NewWorkbenchMessageClient(cfg),
 		ZenxiangLiyuPrize:             NewZenxiangLiyuPrizeClient(cfg),
 		ZenxiangLiyuRecord:            NewZenxiangLiyuRecordClient(cfg),
 		ZenxiangLiyuSetting:           NewZenxiangLiyuSettingClient(cfg),
@@ -428,8 +418,6 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		UserAttributeValue:            NewUserAttributeValueClient(cfg),
 		UserPlatformQuota:             NewUserPlatformQuotaClient(cfg),
 		UserSubscription:              NewUserSubscriptionClient(cfg),
-		WorkbenchConversation:         NewWorkbenchConversationClient(cfg),
-		WorkbenchMessage:              NewWorkbenchMessageClient(cfg),
 		ZenxiangLiyuPrize:             NewZenxiangLiyuPrizeClient(cfg),
 		ZenxiangLiyuRecord:            NewZenxiangLiyuRecordClient(cfg),
 		ZenxiangLiyuSetting:           NewZenxiangLiyuSettingClient(cfg),
@@ -475,9 +463,8 @@ func (c *Client) Use(hooks ...Hook) {
 		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
 		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
 		c.UserAttributeDefinition, c.UserAttributeValue, c.UserPlatformQuota,
-		c.UserSubscription, c.WorkbenchConversation, c.WorkbenchMessage,
-		c.ZenxiangLiyuPrize, c.ZenxiangLiyuRecord, c.ZenxiangLiyuSetting,
-		c.ZenxiangLiyuUserGrant,
+		c.UserSubscription, c.ZenxiangLiyuPrize, c.ZenxiangLiyuRecord,
+		c.ZenxiangLiyuSetting, c.ZenxiangLiyuUserGrant,
 	} {
 		n.Use(hooks...)
 	}
@@ -499,9 +486,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
 		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
 		c.UserAttributeDefinition, c.UserAttributeValue, c.UserPlatformQuota,
-		c.UserSubscription, c.WorkbenchConversation, c.WorkbenchMessage,
-		c.ZenxiangLiyuPrize, c.ZenxiangLiyuRecord, c.ZenxiangLiyuSetting,
-		c.ZenxiangLiyuUserGrant,
+		c.UserSubscription, c.ZenxiangLiyuPrize, c.ZenxiangLiyuRecord,
+		c.ZenxiangLiyuSetting, c.ZenxiangLiyuUserGrant,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -594,10 +580,6 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.UserPlatformQuota.mutate(ctx, m)
 	case *UserSubscriptionMutation:
 		return c.UserSubscription.mutate(ctx, m)
-	case *WorkbenchConversationMutation:
-		return c.WorkbenchConversation.mutate(ctx, m)
-	case *WorkbenchMessageMutation:
-		return c.WorkbenchMessage.mutate(ctx, m)
 	case *ZenxiangLiyuPrizeMutation:
 		return c.ZenxiangLiyuPrize.mutate(ctx, m)
 	case *ZenxiangLiyuRecordMutation:
@@ -6476,38 +6458,6 @@ func (c *UserClient) QueryPlatformQuotas(_m *User) *UserPlatformQuotaQuery {
 	return query
 }
 
-// QueryWorkbenchConversations queries the workbench_conversations edge of a User.
-func (c *UserClient) QueryWorkbenchConversations(_m *User) *WorkbenchConversationQuery {
-	query := (&WorkbenchConversationClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := _m.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(user.Table, user.FieldID, id),
-			sqlgraph.To(workbenchconversation.Table, workbenchconversation.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, user.WorkbenchConversationsTable, user.WorkbenchConversationsColumn),
-		)
-		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
-		return fromV, nil
-	}
-	return query
-}
-
-// QueryWorkbenchMessages queries the workbench_messages edge of a User.
-func (c *UserClient) QueryWorkbenchMessages(_m *User) *WorkbenchMessageQuery {
-	query := (&WorkbenchMessageClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := _m.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(user.Table, user.FieldID, id),
-			sqlgraph.To(workbenchmessage.Table, workbenchmessage.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, user.WorkbenchMessagesTable, user.WorkbenchMessagesColumn),
-		)
-		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
-		return fromV, nil
-	}
-	return query
-}
-
 // QueryZenxiangLiyuGrants queries the zenxiang_liyu_grants edge of a User.
 func (c *UserClient) QueryZenxiangLiyuGrants(_m *User) *ZenxiangLiyuUserGrantQuery {
 	query := (&ZenxiangLiyuUserGrantClient{config: c.config}).Query()
@@ -7365,340 +7315,6 @@ func (c *UserSubscriptionClient) mutate(ctx context.Context, m *UserSubscription
 	}
 }
 
-// WorkbenchConversationClient is a client for the WorkbenchConversation schema.
-type WorkbenchConversationClient struct {
-	config
-}
-
-// NewWorkbenchConversationClient returns a client for the WorkbenchConversation from the given config.
-func NewWorkbenchConversationClient(c config) *WorkbenchConversationClient {
-	return &WorkbenchConversationClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `workbenchconversation.Hooks(f(g(h())))`.
-func (c *WorkbenchConversationClient) Use(hooks ...Hook) {
-	c.hooks.WorkbenchConversation = append(c.hooks.WorkbenchConversation, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `workbenchconversation.Intercept(f(g(h())))`.
-func (c *WorkbenchConversationClient) Intercept(interceptors ...Interceptor) {
-	c.inters.WorkbenchConversation = append(c.inters.WorkbenchConversation, interceptors...)
-}
-
-// Create returns a builder for creating a WorkbenchConversation entity.
-func (c *WorkbenchConversationClient) Create() *WorkbenchConversationCreate {
-	mutation := newWorkbenchConversationMutation(c.config, OpCreate)
-	return &WorkbenchConversationCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of WorkbenchConversation entities.
-func (c *WorkbenchConversationClient) CreateBulk(builders ...*WorkbenchConversationCreate) *WorkbenchConversationCreateBulk {
-	return &WorkbenchConversationCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *WorkbenchConversationClient) MapCreateBulk(slice any, setFunc func(*WorkbenchConversationCreate, int)) *WorkbenchConversationCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &WorkbenchConversationCreateBulk{err: fmt.Errorf("calling to WorkbenchConversationClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*WorkbenchConversationCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &WorkbenchConversationCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for WorkbenchConversation.
-func (c *WorkbenchConversationClient) Update() *WorkbenchConversationUpdate {
-	mutation := newWorkbenchConversationMutation(c.config, OpUpdate)
-	return &WorkbenchConversationUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *WorkbenchConversationClient) UpdateOne(_m *WorkbenchConversation) *WorkbenchConversationUpdateOne {
-	mutation := newWorkbenchConversationMutation(c.config, OpUpdateOne, withWorkbenchConversation(_m))
-	return &WorkbenchConversationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *WorkbenchConversationClient) UpdateOneID(id int64) *WorkbenchConversationUpdateOne {
-	mutation := newWorkbenchConversationMutation(c.config, OpUpdateOne, withWorkbenchConversationID(id))
-	return &WorkbenchConversationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for WorkbenchConversation.
-func (c *WorkbenchConversationClient) Delete() *WorkbenchConversationDelete {
-	mutation := newWorkbenchConversationMutation(c.config, OpDelete)
-	return &WorkbenchConversationDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *WorkbenchConversationClient) DeleteOne(_m *WorkbenchConversation) *WorkbenchConversationDeleteOne {
-	return c.DeleteOneID(_m.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *WorkbenchConversationClient) DeleteOneID(id int64) *WorkbenchConversationDeleteOne {
-	builder := c.Delete().Where(workbenchconversation.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &WorkbenchConversationDeleteOne{builder}
-}
-
-// Query returns a query builder for WorkbenchConversation.
-func (c *WorkbenchConversationClient) Query() *WorkbenchConversationQuery {
-	return &WorkbenchConversationQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeWorkbenchConversation},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a WorkbenchConversation entity by its id.
-func (c *WorkbenchConversationClient) Get(ctx context.Context, id int64) (*WorkbenchConversation, error) {
-	return c.Query().Where(workbenchconversation.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *WorkbenchConversationClient) GetX(ctx context.Context, id int64) *WorkbenchConversation {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// QueryUser queries the user edge of a WorkbenchConversation.
-func (c *WorkbenchConversationClient) QueryUser(_m *WorkbenchConversation) *UserQuery {
-	query := (&UserClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := _m.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(workbenchconversation.Table, workbenchconversation.FieldID, id),
-			sqlgraph.To(user.Table, user.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, workbenchconversation.UserTable, workbenchconversation.UserColumn),
-		)
-		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
-		return fromV, nil
-	}
-	return query
-}
-
-// QueryMessages queries the messages edge of a WorkbenchConversation.
-func (c *WorkbenchConversationClient) QueryMessages(_m *WorkbenchConversation) *WorkbenchMessageQuery {
-	query := (&WorkbenchMessageClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := _m.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(workbenchconversation.Table, workbenchconversation.FieldID, id),
-			sqlgraph.To(workbenchmessage.Table, workbenchmessage.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, workbenchconversation.MessagesTable, workbenchconversation.MessagesColumn),
-		)
-		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
-		return fromV, nil
-	}
-	return query
-}
-
-// Hooks returns the client hooks.
-func (c *WorkbenchConversationClient) Hooks() []Hook {
-	hooks := c.hooks.WorkbenchConversation
-	return append(hooks[:len(hooks):len(hooks)], workbenchconversation.Hooks[:]...)
-}
-
-// Interceptors returns the client interceptors.
-func (c *WorkbenchConversationClient) Interceptors() []Interceptor {
-	inters := c.inters.WorkbenchConversation
-	return append(inters[:len(inters):len(inters)], workbenchconversation.Interceptors[:]...)
-}
-
-func (c *WorkbenchConversationClient) mutate(ctx context.Context, m *WorkbenchConversationMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&WorkbenchConversationCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&WorkbenchConversationUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&WorkbenchConversationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&WorkbenchConversationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown WorkbenchConversation mutation op: %q", m.Op())
-	}
-}
-
-// WorkbenchMessageClient is a client for the WorkbenchMessage schema.
-type WorkbenchMessageClient struct {
-	config
-}
-
-// NewWorkbenchMessageClient returns a client for the WorkbenchMessage from the given config.
-func NewWorkbenchMessageClient(c config) *WorkbenchMessageClient {
-	return &WorkbenchMessageClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `workbenchmessage.Hooks(f(g(h())))`.
-func (c *WorkbenchMessageClient) Use(hooks ...Hook) {
-	c.hooks.WorkbenchMessage = append(c.hooks.WorkbenchMessage, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `workbenchmessage.Intercept(f(g(h())))`.
-func (c *WorkbenchMessageClient) Intercept(interceptors ...Interceptor) {
-	c.inters.WorkbenchMessage = append(c.inters.WorkbenchMessage, interceptors...)
-}
-
-// Create returns a builder for creating a WorkbenchMessage entity.
-func (c *WorkbenchMessageClient) Create() *WorkbenchMessageCreate {
-	mutation := newWorkbenchMessageMutation(c.config, OpCreate)
-	return &WorkbenchMessageCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of WorkbenchMessage entities.
-func (c *WorkbenchMessageClient) CreateBulk(builders ...*WorkbenchMessageCreate) *WorkbenchMessageCreateBulk {
-	return &WorkbenchMessageCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *WorkbenchMessageClient) MapCreateBulk(slice any, setFunc func(*WorkbenchMessageCreate, int)) *WorkbenchMessageCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &WorkbenchMessageCreateBulk{err: fmt.Errorf("calling to WorkbenchMessageClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*WorkbenchMessageCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &WorkbenchMessageCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for WorkbenchMessage.
-func (c *WorkbenchMessageClient) Update() *WorkbenchMessageUpdate {
-	mutation := newWorkbenchMessageMutation(c.config, OpUpdate)
-	return &WorkbenchMessageUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *WorkbenchMessageClient) UpdateOne(_m *WorkbenchMessage) *WorkbenchMessageUpdateOne {
-	mutation := newWorkbenchMessageMutation(c.config, OpUpdateOne, withWorkbenchMessage(_m))
-	return &WorkbenchMessageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *WorkbenchMessageClient) UpdateOneID(id int64) *WorkbenchMessageUpdateOne {
-	mutation := newWorkbenchMessageMutation(c.config, OpUpdateOne, withWorkbenchMessageID(id))
-	return &WorkbenchMessageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for WorkbenchMessage.
-func (c *WorkbenchMessageClient) Delete() *WorkbenchMessageDelete {
-	mutation := newWorkbenchMessageMutation(c.config, OpDelete)
-	return &WorkbenchMessageDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *WorkbenchMessageClient) DeleteOne(_m *WorkbenchMessage) *WorkbenchMessageDeleteOne {
-	return c.DeleteOneID(_m.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *WorkbenchMessageClient) DeleteOneID(id int64) *WorkbenchMessageDeleteOne {
-	builder := c.Delete().Where(workbenchmessage.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &WorkbenchMessageDeleteOne{builder}
-}
-
-// Query returns a query builder for WorkbenchMessage.
-func (c *WorkbenchMessageClient) Query() *WorkbenchMessageQuery {
-	return &WorkbenchMessageQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeWorkbenchMessage},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a WorkbenchMessage entity by its id.
-func (c *WorkbenchMessageClient) Get(ctx context.Context, id int64) (*WorkbenchMessage, error) {
-	return c.Query().Where(workbenchmessage.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *WorkbenchMessageClient) GetX(ctx context.Context, id int64) *WorkbenchMessage {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// QueryConversation queries the conversation edge of a WorkbenchMessage.
-func (c *WorkbenchMessageClient) QueryConversation(_m *WorkbenchMessage) *WorkbenchConversationQuery {
-	query := (&WorkbenchConversationClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := _m.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(workbenchmessage.Table, workbenchmessage.FieldID, id),
-			sqlgraph.To(workbenchconversation.Table, workbenchconversation.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, workbenchmessage.ConversationTable, workbenchmessage.ConversationColumn),
-		)
-		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
-		return fromV, nil
-	}
-	return query
-}
-
-// QueryUser queries the user edge of a WorkbenchMessage.
-func (c *WorkbenchMessageClient) QueryUser(_m *WorkbenchMessage) *UserQuery {
-	query := (&UserClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := _m.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(workbenchmessage.Table, workbenchmessage.FieldID, id),
-			sqlgraph.To(user.Table, user.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, workbenchmessage.UserTable, workbenchmessage.UserColumn),
-		)
-		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
-		return fromV, nil
-	}
-	return query
-}
-
-// Hooks returns the client hooks.
-func (c *WorkbenchMessageClient) Hooks() []Hook {
-	hooks := c.hooks.WorkbenchMessage
-	return append(hooks[:len(hooks):len(hooks)], workbenchmessage.Hooks[:]...)
-}
-
-// Interceptors returns the client interceptors.
-func (c *WorkbenchMessageClient) Interceptors() []Interceptor {
-	inters := c.inters.WorkbenchMessage
-	return append(inters[:len(inters):len(inters)], workbenchmessage.Interceptors[:]...)
-}
-
-func (c *WorkbenchMessageClient) mutate(ctx context.Context, m *WorkbenchMessageMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&WorkbenchMessageCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&WorkbenchMessageUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&WorkbenchMessageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&WorkbenchMessageDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown WorkbenchMessage mutation op: %q", m.Op())
-	}
-}
-
 // ZenxiangLiyuPrizeClient is a client for the ZenxiangLiyuPrize schema.
 type ZenxiangLiyuPrizeClient struct {
 	config
@@ -8324,9 +7940,8 @@ type (
 		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
 		RedeemCode, SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
 		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
-		UserAttributeValue, UserPlatformQuota, UserSubscription, WorkbenchConversation,
-		WorkbenchMessage, ZenxiangLiyuPrize, ZenxiangLiyuRecord, ZenxiangLiyuSetting,
-		ZenxiangLiyuUserGrant []ent.Hook
+		UserAttributeValue, UserPlatformQuota, UserSubscription, ZenxiangLiyuPrize,
+		ZenxiangLiyuRecord, ZenxiangLiyuSetting, ZenxiangLiyuUserGrant []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
@@ -8339,8 +7954,8 @@ type (
 		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
 		RedeemCode, SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
 		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
-		UserAttributeValue, UserPlatformQuota, UserSubscription, WorkbenchConversation,
-		WorkbenchMessage, ZenxiangLiyuPrize, ZenxiangLiyuRecord, ZenxiangLiyuSetting,
+		UserAttributeValue, UserPlatformQuota, UserSubscription, ZenxiangLiyuPrize,
+		ZenxiangLiyuRecord, ZenxiangLiyuSetting,
 		ZenxiangLiyuUserGrant []ent.Interceptor
 	}
 )

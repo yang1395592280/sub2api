@@ -2257,115 +2257,6 @@ var (
 			},
 		},
 	}
-	// WorkbenchConversationsColumns holds the columns for the "workbench_conversations" table.
-	WorkbenchConversationsColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeInt64, Increment: true},
-		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "deleted_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "title", Type: field.TypeString, Size: 160, Default: "新会话"},
-		{Name: "mode", Type: field.TypeString, Size: 16, Default: "chat"},
-		{Name: "api_key_id", Type: field.TypeInt64, Nullable: true},
-		{Name: "endpoint", Type: field.TypeString, Size: 64, Default: "chat_completions"},
-		{Name: "model", Type: field.TypeString, Size: 200, Default: ""},
-		{Name: "last_message_preview", Type: field.TypeString, Size: 300, Default: ""},
-		{Name: "last_error", Type: field.TypeString, Nullable: true, Size: 500},
-		{Name: "message_count", Type: field.TypeInt, Default: 0},
-		{Name: "user_id", Type: field.TypeInt64},
-	}
-	// WorkbenchConversationsTable holds the schema information for the "workbench_conversations" table.
-	WorkbenchConversationsTable = &schema.Table{
-		Name:       "workbench_conversations",
-		Columns:    WorkbenchConversationsColumns,
-		PrimaryKey: []*schema.Column{WorkbenchConversationsColumns[0]},
-		ForeignKeys: []*schema.ForeignKey{
-			{
-				Symbol:     "workbench_conversations_users_workbench_conversations",
-				Columns:    []*schema.Column{WorkbenchConversationsColumns[12]},
-				RefColumns: []*schema.Column{UsersColumns[0]},
-				OnDelete:   schema.NoAction,
-			},
-		},
-		Indexes: []*schema.Index{
-			{
-				Name:    "workbenchconversation_user_id",
-				Unique:  false,
-				Columns: []*schema.Column{WorkbenchConversationsColumns[12]},
-			},
-			{
-				Name:    "workbenchconversation_user_id_updated_at",
-				Unique:  false,
-				Columns: []*schema.Column{WorkbenchConversationsColumns[12], WorkbenchConversationsColumns[2]},
-			},
-			{
-				Name:    "workbenchconversation_deleted_at",
-				Unique:  false,
-				Columns: []*schema.Column{WorkbenchConversationsColumns[3]},
-			},
-		},
-	}
-	// WorkbenchMessagesColumns holds the columns for the "workbench_messages" table.
-	WorkbenchMessagesColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeInt64, Increment: true},
-		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "deleted_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "mode", Type: field.TypeString, Size: 16},
-		{Name: "role", Type: field.TypeString, Size: 16},
-		{Name: "content", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
-		{Name: "api_key_id", Type: field.TypeInt64, Nullable: true},
-		{Name: "endpoint", Type: field.TypeString, Size: 64, Default: ""},
-		{Name: "model", Type: field.TypeString, Size: 200, Default: ""},
-		{Name: "request_options", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
-		{Name: "response_metadata", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
-		{Name: "image_outputs", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
-		{Name: "status", Type: field.TypeString, Size: 16, Default: "success"},
-		{Name: "error_message", Type: field.TypeString, Nullable: true, Size: 500},
-		{Name: "user_id", Type: field.TypeInt64},
-		{Name: "conversation_id", Type: field.TypeInt64},
-	}
-	// WorkbenchMessagesTable holds the schema information for the "workbench_messages" table.
-	WorkbenchMessagesTable = &schema.Table{
-		Name:       "workbench_messages",
-		Columns:    WorkbenchMessagesColumns,
-		PrimaryKey: []*schema.Column{WorkbenchMessagesColumns[0]},
-		ForeignKeys: []*schema.ForeignKey{
-			{
-				Symbol:     "workbench_messages_users_workbench_messages",
-				Columns:    []*schema.Column{WorkbenchMessagesColumns[15]},
-				RefColumns: []*schema.Column{UsersColumns[0]},
-				OnDelete:   schema.NoAction,
-			},
-			{
-				Symbol:     "workbench_messages_workbench_conversations_messages",
-				Columns:    []*schema.Column{WorkbenchMessagesColumns[16]},
-				RefColumns: []*schema.Column{WorkbenchConversationsColumns[0]},
-				OnDelete:   schema.Cascade,
-			},
-		},
-		Indexes: []*schema.Index{
-			{
-				Name:    "workbenchmessage_conversation_id_created_at",
-				Unique:  false,
-				Columns: []*schema.Column{WorkbenchMessagesColumns[16], WorkbenchMessagesColumns[1]},
-			},
-			{
-				Name:    "workbenchmessage_user_id_created_at",
-				Unique:  false,
-				Columns: []*schema.Column{WorkbenchMessagesColumns[15], WorkbenchMessagesColumns[1]},
-			},
-			{
-				Name:    "workbenchmessage_status",
-				Unique:  false,
-				Columns: []*schema.Column{WorkbenchMessagesColumns[13]},
-			},
-			{
-				Name:    "workbenchmessage_deleted_at",
-				Unique:  false,
-				Columns: []*schema.Column{WorkbenchMessagesColumns[3]},
-			},
-		},
-	}
 	// ZenxiangLiyuPrizesColumns holds the columns for the "zenxiang_liyu_prizes" table.
 	ZenxiangLiyuPrizesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2559,8 +2450,6 @@ var (
 		UserAttributeValuesTable,
 		UserPlatformQuotasTable,
 		UserSubscriptionsTable,
-		WorkbenchConversationsTable,
-		WorkbenchMessagesTable,
 		ZenxiangLiyuPrizesTable,
 		ZenxiangLiyuRecordsTable,
 		ZenxiangLiyuSettingsTable,
@@ -2730,15 +2619,6 @@ func init() {
 	UserSubscriptionsTable.ForeignKeys[2].RefTable = UsersTable
 	UserSubscriptionsTable.Annotation = &entsql.Annotation{
 		Table: "user_subscriptions",
-	}
-	WorkbenchConversationsTable.ForeignKeys[0].RefTable = UsersTable
-	WorkbenchConversationsTable.Annotation = &entsql.Annotation{
-		Table: "workbench_conversations",
-	}
-	WorkbenchMessagesTable.ForeignKeys[0].RefTable = UsersTable
-	WorkbenchMessagesTable.ForeignKeys[1].RefTable = WorkbenchConversationsTable
-	WorkbenchMessagesTable.Annotation = &entsql.Annotation{
-		Table: "workbench_messages",
 	}
 	ZenxiangLiyuPrizesTable.Annotation = &entsql.Annotation{
 		Table: "zenxiang_liyu_prizes",

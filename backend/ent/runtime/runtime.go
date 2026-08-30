@@ -49,8 +49,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
-	"github.com/Wei-Shaw/sub2api/ent/workbenchconversation"
-	"github.com/Wei-Shaw/sub2api/ent/workbenchmessage"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuprize"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyusetting"
@@ -2730,128 +2728,6 @@ func init() {
 	usersubscriptionDescAssignedAt := usersubscriptionFields[12].Descriptor()
 	// usersubscription.DefaultAssignedAt holds the default value on creation for the assigned_at field.
 	usersubscription.DefaultAssignedAt = usersubscriptionDescAssignedAt.Default.(func() time.Time)
-	workbenchconversationMixin := schema.WorkbenchConversation{}.Mixin()
-	workbenchconversationMixinHooks1 := workbenchconversationMixin[1].Hooks()
-	workbenchconversation.Hooks[0] = workbenchconversationMixinHooks1[0]
-	workbenchconversationMixinInters1 := workbenchconversationMixin[1].Interceptors()
-	workbenchconversation.Interceptors[0] = workbenchconversationMixinInters1[0]
-	workbenchconversationMixinFields0 := workbenchconversationMixin[0].Fields()
-	_ = workbenchconversationMixinFields0
-	workbenchconversationFields := schema.WorkbenchConversation{}.Fields()
-	_ = workbenchconversationFields
-	// workbenchconversationDescCreatedAt is the schema descriptor for created_at field.
-	workbenchconversationDescCreatedAt := workbenchconversationMixinFields0[0].Descriptor()
-	// workbenchconversation.DefaultCreatedAt holds the default value on creation for the created_at field.
-	workbenchconversation.DefaultCreatedAt = workbenchconversationDescCreatedAt.Default.(func() time.Time)
-	// workbenchconversationDescUpdatedAt is the schema descriptor for updated_at field.
-	workbenchconversationDescUpdatedAt := workbenchconversationMixinFields0[1].Descriptor()
-	// workbenchconversation.DefaultUpdatedAt holds the default value on creation for the updated_at field.
-	workbenchconversation.DefaultUpdatedAt = workbenchconversationDescUpdatedAt.Default.(func() time.Time)
-	// workbenchconversation.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
-	workbenchconversation.UpdateDefaultUpdatedAt = workbenchconversationDescUpdatedAt.UpdateDefault.(func() time.Time)
-	// workbenchconversationDescTitle is the schema descriptor for title field.
-	workbenchconversationDescTitle := workbenchconversationFields[1].Descriptor()
-	// workbenchconversation.DefaultTitle holds the default value on creation for the title field.
-	workbenchconversation.DefaultTitle = workbenchconversationDescTitle.Default.(string)
-	// workbenchconversation.TitleValidator is a validator for the "title" field. It is called by the builders before save.
-	workbenchconversation.TitleValidator = workbenchconversationDescTitle.Validators[0].(func(string) error)
-	// workbenchconversationDescMode is the schema descriptor for mode field.
-	workbenchconversationDescMode := workbenchconversationFields[2].Descriptor()
-	// workbenchconversation.DefaultMode holds the default value on creation for the mode field.
-	workbenchconversation.DefaultMode = workbenchconversationDescMode.Default.(string)
-	// workbenchconversation.ModeValidator is a validator for the "mode" field. It is called by the builders before save.
-	workbenchconversation.ModeValidator = workbenchconversationDescMode.Validators[0].(func(string) error)
-	// workbenchconversationDescEndpoint is the schema descriptor for endpoint field.
-	workbenchconversationDescEndpoint := workbenchconversationFields[4].Descriptor()
-	// workbenchconversation.DefaultEndpoint holds the default value on creation for the endpoint field.
-	workbenchconversation.DefaultEndpoint = workbenchconversationDescEndpoint.Default.(string)
-	// workbenchconversation.EndpointValidator is a validator for the "endpoint" field. It is called by the builders before save.
-	workbenchconversation.EndpointValidator = workbenchconversationDescEndpoint.Validators[0].(func(string) error)
-	// workbenchconversationDescModel is the schema descriptor for model field.
-	workbenchconversationDescModel := workbenchconversationFields[5].Descriptor()
-	// workbenchconversation.DefaultModel holds the default value on creation for the model field.
-	workbenchconversation.DefaultModel = workbenchconversationDescModel.Default.(string)
-	// workbenchconversation.ModelValidator is a validator for the "model" field. It is called by the builders before save.
-	workbenchconversation.ModelValidator = workbenchconversationDescModel.Validators[0].(func(string) error)
-	// workbenchconversationDescLastMessagePreview is the schema descriptor for last_message_preview field.
-	workbenchconversationDescLastMessagePreview := workbenchconversationFields[6].Descriptor()
-	// workbenchconversation.DefaultLastMessagePreview holds the default value on creation for the last_message_preview field.
-	workbenchconversation.DefaultLastMessagePreview = workbenchconversationDescLastMessagePreview.Default.(string)
-	// workbenchconversation.LastMessagePreviewValidator is a validator for the "last_message_preview" field. It is called by the builders before save.
-	workbenchconversation.LastMessagePreviewValidator = workbenchconversationDescLastMessagePreview.Validators[0].(func(string) error)
-	// workbenchconversationDescLastError is the schema descriptor for last_error field.
-	workbenchconversationDescLastError := workbenchconversationFields[7].Descriptor()
-	// workbenchconversation.LastErrorValidator is a validator for the "last_error" field. It is called by the builders before save.
-	workbenchconversation.LastErrorValidator = workbenchconversationDescLastError.Validators[0].(func(string) error)
-	// workbenchconversationDescMessageCount is the schema descriptor for message_count field.
-	workbenchconversationDescMessageCount := workbenchconversationFields[8].Descriptor()
-	// workbenchconversation.DefaultMessageCount holds the default value on creation for the message_count field.
-	workbenchconversation.DefaultMessageCount = workbenchconversationDescMessageCount.Default.(int)
-	workbenchmessageMixin := schema.WorkbenchMessage{}.Mixin()
-	workbenchmessageMixinHooks1 := workbenchmessageMixin[1].Hooks()
-	workbenchmessage.Hooks[0] = workbenchmessageMixinHooks1[0]
-	workbenchmessageMixinInters1 := workbenchmessageMixin[1].Interceptors()
-	workbenchmessage.Interceptors[0] = workbenchmessageMixinInters1[0]
-	workbenchmessageMixinFields0 := workbenchmessageMixin[0].Fields()
-	_ = workbenchmessageMixinFields0
-	workbenchmessageFields := schema.WorkbenchMessage{}.Fields()
-	_ = workbenchmessageFields
-	// workbenchmessageDescCreatedAt is the schema descriptor for created_at field.
-	workbenchmessageDescCreatedAt := workbenchmessageMixinFields0[0].Descriptor()
-	// workbenchmessage.DefaultCreatedAt holds the default value on creation for the created_at field.
-	workbenchmessage.DefaultCreatedAt = workbenchmessageDescCreatedAt.Default.(func() time.Time)
-	// workbenchmessageDescUpdatedAt is the schema descriptor for updated_at field.
-	workbenchmessageDescUpdatedAt := workbenchmessageMixinFields0[1].Descriptor()
-	// workbenchmessage.DefaultUpdatedAt holds the default value on creation for the updated_at field.
-	workbenchmessage.DefaultUpdatedAt = workbenchmessageDescUpdatedAt.Default.(func() time.Time)
-	// workbenchmessage.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
-	workbenchmessage.UpdateDefaultUpdatedAt = workbenchmessageDescUpdatedAt.UpdateDefault.(func() time.Time)
-	// workbenchmessageDescMode is the schema descriptor for mode field.
-	workbenchmessageDescMode := workbenchmessageFields[2].Descriptor()
-	// workbenchmessage.ModeValidator is a validator for the "mode" field. It is called by the builders before save.
-	workbenchmessage.ModeValidator = workbenchmessageDescMode.Validators[0].(func(string) error)
-	// workbenchmessageDescRole is the schema descriptor for role field.
-	workbenchmessageDescRole := workbenchmessageFields[3].Descriptor()
-	// workbenchmessage.RoleValidator is a validator for the "role" field. It is called by the builders before save.
-	workbenchmessage.RoleValidator = workbenchmessageDescRole.Validators[0].(func(string) error)
-	// workbenchmessageDescContent is the schema descriptor for content field.
-	workbenchmessageDescContent := workbenchmessageFields[4].Descriptor()
-	// workbenchmessage.DefaultContent holds the default value on creation for the content field.
-	workbenchmessage.DefaultContent = workbenchmessageDescContent.Default.(string)
-	// workbenchmessageDescEndpoint is the schema descriptor for endpoint field.
-	workbenchmessageDescEndpoint := workbenchmessageFields[6].Descriptor()
-	// workbenchmessage.DefaultEndpoint holds the default value on creation for the endpoint field.
-	workbenchmessage.DefaultEndpoint = workbenchmessageDescEndpoint.Default.(string)
-	// workbenchmessage.EndpointValidator is a validator for the "endpoint" field. It is called by the builders before save.
-	workbenchmessage.EndpointValidator = workbenchmessageDescEndpoint.Validators[0].(func(string) error)
-	// workbenchmessageDescModel is the schema descriptor for model field.
-	workbenchmessageDescModel := workbenchmessageFields[7].Descriptor()
-	// workbenchmessage.DefaultModel holds the default value on creation for the model field.
-	workbenchmessage.DefaultModel = workbenchmessageDescModel.Default.(string)
-	// workbenchmessage.ModelValidator is a validator for the "model" field. It is called by the builders before save.
-	workbenchmessage.ModelValidator = workbenchmessageDescModel.Validators[0].(func(string) error)
-	// workbenchmessageDescRequestOptions is the schema descriptor for request_options field.
-	workbenchmessageDescRequestOptions := workbenchmessageFields[8].Descriptor()
-	// workbenchmessage.DefaultRequestOptions holds the default value on creation for the request_options field.
-	workbenchmessage.DefaultRequestOptions = workbenchmessageDescRequestOptions.Default.(func() map[string]interface{})
-	// workbenchmessageDescResponseMetadata is the schema descriptor for response_metadata field.
-	workbenchmessageDescResponseMetadata := workbenchmessageFields[9].Descriptor()
-	// workbenchmessage.DefaultResponseMetadata holds the default value on creation for the response_metadata field.
-	workbenchmessage.DefaultResponseMetadata = workbenchmessageDescResponseMetadata.Default.(func() map[string]interface{})
-	// workbenchmessageDescImageOutputs is the schema descriptor for image_outputs field.
-	workbenchmessageDescImageOutputs := workbenchmessageFields[10].Descriptor()
-	// workbenchmessage.DefaultImageOutputs holds the default value on creation for the image_outputs field.
-	workbenchmessage.DefaultImageOutputs = workbenchmessageDescImageOutputs.Default.(func() []domain.WorkbenchImageOutput)
-	// workbenchmessageDescStatus is the schema descriptor for status field.
-	workbenchmessageDescStatus := workbenchmessageFields[11].Descriptor()
-	// workbenchmessage.DefaultStatus holds the default value on creation for the status field.
-	workbenchmessage.DefaultStatus = workbenchmessageDescStatus.Default.(string)
-	// workbenchmessage.StatusValidator is a validator for the "status" field. It is called by the builders before save.
-	workbenchmessage.StatusValidator = workbenchmessageDescStatus.Validators[0].(func(string) error)
-	// workbenchmessageDescErrorMessage is the schema descriptor for error_message field.
-	workbenchmessageDescErrorMessage := workbenchmessageFields[12].Descriptor()
-	// workbenchmessage.ErrorMessageValidator is a validator for the "error_message" field. It is called by the builders before save.
-	workbenchmessage.ErrorMessageValidator = workbenchmessageDescErrorMessage.Validators[0].(func(string) error)
 	zenxiangliyuprizeMixin := schema.ZenxiangLiyuPrize{}.Mixin()
 	zenxiangliyuprizeMixinFields0 := zenxiangliyuprizeMixin[0].Fields()
 	_ = zenxiangliyuprizeMixinFields0

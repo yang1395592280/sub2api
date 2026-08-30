@@ -62,9 +62,8 @@ describe('redeem code purchase navigation', () => {
   })
 
   it('renders the user entry as a safe external link in a new tab', () => {
-    expect(componentSource).toContain("label: t('nav.redeemCodePurchase')")
-    expect(componentSource).toContain("externalUrl: redeemCodePurchaseUrl")
-    expect(componentSource).toContain("const redeemCodePurchaseUrl = 'https://catfk.com/shop/K3HT8GCN'")
+    expect(componentSource).toContain('redeem_code_purchase_enabled')
+    expect(componentSource).toContain('redeem_code_purchase_url')
     expect(componentSource).toContain('target="_blank"')
     expect(componentSource).toContain('rel="noopener noreferrer"')
   })

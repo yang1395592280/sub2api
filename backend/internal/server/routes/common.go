@@ -8,10 +8,6 @@ import (
 
 // RegisterCommonRoutes 注册通用路由（健康检查、状态等）
 func RegisterCommonRoutes(r *gin.Engine) {
-	codexRadar := newDefaultCodexRadarProxy()
-	r.GET("/api/v1/codex-radar/embed", codexRadar.serveEmbed)
-	r.GET("/api/v1/codex-radar/upstream/*path", codexRadar.serveReadOnlyAPI)
-
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})

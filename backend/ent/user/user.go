@@ -89,10 +89,6 @@ const (
 	EdgePendingAuthSessions = "pending_auth_sessions"
 	// EdgePlatformQuotas holds the string denoting the platform_quotas edge name in mutations.
 	EdgePlatformQuotas = "platform_quotas"
-	// EdgeWorkbenchConversations holds the string denoting the workbench_conversations edge name in mutations.
-	EdgeWorkbenchConversations = "workbench_conversations"
-	// EdgeWorkbenchMessages holds the string denoting the workbench_messages edge name in mutations.
-	EdgeWorkbenchMessages = "workbench_messages"
 	// EdgeZenxiangLiyuGrants holds the string denoting the zenxiang_liyu_grants edge name in mutations.
 	EdgeZenxiangLiyuGrants = "zenxiang_liyu_grants"
 	// EdgeZenxiangLiyuRecords holds the string denoting the zenxiang_liyu_records edge name in mutations.
@@ -190,20 +186,6 @@ const (
 	PlatformQuotasInverseTable = "user_platform_quotas"
 	// PlatformQuotasColumn is the table column denoting the platform_quotas relation/edge.
 	PlatformQuotasColumn = "user_id"
-	// WorkbenchConversationsTable is the table that holds the workbench_conversations relation/edge.
-	WorkbenchConversationsTable = "workbench_conversations"
-	// WorkbenchConversationsInverseTable is the table name for the WorkbenchConversation entity.
-	// It exists in this package in order to avoid circular dependency with the "workbenchconversation" package.
-	WorkbenchConversationsInverseTable = "workbench_conversations"
-	// WorkbenchConversationsColumn is the table column denoting the workbench_conversations relation/edge.
-	WorkbenchConversationsColumn = "user_id"
-	// WorkbenchMessagesTable is the table that holds the workbench_messages relation/edge.
-	WorkbenchMessagesTable = "workbench_messages"
-	// WorkbenchMessagesInverseTable is the table name for the WorkbenchMessage entity.
-	// It exists in this package in order to avoid circular dependency with the "workbenchmessage" package.
-	WorkbenchMessagesInverseTable = "workbench_messages"
-	// WorkbenchMessagesColumn is the table column denoting the workbench_messages relation/edge.
-	WorkbenchMessagesColumn = "user_id"
 	// ZenxiangLiyuGrantsTable is the table that holds the zenxiang_liyu_grants relation/edge.
 	ZenxiangLiyuGrantsTable = "zenxiang_liyu_user_grants"
 	// ZenxiangLiyuGrantsInverseTable is the table name for the ZenxiangLiyuUserGrant entity.
@@ -638,34 +620,6 @@ func ByPlatformQuotas(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
-// ByWorkbenchConversationsCount orders the results by workbench_conversations count.
-func ByWorkbenchConversationsCount(opts ...sql.OrderTermOption) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborsCount(s, newWorkbenchConversationsStep(), opts...)
-	}
-}
-
-// ByWorkbenchConversations orders the results by workbench_conversations terms.
-func ByWorkbenchConversations(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newWorkbenchConversationsStep(), append([]sql.OrderTerm{term}, terms...)...)
-	}
-}
-
-// ByWorkbenchMessagesCount orders the results by workbench_messages count.
-func ByWorkbenchMessagesCount(opts ...sql.OrderTermOption) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborsCount(s, newWorkbenchMessagesStep(), opts...)
-	}
-}
-
-// ByWorkbenchMessages orders the results by workbench_messages terms.
-func ByWorkbenchMessages(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newWorkbenchMessagesStep(), append([]sql.OrderTerm{term}, terms...)...)
-	}
-}
-
 // ByZenxiangLiyuGrantsCount orders the results by zenxiang_liyu_grants count.
 func ByZenxiangLiyuGrantsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -796,20 +750,6 @@ func newPlatformQuotasStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(PlatformQuotasInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, PlatformQuotasTable, PlatformQuotasColumn),
-	)
-}
-func newWorkbenchConversationsStep() *sqlgraph.Step {
-	return sqlgraph.NewStep(
-		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(WorkbenchConversationsInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.O2M, false, WorkbenchConversationsTable, WorkbenchConversationsColumn),
-	)
-}
-func newWorkbenchMessagesStep() *sqlgraph.Step {
-	return sqlgraph.NewStep(
-		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(WorkbenchMessagesInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.O2M, false, WorkbenchMessagesTable, WorkbenchMessagesColumn),
 	)
 }
 func newZenxiangLiyuGrantsStep() *sqlgraph.Step {

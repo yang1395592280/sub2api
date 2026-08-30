@@ -51,8 +51,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
-	"github.com/Wei-Shaw/sub2api/ent/workbenchconversation"
-	"github.com/Wei-Shaw/sub2api/ent/workbenchmessage"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuprize"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyusetting"
@@ -1249,60 +1247,6 @@ func (f TraverseUserSubscription) Traverse(ctx context.Context, q ent.Query) err
 	return fmt.Errorf("unexpected query type %T. expect *ent.UserSubscriptionQuery", q)
 }
 
-// The WorkbenchConversationFunc type is an adapter to allow the use of ordinary function as a Querier.
-type WorkbenchConversationFunc func(context.Context, *ent.WorkbenchConversationQuery) (ent.Value, error)
-
-// Query calls f(ctx, q).
-func (f WorkbenchConversationFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
-	if q, ok := q.(*ent.WorkbenchConversationQuery); ok {
-		return f(ctx, q)
-	}
-	return nil, fmt.Errorf("unexpected query type %T. expect *ent.WorkbenchConversationQuery", q)
-}
-
-// The TraverseWorkbenchConversation type is an adapter to allow the use of ordinary function as Traverser.
-type TraverseWorkbenchConversation func(context.Context, *ent.WorkbenchConversationQuery) error
-
-// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
-func (f TraverseWorkbenchConversation) Intercept(next ent.Querier) ent.Querier {
-	return next
-}
-
-// Traverse calls f(ctx, q).
-func (f TraverseWorkbenchConversation) Traverse(ctx context.Context, q ent.Query) error {
-	if q, ok := q.(*ent.WorkbenchConversationQuery); ok {
-		return f(ctx, q)
-	}
-	return fmt.Errorf("unexpected query type %T. expect *ent.WorkbenchConversationQuery", q)
-}
-
-// The WorkbenchMessageFunc type is an adapter to allow the use of ordinary function as a Querier.
-type WorkbenchMessageFunc func(context.Context, *ent.WorkbenchMessageQuery) (ent.Value, error)
-
-// Query calls f(ctx, q).
-func (f WorkbenchMessageFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
-	if q, ok := q.(*ent.WorkbenchMessageQuery); ok {
-		return f(ctx, q)
-	}
-	return nil, fmt.Errorf("unexpected query type %T. expect *ent.WorkbenchMessageQuery", q)
-}
-
-// The TraverseWorkbenchMessage type is an adapter to allow the use of ordinary function as Traverser.
-type TraverseWorkbenchMessage func(context.Context, *ent.WorkbenchMessageQuery) error
-
-// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
-func (f TraverseWorkbenchMessage) Intercept(next ent.Querier) ent.Querier {
-	return next
-}
-
-// Traverse calls f(ctx, q).
-func (f TraverseWorkbenchMessage) Traverse(ctx context.Context, q ent.Query) error {
-	if q, ok := q.(*ent.WorkbenchMessageQuery); ok {
-		return f(ctx, q)
-	}
-	return fmt.Errorf("unexpected query type %T. expect *ent.WorkbenchMessageQuery", q)
-}
-
 // The ZenxiangLiyuPrizeFunc type is an adapter to allow the use of ordinary function as a Querier.
 type ZenxiangLiyuPrizeFunc func(context.Context, *ent.ZenxiangLiyuPrizeQuery) (ent.Value, error)
 
@@ -1498,10 +1442,6 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.UserPlatformQuotaQuery, predicate.UserPlatformQuota, userplatformquota.OrderOption]{typ: ent.TypeUserPlatformQuota, tq: q}, nil
 	case *ent.UserSubscriptionQuery:
 		return &query[*ent.UserSubscriptionQuery, predicate.UserSubscription, usersubscription.OrderOption]{typ: ent.TypeUserSubscription, tq: q}, nil
-	case *ent.WorkbenchConversationQuery:
-		return &query[*ent.WorkbenchConversationQuery, predicate.WorkbenchConversation, workbenchconversation.OrderOption]{typ: ent.TypeWorkbenchConversation, tq: q}, nil
-	case *ent.WorkbenchMessageQuery:
-		return &query[*ent.WorkbenchMessageQuery, predicate.WorkbenchMessage, workbenchmessage.OrderOption]{typ: ent.TypeWorkbenchMessage, tq: q}, nil
 	case *ent.ZenxiangLiyuPrizeQuery:
 		return &query[*ent.ZenxiangLiyuPrizeQuery, predicate.ZenxiangLiyuPrize, zenxiangliyuprize.OrderOption]{typ: ent.TypeZenxiangLiyuPrize, tq: q}, nil
 	case *ent.ZenxiangLiyuRecordQuery:

@@ -180,7 +180,7 @@ describe('KeysView OpenAI auto cheapest group', () => {
       undefined,
       { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 },
       'openai_auto_cheapest',
-      0.2,
+      0.3,
     )
     expect(showError).not.toHaveBeenCalledWith('keys.groupRequired')
   })
@@ -307,7 +307,7 @@ describe('KeysView OpenAI auto cheapest group', () => {
     expect(updateKey).not.toHaveBeenCalled()
     const maxRateInput = wrapper.get('[data-test="row-auto-cheapest-max-rate"]')
 
-    expect((maxRateInput.element as HTMLInputElement).value).toBe('0.2')
+    expect((maxRateInput.element as HTMLInputElement).value).toBe('0.3')
     await maxRateInput.setValue('0.25')
     await wrapper.get('[data-test="row-auto-cheapest-submit"]').trigger('click')
     await flushPromises()
@@ -321,7 +321,7 @@ describe('KeysView OpenAI auto cheapest group', () => {
     wrapper.unmount()
   })
 
-  it('uses 0.2 when the inline auto cheapest max rate is cleared', async () => {
+  it('uses 0.3 when the inline auto cheapest max rate is cleared', async () => {
     listKeys.mockResolvedValue({
       items: [
         {
@@ -395,7 +395,7 @@ describe('KeysView OpenAI auto cheapest group', () => {
     expect(updateKey).toHaveBeenCalledWith(12, {
       group_id: null,
       group_select_mode: 'openai_auto_cheapest',
-      openai_auto_group_max_rate_multiplier: 0.2,
+      openai_auto_group_max_rate_multiplier: 0.3,
     })
 
     wrapper.unmount()

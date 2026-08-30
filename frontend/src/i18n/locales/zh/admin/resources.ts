@@ -40,34 +40,6 @@ export default {
       autoRecoverHelp: '测试成功后自动恢复异常状态的账号'
     },
 
-    workbench: {
-      title: '工作台管理',
-      description: '查看和清理用户工作台会话、消息与图片记录',
-      totalConversations: '会话总数',
-      totalMessages: '消息总数',
-      imageMessages: '图片消息',
-      expiredConversations: '已过期会话',
-      imageBytes: '图片占用',
-      searchPlaceholder: '搜索用户、标题或消息内容...',
-      allModes: '全部模式',
-      allStatuses: '全部状态',
-      hasImages: '仅看含图片',
-      selectedCount: '已选择 {count} 个会话',
-      deleteSelected: '删除选中',
-      cleanupExpired: '清理过期会话',
-      user: '用户',
-      conversation: '会话',
-      mode: '模式',
-      images: '图片',
-      updatedAt: '更新时间',
-      loadFailed: '加载工作台数据失败',
-      detailLoadFailed: '加载会话详情失败',
-      deleteSelectedSuccess: '已删除 {count} 个会话',
-      deleteSelectedFailed: '删除选中会话失败',
-      cleanupSuccess: '已清理 {count} 个过期会话',
-      cleanupFailed: '清理过期会话失败'
-    },
-
     openaiAutoScheduler: {
       title: 'OpenAI 调度控制台',
       description: '查看 OpenAI 调度性能、账号健康、事件和灰度配置',

@@ -95,16 +95,6 @@ func RegisterUserRoutes(
 			channels.GET("/available", h.AvailableChannel.List)
 		}
 
-		workbench := authenticated.Group("/workbench")
-		{
-			workbench.GET("/api-keys/:id/models", h.Workbench.ListModels)
-			workbench.GET("/conversations", h.Workbench.ListConversations)
-			workbench.POST("/conversations", h.Workbench.CreateConversation)
-			workbench.GET("/conversations/:id/messages", h.Workbench.ListMessages)
-			workbench.DELETE("/conversations/:id", h.Workbench.DeleteConversation)
-			workbench.POST("/conversations/:id/send", h.Workbench.Send)
-		}
-
 		// 使用记录（聚合统计属重查询，叠加更严格的按用户限流）
 		usage := authenticated.Group("/usage")
 		usage.Use(panelRateLimiter.Heavy())

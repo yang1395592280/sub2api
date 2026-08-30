@@ -1684,52 +1684,6 @@ func HasPlatformQuotasWith(preds ...predicate.UserPlatformQuota) predicate.User 
 	})
 }
 
-// HasWorkbenchConversations applies the HasEdge predicate on the "workbench_conversations" edge.
-func HasWorkbenchConversations() predicate.User {
-	return predicate.User(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, WorkbenchConversationsTable, WorkbenchConversationsColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasWorkbenchConversationsWith applies the HasEdge predicate on the "workbench_conversations" edge with a given conditions (other predicates).
-func HasWorkbenchConversationsWith(preds ...predicate.WorkbenchConversation) predicate.User {
-	return predicate.User(func(s *sql.Selector) {
-		step := newWorkbenchConversationsStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
-	})
-}
-
-// HasWorkbenchMessages applies the HasEdge predicate on the "workbench_messages" edge.
-func HasWorkbenchMessages() predicate.User {
-	return predicate.User(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, WorkbenchMessagesTable, WorkbenchMessagesColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasWorkbenchMessagesWith applies the HasEdge predicate on the "workbench_messages" edge with a given conditions (other predicates).
-func HasWorkbenchMessagesWith(preds ...predicate.WorkbenchMessage) predicate.User {
-	return predicate.User(func(s *sql.Selector) {
-		step := newWorkbenchMessagesStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
-	})
-}
-
 // HasZenxiangLiyuGrants applies the HasEdge predicate on the "zenxiang_liyu_grants" edge.
 func HasZenxiangLiyuGrants() predicate.User {
 	return predicate.User(func(s *sql.Selector) {

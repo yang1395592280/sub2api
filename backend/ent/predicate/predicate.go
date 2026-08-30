@@ -132,12 +132,6 @@ type UserPlatformQuota func(*sql.Selector)
 // UserSubscription is the predicate function for usersubscription builders.
 type UserSubscription func(*sql.Selector)
 
-// WorkbenchConversation is the predicate function for workbenchconversation builders.
-type WorkbenchConversation func(*sql.Selector)
-
-// WorkbenchMessage is the predicate function for workbenchmessage builders.
-type WorkbenchMessage func(*sql.Selector)
-
 // ZenxiangLiyuPrize is the predicate function for zenxiangliyuprize builders.
 type ZenxiangLiyuPrize func(*sql.Selector)
 

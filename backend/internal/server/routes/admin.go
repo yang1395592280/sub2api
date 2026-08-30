@@ -94,9 +94,6 @@ func RegisterAdminRoutes(
 		// 使用记录管理
 		registerUsageRoutes(admin, h)
 
-		// 网页工作台记录管理
-		registerWorkbenchRoutes(admin, h)
-
 		// 用户属性管理
 		registerUserAttributeRoutes(admin, h)
 
@@ -165,17 +162,6 @@ func registerZenxiangLiyuRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		zenxiangLiyu.POST("/simulate/recommend", h.Admin.ZenxiangLiyu.Recommend)
 		zenxiangLiyu.POST("/simulate/profit-preview", h.Admin.ZenxiangLiyu.PreviewProfit)
 		zenxiangLiyu.POST("/simulate/apply", h.Admin.ZenxiangLiyu.ApplySimulation)
-	}
-}
-
-func registerWorkbenchRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
-	workbench := admin.Group("/workbench")
-	{
-		workbench.GET("/stats", h.Admin.Workbench.GetStats)
-		workbench.GET("/conversations", h.Admin.Workbench.ListConversations)
-		workbench.GET("/conversations/:id", h.Admin.Workbench.GetConversation)
-		workbench.POST("/conversations/batch-delete", h.Admin.Workbench.BatchDeleteConversations)
-		workbench.POST("/conversations/cleanup-expired", h.Admin.Workbench.CleanupExpiredConversations)
 	}
 }
 

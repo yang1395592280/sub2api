@@ -25,8 +25,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
-	"github.com/Wei-Shaw/sub2api/ent/workbenchconversation"
-	"github.com/Wei-Shaw/sub2api/ent/workbenchmessage"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuusergrant"
 )
@@ -631,36 +629,6 @@ func (_u *UserUpdate) AddPlatformQuotas(v ...*UserPlatformQuota) *UserUpdate {
 	return _u.AddPlatformQuotaIDs(ids...)
 }
 
-// AddWorkbenchConversationIDs adds the "workbench_conversations" edge to the WorkbenchConversation entity by IDs.
-func (_u *UserUpdate) AddWorkbenchConversationIDs(ids ...int64) *UserUpdate {
-	_u.mutation.AddWorkbenchConversationIDs(ids...)
-	return _u
-}
-
-// AddWorkbenchConversations adds the "workbench_conversations" edges to the WorkbenchConversation entity.
-func (_u *UserUpdate) AddWorkbenchConversations(v ...*WorkbenchConversation) *UserUpdate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.AddWorkbenchConversationIDs(ids...)
-}
-
-// AddWorkbenchMessageIDs adds the "workbench_messages" edge to the WorkbenchMessage entity by IDs.
-func (_u *UserUpdate) AddWorkbenchMessageIDs(ids ...int64) *UserUpdate {
-	_u.mutation.AddWorkbenchMessageIDs(ids...)
-	return _u
-}
-
-// AddWorkbenchMessages adds the "workbench_messages" edges to the WorkbenchMessage entity.
-func (_u *UserUpdate) AddWorkbenchMessages(v ...*WorkbenchMessage) *UserUpdate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.AddWorkbenchMessageIDs(ids...)
-}
-
 // AddZenxiangLiyuGrantIDs adds the "zenxiang_liyu_grants" edge to the ZenxiangLiyuUserGrant entity by IDs.
 func (_u *UserUpdate) AddZenxiangLiyuGrantIDs(ids ...int64) *UserUpdate {
 	_u.mutation.AddZenxiangLiyuGrantIDs(ids...)
@@ -967,48 +935,6 @@ func (_u *UserUpdate) RemovePlatformQuotas(v ...*UserPlatformQuota) *UserUpdate 
 		ids[i] = v[i].ID
 	}
 	return _u.RemovePlatformQuotaIDs(ids...)
-}
-
-// ClearWorkbenchConversations clears all "workbench_conversations" edges to the WorkbenchConversation entity.
-func (_u *UserUpdate) ClearWorkbenchConversations() *UserUpdate {
-	_u.mutation.ClearWorkbenchConversations()
-	return _u
-}
-
-// RemoveWorkbenchConversationIDs removes the "workbench_conversations" edge to WorkbenchConversation entities by IDs.
-func (_u *UserUpdate) RemoveWorkbenchConversationIDs(ids ...int64) *UserUpdate {
-	_u.mutation.RemoveWorkbenchConversationIDs(ids...)
-	return _u
-}
-
-// RemoveWorkbenchConversations removes "workbench_conversations" edges to WorkbenchConversation entities.
-func (_u *UserUpdate) RemoveWorkbenchConversations(v ...*WorkbenchConversation) *UserUpdate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.RemoveWorkbenchConversationIDs(ids...)
-}
-
-// ClearWorkbenchMessages clears all "workbench_messages" edges to the WorkbenchMessage entity.
-func (_u *UserUpdate) ClearWorkbenchMessages() *UserUpdate {
-	_u.mutation.ClearWorkbenchMessages()
-	return _u
-}
-
-// RemoveWorkbenchMessageIDs removes the "workbench_messages" edge to WorkbenchMessage entities by IDs.
-func (_u *UserUpdate) RemoveWorkbenchMessageIDs(ids ...int64) *UserUpdate {
-	_u.mutation.RemoveWorkbenchMessageIDs(ids...)
-	return _u
-}
-
-// RemoveWorkbenchMessages removes "workbench_messages" edges to WorkbenchMessage entities.
-func (_u *UserUpdate) RemoveWorkbenchMessages(v ...*WorkbenchMessage) *UserUpdate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.RemoveWorkbenchMessageIDs(ids...)
 }
 
 // ClearZenxiangLiyuGrants clears all "zenxiang_liyu_grants" edges to the ZenxiangLiyuUserGrant entity.
@@ -1844,96 +1770,6 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
-	if _u.mutation.WorkbenchConversationsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.WorkbenchConversationsTable,
-			Columns: []string{user.WorkbenchConversationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(workbenchconversation.FieldID, field.TypeInt64),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.RemovedWorkbenchConversationsIDs(); len(nodes) > 0 && !_u.mutation.WorkbenchConversationsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.WorkbenchConversationsTable,
-			Columns: []string{user.WorkbenchConversationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(workbenchconversation.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.WorkbenchConversationsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.WorkbenchConversationsTable,
-			Columns: []string{user.WorkbenchConversationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(workbenchconversation.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if _u.mutation.WorkbenchMessagesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.WorkbenchMessagesTable,
-			Columns: []string{user.WorkbenchMessagesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(workbenchmessage.FieldID, field.TypeInt64),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.RemovedWorkbenchMessagesIDs(); len(nodes) > 0 && !_u.mutation.WorkbenchMessagesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.WorkbenchMessagesTable,
-			Columns: []string{user.WorkbenchMessagesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(workbenchmessage.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.WorkbenchMessagesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.WorkbenchMessagesTable,
-			Columns: []string{user.WorkbenchMessagesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(workbenchmessage.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
 	if _u.mutation.ZenxiangLiyuGrantsCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -2631,36 +2467,6 @@ func (_u *UserUpdateOne) AddPlatformQuotas(v ...*UserPlatformQuota) *UserUpdateO
 	return _u.AddPlatformQuotaIDs(ids...)
 }
 
-// AddWorkbenchConversationIDs adds the "workbench_conversations" edge to the WorkbenchConversation entity by IDs.
-func (_u *UserUpdateOne) AddWorkbenchConversationIDs(ids ...int64) *UserUpdateOne {
-	_u.mutation.AddWorkbenchConversationIDs(ids...)
-	return _u
-}
-
-// AddWorkbenchConversations adds the "workbench_conversations" edges to the WorkbenchConversation entity.
-func (_u *UserUpdateOne) AddWorkbenchConversations(v ...*WorkbenchConversation) *UserUpdateOne {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.AddWorkbenchConversationIDs(ids...)
-}
-
-// AddWorkbenchMessageIDs adds the "workbench_messages" edge to the WorkbenchMessage entity by IDs.
-func (_u *UserUpdateOne) AddWorkbenchMessageIDs(ids ...int64) *UserUpdateOne {
-	_u.mutation.AddWorkbenchMessageIDs(ids...)
-	return _u
-}
-
-// AddWorkbenchMessages adds the "workbench_messages" edges to the WorkbenchMessage entity.
-func (_u *UserUpdateOne) AddWorkbenchMessages(v ...*WorkbenchMessage) *UserUpdateOne {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.AddWorkbenchMessageIDs(ids...)
-}
-
 // AddZenxiangLiyuGrantIDs adds the "zenxiang_liyu_grants" edge to the ZenxiangLiyuUserGrant entity by IDs.
 func (_u *UserUpdateOne) AddZenxiangLiyuGrantIDs(ids ...int64) *UserUpdateOne {
 	_u.mutation.AddZenxiangLiyuGrantIDs(ids...)
@@ -2967,48 +2773,6 @@ func (_u *UserUpdateOne) RemovePlatformQuotas(v ...*UserPlatformQuota) *UserUpda
 		ids[i] = v[i].ID
 	}
 	return _u.RemovePlatformQuotaIDs(ids...)
-}
-
-// ClearWorkbenchConversations clears all "workbench_conversations" edges to the WorkbenchConversation entity.
-func (_u *UserUpdateOne) ClearWorkbenchConversations() *UserUpdateOne {
-	_u.mutation.ClearWorkbenchConversations()
-	return _u
-}
-
-// RemoveWorkbenchConversationIDs removes the "workbench_conversations" edge to WorkbenchConversation entities by IDs.
-func (_u *UserUpdateOne) RemoveWorkbenchConversationIDs(ids ...int64) *UserUpdateOne {
-	_u.mutation.RemoveWorkbenchConversationIDs(ids...)
-	return _u
-}
-
-// RemoveWorkbenchConversations removes "workbench_conversations" edges to WorkbenchConversation entities.
-func (_u *UserUpdateOne) RemoveWorkbenchConversations(v ...*WorkbenchConversation) *UserUpdateOne {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.RemoveWorkbenchConversationIDs(ids...)
-}
-
-// ClearWorkbenchMessages clears all "workbench_messages" edges to the WorkbenchMessage entity.
-func (_u *UserUpdateOne) ClearWorkbenchMessages() *UserUpdateOne {
-	_u.mutation.ClearWorkbenchMessages()
-	return _u
-}
-
-// RemoveWorkbenchMessageIDs removes the "workbench_messages" edge to WorkbenchMessage entities by IDs.
-func (_u *UserUpdateOne) RemoveWorkbenchMessageIDs(ids ...int64) *UserUpdateOne {
-	_u.mutation.RemoveWorkbenchMessageIDs(ids...)
-	return _u
-}
-
-// RemoveWorkbenchMessages removes "workbench_messages" edges to WorkbenchMessage entities.
-func (_u *UserUpdateOne) RemoveWorkbenchMessages(v ...*WorkbenchMessage) *UserUpdateOne {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.RemoveWorkbenchMessageIDs(ids...)
 }
 
 // ClearZenxiangLiyuGrants clears all "zenxiang_liyu_grants" edges to the ZenxiangLiyuUserGrant entity.
@@ -3867,96 +3631,6 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(userplatformquota.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if _u.mutation.WorkbenchConversationsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.WorkbenchConversationsTable,
-			Columns: []string{user.WorkbenchConversationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(workbenchconversation.FieldID, field.TypeInt64),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.RemovedWorkbenchConversationsIDs(); len(nodes) > 0 && !_u.mutation.WorkbenchConversationsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.WorkbenchConversationsTable,
-			Columns: []string{user.WorkbenchConversationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(workbenchconversation.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.WorkbenchConversationsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.WorkbenchConversationsTable,
-			Columns: []string{user.WorkbenchConversationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(workbenchconversation.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if _u.mutation.WorkbenchMessagesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.WorkbenchMessagesTable,
-			Columns: []string{user.WorkbenchMessagesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(workbenchmessage.FieldID, field.TypeInt64),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.RemovedWorkbenchMessagesIDs(); len(nodes) > 0 && !_u.mutation.WorkbenchMessagesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.WorkbenchMessagesTable,
-			Columns: []string{user.WorkbenchMessagesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(workbenchmessage.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.WorkbenchMessagesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.WorkbenchMessagesTable,
-			Columns: []string{user.WorkbenchMessagesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(workbenchmessage.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

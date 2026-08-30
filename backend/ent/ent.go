@@ -54,8 +54,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
-	"github.com/Wei-Shaw/sub2api/ent/workbenchconversation"
-	"github.com/Wei-Shaw/sub2api/ent/workbenchmessage"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuprize"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyusetting"
@@ -162,8 +160,6 @@ func checkColumn(t, c string) error {
 			userattributevalue.Table:            userattributevalue.ValidColumn,
 			userplatformquota.Table:             userplatformquota.ValidColumn,
 			usersubscription.Table:              usersubscription.ValidColumn,
-			workbenchconversation.Table:         workbenchconversation.ValidColumn,
-			workbenchmessage.Table:              workbenchmessage.ValidColumn,
 			zenxiangliyuprize.Table:             zenxiangliyuprize.ValidColumn,
 			zenxiangliyurecord.Table:            zenxiangliyurecord.ValidColumn,
 			zenxiangliyusetting.Table:           zenxiangliyusetting.ValidColumn,

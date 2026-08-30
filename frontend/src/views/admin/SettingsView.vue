@@ -6713,6 +6713,27 @@
                 </div>
                 <Toggle v-model="form.hide_ccs_import_button" />
               </div>
+
+              <!-- Redeem Code Purchase Link -->
+              <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">{{ t("admin.settings.site.redeemCodePurchase.enabled") }}</label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ t("admin.settings.site.redeemCodePurchase.enabledHint") }}</p>
+                  </div>
+                  <Toggle v-model="form.redeem_code_purchase_enabled" />
+                </div>
+                <div v-if="form.redeem_code_purchase_enabled" class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.settings.site.redeemCodePurchase.name") }}</label>
+                    <input v-model="form.redeem_code_purchase_name" type="text" class="input" :placeholder="t('admin.settings.site.redeemCodePurchase.namePlaceholder')" />
+                  </div>
+                  <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.settings.site.redeemCodePurchase.url") }}</label>
+                    <input v-model="form.redeem_code_purchase_url" type="url" class="input font-mono text-sm" :placeholder="t('admin.settings.site.redeemCodePurchase.urlPlaceholder')" />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -9691,6 +9712,9 @@ const form = reactive<SettingsForm>({
   compact_home_enabled: false,
   backend_mode_enabled: false,
   hide_ccs_import_button: false,
+  redeem_code_purchase_enabled: false,
+  redeem_code_purchase_name: "兑换码购买",
+  redeem_code_purchase_url: "",
   payment_enabled: false,
   risk_control_enabled: false,
   cyber_session_block_enabled: false,
@@ -11328,6 +11352,9 @@ async function saveSettings() {
       compact_home_enabled: form.compact_home_enabled,
       backend_mode_enabled: form.backend_mode_enabled,
       hide_ccs_import_button: form.hide_ccs_import_button,
+      redeem_code_purchase_enabled: form.redeem_code_purchase_enabled,
+      redeem_code_purchase_name: form.redeem_code_purchase_name,
+      redeem_code_purchase_url: form.redeem_code_purchase_url,
       table_default_page_size: form.table_default_page_size,
       table_page_size_options: form.table_page_size_options,
       custom_menu_items: form.custom_menu_items,

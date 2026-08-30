@@ -28,7 +28,6 @@ type AdminHandlers struct {
 	System                 *admin.SystemHandler
 	Subscription           *admin.SubscriptionHandler
 	Usage                  *admin.UsageHandler
-	Workbench              *admin.WorkbenchHandler
 	UserAttribute          *admin.UserAttributeHandler
 	ErrorPassthrough       *admin.ErrorPassthroughHandler
 	TLSFingerprintProfile  *admin.TLSFingerprintProfileHandler
@@ -68,7 +67,6 @@ type Handlers struct {
 	Payment          *PaymentHandler
 	PaymentWebhook   *PaymentWebhookHandler
 	AvailableChannel *AvailableChannelHandler
-	Workbench        *WorkbenchHandler
 	ModelPlaza       *ModelPlazaHandler
 	AsyncImage       *AsyncImageHandler
 	BatchImage       *BatchImageHandler

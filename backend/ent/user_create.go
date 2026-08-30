@@ -24,8 +24,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
-	"github.com/Wei-Shaw/sub2api/ent/workbenchconversation"
-	"github.com/Wei-Shaw/sub2api/ent/workbenchmessage"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyurecord"
 	"github.com/Wei-Shaw/sub2api/ent/zenxiangliyuusergrant"
 )
@@ -551,36 +549,6 @@ func (_c *UserCreate) AddPlatformQuotas(v ...*UserPlatformQuota) *UserCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddPlatformQuotaIDs(ids...)
-}
-
-// AddWorkbenchConversationIDs adds the "workbench_conversations" edge to the WorkbenchConversation entity by IDs.
-func (_c *UserCreate) AddWorkbenchConversationIDs(ids ...int64) *UserCreate {
-	_c.mutation.AddWorkbenchConversationIDs(ids...)
-	return _c
-}
-
-// AddWorkbenchConversations adds the "workbench_conversations" edges to the WorkbenchConversation entity.
-func (_c *UserCreate) AddWorkbenchConversations(v ...*WorkbenchConversation) *UserCreate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _c.AddWorkbenchConversationIDs(ids...)
-}
-
-// AddWorkbenchMessageIDs adds the "workbench_messages" edge to the WorkbenchMessage entity by IDs.
-func (_c *UserCreate) AddWorkbenchMessageIDs(ids ...int64) *UserCreate {
-	_c.mutation.AddWorkbenchMessageIDs(ids...)
-	return _c
-}
-
-// AddWorkbenchMessages adds the "workbench_messages" edges to the WorkbenchMessage entity.
-func (_c *UserCreate) AddWorkbenchMessages(v ...*WorkbenchMessage) *UserCreate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _c.AddWorkbenchMessageIDs(ids...)
 }
 
 // AddZenxiangLiyuGrantIDs adds the "zenxiang_liyu_grants" edge to the ZenxiangLiyuUserGrant entity by IDs.
@@ -1137,38 +1105,6 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(userplatformquota.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges = append(_spec.Edges, edge)
-	}
-	if nodes := _c.mutation.WorkbenchConversationsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.WorkbenchConversationsTable,
-			Columns: []string{user.WorkbenchConversationsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(workbenchconversation.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges = append(_spec.Edges, edge)
-	}
-	if nodes := _c.mutation.WorkbenchMessagesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.WorkbenchMessagesTable,
-			Columns: []string{user.WorkbenchMessagesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(workbenchmessage.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

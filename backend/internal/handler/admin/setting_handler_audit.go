@@ -437,6 +437,15 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.PurchaseSubscriptionURL != after.PurchaseSubscriptionURL {
 		changed = append(changed, "purchase_subscription_url")
 	}
+	if before.RedeemCodePurchaseEnabled != after.RedeemCodePurchaseEnabled {
+		changed = append(changed, "redeem_code_purchase_enabled")
+	}
+	if before.RedeemCodePurchaseName != after.RedeemCodePurchaseName {
+		changed = append(changed, "redeem_code_purchase_name")
+	}
+	if before.RedeemCodePurchaseURL != after.RedeemCodePurchaseURL {
+		changed = append(changed, "redeem_code_purchase_url")
+	}
 	if before.TableDefaultPageSize != after.TableDefaultPageSize {
 		changed = append(changed, "table_default_page_size")
 	}

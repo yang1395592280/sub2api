@@ -287,18 +287,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/workbench',
-    name: 'Workbench',
-    component: () => import('@/views/user/WorkbenchView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Workbench',
-      titleKey: 'workbench.title',
-      descriptionKey: 'workbench.description'
-    }
-  },
-  {
     path: '/zenxiang-liyu',
     name: 'ZenxiangLiyu',
     component: () => import('@/views/user/ZenxiangLiyuView.vue'),
@@ -416,17 +404,6 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: false,
       title: 'Payment',
       requiresPayment: false
-    }
-  },
-  {
-    path: '/codex-radar',
-    name: 'CodexRadar',
-    component: () => import('@/views/user/CodexRadarView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Codex Radar',
-      titleKey: 'codexRadar.title'
     }
   },
   {
@@ -689,17 +666,6 @@ const routes: RouteRecordRaw[] = [
       title: 'Usage Records',
       titleKey: 'admin.usage.title',
       descriptionKey: 'admin.usage.description'
-    }
-  },
-  {
-    path: '/admin/workbench',
-    name: 'AdminWorkbench',
-    component: () => import('@/views/admin/AdminWorkbenchView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      titleKey: 'admin.workbench.title',
-      descriptionKey: 'admin.workbench.description'
     }
   },
   {
