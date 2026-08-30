@@ -65,8 +65,12 @@ func (h *PageHandler) GetPageContent(c *gin.Context) {
 
 	content, err := os.ReadFile(cleaned)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read page"})
-		return
+		// 内置页面作为部署包的默认内容；数据目录中的文件仍可覆盖它。
+		content, err = embeddedPages.ReadFile(filepath.Join("pages", slug+".md"))
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "page not found"})
+			return
+		}
 	}
 
 	c.Data(http.StatusOK, "text/markdown; charset=utf-8", content)
@@ -76,19 +80,29 @@ func (h *PageHandler) GetPageContent(c *gin.Context) {
 // GET /api/v1/pages
 func (h *PageHandler) ListPages(c *gin.Context) {
 	entries, err := os.ReadDir(h.pagesDir)
-	if err != nil {
-		response.Success(c, []string{})
-		return
-	}
-
+	slugSet := make(map[string]struct{})
 	slugs := make([]string, 0, len(entries))
-	for _, e := range entries {
-		if e.IsDir() {
+	if err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			name := e.Name()
+			if strings.HasSuffix(name, ".md") {
+				slug := strings.TrimSuffix(name, ".md")
+				slugSet[slug] = struct{}{}
+				slugs = append(slugs, slug)
+			}
+		}
+	}
+	embeddedEntries, _ := embeddedPages.ReadDir("pages")
+	for _, name := range embeddedEntries {
+		if name.IsDir() || !strings.HasSuffix(name.Name(), ".md") {
 			continue
 		}
-		name := e.Name()
-		if strings.HasSuffix(name, ".md") {
-			slugs = append(slugs, strings.TrimSuffix(name, ".md"))
+		slug := strings.TrimSuffix(name.Name(), ".md")
+		if _, exists := slugSet[slug]; !exists {
+			slugs = append(slugs, slug)
 		}
 	}
 	response.Success(c, slugs)
