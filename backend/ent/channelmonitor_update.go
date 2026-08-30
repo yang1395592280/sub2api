@@ -195,6 +195,27 @@ func (_u *ChannelMonitorUpdate) ClearGroupName() *ChannelMonitorUpdate {
 	return _u
 }
 
+// SetSortOrder sets the "sort_order" field.
+func (_u *ChannelMonitorUpdate) SetSortOrder(v int) *ChannelMonitorUpdate {
+	_u.mutation.ResetSortOrder()
+	_u.mutation.SetSortOrder(v)
+	return _u
+}
+
+// SetNillableSortOrder sets the "sort_order" field if the given value is not nil.
+func (_u *ChannelMonitorUpdate) SetNillableSortOrder(v *int) *ChannelMonitorUpdate {
+	if v != nil {
+		_u.SetSortOrder(*v)
+	}
+	return _u
+}
+
+// AddSortOrder adds value to the "sort_order" field.
+func (_u *ChannelMonitorUpdate) AddSortOrder(v int) *ChannelMonitorUpdate {
+	_u.mutation.AddSortOrder(v)
+	return _u
+}
+
 // SetEnabled sets the "enabled" field.
 func (_u *ChannelMonitorUpdate) SetEnabled(v bool) *ChannelMonitorUpdate {
 	_u.mutation.SetEnabled(v)
@@ -248,6 +269,27 @@ func (_u *ChannelMonitorUpdate) SetNillableJitterSeconds(v *int) *ChannelMonitor
 // AddJitterSeconds adds value to the "jitter_seconds" field.
 func (_u *ChannelMonitorUpdate) AddJitterSeconds(v int) *ChannelMonitorUpdate {
 	_u.mutation.AddJitterSeconds(v)
+	return _u
+}
+
+// SetProbeAttempts sets the "probe_attempts" field.
+func (_u *ChannelMonitorUpdate) SetProbeAttempts(v int) *ChannelMonitorUpdate {
+	_u.mutation.ResetProbeAttempts()
+	_u.mutation.SetProbeAttempts(v)
+	return _u
+}
+
+// SetNillableProbeAttempts sets the "probe_attempts" field if the given value is not nil.
+func (_u *ChannelMonitorUpdate) SetNillableProbeAttempts(v *int) *ChannelMonitorUpdate {
+	if v != nil {
+		_u.SetProbeAttempts(*v)
+	}
+	return _u
+}
+
+// AddProbeAttempts adds value to the "probe_attempts" field.
+func (_u *ChannelMonitorUpdate) AddProbeAttempts(v int) *ChannelMonitorUpdate {
+	_u.mutation.AddProbeAttempts(v)
 	return _u
 }
 
@@ -534,6 +576,11 @@ func (_u *ChannelMonitorUpdate) check() error {
 			return &ValidationError{Name: "jitter_seconds", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.jitter_seconds": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ProbeAttempts(); ok {
+		if err := channelmonitor.ProbeAttemptsValidator(v); err != nil {
+			return &ValidationError{Name: "probe_attempts", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.probe_attempts": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.BodyOverrideMode(); ok {
 		if err := channelmonitor.BodyOverrideModeValidator(v); err != nil {
 			return &ValidationError{Name: "body_override_mode", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.body_override_mode": %w`, err)}
@@ -601,6 +648,12 @@ func (_u *ChannelMonitorUpdate) sqlSave(ctx context.Context) (_node int, err err
 	if _u.mutation.GroupNameCleared() {
 		_spec.ClearField(channelmonitor.FieldGroupName, field.TypeString)
 	}
+	if value, ok := _u.mutation.SortOrder(); ok {
+		_spec.SetField(channelmonitor.FieldSortOrder, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedSortOrder(); ok {
+		_spec.AddField(channelmonitor.FieldSortOrder, field.TypeInt, value)
+	}
 	if value, ok := _u.mutation.Enabled(); ok {
 		_spec.SetField(channelmonitor.FieldEnabled, field.TypeBool, value)
 	}
@@ -615,6 +668,12 @@ func (_u *ChannelMonitorUpdate) sqlSave(ctx context.Context) (_node int, err err
 	}
 	if value, ok := _u.mutation.AddedJitterSeconds(); ok {
 		_spec.AddField(channelmonitor.FieldJitterSeconds, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.ProbeAttempts(); ok {
+		_spec.SetField(channelmonitor.FieldProbeAttempts, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedProbeAttempts(); ok {
+		_spec.AddField(channelmonitor.FieldProbeAttempts, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.LastCheckedAt(); ok {
 		_spec.SetField(channelmonitor.FieldLastCheckedAt, field.TypeTime, value)
@@ -942,6 +1001,27 @@ func (_u *ChannelMonitorUpdateOne) ClearGroupName() *ChannelMonitorUpdateOne {
 	return _u
 }
 
+// SetSortOrder sets the "sort_order" field.
+func (_u *ChannelMonitorUpdateOne) SetSortOrder(v int) *ChannelMonitorUpdateOne {
+	_u.mutation.ResetSortOrder()
+	_u.mutation.SetSortOrder(v)
+	return _u
+}
+
+// SetNillableSortOrder sets the "sort_order" field if the given value is not nil.
+func (_u *ChannelMonitorUpdateOne) SetNillableSortOrder(v *int) *ChannelMonitorUpdateOne {
+	if v != nil {
+		_u.SetSortOrder(*v)
+	}
+	return _u
+}
+
+// AddSortOrder adds value to the "sort_order" field.
+func (_u *ChannelMonitorUpdateOne) AddSortOrder(v int) *ChannelMonitorUpdateOne {
+	_u.mutation.AddSortOrder(v)
+	return _u
+}
+
 // SetEnabled sets the "enabled" field.
 func (_u *ChannelMonitorUpdateOne) SetEnabled(v bool) *ChannelMonitorUpdateOne {
 	_u.mutation.SetEnabled(v)
@@ -995,6 +1075,27 @@ func (_u *ChannelMonitorUpdateOne) SetNillableJitterSeconds(v *int) *ChannelMoni
 // AddJitterSeconds adds value to the "jitter_seconds" field.
 func (_u *ChannelMonitorUpdateOne) AddJitterSeconds(v int) *ChannelMonitorUpdateOne {
 	_u.mutation.AddJitterSeconds(v)
+	return _u
+}
+
+// SetProbeAttempts sets the "probe_attempts" field.
+func (_u *ChannelMonitorUpdateOne) SetProbeAttempts(v int) *ChannelMonitorUpdateOne {
+	_u.mutation.ResetProbeAttempts()
+	_u.mutation.SetProbeAttempts(v)
+	return _u
+}
+
+// SetNillableProbeAttempts sets the "probe_attempts" field if the given value is not nil.
+func (_u *ChannelMonitorUpdateOne) SetNillableProbeAttempts(v *int) *ChannelMonitorUpdateOne {
+	if v != nil {
+		_u.SetProbeAttempts(*v)
+	}
+	return _u
+}
+
+// AddProbeAttempts adds value to the "probe_attempts" field.
+func (_u *ChannelMonitorUpdateOne) AddProbeAttempts(v int) *ChannelMonitorUpdateOne {
+	_u.mutation.AddProbeAttempts(v)
 	return _u
 }
 
@@ -1294,6 +1395,11 @@ func (_u *ChannelMonitorUpdateOne) check() error {
 			return &ValidationError{Name: "jitter_seconds", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.jitter_seconds": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ProbeAttempts(); ok {
+		if err := channelmonitor.ProbeAttemptsValidator(v); err != nil {
+			return &ValidationError{Name: "probe_attempts", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.probe_attempts": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.BodyOverrideMode(); ok {
 		if err := channelmonitor.BodyOverrideModeValidator(v); err != nil {
 			return &ValidationError{Name: "body_override_mode", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.body_override_mode": %w`, err)}
@@ -1378,6 +1484,12 @@ func (_u *ChannelMonitorUpdateOne) sqlSave(ctx context.Context) (_node *ChannelM
 	if _u.mutation.GroupNameCleared() {
 		_spec.ClearField(channelmonitor.FieldGroupName, field.TypeString)
 	}
+	if value, ok := _u.mutation.SortOrder(); ok {
+		_spec.SetField(channelmonitor.FieldSortOrder, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedSortOrder(); ok {
+		_spec.AddField(channelmonitor.FieldSortOrder, field.TypeInt, value)
+	}
 	if value, ok := _u.mutation.Enabled(); ok {
 		_spec.SetField(channelmonitor.FieldEnabled, field.TypeBool, value)
 	}
@@ -1392,6 +1504,12 @@ func (_u *ChannelMonitorUpdateOne) sqlSave(ctx context.Context) (_node *ChannelM
 	}
 	if value, ok := _u.mutation.AddedJitterSeconds(); ok {
 		_spec.AddField(channelmonitor.FieldJitterSeconds, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.ProbeAttempts(); ok {
+		_spec.SetField(channelmonitor.FieldProbeAttempts, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedProbeAttempts(); ok {
+		_spec.AddField(channelmonitor.FieldProbeAttempts, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.LastCheckedAt(); ok {
 		_spec.SetField(channelmonitor.FieldLastCheckedAt, field.TypeTime, value)

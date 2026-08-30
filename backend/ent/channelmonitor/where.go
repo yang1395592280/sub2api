@@ -105,6 +105,11 @@ func GroupName(v string) predicate.ChannelMonitor {
 	return predicate.ChannelMonitor(sql.FieldEQ(FieldGroupName, v))
 }
 
+// SortOrder applies equality check predicate on the "sort_order" field. It's identical to SortOrderEQ.
+func SortOrder(v int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldEQ(FieldSortOrder, v))
+}
+
 // Enabled applies equality check predicate on the "enabled" field. It's identical to EnabledEQ.
 func Enabled(v bool) predicate.ChannelMonitor {
 	return predicate.ChannelMonitor(sql.FieldEQ(FieldEnabled, v))
@@ -118,6 +123,11 @@ func IntervalSeconds(v int) predicate.ChannelMonitor {
 // JitterSeconds applies equality check predicate on the "jitter_seconds" field. It's identical to JitterSecondsEQ.
 func JitterSeconds(v int) predicate.ChannelMonitor {
 	return predicate.ChannelMonitor(sql.FieldEQ(FieldJitterSeconds, v))
+}
+
+// ProbeAttempts applies equality check predicate on the "probe_attempts" field. It's identical to ProbeAttemptsEQ.
+func ProbeAttempts(v int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldEQ(FieldProbeAttempts, v))
 }
 
 // LastCheckedAt applies equality check predicate on the "last_checked_at" field. It's identical to LastCheckedAtEQ.
@@ -755,6 +765,46 @@ func GroupNameContainsFold(v string) predicate.ChannelMonitor {
 	return predicate.ChannelMonitor(sql.FieldContainsFold(FieldGroupName, v))
 }
 
+// SortOrderEQ applies the EQ predicate on the "sort_order" field.
+func SortOrderEQ(v int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldEQ(FieldSortOrder, v))
+}
+
+// SortOrderNEQ applies the NEQ predicate on the "sort_order" field.
+func SortOrderNEQ(v int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldNEQ(FieldSortOrder, v))
+}
+
+// SortOrderIn applies the In predicate on the "sort_order" field.
+func SortOrderIn(vs ...int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldIn(FieldSortOrder, vs...))
+}
+
+// SortOrderNotIn applies the NotIn predicate on the "sort_order" field.
+func SortOrderNotIn(vs ...int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldNotIn(FieldSortOrder, vs...))
+}
+
+// SortOrderGT applies the GT predicate on the "sort_order" field.
+func SortOrderGT(v int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldGT(FieldSortOrder, v))
+}
+
+// SortOrderGTE applies the GTE predicate on the "sort_order" field.
+func SortOrderGTE(v int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldGTE(FieldSortOrder, v))
+}
+
+// SortOrderLT applies the LT predicate on the "sort_order" field.
+func SortOrderLT(v int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldLT(FieldSortOrder, v))
+}
+
+// SortOrderLTE applies the LTE predicate on the "sort_order" field.
+func SortOrderLTE(v int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldLTE(FieldSortOrder, v))
+}
+
 // EnabledEQ applies the EQ predicate on the "enabled" field.
 func EnabledEQ(v bool) predicate.ChannelMonitor {
 	return predicate.ChannelMonitor(sql.FieldEQ(FieldEnabled, v))
@@ -843,6 +893,46 @@ func JitterSecondsLT(v int) predicate.ChannelMonitor {
 // JitterSecondsLTE applies the LTE predicate on the "jitter_seconds" field.
 func JitterSecondsLTE(v int) predicate.ChannelMonitor {
 	return predicate.ChannelMonitor(sql.FieldLTE(FieldJitterSeconds, v))
+}
+
+// ProbeAttemptsEQ applies the EQ predicate on the "probe_attempts" field.
+func ProbeAttemptsEQ(v int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldEQ(FieldProbeAttempts, v))
+}
+
+// ProbeAttemptsNEQ applies the NEQ predicate on the "probe_attempts" field.
+func ProbeAttemptsNEQ(v int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldNEQ(FieldProbeAttempts, v))
+}
+
+// ProbeAttemptsIn applies the In predicate on the "probe_attempts" field.
+func ProbeAttemptsIn(vs ...int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldIn(FieldProbeAttempts, vs...))
+}
+
+// ProbeAttemptsNotIn applies the NotIn predicate on the "probe_attempts" field.
+func ProbeAttemptsNotIn(vs ...int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldNotIn(FieldProbeAttempts, vs...))
+}
+
+// ProbeAttemptsGT applies the GT predicate on the "probe_attempts" field.
+func ProbeAttemptsGT(v int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldGT(FieldProbeAttempts, v))
+}
+
+// ProbeAttemptsGTE applies the GTE predicate on the "probe_attempts" field.
+func ProbeAttemptsGTE(v int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldGTE(FieldProbeAttempts, v))
+}
+
+// ProbeAttemptsLT applies the LT predicate on the "probe_attempts" field.
+func ProbeAttemptsLT(v int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldLT(FieldProbeAttempts, v))
+}
+
+// ProbeAttemptsLTE applies the LTE predicate on the "probe_attempts" field.
+func ProbeAttemptsLTE(v int) predicate.ChannelMonitor {
+	return predicate.ChannelMonitor(sql.FieldLTE(FieldProbeAttempts, v))
 }
 
 // LastCheckedAtEQ applies the EQ predicate on the "last_checked_at" field.

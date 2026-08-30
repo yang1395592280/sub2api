@@ -41,9 +41,11 @@ type ChannelMonitor struct {
 	PrimaryModel    string
 	ExtraModels     []string
 	GroupName       string
+	SortOrder       int
 	Enabled         bool
 	IntervalSeconds int
 	JitterSeconds   int // 每次调度 ± [0, jitter] 的随机偏移（秒），0 = 固定间隔
+	ProbeAttempts   int // 每个模型每次检测的并发探测次数，取最佳结果
 	LastCheckedAt   *time.Time
 	CreatedBy       int64
 	CreatedAt       time.Time
@@ -80,6 +82,12 @@ type ChannelMonitorListParams struct {
 	Search   string
 }
 
+// ChannelMonitorSortOrderUpdate 是一次渠道监控排序更新。
+type ChannelMonitorSortOrderUpdate struct {
+	ID        int64
+	SortOrder int
+}
+
 // ChannelMonitorCreateParams 创建参数。
 type ChannelMonitorCreateParams struct {
 	Name             string
@@ -93,6 +101,7 @@ type ChannelMonitorCreateParams struct {
 	Enabled          bool
 	IntervalSeconds  int
 	JitterSeconds    int
+	ProbeAttempts    int
 	CreatedBy        int64
 	TemplateID       *int64
 	ExtraHeaders     map[string]string
@@ -117,6 +126,7 @@ type ChannelMonitorUpdateParams struct {
 	Enabled         *bool
 	IntervalSeconds *int
 	JitterSeconds   *int
+	ProbeAttempts   *int
 	// 自定义快照字段：指针为 nil 表示不更新，非 nil 覆盖
 	// TemplateID *(*int64)：用 ** 表达三态：nil=不更新；&nil=清空；&&id=设为 id。
 	// 简化处理：用 ClearTemplate 显式标志 + TemplateID（普通指针）

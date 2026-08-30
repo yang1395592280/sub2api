@@ -39,12 +39,16 @@ const (
 	FieldExtraModels = "extra_models"
 	// FieldGroupName holds the string denoting the group_name field in the database.
 	FieldGroupName = "group_name"
+	// FieldSortOrder holds the string denoting the sort_order field in the database.
+	FieldSortOrder = "sort_order"
 	// FieldEnabled holds the string denoting the enabled field in the database.
 	FieldEnabled = "enabled"
 	// FieldIntervalSeconds holds the string denoting the interval_seconds field in the database.
 	FieldIntervalSeconds = "interval_seconds"
 	// FieldJitterSeconds holds the string denoting the jitter_seconds field in the database.
 	FieldJitterSeconds = "jitter_seconds"
+	// FieldProbeAttempts holds the string denoting the probe_attempts field in the database.
+	FieldProbeAttempts = "probe_attempts"
 	// FieldLastCheckedAt holds the string denoting the last_checked_at field in the database.
 	FieldLastCheckedAt = "last_checked_at"
 	// FieldCreatedBy holds the string denoting the created_by field in the database.
@@ -103,9 +107,11 @@ var Columns = []string{
 	FieldPrimaryModel,
 	FieldExtraModels,
 	FieldGroupName,
+	FieldSortOrder,
 	FieldEnabled,
 	FieldIntervalSeconds,
 	FieldJitterSeconds,
+	FieldProbeAttempts,
 	FieldLastCheckedAt,
 	FieldCreatedBy,
 	FieldTemplateID,
@@ -153,6 +159,8 @@ var (
 	DefaultGroupName string
 	// GroupNameValidator is a validator for the "group_name" field. It is called by the builders before save.
 	GroupNameValidator func(string) error
+	// DefaultSortOrder holds the default value on creation for the "sort_order" field.
+	DefaultSortOrder int
 	// DefaultEnabled holds the default value on creation for the "enabled" field.
 	DefaultEnabled bool
 	// IntervalSecondsValidator is a validator for the "interval_seconds" field. It is called by the builders before save.
@@ -161,6 +169,10 @@ var (
 	DefaultJitterSeconds int
 	// JitterSecondsValidator is a validator for the "jitter_seconds" field. It is called by the builders before save.
 	JitterSecondsValidator func(int) error
+	// DefaultProbeAttempts holds the default value on creation for the "probe_attempts" field.
+	DefaultProbeAttempts int
+	// ProbeAttemptsValidator is a validator for the "probe_attempts" field. It is called by the builders before save.
+	ProbeAttemptsValidator func(int) error
 	// DefaultExtraHeaders holds the default value on creation for the "extra_headers" field.
 	DefaultExtraHeaders map[string]string
 	// DefaultBodyOverrideMode holds the default value on creation for the "body_override_mode" field.
@@ -261,6 +273,11 @@ func ByGroupName(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldGroupName, opts...).ToFunc()
 }
 
+// BySortOrder orders the results by the sort_order field.
+func BySortOrder(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSortOrder, opts...).ToFunc()
+}
+
 // ByEnabled orders the results by the enabled field.
 func ByEnabled(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldEnabled, opts...).ToFunc()
@@ -274,6 +291,11 @@ func ByIntervalSeconds(opts ...sql.OrderTermOption) OrderOption {
 // ByJitterSeconds orders the results by the jitter_seconds field.
 func ByJitterSeconds(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldJitterSeconds, opts...).ToFunc()
+}
+
+// ByProbeAttempts orders the results by the probe_attempts field.
+func ByProbeAttempts(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProbeAttempts, opts...).ToFunc()
 }
 
 // ByLastCheckedAt orders the results by the last_checked_at field.

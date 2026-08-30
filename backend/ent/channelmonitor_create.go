@@ -145,6 +145,20 @@ func (_c *ChannelMonitorCreate) SetNillableGroupName(v *string) *ChannelMonitorC
 	return _c
 }
 
+// SetSortOrder sets the "sort_order" field.
+func (_c *ChannelMonitorCreate) SetSortOrder(v int) *ChannelMonitorCreate {
+	_c.mutation.SetSortOrder(v)
+	return _c
+}
+
+// SetNillableSortOrder sets the "sort_order" field if the given value is not nil.
+func (_c *ChannelMonitorCreate) SetNillableSortOrder(v *int) *ChannelMonitorCreate {
+	if v != nil {
+		_c.SetSortOrder(*v)
+	}
+	return _c
+}
+
 // SetEnabled sets the "enabled" field.
 func (_c *ChannelMonitorCreate) SetEnabled(v bool) *ChannelMonitorCreate {
 	_c.mutation.SetEnabled(v)
@@ -175,6 +189,20 @@ func (_c *ChannelMonitorCreate) SetJitterSeconds(v int) *ChannelMonitorCreate {
 func (_c *ChannelMonitorCreate) SetNillableJitterSeconds(v *int) *ChannelMonitorCreate {
 	if v != nil {
 		_c.SetJitterSeconds(*v)
+	}
+	return _c
+}
+
+// SetProbeAttempts sets the "probe_attempts" field.
+func (_c *ChannelMonitorCreate) SetProbeAttempts(v int) *ChannelMonitorCreate {
+	_c.mutation.SetProbeAttempts(v)
+	return _c
+}
+
+// SetNillableProbeAttempts sets the "probe_attempts" field if the given value is not nil.
+func (_c *ChannelMonitorCreate) SetNillableProbeAttempts(v *int) *ChannelMonitorCreate {
+	if v != nil {
+		_c.SetProbeAttempts(*v)
 	}
 	return _c
 }
@@ -347,6 +375,10 @@ func (_c *ChannelMonitorCreate) defaults() {
 		v := channelmonitor.DefaultGroupName
 		_c.mutation.SetGroupName(v)
 	}
+	if _, ok := _c.mutation.SortOrder(); !ok {
+		v := channelmonitor.DefaultSortOrder
+		_c.mutation.SetSortOrder(v)
+	}
 	if _, ok := _c.mutation.Enabled(); !ok {
 		v := channelmonitor.DefaultEnabled
 		_c.mutation.SetEnabled(v)
@@ -354,6 +386,10 @@ func (_c *ChannelMonitorCreate) defaults() {
 	if _, ok := _c.mutation.JitterSeconds(); !ok {
 		v := channelmonitor.DefaultJitterSeconds
 		_c.mutation.SetJitterSeconds(v)
+	}
+	if _, ok := _c.mutation.ProbeAttempts(); !ok {
+		v := channelmonitor.DefaultProbeAttempts
+		_c.mutation.SetProbeAttempts(v)
 	}
 	if _, ok := _c.mutation.ExtraHeaders(); !ok {
 		v := channelmonitor.DefaultExtraHeaders
@@ -437,6 +473,9 @@ func (_c *ChannelMonitorCreate) check() error {
 			return &ValidationError{Name: "group_name", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.group_name": %w`, err)}
 		}
 	}
+	if _, ok := _c.mutation.SortOrder(); !ok {
+		return &ValidationError{Name: "sort_order", err: errors.New(`ent: missing required field "ChannelMonitor.sort_order"`)}
+	}
 	if _, ok := _c.mutation.Enabled(); !ok {
 		return &ValidationError{Name: "enabled", err: errors.New(`ent: missing required field "ChannelMonitor.enabled"`)}
 	}
@@ -454,6 +493,14 @@ func (_c *ChannelMonitorCreate) check() error {
 	if v, ok := _c.mutation.JitterSeconds(); ok {
 		if err := channelmonitor.JitterSecondsValidator(v); err != nil {
 			return &ValidationError{Name: "jitter_seconds", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.jitter_seconds": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.ProbeAttempts(); !ok {
+		return &ValidationError{Name: "probe_attempts", err: errors.New(`ent: missing required field "ChannelMonitor.probe_attempts"`)}
+	}
+	if v, ok := _c.mutation.ProbeAttempts(); ok {
+		if err := channelmonitor.ProbeAttemptsValidator(v); err != nil {
+			return &ValidationError{Name: "probe_attempts", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.probe_attempts": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.CreatedBy(); !ok {
@@ -545,6 +592,10 @@ func (_c *ChannelMonitorCreate) createSpec() (*ChannelMonitor, *sqlgraph.CreateS
 		_spec.SetField(channelmonitor.FieldGroupName, field.TypeString, value)
 		_node.GroupName = value
 	}
+	if value, ok := _c.mutation.SortOrder(); ok {
+		_spec.SetField(channelmonitor.FieldSortOrder, field.TypeInt, value)
+		_node.SortOrder = value
+	}
 	if value, ok := _c.mutation.Enabled(); ok {
 		_spec.SetField(channelmonitor.FieldEnabled, field.TypeBool, value)
 		_node.Enabled = value
@@ -556,6 +607,10 @@ func (_c *ChannelMonitorCreate) createSpec() (*ChannelMonitor, *sqlgraph.CreateS
 	if value, ok := _c.mutation.JitterSeconds(); ok {
 		_spec.SetField(channelmonitor.FieldJitterSeconds, field.TypeInt, value)
 		_node.JitterSeconds = value
+	}
+	if value, ok := _c.mutation.ProbeAttempts(); ok {
+		_spec.SetField(channelmonitor.FieldProbeAttempts, field.TypeInt, value)
+		_node.ProbeAttempts = value
 	}
 	if value, ok := _c.mutation.LastCheckedAt(); ok {
 		_spec.SetField(channelmonitor.FieldLastCheckedAt, field.TypeTime, value)
@@ -828,6 +883,24 @@ func (u *ChannelMonitorUpsert) ClearGroupName() *ChannelMonitorUpsert {
 	return u
 }
 
+// SetSortOrder sets the "sort_order" field.
+func (u *ChannelMonitorUpsert) SetSortOrder(v int) *ChannelMonitorUpsert {
+	u.Set(channelmonitor.FieldSortOrder, v)
+	return u
+}
+
+// UpdateSortOrder sets the "sort_order" field to the value that was provided on create.
+func (u *ChannelMonitorUpsert) UpdateSortOrder() *ChannelMonitorUpsert {
+	u.SetExcluded(channelmonitor.FieldSortOrder)
+	return u
+}
+
+// AddSortOrder adds v to the "sort_order" field.
+func (u *ChannelMonitorUpsert) AddSortOrder(v int) *ChannelMonitorUpsert {
+	u.Add(channelmonitor.FieldSortOrder, v)
+	return u
+}
+
 // SetEnabled sets the "enabled" field.
 func (u *ChannelMonitorUpsert) SetEnabled(v bool) *ChannelMonitorUpsert {
 	u.Set(channelmonitor.FieldEnabled, v)
@@ -873,6 +946,24 @@ func (u *ChannelMonitorUpsert) UpdateJitterSeconds() *ChannelMonitorUpsert {
 // AddJitterSeconds adds v to the "jitter_seconds" field.
 func (u *ChannelMonitorUpsert) AddJitterSeconds(v int) *ChannelMonitorUpsert {
 	u.Add(channelmonitor.FieldJitterSeconds, v)
+	return u
+}
+
+// SetProbeAttempts sets the "probe_attempts" field.
+func (u *ChannelMonitorUpsert) SetProbeAttempts(v int) *ChannelMonitorUpsert {
+	u.Set(channelmonitor.FieldProbeAttempts, v)
+	return u
+}
+
+// UpdateProbeAttempts sets the "probe_attempts" field to the value that was provided on create.
+func (u *ChannelMonitorUpsert) UpdateProbeAttempts() *ChannelMonitorUpsert {
+	u.SetExcluded(channelmonitor.FieldProbeAttempts)
+	return u
+}
+
+// AddProbeAttempts adds v to the "probe_attempts" field.
+func (u *ChannelMonitorUpsert) AddProbeAttempts(v int) *ChannelMonitorUpsert {
+	u.Add(channelmonitor.FieldProbeAttempts, v)
 	return u
 }
 
@@ -1192,6 +1283,27 @@ func (u *ChannelMonitorUpsertOne) ClearGroupName() *ChannelMonitorUpsertOne {
 	})
 }
 
+// SetSortOrder sets the "sort_order" field.
+func (u *ChannelMonitorUpsertOne) SetSortOrder(v int) *ChannelMonitorUpsertOne {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.SetSortOrder(v)
+	})
+}
+
+// AddSortOrder adds v to the "sort_order" field.
+func (u *ChannelMonitorUpsertOne) AddSortOrder(v int) *ChannelMonitorUpsertOne {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.AddSortOrder(v)
+	})
+}
+
+// UpdateSortOrder sets the "sort_order" field to the value that was provided on create.
+func (u *ChannelMonitorUpsertOne) UpdateSortOrder() *ChannelMonitorUpsertOne {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.UpdateSortOrder()
+	})
+}
+
 // SetEnabled sets the "enabled" field.
 func (u *ChannelMonitorUpsertOne) SetEnabled(v bool) *ChannelMonitorUpsertOne {
 	return u.Update(func(s *ChannelMonitorUpsert) {
@@ -1245,6 +1357,27 @@ func (u *ChannelMonitorUpsertOne) AddJitterSeconds(v int) *ChannelMonitorUpsertO
 func (u *ChannelMonitorUpsertOne) UpdateJitterSeconds() *ChannelMonitorUpsertOne {
 	return u.Update(func(s *ChannelMonitorUpsert) {
 		s.UpdateJitterSeconds()
+	})
+}
+
+// SetProbeAttempts sets the "probe_attempts" field.
+func (u *ChannelMonitorUpsertOne) SetProbeAttempts(v int) *ChannelMonitorUpsertOne {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.SetProbeAttempts(v)
+	})
+}
+
+// AddProbeAttempts adds v to the "probe_attempts" field.
+func (u *ChannelMonitorUpsertOne) AddProbeAttempts(v int) *ChannelMonitorUpsertOne {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.AddProbeAttempts(v)
+	})
+}
+
+// UpdateProbeAttempts sets the "probe_attempts" field to the value that was provided on create.
+func (u *ChannelMonitorUpsertOne) UpdateProbeAttempts() *ChannelMonitorUpsertOne {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.UpdateProbeAttempts()
 	})
 }
 
@@ -1746,6 +1879,27 @@ func (u *ChannelMonitorUpsertBulk) ClearGroupName() *ChannelMonitorUpsertBulk {
 	})
 }
 
+// SetSortOrder sets the "sort_order" field.
+func (u *ChannelMonitorUpsertBulk) SetSortOrder(v int) *ChannelMonitorUpsertBulk {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.SetSortOrder(v)
+	})
+}
+
+// AddSortOrder adds v to the "sort_order" field.
+func (u *ChannelMonitorUpsertBulk) AddSortOrder(v int) *ChannelMonitorUpsertBulk {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.AddSortOrder(v)
+	})
+}
+
+// UpdateSortOrder sets the "sort_order" field to the value that was provided on create.
+func (u *ChannelMonitorUpsertBulk) UpdateSortOrder() *ChannelMonitorUpsertBulk {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.UpdateSortOrder()
+	})
+}
+
 // SetEnabled sets the "enabled" field.
 func (u *ChannelMonitorUpsertBulk) SetEnabled(v bool) *ChannelMonitorUpsertBulk {
 	return u.Update(func(s *ChannelMonitorUpsert) {
@@ -1799,6 +1953,27 @@ func (u *ChannelMonitorUpsertBulk) AddJitterSeconds(v int) *ChannelMonitorUpsert
 func (u *ChannelMonitorUpsertBulk) UpdateJitterSeconds() *ChannelMonitorUpsertBulk {
 	return u.Update(func(s *ChannelMonitorUpsert) {
 		s.UpdateJitterSeconds()
+	})
+}
+
+// SetProbeAttempts sets the "probe_attempts" field.
+func (u *ChannelMonitorUpsertBulk) SetProbeAttempts(v int) *ChannelMonitorUpsertBulk {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.SetProbeAttempts(v)
+	})
+}
+
+// AddProbeAttempts adds v to the "probe_attempts" field.
+func (u *ChannelMonitorUpsertBulk) AddProbeAttempts(v int) *ChannelMonitorUpsertBulk {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.AddProbeAttempts(v)
+	})
+}
+
+// UpdateProbeAttempts sets the "probe_attempts" field to the value that was provided on create.
+func (u *ChannelMonitorUpsertBulk) UpdateProbeAttempts() *ChannelMonitorUpsertBulk {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.UpdateProbeAttempts()
 	})
 }
 

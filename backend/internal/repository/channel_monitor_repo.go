@@ -48,9 +48,11 @@ func (r *channelMonitorRepository) Create(ctx context.Context, m *service.Channe
 		SetPrimaryModel(m.PrimaryModel).
 		SetExtraModels(emptySliceIfNil(m.ExtraModels)).
 		SetGroupName(m.GroupName).
+		SetSortOrder(m.SortOrder).
 		SetEnabled(m.Enabled).
 		SetIntervalSeconds(m.IntervalSeconds).
 		SetJitterSeconds(m.JitterSeconds).
+		SetProbeAttempts(normalizeProbeAttemptsRepo(m.ProbeAttempts)).
 		SetCreatedBy(m.CreatedBy).
 		SetExtraHeaders(channelMonitorHeadersForPersistence(m)).
 		SetBodyOverrideMode(defaultBodyModeRepo(m.BodyOverrideMode)).
@@ -120,9 +122,11 @@ func (r *channelMonitorRepository) Update(ctx context.Context, m *service.Channe
 		SetPrimaryModel(m.PrimaryModel).
 		SetExtraModels(emptySliceIfNil(m.ExtraModels)).
 		SetGroupName(m.GroupName).
+		SetSortOrder(m.SortOrder).
 		SetEnabled(m.Enabled).
 		SetIntervalSeconds(m.IntervalSeconds).
 		SetJitterSeconds(m.JitterSeconds).
+		SetProbeAttempts(normalizeProbeAttemptsRepo(m.ProbeAttempts)).
 		SetExtraHeaders(channelMonitorHeadersForPersistence(m)).
 		SetBodyOverrideMode(defaultBodyModeRepo(m.BodyOverrideMode)).
 		SetCheckMode(defaultCheckModeRepo(m.CheckMode))
@@ -189,7 +193,7 @@ func (r *channelMonitorRepository) List(ctx context.Context, params service.Chan
 	}
 
 	rows, err := q.
-		Order(dbent.Desc(channelmonitor.FieldID)).
+		Order(dbent.Asc(channelmonitor.FieldSortOrder), dbent.Asc(channelmonitor.FieldID)).
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		All(ctx)
@@ -204,11 +208,58 @@ func (r *channelMonitorRepository) List(ctx context.Context, params service.Chan
 	return out, int64(total), nil
 }
 
+// UpdateSortOrders 在一个事务中批量更新排序，避免保存过程中出现部分顺序。
+func (r *channelMonitorRepository) UpdateSortOrders(ctx context.Context, updates []service.ChannelMonitorSortOrderUpdate) error {
+	if len(updates) == 0 {
+		return fmt.Errorf("channel monitor sort updates cannot be empty")
+	}
+	// 与分组排序保持一致：重复 ID 以最后一次提交的值为准。
+	orderByID := make(map[int64]int, len(updates))
+	for _, update := range updates {
+		if update.ID <= 0 || update.SortOrder < 0 {
+			return fmt.Errorf("invalid channel monitor sort update")
+		}
+		orderByID[update.ID] = update.SortOrder
+	}
+	ids := make([]int64, 0, len(orderByID))
+	for id := range orderByID {
+		ids = append(ids, id)
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin channel monitor sort update: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	var count int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM channel_monitors WHERE id = ANY($1)`, pq.Array(ids)).Scan(&count); err != nil {
+		return fmt.Errorf("check channel monitor sort ids: %w", err)
+	}
+	if count != len(ids) {
+		return service.ErrChannelMonitorNotFound
+	}
+	args := make([]any, 0, len(orderByID)+1)
+	args = append(args, pq.Array(ids))
+	var cases strings.Builder
+	for id, sortOrder := range orderByID {
+		cases.WriteString(fmt.Sprintf(" WHEN %d THEN $%d", id, len(args)+1))
+		args = append(args, sortOrder)
+	}
+	query := "UPDATE channel_monitors SET sort_order = CASE id" + cases.String() + " ELSE sort_order END, updated_at = NOW() WHERE id = ANY($1)"
+	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+		return fmt.Errorf("update channel monitor sort orders: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit channel monitor sort orders: %w", err)
+	}
+	return nil
+}
+
 // ---------- 调度器辅助 ----------
 
 func (r *channelMonitorRepository) ListEnabled(ctx context.Context) ([]*service.ChannelMonitor, error) {
 	rows, err := r.client.ChannelMonitor.Query().
 		Where(channelmonitor.EnabledEQ(true)).
+		Order(dbent.Asc(channelmonitor.FieldSortOrder), dbent.Asc(channelmonitor.FieldID)).
 		All(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list enabled monitors: %w", err)
@@ -854,9 +905,11 @@ func entToServiceMonitor(row *dbent.ChannelMonitor) *service.ChannelMonitor {
 		PrimaryModel:         row.PrimaryModel,
 		ExtraModels:          extras,
 		GroupName:            row.GroupName,
+		SortOrder:            row.SortOrder,
 		Enabled:              row.Enabled,
 		IntervalSeconds:      row.IntervalSeconds,
 		JitterSeconds:        row.JitterSeconds,
+		ProbeAttempts:        normalizeProbeAttemptsRepo(row.ProbeAttempts),
 		LastCheckedAt:        row.LastCheckedAt,
 		CreatedBy:            row.CreatedBy,
 		CreatedAt:            row.CreatedAt,
@@ -897,6 +950,13 @@ func channelMonitorHeadersForPersistence(m *service.ChannelMonitor) map[string]s
 
 // emptyHeadersIfNilRepo 与 service.emptyHeadersIfNil 功能一致，
 // repo 独立一份避免 import 循环。
+func normalizeProbeAttemptsRepo(attempts int) int {
+	if attempts == 0 {
+		return 3
+	}
+	return attempts
+}
+
 func emptyHeadersIfNilRepo(h map[string]string) map[string]string {
 	if h == nil {
 		return map[string]string{}

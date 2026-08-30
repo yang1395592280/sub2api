@@ -75,6 +75,9 @@ func (ChannelMonitor) Fields() []ent.Field {
 			Optional().
 			Default("").
 			MaxLen(100),
+		field.Int("sort_order").
+			Default(0).
+			Comment("渠道监控显示排序，数值越小越靠前"),
 		field.Bool("enabled").
 			Default(true),
 		field.Int("interval_seconds").
@@ -83,6 +86,10 @@ func (ChannelMonitor) Fields() []ent.Field {
 			Default(0).
 			Range(0, 3600).
 			Comment("每次调度在 interval 基础上 ± [0, jitter] 的均匀随机偏移（秒）；0 表示固定间隔。service 层另保证 interval - jitter >= 15"),
+		field.Int("probe_attempts").
+			Default(3).
+			Range(1, 5).
+			Comment("每次模型探测的并发尝试次数，取最佳结果"),
 		field.Time("last_checked_at").
 			Optional().
 			Nillable(),
@@ -131,6 +138,7 @@ func (ChannelMonitor) Indexes() []ent.Index {
 		index.Fields("provider"),
 		index.Fields("provider", "api_mode"),
 		index.Fields("group_name"),
+		index.Fields("sort_order"),
 		index.Fields("template_id"),
 		index.Fields("account_id"),
 	}

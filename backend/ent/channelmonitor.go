@@ -43,12 +43,16 @@ type ChannelMonitor struct {
 	ExtraModels []string `json:"extra_models,omitempty"`
 	// GroupName holds the value of the "group_name" field.
 	GroupName string `json:"group_name,omitempty"`
+	// 渠道监控显示排序，数值越小越靠前
+	SortOrder int `json:"sort_order,omitempty"`
 	// Enabled holds the value of the "enabled" field.
 	Enabled bool `json:"enabled,omitempty"`
 	// IntervalSeconds holds the value of the "interval_seconds" field.
 	IntervalSeconds int `json:"interval_seconds,omitempty"`
 	// 每次调度在 interval 基础上 ± [0, jitter] 的均匀随机偏移（秒）；0 表示固定间隔。service 层另保证 interval - jitter >= 15
 	JitterSeconds int `json:"jitter_seconds,omitempty"`
+	// 每次模型探测的并发尝试次数，取最佳结果
+	ProbeAttempts int `json:"probe_attempts,omitempty"`
 	// LastCheckedAt holds the value of the "last_checked_at" field.
 	LastCheckedAt *time.Time `json:"last_checked_at,omitempty"`
 	// CreatedBy holds the value of the "created_by" field.
@@ -118,7 +122,7 @@ func (*ChannelMonitor) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case channelmonitor.FieldEnabled:
 			values[i] = new(sql.NullBool)
-		case channelmonitor.FieldID, channelmonitor.FieldAccountID, channelmonitor.FieldIntervalSeconds, channelmonitor.FieldJitterSeconds, channelmonitor.FieldCreatedBy, channelmonitor.FieldTemplateID:
+		case channelmonitor.FieldID, channelmonitor.FieldAccountID, channelmonitor.FieldSortOrder, channelmonitor.FieldIntervalSeconds, channelmonitor.FieldJitterSeconds, channelmonitor.FieldProbeAttempts, channelmonitor.FieldCreatedBy, channelmonitor.FieldTemplateID:
 			values[i] = new(sql.NullInt64)
 		case channelmonitor.FieldName, channelmonitor.FieldProvider, channelmonitor.FieldCheckMode, channelmonitor.FieldAPIMode, channelmonitor.FieldEndpoint, channelmonitor.FieldAPIKeyEncrypted, channelmonitor.FieldPrimaryModel, channelmonitor.FieldGroupName, channelmonitor.FieldBodyOverrideMode:
 			values[i] = new(sql.NullString)
@@ -220,6 +224,12 @@ func (_m *ChannelMonitor) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.GroupName = value.String
 			}
+		case channelmonitor.FieldSortOrder:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field sort_order", values[i])
+			} else if value.Valid {
+				_m.SortOrder = int(value.Int64)
+			}
 		case channelmonitor.FieldEnabled:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field enabled", values[i])
@@ -237,6 +247,12 @@ func (_m *ChannelMonitor) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field jitter_seconds", values[i])
 			} else if value.Valid {
 				_m.JitterSeconds = int(value.Int64)
+			}
+		case channelmonitor.FieldProbeAttempts:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field probe_attempts", values[i])
+			} else if value.Valid {
+				_m.ProbeAttempts = int(value.Int64)
 			}
 		case channelmonitor.FieldLastCheckedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -368,6 +384,9 @@ func (_m *ChannelMonitor) String() string {
 	builder.WriteString("group_name=")
 	builder.WriteString(_m.GroupName)
 	builder.WriteString(", ")
+	builder.WriteString("sort_order=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SortOrder))
+	builder.WriteString(", ")
 	builder.WriteString("enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Enabled))
 	builder.WriteString(", ")
@@ -376,6 +395,9 @@ func (_m *ChannelMonitor) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("jitter_seconds=")
 	builder.WriteString(fmt.Sprintf("%v", _m.JitterSeconds))
+	builder.WriteString(", ")
+	builder.WriteString("probe_attempts=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ProbeAttempts))
 	builder.WriteString(", ")
 	if v := _m.LastCheckedAt; v != nil {
 		builder.WriteString("last_checked_at=")

@@ -50,6 +50,7 @@ type channelMonitorCreateRequest struct {
 	Enabled          *bool             `json:"enabled"`
 	IntervalSeconds  int               `json:"interval_seconds" binding:"required,min=15,max=3600"`
 	JitterSeconds    int               `json:"jitter_seconds" binding:"omitempty,min=0,max=3585"`
+	ProbeAttempts    int               `json:"probe_attempts" binding:"omitempty,min=1,max=5"`
 	TemplateID       *int64            `json:"template_id"`
 	ExtraHeaders     map[string]string `json:"extra_headers"`
 	BodyOverrideMode string            `json:"body_override_mode" binding:"omitempty,oneof=off merge replace"`
@@ -74,6 +75,7 @@ type channelMonitorUpdateRequest struct {
 	Enabled          *bool              `json:"enabled"`
 	IntervalSeconds  *int               `json:"interval_seconds" binding:"omitempty,min=15,max=3600"`
 	JitterSeconds    *int               `json:"jitter_seconds" binding:"omitempty,min=0,max=3585"`
+	ProbeAttempts    *int               `json:"probe_attempts" binding:"omitempty,min=1,max=5"`
 	TemplateID       *int64             `json:"template_id"`
 	ClearTemplate    bool               `json:"clear_template"` // true 时把 template_id 置空，忽略 TemplateID
 	ExtraHeaders     *map[string]string `json:"extra_headers"`
@@ -96,9 +98,11 @@ type channelMonitorResponse struct {
 	PrimaryModel        string                               `json:"primary_model"`
 	ExtraModels         []string                             `json:"extra_models"`
 	GroupName           string                               `json:"group_name"`
+	SortOrder           int                                  `json:"sort_order"`
 	Enabled             bool                                 `json:"enabled"`
 	IntervalSeconds     int                                  `json:"interval_seconds"`
 	JitterSeconds       int                                  `json:"jitter_seconds"`
+	ProbeAttempts       int                                  `json:"probe_attempts"`
 	LastCheckedAt       *string                              `json:"last_checked_at"`
 	CreatedBy           int64                                `json:"created_by"`
 	CreatedAt           string                               `json:"created_at"`
@@ -172,9 +176,11 @@ func channelMonitorToResponse(m *service.ChannelMonitor) *channelMonitorResponse
 		PrimaryModel:        m.PrimaryModel,
 		ExtraModels:         extras,
 		GroupName:           m.GroupName,
+		SortOrder:           m.SortOrder,
 		Enabled:             m.Enabled,
 		IntervalSeconds:     m.IntervalSeconds,
 		JitterSeconds:       m.JitterSeconds,
+		ProbeAttempts:       m.ProbeAttempts,
 		CreatedBy:           m.CreatedBy,
 		CreatedAt:           m.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:           m.UpdatedAt.UTC().Format(time.RFC3339),
@@ -192,6 +198,14 @@ func channelMonitorToResponse(m *service.ChannelMonitor) *channelMonitorResponse
 		resp.LastCheckedAt = &s
 	}
 	return resp
+}
+
+// UpdateSortOrderRequest represents a batch of monitor display order updates.
+type ChannelMonitorUpdateSortOrderRequest struct {
+	Updates []struct {
+		ID        int64 `json:"id" binding:"required"`
+		SortOrder int   `json:"sort_order" binding:"min=0"`
+	} `json:"updates" binding:"required,min=1,dive"`
 }
 
 func checkResultToResponse(r *service.CheckResult) channelMonitorCheckResultResponse {
@@ -275,6 +289,25 @@ func (h *ChannelMonitorHandler) List(c *gin.Context) {
 	response.Paginated(c, out, total, page, pageSize)
 }
 
+// UpdateSortOrder handles updating channel monitor display order.
+// PUT /api/v1/admin/channel-monitors/sort-order
+func (h *ChannelMonitorHandler) UpdateSortOrder(c *gin.Context) {
+	var req ChannelMonitorUpdateSortOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	updates := make([]service.ChannelMonitorSortOrderUpdate, 0, len(req.Updates))
+	for _, update := range req.Updates {
+		updates = append(updates, service.ChannelMonitorSortOrderUpdate{ID: update.ID, SortOrder: update.SortOrder})
+	}
+	if err := h.monitorService.UpdateSortOrders(c.Request.Context(), updates); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"message": "Sort order updated successfully"})
+}
+
 // batchSummaryFor 批量聚合 latest + 7d 可用率，避免每行 2 次 SQL（消除 N+1）。
 func (h *ChannelMonitorHandler) batchSummaryFor(c *gin.Context, items []*service.ChannelMonitor) map[int64]service.MonitorStatusSummary {
 	ids := make([]int64, 0, len(items))
@@ -347,6 +380,7 @@ func (h *ChannelMonitorHandler) Create(c *gin.Context) {
 		Enabled:          enabled,
 		IntervalSeconds:  req.IntervalSeconds,
 		JitterSeconds:    req.JitterSeconds,
+		ProbeAttempts:    req.ProbeAttempts,
 		CreatedBy:        subject.UserID,
 		TemplateID:       req.TemplateID,
 		ExtraHeaders:     req.ExtraHeaders,
@@ -443,6 +477,7 @@ func (h *ChannelMonitorHandler) Update(c *gin.Context) {
 		Enabled:          req.Enabled,
 		IntervalSeconds:  req.IntervalSeconds,
 		JitterSeconds:    req.JitterSeconds,
+		ProbeAttempts:    req.ProbeAttempts,
 		TemplateID:       req.TemplateID,
 		ClearTemplate:    req.ClearTemplate,
 		ExtraHeaders:     req.ExtraHeaders,

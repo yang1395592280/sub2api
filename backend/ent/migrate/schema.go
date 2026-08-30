@@ -640,9 +640,11 @@ var (
 		{Name: "primary_model", Type: field.TypeString, Size: 200},
 		{Name: "extra_models", Type: field.TypeJSON},
 		{Name: "group_name", Type: field.TypeString, Nullable: true, Size: 100, Default: ""},
+		{Name: "sort_order", Type: field.TypeInt, Default: 0},
 		{Name: "enabled", Type: field.TypeBool, Default: true},
 		{Name: "interval_seconds", Type: field.TypeInt},
 		{Name: "jitter_seconds", Type: field.TypeInt, Default: 0},
+		{Name: "probe_attempts", Type: field.TypeInt, Default: 3},
 		{Name: "last_checked_at", Type: field.TypeTime, Nullable: true},
 		{Name: "created_by", Type: field.TypeInt64},
 		{Name: "extra_headers", Type: field.TypeJSON},
@@ -658,7 +660,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "channel_monitors_channel_monitor_request_templates_request_template",
-				Columns:    []*schema.Column{ChannelMonitorsColumns[21]},
+				Columns:    []*schema.Column{ChannelMonitorsColumns[23]},
 				RefColumns: []*schema.Column{ChannelMonitorRequestTemplatesColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -667,7 +669,7 @@ var (
 			{
 				Name:    "channelmonitor_enabled_last_checked_at",
 				Unique:  false,
-				Columns: []*schema.Column{ChannelMonitorsColumns[13], ChannelMonitorsColumns[16]},
+				Columns: []*schema.Column{ChannelMonitorsColumns[14], ChannelMonitorsColumns[18]},
 			},
 			{
 				Name:    "channelmonitor_provider",
@@ -685,9 +687,14 @@ var (
 				Columns: []*schema.Column{ChannelMonitorsColumns[12]},
 			},
 			{
+				Name:    "channelmonitor_sort_order",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelMonitorsColumns[13]},
+			},
+			{
 				Name:    "channelmonitor_template_id",
 				Unique:  false,
-				Columns: []*schema.Column{ChannelMonitorsColumns[21]},
+				Columns: []*schema.Column{ChannelMonitorsColumns[23]},
 			},
 			{
 				Name:    "channelmonitor_account_id",

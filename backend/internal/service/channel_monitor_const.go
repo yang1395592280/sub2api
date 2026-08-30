@@ -33,6 +33,10 @@ const (
 	// monitorMinIntervalSeconds / monitorMaxIntervalSeconds 用户配置的检测间隔上下限。
 	monitorMinIntervalSeconds = 15
 	monitorMaxIntervalSeconds = 3600
+	// monitorDefaultProbeAttempts 是新建/存量监控的默认探测次数。
+	monitorDefaultProbeAttempts = 3
+	monitorMinProbeAttempts     = 1
+	monitorMaxProbeAttempts     = 5
 	// monitorMessageMaxBytes message 字段最大字节数（与 schema/migration 一致）。
 	monitorMessageMaxBytes = 500
 	// monitorResponseMaxBytes 单次模型响应最大读取字节，防止 OOM。
@@ -176,6 +180,9 @@ var (
 	)
 	ErrChannelMonitorInvalidJitter = infraerrors.BadRequest(
 		"CHANNEL_MONITOR_INVALID_JITTER", "jitter_seconds must be >= 0 and interval_seconds - jitter_seconds must be >= 15",
+	)
+	ErrChannelMonitorInvalidProbeAttempts = infraerrors.BadRequest(
+		"CHANNEL_MONITOR_INVALID_PROBE_ATTEMPTS", "probe_attempts must be in [1, 5]",
 	)
 	ErrChannelMonitorInvalidEndpoint = infraerrors.BadRequest(
 		"CHANNEL_MONITOR_INVALID_ENDPOINT", "endpoint must be a valid https URL",

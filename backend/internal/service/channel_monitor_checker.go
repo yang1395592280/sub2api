@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/servertiming"
@@ -43,6 +44,8 @@ func newSSRFSafeHTTPClient(timeout time.Duration) *http.Client {
 type CheckOptions struct {
 	// APIMode 仅对 OpenAI provider 生效；空串等同 chat_completions。
 	APIMode string
+	// ProbeAttempts 每个模型本次检测的并发探测次数；零值表示单次（便于旧调用方兼容）。
+	ProbeAttempts int
 	// ExtraHeaders 用户自定义 HTTP 头（merge 到 adapter 默认 headers，用户优先）。
 	ExtraHeaders map[string]string
 	// BodyOverrideMode: off | merge | replace
@@ -52,11 +55,72 @@ type CheckOptions struct {
 	BodyOverride map[string]any
 }
 
-// runCheckForModel 对单个 (provider, model) 做一次完整检测。
-// 不返回 error：所有失败都包装进 CheckResult.Status=error/failed。
-//
-// opts 承载模板 / 监控快照带来的自定义配置。nil 等同于 "off + 无 extra headers"。
+// runCheckForModel 对单个 (provider, model) 执行配置次数的并发探测，并取最佳结果。
+// 优先级为 operational > degraded > failed > error；同一状态取延迟更低者。
 func runCheckForModel(ctx context.Context, provider, endpoint, apiKey, model string, opts *CheckOptions) *CheckResult {
+	attempts := 1
+	if opts != nil && opts.ProbeAttempts != 0 {
+		attempts = opts.ProbeAttempts
+	}
+	if attempts < 1 {
+		attempts = 1
+	}
+	if attempts > monitorMaxProbeAttempts {
+		attempts = monitorMaxProbeAttempts
+	}
+	results := make(chan *CheckResult, attempts)
+	var wg sync.WaitGroup
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results <- runCheckForModelOnce(ctx, provider, endpoint, apiKey, model, opts)
+		}()
+	}
+	wg.Wait()
+	close(results)
+	var best *CheckResult
+	for result := range results {
+		if best == nil || betterProbeResult(result, best) {
+			best = result
+		}
+	}
+	return best
+}
+
+func betterProbeResult(candidate, current *CheckResult) bool {
+	candidateRank := probeStatusRank(candidate.Status)
+	currentRank := probeStatusRank(current.Status)
+	if candidateRank != currentRank {
+		return candidateRank > currentRank
+	}
+	if candidate.LatencyMs == nil {
+		return false
+	}
+	if current.LatencyMs == nil {
+		return true
+	}
+	return *candidate.LatencyMs < *current.LatencyMs
+}
+
+func probeStatusRank(status string) int {
+	switch status {
+	case MonitorStatusOperational:
+		return 4
+	case MonitorStatusDegraded:
+		return 3
+	case MonitorStatusFailed:
+		return 2
+	case MonitorStatusError:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// runCheckForModelOnce 对单个 (provider, model) 做一次完整检测。
+// 不返回 error：所有失败都包装进 CheckResult.Status=error/failed。
+func runCheckForModelOnce(ctx context.Context, provider, endpoint, apiKey, model string, opts *CheckOptions) *CheckResult {
 	res := &CheckResult{
 		Model:     model,
 		Status:    MonitorStatusError,

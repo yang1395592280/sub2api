@@ -25,6 +25,7 @@ type ChannelMonitorRepository interface {
 	Update(ctx context.Context, m *ChannelMonitor) error
 	Delete(ctx context.Context, id int64) error
 	List(ctx context.Context, params ChannelMonitorListParams) ([]*ChannelMonitor, int64, error)
+	UpdateSortOrders(ctx context.Context, updates []ChannelMonitorSortOrderUpdate) error
 	FindByDuplicateOperationID(ctx context.Context, operationID string) (*ChannelMonitor, error)
 
 	// 调度器辅助
@@ -62,6 +63,22 @@ type ChannelMonitorRepository interface {
 	LoadAggregationWatermark(ctx context.Context) (*time.Time, error)
 	// UpdateAggregationWatermark 写 watermark（UPSERT 到 id=1）。
 	UpdateAggregationWatermark(ctx context.Context, date time.Time) error
+}
+
+// UpdateSortOrders 批量更新渠道监控显示顺序。
+func (s *ChannelMonitorService) UpdateSortOrders(ctx context.Context, updates []ChannelMonitorSortOrderUpdate) error {
+	if len(updates) == 0 {
+		return fmt.Errorf("channel monitor sort updates cannot be empty")
+	}
+	for _, update := range updates {
+		if update.ID <= 0 || update.SortOrder < 0 {
+			return fmt.Errorf("invalid channel monitor sort update")
+		}
+	}
+	if err := s.repo.UpdateSortOrders(ctx, updates); err != nil {
+		return fmt.Errorf("update channel monitor sort orders: %w", err)
+	}
+	return nil
 }
 
 // channelMonitorRuntimeReader is the optional settings view used to gate V1
@@ -177,6 +194,7 @@ func (s *ChannelMonitorService) Create(ctx context.Context, p ChannelMonitorCrea
 		Enabled:          p.Enabled,
 		IntervalSeconds:  p.IntervalSeconds,
 		JitterSeconds:    p.JitterSeconds,
+		ProbeAttempts:    normalizeProbeAttempts(p.ProbeAttempts),
 		CreatedBy:        p.CreatedBy,
 		TemplateID:       p.TemplateID,
 		ExtraHeaders:     emptyHeadersIfNil(p.ExtraHeaders),
@@ -244,6 +262,7 @@ func (s *ChannelMonitorService) Duplicate(
 		Enabled:              false,
 		IntervalSeconds:      source.IntervalSeconds,
 		JitterSeconds:        source.JitterSeconds,
+		ProbeAttempts:        source.ProbeAttempts,
 		CreatedBy:            createdBy,
 		TemplateID:           cloneInt64Pointer(source.TemplateID),
 		ExtraHeaders:         cloneChannelMonitorHeaders(source.ExtraHeaders),
@@ -386,6 +405,9 @@ func validateCreateParams(p ChannelMonitorCreateParams) error {
 		return err
 	}
 	if err := validateJitter(p.JitterSeconds, p.IntervalSeconds); err != nil {
+		return err
+	}
+	if err := validateProbeAttempts(p.ProbeAttempts); err != nil {
 		return err
 	}
 	usesQuota := monitorCheckModeUsesQuota(checkMode)
@@ -707,6 +729,7 @@ func (s *ChannelMonitorService) runChecksConcurrent(ctx context.Context, m *Chan
 	// 所有模型共用同一份 CheckOptions（来自监控的快照字段）。
 	opts := &CheckOptions{
 		APIMode:          m.APIMode,
+		ProbeAttempts:    normalizeProbeAttempts(m.ProbeAttempts),
 		ExtraHeaders:     m.ExtraHeaders,
 		BodyOverrideMode: m.BodyOverrideMode,
 		BodyOverride:     m.BodyOverride,
@@ -956,6 +979,12 @@ func applyMonitorUpdate(existing *ChannelMonitor, p ChannelMonitorUpdateParams) 
 	}
 	if p.JitterSeconds != nil {
 		existing.JitterSeconds = *p.JitterSeconds
+	}
+	if p.ProbeAttempts != nil {
+		if err := validateProbeAttempts(*p.ProbeAttempts); err != nil {
+			return err
+		}
+		existing.ProbeAttempts = normalizeProbeAttempts(*p.ProbeAttempts)
 	}
 	if p.IntervalSeconds != nil || p.JitterSeconds != nil {
 		// interval 与 jitter 任一变化都需要重新校验组合约束（interval - jitter >= 下限）。

@@ -73,10 +73,12 @@ export interface ChannelMonitor {
   primary_model: string
   extra_models: string[]
   group_name: string
+  sort_order: number
   enabled: boolean
   interval_seconds: number
   /** 每次调度在 interval 基础上 ± [0, jitter] 的随机偏移（秒），0 = 固定间隔 */
   jitter_seconds: number
+  probe_attempts: number
   last_checked_at: string | null
   created_by: number
   created_at: string
@@ -116,6 +118,11 @@ export interface ListParams {
   search?: string
 }
 
+export interface SortOrderUpdate {
+  id: number
+  sort_order: number
+}
+
 export interface ListResponse {
   items: ChannelMonitor[]
   total: number
@@ -144,6 +151,7 @@ export interface CreateParams {
   enabled?: boolean
   interval_seconds: number
   jitter_seconds?: number
+  probe_attempts?: number
   template_id?: number | null
   extra_headers?: Record<string, string>
   body_override_mode?: BodyOverrideMode
@@ -313,6 +321,12 @@ export async function update(id: number, params: UpdateParams): Promise<ChannelM
   return data
 }
 
+/** Update channel monitor display order. */
+export async function updateSortOrder(updates: SortOrderUpdate[]): Promise<{ message: string }> {
+  const { data } = await apiClient.put<{ message: string }>('/admin/channel-monitors/sort-order', { updates })
+  return data
+}
+
 /**
  * Delete a channel monitor
  */
@@ -349,6 +363,7 @@ export const channelMonitorAPI = {
   create,
   duplicate,
   update,
+  updateSortOrder,
   del,
   runNow,
   listHistory,

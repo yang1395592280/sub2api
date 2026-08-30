@@ -58,6 +58,7 @@
           :loading="loading"
           @reload="reload"
           @create="openCreateDialog"
+          @sort="openSortModal"
           @manage-templates="showTemplateManager = true"
           @search-input="handleSearch"
         />
@@ -136,6 +137,72 @@
       </TablePageLayout>
     </div>
 
+    <BaseDialog
+      :show="showSortModal"
+      :title="t('admin.channelMonitor.sortOrder')"
+      width="normal"
+      @close="closeSortModal"
+    >
+      <div class="space-y-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+          {{ t('admin.channelMonitor.sortOrderHint') }}
+        </p>
+        <VueDraggable v-model="sortableMonitors" :animation="200" class="space-y-2">
+          <div
+            v-for="(monitor, index) in sortableMonitors"
+            :key="monitor.id"
+            class="flex cursor-grab items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-shadow hover:shadow-md active:cursor-grabbing dark:border-dark-600 dark:bg-dark-700"
+          >
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-gray-100 text-xs font-semibold text-gray-600 dark:bg-dark-600 dark:text-gray-300">
+              {{ index + 1 }}
+            </div>
+            <div class="text-gray-400" :title="t('admin.channelMonitor.dragToSort')">
+              <Icon name="menu" size="md" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="truncate font-medium text-gray-900 dark:text-white">{{ monitor.name }}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">
+                {{ providerLabel(monitor.provider) }}
+                <span class="ml-2">{{ t('admin.channelMonitor.currentSortOrder') }}: {{ monitor.sort_order }}</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1">
+              <button
+                type="button"
+                class="rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                :disabled="index === 0"
+                :title="t('admin.channelMonitor.moveUp')"
+                :data-testid="`move-monitor-sort-${monitor.id}-up`"
+                @click.stop="moveSortableMonitor(index, index - 1)"
+              >
+                <Icon name="arrowUp" size="sm" />
+              </button>
+              <button
+                type="button"
+                class="rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                :disabled="index === sortableMonitors.length - 1"
+                :title="t('admin.channelMonitor.moveDown')"
+                :data-testid="`move-monitor-sort-${monitor.id}-down`"
+                @click.stop="moveSortableMonitor(index, index + 1)"
+              >
+                <Icon name="arrowDown" size="sm" />
+              </button>
+            </div>
+            <div class="text-sm text-gray-400">#{{ monitor.id }}</div>
+          </div>
+        </VueDraggable>
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-3 pt-4">
+          <button type="button" class="btn btn-secondary" @click="closeSortModal">{{ t('common.cancel') }}</button>
+          <button type="button" class="btn btn-primary" :disabled="sortSubmitting" data-testid="save-monitor-sort-order" @click="saveSortOrder">
+            <LoadingSpinner v-if="sortSubmitting" size="sm" class="mr-2" />
+            {{ t('common.save') }}
+          </button>
+        </div>
+      </template>
+    </BaseDialog>
+
     <MonitorFormDialog
       :show="showDialog"
       :monitor="editing"
@@ -184,11 +251,13 @@ import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Icon from '@/components/icons/Icon.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import MonitorFiltersBar from '@/components/admin/monitor/MonitorFiltersBar.vue'
 import MonitorFormDialog from '@/components/admin/monitor/MonitorFormDialog.vue'
@@ -200,6 +269,7 @@ import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useChannelMonitorFormat } from '@/composables/useChannelMonitorFormat'
 import MonitorSettingsPanel from '@/features/channel-monitor-v2/MonitorSettingsPanel.vue'
 import { isChannelMonitorV1Mode } from '@/utils/featureFlags'
+import { VueDraggable } from 'vue-draggable-plus'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -230,6 +300,9 @@ const deleting = ref<ChannelMonitor | null>(null)
 const showRunResult = ref(false)
 const runResults = ref<CheckResult[]>([])
 const duplicatingIds = reactive(new Set<number>())
+const showSortModal = ref(false)
+const sortableMonitors = ref<ChannelMonitor[]>([])
+const sortSubmitting = ref(false)
 
 let abortController: AbortController | null = null
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
@@ -297,6 +370,51 @@ function onPageSizeChange(size: number) {
   pagination.page_size = size
   pagination.page = 1
   reload()
+}
+
+async function openSortModal() {
+  try {
+    const pageSize = 100
+    const first = await adminAPI.channelMonitor.list({ page: 1, page_size: pageSize })
+    const all = [...(first.items || [])]
+    for (let page = 2; page <= (first.pages || 1); page += 1) {
+      const next = await adminAPI.channelMonitor.list({ page, page_size: pageSize })
+      all.push(...(next.items || []))
+    }
+    sortableMonitors.value = all.sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)
+    showSortModal.value = true
+  } catch (err: unknown) {
+    appStore.showError(extractApiErrorMessage(err, t('admin.channelMonitor.loadError')))
+  }
+}
+
+function closeSortModal() {
+  showSortModal.value = false
+  sortableMonitors.value = []
+}
+
+function moveSortableMonitor(fromIndex: number, toIndex: number) {
+  if (fromIndex < 0 || toIndex < 0 || fromIndex >= sortableMonitors.value.length || toIndex >= sortableMonitors.value.length) return
+  const next = [...sortableMonitors.value]
+  const [moved] = next.splice(fromIndex, 1)
+  next.splice(toIndex, 0, moved)
+  sortableMonitors.value = next
+}
+
+async function saveSortOrder() {
+  sortSubmitting.value = true
+  try {
+    await adminAPI.channelMonitor.updateSortOrder(
+      sortableMonitors.value.map((monitor, index) => ({ id: monitor.id, sort_order: index * 10 }))
+    )
+    appStore.showSuccess(t('admin.channelMonitor.sortOrderUpdated'))
+    closeSortModal()
+    await reload()
+  } catch (err: unknown) {
+    appStore.showError(extractApiErrorMessage(err, t('admin.channelMonitor.sortOrderFailed')))
+  } finally {
+    sortSubmitting.value = false
+  }
 }
 
 function openCreateDialog() {

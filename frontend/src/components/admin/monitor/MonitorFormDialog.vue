@@ -165,6 +165,12 @@
         <p class="mt-1 text-xs text-gray-400">{{ t('admin.channelMonitor.form.jitterSecondsHint') }}</p>
       </div>
 
+      <div v-if="usesProbePart">
+        <label class="input-label">{{ t('admin.channelMonitor.form.probeAttempts') }} <span class="text-red-500">*</span></label>
+        <input v-model.number="form.probe_attempts" type="number" min="1" max="5" required class="input" />
+        <p class="mt-1 text-xs text-gray-400">{{ t('admin.channelMonitor.form.probeAttemptsHint') }}</p>
+      </div>
+
       <div class="flex items-center justify-between">
         <label class="input-label mb-0">{{ t('admin.channelMonitor.form.enabled') }}</label>
         <Toggle v-model="form.enabled" />
@@ -327,6 +333,7 @@ interface MonitorForm {
   group_name: string
   interval_seconds: number
   jitter_seconds: number
+  probe_attempts: number
   enabled: boolean
   // 高级设置快照
   template_id: number | null
@@ -348,6 +355,7 @@ const form = reactive<MonitorForm>({
   group_name: '',
   interval_seconds: systemDefaultInterval.value,
   jitter_seconds: 0,
+  probe_attempts: 3,
   enabled: true,
   template_id: null,
   extra_headers: {},
@@ -731,6 +739,7 @@ function resetForm() {
   form.group_name = ''
   form.interval_seconds = systemDefaultInterval.value
   form.jitter_seconds = 0
+  form.probe_attempts = 3
   form.enabled = true
   form.template_id = null
   form.extra_headers = {}
@@ -753,6 +762,7 @@ function loadFromMonitor(m: ChannelMonitor) {
   form.group_name = m.group_name || ''
   form.interval_seconds = m.interval_seconds || systemDefaultInterval.value
   form.jitter_seconds = m.jitter_seconds || 0
+  form.probe_attempts = m.probe_attempts || 3
   form.enabled = m.enabled
   form.template_id = m.template_id ?? null
   form.extra_headers = { ...(m.extra_headers || {}) }
@@ -822,6 +832,7 @@ function buildPayload(): CreateParams {
     enabled: form.enabled,
     interval_seconds: form.interval_seconds,
     jitter_seconds: form.jitter_seconds || 0,
+    probe_attempts: form.probe_attempts || 3,
     template_id: usesProbePart.value ? form.template_id : null,
     extra_headers: form.extra_headers,
     body_override_mode: form.body_override_mode,

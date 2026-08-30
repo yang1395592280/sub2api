@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 )
 
 // 渠道监控聚合层：把 latest + availability 拼成 admin/user 视图所需的 summary / detail。
@@ -63,6 +64,13 @@ func (s *ChannelMonitorService) ListUserView(ctx context.Context) ([]*UserMonito
 	if len(monitors) == 0 {
 		return []*UserMonitorView{}, nil
 	}
+	// 保证用户端顺序与后台“排序”设置一致，即使底层仓储实现未显式排序。
+	sort.SliceStable(monitors, func(i, j int) bool {
+		if monitors[i].SortOrder == monitors[j].SortOrder {
+			return monitors[i].ID < monitors[j].ID
+		}
+		return monitors[i].SortOrder < monitors[j].SortOrder
+	})
 
 	ids, primaryByID, extrasByID := collectMonitorIndexes(monitors)
 	summaries := s.BatchMonitorStatusSummary(ctx, ids, primaryByID, extrasByID)
