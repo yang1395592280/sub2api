@@ -53,21 +53,31 @@ func (h *PageHandler) GetPageContent(c *gin.Context) {
 		return
 	}
 
-	info, err := os.Stat(cleaned)
-	if err != nil || info.IsDir() {
-		c.JSON(http.StatusNotFound, gin.H{"error": "page not found"})
+	// 优先使用数据目录中的覆盖文件；部署包没有该文件时回退到二进制内置页面。
+	var content []byte
+	info, statErr := os.Stat(cleaned)
+	if statErr == nil {
+		if info.IsDir() {
+			c.JSON(http.StatusNotFound, gin.H{"error": "page not found"})
+			return
+		}
+		if info.Size() > maxPageFileSize {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "page too large"})
+			return
+		}
+		var readErr error
+		content, readErr = os.ReadFile(cleaned)
+		if readErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read page"})
+			return
+		}
+	} else if !os.IsNotExist(statErr) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to stat page"})
 		return
-	}
-	if info.Size() > maxPageFileSize {
-		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "page too large"})
-		return
-	}
-
-	content, err := os.ReadFile(cleaned)
-	if err != nil {
-		// 内置页面作为部署包的默认内容；数据目录中的文件仍可覆盖它。
-		content, err = embeddedPages.ReadFile(filepath.Join("pages", slug+".md"))
-		if err != nil {
+	} else {
+		var readErr error
+		content, readErr = embeddedPages.ReadFile(filepath.Join("pages", slug+".md"))
+		if readErr != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "page not found"})
 			return
 		}

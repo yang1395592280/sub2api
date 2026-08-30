@@ -1,10 +1,65 @@
 package handler
 
 import (
+	"context"
+	"errors"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/gin-gonic/gin"
 )
+
+type pageSettingRepoStub struct {
+	value string
+}
+
+func (s *pageSettingRepoStub) Get(context.Context, string) (*service.Setting, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s *pageSettingRepoStub) GetValue(context.Context, string) (string, error) {
+	return s.value, nil
+}
+
+func (s *pageSettingRepoStub) Set(context.Context, string, string) error { return nil }
+
+func (s *pageSettingRepoStub) GetMultiple(context.Context, []string) (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+func (s *pageSettingRepoStub) SetMultiple(context.Context, map[string]string) error { return nil }
+
+func (s *pageSettingRepoStub) GetAll(context.Context) (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+func (s *pageSettingRepoStub) Delete(context.Context, string) error { return nil }
+
+func TestGetPageContentFallsBackToEmbeddedPage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest("GET", "/api/v1/pages/gpt-config-guide", nil)
+	ctx.Params = gin.Params{{Key: "slug", Value: "gpt-config-guide"}}
+
+	settings := service.NewSettingService(&pageSettingRepoStub{
+		value: `[{"id":"gpt-config-guide","page_slug":"gpt-config-guide","visibility":"user"}]`,
+	}, &config.Config{})
+	h := NewPageHandler(t.TempDir(), settings)
+	h.GetPageContent(ctx)
+
+	if recorder.Code != 200 {
+		t.Fatalf("status = %d, want 200; body = %s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "# GPT 一键配置") {
+		t.Fatalf("embedded page content was not served: %s", recorder.Body.String())
+	}
+}
 
 func TestCleanPageImageRelativePath(t *testing.T) {
 	tests := []struct {
