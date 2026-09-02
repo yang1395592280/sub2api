@@ -40,55 +40,6 @@ export default {
       autoRecoverHelp: 'Automatically recover account from error/rate-limited state on successful test'
     },
 
-    openaiAutoScheduler: {
-      title: 'OpenAI Scheduler Console',
-      description: 'Review OpenAI scheduling performance, account health, events, and rollout settings',
-      global: 'Global',
-      allGroups: 'All groups',
-      refresh: 'Refresh',
-      modes: { legacy: 'Legacy mode', balanced: 'Balanced mode', performance: 'Performance first', cost: 'Cost first', efficiency: 'Efficiency', shadow: 'Shadow', live: 'Live' },
-      tabs: { overview: 'Overview', rankings: 'Account rankings', health: 'Account health', events: 'Events', settings: 'Rollout & settings' },
-      groups: { title: 'Scheduler groups', participating: 'Balanced scheduling', excluded: 'Not scheduled' },
-      overview: {
-        e2eP50: 'End-to-end TTFT P50', e2eP90: 'End-to-end TTFT P90', selectionP95: 'Selection P95', probeRatio: 'Probe sample ratio',
-        typicalExperience: 'Typical experience', tailExperience: 'Tail experience', routingProxy: 'Routing-time proxy', probeRatioNote: 'Probes / all health samples',
-        trend: 'End-to-end TTFT trend', realRequests: 'Real user requests', noTrend: 'No TTFT trend data', slowCauses: 'Slow request causes', noSlowRequests: 'No slow requests',
-        causeUpstream: 'Upstream TTFT', causeQueue: 'Concurrency queue', causeRetry: 'Request retries', viewAccounts: 'View accounts',
-        runtimeCounters: 'Scheduler runtime counters', currentInstance: 'Current instance since startup', explorationAllowed: 'Explorations allowed', explorationInterval: 'Interval rejections', explorationHourly: 'Hourly-limit rejections', explorationErrors: 'Exploration cache errors', lowConfidenceFallback: 'Low-confidence fallbacks', healthFallback: 'Legacy health fallbacks'
-      },
-      health: {
-        allStates: 'All states', allEndpoints: 'All endpoints', allTransports: 'All transports', model: 'Model', sort: 'Sort',
-        accountChannel: 'Account / channel', state: 'Health', modelPath: 'Model / path', predictedTTFT: 'Predicted TTFT', samples: 'Samples', load: 'Load', price: 'Price', decisionTitle: 'Current decision', actions: 'Actions', group: 'Group', waiting: 'Waiting',
-        realSamples: 'Real request samples', probeSamples: 'Probe samples', noData: 'No account health data', snapshotAge: 'Snapshot age', totalErrorRate: 'Total error rate', rateLimitedRate: '429 rate', serverErrorRate: '5xx rate', loadCapacity: 'Load / capacity', waitingRequests: 'Waiting requests', channelPrice: 'Channel price', cooldownUntil: 'Cooldown until', recentEvents: 'Recent events', noEvents: 'No recent events', drawerLabel: 'Account health details',
-        states: { running: 'Running', observing: 'Observing', open: 'Circuit open', halfOpen: 'Recovery check', unknown: 'Unknown' },
-        decision: { contextRequired: 'Decide per request', circuitRejected: 'Circuit rejected', stale: 'Snapshot stale', unavailable: 'Health unavailable', hardFiltered: 'Hard filtered', pending: 'Pending' },
-        reasons: { requestContext: 'Requires model, quota, and queue context', snapshotExpired: 'Health snapshot expired', snapshotMissing: 'Incomplete health dimensions', groupInactive: 'Group inactive', groupDisabled: 'Group scheduler disabled', accountInactive: 'Account inactive', accountUnschedulable: 'Account not schedulable', accountExpired: 'Account expired', accountOverloaded: 'Account overloaded', accountRateLimited: 'Account rate limited', temporarilyBlocked: 'Account temporarily blocked' },
-        detailDecision: { contextRequired: 'Decided per request using model, quota, and queue context', circuitRejected: 'Rejected by circuit', stale: 'Health snapshot expired', unavailable: 'Health information unavailable', hardFiltered: 'Excluded by hard filter' }
-      },
-      ranking: {
-        pending: 'Waiting for policy evaluation', engineDisabled: 'Advanced scheduler engine is off · upstream-compatible scheduling is active', globalDisabled: 'Auto scheduler is off · Advanced Legacy is active', groupDisabled: 'Auto scheduler is off for this group · Advanced Legacy is active', shadowEffective: '{mode} · shadow evaluation; real traffic remains on Legacy', liveEffective: '{mode} · live',
-        candidates: 'Physical accounts', eligible: 'Eligible', lowConfidence: 'Low confidence', rejected: 'Rejected', requests: 'Window requests', allEligibility: 'All eligibility', rank: 'Rank', qualification: 'Eligibility', utility: 'Utility', share: 'Target / actual share', target: 'target', actual: 'actual', performance: 'Performance', stability: 'Stability', cost: 'Cost', decision: 'Decision', noData: 'No rankable accounts in this group', drawerLabel: 'Account ranking detail', scoreBreakdown: 'Utility breakdown', runtimeFacts: 'Runtime facts', confidence: 'Confidence', noDeviation: 'Share is within expectation', comprehensiveScope: 'Comprehensive account view', comprehensiveAccount: 'Aggregated by physical account', aggregatedPartitions: '{count} scheduling dimensions',
-        eligibility: { eligible: 'Eligible', lowConfidence: 'Low confidence', latencyTail: 'Latency tail', hardRejected: 'Hard rejected' },
-        trafficClass: { normal: 'Normal allocation', exploration: 'Controlled exploration', fallback: 'Fallback only', mixed: 'Mixed traffic' },
-        decisions: { highestUtility: 'Highest utility', weightedAllocation: 'Allocated by target share', fallbackOnly: 'Fallback candidate only', healthUnavailable: 'Insufficient health data', latencyBudgetExceeded: 'Latency budget exceeded' },
-        deviations: { healthLowConfidence: 'Low health confidence', insufficientSamples: 'Insufficient window samples', shadowMode: 'Shadow mode does not affect real traffic', legacyFallback: 'Real traffic is scheduled by Legacy', other: 'Structured deviation reason' },
-        scores: { latency: 'Latency', reliability: 'Reliability', cost: 'Cost', capacity: 'Capacity', quota: 'Quota', priority: 'Priority' }
-      },
-      events: {
-        time: 'Time', accountModel: 'Account / model', result: 'Result', latency: 'Latency', scoreChange: 'Health score change', detail: 'Details', ttfb: 'TTFT', totalDuration: 'Total', noData: 'No scheduler events',
-        types: { success: 'Request succeeded', slow: 'Slow response', severeSlow: 'Severely slow', error: 'Account error', requestError: 'Request/content error', rateLimited: 'Upstream rate limited', probeSuccess: 'Probe succeeded', probeError: 'Probe failed', manualReset: 'Manual reset' }
-      },
-      settings: {
-        runtime: 'Runtime mode', globalScheduler: 'Global scheduler', mode: 'Mode', shadowMode: 'Shadow mode', firstOutput: 'First output and failover', earlySSEPreambleFlush: 'Flush SSE status events early (lower measured TTFB, disables transparent failover)', firstOutputTimeout: 'Normal request first output timeout (seconds)', highEffortFirstOutputTimeout: 'High-effort request first output timeout (seconds)', balancedSelection: 'Policy and traffic allocation', topK: 'Base Top-K', adaptiveTopK: 'Adaptive Top-K', explorationRate: 'Within Top-K exploration', explorationBudget: 'Low-confidence budget', explorationMinInterval: 'Minimum exploration interval (seconds)', explorationMaxPerHour: 'Explorations per dimension per hour', staleOpenRequiresProbe: 'Probe stale circuits first', sessionEscapeGap: 'Session escape gap (ms)', sessionEscapeRatio: 'Session escape ratio', costWeight: 'Legacy cost weight', temperature: 'Allocation temperature', maxAccountShare: 'Maximum account share', lowConfidenceShare: 'Low-confidence maximum share', latencyBudget: 'Latency budget (ms)', policyWeights: 'Utility weights',
-        breaker: 'Slow response & circuit', slowThreshold: 'Slow threshold (ms)', severeThreshold: 'Severe threshold (ms)', consecutiveSlow: 'Consecutive slow', consecutiveErrors: 'Consecutive errors', cooldown: 'Cooldown (seconds)', recoverySamples: 'Recovery samples', recoveryStep: 'Recovery step',
-        healthProbe: 'Health & probes', probeModel: 'Probe model', probeInterval: 'Probe interval (seconds)', probeJitter: 'Probe jitter (seconds)', healthTTL: 'Health TTL (seconds)', realFreshness: 'Real sample freshness (seconds)', save: 'Save settings', saving: 'Saving',
-        errors: { probeModelRequired: 'Probe model is required', topKRange: 'Top-K must be between 1 and 10', explorationRange: 'Exploration rate must be between 0 and 0.1', explorationPolicyRange: 'Exploration budget must be between 0 and 0.1 and the interval between 30 and 3600 seconds', explorationMaxPerHourRange: 'Explorations per dimension per hour must be between 1 and 60', sessionGapRange: 'Session escape gap must be between 0 and 30000 ms', sessionRatioRange: 'Session escape ratio must be between 0 and 2', costWeightRange: 'Cost weight must be between 0 and 1', policyRange: 'Temperature and shares must be between 0 and 1; latency budget must be between 1 and 30000 ms', firstOutputTimeoutRange: 'Normal first output timeout must be 0 or between 5 and 600 seconds', highEffortFirstOutputTimeoutRange: 'High-effort first output timeout must be 0 or between 30 and 1800 seconds', weightsRange: 'Each weight must be between 0 and 1 and their total must be positive', positiveRequired: 'Probe, circuit breaker, and recovery values must be greater than 0', severeThreshold: 'Severe threshold cannot be lower than slow threshold', jitterRange: 'Probe jitter cannot exceed half the probe interval', healthTTLRange: 'Health TTL must be between 60 and 86400 seconds', realFreshnessRange: 'Real sample freshness must be between 30 and 3600 seconds' }
-      },
-      actions: { manualProbe: 'Manual probe', resetHealth: 'Reset health', close: 'Close', retry: 'Retry', confirmReset: 'Confirm reset' },
-      reset: { title: 'Reset account health', message: 'Reset scheduler health for {name} (#{id})?' },
-      messages: { enabled: 'OpenAI scheduler enabled', disabled: 'OpenAI scheduler disabled', globalFailed: 'Failed to update global scheduler', groupEnabled: 'Group added to scheduling', groupDisabled: 'Group removed from scheduling', groupFailed: 'Failed to update group scheduling', settingsSaved: 'Scheduler settings updated', settingsFailed: 'Failed to update scheduler settings', probeDone: 'Manual probe completed', probeFailed: 'Manual probe failed', resetDone: 'Account health reset', resetFailed: 'Failed to reset account health' }
-    },
-
     zenxiangLiyu: {
       title: 'Premium Rewards Operations',
       description: 'Configure Premium Rewards activity settings, prize probabilities, grants, and profit simulation',

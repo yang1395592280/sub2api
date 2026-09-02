@@ -3767,7 +3767,10 @@ func TestDefaultOpenAIAccountScheduler_RuntimeSettingsMapBalancedControls(t *tes
 	repo := &openAIAutoSchedulerSettingsRepoStub{values: map[string]string{
 		SettingKeyOpenAIAutoSchedulerSettings: `{"mode":"balanced","shadow_mode":true,"top_k":7,"exploration_rate":0.08,"session_escape_min_gap_ms":2500,"session_escape_ratio":0.5,"probe_interval_seconds":60}`,
 	}}
-	gateway := &OpenAIGatewayService{settingService: NewSettingService(repo, &config.Config{})}
+	gateway := &OpenAIGatewayService{
+		settingService:          NewSettingService(repo, &config.Config{}),
+		openaiBalancedScheduler: &OpenAIBalancedScheduler{},
+	}
 	scheduler := &defaultOpenAIAccountScheduler{service: gateway}
 
 	req := scheduler.withOpenAIBalancedRuntimeSettings(context.Background(), OpenAIAccountScheduleRequest{})
@@ -3781,6 +3784,20 @@ func TestDefaultOpenAIAccountScheduler_RuntimeSettingsMapBalancedControls(t *tes
 
 	_ = scheduler.withOpenAIBalancedRuntimeSettings(context.Background(), OpenAIAccountScheduleRequest{})
 	require.Equal(t, 1, repo.calls())
+}
+
+func TestDefaultOpenAIAccountScheduler_WithoutBalancedSchedulerForcesLegacy(t *testing.T) {
+	repo := &openAIAutoSchedulerSettingsRepoStub{values: map[string]string{
+		SettingKeyOpenAIAutoSchedulerSettings: `{"mode":"balanced","shadow_mode":true,"top_k":7}`,
+	}}
+	gateway := &OpenAIGatewayService{settingService: NewSettingService(repo, &config.Config{})}
+	scheduler := &defaultOpenAIAccountScheduler{service: gateway}
+
+	req := scheduler.withOpenAIBalancedRuntimeSettings(context.Background(), OpenAIAccountScheduleRequest{})
+
+	require.Equal(t, OpenAIAutoSchedulerModeLegacy, req.balancedMode)
+	require.False(t, req.balancedShadowMode)
+	require.Equal(t, 0, repo.calls())
 }
 
 func TestDefaultOpenAIAccountScheduler_BalancedRuntimeSettingsHonorGlobalAndGroupGates(t *testing.T) {
@@ -3809,7 +3826,10 @@ func TestDefaultOpenAIAccountScheduler_BalancedRuntimeSettingsHonorGlobalAndGrou
 				},
 			}}
 			autoScheduler := NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: tt.settings})
-			gateway := &OpenAIGatewayService{openAIAutoSchedulerService: autoScheduler}
+			gateway := &OpenAIGatewayService{
+				openAIAutoSchedulerService: autoScheduler,
+				openaiBalancedScheduler:    &OpenAIBalancedScheduler{},
+			}
 			scheduler := &defaultOpenAIAccountScheduler{service: gateway}
 
 			req := scheduler.withOpenAIBalancedRuntimeSettings(context.Background(), OpenAIAccountScheduleRequest{GroupID: &groupID})
@@ -3836,6 +3856,7 @@ func TestDefaultOpenAIAccountScheduler_SelfHostedPoolForcesLegacyRuntimeMode(t *
 	}}
 	gateway := &OpenAIGatewayService{
 		openAIAutoSchedulerService: NewOpenAIAutoSchedulerService(repo, fakeOpenAIAutoSchedulerSettingsProvider{settings: settings}),
+		openaiBalancedScheduler:    &OpenAIBalancedScheduler{},
 	}
 	scheduler := &defaultOpenAIAccountScheduler{service: gateway}
 

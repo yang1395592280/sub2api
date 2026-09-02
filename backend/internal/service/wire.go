@@ -933,11 +933,6 @@ func ProvideOpenAIGatewayService(
 	balanceNotifyService *BalanceNotifyService,
 	settingService *SettingService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
-	openAIAutoSchedulerSelector *OpenAIAutoSchedulerSelector,
-	openAIAutoSchedulerService *OpenAIAutoSchedulerService,
-	openAIAutoSchedulerOutcomeRecorder *OpenAIAutoSchedulerOutcomeRecorder,
-	openAIBalancedScheduler *OpenAIBalancedScheduler,
-	openAIExplorationCache OpenAISchedulerExplorationCache,
 	openAIAutoCheapestGroupCircuit OpenAIAutoCheapestGroupCircuit,
 	apiKeyService *APIKeyService,
 	apiKeyRepo APIKeyRepository,
@@ -966,10 +961,6 @@ func ProvideOpenAIGatewayService(
 		settingService,
 		userPlatformQuotaRepo,
 	)
-	svc.SetOpenAIAutoScheduler(openAIAutoSchedulerSelector, openAIAutoSchedulerService)
-	svc.SetOpenAIAutoSchedulerOutcomeRecorder(openAIAutoSchedulerOutcomeRecorder)
-	svc.SetOpenAIBalancedScheduler(openAIBalancedScheduler)
-	svc.SetOpenAISchedulerExplorationCache(openAIExplorationCache)
 	svc.SetOpenAIAutoCheapestGroupCircuit(openAIAutoCheapestGroupCircuit)
 	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(apiKeyService), apiKeyRepo)
 	return svc
@@ -1029,15 +1020,6 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(groupUpstreamBalanceRefresher), new(*OpenAIUpstreamBalanceService)),
 	ProvideSub2APICheckinService,
 	ProvideGroupUpstreamBalanceRefreshRunner,
-	ProvideOpenAISchedulerHealthEventSink,
-	ProvideOpenAISchedulerDecisionAuditRecorder,
-	ProvideOpenAIBalancedScheduler,
-	ProvideOpenAISchedulerOverviewService,
-	ProvideOpenAIAutoSchedulerService,
-	ProvideOpenAIAutoSchedulerSelector,
-	ProvideOpenAIAutoSchedulerOutcomeRecorder,
-	NewOpenAIAutoSchedulerProbeChecker,
-	ProvideOpenAIAutoSchedulerProbeRunner,
 	ProvideGrokQuotaService,
 	ProvideCNProviderQuotaService,
 	ProvideCNProviderBalanceService,

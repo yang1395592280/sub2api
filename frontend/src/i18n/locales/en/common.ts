@@ -211,7 +211,6 @@ export default {
     channelPricing: 'Channel Pricing',
     channelMonitor: 'Channel Monitor',
     channelStatus: 'Channel Status',
-    openaiAutoScheduler: 'OpenAI Auto Scheduler',
     zenxiangLiyu: 'Premium Rewards',
     zenxiangLiyuOps: 'Premium Rewards Ops',
     userSpendingRanking: 'User Spending Ranking',

@@ -119,9 +119,6 @@ func RegisterAdminRoutes(
 		registerChannelMonitorRoutes(admin, h, settingService)
 		registerChannelMonitorV2Routes(admin, h, settingService)
 
-		// OpenAI 自动调度器
-		registerOpenAIAutoSchedulerRoutes(admin, h)
-
 		// 风控中心
 		registerContentModerationRoutes(admin, h)
 
@@ -162,23 +159,6 @@ func registerZenxiangLiyuRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		zenxiangLiyu.POST("/simulate/recommend", h.Admin.ZenxiangLiyu.Recommend)
 		zenxiangLiyu.POST("/simulate/profit-preview", h.Admin.ZenxiangLiyu.PreviewProfit)
 		zenxiangLiyu.POST("/simulate/apply", h.Admin.ZenxiangLiyu.ApplySimulation)
-	}
-}
-
-func registerOpenAIAutoSchedulerRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
-	openAIAutoScheduler := admin.Group("/openai-auto-scheduler")
-	{
-		openAIAutoScheduler.GET("/overview", h.Admin.OpenAIAutoScheduler.GetOverview)
-		openAIAutoScheduler.GET("/rankings", h.Admin.OpenAIAutoScheduler.ListRankings)
-		openAIAutoScheduler.GET("/health", h.Admin.OpenAIAutoScheduler.ListHealth)
-		openAIAutoScheduler.GET("/settings", h.Admin.OpenAIAutoScheduler.GetSettings)
-		openAIAutoScheduler.PUT("/settings", h.Admin.OpenAIAutoScheduler.UpdateSettings)
-		openAIAutoScheduler.GET("/groups", h.Admin.OpenAIAutoScheduler.ListGroups)
-		openAIAutoScheduler.PUT("/groups/:id", h.Admin.OpenAIAutoScheduler.UpdateGroup)
-		openAIAutoScheduler.GET("/scores", h.Admin.OpenAIAutoScheduler.ListScores)
-		openAIAutoScheduler.GET("/events", h.Admin.OpenAIAutoScheduler.ListEvents)
-		openAIAutoScheduler.POST("/scores/accounts/:account_id/reset", h.Admin.OpenAIAutoScheduler.ResetScore)
-		openAIAutoScheduler.POST("/scores/accounts/:account_id/probe", h.Admin.OpenAIAutoScheduler.ProbeScore)
 	}
 }
 

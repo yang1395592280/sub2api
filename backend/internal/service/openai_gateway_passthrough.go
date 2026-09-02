@@ -1095,10 +1095,9 @@ func openAIStreamEventIsPreamble(eventType string) bool {
 }
 
 func (s *OpenAIGatewayService) openAIEarlySSEPreambleFlushEnabled(ctx context.Context, account *Account) bool {
-	if s == nil || s.settingService == nil || account == nil || account.Platform != PlatformOpenAI {
-		return false
-	}
-	return s.settingService.GetOpenAIAutoSchedulerSettings(ctx).EarlySSEPreambleFlushEnabled
+	// Preamble flushing was part of the removed automatic OpenAI scheduler. Keep
+	// semantic output buffered so the legacy failover behavior remains intact.
+	return false
 }
 
 func openAIStreamAddedEventStartsClientOutput(payload []byte, eventType string) bool {

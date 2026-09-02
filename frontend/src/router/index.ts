@@ -512,18 +512,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/admin/openai-auto-scheduler',
-    name: 'AdminOpenAIAutoScheduler',
-    component: () => import('@/views/admin/OpenAIAutoSchedulerView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'OpenAI Auto Scheduler',
-      titleKey: 'admin.openaiAutoScheduler.title',
-      descriptionKey: 'admin.openaiAutoScheduler.description'
-    }
-  },
-  {
     path: '/monitor',
     name: 'ChannelStatus',
     component: () => import('@/views/user/ChannelStatusView.vue'),

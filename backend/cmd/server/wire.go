@@ -118,9 +118,6 @@ func provideCleanup(
 	sub2APICheckin *service.Sub2APICheckinService,
 	groupUpstreamBalanceRefreshRunner *service.GroupUpstreamBalanceRefreshRunner,
 	openAIGateway *service.OpenAIGatewayService,
-	openAIAutoSchedulerProbeRunner *service.OpenAIAutoSchedulerProbeRunner,
-	openAIAutoSchedulerOutcomeRecorder *service.OpenAIAutoSchedulerOutcomeRecorder,
-	openAISchedulerDecisionAuditRecorder *service.OpenAISchedulerDecisionAuditRecorder,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	backupSvc *service.BackupService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
@@ -346,24 +343,6 @@ func provideCleanup(
 			{"OpenAIWSPool", func() error {
 				if openAIGateway != nil {
 					openAIGateway.CloseOpenAIWSPool()
-				}
-				return nil
-			}},
-			{"OpenAIAutoSchedulerProbeRunner", func() error {
-				if openAIAutoSchedulerProbeRunner != nil {
-					openAIAutoSchedulerProbeRunner.Stop()
-				}
-				return nil
-			}},
-			{"OpenAIAutoSchedulerOutcomeRecorder", func() error {
-				if openAIAutoSchedulerOutcomeRecorder != nil {
-					return openAIAutoSchedulerOutcomeRecorder.Stop(ctx)
-				}
-				return nil
-			}},
-			{"OpenAISchedulerDecisionAuditRecorder", func() error {
-				if openAISchedulerDecisionAuditRecorder != nil {
-					return openAISchedulerDecisionAuditRecorder.Stop(ctx)
 				}
 				return nil
 			}},

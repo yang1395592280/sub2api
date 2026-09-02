@@ -1424,178 +1424,6 @@ func TestAPIContracts(t *testing.T) {
 				}
 			}`,
 		},
-		{
-			name:       "GET /api/v1/admin/openai-auto-scheduler/overview",
-			method:     http.MethodGet,
-			path:       "/api/v1/admin/openai-auto-scheduler/overview?window=6h",
-			wantStatus: http.StatusOK,
-			wantJSON: `{
-				"code": 0,
-				"message": "success",
-				"data": {
-					"e2e_ttft_p50_ms": null,
-					"e2e_ttft_p90_ms": null,
-					"selection_p95_ms": null,
-					"probe_ratio": 0,
-					"groups": [],
-					"trend": [],
-					"slow_causes": [],
-					"runtime": {
-						"exploration_allowed_total": 0,
-						"exploration_rejected_total": 0,
-						"exploration_interval_total": 0,
-						"exploration_hourly_total": 0,
-						"exploration_error_total": 0,
-						"low_confidence_fallback_total": 0,
-						"unified_health_reads_total": 0,
-						"unified_health_dimensions_total": 0,
-						"unified_health_fallbacks_total": 0
-					}
-				}
-			}`,
-		},
-		{
-			name:       "GET /api/v1/admin/openai-auto-scheduler/health",
-			method:     http.MethodGet,
-			path:       "/api/v1/admin/openai-auto-scheduler/health?page=1&page_size=20",
-			wantStatus: http.StatusOK,
-			wantJSON: `{
-				"code": 0,
-				"message": "success",
-				"data": {
-					"items": [],
-					"total": 0,
-					"page": 1,
-					"page_size": 20,
-					"pages": 1
-				}
-			}`,
-		},
-		{
-			name:       "GET /api/v1/admin/openai-auto-scheduler/settings",
-			method:     http.MethodGet,
-			path:       "/api/v1/admin/openai-auto-scheduler/settings",
-			wantStatus: http.StatusOK,
-			wantJSON: `{
-				"code": 0,
-				"message": "success",
-				"data": {
-					"enabled": false,
-					"mode": "balanced",
-					"shadow_mode": true,
-					"top_k": 3,
-					"adaptive_top_k_enabled": true,
-					"exploration_rate": 0.03,
-					"exploration_budget": 0.05,
-					"exploration_min_interval_seconds": 600,
-					"exploration_max_real_samples_per_hour": 6,
-					"stale_open_requires_probe": true,
-					"session_escape_min_gap_ms": 1000,
-					"session_escape_ratio": 0.25,
-					"health_ttl_seconds": 1800,
-					"real_sample_fresh_seconds": 300,
-					"probe_jitter_seconds": 0,
-					"probe_model": "gpt-5.4",
-					"probe_interval_seconds": 60,
-					"slow_threshold_ms": 10000,
-					"severe_slow_threshold_ms": 20000,
-					"consecutive_slow_breaker_threshold": 3,
-					"consecutive_error_breaker_threshold": 2,
-					"cooldown_seconds": 120,
-					"half_open_success_threshold": 3,
-					"cost_weight": 0.2,
-					"recovery_step": 800,
-					"temperature": 0.18,
-					"max_account_share": 0.7,
-					"low_confidence_max_share": 0.1,
-					"latency_budget_ms": 1000,
-					"first_output_timeout_seconds": 0,
-					"high_effort_first_output_timeout_seconds": 0,
-					"weights": {
-						"latency": 0.35,
-						"reliability": 0.25,
-						"cost": 0.15,
-						"capacity": 0.15,
-						"quota": 0.05,
-						"priority": 0.05
-					}
-				}
-			}`,
-		},
-		{
-			name: "GET /api/v1/admin/openai-auto-scheduler/groups",
-			setup: func(t *testing.T, deps *contractDeps) {
-				t.Helper()
-				deps.groupRepo.SetActive([]service.Group{
-					{ID: 20, Name: "openai-main", Platform: service.PlatformOpenAI, Status: service.StatusActive, OpenAIAutoSchedulerEnabled: true},
-					{ID: 30, Name: "anthropic-main", Platform: service.PlatformAnthropic, Status: service.StatusActive, OpenAIAutoSchedulerEnabled: true},
-				})
-			},
-			method:     http.MethodGet,
-			path:       "/api/v1/admin/openai-auto-scheduler/groups",
-			wantStatus: http.StatusOK,
-			wantJSON: `{
-				"code": 0,
-				"message": "success",
-				"data": [
-					{"id": 20, "name": "openai-main", "status": "active", "enabled": true}
-				]
-			}`,
-		},
-		{
-			name:       "GET /api/v1/admin/openai-auto-scheduler/scores",
-			method:     http.MethodGet,
-			path:       "/api/v1/admin/openai-auto-scheduler/scores?group_id=20&model=gpt-5",
-			wantStatus: http.StatusOK,
-			wantJSON: `{
-				"code": 0,
-				"message": "success",
-				"data": {
-					"items": [],
-					"total": 0,
-					"page": 1,
-					"page_size": 20,
-					"pages": 1
-				}
-			}`,
-		},
-		{
-			name:       "GET /api/v1/admin/openai-auto-scheduler/events",
-			method:     http.MethodGet,
-			path:       "/api/v1/admin/openai-auto-scheduler/events?group_id=20&model=gpt-5",
-			wantStatus: http.StatusOK,
-			wantJSON: `{
-				"code": 0,
-				"message": "success",
-				"data": {
-					"items": [],
-					"total": 0,
-					"page": 1,
-					"page_size": 20,
-					"pages": 1
-				}
-			}`,
-		},
-		{
-			name:       "POST /api/v1/admin/openai-auto-scheduler/scores/accounts/:account_id/reset requires model",
-			method:     http.MethodPost,
-			path:       "/api/v1/admin/openai-auto-scheduler/scores/accounts/101/reset?group_id=20",
-			wantStatus: http.StatusBadRequest,
-			wantJSON: `{
-				"code": 400,
-				"message": "model is required"
-			}`,
-		},
-		{
-			name:       "POST /api/v1/admin/openai-auto-scheduler/scores/accounts/:account_id/probe requires group_id",
-			method:     http.MethodPost,
-			path:       "/api/v1/admin/openai-auto-scheduler/scores/accounts/101/probe?model=gpt-5",
-			wantStatus: http.StatusBadRequest,
-			wantJSON: `{
-				"code": 400,
-				"message": "group_id must be > 0"
-			}`,
-		},
 	}
 
 	for _, tt := range tests {
@@ -1683,8 +1511,6 @@ func newContractDeps(t *testing.T) *contractDeps {
 	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, nil, nil)
 	adminSettingHandler := adminhandler.NewSettingHandler(settingService, nil, nil, nil, nil, nil, nil)
 	adminAccountHandler := adminhandler.NewAccountHandler(adminService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	openAISchedulerOverviewService := service.NewOpenAISchedulerOverviewService(nil)
-	openAIAutoSchedulerHandler := adminhandler.NewOpenAIAutoSchedulerHandler(settingService, adminService, service.NewOpenAIAutoSchedulerService(nil, settingService), nil, nil, openAISchedulerOverviewService)
 
 	jwtAuth := func(c *gin.Context) {
 		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{
@@ -1734,15 +1560,6 @@ func newContractDeps(t *testing.T) *contractDeps {
 	v1Admin.Use(adminAuth)
 	v1Admin.GET("/settings", adminSettingHandler.GetSettings)
 	v1Admin.POST("/accounts/bulk-update", adminAccountHandler.BulkUpdate)
-	v1Admin.GET("/openai-auto-scheduler/overview", openAIAutoSchedulerHandler.GetOverview)
-	v1Admin.GET("/openai-auto-scheduler/health", openAIAutoSchedulerHandler.ListHealth)
-	v1Admin.GET("/openai-auto-scheduler/settings", openAIAutoSchedulerHandler.GetSettings)
-	v1Admin.GET("/openai-auto-scheduler/groups", openAIAutoSchedulerHandler.ListGroups)
-	v1Admin.GET("/openai-auto-scheduler/scores", openAIAutoSchedulerHandler.ListScores)
-	v1Admin.GET("/openai-auto-scheduler/events", openAIAutoSchedulerHandler.ListEvents)
-	v1Admin.POST("/openai-auto-scheduler/scores/accounts/:account_id/reset", openAIAutoSchedulerHandler.ResetScore)
-	v1Admin.POST("/openai-auto-scheduler/scores/accounts/:account_id/probe", openAIAutoSchedulerHandler.ProbeScore)
-
 	return &contractDeps{
 		now:         now,
 		router:      r,

@@ -228,8 +228,6 @@ export default {
         status: 'Status',
         schedulable: 'Schedulable',
         todayStats: 'Today Stats',
-        openaiAutoScheduler: 'OpenAI Auto Scheduler',
-        schedulerReliability: '7-Day Performance',
         groups: 'Groups',
         upstreamGroup: 'Upstream Group',
         usageWindows: 'Usage Windows',
@@ -245,26 +243,6 @@ export default {
         stickyShort: 'Sticky',
         ungrouped: 'Ungrouped',
         hint: 'Displayed as "group / base score / sticky bonus". The base score is computed within the current filtered candidate set and includes priority, load, queue depth, error rate, first-token latency, reset window, quota headroom, billing rate, and related factors. The sticky bonus applies only when sticky weighting is enabled for previous_response_id or session_hash. Higher scores are preferred.'
-      },
-      schedulerHealth: {
-        unified: 'Unified health {available}/{total}',
-        stale: 'Stale {count}',
-        legacy: 'Legacy score · {model}',
-        states: { running: 'Healthy', observing: 'Observing', open: 'Circuit open', half_open: 'Half-open probe' }
-      },
-      schedulerReliability: {
-        hint: 'Summarizes real requests and probes from the last 7 days. Low-volume accounts are marked as insufficient data; the recommendation combines success rate, slow-request rate, and average time to first byte.',
-        successRate: 'success',
-        ttfb: 'TTFB',
-        samples: '{count} samples',
-        activeDays: '{count}/7 days active',
-        window: 'last 7 days',
-        recommendations: {
-          stable: 'Long-term fit',
-          observe: 'Watch closely',
-          avoid: 'Avoid long-term',
-          insufficient_data: 'Insufficient data'
-        }
       },
       usageWindowsHint: '"5h / 7d" are the upstream account\'s official rolling usage windows (e.g. OpenAI ChatGPT, Claude). They are imposed by the upstream provider on the account itself — not configured by sub2api, and unrelated to the models you map. Usage resets automatically once each window rolls over, and the limit cannot be lifted from within sub2api.',
       ollamaCloud: {

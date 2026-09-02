@@ -47,7 +47,6 @@ func ProvideAdminHandlers(
 	channelHandler *admin.ChannelHandler,
 	channelMonitorHandler *admin.ChannelMonitorHandler,
 	channelMonitorTemplateHandler *admin.ChannelMonitorRequestTemplateHandler,
-	openAIAutoSchedulerHandler *admin.OpenAIAutoSchedulerHandler,
 	contentModerationHandler *admin.ContentModerationHandler,
 	promptAuditHandler *securityaudit.PromptAdminHandler,
 	paymentHandler *admin.PaymentHandler,
@@ -91,7 +90,6 @@ func ProvideAdminHandlers(
 		Channel:                channelHandler,
 		ChannelMonitor:         channelMonitorHandler,
 		ChannelMonitorTemplate: channelMonitorTemplateHandler,
-		OpenAIAutoScheduler:    openAIAutoSchedulerHandler,
 		ContentModeration:      contentModerationHandler,
 		PromptAudit:            promptAuditHandler,
 		Payment:                paymentHandler,
@@ -212,7 +210,6 @@ func ProvideAdminAccountHandler(
 	tokenCacheInvalidator service.TokenCacheInvalidator,
 	upstreamBalanceService *service.OpenAIUpstreamBalanceService,
 	sub2APICheckinService *service.Sub2APICheckinService,
-	openAIAutoSchedulerService *service.OpenAIAutoSchedulerService,
 	grokQuotaService *service.GrokQuotaService,
 ) *admin.AccountHandler {
 	h := admin.NewAccountHandler(
@@ -233,8 +230,6 @@ func ProvideAdminAccountHandler(
 		upstreamBalanceService,
 		sub2APICheckinService,
 	)
-	h.SetOpenAIAutoSchedulerAccountSummaryService(openAIAutoSchedulerService)
-	h.SetOpenAIAutoSchedulerAccountReliabilityService(openAIAutoSchedulerService)
 	h.SetGrokImportProber(grokQuotaService)
 	return h
 }
@@ -350,7 +345,6 @@ var ProviderSet = wire.NewSet(
 	admin.NewChannelHandler,
 	admin.NewChannelMonitorHandler,
 	admin.NewChannelMonitorRequestTemplateHandler,
-	admin.ProvideOpenAIAutoSchedulerHandler,
 	admin.NewContentModerationHandler,
 	admin.NewPaymentHandler,
 	ProvideAdminAffiliateHandler,
