@@ -785,6 +785,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		UpstreamModel:                 mappedModel,
 		UpstreamResponseModel:         responseModelObserver.Model(),
 		UpstreamResponseModelConflict: responseModelObserver.Conflict(),
+		UpstreamResponseServiceTier:   responseModelObserver.ServiceTier(),
 		UpstreamEndpoint:              "/v1/responses",
 		ImageCount:                    imageCounter.Count(),
 		ImageOutputSizes:              imageCounter.Sizes(),
