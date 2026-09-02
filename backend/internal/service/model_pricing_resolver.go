@@ -152,6 +152,14 @@ func matchGroupModelPricing(ctx context.Context, group *Group, model string) *Ch
 	if pricing := matchGroupModelPricingForPlatform(group.ModelPricing, platform, model); pricing != nil {
 		return pricing
 	}
+	// Older group pricing rows did not persist Platform. For non-composite
+	// groups, an empty platform unambiguously means the group's platform;
+	// preserve that data while keeping composite entries platform-scoped.
+	if group.Platform != PlatformComposite {
+		if pricing := matchGroupModelPricingForPlatform(group.ModelPricing, "", model); pricing != nil {
+			return pricing
+		}
+	}
 	if group.Platform == PlatformComposite && platform != PlatformComposite {
 		return matchGroupModelPricingForPlatform(group.ModelPricing, PlatformComposite, model)
 	}

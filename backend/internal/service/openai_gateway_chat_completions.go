@@ -166,8 +166,15 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 
 	promptCacheKey = strings.TrimSpace(promptCacheKey)
 	compatPromptCacheInjected := false
-	if promptCacheKey == "" && account.UsesOpenAICodexProtocol() && shouldAutoInjectPromptCacheKeyForCompat(upstreamModel) {
-		promptCacheKey = deriveCompatPromptCacheKey(&chatReq, upstreamModel)
+	compatPromptCacheTenantIsolated := false
+	// Responses-capable API keys use the same prompt-cache/session affinity
+	// contract as Codex OAuth accounts. Keep the automatic key scoped to the
+	// Responses path; raw Chat Completions providers must not receive it.
+	if promptCacheKey == "" && !isResponsesShape && account != nil && account.IsOpenAI() &&
+		!shouldForwardOpenAIResponsesViaRawChatCompletions(account) && shouldAutoInjectPromptCacheKeyForCompat(upstreamModel) {
+		apiKeyID := getAPIKeyIDFromContext(c)
+		promptCacheKey = deriveCompatPromptCacheKeyForAPIKey(&chatReq, upstreamModel, apiKeyID)
+		compatPromptCacheTenantIsolated = account.Type == AccountTypeAPIKey && apiKeyID > 0
 		compatPromptCacheInjected = promptCacheKey != ""
 	}
 
@@ -341,7 +348,11 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 
 	if promptCacheKey != "" {
 		apiKeyID := getAPIKeyIDFromContext(c)
-		upstreamReq.Header.Set("session_id", generateSessionUUID(isolateOpenAIUpstreamSessionID(apiKeyID, codexAccountIdentitySource(c, account), promptCacheKey)))
+		sessionKey := promptCacheKey
+		if !compatPromptCacheTenantIsolated {
+			sessionKey = isolateOpenAIUpstreamSessionID(apiKeyID, codexAccountIdentitySource(c, account), promptCacheKey)
+		}
+		upstreamReq.Header.Set("session_id", generateSessionUUID(sessionKey))
 	}
 
 	// 7. Send request

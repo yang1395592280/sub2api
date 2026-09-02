@@ -152,9 +152,7 @@ type Group struct {
 	// OpenAI Messages 调度开关（用户侧需要此字段判断是否展示 Claude Code 教程）
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch"`
 	// OpenAI Live 接口开关
-	AllowLive       bool `json:"allow_live"`
-	ForceOpenAIFast bool `json:"force_openai_fast"`
-	FreeOpenAIFast  bool `json:"free_openai_fast"`
+	AllowLive bool `json:"allow_live"`
 
 	// OpenAI 自动评分调度开关（需配合全局开关生效）。
 	OpenAIAutoSchedulerEnabled            bool    `json:"openai_auto_scheduler_enabled"`

@@ -881,6 +881,19 @@ func finalizeObservedRelayTerminal(state *relayState, observed observedUpstreamE
 			observed.startedAt = turnTiming.startAt
 			observed.duration = duration
 			observed.firstToken = openAIWSRelayCloneIntPtr(turnTiming.firstTokenMs)
+			if observed.firstToken == nil && observed.usage.OutputTokens == 0 {
+				// Some providers emit no delta/output event. Preserve a usable TTFT
+				// metric without treating the terminal frame itself as a token event.
+				fallback := int(duration.Milliseconds() - 1)
+				if fallback < 0 {
+					fallback = 0
+				}
+				observed.firstToken = &fallback
+				turnTiming.firstTokenMs = openAIWSRelayCloneIntPtr(observed.firstToken)
+			}
+			if state.firstTokenMs == nil {
+				state.firstTokenMs = openAIWSRelayCloneIntPtr(observed.firstToken)
+			}
 		}
 	} else {
 		state.consumePendingTurnStartedAt()
@@ -1326,6 +1339,7 @@ func shouldParseUsage(eventType string) bool {
 }
 
 func isTokenEvent(eventType string) bool {
+	eventType = strings.TrimSpace(eventType)
 	if eventType == "" {
 		return false
 	}
@@ -1333,10 +1347,10 @@ func isTokenEvent(eventType string) bool {
 	case "response.created", "response.in_progress", "response.output_item.added", "response.output_item.done":
 		return false
 	}
-	if strings.Contains(eventType, ".delta") {
+	if strings.HasSuffix(eventType, ".delta") {
 		return true
 	}
-	if strings.HasPrefix(eventType, "response.output_text") {
+	if eventType == "response.output_text.done" || eventType == "response.function_call_arguments.done" {
 		return true
 	}
 	return strings.HasPrefix(eventType, "response.output")

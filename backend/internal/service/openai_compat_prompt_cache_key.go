@@ -69,6 +69,16 @@ func deriveCompatPromptCacheKey(req *apicompat.ChatCompletionsRequest, mappedMod
 	return compatPromptCacheKeyPrefix + hashSensitiveValueForLog(strings.Join(seedParts, "|"))
 }
 
+// deriveCompatPromptCacheKeyForAPIKey isolates automatically generated keys
+// between API-key tenants while retaining stability across later turns.
+func deriveCompatPromptCacheKeyForAPIKey(req *apicompat.ChatCompletionsRequest, mappedModel string, apiKeyID int64) string {
+	base := deriveCompatPromptCacheKey(req, mappedModel)
+	if base == "" || apiKeyID <= 0 {
+		return base
+	}
+	return compatPromptCacheKeyPrefix + hashSensitiveValueForLog(fmt.Sprintf("%s|api_key_id=%d", base, apiKeyID))
+}
+
 func deriveAnthropicCompatPromptCacheKey(req *apicompat.AnthropicRequest, mappedModel string) string {
 	if req == nil {
 		return ""
