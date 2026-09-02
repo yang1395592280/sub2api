@@ -155,6 +155,9 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		AllowAutoCheapestScheduling: source.AllowAutoCheapestScheduling,
 		RPMLimit:                    source.RPMLimit,
 		MaxReasoningEffort:          source.MaxReasoningEffort,
+		MaxReasoningEffortOverLimit: source.MaxReasoningEffortOverLimit,
+		ForceOpenAIFast:             source.ForceOpenAIFast,
+		FreeOpenAIFast:              source.FreeOpenAIFast,
 		ReasoningEffortMappings:     append([]ReasoningEffortMapping(nil), source.ReasoningEffortMappings...),
 	}
 }

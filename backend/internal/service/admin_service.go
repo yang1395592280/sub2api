@@ -305,6 +305,8 @@ type CreateGroupInput struct {
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
 	AllowMessagesDispatch                 bool
 	AllowLive                             bool
+	ForceOpenAIFast                       bool
+	FreeOpenAIFast                        bool
 	DefaultMappedModel                    string
 	RequireOAuthOnly                      bool
 	RequirePrivacySet                     bool
@@ -321,7 +323,8 @@ type CreateGroupInput struct {
 	// RPMLimit 分组 RPM 上限（0 = 不限制）
 	RPMLimit int
 	// MaxReasoningEffort OpenAI/Codex 请求的推理强度上限，空字符串表示不限制。
-	MaxReasoningEffort string
+	MaxReasoningEffort          string
+	MaxReasoningEffortOverLimit string
 	// ReasoningEffortMappings OpenAI/Codex 推理强度精确映射。
 	ReasoningEffortMappings []ReasoningEffortMapping
 	// 分组利润控制（五个 token 平台分组可启用；margin/buffer 为小数，nil 按 0 处理）
@@ -391,6 +394,8 @@ type UpdateGroupInput struct {
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
 	AllowMessagesDispatch                 *bool
 	AllowLive                             *bool
+	ForceOpenAIFast                       *bool
+	FreeOpenAIFast                        *bool
 	DefaultMappedModel                    *string
 	RequireOAuthOnly                      *bool
 	RequirePrivacySet                     *bool
@@ -407,7 +412,8 @@ type UpdateGroupInput struct {
 	// RPMLimit 分组 RPM 上限（0 = 不限制），nil 表示未提供不改动。
 	RPMLimit *int
 	// MaxReasoningEffort 空字符串表示清除上限；nil 表示未提供不改动。
-	MaxReasoningEffort *string
+	MaxReasoningEffort          *string
+	MaxReasoningEffortOverLimit *string
 	// ReasoningEffortMappings nil 表示不修改，空数组表示清空，非空数组表示替换。
 	ReasoningEffortMappings *[]ReasoningEffortMapping
 	// 分组利润控制（nil 表示不修改；margin/buffer 为小数）
