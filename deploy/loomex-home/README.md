@@ -1,6 +1,6 @@
 # Loomex 独立静态主页
 
-该目录保存 `www.loomex.lol` 的独立静态主页源码。主页与 Sub2API Vue 应用、API 路由分开部署，避免浏览器首页逻辑影响现有 API 请求。
+该目录保存 `www.loomex.lol`（主域名）和 `www.loomex.space`（三网优化域名）共用的独立静态主页源码。主页与 Sub2API Vue 应用、API 路由分开部署，避免浏览器首页逻辑影响现有 API 请求。
 
 ## 文件
 
@@ -22,7 +22,7 @@
 ```bash
 sudo /www/server/nginx/sbin/nginx -t -c /www/server/nginx/conf/nginx.conf
 curl -fsSL --compressed https://www.loomex.lol/
-curl -fsS -o /dev/null -w '%{http_code}\n' https://api.loomex.top/
+curl -fsSL --compressed https://www.loomex.space/
 ```
 
 同时使用桌面端和移动端浏览器检查首页地址区块，确认文本完整显示且没有横向溢出。
