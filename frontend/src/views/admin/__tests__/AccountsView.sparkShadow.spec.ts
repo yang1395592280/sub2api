@@ -224,7 +224,6 @@ const mountViewWithRow = () =>
             <div v-for="(row, idx) in (data || [])" :key="idx">
               <slot name="cell-name" :row="row" :value="row.name" />
               <slot name="cell-platform_type" :row="row" />
-              <slot name="cell-openai_auto_scheduler" :row="row" />
             </div>
           </div>`
         },
@@ -304,37 +303,6 @@ describe('admin AccountsView — 账号行展示', () => {
     expect(badge.props('planType')).toBe('plus')
     expect(badge.props('privacyMode')).toBe('false')
     expect(badge.props('subscriptionExpiresAt')).toBe('2027-01-01T00:00:00Z')
-
-    wrapper.unmount()
-  })
-
-  it('账号行展示 OpenAI 自动调度状态和速度优先级', async () => {
-    const openAIAccount = {
-      id: 101,
-      name: 'OpenAI 快速账号',
-      platform: 'openai',
-      type: 'oauth',
-      openai_auto_scheduler: {
-        state: 'running',
-        speed_priority: 1,
-        speed_ms: 220,
-        probe_model: 'gpt-5.5',
-        last_ttfb_ms: 220,
-        last_latency_ms: 900,
-        last_error: null,
-        reason: 'success',
-        last_checked_at: '2026-07-04T00:00:00Z',
-      },
-    }
-
-    listAccounts.mockResolvedValue({ items: [openAIAccount], total: 1, page: 1, page_size: 20, pages: 1 })
-    const wrapper = mountViewWithRow()
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('admin.accounts.schedulerHealth.states.running')
-    expect(wrapper.text()).toContain('#1')
-    expect(wrapper.text()).toContain('220ms')
-    expect(wrapper.text()).toContain('admin.accounts.schedulerHealth.legacy')
 
     wrapper.unmount()
   })

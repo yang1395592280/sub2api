@@ -300,46 +300,6 @@
               <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="[row.schedulable ? 'translate-x-4' : 'translate-x-0']" />
             </button>
           </template>
-          <template #cell-openai_auto_scheduler="{ row }">
-            <div v-if="row.openai_auto_scheduler" class="flex min-w-[9rem] flex-col gap-1">
-              <span :class="openAIAutoSchedulerStateClass(row.openai_auto_scheduler.state)">
-                {{ openAIAutoSchedulerStateLabel(row.openai_auto_scheduler.state) }}
-              </span>
-              <span class="text-xs text-gray-600 dark:text-gray-300">
-                #{{ row.openai_auto_scheduler.speed_priority || '-' }} · {{ formatOpenAIAutoSchedulerSpeed(row.openai_auto_scheduler.speed_ms) }}
-              </span>
-              <span class="text-xs text-gray-500 dark:text-dark-400">
-                <template v-if="row.openai_auto_scheduler.status_source === 'unified_health'">
-                  {{ t('admin.accounts.schedulerHealth.unified', { available: row.openai_auto_scheduler.available_dimensions || 0, total: row.openai_auto_scheduler.health_dimensions || 0 }) }}
-                  <template v-if="row.openai_auto_scheduler.stale_dimensions"> · {{ t('admin.accounts.schedulerHealth.stale', { count: row.openai_auto_scheduler.stale_dimensions }) }}</template>
-                </template>
-                <template v-else>{{ t('admin.accounts.schedulerHealth.legacy', { model: row.openai_auto_scheduler.probe_model }) }}</template>
-              </span>
-            </div>
-            <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
-          </template>
-          <template #header-scheduler_reliability="{ column }">
-            <div class="flex items-center gap-1">
-              <span>{{ column.label }}</span>
-              <HelpTooltip :content="t('admin.accounts.schedulerReliability.hint')" width-class="w-80" />
-            </div>
-          </template>
-          <template #cell-scheduler_reliability="{ row }">
-            <div v-if="row.openai_auto_scheduler_reliability" class="min-w-[10rem] space-y-1">
-              <div class="flex items-center gap-1.5">
-                <span :class="reliabilityRecommendationClass(row.openai_auto_scheduler_reliability.recommendation)" class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
-                  <span class="h-1.5 w-1.5 rounded-full bg-current" />
-                  {{ reliabilityRecommendationLabel(row.openai_auto_scheduler_reliability.recommendation) }}
-                </span>
-                <span class="text-[11px] text-gray-500 dark:text-dark-400">{{ t('admin.accounts.schedulerReliability.activeDays', { count: row.openai_auto_scheduler_reliability.active_days }) }}</span>
-              </div>
-              <div class="text-[11px] leading-4 text-gray-600 dark:text-gray-300">
-                {{ reliabilitySuccessRate(row.openai_auto_scheduler_reliability) }}% {{ t('admin.accounts.schedulerReliability.successRate') }} · {{ formatReliabilityLatency(row.openai_auto_scheduler_reliability.avg_ttfb_ms) }}
-              </div>
-              <div class="text-[10px] text-gray-400 dark:text-dark-500">{{ t('admin.accounts.schedulerReliability.samples', { count: row.openai_auto_scheduler_reliability.sample_count }) }} · {{ t('admin.accounts.schedulerReliability.window') }}</div>
-            </div>
-            <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
-          </template>
           <template #cell-today_stats="{ row }">
             <AccountTodayStatsCell
               :stats="todayStatsByAccountId[String(row.id)] ?? null"
@@ -614,7 +574,7 @@ import { extractApiErrorMessage } from '@/utils/apiError'
 import { sanitizeUrl } from '@/utils/url'
 import { getFloatingPanelPosition } from '@/utils/floatingPanel'
 import { formatMultiplier } from '@/utils/formatters'
-import type { Account, AccountPlatform, AccountSchedulerGroupScore, AccountType, AccountUsageInfo, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel, UpstreamBillingProbeSnapshot, OpenAIAutoSchedulerAccountReliability } from '@/types'
+import type { Account, AccountPlatform, AccountSchedulerGroupScore, AccountType, AccountUsageInfo, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel, UpstreamBillingProbeSnapshot } from '@/types'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -1133,7 +1093,7 @@ const toggleColumn = (key: string) => {
       console.error('Failed to load account today stats after showing column:', error)
     })
   }
-  if (key === 'scheduler_score' || key === 'scheduler_reliability') {
+  if (key === 'scheduler_score') {
     // The server only returns scheduler scores when this column is visible, so reload the current page immediately.
     syncAccountListDerivedParams()
     load().catch((error) => {
@@ -1144,12 +1104,10 @@ const toggleColumn = (key: string) => {
 
 const isColumnVisible = (key: string) => !hiddenColumns.has(key)
 const shouldIncludeSchedulerScore = () => isColumnVisible('scheduler_score')
-const shouldIncludeSchedulerReliability = () => isColumnVisible('scheduler_reliability')
 const syncAccountListDerivedParams = () => {
   // Keep every load path, including auto-refresh and sorting, aligned with the current column visibility.
   const requestParams = params as any
   requestParams.include_scheduler_score = shouldIncludeSchedulerScore() ? '1' : '0'
-  requestParams.include_scheduler_reliability = shouldIncludeSchedulerReliability() ? '1' : '0'
 }
 
 const {
@@ -1172,7 +1130,6 @@ const {
     group: '',
     search: '',
     include_scheduler_score: shouldIncludeSchedulerScore() ? '1' : '0',
-    include_scheduler_reliability: shouldIncludeSchedulerReliability() ? '1' : '0',
     sort_by: sortState.sort_by,
     sort_order: sortState.sort_order
   }
@@ -1932,56 +1889,6 @@ function supportsUpstreamBalanceRefresh(account: Account): boolean {
   return account.type === 'apikey' && (account.platform === 'openai' || account.platform === 'anthropic')
 }
 
-function openAIAutoSchedulerStateLabel(state: string): string {
-  const knownStates = new Set(['running', 'observing', 'open', 'half_open'])
-  return knownStates.has(state) ? t(`admin.accounts.schedulerHealth.states.${state}`) : state || '-'
-}
-
-function openAIAutoSchedulerStateClass(state: string): string {
-  const base = 'inline-flex w-fit rounded px-2 py-0.5 text-xs font-medium'
-  switch (state) {
-    case 'running':
-      return `${base} bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300`
-    case 'observing':
-      return `${base} bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300`
-    case 'open':
-      return `${base} bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300`
-    case 'half_open':
-      return `${base} bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300`
-    default:
-      return `${base} bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-dark-300`
-  }
-}
-
-function formatOpenAIAutoSchedulerSpeed(value?: number | null): string {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return '-'
-  return `${Math.round(value)}ms`
-}
-
-function reliabilityRecommendationLabel(value: string): string {
-  const key = ['stable', 'observe', 'avoid', 'insufficient_data'].includes(value) ? value : 'insufficient_data'
-  return t(`admin.accounts.schedulerReliability.recommendations.${key}`)
-}
-
-function reliabilityRecommendationClass(value: string): string {
-  switch (value) {
-    case 'stable': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-    case 'observe': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-    case 'avoid': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-    default: return 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-dark-300'
-  }
-}
-
-function reliabilitySuccessRate(value: OpenAIAutoSchedulerAccountReliability): string {
-  if (!value.sample_count) return '-'
-  return ((value.success_count / value.sample_count) * 100).toFixed(0)
-}
-
-function formatReliabilityLatency(value?: number | null): string {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return '-'
-  return `${Math.round(value)}ms ${t('admin.accounts.schedulerReliability.ttfb')}`
-}
-
 // All available columns
 const allColumns = computed(() => {
   const c = [
@@ -1993,8 +1900,6 @@ const allColumns = computed(() => {
     { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
     { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
     { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },
-    { key: 'openai_auto_scheduler', label: t('admin.accounts.columns.openaiAutoScheduler'), sortable: false },
-    { key: 'scheduler_reliability', label: t('admin.accounts.columns.schedulerReliability'), sortable: false },
     { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false }
   ]
   if (!authStore.isSimpleMode) {

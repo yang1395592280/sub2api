@@ -158,7 +158,7 @@ func TestOpenAIStreamingPassthroughKeepsPreamblePendingUntilFirstOutputBoundary(
 	}, writer.flushBodyLengths)
 }
 
-func TestOpenAIStreamingPassthroughEarlyPreambleFlushDisablesTransparentFailover(t *testing.T) {
+func TestOpenAIStreamingPassthroughIgnoresRemovedEarlyPreambleFlushSetting(t *testing.T) {
 	preamble := "event: response.created\n" +
 		`data: {"type":"response.created","response":{"id":"resp_early"}}` + "\n\n"
 	failedEvent := "event: response.failed\n" +
@@ -173,9 +173,9 @@ func TestOpenAIStreamingPassthroughEarlyPreambleFlushDisablesTransparentFailover
 
 	require.Error(t, err)
 	var failoverErr *UpstreamFailoverError
-	require.False(t, errors.As(err, &failoverErr))
-	require.Equal(t, preamble+failedEvent, recorder.Body.String())
-	require.Equal(t, []int{len(preamble), len(preamble) + len(failedEvent)}, writer.flushBodyLengths)
+	require.True(t, errors.As(err, &failoverErr))
+	require.Empty(t, recorder.Body.String())
+	require.Empty(t, writer.flushBodyLengths)
 }
 
 func TestOpenAIStreamingPassthroughFlushesTerminalEventAtEOFWithoutBlankLine(t *testing.T) {

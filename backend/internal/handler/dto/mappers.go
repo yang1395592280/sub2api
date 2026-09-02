@@ -484,28 +484,6 @@ func AccountFromService(a *service.Account) *Account {
 	return out
 }
 
-func OpenAIAutoSchedulerAccountSummaryFromService(s service.OpenAIAutoSchedulerAccountSummary) *OpenAIAutoSchedulerAccountSummary {
-	return &OpenAIAutoSchedulerAccountSummary{
-		State:               s.State,
-		StatusSource:        s.StatusSource,
-		HealthDimensions:    s.HealthDimensions,
-		AvailableDimensions: s.AvailableDimensions,
-		StaleDimensions:     s.StaleDimensions,
-		SpeedPriority:       s.SpeedPriority,
-		SpeedMS:             s.SpeedMS,
-		ProbeModel:          s.ProbeModel,
-		LastTtfbMS:          s.LastTtfbMS,
-		LastLatencyMS:       s.LastLatencyMS,
-		LastError:           s.LastError,
-		Reason:              s.Reason,
-		LastCheckedAt:       s.LastCheckedAt,
-	}
-}
-
-func OpenAIAutoSchedulerAccountReliabilityFromService(s service.OpenAIAutoSchedulerAccountReliability) *OpenAIAutoSchedulerAccountReliability {
-	return &OpenAIAutoSchedulerAccountReliability{SampleCount: s.SampleCount, SuccessCount: s.SuccessCount, SlowCount: s.SlowCount, ErrorCount: s.ErrorCount, ActiveDays: s.ActiveDays, AvgTTFBMS: s.AvgTTFBMS, LastEventAt: s.LastEventAt, Recommendation: s.Recommendation}
-}
-
 func timeToUnixSeconds(value *time.Time) *int64 {
 	if value == nil {
 		return nil

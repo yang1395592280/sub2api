@@ -288,7 +288,7 @@ func TestOpenAIResponseFlush_PreambleWithoutTerminalRemainsBufferedForFailover(t
 	require.Empty(t, flushes)
 }
 
-func TestOpenAIResponseFlush_EarlyPreambleFlushCommitsCompleteEventAndDisablesFailover(t *testing.T) {
+func TestOpenAIResponseFlush_IgnoresRemovedEarlyPreambleFlushSetting(t *testing.T) {
 	body := "data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_early\"}}\n\n"
 	recorder := newOpenAIResponseFlushRecorder()
 
@@ -299,15 +299,13 @@ func TestOpenAIResponseFlush_EarlyPreambleFlushCommitsCompleteEventAndDisablesFa
 		func(svc *OpenAIGatewayService) { svc.settingService = newOpenAIEarlyPreambleFlushSettingService() },
 	)
 
-	require.ErrorContains(t, err, "missing terminal event")
 	var failoverErr *UpstreamFailoverError
-	require.False(t, errors.As(err, &failoverErr))
+	require.True(t, errors.As(err, &failoverErr))
 	require.NotNil(t, result)
 	require.Nil(t, result.firstTokenMs, "preamble must not pollute semantic TTFT metrics")
 	gotBody, flushes := recorder.snapshot()
-	require.Equal(t, body, gotBody)
-	require.Equal(t, []string{body}, flushes)
-	require.True(t, strings.HasSuffix(flushes[0], "\n\n"))
+	require.Empty(t, gotBody)
+	require.Empty(t, flushes)
 }
 
 func TestOpenAIResponseFlush_CanceledAfterOutputFlushesResidualWithoutErrorEvent(t *testing.T) {

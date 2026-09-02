@@ -211,7 +211,6 @@ export default {
     channelPricing: '渠道定价',
     channelMonitor: '渠道监控',
     channelStatus: '渠道状态',
-    openaiAutoScheduler: 'OpenAI 自动调度',
     zenxiangLiyu: '臻享礼遇',
     zenxiangLiyuOps: '臻享礼遇运维',
     userSpendingRanking: '用户消费榜',

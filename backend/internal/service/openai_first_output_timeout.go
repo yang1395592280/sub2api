@@ -250,15 +250,6 @@ func (s *OpenAIGatewayService) openAIFirstOutputTimeoutWithContext(ctx context.C
 		seconds = s.cfg.Gateway.OpenAIFirstOutputTimeoutSeconds
 		highEffortSeconds = s.cfg.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds
 	}
-	if s.settingService != nil {
-		settings := s.settingService.GetOpenAIAutoSchedulerSettings(ctx)
-		if settings.firstOutputTimeoutSet {
-			seconds = settings.FirstOutputTimeoutSeconds
-		}
-		if settings.highEffortFirstOutputTimeoutSet {
-			highEffortSeconds = settings.HighEffortFirstOutputTimeoutSeconds
-		}
-	}
 	if seconds <= 0 {
 		return 0
 	}

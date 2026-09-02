@@ -47,39 +47,30 @@ func NewOAuthHandler(oauthService *service.OAuthService) *OAuthHandler {
 
 // AccountHandler handles admin account management
 type AccountHandler struct {
-	adminService                   service.AdminService
-	oauthService                   *service.OAuthService
-	openaiOAuthService             *service.OpenAIOAuthService
-	geminiOAuthService             *service.GeminiOAuthService
-	antigravityOAuthService        *service.AntigravityOAuthService
-	grokOAuthService               service.GrokOAuthTokenService
-	rateLimitService               *service.RateLimitService
-	accountUsageService            *service.AccountUsageService
-	accountTestService             *service.AccountTestService
-	concurrencyService             *service.ConcurrencyService
-	crsSyncService                 *service.CRSSyncService
-	sessionLimitCache              service.SessionLimitCache
-	rpmCache                       service.RPMCache
-	tokenCacheInvalidator          service.TokenCacheInvalidator
-	upstreamBalanceService         *service.OpenAIUpstreamBalanceService
-	sub2APICheckinService          *service.Sub2APICheckinService
-	openAIAutoScheduler            openAIAutoSchedulerAccountSummaryService
-	openAIAutoSchedulerReliability openAIAutoSchedulerAccountReliabilityService
-	grokImportProber               grokImportProber
-	upstreamBillingProbe           *service.UpstreamBillingProbeService
-	ollamaCloudUsage               *service.OllamaCloudUsageService
+	adminService            service.AdminService
+	oauthService            *service.OAuthService
+	openaiOAuthService      *service.OpenAIOAuthService
+	geminiOAuthService      *service.GeminiOAuthService
+	antigravityOAuthService *service.AntigravityOAuthService
+	grokOAuthService        service.GrokOAuthTokenService
+	rateLimitService        *service.RateLimitService
+	accountUsageService     *service.AccountUsageService
+	accountTestService      *service.AccountTestService
+	concurrencyService      *service.ConcurrencyService
+	crsSyncService          *service.CRSSyncService
+	sessionLimitCache       service.SessionLimitCache
+	rpmCache                service.RPMCache
+	tokenCacheInvalidator   service.TokenCacheInvalidator
+	upstreamBalanceService  *service.OpenAIUpstreamBalanceService
+	sub2APICheckinService   *service.Sub2APICheckinService
+	grokImportProber        grokImportProber
+	upstreamBillingProbe    *service.UpstreamBillingProbeService
+	ollamaCloudUsage        *service.OllamaCloudUsageService
 }
 
 // SetUpstreamBillingProbeService attaches the optional remote billing probe service.
 func (h *AccountHandler) SetUpstreamBillingProbeService(probe *service.UpstreamBillingProbeService) {
 	h.upstreamBillingProbe = probe
-}
-
-type openAIAutoSchedulerAccountSummaryService interface {
-	ListAccountSummaries(ctx context.Context, groupID int64, accountIDs []int64) (map[int64]service.OpenAIAutoSchedulerAccountSummary, error)
-}
-type openAIAutoSchedulerAccountReliabilityService interface {
-	ListAccountReliability(ctx context.Context, accountIDs []int64, since time.Time) (map[int64]service.OpenAIAutoSchedulerAccountReliability, error)
 }
 
 func (h *AccountHandler) SetOllamaCloudUsageService(usage *service.OllamaCloudUsageService) {
@@ -122,19 +113,6 @@ func NewAccountHandler(
 		tokenCacheInvalidator:   tokenCacheInvalidator,
 		upstreamBalanceService:  upstreamBalanceService,
 		sub2APICheckinService:   sub2APICheckinService,
-	}
-}
-
-func (h *AccountHandler) SetOpenAIAutoSchedulerAccountSummaryService(svc openAIAutoSchedulerAccountSummaryService) {
-	if h == nil {
-		return
-	}
-	h.openAIAutoScheduler = svc
-}
-
-func (h *AccountHandler) SetOpenAIAutoSchedulerAccountReliabilityService(svc openAIAutoSchedulerAccountReliabilityService) {
-	if h != nil {
-		h.openAIAutoSchedulerReliability = svc
 	}
 }
 
@@ -562,7 +540,6 @@ func (h *AccountHandler) List(c *gin.Context) {
 	lite := parseBoolQueryWithDefault(c.Query("lite"), false)
 	// 调度分需要跨候选池批量打分并读取负载，默认列表不计算；只有前端列可见时才显式开启。
 	includeSchedulerScore := parseBoolQueryWithDefault(c.Query("include_scheduler_score"), false)
-	includeReliability := parseBoolQueryWithDefault(c.Query("include_scheduler_reliability"), false)
 
 	var groupID int64
 	if groupIDStr := c.Query("group"); groupIDStr != "" {
@@ -600,22 +577,14 @@ func (h *AccountHandler) List(c *gin.Context) {
 
 	// Get current concurrency counts for all accounts
 	accountIDs := make([]int64, len(accounts))
-	openAIAutoSchedulerAccountIDsByGroup := make(map[int64][]int64)
 	for i, acc := range accounts {
 		accountIDs[i] = acc.ID
-		if acc.IsOpenAI() {
-			if schedulerGroupID := accountOpenAIAutoSchedulerGroupID(acc, groupID); schedulerGroupID > 0 {
-				openAIAutoSchedulerAccountIDsByGroup[schedulerGroupID] = append(openAIAutoSchedulerAccountIDsByGroup[schedulerGroupID], acc.ID)
-			}
-		}
 	}
 
 	concurrencyCounts := make(map[int64]int)
 	var windowCosts map[int64]float64
 	var activeSessions map[int64]int
 	var rpmCounts map[int64]int
-	var openAIAutoSchedulerSummaries map[int64]service.OpenAIAutoSchedulerAccountSummary
-	var openAIAutoSchedulerReliability map[int64]service.OpenAIAutoSchedulerAccountReliability
 	// 双重门控：用户要看该列，且当前页确实有 OpenAI 账号，才进入昂贵的候选池打分路径。
 	var schedulerScores map[int64]*AccountSchedulerScore
 	var schedulerGroupScores map[int64][]AccountSchedulerGroupScore
@@ -635,24 +604,6 @@ func (h *AccountHandler) List(c *gin.Context) {
 	if h.concurrencyService != nil {
 		if cc, ccErr := h.concurrencyService.GetAccountConcurrencyBatch(c.Request.Context(), accountIDs); ccErr == nil && cc != nil {
 			concurrencyCounts = cc
-		}
-	}
-
-	if len(openAIAutoSchedulerAccountIDsByGroup) > 0 && h.openAIAutoScheduler != nil {
-		openAIAutoSchedulerSummaries = make(map[int64]service.OpenAIAutoSchedulerAccountSummary)
-		for schedulerGroupID, schedulerAccountIDs := range openAIAutoSchedulerAccountIDsByGroup {
-			if summaries, summaryErr := h.openAIAutoScheduler.ListAccountSummaries(c.Request.Context(), schedulerGroupID, schedulerAccountIDs); summaryErr == nil {
-				for accountID, summary := range summaries {
-					openAIAutoSchedulerSummaries[accountID] = summary
-				}
-			}
-		}
-	}
-	if includeReliability && h.openAIAutoSchedulerReliability != nil && len(accountIDs) > 0 {
-		if summaries, err := h.openAIAutoSchedulerReliability.ListAccountReliability(c.Request.Context(), accountIDs, time.Now().Add(-7*24*time.Hour)); err == nil {
-			openAIAutoSchedulerReliability = summaries
-		} else {
-			slog.Warn("openai_auto_scheduler_reliability_failed", "error", err)
 		}
 	}
 
@@ -731,16 +682,6 @@ func (h *AccountHandler) List(c *gin.Context) {
 			SchedulerScore:     schedulerScores[acc.ID],
 			SchedulerScores:    schedulerGroupScores[acc.ID],
 		}
-		if openAIAutoSchedulerSummaries != nil {
-			if summary, ok := openAIAutoSchedulerSummaries[acc.ID]; ok && item.Account != nil {
-				item.Account.OpenAIAutoScheduler = dto.OpenAIAutoSchedulerAccountSummaryFromService(summary)
-			}
-		}
-		if openAIAutoSchedulerReliability != nil {
-			if summary, ok := openAIAutoSchedulerReliability[acc.ID]; ok && item.Account != nil {
-				item.Account.OpenAIAutoSchedulerReliability = dto.OpenAIAutoSchedulerAccountReliabilityFromService(summary)
-			}
-		}
 
 		// 添加窗口费用（仅当启用时）
 		if windowCosts != nil {
@@ -779,18 +720,6 @@ func (h *AccountHandler) List(c *gin.Context) {
 	}
 
 	response.Paginated(c, result, total, page, pageSize)
-}
-
-func accountOpenAIAutoSchedulerGroupID(account service.Account, requestedGroupID int64) int64 {
-	if requestedGroupID > 0 {
-		return requestedGroupID
-	}
-	for _, groupID := range account.GroupIDs {
-		if groupID > 0 {
-			return groupID
-		}
-	}
-	return 0
 }
 
 func buildAccountsListETag(

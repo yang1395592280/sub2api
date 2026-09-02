@@ -568,6 +568,15 @@ func (s *defaultOpenAIAccountScheduler) withOpenAIBalancedRuntimeSettings(
 	ctx context.Context,
 	req OpenAIAccountScheduleRequest,
 ) OpenAIAccountScheduleRequest {
+	// The automatic OpenAI scheduler is optional. When it is not wired into the
+	// production gateway, force the legacy selector path so persisted scheduler
+	// settings cannot alter account ordering or eligibility.
+	if s == nil || s.service == nil || s.service.openaiBalancedScheduler == nil {
+		req.balancedMode = OpenAIAutoSchedulerModeLegacy
+		req.balancedShadowMode = false
+		req.balancedPolicySettings = DefaultOpenAIBalancedSettings()
+		return req
+	}
 	settings := s.openAIBalancedRuntimeSettingsForRequest(ctx)
 	// A linked self-hosted pool is a hard-priority account source. Keep hard
 	// eligibility and concurrency checks below, but do not let health scoring,

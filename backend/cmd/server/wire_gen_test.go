@@ -22,76 +22,13 @@ func TestProvideServiceBuildInfo(t *testing.T) {
 	require.Equal(t, in.BuildType, out.BuildType)
 }
 
-func TestWireGenInjectsOpenAIAutoSchedulerIntoGateway(t *testing.T) {
+func TestWireGenDoesNotInjectRemovedOpenAIAutoScheduler(t *testing.T) {
 	body, err := os.ReadFile("wire_gen.go")
 	require.NoError(t, err)
-
 	source := string(body)
-	selectorIndex := strings.Index(source, "openAIAutoSchedulerSelector := service.ProvideOpenAIAutoSchedulerSelector(openAIAutoSchedulerService)")
-	recorderIndex := strings.Index(source, "openAIAutoSchedulerOutcomeRecorder := service.ProvideOpenAIAutoSchedulerOutcomeRecorder(openAIAutoSchedulerService)")
-	gatewayIndex := strings.Index(source, "openAIGatewayService := service.ProvideOpenAIGatewayService(")
-	handlerIndex := strings.Index(source, "handler.ProvideOpenAIGatewayHandler")
-	require.NotEqual(t, -1, selectorIndex, "OpenAI auto scheduler selector must be constructed by production wire")
-	require.NotEqual(t, -1, recorderIndex, "OpenAI auto scheduler outcome recorder must be constructed by production wire")
-	require.NotEqual(t, -1, gatewayIndex, "OpenAI gateway must be constructed through the provider that wires scheduler dependencies")
-	require.NotEqual(t, -1, handlerIndex, "OpenAI gateway handler provider must remain visible in production wire")
-	require.Contains(t, source, "openAIAutoSchedulerSelector, openAIAutoSchedulerService, openAIAutoSchedulerOutcomeRecorder")
-	require.Less(t, selectorIndex, gatewayIndex, "OpenAI auto scheduler selector must exist before gateway construction")
-	require.Less(t, recorderIndex, gatewayIndex, "OpenAI outcome recorder must exist before gateway construction")
-	require.Less(t,
-		gatewayIndex,
-		handlerIndex,
-		"OpenAI gateway must receive auto scheduler dependencies before handlers use it",
-	)
-
-	providerBody, err := os.ReadFile("../../internal/service/wire.go")
-	require.NoError(t, err)
-	providerSource := string(providerBody)
-	require.Contains(t, providerSource, "return NewOpenAIAutoSchedulerSelector(svc)")
-	require.Contains(t, providerSource, "svc.SetOpenAIAutoScheduler(openAIAutoSchedulerSelector, openAIAutoSchedulerService)")
-	require.Contains(t, providerSource, "svc.SetOpenAIAutoSchedulerOutcomeRecorder(openAIAutoSchedulerOutcomeRecorder)")
-}
-
-func TestWireGenInjectsOpenAIBalancedSchedulerIntoGateway(t *testing.T) {
-	body, err := os.ReadFile("wire_gen.go")
-	require.NoError(t, err)
-
-	source := string(body)
-	auditIndex := strings.Index(source, "openAISchedulerDecisionAuditRecorder := service.ProvideOpenAISchedulerDecisionAuditRecorder(openAISchedulerDecisionAuditRepository)")
-	balancedIndex := strings.Index(source, "openAIBalancedScheduler := service.ProvideOpenAIBalancedScheduler(openAISchedulerHealthRepository, openAISchedulerDecisionAuditRecorder)")
-	gatewayIndex := strings.Index(source, "openAIGatewayService := service.ProvideOpenAIGatewayService(")
-	require.NotEqual(t, -1, auditIndex)
-	require.NotEqual(t, -1, balancedIndex)
-	require.NotEqual(t, -1, gatewayIndex)
-	require.Contains(t, source, "openAIAutoSchedulerOutcomeRecorder, openAIBalancedScheduler, openAISchedulerExplorationCache, openAIAutoCheapestGroupCircuit, apiKeyService, apiKeyRepository")
-	require.Less(t, auditIndex, balancedIndex)
-	require.Less(t, balancedIndex, gatewayIndex)
-
-	providerBody, err := os.ReadFile("../../internal/service/wire.go")
-	require.NoError(t, err)
-	providerSource := string(providerBody)
-	require.Contains(t, providerSource, "return NewOpenAIBalancedScheduler(repo, audit)")
-	require.Contains(t, providerSource, "svc.SetOpenAIBalancedScheduler(openAIBalancedScheduler)")
-	require.Contains(t, providerSource, "svc.SetOpenAISchedulerExplorationCache(openAIExplorationCache)")
-}
-
-func TestWireGenInjectsOpenAIAutoSchedulerIntoAccountHandler(t *testing.T) {
-	body, err := os.ReadFile("wire_gen.go")
-	require.NoError(t, err)
-
-	source := string(body)
-	accountHandlerIndex := strings.Index(source, "accountHandler := handler.ProvideAdminAccountHandler(")
-	schedulerHandlerIndex := strings.Index(source, "openAIAutoSchedulerHandler := admin.ProvideOpenAIAutoSchedulerHandler(")
-	require.NotEqual(t, -1, accountHandlerIndex, "admin account handler provider must remain visible in production wire")
-	require.NotEqual(t, -1, schedulerHandlerIndex, "OpenAI auto scheduler handler construction must remain visible in production wire")
-	require.Contains(t, source, "sub2APICheckinService, openAIAutoSchedulerService, grokQuotaService)")
-	require.Less(t, accountHandlerIndex, schedulerHandlerIndex, "account handler should be wired before admin handlers are assembled")
-
-	providerBody, err := os.ReadFile("../../internal/handler/wire.go")
-	require.NoError(t, err)
-	providerSource := string(providerBody)
-	require.Contains(t, providerSource, "h.SetOpenAIAutoSchedulerAccountSummaryService(openAIAutoSchedulerService)")
-	require.Contains(t, providerSource, "h.SetGrokImportProber(grokQuotaService)")
+	require.NotContains(t, source, "ProvideOpenAIAutoSchedulerSelector")
+	require.NotContains(t, source, "ProvideOpenAIBalancedScheduler")
+	require.NotContains(t, source, "OpenAIAutoSchedulerProbeRunner")
 }
 
 func TestWireGenInjectsGroupUpstreamBalanceRefreshRunnerIntoStartupAndCleanup(t *testing.T) {
@@ -178,9 +115,6 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // sub2apiCheckin
 		groupUpstreamBalanceRefreshRunner,
 		nil, // openAIGateway
-		nil, // openAIAutoSchedulerProbeRunner
-		nil, // openAIAutoSchedulerOutcomeRecorder
-		nil, // openAISchedulerDecisionAuditRecorder
 		nil, // scheduledTestRunner
 		nil, // backupSvc
 		nil, // paymentOrderExpiry

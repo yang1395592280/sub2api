@@ -244,7 +244,7 @@ func TestOpenAIFirstOutputTimeoutForReasoningEffort(t *testing.T) {
 	require.Equal(t, 300*time.Second, svc.openAIFirstOutputTimeout("max"))
 }
 
-func TestOpenAIFirstOutputTimeoutUsesRuntimeSchedulerSettings(t *testing.T) {
+func TestOpenAIFirstOutputTimeoutIgnoresRemovedRuntimeSchedulerSettings(t *testing.T) {
 	repo := &openAIAutoSchedulerSettingsRepoStub{values: map[string]string{}}
 	settingSvc := NewSettingService(repo, &config.Config{})
 	compatSvc := &OpenAIGatewayService{
@@ -266,15 +266,17 @@ func TestOpenAIFirstOutputTimeoutUsesRuntimeSchedulerSettings(t *testing.T) {
 		settingService: settingSvc,
 	}
 
-	require.Equal(t, 10*time.Second, svc.openAIFirstOutputTimeoutWithContext(context.Background(), "low"))
-	require.Equal(t, 60*time.Second, svc.openAIFirstOutputTimeoutWithContext(context.Background(), "high"))
+	// Persisted scheduler settings must not override the native Gateway timeout
+	// after the automatic scheduler has been removed from production wiring.
+	require.Equal(t, 120*time.Second, svc.openAIFirstOutputTimeoutWithContext(context.Background(), "low"))
+	require.Equal(t, 300*time.Second, svc.openAIFirstOutputTimeoutWithContext(context.Background(), "high"))
 
 	settings.FirstOutputTimeoutSeconds = 0
 	settings.HighEffortFirstOutputTimeoutSeconds = 0
 	settings.firstOutputTimeoutSet = true
 	settings.highEffortFirstOutputTimeoutSet = true
 	require.NoError(t, settingSvc.SetOpenAIAutoSchedulerSettings(context.Background(), settings))
-	require.Zero(t, svc.openAIFirstOutputTimeoutWithContext(context.Background(), "high"))
+	require.Equal(t, 300*time.Second, svc.openAIFirstOutputTimeoutWithContext(context.Background(), "high"))
 }
 
 func TestOpenAIFirstOutputStageDefaultLimitIsIndependentFromScannerLimit(t *testing.T) {

@@ -34,7 +34,6 @@ import adminPaymentAPI from './payment'
 import affiliatesAPI from './affiliates'
 import riskControlAPI from './riskControl'
 import adminComplianceAPI from './compliance'
-import openaiAutoSchedulerAPI from './openaiAutoScheduler'
 import adminZenxiangLiyuAPI from './zenxiangLiyu'
 import auditAPI from './audit'
 import pluginsAPI from './plugins'
@@ -74,7 +73,6 @@ export const adminAPI = {
   affiliates: affiliatesAPI,
   riskControl: riskControlAPI,
   compliance: adminComplianceAPI,
-  openaiAutoScheduler: openaiAutoSchedulerAPI,
   zenxiangLiyu: adminZenxiangLiyuAPI,
   audit: auditAPI,
   plugins: pluginsAPI
@@ -112,7 +110,6 @@ export {
   affiliatesAPI,
   riskControlAPI,
   adminComplianceAPI,
-  openaiAutoSchedulerAPI,
   adminZenxiangLiyuAPI,
   auditAPI,
   pluginsAPI
@@ -133,14 +130,3 @@ export type {
   PluginUISession,
   PluginTestResult
 } from './plugins'
-export type {
-  OpenAIAutoSchedulerEvent,
-  OpenAIAutoSchedulerEventType,
-  OpenAIAutoSchedulerGroup,
-  OpenAIAutoSchedulerListParams,
-  OpenAIAutoSchedulerListResponse,
-  OpenAIAutoSchedulerProbeResponse,
-  OpenAIAutoSchedulerScore,
-  OpenAIAutoSchedulerSettings,
-  OpenAIAutoSchedulerState,
-} from './openaiAutoScheduler'
