@@ -33,7 +33,6 @@ import { useI18n } from 'vue-i18n'
 import { accountsAPI } from '@/api/admin/accounts'
 import type { Account } from '@/types'
 import { formatDateTime } from '@/utils/format'
-import { hasConfiguredUpstreamAdminSettings } from './credentialsBuilder'
 
 const props = defineProps<{
   account: Account
@@ -52,10 +51,7 @@ const visible = computed(() => {
   if (props.account.type !== 'apikey') return false
   if (props.account.platform === 'openai' || props.account.platform === 'anthropic') return true
   if (props.account.platform !== 'kimi' && props.account.platform !== 'deepseek') return false
-  const extra = props.account.extra ?? {}
-  return hasConfiguredUpstreamAdminSettings(props.account.credentials, props.account.credentials_status) ||
-    (typeof extra.upstream_balance_status === 'string' && extra.upstream_balance_status.trim() !== '') ||
-    (typeof extra.upstream_balance_remaining === 'number' && Number.isFinite(extra.upstream_balance_remaining))
+  return true
 })
 
 const currentAccount = computed(() => localAccount.value ?? props.account)
@@ -86,6 +82,24 @@ const balanceLabel = computed(() => {
 
   if (status.value === 'error') return t('admin.accounts.upstreamBalance.failed')
   if (status.value === 'unsupported') return t('admin.accounts.upstreamBalance.unsupported')
+  if (props.account.platform === 'kimi' || props.account.platform === 'deepseek') {
+    const balances = currentExtra.value[`${props.account.platform}_balances`]
+    if (Array.isArray(balances)) {
+      const labels = balances.flatMap((item) => {
+        if (!item || typeof item !== 'object') return []
+        const row = item as { currency?: unknown; balance?: unknown }
+        return typeof row.balance === 'number' && Number.isFinite(row.balance)
+          ? `${typeof row.currency === 'string' && row.currency.trim() ? row.currency : 'CNY'} ${row.balance.toFixed(2)}`
+          : []
+      })
+      if (labels.length > 0) return labels.join(' · ')
+    }
+    const balance = currentExtra.value[`${props.account.platform}_balance`]
+    if (typeof balance === 'number' && Number.isFinite(balance)) {
+      const currency = currentExtra.value[`${props.account.platform}_balance_currency`]
+      return `${typeof currency === 'string' && currency.trim() ? currency : 'CNY'} ${balance.toFixed(2)}`
+    }
+  }
   return t('admin.accounts.upstreamBalance.unknown')
 })
 

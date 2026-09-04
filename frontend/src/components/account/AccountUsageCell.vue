@@ -672,7 +672,7 @@ import GrokQuotaProbeCell from './GrokQuotaProbeCell.vue'
 import CNProviderQuotaCell from './CNProviderQuotaCell.vue'
 import CNProviderBalanceCell from './CNProviderBalanceCell.vue'
 import OllamaCloudUsageCell from './OllamaCloudUsageCell.vue'
-import { cnQuotaCellVisible as cnQuotaCellVisibleFn, cnBalanceCellVisible as cnBalanceCellVisibleFn, hasConfiguredUpstreamAdminSettings } from './credentialsBuilder'
+import { cnQuotaCellVisible as cnQuotaCellVisibleFn, cnBalanceCellVisible as cnBalanceCellVisibleFn } from './credentialsBuilder'
 
 // Module-level cache shared across all AccountUsageCell instances
 const _usageCache = new Map<number, { data: AccountUsageInfo; ts: number }>()
@@ -805,10 +805,7 @@ const supportsUpstreamBalance = computed(() => {
   if (props.account.type !== 'apikey') return false
   if (props.account.platform === 'openai' || props.account.platform === 'anthropic') return true
   if (props.account.platform !== 'kimi' && props.account.platform !== 'deepseek') return false
-  const extra = props.account.extra ?? {}
-  return hasConfiguredUpstreamAdminSettings(props.account.credentials, props.account.credentials_status) ||
-    (typeof extra.upstream_balance_status === 'string' && extra.upstream_balance_status.trim() !== '') ||
-    (typeof extra.upstream_balance_remaining === 'number' && Number.isFinite(extra.upstream_balance_remaining))
+  return true
 })
 
 const openAIUsageRefreshKey = computed(() => buildOpenAIUsageRefreshKey(props.account))

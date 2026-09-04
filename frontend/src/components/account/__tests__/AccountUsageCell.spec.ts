@@ -220,7 +220,7 @@ describe('AccountUsageCell', () => {
   it.each([
     { name: '无 ollama_cloud_usage', usage: undefined },
     { name: 'eligible=false', usage: makeOllamaUsage(9004, { eligible: false }) }
-  ])('普通 kimi apikey 账号（$name）仍渲染 CN 子单元格', async ({ usage }) => {
+  ])('普通 kimi apikey 账号（$name）显示统一上游刷新入口', async ({ usage }) => {
     const wrapper = mount(AccountUsageCell, {
       props: {
         account: makeAccount({
@@ -239,7 +239,8 @@ describe('AccountUsageCell', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-test="cn-quota-cell"]').exists()).toBe(true)
-    expect(wrapper.find('[data-test="cn-balance-cell"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="upstream-balance-cell"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="cn-balance-cell"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="embedded-ollama"]').exists()).toBe(false)
   })
 

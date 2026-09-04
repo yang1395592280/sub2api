@@ -119,6 +119,14 @@ describe('OpenAIUpstreamBalanceCell', () => {
     expect(wrapper.text()).toContain('Refresh balance')
   })
 
+  it.each(['kimi', 'deepseek'] as const)('%s always exposes refresh action on a new account', (platform) => {
+    const wrapper = mount(OpenAIUpstreamBalanceCell, {
+      props: { account: makeAccount({ platform, type: 'apikey' }) }
+    })
+
+    expect(wrapper.get('button').text()).toBe('Refresh balance')
+  })
+
   it('renders quota unit without dollar sign', () => {
     const account = makeAccount({
       platform: 'openai',
