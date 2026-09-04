@@ -33,6 +33,7 @@ import { useI18n } from 'vue-i18n'
 import { accountsAPI } from '@/api/admin/accounts'
 import type { Account } from '@/types'
 import { formatDateTime } from '@/utils/format'
+import { hasConfiguredUpstreamAdminSettings } from './credentialsBuilder'
 
 const props = defineProps<{
   account: Account
@@ -52,7 +53,8 @@ const visible = computed(() => {
   if (props.account.platform === 'openai' || props.account.platform === 'anthropic') return true
   if (props.account.platform !== 'kimi' && props.account.platform !== 'deepseek') return false
   const extra = props.account.extra ?? {}
-  return (typeof extra.upstream_balance_status === 'string' && extra.upstream_balance_status.trim() !== '') ||
+  return hasConfiguredUpstreamAdminSettings(props.account.credentials, props.account.credentials_status) ||
+    (typeof extra.upstream_balance_status === 'string' && extra.upstream_balance_status.trim() !== '') ||
     (typeof extra.upstream_balance_remaining === 'number' && Number.isFinite(extra.upstream_balance_remaining))
 })
 

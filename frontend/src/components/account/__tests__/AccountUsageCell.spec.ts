@@ -76,6 +76,9 @@ function makeOllamaUsage(accountId: number, overrides: Partial<NonNullable<Accou
 
 // CN 平台 Ollama Cloud 用例共用的子组件 stub：按 data-test 断言渲染与否
 const cnUsageCellStubs = {
+  OpenAIUpstreamBalanceCell: {
+    template: '<div data-test="upstream-balance-cell">upstream</div>'
+  },
   OllamaCloudUsageCell: {
     props: ['account'],
     template: '<div data-test="embedded-ollama">ollama</div>'
@@ -238,6 +241,27 @@ describe('AccountUsageCell', () => {
     expect(wrapper.find('[data-test="cn-quota-cell"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="cn-balance-cell"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="embedded-ollama"]').exists()).toBe(false)
+  })
+
+  it('已配置上游管理类型的 Kimi 账号首屏显示上游余额刷新入口', async () => {
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 9005,
+          platform: 'kimi',
+          type: 'apikey',
+          credentials: { account_mode: 'coding', upstream_admin_type: 'sub2api' }
+        })
+      },
+      global: {
+        stubs: { ...cnUsageCellStubs, UsageProgressBar: true, AccountQuotaInfo: true }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="upstream-balance-cell"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="cn-balance-cell"]').exists()).toBe(false)
   })
 
   it('Antigravity 图片用量会聚合新旧 image 模型', async () => {

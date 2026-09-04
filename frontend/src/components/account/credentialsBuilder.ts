@@ -10,6 +10,25 @@ export function applyInterceptWarmup(
   }
 }
 
+/** 判断账号是否维护了 new-api/sub2api 上游管理配置。 */
+export function hasConfiguredUpstreamAdminSettings(
+  credentials?: Record<string, unknown>,
+  credentialsStatus?: Record<string, boolean>
+): boolean {
+  const configuredKeys = [
+    'upstream_admin_type',
+    'new_api_user_id',
+    'new_api_login_username',
+    'upstream_admin_email'
+  ]
+  if (configuredKeys.some((key) => typeof credentials?.[key] === 'string' && String(credentials[key]).trim() !== '')) {
+    return true
+  }
+  return Object.entries(credentialsStatus ?? {}).some(([key, present]) =>
+    present === true && (key.startsWith('has_upstream_admin_') || key.startsWith('has_new_api_'))
+  )
+}
+
 export const ANTIGRAVITY_PROJECT_ID_CREDENTIAL_KEY = 'antigravity_project_id'
 
 export function applyAntigravityProjectID(

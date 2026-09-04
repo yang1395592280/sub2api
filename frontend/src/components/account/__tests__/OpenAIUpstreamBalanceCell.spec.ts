@@ -104,6 +104,21 @@ describe('OpenAIUpstreamBalanceCell', () => {
     expect(wrapper.text()).toContain('sub2api')
   })
 
+  it.each(['kimi', 'deepseek'] as const)('%s configured upstream admin shows first-refresh action without a snapshot', (platform) => {
+    const wrapper = mount(OpenAIUpstreamBalanceCell, {
+      props: {
+        account: makeAccount({
+          platform,
+          type: 'apikey',
+          credentials: { upstream_admin_type: 'sub2api' }
+        })
+      }
+    })
+
+    expect(wrapper.text()).toContain('Not queried')
+    expect(wrapper.text()).toContain('Refresh balance')
+  })
+
   it('renders quota unit without dollar sign', () => {
     const account = makeAccount({
       platform: 'openai',
