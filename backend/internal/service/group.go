@@ -406,8 +406,8 @@ func ValidateGroupUpstreamPriceGroupingConfig(group *Group) error {
 	if group == nil || !group.UpstreamPriceGroupingEnabled {
 		return nil
 	}
-	if group.Platform != PlatformOpenAI || group.IsSelfHostedPool() {
-		return errors.New("upstream price grouping only supports standard OpenAI groups")
+	if !supportsUpstreamPriceGroupingPlatform(group.Platform) || group.IsSelfHostedPool() {
+		return errors.New("upstream price grouping only supports standard OpenAI groups and Kimi/DeepSeek groups")
 	}
 	if !group.UpstreamBalanceRefreshEnabled {
 		return errors.New("upstream price grouping requires upstream balance auto refresh")
@@ -419,6 +419,17 @@ func ValidateGroupUpstreamPriceGroupingConfig(group *Group) error {
 		return errors.New("upstream price grouping minimum cannot exceed maximum")
 	}
 	return nil
+}
+
+// supportsUpstreamPriceGroupingPlatform lists platforms whose API-key accounts
+// can expose a channel price through the upstream usage/billing endpoints.
+func supportsUpstreamPriceGroupingPlatform(platform string) bool {
+	switch platform {
+	case PlatformOpenAI, PlatformKimi, PlatformDeepseek:
+		return true
+	default:
+		return false
+	}
 }
 
 func UpstreamPriceGroupingRangesOverlap(a, b *Group) bool {

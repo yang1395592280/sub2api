@@ -436,7 +436,7 @@ func collectUpstreamPriceGroupingGroups(groups []Group) []Group {
 	result := make([]Group, 0, len(groups))
 	for i := range groups {
 		group := groups[i]
-		if group.Platform != PlatformOpenAI || group.IsSelfHostedPool() || !group.UpstreamPriceGroupingEnabled {
+		if !supportsUpstreamPriceGroupingPlatform(group.Platform) || group.IsSelfHostedPool() || !group.UpstreamPriceGroupingEnabled {
 			continue
 		}
 		if ValidateGroupUpstreamPriceGroupingConfig(&group) != nil {
@@ -477,19 +477,24 @@ func accountBelongsToAnyGroup(account *Account, groupIDs map[int64]struct{}) boo
 }
 
 func (r *GroupUpstreamBalanceRefreshRunner) applyUpstreamPriceGrouping(ctx context.Context, account *Account, groups []Group, now time.Time) error {
-	if account == nil || !account.IsAutoGroupingEnabled() || account.Platform != PlatformOpenAI || account.ChannelPrice == nil || len(groups) == 0 {
+	if account == nil || !account.IsAutoGroupingEnabled() || !supportsUpstreamPriceGroupingPlatform(account.Platform) || account.ChannelPrice == nil || len(groups) == 0 {
 		return nil
 	}
 	managedGroupIDs := make([]int64, 0, len(groups))
 	managedGroupSet := make(map[int64]struct{}, len(groups))
+	platformGroups := make([]Group, 0, len(groups))
 	for i := range groups {
+		if groups[i].Platform != account.Platform {
+			continue
+		}
+		platformGroups = append(platformGroups, groups[i])
 		managedGroupIDs = append(managedGroupIDs, groups[i].ID)
 		managedGroupSet[groups[i].ID] = struct{}{}
 	}
-	if !accountBelongsToAnyGroup(account, managedGroupSet) {
+	if len(managedGroupIDs) == 0 || !accountBelongsToAnyGroup(account, managedGroupSet) {
 		return nil
 	}
-	target := upstreamPriceGroupingTarget(groups, *account.ChannelPrice)
+	target := upstreamPriceGroupingTarget(platformGroups, *account.ChannelPrice)
 	if target == nil {
 		return nil
 	}

@@ -1457,10 +1457,12 @@ func (r *accountRepository) ListUpstreamBalanceRefreshCandidatesByGroupID(ctx co
 			AND ag.group_id = $1
 			AND a.status = 'active'
 			AND a.type = 'apikey'
-			AND a.platform IN ('openai', 'anthropic')
+			AND a.platform IN ('openai', 'anthropic', 'kimi', 'deepseek')
 			AND a.credentials ? 'api_key'
-			AND a.credentials ? 'base_url'
-			AND btrim(a.credentials->>'base_url') <> ''
+			AND (
+				a.platform IN ('kimi', 'deepseek')
+				OR (a.credentials ? 'base_url' AND btrim(a.credentials->>'base_url') <> '')
+			)
 		ORDER BY a.priority ASC, a.id ASC
 	`
 	var (

@@ -54,6 +54,64 @@ func (r *cnBalanceProbeRepo) UpdateExtra(_ context.Context, _ int64, updates map
 	return nil
 }
 
+func (r *cnBalanceProbeRepo) BulkUpdate(_ context.Context, ids []int64, updates AccountBulkUpdate) (int64, error) {
+	if r.account == nil || len(ids) != 1 || ids[0] != r.account.ID {
+		return 0, nil
+	}
+	if r.account.Extra == nil {
+		r.account.Extra = map[string]any{}
+	}
+	for key, value := range updates.Extra {
+		r.account.Extra[key] = value
+	}
+	if updates.ChannelPrice != nil {
+		value := *updates.ChannelPrice
+		r.account.ChannelPrice = &value
+	}
+	return 1, nil
+}
+
+type cnMetadataUpstream struct{}
+
+func (u *cnMetadataUpstream) Do(req *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
+	statusCode := http.StatusOK
+	body := `{"remaining":12.5,"unit":"USD","group_name":"DeepSeek Pro","group_id":3,"group_rate_multiplier":0.2,"effective_rate_multiplier":0.16}`
+	if req.URL.Path == "/user/balance" {
+		statusCode = http.StatusNotFound
+		body = `{}`
+	}
+	return &http.Response{
+		StatusCode: statusCode,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     make(http.Header),
+	}, nil
+}
+
+func (u *cnMetadataUpstream) DoWithTLS(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, _ *tlsfingerprint.Profile) (*http.Response, error) {
+	return u.Do(req, proxyURL, accountID, accountConcurrency)
+}
+
+func TestCNProviderBalanceService_RefreshAccountPersistsUpstreamMetadata(t *testing.T) {
+	account := newDeepSeekBalanceProbeAccount()
+	account.UpstreamRechargeRatio = 2
+	repo := &cnBalanceProbeRepo{account: account}
+	svc := NewCNProviderBalanceService(repo, nil, &cnMetadataUpstream{}, nil)
+
+	refreshed, err := svc.RefreshAccount(context.Background(), account.ID)
+
+	require.NoError(t, err)
+	require.Same(t, account, refreshed)
+	require.Equal(t, "DeepSeek Pro", account.Extra["upstream_group"])
+	require.Equal(t, int64(3), account.Extra["upstream_group_id"])
+	require.Equal(t, 0.1, account.Extra["upstream_group_rate_multiplier"])
+	require.Equal(t, 0.08, account.Extra["upstream_effective_rate_multiplier"])
+	require.Equal(t, 6.25, account.Extra["upstream_balance_remaining"])
+	require.Equal(t, "USD", account.Extra["upstream_balance_unit"])
+	require.Equal(t, UpstreamBalanceStatusOK, account.Extra["upstream_balance_status"])
+	require.NotNil(t, account.ChannelPrice)
+	require.Equal(t, 0.08, *account.ChannelPrice)
+}
+
 func newDeepSeekBalanceProbeAccount() *Account {
 	return &Account{
 		ID:       42,

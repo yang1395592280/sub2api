@@ -47,10 +47,14 @@ const loading = ref(false)
 const localAccount = ref<Account | null>(null)
 const localError = ref<string | null>(null)
 
-const visible = computed(() =>
-  props.account.type === 'apikey' &&
-  (props.account.platform === 'openai' || props.account.platform === 'anthropic')
-)
+const visible = computed(() => {
+  if (props.account.type !== 'apikey') return false
+  if (props.account.platform === 'openai' || props.account.platform === 'anthropic') return true
+  if (props.account.platform !== 'kimi' && props.account.platform !== 'deepseek') return false
+  const extra = props.account.extra ?? {}
+  return (typeof extra.upstream_balance_status === 'string' && extra.upstream_balance_status.trim() !== '') ||
+    (typeof extra.upstream_balance_remaining === 'number' && Number.isFinite(extra.upstream_balance_remaining))
+})
 
 const currentAccount = computed(() => localAccount.value ?? props.account)
 const currentExtra = computed(() => currentAccount.value.extra ?? {})

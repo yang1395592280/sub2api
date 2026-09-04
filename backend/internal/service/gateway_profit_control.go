@@ -102,6 +102,13 @@ func profitControlVetoLatest(ctx context.Context, selected *Account, snapshot *S
 }
 
 func (s *GatewayService) isGatewayAccountProfitEligible(ctx context.Context, account *Account) bool {
+	// Price protection is shared by every native platform. A missing channel
+	// price remains unsupported (and is therefore not blocked) by design.
+	if group, ok := ctx.Value(ctxkey.Group).(*Group); ok && IsGroupContextValid(group) &&
+		group.UpstreamPriceMaxMultiplier > 0 && account != nil && account.ChannelPrice != nil &&
+		*account.ChannelPrice > group.UpstreamPriceMaxMultiplier {
+		return false
+	}
 	vetoed, _ := openAIProfitControlVetoReason(ctx, account)
 	return !vetoed
 }

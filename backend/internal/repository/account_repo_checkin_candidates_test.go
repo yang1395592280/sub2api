@@ -60,7 +60,7 @@ func TestListUpstreamBalanceRefreshCandidatesByGroupID(t *testing.T) {
 	require.NotContains(t, normalized, "ag.deleted_at")
 	require.Contains(t, normalized, "a.status = 'active'")
 	require.Contains(t, normalized, "a.type = 'apikey'")
-	require.Contains(t, normalized, "a.platform IN ('openai', 'anthropic')")
+	require.Contains(t, normalized, "a.platform IN ('openai', 'anthropic', 'kimi', 'deepseek')")
 	require.Contains(t, normalized, "a.credentials ? 'api_key'")
 	require.Contains(t, normalized, "a.credentials ? 'base_url'")
 	require.Contains(t, normalized, "btrim(a.credentials->>'base_url') <> ''")

@@ -431,6 +431,19 @@ func TestGatewayProfitControlImageIntentDoesNotDisableGate(t *testing.T) {
 		"请求体里的生图声明（含被动 image_gen namespace）不得关闭利润门")
 }
 
+func TestGatewayProfitControlUpstreamPriceProtection_CNProviders(t *testing.T) {
+	for _, platform := range []string{PlatformKimi, PlatformDeepseek} {
+		group := &Group{ID: 90, Platform: platform, Status: StatusActive, Hydrated: true, UpstreamPriceMaxMultiplier: 0.05}
+		price := 0.08
+		account := &Account{ID: 91, Platform: platform, ChannelPrice: &price}
+		ctx := context.WithValue(context.Background(), ctxkey.Group, group)
+
+		require.False(t, (&GatewayService{}).isGatewayAccountProfitEligible(ctx, account), platform)
+		account.ChannelPrice = nil
+		require.True(t, (&GatewayService{}).isGatewayAccountProfitEligible(ctx, account), platform)
+	}
+}
+
 // 无门时准入后绑定回退官方 eager 语义；门下读失败保守不写（评审 M-Bind 回归）。
 func TestGatewayProfitControlAfterAdmissionBindSemantics(t *testing.T) {
 	groupID := int64(3)

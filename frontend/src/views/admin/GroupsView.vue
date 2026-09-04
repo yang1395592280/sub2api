@@ -751,7 +751,7 @@
           </div>
         </div>
         <div
-          v-if="createForm.platform === 'openai'"
+          v-if="supportsUpstreamPriceGroupingPlatform(createForm.platform)"
           class="grid grid-cols-1 gap-4 md:grid-cols-3"
         >
           <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -2668,7 +2668,7 @@
           </div>
         </div>
         <div
-          v-if="editForm.platform === 'openai'"
+          v-if="supportsUpstreamPriceGroupingPlatform(editForm.platform)"
           class="grid grid-cols-1 gap-4 md:grid-cols-3"
         >
           <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -5524,6 +5524,8 @@ const capacityUsersGroup = ref<AdminGroup | null>(null);
 const duplicatingGroupIds = ref(new Set<number>());
 const sortableGroups = ref<AdminGroup[]>([]);
 type ConcreteGroupPlatform = Exclude<GroupPlatform, "composite">;
+const supportsUpstreamPriceGroupingPlatform = (platform: string) =>
+  platform === "openai" || platform === "kimi" || platform === "deepseek";
 type CompositeRouteFormState = {
   public_model: string;
   match_type: CompositeRouteMatchType;
@@ -6581,7 +6583,7 @@ const getUpstreamSettingsValidationErrors = (
     errors.push(t("admin.groups.validation.upstreamPriceMaxMultiplierMin"));
   }
   if (
-    form.platform === "openai" &&
+    supportsUpstreamPriceGroupingPlatform(form.platform) &&
     form.group_role === "standard" &&
     form.upstream_price_grouping_enabled
   ) {

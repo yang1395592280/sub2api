@@ -43,6 +43,19 @@ func TestValidateGroupUpstreamPriceGroupingConfig(t *testing.T) {
 	require.ErrorContains(t, ValidateGroupUpstreamPriceGroupingConfig(&reversed), "minimum cannot exceed maximum")
 }
 
+func TestValidateGroupUpstreamPriceGroupingConfig_CNProviders(t *testing.T) {
+	for _, platform := range []string{PlatformKimi, PlatformDeepseek} {
+		group := &Group{
+			Platform:                      platform,
+			UpstreamBalanceRefreshEnabled: true,
+			UpstreamPriceGroupingEnabled:  true,
+			UpstreamPriceGroupingMin:      0.01,
+			UpstreamPriceGroupingMax:      0.05,
+		}
+		require.NoError(t, ValidateGroupUpstreamPriceGroupingConfig(group), platform)
+	}
+}
+
 func TestValidateUpstreamPriceGroupingRejectsClosedRangeOverlap(t *testing.T) {
 	existing := Group{
 		ID:                            10,

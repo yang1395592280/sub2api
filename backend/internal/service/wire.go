@@ -294,8 +294,10 @@ func ProvideAccountTestService(
 }
 
 // ProvideOpenAIUpstreamBalanceService wires the OpenAI upstream balance refresh service.
-func ProvideOpenAIUpstreamBalanceService(accountRepo AccountRepository) *OpenAIUpstreamBalanceService {
-	return NewOpenAIUpstreamBalanceService(accountRepo, nil)
+func ProvideOpenAIUpstreamBalanceService(accountRepo AccountRepository, cnBalanceService *CNProviderBalanceService) *OpenAIUpstreamBalanceService {
+	svc := NewOpenAIUpstreamBalanceService(accountRepo, nil)
+	svc.SetCNProviderBalanceService(cnBalanceService)
+	return svc
 }
 
 // ProvideZenxiangLiyuService supplies the production clock and random source.

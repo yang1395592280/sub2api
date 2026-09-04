@@ -44,6 +44,7 @@ type OpenAIUpstreamBalanceSnapshot struct {
 type OpenAIUpstreamBalanceService struct {
 	accountRepo AccountRepository
 	client      *http.Client
+	cnBalance   *CNProviderBalanceService
 }
 
 func NewOpenAIUpstreamBalanceService(accountRepo AccountRepository, client *http.Client) *OpenAIUpstreamBalanceService {
@@ -51,6 +52,14 @@ func NewOpenAIUpstreamBalanceService(accountRepo AccountRepository, client *http
 		client = &http.Client{Timeout: openAIUpstreamBalanceHTTPTimeout}
 	}
 	return &OpenAIUpstreamBalanceService{accountRepo: accountRepo, client: client}
+}
+
+// SetCNProviderBalanceService adds the Kimi/DeepSeek implementation while
+// keeping the existing OpenAI service and handler wiring intact.
+func (s *OpenAIUpstreamBalanceService) SetCNProviderBalanceService(service *CNProviderBalanceService) {
+	if s != nil {
+		s.cnBalance = service
+	}
 }
 
 func (s *OpenAIUpstreamBalanceService) Refresh(ctx context.Context, accountID int64) (*Account, error) {
@@ -63,7 +72,10 @@ func (s *OpenAIUpstreamBalanceService) Refresh(ctx context.Context, accountID in
 		return nil, err
 	}
 	if account == nil || !accountSupportsUpstreamBalance(account) {
-		return nil, infraerrors.New(http.StatusBadRequest, "UPSTREAM_BALANCE_INVALID_ACCOUNT", "only OpenAI and Anthropic API Key accounts support upstream balance")
+		if account != nil && account.IsCNProvider() && s.cnBalance != nil {
+			return s.cnBalance.RefreshAccount(ctx, accountID)
+		}
+		return nil, infraerrors.New(http.StatusBadRequest, "UPSTREAM_BALANCE_INVALID_ACCOUNT", "only API Key accounts with upstream balance support are allowed")
 	}
 
 	baseURL := strings.TrimSpace(getUpstreamBalanceBaseURL(account))
@@ -1147,6 +1159,26 @@ func getOpenAIUpstreamGroupRateMultiplier(payload map[string]any) *float64 {
 	}
 	group, _ = apiKey["group"].(map[string]any)
 	if rate, ok := getFloat64(group, "rate_multiplier"); ok {
+		return &rate
+	}
+	return nil
+}
+
+func getOpenAIUpstreamEffectiveRateMultiplier(payload map[string]any) *float64 {
+	if payload == nil {
+		return nil
+	}
+	for _, key := range []string{"upstream_effective_rate_multiplier", "effective_rate_multiplier"} {
+		if rate, ok := getFloat64(payload, key); ok {
+			return &rate
+		}
+	}
+	group, _ := payload["group"].(map[string]any)
+	if rate, ok := getFloat64(group, "effective_rate_multiplier"); ok {
+		return &rate
+	}
+	apiKey, _ := payload["api_key"].(map[string]any)
+	if rate, ok := getFloat64(apiKey, "effective_rate_multiplier"); ok {
 		return &rate
 	}
 	return nil

@@ -354,7 +354,7 @@ func sanitizeSelfHostedPoolGroup(group *Group) {
 }
 
 func sanitizeUnsupportedUpstreamPriceGrouping(group *Group) {
-	if group == nil || (group.Platform == PlatformOpenAI && !group.IsSelfHostedPool()) {
+	if group == nil || (supportsUpstreamPriceGroupingPlatform(group.Platform) && !group.IsSelfHostedPool()) {
 		return
 	}
 	group.UpstreamPriceGroupingEnabled = false
@@ -369,9 +369,9 @@ func (s *adminServiceImpl) validateUpstreamPriceGrouping(ctx context.Context, ca
 	if candidate == nil || !candidate.UpstreamPriceGroupingEnabled || candidate.Status != StatusActive {
 		return nil
 	}
-	existingGroups, err := s.groupRepo.ListActiveByPlatform(ctx, PlatformOpenAI)
+	existingGroups, err := s.groupRepo.ListActiveByPlatform(ctx, candidate.Platform)
 	if err != nil {
-		return fmt.Errorf("list OpenAI groups for upstream price grouping validation: %w", err)
+		return fmt.Errorf("list %s groups for upstream price grouping validation: %w", candidate.Platform, err)
 	}
 	for i := range existingGroups {
 		existing := &existingGroups[i]

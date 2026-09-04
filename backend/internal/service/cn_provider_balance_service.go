@@ -1,7 +1,9 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -65,6 +67,45 @@ type CNProviderBalanceService struct {
 	httpUpstream HTTPUpstream
 	cfg          *config.Config
 	flight       singleflight.Group
+}
+
+// RefreshAccount refreshes a CN account for the group-level upstream refresh
+// runner. Pay-as-you-go accounts get the provider balance first; coding-plan
+// accounts skip the provider balance endpoint and still probe the optional
+// Sub2API usage/billing metadata used by price protection.
+func (s *CNProviderBalanceService) RefreshAccount(ctx context.Context, accountID int64) (*Account, error) {
+	if s == nil || s.accountRepo == nil {
+		return nil, infraerrors.New(http.StatusInternalServerError, "CN_BALANCE_NOT_CONFIGURED", "cn provider balance service is not configured")
+	}
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	if err := validatePayGOrCodingCNAccount(account); err != nil {
+		return nil, err
+	}
+	if !account.IsCodingPlan() {
+		if _, err := s.QueryBalanceForAccount(ctx, account); err != nil {
+			// A relay may expose /v1/usage and /v1/sub2api/billing without
+			// implementing the provider-native balance endpoint. Keep the
+			// group refresh useful by continuing with metadata in that case.
+			s.enrichUpstreamMetadata(ctx, account)
+			if refreshed, reloadErr := s.accountRepo.GetByID(ctx, accountID); reloadErr == nil && refreshed != nil {
+				return refreshed, nil
+			}
+			return account, nil
+		}
+		if refreshed, reloadErr := s.accountRepo.GetByID(ctx, accountID); reloadErr == nil && refreshed != nil {
+			account = refreshed
+		}
+	}
+	// Metadata probing is best-effort: official Kimi/DeepSeek endpoints do not
+	// expose these paths, while Sub2API-compatible relays may expose both.
+	s.enrichUpstreamMetadata(ctx, account)
+	if refreshed, reloadErr := s.accountRepo.GetByID(ctx, accountID); reloadErr == nil && refreshed != nil {
+		return refreshed, nil
+	}
+	return account, nil
 }
 
 // NewCNProviderBalanceService 构造余额探测服务。
@@ -269,6 +310,132 @@ func validatePayGAccount(account *Account) error {
 		return infraerrors.New(http.StatusBadRequest, "CN_BALANCE_CODING_PLAN", "coding plan account has no balance endpoint; use quota probe")
 	}
 	return nil
+}
+
+func validatePayGOrCodingCNAccount(account *Account) error {
+	if account == nil {
+		return infraerrors.New(http.StatusNotFound, "CN_BALANCE_ACCOUNT_NOT_FOUND", "account not found")
+	}
+	if !account.IsCNProvider() {
+		return infraerrors.New(http.StatusBadRequest, "CN_BALANCE_INVALID_PLATFORM", "account is not a CN provider account")
+	}
+	return nil
+}
+
+// enrichUpstreamMetadata reads the optional relay-only usage and billing
+// endpoints and persists the common upstream_group/channel_price fields.
+func (s *CNProviderBalanceService) enrichUpstreamMetadata(ctx context.Context, account *Account) {
+	if s == nil || s.accountRepo == nil || s.httpUpstream == nil || account == nil || account.GetCNAPIKey() == "" {
+		return
+	}
+	baseURL := account.GetOpenAIFormatBaseURL()
+	if strings.TrimSpace(baseURL) == "" {
+		return
+	}
+	updates := map[string]any{}
+	var channelPrice *float64
+	if payload, ok := s.queryUpstreamMetadataJSON(ctx, account, baseURL, "/v1/usage"); ok {
+		if remaining, ok := getFirstFloat64(payload, "remaining", "total_available", "available_quota", "remaining_quota", "remain_quota", "quota_remaining"); ok {
+			updates["upstream_balance_provider"] = UpstreamBalanceProviderSub2API
+			updates["upstream_balance_remaining"] = normalizeCNUpstreamRate(remaining, account.EffectiveUpstreamRechargeRatio())
+			updates["upstream_balance_unit"] = strings.TrimSpace(getString(payload, "unit"))
+			updates["upstream_balance_status"] = UpstreamBalanceStatusOK
+			updates["upstream_balance_error"] = ""
+			updates["upstream_balance_updated_at"] = time.Now().UTC().Format(time.RFC3339)
+		}
+		if group := getOpenAIUpstreamGroupName(payload); group != "" {
+			updates["upstream_group"] = group
+		}
+		if groupID := getOpenAIUpstreamGroupID(payload); groupID != nil {
+			updates["upstream_group_id"] = *groupID
+		}
+		if rate := getOpenAIUpstreamGroupRateMultiplier(payload); rate != nil && *rate > 0 {
+			updates["upstream_group_rate_multiplier"] = normalizeCNUpstreamRate(*rate, account.EffectiveUpstreamRechargeRatio())
+		}
+		if rate := getOpenAIUpstreamEffectiveRateMultiplier(payload); rate != nil && *rate > 0 {
+			value := normalizeCNUpstreamRate(*rate, account.EffectiveUpstreamRechargeRatio())
+			updates["upstream_effective_rate_multiplier"] = value
+			channelPrice = &value
+		}
+	}
+	if channelPrice == nil {
+		var body json.RawMessage
+		if raw, ok := s.queryUpstreamMetadataBody(ctx, account, baseURL, "/v1/sub2api/billing"); ok {
+			body = raw
+		}
+		if len(body) > 0 {
+			if billing, err := parseUpstreamBillingProbeResponse(body); err == nil {
+				if rate, ok := getFloat64(billing, "effective_rate_multiplier"); ok && rate > 0 {
+					value := normalizeCNUpstreamRate(rate, account.EffectiveUpstreamRechargeRatio())
+					channelPrice = &value
+					updates["upstream_effective_rate_multiplier"] = value
+				}
+				if rate, ok := getFloat64(billing, "group_rate_multiplier"); ok && rate > 0 {
+					updates["upstream_group_rate_multiplier"] = normalizeCNUpstreamRate(rate, account.EffectiveUpstreamRechargeRatio())
+				}
+			}
+		}
+	}
+	if len(updates) == 0 && channelPrice == nil {
+		return
+	}
+	if rows, err := s.accountRepo.BulkUpdate(ctx, []int64{account.ID}, AccountBulkUpdate{ChannelPrice: channelPrice, Extra: updates}); err != nil || rows == 0 {
+		if err != nil {
+			slog.Warn("cn_upstream_metadata_persist_failed", "account_id", account.ID, "error", err)
+		}
+		return
+	}
+	if account.Extra == nil {
+		account.Extra = map[string]any{}
+	}
+	for key, value := range updates {
+		account.Extra[key] = value
+	}
+	if channelPrice != nil {
+		account.ChannelPrice = channelPrice
+	}
+}
+
+func normalizeCNUpstreamRate(rate, rechargeRatio float64) float64 {
+	if rechargeRatio > 0 && rechargeRatio != 1 {
+		return rate / rechargeRatio
+	}
+	return rate
+}
+
+func (s *CNProviderBalanceService) queryUpstreamMetadataJSON(ctx context.Context, account *Account, baseURL, path string) (map[string]any, bool) {
+	var payload map[string]any
+	raw, ok := s.queryUpstreamMetadataBody(ctx, account, baseURL, path)
+	if !ok || json.Unmarshal(raw, &payload) != nil || payload == nil {
+		return nil, false
+	}
+	return payload, true
+}
+
+func (s *CNProviderBalanceService) queryUpstreamMetadataBody(ctx context.Context, account *Account, baseURL, path string) ([]byte, bool) {
+	targetURL, err := cnValidateProbeURL(s.cfg, buildOpenAIEndpointURL(baseURL, path))
+	if err != nil {
+		return nil, false
+	}
+	callCtx, cancel := context.WithTimeout(ctx, cnBalanceUpstreamTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(callCtx, http.MethodGet, targetURL, bytes.NewReader(nil))
+	if err != nil {
+		return nil, false
+	}
+	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(account.GetCNAPIKey()))
+	req.Header.Set("Accept", "application/json")
+	account.ApplyHeaderOverrides(req.Header)
+	resp, err := s.httpUpstream.Do(req, s.resolveProxyURL(ctx, account), account.ID, maxInt(account.Concurrency, 1))
+	if err != nil || resp == nil || resp.Body == nil {
+		return nil, false
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, false
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, cnBalanceMaxBodyBytes))
+	return body, err == nil && len(body) > 0
 }
 
 func (s *CNProviderBalanceService) resolveProxyURL(ctx context.Context, account *Account) string {

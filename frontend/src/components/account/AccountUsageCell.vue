@@ -441,6 +441,11 @@
         @updated="handleOllamaCloudUsageUpdated"
       />
       <div v-else class="space-y-1">
+        <OpenAIUpstreamBalanceCell
+          v-if="supportsUpstreamBalance"
+          :account="account"
+          @refreshed="emitAccountRefreshed"
+        />
         <!-- 子单元格各自按 模式×平台 判定可见；两者都不可见时（智谱 payg 无公开
              余额端点、coding 探测也不适用）才回落到占位符。 -->
         <div
@@ -449,7 +454,7 @@
           :title="t('admin.accounts.cnProviders.noBalanceEndpoint')"
         >-</div>
         <CNProviderQuotaCell :account="account" />
-        <CNProviderBalanceCell :account="account" />
+        <CNProviderBalanceCell v-if="!supportsUpstreamBalance" :account="account" />
       </div>
     </template>
 
@@ -796,10 +801,14 @@ const hasOpenAIUsageFallback = computed(() => {
   return !!usageInfo.value?.five_hour || !!usageInfo.value?.seven_day
 })
 
-const supportsUpstreamBalance = computed(() =>
-  props.account.type === 'apikey' &&
-  (props.account.platform === 'openai' || props.account.platform === 'anthropic')
-)
+const supportsUpstreamBalance = computed(() => {
+  if (props.account.type !== 'apikey') return false
+  if (props.account.platform === 'openai' || props.account.platform === 'anthropic') return true
+  if (props.account.platform !== 'kimi' && props.account.platform !== 'deepseek') return false
+  const extra = props.account.extra ?? {}
+  return (typeof extra.upstream_balance_status === 'string' && extra.upstream_balance_status.trim() !== '') ||
+    (typeof extra.upstream_balance_remaining === 'number' && Number.isFinite(extra.upstream_balance_remaining))
+})
 
 const openAIUsageRefreshKey = computed(() => buildOpenAIUsageRefreshKey(props.account))
 
