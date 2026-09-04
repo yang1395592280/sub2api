@@ -351,6 +351,41 @@ func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminTokenResolvesEffectiveR
 	require.Equal(t, 0.09, *repo.updatedChannelPrice)
 }
 
+func TestOpenAIUpstreamBalanceServiceRefresh_CNProviderUsesConfiguredUpstreamAdmin(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/usage":
+			_, _ = w.Write([]byte(`{"remaining":8.5,"unit":"USD"}`))
+		case "/api/v1/keys":
+			require.Equal(t, "Bearer admin-token", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"data":{"items":[{"id":17,"key":"sk-kimi","group_id":3,"group":{"id":3,"name":"Kimi Pro","rate_multiplier":0.2}}]}}`))
+		case "/api/v1/groups/rates":
+			_, _ = w.Write([]byte(`{"data":{"3":0.12}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	repo := &openAIUpstreamBalanceRepoStub{account: &Account{
+		ID: 901, Platform: PlatformKimi, Type: AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"base_url": srv.URL + "/v1", "api_key": "sk-kimi",
+			"upstream_admin_type": "sub2api", "upstream_admin_access_token": "admin-token",
+		},
+	}}
+	svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+	svc.SetCNProviderBalanceService(&CNProviderBalanceService{})
+
+	account, err := svc.Refresh(context.Background(), repo.account.ID)
+	require.NoError(t, err)
+	require.Equal(t, "sub2api", repo.updatedExtra["upstream_balance_provider"])
+	require.Equal(t, "Kimi Pro", repo.updatedExtra["upstream_group"])
+	require.Equal(t, 0.12, repo.updatedExtra["upstream_effective_rate_multiplier"])
+	require.NotNil(t, account.ChannelPrice)
+	require.Equal(t, 0.12, *account.ChannelPrice)
+}
+
 func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminPasswordLogsInForEffectiveRate(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

@@ -3389,7 +3389,7 @@ const checkinTesting = ref(false)
 const checkinStatusSnapshot = ref<UpstreamCheckinStatusSnapshot | null>(null)
 const supportsUpstreamAdminSettings = computed(() =>
   props.account?.type === 'apikey' &&
-  (props.account.platform === 'openai' || props.account.platform === 'anthropic')
+  (props.account.platform === 'openai' || props.account.platform === 'anthropic' || props.account.platform === 'kimi' || props.account.platform === 'deepseek')
 )
 const showOpenAIOverbrush = computed(() => {
   return props.account?.platform === 'openai' && props.account?.type === 'oauth'
@@ -3997,7 +3997,7 @@ const priceGroupingLockedGroupIds = ref<number[]>([])
 const priceGroupingLockableGroups = computed(() =>
   props.groups.filter((group) =>
     form.group_ids.includes(group.id) &&
-    group.platform === 'openai' &&
+    (group.platform === 'openai' || group.platform === 'kimi' || group.platform === 'deepseek') &&
     group.group_role === 'standard' &&
     group.upstream_price_grouping_enabled
   )
@@ -4020,7 +4020,7 @@ watch(
 const upstreamGroupName = ref('')
 const showUpstreamGroupNameInput = computed(() =>
   props.account?.type === 'apikey' &&
-  (props.account.platform === 'openai' || props.account.platform === 'anthropic')
+  (props.account.platform === 'openai' || props.account.platform === 'anthropic' || props.account.platform === 'kimi' || props.account.platform === 'deepseek')
 )
 
 const handleUpstreamBillingRateSyncChange = (enabled: boolean) => {

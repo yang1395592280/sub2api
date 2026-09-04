@@ -4149,7 +4149,8 @@ const upstreamAdminRefreshToken = ref('')
 const upstreamBillingAutoProbeEnabled = ref(true)
 
 const supportsUpstreamAdminSettings = computed(() =>
-  form.type === 'apikey' && (form.platform === 'openai' || form.platform === 'anthropic')
+  form.type === 'apikey' &&
+  (form.platform === 'openai' || form.platform === 'anthropic' || form.platform === 'kimi' || form.platform === 'deepseek')
 )
 // ── 国产供应商（Kimi / Zhipu / DeepSeek）账号类型、API 协议与端点 ──
 const accountMode = ref<CnAccountMode>('payg')
@@ -4679,7 +4680,7 @@ const form = reactive({
 
 const showUpstreamRechargeRatioInput = computed(() =>
   accountCategory.value === 'apikey' &&
-  (form.platform === 'openai' || form.platform === 'anthropic')
+  (form.platform === 'openai' || form.platform === 'anthropic' || form.platform === 'kimi' || form.platform === 'deepseek')
 )
 
 // Helper to check if current type needs OAuth flow

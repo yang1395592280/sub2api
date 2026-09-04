@@ -71,13 +71,31 @@ func (s *OpenAIUpstreamBalanceService) Refresh(ctx context.Context, accountID in
 	if err != nil {
 		return nil, err
 	}
-	if account == nil || !accountSupportsUpstreamBalance(account) {
-		if account != nil && account.IsCNProvider() && s.cnBalance != nil {
-			return s.cnBalance.RefreshAccount(ctx, accountID)
-		}
+	if account == nil {
 		return nil, infraerrors.New(http.StatusBadRequest, "UPSTREAM_BALANCE_INVALID_ACCOUNT", "only API Key accounts with upstream balance support are allowed")
 	}
+	if account.IsCNProvider() && s.cnBalance != nil {
+		// Kimi/DeepSeek relay accounts can use the same new-api/sub2api
+		// management credentials as OpenAI accounts. Prefer that source when
+		// configured so balance, group and effective channel price come from the
+		// account's maintained upstream management settings.
+		if hasConfiguredUpstreamAdmin(account) {
+			if refreshed, managedErr := s.refreshProbedAccount(ctx, account); managedErr == nil {
+				return refreshed, nil
+			}
+		}
+		return s.cnBalance.RefreshAccount(ctx, accountID)
+	}
+	if !accountSupportsUpstreamBalance(account) {
+		return nil, infraerrors.New(http.StatusBadRequest, "UPSTREAM_BALANCE_INVALID_ACCOUNT", "only API Key accounts with upstream balance support are allowed")
+	}
+	return s.refreshProbedAccount(ctx, account)
+}
 
+func (s *OpenAIUpstreamBalanceService) refreshProbedAccount(ctx context.Context, account *Account) (*Account, error) {
+	if account == nil {
+		return nil, infraerrors.New(http.StatusBadRequest, "UPSTREAM_BALANCE_INVALID_ACCOUNT", "account is required")
+	}
 	baseURL := strings.TrimSpace(getUpstreamBalanceBaseURL(account))
 	apiKey := strings.TrimSpace(account.GetCredential("api_key"))
 	if baseURL == "" || apiKey == "" {
@@ -118,6 +136,29 @@ func (s *OpenAIUpstreamBalanceService) Refresh(ctx context.Context, accountID in
 		account.ChannelPrice = channelPrice
 	}
 	return account, nil
+}
+
+func hasConfiguredUpstreamAdmin(account *Account) bool {
+	if account == nil {
+		return false
+	}
+	for _, key := range []string{
+		"upstream_admin_type",
+		"new_api_user_id",
+		"new_api_user_access_token",
+		"new_api_session_cookie",
+		"new_api_login_username",
+		"new_api_login_password",
+		"upstream_admin_email",
+		"upstream_admin_password",
+		"upstream_admin_access_token",
+		"upstream_admin_refresh_token",
+	} {
+		if strings.TrimSpace(account.GetCredential(key)) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeOpenAIUpstreamBalanceSnapshot(snapshot *OpenAIUpstreamBalanceSnapshot, rechargeRatio float64) {
