@@ -336,9 +336,9 @@ func TestPrepareUsageLogInsertPersistsSchedulerTimingAfterFirstToken(t *testing.
 	require.Equal(t, sql.NullInt64{Int64: 20, Valid: true}, prepared.args[38])
 	require.Equal(t, sql.NullInt64{Int64: 200, Valid: true}, prepared.args[39])
 	require.Equal(t, sql.NullInt64{Int64: 60, Valid: true}, prepared.args[40])
-	require.Equal(t, sql.NullInt64{Int64: 10, Valid: true}, prepared.args[69])
-	require.Equal(t, sql.NullInt64{Int64: 30, Valid: true}, prepared.args[70])
-	require.Equal(t, sql.NullInt64{Int64: 40, Valid: true}, prepared.args[71])
+	require.Equal(t, sql.NullInt64{Int64: 10, Valid: true}, prepared.args[70])
+	require.Equal(t, sql.NullInt64{Int64: 30, Valid: true}, prepared.args[71])
+	require.Equal(t, sql.NullInt64{Int64: 40, Valid: true}, prepared.args[72])
 }
 
 func TestPrepareUsageLogInsert_PersistsAPIKeyGroupSelectModeSnapshot(t *testing.T) {
@@ -528,6 +528,7 @@ func TestScanUsageLogSchedulerTimingAndChannelPriceSnapshot(t *testing.T) {
 		price,                             // channel_price_snapshot
 		source,                            // channel_price_source
 		refreshedAt,                       // channel_price_refreshed_at
+		nil,                               // upstream_request_id
 		nil,                               // session_id
 		false,                             // native_compaction_v2
 		int64(10),                         // body_read_ms
@@ -1334,16 +1335,16 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			sql.NullString{},
-			sql.NullFloat64{},
-			sql.NullFloat64{},
-			sql.NullString{}, // upstream_request_id
-			sql.NullString{},
-			sql.NullTime{},
-			sql.NullString{}, // session_id
-			false,            // native_compaction_v2
-			sql.NullInt64{},  // body_read_ms
-			sql.NullInt64{},  // preprocess_ms
-			sql.NullInt64{},  // user_queue_ms
+			sql.NullFloat64{}, // account_stats_cost
+			sql.NullFloat64{}, // channel_price_snapshot
+			sql.NullString{},  // channel_price_source
+			sql.NullTime{},    // channel_price_refreshed_at
+			sql.NullString{},  // upstream_request_id
+			sql.NullString{},  // session_id
+			false,             // native_compaction_v2
+			sql.NullInt64{},   // body_read_ms
+			sql.NullInt64{},   // preprocess_ms
+			sql.NullInt64{},   // user_queue_ms
 			now,
 		}})
 		require.NoError(t, err)

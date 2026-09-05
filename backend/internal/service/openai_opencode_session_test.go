@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
@@ -189,7 +190,7 @@ func TestOpenCodeSessionForwardedByRawChatCompletionsAfterAccountOverride(t *tes
 	resp, err := svc.sendCCUpstreamRequest(
 		context.Background(), c, account,
 		"https://opencode.ai/zen/v1/chat/completions", []byte(`{"model":"gpt-5"}`),
-		false, "token", "", "",
+		false, "token", "", "", time.Time{},
 	)
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())

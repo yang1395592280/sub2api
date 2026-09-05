@@ -21,6 +21,7 @@ const {
   getUpstreamBillingProbeSettings,
   getAllProxies,
   getAllGroups,
+  probeUpstreamBilling,
   probeUpstreamBillingBatch,
   refreshUpstreamBalance,
   showError,
@@ -35,6 +36,7 @@ const {
   getUpstreamBillingProbeSettings: vi.fn(),
   getAllProxies: vi.fn(),
   getAllGroups: vi.fn(),
+  probeUpstreamBilling: vi.fn(),
   probeUpstreamBillingBatch: vi.fn(),
   refreshUpstreamBalance: vi.fn(),
   showError: vi.fn(),
@@ -55,6 +57,7 @@ vi.mock('@/api/admin', () => ({
       batchClearError: vi.fn(),
       batchRefresh: vi.fn(),
       toggleSchedulable: vi.fn(),
+      probeUpstreamBilling,
       probeUpstreamBillingBatch,
       refreshUpstreamBalance
     },
@@ -109,6 +112,19 @@ const DataTableStub = {
         <div data-test="select-row"><slot name="cell-select" :row="row" /></div>
         <slot name="cell-created_at" :value="row.created_at" :row="row" />
         <slot name="cell-upstream_group" :row="row" />
+        <div data-test="account-rate"><slot name="cell-rate_multiplier" :row="row" /></div>
+      </div>
+    </div>
+  `
+}
+
+const ProbeDataTableStub = {
+  props: ['data'],
+  template: `
+    <div>
+      <div v-for="row in data" :key="row.id">
+        <div data-test="account-rate"><slot name="cell-rate_multiplier" :row="row" /></div>
+        <slot name="cell-upstream_billing_rate" :row="row" />
       </div>
     </div>
   `
@@ -150,6 +166,7 @@ describe('admin AccountsView bulk edit scope', () => {
     getUpstreamBillingProbeSettings.mockReset()
     getAllProxies.mockReset()
     getAllGroups.mockReset()
+    probeUpstreamBilling.mockReset()
     probeUpstreamBillingBatch.mockReset()
     refreshUpstreamBalance.mockReset()
     showError.mockReset()
@@ -924,6 +941,7 @@ describe('admin AccountsView bulk edit scope', () => {
       type: 'apikey',
       status: 'active',
       schedulable: true,
+      rate_multiplier: rateMultiplier,
       created_at: '2026-07-13T00:00:00Z',
       updated_at: '2026-07-13T00:00:00Z'
     })
@@ -1059,7 +1077,6 @@ describe('admin AccountsView bulk edit scope', () => {
 
     expect(showError).not.toHaveBeenCalled()
     expect(showSuccess).toHaveBeenCalledWith('admin.accounts.upstreamBilling.batchCompleted')
-    consoleError.mockRestore()
   })
 
   it('updates the account row after a successful single-account probe', async () => {

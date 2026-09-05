@@ -372,7 +372,10 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 			_ = resp.Body.Close()
 		}
 		headerGuard.close()
-		return nil, s.newOpenAIFirstOutputTimeoutError(ctx, c, account, startTime, originalModel, reasoningEffortValue, firstOutputTimeout, "response_headers", nil)
+		return nil, s.newOpenAIFirstOutputTimeoutError(
+			ctx, c, account, opsUpstreamProxyID(account), opsUpstreamProxyName(account),
+			startTime, originalModel, reasoningEffortValue, firstOutputTimeout, "response_headers", nil,
+		)
 	}
 	if err != nil {
 		if headerGuard != nil {
@@ -1177,7 +1180,8 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 			}
 			_ = resp.Body.Close()
 			return resultWithUsage(), s.newOpenAIFirstOutputTimeoutError(
-				c.Request.Context(), c, account, startTime, originalModel, reasoningEffort,
+				c.Request.Context(), c, account, opsUpstreamProxyID(account), opsUpstreamProxyName(account),
+				startTime, originalModel, reasoningEffort,
 				firstOutputTimeout, "semantic_output", resp.Header,
 			)
 

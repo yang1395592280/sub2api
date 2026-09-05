@@ -202,7 +202,10 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	resp, err := s.sendCCUpstreamRequest(ctx, c, account, targetURL, upstreamBody, clientStream, token, customUA, grokCacheIdentity, firstOutputDeadline)
 	if err != nil {
 		if errors.Is(err, errOpenAIFirstOutputHeaderTimeout) {
-			return nil, s.newOpenAIFirstOutputTimeoutError(ctx, c, account, startTime, originalModel, reasoningEffortValue, firstOutputTimeout, "response_headers", nil)
+			return nil, s.newOpenAIFirstOutputTimeoutError(
+				ctx, c, account, opsUpstreamProxyID(account), opsUpstreamProxyName(account),
+				startTime, originalModel, reasoningEffortValue, firstOutputTimeout, "response_headers", nil,
+			)
 		}
 		return nil, err
 	}
@@ -413,7 +416,8 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 			reasoningEffortValue = *reasoningEffort
 		}
 		return nil, s.newOpenAIFirstOutputTimeoutError(
-			c.Request.Context(), c, account, startTime, originalModel, reasoningEffortValue,
+			c.Request.Context(), c, account, opsUpstreamProxyID(account), opsUpstreamProxyName(account),
+			startTime, originalModel, reasoningEffortValue,
 			firstOutputTimeout, "semantic_output", resp.Header,
 		)
 	}

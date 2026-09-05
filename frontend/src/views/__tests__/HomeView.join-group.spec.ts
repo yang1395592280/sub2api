@@ -32,13 +32,21 @@ vi.mock('@/stores', () => ({
   useAuthStore: () => authStoreState,
 }))
 
+vi.mock('@/stores/app', () => ({
+  useAppStore: () => appStoreState,
+}))
+
 vi.mock('@/api/auth', () => ({
   getPublicHomeContent: vi.fn().mockResolvedValue({ home_content: '' }),
 }))
 
-vi.mock('vue-i18n', () => ({
-  useI18n: () => ({ t: (key: string) => key }),
-}))
+vi.mock('vue-i18n', async () => {
+  const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
+  return {
+    ...actual,
+    useI18n: () => ({ t: (key: string) => key }),
+  }
+})
 
 vi.mock('@/components/common/LocaleSwitcher.vue', () => ({
   default: { template: '<div data-testid="locale-switcher-stub" />' },

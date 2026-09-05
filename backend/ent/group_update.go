@@ -1142,20 +1142,6 @@ func (_u *GroupUpdate) SetNillableOpenaiAutoSchedulerEnabled(v *bool) *GroupUpda
 	return _u
 }
 
-// SetCodexModelsManifestConfig sets the "codex_models_manifest_config" field.
-func (_u *GroupUpdate) SetCodexModelsManifestConfig(v domain.GroupCodexModelsManifestConfig) *GroupUpdate {
-	_u.mutation.SetCodexModelsManifestConfig(v)
-	return _u
-}
-
-// SetNillableCodexModelsManifestConfig sets the "codex_models_manifest_config" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableCodexModelsManifestConfig(v *domain.GroupCodexModelsManifestConfig) *GroupUpdate {
-	if v != nil {
-		_u.SetCodexModelsManifestConfig(*v)
-	}
-	return _u
-}
-
 // SetAllowAutoCheapestScheduling sets the "allow_auto_cheapest_scheduling" field.
 func (_u *GroupUpdate) SetAllowAutoCheapestScheduling(v bool) *GroupUpdate {
 	_u.mutation.SetAllowAutoCheapestScheduling(v)
@@ -1279,6 +1265,20 @@ func (_u *GroupUpdate) SetNillableUpstreamPriceGroupingMax(v *float64) *GroupUpd
 // AddUpstreamPriceGroupingMax adds value to the "upstream_price_grouping_max" field.
 func (_u *GroupUpdate) AddUpstreamPriceGroupingMax(v float64) *GroupUpdate {
 	_u.mutation.AddUpstreamPriceGroupingMax(v)
+	return _u
+}
+
+// SetCodexModelsManifestConfig sets the "codex_models_manifest_config" field.
+func (_u *GroupUpdate) SetCodexModelsManifestConfig(v domain.GroupCodexModelsManifestConfig) *GroupUpdate {
+	_u.mutation.SetCodexModelsManifestConfig(v)
+	return _u
+}
+
+// SetNillableCodexModelsManifestConfig sets the "codex_models_manifest_config" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableCodexModelsManifestConfig(v *domain.GroupCodexModelsManifestConfig) *GroupUpdate {
+	if v != nil {
+		_u.SetCodexModelsManifestConfig(*v)
+	}
 	return _u
 }
 
@@ -3570,20 +3570,6 @@ func (_u *GroupUpdateOne) SetNillableOpenaiAutoSchedulerEnabled(v *bool) *GroupU
 	return _u
 }
 
-// SetCodexModelsManifestConfig sets the "codex_models_manifest_config" field.
-func (_u *GroupUpdateOne) SetCodexModelsManifestConfig(v domain.GroupCodexModelsManifestConfig) *GroupUpdateOne {
-	_u.mutation.SetCodexModelsManifestConfig(v)
-	return _u
-}
-
-// SetNillableCodexModelsManifestConfig sets the "codex_models_manifest_config" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableCodexModelsManifestConfig(v *domain.GroupCodexModelsManifestConfig) *GroupUpdateOne {
-	if v != nil {
-		_u.SetCodexModelsManifestConfig(*v)
-	}
-	return _u
-}
-
 // SetAllowAutoCheapestScheduling sets the "allow_auto_cheapest_scheduling" field.
 func (_u *GroupUpdateOne) SetAllowAutoCheapestScheduling(v bool) *GroupUpdateOne {
 	_u.mutation.SetAllowAutoCheapestScheduling(v)
@@ -3707,6 +3693,20 @@ func (_u *GroupUpdateOne) SetNillableUpstreamPriceGroupingMax(v *float64) *Group
 // AddUpstreamPriceGroupingMax adds value to the "upstream_price_grouping_max" field.
 func (_u *GroupUpdateOne) AddUpstreamPriceGroupingMax(v float64) *GroupUpdateOne {
 	_u.mutation.AddUpstreamPriceGroupingMax(v)
+	return _u
+}
+
+// SetCodexModelsManifestConfig sets the "codex_models_manifest_config" field.
+func (_u *GroupUpdateOne) SetCodexModelsManifestConfig(v domain.GroupCodexModelsManifestConfig) *GroupUpdateOne {
+	_u.mutation.SetCodexModelsManifestConfig(v)
+	return _u
+}
+
+// SetNillableCodexModelsManifestConfig sets the "codex_models_manifest_config" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableCodexModelsManifestConfig(v *domain.GroupCodexModelsManifestConfig) *GroupUpdateOne {
+	if v != nil {
+		_u.SetCodexModelsManifestConfig(*v)
+	}
 	return _u
 }
 
