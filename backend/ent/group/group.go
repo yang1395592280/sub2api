@@ -152,6 +152,8 @@ const (
 	FieldUpstreamPriceGroupingMin = "upstream_price_grouping_min"
 	// FieldUpstreamPriceGroupingMax holds the string denoting the upstream_price_grouping_max field in the database.
 	FieldUpstreamPriceGroupingMax = "upstream_price_grouping_max"
+	// FieldCodexModelsManifestConfig holds the string denoting the codex_models_manifest_config field in the database.
+	FieldCodexModelsManifestConfig = "codex_models_manifest_config"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// FieldMaxReasoningEffort holds the string denoting the max_reasoning_effort field in the database.
@@ -309,6 +311,7 @@ var Columns = []string{
 	FieldUpstreamPriceGroupingEnabled,
 	FieldUpstreamPriceGroupingMin,
 	FieldUpstreamPriceGroupingMax,
+	FieldCodexModelsManifestConfig,
 	FieldRpmLimit,
 	FieldMaxReasoningEffort,
 	FieldMaxReasoningEffortOverLimit,
@@ -461,6 +464,8 @@ var (
 	DefaultUpstreamPriceGroupingMin float64
 	// DefaultUpstreamPriceGroupingMax holds the default value on creation for the "upstream_price_grouping_max" field.
 	DefaultUpstreamPriceGroupingMax float64
+	// DefaultCodexModelsManifestConfig holds the default value on creation for the "codex_models_manifest_config" field.
+	DefaultCodexModelsManifestConfig domain.GroupCodexModelsManifestConfig
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 	// DefaultMaxReasoningEffort holds the default value on creation for the "max_reasoning_effort" field.

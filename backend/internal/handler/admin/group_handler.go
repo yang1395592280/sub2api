@@ -192,6 +192,24 @@ type CreateGroupRequest struct {
 	MaxReasoningEffort          string `json:"max_reasoning_effort"`
 	MaxReasoningEffortOverLimit string `json:"max_reasoning_effort_over_limit"`
 	// OpenAI/Codex 推理强度精确映射。
+	AllowMessagesDispatch       bool                                      `json:"allow_messages_dispatch"`
+	AllowLive                   bool                                      `json:"allow_live"`
+	ForceOpenAIFast             bool                                      `json:"force_openai_fast"`
+	FreeOpenAIFast              bool                                      `json:"free_openai_fast"`
+	RequireOAuthOnly            bool                                      `json:"require_oauth_only"`
+	RequirePrivacySet           bool                                      `json:"require_privacy_set"`
+	DefaultMappedModel          string                                    `json:"default_mapped_model"`
+	MessagesDispatchModelConfig service.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
+	ModelsListConfig            service.GroupModelsListConfig             `json:"models_list_config"`
+	// 固定账号 manifest 配置；创建路径禁止开启，仅编辑可配置。
+	CodexModelsManifestConfig service.GroupCodexModelsManifestConfig `json:"codex_models_manifest_config"`
+	// 分组 RPM 上限（0 = 不限制）
+	RPMLimit int `json:"rpm_limit"`
+	// Anthropic/OpenAI 请求推理强度上限，空字符串表示不限制。
+	MaxReasoningEffort string `json:"max_reasoning_effort"`
+	// 超过上限时的访问控制：downgrade（默认）或 deny。
+	MaxReasoningEffortOverLimit string `json:"max_reasoning_effort_over_limit"`
+	// Anthropic/OpenAI 推理强度映射，可按模型精确名、前缀或后缀限定。
 	ReasoningEffortMappings []service.ReasoningEffortMapping `json:"reasoning_effort_mappings"`
 	// 从指定分组复制账号（创建后自动绑定）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`
@@ -271,7 +289,23 @@ type UpdateGroupRequest struct {
 	// 分组 RPM 上限（0 = 不限制）；nil 表示未提供不改动
 	RPMLimit *int `json:"rpm_limit"`
 	// OpenAI/Codex 请求推理强度上限；空字符串清除，nil 不修改。
-	MaxReasoningEffort          *string `json:"max_reasoning_effort"`
+	MaxReasoningEffort          *string                                    `json:"max_reasoning_effort"`
+	AllowMessagesDispatch       *bool                                      `json:"allow_messages_dispatch"`
+	AllowLive                   *bool                                      `json:"allow_live"`
+	ForceOpenAIFast             *bool                                      `json:"force_openai_fast"`
+	FreeOpenAIFast              *bool                                      `json:"free_openai_fast"`
+	RequireOAuthOnly            *bool                                      `json:"require_oauth_only"`
+	RequirePrivacySet           *bool                                      `json:"require_privacy_set"`
+	DefaultMappedModel          *string                                    `json:"default_mapped_model"`
+	MessagesDispatchModelConfig *service.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
+	ModelsListConfig            *service.GroupModelsListConfig             `json:"models_list_config"`
+	// 固定账号 manifest 配置；nil 表示不修改。
+	CodexModelsManifestConfig *service.GroupCodexModelsManifestConfig `json:"codex_models_manifest_config"`
+	// 分组 RPM 上限（0 = 不限制）；nil 表示未提供不改动
+	RPMLimit *int `json:"rpm_limit"`
+	// Anthropic/OpenAI 请求推理强度上限；空字符串清除，nil 不修改。
+	MaxReasoningEffort *string `json:"max_reasoning_effort"`
+	// 超过上限时的访问控制；空字符串视为 downgrade，nil 不修改。
 	MaxReasoningEffortOverLimit *string `json:"max_reasoning_effort_over_limit"`
 	// nil 不修改，空数组清空，非空数组替换。
 	ReasoningEffortMappings *[]service.ReasoningEffortMapping `json:"reasoning_effort_mappings"`
@@ -617,6 +651,66 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		MaxReasoningEffortOverLimit:           req.MaxReasoningEffortOverLimit,
 		ReasoningEffortMappings:               req.ReasoningEffortMappings,
 		CopyAccountsFromGroupIDs:              req.CopyAccountsFromGroupIDs,
+		Name:                                  req.Name,
+		Description:                           req.Description,
+		Platform:                              req.Platform,
+		RateMultiplier:                        req.RateMultiplier,
+		IsExclusive:                           req.IsExclusive,
+		SubscriptionType:                      req.SubscriptionType,
+		DailyLimitUSD:                         req.DailyLimitUSD.ToServiceInput(),
+		WeeklyLimitUSD:                        req.WeeklyLimitUSD.ToServiceInput(),
+		MonthlyLimitUSD:                       req.MonthlyLimitUSD.ToServiceInput(),
+		LongContextPricingEnabled:             req.LongContextPricingEnabled,
+		ModelPricing:                          req.ModelPricing,
+		AllowImageGeneration:                  req.AllowImageGeneration,
+		AllowBatchImageGeneration:             req.AllowBatchImageGeneration,
+		ImageRateIndependent:                  req.ImageRateIndependent,
+		ImageRateMultiplier:                   req.ImageRateMultiplier,
+		BatchImageDiscountMultiplier:          req.BatchImageDiscountMultiplier,
+		BatchImageHoldMultiplier:              req.BatchImageHoldMultiplier,
+		VideoRateIndependent:                  req.VideoRateIndependent,
+		VideoRateMultiplier:                   req.VideoRateMultiplier,
+		PeakRateEnabled:                       req.PeakRateEnabled,
+		PeakStart:                             req.PeakStart,
+		PeakEnd:                               req.PeakEnd,
+		PeakRateMultiplier:                    req.PeakRateMultiplier,
+		ProfitControlEnabled:                  req.ProfitControlEnabled,
+		ProfitMinMargin:                       req.ProfitMinMargin,
+		ProfitSafetyBuffer:                    req.ProfitSafetyBuffer,
+		ImagePrice1K:                          req.ImagePrice1K,
+		ImagePrice2K:                          req.ImagePrice2K,
+		ImagePrice4K:                          req.ImagePrice4K,
+		VideoPrice480P:                        req.VideoPrice480P,
+		VideoPrice720P:                        req.VideoPrice720P,
+		VideoPrice1080P:                       req.VideoPrice1080P,
+		VideoModelPrices:                      req.VideoModelPrices,
+		WebSearchPricePerCall:                 req.WebSearchPricePerCall,
+		SearchPricePer1k:                      req.SearchPricePer1k,
+		AudioRealtimePricePerMin:              req.AudioRealtimePricePerMin,
+		AudioTTSPricePerMillionChars:          req.AudioTtsPricePerMillionChars,
+		AudioSTTPricePerHour:                  req.AudioSttPricePerHour,
+		ClaudeCodeOnly:                        req.ClaudeCodeOnly,
+		FallbackGroupID:                       req.FallbackGroupID,
+		FallbackGroupIDOnInvalidRequest:       req.FallbackGroupIDOnInvalidRequest,
+		ModelRouting:                          req.ModelRouting,
+		ModelRoutingEnabled:                   req.ModelRoutingEnabled,
+		MCPXMLInject:                          req.MCPXMLInject,
+		SupportedModelScopes:                  req.SupportedModelScopes,
+		AllowMessagesDispatch:                 req.AllowMessagesDispatch,
+		AllowLive:                             req.AllowLive,
+		ForceOpenAIFast:                       req.ForceOpenAIFast,
+		FreeOpenAIFast:                        req.FreeOpenAIFast,
+		RequireOAuthOnly:                      req.RequireOAuthOnly,
+		RequirePrivacySet:                     req.RequirePrivacySet,
+		DefaultMappedModel:                    req.DefaultMappedModel,
+		MessagesDispatchModelConfig:           req.MessagesDispatchModelConfig,
+		ModelsListConfig:                      req.ModelsListConfig,
+		CodexModelsManifestConfig:             req.CodexModelsManifestConfig,
+		RPMLimit:                              req.RPMLimit,
+		MaxReasoningEffort:                    req.MaxReasoningEffort,
+		MaxReasoningEffortOverLimit:           req.MaxReasoningEffortOverLimit,
+		ReasoningEffortMappings:               req.ReasoningEffortMappings,
+		CopyAccountsFromGroupIDs:              req.CopyAccountsFromGroupIDs,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -744,6 +838,67 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		UpstreamPriceGroupingEnabled:          req.UpstreamPriceGroupingEnabled,
 		UpstreamPriceGroupingMin:              req.UpstreamPriceGroupingMin,
 		UpstreamPriceGroupingMax:              req.UpstreamPriceGroupingMax,
+		RPMLimit:                              req.RPMLimit,
+		MaxReasoningEffort:                    req.MaxReasoningEffort,
+		MaxReasoningEffortOverLimit:           req.MaxReasoningEffortOverLimit,
+		ReasoningEffortMappings:               req.ReasoningEffortMappings,
+		CopyAccountsFromGroupIDs:              req.CopyAccountsFromGroupIDs,
+		Name:                                  req.Name,
+		Description:                           req.Description,
+		Platform:                              req.Platform,
+		RateMultiplier:                        req.RateMultiplier,
+		IsExclusive:                           req.IsExclusive,
+		Status:                                req.Status,
+		SubscriptionType:                      req.SubscriptionType,
+		DailyLimitUSD:                         req.DailyLimitUSD.ToServiceInput(),
+		WeeklyLimitUSD:                        req.WeeklyLimitUSD.ToServiceInput(),
+		MonthlyLimitUSD:                       req.MonthlyLimitUSD.ToServiceInput(),
+		LongContextPricingEnabled:             req.LongContextPricingEnabled,
+		ModelPricing:                          req.ModelPricing,
+		AllowImageGeneration:                  req.AllowImageGeneration,
+		AllowBatchImageGeneration:             req.AllowBatchImageGeneration,
+		ImageRateIndependent:                  req.ImageRateIndependent,
+		ImageRateMultiplier:                   req.ImageRateMultiplier,
+		BatchImageDiscountMultiplier:          req.BatchImageDiscountMultiplier,
+		BatchImageHoldMultiplier:              req.BatchImageHoldMultiplier,
+		VideoRateIndependent:                  req.VideoRateIndependent,
+		VideoRateMultiplier:                   req.VideoRateMultiplier,
+		PeakRateEnabled:                       req.PeakRateEnabled,
+		PeakStart:                             req.PeakStart,
+		PeakEnd:                               req.PeakEnd,
+		PeakRateMultiplier:                    req.PeakRateMultiplier,
+		ProfitControlEnabled:                  req.ProfitControlEnabled,
+		ProfitMinMargin:                       req.ProfitMinMargin,
+		ProfitSafetyBuffer:                    req.ProfitSafetyBuffer,
+		ImagePrice1K:                          req.ImagePrice1K,
+		ImagePrice2K:                          req.ImagePrice2K,
+		ImagePrice4K:                          req.ImagePrice4K,
+		VideoPrice480P:                        req.VideoPrice480P,
+		VideoPrice720P:                        req.VideoPrice720P,
+		VideoPrice1080P:                       req.VideoPrice1080P,
+		VideoModelPrices:                      req.VideoModelPrices,
+		WebSearchPricePerCall:                 req.WebSearchPricePerCall,
+		SearchPricePer1k:                      req.SearchPricePer1k,
+		AudioRealtimePricePerMin:              req.AudioRealtimePricePerMin,
+		AudioTTSPricePerMillionChars:          req.AudioTtsPricePerMillionChars,
+		AudioSTTPricePerHour:                  req.AudioSttPricePerHour,
+		ClaudeCodeOnly:                        req.ClaudeCodeOnly,
+		FallbackGroupID:                       req.FallbackGroupID,
+		FallbackGroupIDOnInvalidRequest:       req.FallbackGroupIDOnInvalidRequest,
+		ModelRouting:                          req.ModelRouting,
+		ModelRoutingEnabled:                   req.ModelRoutingEnabled,
+		MCPXMLInject:                          req.MCPXMLInject,
+		SupportedModelScopes:                  req.SupportedModelScopes,
+		AllowMessagesDispatch:                 req.AllowMessagesDispatch,
+		AllowLive:                             req.AllowLive,
+		ForceOpenAIFast:                       req.ForceOpenAIFast,
+		FreeOpenAIFast:                        req.FreeOpenAIFast,
+		RequireOAuthOnly:                      req.RequireOAuthOnly,
+		RequirePrivacySet:                     req.RequirePrivacySet,
+		DefaultMappedModel:                    req.DefaultMappedModel,
+		MessagesDispatchModelConfig:           req.MessagesDispatchModelConfig,
+		ModelsListConfig:                      req.ModelsListConfig,
+		CodexModelsManifestConfig:             req.CodexModelsManifestConfig,
 		RPMLimit:                              req.RPMLimit,
 		MaxReasoningEffort:                    req.MaxReasoningEffort,
 		MaxReasoningEffortOverLimit:           req.MaxReasoningEffortOverLimit,

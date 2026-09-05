@@ -96,6 +96,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 	if autoGroupMode {
 		channelMapping = service.ChannelMappingResult{MappedModel: reqModel}
 	}
+	forwardModel := openAIChannelForwardModel(channelMapping, reqModel)
 
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
@@ -144,7 +145,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 			apiKey,
 			"",
 			"",
-			reqModel,
+			forwardModel,
 			failedAccountIDs,
 			service.OpenAIUpstreamTransportHTTPSSE,
 			service.OpenAISchedulerEndpointEmbeddings,

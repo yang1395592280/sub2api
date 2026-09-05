@@ -127,6 +127,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 	if autoGroupMode {
 		channelMapping = service.ChannelMappingResult{MappedModel: reqModel}
 	}
+	forwardModel := openAIChannelForwardModel(channelMapping, reqModel)
 
 	if h.errorPassthroughService != nil {
 		service.BindErrorPassthroughService(c, h.errorPassthroughService)
@@ -188,7 +189,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			apiKey,
 			"",
 			sessionHash,
-			reqModel,
+			forwardModel,
 			failedAccountIDs,
 			service.OpenAIUpstreamTransportAny,
 			service.OpenAISchedulerEndpointChatCompletions,

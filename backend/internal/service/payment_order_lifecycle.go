@@ -27,7 +27,8 @@ const (
 	checkPaidResultAlreadyPaid = "already_paid"
 	checkPaidResultCancelled   = "cancelled"
 
-	pendingWxpayReconcileLimit = 20
+	pendingWxpayReconcileLimit   = 20
+	pendingPaymentReconcileLimit = pendingWxpayReconcileLimit
 )
 
 type checkPaidOptions struct {
@@ -318,6 +319,11 @@ func (s *PaymentService) ReconcilePendingProviderOrders(ctx context.Context) (in
 	}
 	aliRecovered, err := s.reconcilePendingOrdersByProvider(ctx, payment.TypeAlipay)
 	return wxRecovered + aliRecovered, err
+}
+
+// ReconcilePendingPaymentOrders is the upstream-compatible name for provider reconciliation.
+func (s *PaymentService) ReconcilePendingPaymentOrders(ctx context.Context) (int, error) {
+	return s.ReconcilePendingProviderOrders(ctx)
 }
 
 func (s *PaymentService) reconcilePendingOrdersByProvider(ctx context.Context, providerKey string) (int, error) {

@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 22 // v22: include self-hosted pool, OpenAI Fast and group profit-control metadata
+const apiKeyAuthSnapshotVersion = 23 // v23: include Codex manifest group metadata
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int

@@ -119,15 +119,17 @@ type Group struct {
 	SortOrder int
 
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
-	AllowMessagesDispatch                 bool
-	AllowLive                             bool
-	ForceOpenAIFast                       bool
-	FreeOpenAIFast                        bool
-	RequireOAuthOnly                      bool // 仅允许非 apikey 类型账号关联（OpenAI/Antigravity/Anthropic/Gemini）
-	RequirePrivacySet                     bool // 调度时仅允许 privacy 已成功设置的账号（OpenAI/Antigravity/Anthropic/Gemini）
-	DefaultMappedModel                    string
-	MessagesDispatchModelConfig           OpenAIMessagesDispatchModelConfig
-	ModelsListConfig                      GroupModelsListConfig
+	AllowMessagesDispatch       bool
+	AllowLive                   bool
+	ForceOpenAIFast             bool
+	FreeOpenAIFast              bool
+	RequireOAuthOnly            bool // 仅允许非 apikey 类型账号关联（OpenAI/Antigravity/Anthropic/Gemini）
+	RequirePrivacySet           bool // 调度时仅允许 privacy 已成功设置的账号（OpenAI/Antigravity/Anthropic/Gemini）
+	DefaultMappedModel          string
+	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig
+	ModelsListConfig            GroupModelsListConfig
+	// CodexModelsManifestConfig 开启后，该分组的 Codex /models manifest 请求只用固定账号列表拉取。
+	CodexModelsManifestConfig             GroupCodexModelsManifestConfig
 	OpenAIAutoSchedulerEnabled            bool
 	AllowAutoCheapestScheduling           bool
 	UpstreamBalanceRefreshEnabled         bool

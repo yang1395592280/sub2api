@@ -301,6 +301,10 @@ func (Group) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "decimal(12,6)"}).
 			Default(0).
 			Comment("OpenAI 渠道价格自动归组区间上限（包含）"),
+		field.JSON("codex_models_manifest_config", domain.GroupCodexModelsManifestConfig{}).
+			Default(domain.GroupCodexModelsManifestConfig{}).
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
+			Comment("固定账号获取 Codex Model Manifest 配置；开启后 /models 请求只用选定账号拉取（仅 openai 平台）"),
 
 		// 分组级每分钟请求数上限（0 = 不限制）。设置后优先于用户级兜底生效。
 		field.Int("rpm_limit").

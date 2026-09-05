@@ -986,6 +986,7 @@ var (
 		{Name: "upstream_price_grouping_enabled", Type: field.TypeBool, Default: false},
 		{Name: "upstream_price_grouping_min", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(12,6)"}},
 		{Name: "upstream_price_grouping_max", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(12,6)"}},
+		{Name: "codex_models_manifest_config", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
 		{Name: "rpm_limit", Type: field.TypeInt, Default: 0},
 		{Name: "max_reasoning_effort", Type: field.TypeString, Size: 20, Default: ""},
 		{Name: "max_reasoning_effort_over_limit", Type: field.TypeString, Size: 20, Default: "downgrade"},

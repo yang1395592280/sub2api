@@ -455,6 +455,10 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	if err := s.validateSelfHostedPoolReference(ctx, 0, platform, groupRole, input.SelfHostedPoolGroupID); err != nil {
 		return nil, err
 	}
+	// Manifest 账号需在分组创建后绑定，创建阶段禁止直接启用。
+	if normalizeCodexModelsManifestConfig(platform, input.CodexModelsManifestConfig).Enabled {
+		return nil, infraerrors.New(http.StatusBadRequest, "INVALID_CODEX_MODELS_MANIFEST_CONFIG", "codex models manifest config cannot be enabled at group creation; configure it after creation in the group editor")
+	}
 	modelPricing, err := normalizeGroupModelPricing(platform, input.ModelPricing)
 	if err != nil {
 		return nil, err
@@ -683,6 +687,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		DefaultMappedModel:                    input.DefaultMappedModel,
 		MessagesDispatchModelConfig:           normalizeOpenAIMessagesDispatchModelConfig(input.MessagesDispatchModelConfig),
 		ModelsListConfig:                      normalizeGroupModelsListConfig(input.ModelsListConfig),
+		CodexModelsManifestConfig:             GroupCodexModelsManifestConfig{},
 		OpenAIAutoSchedulerEnabled:            input.OpenAIAutoSchedulerEnabled,
 		AllowAutoCheapestScheduling:           boolValueOrDefault(input.AllowAutoCheapestScheduling, true),
 		UpstreamBalanceRefreshEnabled:         input.UpstreamBalanceRefreshEnabled,
@@ -1100,6 +1105,9 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if input.ModelsListConfig != nil {
 		group.ModelsListConfig = normalizeGroupModelsListConfig(*input.ModelsListConfig)
+	}
+	if input.CodexModelsManifestConfig != nil {
+		group.CodexModelsManifestConfig = normalizeCodexModelsManifestConfig(group.Platform, *input.CodexModelsManifestConfig)
 	}
 	if input.OpenAIAutoSchedulerEnabled != nil {
 		group.OpenAIAutoSchedulerEnabled = *input.OpenAIAutoSchedulerEnabled

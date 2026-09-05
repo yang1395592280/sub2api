@@ -303,15 +303,17 @@ type CreateGroupInput struct {
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes []string
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
-	AllowMessagesDispatch                 bool
-	AllowLive                             bool
-	ForceOpenAIFast                       bool
-	FreeOpenAIFast                        bool
-	DefaultMappedModel                    string
-	RequireOAuthOnly                      bool
-	RequirePrivacySet                     bool
-	MessagesDispatchModelConfig           OpenAIMessagesDispatchModelConfig
-	ModelsListConfig                      GroupModelsListConfig
+	AllowMessagesDispatch       bool
+	AllowLive                   bool
+	ForceOpenAIFast             bool
+	FreeOpenAIFast              bool
+	DefaultMappedModel          string
+	RequireOAuthOnly            bool
+	RequirePrivacySet           bool
+	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig
+	ModelsListConfig            GroupModelsListConfig
+	// CodexModelsManifestConfig 固定账号 manifest 配置；创建路径禁止开启，仅编辑可配置。
+	CodexModelsManifestConfig             GroupCodexModelsManifestConfig
 	OpenAIAutoSchedulerEnabled            bool
 	AllowAutoCheapestScheduling           *bool
 	UpstreamBalanceRefreshEnabled         bool
@@ -392,15 +394,17 @@ type UpdateGroupInput struct {
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes *[]string
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
-	AllowMessagesDispatch                 *bool
-	AllowLive                             *bool
-	ForceOpenAIFast                       *bool
-	FreeOpenAIFast                        *bool
-	DefaultMappedModel                    *string
-	RequireOAuthOnly                      *bool
-	RequirePrivacySet                     *bool
-	MessagesDispatchModelConfig           *OpenAIMessagesDispatchModelConfig
-	ModelsListConfig                      *GroupModelsListConfig
+	AllowMessagesDispatch       *bool
+	AllowLive                   *bool
+	ForceOpenAIFast             *bool
+	FreeOpenAIFast              *bool
+	DefaultMappedModel          *string
+	RequireOAuthOnly            *bool
+	RequirePrivacySet           *bool
+	MessagesDispatchModelConfig *OpenAIMessagesDispatchModelConfig
+	ModelsListConfig            *GroupModelsListConfig
+	// CodexModelsManifestConfig nil 表示不修改；非 openai 平台会被归一化为关闭。
+	CodexModelsManifestConfig             *GroupCodexModelsManifestConfig
 	OpenAIAutoSchedulerEnabled            *bool
 	AllowAutoCheapestScheduling           *bool
 	UpstreamBalanceRefreshEnabled         *bool

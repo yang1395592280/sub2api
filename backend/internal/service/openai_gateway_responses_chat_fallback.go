@@ -161,6 +161,7 @@ func (s *OpenAIGatewayService) bufferChatCompletionsAsResponses(
 
 	return &OpenAIForwardResult{
 		RequestID:                   requestID,
+		UpstreamHeaders:             resp.Header,
 		Usage:                       usage,
 		Model:                       originalModel,
 		BillingModel:                billingModel,
@@ -232,6 +233,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	if scan.Err != nil {
 		return &OpenAIForwardResult{
 			RequestID:                   requestID,
+			UpstreamHeaders:             resp.Header,
 			Usage:                       scan.Usage,
 			Model:                       originalModel,
 			BillingModel:                billingModel,
@@ -247,6 +249,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	if err := state.ValidateToolCallArguments(); err != nil {
 		return &OpenAIForwardResult{
 			RequestID:                   requestID,
+			UpstreamHeaders:             resp.Header,
 			Usage:                       scan.Usage,
 			Model:                       originalModel,
 			BillingModel:                billingModel,
@@ -278,6 +281,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 
 	return &OpenAIForwardResult{
 		RequestID:                   requestID,
+		UpstreamHeaders:             resp.Header,
 		Usage:                       scan.Usage,
 		Model:                       originalModel,
 		BillingModel:                billingModel,

@@ -108,6 +108,7 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // channel_price_snapshot
 			sqlmock.AnyArg(), // channel_price_source
 			sqlmock.AnyArg(), // channel_price_refreshed_at
+			sqlmock.AnyArg(), // upstream_request_id
 			sqlmock.AnyArg(), // session_id
 			log.NativeCompactionV2,
 			sqlmock.AnyArg(), // body_read_ms
@@ -233,6 +234,7 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // channel_price_snapshot
 			sqlmock.AnyArg(), // channel_price_source
 			sqlmock.AnyArg(), // channel_price_refreshed_at
+			sqlmock.AnyArg(), // upstream_request_id
 			sqlmock.AnyArg(), // session_id
 			log.NativeCompactionV2,
 			sqlmock.AnyArg(), // body_read_ms
@@ -1334,6 +1336,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullFloat64{},
 			sql.NullFloat64{},
+			sql.NullString{}, // upstream_request_id
 			sql.NullString{},
 			sql.NullTime{},
 			sql.NullString{}, // session_id
@@ -1431,6 +1434,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{}, // channel_price_snapshot
 			sql.NullString{},  // channel_price_source
 			sql.NullTime{},    // channel_price_refreshed_at
+			sql.NullString{},  // upstream_request_id
 			sql.NullString{},  // session_id
 			false,             // native_compaction_v2
 			sql.NullInt64{},   // body_read_ms
@@ -1505,6 +1509,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{}, // channel_price_snapshot
 			sql.NullString{},  // channel_price_source
 			sql.NullTime{},    // channel_price_refreshed_at
+			sql.NullString{},  // upstream_request_id
 			sql.NullString{},  // session_id
 			true,              // native_compaction_v2
 			sql.NullInt64{},   // body_read_ms
@@ -1580,6 +1585,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{}, // channel_price_snapshot
 			sql.NullString{},  // channel_price_source
 			sql.NullTime{},    // channel_price_refreshed_at
+			sql.NullString{},  // upstream_request_id
 			sql.NullString{},  // session_id
 			false,             // native_compaction_v2
 			sql.NullInt64{},   // body_read_ms

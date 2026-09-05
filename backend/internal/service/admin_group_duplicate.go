@@ -152,6 +152,8 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 			Enabled: source.ModelsListConfig.Enabled,
 			Models:  append([]string(nil), source.ModelsListConfig.Models...),
 		},
+		// 固定账号配置引用源分组成员，复制后必须重新配置。
+		CodexModelsManifestConfig:   GroupCodexModelsManifestConfig{},
 		AllowAutoCheapestScheduling: source.AllowAutoCheapestScheduling,
 		RPMLimit:                    source.RPMLimit,
 		MaxReasoningEffort:          source.MaxReasoningEffort,
