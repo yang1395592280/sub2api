@@ -386,6 +386,40 @@ func TestOpenAIUpstreamBalanceServiceRefresh_CNProviderUsesConfiguredUpstreamAdm
 	require.Equal(t, 0.12, *account.ChannelPrice)
 }
 
+func TestOpenAIUpstreamBalanceServiceRefresh_ZhipuAndGrokAPIKeyUseManagedUpstream(t *testing.T) {
+	for _, platform := range []string{PlatformZhipu, PlatformGrok} {
+		t.Run(platform, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/v1/usage":
+					require.Equal(t, "Bearer sk-managed", r.Header.Get("Authorization"))
+					_, _ = w.Write([]byte(`{"remaining":7.5,"unit":"USD","group_id":8,"group":{"id":8,"name":"Managed Pro","rate_multiplier":0.15}}`))
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer srv.Close()
+
+			repo := &openAIUpstreamBalanceRepoStub{account: &Account{
+				ID: 902, Platform: platform, Type: AccountTypeAPIKey,
+				Credentials: map[string]any{
+					"base_url": srv.URL + "/v1", "api_key": "sk-managed",
+					"upstream_admin_type": "sub2api",
+				},
+			}}
+			svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+
+			account, err := svc.Refresh(context.Background(), repo.account.ID)
+			require.NoError(t, err)
+			require.Equal(t, "sub2api", repo.updatedExtra["upstream_balance_provider"])
+			require.Equal(t, "Managed Pro", repo.updatedExtra["upstream_group"])
+			require.Equal(t, 0.15, repo.updatedExtra["upstream_group_rate_multiplier"])
+			require.NotNil(t, account.ChannelPrice)
+			require.Equal(t, 0.15, *account.ChannelPrice)
+		})
+	}
+}
+
 func TestOpenAIUpstreamBalanceServiceRefresh_Sub2APIAdminPasswordLogsInForEffectiveRate(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -600,6 +634,36 @@ func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIQuotaMinusUsed(t *testing.T) 
 	require.Equal(t, "new-api", repo.updatedExtra["upstream_balance_provider"])
 	require.Equal(t, 375000.0, repo.updatedExtra["upstream_balance_remaining"])
 	require.Equal(t, "quota", repo.updatedExtra["upstream_balance_unit"])
+}
+
+func TestOpenAIUpstreamBalanceServiceRefresh_ZhipuAndGrokNewAPI(t *testing.T) {
+	for _, platform := range []string{PlatformZhipu, PlatformGrok} {
+		t.Run(platform, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/v1/usage" {
+					http.NotFound(w, r)
+					return
+				}
+				require.Equal(t, "/api/usage/token/", r.URL.Path)
+				_, _ = w.Write([]byte(`{"success":true,"data":{"available_quota":23.5,"unit":"USD"}}`))
+			}))
+			defer srv.Close()
+
+			repo := &openAIUpstreamBalanceRepoStub{account: &Account{
+				ID: 903, Platform: platform, Type: AccountTypeAPIKey,
+				Credentials: map[string]any{
+					"base_url": srv.URL + "/v1", "api_key": "sk-new-api",
+					"upstream_admin_type": "new-api",
+				},
+			}}
+			svc := NewOpenAIUpstreamBalanceService(repo, srv.Client())
+
+			_, err := svc.Refresh(context.Background(), repo.account.ID)
+			require.NoError(t, err)
+			require.Equal(t, "new-api", repo.updatedExtra["upstream_balance_provider"])
+			require.Equal(t, 23.5, repo.updatedExtra["upstream_balance_remaining"])
+		})
+	}
 }
 
 func TestOpenAIUpstreamBalanceServiceRefresh_NewAPIAvailableQuota(t *testing.T) {

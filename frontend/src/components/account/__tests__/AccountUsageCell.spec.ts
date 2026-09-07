@@ -265,6 +265,43 @@ describe('AccountUsageCell', () => {
     expect(wrapper.find('[data-test="cn-balance-cell"]').exists()).toBe(false)
   })
 
+  it('智谱 PAYG 账号显示统一余额刷新入口且不再显示无余额占位符', async () => {
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 9006,
+          platform: 'zhipu',
+          type: 'apikey',
+          credentials: { account_mode: 'payg', upstream_admin_type: 'new-api' }
+        })
+      },
+      global: {
+        stubs: { ...cnUsageCellStubs, UsageProgressBar: true, AccountQuotaInfo: true }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="upstream-balance-cell"]').exists()).toBe(true)
+    expect(wrapper.find('div[title="admin.accounts.cnProviders.noBalanceEndpoint"]').exists()).toBe(false)
+  })
+
+  it('Grok API Key 账号显示统一余额刷新入口且不请求 OAuth 用量', async () => {
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({ id: 9007, platform: 'grok', type: 'apikey' })
+      },
+      global: {
+        stubs: { ...cnUsageCellStubs, UsageProgressBar: true, AccountQuotaInfo: true }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="upstream-balance-cell"]').exists()).toBe(true)
+    expect(getUsage).not.toHaveBeenCalled()
+  })
+
   it('Antigravity 图片用量会聚合新旧 image 模型', async () => {
     getUsage.mockResolvedValue({
       antigravity_quota: {

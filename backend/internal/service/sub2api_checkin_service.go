@@ -494,7 +494,7 @@ func validateManualSub2APICheckinTarget(account *Account) error {
 	}
 	if !accountSupportsUpstreamBalance(account) ||
 		strings.TrimSpace(account.GetCredential("upstream_admin_type")) != UpstreamBalanceProviderSub2API {
-		return infraerrors.New(http.StatusBadRequest, "SUB2API_CHECKIN_INVALID_ACCOUNT", "only OpenAI and Anthropic API Key accounts with sub2api upstream admin support check-in")
+		return infraerrors.New(http.StatusBadRequest, "SUB2API_CHECKIN_INVALID_ACCOUNT", "only supported API Key accounts with sub2api upstream admin support check-in")
 	}
 
 	baseURL := strings.TrimSpace(getUpstreamBalanceBaseURL(account))

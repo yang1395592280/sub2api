@@ -429,6 +429,11 @@
       </div>
     </template>
 
+    <!-- Grok API Key accounts use the unified upstream balance/group probe. -->
+    <template v-else-if="account.platform === 'grok' && account.type === 'apikey'">
+      <OpenAIUpstreamBalanceCell :account="account" @refreshed="emitAccountRefreshed" />
+    </template>
+
     <!-- CN providers (Kimi / Zhipu / DeepSeek): coding-plan quota or payg balance -->
     <template v-else-if="account.platform === 'kimi' || account.platform === 'zhipu' || account.platform === 'deepseek'">
       <!-- 挂在 CN 平台下的 Ollama Cloud 账号（资格由后端下发 eligible）：用量由
@@ -449,7 +454,7 @@
         <!-- 子单元格各自按 模式×平台 判定可见；两者都不可见时（智谱 payg 无公开
              余额端点、coding 探测也不适用）才回落到占位符。 -->
         <div
-          v-if="!cnQuotaCellVisible && !cnBalanceCellVisible"
+          v-if="!supportsUpstreamBalance && !cnQuotaCellVisible && !cnBalanceCellVisible"
           class="text-xs text-gray-400"
           :title="t('admin.accounts.cnProviders.noBalanceEndpoint')"
         >-</div>
@@ -748,6 +753,7 @@ const showUsageWindows = computed(() => {
   ) {
     return true
   }
+  if (props.account.platform === 'grok' && props.account.type === 'apikey') return true
   return props.account.type === 'oauth' || props.account.type === 'setup-token'
 })
 
@@ -804,8 +810,7 @@ const hasOpenAIUsageFallback = computed(() => {
 const supportsUpstreamBalance = computed(() => {
   if (props.account.type !== 'apikey') return false
   if (props.account.platform === 'openai' || props.account.platform === 'anthropic') return true
-  if (props.account.platform !== 'kimi' && props.account.platform !== 'deepseek') return false
-  return true
+  return props.account.platform === 'kimi' || props.account.platform === 'deepseek' || props.account.platform === 'zhipu' || props.account.platform === 'grok'
 })
 
 const openAIUsageRefreshKey = computed(() => buildOpenAIUsageRefreshKey(props.account))

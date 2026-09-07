@@ -205,10 +205,10 @@ func (s *adminServiceImpl) validatePriceGroupingLockedGroups(ctx context.Context
 	if err != nil || len(lockedGroupIDs) == 0 {
 		return lockedGroupIDs, err
 	}
-	if accountPlatform != PlatformOpenAI {
+	if !supportsUpstreamPriceGroupingPlatform(accountPlatform) {
 		return nil, infraerrors.BadRequest(
-			"PRICE_GROUPING_LOCK_OPENAI_ONLY",
-			"price grouping locked groups only support OpenAI accounts",
+			"PRICE_GROUPING_LOCK_UNSUPPORTED_PLATFORM",
+			"price grouping locked groups only support accounts with upstream price grouping",
 		)
 	}
 	for _, groupID := range lockedGroupIDs {
@@ -216,10 +216,10 @@ func (s *adminServiceImpl) validatePriceGroupingLockedGroups(ctx context.Context
 		if err != nil {
 			return nil, fmt.Errorf("get price grouping locked group: %w", err)
 		}
-		if group.Platform != PlatformOpenAI || group.GroupRole != GroupRoleStandard || group.IsSelfHostedPool() || !group.UpstreamPriceGroupingEnabled {
+		if group.Platform != accountPlatform || group.GroupRole != GroupRoleStandard || group.IsSelfHostedPool() || !group.UpstreamPriceGroupingEnabled {
 			return nil, infraerrors.BadRequest(
 				"PRICE_GROUPING_LOCK_UNSUPPORTED_GROUP",
-				"locked memberships must reference standard OpenAI groups with channel-price grouping enabled",
+				"locked memberships must reference standard OpenAI groups or supported same-platform groups with channel-price grouping enabled",
 			)
 		}
 	}

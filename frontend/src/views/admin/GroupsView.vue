@@ -5536,7 +5536,7 @@ const duplicatingGroupIds = ref(new Set<number>());
 const sortableGroups = ref<AdminGroup[]>([]);
 type ConcreteGroupPlatform = Exclude<GroupPlatform, "composite">;
 const supportsUpstreamPriceGroupingPlatform = (platform: string) =>
-  platform === "openai" || platform === "kimi" || platform === "deepseek";
+  platform === "openai" || platform === "kimi" || platform === "deepseek" || platform === "zhipu" || platform === "grok";
 type CompositeRouteFormState = {
   public_model: string;
   match_type: CompositeRouteMatchType;

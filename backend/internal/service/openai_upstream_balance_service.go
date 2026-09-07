@@ -54,7 +54,7 @@ func NewOpenAIUpstreamBalanceService(accountRepo AccountRepository, client *http
 	return &OpenAIUpstreamBalanceService{accountRepo: accountRepo, client: client}
 }
 
-// SetCNProviderBalanceService adds the Kimi/DeepSeek implementation while
+// SetCNProviderBalanceService adds the CN-provider implementation while
 // keeping the existing OpenAI service and handler wiring intact.
 func (s *OpenAIUpstreamBalanceService) SetCNProviderBalanceService(service *CNProviderBalanceService) {
 	if s != nil {
@@ -74,8 +74,8 @@ func (s *OpenAIUpstreamBalanceService) Refresh(ctx context.Context, accountID in
 	if account == nil {
 		return nil, infraerrors.New(http.StatusBadRequest, "UPSTREAM_BALANCE_INVALID_ACCOUNT", "only API Key accounts with upstream balance support are allowed")
 	}
-	if account.IsCNProvider() && s.cnBalance != nil {
-		// Kimi/DeepSeek relay accounts can use the same new-api/sub2api
+	if account.IsCNProvider() {
+		// CN-provider relay accounts can use the same new-api/sub2api
 		// management credentials as OpenAI accounts. Prefer that source when
 		// configured so balance, group and effective channel price come from the
 		// account's maintained upstream management settings.
@@ -84,7 +84,9 @@ func (s *OpenAIUpstreamBalanceService) Refresh(ctx context.Context, accountID in
 				return refreshed, nil
 			}
 		}
-		return s.cnBalance.RefreshAccount(ctx, accountID)
+		if s.cnBalance != nil {
+			return s.cnBalance.RefreshAccount(ctx, accountID)
+		}
 	}
 	if !accountSupportsUpstreamBalance(account) {
 		return nil, infraerrors.New(http.StatusBadRequest, "UPSTREAM_BALANCE_INVALID_ACCOUNT", "only API Key accounts with upstream balance support are allowed")
@@ -211,14 +213,14 @@ func openAIUpstreamBalanceChannelPrice(snapshot OpenAIUpstreamBalanceSnapshot) *
 func accountSupportsUpstreamBalance(account *Account) bool {
 	return account != nil &&
 		account.Type == AccountTypeAPIKey &&
-		(account.Platform == PlatformOpenAI || account.Platform == PlatformAnthropic)
+		(account.Platform == PlatformOpenAI || account.Platform == PlatformAnthropic || account.Platform == PlatformKimi || account.Platform == PlatformDeepseek || account.Platform == PlatformZhipu || account.Platform == PlatformGrok)
 }
 
 func getUpstreamBalanceBaseURL(account *Account) string {
 	if account == nil {
 		return ""
 	}
-	if account.Platform == PlatformOpenAI {
+	if account.Platform == PlatformOpenAI || account.IsCNProvider() {
 		return account.GetOpenAIBaseURL()
 	}
 	return account.GetBaseURL()

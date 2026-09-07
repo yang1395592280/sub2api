@@ -49,7 +49,7 @@ func TestValidatePriceGroupingLockedGroups(t *testing.T) {
 		[]int64{10},
 		[]int64{10},
 	)
-	require.ErrorContains(t, err, "only support OpenAI accounts")
+	require.ErrorContains(t, err, "only support accounts with upstream price grouping")
 
 	_, err = svc.validatePriceGroupingLockedGroups(
 		context.Background(),
@@ -73,8 +73,8 @@ func TestAdminService_UpdateAccountPersistsPriceGroupingLocks(t *testing.T) {
 	}}
 	groupRepo := &groupRepoStubForAdmin{getByIDByID: map[int64]*Group{
 		10: {
-			ID:       10,
-			Platform: PlatformOpenAI,
+			ID:        10,
+			Platform:  PlatformOpenAI,
 			GroupRole: GroupRoleStandard,
 		},
 		20: {

@@ -104,7 +104,7 @@ describe('OpenAIUpstreamBalanceCell', () => {
     expect(wrapper.text()).toContain('sub2api')
   })
 
-  it.each(['kimi', 'deepseek'] as const)('%s configured upstream admin shows first-refresh action without a snapshot', (platform) => {
+  it.each(['kimi', 'deepseek', 'zhipu', 'grok'] as const)('%s configured upstream admin shows first-refresh action without a snapshot', (platform) => {
     const wrapper = mount(OpenAIUpstreamBalanceCell, {
       props: {
         account: makeAccount({
@@ -119,7 +119,7 @@ describe('OpenAIUpstreamBalanceCell', () => {
     expect(wrapper.text()).toContain('Refresh balance')
   })
 
-  it.each(['kimi', 'deepseek'] as const)('%s always exposes refresh action on a new account', (platform) => {
+  it.each(['kimi', 'deepseek', 'zhipu', 'grok'] as const)('%s always exposes refresh action on a new account', (platform) => {
     const wrapper = mount(OpenAIUpstreamBalanceCell, {
       props: { account: makeAccount({ platform, type: 'apikey' }) }
     })
