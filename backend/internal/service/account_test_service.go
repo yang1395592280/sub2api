@@ -160,6 +160,10 @@ type AccountTestService struct {
 	grokWSDialer openAIWSClientDialer
 }
 
+type OpenAIAccountScheduleResultReporter interface {
+	ReportOpenAIAccountScheduleResult(accountID int64, model string, success bool, firstTokenMs *int)
+}
+
 func (s *AccountTestService) SetSettingService(settingService *SettingService) {
 	if s != nil {
 		s.settingService = settingService
