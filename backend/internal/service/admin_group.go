@@ -498,6 +498,21 @@ func normalizeUpdateGroupInputForSimpleMode(input *UpdateGroupInput) {
 }
 
 func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupInput) (*Group, error) {
+	platform := input.Platform
+	groupRole, err := normalizeGroupRole(input.GroupRole)
+	if err != nil {
+		return nil, err
+	}
+	if platform == "" {
+		if groupRole == GroupRoleSelfHostedPool {
+			platform = PlatformOpenAI
+		} else {
+			platform = PlatformAnthropic
+		}
+	}
+	if groupRole == GroupRoleSelfHostedPool {
+		input.RateMultiplier = 1
+	}
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple && NormalizeGroupPlatform(input.Platform) == PlatformComposite {
 		return nil, infraerrors.BadRequest("SIMPLE_MODE_GROUP_NOT_BINDABLE", "composite groups are not supported in simple mode")
 	}
