@@ -1227,42 +1227,10 @@ func init() {
 	groupDescMessagesDispatchModelConfig := groupFields[55].Descriptor()
 	// group.DefaultMessagesDispatchModelConfig holds the default value on creation for the messages_dispatch_model_config field.
 	group.DefaultMessagesDispatchModelConfig = groupDescMessagesDispatchModelConfig.Default.(domain.OpenAIMessagesDispatchModelConfig)
-	// groupDescModelsListConfig is the schema descriptor for models_list_config field.
-	groupDescModelsListConfig := groupFields[56].Descriptor()
-	// group.DefaultModelsListConfig holds the default value on creation for the models_list_config field.
-	group.DefaultModelsListConfig = groupDescModelsListConfig.Default.(domain.GroupModelsListConfig)
-	// groupDescOpenaiAutoSchedulerEnabled is the schema descriptor for openai_auto_scheduler_enabled field.
-	groupDescOpenaiAutoSchedulerEnabled := groupFields[57].Descriptor()
-	// group.DefaultOpenaiAutoSchedulerEnabled holds the default value on creation for the openai_auto_scheduler_enabled field.
-	group.DefaultOpenaiAutoSchedulerEnabled = groupDescOpenaiAutoSchedulerEnabled.Default.(bool)
-	// groupDescAllowAutoCheapestScheduling is the schema descriptor for allow_auto_cheapest_scheduling field.
-	groupDescAllowAutoCheapestScheduling := groupFields[58].Descriptor()
-	// group.DefaultAllowAutoCheapestScheduling holds the default value on creation for the allow_auto_cheapest_scheduling field.
-	group.DefaultAllowAutoCheapestScheduling = groupDescAllowAutoCheapestScheduling.Default.(bool)
-	// groupDescUpstreamBalanceRefreshEnabled is the schema descriptor for upstream_balance_refresh_enabled field.
-	groupDescUpstreamBalanceRefreshEnabled := groupFields[59].Descriptor()
-	// group.DefaultUpstreamBalanceRefreshEnabled holds the default value on creation for the upstream_balance_refresh_enabled field.
-	group.DefaultUpstreamBalanceRefreshEnabled = groupDescUpstreamBalanceRefreshEnabled.Default.(bool)
-	// groupDescUpstreamBalanceRefreshIntervalSeconds is the schema descriptor for upstream_balance_refresh_interval_seconds field.
-	groupDescUpstreamBalanceRefreshIntervalSeconds := groupFields[60].Descriptor()
-	// group.DefaultUpstreamBalanceRefreshIntervalSeconds holds the default value on creation for the upstream_balance_refresh_interval_seconds field.
-	group.DefaultUpstreamBalanceRefreshIntervalSeconds = groupDescUpstreamBalanceRefreshIntervalSeconds.Default.(int)
-	// groupDescUpstreamPriceMaxMultiplier is the schema descriptor for upstream_price_max_multiplier field.
-	groupDescUpstreamPriceMaxMultiplier := groupFields[61].Descriptor()
-	// group.DefaultUpstreamPriceMaxMultiplier holds the default value on creation for the upstream_price_max_multiplier field.
-	group.DefaultUpstreamPriceMaxMultiplier = groupDescUpstreamPriceMaxMultiplier.Default.(float64)
-	// groupDescUpstreamPriceGroupingEnabled is the schema descriptor for upstream_price_grouping_enabled field.
-	groupDescUpstreamPriceGroupingEnabled := groupFields[62].Descriptor()
-	// group.DefaultUpstreamPriceGroupingEnabled holds the default value on creation for the upstream_price_grouping_enabled field.
-	group.DefaultUpstreamPriceGroupingEnabled = groupDescUpstreamPriceGroupingEnabled.Default.(bool)
-	// groupDescUpstreamPriceGroupingMin is the schema descriptor for upstream_price_grouping_min field.
-	groupDescUpstreamPriceGroupingMin := groupFields[63].Descriptor()
-	// group.DefaultUpstreamPriceGroupingMin holds the default value on creation for the upstream_price_grouping_min field.
-	group.DefaultUpstreamPriceGroupingMin = groupDescUpstreamPriceGroupingMin.Default.(float64)
-	// groupDescUpstreamPriceGroupingMax is the schema descriptor for upstream_price_grouping_max field.
-	groupDescUpstreamPriceGroupingMax := groupFields[64].Descriptor()
-	// group.DefaultUpstreamPriceGroupingMax holds the default value on creation for the upstream_price_grouping_max field.
-	group.DefaultUpstreamPriceGroupingMax = groupDescUpstreamPriceGroupingMax.Default.(float64)
+	// groupDescModelAllowlist is the schema descriptor for model_allowlist field.
+	groupDescModelAllowlist := groupFields[54].Descriptor()
+	// group.DefaultModelAllowlist holds the default value on creation for the model_allowlist field.
+	group.DefaultModelAllowlist = groupDescModelAllowlist.Default.(domain.GroupModelAllowlist)
 	// groupDescCodexModelsManifestConfig is the schema descriptor for codex_models_manifest_config field.
 	groupDescCodexModelsManifestConfig := groupFields[65].Descriptor()
 	// group.DefaultCodexModelsManifestConfig holds the default value on creation for the codex_models_manifest_config field.

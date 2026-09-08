@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -27,10 +28,14 @@ type GroupHandler struct {
 	adminService         service.AdminService
 	dashboardService     *service.DashboardService
 	groupCapacityService *service.GroupCapacityService
+	cfg                  *config.Config
 }
 
 // GetLiveCapability 返回当前服务端是否具备生成 Live attestation 的运行环境。
 func (h *GroupHandler) GetLiveCapability(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "live_capability") {
+		return
+	}
 	err := liveattestation.NewProvider().Check(c.Request.Context())
 	result := gin.H{"supported": err == nil}
 	if err != nil {
@@ -109,11 +114,92 @@ func (f optionalLimitField) ToServiceInput() *float64 {
 
 // NewGroupHandler creates a new admin group handler
 func NewGroupHandler(adminService service.AdminService, dashboardService *service.DashboardService, groupCapacityService *service.GroupCapacityService) *GroupHandler {
+	return NewGroupHandlerWithConfig(adminService, dashboardService, groupCapacityService, nil)
+}
+
+func NewGroupHandlerWithConfig(adminService service.AdminService, dashboardService *service.DashboardService, groupCapacityService *service.GroupCapacityService, cfg *config.Config) *GroupHandler {
 	return &GroupHandler{
 		adminService:         adminService,
 		dashboardService:     dashboardService,
 		groupCapacityService: groupCapacityService,
+		cfg:                  cfg,
 	}
+}
+
+func (h *GroupHandler) isSimpleMode() bool {
+	return h != nil && h.cfg != nil && h.cfg.RunMode == config.RunModeSimple
+}
+
+type simpleModeGroupOperation string
+
+const (
+	simpleModeGroupList   simpleModeGroupOperation = "list"
+	simpleModeGroupGetAll simpleModeGroupOperation = "get_all"
+	simpleModeGroupGet    simpleModeGroupOperation = "get"
+	simpleModeGroupCreate simpleModeGroupOperation = "create"
+	simpleModeGroupUpdate simpleModeGroupOperation = "update"
+	simpleModeGroupDelete simpleModeGroupOperation = "delete"
+)
+
+var simpleModeGroupOperations = map[simpleModeGroupOperation]struct{}{
+	simpleModeGroupList: {}, simpleModeGroupGetAll: {}, simpleModeGroupGet: {},
+	simpleModeGroupCreate: {}, simpleModeGroupUpdate: {}, simpleModeGroupDelete: {},
+}
+
+func (h *GroupHandler) rejectUnsupportedSimpleModeOperation(c *gin.Context, operation simpleModeGroupOperation) bool {
+	if _, allowed := simpleModeGroupOperations[operation]; allowed {
+		return false
+	}
+	if err := service.ValidateSimpleModeGroupOperation(h.cfg, service.AdminGroupOperation(operation)); err != nil {
+		response.ErrorFrom(c, err)
+		return true
+	}
+	return false
+}
+
+type simpleModeGroupResponse struct {
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Platform    string `json:"platform"`
+	Status      string `json:"status"`
+
+	AccountCount            int64     `json:"account_count,omitempty"`
+	ActiveAccountCount      int64     `json:"active_account_count,omitempty"`
+	RateLimitedAccountCount int64     `json:"rate_limited_account_count,omitempty"`
+	SortOrder               int       `json:"sort_order"`
+	CreatedAt               time.Time `json:"created_at"`
+	UpdatedAt               time.Time `json:"updated_at"`
+}
+
+func groupForSimpleMode(group *service.Group) *simpleModeGroupResponse {
+	if group == nil {
+		return nil
+	}
+	return &simpleModeGroupResponse{
+		ID: group.ID, Name: group.Name, Description: group.Description, Platform: group.Platform,
+		Status:             group.Status,
+		AccountCount:       group.AccountCount,
+		ActiveAccountCount: group.ActiveAccountCount, RateLimitedAccountCount: group.RateLimitedAccountCount,
+		SortOrder: group.SortOrder, CreatedAt: group.CreatedAt, UpdatedAt: group.UpdatedAt,
+	}
+}
+
+func sanitizeCreateGroupRequestForSimpleMode(req *CreateGroupRequest) {
+	if req == nil {
+		return
+	}
+	allowed := CreateGroupRequest{Name: req.Name, Description: req.Description, Platform: req.Platform}
+	allowed.RateMultiplier = 1
+	allowed.SubscriptionType = service.SubscriptionTypeStandard
+	*req = allowed
+}
+
+func sanitizeUpdateGroupRequestForSimpleMode(req *UpdateGroupRequest) {
+	if req == nil {
+		return
+	}
+	*req = UpdateGroupRequest{Name: req.Name, Description: req.Description}
 }
 
 // CreateGroupRequest represents create group request
@@ -177,7 +263,7 @@ type CreateGroupRequest struct {
 	RequirePrivacySet           bool                                      `json:"require_privacy_set"`
 	DefaultMappedModel          string                                    `json:"default_mapped_model"`
 	MessagesDispatchModelConfig service.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
-	ModelsListConfig            service.GroupModelsListConfig             `json:"models_list_config"`
+	ModelAllowlist              service.GroupModelAllowlist               `json:"model_allowlist"`
 	// 固定账号 manifest 配置；创建路径禁止开启，仅编辑可配置。
 	CodexModelsManifestConfig             service.GroupCodexModelsManifestConfig `json:"codex_models_manifest_config"`
 	OpenAIAutoSchedulerEnabled            bool                                   `json:"openai_auto_scheduler_enabled"`
@@ -261,7 +347,7 @@ type UpdateGroupRequest struct {
 	RequirePrivacySet           *bool                                      `json:"require_privacy_set"`
 	DefaultMappedModel          *string                                    `json:"default_mapped_model"`
 	MessagesDispatchModelConfig *service.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
-	ModelsListConfig            *service.GroupModelsListConfig             `json:"models_list_config"`
+	ModelAllowlist              *service.GroupModelAllowlist               `json:"model_allowlist"`
 	// 固定账号 manifest 配置；nil 表示不修改。
 	CodexModelsManifestConfig             *service.GroupCodexModelsManifestConfig `json:"codex_models_manifest_config"`
 	OpenAIAutoSchedulerEnabled            *bool                                   `json:"openai_auto_scheduler_enabled"`
@@ -303,6 +389,9 @@ type CompositeRoutePreviewRequest struct {
 // List handles listing all groups with pagination
 // GET /api/v1/admin/groups
 func (h *GroupHandler) List(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, simpleModeGroupList) {
+		return
+	}
 	page, pageSize := response.ParsePagination(c)
 	platform := c.Query("platform")
 	status := c.Query("status")
@@ -317,7 +406,7 @@ func (h *GroupHandler) List(c *gin.Context) {
 	sortOrder := c.DefaultQuery("sort_order", "asc")
 
 	var isExclusive *bool
-	if isExclusiveStr != "" {
+	if !h.isSimpleMode() && isExclusiveStr != "" {
 		val := isExclusiveStr == "true"
 		isExclusive = &val
 	}
@@ -328,6 +417,16 @@ func (h *GroupHandler) List(c *gin.Context) {
 		return
 	}
 
+	if h.isSimpleMode() {
+		simpleGroups := make([]simpleModeGroupResponse, 0, len(groups))
+		for i := range groups {
+			if service.IsGroupBindableInSimpleMode(&groups[i]) {
+				simpleGroups = append(simpleGroups, *groupForSimpleMode(&groups[i]))
+			}
+		}
+		response.Paginated(c, simpleGroups, total, page, pageSize)
+		return
+	}
 	outGroups := make([]dto.AdminGroup, 0, len(groups))
 	for i := range groups {
 		outGroups = append(outGroups, *dto.GroupFromServiceAdmin(&groups[i]))
@@ -338,6 +437,9 @@ func (h *GroupHandler) List(c *gin.Context) {
 // ListCompositeRoutes handles listing composite model routes for one group.
 // GET /api/v1/admin/groups/:id/composite-routes
 func (h *GroupHandler) ListCompositeRoutes(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "advanced") {
+		return
+	}
 	groupID, ok := parsePositiveIDParam(c, "id")
 	if !ok {
 		return
@@ -353,6 +455,9 @@ func (h *GroupHandler) ListCompositeRoutes(c *gin.Context) {
 // CreateCompositeRoute handles creating one composite model route.
 // POST /api/v1/admin/groups/:id/composite-routes
 func (h *GroupHandler) CreateCompositeRoute(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "advanced") {
+		return
+	}
 	groupID, ok := parsePositiveIDParam(c, "id")
 	if !ok {
 		return
@@ -373,6 +478,9 @@ func (h *GroupHandler) CreateCompositeRoute(c *gin.Context) {
 // UpdateCompositeRoute handles replacing one composite model route.
 // PUT /api/v1/admin/groups/:id/composite-routes/:route_id
 func (h *GroupHandler) UpdateCompositeRoute(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "advanced") {
+		return
+	}
 	groupID, ok := parsePositiveIDParam(c, "id")
 	if !ok {
 		return
@@ -397,6 +505,9 @@ func (h *GroupHandler) UpdateCompositeRoute(c *gin.Context) {
 // DeleteCompositeRoute handles deleting one composite model route.
 // DELETE /api/v1/admin/groups/:id/composite-routes/:route_id
 func (h *GroupHandler) DeleteCompositeRoute(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "advanced") {
+		return
+	}
 	groupID, ok := parsePositiveIDParam(c, "id")
 	if !ok {
 		return
@@ -415,6 +526,9 @@ func (h *GroupHandler) DeleteCompositeRoute(c *gin.Context) {
 // PreviewCompositeRoute resolves a model without mutating routes.
 // POST /api/v1/admin/groups/:id/composite-routes/preview
 func (h *GroupHandler) PreviewCompositeRoute(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "advanced") {
+		return
+	}
 	groupID, ok := parsePositiveIDParam(c, "id")
 	if !ok {
 		return
@@ -468,6 +582,9 @@ func parsePositiveIDParam(c *gin.Context, name string) (int64, bool) {
 // bound to them even after the group is disabled).
 // GET /api/v1/admin/groups/all
 func (h *GroupHandler) GetAll(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, simpleModeGroupGetAll) {
+		return
+	}
 	platform := c.Query("platform")
 	includeInactive := c.Query("include_inactive") == "true"
 
@@ -487,6 +604,16 @@ func (h *GroupHandler) GetAll(c *gin.Context) {
 		return
 	}
 
+	if h.isSimpleMode() {
+		simpleGroups := make([]simpleModeGroupResponse, 0, len(groups))
+		for i := range groups {
+			if service.IsGroupBindableInSimpleMode(&groups[i]) {
+				simpleGroups = append(simpleGroups, *groupForSimpleMode(&groups[i]))
+			}
+		}
+		response.Success(c, simpleGroups)
+		return
+	}
 	outGroups := make([]dto.AdminGroup, 0, len(groups))
 	for i := range groups {
 		outGroups = append(outGroups, *dto.GroupFromServiceAdmin(&groups[i]))
@@ -497,6 +624,9 @@ func (h *GroupHandler) GetAll(c *gin.Context) {
 // GetByID handles getting a group by ID
 // GET /api/v1/admin/groups/:id
 func (h *GroupHandler) GetByID(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, simpleModeGroupGet) {
+		return
+	}
 	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "Invalid group ID")
@@ -509,12 +639,19 @@ func (h *GroupHandler) GetByID(c *gin.Context) {
 		return
 	}
 
+	if h.isSimpleMode() {
+		response.Success(c, groupForSimpleMode(group))
+		return
+	}
 	response.Success(c, dto.GroupFromServiceAdmin(group))
 }
 
-// GetModelsListCandidates handles getting candidate model IDs for custom /v1/models list.
-// GET /api/v1/admin/groups/:id/models-list-candidates
-func (h *GroupHandler) GetModelsListCandidates(c *gin.Context) {
+// GetGroupModelAllowlistCandidates handles getting candidate model IDs for the group model allowlist.
+// GET /api/v1/admin/groups/:id/model-allowlist-candidates
+func (h *GroupHandler) GetGroupModelAllowlistCandidates(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "advanced") {
+		return
+	}
 	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || groupID < 0 {
 		response.BadRequest(c, "Invalid group ID")
@@ -537,10 +674,20 @@ func (h *GroupHandler) GetModelsListCandidates(c *gin.Context) {
 // Create handles creating a new group
 // POST /api/v1/admin/groups
 func (h *GroupHandler) Create(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, simpleModeGroupCreate) {
+		return
+	}
 	var req CreateGroupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
+	}
+	if h.isSimpleMode() && req.Platform == service.PlatformComposite {
+		response.BadRequest(c, "Platform is not supported in simple mode")
+		return
+	}
+	if h.isSimpleMode() {
+		sanitizeCreateGroupRequestForSimpleMode(&req)
 	}
 
 	if err := service.ValidatePeakRateConfig(req.SubscriptionType, req.PeakRateEnabled, req.PeakStart, req.PeakEnd, float64ValueOrDefault(req.PeakRateMultiplier, 1.0)); err != nil {
@@ -553,89 +700,86 @@ func (h *GroupHandler) Create(c *gin.Context) {
 	}
 
 	group, err := h.adminService.CreateGroup(c.Request.Context(), &service.CreateGroupInput{
-		Name:                                  req.Name,
-		Description:                           req.Description,
-		Platform:                              req.Platform,
-		GroupRole:                             req.GroupRole,
-		SelfHostedPoolGroupID:                 req.SelfHostedPoolGroupID,
-		RateMultiplier:                        req.RateMultiplier,
-		IsExclusive:                           req.IsExclusive,
-		SubscriptionType:                      req.SubscriptionType,
-		DailyLimitUSD:                         req.DailyLimitUSD.ToServiceInput(),
-		WeeklyLimitUSD:                        req.WeeklyLimitUSD.ToServiceInput(),
-		MonthlyLimitUSD:                       req.MonthlyLimitUSD.ToServiceInput(),
-		LongContextPricingEnabled:             req.LongContextPricingEnabled,
-		ModelPricing:                          req.ModelPricing,
-		AllowImageGeneration:                  req.AllowImageGeneration,
-		AllowBatchImageGeneration:             req.AllowBatchImageGeneration,
-		ImageRateIndependent:                  req.ImageRateIndependent,
-		ImageRateMultiplier:                   req.ImageRateMultiplier,
-		BatchImageDiscountMultiplier:          req.BatchImageDiscountMultiplier,
-		BatchImageHoldMultiplier:              req.BatchImageHoldMultiplier,
-		VideoRateIndependent:                  req.VideoRateIndependent,
-		VideoRateMultiplier:                   req.VideoRateMultiplier,
-		PeakRateEnabled:                       req.PeakRateEnabled,
-		PeakStart:                             req.PeakStart,
-		PeakEnd:                               req.PeakEnd,
-		PeakRateMultiplier:                    req.PeakRateMultiplier,
-		ProfitControlEnabled:                  req.ProfitControlEnabled,
-		ProfitMinMargin:                       req.ProfitMinMargin,
-		ProfitSafetyBuffer:                    req.ProfitSafetyBuffer,
-		ImagePrice1K:                          req.ImagePrice1K,
-		ImagePrice2K:                          req.ImagePrice2K,
-		ImagePrice4K:                          req.ImagePrice4K,
-		VideoPrice480P:                        req.VideoPrice480P,
-		VideoPrice720P:                        req.VideoPrice720P,
-		VideoPrice1080P:                       req.VideoPrice1080P,
-		VideoModelPrices:                      req.VideoModelPrices,
-		WebSearchPricePerCall:                 req.WebSearchPricePerCall,
-		SearchPricePer1k:                      req.SearchPricePer1k,
-		AudioRealtimePricePerMin:              req.AudioRealtimePricePerMin,
-		AudioTTSPricePerMillionChars:          req.AudioTtsPricePerMillionChars,
-		AudioSTTPricePerHour:                  req.AudioSttPricePerHour,
-		ClaudeCodeOnly:                        req.ClaudeCodeOnly,
-		FallbackGroupID:                       req.FallbackGroupID,
-		FallbackGroupIDOnInvalidRequest:       req.FallbackGroupIDOnInvalidRequest,
-		ModelRouting:                          req.ModelRouting,
-		ModelRoutingEnabled:                   req.ModelRoutingEnabled,
-		MCPXMLInject:                          req.MCPXMLInject,
-		SupportedModelScopes:                  req.SupportedModelScopes,
-		AllowMessagesDispatch:                 req.AllowMessagesDispatch,
-		AllowLive:                             req.AllowLive,
-		ForceOpenAIFast:                       req.ForceOpenAIFast,
-		FreeOpenAIFast:                        req.FreeOpenAIFast,
-		RequireOAuthOnly:                      req.RequireOAuthOnly,
-		RequirePrivacySet:                     req.RequirePrivacySet,
-		DefaultMappedModel:                    req.DefaultMappedModel,
-		MessagesDispatchModelConfig:           req.MessagesDispatchModelConfig,
-		ModelsListConfig:                      req.ModelsListConfig,
-		CodexModelsManifestConfig:             req.CodexModelsManifestConfig,
-		OpenAIAutoSchedulerEnabled:            req.OpenAIAutoSchedulerEnabled,
-		AllowAutoCheapestScheduling:           req.AllowAutoCheapestScheduling,
-		UpstreamBalanceRefreshEnabled:         req.UpstreamBalanceRefreshEnabled,
-		UpstreamBalanceRefreshIntervalSeconds: req.UpstreamBalanceRefreshIntervalSeconds,
-		UpstreamPriceMaxMultiplier:            req.UpstreamPriceMaxMultiplier,
-		UpstreamPriceGroupingEnabled:          req.UpstreamPriceGroupingEnabled,
-		UpstreamPriceGroupingMin:              req.UpstreamPriceGroupingMin,
-		UpstreamPriceGroupingMax:              req.UpstreamPriceGroupingMax,
-		RPMLimit:                              req.RPMLimit,
-		MaxReasoningEffort:                    req.MaxReasoningEffort,
-		MaxReasoningEffortOverLimit:           req.MaxReasoningEffortOverLimit,
-		ReasoningEffortMappings:               req.ReasoningEffortMappings,
-		CopyAccountsFromGroupIDs:              req.CopyAccountsFromGroupIDs,
+		Name:                            req.Name,
+		Description:                     req.Description,
+		Platform:                        req.Platform,
+		RateMultiplier:                  req.RateMultiplier,
+		IsExclusive:                     req.IsExclusive,
+		SubscriptionType:                req.SubscriptionType,
+		DailyLimitUSD:                   req.DailyLimitUSD.ToServiceInput(),
+		WeeklyLimitUSD:                  req.WeeklyLimitUSD.ToServiceInput(),
+		MonthlyLimitUSD:                 req.MonthlyLimitUSD.ToServiceInput(),
+		LongContextPricingEnabled:       req.LongContextPricingEnabled,
+		ModelPricing:                    req.ModelPricing,
+		AllowImageGeneration:            req.AllowImageGeneration,
+		AllowBatchImageGeneration:       req.AllowBatchImageGeneration,
+		ImageRateIndependent:            req.ImageRateIndependent,
+		ImageRateMultiplier:             req.ImageRateMultiplier,
+		BatchImageDiscountMultiplier:    req.BatchImageDiscountMultiplier,
+		BatchImageHoldMultiplier:        req.BatchImageHoldMultiplier,
+		VideoRateIndependent:            req.VideoRateIndependent,
+		VideoRateMultiplier:             req.VideoRateMultiplier,
+		PeakRateEnabled:                 req.PeakRateEnabled,
+		PeakStart:                       req.PeakStart,
+		PeakEnd:                         req.PeakEnd,
+		PeakRateMultiplier:              req.PeakRateMultiplier,
+		ProfitControlEnabled:            req.ProfitControlEnabled,
+		ProfitMinMargin:                 req.ProfitMinMargin,
+		ProfitSafetyBuffer:              req.ProfitSafetyBuffer,
+		ImagePrice1K:                    req.ImagePrice1K,
+		ImagePrice2K:                    req.ImagePrice2K,
+		ImagePrice4K:                    req.ImagePrice4K,
+		VideoPrice480P:                  req.VideoPrice480P,
+		VideoPrice720P:                  req.VideoPrice720P,
+		VideoPrice1080P:                 req.VideoPrice1080P,
+		VideoModelPrices:                req.VideoModelPrices,
+		WebSearchPricePerCall:           req.WebSearchPricePerCall,
+		SearchPricePer1k:                req.SearchPricePer1k,
+		AudioRealtimePricePerMin:        req.AudioRealtimePricePerMin,
+		AudioTTSPricePerMillionChars:    req.AudioTtsPricePerMillionChars,
+		AudioSTTPricePerHour:            req.AudioSttPricePerHour,
+		ClaudeCodeOnly:                  req.ClaudeCodeOnly,
+		FallbackGroupID:                 req.FallbackGroupID,
+		FallbackGroupIDOnInvalidRequest: req.FallbackGroupIDOnInvalidRequest,
+		ModelRouting:                    req.ModelRouting,
+		ModelRoutingEnabled:             req.ModelRoutingEnabled,
+		MCPXMLInject:                    req.MCPXMLInject,
+		SupportedModelScopes:            req.SupportedModelScopes,
+		AllowMessagesDispatch:           req.AllowMessagesDispatch,
+		AllowLive:                       req.AllowLive,
+		ForceOpenAIFast:                 req.ForceOpenAIFast,
+		FreeOpenAIFast:                  req.FreeOpenAIFast,
+		RequireOAuthOnly:                req.RequireOAuthOnly,
+		RequirePrivacySet:               req.RequirePrivacySet,
+		DefaultMappedModel:              req.DefaultMappedModel,
+		MessagesDispatchModelConfig:     req.MessagesDispatchModelConfig,
+		ModelAllowlist:                  req.ModelAllowlist,
+		CodexModelsManifestConfig:       req.CodexModelsManifestConfig,
+		RPMLimit:                        req.RPMLimit,
+		MaxReasoningEffort:              req.MaxReasoningEffort,
+		MaxReasoningEffortOverLimit:     req.MaxReasoningEffortOverLimit,
+		ReasoningEffortMappings:         req.ReasoningEffortMappings,
+		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
+	if h.isSimpleMode() {
+		response.Success(c, groupForSimpleMode(group))
+		return
+	}
 	response.Success(c, dto.GroupFromServiceAdmin(group))
 }
 
 // Duplicate creates an inactive copy of a group and its account bindings.
 func (h *GroupHandler) Duplicate(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil || id <= 0 {
+	if h.rejectUnsupportedSimpleModeOperation(c, "advanced") {
+		return
+	}
+	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || groupID <= 0 {
 		response.BadRequest(c, "Invalid group ID")
 		return
 	}
@@ -671,6 +815,9 @@ func (h *GroupHandler) Duplicate(c *gin.Context) {
 // Update handles updating a group
 // PUT /api/v1/admin/groups/:id
 func (h *GroupHandler) Update(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, simpleModeGroupUpdate) {
+		return
+	}
 	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "Invalid group ID")
@@ -682,99 +829,102 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
+	if h.isSimpleMode() {
+		sanitizeUpdateGroupRequestForSimpleMode(&req)
+	}
 
 	group, err := h.adminService.UpdateGroup(c.Request.Context(), groupID, &service.UpdateGroupInput{
-		Name:                                  req.Name,
-		Description:                           req.Description,
-		Platform:                              req.Platform,
-		GroupRole:                             req.GroupRole,
-		SelfHostedPoolGroupID:                 req.SelfHostedPoolGroupID.value,
-		SelfHostedPoolGroupIDSet:              req.SelfHostedPoolGroupID.set,
-		RateMultiplier:                        req.RateMultiplier,
-		IsExclusive:                           req.IsExclusive,
-		Status:                                req.Status,
-		SubscriptionType:                      req.SubscriptionType,
-		DailyLimitUSD:                         req.DailyLimitUSD.ToServiceInput(),
-		WeeklyLimitUSD:                        req.WeeklyLimitUSD.ToServiceInput(),
-		MonthlyLimitUSD:                       req.MonthlyLimitUSD.ToServiceInput(),
-		LongContextPricingEnabled:             req.LongContextPricingEnabled,
-		ModelPricing:                          req.ModelPricing,
-		AllowImageGeneration:                  req.AllowImageGeneration,
-		AllowBatchImageGeneration:             req.AllowBatchImageGeneration,
-		ImageRateIndependent:                  req.ImageRateIndependent,
-		ImageRateMultiplier:                   req.ImageRateMultiplier,
-		BatchImageDiscountMultiplier:          req.BatchImageDiscountMultiplier,
-		BatchImageHoldMultiplier:              req.BatchImageHoldMultiplier,
-		VideoRateIndependent:                  req.VideoRateIndependent,
-		VideoRateMultiplier:                   req.VideoRateMultiplier,
-		PeakRateEnabled:                       req.PeakRateEnabled,
-		PeakStart:                             req.PeakStart,
-		PeakEnd:                               req.PeakEnd,
-		PeakRateMultiplier:                    req.PeakRateMultiplier,
-		ProfitControlEnabled:                  req.ProfitControlEnabled,
-		ProfitMinMargin:                       req.ProfitMinMargin,
-		ProfitSafetyBuffer:                    req.ProfitSafetyBuffer,
-		ImagePrice1K:                          req.ImagePrice1K,
-		ImagePrice2K:                          req.ImagePrice2K,
-		ImagePrice4K:                          req.ImagePrice4K,
-		VideoPrice480P:                        req.VideoPrice480P,
-		VideoPrice720P:                        req.VideoPrice720P,
-		VideoPrice1080P:                       req.VideoPrice1080P,
-		VideoModelPrices:                      req.VideoModelPrices,
-		WebSearchPricePerCall:                 req.WebSearchPricePerCall,
-		SearchPricePer1k:                      req.SearchPricePer1k,
-		AudioRealtimePricePerMin:              req.AudioRealtimePricePerMin,
-		AudioTTSPricePerMillionChars:          req.AudioTtsPricePerMillionChars,
-		AudioSTTPricePerHour:                  req.AudioSttPricePerHour,
-		ClaudeCodeOnly:                        req.ClaudeCodeOnly,
-		FallbackGroupID:                       req.FallbackGroupID,
-		FallbackGroupIDOnInvalidRequest:       req.FallbackGroupIDOnInvalidRequest,
-		ModelRouting:                          req.ModelRouting,
-		ModelRoutingEnabled:                   req.ModelRoutingEnabled,
-		MCPXMLInject:                          req.MCPXMLInject,
-		SupportedModelScopes:                  req.SupportedModelScopes,
-		AllowMessagesDispatch:                 req.AllowMessagesDispatch,
-		AllowLive:                             req.AllowLive,
-		ForceOpenAIFast:                       req.ForceOpenAIFast,
-		FreeOpenAIFast:                        req.FreeOpenAIFast,
-		RequireOAuthOnly:                      req.RequireOAuthOnly,
-		RequirePrivacySet:                     req.RequirePrivacySet,
-		DefaultMappedModel:                    req.DefaultMappedModel,
-		MessagesDispatchModelConfig:           req.MessagesDispatchModelConfig,
-		ModelsListConfig:                      req.ModelsListConfig,
-		CodexModelsManifestConfig:             req.CodexModelsManifestConfig,
-		OpenAIAutoSchedulerEnabled:            req.OpenAIAutoSchedulerEnabled,
-		AllowAutoCheapestScheduling:           req.AllowAutoCheapestScheduling,
-		UpstreamBalanceRefreshEnabled:         req.UpstreamBalanceRefreshEnabled,
-		UpstreamBalanceRefreshIntervalSeconds: req.UpstreamBalanceRefreshIntervalSeconds,
-		UpstreamPriceMaxMultiplier:            req.UpstreamPriceMaxMultiplier,
-		UpstreamPriceGroupingEnabled:          req.UpstreamPriceGroupingEnabled,
-		UpstreamPriceGroupingMin:              req.UpstreamPriceGroupingMin,
-		UpstreamPriceGroupingMax:              req.UpstreamPriceGroupingMax,
-		RPMLimit:                              req.RPMLimit,
-		MaxReasoningEffort:                    req.MaxReasoningEffort,
-		MaxReasoningEffortOverLimit:           req.MaxReasoningEffortOverLimit,
-		ReasoningEffortMappings:               req.ReasoningEffortMappings,
-		CopyAccountsFromGroupIDs:              req.CopyAccountsFromGroupIDs,
+		Name:                            req.Name,
+		Description:                     req.Description,
+		Platform:                        req.Platform,
+		RateMultiplier:                  req.RateMultiplier,
+		IsExclusive:                     req.IsExclusive,
+		Status:                          req.Status,
+		SubscriptionType:                req.SubscriptionType,
+		DailyLimitUSD:                   req.DailyLimitUSD.ToServiceInput(),
+		WeeklyLimitUSD:                  req.WeeklyLimitUSD.ToServiceInput(),
+		MonthlyLimitUSD:                 req.MonthlyLimitUSD.ToServiceInput(),
+		LongContextPricingEnabled:       req.LongContextPricingEnabled,
+		ModelPricing:                    req.ModelPricing,
+		AllowImageGeneration:            req.AllowImageGeneration,
+		AllowBatchImageGeneration:       req.AllowBatchImageGeneration,
+		ImageRateIndependent:            req.ImageRateIndependent,
+		ImageRateMultiplier:             req.ImageRateMultiplier,
+		BatchImageDiscountMultiplier:    req.BatchImageDiscountMultiplier,
+		BatchImageHoldMultiplier:        req.BatchImageHoldMultiplier,
+		VideoRateIndependent:            req.VideoRateIndependent,
+		VideoRateMultiplier:             req.VideoRateMultiplier,
+		PeakRateEnabled:                 req.PeakRateEnabled,
+		PeakStart:                       req.PeakStart,
+		PeakEnd:                         req.PeakEnd,
+		PeakRateMultiplier:              req.PeakRateMultiplier,
+		ProfitControlEnabled:            req.ProfitControlEnabled,
+		ProfitMinMargin:                 req.ProfitMinMargin,
+		ProfitSafetyBuffer:              req.ProfitSafetyBuffer,
+		ImagePrice1K:                    req.ImagePrice1K,
+		ImagePrice2K:                    req.ImagePrice2K,
+		ImagePrice4K:                    req.ImagePrice4K,
+		VideoPrice480P:                  req.VideoPrice480P,
+		VideoPrice720P:                  req.VideoPrice720P,
+		VideoPrice1080P:                 req.VideoPrice1080P,
+		VideoModelPrices:                req.VideoModelPrices,
+		WebSearchPricePerCall:           req.WebSearchPricePerCall,
+		SearchPricePer1k:                req.SearchPricePer1k,
+		AudioRealtimePricePerMin:        req.AudioRealtimePricePerMin,
+		AudioTTSPricePerMillionChars:    req.AudioTtsPricePerMillionChars,
+		AudioSTTPricePerHour:            req.AudioSttPricePerHour,
+		ClaudeCodeOnly:                  req.ClaudeCodeOnly,
+		FallbackGroupID:                 req.FallbackGroupID,
+		FallbackGroupIDOnInvalidRequest: req.FallbackGroupIDOnInvalidRequest,
+		ModelRouting:                    req.ModelRouting,
+		ModelRoutingEnabled:             req.ModelRoutingEnabled,
+		MCPXMLInject:                    req.MCPXMLInject,
+		SupportedModelScopes:            req.SupportedModelScopes,
+		AllowMessagesDispatch:           req.AllowMessagesDispatch,
+		AllowLive:                       req.AllowLive,
+		ForceOpenAIFast:                 req.ForceOpenAIFast,
+		FreeOpenAIFast:                  req.FreeOpenAIFast,
+		RequireOAuthOnly:                req.RequireOAuthOnly,
+		RequirePrivacySet:               req.RequirePrivacySet,
+		DefaultMappedModel:              req.DefaultMappedModel,
+		MessagesDispatchModelConfig:     req.MessagesDispatchModelConfig,
+		ModelAllowlist:                  req.ModelAllowlist,
+		CodexModelsManifestConfig:       req.CodexModelsManifestConfig,
+		RPMLimit:                        req.RPMLimit,
+		MaxReasoningEffort:              req.MaxReasoningEffort,
+		MaxReasoningEffortOverLimit:     req.MaxReasoningEffortOverLimit,
+		ReasoningEffortMappings:         req.ReasoningEffortMappings,
+		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
+	if h.isSimpleMode() {
+		response.Success(c, groupForSimpleMode(group))
+		return
+	}
 	response.Success(c, dto.GroupFromServiceAdmin(group))
 }
 
 // Delete handles deleting a group
 // DELETE /api/v1/admin/groups/:id
 func (h *GroupHandler) Delete(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, simpleModeGroupDelete) {
+		return
+	}
 	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "Invalid group ID")
 		return
 	}
 
-	err = h.adminService.DeleteGroup(c.Request.Context(), groupID)
+	if h.isSimpleMode() {
+		err = h.adminService.DeleteGroupIfEmpty(c.Request.Context(), groupID)
+	} else {
+		err = h.adminService.DeleteGroup(c.Request.Context(), groupID)
+	}
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -786,6 +936,9 @@ func (h *GroupHandler) Delete(c *gin.Context) {
 // GetStats handles getting group statistics
 // GET /api/v1/admin/groups/:id/stats
 func (h *GroupHandler) GetStats(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "stats") {
+		return
+	}
 	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "Invalid group ID")
@@ -805,6 +958,9 @@ func (h *GroupHandler) GetStats(c *gin.Context) {
 // GetUsageSummary returns today's, yesterday's, and cumulative cost for all groups.
 // GET /api/v1/admin/groups/usage-summary
 func (h *GroupHandler) GetUsageSummary(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "advanced") {
+		return
+	}
 	todayStart := service.GroupUsageTodayStart(time.Now())
 
 	results, err := h.dashboardService.GetGroupUsageSummary(c.Request.Context(), todayStart)
@@ -819,6 +975,9 @@ func (h *GroupHandler) GetUsageSummary(c *gin.Context) {
 // GetCapacitySummary returns aggregated capacity (concurrency/sessions/RPM) for all active groups.
 // GET /api/v1/admin/groups/capacity-summary
 func (h *GroupHandler) GetCapacitySummary(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "advanced") {
+		return
+	}
 	results, err := h.groupCapacityService.GetAllGroupCapacity(c.Request.Context())
 	if err != nil {
 		response.Error(c, 500, "Failed to get group capacity summary")
@@ -862,6 +1021,9 @@ func (h *GroupHandler) GetCapacityUsers(c *gin.Context) {
 // GetGroupAPIKeys handles getting API keys in a group
 // GET /api/v1/admin/groups/:id/api-keys
 func (h *GroupHandler) GetGroupAPIKeys(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "api_keys") {
+		return
+	}
 	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "Invalid group ID")
@@ -886,6 +1048,9 @@ func (h *GroupHandler) GetGroupAPIKeys(c *gin.Context) {
 // GetGroupRateMultipliers handles getting rate multipliers for users in a group
 // GET /api/v1/admin/groups/:id/rate-multipliers
 func (h *GroupHandler) GetGroupRateMultipliers(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "advanced") {
+		return
+	}
 	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "Invalid group ID")
@@ -1085,6 +1250,9 @@ func (h *GroupHandler) RemoveGroupMember(c *gin.Context) {
 // ClearGroupRateMultipliers handles clearing all rate multipliers for a group
 // DELETE /api/v1/admin/groups/:id/rate-multipliers
 func (h *GroupHandler) ClearGroupRateMultipliers(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "advanced") {
+		return
+	}
 	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "Invalid group ID")
@@ -1107,6 +1275,9 @@ type BatchSetGroupRateMultipliersRequest struct {
 // BatchSetGroupRateMultipliers handles batch setting rate multipliers for a group
 // PUT /api/v1/admin/groups/:id/rate-multipliers
 func (h *GroupHandler) BatchSetGroupRateMultipliers(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "advanced") {
+		return
+	}
 	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "Invalid group ID")
@@ -1135,6 +1306,9 @@ type BatchSetGroupRPMOverridesRequest struct {
 // BatchSetGroupRPMOverrides handles batch setting rpm_override for users in a group
 // PUT /api/v1/admin/groups/:id/rpm-overrides
 func (h *GroupHandler) BatchSetGroupRPMOverrides(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "advanced") {
+		return
+	}
 	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "Invalid group ID")
@@ -1158,6 +1332,9 @@ func (h *GroupHandler) BatchSetGroupRPMOverrides(c *gin.Context) {
 // ClearGroupRPMOverrides handles clearing all rpm_override for a group
 // DELETE /api/v1/admin/groups/:id/rpm-overrides
 func (h *GroupHandler) ClearGroupRPMOverrides(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "advanced") {
+		return
+	}
 	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "Invalid group ID")
@@ -1183,6 +1360,9 @@ type UpdateSortOrderRequest struct {
 // UpdateSortOrder handles updating group sort orders
 // PUT /api/v1/admin/groups/sort-order
 func (h *GroupHandler) UpdateSortOrder(c *gin.Context) {
+	if h.rejectUnsupportedSimpleModeOperation(c, "advanced") {
+		return
+	}
 	var req UpdateSortOrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())

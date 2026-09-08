@@ -270,37 +270,10 @@ func (Group) Fields() []ent.Field {
 			Default(domain.OpenAIMessagesDispatchModelConfig{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("OpenAI Messages 调度模型配置：按 Claude 系列/精确模型映射到目标 GPT 模型"),
-		field.JSON("models_list_config", domain.GroupModelsListConfig{}).
-			Default(domain.GroupModelsListConfig{}).
+		field.JSON("model_allowlist", domain.GroupModelAllowlist{}).
+			Default(domain.GroupModelAllowlist{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
-			Comment("自定义 /v1/models 展示列表配置；仅影响模型列表响应，不影响调度"),
-		field.Bool("openai_auto_scheduler_enabled").
-			Default(false).
-			Comment("Enable OpenAI automatic score-based scheduling for this group."),
-		field.Bool("allow_auto_cheapest_scheduling").
-			Default(true).
-			Comment("是否允许 OpenAI 自动最优惠分组调度到此分组"),
-		field.Bool("upstream_balance_refresh_enabled").
-			Default(false).
-			Comment("是否启用分组级上游余额定时刷新"),
-		field.Int("upstream_balance_refresh_interval_seconds").
-			Default(600).
-			Comment("分组级上游余额刷新间隔秒数"),
-		field.Float("upstream_price_max_multiplier").
-			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
-			Default(0).
-			Comment("分组级上游价格倍率上限，0 表示不限制"),
-		field.Bool("upstream_price_grouping_enabled").
-			Default(false).
-			Comment("是否在刷新渠道价格后按价格区间自动归入 OpenAI 普通分组"),
-		field.Float("upstream_price_grouping_min").
-			SchemaType(map[string]string{dialect.Postgres: "decimal(12,6)"}).
-			Default(0).
-			Comment("OpenAI 渠道价格自动归组区间下限（包含）"),
-		field.Float("upstream_price_grouping_max").
-			SchemaType(map[string]string{dialect.Postgres: "decimal(12,6)"}).
-			Default(0).
-			Comment("OpenAI 渠道价格自动归组区间上限（包含）"),
+			Comment("分组模型白名单：同时约束模型列表接口与请求准入"),
 		field.JSON("codex_models_manifest_config", domain.GroupCodexModelsManifestConfig{}).
 			Default(domain.GroupCodexModelsManifestConfig{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).

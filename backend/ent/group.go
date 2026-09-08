@@ -138,24 +138,8 @@ type Group struct {
 	DefaultMappedModel string `json:"default_mapped_model,omitempty"`
 	// OpenAI Messages 调度模型配置：按 Claude 系列/精确模型映射到目标 GPT 模型
 	MessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config,omitempty"`
-	// 自定义 /v1/models 展示列表配置；仅影响模型列表响应，不影响调度
-	ModelsListConfig domain.GroupModelsListConfig `json:"models_list_config,omitempty"`
-	// Enable OpenAI automatic score-based scheduling for this group.
-	OpenaiAutoSchedulerEnabled bool `json:"openai_auto_scheduler_enabled,omitempty"`
-	// 是否允许 OpenAI 自动最优惠分组调度到此分组
-	AllowAutoCheapestScheduling bool `json:"allow_auto_cheapest_scheduling,omitempty"`
-	// 是否启用分组级上游余额定时刷新
-	UpstreamBalanceRefreshEnabled bool `json:"upstream_balance_refresh_enabled,omitempty"`
-	// 分组级上游余额刷新间隔秒数
-	UpstreamBalanceRefreshIntervalSeconds int `json:"upstream_balance_refresh_interval_seconds,omitempty"`
-	// 分组级上游价格倍率上限，0 表示不限制
-	UpstreamPriceMaxMultiplier float64 `json:"upstream_price_max_multiplier,omitempty"`
-	// 是否在刷新渠道价格后按价格区间自动归入 OpenAI 普通分组
-	UpstreamPriceGroupingEnabled bool `json:"upstream_price_grouping_enabled,omitempty"`
-	// OpenAI 渠道价格自动归组区间下限（包含）
-	UpstreamPriceGroupingMin float64 `json:"upstream_price_grouping_min,omitempty"`
-	// OpenAI 渠道价格自动归组区间上限（包含）
-	UpstreamPriceGroupingMax float64 `json:"upstream_price_grouping_max,omitempty"`
+	// 分组模型白名单：同时约束模型列表接口与请求准入
+	ModelAllowlist domain.GroupModelAllowlist `json:"model_allowlist,omitempty"`
 	// 固定账号获取 Codex Model Manifest 配置；开启后 /models 请求只用选定账号拉取（仅 openai 平台）
 	CodexModelsManifestConfig domain.GroupCodexModelsManifestConfig `json:"codex_models_manifest_config,omitempty"`
 	// 分组 RPM 上限，0 表示不限制；设置后接管该分组用户的限流
@@ -278,7 +262,7 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case group.FieldVideoModelPrices, group.FieldModelPricing, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelsListConfig, group.FieldCodexModelsManifestConfig, group.FieldReasoningEffortMappings:
+		case group.FieldVideoModelPrices, group.FieldModelPricing, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelAllowlist, group.FieldCodexModelsManifestConfig, group.FieldReasoningEffortMappings:
 			values[i] = new([]byte)
 		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldLongContextPricingEnabled, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldAllowLive, group.FieldForceOpenaiFast, group.FieldFreeOpenaiFast, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldOpenaiAutoSchedulerEnabled, group.FieldAllowAutoCheapestScheduling, group.FieldUpstreamBalanceRefreshEnabled, group.FieldUpstreamPriceGroupingEnabled, group.FieldProfitControlEnabled:
 			values[i] = new(sql.NullBool)
@@ -695,12 +679,12 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 					return fmt.Errorf("unmarshal field messages_dispatch_model_config: %w", err)
 				}
 			}
-		case group.FieldModelsListConfig:
+		case group.FieldModelAllowlist:
 			if value, ok := values[i].(*[]byte); !ok {
-				return fmt.Errorf("unexpected type %T for field models_list_config", values[i])
+				return fmt.Errorf("unexpected type %T for field model_allowlist", values[i])
 			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &_m.ModelsListConfig); err != nil {
-					return fmt.Errorf("unmarshal field models_list_config: %w", err)
+				if err := json.Unmarshal(*value, &_m.ModelAllowlist); err != nil {
+					return fmt.Errorf("unmarshal field model_allowlist: %w", err)
 				}
 			}
 		case group.FieldOpenaiAutoSchedulerEnabled:
@@ -1096,8 +1080,8 @@ func (_m *Group) String() string {
 	builder.WriteString("messages_dispatch_model_config=")
 	builder.WriteString(fmt.Sprintf("%v", _m.MessagesDispatchModelConfig))
 	builder.WriteString(", ")
-	builder.WriteString("models_list_config=")
-	builder.WriteString(fmt.Sprintf("%v", _m.ModelsListConfig))
+	builder.WriteString("model_allowlist=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ModelAllowlist))
 	builder.WriteString(", ")
 	builder.WriteString("openai_auto_scheduler_enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.OpenaiAutoSchedulerEnabled))
