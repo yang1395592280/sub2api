@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 24 // v24: group model_allowlist field (renamed from models_list_config, enforcing semantics)
+const apiKeyAuthSnapshotVersion = 25 // v25: preserve automatic scheduling and upstream price guard fields in auth snapshots
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -442,6 +442,14 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			ProfitMinMargin:                 apiKey.Group.ProfitMinMargin,
 			ProfitSafetyBuffer:              apiKey.Group.ProfitSafetyBuffer,
 		}
+		snapshot.Group.OpenAIAutoSchedulerEnabled = apiKey.Group.OpenAIAutoSchedulerEnabled
+		snapshot.Group.AllowAutoCheapestScheduling = apiKey.Group.AllowAutoCheapestScheduling
+		snapshot.Group.UpstreamBalanceRefreshEnabled = apiKey.Group.UpstreamBalanceRefreshEnabled
+		snapshot.Group.UpstreamBalanceRefreshIntervalSeconds = apiKey.Group.UpstreamBalanceRefreshIntervalSeconds
+		snapshot.Group.UpstreamPriceMaxMultiplier = apiKey.Group.UpstreamPriceMaxMultiplier
+		snapshot.Group.UpstreamPriceGroupingEnabled = apiKey.Group.UpstreamPriceGroupingEnabled
+		snapshot.Group.UpstreamPriceGroupingMin = apiKey.Group.UpstreamPriceGroupingMin
+		snapshot.Group.UpstreamPriceGroupingMax = apiKey.Group.UpstreamPriceGroupingMax
 	}
 	return snapshot
 }
@@ -550,6 +558,14 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			ProfitMinMargin:                 snapshot.Group.ProfitMinMargin,
 			ProfitSafetyBuffer:              snapshot.Group.ProfitSafetyBuffer,
 		}
+		apiKey.Group.OpenAIAutoSchedulerEnabled = snapshot.Group.OpenAIAutoSchedulerEnabled
+		apiKey.Group.AllowAutoCheapestScheduling = snapshot.Group.AllowAutoCheapestScheduling
+		apiKey.Group.UpstreamBalanceRefreshEnabled = snapshot.Group.UpstreamBalanceRefreshEnabled
+		apiKey.Group.UpstreamBalanceRefreshIntervalSeconds = snapshot.Group.UpstreamBalanceRefreshIntervalSeconds
+		apiKey.Group.UpstreamPriceMaxMultiplier = snapshot.Group.UpstreamPriceMaxMultiplier
+		apiKey.Group.UpstreamPriceGroupingEnabled = snapshot.Group.UpstreamPriceGroupingEnabled
+		apiKey.Group.UpstreamPriceGroupingMin = snapshot.Group.UpstreamPriceGroupingMin
+		apiKey.Group.UpstreamPriceGroupingMax = snapshot.Group.UpstreamPriceGroupingMax
 	}
 	s.compileAPIKeyIPRules(apiKey)
 	return apiKey

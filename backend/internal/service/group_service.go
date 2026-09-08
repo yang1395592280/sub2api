@@ -134,6 +134,10 @@ func (s *GroupService) Create(ctx context.Context, req CreateGroupRequest) (*Gro
 		AllowImageGeneration: req.AllowImageGeneration,
 		ImageRateIndependent: req.ImageRateIndependent,
 		ImageRateMultiplier:  imageRateMultiplier,
+		// 旧创建入口同样会经过显式持久化字段的仓储；这里补齐 schema 默认值，
+		// 确保新分组默认可参与自动最优惠分组调度。
+		AllowAutoCheapestScheduling:           true,
+		UpstreamBalanceRefreshIntervalSeconds: DefaultUpstreamBalanceRefreshIntervalSeconds,
 	}
 
 	if err := s.groupRepo.Create(ctx, group); err != nil {

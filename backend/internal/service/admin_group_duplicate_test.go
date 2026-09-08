@@ -155,22 +155,30 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 		VideoModelPrices: map[string]map[string]float64{
 			VideoPriceFamilyGrokImagineVideo15: {VideoBillingResolution720P: 0.14},
 		},
-		WebSearchPricePerCall:           groupDuplicateTestPointer(0.005),
-		ClaudeCodeOnly:                  true,
-		FallbackGroupID:                 groupDuplicateTestPointer(int64(7)),
-		FallbackGroupIDOnInvalidRequest: groupDuplicateTestPointer(int64(8)),
-		ModelRouting:                    map[string][]int64{"gpt-*": {13, 17}},
-		ModelRoutingEnabled:             true,
-		MCPXMLInject:                    true,
-		SupportedModelScopes:            []string{"claude", "gemini_text"},
-		SortOrder:                       9,
-		AllowMessagesDispatch:           true,
-		AllowLive:                       true,
-		ForceOpenAIFast:                 true,
-		FreeOpenAIFast:                  true,
-		RequireOAuthOnly:                true,
-		RequirePrivacySet:               true,
-		DefaultMappedModel:              "gpt-5.4",
+		WebSearchPricePerCall:                 groupDuplicateTestPointer(0.005),
+		ClaudeCodeOnly:                        true,
+		FallbackGroupID:                       groupDuplicateTestPointer(int64(7)),
+		FallbackGroupIDOnInvalidRequest:       groupDuplicateTestPointer(int64(8)),
+		ModelRouting:                          map[string][]int64{"gpt-*": {13, 17}},
+		ModelRoutingEnabled:                   true,
+		MCPXMLInject:                          true,
+		SupportedModelScopes:                  []string{"claude", "gemini_text"},
+		SortOrder:                             9,
+		AllowMessagesDispatch:                 true,
+		AllowLive:                             true,
+		ForceOpenAIFast:                       true,
+		FreeOpenAIFast:                        true,
+		OpenAIAutoSchedulerEnabled:            true,
+		AllowAutoCheapestScheduling:           true,
+		UpstreamBalanceRefreshEnabled:         true,
+		UpstreamBalanceRefreshIntervalSeconds: 777,
+		UpstreamPriceMaxMultiplier:            1.25,
+		UpstreamPriceGroupingEnabled:          true,
+		UpstreamPriceGroupingMin:              0.1,
+		UpstreamPriceGroupingMax:              0.3,
+		RequireOAuthOnly:                      true,
+		RequirePrivacySet:                     true,
+		DefaultMappedModel:                    "gpt-5.4",
 		MessagesDispatchModelConfig: OpenAIMessagesDispatchModelConfig{
 			OpusMappedModel:    "gpt-5.4",
 			SonnetMappedModel:  "gpt-5.3",
@@ -217,6 +225,14 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 	require.Equal(t, source.MessagesDispatchModelConfig, duplicate.MessagesDispatchModelConfig)
 	require.Equal(t, source.ForceOpenAIFast, duplicate.ForceOpenAIFast)
 	require.Equal(t, source.FreeOpenAIFast, duplicate.FreeOpenAIFast)
+	require.Equal(t, source.OpenAIAutoSchedulerEnabled, duplicate.OpenAIAutoSchedulerEnabled)
+	require.Equal(t, source.AllowAutoCheapestScheduling, duplicate.AllowAutoCheapestScheduling)
+	require.Equal(t, source.UpstreamBalanceRefreshEnabled, duplicate.UpstreamBalanceRefreshEnabled)
+	require.Equal(t, source.UpstreamBalanceRefreshIntervalSeconds, duplicate.UpstreamBalanceRefreshIntervalSeconds)
+	require.Equal(t, source.UpstreamPriceMaxMultiplier, duplicate.UpstreamPriceMaxMultiplier)
+	require.Equal(t, source.UpstreamPriceGroupingEnabled, duplicate.UpstreamPriceGroupingEnabled)
+	require.Equal(t, source.UpstreamPriceGroupingMin, duplicate.UpstreamPriceGroupingMin)
+	require.Equal(t, source.UpstreamPriceGroupingMax, duplicate.UpstreamPriceGroupingMax)
 	require.Equal(t, source.ModelAllowlist, duplicate.ModelAllowlist)
 	require.Equal(t, source.RPMLimit, duplicate.RPMLimit)
 	require.Equal(t, source.MaxReasoningEffort, duplicate.MaxReasoningEffort)

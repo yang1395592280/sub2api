@@ -38,6 +38,69 @@ func TestGroupEntityToService_PreservesMessagesDispatchModelConfig(t *testing.T)
 	require.Equal(t, group.VideoModelPrices, got.VideoModelPrices)
 }
 
+func TestGroupEntityToService_PreservesAutoCheapestSchedulingFlag(t *testing.T) {
+	group := &dbent.Group{
+		ID:                          2,
+		Name:                        "openai-auto-cheapest",
+		Platform:                    service.PlatformOpenAI,
+		Status:                      service.StatusActive,
+		RateMultiplier:              0.15,
+		AllowAutoCheapestScheduling: true,
+	}
+
+	got := groupEntityToService(group)
+	require.NotNil(t, got)
+	require.True(t, got.AllowAutoCheapestScheduling,
+		"group mapper must preserve allow_auto_cheapest_scheduling for automatic group selection")
+}
+
+func TestGroupRepository_PersistsAutoSchedulingAndUpstreamGuardFlags_SQLite(t *testing.T) {
+	_, client := newAPIKeyRepoSQLite(t)
+	repo := newGroupRepositoryWithSQL(client, nil)
+	ctx := context.Background()
+
+	group := &service.Group{
+		Name:                                  "group-auto-scheduling-roundtrip",
+		Platform:                              service.PlatformOpenAI,
+		Status:                                service.StatusActive,
+		SubscriptionType:                      service.SubscriptionTypeStandard,
+		RateMultiplier:                        0.2,
+		OpenAIAutoSchedulerEnabled:            true,
+		AllowAutoCheapestScheduling:           false,
+		UpstreamBalanceRefreshEnabled:         true,
+		UpstreamBalanceRefreshIntervalSeconds: 777,
+		UpstreamPriceMaxMultiplier:            1.25,
+		UpstreamPriceGroupingEnabled:          true,
+		UpstreamPriceGroupingMin:              0.1,
+		UpstreamPriceGroupingMax:              0.3,
+	}
+	require.NoError(t, repo.Create(ctx, group))
+
+	got, err := repo.GetByIDLite(ctx, group.ID)
+	require.NoError(t, err)
+	require.True(t, got.OpenAIAutoSchedulerEnabled)
+	require.False(t, got.AllowAutoCheapestScheduling)
+	require.True(t, got.UpstreamBalanceRefreshEnabled)
+	require.Equal(t, 777, got.UpstreamBalanceRefreshIntervalSeconds)
+	require.InDelta(t, 1.25, got.UpstreamPriceMaxMultiplier, 1e-12)
+	require.True(t, got.UpstreamPriceGroupingEnabled)
+	require.InDelta(t, 0.1, got.UpstreamPriceGroupingMin, 1e-12)
+	require.InDelta(t, 0.3, got.UpstreamPriceGroupingMax, 1e-12)
+
+	group.OpenAIAutoSchedulerEnabled = false
+	group.AllowAutoCheapestScheduling = true
+	group.UpstreamBalanceRefreshEnabled = false
+	group.UpstreamPriceGroupingEnabled = false
+	require.NoError(t, repo.Update(ctx, group))
+
+	got, err = repo.GetByIDLite(ctx, group.ID)
+	require.NoError(t, err)
+	require.False(t, got.OpenAIAutoSchedulerEnabled)
+	require.True(t, got.AllowAutoCheapestScheduling)
+	require.False(t, got.UpstreamBalanceRefreshEnabled)
+	require.False(t, got.UpstreamPriceGroupingEnabled)
+}
+
 func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_SQLite(t *testing.T) {
 	repo, client := newAPIKeyRepoSQLite(t)
 	ctx := context.Background()
@@ -50,6 +113,7 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_S
 		SetSubscriptionType(service.SubscriptionTypeStandard).
 		SetRateMultiplier(1).
 		SetAllowMessagesDispatch(true).
+		SetAllowAutoCheapestScheduling(true).
 		SetDefaultMappedModel("gpt-5.4").
 		SetMessagesDispatchModelConfig(service.OpenAIMessagesDispatchModelConfig{
 			OpusMappedModel:   "gpt-5.4-nano",
@@ -76,6 +140,8 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_S
 	require.Equal(t, key.Name, got.Name)
 	require.NotNil(t, got.Group)
 	require.Equal(t, group.MessagesDispatchModelConfig, got.Group.MessagesDispatchModelConfig)
+	require.True(t, got.Group.AllowAutoCheapestScheduling,
+		"auth group projection must preserve allow_auto_cheapest_scheduling")
 }
 
 func TestAPIKeyRepository_GetByKeyForAuth_PreservesSelfHostedPoolMetadata_SQLite(t *testing.T) {

@@ -209,10 +209,11 @@ func TestAdminServiceSimpleModeRejectsCompositeCreateAndConversionDirectly(t *te
 func TestAdminServiceSimpleModeNormalizesAllUnsupportedCreateFieldsDirectly(t *testing.T) {
 	one := 1.0
 	fallbackID := int64(44)
+	longContextPricingEnabled := true
 	input := &CreateGroupInput{
 		Name: "simple", Description: "allowed", Platform: PlatformAnthropic,
 		RateMultiplier: 9, IsExclusive: true, SubscriptionType: SubscriptionTypeSubscription,
-		DailyLimitUSD: &one, LongContextPricingEnabled: true,
+		DailyLimitUSD: &one, LongContextPricingEnabled: &longContextPricingEnabled,
 		ModelPricing:    []ChannelModelPricing{{Models: []string{"claude"}}},
 		PeakRateEnabled: true, PeakStart: "00:00", PeakEnd: "01:00", PeakRateMultiplier: &one,
 		ImageRateIndependent: true, ImageRateMultiplier: &one, VideoRateIndependent: true, VideoRateMultiplier: &one,
@@ -587,6 +588,42 @@ func TestAdminService_CreateGroup_DefaultsLongContextPricingEnabled(t *testing.T
 	require.NoError(t, err)
 	require.True(t, group.LongContextPricingEnabled)
 	require.True(t, repo.created.LongContextPricingEnabled)
+}
+
+func TestAdminService_CreateGroup_PreservesAutoSchedulingFlags(t *testing.T) {
+	t.Run("defaults allow auto cheapest to true", func(t *testing.T) {
+		repo := &groupRepoStubForAdmin{}
+		svc := &adminServiceImpl{groupRepo: repo}
+
+		created, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+			Name:                       "auto-scheduling-default",
+			Platform:                   PlatformOpenAI,
+			RateMultiplier:             1,
+			OpenAIAutoSchedulerEnabled: true,
+		})
+		require.NoError(t, err)
+		require.True(t, created.OpenAIAutoSchedulerEnabled)
+		require.True(t, created.AllowAutoCheapestScheduling)
+		require.True(t, repo.created.AllowAutoCheapestScheduling)
+	})
+
+	t.Run("preserves explicit false", func(t *testing.T) {
+		repo := &groupRepoStubForAdmin{}
+		svc := &adminServiceImpl{groupRepo: repo}
+		allow := false
+
+		created, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+			Name:                        "auto-scheduling-disabled",
+			Platform:                    PlatformOpenAI,
+			RateMultiplier:              1,
+			OpenAIAutoSchedulerEnabled:  true,
+			AllowAutoCheapestScheduling: &allow,
+		})
+		require.NoError(t, err)
+		require.True(t, created.OpenAIAutoSchedulerEnabled)
+		require.False(t, created.AllowAutoCheapestScheduling)
+		require.False(t, repo.created.AllowAutoCheapestScheduling)
+	})
 }
 
 func TestAdminService_CreateGroup_AllowsDisablingLongContextPricing(t *testing.T) {

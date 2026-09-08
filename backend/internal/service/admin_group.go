@@ -765,11 +765,19 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		ModelAllowlist:                  modelAllowlist,
 		// 固定账号 manifest 配置：账号绑定发生在分组创建之后，创建路径禁止开启，
 		// 成员关系无从校验（前端创建对话框也不展示）。
-		CodexModelsManifestConfig:   normalizeCodexModelsManifestConfig(platform, input.CodexModelsManifestConfig),
-		RPMLimit:                    input.RPMLimit,
-		MaxReasoningEffort:          maxReasoningEffort,
-		MaxReasoningEffortOverLimit: maxReasoningEffortOverLimit,
-		ReasoningEffortMappings:     reasoningEffortMappings,
+		CodexModelsManifestConfig:             normalizeCodexModelsManifestConfig(platform, input.CodexModelsManifestConfig),
+		OpenAIAutoSchedulerEnabled:            input.OpenAIAutoSchedulerEnabled,
+		AllowAutoCheapestScheduling:           boolValueOrDefault(input.AllowAutoCheapestScheduling, true),
+		UpstreamBalanceRefreshEnabled:         input.UpstreamBalanceRefreshEnabled,
+		UpstreamBalanceRefreshIntervalSeconds: upstreamBalanceRefreshIntervalSeconds,
+		UpstreamPriceMaxMultiplier:            input.UpstreamPriceMaxMultiplier,
+		UpstreamPriceGroupingEnabled:          input.UpstreamPriceGroupingEnabled,
+		UpstreamPriceGroupingMin:              input.UpstreamPriceGroupingMin,
+		UpstreamPriceGroupingMax:              input.UpstreamPriceGroupingMax,
+		RPMLimit:                              input.RPMLimit,
+		MaxReasoningEffort:                    maxReasoningEffort,
+		MaxReasoningEffortOverLimit:           maxReasoningEffortOverLimit,
+		ReasoningEffortMappings:               reasoningEffortMappings,
 	}
 	sanitizeGroupMessagesDispatchFields(group)
 	if group.Platform != PlatformOpenAI && group.Platform != PlatformComposite {

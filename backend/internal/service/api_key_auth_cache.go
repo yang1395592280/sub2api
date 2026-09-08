@@ -107,6 +107,17 @@ type APIKeyAuthGroupSnapshot struct {
 	SupportedModelScopes []string `json:"supported_model_scopes,omitempty"`
 
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
+	// 自动调度与上游价格保护配置也必须随认证快照透传：认证缓存命中后，
+	// 网关会直接使用快照中的分组对象进行调度/价格门判断。
+	OpenAIAutoSchedulerEnabled            bool    `json:"openai_auto_scheduler_enabled"`
+	AllowAutoCheapestScheduling           bool    `json:"allow_auto_cheapest_scheduling"`
+	UpstreamBalanceRefreshEnabled         bool    `json:"upstream_balance_refresh_enabled"`
+	UpstreamBalanceRefreshIntervalSeconds int     `json:"upstream_balance_refresh_interval_seconds"`
+	UpstreamPriceMaxMultiplier            float64 `json:"upstream_price_max_multiplier"`
+	UpstreamPriceGroupingEnabled          bool    `json:"upstream_price_grouping_enabled"`
+	UpstreamPriceGroupingMin              float64 `json:"upstream_price_grouping_min"`
+	UpstreamPriceGroupingMax              float64 `json:"upstream_price_grouping_max"`
+
 	AllowMessagesDispatch       bool                              `json:"allow_messages_dispatch"`
 	AllowLive                   bool                              `json:"allow_live"`
 	ForceOpenAIFast             bool                              `json:"force_openai_fast"`
