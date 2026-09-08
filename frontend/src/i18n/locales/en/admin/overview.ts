@@ -507,6 +507,7 @@ export default {
       deleteConfirmMessage: "Are you sure you want to delete user '{email}'? This action cannot be undone.",
       searchPlaceholder: 'Search by email, username, notes, or API key...',
       searchUsers: 'Search by email, username, notes, or API key',
+      emailListSearchPlaceholder: 'Filter multiple emails with comma-separated values',
       roleFilter: 'Role Filter',
       allRoles: 'All Roles',
       allStatus: 'All Status',
@@ -626,6 +627,53 @@ export default {
       failedToDelete: 'Failed to delete user',
       failedToToggle: 'Failed to update user status',
       failedToLoadApiKeys: 'Failed to load user API keys',
+      balanceSummary: {
+        label: 'Regular User Balance Total',
+        failed: 'Failed to load user balance summary'
+      },
+      bulkActions: {
+        selected: '{count} users selected',
+        selectCurrentPage: 'Select current page',
+        clear: 'Clear selection',
+        addBalance: 'Add balance',
+        subtractBalance: 'Subtract balance',
+        addGroup: 'Add group',
+        delete: 'Delete'
+      },
+      bulkAddBalance: {
+        title: 'Batch Add Balance',
+        selectedUsers: 'This will add the same balance amount to {count} selected users without changing other fields.',
+        amountLabel: 'Amount to add',
+        notesPlaceholder: 'For example: campaign bonus, manual compensation, bulk top-up',
+        confirm: 'Confirm',
+        success: 'Added {amount} balance to {count} users',
+        failed: 'Failed to batch add balance'
+      },
+      bulkSubtractBalance: {
+        title: 'Batch Subtract Balance',
+        selectedUsers: 'This will subtract the same balance amount from {count} selected users. Users with insufficient balance will block the deduction.',
+        amountLabel: 'Amount to subtract',
+        notesPlaceholder: 'For example: refund reversal, manual correction, penalty deduction',
+        confirm: 'Confirm',
+        success: 'Subtracted {amount} balance from {count} users',
+        failed: 'Failed to batch subtract balance'
+      },
+      bulkAddGroup: {
+        title: 'Batch Add Group',
+        selectedUsers: 'This will incrementally add group access for {count} selected users without overwriting existing groups.',
+        groupLabel: 'Target group',
+        groupPlaceholder: 'Select an exclusive standard group',
+        groupRequired: 'Please select a group to add',
+        confirm: 'Confirm',
+        success: 'Added "{group}" group access for {count} users',
+        failed: 'Failed to batch add group'
+      },
+      bulkDelete: {
+        title: 'Bulk Delete Users',
+        confirmMessage: 'Delete the selected {count} users? This action cannot be undone.',
+        success: 'Deleted {count} users',
+        failed: 'Bulk delete users failed'
+      },
       emailRequired: 'Please enter email',
       concurrencyNonNegative: 'Concurrency cannot be negative; 0 = unlimited',
       amountRequired: 'Please enter a valid amount',
@@ -645,6 +693,7 @@ export default {
       concurrencyAdjustedSuccess: 'Concurrency adjusted successfully',
       failedToSave: 'Failed to save user',
       failedToAdjust: 'Adjustment failed',
+      lastUsedAt: 'Last Used',
       deleteConfirm: "Are you sure you want to delete '{email}'? This action cannot be undone.",
       setAllowedGroups: 'Set Allowed Groups',
       allowedGroupsHint:

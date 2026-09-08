@@ -611,8 +611,6 @@ export default {
       testResultRunning: '测试中',
       testResultSuccess: '成功',
       testResultFailed: '失败',
-      fromModel: '来源模型',
-      toModel: '目标模型',
       upstreamBalance: {
         refresh: '刷新余额',
         unknown: '未查询',

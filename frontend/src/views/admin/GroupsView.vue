@@ -3981,6 +3981,7 @@
           </button>
         </div>
         </template>
+        </template>
       </form>
 
       <template #footer>
@@ -4960,11 +4961,6 @@ const compositeRouteMatchOptions = computed(() => [
   { value: "prefix", label: t("admin.groups.compositeRoutes.match.prefix") },
 ]);
 
-const editStatusOptions = computed(() => [
-  { value: "active", label: t("admin.accounts.status.active") },
-  { value: "inactive", label: t("admin.accounts.status.inactive") },
-]);
-
 const subscriptionTypeOptions = computed(() => [
   { value: "standard", label: t("admin.groups.subscription.standard") },
   { value: "subscription", label: t("admin.groups.subscription.subscription") },
@@ -5099,11 +5095,6 @@ const selfHostedPoolOptions = computed(() => [
           : `${group.name} (${t("admin.accounts.status.inactive")})`,
     })),
 ]);
-const selfHostedPoolOptionsForEdit = computed(() =>
-  selfHostedPoolOptions.value.filter(
-    (option) => option.value === null || option.value !== editingGroup.value?.id,
-  ),
-);
 const loading = ref(false);
 type GroupUsageSummary = {
   today_cost: number;
@@ -7377,6 +7368,7 @@ const saveSortOrder = async () => {
 onMounted(() => {
   loadGroups();
   if (!authStore.isSimpleMode) {
+    void loadSelfHostedPoolGroups();
     void loadLiveCapability();
     loadModelAllowlistCandidates("create", 0, createForm.platform);
   }

@@ -45,8 +45,6 @@ export default {
     channels: {
       title: 'Channel Management',
       description: 'Manage channels and custom model pricing',
-      noGroupsSelected: '{platform} requires at least one linked group',
-      emptyModelsInPricing: '{platform} pricing model cannot be empty',
       searchChannels: 'Search channels...',
       createChannel: 'Create Channel',
       editChannel: 'Edit Channel',

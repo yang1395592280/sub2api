@@ -507,6 +507,7 @@ export default {
       deleteConfirmMessage: "确定要删除用户 '{email}' 吗？此操作无法撤销。",
       searchPlaceholder: '邮箱/用户名/备注/API Key 模糊搜索...',
       searchUsers: '邮箱/用户名/备注/API Key 模糊搜索',
+      emailListSearchPlaceholder: '多个邮箱过滤，使用英文逗号分隔',
       roleFilter: '角色筛选',
       allRoles: '全部角色',
       allStatus: '全部状态',
@@ -604,6 +605,53 @@ export default {
       failedToDelete: '删除用户失败',
       failedToToggle: '更新用户状态失败',
       failedToLoadApiKeys: '加载用户 API 密钥失败',
+      balanceSummary: {
+        label: '普通用户余额合计',
+        failed: '加载用户余额合计失败'
+      },
+      bulkActions: {
+        selected: '已选择 {count} 个用户',
+        selectCurrentPage: '选择当前页',
+        clear: '清空选择',
+        addBalance: '批量加余额',
+        subtractBalance: '批量减余额',
+        addGroup: '添加分组',
+        delete: '删除'
+      },
+      bulkAddBalance: {
+        title: '批量添加余额',
+        selectedUsers: '将为 {count} 个已选用户统一增加余额，不会影响其他字段。',
+        amountLabel: '增加金额',
+        notesPlaceholder: '例如：活动赠送、人工补偿、批量充值等',
+        confirm: '确认添加',
+        success: '已为 {count} 个用户增加 {amount} 余额',
+        failed: '批量添加余额失败'
+      },
+      bulkSubtractBalance: {
+        title: '批量扣减余额',
+        selectedUsers: '将为 {count} 个已选用户统一扣减余额，余额不足的用户会阻止本次扣减。',
+        amountLabel: '扣减金额',
+        notesPlaceholder: '例如：退款扣回、人工冲正、违规扣减等',
+        confirm: '确认扣减',
+        success: '已为 {count} 个用户扣减 {amount} 余额',
+        failed: '批量扣减余额失败'
+      },
+      bulkAddGroup: {
+        title: '批量添加分组',
+        selectedUsers: '将为 {count} 个已选用户增量添加分组权限，不会覆盖原有分组。',
+        groupLabel: '目标分组',
+        groupPlaceholder: '请选择专属标准分组',
+        groupRequired: '请选择要添加的分组',
+        confirm: '确认添加',
+        success: '已为 {count} 个用户添加「{group}」分组权限',
+        failed: '批量添加分组失败'
+      },
+      bulkDelete: {
+        title: '批量删除用户',
+        confirmMessage: '确定要删除选中的 {count} 个用户吗？此操作无法撤销。',
+        success: '成功删除 {count} 个用户',
+        failed: '批量删除用户失败'
+      },
       deleteConfirm: "确定要删除用户 '{email}' 吗？此操作无法撤销。",
       roles: {
         admin: '管理员',
@@ -647,6 +695,7 @@ export default {
       concurrencyAdjustedSuccess: '并发数调整成功',
       failedToSave: '保存用户失败',
       failedToAdjust: '调整失败',
+      lastUsedAt: '最后使用时间',
       emailRequired: '请输入邮箱',
       concurrencyNonNegative: '并发数不能为负数，0 表示不限制',
       amountRequired: '请输入有效金额',

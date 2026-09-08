@@ -459,6 +459,11 @@ export default {
       refreshToken: 'Refresh Token',
       noAccountsYet: 'No accounts yet',
       createFirstAccount: 'Create your first account to start using AI services.',
+      noAccounts: 'No accounts yet',
+      noAccountsDescription: 'Add an AI platform account to start using the API gateway.',
+      accountCreatedSuccess: 'Account added successfully',
+      accountUpdatedSuccess: 'Account updated successfully',
+      accountDeletedSuccess: 'Account deleted successfully',
       tokenRefreshed: 'Token refreshed successfully',
       accountDeleted: 'Account deleted successfully',
       messages: {
@@ -519,8 +524,6 @@ export default {
       testResultRunning: 'Running',
       testResultSuccess: 'Success',
       testResultFailed: 'Failed',
-      fromModel: 'From model',
-      toModel: 'To model',
       upstreamBalance: {
         refresh: 'Refresh balance',
         unknown: 'Not queried',
