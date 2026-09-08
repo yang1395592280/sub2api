@@ -1227,80 +1227,76 @@ func init() {
 	groupDescMessagesDispatchModelConfig := groupFields[55].Descriptor()
 	// group.DefaultMessagesDispatchModelConfig holds the default value on creation for the messages_dispatch_model_config field.
 	group.DefaultMessagesDispatchModelConfig = groupDescMessagesDispatchModelConfig.Default.(domain.OpenAIMessagesDispatchModelConfig)
-	// groupDescModelsListConfig is the schema descriptor for models_list_config field.
-	groupDescModelsListConfig := groupFields[56].Descriptor()
-	// group.DefaultModelsListConfig holds the default value on creation for the models_list_config field.
-	group.DefaultModelsListConfig = groupDescModelsListConfig.Default.(domain.GroupModelsListConfig)
 	// groupDescModelAllowlist is the schema descriptor for model_allowlist field.
-	groupDescModelAllowlist := groupFields[57].Descriptor()
+	groupDescModelAllowlist := groupFields[56].Descriptor()
 	// group.DefaultModelAllowlist holds the default value on creation for the model_allowlist field.
 	group.DefaultModelAllowlist = groupDescModelAllowlist.Default.(domain.GroupModelAllowlist)
 	// groupDescOpenaiAutoSchedulerEnabled is the schema descriptor for openai_auto_scheduler_enabled field.
-	groupDescOpenaiAutoSchedulerEnabled := groupFields[58].Descriptor()
+	groupDescOpenaiAutoSchedulerEnabled := groupFields[57].Descriptor()
 	// group.DefaultOpenaiAutoSchedulerEnabled holds the default value on creation for the openai_auto_scheduler_enabled field.
 	group.DefaultOpenaiAutoSchedulerEnabled = groupDescOpenaiAutoSchedulerEnabled.Default.(bool)
 	// groupDescAllowAutoCheapestScheduling is the schema descriptor for allow_auto_cheapest_scheduling field.
-	groupDescAllowAutoCheapestScheduling := groupFields[59].Descriptor()
+	groupDescAllowAutoCheapestScheduling := groupFields[58].Descriptor()
 	// group.DefaultAllowAutoCheapestScheduling holds the default value on creation for the allow_auto_cheapest_scheduling field.
 	group.DefaultAllowAutoCheapestScheduling = groupDescAllowAutoCheapestScheduling.Default.(bool)
 	// groupDescUpstreamBalanceRefreshEnabled is the schema descriptor for upstream_balance_refresh_enabled field.
-	groupDescUpstreamBalanceRefreshEnabled := groupFields[60].Descriptor()
+	groupDescUpstreamBalanceRefreshEnabled := groupFields[59].Descriptor()
 	// group.DefaultUpstreamBalanceRefreshEnabled holds the default value on creation for the upstream_balance_refresh_enabled field.
 	group.DefaultUpstreamBalanceRefreshEnabled = groupDescUpstreamBalanceRefreshEnabled.Default.(bool)
 	// groupDescUpstreamBalanceRefreshIntervalSeconds is the schema descriptor for upstream_balance_refresh_interval_seconds field.
-	groupDescUpstreamBalanceRefreshIntervalSeconds := groupFields[61].Descriptor()
+	groupDescUpstreamBalanceRefreshIntervalSeconds := groupFields[60].Descriptor()
 	// group.DefaultUpstreamBalanceRefreshIntervalSeconds holds the default value on creation for the upstream_balance_refresh_interval_seconds field.
 	group.DefaultUpstreamBalanceRefreshIntervalSeconds = groupDescUpstreamBalanceRefreshIntervalSeconds.Default.(int)
 	// groupDescUpstreamPriceMaxMultiplier is the schema descriptor for upstream_price_max_multiplier field.
-	groupDescUpstreamPriceMaxMultiplier := groupFields[62].Descriptor()
+	groupDescUpstreamPriceMaxMultiplier := groupFields[61].Descriptor()
 	// group.DefaultUpstreamPriceMaxMultiplier holds the default value on creation for the upstream_price_max_multiplier field.
 	group.DefaultUpstreamPriceMaxMultiplier = groupDescUpstreamPriceMaxMultiplier.Default.(float64)
 	// groupDescUpstreamPriceGroupingEnabled is the schema descriptor for upstream_price_grouping_enabled field.
-	groupDescUpstreamPriceGroupingEnabled := groupFields[63].Descriptor()
+	groupDescUpstreamPriceGroupingEnabled := groupFields[62].Descriptor()
 	// group.DefaultUpstreamPriceGroupingEnabled holds the default value on creation for the upstream_price_grouping_enabled field.
 	group.DefaultUpstreamPriceGroupingEnabled = groupDescUpstreamPriceGroupingEnabled.Default.(bool)
 	// groupDescUpstreamPriceGroupingMin is the schema descriptor for upstream_price_grouping_min field.
-	groupDescUpstreamPriceGroupingMin := groupFields[64].Descriptor()
+	groupDescUpstreamPriceGroupingMin := groupFields[63].Descriptor()
 	// group.DefaultUpstreamPriceGroupingMin holds the default value on creation for the upstream_price_grouping_min field.
 	group.DefaultUpstreamPriceGroupingMin = groupDescUpstreamPriceGroupingMin.Default.(float64)
 	// groupDescUpstreamPriceGroupingMax is the schema descriptor for upstream_price_grouping_max field.
-	groupDescUpstreamPriceGroupingMax := groupFields[65].Descriptor()
+	groupDescUpstreamPriceGroupingMax := groupFields[64].Descriptor()
 	// group.DefaultUpstreamPriceGroupingMax holds the default value on creation for the upstream_price_grouping_max field.
 	group.DefaultUpstreamPriceGroupingMax = groupDescUpstreamPriceGroupingMax.Default.(float64)
 	// groupDescCodexModelsManifestConfig is the schema descriptor for codex_models_manifest_config field.
-	groupDescCodexModelsManifestConfig := groupFields[66].Descriptor()
+	groupDescCodexModelsManifestConfig := groupFields[65].Descriptor()
 	// group.DefaultCodexModelsManifestConfig holds the default value on creation for the codex_models_manifest_config field.
 	group.DefaultCodexModelsManifestConfig = groupDescCodexModelsManifestConfig.Default.(domain.GroupCodexModelsManifestConfig)
 	// groupDescRpmLimit is the schema descriptor for rpm_limit field.
-	groupDescRpmLimit := groupFields[67].Descriptor()
+	groupDescRpmLimit := groupFields[66].Descriptor()
 	// group.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	group.DefaultRpmLimit = groupDescRpmLimit.Default.(int)
 	// groupDescMaxReasoningEffort is the schema descriptor for max_reasoning_effort field.
-	groupDescMaxReasoningEffort := groupFields[68].Descriptor()
+	groupDescMaxReasoningEffort := groupFields[67].Descriptor()
 	// group.DefaultMaxReasoningEffort holds the default value on creation for the max_reasoning_effort field.
 	group.DefaultMaxReasoningEffort = groupDescMaxReasoningEffort.Default.(string)
 	// group.MaxReasoningEffortValidator is a validator for the "max_reasoning_effort" field. It is called by the builders before save.
 	group.MaxReasoningEffortValidator = groupDescMaxReasoningEffort.Validators[0].(func(string) error)
 	// groupDescMaxReasoningEffortOverLimit is the schema descriptor for max_reasoning_effort_over_limit field.
-	groupDescMaxReasoningEffortOverLimit := groupFields[69].Descriptor()
+	groupDescMaxReasoningEffortOverLimit := groupFields[68].Descriptor()
 	// group.DefaultMaxReasoningEffortOverLimit holds the default value on creation for the max_reasoning_effort_over_limit field.
 	group.DefaultMaxReasoningEffortOverLimit = groupDescMaxReasoningEffortOverLimit.Default.(string)
 	// group.MaxReasoningEffortOverLimitValidator is a validator for the "max_reasoning_effort_over_limit" field. It is called by the builders before save.
 	group.MaxReasoningEffortOverLimitValidator = groupDescMaxReasoningEffortOverLimit.Validators[0].(func(string) error)
 	// groupDescReasoningEffortMappings is the schema descriptor for reasoning_effort_mappings field.
-	groupDescReasoningEffortMappings := groupFields[70].Descriptor()
+	groupDescReasoningEffortMappings := groupFields[69].Descriptor()
 	// group.DefaultReasoningEffortMappings holds the default value on creation for the reasoning_effort_mappings field.
 	group.DefaultReasoningEffortMappings = groupDescReasoningEffortMappings.Default.([]domain.ReasoningEffortMapping)
 	// groupDescProfitControlEnabled is the schema descriptor for profit_control_enabled field.
-	groupDescProfitControlEnabled := groupFields[71].Descriptor()
+	groupDescProfitControlEnabled := groupFields[70].Descriptor()
 	// group.DefaultProfitControlEnabled holds the default value on creation for the profit_control_enabled field.
 	group.DefaultProfitControlEnabled = groupDescProfitControlEnabled.Default.(bool)
 	// groupDescProfitMinMargin is the schema descriptor for profit_min_margin field.
-	groupDescProfitMinMargin := groupFields[72].Descriptor()
+	groupDescProfitMinMargin := groupFields[71].Descriptor()
 	// group.DefaultProfitMinMargin holds the default value on creation for the profit_min_margin field.
 	group.DefaultProfitMinMargin = groupDescProfitMinMargin.Default.(float64)
 	// groupDescProfitSafetyBuffer is the schema descriptor for profit_safety_buffer field.
-	groupDescProfitSafetyBuffer := groupFields[73].Descriptor()
+	groupDescProfitSafetyBuffer := groupFields[72].Descriptor()
 	// group.DefaultProfitSafetyBuffer holds the default value on creation for the profit_safety_buffer field.
 	group.DefaultProfitSafetyBuffer = groupDescProfitSafetyBuffer.Default.(float64)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()
