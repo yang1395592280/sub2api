@@ -134,8 +134,26 @@ const (
 	FieldDefaultMappedModel = "default_mapped_model"
 	// FieldMessagesDispatchModelConfig holds the string denoting the messages_dispatch_model_config field in the database.
 	FieldMessagesDispatchModelConfig = "messages_dispatch_model_config"
+	// FieldModelsListConfig holds the string denoting the models_list_config field in the database.
+	FieldModelsListConfig = "models_list_config"
 	// FieldModelAllowlist holds the string denoting the model_allowlist field in the database.
 	FieldModelAllowlist = "model_allowlist"
+	// FieldOpenaiAutoSchedulerEnabled holds the string denoting the openai_auto_scheduler_enabled field in the database.
+	FieldOpenaiAutoSchedulerEnabled = "openai_auto_scheduler_enabled"
+	// FieldAllowAutoCheapestScheduling holds the string denoting the allow_auto_cheapest_scheduling field in the database.
+	FieldAllowAutoCheapestScheduling = "allow_auto_cheapest_scheduling"
+	// FieldUpstreamBalanceRefreshEnabled holds the string denoting the upstream_balance_refresh_enabled field in the database.
+	FieldUpstreamBalanceRefreshEnabled = "upstream_balance_refresh_enabled"
+	// FieldUpstreamBalanceRefreshIntervalSeconds holds the string denoting the upstream_balance_refresh_interval_seconds field in the database.
+	FieldUpstreamBalanceRefreshIntervalSeconds = "upstream_balance_refresh_interval_seconds"
+	// FieldUpstreamPriceMaxMultiplier holds the string denoting the upstream_price_max_multiplier field in the database.
+	FieldUpstreamPriceMaxMultiplier = "upstream_price_max_multiplier"
+	// FieldUpstreamPriceGroupingEnabled holds the string denoting the upstream_price_grouping_enabled field in the database.
+	FieldUpstreamPriceGroupingEnabled = "upstream_price_grouping_enabled"
+	// FieldUpstreamPriceGroupingMin holds the string denoting the upstream_price_grouping_min field in the database.
+	FieldUpstreamPriceGroupingMin = "upstream_price_grouping_min"
+	// FieldUpstreamPriceGroupingMax holds the string denoting the upstream_price_grouping_max field in the database.
+	FieldUpstreamPriceGroupingMax = "upstream_price_grouping_max"
 	// FieldCodexModelsManifestConfig holds the string denoting the codex_models_manifest_config field in the database.
 	FieldCodexModelsManifestConfig = "codex_models_manifest_config"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
@@ -286,7 +304,16 @@ var Columns = []string{
 	FieldRequirePrivacySet,
 	FieldDefaultMappedModel,
 	FieldMessagesDispatchModelConfig,
+	FieldModelsListConfig,
 	FieldModelAllowlist,
+	FieldOpenaiAutoSchedulerEnabled,
+	FieldAllowAutoCheapestScheduling,
+	FieldUpstreamBalanceRefreshEnabled,
+	FieldUpstreamBalanceRefreshIntervalSeconds,
+	FieldUpstreamPriceMaxMultiplier,
+	FieldUpstreamPriceGroupingEnabled,
+	FieldUpstreamPriceGroupingMin,
+	FieldUpstreamPriceGroupingMax,
 	FieldCodexModelsManifestConfig,
 	FieldRpmLimit,
 	FieldMaxReasoningEffort,
@@ -422,8 +449,26 @@ var (
 	DefaultMappedModelValidator func(string) error
 	// DefaultMessagesDispatchModelConfig holds the default value on creation for the "messages_dispatch_model_config" field.
 	DefaultMessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig
+	// DefaultModelsListConfig holds the default value on creation for the "models_list_config" field.
+	DefaultModelsListConfig domain.GroupModelsListConfig
 	// DefaultModelAllowlist holds the default value on creation for the "model_allowlist" field.
 	DefaultModelAllowlist domain.GroupModelAllowlist
+	// DefaultOpenaiAutoSchedulerEnabled holds the default value on creation for the "openai_auto_scheduler_enabled" field.
+	DefaultOpenaiAutoSchedulerEnabled bool
+	// DefaultAllowAutoCheapestScheduling holds the default value on creation for the "allow_auto_cheapest_scheduling" field.
+	DefaultAllowAutoCheapestScheduling bool
+	// DefaultUpstreamBalanceRefreshEnabled holds the default value on creation for the "upstream_balance_refresh_enabled" field.
+	DefaultUpstreamBalanceRefreshEnabled bool
+	// DefaultUpstreamBalanceRefreshIntervalSeconds holds the default value on creation for the "upstream_balance_refresh_interval_seconds" field.
+	DefaultUpstreamBalanceRefreshIntervalSeconds int
+	// DefaultUpstreamPriceMaxMultiplier holds the default value on creation for the "upstream_price_max_multiplier" field.
+	DefaultUpstreamPriceMaxMultiplier float64
+	// DefaultUpstreamPriceGroupingEnabled holds the default value on creation for the "upstream_price_grouping_enabled" field.
+	DefaultUpstreamPriceGroupingEnabled bool
+	// DefaultUpstreamPriceGroupingMin holds the default value on creation for the "upstream_price_grouping_min" field.
+	DefaultUpstreamPriceGroupingMin float64
+	// DefaultUpstreamPriceGroupingMax holds the default value on creation for the "upstream_price_grouping_max" field.
+	DefaultUpstreamPriceGroupingMax float64
 	// DefaultCodexModelsManifestConfig holds the default value on creation for the "codex_models_manifest_config" field.
 	DefaultCodexModelsManifestConfig domain.GroupCodexModelsManifestConfig
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
