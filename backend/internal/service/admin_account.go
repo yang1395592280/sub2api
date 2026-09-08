@@ -1923,7 +1923,9 @@ func (s *adminServiceImpl) ForceAntigravityPrivacy(ctx context.Context, account 
 func (s *adminServiceImpl) validateAccountGroupRoles(ctx context.Context, accountPlatform string, groupIDs []int64) error {
 	for _, groupID := range groupIDs {
 		group, err := s.groupRepo.GetByIDLite(ctx, groupID)
-		if err != nil { return fmt.Errorf("get group: %w", err) }
+		if err != nil {
+			return fmt.Errorf("get group: %w", err)
+		}
 		if group.IsSelfHostedPool() && accountPlatform != PlatformOpenAI {
 			return infraerrors.BadRequest("SELF_HOSTED_POOL_ACCOUNT_PLATFORM_MISMATCH", "only openai accounts can be added to a self-hosted account pool")
 		}
