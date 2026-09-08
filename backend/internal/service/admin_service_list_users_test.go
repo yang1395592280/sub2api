@@ -212,11 +212,13 @@ type authCacheInvalidatorStubForBatchAddGroup struct {
 	userIDs []int64
 }
 
-func (s *authCacheInvalidatorStubForBatchAddGroup) InvalidateAuthCacheByKey(context.Context, string) {}
+func (s *authCacheInvalidatorStubForBatchAddGroup) InvalidateAuthCacheByKey(context.Context, string) {
+}
 func (s *authCacheInvalidatorStubForBatchAddGroup) InvalidateAuthCacheByUserID(_ context.Context, userID int64) {
 	s.userIDs = append(s.userIDs, userID)
 }
-func (s *authCacheInvalidatorStubForBatchAddGroup) InvalidateAuthCacheByGroupID(context.Context, int64) {}
+func (s *authCacheInvalidatorStubForBatchAddGroup) InvalidateAuthCacheByGroupID(context.Context, int64) {
+}
 
 type groupRepoStubForBatchAddGroup struct {
 	group *Group
@@ -296,9 +298,9 @@ func TestAdminService_BatchAddUsersToGroup_DeduplicatesUsersAndKeepsExistingAcce
 	}
 	authInvalidator := &authCacheInvalidatorStubForBatchAddGroup{}
 	svc := &adminServiceImpl{
-		userRepo:              userRepo,
-		groupRepo:             groupRepo,
-		authCacheInvalidator:  authInvalidator,
+		userRepo:             userRepo,
+		groupRepo:            groupRepo,
+		authCacheInvalidator: authInvalidator,
 	}
 
 	result, err := svc.BatchAddUsersToGroup(context.Background(), []int64{7, 7, 8, 0}, 9)

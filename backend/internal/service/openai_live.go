@@ -264,7 +264,7 @@ func (s *OpenAIGatewayService) shouldFailoverLiveCreateError(account *Account, e
 		// 凭证读取和网络传输错误都可能只影响当前账号或代理。
 		return true
 	}
-	return s.shouldFailoverOpenAIUpstreamResponse(account,
+	return s.shouldFailoverOpenAIUpstreamResponseForAccount(account,
 		upstreamErr.StatusCode,
 		"",
 		upstreamErr.ResponseBody,

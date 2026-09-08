@@ -785,8 +785,8 @@ func (h *GroupHandler) Duplicate(c *gin.Context) {
 	}
 	result, err := executeAdminIdempotent(c, "admin.groups.duplicate", struct {
 		GroupID int64 `json:"group_id"`
-	}{id}, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
-		group, callErr := h.adminService.DuplicateGroup(ctx, id, adminActorScope(c), c.GetHeader("Idempotency-Key"))
+	}{groupID}, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		group, callErr := h.adminService.DuplicateGroup(ctx, groupID, adminActorScope(c), c.GetHeader("Idempotency-Key"))
 		if callErr != nil {
 			return nil, callErr
 		}
@@ -795,12 +795,12 @@ func (h *GroupHandler) Duplicate(c *gin.Context) {
 	if err != nil {
 		reason := infraerrors.Reason(err)
 		if reason == infraerrors.Reason(service.ErrIdempotencyInProgress) || reason == infraerrors.Reason(service.ErrIdempotencyStoreUnavail) {
-			if recovered, recoverErr := h.adminService.RecoverDuplicateGroup(c.Request.Context(), id, adminActorScope(c), c.GetHeader("Idempotency-Key")); recoverErr == nil && recovered != nil {
+			if recovered, recoverErr := h.adminService.RecoverDuplicateGroup(c.Request.Context(), groupID, adminActorScope(c), c.GetHeader("Idempotency-Key")); recoverErr == nil && recovered != nil {
 				c.Header("X-Idempotency-Recovered", "true")
 				response.Success(c, dto.GroupFromServiceAdmin(recovered))
 				return
 			} else if recoverErr != nil {
-				slog.Warn("group_duplicate_recovery_failed", "group_id", id, "error", recoverErr)
+				slog.Warn("group_duplicate_recovery_failed", "group_id", groupID, "error", recoverErr)
 			}
 		}
 		response.ErrorFrom(c, err)

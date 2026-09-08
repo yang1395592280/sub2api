@@ -1141,11 +1141,6 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 						return payload, nil, err
 					}
 				}
-				if hooks != nil && hooks.BeforeTurn != nil {
-					if err := hooks.BeforeTurn(turnNo); err != nil {
-						return payload, nil, err
-					}
-				}
 				if hooks != nil && hooks.MapRequestModel != nil {
 					upstreamModel, err := hooks.MapRequestModel(turnNo, requestModelForThisFrame)
 					if err != nil {
@@ -1606,6 +1601,14 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		relayExit.WroteDownstream,
 	)
 	recordUnfinishedTurns(turnErr)
+	// A peer closing immediately after the initial request without a terminal
+	// event is already fully represented by the scheduler error outcome. The
+	// client has no additional frame to consume, so avoid surfacing a second
+	// transport error from the ingress handler.
+	if relayExit.Stage == "read_upstream" && !relayExit.WroteDownstream &&
+		strings.Contains(strings.ToLower(relayErr.Error()), "closed before terminal event") {
+		return nil
+	}
 	return turnErr
 }
 

@@ -710,6 +710,8 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		Name:                            input.Name,
 		Description:                     input.Description,
 		Platform:                        platform,
+		GroupRole:                       groupRole,
+		SelfHostedPoolGroupID:           input.SelfHostedPoolGroupID,
 		RateMultiplier:                  input.RateMultiplier,
 		IsExclusive:                     input.IsExclusive,
 		Status:                          StatusActive,
@@ -717,7 +719,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		DailyLimitUSD:                   dailyLimit,
 		WeeklyLimitUSD:                  weeklyLimit,
 		MonthlyLimitUSD:                 monthlyLimit,
-		LongContextPricingEnabled:       input.LongContextPricingEnabled,
+		LongContextPricingEnabled:       boolValueOrDefault(input.LongContextPricingEnabled, true),
 		ModelPricing:                    modelPricing,
 		AllowImageGeneration:            allowImageGeneration,
 		AllowBatchImageGeneration:       allowBatchImageGeneration,
@@ -1404,11 +1406,24 @@ func (s *adminServiceImpl) DeleteGroupIfEmpty(ctx context.Context, id int64) err
 }
 
 func (s *adminServiceImpl) deleteGroup(ctx context.Context, id int64, requireEmpty bool) error {
-	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
-		group, err := s.groupRepo.GetByIDLite(ctx, id)
-		if err != nil {
-			return err
+	group, err := s.groupRepo.GetByIDLite(ctx, id)
+	if err != nil {
+		return err
+	}
+	if group.IsSelfHostedPool() {
+		if refCounter, ok := s.groupRepo.(interface {
+			CountSelfHostedPoolReferences(context.Context, int64) (int64, error)
+		}); ok {
+			references, err := refCounter.CountSelfHostedPoolReferences(ctx, id)
+			if err != nil {
+				return err
+			}
+			if references > 0 {
+				return infraerrors.Conflict("SELF_HOSTED_POOL_REFERENCED", fmt.Sprintf("self-hosted account pool is referenced by %d group(s)", references))
+			}
 		}
+	}
+	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		if err := s.validateSimpleModeGroupAccess(group); err != nil {
 			return err
 		}
@@ -1426,7 +1441,6 @@ func (s *adminServiceImpl) deleteGroup(ctx context.Context, id int64, requireEmp
 	}
 
 	var affectedUserIDs []int64
-	var err error
 	if requireEmpty {
 		affectedUserIDs, err = s.emptyGroupDeleteRepo.DeleteCascadeIfEmpty(ctx, id)
 	} else {

@@ -164,6 +164,16 @@ type OpenAIAccountScheduleResultReporter interface {
 	ReportOpenAIAccountScheduleResult(accountID int64, model string, success bool, firstTokenMs *int)
 }
 
+type openAIAccountScheduleResultReporterAdapter struct {
+	gateway *OpenAIGatewayService
+}
+
+func (a openAIAccountScheduleResultReporterAdapter) ReportOpenAIAccountScheduleResult(accountID int64, model string, success bool, firstTokenMs *int) {
+	if a.gateway != nil {
+		a.gateway.ReportOpenAIAccountScheduleResult(&Account{ID: accountID}, model, success, firstTokenMs)
+	}
+}
+
 func (s *AccountTestService) SetSettingService(settingService *SettingService) {
 	if s != nil {
 		s.settingService = settingService
