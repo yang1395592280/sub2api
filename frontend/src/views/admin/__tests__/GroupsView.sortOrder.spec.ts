@@ -11,6 +11,7 @@ const {
   getAllGroupsIncludingInactive,
   updateSortOrder,
   getModelsListCandidates,
+  getModelAllowlistCandidates,
   getUsageSummary,
   getCapacitySummary,
   getLiveCapability,
@@ -22,6 +23,7 @@ const {
   getAllGroupsIncludingInactive: vi.fn(),
   updateSortOrder: vi.fn(),
   getModelsListCandidates: vi.fn(),
+  getModelAllowlistCandidates: vi.fn(),
   getUsageSummary: vi.fn(),
   getCapacitySummary: vi.fn(),
   getLiveCapability: vi.fn(),
@@ -37,6 +39,7 @@ vi.mock("@/api/admin", () => ({
       getAllIncludingInactive: getAllGroupsIncludingInactive,
       updateSortOrder,
       getModelsListCandidates,
+      getModelAllowlistCandidates,
       getUsageSummary,
       getCapacitySummary,
       getLiveCapability,
@@ -48,6 +51,12 @@ vi.mock("@/stores/app", () => ({
   useAppStore: () => ({
     showError,
     showSuccess,
+  }),
+}));
+
+vi.mock("@/stores/auth", () => ({
+  useAuthStore: () => ({
+    isSimpleMode: false,
   }),
 }));
 
@@ -174,6 +183,7 @@ describe("GroupsView sort order modal", () => {
     getAllGroupsIncludingInactive.mockResolvedValue([]);
     updateSortOrder.mockResolvedValue({ message: "ok" });
     getModelsListCandidates.mockResolvedValue([]);
+    getModelAllowlistCandidates.mockResolvedValue([]);
     getUsageSummary.mockResolvedValue([]);
     getCapacitySummary.mockResolvedValue([]);
     getLiveCapability.mockResolvedValue({ supported: true });

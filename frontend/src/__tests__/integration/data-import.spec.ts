@@ -22,18 +22,28 @@ vi.mock('@/api/admin', () => ({
   }
 }))
 
-vi.mock('vue-i18n', () => ({
-  useI18n: () => ({
-    t: (key: string) => key
-  })
-}))
+vi.mock('vue-i18n', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-i18n')>()
+  return {
+    ...actual,
+    useI18n: () => ({
+      t: (key: string) => key
+    })
+  }
+})
 
 const mountModal = (groups: any[] = []) =>
   mount(ImportDataModal, {
     props: { show: true, groups },
     global: {
       stubs: {
-        BaseDialog: { template: '<div><slot /><slot name="footer" /></div>' }
+        BaseDialog: { template: '<div><slot /><slot name="footer" /></div>' },
+        GroupSelector: {
+          props: ['modelValue', 'groups'],
+          emits: ['update:modelValue'],
+          template:
+            '<input type="checkbox" :checked="modelValue && modelValue.length > 0" @change="$emit(\'update:modelValue\', groups.length ? [groups[0].id] : [])" />'
+        }
       }
     }
   })

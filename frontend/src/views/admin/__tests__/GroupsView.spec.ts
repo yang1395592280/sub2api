@@ -11,6 +11,7 @@ const {
   getAllGroups,
   getAllGroupsIncludingInactive,
   getModelsListCandidates,
+  getModelAllowlistCandidates,
   getUsageSummary,
   getCapacitySummary,
   getGroupCapacityUsers,
@@ -26,6 +27,7 @@ const {
   getAllGroups: vi.fn(),
   getAllGroupsIncludingInactive: vi.fn(),
   getModelsListCandidates: vi.fn(),
+  getModelAllowlistCandidates: vi.fn(),
   getUsageSummary: vi.fn(),
   getCapacitySummary: vi.fn(),
   getGroupCapacityUsers: vi.fn(),
@@ -67,6 +69,7 @@ vi.mock('@/api/admin', () => ({
       getAll: getAllGroups,
       getAllIncludingInactive: getAllGroupsIncludingInactive,
       getModelsListCandidates,
+      getModelAllowlistCandidates,
       getUsageSummary,
       getCapacitySummary,
       getGroupCapacityUsers,
@@ -85,6 +88,12 @@ vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
     showError,
     showSuccess
+  })
+}))
+
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({
+    isSimpleMode: false
   })
 }))
 
@@ -263,6 +272,7 @@ describe('admin GroupsView upstream price guard settings', () => {
     getAllGroups.mockResolvedValue([])
     getAllGroupsIncludingInactive.mockResolvedValue([])
     getModelsListCandidates.mockResolvedValue([])
+    getModelAllowlistCandidates.mockResolvedValue([])
     getUsageSummary.mockResolvedValue([])
     getCapacitySummary.mockResolvedValue([])
     getGroupCapacityUsers.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })

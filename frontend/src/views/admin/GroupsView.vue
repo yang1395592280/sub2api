@@ -691,7 +691,11 @@
           </select>
           <p class="input-hint">{{ t("admin.groups.copyAccounts.hint") }}</p>
         </div>
-        <template v-if="!authStore.isSimpleMode">
+        <template
+          v-if="
+            !authStore.isSimpleMode && createForm.group_role === 'standard'
+          "
+        >
         <div>
           <label class="input-label">{{
             t("admin.groups.form.rateMultiplier")
@@ -4772,6 +4776,7 @@ const allColumns = computed<Column[]>(() => {
   if (authStore.isSimpleMode) return basic;
   return [
     ...basic.slice(0, 3),
+    { key: "group_role", label: t("admin.groups.columns.roleAndPool"), sortable: true },
     { key: "billing_type", label: t("admin.groups.columns.billingType"), sortable: true },
     { key: "rate_multiplier", label: t("admin.groups.columns.rateMultiplier"), sortable: true },
     { key: "is_exclusive", label: t("admin.groups.columns.type"), sortable: true },

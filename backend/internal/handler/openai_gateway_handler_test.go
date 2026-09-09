@@ -2233,6 +2233,9 @@ type openAIResponsesWSUsageLogCase struct {
 	firstFrameCloseExpected bool
 	// secondTurnCloseExpected：第二个 turn 被拒（连接被 1008 关闭）。
 	secondTurnCloseExpected bool
+	// accountSelectDelay/userSlotDelay 用于覆盖调度和排队耗时，验证 usage log timing。
+	accountSelectDelay time.Duration
+	userSlotDelay      time.Duration
 }
 
 type openAIResponsesWSUsageLogResult struct {
@@ -3224,12 +3227,18 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
+	// turnCount tracks every client frame consumed by the upstream stub, including
+	// session.update frames. Usage logs are emitted only for response turns.
 	turnCount := 1
 	if strings.TrimSpace(tc.midPayload) != "" {
 		turnCount++
 	}
 	if strings.TrimSpace(tc.secondPayload) != "" {
 		turnCount++
+	}
+	usageLogCount := 1
+	if strings.TrimSpace(tc.secondPayload) != "" {
+		usageLogCount++
 	}
 	upstreamPayloadCh := make(chan []byte, turnCount)
 	upstreamErrCh := make(chan error, 1)
@@ -3327,7 +3336,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
 
 	accountRepo := &openAIWSUsageHandlerAccountRepoStub{account: account, listDelay: tc.accountSelectDelay}
-	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, turnCount)}
+	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, usageLogCount)}
 
 	if len(tc.channelMapping) > 0 {
 		channelSvc = service.NewChannelService(&openAIWSUsageHandlerChannelRepoStub{
@@ -3481,8 +3490,8 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	}
 	_ = clientConn.Close(coderws.StatusNormalClosure, "done")
 
-	usageLogs := make([]*service.UsageLog, 0, turnCount)
-	for len(usageLogs) < turnCount {
+	usageLogs := make([]*service.UsageLog, 0, usageLogCount)
+	for len(usageLogs) < usageLogCount {
 		select {
 		case usageLog := <-usageRepo.created:
 			require.NotNil(t, usageLog)
