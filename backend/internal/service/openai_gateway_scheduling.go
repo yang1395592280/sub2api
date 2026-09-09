@@ -351,10 +351,36 @@ func (s *OpenAIGatewayService) SetOpenAIAutoCheapestGroupResolver(resolver *Open
 }
 
 func (s *OpenAIGatewayService) rankOpenAIAutoSchedulerCandidates(ctx context.Context, groupID *int64, platform string, requestedModel string, candidates []*Account) ([]*Account, bool) {
-	if s == nil || s.openAIAutoSchedulerSelector == nil || normalizeOpenAICompatiblePlatform(platform) != PlatformOpenAI {
+	if s == nil || groupID == nil || normalizeOpenAICompatiblePlatform(platform) != PlatformOpenAI {
 		return candidates, false
 	}
-	return s.openAIAutoSchedulerSelector.Rank(ctx, groupID, requestedModel, candidates)
+	filtered := candidates
+	if circuit := OpenAIAutoCheapestGroupCircuitFromContext(ctx); circuit != nil {
+		filtered = make([]*Account, 0, len(candidates))
+		for _, account := range candidates {
+			if account == nil {
+				continue
+			}
+			key := openAIAutoCheapestGroupHealthKey(ctx, *groupID)
+			key.AccountID = account.ID
+			key.Model = requestedModel
+			key.Endpoint = ""
+			key.Transport = ""
+			allowed, err := circuit.Allow(ctx, key)
+			if err != nil {
+				// A Redis failure must not make the automatic group unavailable.
+				filtered = candidates
+				break
+			}
+			if allowed {
+				filtered = append(filtered, account)
+			}
+		}
+	}
+	if s.openAIAutoSchedulerSelector == nil {
+		return filtered, false
+	}
+	return s.openAIAutoSchedulerSelector.Rank(ctx, groupID, requestedModel, filtered)
 }
 
 func (s *OpenAIGatewayService) isOpenAIAutoSchedulerAccountTemporarilyBlocked(ctx context.Context, groupID *int64, requestedModel string, accountID int64) bool {
@@ -383,13 +409,29 @@ func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerOutcome(
 		if circuit := OpenAIAutoCheapestGroupCircuitFromContext(ctx); circuit != nil {
 			healthKey := openAIAutoCheapestGroupHealthKey(ctx, *groupID)
 			healthKey.Model = model
+			accountHealthKey := healthKey
+			accountHealthKey.AccountID = account.ID
+			accountHealthKey.Endpoint = ""
+			accountHealthKey.Transport = ""
 			if len(healthMetadata) > 0 {
 				metadata := openAIAutoSchedulerHealthMetadataForAttempt(healthMetadata[0], nil)
 				healthKey.Endpoint = metadata.Endpoint
 				healthKey.Transport = string(metadata.Transport)
 			}
+			// Account quarantine is intentionally independent of endpoint/transport:
+			// candidate ranking happens before those attempt details are known.
+			_ = circuit.RecordSuccess(ctx, accountHealthKey)
 			_ = circuit.RecordSuccess(ctx, healthKey)
 		}
+	} else if circuit := OpenAIAutoCheapestGroupCircuitFromContext(ctx); circuit != nil && shouldQuarantineOpenAIAutoCheapestAccount(outcome) {
+		healthKey := openAIAutoCheapestGroupHealthKey(ctx, *groupID)
+		healthKey.AccountID = account.ID
+		healthKey.Model = model
+		healthKey.Endpoint = ""
+		healthKey.Transport = ""
+		// Account quarantine is independent of the attempt endpoint/transport;
+		// ranking cannot know those details yet.
+		_ = circuit.RecordFailure(ctx, healthKey, outcome.Message)
 	}
 	if s.openAIAutoSchedulerOutcomeRecorder == nil {
 		return
@@ -401,6 +443,35 @@ func (s *OpenAIGatewayService) recordOpenAIAutoSchedulerOutcome(
 		outcome.Transport = metadata.Transport
 	}
 	s.openAIAutoSchedulerOutcomeRecorder.TryRecord(outcome)
+}
+
+func shouldQuarantineOpenAIAutoCheapestAccount(outcome OpenAIAutoSchedulerRecordInput) bool {
+	if outcome.EventType != OpenAIAutoSchedulerEventError && outcome.EventType != OpenAIAutoSchedulerEventRateLimited {
+		return false
+	}
+	message := strings.ToLower(strings.TrimSpace(outcome.Message))
+	if strings.Contains(message, "context canceled") || strings.Contains(message, "client disconnected") || strings.Contains(message, "request canceled") {
+		return false
+	}
+	if outcome.StatusCode != nil {
+		return *outcome.StatusCode == http.StatusTooManyRequests || *outcome.StatusCode >= 500
+	}
+	for _, marker := range []string{
+		"stream disconnected",
+		"transport error",
+		"connection reset",
+		"network error",
+		"unexpected eof",
+		"broken pipe",
+		"use of closed network connection",
+		"http2 stream error",
+		"goaway",
+	} {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func openAIAutoSchedulerSuccessOutcome(c *gin.Context, forwardStartedAt time.Time, result *OpenAIForwardResult) OpenAIAutoSchedulerRecordInput {

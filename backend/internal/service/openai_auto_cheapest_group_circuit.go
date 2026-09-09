@@ -16,6 +16,7 @@ type OpenAIAutoCheapestGroupCircuit interface {
 
 type OpenAIAutoCheapestGroupHealthKey struct {
 	GroupID   int64
+	AccountID int64
 	UserID    int64
 	Model     string
 	Endpoint  string
@@ -51,6 +52,11 @@ func (k OpenAIAutoCheapestGroupHealthKey) Valid() bool { return k.GroupID > 0 }
 const (
 	OpenAIAutoCheapestFailureWindow = 60 * time.Second
 	OpenAIAutoCheapestCooldown      = 10 * time.Second
+	// Account failures in an automatic-cheapest group are quarantined longer
+	// than the group-wide no-capacity circuit so a bad upstream account does not
+	// immediately return to the cheapest position for every request.
+	OpenAIAutoCheapestAccountCooldown     = 5 * time.Minute
+	OpenAIAutoCheapestAccountFailureLimit = int64(3)
 	// Only distinct users consume the failure budget. One user's request shape,
 	// exclusions, or temporary account state must not disable a group globally.
 	OpenAIAutoCheapestFailureLimit = int64(2)

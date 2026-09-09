@@ -18,6 +18,13 @@ func NewOpenAIAutoCheapestGroupCircuit(rdb *redis.Client) service.OpenAIAutoChea
 }
 
 func openAIAutoCheapestGroupCircuitKey(key service.OpenAIAutoCheapestGroupHealthKey) string {
+	if key.AccountID > 0 {
+		// Account quarantine is checked while candidates are ranked, before the
+		// eventual endpoint/transport is selected, so keep this key stable across
+		// those request details.
+		return fmt.Sprintf("%s%d:account:%d:%s", openAIAutoCheapestGroupCircuitPrefix, key.GroupID, key.AccountID,
+			service.NormalizeOpenAIAutoCheapestHealthModel(key.Model))
+	}
 	return fmt.Sprintf("%s%d:%s:%s:%s", openAIAutoCheapestGroupCircuitPrefix, key.GroupID,
 		service.NormalizeOpenAIAutoCheapestHealthModel(key.Model),
 		service.NormalizeOpenAIAutoCheapestHealthPart(key.Endpoint),
@@ -58,11 +65,30 @@ local window = tonumber(ARGV[2])
 local limit = tonumber(ARGV[3])
 local cooldown = tonumber(ARGV[4])
 local user_id = tonumber(ARGV[5]) or 0
+local account_id = tonumber(ARGV[6]) or 0
 local state = redis.call('HGET', key, 'state')
 if state == 'half_open' then
   redis.call('HSET', key, 'state', 'open', 'opened_at', now, 'cooldown_until', now + cooldown, 'probe', '0', 'successes', '0')
   redis.call('EXPIRE', key, cooldown)
   return 0
+end
+if account_id > 0 then
+  local raw = redis.call('HMGET', key, 'window_start', 'failures')
+  local start = tonumber(raw[1]) or 0
+  local failures = tonumber(raw[2]) or 0
+  if start == 0 or now - start >= window then
+    start = now
+    failures = 0
+  end
+  failures = failures + 1
+  if failures >= limit then
+    redis.call('HSET', key, 'state', 'open', 'opened_at', now, 'cooldown_until', now + cooldown, 'window_start', start, 'failures', failures, 'probe', '0')
+    redis.call('EXPIRE', key, cooldown)
+  else
+    redis.call('HSET', key, 'state', 'closed', 'window_start', start, 'failures', failures)
+    redis.call('EXPIRE', key, window)
+  end
+  return failures
 end
 if user_id <= 0 then return 0 end
 local raw = redis.call('HMGET', key, 'window_start', 'failures')
@@ -91,7 +117,13 @@ func (c *openAIAutoCheapestGroupCircuit) RecordFailure(ctx context.Context, key 
 	if c == nil || c.rdb == nil || !key.Valid() {
 		return nil
 	}
-	_, err := recordOpenAIAutoCheapestFailureScript.Run(ctx, c.rdb, []string{openAIAutoCheapestGroupCircuitKey(key)}, time.Now().Unix(), int64(service.OpenAIAutoCheapestFailureWindow/time.Second), service.OpenAIAutoCheapestFailureLimit, int64(service.OpenAIAutoCheapestCooldown/time.Second), key.UserID).Result()
+	cooldown := service.OpenAIAutoCheapestCooldown
+	limit := service.OpenAIAutoCheapestFailureLimit
+	if key.AccountID > 0 {
+		cooldown = service.OpenAIAutoCheapestAccountCooldown
+		limit = service.OpenAIAutoCheapestAccountFailureLimit
+	}
+	_, err := recordOpenAIAutoCheapestFailureScript.Run(ctx, c.rdb, []string{openAIAutoCheapestGroupCircuitKey(key)}, time.Now().Unix(), int64(service.OpenAIAutoCheapestFailureWindow/time.Second), limit, int64(cooldown/time.Second), key.UserID, key.AccountID).Result()
 	return err
 }
 
@@ -107,6 +139,14 @@ func (c *openAIAutoCheapestGroupCircuit) RecordSuccess(ctx context.Context, key 
 	if err != nil {
 		return err
 	}
+	if state == "open" {
+		return nil
+	}
+	if key.AccountID > 0 && state == "closed" {
+		// A successful request breaks the consecutive-failure streak. Remove the
+		// short-lived account counter so transient upstream blips do not accumulate.
+		return c.rdb.Del(ctx, redisKey).Err()
+	}
 	if state != "half_open" {
 		return nil
 	}
@@ -119,7 +159,11 @@ func (c *openAIAutoCheapestGroupCircuit) RecordSuccess(ctx context.Context, key 
 	}
 	pipe := c.rdb.TxPipeline()
 	pipe.HSet(ctx, redisKey, "state", "half_open", "probe", "0")
-	pipe.Expire(ctx, redisKey, service.OpenAIAutoCheapestCooldown)
+	cooldown := service.OpenAIAutoCheapestCooldown
+	if key.AccountID > 0 {
+		cooldown = service.OpenAIAutoCheapestAccountCooldown
+	}
+	pipe.Expire(ctx, redisKey, cooldown)
 	_, err = pipe.Exec(ctx)
 	return err
 }
