@@ -252,4 +252,28 @@ describe('AccountTestModal', () => {
       mode: 'compact'
     })
   })
+
+  it('打开测试弹窗时优先选择账号保存的模型映射', async () => {
+    getAvailableModels.mockResolvedValue([
+      { id: 'claude-fable-5', display_name: 'Claude Fable 5' },
+      { id: 'claude-sonnet-4-5-20250929', display_name: 'Claude Sonnet 4.5' }
+    ])
+
+    const wrapper = mountModal({
+      id: 43,
+      name: 'Mapped Claude API Key',
+      platform: 'anthropic',
+      type: 'apikey',
+      status: 'active',
+      credentials: {
+        model_mapping: {
+          'claude-fable-5': 'claude-sonnet-4-5-20250929'
+        }
+      }
+    })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    expect((wrapper.vm as any).selectedModelId).toBe('claude-fable-5')
+  })
 })

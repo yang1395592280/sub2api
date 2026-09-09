@@ -701,6 +701,29 @@ const sortTestModels = (models: ClaudeModel[]) => {
   })
 }
 
+const getSavedModelId = (models: ClaudeModel[]) => {
+  const credentials = props.account?.credentials
+  if (!credentials || typeof credentials !== 'object') return ''
+
+  const candidates: string[] = []
+  const savedModel = credentials.model ?? credentials.model_id
+  if (typeof savedModel === 'string') candidates.push(savedModel)
+
+  const rawMapping = credentials.model_mapping
+  if (rawMapping && typeof rawMapping === 'object' && !Array.isArray(rawMapping)) {
+    for (const [requestModel, actualModel] of Object.entries(rawMapping as Record<string, unknown>)) {
+      // The picker sends the request model so the backend can apply its saved mapping.
+      if (typeof requestModel === 'string') candidates.push(requestModel)
+      if (typeof actualModel === 'string') candidates.push(actualModel)
+    }
+  }
+
+  return candidates.find((candidate) => {
+    const modelID = candidate.trim()
+    return modelID && !modelID.includes('*') && models.some((model) => model.id === modelID)
+  }) || ''
+}
+
 // Load available models when modal opens
 const applyDefaultPromptForMode = () => {
   if (!supportsPromptInput.value) return
@@ -771,7 +794,14 @@ const loadAvailableModels = async () => {
     availableModels.value = props.account.platform === 'gemini' || props.account.platform === 'antigravity'
       ? sortTestModels(models)
       : models
-    // Default selection by platform
+    // Keep the test request aligned with the account's saved model mapping.
+    const savedModelId = getSavedModelId(availableModels.value)
+    if (savedModelId) {
+      selectedModelId.value = savedModelId
+      return
+    }
+
+    // Default selection by platform when no saved model is available.
     if (availableModels.value.length > 0) {
       if (props.account.platform === 'gemini') {
         selectedModelId.value = availableModels.value[0].id
