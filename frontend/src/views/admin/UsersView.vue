@@ -266,6 +266,27 @@
               </button>
             </div>
 
+            <button
+              v-if="selectedUserIds.length > 0"
+              class="btn btn-secondary flex-1 md:flex-initial"
+              data-test="bulk-edit-limits"
+              @click="showBulkEditModal = true"
+            >
+              <Icon name="users" size="md" class="mr-2" />
+              {{ t('admin.users.bulkLimits.action', { count: selectedUserIds.length }) }}
+            </button>
+
+            <button
+              v-if="selectedUserIds.length > 0"
+              class="btn btn-danger flex-1 md:flex-initial"
+              data-test="bulk-delete-users"
+              :disabled="bulkDeleting"
+              @click="bulkDeleteIds = [...selectedUserIds]"
+            >
+              <Icon name="trash" size="md" class="mr-2" />
+              {{ t('admin.users.bulkDelete.action', { count: selectedUserIds.length }) }}
+            </button>
+
             <!-- Create User Button (full width on mobile, auto width on desktop) -->
             <button @click="showCreateModal = true" class="btn btn-primary flex-1 md:flex-initial">
               <Icon name="plus" size="md" class="mr-2" />
@@ -794,8 +815,23 @@
       @confirm="confirmBatchDelete"
       @cancel="showBatchDeleteDialog = false"
     />
+    <ConfirmDialog
+      :show="bulkDeleteIds.length > 0"
+      :title="t('admin.users.bulkDelete.title')"
+      :message="t('admin.users.bulkDelete.confirm', { count: bulkDeleteIds.length })"
+      :confirm-text="t('common.delete')"
+      danger
+      @confirm="confirmBulkDelete"
+      @cancel="bulkDeleteIds = []"
+    />
     <UserCreateModal :show="showCreateModal" @close="showCreateModal = false" @success="refreshUsersAndSummary" />
     <UserEditModal :show="showEditModal" :user="editingUser" @close="closeEditModal" @success="refreshUsersAndSummary" />
+    <BulkEditUserModal
+      :show="showBulkEditModal"
+      :selected-ids="selectedUserIds"
+      @close="showBulkEditModal = false"
+      @success="handleBulkLimitsSuccess"
+    />
     <UserPlatformQuotaModal
       :show="showPlatformQuotaModal"
       :user="platformQuotaUser"
@@ -866,6 +902,7 @@ import GroupReplaceModal from '@/components/admin/user/GroupReplaceModal.vue'
 import UserBulkActionsBar from '@/components/admin/user/UserBulkActionsBar.vue'
 import UserBatchAddGroupModal from '@/components/admin/user/UserBatchAddGroupModal.vue'
 import UserBatchBalanceModal from '@/components/admin/user/UserBatchBalanceModal.vue'
+import BulkEditUserModal from '@/components/admin/user/BulkEditUserModal.vue'
 
 const appStore = useAppStore()
 
@@ -1379,6 +1416,9 @@ const {
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const showDeleteDialog = ref(false)
+const showBulkEditModal = ref(false)
+const bulkDeleteIds = ref<number[]>([])
+const bulkDeleting = ref(false)
 const showApiKeysModal = ref(false)
 const showAttributesModal = ref(false)
 const showPlatformQuotaModal = ref(false)
@@ -1854,6 +1894,37 @@ const confirmDelete = async () => {
     appStore.showError(error.response?.data?.detail || t('admin.users.failedToDelete'))
     console.error('Error deleting user:', error)
   }
+}
+
+const confirmBulkDelete = async () => {
+  const ids = [...bulkDeleteIds.value]
+  if (ids.length === 0) return
+  bulkDeleteIds.value = []
+  bulkDeleting.value = true
+  const deletedIds: number[] = []
+  for (const id of ids) {
+    try {
+      await adminAPI.users.delete(id)
+      deletedIds.push(id)
+    } catch (error) {
+      console.error('Error deleting user:', error)
+    }
+  }
+  if (deletedIds.length > 0) {
+    clearSelectedUsers()
+    appStore.showSuccess(t('admin.users.bulkDelete.success', { count: deletedIds.length }))
+    pagination.page = 1
+  }
+  const failed = ids.length - deletedIds.length
+  if (failed > 0) appStore.showError(t('admin.users.bulkDelete.failed', { count: failed }))
+  await loadUsers()
+  bulkDeleting.value = false
+}
+
+const handleBulkLimitsSuccess = () => {
+  showBulkEditModal.value = false
+  clearSelectedUsers()
+  refreshUsersAndSummary()
 }
 
 const handleDeposit = (user: AdminUser) => {

@@ -326,6 +326,11 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 
 	// 6. Build upstream request
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
+	cancelUpstream := func() {}
+	if clientStream {
+		upstreamCtx, cancelUpstream = context.WithCancel(upstreamCtx)
+	}
+	defer cancelUpstream()
 	reasoningEffortValue := strings.TrimSpace(gjson.GetBytes(responsesBody, "reasoning.effort").String())
 	firstOutputTimeout := time.Duration(0)
 	if clientStream && account.Platform == PlatformOpenAI {
@@ -386,7 +391,10 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	if headerGuard != nil {
 		resp.Body = &openAIRequestContextReadCloser{ReadCloser: resp.Body, cleanup: headerGuard.close}
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		cancelUpstream()
+		_ = resp.Body.Close()
+	}()
 
 	// 8. Handle error response with failover
 	if resp.StatusCode >= 400 {
