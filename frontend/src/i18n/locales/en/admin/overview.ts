@@ -487,6 +487,7 @@ export default {
         action: 'Delete selected ({count})',
         title: 'Delete selected users',
         confirm: 'Delete the {count} selected users? This action cannot be undone. Administrator accounts cannot be deleted.',
+        confirmMessage: 'Delete the selected {count} users? This action cannot be undone.',
         success: 'Deleted {count} users',
         failed: 'Failed to delete {count} users. They remain selected for retry.'
       },
@@ -674,12 +675,6 @@ export default {
         confirm: 'Confirm',
         success: 'Added "{group}" group access for {count} users',
         failed: 'Failed to batch add group'
-      },
-      bulkDelete: {
-        title: 'Bulk Delete Users',
-        confirmMessage: 'Delete the selected {count} users? This action cannot be undone.',
-        success: 'Deleted {count} users',
-        failed: 'Bulk delete users failed'
       },
       emailRequired: 'Please enter email',
       concurrencyNonNegative: 'Concurrency cannot be negative; 0 = unlimited',

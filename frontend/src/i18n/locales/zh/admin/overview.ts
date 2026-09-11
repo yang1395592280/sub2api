@@ -487,6 +487,7 @@ export default {
         action: '批量删除（{count}）',
         title: '删除已选用户',
         confirm: '确定删除已选的 {count} 个用户吗？此操作无法撤销。管理员账号无法删除。',
+        confirmMessage: '确定要删除选中的 {count} 个用户吗？此操作无法撤销。',
         success: '已删除 {count} 个用户',
         failed: '{count} 个用户删除失败，已保留选中，可重试。'
       },
@@ -652,12 +653,6 @@ export default {
         confirm: '确认添加',
         success: '已为 {count} 个用户添加「{group}」分组权限',
         failed: '批量添加分组失败'
-      },
-      bulkDelete: {
-        title: '批量删除用户',
-        confirmMessage: '确定要删除选中的 {count} 个用户吗？此操作无法撤销。',
-        success: '成功删除 {count} 个用户',
-        failed: '批量删除用户失败'
       },
       deleteConfirm: "确定要删除用户 '{email}' 吗？此操作无法撤销。",
       roles: {

@@ -36,7 +36,7 @@ vi.mock('@/api/admin', () => ({
       list: listUsers,
       getUserBalanceSummary,
       toggleStatus: vi.fn(),
-      delete: vi.fn(),
+      delete: deleteUser,
       batchAddBalanceToUsers,
       batchDeleteUsers,
       batchAddGroupToUsers: vi.fn()
@@ -105,7 +105,7 @@ const DataTableStub = {
         <slot :name="'header-' + col.key" :column="col" />
       </template>
       <div v-for="row in data" :key="row.id">
-        <slot name="cell-select" :row="row" />
+        <div :data-test="'select-' + row.id"><slot name="cell-select" :row="row" /></div>
         <slot name="cell-last_used_at" :value="row.last_used_at" :row="row" />
       </div>
     </div>
@@ -154,6 +154,10 @@ const mountBulkDeleteView = () => mount(UsersView, {
       UserCreateModal: true,
       UserEditModal: true,
       BulkEditUserModal: true,
+      UserBulkActionsBar: {
+        props: ['selectedIds'],
+        template: '<div data-test="selected-keys">{{ selectedIds.join(\',\') }}</div>'
+      },
       UserPlatformQuotaModal: true,
       UserApiKeysModal: true,
       UserAllowedGroupsModal: true,
@@ -208,7 +212,7 @@ describe('admin UsersView', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-test="bulk-delete-users"]').exists()).toBe(false)
-    await wrapper.get('[data-test="select-42"]').trigger('click')
+    await wrapper.get('[data-test="select-42"] input').setValue(true)
     await wrapper.get('[data-test="bulk-delete-users"]').trigger('click')
     expect(wrapper.get('[data-test="delete-dialog"]').text()).toContain('admin.users.bulkDelete.confirm:1')
     expect(deleteUser).not.toHaveBeenCalled()
@@ -234,10 +238,10 @@ describe('admin UsersView', () => {
     })
     const wrapper = mountBulkDeleteView()
     await flushPromises()
-    await wrapper.get('[data-test="select-42"]').trigger('click')
+    await wrapper.get('[data-test="select-42"] input').setValue(true)
     await wrapper.get('[data-test="next-page"]').trigger('click')
     await flushPromises()
-    await wrapper.get('[data-test="select-43"]').trigger('click')
+    await wrapper.get('[data-test="select-43"] input').setValue(true)
     await wrapper.get('[data-test="bulk-delete-users"]').trigger('click')
     expect(deleteUser).not.toHaveBeenCalled()
 
@@ -267,11 +271,11 @@ describe('admin UsersView', () => {
     deleteUser.mockImplementation(() => new Promise<void>(resolve => { finishDelete = resolve }))
     const wrapper = mountBulkDeleteView()
     await flushPromises()
-    await wrapper.get('[data-test="select-42"]').trigger('click')
+    await wrapper.get('[data-test="select-42"] input').setValue(true)
     await wrapper.get('[data-test="bulk-delete-users"]').trigger('click')
     await wrapper.get('[data-test="confirm-delete"]').trigger('click')
     expect(wrapper.get('[data-test="bulk-delete-users"]').attributes('disabled')).toBeDefined()
-    await wrapper.get('[data-test="select-43"]').trigger('click')
+    await wrapper.get('[data-test="select-43"] input').setValue(true)
     finishDelete()
     await flushPromises()
 

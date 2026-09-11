@@ -1406,6 +1406,7 @@ const {
   isSelected: isUserSelected,
   toggle: toggleSelectedUser,
   clear: clearSelectedUsers,
+  removeMany: removeSelectedUsers,
   toggleVisible: toggleVisibleUsers,
   selectVisible: selectCurrentPageUsers
 } = useTableSelection<AdminUser>({
@@ -1911,7 +1912,7 @@ const confirmBulkDelete = async () => {
     }
   }
   if (deletedIds.length > 0) {
-    clearSelectedUsers()
+    removeSelectedUsers(deletedIds)
     appStore.showSuccess(t('admin.users.bulkDelete.success', { count: deletedIds.length }))
     pagination.page = 1
   }
