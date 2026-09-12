@@ -44,7 +44,7 @@ func TestValidateGroupUpstreamPriceGroupingConfig(t *testing.T) {
 }
 
 func TestValidateGroupUpstreamPriceGroupingConfig_SupportedCompatibleProviders(t *testing.T) {
-	for _, platform := range []string{PlatformKimi, PlatformDeepseek, PlatformZhipu, PlatformGrok} {
+	for _, platform := range []string{PlatformGemini, PlatformKimi, PlatformDeepseek, PlatformZhipu, PlatformGrok} {
 		group := &Group{
 			Platform:                      platform,
 			UpstreamBalanceRefreshEnabled: true,

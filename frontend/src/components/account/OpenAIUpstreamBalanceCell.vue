@@ -49,7 +49,7 @@ const localError = ref<string | null>(null)
 
 const visible = computed(() => {
   if (props.account.type !== 'apikey') return false
-  if (props.account.platform === 'openai' || props.account.platform === 'anthropic') return true
+  if (props.account.platform === 'openai' || props.account.platform === 'anthropic' || props.account.platform === 'gemini') return true
   return props.account.platform === 'kimi' || props.account.platform === 'deepseek' || props.account.platform === 'zhipu' || props.account.platform === 'grok'
 })
 

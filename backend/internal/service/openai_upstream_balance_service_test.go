@@ -387,7 +387,7 @@ func TestOpenAIUpstreamBalanceServiceRefresh_CNProviderUsesConfiguredUpstreamAdm
 }
 
 func TestOpenAIUpstreamBalanceServiceRefresh_ZhipuAndGrokAPIKeyUseManagedUpstream(t *testing.T) {
-	for _, platform := range []string{PlatformZhipu, PlatformGrok} {
+	for _, platform := range []string{PlatformGemini, PlatformZhipu, PlatformGrok} {
 		t.Run(platform, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {

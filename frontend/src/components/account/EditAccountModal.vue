@@ -3503,7 +3503,7 @@ const checkinTesting = ref(false)
 const checkinStatusSnapshot = ref<UpstreamCheckinStatusSnapshot | null>(null)
 const supportsUpstreamAdminSettings = computed(() =>
   props.account?.type === 'apikey' &&
-  (props.account.platform === 'openai' || props.account.platform === 'anthropic' || props.account.platform === 'kimi' || props.account.platform === 'deepseek' || props.account.platform === 'zhipu' || props.account.platform === 'grok')
+  (props.account.platform === 'openai' || props.account.platform === 'anthropic' || props.account.platform === 'gemini' || props.account.platform === 'kimi' || props.account.platform === 'deepseek' || props.account.platform === 'zhipu' || props.account.platform === 'grok')
 )
 const showOpenAIOverbrush = computed(() => {
   return props.account?.platform === 'openai' && props.account?.type === 'oauth'
@@ -4155,7 +4155,7 @@ const priceGroupingLockedGroupIds = ref<number[]>([])
 const priceGroupingLockableGroups = computed(() =>
   props.groups.filter((group) =>
     form.group_ids.includes(group.id) &&
-    (group.platform === 'openai' || group.platform === 'kimi' || group.platform === 'deepseek' || group.platform === 'zhipu' || group.platform === 'grok') &&
+    (group.platform === 'openai' || group.platform === 'gemini' || group.platform === 'kimi' || group.platform === 'deepseek' || group.platform === 'zhipu' || group.platform === 'grok') &&
     group.group_role === 'standard' &&
     group.upstream_price_grouping_enabled
   )
@@ -4178,7 +4178,7 @@ watch(
 const upstreamGroupName = ref('')
 const showUpstreamGroupNameInput = computed(() =>
   props.account?.type === 'apikey' &&
-  (props.account.platform === 'openai' || props.account.platform === 'anthropic' || props.account.platform === 'kimi' || props.account.platform === 'deepseek' || props.account.platform === 'zhipu' || props.account.platform === 'grok')
+  (props.account.platform === 'openai' || props.account.platform === 'anthropic' || props.account.platform === 'gemini' || props.account.platform === 'kimi' || props.account.platform === 'deepseek' || props.account.platform === 'zhipu' || props.account.platform === 'grok')
 )
 
 const handleUpstreamBillingRateSyncChange = (enabled: boolean) => {
@@ -5447,7 +5447,7 @@ const handleSubmit = async () => {
 
   const updatePayload: Record<string, unknown> = { ...form }
   updatePayload.auto_grouping_enabled = autoGroupingEnabled.value
-  if (!authStore.isSimpleMode && ['openai', 'kimi', 'deepseek', 'zhipu', 'grok'].includes(props.account.platform)) {
+  if (!authStore.isSimpleMode && ['openai', 'gemini', 'kimi', 'deepseek', 'zhipu', 'grok'].includes(props.account.platform)) {
     updatePayload.price_grouping_locked_group_ids = [...priceGroupingLockedGroupIds.value]
   }
   try {

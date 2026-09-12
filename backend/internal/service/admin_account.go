@@ -225,7 +225,7 @@ func (s *adminServiceImpl) validatePriceGroupingLockedGroups(ctx context.Context
 		if group.Platform != accountPlatform || group.GroupRole != GroupRoleStandard || group.IsSelfHostedPool() || !group.UpstreamPriceGroupingEnabled {
 			return nil, infraerrors.BadRequest(
 				"PRICE_GROUPING_LOCK_UNSUPPORTED_GROUP",
-				"locked memberships must reference standard OpenAI groups or supported same-platform groups with channel-price grouping enabled",
+				"locked memberships must reference standard OpenAI/Gemini groups or supported same-platform groups with channel-price grouping enabled",
 			)
 		}
 	}

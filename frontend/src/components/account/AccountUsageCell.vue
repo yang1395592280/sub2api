@@ -466,6 +466,11 @@
 
     <!-- Gemini platform: show quota + local usage window -->
     <template v-else-if="account.platform === 'gemini'">
+      <OpenAIUpstreamBalanceCell
+        v-if="supportsUpstreamBalance"
+        :account="account"
+        @refreshed="emitAccountRefreshed"
+      />
       <!-- Auth Type + Tier Badge (first line) -->
       <div v-if="geminiAuthTypeLabel" class="mb-1 flex items-center gap-1">
         <span
@@ -811,7 +816,7 @@ const hasOpenAIUsageFallback = computed(() => {
 
 const supportsUpstreamBalance = computed(() => {
   if (props.account.type !== 'apikey') return false
-  if (props.account.platform === 'openai' || props.account.platform === 'anthropic') return true
+  if (props.account.platform === 'openai' || props.account.platform === 'anthropic' || props.account.platform === 'gemini') return true
   return props.account.platform === 'kimi' || props.account.platform === 'deepseek' || props.account.platform === 'zhipu' || props.account.platform === 'grok'
 })
 

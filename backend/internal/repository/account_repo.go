@@ -1374,7 +1374,7 @@ func (r *accountRepository) ListUpstreamBalanceRefreshCandidates(ctx context.Con
 		Where(
 			dbaccount.StatusEQ(service.StatusActive),
 			dbaccount.TypeEQ(service.AccountTypeAPIKey),
-			dbaccount.PlatformIn(service.PlatformOpenAI, service.PlatformAnthropic),
+			dbaccount.PlatformIn(service.PlatformOpenAI, service.PlatformAnthropic, service.PlatformGemini, service.PlatformKimi, service.PlatformDeepseek, service.PlatformZhipu, service.PlatformGrok),
 			dbpredicate.Account(func(s *entsql.Selector) {
 				s.Where(sqljson.HasKey(dbaccount.FieldCredentials, sqljson.Path("api_key")))
 			}),
@@ -1401,7 +1401,7 @@ func (r *accountRepository) ListSub2APICheckinCandidates(ctx context.Context, li
 		WHERE deleted_at IS NULL
 			AND status = 'active'
 			AND type = 'apikey'
-			AND platform IN ('openai', 'anthropic', 'kimi', 'deepseek', 'zhipu', 'grok')
+			AND platform IN ('openai', 'anthropic', 'gemini', 'kimi', 'deepseek', 'zhipu', 'grok')
 			AND credentials @> '{"upstream_admin_type":"sub2api"}'::jsonb
 			AND credentials @> '{"upstream_checkin_enabled":true}'::jsonb
 		ORDER BY priority ASC, id ASC
@@ -1462,10 +1462,10 @@ func (r *accountRepository) ListUpstreamBalanceRefreshCandidatesByGroupID(ctx co
 			AND ag.group_id = $1
 			AND a.status = 'active'
 			AND a.type = 'apikey'
-			AND a.platform IN ('openai', 'anthropic', 'kimi', 'deepseek', 'zhipu', 'grok')
+			AND a.platform IN ('openai', 'anthropic', 'gemini', 'kimi', 'deepseek', 'zhipu', 'grok')
 			AND a.credentials ? 'api_key'
 			AND (
-				a.platform IN ('kimi', 'deepseek', 'zhipu', 'grok')
+				a.platform IN ('gemini', 'kimi', 'deepseek', 'zhipu', 'grok')
 				OR (a.credentials ? 'base_url' AND btrim(a.credentials->>'base_url') <> '')
 			)
 		ORDER BY a.priority ASC, a.id ASC

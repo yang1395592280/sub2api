@@ -213,7 +213,7 @@ func openAIUpstreamBalanceChannelPrice(snapshot OpenAIUpstreamBalanceSnapshot) *
 func accountSupportsUpstreamBalance(account *Account) bool {
 	return account != nil &&
 		account.Type == AccountTypeAPIKey &&
-		(account.Platform == PlatformOpenAI || account.Platform == PlatformAnthropic || account.Platform == PlatformKimi || account.Platform == PlatformDeepseek || account.Platform == PlatformZhipu || account.Platform == PlatformGrok)
+		(account.Platform == PlatformOpenAI || account.Platform == PlatformAnthropic || account.Platform == PlatformGemini || account.Platform == PlatformKimi || account.Platform == PlatformDeepseek || account.Platform == PlatformZhipu || account.Platform == PlatformGrok)
 }
 
 func getUpstreamBalanceBaseURL(account *Account) string {

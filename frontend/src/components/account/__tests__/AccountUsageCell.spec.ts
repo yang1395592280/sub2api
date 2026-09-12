@@ -302,6 +302,30 @@ describe('AccountUsageCell', () => {
     expect(getUsage).not.toHaveBeenCalled()
   })
 
+  it('Gemini API Key 账号首屏显示统一上游余额刷新入口', async () => {
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 9008,
+          platform: 'gemini',
+          type: 'apikey',
+          credentials: {
+            api_key: 'AIza-test',
+            base_url: 'https://relay.example.com/v1',
+            upstream_admin_type: 'new-api'
+          }
+        })
+      },
+      global: {
+        stubs: { ...cnUsageCellStubs, UsageProgressBar: true, AccountQuotaInfo: true }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="upstream-balance-cell"]').exists()).toBe(true)
+  })
+
   it('Antigravity 图片用量会聚合新旧 image 模型', async () => {
     getUsage.mockResolvedValue({
       antigravity_quota: {

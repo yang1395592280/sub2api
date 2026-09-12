@@ -1886,7 +1886,7 @@ function getUpstreamPriceGuardClass(row: Account): string {
 
 function supportsUpstreamBalanceRefresh(account: Account): boolean {
   return account.type === 'apikey' &&
-    (account.platform === 'openai' || account.platform === 'anthropic' || account.platform === 'kimi' || account.platform === 'deepseek' || account.platform === 'zhipu' || account.platform === 'grok')
+    (account.platform === 'openai' || account.platform === 'anthropic' || account.platform === 'gemini' || account.platform === 'kimi' || account.platform === 'deepseek' || account.platform === 'zhipu' || account.platform === 'grok')
 }
 
 // All available columns
