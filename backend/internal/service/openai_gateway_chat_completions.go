@@ -70,7 +70,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 	promptCacheKey string,
 	defaultMappedModel string,
 	compatPromptCacheTenantIsolated bool,
-) (*OpenAIForwardResult, error) {
+) (result *OpenAIForwardResult, err error) {
 	rememberOpenCodeInboundBody(c, body)
 	beginUpstreamResponseModelObservation(c)
 	ClearActualOpenAIUpstreamEndpoint(c)
@@ -214,7 +214,6 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 
 	promptCacheKey = strings.TrimSpace(promptCacheKey)
 	compatPromptCacheInjected := false
-	compatPromptCacheTenantIsolated := false
 	// Responses-capable API keys use the same prompt-cache/session affinity
 	// contract as Codex OAuth accounts. Keep the automatic key scoped to the
 	// Responses path; raw Chat Completions providers must not receive it.
@@ -476,12 +475,11 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 	}
 
 	// 9. Handle normal response
-	var forwardResult *OpenAIForwardResult
 	var handleErr error
 	if clientStream {
-		forwardResult, handleErr = s.handleChatStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, reasoningEffortValue, firstOutputTimeout, startTime, len(body))
+		result, handleErr = s.handleChatStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, reasoningEffortValue, firstOutputTimeout, startTime, len(body))
 	} else {
-		forwardResult, handleErr = s.handleChatBufferedStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, startTime)
+		result, handleErr = s.handleChatBufferedStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, startTime)
 	}
 	stampOpenAIResponsesUpstreamEndpoint(c, result)
 
@@ -495,13 +493,13 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 	}
 
 	// Prefer the service tier echoed by upstream; fall back to the final outbound request.
-	if handleErr == nil && forwardResult != nil {
+	if handleErr == nil && result != nil {
 		if tier := resolvedOpenAIUpstreamServiceTier(c, extractOpenAIServiceTierFromBody(responsesBody)); tier != nil {
-			forwardResult.ServiceTier = tier
+			result.ServiceTier = tier
 		}
 		if responsesReq.Reasoning != nil && responsesReq.Reasoning.Effort != "" {
 			re := responsesReq.Reasoning.Effort
-			forwardResult.ReasoningEffort = &re
+			result.ReasoningEffort = &re
 		}
 	}
 
@@ -518,7 +516,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 		s.ResetOpenAIOverbrush429Count(account)
 	}
 
-	return forwardResult, handleErr
+	return result, handleErr
 }
 
 func normalizeResponsesRequestServiceTier(req *apicompat.ResponsesRequest) {
