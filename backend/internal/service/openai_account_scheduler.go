@@ -2183,6 +2183,10 @@ func (s *defaultOpenAIAccountScheduler) prepareOpenAIAccountCandidates(
 			filterStats.exclude("platform_mismatch")
 			continue
 		}
+		if req.Platform == PlatformGrok && len(s.filterGrokFreeQuotaAccounts(ctx, []Account{*account})) == 0 {
+			filterStats.exclude("grok_free_quota_soft_gate")
+			continue
+		}
 		if s.service.isOpenAIAccountRequestRuntimeBlocked(account, req.RequestedModel) {
 			filterStats.exclude("runtime_blocked")
 			continue
@@ -2655,7 +2659,7 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 	if req.RequirePrivacySet && !account.IsPrivacySet() {
 		return false, "privacy_not_set"
 	}
-	if s != nil && s.service != nil && s.service.isOpenAIAccountRequestRuntimeBlocked(account, req.RequestedModel) {
+	if s != nil && s.service != nil && s.service.isOpenAIAccountRequestRuntimeBlocked(account, req.RequestedModel, req.RequireCompact) {
 		return false, "runtime_blocked"
 	}
 	if s != nil && s.service != nil && s.service.isOpenAIProxyStreamQuarantined(ctx, account) {
