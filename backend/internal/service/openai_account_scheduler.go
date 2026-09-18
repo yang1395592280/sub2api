@@ -2187,7 +2187,7 @@ func (s *defaultOpenAIAccountScheduler) prepareOpenAIAccountCandidates(
 			filterStats.exclude("grok_free_quota_soft_gate")
 			continue
 		}
-		if s.service.isOpenAIAccountRequestRuntimeBlocked(account, req.RequestedModel) {
+		if s.service.isOpenAIAccountRequestRuntimeBlocked(account, req.RequestedModel, req.RequireCompact) {
 			filterStats.exclude("runtime_blocked")
 			continue
 		}
