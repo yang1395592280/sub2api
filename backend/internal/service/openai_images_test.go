@@ -896,11 +896,8 @@ func TestOpenAIGatewayServiceForwardImages_OAuthAccountMappingMatchesSchedulerHe
 
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
-		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
-		Body: io.NopCloser(strings.NewReader(
-			"data: {\"type\":\"response.completed\",\"response\":{\"created_at\":1710000000,\"usage\":{},\"tool_usage\":{\"image_gen\":{\"images\":1}},\"output\":[{\"type\":\"image_generation_call\",\"result\":\"aW1hZ2U=\",\"output_format\":\"png\"}]}}\n\n" +
-				"data: [DONE]\n\n",
-		)),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(`{"created":1710000000,"model":"gpt-image-2","data":[{"b64_json":"aW1hZ2U=","output_format":"png"}],"usage":{}}`)),
 	}}
 	sink := &collectingOpenAIAutoSchedulerOutcomeSink{}
 	recorder := NewOpenAIAutoSchedulerOutcomeRecorder(sink, 4, 1)
@@ -925,7 +922,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthAccountMappingMatchesSchedulerHe
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
 	require.NoError(t, err)
 	require.Equal(t, "gpt-image-2", resolveOpenAIAccountUpstreamModelForRequest(account, parsed.Model, false))
-	require.Equal(t, "gpt-image-2", gjson.GetBytes(upstream.lastBody, "tools.0.model").String())
+	require.Equal(t, "gpt-image-2", gjson.GetBytes(upstream.lastBody, "model").String())
 	require.Equal(t, "gpt-image-2", result.UpstreamModel)
 
 	require.NoError(t, recorder.Stop(context.Background()))

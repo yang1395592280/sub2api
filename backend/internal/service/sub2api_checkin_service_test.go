@@ -364,7 +364,7 @@ func TestSub2APICheckinServiceReconcileSkipsUnsupportedPlatformWithoutPersisting
 		account: &Account{
 			ID:       54,
 			Status:   StatusActive,
-			Platform: PlatformGemini,
+			Platform: PlatformKiro,
 			Type:     AccountTypeAPIKey,
 			Credentials: map[string]any{
 				"base_url":                    "https://ai.example/v1",
