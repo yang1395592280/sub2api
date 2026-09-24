@@ -131,6 +131,22 @@ class ReleaseMatrixTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'does not match'):
                 release.plan(args)
 
+    def test_plan_accepts_existing_four_part_release_tags(self):
+        sha = 'a' * 40
+        args = argparse.Namespace(ref='v0.2.8.1', dry_run=False, simple=False)
+        with patch.dict(os.environ, {'GITHUB_OUTPUT': 'outputs', 'GITHUB_REPOSITORY_OWNER': 'ExampleOwner'}), \
+                patch.object(subprocess, 'check_output', side_effect=[sha + '\n', sha + '\n']) as git:
+            release.plan(args)
+        git.assert_any_call(['git', 'rev-parse', '--verify', 'refs/tags/v0.2.8.1^{commit}'], text=True)
+        output = dict(line.split('=', 1) for line in Path('outputs').read_text().splitlines())
+        self.assertEqual(output['tag'], 'v0.2.8.1')
+        self.assertEqual(output['version'], '0.2.8.1')
+        self.assertEqual(release.VERSION_FILE.read_text(), '0.2.8.1\n')
+        self.assertEqual(release.archive_name('0.2.8.1', {'goos': 'linux', 'goarch': 'amd64'}),
+                         'sub2api_0.2.8.1_linux_amd64.tar.gz')
+        with self.assertRaisesRegex(ValueError, 'invalid release version'):
+            release.archive_name('0.2.8.1.2', {'goos': 'linux', 'goarch': 'amd64'})
+
     def test_dry_run_plan_resolves_matrix_without_a_new_tag(self):
         with patch.dict(os.environ, {'GITHUB_OUTPUT': 'outputs', 'GITHUB_REPOSITORY_OWNER': 'ExampleOwner'}), patch.object(subprocess, 'check_output', return_value='a' * 40 + '\n'):
             release.plan(argparse.Namespace(ref='feature/matrix', dry_run=True, simple=False))
