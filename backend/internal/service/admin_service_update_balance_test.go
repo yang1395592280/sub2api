@@ -67,6 +67,21 @@ func (s *batchBalanceUserRepoStub) Update(ctx context.Context, user *User, _ Use
 	return nil
 }
 
+func (s *batchBalanceUserRepoStub) AdjustBalance(_ context.Context, id int64, delta float64) (BalanceChange, error) {
+	user, ok := s.users[id]
+	if !ok {
+		return BalanceChange{}, ErrUserNotFound
+	}
+	change := BalanceChange{Old: user.Balance, New: user.Balance + delta}
+	if change.New < 0 {
+		return change, ErrBalanceNegative
+	}
+	user.Balance = change.New
+	clone := *user
+	s.updated = append(s.updated, &clone)
+	return change, nil
+}
+
 type balanceRedeemRepoStub struct {
 	*redeemRepoStub
 	created []*RedeemCode

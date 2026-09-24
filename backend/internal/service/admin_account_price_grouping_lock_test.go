@@ -57,7 +57,7 @@ func TestValidatePriceGroupingLockedGroups(t *testing.T) {
 		[]int64{20},
 		[]int64{20},
 	)
-	require.ErrorContains(t, err, "standard OpenAI groups")
+	require.ErrorContains(t, err, "standard OpenAI/Gemini groups")
 }
 
 func TestAdminService_UpdateAccountPersistsPriceGroupingLocks(t *testing.T) {

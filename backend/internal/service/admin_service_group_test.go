@@ -2390,6 +2390,21 @@ func TestAdminService_UpdateGroup_CodexModelsManifestConfigUntouchedWhenOmitted(
 	require.Equal(t, existing.CodexModelsManifestConfig, repo.updated.CodexModelsManifestConfig)
 }
 
+func TestAdminService_UpdateGroup_ClearsCodexModelsManifestConfigOnPlatformChange(t *testing.T) {
+	existing := &Group{
+		ID: 1, Name: "g", Platform: PlatformOpenAI, Status: StatusActive,
+		CodexModelsManifestConfig: GroupCodexModelsManifestConfig{Enabled: true, AccountIDs: []int64{10}},
+	}
+	repo := &groupRepoStubForAdmin{getByID: existing}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	group, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{Platform: PlatformAnthropic})
+
+	require.NoError(t, err)
+	require.Equal(t, GroupCodexModelsManifestConfig{}, repo.updated.CodexModelsManifestConfig)
+	require.Equal(t, GroupCodexModelsManifestConfig{}, group.CodexModelsManifestConfig)
+}
+
 func TestAdminService_CreateGroup_CodexModelsManifestConfigEnabledRejected(t *testing.T) {
 	repo := &groupRepoStubForAdmin{createID: 61}
 	svc := &adminServiceImpl{groupRepo: repo}

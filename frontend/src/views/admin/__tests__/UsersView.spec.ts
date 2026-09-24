@@ -96,7 +96,7 @@ const createAdminUser = (overrides: Partial<AdminUser> = {}): AdminUser => ({
 })
 
 const DataTableStub = {
-  props: ['columns', 'data'],
+  props: ['columns', 'data', 'selectedKeys'],
   emits: ['sort'],
   template: `
     <div>
@@ -120,17 +120,6 @@ const DataTableStub = {
 const PaginationStub = {
   emits: ['update:page'],
   template: '<button data-test="next-page" @click="$emit(\'update:page\', 2)">next</button>'
-}
-
-const BulkEditUserModalStub = {
-  props: ['show', 'selectedIds'],
-  emits: ['close', 'success'],
-  template: `
-    <div v-if="show" data-test="bulk-modal">
-      <span data-test="bulk-modal-ids">{{ selectedIds.join(',') }}</span>
-      <button data-test="bulk-success" @click="$emit('success', selectedIds.length)">success</button>
-    </div>
-  `
 }
 
 const mountBulkDeleteView = () => mount(UsersView, {
