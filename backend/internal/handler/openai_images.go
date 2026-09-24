@@ -186,7 +186,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			routingModel,
 			parsed.Endpoint,
 			failedAccountIDs,
-			parsed.RequiredCapability,
+			parsed.RequiredCapabilityForModel(channelMapping.MappedModel),
 			h.openAIChannelMappedModelResolver(requestCtx),
 		)
 		timing.EndRouting()
