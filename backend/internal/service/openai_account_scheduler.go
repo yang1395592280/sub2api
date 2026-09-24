@@ -3036,6 +3036,11 @@ func (s *OpenAIGatewayService) SelectAccountWithSchedulerForImages(
 	requiredCapability OpenAIImagesCapability,
 	reasoningEffort ...string,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	// Auto-cheapest groups resolve channel mappings per effective key. A stage may
+	// introduce a Gemini image model after the handler computed its initial fence.
+	if isGeminiCompatibleImageModel(requestedModel) {
+		requiredCapability = OpenAIImagesCapabilityAPIKey
+	}
 	effort := ""
 	if len(reasoningEffort) > 0 {
 		effort = reasoningEffort[0]

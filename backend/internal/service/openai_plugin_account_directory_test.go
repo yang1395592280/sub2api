@@ -126,14 +126,22 @@ func TestAccountReadableSnapshot_DenylistTripwire(t *testing.T) {
 	acct := &Account{
 		ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive,
 		Credentials: map[string]any{"access_token": "AT", "refresh_token": "LEAK-REFRESH"},
-		Extra:       map[string]any{"opaque": "extra-released"},
-		Proxy:       &Proxy{Host: "host", Port: 1, Username: "user", Password: "pw-released"},
+		Extra: map[string]any{
+			"opaque":                        "extra-released",
+			"codex_turn_ticket:gpt-6-astra": map[string]any{"state": "PRIVATE-TURN-STATE"},
+			"codex_harvest_proxy_url":       "socks5h://user:PRIVATE-PASSWORD@proxy.example:1080",
+		},
+		Proxy: &Proxy{Host: "host", Port: 1, Username: "user", Password: "pw-released"},
 	}
 	snap := accountReadableSnapshotJSON(acct)
 	require.NotNil(t, snap)
 	var m map[string]any
 	require.NoError(t, json.Unmarshal(snap, &m))
 	assert.NotContains(t, string(snap), "LEAK-REFRESH", "raw Credentials must never appear in metadata")
+	assert.NotContains(t, string(snap), "PRIVATE-TURN-STATE")
+	assert.NotContains(t, string(snap), "PRIVATE-PASSWORD")
+	assert.Contains(t, string(snap), "extra-released")
+	assert.Contains(t, acct.Extra, "codex_turn_ticket:gpt-6-astra", "snapshot redaction must not mutate the source account")
 	assert.Contains(t, string(snap), "extra-released", "Extra is intentionally released")
 	assert.Contains(t, string(snap), "pw-released", "proxy is intentionally released (already exposed via 打票)")
 

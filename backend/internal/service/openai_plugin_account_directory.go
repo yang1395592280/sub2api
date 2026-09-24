@@ -94,8 +94,9 @@ func accountToPluginInfo(account *Account) PluginAccountInfo {
 //     credential that ResolveOutboundIdentity does NOT hand out (that channel only
 //     mints a short-lived access token). Keeping it out of this list keeps the
 //     credential surface exactly what the outbound-identity channel already
-//     exposes. (Extra and the proxy — including its password, which is already
-//     handed out via the resolved ProxyURL — are intentionally NOT stripped.)
+//     exposes. Extra is retained except for private Codex ticket material and
+//     the retired harvest proxy override. The proxy is retained because its
+//     password is already handed out via the resolved ProxyURL.
 //   - Groups / AccountGroups: relational graphs with *Group/*Account
 //     back-references. encoding/json does NOT detect reference cycles and would
 //     recurse into a stack-overflow panic if the reverse relation is ever
@@ -109,6 +110,7 @@ func accountReadableSnapshotJSON(account *Account) []byte {
 	}
 	clone := *account
 	clone.Credentials = nil
+	clone.Extra = RedactOpenAICodexTicketExtra(account.Extra)
 	clone.Groups = nil
 	clone.AccountGroups = nil
 	data, err := json.Marshal(&clone)
