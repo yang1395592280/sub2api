@@ -24,6 +24,7 @@ const {
   probeUpstreamBilling,
   probeUpstreamBillingBatch,
   refreshUpstreamBalance,
+  listLatestPelicanTests,
   showError,
   showSuccess,
   showInfo,
@@ -39,6 +40,7 @@ const {
   probeUpstreamBilling: vi.fn(),
   probeUpstreamBillingBatch: vi.fn(),
   refreshUpstreamBalance: vi.fn(),
+  listLatestPelicanTests: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
   showInfo: vi.fn(),
@@ -48,6 +50,7 @@ const {
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
+      listLatestPelicanTests,
       list: listAccounts,
       listWithEtag,
       getUpstreamBillingRatesWithEtag,
@@ -169,6 +172,7 @@ describe('admin AccountsView bulk edit scope', () => {
     probeUpstreamBilling.mockReset()
     probeUpstreamBillingBatch.mockReset()
     refreshUpstreamBalance.mockReset()
+    listLatestPelicanTests.mockReset()
     showError.mockReset()
     showSuccess.mockReset()
     showInfo.mockReset()
@@ -196,6 +200,7 @@ describe('admin AccountsView bulk edit scope', () => {
     getAllProxies.mockResolvedValue([])
     getAllGroups.mockResolvedValue([])
     probeUpstreamBillingBatch.mockResolvedValue([])
+    listLatestPelicanTests.mockResolvedValue([])
   })
 
   it('opens bulk edit in filtered-results mode from the bulk actions dropdown', async () => {

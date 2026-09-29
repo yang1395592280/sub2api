@@ -207,6 +207,7 @@ func ProvideAdminAccountHandler(
 	rateLimitService *service.RateLimitService,
 	accountUsageService *service.AccountUsageService,
 	accountTestService *service.AccountTestService,
+	pelicanTestService *service.PelicanTestService,
 	concurrencyService *service.ConcurrencyService,
 	crsSyncService *service.CRSSyncService,
 	sessionLimitCache service.SessionLimitCache,
@@ -235,6 +236,7 @@ func ProvideAdminAccountHandler(
 		sub2APICheckinService,
 	)
 	h.SetGrokImportProber(grokQuotaService)
+	h.SetPelicanTestService(pelicanTestService)
 	return h
 }
 

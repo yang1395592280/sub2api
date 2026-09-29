@@ -309,6 +309,43 @@ export async function testAccount(id: number): Promise<{
   return data
 }
 
+export interface PelicanTest {
+  id: number
+  batch_id: string
+  account_id: number
+  model_id: string
+  prompt: string
+  status: 'queued' | 'running' | 'previewable' | 'unpreviewable' | 'failed'
+  response_text: string
+  html: string
+  error_message: string
+  latency_ms: number
+  created_at: string
+  started_at?: string
+  finished_at?: string
+}
+
+export async function startPelicanTests(accountIds: number[], modelId: string, prompt: string): Promise<PelicanTest[]> {
+  const { data } = await apiClient.post<PelicanTest[]>('/admin/accounts/pelican-tests', {
+    account_ids: accountIds,
+    model_id: modelId,
+    prompt
+  })
+  return data
+}
+
+export async function listLatestPelicanTests(accountIds: number[]): Promise<PelicanTest[]> {
+  const { data } = await apiClient.post<PelicanTest[]>('/admin/accounts/pelican-tests/latest', {
+    account_ids: accountIds
+  })
+  return data
+}
+
+export async function getPelicanTest(id: number): Promise<PelicanTest> {
+  const { data } = await apiClient.get<PelicanTest>(`/admin/accounts/pelican-tests/${id}`)
+  return data
+}
+
 /**
  * Refresh account credentials
  * @param id - Account ID
@@ -1163,6 +1200,9 @@ export const accountsAPI = {
   delete: deleteAccount,
   toggleStatus,
   testAccount,
+  startPelicanTests,
+  listLatestPelicanTests,
+  getPelicanTest,
   refreshCredentials,
   refreshUpstreamBalance,
   testUpstreamCheckin,
