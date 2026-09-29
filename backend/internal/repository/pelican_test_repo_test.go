@@ -14,11 +14,11 @@ func TestPelicanCreateBatchSkipsAccountsAlreadyRunning(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
 	createdAt := time.Now()
-	columns := []string{"id", "batch_id", "account_id", "model_id", "prompt", "status", "response_text", "html", "error_message", "latency_ms", "created_at", "started_at", "finished_at"}
+	columns := []string{"id", "batch_id", "account_id", "model_id", "prompt", "status", "response_text", "html", "error_message", "latency_ms", "input_tokens", "output_tokens", "total_tokens", "created_at", "started_at", "finished_at"}
 	mock.ExpectBegin()
 	mock.ExpectQuery("INSERT INTO account_pelican_tests").
 		WithArgs("batch", int64(11), "gpt-6-astra", "pelican").
-		WillReturnRows(sqlmock.NewRows(columns).AddRow(int64(1), "batch", int64(11), "gpt-6-astra", "pelican", "queued", "", "", "", int64(0), createdAt, nil, nil))
+		WillReturnRows(sqlmock.NewRows(columns).AddRow(int64(1), "batch", int64(11), "gpt-6-astra", "pelican", "queued", "", "", "", int64(0), nil, nil, nil, createdAt, nil, nil))
 	mock.ExpectQuery("INSERT INTO account_pelican_tests").
 		WithArgs("batch", int64(12), "gpt-6-astra", "pelican").
 		WillReturnRows(sqlmock.NewRows(columns))
@@ -29,5 +29,20 @@ func TestPelicanCreateBatchSkipsAccountsAlreadyRunning(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tests, 1)
 	require.Equal(t, int64(11), tests[0].AccountID)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestPelicanMarkRunningSkipsExpiredQueuedJob(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+	mock.ExpectExec("UPDATE account_pelican_tests").
+		WithArgs(int64(42)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	repo := NewPelicanTestRepository(db)
+	started, err := repo.MarkRunning(context.Background(), 42)
+	require.NoError(t, err)
+	require.False(t, started)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

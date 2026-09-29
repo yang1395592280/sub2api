@@ -274,10 +274,24 @@
               <span class="max-w-[190px] truncate text-gray-500" :title="pelicanTests[row.id].error_message || pelicanTests[row.id].model_id">
                 {{ pelicanTests[row.id].error_message || `${pelicanTests[row.id].model_id} · ${pelicanTests[row.id].latency_ms} ms` }}
               </span>
+              <span v-if="pelicanTests[row.id].total_tokens != null" class="text-gray-500">
+                {{ t('admin.accounts.pelican.tokensTotal', { count: pelicanTests[row.id].total_tokens?.toLocaleString() }) }}
+              </span>
+              <span v-else-if="!['queued', 'running'].includes(pelicanTests[row.id].status)" class="text-gray-400">
+                {{ t('admin.accounts.pelican.tokensUnavailable') }}
+              </span>
               <button v-if="['failed', 'unpreviewable'].includes(pelicanTests[row.id].status)" type="button" class="text-primary-600 hover:underline" @click="retryPelicanAccount(row)">
                 {{ t('admin.accounts.pelican.retry') }}
               </button>
             </div>
+          </template>
+          <template #cell-pelican_preview="{ row }">
+            <PelicanInlinePreview
+              v-if="pelicanTests[row.id]?.status === 'previewable'"
+              :key="pelicanTests[row.id].id"
+              :test-id="pelicanTests[row.id].id"
+            />
+            <span v-else class="text-xs text-gray-400">—</span>
           </template>
           <template #cell-platform_type="{ row }">
             <div class="flex min-w-0 flex-col gap-1">
@@ -576,6 +590,7 @@ import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
 import BatchAccountTestModal from '@/components/admin/account/BatchAccountTestModal.vue'
 import PelicanBatchTestDialog from '@/components/admin/account/PelicanBatchTestDialog.vue'
 import PelicanResultDialog from '@/components/admin/account/PelicanResultDialog.vue'
+import PelicanInlinePreview from '@/components/admin/account/PelicanInlinePreview.vue'
 import type { PelicanTest } from '@/api/admin/accounts'
 import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
 import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.vue'
@@ -1938,6 +1953,7 @@ const allColumns = computed(() => {
     { key: 'name', label: t('admin.accounts.columns.name'), sortable: true },
     { key: 'notes', label: t('admin.accounts.columns.notes'), sortable: false },
     { key: 'pelican_test', label: t('admin.accounts.pelican.column'), sortable: false },
+    { key: 'pelican_preview', label: t('admin.accounts.pelican.previewColumn'), sortable: false },
     { key: 'id', label: t('admin.accounts.columns.id'), sortable: true },
     { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false },
     { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },

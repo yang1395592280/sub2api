@@ -4,6 +4,13 @@ export default {
       pelican: {
         title: 'Batch Pelican Test',
         column: 'Pelican Test',
+        previewColumn: 'Animation preview',
+        previewLoading: 'Loading preview…',
+        previewUnavailable: 'No previewable HTML',
+        timeoutHint: 'Each account generation request can run for up to 500 seconds.',
+        tokensTotal: '{count} tokens used',
+        tokensBreakdown: 'Input {input} / output {output} tokens',
+        tokensUnavailable: 'Token usage unavailable',
         selected: '{count} accounts selected',
         targets: 'View selected accounts',
         prompt: 'Test prompt',

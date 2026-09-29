@@ -6,8 +6,13 @@
       <div class="flex flex-wrap gap-4 text-xs text-gray-500 dark:text-gray-300">
         <span>{{ test.model_id }}</span>
         <span>{{ test.latency_ms }} ms</span>
+        <span v-if="test.total_tokens != null">{{ t('admin.accounts.pelican.tokensTotal', { count: test.total_tokens.toLocaleString() }) }}</span>
+        <span v-else>{{ t('admin.accounts.pelican.tokensUnavailable') }}</span>
         <span>{{ new Date(test.created_at).toLocaleString() }}</span>
       </div>
+      <p v-if="test.input_tokens != null || test.output_tokens != null" class="text-xs text-gray-500 dark:text-gray-300">
+        {{ t('admin.accounts.pelican.tokensBreakdown', { input: test.input_tokens?.toLocaleString() ?? '—', output: test.output_tokens?.toLocaleString() ?? '—' }) }}
+      </p>
       <p class="whitespace-pre-wrap break-words text-xs text-gray-600 dark:text-gray-300">{{ test.prompt }}</p>
       <p v-if="test.error_message" class="text-sm text-red-600">{{ test.error_message }}</p>
       <p v-if="test.html" class="text-xs text-amber-700 dark:text-amber-300">{{ t('admin.accounts.pelican.sandboxHint') }}</p>
@@ -38,6 +43,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import { adminAPI } from '@/api/admin'
 import type { PelicanTest } from '@/api/admin/accounts'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import { buildPelicanPreviewSource } from '@/utils/pelicanPreview'
 
 const props = defineProps<{ show: boolean; testId: number | null; accountName: string }>()
 const emit = defineEmits<{ close: [] }>()
@@ -54,17 +60,7 @@ const dialogTitle = computed(() => [
   test.value?.model_id
 ].filter(Boolean).join(' · '))
 
-const csp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
-const safeSource = computed(() => {
-  if (!test.value?.html) return ''
-  const meta = `<meta http-equiv="Content-Security-Policy" content="${csp}">`
-  // Place the policy before any returned element, including scripts that appear
-  // before a malformed or late <head> tag.
-  const doctype = /^\s*<!doctype[^>]*>/i
-  return doctype.test(test.value.html)
-    ? test.value.html.replace(doctype, match => `${match}${meta}`)
-    : `${meta}${test.value.html}`
-})
+const safeSource = computed(() => test.value?.html ? buildPelicanPreviewSource(test.value.html) : '')
 
 watch(() => [props.show, props.testId] as const, async ([show, id]) => {
   if (!show || !id) {

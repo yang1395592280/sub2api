@@ -17,6 +17,7 @@ const (
 	PelicanTestMaxAccounts = 100
 	PelicanTestMaxPrompt   = 4000
 	pelicanTestMaxOutput   = 1 << 20
+	pelicanTestTimeout     = 500 * time.Second
 )
 
 var ErrInvalidPelicanBatch = errors.New("invalid pelican test batch")
@@ -85,25 +86,30 @@ func (s *PelicanTestService) runBatch(tests []PelicanTest) {
 }
 
 func (s *PelicanTestService) runOne(test PelicanTest) {
-	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), pelicanTestTimeout)
 	defer cancel()
-	if err := s.repo.MarkRunning(ctx, test.ID); err != nil {
+	started, err := s.repo.MarkRunning(ctx, test.ID)
+	if err != nil {
 		log.Printf("pelican test %d account %d: mark running: %v", test.ID, test.AccountID, err)
 		return
 	}
-	status, output, html, reason, latency := s.generate(ctx, test)
+	if !started {
+		// A stale queued job may already have been marked failed by another request.
+		return
+	}
+	status, output, html, reason, latency, usage := s.generate(ctx, test)
 	// Persist a terminal state even when the upstream request timed out.
 	finishCtx, finishCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer finishCancel()
-	if err := s.repo.Finish(finishCtx, test.ID, status, output, html, reason, latency); err != nil {
+	if err := s.repo.Finish(finishCtx, test.ID, status, output, html, reason, latency, usage); err != nil {
 		log.Printf("pelican test %d account %d: save result: %v", test.ID, test.AccountID, err)
 	}
 }
 
-func (s *PelicanTestService) generate(ctx context.Context, test PelicanTest) (status, output, html, reason string, latency int64) {
+func (s *PelicanTestService) generate(ctx context.Context, test PelicanTest) (status, output, html, reason string, latency int64, usage AccountTestTokenUsage) {
 	account, err := s.accountRepo.GetByID(ctx, test.AccountID)
 	if err != nil {
-		return "failed", "", "", "账号已删除或不可用", 0
+		return "failed", "", "", "账号已删除或不可用", 0, usage
 	}
 	// Only use routes whose existing account test path sends the supplied prompt.
 	// Other protocols must fail explicitly instead of silently testing "hi".
@@ -115,26 +121,27 @@ func (s *PelicanTestService) generate(ctx context.Context, test PelicanTest) (st
 		account.IsOpenCodeGo() ||
 		(account.Platform == PlatformAntigravity && account.Type == AccountTypeAPIKey)
 	if !supportsPrompt {
-		return "failed", "", "", "该账号协议暂不支持自定义 HTML 生成提示词", 0
+		return "failed", "", "", "该账号协议暂不支持自定义 HTML 生成提示词", 0, usage
 	}
 	if !account.IsModelSupported(test.ModelID) {
-		return "failed", "", "", "账号未配置所选模型", 0
+		return "failed", "", "", "账号未配置所选模型", 0, usage
 	}
 	if isImageGenerationModel(mappedModel) || isOpenAIImageModel(mappedModel) || isGrokImageGenerationModel(mappedModel) || isGrokVideoGenerationModel(mappedModel) {
-		return "failed", "", "", "图片或视频模型不支持 HTML 生成测试", 0
+		return "failed", "", "", "图片或视频模型不支持 HTML 生成测试", 0, usage
 	}
 	result, err := s.accountTest.RunPromptBackground(ctx, test.AccountID, test.ModelID, test.Prompt)
 	if err != nil {
-		return "failed", "", "", "测试请求失败", 0
+		return "failed", "", "", "测试请求失败", 0, usage
 	}
 	latency = result.LatencyMs
+	usage = AccountTestTokenUsage{InputTokens: result.InputTokens, OutputTokens: result.OutputTokens, TotalTokens: result.TotalTokens}
 	output = result.ResponseText
 	if len(output) > pelicanTestMaxOutput {
 		limited := output[:pelicanTestMaxOutput]
 		for !utf8.ValidString(limited) {
 			limited = limited[:len(limited)-1]
 		}
-		return "failed", limited, "", "返回内容超过 1 MiB 限制", latency
+		return "failed", limited, "", "返回内容超过 1 MiB 限制", latency, usage
 	}
 	if result.Status != "success" {
 		reason = redactPelicanAccountSecrets(account, sanitizeUpstreamErrorMessage(result.ErrorMessage))
@@ -142,15 +149,15 @@ func (s *PelicanTestService) generate(ctx context.Context, test PelicanTest) (st
 			reason = reason[:2000]
 		}
 		if ctx.Err() != nil {
-			reason = "测试超时（180 秒）"
+			reason = "测试超时（500 秒）"
 		}
-		return "failed", output, "", reason, latency
+		return "failed", output, "", reason, latency, usage
 	}
 	html = extractPelicanHTML(output)
 	if html == "" {
-		return "unpreviewable", output, "", "未返回完整 HTML 文档", latency
+		return "unpreviewable", output, "", "未返回完整 HTML 文档", latency, usage
 	}
-	return "previewable", output, html, "", latency
+	return "previewable", output, html, "", latency, usage
 }
 
 func redactPelicanAccountSecrets(account *Account, message string) string {

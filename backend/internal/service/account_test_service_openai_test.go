@@ -541,6 +541,7 @@ func TestAccountTestService_OpenAIAPIKeyResponsesUnsupportedUsesChatCompletionsP
 	require.Equal(t, "text/event-stream", upstream.lastReq.Header.Get("Accept"))
 	require.Equal(t, "gpt-5.4", gjson.GetBytes(upstream.lastBody, "model").String())
 	require.True(t, gjson.GetBytes(upstream.lastBody, "stream").Bool())
+	require.True(t, gjson.GetBytes(upstream.lastBody, "stream_options.include_usage").Bool())
 	require.Equal(t, "hello", gjson.GetBytes(upstream.lastBody, "messages.0.content").String())
 	require.False(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
 	body := recorder.Body.String()
@@ -548,6 +549,26 @@ func TestAccountTestService_OpenAIAPIKeyResponsesUnsupportedUsesChatCompletionsP
 	require.Contains(t, body, "已通过 /v1/chat/completions 验证")
 	require.Contains(t, body, `"success":true`)
 	require.NotContains(t, body, "当前测试接口仅支持 Responses API 路径")
+}
+
+func TestAccountTestService_ChatCompletionsUsageOptionFallback(t *testing.T) {
+	ctx, recorder := newTestContext()
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{
+		newJSONResponse(http.StatusBadRequest, `{"error":{"message":"Unknown parameter: stream_options"}}`),
+		newJSONResponse(http.StatusOK, "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\ndata: [DONE]\n\n"),
+	}}
+	svc := &AccountTestService{httpUpstream: upstream}
+	account := &Account{ID: 91, Concurrency: 1, Credentials: map[string]any{"api_key": "sk-test"}}
+
+	require.NoError(t, svc.testOpenAIChatCompletionsConnection(ctx, account, "test-model", "hello", "https://example.com/v1", "sk-test"))
+	require.Len(t, upstream.requests, 2)
+	firstBody, err := io.ReadAll(upstream.requests[0].Body)
+	require.NoError(t, err)
+	secondBody, err := io.ReadAll(upstream.requests[1].Body)
+	require.NoError(t, err)
+	require.True(t, gjson.GetBytes(firstBody, "stream_options.include_usage").Bool())
+	require.False(t, gjson.GetBytes(secondBody, "stream_options").Exists())
+	require.Contains(t, recorder.Body.String(), "ok")
 }
 
 func TestAccountTestService_OpenAIChatCompletionsPathReturns4xx(t *testing.T) {

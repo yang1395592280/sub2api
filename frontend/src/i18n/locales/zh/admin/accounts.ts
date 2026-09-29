@@ -4,6 +4,13 @@ export default {
       pelican: {
         title: '批量鹈鹕测试',
         column: '鹈鹕测试',
+        previewColumn: '动画预览',
+        previewLoading: '加载预览…',
+        previewUnavailable: '无可预览 HTML',
+        timeoutHint: '每个账号的生成请求最长等待 500 秒。',
+        tokensTotal: '消耗 {count} tokens',
+        tokensBreakdown: '输入 {input} / 输出 {output} tokens',
+        tokensUnavailable: 'Token 用量未提供',
         selected: '已选择 {count} 个账号',
         targets: '查看目标账号',
         prompt: '测试语句',

@@ -16,12 +16,14 @@ func NewPelicanTestRepository(db *sql.DB) service.PelicanTestRepository {
 }
 
 const pelicanTestColumns = `id, batch_id, account_id, model_id, prompt, status,
-	response_text, html, error_message, latency_ms, created_at, started_at, finished_at`
+	response_text, html, error_message, latency_ms, input_tokens, output_tokens,
+	total_tokens, created_at, started_at, finished_at`
 
 func scanPelicanTest(row interface{ Scan(...any) error }) (service.PelicanTest, error) {
 	var test service.PelicanTest
 	err := row.Scan(&test.ID, &test.BatchID, &test.AccountID, &test.ModelID, &test.Prompt,
 		&test.Status, &test.ResponseText, &test.HTML, &test.ErrorMessage, &test.LatencyMS,
+		&test.InputTokens, &test.OutputTokens, &test.TotalTokens,
 		&test.CreatedAt, &test.StartedAt, &test.FinishedAt)
 	return test, err
 }
@@ -29,7 +31,8 @@ func scanPelicanTest(row interface{ Scan(...any) error }) (service.PelicanTest, 
 func (r *pelicanTestRepository) ExpireStale(ctx context.Context) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE account_pelican_tests
 		SET status = 'failed', error_message = '后台任务已中断或超时', finished_at = NOW()
-		WHERE status IN ('queued', 'running') AND created_at < NOW() - INTERVAL '2 hours'`)
+		WHERE (status = 'running' AND started_at < NOW() - INTERVAL '10 minutes')
+		   OR (status = 'queued' AND created_at < NOW() - INTERVAL '6 hours')`)
 	if err != nil {
 		return err
 	}
@@ -66,19 +69,25 @@ func (r *pelicanTestRepository) CreateBatch(ctx context.Context, batchID string,
 	return tests, nil
 }
 
-func (r *pelicanTestRepository) MarkRunning(ctx context.Context, id int64) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE account_pelican_tests
+func (r *pelicanTestRepository) MarkRunning(ctx context.Context, id int64) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `UPDATE account_pelican_tests
 		SET status = 'running', started_at = NOW()
 		WHERE id = $1 AND status = 'queued'`, id)
-	return err
+	if err != nil {
+		return false, err
+	}
+	affected, err := result.RowsAffected()
+	return affected == 1, err
 }
 
-func (r *pelicanTestRepository) Finish(ctx context.Context, id int64, status, responseText, html, errorMessage string, latencyMS int64) error {
+func (r *pelicanTestRepository) Finish(ctx context.Context, id int64, status, responseText, html, errorMessage string, latencyMS int64, usage service.AccountTestTokenUsage) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE account_pelican_tests
 		SET status = $2, response_text = $3, html = $4, error_message = $5,
-			latency_ms = $6, finished_at = NOW()
+			latency_ms = $6, input_tokens = $7, output_tokens = $8,
+			total_tokens = $9, finished_at = NOW()
 		WHERE id = $1 AND status IN ('queued', 'running')`,
-		id, status, responseText, html, errorMessage, latencyMS)
+		id, status, responseText, html, errorMessage, latencyMS,
+		usage.InputTokens, usage.OutputTokens, usage.TotalTokens)
 	if err != nil {
 		return err
 	}
@@ -100,6 +109,7 @@ func (r *pelicanTestRepository) ListLatest(ctx context.Context, accountIDs []int
 	rows, err := r.db.QueryContext(ctx, `SELECT DISTINCT ON (account_id)
 		id, batch_id, account_id, model_id, '' AS prompt, status,
 		'' AS response_text, '' AS html, error_message, latency_ms,
+		input_tokens, output_tokens, total_tokens,
 		created_at, started_at, finished_at
 		FROM account_pelican_tests WHERE account_id = ANY($1)
 		ORDER BY account_id, id DESC`, pq.Array(accountIDs))

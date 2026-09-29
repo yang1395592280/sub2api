@@ -320,6 +320,9 @@ export interface PelicanTest {
   html: string
   error_message: string
   latency_ms: number
+  input_tokens: number | null
+  output_tokens: number | null
+  total_tokens: number | null
   created_at: string
   started_at?: string
   finished_at?: string

@@ -17,6 +17,7 @@ import (
 	_ "image/png"
 	"io"
 	"log"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -63,6 +64,69 @@ type TestEvent struct {
 	Success           bool   `json:"success,omitempty"`
 	Error             string `json:"error,omitempty"`
 	ConnectDurationMS int64  `json:"connect_duration_ms,omitempty"`
+}
+
+// AccountTestTokenUsage contains only counts explicitly reported by upstream.
+// A nil field means the provider did not supply that count.
+type AccountTestTokenUsage struct {
+	InputTokens  *int64
+	OutputTokens *int64
+	TotalTokens  *int64
+}
+
+const accountTestTokenUsageKey = "account_test_token_usage"
+
+func accountTestTokenCount(value any) *int64 {
+	count, ok := value.(float64)
+	if !ok || count < 0 || count >= float64(uint64(1)<<63) || math.Trunc(count) != count {
+		return nil
+	}
+	valueInt := int64(count)
+	return &valueInt
+}
+
+func accountTestUsageCount(usage map[string]any, key string) *int64 {
+	return accountTestTokenCount(usage[key])
+}
+
+func accountTestAnthropicInputTokens(usage map[string]any) *int64 {
+	// Anthropic reports cache reads and writes separately from input_tokens.
+	var total int64
+	var reported bool
+	for _, key := range []string{"input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"} {
+		if count := accountTestUsageCount(usage, key); count != nil {
+			total += *count
+			reported = true
+		}
+	}
+	if !reported {
+		return nil
+	}
+	return &total
+}
+
+func recordAccountTestTokenUsage(c *gin.Context, input, output, total *int64) {
+	if input == nil && output == nil && total == nil {
+		return
+	}
+	stored, _ := c.Get(accountTestTokenUsageKey)
+	usage, _ := stored.(AccountTestTokenUsage)
+	if input != nil {
+		usage.InputTokens = input
+	}
+	if output != nil {
+		usage.OutputTokens = output
+	}
+	if total != nil {
+		usage.TotalTokens = total
+	}
+	c.Set(accountTestTokenUsageKey, usage)
+}
+
+func accountTestTokenUsage(c *gin.Context) AccountTestTokenUsage {
+	stored, _ := c.Get(accountTestTokenUsageKey)
+	usage, _ := stored.(AccountTestTokenUsage)
+	return usage
 }
 
 // AccountTestOptions carries optional media for admin connectivity tests.
@@ -2188,21 +2252,25 @@ func (s *AccountTestService) testOpenAIChatCompletionsConnection(
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
 	s.sendEvent(c, TestEvent{Type: "status", Text: "正在通过 /v1/chat/completions 测试连接"})
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(payloadBytes))
+	buildRequest := func(body []byte) (*http.Request, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(body))
+		if err != nil {
+			return nil, err
+		}
+		req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "text/event-stream")
+		req.Header.Set("Authorization", "Bearer "+authToken)
+		applyOpenCodeUpstreamUserAgent(account, apiURL, req.Header)
+		account.ApplyHeaderOverrides(req.Header)
+		applyOpenCodeSessionHeader(c, account, apiURL, req.Header, body)
+		return req, nil
+	}
+
+	req, err := buildRequest(payloadBytes)
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Failed to create Chat Completions request")
 	}
-	req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "text/event-stream")
-	req.Header.Set("Authorization", "Bearer "+authToken)
-
-	// 官方 OpenCode / Command Code 上游收敛为规范客户端 UA，与真实转发路径一致。
-	applyOpenCodeUpstreamUserAgent(account, apiURL, req.Header)
-
-	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
-	account.ApplyHeaderOverrides(req.Header)
-	applyOpenCodeSessionHeader(c, account, apiURL, req.Header, payloadBytes)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
@@ -2215,10 +2283,34 @@ func (s *AccountTestService) testOpenAIChatCompletionsConnection(
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Chat Completions API (/v1/chat/completions) request failed: %s", err.Error()))
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func(body io.ReadCloser) { _ = body.Close() }(resp.Body)
+	var errorBody []byte
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusUnprocessableEntity {
+		errorBody, _ = io.ReadAll(resp.Body)
+		message := strings.ToLower(string(errorBody))
+		if strings.Contains(message, "stream_options") || strings.Contains(message, "include_usage") {
+			// Some compatible endpoints reject usage options. Keep the connectivity test usable.
+			_ = resp.Body.Close()
+			delete(payload, "stream_options")
+			payloadBytes, _ = json.Marshal(payload)
+			req, err = buildRequest(payloadBytes)
+			if err != nil {
+				return s.sendErrorAndEnd(c, "Failed to create Chat Completions request")
+			}
+			resp, err = s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+			if err != nil {
+				return s.sendErrorAndEnd(c, fmt.Sprintf("Chat Completions API (/v1/chat/completions) request failed: %s", err.Error()))
+			}
+			defer func(body io.ReadCloser) { _ = body.Close() }(resp.Body)
+			errorBody = nil
+		}
+	}
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body := errorBody
+		if body == nil {
+			body, _ = io.ReadAll(resp.Body)
+		}
 		if resp.StatusCode == http.StatusTooManyRequests {
 			s.reconcileOpenAI429State(ctx, account, resp.Header, body)
 		}
@@ -2784,6 +2876,12 @@ func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader)
 		if resp, ok := data["response"].(map[string]any); ok && resp != nil {
 			data = resp
 		}
+		if usage, ok := data["usageMetadata"].(map[string]any); ok {
+			recordAccountTestTokenUsage(c,
+				accountTestUsageCount(usage, "promptTokenCount"),
+				accountTestUsageCount(usage, "candidatesTokenCount"),
+				accountTestUsageCount(usage, "totalTokenCount"))
+		}
 		if candidates, ok := data["candidates"].([]any); ok && len(candidates) > 0 {
 			if candidate, ok := candidates[0].(map[string]any); ok {
 				// Extract content first (before checking completion)
@@ -2880,7 +2978,8 @@ func createOpenAIChatCompletionsTestPayload(modelID string, prompt string) map[s
 				"content": testPrompt,
 			},
 		},
-		"stream": true,
+		"stream":         true,
+		"stream_options": map[string]any{"include_usage": true},
 	}
 }
 
@@ -2915,6 +3014,23 @@ func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader)
 		}
 
 		eventType, _ := data["type"].(string)
+		if eventType == "message_start" || eventType == "message_delta" {
+			usage, _ := data["usage"].(map[string]any)
+			if message, ok := data["message"].(map[string]any); ok {
+				if initial, ok := message["usage"].(map[string]any); ok {
+					usage = initial
+				}
+			}
+			if usage != nil {
+				recordAccountTestTokenUsage(c, accountTestAnthropicInputTokens(usage),
+					accountTestUsageCount(usage, "output_tokens"), nil)
+				reported := accountTestTokenUsage(c)
+				if reported.InputTokens != nil && reported.OutputTokens != nil {
+					total := *reported.InputTokens + *reported.OutputTokens
+					recordAccountTestTokenUsage(c, nil, nil, &total)
+				}
+			}
+		}
 
 		switch eventType {
 		case "content_block_delta":
@@ -2979,6 +3095,12 @@ func (s *AccountTestService) processOpenAIChatCompletionsStream(c *gin.Context, 
 			return s.sendErrorAndEnd(c, "Invalid Chat Completions response from /v1/chat/completions: expected JSON data")
 		}
 		seenJSON = true
+		if usage, ok := data["usage"].(map[string]any); ok {
+			recordAccountTestTokenUsage(c,
+				accountTestUsageCount(usage, "prompt_tokens"),
+				accountTestUsageCount(usage, "completion_tokens"),
+				accountTestUsageCount(usage, "total_tokens"))
+		}
 
 		if errData, ok := data["error"].(map[string]any); ok {
 			errorMsg := "Chat Completions API (/v1/chat/completions) returned an error"
@@ -3052,6 +3174,14 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 		}
 
 		eventType, _ := data["type"].(string)
+		if response, ok := data["response"].(map[string]any); ok {
+			if usage, ok := response["usage"].(map[string]any); ok {
+				recordAccountTestTokenUsage(c,
+					accountTestUsageCount(usage, "input_tokens"),
+					accountTestUsageCount(usage, "output_tokens"),
+					accountTestUsageCount(usage, "total_tokens"))
+			}
+		}
 
 		switch eventType {
 		case "response.output_text.delta":
@@ -3390,6 +3520,7 @@ func (s *AccountTestService) RunPromptBackground(ctx context.Context, accountID 
 	finishedAt := time.Now()
 	body := w.Body.String()
 	responseText, errMsg := parseTestSSEOutput(body)
+	usage := accountTestTokenUsage(ginCtx)
 
 	status := "success"
 	if testErr != nil || errMsg != "" {
@@ -3404,6 +3535,9 @@ func (s *AccountTestService) RunPromptBackground(ctx context.Context, accountID 
 		ResponseText: responseText,
 		ErrorMessage: errMsg,
 		LatencyMs:    finishedAt.Sub(startedAt).Milliseconds(),
+		InputTokens:  usage.InputTokens,
+		OutputTokens: usage.OutputTokens,
+		TotalTokens:  usage.TotalTokens,
 		StartedAt:    startedAt,
 		FinishedAt:   finishedAt,
 	}, nil

@@ -39,6 +39,7 @@
       <p class="text-amber-700 dark:text-amber-300">
         {{ t('admin.accounts.pelican.costWarning', { count: accountIds.length }) }}
       </p>
+      <p class="text-gray-500 dark:text-gray-400">{{ t('admin.accounts.pelican.timeoutHint') }}</p>
       <p v-if="accountIds.length > 100" class="text-red-600">{{ t('admin.accounts.pelican.tooMany') }}</p>
       <p v-if="error" class="text-red-600" role="alert">{{ error }}</p>
     </div>
