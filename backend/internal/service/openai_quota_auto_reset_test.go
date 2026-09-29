@@ -130,12 +130,43 @@ func TestNotifyOpenAIAutoResetFromScheduler_CoolsDownPerAccount(t *testing.T) {
 
 	require.False(t, notifyOpenAIAutoResetFromSchedulerAt(accountA, base.Add(10*time.Second)), "冷却期内同一账号不重复通知")
 	require.Empty(t, drain())
+	require.False(t, notifyOpenAIAutoResetFromSchedulerAt(accountA, base.Add(-time.Second)), "较早取得的时刻不能回拨冷却时间")
+	require.Empty(t, drain())
 
 	require.True(t, notifyOpenAIAutoResetFromSchedulerAt(accountB, base.Add(10*time.Second)), "冷却按账号独立")
 	require.Equal(t, []int64{accountB}, drain())
 
 	require.True(t, notifyOpenAIAutoResetFromSchedulerAt(accountA, base.Add(openAIAutoResetSchedulerNotifyCooldown)))
 	require.Equal(t, []int64{accountA}, drain())
+}
+
+func TestNotifyOpenAIAutoResetFromScheduler_CoolsDownConcurrentBurst(t *testing.T) {
+	const accountID int64 = 9_900_003
+	t.Cleanup(func() { openAIAutoResetSchedulerNotifiedAt.Delete(accountID) })
+
+	for range 8 {
+		openAIAutoResetSchedulerNotifiedAt.Delete(accountID)
+		start := make(chan struct{})
+		var ready, done sync.WaitGroup
+		var notified atomic.Int64
+		const workers = 512
+		ready.Add(workers)
+		done.Add(workers)
+		for range workers {
+			go func() {
+				defer done.Done()
+				ready.Done()
+				<-start
+				if notifyOpenAIAutoResetFromSchedulerAt(accountID, time.Now()) {
+					notified.Add(1)
+				}
+			}()
+		}
+		ready.Wait()
+		close(start)
+		done.Wait()
+		require.EqualValues(t, 1, notified.Load(), "同一账号并发请求只能触发一次通知")
+	}
 }
 
 func TestSelectOpenAIAutoResetCandidate_FailsClosed(t *testing.T) {
