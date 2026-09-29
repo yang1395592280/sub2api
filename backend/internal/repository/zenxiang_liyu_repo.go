@@ -1288,7 +1288,11 @@ func getZenxiangLiyuGiftedTicketsForPlay(ctx context.Context, tx *sql.Tx, userID
 	return count, err
 }
 
-// syncZenxiangLiyuTicketBalance credits newly earned daily tickets once and keeps overflow from reappearing later.
+// syncZenxiangLiyuTicketBalance credits newly earned daily tickets and keeps overflow
+// from reappearing later. 结算按回看窗口重算最近若干天：当天消费持续累积，用户可能在
+// 首次结算（例如当天只消费了 0.77 元）之后继续消费跨过门槛，因此不能在首次落库后
+// 把该日期永久排除；窗口内的日期每次都重新计算应发数量，与已落库的 credits 求差后
+// 补发，GREATEST 保证 credits 单调不回退，过期批次由 expires_at 判断自然作废。
 func syncZenxiangLiyuTicketBalance(ctx context.Context, tx *sql.Tx, userID int64, throughDate time.Time, settings *service.ZenxiangLiyuSettings) (int, error) {
 	if settings == nil || settings.EffectiveTicketUsageThreshold() <= 0 || settings.EffectiveDailyTicketLimit() <= 0 {
 		return 0, service.ErrZenxiangLiyuInvalidSettings
@@ -1317,14 +1321,8 @@ func syncZenxiangLiyuTicketBalance(ctx context.Context, tx *sql.Tx, userID int64
 					$5::date
 				)::timestamp AT TIME ZONE 'Asia/Shanghai'
 			  )
-			  AND (
-				(created_at AT TIME ZONE 'Asia/Shanghai')::date = $5::date
-				OR NOT EXISTS (
-					SELECT 1 FROM zenxiang_liyu_ticket_usage_credits credited
-					WHERE credited.user_id = $1
-					  AND credited.usage_date = (usage_logs.created_at AT TIME ZONE 'Asia/Shanghai')::date
-				)
-			  )
+			  AND (created_at AT TIME ZONE 'Asia/Shanghai')::date
+			      >= $5::date - ($6::integer - 1)
 			GROUP BY (created_at AT TIME ZONE 'Asia/Shanghai')::date
 		)
 		SELECT earned.usage_date,
@@ -1334,7 +1332,7 @@ func syncZenxiangLiyuTicketBalance(ctx context.Context, tx *sql.Tx, userID int64
 		  ON credited.user_id = $1 AND credited.usage_date = earned.usage_date
 		WHERE earned.ticket_count > COALESCE(credited.ticket_count, 0)
 		ORDER BY earned.usage_date`,
-		userID, throughEnd, threshold, dailyLimit, throughDate,
+		userID, throughEnd, threshold, dailyLimit, throughDate, service.ZenxiangLiyuTicketRecalcDays,
 	)
 	if err != nil {
 		return 0, err
@@ -1367,20 +1365,14 @@ func syncZenxiangLiyuTicketBalance(ctx context.Context, tx *sql.Tx, userID int64
 				$5::date
 			)::timestamp AT TIME ZONE 'Asia/Shanghai'
 		  )
-		  AND (
-			(created_at AT TIME ZONE 'Asia/Shanghai')::date = $5::date
-			OR NOT EXISTS (
-				SELECT 1 FROM zenxiang_liyu_ticket_usage_credits credited
-				WHERE credited.user_id = $1
-				  AND credited.usage_date = (usage_logs.created_at AT TIME ZONE 'Asia/Shanghai')::date
-			)
-		  )
+		  AND (created_at AT TIME ZONE 'Asia/Shanghai')::date
+		      >= $5::date - ($6::integer - 1)
 		GROUP BY (created_at AT TIME ZONE 'Asia/Shanghai')::date
 		ON CONFLICT (user_id, usage_date)
 		DO UPDATE SET ticket_count = GREATEST(
 			zenxiang_liyu_ticket_usage_credits.ticket_count,
 			EXCLUDED.ticket_count
-		), updated_at = NOW()`, userID, throughEnd, threshold, dailyLimit, throughDate); err != nil {
+		), updated_at = NOW()`, userID, throughEnd, threshold, dailyLimit, throughDate, service.ZenxiangLiyuTicketRecalcDays); err != nil {
 		return 0, err
 	}
 

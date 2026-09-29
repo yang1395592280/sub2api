@@ -20,6 +20,13 @@ const (
 	defaultZenxiangLiyuLuckyProbability  = 50.0
 	ZenxiangLiyuTicketCapacity           = 5
 	ZenxiangLiyuTicketRetentionDays      = 2
+	// ZenxiangLiyuTicketRecalcDays 是每日抽奖券结算的回看窗口（含当天）。
+	// 当天消费是持续累积的：用户可能在首次结算（例如当天只消费了 0.77 元）之后继续
+	// 消费跨过门槛，所以结算不能只在首次落库时算一次，窗口内的日期必须允许重算并补发。
+	// 窗口天数与券的有效期严格相等：第 D 天发放的券在 D+RetentionDays 零点作废，以今天
+	// 零点为基准，只有 D >= 今天-(RetentionDays-1) 的日期对应的券还有效，正好是
+	// RetentionDays 天。超过该窗口的补发即使写入也已作废，因此无需再重算。
+	ZenxiangLiyuTicketRecalcDays = ZenxiangLiyuTicketRetentionDays
 )
 
 var (

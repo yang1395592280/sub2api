@@ -412,11 +412,11 @@ func TestZenxiangLiyuRepositorySyncTicketBalanceExpiresOldBatches(t *testing.T) 
 		WithArgs(service.ZenxiangLiyuTicketCapacity, int64(42), asOf).
 		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(0))
 	mock.ExpectQuery(`WITH earned AS`).
-		WithArgs(int64(42), usageEnd, 5.0, 3, playDate).
+		WithArgs(int64(42), usageEnd, 5.0, 3, playDate, service.ZenxiangLiyuTicketRecalcDays).
 		WillReturnRows(sqlmock.NewRows([]string{"usage_date", "ticket_count"}).
 			AddRow(playDate.AddDate(0, 0, -2), 2))
 	mock.ExpectExec(`INSERT INTO zenxiang_liyu_ticket_usage_credits`).
-		WithArgs(int64(42), usageEnd, 5.0, 3, playDate).
+		WithArgs(int64(42), usageEnd, 5.0, 3, playDate, service.ZenxiangLiyuTicketRecalcDays).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 
@@ -432,6 +432,36 @@ func TestZenxiangLiyuTicketExpiryKeepsTicketForTwoShanghaiCalendarDays(t *testin
 	require.Equal(t, time.Date(2026, time.July, 13, 16, 0, 0, 0, time.UTC), zenxiangLiyuTicketExpiry(playDate))
 }
 
+// TestZenxiangLiyuRepositorySyncTicketBalanceIssuesTicketsAfterLateUsage 覆盖线上漏发故障：
+// 用户当天先有小额消费（结算后落库 0 张），随后继续消费跨过门槛。回看窗口必须让该日期
+// 被重新计算并补发，而不是因为 credits 已有记录就永久跳过。
+func TestZenxiangLiyuRepositorySyncTicketBalanceIssuesTicketsAfterLateUsage(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	playDate := time.Date(2026, time.September, 28, 0, 0, 0, 0, time.UTC)
+	_, usageEnd := zenxiangLiyuUsageWindow(playDate)
+	repo := &zenxiangLiyuRepository{db: db}
+	settings := service.ZenxiangLiyuSettings{TicketUsageThreshold: 10, DailyTicketLimit: 3}
+
+	// 首次结算：当天累计 0.77 元，应发 0 张。
+	mock.ExpectBegin()
+	expectZenxiangLiyuTicketSyncWithSettings(mock, 233, playDate, usageEnd, 0, 0, 10.0, 3)
+	mock.ExpectCommit()
+	firstBalance, err := repo.SyncTicketBalance(context.Background(), 233, playDate, settings)
+	require.NoError(t, err)
+	require.Zero(t, firstBalance)
+
+	// 当天尾部消费把累计推到 20.43 元，同一天重新结算必须补发 2 张。
+	mock.ExpectBegin()
+	expectZenxiangLiyuTicketSyncWithSettings(mock, 233, playDate, usageEnd, 0, 2, 10.0, 3)
+	mock.ExpectCommit()
+	secondBalance, err := repo.SyncTicketBalance(context.Background(), 233, playDate, settings)
+	require.NoError(t, err)
+	require.Equal(t, 2, secondBalance)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
 func TestZenxiangLiyuRepositoryPlayLuckyCoinAppliesOnce(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -603,12 +633,18 @@ func zenxiangLiyuSettingsRows() *sqlmock.Rows {
 }
 
 func expectZenxiangLiyuTicketSync(mock sqlmock.Sqlmock, userID int64, throughDate, throughEnd time.Time, currentBalance, newlyEarned int) {
+	expectZenxiangLiyuTicketSyncWithSettings(mock, userID, throughDate, throughEnd, currentBalance, newlyEarned, 5.0, 3)
+}
+
+// expectZenxiangLiyuTicketSyncWithSettings 与 expectZenxiangLiyuTicketSync 相同，但允许指定
+// 结算阈值与每日上限，便于覆盖不同配置下的补发场景。
+func expectZenxiangLiyuTicketSyncWithSettings(mock sqlmock.Sqlmock, userID int64, throughDate, throughEnd time.Time, currentBalance, newlyEarned int, threshold float64, dailyLimit int) {
 	mock.ExpectExec(`INSERT INTO zenxiang_liyu_ticket_wallets`).
 		WithArgs(userID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	expectZenxiangLiyuWalletReconcileAfterInsert(mock, userID, throughDate, currentBalance)
-	mock.ExpectQuery(`WITH earned AS`).
-		WithArgs(userID, throughEnd, 5.0, 3, throughDate).
+	mock.ExpectQuery(`WITH earned AS .*>= \$5::date - \(\$6::integer - 1\)`).
+		WithArgs(userID, throughEnd, threshold, dailyLimit, throughDate, service.ZenxiangLiyuTicketRecalcDays).
 		WillReturnRows(func() *sqlmock.Rows {
 			rows := sqlmock.NewRows([]string{"usage_date", "ticket_count"})
 			if newlyEarned > 0 {
@@ -617,7 +653,7 @@ func expectZenxiangLiyuTicketSync(mock sqlmock.Sqlmock, userID int64, throughDat
 			return rows
 		}())
 	mock.ExpectExec(`INSERT INTO zenxiang_liyu_ticket_usage_credits`).
-		WithArgs(userID, throughEnd, 5.0, 3, throughDate).
+		WithArgs(userID, throughEnd, threshold, dailyLimit, throughDate, service.ZenxiangLiyuTicketRecalcDays).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	acceptedTickets := min(service.ZenxiangLiyuTicketCapacity-currentBalance, newlyEarned)
 	if acceptedTickets > 0 {
