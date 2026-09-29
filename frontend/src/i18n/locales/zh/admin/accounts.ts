@@ -28,6 +28,8 @@ export default {
         preview: '鹈鹕测试结果',
         sandboxHint: '预览已隔离后台权限和外部网络资源；依赖外部 CDN 的页面可能显示不完整。',
         effect: '效果预览',
+        fitWindow: '适合窗口',
+        zoom: '缩放',
         source: 'HTML 源码 / 原始响应',
         reload: '重新加载',
         retry: '重新测试',

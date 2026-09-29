@@ -2,11 +2,16 @@
   <div ref="container" class="relative h-36 w-60 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-dark-600" :aria-label="t('admin.accounts.pelican.previewColumn')">
     <iframe
       v-if="visible && html"
-      :srcdoc="buildPelicanPreviewSource(html)"
+      :srcdoc="buildPelicanPreviewSource(html, previewNonce)"
       sandbox="allow-scripts"
       referrerpolicy="no-referrer"
       loading="lazy"
-      class="pointer-events-none absolute left-0 top-0 h-[288px] w-[480px] origin-top-left scale-50 border-0"
+      class="pointer-events-none absolute left-1/2 top-1/2 origin-top-left border-0"
+      :style="{
+        width: `${PELICAN_PREVIEW_WIDTH}px`,
+        height: `${PELICAN_PREVIEW_HEIGHT}px`,
+        transform: `scale(${inlineScale}) translate(-50%, -50%)`
+      }"
       :title="t('admin.accounts.pelican.previewColumn')"
     />
     <div v-else-if="error" class="flex h-full items-center justify-center p-2 text-center text-xs text-red-600">{{ error }}</div>
@@ -18,7 +23,7 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
-import { buildPelicanPreviewSource } from '@/utils/pelicanPreview'
+import { buildPelicanPreviewSource, getPelicanPreviewNonce, PELICAN_PREVIEW_HEIGHT, PELICAN_PREVIEW_WIDTH } from '@/utils/pelicanPreview'
 
 const props = defineProps<{ testId: number }>()
 const { t } = useI18n()
@@ -27,6 +32,8 @@ const visible = ref(false)
 const html = ref('')
 const error = ref('')
 const loading = ref(false)
+const inlineScale = Math.min(238 / PELICAN_PREVIEW_WIDTH, 142 / PELICAN_PREVIEW_HEIGHT)
+const previewNonce = getPelicanPreviewNonce()
 let observer: IntersectionObserver | null = null
 let requestVersion = 0
 

@@ -34,6 +34,9 @@ describe('PelicanInlinePreview', () => {
     expect(frame.attributes('sandbox')).toBe('allow-scripts')
     expect(frame.attributes('srcdoc')!.indexOf('Content-Security-Policy')).toBeLessThan(frame.attributes('srcdoc')!.indexOf('<script>'))
     expect(frame.classes()).toContain('pointer-events-none')
+    expect(frame.attributes('style')).toContain('width: 1280px')
+    expect(frame.attributes('style')).toContain('height: 720px')
+    expect(frame.attributes('style')).toContain('scale(0.1859375)')
 
     onIntersection([{ isIntersecting: false } as IntersectionObserverEntry], {} as IntersectionObserver)
     await nextTick()

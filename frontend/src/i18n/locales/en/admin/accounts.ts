@@ -28,6 +28,8 @@ export default {
         preview: 'Pelican test result',
         sandboxHint: 'The preview cannot access admin data or external resources. Pages that depend on a CDN may render incompletely.',
         effect: 'Preview',
+        fitWindow: 'Fit to window',
+        zoom: 'Zoom',
         source: 'HTML source / raw response',
         reload: 'Reload preview',
         retry: 'Retry test',
