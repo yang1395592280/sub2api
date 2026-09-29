@@ -173,6 +173,9 @@
             {{ t('admin.accounts.listPendingSyncAction') }}
           </button>
         </div>
+        <div v-if="pelicanBatch" class="mt-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
+          {{ t('admin.accounts.pelican.progress', { done: pelicanBatchProgress.done, total: pelicanBatch.ids.length, success: pelicanBatchProgress.success, failed: pelicanBatchProgress.failed }) }}
+        </div>
       </template>
       <template #table>
         <AccountBulkActionsBar
@@ -183,6 +186,7 @@
           :all-results-selected="allResultsSelected"
           @delete="handleBulkDelete"
           @test-selected="handleBulkTestSelected"
+		  @pelican-test="openPelicanBatch"
 		  @reset-status="handleBulkResetStatus"
 		  @refresh-token="handleBulkRefreshToken"
 		  @refresh-balance="handleBulkRefreshBalance"
@@ -258,6 +262,22 @@
           <template #cell-notes="{ value }">
             <span v-if="value" :title="value" class="block max-w-xs whitespace-pre-wrap break-words text-sm leading-5 text-gray-600 dark:text-gray-300">{{ value }}</span>
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
+          </template>
+          <template #cell-pelican_test="{ row }">
+            <span v-if="!pelicanTests[row.id]" class="text-xs text-gray-400">—</span>
+            <div v-else class="flex max-w-[200px] flex-col items-start gap-1 text-xs">
+              <button type="button" class="text-left" @click="openPelicanResult(row)">
+                <span :class="pelicanTests[row.id].status === 'previewable' ? 'text-emerald-600' : pelicanTests[row.id].status === 'failed' ? 'text-red-600' : 'text-amber-600'">
+                  {{ t(`admin.accounts.pelican.status.${pelicanTests[row.id].status}`) }}
+                </span>
+              </button>
+              <span class="max-w-[190px] truncate text-gray-500" :title="pelicanTests[row.id].error_message || pelicanTests[row.id].model_id">
+                {{ pelicanTests[row.id].error_message || `${pelicanTests[row.id].model_id} · ${pelicanTests[row.id].latency_ms} ms` }}
+              </span>
+              <button v-if="['failed', 'unpreviewable'].includes(pelicanTests[row.id].status)" type="button" class="text-primary-600 hover:underline" @click="retryPelicanAccount(row)">
+                {{ t('admin.accounts.pelican.retry') }}
+              </button>
+            </div>
           </template>
           <template #cell-platform_type="{ row }">
             <div class="flex min-w-0 flex-col gap-1">
@@ -494,6 +514,8 @@
       @close="closeBatchTestModal"
       @filter-accounts="handleBatchTestFilterAccounts"
     />
+    <PelicanBatchTestDialog :show="showPelicanBatch" :account-ids="pelicanSelectedIds" :account-names="pelicanAccountNames" @close="showPelicanBatch = false" @submitted="handlePelicanSubmitted" />
+    <PelicanResultDialog :show="pelicanResultId !== null" :test-id="pelicanResultId" :account-name="pelicanResultAccountName" @close="pelicanResultId = null" />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
     <AccountActionMenu :show="menu.show" :account="menu.acc" :anchor-rect="menu.anchorRect" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @duplicate="handleDuplicateAccount" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" />
@@ -552,6 +574,9 @@ import ImportDataModal from '@/components/admin/account/ImportDataModal.vue'
 import ReAuthAccountModal from '@/components/admin/account/ReAuthAccountModal.vue'
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
 import BatchAccountTestModal from '@/components/admin/account/BatchAccountTestModal.vue'
+import PelicanBatchTestDialog from '@/components/admin/account/PelicanBatchTestDialog.vue'
+import PelicanResultDialog from '@/components/admin/account/PelicanResultDialog.vue'
+import type { PelicanTest } from '@/api/admin/accounts'
 import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
 import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.vue'
 import type { SelectOption } from '@/components/common/Select.vue'
@@ -644,6 +669,23 @@ const showCreateShadowDialog = ref(false)
 const showReAuth = ref(false)
 const showTest = ref(false)
 const showBatchTest = ref(false)
+const showPelicanBatch = ref(false)
+const pelicanSelectedIds = ref<number[]>([])
+const pelicanAccountNames = ref<Record<number, string>>({})
+const pelicanTests = ref<Record<number, PelicanTest>>({})
+const pelicanResultId = ref<number | null>(null)
+const pelicanResultAccountName = ref('')
+type PelicanBatch = { batchId: string; ids: number[] }
+const pelicanBatch = ref<PelicanBatch | null>(null)
+const pelicanBatchProgress = computed(() => {
+  const tests = pelicanBatch.value?.ids.map(id => pelicanTests.value[id])
+    .filter((test): test is PelicanTest => Boolean(test && test.batch_id === pelicanBatch.value?.batchId)) ?? []
+  return {
+    done: tests.filter(test => !['queued', 'running'].includes(test.status)).length,
+    success: tests.filter(test => test.status === 'previewable').length,
+    failed: tests.filter(test => test.status === 'failed' || test.status === 'unpreviewable').length
+  }
+})
 const showStats = ref(false)
 const showErrorPassthrough = ref(false)
 const showTLSFingerprintProfiles = ref(false)
@@ -1895,6 +1937,7 @@ const allColumns = computed(() => {
     { key: 'select', label: '', sortable: false },
     { key: 'name', label: t('admin.accounts.columns.name'), sortable: true },
     { key: 'notes', label: t('admin.accounts.columns.notes'), sortable: false },
+    { key: 'pelican_test', label: t('admin.accounts.pelican.column'), sortable: false },
     { key: 'id', label: t('admin.accounts.columns.id'), sortable: true },
     { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false },
     { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
@@ -1990,6 +2033,73 @@ const handleBulkTestSelected = () => {
   batchTestingAccounts.value = accounts.value.filter(account => selIds.value.includes(account.id))
   showBatchTest.value = batchTestingAccounts.value.length > 0
 }
+
+const openPelicanBatch = () => {
+  pelicanSelectedIds.value = [...selIds.value]
+  pelicanAccountNames.value = Object.fromEntries(accounts.value.map(account => [account.id, account.name]))
+  showPelicanBatch.value = pelicanSelectedIds.value.length > 0
+}
+
+const handlePelicanSubmitted = (tests: PelicanTest[]) => {
+  showPelicanBatch.value = false
+  for (const test of tests) pelicanTests.value[test.account_id] = test
+  if (tests.length > 0) {
+    pelicanBatch.value = { batchId: tests[0].batch_id, ids: tests.map(test => test.account_id) }
+    localStorage.setItem('account-pelican-active-batch', JSON.stringify(pelicanBatch.value))
+  }
+  if (tests.length < pelicanSelectedIds.value.length) {
+    appStore.showWarning(t('admin.accounts.pelican.skippedActive', { count: pelicanSelectedIds.value.length - tests.length }))
+  }
+  void refreshPelicanTests()
+}
+
+const openPelicanResult = (account: AccountListItem) => {
+  pelicanResultId.value = pelicanTests.value[account.id]?.id ?? null
+  pelicanResultAccountName.value = account.name
+}
+
+const retryPelicanAccount = (account: AccountListItem) => {
+  pelicanSelectedIds.value = [account.id]
+  pelicanAccountNames.value = { [account.id]: account.name }
+  showPelicanBatch.value = true
+}
+
+let pelicanRefreshRunning = false
+const refreshPelicanTests = async () => {
+  if (pelicanRefreshRunning) return
+  const visibleIds = accounts.value.map(account => account.id)
+  const batchIds = pelicanBatch.value?.ids ?? []
+  if (visibleIds.length === 0 && batchIds.length === 0) return
+  pelicanRefreshRunning = true
+  try {
+    for (const ids of [visibleIds, batchIds]) {
+      if (ids.length === 0) continue
+      for (let offset = 0; offset < ids.length; offset += 100) {
+        const latest = await adminAPI.accounts.listLatestPelicanTests(ids.slice(offset, offset + 100))
+        for (const test of latest) {
+          if (!pelicanTests.value[test.account_id] || pelicanTests.value[test.account_id].id <= test.id) {
+            pelicanTests.value[test.account_id] = test
+          }
+        }
+      }
+    }
+    if (pelicanBatch.value && pelicanBatchProgress.value.done === pelicanBatch.value.ids.length) {
+      localStorage.removeItem('account-pelican-active-batch')
+    }
+  } catch (error) {
+    console.error('Failed to load pelican test results:', error)
+  } finally {
+    pelicanRefreshRunning = false
+  }
+}
+
+watch(() => accounts.value.map(account => account.id).join(','), () => { void refreshPelicanTests() })
+useIntervalFn(() => {
+  const visibleRunning = accounts.value.some(account => ['queued', 'running'].includes(pelicanTests.value[account.id]?.status ?? ''))
+  if (visibleRunning || (pelicanBatch.value && pelicanBatchProgress.value.done < pelicanBatch.value.ids.length)) {
+    void refreshPelicanTests()
+  }
+}, 3000)
 const handleBulkResetStatus = async () => {
   if (!confirm(t('common.confirm'))) return
   try {
@@ -2697,6 +2807,13 @@ const handleClickOutside = (event: MouseEvent) => {
 }
 
 onMounted(async () => {
+  try {
+    const saved = localStorage.getItem('account-pelican-active-batch')
+    if (saved) pelicanBatch.value = JSON.parse(saved) as PelicanBatch
+  } catch {
+    localStorage.removeItem('account-pelican-active-batch')
+  }
+  void refreshPelicanTests()
   if (typeof window !== 'undefined') {
     desktopViewportMediaQuery = window.matchMedia(desktopViewportQuery)
     isDesktopViewport.value = desktopViewportMediaQuery.matches

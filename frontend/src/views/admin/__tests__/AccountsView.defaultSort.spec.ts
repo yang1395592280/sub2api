@@ -20,6 +20,7 @@ const {
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
+      listLatestPelicanTests: vi.fn().mockResolvedValue([]),
       list: listAccounts,
       listWithEtag,
       getBatchTodayStats,

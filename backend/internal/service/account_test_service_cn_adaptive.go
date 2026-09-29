@@ -154,7 +154,7 @@ func (s *AccountTestService) processCNProviderAdaptiveAnthropicStream(c *gin.Con
 	}
 }
 
-func (s *AccountTestService) testCNProviderAdaptiveResponsesConnection(c *gin.Context, account *Account, testModelID string, authToken string) error {
+func (s *AccountTestService) testCNProviderAdaptiveResponsesConnection(c *gin.Context, account *Account, testModelID string, authToken string, prompts ...string) error {
 	ctx := c.Request.Context()
 	baseURL, err := s.validateUpstreamBaseURL(account.GetCNProtocolBaseURL(APIProtocolResponses))
 	if err != nil {
@@ -162,7 +162,11 @@ func (s *AccountTestService) testCNProviderAdaptiveResponsesConnection(c *gin.Co
 	}
 	apiURL := buildOpenAIResponsesURLForPlatform(account.Platform, baseURL)
 
-	payload := createOpenAITestPayload(testModelID, false)
+	prompt := ""
+	if len(prompts) > 0 {
+		prompt = prompts[0]
+	}
+	payload := createOpenAITestPayloadWithPrompt(testModelID, false, prompt)
 	// DeepSeek / Kimi native Responses endpoints are stateless and do not need
 	// the OpenAI probe's synthetic instructions.
 	delete(payload, "instructions")
@@ -219,8 +223,12 @@ func (s *AccountTestService) doCNProviderAdaptiveRequest(req *http.Request, acco
 // instead of the provider's own Anthropic-compatible endpoint. The probe uses
 // GetAnthropicProtocolBaseURL (same resolution as real /v1/messages forwarding,
 // including per-platform defaults) and the shared API-key auth header.
-func (s *AccountTestService) testCNProviderAnthropicConnection(c *gin.Context, account *Account, modelID string) error {
+func (s *AccountTestService) testCNProviderAnthropicConnection(c *gin.Context, account *Account, modelID string, prompts ...string) error {
 	ctx := c.Request.Context()
+	prompt := ""
+	if len(prompts) > 0 {
+		prompt = prompts[0]
+	}
 
 	testModelID := strings.TrimSpace(modelID)
 	if testModelID == "" {
@@ -248,7 +256,7 @@ func (s *AccountTestService) testCNProviderAnthropicConnection(c *gin.Context, a
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
 	c.Writer.Flush()
 
-	payload, err := createTestPayload(testModelID)
+	payload, err := createTestPayloadWithPrompt(testModelID, prompt)
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Failed to create Anthropic test payload")
 	}

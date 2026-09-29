@@ -57,6 +57,7 @@ type AccountHandler struct {
 	rateLimitService        *service.RateLimitService
 	accountUsageService     *service.AccountUsageService
 	accountTestService      *service.AccountTestService
+	pelicanTestService      *service.PelicanTestService
 	concurrencyService      *service.ConcurrencyService
 	crsSyncService          *service.CRSSyncService
 	sessionLimitCache       service.SessionLimitCache
@@ -88,6 +89,10 @@ func (h *AccountHandler) SetCodexTicketSettings(settings *service.SettingService
 
 func (h *AccountHandler) SetOpenCodeGoUsageService(usage *service.OpenCodeGoUsageService) {
 	h.opencodeGoUsage = usage
+}
+
+func (h *AccountHandler) SetPelicanTestService(tests *service.PelicanTestService) {
+	h.pelicanTestService = tests
 }
 
 // NewAccountHandler creates a new admin account handler
