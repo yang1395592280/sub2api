@@ -23,9 +23,11 @@ const (
 var ErrInvalidPelicanBatch = errors.New("invalid pelican test batch")
 
 var (
-	pelicanHTMLFence = regexp.MustCompile("(?is)^```(?:html)?\\s*\\n([\\s\\S]*?)\\n```\\s*$")
-	pelicanDoctype   = regexp.MustCompile(`(?is)^\s*<!doctype\s+html\b`)
-	pelicanHTMLStart = regexp.MustCompile(`(?is)^\s*<html(?:\s|>)`)
+	pelicanCodeFence         = regexp.MustCompile("(?is)```([^\\r\\n]*)\\r?\\n([\\s\\S]*?)\\r?\\n[ \\t]*```")
+	pelicanHTMLDocumentStart = regexp.MustCompile(`(?is)<!doctype\s+html\b|<html(?:\s|>)`)
+	pelicanHTMLDocumentEnd   = regexp.MustCompile(`(?is)</html\s*>`)
+	pelicanDoctype           = regexp.MustCompile(`(?is)^\s*<!doctype\s+html\b`)
+	pelicanHTMLStart         = regexp.MustCompile(`(?is)^\s*<html(?:\s|>)`)
 )
 
 type PelicanTestService struct {
@@ -182,13 +184,32 @@ func redactPelicanAccountSecrets(account *Account, message string) string {
 
 func extractPelicanHTML(output string) string {
 	candidate := strings.TrimSpace(output)
-	if match := pelicanHTMLFence.FindStringSubmatch(candidate); len(match) == 2 {
-		candidate = strings.TrimSpace(match[1])
+	for _, match := range pelicanCodeFence.FindAllStringSubmatch(candidate, -1) {
+		language := ""
+		if fields := strings.Fields(match[1]); len(fields) > 0 {
+			language = strings.ToLower(fields[0])
+		}
+		if html := extractPelicanHTMLDocument(match[2]); html != "" {
+			if language == "" || language == "html" {
+				return html
+			}
+			return ""
+		}
 	}
-	if !(pelicanDoctype.MatchString(candidate) || pelicanHTMLStart.MatchString(candidate)) {
+	return extractPelicanHTMLDocument(candidate)
+}
+
+func extractPelicanHTMLDocument(output string) string {
+	start := pelicanHTMLDocumentStart.FindStringIndex(output)
+	if start == nil {
 		return ""
 	}
-	if !strings.HasSuffix(strings.ToLower(strings.TrimSpace(candidate)), "</html>") {
+	ends := pelicanHTMLDocumentEnd.FindAllStringIndex(output, -1)
+	if len(ends) == 0 || ends[len(ends)-1][1] <= start[0] {
+		return ""
+	}
+	candidate := strings.TrimSpace(output[start[0]:ends[len(ends)-1][1]])
+	if !(pelicanDoctype.MatchString(candidate) || pelicanHTMLStart.MatchString(candidate)) {
 		return ""
 	}
 	return candidate

@@ -11,7 +11,10 @@ func TestPelicanHTMLExtractionRequiresCompleteDocument(t *testing.T) {
 	valid := "<!doctype html><html><body><canvas></canvas></body></html>"
 	require.Equal(t, valid, extractPelicanHTML(valid))
 	require.Equal(t, valid, extractPelicanHTML("```html\n"+valid+"\n```"))
-	require.Empty(t, extractPelicanHTML("Here is your page:\n"+valid))
+	require.Equal(t, valid, extractPelicanHTML("Here is your page:\n```html\n"+valid+"\n```\n"))
+	require.Equal(t, valid, extractPelicanHTML("Here is your page:\n"+valid+"\nHope you enjoy it."))
+	require.Equal(t, valid, extractPelicanHTML("```HTML  \n"+valid+"\n```\n"))
+	require.Equal(t, valid, extractPelicanHTML(valid+"\n\nThe document ends above."))
 	require.Empty(t, extractPelicanHTML("<html><body>unfinished"))
 	require.Empty(t, extractPelicanHTML("```javascript\n"+valid+"\n```"))
 }
