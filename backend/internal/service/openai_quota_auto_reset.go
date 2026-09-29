@@ -859,15 +859,26 @@ func notifyOpenAIAutoResetFromSchedulerAt(accountID int64, now time.Time) bool {
 	if accountID <= 0 {
 		return false
 	}
-	if last, ok := openAIAutoResetSchedulerNotifiedAt.Load(accountID); ok {
+	for {
+		last, loaded := openAIAutoResetSchedulerNotifiedAt.Load(accountID)
+		if !loaded {
+			if _, loaded = openAIAutoResetSchedulerNotifiedAt.LoadOrStore(accountID, now); !loaded {
+				break
+			}
+			continue
+		}
 		if lastAt, ok := last.(time.Time); ok {
 			elapsed := now.Sub(lastAt)
-			if elapsed >= 0 && elapsed < openAIAutoResetSchedulerNotifyCooldown {
+			// 较早取得的 now 也可能晚于另一请求才进入 CAS，负间隔仍属冷却期。
+			if elapsed < openAIAutoResetSchedulerNotifyCooldown {
 				return false
 			}
 		}
+		// 同一账号的并发请求必须只有一个能更新冷却时间并触发通知。
+		if openAIAutoResetSchedulerNotifiedAt.CompareAndSwap(accountID, last, now) {
+			break
+		}
 	}
-	openAIAutoResetSchedulerNotifiedAt.Store(accountID, now)
 	notifyOpenAIAutoReset(accountID)
 	return true
 }
