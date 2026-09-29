@@ -276,6 +276,27 @@ jobs:
           args=(publish --output "$RUNNER_TEMP/goreleaser.publisher.yaml")
           if [[ "$SIMPLE_RELEASE" == true ]]; then args+=(--simple); fi
           python "$RUNNER_TEMP/release-tools/release_matrix.py" config "${args[@]}"
+      - name: Remove stale generated release assets
+        if: ${{ env.DRY_RUN != 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if ! assets=$(gh release view "$RELEASE_TAG" --repo "$GH_REPO" --json assets --jq '.assets[].name'); then
+            echo "No existing GitHub Release for $RELEASE_TAG; GoReleaser will create it."
+            exit 0
+          fi
+
+          while IFS= read -r asset_name; do
+            [[ -z "$asset_name" ]] && continue
+            case "$asset_name" in
+              checksums.txt|sub2api_"$RELEASE_VERSION"_*)
+                echo "Removing stale release asset: $asset_name"
+                gh release delete-asset "$RELEASE_TAG" "$asset_name" --repo "$GH_REPO" --yes
+                ;;
+            esac
+          done <<< "$assets"
       - name: Publish existing archives and release notes
         uses: goreleaser/goreleaser-action@v7
         with:
