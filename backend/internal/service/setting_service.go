@@ -143,6 +143,7 @@ type SettingService struct {
 	openAIAutoSchedulerCacheMu         sync.Mutex
 	openAIAutoSchedulerRevision        atomic.Uint64
 
+	cyberSessionBlockRuntimeMu    sync.Mutex
 	cyberSessionBlockRuntimeCache atomic.Value // *cachedCyberSessionBlockRuntime
 	cyberSessionBlockRuntimeSF    singleflight.Group
 

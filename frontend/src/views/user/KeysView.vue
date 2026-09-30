@@ -1177,6 +1177,7 @@
       :base-url="publicSettings?.api_base_url || ''"
       :platform="selectedKey ? resolveKeyPlatform(selectedKey) : null"
       :allow-messages-dispatch="selectedKey?.group_select_mode === 'openai_auto_cheapest' || selectedKey?.group?.allow_messages_dispatch || false"
+      :claude-code-only="selectedKey?.group?.claude_code_only || false"
       @close="closeUseKeyModal"
     />
 
