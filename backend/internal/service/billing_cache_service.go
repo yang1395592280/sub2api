@@ -330,12 +330,16 @@ func (s *BillingCacheService) GetUserBalance(ctx context.Context, userID int64) 
 			return nil, err
 		}
 
-		// 异步建立缓存
-		_ = s.enqueueCacheWrite(cacheWriteTask{
-			kind:    cacheWriteSetBalance,
-			userID:  userID,
-			balance: balance,
-		})
+		// 预留 Lua 直接读取余额 key；回源后先建立缓存，避免冷缓存请求绕过预留。
+		if s.InflightReservationEnabled() {
+			s.setBalanceCache(loadCtx, userID, balance)
+		} else {
+			_ = s.enqueueCacheWrite(cacheWriteTask{
+				kind:    cacheWriteSetBalance,
+				userID:  userID,
+				balance: balance,
+			})
+		}
 		return balance, nil
 	})
 	if err != nil {

@@ -43,6 +43,42 @@ func newInflightTestGinContext() *gin.Context {
 	return c
 }
 
+type groupInflightEstimator struct{}
+
+func (groupInflightEstimator) EstimateInflightReservation(_ context.Context, key *service.APIKey, _ service.InflightEstimateRequest) (float64, bool) {
+	if key.Group == nil {
+		return 0, false
+	}
+	return key.Group.RateMultiplier, true
+}
+
+func TestRequestInflightReservation_RepricesFailoverAndClearsSubscriptionContext(t *testing.T) {
+	cache := newHandlerInflightCache(1)
+	cfg := &config.Config{}
+	cfg.Billing.InflightReservation = config.InflightReservationConfig{Enabled: true, TTLSeconds: 60, FailClosedOnUnpriced: true}
+	billing := service.NewBillingCacheService(cache, nil, nil, nil, nil, nil, cfg, nil)
+	t.Cleanup(billing.Stop)
+	c := newInflightTestGinContext()
+	key := &service.APIKey{User: &service.User{ID: 1}, GroupSelectMode: service.APIKeyGroupSelectModeOpenAIAutoCheapest}
+	var reservation requestInflightReservation
+	defer reservation.Done()
+	req := tokenInflightEstimate("alias", nil)
+	first := service.CloneAPIKeyForEffectiveGroup(key, &service.Group{ID: 1, RateMultiplier: 0.7})
+	require.NoError(t, reservation.Reserve(c, billing, groupInflightEstimator{}, first, nil, req))
+	oldBillingDone := service.InflightReservationFromContext(c.Request.Context()).Acquire()
+	defer oldBillingDone()
+	second := service.CloneAPIKeyForEffectiveGroup(key, &service.Group{ID: 2, RateMultiplier: 0.2})
+	require.NoError(t, reservation.Reserve(c, billing, groupInflightEstimator{}, second, nil, req))
+	require.InDelta(t, 0.2, service.InflightReservationFromContext(c.Request.Context()).Amount(), 1e-9)
+	require.Equal(t, 2, cache.count(), "旧 attempt 的计费完成前继续保留其预留")
+	oldBillingDone()
+	require.Equal(t, 1, cache.count())
+	subscriptionKey := service.CloneAPIKeyForEffectiveGroup(key, &service.Group{ID: 3, SubscriptionType: service.SubscriptionTypeSubscription})
+	require.NoError(t, reservation.Reserve(c, billing, groupInflightEstimator{}, subscriptionKey, &service.UserSubscription{}, req))
+	require.Nil(t, service.InflightReservationFromContext(c.Request.Context()), "订阅 attempt 不能继承前一个分组的预留")
+	require.Zero(t, cache.count())
+}
+
 func TestReserveInflightBalance_SkipsWhenDisabledOrSubscription(t *testing.T) {
 	cfg := &config.Config{}
 	billing := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
@@ -110,7 +146,7 @@ func (m *handlerInflightCache) ReserveInflightBalance(_ context.Context, _ int64
 	for _, v := range m.res {
 		sum += v
 	}
-	if len(m.res) > 0 && balance-sum < amount {
+	if len(m.res) > 0 && m.balance-sum < amount {
 		return false, sum, nil
 	}
 	m.res[id] = amount

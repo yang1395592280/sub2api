@@ -1,0 +1,4 @@
+{"type": "session_summary", "time": "2026-10-01T00:43:21+08:00", "goal": "修复审查确认的 4 个 Bug", "status": "代码及可运行验证完成", "validation": "57 包、12105 顶层测试通过；race、build、diff check 通过", "pending": "Docker 未运行，真实 PostgreSQL 并发测试跳过"}
+{"type": "decision", "decision": "当前余额与预留共用 Redis hash tag，Lua 读取当前余额；HTTP 自动选组后预留，WS 按轮预留并计费交接", "reason": "消除旧余额准入与错误分组估价，释放空闲连接占用", "rollback_condition": "出现预留与计费生命周期回归时回退本次 Git 提交，统一切换后端版本"}
+{"type": "decision", "decision": "用户行 FOR UPDATE 持有到数量检查和 API Key 创建的事务完成；复用外部 Ent Tx context", "reason": "跨实例阻止突破总量上限", "limits": "生产 PostgreSQL 行锁语义；Docker 集成验证未执行"}
+{"type": "lesson", "source": "新增切组回归", "lesson": "WithInflightReservation(ctx, nil) 必须显式写入 typed nil 遮蔽父 context，返回原 context 不能清理旧预留", "prevention": "保留切组、旧计费未完成及订阅无预留回归"}

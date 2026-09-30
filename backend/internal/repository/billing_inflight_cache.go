@@ -26,8 +26,8 @@ func billingInflightKeys(userID int64) (string, string) {
 }
 
 var (
-	// KEYS: [1]=zset [2]=hash
-	// ARGV: [1]=now_ms [2]=expire_at_ms [3]=member [4]=amount [5]=balance [6]=key_ttl_ms
+	// KEYS: [1]=zset [2]=hash [3]=balance（与预留 key 共用用户 hash tag）
+	// ARGV: [1]=now_ms [2]=expire_at_ms [3]=member [4]=amount [5]=key_ttl_ms
 	// 返回 {allowed, inflight_sum(string), inflight_count}
 	// 规则：先清理已过期成员；若无在途预留则直接放行（与旧行为一致，外层已校验余额 > 阈值）；
 	// 否则要求 balance - sum(在途) >= amount。放行时登记预留。
@@ -45,14 +45,17 @@ var (
 		end
 		local count = redis.call('ZCARD', KEYS[1])
 		local amount = tonumber(ARGV[4])
-		local balance = tonumber(ARGV[5])
+		local balance = tonumber(redis.call('GET', KEYS[3]))
+		if balance == nil then
+			return {-1, tostring(sum), count}
+		end
 		if count > 0 and (balance - sum) < amount then
 			return {0, tostring(sum), count}
 		end
 		redis.call('ZADD', KEYS[1], tonumber(ARGV[2]), ARGV[3])
 		redis.call('HSET', KEYS[2], ARGV[3], ARGV[4])
-		redis.call('PEXPIRE', KEYS[1], ARGV[6])
-		redis.call('PEXPIRE', KEYS[2], ARGV[6])
+		redis.call('PEXPIRE', KEYS[1], ARGV[5])
+		redis.call('PEXPIRE', KEYS[2], ARGV[5])
 		return {1, tostring(sum), count}
 	`)
 
@@ -95,12 +98,12 @@ func (c *billingCache) ReserveInflightBalance(ctx context.Context, userID int64,
 	if ttlMs <= 0 {
 		ttlMs = 1
 	}
-	res, err := reserveInflightBalanceScript.Run(ctx, c.rdb, []string{zkey, hkey},
+	// balance 仅保留接口兼容；准入必须读取 Lua 执行时的余额，不能信任外部快照。
+	res, err := reserveInflightBalanceScript.Run(ctx, c.rdb, []string{zkey, hkey, billingBalanceKey(userID)},
 		now,
 		now+ttlMs,
 		requestID,
 		strconv.FormatFloat(amount, 'f', -1, 64),
-		strconv.FormatFloat(balance, 'f', -1, 64),
 		ttlMs,
 	).Slice()
 	if err != nil {
@@ -110,6 +113,9 @@ func (c *billingCache) ReserveInflightBalance(ctx context.Context, userID int64,
 		return false, 0, fmt.Errorf("unexpected inflight reservation reply: %v", res)
 	}
 	allowed, _ := res[0].(int64)
+	if allowed == -1 {
+		return false, 0, redis.Nil
+	}
 	var sum float64
 	if s, ok := res[1].(string); ok {
 		sum, _ = strconv.ParseFloat(s, 64)

@@ -89,6 +89,57 @@ func TestInflightReservation_ConcurrentAdmitsOnlyWhatBalanceCovers(t *testing.T)
 	release()
 }
 
+func TestInflightReservation_ReadsBalanceAtomicallyWithAdmission(t *testing.T) {
+	_, cache, _ := newInflightTestEnv(t, true, 60)
+	ctx := context.Background()
+	const uid = int64(42)
+	require.NoError(t, cache.SetUserBalance(ctx, uid, 1))
+	allowed, _, err := cache.ReserveInflightBalance(ctx, uid, "existing", 0.1, 1, time.Minute)
+	require.NoError(t, err)
+	require.True(t, allowed)
+	stale, err := cache.GetUserBalance(ctx, uid)
+	require.NoError(t, err)
+	require.NoError(t, cache.DeductUserBalance(ctx, uid, 0.8))
+	allowed, outstanding, err := cache.ReserveInflightBalance(ctx, uid, "new", 0.15, stale, time.Minute)
+	require.NoError(t, err)
+	require.False(t, allowed, "余额读取后发生扣费不能使用旧快照放行")
+	require.InDelta(t, 0.1, outstanding, 1e-9)
+	require.Equal(t, int64(1), inflightCount(t, cache, uid))
+}
+
+type inflightBalanceUserRepo struct{ service.UserRepository }
+
+func (*inflightBalanceUserRepo) GetByID(_ context.Context, id int64) (*service.User, error) {
+	return &service.User{ID: id, Balance: 1}, nil
+}
+
+func TestInflightReservation_ColdBalanceCacheIsReadyBeforeAdmission(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	cache := &billingCache{rdb: rdb}
+	cfg := &config.Config{}
+	cfg.Billing.InflightReservation = config.InflightReservationConfig{Enabled: true, TTLSeconds: 60}
+	svc := service.NewBillingCacheService(cache, &inflightBalanceUserRepo{}, nil, nil, nil, nil, cfg, nil)
+	t.Cleanup(svc.Stop)
+	ctx := context.Background()
+	user := &service.User{ID: 42}
+	res, err := svc.ReserveInflight(ctx, user, nil, nil, 0.8)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	defer res.HandlerDone()
+	_, err = svc.ReserveInflight(ctx, user, nil, nil, 0.8)
+	require.ErrorIs(t, err, service.ErrInsufficientBalance)
+}
+
+func TestInflightReservation_MissingBalanceDoesNotUseSnapshot(t *testing.T) {
+	_, cache, _ := newInflightTestEnv(t, true, 60)
+	allowed, _, err := cache.ReserveInflightBalance(context.Background(), 42, "missing", 0.8, 1, time.Minute)
+	require.ErrorIs(t, err, redis.Nil)
+	require.False(t, allowed)
+	require.Equal(t, int64(0), inflightCount(t, cache, 42))
+}
+
 func TestInflightReservation_FirstRequestAlwaysAdmitted(t *testing.T) {
 	_, cache, svc := newInflightTestEnv(t, true, 60)
 	ctx := context.Background()

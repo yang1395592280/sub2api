@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"sync"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -34,6 +35,75 @@ func tokenInflightEstimate(model string, body []byte) service.InflightEstimateRe
 }
 
 func inflightNoop() {}
+
+// requestInflightReservation 随实际分组重新估价；已提交的计费任务仍持有旧预留引用。
+type requestInflightReservation struct {
+	done func()
+}
+
+func (r *requestInflightReservation) Done() {
+	if r.done != nil {
+		r.done()
+		r.done = nil
+	}
+}
+
+func (r *requestInflightReservation) Reserve(c *gin.Context, billing *service.BillingCacheService, estimator inflightReservationEstimator, key *service.APIKey, sub *service.UserSubscription, req service.InflightEstimateRequest) error {
+	r.Done()
+	// 新 attempt 无预留（例如订阅分组）时也必须遮蔽旧 context 中的句柄。
+	c.Request = c.Request.WithContext(service.WithInflightReservation(c.Request.Context(), nil))
+	done, err := reserveInflightBalance(c, billing, estimator, key, sub, req)
+	r.done = done
+	return err
+}
+
+// websocketInflightReservations 按 turn 管理预留，避免空闲连接占用余额。
+// BeforeTurn 与 AfterTurn 可能由不同 relay 协程调用，句柄通过锁交接。
+type websocketInflightReservations struct {
+	mu    sync.Mutex
+	turns map[int]*service.InflightReservation
+}
+
+func (r *websocketInflightReservations) Reserve(ctx context.Context, turn int, billing *service.BillingCacheService, estimator inflightReservationEstimator, key *service.APIKey, sub *service.UserSubscription, req service.InflightEstimateRequest) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.turns[turn]; exists {
+		return nil
+	}
+	turnCtx, _, err := reserveInflightBalanceCtx(ctx, billing, estimator, key, sub, req)
+	if err != nil {
+		return err
+	}
+	if r.turns == nil {
+		r.turns = make(map[int]*service.InflightReservation)
+	}
+	r.turns[turn] = service.InflightReservationFromContext(turnCtx)
+	return nil
+}
+
+func (r *websocketInflightReservations) Context(ctx context.Context, turn int) context.Context {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return service.WithInflightReservation(ctx, r.turns[turn])
+}
+
+func (r *websocketInflightReservations) Done(turn int) {
+	r.mu.Lock()
+	res := r.turns[turn]
+	delete(r.turns, turn)
+	r.mu.Unlock()
+	res.HandlerDone()
+}
+
+func (r *websocketInflightReservations) Close() {
+	r.mu.Lock()
+	turns := r.turns
+	r.turns = nil
+	r.mu.Unlock()
+	for _, res := range turns {
+		res.HandlerDone()
+	}
+}
 
 // reserveInflightBalance 在 CheckBillingEligibility 之后为余额模式请求登记在途预留。
 //

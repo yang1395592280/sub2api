@@ -18,7 +18,8 @@ import (
 // BillingCache 的 Redis 实现同时实现此接口；未实现时在途预留自动关闭（fail-open）。
 type InflightBalanceReservationCache interface {
 	// ReserveInflightBalance 原子地：清理过期预留；若用户已有在途预留且
-	// balance - sum(在途) < amount 则拒绝；否则登记 requestID 的预留（ttl 后自动失效）。
+	// 当前缓存余额 - sum(在途) < amount 则拒绝；否则登记 requestID 的预留（ttl 后自动失效）。
+	// balance 是读取时的快照；实现必须在原子准入操作内重新读取当前余额。
 	// 返回是否放行以及登记前的在途合计。
 	ReserveInflightBalance(ctx context.Context, userID int64, requestID string, amount, balance float64, ttl time.Duration) (bool, float64, error)
 	// ReleaseInflightBalance 释放 requestID 的预留（幂等）。
@@ -170,10 +171,8 @@ func (r *InflightReservation) startRenewal(renewer InflightBalanceReservationRen
 type inflightReservationCtxKey struct{}
 
 // WithInflightReservation 把预留句柄挂到 context 上，供计费任务提交时交接。
+// nil 句柄也要覆盖父 context 中的旧预留，避免无预留的重试继承上一轮句柄。
 func WithInflightReservation(ctx context.Context, r *InflightReservation) context.Context {
-	if r == nil {
-		return ctx
-	}
 	return context.WithValue(ctx, inflightReservationCtxKey{}, r)
 }
 

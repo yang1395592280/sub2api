@@ -41,7 +41,8 @@ func jitteredTTL() time.Duration {
 
 // billingBalanceKey generates the Redis key for user balance cache.
 func billingBalanceKey(userID int64) string {
-	return fmt.Sprintf("%s%d", billingBalanceKeyPrefix, userID)
+	// 与在途预留使用同一 hash tag，使余额读取和预留准入可在一个 Lua 中完成。
+	return fmt.Sprintf("%s{%d}", billingBalanceKeyPrefix, userID)
 }
 
 // billingSubKey generates the Redis key for subscription cache.

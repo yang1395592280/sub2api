@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,6 +18,13 @@ type createLimitAPIKeyRepoStub struct {
 	activeCount int64
 	countErr    error
 	created     []*APIKey
+	createMu    sync.Mutex
+}
+
+func (s *createLimitAPIKeyRepoStub) WithUserCreateLock(ctx context.Context, _ int64, create func(context.Context) error) error {
+	s.createMu.Lock()
+	defer s.createMu.Unlock()
+	return create(ctx)
 }
 
 func (s *createLimitAPIKeyRepoStub) CountByUserID(ctx context.Context, userID int64) (int64, error) {
@@ -29,7 +37,37 @@ func (s *createLimitAPIKeyRepoStub) ExistsByKey(ctx context.Context, key string)
 
 func (s *createLimitAPIKeyRepoStub) Create(ctx context.Context, key *APIKey) error {
 	s.created = append(s.created, key)
+	s.activeCount++
 	return nil
+}
+
+func TestAPIKeyServiceCreate_ConcurrentCreatesRespectActiveLimit(t *testing.T) {
+	const concurrent = 8
+	repo, cache := newCreateLimitStubs()
+	repo.activeCount = 199
+	svc := newCreateLimitService(repo, cache, 200, 60)
+	start := make(chan struct{})
+	results := make(chan error, concurrent)
+	for i := 0; i < concurrent; i++ {
+		go func() {
+			<-start
+			_, err := svc.Create(context.Background(), 7, CreateAPIKeyRequest{Name: "parallel", GroupSelectMode: APIKeyGroupSelectModeOpenAIAutoCheapest})
+			results <- err
+		}()
+	}
+	close(start)
+	succeeded := 0
+	for i := 0; i < concurrent; i++ {
+		err := <-results
+		if err == nil {
+			succeeded++
+		} else {
+			require.ErrorIs(t, err, ErrAPIKeyCountExceeded)
+		}
+	}
+	require.Equal(t, 1, succeeded)
+	require.Equal(t, int64(200), repo.activeCount)
+	require.Equal(t, int64(1), cache.createCounts[7], "数量上限拒绝的请求不消耗小时次数")
 }
 
 type createLimitCacheStub struct {

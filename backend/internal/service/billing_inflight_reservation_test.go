@@ -213,7 +213,7 @@ func (m *memInflightCache) ReserveInflightBalance(_ context.Context, _ int64, id
 	for _, v := range m.res {
 		sum += v
 	}
-	if len(m.res) > 0 && balance-sum < amount {
+	if len(m.res) > 0 && m.balance-sum < amount {
 		return false, sum, nil
 	}
 	m.res[id] = amount

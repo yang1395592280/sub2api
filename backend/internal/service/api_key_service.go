@@ -521,6 +521,12 @@ func (s *APIKeyService) canUserBindGroup(ctx context.Context, user *User, group 
 	return user.CanBindGroup(group.ID, group.IsExclusive)
 }
 
+// APIKeyCreateLocker 将数量检查与创建放在持有用户锁的同一数据库事务内。
+// 锁必须跨实例生效，不能仅使用服务进程内的互斥锁。
+type APIKeyCreateLocker interface {
+	WithUserCreateLock(ctx context.Context, userID int64, create func(context.Context) error) error
+}
+
 // Create 创建API Key
 func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIKeyRequest) (*APIKey, error) {
 	if err := validateCreateAPIKeyRequest(req); err != nil {
@@ -608,10 +614,6 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		}
 	}
 
-	if err := s.checkAPIKeyCreateLimits(ctx, userID); err != nil {
-		return nil, err
-	}
-
 	// 创建API Key记录
 	apiKey := &APIKey{
 		UserID:                           userID,
@@ -636,8 +638,26 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		apiKey.ExpiresAt = &expiresAt
 	}
 
-	if err := s.apiKeyRepo.Create(ctx, apiKey); err != nil {
-		return nil, fmt.Errorf("create api key: %w", err)
+	create := func(createCtx context.Context) error {
+		if err := s.checkAPIKeyCreateLimits(createCtx, userID); err != nil {
+			return err
+		}
+		if err := s.apiKeyRepo.Create(createCtx, apiKey); err != nil {
+			return fmt.Errorf("create api key: %w", err)
+		}
+		return nil
+	}
+	if s.cfg != nil && s.cfg.APIKeyCreate.MaxActivePerUser > 0 {
+		locker, ok := s.apiKeyRepo.(APIKeyCreateLocker)
+		if !ok {
+			return nil, fmt.Errorf("api key repository does not support atomic create limits")
+		}
+		err = locker.WithUserCreateLock(ctx, userID, create)
+	} else {
+		err = create(ctx)
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	s.InvalidateAuthCacheByKey(ctx, apiKey.Key)

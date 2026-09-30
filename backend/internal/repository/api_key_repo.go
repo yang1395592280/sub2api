@@ -29,6 +29,8 @@ type apiKeyRepository struct {
 	sql    sqlExecutor
 }
 
+var _ service.APIKeyCreateLocker = (*apiKeyRepository)(nil)
+
 func NewAPIKeyRepository(client *dbent.Client, sqlDB *sql.DB) service.APIKeyRepository {
 	return newAPIKeyRepositoryWithSQL(client, sqlDB)
 }
@@ -43,7 +45,7 @@ func (r *apiKeyRepository) activeQuery() *dbent.APIKeyQuery {
 }
 
 func (r *apiKeyRepository) Create(ctx context.Context, key *service.APIKey) error {
-	builder := r.client.APIKey.Create().
+	builder := clientFromContext(ctx, r.client).APIKey.Create().
 		SetUserID(key.UserID).
 		SetKey(key.Key).
 		SetName(key.Name).
@@ -74,6 +76,36 @@ func (r *apiKeyRepository) Create(ctx context.Context, key *service.APIKey) erro
 		key.UpdatedAt = created.UpdatedAt
 	}
 	return translatePersistenceError(err, nil, service.ErrAPIKeyExists)
+}
+
+// WithUserCreateLock 用用户行锁串行化同一用户的创建，覆盖多实例部署。
+// 计数与写入必须复用传给回调的事务 context，锁持有到事务提交或回滚。
+func (r *apiKeyRepository) WithUserCreateLock(ctx context.Context, userID int64, create func(context.Context) error) error {
+	if tx := dbent.TxFromContext(ctx); tx != nil {
+		return r.createWithUserLock(ctx, tx.Client(), userID, create)
+	}
+	tx, err := r.client.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	txCtx := dbent.NewTxContext(ctx, tx)
+	if err := r.createWithUserLock(txCtx, tx.Client(), userID, create); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (r *apiKeyRepository) createWithUserLock(ctx context.Context, client *dbent.Client, userID int64, create func(context.Context) error) error {
+	_, err := client.User.Query().Select(user.FieldID).
+		Where(user.IDEQ(userID), user.DeletedAtIsNil()).ForUpdate().Only(ctx)
+	if dbent.IsNotFound(err) {
+		return service.ErrUserNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("lock api key owner: %w", err)
+	}
+	return create(ctx)
 }
 
 func (r *apiKeyRepository) GetByID(ctx context.Context, id int64) (*service.APIKey, error) {
@@ -630,7 +662,8 @@ func (r *apiKeyRepository) VerifyOwnership(ctx context.Context, userID int64, ap
 }
 
 func (r *apiKeyRepository) CountByUserID(ctx context.Context, userID int64) (int64, error) {
-	count, err := r.activeQuery().Where(apikey.UserIDEQ(userID)).Count(ctx)
+	count, err := clientFromContext(ctx, r.client).APIKey.Query().
+		Where(apikey.DeletedAtIsNil(), apikey.UserIDEQ(userID)).Count(ctx)
 	return int64(count), err
 }
 
