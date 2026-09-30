@@ -14,3 +14,10 @@ session-id: 20261001-0012
 - 实际入口：Responses/Messages/Chat 自动选组的 fail-open/fail-closed 分支、WS 空闲释放、WS 后续轮重新估价、WS 自动选组首轮拒绝。
 - 未验证：Docker daemon 未运行，PostgreSQL 并发仓库集成用例由 harness 跳过。后续命令：cd backend && go test -v -tags=integration ./internal/repository -run '^TestAPIKeyCreateLock_ConcurrentRepositoriesRespectLimit$' -count=1。
 - 部署注意：余额 Redis key 增加用户 hash tag。避免旧新后端同时运行导致两套余额缓存；推荐统一重启。无 DDL 或用户数据迁移。
+
+## [01:05] 发布准备：v0.2.11.1
+- 用户明确要求提交、打标签并推送；结合上游 v0.2.11 与上次二改 v0.2.10.1，本次目标为 v0.2.11.1。
+- 文件：backend/cmd/server/VERSION 更新为 0.2.11.1；沿用 annotated tag，推送范围为 origin/custom-main 与该标签。
+- 验证：resolve-version.sh 输出 0.2.11.1；go build -o 临时目录 ./cmd/server 成功，运行 -version 显示 Sub2API 0.2.11.1；9 项发布工具测试通过，git diff --check 通过。
+- 环境限制：原始发布测试在本机 Bash 3.2 下有 2 项镜像脚本测试报 bad substitution（3 个错误，含子测试）；单独标记这 2 项跳过后，其余 9 项通过。GitHub Actions 使用 Ubuntu；远端构建结果需另行核验。PostgreSQL 并发集成测试仍需 Docker 环境。
+- Git 处理：使用 git push --atomic origin custom-main refs/tags/v0.2.11.1；以远端分支与 peeled tag commit 一致作为推送完成凭据。
