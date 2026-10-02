@@ -352,7 +352,7 @@ func TestFrontendServer_ServeIndexHTML(t *testing.T) {
 		assert.True(t, strings.HasSuffix(etag, `"`))
 	})
 
-	t.Run("returns_304_for_matching_etag", func(t *testing.T) {
+	t.Run("returns_fresh_html_for_matching_etag", func(t *testing.T) {
 		provider := &mockSettingsProvider{
 			settings: map[string]string{"test": "value"},
 		}
@@ -360,10 +360,10 @@ func TestFrontendServer_ServeIndexHTML(t *testing.T) {
 		server, err := NewFrontendServer(provider)
 		require.NoError(t, err)
 
-		// Use a real router for proper 304 handling
+		// Use a real router to verify cache revalidation keeps the current nonce.
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
-			c.Set(middleware.CSPNonceKey, "test-nonce")
+			c.Set(middleware.CSPNonceKey, c.GetHeader("X-Test-Nonce"))
 			c.Next()
 		})
 		router.Use(server.Middleware())
@@ -371,6 +371,7 @@ func TestFrontendServer_ServeIndexHTML(t *testing.T) {
 		// First request to populate cache and get ETag
 		w1 := httptest.NewRecorder()
 		req1 := httptest.NewRequest(http.MethodGet, "/", nil)
+		req1.Header.Set("X-Test-Nonce", "old-nonce")
 		router.ServeHTTP(w1, req1)
 		etag := w1.Header().Get("ETag")
 		require.NotEmpty(t, etag)
@@ -378,11 +379,14 @@ func TestFrontendServer_ServeIndexHTML(t *testing.T) {
 		// Second request with If-None-Match
 		w2 := httptest.NewRecorder()
 		req2 := httptest.NewRequest(http.MethodGet, "/", nil)
+		req2.Header.Set("X-Test-Nonce", "current-nonce")
 		req2.Header.Set("If-None-Match", etag)
 		router.ServeHTTP(w2, req2)
 
-		assert.Equal(t, http.StatusNotModified, w2.Code)
-		assert.Empty(t, w2.Body.String())
+		assert.Equal(t, http.StatusOK, w2.Code)
+		assert.Contains(t, w2.Body.String(), `nonce="current-nonce"`)
+		assert.NotContains(t, w2.Body.String(), `nonce="old-nonce"`)
+		assert.NotEmpty(t, w2.Body.String())
 	})
 
 	t.Run("sets_cache_control_header", func(t *testing.T) {
