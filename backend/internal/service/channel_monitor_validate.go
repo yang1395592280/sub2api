@@ -136,6 +136,34 @@ func validateProbeAttempts(attempts int) error {
 	return nil
 }
 
+func parseEndpointSyntax(ep string) (*url.URL, error) {
+	ep = strings.TrimSpace(ep)
+	if ep == "" {
+		return nil, ErrChannelMonitorInvalidEndpoint
+	}
+	u, err := url.Parse(ep)
+	if err != nil {
+		return nil, ErrChannelMonitorInvalidEndpoint
+	}
+	if u.Scheme != "https" {
+		return nil, ErrChannelMonitorEndpointScheme
+	}
+	if u.Host == "" {
+		return nil, ErrChannelMonitorInvalidEndpoint
+	}
+	if u.RawQuery != "" || u.Fragment != "" {
+		return nil, ErrChannelMonitorEndpointPath
+	}
+	return u, nil
+}
+
+// validateEndpointSyntax 校验 endpoint 的格式，不执行 DNS 解析。
+// 创建/更新时先完成这一层校验，避免网络故障遮蔽缺少 API key、主模型等确定性输入错误。
+func validateEndpointSyntax(ep string) error {
+	_, err := parseEndpointSyntax(ep)
+	return err
+}
+
 // validateEndpoint 校验 endpoint：
 //   - scheme 强制 https（拒绝 http，避免明文凭证 + 部分 SSRF 利用面）
 //   - 允许上游路径前缀（如 /anthropic），不允许 query/fragment
@@ -144,22 +172,9 @@ func validateProbeAttempts(attempts int) error {
 //
 // 错误信息不暴露具体 IP / hostname，避免泄露内网拓扑。
 func validateEndpoint(ep string) error {
-	ep = strings.TrimSpace(ep)
-	if ep == "" {
-		return ErrChannelMonitorInvalidEndpoint
-	}
-	u, err := url.Parse(ep)
+	u, err := parseEndpointSyntax(ep)
 	if err != nil {
-		return ErrChannelMonitorInvalidEndpoint
-	}
-	if u.Scheme != "https" {
-		return ErrChannelMonitorEndpointScheme
-	}
-	if u.Host == "" {
-		return ErrChannelMonitorInvalidEndpoint
-	}
-	if u.RawQuery != "" || u.Fragment != "" {
-		return ErrChannelMonitorEndpointPath
+		return err
 	}
 
 	hostname := u.Hostname()
