@@ -46,13 +46,13 @@ func (s *AccountTestService) testCNProviderAdaptiveConnection(c *gin.Context, ac
 	}
 
 	if account.providerSupportsProtocol(APIProtocolAnthropic) {
-		if err := s.testCNProviderAdaptiveAnthropicConnection(c, account, testModelID, authToken); err != nil {
+		if err := s.testCNProviderAdaptiveAnthropicConnection(c, account, testModelID, authToken, prompt); err != nil {
 			return err
 		}
 	}
 
 	if account.SupportsNativeCNResponses() {
-		if err := s.testCNProviderAdaptiveResponsesConnection(c, account, testModelID, authToken); err != nil {
+		if err := s.testCNProviderAdaptiveResponsesConnection(c, account, testModelID, authToken, prompt); err != nil {
 			return err
 		}
 	}
@@ -62,7 +62,7 @@ func (s *AccountTestService) testCNProviderAdaptiveConnection(c *gin.Context, ac
 	return nil
 }
 
-func (s *AccountTestService) testCNProviderAdaptiveAnthropicConnection(c *gin.Context, account *Account, testModelID string, authToken string) error {
+func (s *AccountTestService) testCNProviderAdaptiveAnthropicConnection(c *gin.Context, account *Account, testModelID string, authToken string, prompt string) error {
 	ctx := c.Request.Context()
 	baseURL, err := s.validateUpstreamBaseURL(account.GetCNProtocolBaseURL(APIProtocolAnthropic))
 	if err != nil {
@@ -70,7 +70,7 @@ func (s *AccountTestService) testCNProviderAdaptiveAnthropicConnection(c *gin.Co
 	}
 	apiURL := strings.TrimRight(baseURL, "/") + "/v1/messages"
 
-	payload, err := createTestPayload(testModelID)
+	payload, err := createTestPayloadWithPrompt(testModelID, prompt)
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Failed to create adaptive Anthropic test payload")
 	}

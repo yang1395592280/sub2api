@@ -69,7 +69,9 @@ func (s *wsGroupPricingAPIKeyRepoStub) GetByKeyForAuth(ctx context.Context, key 
 	user := *s.apiKey.User
 	apiKey.User = &user
 	group := s.group
-	apiKey.Group = &group
+	if apiKey.GroupID != nil {
+		apiKey.Group = &group
+	}
 	return &apiKey, nil
 }
 
@@ -93,7 +95,110 @@ func (s *wsGroupPricingAPIKeyRepoStub) lookupCount() int {
 }
 
 func newWSGroupPricingAPIKeyService(repo *wsGroupPricingAPIKeyRepoStub) *service.APIKeyService {
-	return service.NewAPIKeyService(repo, nil, nil, nil, nil, nil, &config.Config{})
+	return service.NewAPIKeyService(repo, nil, &wsGroupPricingGroupRepoStub{repo: repo}, nil, nil, nil, &config.Config{})
+}
+
+type wsGroupPricingGroupRepoStub struct {
+	service.GroupRepository
+	repo *wsGroupPricingAPIKeyRepoStub
+}
+
+func (s *wsGroupPricingGroupRepoStub) GetByIDLite(_ context.Context, groupID int64) (*service.Group, error) {
+	s.repo.mu.Lock()
+	defer s.repo.mu.Unlock()
+	if s.repo.err != nil {
+		return nil, s.repo.err
+	}
+	if groupID != s.repo.group.ID {
+		return nil, service.ErrGroupNotFound
+	}
+	group := s.repo.group
+	return &group, nil
+}
+
+type wsGroupPricingAutoGroupsProvider struct {
+	repo *wsGroupPricingAPIKeyRepoStub
+}
+
+func (p *wsGroupPricingAutoGroupsProvider) GetAvailableGroups(context.Context, int64) ([]service.Group, error) {
+	p.repo.mu.Lock()
+	defer p.repo.mu.Unlock()
+	return []service.Group{p.repo.group}, nil
+}
+
+func (*wsGroupPricingAutoGroupsProvider) GetUserGroupRates(context.Context, int64) (map[int64]float64, error) {
+	return nil, nil
+}
+
+func newWSAutoGroupPricingAPIKeyRepoStub(rate float64) *wsGroupPricingAPIKeyRepoStub {
+	repo := newWSGroupPricingAPIKeyRepoStub(rate)
+	repo.apiKey.GroupID = nil
+	repo.apiKey.GroupSelectMode = service.APIKeyGroupSelectModeOpenAIAutoCheapest
+	repo.group.AllowAutoCheapestScheduling = true
+	return repo
+}
+
+func TestOpenAIResponsesWebSocket_AutoGroupRateChangeAppliesToNextTurn(t *testing.T) {
+	for _, mode := range []string{service.OpenAIWSIngressModePassthrough, service.OpenAIWSIngressModeCtxPool} {
+		for _, pricing := range []struct {
+			name          string
+			before, after float64
+		}{{"decrease", 3, 0.3}, {"increase", 0.3, 3}} {
+			t.Run(mode+"/"+pricing.name, func(t *testing.T) {
+				repo := newWSAutoGroupPricingAPIKeyRepoStub(pricing.before)
+				apiKeyService := newWSGroupPricingAPIKeyService(repo)
+				got := runOpenAIResponsesWebSocketUsageLogCase(t, openAIResponsesWSUsageLogCase{
+					firstPayload:       wsGroupPricingFirst,
+					secondPayload:      wsGroupPricingSecond,
+					ingressMode:        mode,
+					apiKeyService:      apiKeyService,
+					apiKeyCredential:   wsGroupPricingKey,
+					autoGroupsProvider: &wsGroupPricingAutoGroupsProvider{repo: repo},
+					afterFirstUpstreamRequest: func(*service.ChannelService) error {
+						repo.mu.Lock()
+						repo.group.RateMultiplier = pricing.after
+						repo.mu.Unlock()
+						return nil
+					},
+				})
+				require.Len(t, got.logs, 2)
+				require.InDelta(t, pricing.before, got.logs[0].RateMultiplier, 1e-12)
+				require.InDelta(t, pricing.after, got.logs[1].RateMultiplier, 1e-12)
+				require.InDelta(t, got.logs[0].ActualCost*pricing.after/pricing.before, got.logs[1].ActualCost, 1e-15)
+				require.Nil(t, repo.apiKey.GroupID, "pricing refresh must not bind the automatic key")
+			})
+		}
+	}
+}
+
+func TestOpenAIResponsesWebSocket_AutoGroupRateChangeReachesProfitGate(t *testing.T) {
+	for _, mode := range []string{service.OpenAIWSIngressModePassthrough, service.OpenAIWSIngressModeCtxPool} {
+		t.Run(mode, func(t *testing.T) {
+			repo := newWSAutoGroupPricingAPIKeyRepoStub(3)
+			repo.group.ProfitControlEnabled = true
+			repo.group.ProfitMinMargin = 0.1
+			apiKeyService := newWSGroupPricingAPIKeyService(repo)
+			accountRate := 1.0
+			runOpenAIResponsesWebSocketUsageLogCase(t, openAIResponsesWSUsageLogCase{
+				firstPayload:          wsGroupPricingFirst,
+				secondPayload:         wsGroupPricingSecond,
+				ingressMode:           mode,
+				apiKeyService:         apiKeyService,
+				apiKeyCredential:      wsGroupPricingKey,
+				autoGroupsProvider:    &wsGroupPricingAutoGroupsProvider{repo: repo},
+				accountRateMultiplier: &accountRate,
+				afterFirstUpstreamRequest: func(*service.ChannelService) error {
+					repo.mu.Lock()
+					repo.group.RateMultiplier = 0.3
+					repo.mu.Unlock()
+					return nil
+				},
+				secondTurnCloseExpected: true,
+				closeStatus:             coderws.StatusTryAgainLater,
+				closeReason:             "no longer eligible for this connection",
+			})
+		})
+	}
 }
 
 func TestOpenAIResponsesWebSocket_GroupRateChangeAppliesToNextTurn(t *testing.T) {
@@ -191,6 +296,58 @@ type wsTurnAPIKeyLookupFunc func(ctx context.Context, key string) (*service.APIK
 
 func (f wsTurnAPIKeyLookupFunc) GetByKey(ctx context.Context, key string) (*service.APIKey, error) {
 	return f(ctx, key)
+}
+
+type wsTurnEffectiveGroupLookupStub struct {
+	wsTurnAPIKeyLookupFunc
+	group *service.Group
+	err   error
+}
+
+func (s wsTurnEffectiveGroupLookupStub) GetEffectiveGroupForBilling(context.Context, int64) (*service.Group, error) {
+	return s.group, s.err
+}
+
+func TestRefreshOpenAIWSTurnBillingAPIKey_AutoGroupGuards(t *testing.T) {
+	groupID := int64(77)
+	conn := &service.APIKey{ID: 5, Key: "sk-auto", GroupID: &groupID,
+		GroupSelectMode: service.APIKeyGroupSelectModeOpenAIAutoCheapest,
+		Group: &service.Group{ID: groupID, Platform: service.PlatformOpenAI,
+			SubscriptionType: service.SubscriptionTypeStandard, RateMultiplier: 3}}
+	for _, tc := range []struct {
+		name   string
+		mutate func(*service.APIKey, *service.Group)
+		err    error
+	}{
+		{"group lookup error", nil, errors.New("group store unavailable")},
+		{"wrong group", func(_ *service.APIKey, group *service.Group) { group.ID++ }, nil},
+		{"platform changed", func(_ *service.APIKey, group *service.Group) { group.Platform = service.PlatformAnthropic }, nil},
+		{"billing type changed", func(_ *service.APIKey, group *service.Group) {
+			group.SubscriptionType = service.SubscriptionTypeSubscription
+		}, nil},
+		{"key switched to fixed", func(key *service.APIKey, _ *service.Group) { key.GroupSelectMode = service.APIKeyGroupSelectModeFixed }, nil},
+		{"key gained a bound group", func(key *service.APIKey, _ *service.Group) { key.GroupID = &groupID }, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			latest := &service.APIKey{ID: conn.ID, GroupSelectMode: service.APIKeyGroupSelectModeOpenAIAutoCheapest}
+			group := *conn.Group
+			group.RateMultiplier = 0.3
+			if tc.mutate != nil {
+				tc.mutate(latest, &group)
+			}
+			lookup := wsTurnEffectiveGroupLookupStub{
+				wsTurnAPIKeyLookupFunc: func(context.Context, string) (*service.APIKey, error) { return latest, nil },
+				group:                  &group, err: tc.err,
+			}
+			require.Same(t, conn, refreshOpenAIWSTurnBillingAPIKey(context.Background(), lookup, conn))
+		})
+	}
+	lookup := wsTurnEffectiveGroupLookupStub{
+		wsTurnAPIKeyLookupFunc: func(context.Context, string) (*service.APIKey, error) {
+			return &service.APIKey{ID: conn.ID, GroupSelectMode: service.APIKeyGroupSelectModeOpenAIAutoCheapest}, nil
+		},
+	}
+	require.Same(t, conn, refreshOpenAIWSTurnBillingAPIKey(context.Background(), lookup, conn), "missing group keeps the connection snapshot")
 }
 
 func TestRefreshOpenAIWSTurnBillingAPIKey(t *testing.T) {

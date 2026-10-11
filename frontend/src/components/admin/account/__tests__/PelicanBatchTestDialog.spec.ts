@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import PelicanBatchTestDialog from '../PelicanBatchTestDialog.vue'
@@ -23,6 +23,11 @@ const SelectStub = defineComponent({
 })
 
 describe('PelicanBatchTestDialog', () => {
+  beforeEach(() => {
+    getAvailableModels.mockReset()
+    startPelicanTests.mockReset().mockResolvedValue([])
+  })
+
   it('waits for confirmation and submits the exact default prompt with the Astra model ID', async () => {
     getAvailableModels.mockResolvedValue([{ id: 'gpt-6-astra', display_name: 'GPT-6 Astra' }])
     startPelicanTests.mockResolvedValue([])
@@ -52,5 +57,91 @@ describe('PelicanBatchTestDialog', () => {
     expect(getAvailableModels).toHaveBeenNthCalledWith(1, 21)
     expect(getAvailableModels).toHaveBeenNthCalledWith(2, 22)
     expect(wrapper.get('[data-test="selected-model"]').text()).toBe('gpt-6-astra')
+  })
+
+  it('uses a trimmed custom model ID in preference to the selected model', async () => {
+    getAvailableModels.mockResolvedValue([{ id: 'gpt-6-astra', display_name: 'GPT-6 Astra' }])
+    const wrapper = mount(PelicanBatchTestDialog, {
+      props: { show: true, accountIds: [11], accountNames: {} },
+      global: { stubs: { BaseDialog: BaseDialogStub, Select: SelectStub } }
+    })
+    await flushPromises()
+    await wrapper.get('#pelican-custom-model').setValue('  vendor/custom-model  ')
+    await wrapper.get('textarea').setValue('  Generate HTML  ')
+    await wrapper.get('[data-test="start-pelican-test"]').trigger('click')
+    await flushPromises()
+    expect(startPelicanTests).toHaveBeenCalledWith([11], 'vendor/custom-model', 'Generate HTML')
+  })
+
+  it('allows a custom model when every model-list request fails', async () => {
+    getAvailableModels.mockRejectedValue(new Error('models unavailable'))
+    const wrapper = mount(PelicanBatchTestDialog, {
+      props: { show: true, accountIds: [11, 12], accountNames: {} },
+      global: { stubs: { BaseDialog: BaseDialogStub, Select: SelectStub } }
+    })
+    await flushPromises()
+    const start = wrapper.get('[data-test="start-pelican-test"]')
+    expect(start.attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('admin.accounts.pelican.modelListUnavailable')
+    await wrapper.get('#pelican-custom-model').setValue('vendor/custom-model')
+    expect(start.attributes('disabled')).toBeUndefined()
+    await start.trigger('click')
+    await flushPromises()
+    expect(startPelicanTests).toHaveBeenCalledWith([11, 12], 'vendor/custom-model', expect.any(String))
+  })
+
+  it('keeps manual input usable while loading and after an empty model list', async () => {
+    let resolveModels!: (models: unknown[]) => void
+    getAvailableModels.mockImplementation(() => new Promise(resolve => { resolveModels = resolve }))
+    const wrapper = mount(PelicanBatchTestDialog, {
+      props: { show: true, accountIds: [11], accountNames: {} },
+      global: { stubs: { BaseDialog: BaseDialogStub, Select: SelectStub } }
+    })
+    await wrapper.get('#pelican-custom-model').setValue('manual-model')
+    const start = wrapper.get('[data-test="start-pelican-test"]')
+    expect(start.attributes('disabled')).toBeUndefined()
+    resolveModels([])
+    await flushPromises()
+    expect((wrapper.get('#pelican-custom-model').element as HTMLInputElement).value).toBe('manual-model')
+    await start.trigger('click')
+    await flushPromises()
+    expect(startPelicanTests).toHaveBeenCalledWith([11], 'manual-model', expect.any(String))
+  })
+
+  it('falls back to the dropdown after clearing manual input and resets when reopened', async () => {
+    getAvailableModels.mockResolvedValue([{ id: 'gpt-6-astra', display_name: 'GPT-6 Astra' }])
+    const wrapper = mount(PelicanBatchTestDialog, {
+      props: { show: true, accountIds: [11], accountNames: {} },
+      global: { stubs: { BaseDialog: BaseDialogStub, Select: SelectStub } }
+    })
+    await flushPromises()
+    await wrapper.get('#pelican-custom-model').setValue('manual-model')
+    await wrapper.get('#pelican-custom-model').setValue('   ')
+    await wrapper.get('[data-test="start-pelican-test"]').trigger('click')
+    await flushPromises()
+    expect(startPelicanTests).toHaveBeenCalledWith([11], 'gpt-6-astra', expect.any(String))
+    await wrapper.get('#pelican-custom-model').setValue('another-model')
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    expect((wrapper.get('#pelican-custom-model').element as HTMLInputElement).value).toBe('')
+    expect(wrapper.get('[data-test="selected-model"]').text()).toBe('gpt-6-astra')
+  })
+
+  it('blocks blank and overlong manual model IDs when no dropdown model is available', async () => {
+    getAvailableModels.mockResolvedValue([])
+    const wrapper = mount(PelicanBatchTestDialog, {
+      props: { show: true, accountIds: [11], accountNames: {} },
+      global: { stubs: { BaseDialog: BaseDialogStub, Select: SelectStub } }
+    })
+    await flushPromises()
+    const start = wrapper.get('[data-test="start-pelican-test"]')
+    await wrapper.get('#pelican-custom-model').setValue('  ')
+    expect(start.attributes('disabled')).toBeDefined()
+    await wrapper.get('#pelican-custom-model').setValue('x'.repeat(256))
+    expect(start.attributes('disabled')).toBeDefined()
+    await wrapper.get('#pelican-custom-model').setValue('x'.repeat(255))
+    expect(start.attributes('disabled')).toBeUndefined()
+    expect(startPelicanTests).not.toHaveBeenCalled()
   })
 })

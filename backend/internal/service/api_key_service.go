@@ -392,6 +392,15 @@ func NewAPIKeyService(
 	return svc
 }
 
+// GetEffectiveGroupForBilling reloads a scheduler-selected group without changing
+// the key's binding. Automatic keys have no bound group in their auth snapshot.
+func (s *APIKeyService) GetEffectiveGroupForBilling(ctx context.Context, groupID int64) (*Group, error) {
+	if s == nil || s.groupRepo == nil || groupID <= 0 {
+		return nil, ErrGroupNotFound
+	}
+	return s.groupRepo.GetByIDLite(ctx, groupID)
+}
+
 // SetRateLimitCacheInvalidator sets the optional rate limit cache invalidator.
 // Called after construction (e.g. in wire) to avoid circular dependencies.
 func (s *APIKeyService) SetRateLimitCacheInvalidator(inv RateLimitCacheInvalidator) {

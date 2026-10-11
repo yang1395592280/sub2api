@@ -2251,8 +2251,9 @@ type openAIResponsesWSUsageLogCase struct {
 	group *service.Group
 	// apiKeyService 非 nil 时模拟 API Key 认证中间件：连接认证快照经它按
 	// apiKeyCredential 取得，并把其分组放入请求 ctx；handler 也使用它。
-	apiKeyService    *service.APIKeyService
-	apiKeyCredential string
+	apiKeyService      *service.APIKeyService
+	apiKeyCredential   string
+	autoGroupsProvider service.AvailableOpenAIGroupsProvider
 	// accountRateMultiplier 覆盖账号倍率（利润门测试用）。
 	accountRateMultiplier *float64
 	// firstFrameCloseExpected：首帧即被拒（连接被 1008 关闭），不期待任何响应帧。
@@ -3424,6 +3425,9 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		nil,
 		nil, // userPlatformQuotaRepo
 	)
+	if tc.autoGroupsProvider != nil {
+		gatewaySvc.SetOpenAIAutoCheapestGroupResolver(service.NewOpenAIAutoCheapestGroupResolver(tc.autoGroupsProvider), nil)
+	}
 
 	cache := &concurrencyCacheMock{
 		acquireUserSlotFn: func(ctx context.Context, userID int64, maxConcurrency int, requestID string) (bool, error) {

@@ -119,8 +119,8 @@ func (s *PelicanTestService) generate(ctx context.Context, test PelicanTest) (st
 	mappedModel := account.GetMappedModel(test.ModelID)
 	supportsPrompt := account.IsOpenAI() || account.IsGemini() || account.IsGrok() ||
 		(account.IsAnthropic() && (account.Type == AccountTypeOAuth || account.Type == AccountTypeAPIKey)) ||
-		(account.IsCNProvider() && (protocol == APIProtocolChatCompletions || protocol == APIProtocolResponses || protocol == APIProtocolAnthropic)) ||
-		account.IsOpenCodeGo() ||
+		(account.RoutesProtocolByInbound() && (protocol == APIProtocolChatCompletions || protocol == APIProtocolResponses || protocol == APIProtocolAnthropic)) ||
+		account.routesByModel() ||
 		(account.Platform == PlatformAntigravity && account.Type == AccountTypeAPIKey)
 	if !supportsPrompt {
 		return "failed", "", "", "该账号协议暂不支持自定义 HTML 生成提示词", 0, usage

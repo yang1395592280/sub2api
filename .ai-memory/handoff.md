@@ -12,3 +12,10 @@
 相关文件：13 个冲突文件、合规状态回归、嵌入静态资源测试；完整清单与命令见 .ai-memory/20261011/upstream-sync.md。
 未完成：本次未授权 push 或部署；后续部署前需验证真实数据库迁移 242 与登录后核心功能。
 阻塞：本地同步无已知阻塞。golangci-lint 未安装，未执行该项检查；真实 PostgreSQL/Redis 集成和浏览器验收尚未执行。
+
+## 2026-10-11 Bug 修复与自填模型检查点
+
+已完成：3 个 Bug 修复及鹈鹕自填模型 ID；后端全量 unit、go vet、embed 测试，前端 10 项测试、lint、build 通过；实际弹窗的手填优先及模型列表失败路径经浏览器本地请求桩验证。
+相关文件：backend/internal/handler/openai_gateway_handler.go、backend/internal/service/api_key_service.go、pelican_test_service.go、account_test_service_cn_adaptive.go、frontend/src/components/admin/account/PelicanBatchTestDialog.vue 及回归测试/中英文文案；完整清单见 .ai-memory/20261011/bugfix-pelican-model.md。
+未完成：本轮需求无遗留实现项；真实供应商与 PostgreSQL/Redis 集成验证未执行。未 push、部署、执行迁移。
+阻塞：本地交付无已知阻塞；自动模式后续每轮多一次 Lite 分组读取，自填模型仍受账号模型配置约束。

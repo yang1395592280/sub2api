@@ -2222,6 +2222,10 @@ type openAIWSTurnAPIKeyLookup interface {
 	GetByKey(ctx context.Context, key string) (*service.APIKey, error)
 }
 
+type openAIWSTurnEffectiveGroupLookup interface {
+	GetEffectiveGroupForBilling(ctx context.Context, groupID int64) (*service.Group, error)
+}
+
 // openAIWSTurnBillingAPIKeys 按 turn 号保存每个 turn 计费用的 API Key 快照。
 //
 // API Key 认证快照只在建连时取一次。若连接内所有 turn 共用它，分组定价（倍率、
@@ -2234,6 +2238,8 @@ type openAIWSTurnAPIKeyLookup interface {
 // Key 限额、订阅仍沿用建连快照。只在同一把 Key、同一分组且平台与订阅类型未变时
 // 采用：Key 换组或分组改平台/订阅类型不是调价，该连接按建连分组调度，继续按建连
 // 快照计费；重取失败同样保留建连快照，不断连。
+// 自动低价 Key 的认证快照没有绑定分组，按连接选定的有效分组 ID 重取定价，
+// 不重新选号，也不把有效分组写回 Key 的绑定。
 //
 // 首轮沿用刚经认证中间件取得的建连快照；没有经过 BeforeTurn 的 turn 回退建连
 // 快照。只保留当前与上一个 turn：下一 turn 的 BeforeTurn 先于上一 turn 的
@@ -2284,10 +2290,28 @@ func refreshOpenAIWSTurnBillingAPIKey(ctx context.Context, lookup openAIWSTurnAP
 		return conn
 	}
 	latest, err := lookup.GetByKey(ctx, conn.Key)
-	if err != nil || latest == nil || latest.ID != conn.ID || latest.GroupID == nil || *latest.GroupID != *conn.GroupID {
+	if err != nil || latest == nil || latest.ID != conn.ID {
 		return conn
 	}
-	group := latest.Group
+	var group *service.Group
+	if conn.UsesOpenAIAutoCheapestGroup() {
+		if !latest.UsesOpenAIAutoCheapestGroup() || latest.GroupID != nil {
+			return conn
+		}
+		groupLookup, ok := lookup.(openAIWSTurnEffectiveGroupLookup)
+		if !ok {
+			return conn
+		}
+		group, err = groupLookup.GetEffectiveGroupForBilling(ctx, *conn.GroupID)
+		if err != nil {
+			return conn
+		}
+	} else {
+		if latest.GroupID == nil || *latest.GroupID != *conn.GroupID {
+			return conn
+		}
+		group = latest.Group
+	}
 	if group == nil || group.ID != conn.Group.ID ||
 		group.Platform != conn.Group.Platform ||
 		group.SubscriptionType != conn.Group.SubscriptionType {
@@ -2299,13 +2323,18 @@ func refreshOpenAIWSTurnBillingAPIKey(ctx context.Context, lookup openAIWSTurnAP
 }
 
 // withOpenAIWSTurnBillingGroup 把本 turn 的计费分组换进认证分组上下文，使利润门
-// 的售价与本 turn 计费同源。上下文里没有同 ID 的认证分组时不改动。
+// 的售价与本 turn 计费同源。自动低价连接没有认证分组，需装入有效分组；
+// 已有其他分组（如 composite 父分组）时保持其计费语义。
 func withOpenAIWSTurnBillingGroup(ctx context.Context, turnKey *service.APIKey) context.Context {
 	if turnKey == nil || turnKey.Group == nil {
 		return ctx
 	}
 	current, ok := ctx.Value(ctxkey.Group).(*service.Group)
-	if !ok || current == nil || current == turnKey.Group || current.ID != turnKey.Group.ID {
+	if !ok || current == nil {
+		if !turnKey.UsesOpenAIAutoCheapestGroup() {
+			return ctx
+		}
+	} else if current == turnKey.Group || current.ID != turnKey.Group.ID {
 		return ctx
 	}
 	return context.WithValue(ctx, ctxkey.Group, turnKey.Group)

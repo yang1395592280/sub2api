@@ -99,9 +99,26 @@ func TestAccountTestService_AdaptiveChatOnlyProvidersTestChatAndAnthropicEndpoin
 	require.Equal(t, "http://anthropic.example/v1/messages", upstream.requests[1].URL.String())
 	require.Equal(t, "Bearer sk-adaptive-test", upstream.requests[0].Header.Get("Authorization"))
 	require.Equal(t, "sk-adaptive-test", upstream.requests[1].Header.Get("x-api-key"))
+	require.Equal(t, "hello", gjson.GetBytes(upstream.bodies[0], "messages.0.content").String())
+	require.Equal(t, "hello", gjson.GetBytes(upstream.bodies[1], "messages.0.content.0.text").String())
 	require.Equal(t, 1, strings.Count(recorder.Body.String(), `"type":"test_start"`))
 	require.Equal(t, 1, strings.Count(recorder.Body.String(), `"type":"test_complete"`))
 	require.Contains(t, recorder.Body.String(), "已通过原生 /v1/messages 验证")
+}
+
+func TestAccountTestService_AdaptivePropagatesCustomPromptToAllProtocols(t *testing.T) {
+	account := adaptiveCNAccountTestAccount(307, PlatformDeepseek)
+	svc, upstream := adaptiveCNAccountTestService(account,
+		adaptiveCNChatTestResponse(), adaptiveCNAnthropicTestResponse(), adaptiveCNResponsesTestResponse())
+	c, _ := newTestContext()
+	const prompt = "Generate a complete HTML document"
+
+	require.NoError(t, svc.TestAccountConnection(c, account.ID, "deepseek-chat", prompt, AccountTestModeDefault))
+	require.Len(t, upstream.bodies, 3)
+	require.Equal(t, prompt, gjson.GetBytes(upstream.bodies[0], "messages.0.content").String())
+	require.Equal(t, prompt, gjson.GetBytes(upstream.bodies[1], "messages.0.content.0.text").String())
+	require.Equal(t, int64(8192), gjson.GetBytes(upstream.bodies[1], "max_tokens").Int())
+	require.Equal(t, prompt, gjson.GetBytes(upstream.bodies[2], "input.0.content.0.text").String())
 }
 
 func TestAccountTestService_AdaptiveDeepSeekAlsoTestsResponsesEndpoint(t *testing.T) {
