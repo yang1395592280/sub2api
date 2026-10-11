@@ -12,3 +12,11 @@
 - 后端全量 unit/go vet/embed 测试、前端 10 项定向测试/lint/build 通过；浏览器本地请求桩交互验证通过。
 - 自填仍遵守账号模型配置；自动模式每轮增加 Lite 分组读取。未 push/部署/真实供应商调用。
 - 文件、命令和限制见 bugfix-pelican-model.md。
+
+## [14:04] 发布：v0.2.15.1
+
+- 用户授权提交、打 tag 并推送；范围为 origin/custom-main 和 annotated tag v0.2.15.1，不推送 main/upstream。
+- backend/cmd/server/VERSION 从 0.2.15 更新为 0.2.15.1；版本解析、嵌入后端构建及二进制 -version 验证通过。
+- 发布工具的四段版本和 tag/commit 绑定两项测试通过；系统 Python 缺 PyYAML，使用临时 venv 安装仓库锁定的 PyYAML==6.0.3 完成检查。
+- Tag 发布说明包含上游同步、3 个 Bug 修复及鹈鹕自填模型；Git 推送验收以远端 custom-main 和 peeled tag 均指向发布提交为准。
+- Tag 会触发 Release 工作流；Git 推送成功不代表镜像/归档构建成功，需单独核验。

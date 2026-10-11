@@ -9,3 +9,5 @@
 活跃任务: WebSocket 自动调价及鹈鹕自填模型修复，详见 bugfix-pelican-model.md
 上次会话: 2026-10-11
 交接状态: 本轮实现与验证完成；真实供应商及集成验证尚未执行，未 push/部署
+
+- 后续发布 v0.2.15.1：用户已授权 custom-main 和 annotated tag 推送；VERSION/嵌入构建及版本发布工具检查通过，最终 Git ref 和 CI 结果分别核验。

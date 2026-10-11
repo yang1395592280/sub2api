@@ -19,3 +19,11 @@
 相关文件：backend/internal/handler/openai_gateway_handler.go、backend/internal/service/api_key_service.go、pelican_test_service.go、account_test_service_cn_adaptive.go、frontend/src/components/admin/account/PelicanBatchTestDialog.vue 及回归测试/中英文文案；完整清单见 .ai-memory/20261011/bugfix-pelican-model.md。
 未完成：本轮需求无遗留实现项；真实供应商与 PostgreSQL/Redis 集成验证未执行。未 push、部署、执行迁移。
 阻塞：本地交付无已知阻塞；自动模式后续每轮多一次 Lite 分组读取，自填模型仍受账号模型配置约束。
+
+## 2026-10-11 v0.2.15.1 发布检查点
+
+已完成：用户已授权本次提交/tag/push；VERSION=0.2.15.1，解析脚本、嵌入构建、二进制版本输出通过，发布工具四段版本与 tag/commit 绑定两项测试通过。
+相关文件：backend/cmd/server/VERSION、.github/workflows/release.yml、.github/release-tools/release_matrix.py；发布包含 custom-main 上游同步和 815d8a9e2 的修复。
+验收范围：origin/custom-main 和 annotated tag v0.2.15.1；两者远端 commit 应相同。未授权 main/upstream 推送或生产部署。
+未完成：Release 归档/镜像构建结果需单独查看远端工作流；真实供应商及 PostgreSQL/Redis 集成验证仍未执行。
+阻塞：Git 发布准备无已知阻塞。
