@@ -10,3 +10,11 @@ session-id: 20261015-0902
 - 两项需求已验证；前端29项、admin/DTO535项、冷却/计费105项、embed100项通过，lint/typecheck/vet/build通过。
 - 浏览器本地API桩检查组合筛选、搜索空结果、清空、长名称及320–1600px布局，console/page error为0。
 - 代码55a18dcfb已快进合回custom-main，无冲突；未push/部署/迁移。
+
+## v0.2.16.1 发布准备
+
+- 用户明确授权提交、打 tag 和推送；范围为 origin/custom-main 与 annotated tag v0.2.16.1。
+- VERSION 更新为 0.2.16.1，包含上游 v0.2.16 合并与账号筛选、分组价格修复。
+- 嵌入构建及二进制 -version 确认 0.2.16.1；四段版本/tag-commit 绑定两项发布工具测试通过（临时 venv 使用锁定 PyYAML==6.0.3）。
+- 远程分支 9ab564ab8 为本地主线祖先，目标 tag 不存在；采用 atomic push，推送后核验远端分支与 peeled tag 指向同一发布提交。
+- 以上为推送前记录，最终结果以远端 ref 核验为准；生产部署与数据库迁移不在本次操作范围。

@@ -34,3 +34,11 @@
 相关文件：AccountTableFilters.vue、dto/mappers.go、两组后端价格回归、筛选测试和中英文文案；详情见 20261015/bugfix-account-filters.md。代码 55a18dcfb 已从 feature 快进合回 custom-main，无冲突。
 未完成：本轮无遗留实现项；未 push/部署/迁移，真实 PostgreSQL/Redis/供应商集成仍未执行；迁移 242–245 上线前需验证。main/upstream/main=9c2cca9e6，合并提交=2ec18bf30。
 阻塞：本地修复无已知阻塞；golangci-lint 未安装，未执行该项。
+
+## 2026-10-15 v0.2.16.1 发布准备
+
+已完成：用户授权本次 commit/tag/push，VERSION=0.2.16.1；嵌入构建与二进制版本输出、发布工具四段版本及 tag/commit 绑定两项测试通过。发布包含上游合并 2ec18bf30 和修复 55a18dcfb。
+相关文件：backend/cmd/server/VERSION、20261015/session_memory_release_v0.2.16.1.jsonl。
+验收范围：origin/custom-main 与 annotated tag v0.2.16.1，推送后远端分支与 peeled tag 应指向同一发布提交。本记录为推送前状态，结果以远端核验为准。
+未完成：Release CI 归档/镜像构建结果需另行核验；真实 PostgreSQL/Redis/供应商集成未执行，未执行生产部署或迁移。
+阻塞：Git 发布准备无已知阻塞。
