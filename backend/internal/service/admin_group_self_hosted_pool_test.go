@@ -139,6 +139,30 @@ func TestAdminServiceSelfHostedPool_AllowsMultipleGroupsToSharePool(t *testing.T
 	require.Equal(t, poolID, *groupC.SelfHostedPoolGroupID)
 }
 
+func TestAdminServiceSelfHostedPool_I18nPreservesPoolBinding(t *testing.T) {
+	repo := newSelfHostedPoolGroupRepo()
+	svc := &adminServiceImpl{groupRepo: repo}
+	poolID := int64(99)
+
+	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name: "rate-015", Platform: PlatformOpenAI, RateMultiplier: 0.15,
+		SelfHostedPoolGroupID: &poolID,
+		I18n:                  GroupI18n{"en": {Name: " Standard "}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, GroupRoleStandard, group.GroupRole)
+	require.Equal(t, &poolID, group.SelfHostedPoolGroupID)
+	require.Equal(t, GroupI18n{"en": {Name: "Standard"}}, group.I18n)
+
+	next := GroupI18n{"en": {Name: " Standard v2 "}}
+	updated, err := svc.UpdateGroup(context.Background(), group.ID, &UpdateGroupInput{I18n: &next})
+	require.NoError(t, err)
+	require.Equal(t, GroupRoleStandard, updated.GroupRole)
+	require.Equal(t, &poolID, updated.SelfHostedPoolGroupID)
+	require.Equal(t, 0.15, updated.RateMultiplier)
+	require.Equal(t, GroupI18n{"en": {Name: "Standard v2"}}, updated.I18n)
+}
+
 func TestAdminServiceSelfHostedPool_UpdateAssociationUsesTriState(t *testing.T) {
 	repo := newSelfHostedPoolGroupRepo()
 	poolID := int64(99)

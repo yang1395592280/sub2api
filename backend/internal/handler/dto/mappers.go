@@ -212,6 +212,7 @@ func groupFromServiceBase(g *service.Group) Group {
 		ID:                                    g.ID,
 		Name:                                  g.Name,
 		Description:                           g.Description,
+		I18n:                                  g.I18n,
 		Platform:                              g.Platform,
 		GroupRole:                             g.GroupRole,
 		SelfHostedPoolGroupID:                 g.SelfHostedPoolGroupID,
