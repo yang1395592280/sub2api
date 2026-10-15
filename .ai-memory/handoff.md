@@ -27,3 +27,10 @@
 验收范围：origin/custom-main 和 annotated tag v0.2.15.1；两者远端 commit 应相同。未授权 main/upstream 推送或生产部署。
 未完成：Release 归档/镜像构建结果需单独查看远端工作流；真实供应商及 PostgreSQL/Redis 集成验证仍未执行。
 阻塞：Git 发布准备无已知阻塞。
+
+## 2026-10-15 账号筛选与兼容性修复检查点
+
+已完成：去掉更多筛选折叠；修复分组视频模型、搜索和三项音频价格漏返回；回归先失败后通过。535 项 admin/DTO、105 项冷却/计费、100 项 embed、29 项前端相关测试通过，lint/typecheck/vet/构建通过。真实账号页浏览器本地 API 桩验证 320–1600px、组合筛选、搜索无结果、清空分组和长名称。
+相关文件：AccountTableFilters.vue、dto/mappers.go、两组后端价格回归、筛选测试和中英文文案；详情见 20261015/bugfix-account-filters.md。代码 55a18dcfb 已从 feature 快进合回 custom-main，无冲突。
+未完成：本轮无遗留实现项；未 push/部署/迁移，真实 PostgreSQL/Redis/供应商集成仍未执行；迁移 242–245 上线前需验证。main/upstream/main=9c2cca9e6，合并提交=2ec18bf30。
+阻塞：本地修复无已知阻塞；golangci-lint 未安装，未执行该项。
