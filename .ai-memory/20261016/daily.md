@@ -100,3 +100,8 @@ session-id: 20261016-1025
 - 用户明确要求合并分支，授权提交feature/postmerge-bugfixes的本轮修复和记录，再快进合入本地custom-main。
 - 合并前两分支均为edaf58734，目标分支未占用；仅3份Go实现/测试和4份本轮记录，git diff --check通过。复用本轮已通过的测试与构建，不增加业务代码。
 - 范围：本地提交与git merge --ff-only；无push/tag/发布/部署或版本号变更，最终状态以Git核验为准。
+
+## [18:17] 发布准备：v0.2.16.4提交/tag/push
+- 用户明确授权打tag v0.2.16.4并提交推送；基线custom-main=cf988d214（已包含本轮修复与上游v0.2.17），VERSION按用户指定改0.2.16.4。
+- 版本构建、二进制-version、版本解析与两项四段tag/commit绑定发布工具测试通过；业务代码沿用本轮验证，无额外业务修改。
+- fetch origin后确认远端custom-main=ae85f049b可快进，远端tag不存在；计划annotated tag和atomic push，仅custom-main及该tag。RELEASE_ONLY=true，沿用GitHub Release归档流程，无生产部署。推送完成以远端refs与CI状态核验为准，详见release-v0.2.16.4.md。

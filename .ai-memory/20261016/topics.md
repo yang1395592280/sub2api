@@ -24,3 +24,5 @@
 Bug排查收尾：从custom-main=edaf58734创建feature/postmerge-bugfixes；真实PostgreSQL复现并修复用量水位/金额两次读取缺少一致快照的问题（清理前1.75、清理后0，旧实现混读1.25）。新增只读可重复读事务及失败/并发回归，前端全量3114项、仓储整包unit、9个日桶/用量集成测试、相关三包race、并发集成race连续3次及服务端构建通过。仅本地工作区修复，未提交/合并/推送/部署，生产负载未验证；详见postmerge-bugfixes.md。
 
 合并授权：用户要求将feature/postmerge-bugfixes本轮用量快照一致性修复提交并合入本地custom-main；两分支合并前均为edaf58734，目标分支未占用，采用ff-only并复用已通过验证。仅本地操作，不push/tag/发布/部署。
+
+发布准备：用户授权v0.2.16.4提交/tag/push；基线cf988d214已包含上游v0.2.17及分组用量一致快照修复，VERSION、二进制-version、版本解析与发布工具两项检查通过。仅原子推送custom-main及annotated tag，RELEASE_ONLY=true；最终以远端refs与Release状态为准，未生产部署。
