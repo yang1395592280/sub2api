@@ -76,3 +76,13 @@ session-id: 20261016-1025
 - 用户明确要求合并分支，授权提交本次优化并合入本地custom-main；不包含push、tag、发布、部署或版本号修改。
 - 合并前核对：feature/group-usage-refresh与custom-main均基于ae85f049b，改动均属于本轮任务；目标分支未被其他worktree占用，可快进合并，git diff --check通过。
 - 本轮沿用上条后端定向/race、前端43项及lint/typecheck/build、页面10项检查结果；本次仅提交与合并，无业务代码追加修改。
+
+## 同步：上游v0.2.17合入custom-main
+- 用户明确要求同步最新迭代并合回custom-main。开始时工作区干净，custom-main=18a01cb9e（已包含本轮分组用量优化）；git fetch upstream后，main由9c2cca9e6快进到upstream/main=b0a02a330，共47个新提交，采用merge合入custom-main。
+- 4处文本冲突：VERSION采用上游0.2.17；account_test_service.go同时保留二改connect_timing和上游提示词/图片事件；AccountTableFilters.vue及其modify/delete测试冲突保留本地内联布局、无障碍标签和回归测试。AccountsView保留原有lg伸缩类，避免与本地w-full筛选栏组合后桌面工具栏换行。
+- 兼容修正：上游新增Codex导入测试两处NewAccountHandler调用补齐本地依赖参数；门票compact回归改为覆盖可用模型正常回退、GPT-5.5已退役时保留原模型门控；新增Antigravity真实请求路径提示词/图片/耗时联合回归。
+- 验证：初次后端范围回归36个包通过，admin编译和service两项断言失败；修正测试兼容问题后admin整包通过，service整包复测通过（211.670s），新联合回归通过。内存断言初次整包运行波动，单独连续3次及后续整包通过，未放宽断言。总计38个后端包最终通过，go build通过。
+- 前端：26文件294项通过，布局收尾后9文件56项复测通过；typecheck、修改文件ESLint、生产build通过；真实构建+本地API fixtures共13项交互通过，账号/分组桌面和390px截图已检查，pageErrors为空。
+- 保留：分组用量30秒缓存/刷新/元数据实现与本次同步前完全一致；无数据库迁移、依赖变更或生产配置修改。上游新规则禁止ChatGPT登录类账号路由GPT-5.5，API Key上游不受该退役规则影响，已有映射不会自动迁移。
+- 范围：仅本地main同步及custom-main合并提交，不push/tag/发布/部署；未连接生产数据库、真实支付或供应商。构建保留已有Browserslist/分包提示；上线前建议核对GPT-5.5映射及真实充值退款流程。
+- 详情：.ai-memory/20261016/upstream-v0217-sync.md；Git最终提交点以合并历史为准。

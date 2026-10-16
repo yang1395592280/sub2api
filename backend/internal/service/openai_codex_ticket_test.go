@@ -423,28 +423,36 @@ func TestOpenAICodexTicket_RequiresActualLengthAndExpiry(t *testing.T) {
 // （默认非空），门票门控必须按该出站模型判定。否则对门控模型发 compact 请求时，
 // 所有无票账号都会被 fail_closed 误判为不可调度，而这些请求实际不需要票。
 func TestOpenAICodexTicketGate_CompactRequestUsesForwardOutboundModel(t *testing.T) {
-	svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{
-		OpenAICompactModel: "gpt-5.5",
-		OpenAICodexTicket: config.OpenAICodexTicketConfig{
-			Enabled:      true,
-			TargetLength: 292,
-			TTLSeconds:   3600,
-			FailClosed:   true,
-			Models:       []string{"gpt-6-astra"},
-		},
-	}}}
-	account := ticketTestAccount(41) // 无票
+	for _, tc := range []struct {
+		name           string
+		fallbackModel  string
+		outboundModel  string
+		compactBlocked bool
+	}{
+		{name: "supported fallback", fallbackModel: "gpt-5.6-sol", outboundModel: "gpt-5.6-sol"},
+		{name: "retired subscription fallback", fallbackModel: "gpt-5.5", outboundModel: "gpt-6-astra", compactBlocked: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{
+				OpenAICompactModel: tc.fallbackModel,
+				OpenAICodexTicket: config.OpenAICodexTicketConfig{
+					Enabled:      true,
+					TargetLength: 292,
+					TTLSeconds:   3600,
+					FailClosed:   true,
+					Models:       []string{"gpt-6-astra"},
+				},
+			}}}
+			account := ticketTestAccount(41) // 无票
 
-	// 出站模型预测必须与 Forward 的解析链一致。
-	require.Equal(t, "gpt-6-astra", svc.openAICodexTicketOutboundModel(account, "gpt-6-astra", false))
-	require.Equal(t, "gpt-5.5", svc.openAICodexTicketOutboundModel(account, "gpt-6-astra", true))
+			// 门控必须跟随实际出站模型；已退役的 compact 兜底不能绕过原模型的门票限制。
+			require.Equal(t, "gpt-6-astra", svc.openAICodexTicketOutboundModel(account, "gpt-6-astra", false))
+			require.Equal(t, tc.outboundModel, svc.openAICodexTicketOutboundModel(account, "gpt-6-astra", true))
+			require.True(t, svc.isOpenAIAccountRequestRuntimeBlocked(account, "gpt-6-astra", false))
+			require.Equal(t, tc.compactBlocked, svc.isOpenAIAccountRequestRuntimeBlocked(account, "gpt-6-astra", true))
 
-	// 普通请求：出站仍是门控模型且无票 → fail_closed 必须拦号。
-	require.True(t, svc.isOpenAIAccountRequestRuntimeBlocked(account, "gpt-6-astra", false))
-
-	// compact 请求：出站已被改写成非门控的 gpt-5.5 → 不得拦号。
-	require.False(t, svc.isOpenAIAccountRequestRuntimeBlocked(account, "gpt-6-astra", true))
-
-	// 回归锚点：按客户端原始模型判定（旧实现的口径）在 compact 下必然误拦。
-	require.True(t, svc.openAICodexTicketBlocksAccount(account, canonicalOpenAIAccountSchedulingModel(account, "gpt-6-astra")))
+			// 按客户端原始模型判定会误拦已切换到可用非门控模型的 compact 请求。
+			require.True(t, svc.openAICodexTicketBlocksAccount(account, canonicalOpenAIAccountSchedulingModel(account, "gpt-6-astra")))
+		})
+	}
 }
