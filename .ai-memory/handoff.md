@@ -42,3 +42,10 @@
 验收范围：origin/custom-main 与 annotated tag v0.2.16.1，推送后远端分支与 peeled tag 应指向同一发布提交。本记录为推送前状态，结果以远端核验为准。
 未完成：Release CI 归档/镜像构建结果需另行核验；真实 PostgreSQL/Redis/供应商集成未执行，未执行生产部署或迁移。
 阻塞：Git 发布准备无已知阻塞。
+
+## 2026-10-16 v0.2.14.2 自动分组发布准备
+
+已完成：自动不降智分组改名、默认最高倍率0.5、体验优先故障切组，功能提交1404a54；service1938项、handler325项、最终定向service36项及前端14项通过。发布版构建与-version显示0.2.14.2，四段版本及tag/commit绑定两项发布测试通过。
+相关文件：backend/cmd/server/VERSION、handler/failover_loop.go及OpenAI入口、service/openai_gateway_scheduling.go、openai_auto_cheapest_group_context.go、frontend/src/views/user/KeysView.vue及回归测试；详情见20261016/daily.md。
+未完成：用户已授权提交/tag/push，本记录为推送前状态；将快进合回custom-main并原子推送origin/custom-main和annotated tag v0.2.14.2，两者须指向同一发布提交。远端RELEASE_ONLY=true，仅生成Release归档；生产尚未部署，真实上游和用户密钥上限待核验。
+阻塞：Git发布无已知阻塞。代码基线包含v0.2.16.1，按用户指定采用较低编号v0.2.14.2，版本比较更新可能不提示；旧密钥明确上限0.2不会自动放宽。

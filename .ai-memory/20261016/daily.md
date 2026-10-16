@@ -35,3 +35,13 @@ session-id: 20261016-1025
 - 文档: docs/superpowers/specs/2026-10-16-openai-auto-group-experience-first.md，说明证据、策略与边界；该目录受现有.gitignore忽略，文档仅本地保存。
 - 限制: 未访问真实数据库/上游，未确认线上密钥上限与调度开关；旧密钥明确保存0.2时不会因默认改0.5而自动允许0.3；No tool output等上下文缺失不能靠盲目重放保证恢复；质量指标不证明模型能力。
 - 状态: feature/auto-group-label未commit/push/合并/部署；当前授权的本地修复完成。线上下一步核对反馈密钥上限与调度模式、请求错误轨迹，发布需另行授权。
+
+## [11:13] 发布准备: v0.2.14.2提交、tag与推送
+- 用户已明确授权commit/tag/push；功能提交1404a54e6ecfcc41fbadf73e5b680834af6c8017，包含改名、默认0.5、体验优先故障切组及回归测试。
+- 版本: 当前代码基于v0.2.16.1，仍按用户指定使用v0.2.14.2；仅同步backend/cmd/server/VERSION，不回退源码。该编号低于既有版本，版本比较更新可能不提示升级。
+- 本轮验证: go build -o /tmp/sub2api-release-v0.2.14.2 ./cmd/server通过；-version显示Sub2API 0.2.14.2；bash backend/scripts/resolve-version.sh返回0.2.14.2；git diff --check和暂存区检查通过。
+- 发布工具: 两个Python运行环境缺少PyYAML，随后在临时venv安装requirements-release.txt并执行四段版本及tag/commit绑定两项测试，均通过；未修改项目依赖或CI。
+- 纠正上条描述: 共享池用池ID归因和去重，排序依据为本请求各物理来源失败次数升序，并非池ID降序。
+- 发布范围: 快进合回custom-main；annotated tag v0.2.14.2；仅推送origin/custom-main与该精确tag，不推main/upstream或其他tags。远端refs核验及工作流状态以实际推送后结果为准。
+- 自动化: 远端RELEASE_ONLY=true，tag触发现有Release归档流程，不发布Docker镜像；默认分支main的VERSION由既有workflow在Release成功后同步，未改workflow。
+- 未验证: 生产部署、真实数据库/供应商、反馈用户密钥上限及调度开关；已有显式上限0.2仍阻止切0.3。
