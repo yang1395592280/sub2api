@@ -105,3 +105,8 @@ session-id: 20261016-1025
 - 用户明确授权打tag v0.2.16.4并提交推送；基线custom-main=cf988d214（已包含本轮修复与上游v0.2.17），VERSION按用户指定改0.2.16.4。
 - 版本构建、二进制-version、版本解析与两项四段tag/commit绑定发布工具测试通过；业务代码沿用本轮验证，无额外业务修改。
 - fetch origin后确认远端custom-main=ae85f049b可快进，远端tag不存在；计划annotated tag和atomic push，仅custom-main及该tag。RELEASE_ONLY=true，沿用GitHub Release归档流程，无生产部署。推送完成以远端refs与CI状态核验为准，详见release-v0.2.16.4.md。
+
+## [18:35] 发布准备：v0.2.17.1提交/tag/push
+- 用户明确授权v0.2.17.1提交、tag、推送；基线custom-main=7543bb1f7与origin一致，工作区干净，远端tag不存在。
+- VERSION改0.2.17.1，go build及二进制-version通过；业务代码与v0.2.16.4一致，复用已通过业务与发布工具验证，未追加业务修改。
+- 计划annotated tag及atomic push，仅custom-main与精确tag；RELEASE_ONLY=true，沿用Release归档流程，旧tag保持原样，无生产部署。结果以远端refs及CI核验为准；详见release-v0.2.17.1.md。

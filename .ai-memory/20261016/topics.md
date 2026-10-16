@@ -26,3 +26,5 @@ Bug排查收尾：从custom-main=edaf58734创建feature/postmerge-bugfixes；真
 合并授权：用户要求将feature/postmerge-bugfixes本轮用量快照一致性修复提交并合入本地custom-main；两分支合并前均为edaf58734，目标分支未占用，采用ff-only并复用已通过验证。仅本地操作，不push/tag/发布/部署。
 
 发布准备：用户授权v0.2.16.4提交/tag/push；基线cf988d214已包含上游v0.2.17及分组用量一致快照修复，VERSION、二进制-version、版本解析与发布工具两项检查通过。仅原子推送custom-main及annotated tag，RELEASE_ONLY=true；最终以远端refs与Release状态为准，未生产部署。
+
+发布准备：用户授权v0.2.17.1提交/tag/push，基线7543bb1f7已推送；本次仅版本号与记录，业务代码沿用上一版。版本构建及二进制-version通过，将运行真实release plan后原子推送custom-main与annotated tag。RELEASE_ONLY=true，未部署；以远端refs和Release状态核验为准。
