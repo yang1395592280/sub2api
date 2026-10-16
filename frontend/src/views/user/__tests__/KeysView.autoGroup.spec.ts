@@ -139,7 +139,7 @@ describe('KeysView OpenAI auto cheapest group', () => {
     fetchPublicSettings.mockResolvedValue({})
   })
 
-  it('submits auto cheapest mode with a null group id and the default max rate', async () => {
+  it('lets users select auto cheapest from the create dropdown and submit the default max rate', async () => {
     const wrapper = mount(KeysView, {
       global: {
         stubs: {
@@ -154,6 +154,7 @@ describe('KeysView OpenAI auto cheapest group', () => {
           EndpointPopover: true,
           UseKeyModal: true,
           Icon: true,
+          Teleport: true,
         },
       },
     })
@@ -166,7 +167,13 @@ describe('KeysView OpenAI auto cheapest group', () => {
       .findAllComponents({ name: 'Select' })
       .find((select) => select.attributes('data-tour') === 'key-form-group')
     expect(groupSelect).toBeTruthy()
-    groupSelect.vm.$emit('update:modelValue', 'openai_auto_cheapest')
+    await groupSelect.get('button').trigger('click')
+    const autoOption = wrapper.findAll('[role="option"]')
+      .find((option) => option.text().includes('keys.openaiAutoCheapest.label'))
+    expect(autoOption, 'the automatic group must be visible and clickable').toBeTruthy()
+    await autoOption!.trigger('click')
+    expect(groupSelect.props('modelValue')).toBe('openai_auto_cheapest')
+    expect(wrapper.get<HTMLInputElement>('[data-tour="key-form-openai-auto-max-rate"]').element.value).toBe('0.5')
     await wrapper.get('form#key-form').trigger('submit')
     await flushPromises()
 

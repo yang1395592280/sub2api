@@ -49,3 +49,10 @@
 相关文件：backend/cmd/server/VERSION、handler/failover_loop.go及OpenAI入口、service/openai_gateway_scheduling.go、openai_auto_cheapest_group_context.go、frontend/src/views/user/KeysView.vue及回归测试；详情见20261016/daily.md。
 未完成：用户已授权提交/tag/push，本记录为推送前状态；将快进合回custom-main并原子推送origin/custom-main和annotated tag v0.2.14.2，两者须指向同一发布提交。远端RELEASE_ONLY=true，仅生成Release归档；生产尚未部署，真实上游和用户密钥上限待核验。
 阻塞：Git发布无已知阻塞。代码基线包含v0.2.16.1，按用户指定采用较低编号v0.2.14.2，版本比较更新可能不提示；旧密钥明确上限0.2不会自动放宽。
+
+## 2026-10-16 创建/编辑密钥自动分组选项修复
+
+已完成：v0.2.14.2已推送，远端custom-main与peeled tag同为67026acee。后续截图定位到弹窗显式过滤自动项；已在feature/fix-auto-group-form-option恢复创建OpenAI和编辑选项、修复切厂商模式残留，38项前端回归、ESLint/typecheck/build通过；真实构建页面+本地API桩验证创建0.5、编辑保留0.3、切厂商无非法提交，旧组件验证再次失败。
+相关文件：frontend/src/views/user/KeysView.vue:1682、__tests__/KeysView.autoGroup.spec.ts、__tests__/KeysView.spec.ts；详情20261016/daily.md。
+未完成：本轮修复未提交/推送/部署，尚未包含在已发布v0.2.14.2；后续补丁发布应使用新tag。真实生产与供应商未验证。
+阻塞：本地修复无已知阻塞，不覆盖已有发布tag。

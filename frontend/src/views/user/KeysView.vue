@@ -1680,16 +1680,17 @@ const createProviderOptions = computed(() => KEY_GROUP_PROVIDERS.map((value) => 
 })))
 
 const formGroupOptions = computed(() => showEditModal.value
-  ? groupOptions.value.filter((group) => group.kind !== 'openai_auto_cheapest')
+  ? groupOptions.value
   : groupOptions.value.filter((group) =>
-      group.kind !== 'openai_auto_cheapest' && getKeyGroupProvider(group.platform) === createProvider.value
+      getKeyGroupProvider(group.platform) === createProvider.value
     )
 )
 
 const selectCreateProvider = (provider: KeyGroupProvider) => {
   if (createProvider.value === provider) return
   createProvider.value = provider
-  formData.value.group_id = null
+  // Clear the selection mode too, so another provider cannot submit hidden OpenAI routing.
+  selectedGroupOptionValue.value = null
 }
 
 // Also handles groups arriving after the create dialog has already opened.
@@ -1698,8 +1699,8 @@ watch([showCreateModal, createProviderOptions], ([isOpen, providers], [wasOpen])
   if (!wasOpen || !providers.some((provider) => provider.value === createProvider.value && provider.count > 0)) {
     selectCreateProvider(providers.find((provider) => provider.count > 0)?.value ?? 'anthropic')
   }
-  if (!formGroupOptions.value.some((group) => group.value === formData.value.group_id)) {
-    formData.value.group_id = null
+  if (!formGroupOptions.value.some((group) => group.value === selectedGroupOptionValue.value)) {
+    selectedGroupOptionValue.value = null
   }
 })
 

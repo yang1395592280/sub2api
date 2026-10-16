@@ -603,7 +603,7 @@ describe('user KeysView column settings', () => {
       subscription_type: 'standard',
     }))
     const groupSelect = (wrapper: VueWrapper) => wrapper.findComponent('[data-tour="key-form-group"]')
-    const optionIds = (wrapper: VueWrapper) => groupSelect(wrapper).props('options').map((option: { value: number }) => option.value)
+    const optionIds = (wrapper: VueWrapper) => groupSelect(wrapper).props('options').map((option: { value: number | string }) => option.value)
     const chooseProvider = (wrapper: VueWrapper, value: string) => wrapper.get(`input[name="key-provider"][value="${value}"]`).setValue()
     const openCreate = async () => {
       const wrapper = await mountView()
@@ -620,7 +620,7 @@ describe('user KeysView column settings', () => {
       expect(wrapper.findAll('input[name="key-provider"]')).toHaveLength(4)
       expect(optionIds(wrapper)).toEqual([1])
       await chooseProvider(wrapper, 'openai')
-      expect(optionIds(wrapper)).toEqual([2])
+      expect(optionIds(wrapper)).toEqual(['openai_auto_cheapest', 2])
       await chooseProvider(wrapper, 'domestic')
       expect(optionIds(wrapper)).toEqual([3, 4, 5, 6])
       await chooseProvider(wrapper, 'other')
@@ -654,6 +654,51 @@ describe('user KeysView column settings', () => {
       expect(optionIds(wrapper)).toEqual([6])
     })
 
+    it('clears automatic mode when switching away from OpenAI and requires a new group', async () => {
+      const wrapper = await openCreate()
+      await wrapper.get('[data-tour="key-form-name"]').setValue('Provider switch')
+      await chooseProvider(wrapper, 'openai')
+      await groupSelect(wrapper).vm.$emit('update:modelValue', 'openai_auto_cheapest')
+      await nextTick()
+      expect(wrapper.find('[data-tour="key-form-openai-auto-max-rate"]').exists()).toBe(true)
+
+      await chooseProvider(wrapper, 'domestic')
+      expect(groupSelect(wrapper).props('modelValue')).toBeNull()
+      expect(wrapper.find('[data-tour="key-form-openai-auto-max-rate"]').exists()).toBe(false)
+      await wrapper.get('#key-form').trigger('submit')
+      expect(keysAPI.create).not.toHaveBeenCalled()
+      expect(showError).toHaveBeenCalledWith('keys.groupRequired')
+
+      await groupSelect(wrapper).vm.$emit('update:modelValue', 5)
+      vi.mocked(keysAPI.create).mockResolvedValue({ ...createApiKey(), group_id: 5 })
+      await wrapper.get('#key-form').trigger('submit')
+      await flushPromises()
+      expect(vi.mocked(keysAPI.create).mock.calls[0][1]).toBe(5)
+      expect(vi.mocked(keysAPI.create).mock.calls[0][8]).toBe('fixed')
+    })
+
+    it('keeps an automatic key selected in edit and preserves its explicit maximum rate', async () => {
+      const key = {
+        ...createApiKey(),
+        group_select_mode: 'openai_auto_cheapest' as const,
+        openai_auto_group_max_rate_multiplier: 0.3,
+      }
+      listKeys.mockResolvedValue({ items: [key], total: 1, page: 1, page_size: 20, pages: 1 })
+      updateKey.mockResolvedValue(key)
+      const wrapper = await mountView()
+      await getButtonByText(wrapper, 'common.edit').trigger('click')
+      expect(optionIds(wrapper)).toContain('openai_auto_cheapest')
+      expect(groupSelect(wrapper).props('modelValue')).toBe('openai_auto_cheapest')
+      expect(wrapper.get<HTMLInputElement>('[data-tour="key-form-openai-auto-max-rate"]').element.value).toBe('0.3')
+      await wrapper.get('#key-form').trigger('submit')
+      await flushPromises()
+      expect(updateKey).toHaveBeenCalledWith(key.id, expect.objectContaining({
+        group_id: null,
+        group_select_mode: 'openai_auto_cheapest',
+        openai_auto_group_max_rate_multiplier: 0.3,
+      }))
+    })
+
     it('shows the empty state when no groups are available', async () => {
       getAvailableGroups.mockResolvedValue([])
       const wrapper = await openCreate()
@@ -669,7 +714,7 @@ describe('user KeysView column settings', () => {
       resolveGroups([availableGroups[1]])
       await flushPromises()
       expect(wrapper.get<HTMLInputElement>('input[value="openai"]').element.checked).toBe(true)
-      expect(optionIds(wrapper)).toEqual([2])
+      expect(optionIds(wrapper)).toEqual(['openai_auto_cheapest', 2])
     })
 
     it('resets provider and group when reopening create, and preserves edit options', async () => {
@@ -683,7 +728,8 @@ describe('user KeysView column settings', () => {
       await wrapper.get('[data-test="close-dialog"]').trigger('click')
       await getButtonByText(wrapper, 'common.edit').trigger('click')
       expect(wrapper.find('[data-tour="key-form-provider"]').exists()).toBe(false)
-      expect(optionIds(wrapper)).toHaveLength(12)
+      expect(optionIds(wrapper)).toHaveLength(13)
+      expect(optionIds(wrapper)).toContain('openai_auto_cheapest')
     })
   })
 })

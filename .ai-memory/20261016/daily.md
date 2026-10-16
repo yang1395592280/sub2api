@@ -45,3 +45,13 @@ session-id: 20261016-1025
 - 发布范围: 快进合回custom-main；annotated tag v0.2.14.2；仅推送origin/custom-main与该精确tag，不推main/upstream或其他tags。远端refs核验及工作流状态以实际推送后结果为准。
 - 自动化: 远端RELEASE_ONLY=true，tag触发现有Release归档流程，不发布Docker镜像；默认分支main的VERSION由既有workflow在Release成功后同步，未改workflow。
 - 未验证: 生产部署、真实数据库/供应商、反馈用户密钥上限及调度开关；已有显式上限0.2仍阻止切0.3。
+
+## [11:31] 修复: 创建/编辑密钥缺少自动不降智分组选项
+- 现场: 用户截图为创建密钥→OpenAI→分组下拉，普通分组在、自动选项消失。
+- 根因: KeysView.vue的formGroupOptions在创建和编辑两条路径均显式过滤kind=openai_auto_cheapest；git blame定位到既有e946d24b8b。上一轮仅覆盖列表入口，创建测试直接emit自动值，未检验真实选项可见性，漏检此入口。
+- 范围: 从custom-main=67026acee创建feature/fix-auto-group-form-option；修改KeysView.vue及KeysView.autoGroup.spec.ts、KeysView.spec.ts。恢复创建OpenAI和编辑自动选项；其他创建厂商仍按platform过滤；切换厂商经selectedGroupOptionValue清空模式与group_id，候选更新也按完整选择值校验。
+- Red: 更新测试后旧源码30通过6失败，包含实际下拉无选项、编辑缺项及切厂商自动模式残留。Green: pnpm exec vitest run src/views/user/__tests__/KeysView.autoGroup.spec.ts src/views/user/__tests__/KeysView.spec.ts src/views/user/__tests__/keyGroupOptions.spec.ts（38通过）；定向ESLint、pnpm run typecheck、Vite构建与git diff --check通过。
+- Red确认: 临时Vite插件仅在测试加载时使用HEAD旧KeysView.vue，真实下拉回归再次稳定失败；未还原或覆盖工作区文件。
+- 浏览器: 当前构建+本地API桩确认OpenAI下拉自动选项可点击且默认0.5；切Anthropic后选择与倍率栏清空，未重新选组时无创建请求；切回OpenAI实际创建提交自动模式、group_id=null、上限0.5；编辑已自动密钥选项显示正确，实际PUT保留显式0.3。截图/tmp/sub2api-auto-group-form-option-restored.png。
+- 发布实况补记: 上一轮已原子推送origin/custom-main与annotated tag v0.2.14.2，远端分支和peeled tag均为67026aceeed2522d2aa6c0dc7eee3399a1950eaa；Release运行38844543275已触发。本轮修复未包含在该tag内，不移动已发布tag。
+- 限制: 本轮仅本地修复，未commit/push/部署；未访问真实数据库、供应商或生产页面；构建保留既有Browserslist/大分包提示。
