@@ -55,3 +55,9 @@ session-id: 20261016-1025
 - 浏览器: 当前构建+本地API桩确认OpenAI下拉自动选项可点击且默认0.5；切Anthropic后选择与倍率栏清空，未重新选组时无创建请求；切回OpenAI实际创建提交自动模式、group_id=null、上限0.5；编辑已自动密钥选项显示正确，实际PUT保留显式0.3。截图/tmp/sub2api-auto-group-form-option-restored.png。
 - 发布实况补记: 上一轮已原子推送origin/custom-main与annotated tag v0.2.14.2，远端分支和peeled tag均为67026aceeed2522d2aa6c0dc7eee3399a1950eaa；Release运行38844543275已触发。本轮修复未包含在该tag内，不移动已发布tag。
 - 限制: 本轮仅本地修复，未commit/push/部署；未访问真实数据库、供应商或生产页面；构建保留既有Browserslist/大分包提示。
+
+## [11:34] 发布准备: v0.2.16.3提交/tag/push
+- 用户明确指定v0.2.16.3并授权提交推送；弹窗修复提交2ea5869262688cb17a676470e78537c132637716，VERSION已同步0.2.16.3。
+- 复用上一轮38项前端回归、ESLint/typecheck/build及真实页面/请求验证；本轮go build -o /tmp/sub2api-release-v0.2.16.3 ./cmd/server通过，-version与版本解析均为0.2.16.3；发布工具四段tag及commit绑定两项测试通过。
+- 范围: 从feature/fix-auto-group-form-option快进合入custom-main，创建annotated tag v0.2.16.3并原子推送origin/custom-main和精确tag；旧tag保持原样。本条为推送前记录，最终以远端refs核验为准。
+- 发布沿用RELEASE_ONLY=true，仅创建GitHub Release与归档；未执行生产部署，真实供应商/数据库未验证。

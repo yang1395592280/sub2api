@@ -56,3 +56,10 @@
 相关文件：frontend/src/views/user/KeysView.vue:1682、__tests__/KeysView.autoGroup.spec.ts、__tests__/KeysView.spec.ts；详情20261016/daily.md。
 未完成：本轮修复未提交/推送/部署，尚未包含在已发布v0.2.14.2；后续补丁发布应使用新tag。真实生产与供应商未验证。
 阻塞：本地修复无已知阻塞，不覆盖已有发布tag。
+
+## 2026-10-16 v0.2.16.3 发布准备
+
+已完成：用户授权commit/tag/push v0.2.16.3，弹窗修复提交2ea5869；VERSION、发布版二进制-version和解析均为0.2.16.3，两项发布工具测试通过。前端38项、lint/typecheck/build及实际创建/编辑请求验证已完成。
+相关文件：backend/cmd/server/VERSION、frontend/src/views/user/KeysView.vue及两组回归；详情20261016/daily.md。
+未完成：本条为推送前记录，将快进合回custom-main并原子推送分支和annotated tag v0.2.16.3，远端两者须指向同一发布提交；Release状态以实际运行核验为准，生产尚未部署。
+阻塞：Git发布无已知阻塞；沿用RELEASE_ONLY=true，仅生成Release归档，不发布Docker镜像。
