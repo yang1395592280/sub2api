@@ -6,14 +6,15 @@ import (
 )
 
 type openAIAutoCheapestFailureState struct {
-	mu            sync.RWMutex
-	failedGroups  map[int64]string
-	circuit       OpenAIAutoCheapestGroupCircuit
-	model         string
-	endpoint      string
-	transport     string
-	userID        int64
-	strictQuality bool
+	mu             sync.RWMutex
+	failedGroups   map[int64]string
+	accountSources map[int64]int64
+	circuit        OpenAIAutoCheapestGroupCircuit
+	model          string
+	endpoint       string
+	transport      string
+	userID         int64
+	strictQuality  bool
 }
 
 type openAIAutoCheapestFailureStateKey struct{}
@@ -94,9 +95,39 @@ func PrepareOpenAIAutoCheapestRequestContext(ctx context.Context, enabled bool, 
 		groupCircuit = circuit[0]
 	}
 	return context.WithValue(ctx, openAIAutoCheapestFailureStateKey{}, &openAIAutoCheapestFailureState{
-		failedGroups: make(map[int64]string),
-		circuit:      groupCircuit,
+		failedGroups:   make(map[int64]string),
+		accountSources: make(map[int64]int64),
+		circuit:        groupCircuit,
 	})
+}
+
+// Track the physical account source, including shared pools. One bad source
+// should yield this request's remaining attempts to other sources before price
+// is considered, without opening a global group circuit for a single user.
+func noteOpenAIAutoCheapestSelectedSource(ctx context.Context, accountID, sourceGroupID int64) {
+	state, _ := ctx.Value(openAIAutoCheapestFailureStateKey{}).(*openAIAutoCheapestFailureState)
+	if state == nil || accountID <= 0 || sourceGroupID <= 0 {
+		return
+	}
+	state.mu.Lock()
+	state.accountSources[accountID] = sourceGroupID
+	state.mu.Unlock()
+}
+
+func openAIAutoCheapestSourceFailures(ctx context.Context, excludedIDs map[int64]struct{}) map[int64]int {
+	state, _ := ctx.Value(openAIAutoCheapestFailureStateKey{}).(*openAIAutoCheapestFailureState)
+	if state == nil {
+		return nil
+	}
+	state.mu.RLock()
+	defer state.mu.RUnlock()
+	failures := make(map[int64]int)
+	for accountID := range excludedIDs {
+		if sourceID := state.accountSources[accountID]; sourceID > 0 {
+			failures[sourceID]++
+		}
+	}
+	return failures
 }
 
 // markOpenAIAutoCheapestGroupExhausted prevents the current request from

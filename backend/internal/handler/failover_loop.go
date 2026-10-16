@@ -121,6 +121,15 @@ func effectiveSameAccountRetryLimit(failoverErr *service.UpstreamFailoverError, 
 	return limit
 }
 
+// Automatic grouping spends its bounded retry budget on another source rather
+// than waiting on the same failing upstream. Fixed-group keys retain their
+// account-specific pool and OAuth retry windows. Continuations that require
+// the original account retain those windows to avoid breaking tool state.
+func openAIShouldRetrySameAccount(apiKey *service.APIKey, failoverErr *service.UpstreamFailoverError, preserveAccountBinding bool) bool {
+	return failoverErr != nil && failoverErr.RetryableOnSameAccount &&
+		(preserveAccountBinding || apiKey == nil || !apiKey.UsesOpenAIAutoCheapestGroup())
+}
+
 // FailoverState 跨循环迭代共享的 failover 状态
 type FailoverState struct {
 	SwitchCount           int

@@ -46,7 +46,7 @@ export function buildKeyGroupOptions(
   if (options.includeOpenAIAutoCheapest && groups.some((group) => group.platform === "openai")) {
     result.unshift({
       value: OPENAI_AUTO_CHEAPEST_GROUP_VALUE,
-      label: options.openAIAutoCheapestLabel ?? "OpenAI 自动选择最优惠分组",
+      label: options.openAIAutoCheapestLabel ?? "自动不降智分组",
       description:
         options.openAIAutoCheapestDescription ??
         "按当前可用账号池自动使用最低倍率 OpenAI 分组",

@@ -1531,11 +1531,13 @@ const setGroupButtonRef = (keyId: number, el: Element | ComponentPublicInstance 
   }
 }
 
+const OPENAI_AUTO_CHEAPEST_DEFAULT_MAX_RATE = 0.5
+
 const formData = ref({
   name: '',
   group_id: null as number | null,
   group_select_mode: 'fixed' as ApiKeyGroupSelectMode,
-  openai_auto_group_max_rate_multiplier: 0.3 as number | null,
+  openai_auto_group_max_rate_multiplier: OPENAI_AUTO_CHEAPEST_DEFAULT_MAX_RATE as number | null,
   status: 'active' as 'active' | 'inactive',
   use_custom_key: false,
   custom_key: '',
@@ -1556,10 +1558,8 @@ const formData = ref({
 })
 
 const autoCheapestRateForm = ref({
-  maxRate: 0.3 as number | null,
+  maxRate: OPENAI_AUTO_CHEAPEST_DEFAULT_MAX_RATE as number | null,
 })
-
-const OPENAI_AUTO_CHEAPEST_DEFAULT_MAX_RATE = 0.3
 
 // 自定义Key验证
 const customKeyError = computed(() => {

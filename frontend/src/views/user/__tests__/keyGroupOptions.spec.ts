@@ -45,7 +45,7 @@ describe("buildKeyGroupOptions", () => {
 
     expect(options[0]).toMatchObject({
       value: "openai_auto_cheapest",
-      label: "OpenAI 自动选择最优惠分组",
+      label: "自动不降智分组",
       platform: "openai",
       kind: "openai_auto_cheapest",
     });

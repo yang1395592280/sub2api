@@ -99,6 +99,9 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 	}
 
 	autoGroupMode := apiKey.UsesOpenAIAutoCheapestGroup()
+	if autoGroupMode {
+		c.Request = c.Request.WithContext(service.PrepareOpenAIAutoCheapestRequestContext(c.Request.Context(), true, h.gatewayService.OpenAIAutoCheapestGroupCircuit()))
+	}
 	if !autoGroupMode {
 		if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
 			status, code, message, retryAfter := billingErrorDetails(err)
@@ -252,7 +255,7 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 			)
 			return
 		}
-		if failoverErr.RetryableOnSameAccount {
+		if openAIShouldRetrySameAccount(apiKey, failoverErr, false) {
 			retryLimit := account.GetPoolModeRetryCount()
 			if sameAccountRetryAllowed(failoverErr, sameAccountRetryCount[account.ID], retryLimit) {
 				sameAccountRetryCount[account.ID]++
