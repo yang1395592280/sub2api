@@ -500,16 +500,38 @@ export async function clearGroupRPMOverrides(id: number): Promise<{ message: str
   return data
 }
 
-/**
- * Get usage summary (today + yesterday + cumulative cost) for all groups
- * @returns Array of group usage summaries
- */
-export async function getUsageSummary(): Promise<
-  { group_id: number; today_cost: number; yesterday_cost: number; total_cost: number }[]
-> {
-  const { data } = await apiClient.get<
-    { group_id: number; today_cost: number; yesterday_cost: number; total_cost: number }[]
-  >('/admin/groups/usage-summary')
+export interface GroupUsageSummaryItem {
+  group_id: number
+  today_cost: number
+  yesterday_cost: number
+  total_cost: number
+}
+
+export interface GroupUsageSummarySnapshot {
+  items: GroupUsageSummaryItem[]
+  updated_at: string
+  stale: boolean
+  refresh_failed: boolean
+}
+
+export interface GroupUsageSummaryOptions {
+  refresh?: boolean
+  signal?: AbortSignal
+}
+
+// 无参数调用保持原数组契约；新页面请求快照，并兼容更新期间仍返回数组的旧后端。
+export function getUsageSummary(): Promise<GroupUsageSummaryItem[]>
+export function getUsageSummary(options: GroupUsageSummaryOptions): Promise<GroupUsageSummarySnapshot | GroupUsageSummaryItem[]>
+export async function getUsageSummary(options?: GroupUsageSummaryOptions): Promise<GroupUsageSummarySnapshot | GroupUsageSummaryItem[]> {
+  const url = '/admin/groups/usage-summary'
+  if (!options) {
+    const { data } = await apiClient.get<GroupUsageSummaryItem[]>(url)
+    return data
+  }
+  const { data } = await apiClient.get<GroupUsageSummarySnapshot | GroupUsageSummaryItem[]>(url, {
+    params: { include_metadata: true, ...(options.refresh ? { refresh: true } : {}) },
+    signal: options.signal,
+  })
   return data
 }
 

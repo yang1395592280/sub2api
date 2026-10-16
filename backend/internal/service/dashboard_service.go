@@ -19,7 +19,7 @@ const (
 	defaultDashboardStatsFreshTTL          = 15 * time.Second
 	defaultDashboardStatsCacheTTL          = 30 * time.Second
 	defaultDashboardStatsRefreshTimeout    = 30 * time.Second
-	defaultGroupUsageSummaryCacheTTL       = 5 * time.Minute
+	defaultGroupUsageSummaryCacheTTL       = 30 * time.Second
 	defaultGroupUsageSummaryRefreshTimeout = 30 * time.Second
 	defaultGroupUsageSummaryRetryCooldown  = 30 * time.Second
 	groupUsageSummaryRetentionWindow       = 48 * time.Hour
@@ -48,6 +48,15 @@ type groupUsageSummaryCacheEntry struct {
 	results            []usagestats.GroupUsageSummary
 	updatedAt          time.Time
 	lastRefreshAttempt time.Time
+	refreshFailed      bool
+}
+
+// GroupUsageSummarySnapshot 的时间和状态始终对应返回的统计快照。
+type GroupUsageSummarySnapshot struct {
+	Items         []usagestats.GroupUsageSummary `json:"items"`
+	UpdatedAt     time.Time                      `json:"updated_at"`
+	Stale         bool                           `json:"stale"`
+	RefreshFailed bool                           `json:"refresh_failed"`
 }
 
 type GroupUserUsageComparisonResult struct {
@@ -250,53 +259,89 @@ func (s *DashboardService) GetGroupStatsWithUsageFilters(ctx context.Context, st
 
 // GetGroupUsageSummary returns today's, yesterday's, and cumulative cost for all groups.
 func (s *DashboardService) GetGroupUsageSummary(ctx context.Context, todayStart time.Time) ([]usagestats.GroupUsageSummary, error) {
+	snapshot, err := s.GetGroupUsageSummarySnapshot(ctx, todayStart, false)
+	return snapshot.Items, err
+}
+
+// GetGroupUsageSummarySnapshot 允许管理员显式等待刷新；普通读取仍优先返回缓存。
+// 刷新失败时保留上次成功金额及其时间，避免把旧数据标记为刚刚更新。
+func (s *DashboardService) GetGroupUsageSummarySnapshot(ctx context.Context, todayStart time.Time, refresh bool) (GroupUsageSummarySnapshot, error) {
 	key := groupUsageSummaryCacheKey(todayStart)
 	now := time.Now()
 
 	s.groupUsageSummaryMu.RLock()
 	entry, ok := s.groupUsageSummaryCache[key]
 	s.groupUsageSummaryMu.RUnlock()
-	if ok {
-		results := cloneGroupUsageSummary(entry.results)
+	if ok && refresh && entry.refreshFailed && now.Sub(entry.lastRefreshAttempt) < s.groupUsageSummaryRetryCooldown {
+		return s.groupUsageSummarySnapshot(entry, now), nil
+	}
+	if ok && !refresh {
+		snapshot := s.groupUsageSummarySnapshot(entry, now)
 		if now.Sub(entry.updatedAt) > s.groupUsageSummaryCacheTTL {
 			s.refreshGroupUsageSummaryAsync(key, todayStart, now)
 		}
-		return results, nil
+		return snapshot, nil
 	}
 
-	return s.loadGroupUsageSummary(ctx, key, todayStart)
+	snapshot, err := s.loadGroupUsageSummary(ctx, key, todayStart, refresh)
+	if err != nil && refresh && ctx.Err() == nil {
+		s.groupUsageSummaryMu.RLock()
+		entry, ok = s.groupUsageSummaryCache[key]
+		s.groupUsageSummaryMu.RUnlock()
+		if ok {
+			snapshot = s.groupUsageSummarySnapshot(entry, time.Now())
+			snapshot.Stale = true
+			snapshot.RefreshFailed = true
+			return snapshot, nil
+		}
+	}
+	return snapshot, err
 }
 
-func (s *DashboardService) loadGroupUsageSummary(ctx context.Context, key int64, todayStart time.Time) ([]usagestats.GroupUsageSummary, error) {
+func (s *DashboardService) groupUsageSummarySnapshot(entry groupUsageSummaryCacheEntry, now time.Time) GroupUsageSummarySnapshot {
+	return GroupUsageSummarySnapshot{
+		Items:         cloneGroupUsageSummary(entry.results),
+		UpdatedAt:     entry.updatedAt,
+		Stale:         entry.refreshFailed || now.Sub(entry.updatedAt) > s.groupUsageSummaryCacheTTL,
+		RefreshFailed: entry.refreshFailed,
+	}
+}
+
+func (s *DashboardService) loadGroupUsageSummary(ctx context.Context, key int64, todayStart time.Time, refresh bool) (GroupUsageSummarySnapshot, error) {
 	resultCh := s.groupUsageSummarySF.DoChan(fmt.Sprintf("%d", key), func() (any, error) {
 		s.groupUsageSummaryMu.RLock()
 		entry, ok := s.groupUsageSummaryCache[key]
 		s.groupUsageSummaryMu.RUnlock()
-		if ok {
-			return cloneGroupUsageSummary(entry.results), nil
+		if ok && !refresh {
+			return s.groupUsageSummarySnapshot(entry, time.Now()), nil
 		}
 		loadCtx, cancel := context.WithTimeout(context.Background(), s.groupUsageSummaryRefreshTimeout)
 		defer cancel()
 		results, err := s.usageRepo.GetAllGroupUsageSummary(loadCtx, todayStart)
 		if err != nil {
+			failedAt := time.Now()
+			s.recordGroupUsageSummaryRefreshFailure(key, failedAt)
+			logger.LegacyPrintf("service.dashboard", "%s", s.groupUsageSummaryRefreshFailureMessage(key, todayStart, failedAt, err))
 			return nil, fmt.Errorf("get group usage summary: %w", err)
 		}
-		s.storeGroupUsageSummary(key, results, time.Now())
-		return cloneGroupUsageSummary(results), nil
+		updatedAt := time.Now()
+		s.storeGroupUsageSummary(key, results, updatedAt)
+		return GroupUsageSummarySnapshot{Items: cloneGroupUsageSummary(results), UpdatedAt: updatedAt}, nil
 	})
 
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return GroupUsageSummarySnapshot{}, ctx.Err()
 	case result := <-resultCh:
 		if result.Err != nil {
-			return nil, result.Err
+			return GroupUsageSummarySnapshot{}, result.Err
 		}
-		value, ok := result.Val.([]usagestats.GroupUsageSummary)
+		value, ok := result.Val.(GroupUsageSummarySnapshot)
 		if !ok {
-			return nil, fmt.Errorf("get group usage summary: unexpected singleflight result type %T", result.Val)
+			return GroupUsageSummarySnapshot{}, fmt.Errorf("get group usage summary: unexpected singleflight result type %T", result.Val)
 		}
-		return cloneGroupUsageSummary(value), nil
+		value.Items = cloneGroupUsageSummary(value.Items)
+		return value, nil
 	}
 }
 
@@ -315,8 +360,9 @@ func (s *DashboardService) refreshGroupUsageSummaryAsync(key int64, todayStart, 
 			logger.LegacyPrintf("service.dashboard", "%s", message)
 			return nil, err
 		}
-		s.storeGroupUsageSummary(key, results, time.Now())
-		return cloneGroupUsageSummary(results), nil
+		updatedAt := time.Now()
+		s.storeGroupUsageSummary(key, results, updatedAt)
+		return GroupUsageSummarySnapshot{Items: cloneGroupUsageSummary(results), UpdatedAt: updatedAt}, nil
 	})
 }
 
@@ -340,6 +386,7 @@ func (s *DashboardService) recordGroupUsageSummaryRefreshFailure(key int64, now 
 		return
 	}
 	entry.lastRefreshAttempt = now
+	entry.refreshFailed = true
 	s.groupUsageSummaryCache[key] = entry
 }
 

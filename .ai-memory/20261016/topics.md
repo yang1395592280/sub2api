@@ -14,3 +14,7 @@
 更新: 创建/编辑弹窗恢复自动选项，切换厂商同步重置选择模式；真实点击下拉回归、厂商分类、编辑保留显式上限等38项通过，ESLint/typecheck/build通过；构建页面与本地API桩验证创建0.5、编辑0.3和切厂商不发送非法创建。旧组件覆盖验证再次失败，已发布tag保持原样。
 
 发布准备: VERSION=0.2.16.3；二进制-version与版本解析均为0.2.16.3，四段tag及commit绑定两项发布测试通过；将快进合回custom-main，原子推送该分支和新annotated tag，沿用RELEASE_ONLY=true。
+
+更新: 分组用量30秒缓存与可见页自动刷新、显式手动刷新、服务端更新时间/失败状态、保留旧值及累计口径说明已完成；后端定向/race、前端43项及lint/typecheck/build、实际构建页面10项通过。feature/group-usage-refresh未提交/推送/部署；生产数据库负载未验证。
+
+合并授权: 用户要求将feature/group-usage-refresh提交并合入本地custom-main；合并前两分支均基于ae85f049b，可快进合并，改动范围与空白检查通过。仅执行本地提交和合并，不推送、打tag、发布、部署或改版本。

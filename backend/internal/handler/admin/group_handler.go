@@ -989,15 +989,31 @@ func (h *GroupHandler) GetUsageSummary(c *gin.Context) {
 	if h.rejectUnsupportedSimpleModeOperation(c, "advanced") {
 		return
 	}
+	var query struct {
+		Refresh         bool `form:"refresh"`
+		IncludeMetadata bool `form:"include_metadata"`
+	}
+	if err := c.ShouldBindQuery(&query); err != nil {
+		response.Error(c, 400, "Invalid usage summary parameters")
+		return
+	}
 	todayStart := service.GroupUsageTodayStart(time.Now())
 
-	results, err := h.dashboardService.GetGroupUsageSummary(c.Request.Context(), todayStart)
+	snapshot, err := h.dashboardService.GetGroupUsageSummarySnapshot(c.Request.Context(), todayStart, query.Refresh)
 	if err != nil {
 		response.Error(c, 500, "Failed to get group usage summary")
 		return
 	}
 
-	response.Success(c, results)
+	c.Header("Cache-Control", "no-store")
+	if query.IncludeMetadata {
+		if snapshot.Items == nil {
+			snapshot.Items = []usagestats.GroupUsageSummary{}
+		}
+		response.Success(c, snapshot)
+		return
+	}
+	response.Success(c, snapshot.Items)
 }
 
 // GetCapacitySummary returns aggregated capacity (concurrency/sessions/RPM) for all active groups.

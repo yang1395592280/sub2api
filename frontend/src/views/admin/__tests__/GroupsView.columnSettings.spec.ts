@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { defineComponent, h, KeepAlive, ref } from 'vue'
 
 import type { AdminGroup } from '@/types'
 import GroupsView from '../GroupsView.vue'
+
+enableAutoUnmount(afterEach)
 
 const {
   listGroups,
@@ -49,6 +52,10 @@ const messages: Record<string, string> = {
   'admin.groups.usageToday': 'Today',
   'admin.groups.usageYesterday': 'Yesterday',
   'admin.groups.usageTotal': 'Total',
+  'admin.groups.usageUpdatedAt': 'Usage updated at {time}',
+  'admin.groups.usageUpdateTimeUnavailable': 'Usage update time unavailable',
+  'admin.groups.usageRefreshFailed': 'Usage could not be updated',
+  'admin.groups.usageRefreshing': 'Updating usage',
 }
 
 vi.mock('@/api/admin', () => ({
@@ -56,6 +63,7 @@ vi.mock('@/api/admin', () => ({
     groups: {
       list: listGroups,
       getAll: getAllGroups,
+      getAllIncludingInactive: getAllGroups,
       getModelAllowlistCandidates,
       getUsageSummary,
       getCapacitySummary,
@@ -94,7 +102,8 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => messages[key] ?? key,
+      t: (key: string, params?: Record<string, unknown>) =>
+        (messages[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? name)),
     }),
   }
 })
@@ -193,9 +202,8 @@ const IconStub = {
   template: '<span data-test="icon">{{ name }}</span>',
 }
 
-const mountView = async () => {
-  const wrapper = mount(GroupsView, {
-    global: {
+const mountOptions = {
+  global: {
       stubs: {
         AppLayout: AppLayoutStub,
         TablePageLayout: TablePageLayoutStub,
@@ -212,8 +220,11 @@ const mountView = async () => {
         GroupRPMOverridesModal: true,
         VueDraggable: { template: '<div><slot /></div>' },
       },
-    },
-  })
+  },
+}
+
+const mountView = async () => {
+  const wrapper = mount(GroupsView, mountOptions)
   await flushPromises()
   return wrapper
 }
@@ -237,6 +248,7 @@ const clickColumnToggle = async (wrapper: ReturnType<typeof mount>, label: strin
 describe('admin GroupsView column settings', () => {
   beforeEach(() => {
     localStorage.clear()
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
 
     listGroups.mockReset()
     getAllGroups.mockReset()
@@ -286,6 +298,8 @@ describe('admin GroupsView column settings', () => {
 
   afterEach(() => {
     localStorage.clear()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   it('hides the id column by default while keeping other group columns visible', async () => {
@@ -415,7 +429,7 @@ describe('admin GroupsView column settings', () => {
     await openColumnSettings(wrapper)
     await clickColumnToggle(wrapper, 'Usage')
     expect(getUsageSummary).toHaveBeenCalledTimes(1)
-    expect(getUsageSummary).toHaveBeenCalledWith()
+    expect(getUsageSummary).toHaveBeenCalledWith({ refresh: false, signal: expect.any(AbortSignal) })
     expect(getCapacitySummary).not.toHaveBeenCalled()
 
     await clickColumnToggle(wrapper, 'Capacity')
@@ -436,5 +450,150 @@ describe('admin GroupsView column settings', () => {
     expect(text).toContain('Total$9.75')
     expect(text.indexOf('Today')).toBeLessThan(text.indexOf('Yesterday'))
     expect(text.indexOf('Yesterday')).toBeLessThan(text.indexOf('Total'))
+  })
+
+  const snapshot = (today = 1.25, overrides = {}) => ({
+    items: [{ group_id: 1, today_cost: today, yesterday_cost: 2.5, total_cost: 9.75 }],
+    updated_at: '2026-10-16T09:00:00Z',
+    stale: false,
+    refresh_failed: false,
+    ...overrides,
+  })
+
+  it('keeps values and server timestamp visible while a manual refresh waits', async () => {
+    getUsageSummary.mockResolvedValue(snapshot())
+    const wrapper = await mountView()
+    const originalStatus = wrapper.get('[data-test="usage-summary-status"]').text()
+    expect(originalStatus).toContain('Usage updated at')
+    let resolveRefresh!: (value: ReturnType<typeof snapshot>) => void
+    getUsageSummary.mockImplementationOnce(() => new Promise((resolve) => { resolveRefresh = resolve }))
+
+    await wrapper.get('[data-test="refresh-groups"]').trigger('click')
+    await flushPromises()
+    expect(getUsageSummary).toHaveBeenLastCalledWith({ refresh: true, signal: expect.any(AbortSignal) })
+    expect(wrapper.get('[data-test="usage-cell"]').text()).toContain('Today$1.25')
+    expect(wrapper.get('[data-test="usage-summary-status"]').text()).toContain(originalStatus)
+    expect(wrapper.get('[data-test="refresh-groups"]').attributes('disabled')).toBeDefined()
+    resolveRefresh(snapshot(3, { updated_at: '2026-10-16T09:00:30Z' }))
+    await flushPromises()
+    expect(wrapper.get('[data-test="usage-cell"]').text()).toContain('Today$3.00')
+    expect(wrapper.get('[data-test="usage-summary-status"]').text()).not.toEqual(originalStatus)
+    expect(wrapper.get('[data-test="refresh-groups"]').attributes('disabled')).toBeUndefined()
+    expect(getUsageSummary).toHaveBeenCalledTimes(2)
+  })
+
+  it('preserves values and timestamp on network failure and clears the warning after recovery', async () => {
+    getUsageSummary.mockResolvedValue(snapshot())
+    const wrapper = await mountView()
+    const timestamp = wrapper.get('[data-test="usage-summary-status"] > div').text()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    getUsageSummary.mockRejectedValueOnce(new Error('network unavailable'))
+    await wrapper.get('[data-test="refresh-groups"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-test="usage-cell"]').text()).toContain('Today$1.25')
+    expect(wrapper.get('[data-test="usage-summary-status"] > div').text()).toBe(timestamp)
+    expect(wrapper.get('[data-test="usage-summary-status"]').text()).toContain('Usage could not be updated')
+    await wrapper.get('[data-test="refresh-groups"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-test="usage-summary-status"]').text()).not.toContain('Usage could not be updated')
+  })
+
+  it('shows backend refresh failures and never presents missing usage as zero', async () => {
+    getUsageSummary.mockResolvedValue(snapshot(1.25, { stale: true, refresh_failed: true }))
+    const wrapper = await mountView()
+    expect(wrapper.get('[data-test="usage-summary-status"]').text()).toContain('Usage could not be updated')
+    getUsageSummary.mockResolvedValue(snapshot(1.25, { items: [] }))
+    await wrapper.get('[data-test="refresh-groups"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-test="usage-cell"]').text()).toBe('—')
+  })
+
+  it('does not invent an update time when an old backend returns an array', async () => {
+    getUsageSummary.mockResolvedValue(snapshot().items)
+    const wrapper = await mountView()
+    expect(wrapper.get('[data-test="usage-summary-status"]').text()).toBe('Usage update time unavailable')
+  })
+
+  it('polls every thirty seconds, pauses in the background and stops after unmount', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    getUsageSummary.mockResolvedValue(snapshot())
+    const wrapper = await mountView()
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(getUsageSummary).toHaveBeenCalledTimes(2)
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(getUsageSummary).toHaveBeenCalledTimes(2)
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    document.dispatchEvent(new Event('visibilitychange'))
+    await flushPromises()
+    expect(getUsageSummary).toHaveBeenCalledTimes(3)
+    wrapper.unmount()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(getUsageSummary).toHaveBeenCalledTimes(3)
+  })
+
+  it('cancels pending usage when hidden and ignores its late result', async () => {
+    getUsageSummary.mockResolvedValue(snapshot())
+    const wrapper = await mountView()
+    let resolveRefresh!: (value: ReturnType<typeof snapshot>) => void
+    getUsageSummary.mockImplementationOnce(() => new Promise((resolve) => { resolveRefresh = resolve }))
+    await wrapper.get('[data-test="refresh-groups"]').trigger('click')
+    await flushPromises()
+    const { signal } = getUsageSummary.mock.lastCall![0]
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(signal.aborted).toBe(true)
+    resolveRefresh(snapshot(99))
+    await flushPromises()
+    expect(wrapper.get('[data-test="usage-cell"]').text()).toContain('Today$1.25')
+  })
+
+  it('shares pending automatic reads and still forces a query for a manual click', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    getUsageSummary.mockResolvedValue(snapshot())
+    const wrapper = await mountView()
+    let resolveAutomatic!: (value: ReturnType<typeof snapshot>) => void
+    getUsageSummary.mockImplementationOnce(() => new Promise((resolve) => { resolveAutomatic = resolve }))
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(getUsageSummary).toHaveBeenCalledTimes(2)
+    await wrapper.get('[data-test="refresh-groups"]').trigger('click')
+    await flushPromises()
+    expect(getUsageSummary).toHaveBeenCalledTimes(2)
+    resolveAutomatic(snapshot())
+    await flushPromises()
+    expect(getUsageSummary).toHaveBeenCalledTimes(3)
+    expect(getUsageSummary).toHaveBeenLastCalledWith({ refresh: true, signal: expect.any(AbortSignal) })
+  })
+
+  it('pauses polling when both consuming columns are hidden', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    const wrapper = await mountView()
+    await openColumnSettings(wrapper)
+    await clickColumnToggle(wrapper, 'Usage')
+    await clickColumnToggle(wrapper, 'Billing Type')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(getUsageSummary).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-test="usage-summary-status"]').exists()).toBe(false)
+  })
+
+  it('stops polling for cached inactive pages and reloads on activation', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    getUsageSummary.mockResolvedValue(snapshot())
+    const active = ref(true)
+    const host = defineComponent({ setup: () => () => h(KeepAlive, null, {
+      default: () => active.value ? h(GroupsView) : null,
+    }) })
+    const wrapper = mount(host, mountOptions)
+    await flushPromises()
+    expect(getUsageSummary).toHaveBeenCalledTimes(1)
+    active.value = false
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(getUsageSummary).toHaveBeenCalledTimes(1)
+    active.value = true
+    await flushPromises()
+    expect(getUsageSummary).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
   })
 })

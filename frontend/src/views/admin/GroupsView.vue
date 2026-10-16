@@ -49,16 +49,34 @@
           <div
             class="flex w-full flex-shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto"
           >
+            <div
+              v-if="hasVisibleUsageSummaryConsumer"
+              class="text-right text-xs text-gray-500 dark:text-gray-400"
+              data-test="usage-summary-status"
+              role="status"
+            >
+              <div v-if="usageUpdatedAt" :title="formatDateTime(usageUpdatedAt)">
+                {{ t("admin.groups.usageUpdatedAt", { time: usageUpdatedTime }) }}
+              </div>
+              <div v-else-if="usageLoaded">{{ t("admin.groups.usageUpdateTimeUnavailable") }}</div>
+              <div v-if="usageRefreshFailed" class="text-amber-600 dark:text-amber-400">
+                {{ t("admin.groups.usageRefreshFailed") }}
+              </div>
+              <div v-else-if="usageLoading || usageStale">
+                {{ t("admin.groups.usageRefreshing") }}
+              </div>
+            </div>
             <button
-              @click="loadGroups"
-              :disabled="loading"
+              @click="refreshGroups"
+              :disabled="loading || manualRefreshing"
               class="btn btn-secondary"
               :title="t('common.refresh')"
+              data-test="refresh-groups"
             >
               <Icon
                 name="refresh"
                 size="md"
-                :class="loading ? 'animate-spin' : ''"
+                :class="loading || manualRefreshing ? 'animate-spin' : ''"
               />
             </button>
             <div class="relative" ref="columnDropdownRef">
@@ -119,7 +137,7 @@
         <DataTable
           :columns="columns"
           :data="groups"
-          :loading="loading"
+          :loading="loading && groups.length === 0"
           :server-side-sort="true"
           default-sort-key="sort_order"
           default-sort-order="asc"
@@ -251,7 +269,7 @@
                 >
                   <span v-if="row.daily_limit_usd" class="whitespace-nowrap">
                     <span
-                      v-if="usageLoading"
+                      v-if="!usageMap.has(row.id)"
                       class="font-medium text-gray-400 dark:text-gray-500"
                       >—</span
                     >
@@ -300,11 +318,11 @@
                 <span v-else class="text-gray-400 dark:text-gray-500">{{
                   t("admin.groups.subscription.noLimit")
                 }}</span>
-                <div class="text-gray-400 dark:text-gray-500">
+                <div class="text-gray-400 dark:text-gray-500" :title="t('admin.groups.usageTotalHint')">
                   {{ t("admin.groups.usageTotal") }}
                   <span class="ml-1 font-medium text-gray-600 dark:text-gray-300"
                     >{{
-                      usageLoading
+                      !usageMap.has(row.id)
                         ? "—"
                         : formatUsd(usageMap.get(row.id)?.total_cost ?? 0)
                     }}</span
@@ -394,7 +412,7 @@
           </template>
 
           <template #cell-usage="{ row }">
-            <div v-if="usageLoading" class="text-xs text-gray-400">—</div>
+            <div v-if="!usageMap.has(row.id)" class="text-xs text-gray-400">—</div>
             <div v-else class="space-y-0.5 text-xs">
               <div class="text-gray-500 dark:text-gray-400">
                 <span class="text-gray-400 dark:text-gray-500">{{
@@ -416,7 +434,7 @@
                   }}</span
                 >
               </div>
-              <div class="text-gray-500 dark:text-gray-400">
+              <div class="text-gray-500 dark:text-gray-400" :title="t('admin.groups.usageTotalHint')">
                 <span class="text-gray-400 dark:text-gray-500">{{
                   t("admin.groups.usageTotal")
                 }}</span>
@@ -4579,7 +4597,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
+import { ref, reactive, computed, onMounted, onUnmounted, onActivated, onDeactivated, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAppStore } from "@/stores/app";
 import { useAuthStore } from "@/stores/auth";
@@ -4641,6 +4659,7 @@ import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
 import { useKeyedDebouncedSearch } from "@/composables/useKeyedDebouncedSearch";
 import { getPersistedPageSize } from "@/composables/usePersistedPageSize";
 import { extractApiErrorMessage } from "@/utils/apiError";
+import { formatDateTime } from "@/utils/format";
 import {
   createDefaultMessagesDispatchFormState,
   messagesDispatchConfigToFormState,
@@ -5129,6 +5148,20 @@ type GroupUsageSummary = {
 
 const usageMap = ref<Map<number, GroupUsageSummary>>(new Map());
 const usageLoading = ref(false);
+const usageLoaded = ref(false);
+const usageUpdatedAt = ref<string | null>(null);
+const usageRefreshFailed = ref(false);
+const usageStale = ref(false);
+const manualRefreshing = ref(false);
+const usageUpdatedTime = computed(() =>
+  usageUpdatedAt.value
+    ? formatDateTime(usageUpdatedAt.value, { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : "",
+);
+let usagePageActive = false;
+let usageRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let usageRequest: { promise: Promise<void>; refresh: boolean } | null = null;
+let usageController: AbortController | null = null;
 const capacityMap = ref<
   Map<
     number,
@@ -5986,10 +6019,8 @@ const loadGroups = async () => {
     groups.value = response.items;
     pagination.total = response.total;
     pagination.pages = response.pages;
-    if (hasVisibleUsageSummaryConsumer.value) {
+    if (hasVisibleUsageSummaryConsumer.value && !manualRefreshing.value) {
       loadUsageSummary();
-    } else {
-      usageLoading.value = false;
     }
     if (hasVisibleCapacityColumn.value) {
       loadCapacitySummary();
@@ -6046,29 +6077,92 @@ const getQuotaUsageClass = (
   return "font-medium text-gray-700 dark:text-gray-300";
 };
 
-const loadUsageSummary = async () => {
-  if (!hasVisibleUsageSummaryConsumer.value) {
-    usageLoading.value = false;
+const loadUsageSummary = async (refresh = false): Promise<void> => {
+  if (!usagePageActive || document.hidden || !hasVisibleUsageSummaryConsumer.value) {
     return;
   }
+  if (usageRequest) {
+    const pending = usageRequest;
+    await pending.promise;
+    // 用户主动刷新不能仅等待一次普通的缓存读取。
+    if (refresh && !pending.refresh) return loadUsageSummary(true);
+    return;
+  }
+  const controller = new AbortController();
+  usageController = controller;
   usageLoading.value = true;
-  try {
-    const data = await adminAPI.groups.getUsageSummary();
-    const map = new Map<number, GroupUsageSummary>();
-    for (const item of data) {
-      map.set(item.group_id, {
-        today_cost: item.today_cost,
-        yesterday_cost: item.yesterday_cost,
-        total_cost: item.total_cost,
-      });
+  const promise = (async () => {
+    try {
+      const data = await adminAPI.groups.getUsageSummary({ refresh, signal: controller.signal });
+      if (controller.signal.aborted || !usagePageActive) return;
+      const items = Array.isArray(data) ? data : data.items;
+      const map = new Map<number, GroupUsageSummary>();
+      for (const item of items) {
+        map.set(item.group_id, {
+          today_cost: item.today_cost,
+          yesterday_cost: item.yesterday_cost,
+          total_cost: item.total_cost,
+        });
+      }
+      usageMap.value = map;
+      usageLoaded.value = true;
+      usageUpdatedAt.value = Array.isArray(data) ? null : data.updated_at;
+      usageStale.value = !Array.isArray(data) && data.stale;
+      usageRefreshFailed.value = !Array.isArray(data) && data.refresh_failed;
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      usageRefreshFailed.value = true;
+      console.error("Error loading group usage summary:", error);
+    } finally {
+      if (usageController === controller) {
+        usageLoading.value = false;
+        usageController = null;
+        usageRequest = null;
+      }
     }
-    usageMap.value = map;
-  } catch (error) {
-    console.error("Error loading group usage summary:", error);
+  })();
+  usageRequest = { promise, refresh };
+  return promise;
+};
+
+const refreshGroups = async () => {
+  if (manualRefreshing.value) return;
+  manualRefreshing.value = true;
+  try {
+    await loadGroups();
+    await loadUsageSummary(true);
   } finally {
-    usageLoading.value = false;
+    manualRefreshing.value = false;
   }
 };
+
+const stopUsageRefresh = () => {
+  if (usageRefreshTimer !== null) clearInterval(usageRefreshTimer);
+  usageRefreshTimer = null;
+  usageController?.abort();
+  usageController = null;
+  usageRequest = null;
+  usageLoading.value = false;
+};
+
+const startUsageRefresh = () => {
+  if (usageRefreshTimer !== null || !usagePageActive || document.hidden || !hasVisibleUsageSummaryConsumer.value) return;
+  usageRefreshTimer = setInterval(() => { void loadUsageSummary(); }, 30_000);
+};
+
+const handleUsageVisibilityChange = () => {
+  if (document.hidden) {
+    stopUsageRefresh();
+  } else if (usagePageActive) {
+    startUsageRefresh();
+    void loadUsageSummary();
+  }
+};
+
+watch(hasVisibleUsageSummaryConsumer, (visible) => {
+  if (visible) startUsageRefresh();
+  else stopUsageRefresh();
+});
 
 const loadCapacitySummary = async () => {
   if (!hasVisibleCapacityColumn.value) {
@@ -7415,6 +7509,8 @@ const saveSortOrder = async () => {
 };
 
 onMounted(() => {
+  usagePageActive = true;
+  startUsageRefresh();
   loadGroups();
   if (!authStore.isSimpleMode) {
     void loadSelfHostedPoolGroups();
@@ -7422,9 +7518,25 @@ onMounted(() => {
     loadModelAllowlistCandidates("create", 0, createForm.platform);
   }
   document.addEventListener("click", handleClickOutside);
+  document.addEventListener("visibilitychange", handleUsageVisibilityChange);
+});
+
+onActivated(() => {
+  if (usagePageActive) return;
+  usagePageActive = true;
+  startUsageRefresh();
+  void loadUsageSummary();
+});
+
+onDeactivated(() => {
+  usagePageActive = false;
+  stopUsageRefresh();
 });
 
 onUnmounted(() => {
+  usagePageActive = false;
+  stopUsageRefresh();
+  document.removeEventListener("visibilitychange", handleUsageVisibilityChange);
   document.removeEventListener("click", handleClickOutside);
   accountSearchRunner.clearAll();
   clearAllAccountSearchState();

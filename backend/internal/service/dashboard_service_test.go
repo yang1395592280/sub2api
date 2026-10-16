@@ -326,7 +326,7 @@ func TestDashboardService_GetGroupUserUsageComparison_EmptyUsers(t *testing.T) {
 	require.Empty(t, got.Stats)
 }
 
-func TestDashboardService_GroupUsageSummaryUsesFiveMinuteCache(t *testing.T) {
+func TestDashboardService_GroupUsageSummaryUsesCache(t *testing.T) {
 	todayStart := time.Date(2026, 7, 10, 0, 0, 0, 0, time.UTC)
 	repo := &usageRepoStub{
 		groupUsageSummaries: [][]usagestats.GroupUsageSummary{
@@ -441,10 +441,10 @@ func TestDashboardService_GroupUsageSummaryCacheRetainsRolling48Hours(t *testing
 	require.NotContains(t, svc.groupUsageSummaryCache, groupUsageSummaryCacheKey(expiredStart))
 }
 
-func TestDashboardService_GroupUsageSummaryCacheTTLDefaultsToFiveMinutes(t *testing.T) {
+func TestDashboardService_GroupUsageSummaryCacheTTLDefaultsToThirtySeconds(t *testing.T) {
 	svc := NewDashboardService(&usageRepoStub{}, nil, nil, nil)
 
-	require.Equal(t, 5*time.Minute, svc.groupUsageSummaryCacheTTL)
+	require.Equal(t, 30*time.Second, svc.groupUsageSummaryCacheTTL)
 }
 
 func TestDashboardService_GroupUsageSummaryServesStaleWhileRefreshing(t *testing.T) {

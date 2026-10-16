@@ -61,3 +61,18 @@ session-id: 20261016-1025
 - 复用上一轮38项前端回归、ESLint/typecheck/build及真实页面/请求验证；本轮go build -o /tmp/sub2api-release-v0.2.16.3 ./cmd/server通过，-version与版本解析均为0.2.16.3；发布工具四段tag及commit绑定两项测试通过。
 - 范围: 从feature/fix-auto-group-form-option快进合入custom-main，创建annotated tag v0.2.16.3并原子推送origin/custom-main和精确tag；旧tag保持原样。本条为推送前记录，最终以远端refs核验为准。
 - 发布沿用RELEASE_ONLY=true，仅创建GitHub Release与归档；未执行生产部署，真实供应商/数据库未验证。
+
+## [17:23] 实现: 分组用量刷新与更新时间优化
+- 用户已授权按建议修改；分支feature/group-usage-refresh，未commit/push/合并/部署。
+- backend/internal/service/dashboard_service.go：缓存新鲜期5分钟改30秒；新增同一份数据的快照时间/过期/刷新失败元数据；显式刷新等待singleflight查询，失败保留旧值及旧时间并遵循30秒失败冷却。
+- backend/internal/handler/admin/group_handler.go与frontend/src/api/admin/groups.ts：新增可选refresh、include_metadata，默认数组契约保留；旧后端数组兼容，不伪造更新时间。
+- frontend/src/views/admin/GroupsView.vue及中英文文案：可见页面每30秒读取用量，隐藏/KeepAlive失活/卸载暂停并取消请求；点击刷新等待最新快照，保留现有数字；工具栏显示更新时间和失败提示；累计附保留记录口径说明，未返回的分组用量显示占位符。
+- 验证：后端定向service/admin handler与race均通过；前端分组页/API/i18n共43项通过；typecheck、定向ESLint、生产build、git diff --check通过。
+- 浏览器：真实生产构建+本地API fixtures，10项检查通过，覆盖真实按钮请求参数、等待中旧值、失败与恢复、30秒轮询、手机布局；桌面与手机截图及verification.json保存在本聊天visualizations/group-usage。
+- 自审：无SQL/迁移/权限/生产配置变更；无新依赖；保留官方按天汇总与索引修复。查询频率增加由30秒缓存、并发合并、可见性暂停和失败冷却控制；生产负载与真实数据库未测，不声称性能提速。原有构建告警仍在。
+- 参考：.ai-memory/20261016/group-usage-refresh-plan.md；临时图谱Go/Vue索引不全，已用rg调用链复核并清理本轮生成文件。
+
+## 合并授权：分组用量刷新优化
+- 用户明确要求合并分支，授权提交本次优化并合入本地custom-main；不包含push、tag、发布、部署或版本号修改。
+- 合并前核对：feature/group-usage-refresh与custom-main均基于ae85f049b，改动均属于本轮任务；目标分支未被其他worktree占用，可快进合并，git diff --check通过。
+- 本轮沿用上条后端定向/race、前端43项及lint/typecheck/build、页面10项检查结果；本次仅提交与合并，无业务代码追加修改。

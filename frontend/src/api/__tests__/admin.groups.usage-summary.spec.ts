@@ -26,4 +26,23 @@ describe('admin group usage summary API', () => {
 
     expect(get).toHaveBeenCalledWith('/admin/groups/usage-summary')
   })
+
+  it('requests snapshot metadata and an explicit refresh with cancellation', async () => {
+    const controller = new AbortController()
+    const snapshot = { items: [], updated_at: '2026-10-16T09:00:00Z', stale: false, refresh_failed: false }
+    get.mockResolvedValue({ data: snapshot })
+    await expect(getUsageSummary({ refresh: true, signal: controller.signal })).resolves.toEqual(snapshot)
+    expect(get).toHaveBeenCalledWith('/admin/groups/usage-summary', {
+      params: { include_metadata: true, refresh: true },
+      signal: controller.signal,
+    })
+  })
+
+  it('does not force a query during automatic snapshot reads', async () => {
+    await getUsageSummary({ refresh: false })
+    expect(get).toHaveBeenCalledWith('/admin/groups/usage-summary', {
+      params: { include_metadata: true },
+      signal: undefined,
+    })
+  })
 })
