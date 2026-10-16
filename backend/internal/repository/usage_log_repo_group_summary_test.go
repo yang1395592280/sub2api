@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ func TestUsageLogRepositoryGetAllGroupUsageSummaryUsesRollupTail(t *testing.T) {
 	todayStart := time.Date(2026, 3, 9, 4, 0, 0, 0, time.UTC)
 	yesterdayStart := time.Date(2026, 3, 8, 5, 0, 0, 0, time.UTC)
 
+	mock.ExpectBegin()
 	// 水位有效：closed_before = 2026-03-07（≤ today），时区与配置一致。
 	mock.ExpectQuery(`(?s)COUNT\(\*\).*usage_group_rollup_state.*WHERE id = 1`).
 		WillReturnRows(sqlmock.NewRows([]string{"count", "closed_before", "retained_from", "timezone_name"}).
@@ -37,6 +39,7 @@ func TestUsageLogRepositoryGetAllGroupUsageSummaryUsesRollupTail(t *testing.T) {
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"group_id", "total_cost", "today_cost", "yesterday_cost"}).
 			AddRow(int64(7), 12.5, 1.25, 2.5))
+	mock.ExpectCommit()
 
 	result, err := repo.GetAllGroupUsageSummary(context.Background(), todayStart)
 	require.NoError(t, err)
@@ -82,14 +85,70 @@ func TestUsageLogRepositoryGetAllGroupUsageSummaryFallsBackWhenWatermarkInvalid(
 			repo := newUsageLogRepositoryWithSQL(nil, db)
 			useGroupUsageRepositoryTestTimezone(t, "America/New_York")
 
+			mock.ExpectBegin()
 			mock.ExpectQuery(`(?s)COUNT\(\*\).*usage_group_rollup_state.*WHERE id = 1`).
 				WillReturnRows(tc.rows)
 			mock.ExpectQuery(`(?s)usage_group_daily_rollups.*FROM usage_logs ul\s+WHERE ul\.created_at >= \$7`).
 				WithArgs(todayStart, yesterdayStart, "2026-03-08", false, "1970-01-01", "1970-01-01", epoch).
 				WillReturnRows(sqlmock.NewRows([]string{"group_id", "total_cost", "today_cost", "yesterday_cost"}))
+			mock.ExpectCommit()
 
 			_, err := repo.GetAllGroupUsageSummary(context.Background(), todayStart)
 			require.NoError(t, err)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestUsageLogRepositoryGroupUsageSummaryTransactionFailures(t *testing.T) {
+	queryFailure := errors.New("summary database failure")
+	tests := []struct {
+		name  string
+		setup func(sqlmock.Sqlmock)
+	}{
+		{
+			name: "begin",
+			setup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin().WillReturnError(queryFailure)
+			},
+		},
+		{
+			name: "watermark",
+			setup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectQuery("usage_group_rollup_state").WillReturnError(queryFailure)
+				mock.ExpectRollback()
+			},
+		},
+		{
+			name: "summary",
+			setup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectQuery("usage_group_rollup_state").WillReturnRows(
+					sqlmock.NewRows([]string{"count", "closed_before", "retained_from", "timezone_name"}).AddRow(0, nil, nil, nil))
+				mock.ExpectQuery("usage_group_daily_rollups").WillReturnError(queryFailure)
+				mock.ExpectRollback()
+			},
+		},
+		{
+			name: "commit",
+			setup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectQuery("usage_group_rollup_state").WillReturnRows(
+					sqlmock.NewRows([]string{"count", "closed_before", "retained_from", "timezone_name"}).AddRow(0, nil, nil, nil))
+				mock.ExpectQuery("usage_group_daily_rollups").WillReturnRows(
+					sqlmock.NewRows([]string{"group_id", "total_cost", "today_cost", "yesterday_cost"}).AddRow(7, 12.5, 1.25, 2.5))
+				mock.ExpectCommit().WillReturnError(queryFailure)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, mock := newSQLMock(t)
+			tt.setup(mock)
+			items, err := newUsageLogRepositoryWithSQL(nil, db).GetAllGroupUsageSummary(context.Background(), time.Now())
+			require.ErrorIs(t, err, queryFailure)
+			require.Nil(t, items, "失败的事务不能把未确认的金额写进缓存")
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
 	}

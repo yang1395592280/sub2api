@@ -67,6 +67,31 @@ func (r *usageLogRepository) readGroupUsageRollupSnapshot(ctx context.Context, t
 }
 
 func (r *usageLogRepository) getAllGroupUsageSummaryFromRollups(ctx context.Context, todayStart time.Time) (results []usagestats.GroupUsageSummary, err error) {
+	if beginner, ok := r.sql.(interface {
+		BeginTx(context.Context, *sql.TxOptions) (*sql.Tx, error)
+	}); ok {
+		// 水位和金额分两次读取以保留尾段索引扫描，但必须共用一个快照。
+		// 否则并发清理/回填会让旧水位与新日桶、日志混读，得到不存在的金额。
+		tx, err := beginner.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = tx.Rollback() }()
+		txRepo := &usageLogRepository{sql: tx}
+		results, err := txRepo.queryAllGroupUsageSummaryFromRollups(ctx, todayStart)
+		if err != nil {
+			return nil, err
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+		return results, nil
+	}
+	// 已由调用方提供的事务沿用其生命周期，不在仓储内提交或回滚。
+	return r.queryAllGroupUsageSummaryFromRollups(ctx, todayStart)
+}
+
+func (r *usageLogRepository) queryAllGroupUsageSummaryFromRollups(ctx context.Context, todayStart time.Time) (results []usagestats.GroupUsageSummary, err error) {
 	todayStart = service.GroupUsageTodayStart(todayStart)
 	yesterdayStart := service.GroupUsageYesterdayStart(todayStart)
 	timezoneName := service.GroupUsageTimezoneName()

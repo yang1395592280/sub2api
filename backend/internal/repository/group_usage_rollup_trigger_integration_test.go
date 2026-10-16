@@ -315,6 +315,96 @@ func TestGroupUsageSummaryIncludesYesterdayAcrossWatermark(t *testing.T) {
 	}
 }
 
+func TestGroupUsageSummaryKeepsSnapshotDuringConcurrentCleanup(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	useGroupUsageRepositoryTestTimezone(t, "UTC")
+	todayStart := time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC)
+	schema := createGroupUsageRollupTriggerTestSchema(t, ctx, false)
+	quotedSchema := pq.QuoteIdentifier(schema)
+	seedTx := beginGroupUsageRollupTriggerTestTx(t, ctx, schema)
+	defer func() { _ = seedTx.Rollback() }()
+	_, err := seedTx.ExecContext(ctx, `
+		INSERT INTO groups (id) VALUES (10);
+		INSERT INTO users (id) VALUES (1);
+		INSERT INTO usage_logs (id, user_id, group_id, actual_cost, created_at) VALUES
+			(1, 1, 10, 1.25, TIMESTAMPTZ '2026-08-13 12:00:00+00'),
+			(2, 1, 10, 0.5, TIMESTAMPTZ '2026-08-14 12:00:00+00');
+	`)
+	require.NoError(t, err)
+	require.NoError(t, newDashboardAggregationRepositoryWithSQL(seedTx).SyncGroupUsageRollups(ctx, todayStart))
+	require.NoError(t, seedTx.Commit())
+
+	// 在水位 SELECT 已取得快照后暂停，让清理事务恰好提交在两次读取之间。
+	// 只在测试 schema 的视图上设置屏障，不给业务查询增加测试钩子。
+	barrierID := time.Now().UnixNano()
+	_, err = integrationDB.ExecContext(ctx, fmt.Sprintf(`
+		ALTER TABLE %[1]s.usage_group_rollup_state RENAME TO usage_group_rollup_state_base;
+		CREATE FUNCTION %[1]s.wait_for_summary_reader() RETURNS boolean LANGUAGE plpgsql AS $$
+		BEGIN
+			PERFORM pg_advisory_xact_lock(%[2]d);
+			RETURN true;
+		END;
+		$$;
+		CREATE VIEW %[1]s.usage_group_rollup_state AS
+		SELECT id, closed_before, retained_from, timezone_name, updated_at
+		FROM %[1]s.usage_group_rollup_state_base
+		WHERE %[1]s.wait_for_summary_reader();
+	`, quotedSchema, barrierID))
+	require.NoError(t, err)
+
+	reader, err := integrationDB.Conn(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = reader.ExecContext(context.Background(), "RESET search_path")
+		_ = reader.Close()
+	})
+	_, err = reader.ExecContext(ctx, "SET search_path TO "+quotedSchema)
+	require.NoError(t, err)
+	var readerPID int
+	require.NoError(t, reader.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&readerPID))
+
+	cleanupTx := beginGroupUsageRollupTriggerTestTx(t, ctx, schema)
+	defer func() { _ = cleanupTx.Rollback() }()
+	require.NoError(t, setGroupUsageRollupTriggerTimeZone(ctx, cleanupTx, "UTC"))
+	_, err = cleanupTx.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1)", barrierID)
+	require.NoError(t, err)
+
+	repo := newUsageLogRepositoryWithSQL(nil, reader)
+	readResult := make(chan error, 1)
+	var total, today, yesterday float64
+	go func() {
+		items, readErr := repo.GetAllGroupUsageSummary(ctx, todayStart)
+		if readErr == nil && len(items) == 1 {
+			total, today, yesterday = items[0].TotalCost, items[0].TodayCost, items[0].YesterdayCost
+		}
+		readResult <- readErr
+	}()
+	blocked, err := waitForGroupUsageRollupStateLock(ctx, readerPID, readResult)
+	require.NoError(t, err)
+	require.True(t, blocked, "汇总必须先取得水位快照，再放行并发清理")
+	_, err = cleanupTx.ExecContext(ctx, "DELETE FROM usage_logs")
+	require.NoError(t, err)
+	require.NoError(t, cleanupTx.Commit())
+
+	select {
+	case err = <-readResult:
+		require.NoError(t, err)
+	case <-ctx.Done():
+		t.Fatal("等待汇总查询完成超时")
+	}
+	// 清理前为 1.75，清理后为 0；1.25 是旧日桶与新尾段混读出的不存在的金额。
+	require.InDelta(t, 1.75, total, 0.0000001)
+	require.InDelta(t, 0.5, today, 0.0000001)
+	require.InDelta(t, 1.25, yesterday, 0.0000001)
+	items, err := repo.GetAllGroupUsageSummary(ctx, todayStart)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Zero(t, items[0].TotalCost)
+	require.Zero(t, items[0].TodayCost)
+	require.Zero(t, items[0].YesterdayCost)
+}
+
 func TestGroupUsageRollupSyncRebuildsAfterTimezoneChange(t *testing.T) {
 	ctx := context.Background()
 	useGroupUsageRepositoryTestTimezone(t, "America/New_York")

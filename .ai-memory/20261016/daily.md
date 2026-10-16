@@ -86,3 +86,17 @@ session-id: 20261016-1025
 - 保留：分组用量30秒缓存/刷新/元数据实现与本次同步前完全一致；无数据库迁移、依赖变更或生产配置修改。上游新规则禁止ChatGPT登录类账号路由GPT-5.5，API Key上游不受该退役规则影响，已有映射不会自动迁移。
 - 范围：仅本地main同步及custom-main合并提交，不push/tag/发布/部署；未连接生产数据库、真实支付或供应商。构建保留已有Browserslist/分包提示；上线前建议核对GPT-5.5映射及真实充值退款流程。
 - 详情：.ai-memory/20261016/upstream-v0217-sync.md；Git最终提交点以合并历史为准。
+
+## [18:09] 排查/修复：分组用量两次读取的快照一致性
+- 用户要求查看其他Bug并修复；custom-main=edaf58734且工作区干净，从其创建feature/postmerge-bugfixes。未commit/push/合并/发布/部署。
+- 排查了本次上游更新与二改交点、用量刷新、模型退役/映射及自动调度；前端全量407文件3114项通过，后端repository基线unit通过。
+- 已确认根因：custom_group_usage_rollup_repo.go读取水位和汇总金额分为两条SQL，缺少同一数据库快照；并发日志清理可混读旧日桶与新日志。隔离PostgreSQL 18集成Red实测：清理前1.75、清理后0，原实现返回1.25。
+- 修复：DB/Conn开启ReadOnly+RepeatableRead短事务；保留参数化尾段索引SQL、日桶规则及调用方事务生命周期，查询/提交失败不返回金额。新增并发清理和下一次查询看到0的回归，以及begin/watermark/summary/commit失败回归。
+- Green：repository整包unit、9个分组日桶/用量PostgreSQL集成测试通过；服务端build通过。race检查进行中，最终以收尾记录为准。
+- 图谱：辅助查询返回Go符号索引缺失，已用rg复核真实调用链；只清理本轮生成的图谱产物。无数据库迁移/生产数据/配置/扣费写入变更；未验证生产负载。详见postmerge-bugfixes.md。
+- 收尾验证：repository/service/admin handler用量相关unit -race三包通过；PostgreSQL并发清理集成-race连续3次通过，下一次读0也通过；服务端构建、gofmt、git diff --check通过。源文件仅仓储实现与两份测试，未提交/合并/推送。
+
+## [18:12] 合并授权：上游合并后的用量一致性修复
+- 用户明确要求合并分支，授权提交feature/postmerge-bugfixes的本轮修复和记录，再快进合入本地custom-main。
+- 合并前两分支均为edaf58734，目标分支未占用；仅3份Go实现/测试和4份本轮记录，git diff --check通过。复用本轮已通过的测试与构建，不增加业务代码。
+- 范围：本地提交与git merge --ff-only；无push/tag/发布/部署或版本号变更，最终状态以Git核验为准。

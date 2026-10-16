@@ -20,3 +20,7 @@
 合并授权: 用户要求将feature/group-usage-refresh提交并合入本地custom-main；合并前两分支均基于ae85f049b，可快进合并，改动范围与空白检查通过。仅执行本地提交和合并，不推送、打tag、发布、部署或改版本。
 
 最新同步: 分组用量已提交18a01cb9e并合入custom-main；用户随后授权同步上游，main已从9c2cca9e6快进到b0a02a330（v0.2.17，47个新提交）。custom-main采用merge保留二改，4处冲突和新增测试兼容已处理；后端38个包最终通过、前端294项与布局56项复测、前后端构建及真实页面13项通过。仅本地合并，无push/tag/发布/部署。注意上游GPT-5.5订阅账号退役规则，详见upstream-v0217-sync.md。
+
+Bug排查收尾：从custom-main=edaf58734创建feature/postmerge-bugfixes；真实PostgreSQL复现并修复用量水位/金额两次读取缺少一致快照的问题（清理前1.75、清理后0，旧实现混读1.25）。新增只读可重复读事务及失败/并发回归，前端全量3114项、仓储整包unit、9个日桶/用量集成测试、相关三包race、并发集成race连续3次及服务端构建通过。仅本地工作区修复，未提交/合并/推送/部署，生产负载未验证；详见postmerge-bugfixes.md。
+
+合并授权：用户要求将feature/postmerge-bugfixes本轮用量快照一致性修复提交并合入本地custom-main；两分支合并前均为edaf58734，目标分支未占用，采用ff-only并复用已通过验证。仅本地操作，不push/tag/发布/部署。
