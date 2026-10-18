@@ -30,3 +30,8 @@ session-id: 20261018-1559
 - 验证：`pnpm exec vitest run src/components/layout/__tests__/AppSidebar.spec.ts` 12 项通过；该文件 ESLint、`pnpm run typecheck`、`pnpm run build`（含双语完整性 3 项及 vue-tsc）通过，`git diff --check` 通过。没有为此低影响图标修复新增单元测试。
 - 实际 AppSidebar 组件配本地模拟菜单完成浏览器交互：缺省图标 20px、空白 SVG 回退、上传 SVG 颜色保留、管理员菜单、深色文字同色和折叠 20px 图标。截图保存在本轮 visualizations/sidebar-default-icon.png；临时预览文件/服务和标签页在收尾时清理。
 - 修改留在功能分支未提交工作区，尚未 merge/push/tag/部署，不属于已发布的 v0.2.17.2。无需修改现有菜单数据，更新前端构建后即可生效。
+
+## [22:02] v0.2.17.3 发布准备
+- 用户新授权提交、打 tag v0.2.17.3 并推送。图标修复提交 51c4e0052 已从 feature/custom-menu-default-icon 无冲突快进合入 custom-main，VERSION 更新为 0.2.17.3。
+- fetch 后 origin/custom-main=076d8c8ee，目标 tag 本地/远端均不存在。嵌入发布构建、二进制 -version 和版本解析通过，两项发布工具测试通过；复用上节图标修复回归、质量、构建和浏览器证据。
+- 仅原子推送 origin/custom-main 与 annotated tag v0.2.17.3，保留旧 tag。RELEASE_ONLY=true，仅 Release 归档及 checksums。当前为推送前记录，结果以远端 refs 和工作流核验为准；未部署生产。

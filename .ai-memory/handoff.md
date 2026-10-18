@@ -99,3 +99,9 @@
 - 已完成：feature/custom-menu-default-icon 上为无 SVG 的自定义菜单提供现有 terminal 默认图标，修复「GPT 一键配置」图标缺失；覆盖三处菜单构建，空白 SVG 回退，上传图标优先。
 - 相关文件：frontend/src/components/layout/AppSidebar.vue；详情见同日 daily.md。侧栏现有 12 项回归、ESLint/typecheck/build（含 3 项双语检查）通过，真实组件配模拟菜单验证缺省/上传/管理员/深色/折叠显示。
 - 未完成：代码尚未提交/合并/推送/部署，未包含于已发布 v0.2.17.2。无已知实现阻塞，部署新的前端构建后生效。
+
+## 2026-10-18 v0.2.17.3 发布准备
+- 已完成：用户授权 commit/tag/push，图标修复提交 51c4e0052 已无冲突快进合入 custom-main；VERSION=0.2.17.3，嵌入发布构建、二进制版本、解析与两项发布工具测试通过，复用本轮侧栏 12 项及前端质量/构建/浏览器验证。
+- 相关文件：frontend/src/components/layout/AppSidebar.vue、backend/cmd/server/VERSION；详情见 20261018/release-v0.2.17.3.md。
+- 验收范围：仅原子推送 origin/custom-main 与 annotated tag v0.2.17.3，远端分支及 peeled tag 须指向同一发布提交；本条为推送前记录，以后续 refs 与 Release 核验为准。RELEASE_ONLY=true，不发布 Docker/GHCR。
+- 未完成：未生产部署，图标需新前端构建上线才生效。无已知发布准备阻塞。
