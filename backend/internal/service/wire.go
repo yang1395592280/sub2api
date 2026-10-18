@@ -1140,7 +1140,6 @@ var ProviderSet = wire.NewSet(
 	ProvidePaymentOrderExpiryService,
 	ProvideBalanceNotifyService,
 	ProvideChannelMonitorService,
-	ProvideGroupMonitorService,
 	ProvideChannelMonitorRunner,
 	NewChannelMonitorQuotaFetcher,
 	ProvideChannelMonitorV2Service,
@@ -1260,11 +1259,5 @@ func ProvideChannelMonitorV2Aggregator(repo ChannelMonitorV2Repository, db *sql.
 func ProvideClaudeResetCreditService(accounts AccountRepository, tokens *ClaudeTokenProvider, proxies ProxyRepository, settings *SettingService, idem *IdempotencyCoordinator, locks LeaderLockCache) *ClaudeResetCreditService {
 	s := NewClaudeResetCreditService(accounts, tokens, proxies, settings)
 	s.ConfigureRedemption(idem, locks)
-	return s
-}
-
-func ProvideGroupMonitorService(repo GroupMonitorRepository, groups GroupRepository, users UserRepository, subs UserSubscriptionRepository, settings *SettingService, gateway *GatewayService, openai *OpenAIGatewayService, tester *AccountTestService) *GroupMonitorService {
-	s := NewGroupMonitorService(repo, groups, users, subs, settings, gateway, openai, tester)
-	s.Start()
 	return s
 }

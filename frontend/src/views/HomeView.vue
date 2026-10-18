@@ -29,6 +29,14 @@
           <span class="min-w-0 truncate text-base font-semibold">{{ siteName }}</span>
         </div>
         <div class="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
+          <JoinGroupEntryButton
+            link-class="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-sm font-medium text-primary-700 transition-colors hover:bg-primary-100 dark:border-primary-800 dark:bg-primary-900/20 dark:text-primary-300 dark:hover:bg-primary-900/40"
+            :title="qqGroupTitle"
+            dialog-title="加入群聊"
+            action-text="立即跳转"
+          >
+            加入群聊
+          </JoinGroupEntryButton>
           <LocaleSwitcher />
           <a
             v-if="docUrl"

@@ -7,37 +7,14 @@ import (
 	"strconv"
 )
 
-const (
-	SettingKeyZenxiangLiyuEnabled       = "zenxiang_liyu_enabled"
-	SettingKeyMonitorUserVisible        = "channel_monitor_user_visible"
-	SettingKeyMonitorPelicanEnabled     = "channel_monitor_pelican_enabled"
-	SettingKeyMonitorPelicanUserVisible = "channel_monitor_pelican_user_visible"
-)
+const SettingKeyZenxiangLiyuEnabled = "zenxiang_liyu_enabled"
 
-// All entries reuse their original storage keys. New switches explicitly state
-// upgrade defaults, so installing this page never enables a paid schedule.
+// Only owner-confirmed custom switches belong here. Other settings remain on
+// their original pages; the Liyu default preserves existing upgrade behavior.
 var customFeatureDefaults = map[string]bool{
-	SettingKeyZenxiangLiyuEnabled:                                true,
-	SettingKeyMonitorUserVisible:                                 true,
-	SettingKeyMonitorPelicanEnabled:                              false,
-	SettingKeyMonitorPelicanUserVisible:                          false,
-	SettingKeyChannelMonitorEnabled:                              true,
-	SettingKeyChannelMonitorShowQuota:                            false,
-	SettingKeyAffiliateEnabled:                                   false,
-	SettingKeyAffiliateTicketCampaignEnabled:                     true,
-	SettingKeyAffiliateAdminRechargeEnabled:                      AdminRechargeRebateEnabledDefault,
-	SettingKeyAvailableChannelsEnabled:                           false,
-	SettingKeyModelPlazaEnabled:                                  false,
-	SettingKeyJoinGroupEnabled:                                   false,
-	SettingKeyCompactHomeEnabled:                                 false,
-	SettingKeyRedeemCodePurchaseEnabled:                          false,
-	openAIAdvancedSchedulerSettingKey:                            false,
-	SettingKeyHideCcsImportButton:                                false,
-	SettingKeyOpenAILowUpstreamRatePriorityEnabled:               false,
-	SettingKeyOpenAIAdvancedSchedulerStickyWeightedEnabled:       false,
-	SettingKeyOpenAIAdvancedSchedulerSubscriptionPriorityEnabled: false,
-	SettingKeyOpenAICodexVersionAutoSyncEnabled:                  true,
-	SettingKeyOpenAICodexTicketEnabled:                           false,
+	SettingKeyZenxiangLiyuEnabled:       true,
+	SettingKeyRedeemCodePurchaseEnabled: false,
+	SettingKeyJoinGroupEnabled:          false,
 }
 
 type CustomFeatureMenu struct {
@@ -57,13 +34,11 @@ func CustomFeatureKeys() []string {
 	}
 	return keys
 }
-func (s *SettingService) customFeatureDefault(key string) bool {
-	if key == SettingKeyOpenAICodexTicketEnabled && s.cfg != nil {
-		return s.cfg.Gateway.OpenAICodexTicket.Enabled
-	}
-	return customFeatureDefaults[key]
-}
 func (s *SettingService) CustomFeatureEnabled(ctx context.Context, key string) bool {
+	defaultValue, supported := customFeatureDefaults[key]
+	if !supported {
+		return false
+	}
 	values, err := s.settingRepo.GetMultiple(ctx, []string{key})
 	if err != nil {
 		return false
@@ -71,7 +46,7 @@ func (s *SettingService) CustomFeatureEnabled(ctx context.Context, key string) b
 	if v, ok := values[key]; ok && v != "" {
 		return v == "true"
 	}
-	return s.customFeatureDefault(key)
+	return defaultValue
 }
 func (s *SettingService) GetCustomFeatures(ctx context.Context) (*CustomFeatureSettings, error) {
 	keys := append(CustomFeatureKeys(), SettingKeyCustomMenuItems)
@@ -80,9 +55,9 @@ func (s *SettingService) GetCustomFeatures(ctx context.Context) (*CustomFeatureS
 		return nil, err
 	}
 	out := &CustomFeatureSettings{Flags: map[string]bool{}, Menus: []CustomFeatureMenu{}}
-	for key := range customFeatureDefaults {
+	for key, defaultValue := range customFeatureDefaults {
 		v, ok := values[key]
-		out.Flags[key] = s.customFeatureDefault(key)
+		out.Flags[key] = defaultValue
 		if ok && v != "" {
 			out.Flags[key] = v == "true"
 		}

@@ -734,7 +734,7 @@ describe("admin SettingsView payment visible method controls", () => {
     adminSettingsFetch.mockResolvedValue(undefined);
   });
 
-  it("leaves the centralized Codex ticket switch out of detailed saves", async () => {
+  it("saves the Codex ticket switch from its original gateway settings", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,
       openai_codex_ticket_enabled: false,
@@ -745,8 +745,8 @@ describe("admin SettingsView payment visible method controls", () => {
     await toggle.setValue(true);
     await wrapper.find("form").trigger("submit.prevent");
     await flushPromises();
-    expect(toggle.attributes("disabled")).toBeDefined();
-    expect(updateSettings.mock.calls[0]?.[0]).not.toHaveProperty("openai_codex_ticket_enabled");
+    expect(toggle.attributes("disabled")).toBeUndefined();
+    expect(updateSettings.mock.calls[0]?.[0].openai_codex_ticket_enabled).toBe(true);
     wrapper.unmount();
   });
 
@@ -794,7 +794,7 @@ describe("admin SettingsView payment visible method controls", () => {
     wrapper.unmount();
   });
 
-  it("leaves the centralized compact home switch out of detailed saves", async () => {
+  it("saves the compact home switch from site settings", async () => {
     const wrapper = mountView();
     await flushPromises();
 
@@ -805,8 +805,8 @@ describe("admin SettingsView payment visible method controls", () => {
     await wrapper.find("form").trigger("submit.prevent");
     await flushPromises();
 
-    expect(toggle.attributes("disabled")).toBeDefined();
-    expect(updateSettings.mock.calls[0]?.[0]).not.toHaveProperty("compact_home_enabled");
+    expect(toggle.attributes("disabled")).toBeUndefined();
+    expect(updateSettings.mock.calls[0]?.[0].compact_home_enabled).toBe(true);
   });
 
   it("renders panel rate limit card and saves settings", async () => {
@@ -1242,7 +1242,7 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_enabled");
   });
 
-  it("preserves the centralized admin recharge rebate switch", async () => {
+  it("keeps the admin recharge rebate switch in its original settings payload", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,
       affiliate_enabled: true,
@@ -1256,10 +1256,10 @@ describe("admin SettingsView payment visible method controls", () => {
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
-    expect(updateSettings.mock.calls[0]?.[0]).not.toHaveProperty("affiliate_admin_recharge_enabled");
+    expect(updateSettings.mock.calls[0]?.[0].affiliate_admin_recharge_enabled).toBe(true);
   });
 
-  it("preserves the centralized affiliate ticket campaign switch", async () => {
+  it("keeps the affiliate ticket campaign switch in its original settings payload", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,
       affiliate_enabled: true,
@@ -1273,7 +1273,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
-    expect(updateSettings.mock.calls[0]?.[0]).not.toHaveProperty("affiliate_ticket_campaign_enabled");
+    expect(updateSettings.mock.calls[0]?.[0].affiliate_ticket_campaign_enabled).toBe(false);
   });
 
   it("submits Anthropic cache TTL injection gateway setting", async () => {
@@ -1679,7 +1679,7 @@ describe("admin SettingsView payment visible method controls", () => {
     ).toBe(true);
 
     const lowRateToggle = wrapper.get('[data-testid="openai-low-rate-priority-toggle"]');
-    expect(lowRateToggle.attributes("disabled")).toBeDefined();
+    expect(lowRateToggle.attributes("disabled")).toBeUndefined();
     const priorityModeText = wrapper.text();
     expect(priorityModeText).toContain(
       "OAuth 账号按此参考倍率参与低倍率优先排序；留空时使用各自的账号倍率。",

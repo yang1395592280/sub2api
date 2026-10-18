@@ -141,4 +141,51 @@ describe('HomeView join group entry', () => {
 
     expect(wrapper.get('a[href="https://qm.qq.com/q/example"]').text()).toContain('加入群聊')
   })
+
+  it('shows the configured community link on the compact home page', async () => {
+    appStoreState.cachedPublicSettings = {
+      ...appStoreState.cachedPublicSettings,
+      compact_home_enabled: true,
+      join_group_enabled: true,
+      join_group_url: 'https://qm.qq.com/q/compact',
+    }
+    const wrapper = mount(HomeView, {
+      global: { stubs: { Icon: true, LocaleSwitcher: true, 'router-link': true } },
+    })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="compact-home"]').get('a[href="https://qm.qq.com/q/compact"]').text()).toContain('加入群聊')
+    wrapper.unmount()
+  })
+
+  it('opens the community QR dialog on the compact home page without a URL', async () => {
+    appStoreState.cachedPublicSettings = {
+      ...appStoreState.cachedPublicSettings,
+      compact_home_enabled: true,
+      join_group_enabled: true,
+      join_group_popup_image: 'data:image/png;base64,QUJD',
+    }
+    const wrapper = mount(HomeView, {
+      global: { stubs: { Icon: true, LocaleSwitcher: true, 'router-link': true } },
+      attachTo: document.body,
+    })
+    await flushPromises()
+    const entry = wrapper.get('[data-testid="compact-home"]').findAll('button').find(button => button.text() === '加入群聊')
+    expect(entry).toBeDefined()
+    await entry!.trigger('click')
+    expect(document.body.querySelector('img[src="data:image/png;base64,QUJD"]')).not.toBeNull()
+    wrapper.unmount()
+  })
+
+  it.each([
+    { join_group_enabled: false, join_group_url: 'https://qm.qq.com/q/compact' },
+    { join_group_enabled: true, join_group_url: '   ' },
+  ])('hides the compact home community entry for an inactive configuration: %j', async config => {
+    appStoreState.cachedPublicSettings = { ...appStoreState.cachedPublicSettings, compact_home_enabled: true, ...config }
+    const wrapper = mount(HomeView, {
+      global: { stubs: { Icon: true, LocaleSwitcher: true, 'router-link': true } },
+    })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="compact-home"]').text()).not.toContain('加入群聊')
+    wrapper.unmount()
+  })
 })

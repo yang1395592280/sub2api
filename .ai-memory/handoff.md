@@ -105,3 +105,22 @@
 - 相关文件：frontend/src/components/layout/AppSidebar.vue、backend/cmd/server/VERSION；详情见 20261018/release-v0.2.17.3.md。
 - 验收范围：仅原子推送 origin/custom-main 与 annotated tag v0.2.17.3，远端分支及 peeled tag 须指向同一发布提交；本条为推送前记录，以后续 refs 与 Release 核验为准。RELEASE_ONLY=true，不发布 Docker/GHCR。
 - 未完成：未生产部署，图标需新前端构建上线才生效。无已知发布准备阻塞。
+
+## 2026-10-18 撤回监控与鹈鹕新增实现
+- 用户最新要求取代此前监控扩展方案：在 feature/retain-custom-feature-settings 撤回 6cc187d5b 中 GroupMonitor/监控鹈鹕和测试追踪，保留集中设置、菜单管理及图标；原监控/账号鹈鹕/Wire 等 14 文件精确恢复 e4fe28310。已发布 v0.2.17.2/3 不改写。
+- 三项新监控开关已移除，余下 18 项与菜单暂保留，等待用户按来源名单确认最终收录范围；来源比对当前已合入 upstream v0.2.17：5 个 key 定制新增，13 个上游已有，不等于项目仅有 5 个二改能力。名单 docs/custom-feature-settings-inventory.md。
+- Go 118 项、前端 103 项、质量/类型/前后端构建通过；真实设置组件和模拟 API 验证过期控件移除及局部保存；详见 20261018/rollback-monitor-keep-settings.md。
+- 迁移 246 原文件/checksum 保留，两个表不再使用；未执行生产迁移/删表/部署。修改尚未提交或合并推送，无已知实现阻塞；下一步等待用户确认 5 项加菜单是否足够，或是否保留其他现有开关。
+
+## 2026-10-18 集中页归属纠正第一检查点
+- 已完成：用户确认非本人二改项移出集中页，API白名单、前端keys和双语已收窄到3项；简洁首页入口组件已补，修复前失败测试捕获两种缺失。
+- 相关文件：setting_custom_features.go、customFeatures.ts、中英文customFeatures.ts、HomeView.vue；计划20261018/custom-scope-community-plan.md。
+- 未完成：恢复15项原设置编辑/保存，更新测试/清单，运行Green/构建和浏览器验证；代码均未提交。
+- 阻塞：无，未访问生产配置，线上是否还缺URL/二维码待管理员配置核验。
+
+## 2026-10-18 集中页归属纠正完成
+- 已完成带证据：集中页最终仅有礼遇、兑换购买、社群三个开关和自定义菜单；15项原功能开关已恢复在对应设置页保存。简洁首页补社群入口，链接和二维码弹窗两种模式的浏览器本地模拟公开配置均实际验证。
+- 相关文件：backend/internal/service/setting_custom_features.go、frontend/src/api/customFeatures.ts、frontend/src/views/admin/SettingsView.vue、frontend/src/views/HomeView.vue、docs/custom-feature-settings-inventory.md；详细计划与Red证据见20261018/custom-scope-community-plan.md。
+- 验证：前端56项、Go定向7项、ESLint、typecheck、pnpm build（含双语3项）、go build、diff检查通过。临时页面配置、Vite服务及浏览器标签均已清理。
+- 未完成：本轮已提交，待快进合并到本地custom-main；不推送、不打tag或部署。生产配置未读取，管理员仍需填写链接或二维码才能展示社群入口。
+- 阻塞：无。

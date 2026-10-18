@@ -35,3 +35,21 @@ session-id: 20261018-1559
 - 用户新授权提交、打 tag v0.2.17.3 并推送。图标修复提交 51c4e0052 已从 feature/custom-menu-default-icon 无冲突快进合入 custom-main，VERSION 更新为 0.2.17.3。
 - fetch 后 origin/custom-main=076d8c8ee，目标 tag 本地/远端均不存在。嵌入发布构建、二进制 -version 和版本解析通过，两项发布工具测试通过；复用上节图标修复回归、质量、构建和浏览器证据。
 - 仅原子推送 origin/custom-main 与 annotated tag v0.2.17.3，保留旧 tag。RELEASE_ONLY=true，仅 Release 归档及 checksums。当前为推送前记录，结果以远端 refs 和工作流核验为准；未部署生产。
+
+## [22:43] 撤回本次监控/鹈鹕增强，保留集中设置
+- 用户要求先撤回本次渠道监控和鹈鹕增强，只保留集中管理，并提供名单确认。在 feature/retain-custom-feature-settings 上撤回新分组监控/计划/历史/追踪/API/组件/Wire，原有账号鹈鹕和渠道监控相关 14 个文件精确恢复 e4fe28310；保留集中设置、菜单启停及图标、礼遇总开关。
+- 移除三项新监控开关，集中 API 类型拆为 customFeatures.ts。18 项开关与中英文集合一致；按 upstream v0.2.17=b0a02a330 核对，5 个 key 为定制新增，13 个上游已有。仅给名单，不擅自收窄其余收录范围，详见 docs/custom-feature-settings-inventory.md。
+- 相关 Go 118 项、前端 103 项、ESLint/typecheck/前端 build（含 3 项双语检查）/Go build/diff 检查通过；真实设置组件配模拟 API 验证三项消失及局部 PATCH 精确保存。详情与命令见 rollback-monitor-keep-settings.md。
+- migration 246 按已发布历史迁移保留且 checksum 不变，两个新表不再被使用；不删表、不改生产设置。未提交/合并/推送/打 tag/部署；临时 UI 文件、服务和标签页收尾清理。等待用户确认集中页最终收录名单。
+
+## [22:53] 实现：集中开关收窄第一批与社群入口
+- 按用户确认收窄前后端白名单为礼遇、兑换购买、社群三项，双语同步；原其他开关存储值不动。HomeView简洁首页复用现有社群组件。
+- 新增回归在修复前执行：6项中2项按预期失败（简洁首页缺链接/二维码按钮），其余4项通过。计划及恢复快照见custom-scope-community-plan.md；本批尚待Green和原设置编辑恢复。
+
+## [23:05] 完成：二改名单收窄与社群入口修复
+- 「二改功能」GET/PATCH、前端集合和双语仅保留 `zenxiang_liyu_enabled`、`redeem_code_purchase_enabled`、`join_group_enabled` 与自定义菜单；此前被错误集中管理的15项恢复原设置页编辑与保存，存量设置值未改。
+- 修复简洁首页遗漏的 JoinGroupEntryButton，链接模式显示跳转入口，二维码模式点击显示弹窗；集中页在开启社群入口后提供前往通用设置填写链接/二维码的提示。更新 docs/custom-feature-settings-inventory.md。
+- 验证：修复前HomeView回归6项中2项按预期失败，修复后前端56项、Go定向7项通过；ESLint、vue-tsc、前端生产构建、Go build、diff检查通过。浏览器本地模拟公开设置验证链接与二维码弹窗，临时index配置/Vite/标签页已清理；未连接生产、未提交/推送/部署。
+
+## [23:10] Git：提交并准备合并
+- 用户授权将 feature/retain-custom-feature-settings 合并到本地 custom-main。已将撤回监控、最终三项集中设置、社群入口修复、测试和记录提交；合并前 feature 与 custom-main 同起点，使用 fast-forward，不推送、不打 tag、不部署。

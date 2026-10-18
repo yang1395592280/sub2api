@@ -136,10 +136,6 @@ func RegisterUserRoutes(
 			subscriptions.GET("/summary", h.Subscription.GetSummary)
 		}
 
-		groupMonitors := authenticated.Group("/channel-group-monitors")
-		groupMonitors.GET("", h.GroupMonitor.UserList)
-		groupMonitors.GET("/:id/history", h.GroupMonitor.UserHistory)
-		groupMonitors.GET("/:id/runs/:run_id", h.GroupMonitor.UserRun)
 		// 渠道监控（用户只读）
 		monitors := authenticated.Group("/channel-monitors")
 		{
@@ -161,14 +157,6 @@ func RegisterUserRoutes(
 		monitorV2 := authenticated.Group("/channel-monitor-v2")
 		monitorV2.Use(panelRateLimiter.Heavy())
 		monitorV2.Use(channelMonitorModeV2Guard(settingService))
-		monitorV2.Use(func(c *gin.Context) {
-			if !settingService.CustomFeatureEnabled(c.Request.Context(), service.SettingKeyMonitorUserVisible) {
-				response.NotFound(c, "Feature disabled")
-				c.Abort()
-				return
-			}
-			c.Next()
-		})
 		{
 			monitorV2.GET("/dimensions", h.ChannelMonitorV2.Dimensions)
 			monitorV2.GET("/snapshot", h.ChannelMonitorV2.Snapshot)

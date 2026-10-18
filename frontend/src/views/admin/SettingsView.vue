@@ -4585,7 +4585,7 @@
                   </div>
                   <Toggle
                     id="codex-ticket-enabled"
-                    :model-value="form.openai_codex_ticket_enabled" disabled :title="t('customFeatures.managed')"
+                    v-model="form.openai_codex_ticket_enabled"
                   />
                 </div>
                 <div>
@@ -5218,7 +5218,7 @@
                   </p>
                 </div>
                 <Toggle
-                  :model-value="form.openai_low_upstream_rate_priority_enabled" disabled :title="t('customFeatures.managed')"
+                  v-model="form.openai_low_upstream_rate_priority_enabled"
                   data-testid="openai-low-rate-priority-toggle"
                 />
               </div>
@@ -5268,7 +5268,7 @@
                   </p>
                 </div>
                 <Toggle
-                  :model-value="form.openai_advanced_scheduler_enabled" disabled :title="t('customFeatures.managed')"
+                  v-model="form.openai_advanced_scheduler_enabled"
                   data-testid="openai-advanced-scheduler-toggle"
                 />
               </div>
@@ -5289,7 +5289,7 @@
                     }}
                   </p>
                 </div>
-                <Toggle :model-value="form.openai_advanced_scheduler_sticky_weighted_enabled" disabled :title="t('customFeatures.managed')" />
+                <Toggle v-model="form.openai_advanced_scheduler_sticky_weighted_enabled" />
               </div>
 
               <div
@@ -5308,7 +5308,7 @@
                     }}
                   </p>
                 </div>
-                <Toggle :model-value="form.openai_advanced_scheduler_subscription_priority_enabled" disabled :title="t('customFeatures.managed')" />
+                <Toggle v-model="form.openai_advanced_scheduler_subscription_priority_enabled" />
               </div>
 
               <div
@@ -5964,7 +5964,7 @@
                     {{ codexSyncedVersionLabel }}
                   </p>
                 </div>
-                <Toggle :model-value="form.openai_codex_version_auto_sync_enabled" disabled :title="t('customFeatures.managed')" />
+                <Toggle v-model="form.openai_codex_version_auto_sync_enabled" />
               </div>
 
               <!-- Claude Code 客户端版本号 -->
@@ -6793,6 +6793,7 @@
               </div>
 
               <div
+                id="join-group-settings"
                 class="rounded-xl border border-gray-200/80 bg-gray-50/70 p-4 dark:border-dark-700 dark:bg-dark-900/40"
               >
                 <div class="flex items-center justify-between gap-4">
@@ -6805,7 +6806,9 @@
                     </p>
                   </div>
                   <Toggle
-                    :model-value="form.join_group_enabled" disabled :title="t('customFeatures.managed')"
+                    :model-value="form.join_group_enabled"
+                    disabled
+                    :title="t('customFeatures.managed')"
                     name="join-group-enabled"
                   />
                 </div>
@@ -6896,7 +6899,7 @@
                     {{ t("admin.settings.site.compactHomeHint") }}
                   </p>
                 </div>
-                <Toggle :model-value="form.compact_home_enabled" disabled :title="t('customFeatures.managed')" data-testid="compact-home-toggle" />
+                <Toggle v-model="form.compact_home_enabled" data-testid="compact-home-toggle" />
               </div>
 
               <!-- Hide CCS Import Button -->
@@ -6911,7 +6914,7 @@
                     {{ t("admin.settings.site.hideCcsImportButtonHint") }}
                   </p>
                 </div>
-                <Toggle :model-value="form.hide_ccs_import_button" disabled :title="t('customFeatures.managed')" />
+                <Toggle v-model="form.hide_ccs_import_button" />
               </div>
 
               <!-- Redeem Code Purchase Link -->
@@ -7374,7 +7377,7 @@
                   {{ t('admin.settings.features.channelMonitor.enabledHint') }}
                 </p>
               </div>
-              <Toggle :model-value="form.channel_monitor_enabled" disabled :title="t('customFeatures.managed')" />
+              <Toggle v-model="form.channel_monitor_enabled" />
             </div>
 
             <div v-if="form.channel_monitor_enabled" class="space-y-5">
@@ -7471,7 +7474,7 @@
                     {{ t('admin.settings.features.channelMonitor.showQuotaHint') }}
                   </p>
                 </div>
-                <Toggle :model-value="form.channel_monitor_show_quota" disabled :title="t('customFeatures.managed')" />
+                <Toggle v-model="form.channel_monitor_show_quota" />
               </div>
             </div>
           </div>
@@ -7505,7 +7508,7 @@
                   {{ t('admin.settings.features.availableChannels.enabledHint') }}
                 </p>
               </div>
-              <Toggle :model-value="form.available_channels_enabled" disabled :title="t('customFeatures.managed')" />
+              <Toggle v-model="form.available_channels_enabled" />
             </div>
           </div>
         </div>
@@ -7529,7 +7532,7 @@
                   {{ t('admin.settings.features.modelPlaza.enabledHint') }}
                 </p>
               </div>
-              <Toggle :model-value="form.model_plaza_enabled" disabled :title="t('customFeatures.managed')" />
+              <Toggle v-model="form.model_plaza_enabled" />
             </div>
 
             <div v-if="form.model_plaza_enabled" class="flex items-center justify-between">
@@ -7704,7 +7707,7 @@
                   {{ t('admin.settings.features.affiliate.enabledHint') }}
                 </p>
               </div>
-              <Toggle :model-value="form.affiliate_enabled" disabled :title="t('customFeatures.managed')" />
+              <Toggle v-model="form.affiliate_enabled" />
             </div>
 
             <div v-if="form.affiliate_enabled" class="space-y-6">
@@ -7717,7 +7720,7 @@
                     {{ t('admin.settings.features.affiliate.ticketCampaignHint') }}
                   </p>
                 </div>
-                <Toggle :model-value="form.affiliate_ticket_campaign_enabled" disabled :title="t('customFeatures.managed')" />
+                <Toggle v-model="form.affiliate_ticket_campaign_enabled" />
               </div>
 
               <div class="flex items-center justify-between">
@@ -7729,7 +7732,7 @@
                     {{ t('admin.settings.features.affiliate.adminRechargeRebateHint') }}
                   </p>
                 </div>
-                <Toggle :model-value="form.affiliate_admin_recharge_enabled" disabled :title="t('customFeatures.managed')" />
+                <Toggle v-model="form.affiliate_admin_recharge_enabled" />
               </div>
 
               <div>
@@ -9093,7 +9096,7 @@
         <!-- /Tab: Email -->
 
         <p v-if="['general','features','gateway'].includes(activeTab)" class="text-sm text-gray-500">{{ t('customFeatures.managed') }} <button type="button" class="text-primary-600 underline" @click="activeTab = 'custom'">{{ t('customFeatures.title') }}</button></p>
-        <CustomFeaturesSettings v-if="activeTab === 'custom'" @saved="onCustomFeaturesSaved" />
+        <CustomFeaturesSettings v-if="activeTab === 'custom'" @saved="onCustomFeaturesSaved" @configure-community="openCommunitySettings" />
 
         <!-- Tab: Backup -->
         <div v-show="activeTab === 'backup'">
@@ -9174,9 +9177,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from "vue";
+import { ref, reactive, computed, onMounted, watch, nextTick } from "vue";
 import CustomFeaturesSettings from "@/components/admin/CustomFeaturesSettings.vue";
-import { CUSTOM_FEATURE_KEYS, type CustomFeatures } from "@/api/groupMonitor";
+import { CUSTOM_FEATURE_KEYS, type CustomFeatures } from "@/api/customFeatures";
 import { listPlatformIds } from "@/constants/platformCatalog";
 import { useI18n } from "vue-i18n";
 import { adminAPI } from "@/api";
@@ -11545,6 +11548,12 @@ function onCustomFeaturesSaved(settings: CustomFeatures) {
   for (const menu of form.custom_menu_items) {
     if (menus.has(menu.id)) menu.enabled = menus.get(menu.id);
   }
+}
+
+async function openCommunitySettings() {
+  activeTab.value = "general";
+  await nextTick();
+  document.getElementById("join-group-settings")?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 async function saveSettings() {

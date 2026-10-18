@@ -15,40 +15,41 @@ func (r *customFeaturesRepo) GetValue(_ context.Context, k string) (string, erro
 }
 func TestCustomFeaturesPatchPreservesUnrelatedSettingsAndMenuFields(t *testing.T) {
 	repo := &customFeaturesRepo{joinGroupSettingRepoStub{values: map[string]string{
-		"smtp_host": "unchanged", SettingKeyChannelMonitorEnabled: "false", SettingKeyCustomMenuItems: `[{"id":"guide","label":"Guide","visibility":"user","url":"md:guide","future_field":42}]`,
+		"smtp_host": "unchanged", SettingKeyJoinGroupEnabled: "false", SettingKeyCustomMenuItems: `[{"id":"guide","label":"Guide","visibility":"user","url":"md:guide","future_field":42}]`,
 	}}}
 	s := NewSettingService(repo, &config.Config{})
-	require.NoError(t, s.PatchCustomFeatures(context.Background(), map[string]bool{SettingKeyMonitorPelicanEnabled: true}, map[string]bool{"guide": false}))
+	require.NoError(t, s.PatchCustomFeatures(context.Background(), map[string]bool{SettingKeyJoinGroupEnabled: true}, map[string]bool{"guide": false}))
 	require.Equal(t, "unchanged", repo.values["smtp_host"])
-	require.Equal(t, "false", repo.values[SettingKeyChannelMonitorEnabled])
+	require.Equal(t, "true", repo.values[SettingKeyJoinGroupEnabled])
 	require.Contains(t, repo.values[SettingKeyCustomMenuItems], `"future_field":42`)
 	require.Empty(t, filterUserVisibleMenuItems(repo.values[SettingKeyCustomMenuItems])[1:len(filterUserVisibleMenuItems(repo.values[SettingKeyCustomMenuItems]))-1])
 	require.Error(t, s.PatchCustomFeatures(context.Background(), map[string]bool{"smtp_host": true}, nil))
 	settings, err := s.GetCustomFeatures(context.Background())
 	require.NoError(t, err)
 	require.False(t, settings.Menus[0].Enabled)
-	require.True(t, settings.Flags[SettingKeyMonitorPelicanEnabled])
+	require.True(t, settings.Flags[SettingKeyJoinGroupEnabled])
 }
 func TestCustomFeaturesUpgradeDefaults(t *testing.T) {
-	s := NewSettingService(&customFeaturesRepo{joinGroupSettingRepoStub{values: map[string]string{SettingKeyZenxiangLiyuEnabled: "", SettingKeyMonitorUserVisible: ""}}}, &config.Config{})
+	s := NewSettingService(&customFeaturesRepo{joinGroupSettingRepoStub{values: map[string]string{SettingKeyZenxiangLiyuEnabled: "", SettingKeyJoinGroupEnabled: ""}}}, &config.Config{})
 	require.True(t, s.CustomFeatureEnabled(context.Background(), SettingKeyZenxiangLiyuEnabled))
-	require.True(t, s.CustomFeatureEnabled(context.Background(), SettingKeyMonitorUserVisible))
-	require.False(t, s.CustomFeatureEnabled(context.Background(), SettingKeyMonitorPelicanEnabled))
-	require.False(t, s.CustomFeatureEnabled(context.Background(), SettingKeyMonitorPelicanUserVisible))
+	require.False(t, s.CustomFeatureEnabled(context.Background(), SettingKeyJoinGroupEnabled))
+	require.False(t, s.CustomFeatureEnabled(context.Background(), SettingKeyChannelMonitorEnabled))
 }
 
-func TestCustomFeaturesCodexTicketRespectsConfigFallback(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.Gateway.OpenAICodexTicket.Enabled = true
-	repo := &customFeaturesRepo{joinGroupSettingRepoStub{values: map[string]string{}}}
-	s := NewSettingService(repo, cfg)
+func TestCustomFeaturesOnlyIncludesConfirmedCustomSwitches(t *testing.T) {
+	restored := []string{SettingKeyChannelMonitorEnabled, SettingKeyCompactHomeEnabled, SettingKeyOpenAICodexTicketEnabled}
+	repo := &customFeaturesRepo{joinGroupSettingRepoStub{values: map[string]string{
+		SettingKeyZenxiangLiyuEnabled:   "true",
+		SettingKeyChannelMonitorEnabled: "true",
+	}}}
+	s := NewSettingService(repo, &config.Config{})
 	settings, err := s.GetCustomFeatures(context.Background())
 	require.NoError(t, err)
-	require.True(t, settings.Flags[SettingKeyOpenAICodexTicketEnabled])
-	require.True(t, s.CustomFeatureEnabled(context.Background(), SettingKeyOpenAICodexTicketEnabled))
-	repo.values[SettingKeyOpenAICodexTicketEnabled] = "false"
-	settings, err = s.GetCustomFeatures(context.Background())
-	require.NoError(t, err)
-	require.False(t, settings.Flags[SettingKeyOpenAICodexTicketEnabled])
-	require.False(t, s.CustomFeatureEnabled(context.Background(), SettingKeyOpenAICodexTicketEnabled))
+	require.Len(t, settings.Flags, 3)
+	require.True(t, settings.Flags[SettingKeyZenxiangLiyuEnabled])
+	for _, key := range restored {
+		require.NotContains(t, settings.Flags, key)
+		require.ErrorContains(t, s.PatchCustomFeatures(context.Background(), map[string]bool{key: false}, nil), "unsupported feature")
+	}
+	require.Equal(t, "true", repo.values[SettingKeyChannelMonitorEnabled])
 }

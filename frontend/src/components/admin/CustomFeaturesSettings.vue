@@ -11,6 +11,12 @@
         <input v-model="settings.flags[key]" type="checkbox" class="h-5 w-5 accent-primary-500" :disabled="saving" />
       </label>
     </div>
+    <div v-if="settings?.flags.join_group_enabled" class="rounded-lg bg-gray-50 p-4 text-sm dark:bg-dark-900/50">
+      <p class="text-gray-600 dark:text-gray-300">{{ t('customFeatures.communityHint') }}</p>
+      <button type="button" class="mt-2 text-primary-600 underline dark:text-primary-400" @click="emit('configureCommunity')">
+        {{ t('customFeatures.configureCommunity') }}
+      </button>
+    </div>
     <div v-if="settings?.menus.length">
       <h3 class="mb-2 font-medium">{{ t('customFeatures.menus') }}</h3>
       <label v-for="menu in settings.menus" :key="menu.id" class="flex items-center justify-between gap-3 py-3">
@@ -27,13 +33,13 @@
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiClient } from '@/api/client'
-import { CUSTOM_FEATURE_KEYS, type CustomFeatures } from '@/api/groupMonitor'
+import { CUSTOM_FEATURE_KEYS, type CustomFeatures } from '@/api/customFeatures'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { useAppStore } from '@/stores/app'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
 import { useZenxiangLiyuStore } from '@/stores/zenxiangLiyu'
 const { t } = useI18n()
-const emit = defineEmits<{ saved: [settings: CustomFeatures] }>()
+const emit = defineEmits<{ saved: [settings: CustomFeatures], configureCommunity: [] }>()
 const settings = ref<CustomFeatures>()
 const baseline = ref<CustomFeatures>()
 const saving = ref(false), saved = ref(false), error = ref('')
