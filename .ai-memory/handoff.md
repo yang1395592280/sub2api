@@ -124,3 +124,8 @@
 - 验证：前端56项、Go定向7项、ESLint、typecheck、pnpm build（含双语3项）、go build、diff检查通过。临时页面配置、Vite服务及浏览器标签均已清理。
 - 未完成：本轮已提交，待快进合并到本地custom-main；不推送、不打tag或部署。生产配置未读取，管理员仍需填写链接或二维码才能展示社群入口。
 - 阻塞：无。
+
+## 2026-10-18 v0.2.17.4 发布准备
+- 已完成：用户授权本次提交、annotated tag和推送。VERSION已更新为0.2.17.4，release二进制-version及发布矩阵9项非镜像测试通过；镜像脚本语法检查通过。
+- 相关文件：backend/cmd/server/VERSION、20261018/release-v0.2.17.4.md；待提交、创建tag并原子推送origin/custom-main与refs/tags/v0.2.17.4。
+- 限制：3个镜像脚本执行测试在本机Bash 3.2因`${var,,}`不支持无法运行；GitHub Actions Ubuntu runner具备Bash 4+。未部署生产、未执行迁移。

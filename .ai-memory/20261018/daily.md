@@ -53,3 +53,6 @@ session-id: 20261018-1559
 
 ## [23:10] Git：提交并准备合并
 - 用户授权将 feature/retain-custom-feature-settings 合并到本地 custom-main。已将撤回监控、最终三项集中设置、社群入口修复、测试和记录提交；合并前 feature 与 custom-main 同起点，使用 fast-forward，不推送、不打 tag、不部署。
+
+## [23:15] 发布准备：v0.2.17.4
+- 用户授权提交、tag、推送。版本从0.2.17.3更新为0.2.17.4，并加入发布说明；嵌入式release二进制-version正确输出0.2.17.4。发布工具的9项非镜像测试和镜像脚本语法检查通过；3项镜像脚本执行测试受macOS Bash 3.2不支持`${var,,}`限制，GitHub Ubuntu runner支持该语法。待创建tag、校验并原子推送custom-main和tag；不部署生产。
