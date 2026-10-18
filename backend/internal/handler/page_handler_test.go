@@ -165,3 +165,16 @@ func mustEvalSymlinks(t *testing.T, path string) string {
 	}
 	return realPath
 }
+
+func TestGetPageContentRejectsDisabledMenuDirectLink(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest("GET", "/api/v1/pages/gpt-config-guide", nil)
+	ctx.Params = gin.Params{{Key: "slug", Value: "gpt-config-guide"}}
+	settings := service.NewSettingService(&pageSettingRepoStub{value: `[{"id":"guide","url":"md:gpt-config-guide","visibility":"user","enabled":false}]`}, &config.Config{})
+	NewPageHandler(t.TempDir(), settings).GetPageContent(ctx)
+	if recorder.Code != 404 {
+		t.Fatalf("disabled menu direct link: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}

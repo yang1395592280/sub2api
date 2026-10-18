@@ -23,6 +23,7 @@
             role="tablist"
             :aria-label="t('channelMonitorV2.admin.tabAria')"
           >
+            <button type="button" role="tab" class="tab flex-1 sm:flex-none" :class="adminMonitorTab === 'groups' ? 'tab-active' : ''" :aria-selected="adminMonitorTab === 'groups'" @click="adminMonitorTab = 'groups'">{{ t('groupMonitor.title') }}</button>
             <button
               type="button"
               role="tab"
@@ -47,7 +48,8 @@
         </div>
       </header>
 
-      <MonitorSettingsPanel v-if="adminMonitorTab === 'v2'" />
+      <GroupMonitorPanel v-if="adminMonitorTab === 'groups'" admin />
+      <MonitorSettingsPanel v-else-if="adminMonitorTab === 'v2'" />
 
       <TablePageLayout v-else>
       <template #filters>
@@ -267,6 +269,7 @@ import MonitorPrimaryModelCell from '@/components/admin/monitor/MonitorPrimaryMo
 import MonitorActionsCell from '@/components/admin/monitor/MonitorActionsCell.vue'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useChannelMonitorFormat } from '@/composables/useChannelMonitorFormat'
+import GroupMonitorPanel from '@/components/monitor/GroupMonitorPanel.vue'
 import MonitorSettingsPanel from '@/features/channel-monitor-v2/MonitorSettingsPanel.vue'
 import { isChannelMonitorV1Mode } from '@/utils/featureFlags'
 import { VueDraggable } from 'vue-draggable-plus'
@@ -274,7 +277,7 @@ import { VueDraggable } from 'vue-draggable-plus'
 const { t } = useI18n()
 const appStore = useAppStore()
 const isV1Mode = computed(() => isChannelMonitorV1Mode())
-const adminMonitorTab = ref<'v2' | 'legacy'>(isChannelMonitorV1Mode() ? 'legacy' : 'v2')
+const adminMonitorTab = ref<'groups' | 'v2' | 'legacy'>(isChannelMonitorV1Mode() ? 'groups' : 'v2')
 const {
   providerLabel,
   providerBadgeClass,

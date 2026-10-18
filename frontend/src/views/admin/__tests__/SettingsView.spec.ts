@@ -734,7 +734,7 @@ describe("admin SettingsView payment visible method controls", () => {
     adminSettingsFetch.mockResolvedValue(undefined);
   });
 
-  it("submits the Codex ticket harvest toggle", async () => {
+  it("leaves the centralized Codex ticket switch out of detailed saves", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,
       openai_codex_ticket_enabled: false,
@@ -745,7 +745,8 @@ describe("admin SettingsView payment visible method controls", () => {
     await toggle.setValue(true);
     await wrapper.find("form").trigger("submit.prevent");
     await flushPromises();
-    expect(updateSettings.mock.calls[0]?.[0].openai_codex_ticket_enabled).toBe(true);
+    expect(toggle.attributes("disabled")).toBeDefined();
+    expect(updateSettings.mock.calls[0]?.[0]).not.toHaveProperty("openai_codex_ticket_enabled");
     wrapper.unmount();
   });
 
@@ -793,7 +794,7 @@ describe("admin SettingsView payment visible method controls", () => {
     wrapper.unmount();
   });
 
-  it("submits the compact home page toggle", async () => {
+  it("leaves the centralized compact home switch out of detailed saves", async () => {
     const wrapper = mountView();
     await flushPromises();
 
@@ -804,9 +805,8 @@ describe("admin SettingsView payment visible method controls", () => {
     await wrapper.find("form").trigger("submit.prevent");
     await flushPromises();
 
-    expect(updateSettings).toHaveBeenCalledWith(
-      expect.objectContaining({ compact_home_enabled: true }),
-    );
+    expect(toggle.attributes("disabled")).toBeDefined();
+    expect(updateSettings.mock.calls[0]?.[0]).not.toHaveProperty("compact_home_enabled");
   });
 
   it("renders panel rate limit card and saves settings", async () => {
@@ -1242,7 +1242,7 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_enabled");
   });
 
-  it("submits the admin recharge affiliate rebate setting", async () => {
+  it("preserves the centralized admin recharge rebate switch", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,
       affiliate_enabled: true,
@@ -1256,14 +1256,10 @@ describe("admin SettingsView payment visible method controls", () => {
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
-    expect(updateSettings).toHaveBeenCalledWith(
-      expect.objectContaining({
-        affiliate_admin_recharge_enabled: true,
-      }),
-    );
+    expect(updateSettings.mock.calls[0]?.[0]).not.toHaveProperty("affiliate_admin_recharge_enabled");
   });
 
-  it("submits the affiliate ticket campaign switch", async () => {
+  it("preserves the centralized affiliate ticket campaign switch", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,
       affiliate_enabled: true,
@@ -1277,11 +1273,7 @@ describe("admin SettingsView payment visible method controls", () => {
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
-    expect(updateSettings).toHaveBeenCalledWith(
-      expect.objectContaining({
-        affiliate_ticket_campaign_enabled: false,
-      }),
-    );
+    expect(updateSettings.mock.calls[0]?.[0]).not.toHaveProperty("affiliate_ticket_campaign_enabled");
   });
 
   it("submits Anthropic cache TTL injection gateway setting", async () => {
@@ -1678,15 +1670,16 @@ describe("admin SettingsView payment visible method controls", () => {
   });
 
   it("places and explains rate controls for both scheduling modes", async () => {
-    const wrapper = mountView();
+    getSettings.mockResolvedValueOnce({ ...baseSettingsResponse, openai_low_upstream_rate_priority_enabled: true });
+    let wrapper = mountView();
 
     await flushPromises();
     expect(
       wrapper.find('[data-testid="openai-oauth-scheduling-rate-multiplier"]').exists(),
-    ).toBe(false);
+    ).toBe(true);
 
     const lowRateToggle = wrapper.get('[data-testid="openai-low-rate-priority-toggle"]');
-    await lowRateToggle.setValue(true);
+    expect(lowRateToggle.attributes("disabled")).toBeDefined();
     const priorityModeText = wrapper.text();
     expect(priorityModeText).toContain(
       "OAuth 账号按此参考倍率参与低倍率优先排序；留空时使用各自的账号倍率。",
@@ -1707,14 +1700,14 @@ describe("admin SettingsView payment visible method controls", () => {
 
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
-        openai_low_upstream_rate_priority_enabled: true,
         openai_oauth_scheduling_rate_multiplier: 0.05,
       }),
     );
 
-    await wrapper
-      .get('[data-testid="openai-advanced-scheduler-toggle"]')
-      .setValue(true);
+    wrapper.unmount();
+    getSettings.mockResolvedValueOnce({ ...baseSettingsResponse, openai_advanced_scheduler_enabled: true });
+    wrapper = mountView();
+    await flushPromises();
     expect(
       wrapper.find('[data-testid="openai-low-rate-priority-toggle"]').exists(),
     ).toBe(false);

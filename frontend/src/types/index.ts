@@ -232,6 +232,7 @@ export interface SendVerifyCodeResponse {
 }
 
 export interface CustomMenuItem {
+  enabled?: boolean
   id: string
   label: string
   icon_svg: string
@@ -255,6 +256,7 @@ export interface LoginAgreementDocument {
 }
 
 export interface PublicSettings {
+  channel_monitor_user_visible?: boolean
   registration_enabled: boolean
   email_verify_enabled: boolean
   force_email_on_third_party_signup: boolean

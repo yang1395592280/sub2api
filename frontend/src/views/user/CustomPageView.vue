@@ -223,11 +223,11 @@ const menuItemId = computed(() => route.params.id as string)
 
 const menuItem = computed(() => {
   const id = menuItemId.value
-  const publicItems = appStore.cachedPublicSettings?.custom_menu_items ?? []
+  const publicItems = (appStore.cachedPublicSettings?.custom_menu_items ?? []).filter(item => item.enabled !== false)
   const found = publicItems.find((item) => item.id === id) ?? null
   if (found) return found
   if (authStore.isAdmin) {
-    return adminSettingsStore.customMenuItems.find((item) => item.id === id) ?? null
+    return adminSettingsStore.customMenuItems.filter(item => item.enabled !== false).find((item) => item.id === id) ?? null
   }
   return null
 })

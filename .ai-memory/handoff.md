@@ -63,3 +63,27 @@
 相关文件：backend/cmd/server/VERSION、frontend/src/views/user/KeysView.vue及两组回归；详情20261016/daily.md。
 未完成：本条为推送前记录，将快进合回custom-main并原子推送分支和annotated tag v0.2.16.3，远端两者须指向同一发布提交；Release状态以实际运行核验为准，生产尚未部署。
 阻塞：Git发布无已知阻塞；沿用RELEASE_ONLY=true，仅生成Release归档，不发布Docker镜像。
+
+## 2026-10-18 二改开关与 V1 分组监控（实现中）
+- 已完成：feature/custom-controls-active-monitor 上新增 246 增量迁移、分组监控 service/repository/API 初稿；账号测试追踪 wrapper；二改开关局部保存 API；菜单停用和礼遇路由控制。尚未编译验证，不计作交付完成。
+- 相关文件：docs/channel-monitor-v1-group-design.md；backend/internal/service/channel_group_monitor.go、account_test_trace.go、setting_custom_features.go；对应 repository/handler/routes。
+- 未完成：编译修正、Wire 生成、前端设置分组与分组卡片/鹈鹕弹窗、核心测试、实际 UI 验证、最终审查。
+- 阻塞：无。未连接生产，未发真实模型请求。新计划默认关闭，由管理员配置后开启。
+
+## 2026-10-18 二改监控第二检查点
+- 已完成带证据：Go 相关 71 条测试通过；前端 typecheck、改动组件 lint 通过；新组件测试与双语完整性测试通过。Wire 已生成，核心前后端联通代码齐备。
+- 相关文件：新增 CustomFeaturesSettings.vue、GroupMonitorPanel.vue、groupMonitor.ts；新增 service/handler 单元测试与 repository 租约/预算集成测试。
+- 未完成：旧 SettingsView 测试已按新集中保存行为更新，待回归；构建、浏览器实际交互、权限 HTTP 测试、最终审查及文档收尾。
+- 阻塞：Docker CLI 在，但 daemon 不可连接；仓库数据库集成 harness 因此跳过，尚未实测 PostgreSQL 迁移/多实例领取。无真实供应商请求。
+
+## 2026-10-18 二改开关与 V1 分组监控最终检查点
+- 已完成带证据：集中 21 个开关与自定义菜单启停、V1 批量分组账号抽测、内嵌鹈鹕历史/沙箱/人工评估/管理员 ID、用户服务端权限与脱敏、数据库租约/预算/超时恢复和 Wire 生命周期。相关 Go 回归、前端相关 55 项及最新 52 项、前后端构建/typecheck/ESLint/双语检查通过，真实页面配本地模拟 API 交互验证通过。
+- 数据库阻塞已解除：启动现有本地 Docker，PostgreSQL 18.1/Redis 隔离容器中 2 项集成实际通过（迁移、并发/预算/跨日、旧令牌防覆盖、历史摘要/HTML单条、评估、保留和恢复）；容器已自动清理，初次跳过不计通过。
+- 相关文件：docs/channel-monitor-v1-group-design.md；service/channel_group_monitor.go、account_test_trace.go、setting_custom_features.go；对应 repository/handler/routes/tests；frontend CustomFeaturesSettings.vue、GroupMonitorPanel.vue、groupMonitor.ts。完整实现留在 feature/custom-controls-active-monitor 未提交工作区。
+- 未完成：真实供应商与长期运行/生产迁移尚未验证；本轮未授权 commit/merge/push/部署。只支持普通分组，复合路由和独立自托管池需后续设计；新计划默认暂停、鹈鹕总开关默认关闭。测试环境少量请求联调是上线前下一步。
+- 阻塞：本地实现无阻塞。截图均为模拟数据；直接账号抽测消耗上游额度，不覆盖用户 Key 鉴权及计费链路。
+
+## 2026-10-18 二改监控本地合并授权
+- 用户已要求合并 feature/custom-controls-active-monitor，授权提交本轮实现及记录并快进合入本地 custom-main；合并前两分支均为 e4fe28310，目标未被其他 worktree 占用，无分叉。
+- 复用已通过的相关 Go、前端、隔离 PostgreSQL 集成与构建证据，不追加业务变更。
+- 本次范围为本地提交与 git merge --ff-only；不推送、不打 tag、不部署、不执行生产迁移。最终提交点、包含关系与干净状态以合并后的 Git 核验为准。

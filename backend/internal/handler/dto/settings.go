@@ -9,6 +9,7 @@ import (
 
 // CustomMenuItem represents a user-configured custom menu entry.
 type CustomMenuItem struct {
+	Enabled        *bool  `json:"enabled,omitempty"`
 	ID             string `json:"id"`
 	Label          string `json:"label"`
 	IconSVG        string `json:"icon_svg"`
@@ -446,6 +447,7 @@ type PublicSettings struct {
 	BalanceLowNotifyThreshold   float64 `json:"balance_low_notify_threshold"`
 	BalanceLowNotifyRechargeURL string  `json:"balance_low_notify_recharge_url"`
 
+	ChannelMonitorUserVisible            bool   `json:"channel_monitor_user_visible"`
 	ChannelMonitorEnabled                bool   `json:"channel_monitor_enabled"`
 	ChannelMonitorMode                   string `json:"channel_monitor_mode"`
 	ChannelMonitorDefaultIntervalSeconds int    `json:"channel_monitor_default_interval_seconds"`
@@ -632,7 +634,7 @@ func ParseUserVisibleMenuItems(raw string) []CustomMenuItem {
 	items := ParseCustomMenuItems(raw)
 	filtered := make([]CustomMenuItem, 0, len(items))
 	for _, item := range items {
-		if item.Visibility != "admin" {
+		if item.Visibility != "admin" && (item.Enabled == nil || *item.Enabled) {
 			filtered = append(filtered, item)
 		}
 	}

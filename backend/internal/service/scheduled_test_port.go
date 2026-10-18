@@ -22,18 +22,21 @@ type ScheduledTestPlan struct {
 
 // ScheduledTestResult represents a single test execution result.
 type ScheduledTestResult struct {
-	ID           int64     `json:"id"`
-	PlanID       int64     `json:"plan_id"`
-	Status       string    `json:"status"`
-	ResponseText string    `json:"response_text"`
-	ErrorMessage string    `json:"error_message"`
-	LatencyMs    int64     `json:"latency_ms"`
-	InputTokens  *int64    `json:"input_tokens,omitempty"`
-	OutputTokens *int64    `json:"output_tokens,omitempty"`
-	TotalTokens  *int64    `json:"total_tokens,omitempty"`
-	StartedAt    time.Time `json:"started_at"`
-	FinishedAt   time.Time `json:"finished_at"`
-	CreatedAt    time.Time `json:"created_at"`
+	UpstreamMessageID string    `json:"upstream_message_id,omitempty"`
+	UpstreamRequestID string    `json:"upstream_request_id,omitempty"`
+	TTFTMs            *int64    `json:"ttft_ms,omitempty"`
+	ID                int64     `json:"id"`
+	PlanID            int64     `json:"plan_id"`
+	Status            string    `json:"status"`
+	ResponseText      string    `json:"response_text"`
+	ErrorMessage      string    `json:"error_message"`
+	LatencyMs         int64     `json:"latency_ms"`
+	InputTokens       *int64    `json:"input_tokens,omitempty"`
+	OutputTokens      *int64    `json:"output_tokens,omitempty"`
+	TotalTokens       *int64    `json:"total_tokens,omitempty"`
+	StartedAt         time.Time `json:"started_at"`
+	FinishedAt        time.Time `json:"finished_at"`
+	CreatedAt         time.Time `json:"created_at"`
 }
 
 // ScheduledTestPlanRepository defines the data access interface for test plans.

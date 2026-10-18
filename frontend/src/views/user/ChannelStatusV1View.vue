@@ -1,6 +1,8 @@
 <template>
   <AppLayout>
+    <GroupMonitorPanel class="mb-8" />
     <MonitorHero
+      v-if="items.length"
       :overall-status="overallStatus"
       :interval-seconds="DEFAULT_INTERVAL_SECONDS"
       :window="currentWindow"
@@ -11,6 +13,7 @@
     />
 
     <MonitorCardGrid
+      v-if="items.length"
       :items="items"
       :window="currentWindow"
       :countdown-seconds="countdown"
@@ -39,6 +42,7 @@ import {
   type UserMonitorView,
   type UserMonitorDetail,
 } from '@/api/channelMonitor'
+import GroupMonitorPanel from '@/components/monitor/GroupMonitorPanel.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import MonitorHero, {
   type MonitorWindow,

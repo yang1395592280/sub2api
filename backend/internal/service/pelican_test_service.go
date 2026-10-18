@@ -115,14 +115,8 @@ func (s *PelicanTestService) generate(ctx context.Context, test PelicanTest) (st
 	}
 	// Only use routes whose existing account test path sends the supplied prompt.
 	// Other protocols must fail explicitly instead of silently testing "hi".
-	protocol := account.GetAPIProtocol()
 	mappedModel := account.GetMappedModel(test.ModelID)
-	supportsPrompt := account.IsOpenAI() || account.IsGemini() || account.IsGrok() ||
-		(account.IsAnthropic() && (account.Type == AccountTypeOAuth || account.Type == AccountTypeAPIKey)) ||
-		(account.RoutesProtocolByInbound() && (protocol == APIProtocolChatCompletions || protocol == APIProtocolResponses || protocol == APIProtocolAnthropic)) ||
-		account.routesByModel() ||
-		(account.Platform == PlatformAntigravity && account.Type == AccountTypeAPIKey)
-	if !supportsPrompt {
+	if !accountSupportsPelicanPrompt(account) {
 		return "failed", "", "", "该账号协议暂不支持自定义 HTML 生成提示词", 0, usage
 	}
 	if !account.IsModelSupported(test.ModelID) {
@@ -227,4 +221,12 @@ func (s *PelicanTestService) ListLatest(ctx context.Context, accountIDs []int64)
 
 func (s *PelicanTestService) Get(ctx context.Context, id int64) (*PelicanTest, error) {
 	return s.repo.Get(ctx, id)
+}
+
+func accountSupportsPelicanPrompt(account *Account) bool {
+	protocol := account.GetAPIProtocol()
+	return account.IsOpenAI() || account.IsGemini() || account.IsGrok() ||
+		(account.IsAnthropic() && (account.Type == AccountTypeOAuth || account.Type == AccountTypeAPIKey)) ||
+		(account.RoutesProtocolByInbound() && (protocol == APIProtocolChatCompletions || protocol == APIProtocolResponses || protocol == APIProtocolAnthropic)) ||
+		account.routesByModel() || (account.Platform == PlatformAntigravity && account.Type == AccountTypeAPIKey)
 }

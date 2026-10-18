@@ -610,6 +610,8 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	adminSettings := admin.Group("/settings")
 	{
 		adminSettings.GET("", h.Admin.Setting.GetSettings)
+		adminSettings.GET("/custom-features", h.Admin.Setting.GetCustomFeatures)
+		adminSettings.PATCH("/custom-features", h.Admin.Setting.PatchCustomFeatures)
 		adminSettings.PUT("", h.Admin.Setting.UpdateSettings)
 		adminSettings.POST("/test-smtp", h.Admin.Setting.TestSMTPConnection)
 		adminSettings.POST("/send-test-email", h.Admin.Setting.SendTestEmail)
@@ -834,6 +836,16 @@ func registerChannelRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 }
 
 func registerChannelMonitorRoutes(admin *gin.RouterGroup, h *handler.Handlers, settingService *service.SettingService) {
+	groupMonitors := admin.Group("/channel-group-monitors")
+	{
+		groupMonitors.GET("", h.GroupMonitor.AdminList)
+		groupMonitors.PUT("", h.GroupMonitor.Save)
+		groupMonitors.DELETE("/:id", h.GroupMonitor.Delete)
+		groupMonitors.POST("/:id/run", h.GroupMonitor.Run)
+		groupMonitors.GET("/:id/history", h.GroupMonitor.AdminHistory)
+		groupMonitors.GET("/:id/runs/:run_id", h.GroupMonitor.AdminRun)
+		groupMonitors.PATCH("/:id/runs/:run_id", h.GroupMonitor.Review)
+	}
 	guard := channelMonitorAdminFeatureGuard(settingService)
 	monitors := admin.Group("/channel-monitors")
 	monitors.Use(guard)

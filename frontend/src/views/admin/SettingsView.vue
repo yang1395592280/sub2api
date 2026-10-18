@@ -4585,7 +4585,7 @@
                   </div>
                   <Toggle
                     id="codex-ticket-enabled"
-                    v-model="form.openai_codex_ticket_enabled"
+                    :model-value="form.openai_codex_ticket_enabled" disabled :title="t('customFeatures.managed')"
                   />
                 </div>
                 <div>
@@ -5218,7 +5218,7 @@
                   </p>
                 </div>
                 <Toggle
-                  v-model="form.openai_low_upstream_rate_priority_enabled"
+                  :model-value="form.openai_low_upstream_rate_priority_enabled" disabled :title="t('customFeatures.managed')"
                   data-testid="openai-low-rate-priority-toggle"
                 />
               </div>
@@ -5268,7 +5268,7 @@
                   </p>
                 </div>
                 <Toggle
-                  v-model="form.openai_advanced_scheduler_enabled"
+                  :model-value="form.openai_advanced_scheduler_enabled" disabled :title="t('customFeatures.managed')"
                   data-testid="openai-advanced-scheduler-toggle"
                 />
               </div>
@@ -5289,7 +5289,7 @@
                     }}
                   </p>
                 </div>
-                <Toggle v-model="form.openai_advanced_scheduler_sticky_weighted_enabled" />
+                <Toggle :model-value="form.openai_advanced_scheduler_sticky_weighted_enabled" disabled :title="t('customFeatures.managed')" />
               </div>
 
               <div
@@ -5308,7 +5308,7 @@
                     }}
                   </p>
                 </div>
-                <Toggle v-model="form.openai_advanced_scheduler_subscription_priority_enabled" />
+                <Toggle :model-value="form.openai_advanced_scheduler_subscription_priority_enabled" disabled :title="t('customFeatures.managed')" />
               </div>
 
               <div
@@ -5964,7 +5964,7 @@
                     {{ codexSyncedVersionLabel }}
                   </p>
                 </div>
-                <Toggle v-model="form.openai_codex_version_auto_sync_enabled" />
+                <Toggle :model-value="form.openai_codex_version_auto_sync_enabled" disabled :title="t('customFeatures.managed')" />
               </div>
 
               <!-- Claude Code 客户端版本号 -->
@@ -6805,7 +6805,7 @@
                     </p>
                   </div>
                   <Toggle
-                    v-model="form.join_group_enabled"
+                    :model-value="form.join_group_enabled" disabled :title="t('customFeatures.managed')"
                     name="join-group-enabled"
                   />
                 </div>
@@ -6896,7 +6896,7 @@
                     {{ t("admin.settings.site.compactHomeHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.compact_home_enabled" data-testid="compact-home-toggle" />
+                <Toggle :model-value="form.compact_home_enabled" disabled :title="t('customFeatures.managed')" data-testid="compact-home-toggle" />
               </div>
 
               <!-- Hide CCS Import Button -->
@@ -6911,7 +6911,7 @@
                     {{ t("admin.settings.site.hideCcsImportButtonHint") }}
                   </p>
                 </div>
-                <Toggle v-model="form.hide_ccs_import_button" />
+                <Toggle :model-value="form.hide_ccs_import_button" disabled :title="t('customFeatures.managed')" />
               </div>
 
               <!-- Redeem Code Purchase Link -->
@@ -6921,7 +6921,7 @@
                     <label class="font-medium text-gray-900 dark:text-white">{{ t("admin.settings.site.redeemCodePurchase.enabled") }}</label>
                     <p class="text-sm text-gray-500 dark:text-gray-400">{{ t("admin.settings.site.redeemCodePurchase.enabledHint") }}</p>
                   </div>
-                  <Toggle v-model="form.redeem_code_purchase_enabled" />
+                  <Toggle :model-value="form.redeem_code_purchase_enabled" disabled :title="t('customFeatures.managed')" />
                 </div>
                 <div v-if="form.redeem_code_purchase_enabled" class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
@@ -7374,7 +7374,7 @@
                   {{ t('admin.settings.features.channelMonitor.enabledHint') }}
                 </p>
               </div>
-              <Toggle v-model="form.channel_monitor_enabled" />
+              <Toggle :model-value="form.channel_monitor_enabled" disabled :title="t('customFeatures.managed')" />
             </div>
 
             <div v-if="form.channel_monitor_enabled" class="space-y-5">
@@ -7471,7 +7471,7 @@
                     {{ t('admin.settings.features.channelMonitor.showQuotaHint') }}
                   </p>
                 </div>
-                <Toggle v-model="form.channel_monitor_show_quota" />
+                <Toggle :model-value="form.channel_monitor_show_quota" disabled :title="t('customFeatures.managed')" />
               </div>
             </div>
           </div>
@@ -7505,7 +7505,7 @@
                   {{ t('admin.settings.features.availableChannels.enabledHint') }}
                 </p>
               </div>
-              <Toggle v-model="form.available_channels_enabled" />
+              <Toggle :model-value="form.available_channels_enabled" disabled :title="t('customFeatures.managed')" />
             </div>
           </div>
         </div>
@@ -7529,7 +7529,7 @@
                   {{ t('admin.settings.features.modelPlaza.enabledHint') }}
                 </p>
               </div>
-              <Toggle v-model="form.model_plaza_enabled" />
+              <Toggle :model-value="form.model_plaza_enabled" disabled :title="t('customFeatures.managed')" />
             </div>
 
             <div v-if="form.model_plaza_enabled" class="flex items-center justify-between">
@@ -7704,7 +7704,7 @@
                   {{ t('admin.settings.features.affiliate.enabledHint') }}
                 </p>
               </div>
-              <Toggle v-model="form.affiliate_enabled" />
+              <Toggle :model-value="form.affiliate_enabled" disabled :title="t('customFeatures.managed')" />
             </div>
 
             <div v-if="form.affiliate_enabled" class="space-y-6">
@@ -7717,7 +7717,7 @@
                     {{ t('admin.settings.features.affiliate.ticketCampaignHint') }}
                   </p>
                 </div>
-                <Toggle v-model="form.affiliate_ticket_campaign_enabled" />
+                <Toggle :model-value="form.affiliate_ticket_campaign_enabled" disabled :title="t('customFeatures.managed')" />
               </div>
 
               <div class="flex items-center justify-between">
@@ -7729,7 +7729,7 @@
                     {{ t('admin.settings.features.affiliate.adminRechargeRebateHint') }}
                   </p>
                 </div>
-                <Toggle v-model="form.affiliate_admin_recharge_enabled" />
+                <Toggle :model-value="form.affiliate_admin_recharge_enabled" disabled :title="t('customFeatures.managed')" />
               </div>
 
               <div>
@@ -9092,13 +9092,16 @@
         </div>
         <!-- /Tab: Email -->
 
+        <p v-if="['general','features','gateway'].includes(activeTab)" class="text-sm text-gray-500">{{ t('customFeatures.managed') }} <button type="button" class="text-primary-600 underline" @click="activeTab = 'custom'">{{ t('customFeatures.title') }}</button></p>
+        <CustomFeaturesSettings v-if="activeTab === 'custom'" @saved="onCustomFeaturesSaved" />
+
         <!-- Tab: Backup -->
         <div v-show="activeTab === 'backup'">
           <BackupSettings />
         </div>
 
         <!-- Save Button -->
-        <div v-show="activeTab !== 'backup'" class="flex justify-end">
+        <div v-show="activeTab !== 'backup' && activeTab !== 'custom'" class="flex justify-end">
           <button
             type="submit"
             :disabled="saving || loadFailed"
@@ -9172,6 +9175,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from "vue";
+import CustomFeaturesSettings from "@/components/admin/CustomFeaturesSettings.vue";
+import { CUSTOM_FEATURE_KEYS, type CustomFeatures } from "@/api/groupMonitor";
 import { listPlatformIds } from "@/constants/platformCatalog";
 import { useI18n } from "vue-i18n";
 import { adminAPI } from "@/api";
@@ -9289,6 +9294,7 @@ const paymentMethodsHref = computed(() =>
 type SettingsTab =
   | "general"
   | "agreement"
+  | "custom"
   | "features"
   | "security"
   | "users"
@@ -9300,6 +9306,7 @@ const activeTab = ref<SettingsTab>("general");
 const settingsTabs = [
   { key: "general" as SettingsTab, icon: "home" as const },
   { key: "agreement" as SettingsTab, icon: "document" as const },
+  { key: "custom" as SettingsTab, icon: "bolt" as const },
   { key: "features" as SettingsTab, icon: "bolt" as const },
   { key: "security" as SettingsTab, icon: "shield" as const },
   { key: "users" as SettingsTab, icon: "user" as const },
@@ -10065,6 +10072,7 @@ const form = reactive<SettingsForm>({
     visibility: "user" | "admin";
     sort_order: number;
     hide_open_button?: boolean;
+    enabled?: boolean;
   }>,
   custom_endpoints: [] as Array<{
     name: string;
@@ -11529,6 +11537,16 @@ const siteBillingModeHint = computed(() =>
   t(`admin.settings.features.siteBillingMode.hints.${SITE_BILLING_MODE_I18N_KEYS[siteBillingMode.value]}`),
 );
 
+function onCustomFeaturesSaved(settings: CustomFeatures) {
+  for (const [key, value] of Object.entries(settings.flags)) {
+    if (key in form) (form as Record<string, unknown>)[key] = value;
+  }
+  const menus = new Map(settings.menus.map(menu => [menu.id, menu.enabled]));
+  for (const menu of form.custom_menu_items) {
+    if (menus.has(menu.id)) menu.enabled = menus.get(menu.id);
+  }
+}
+
 async function saveSettings() {
   saving.value = true;
   try {
@@ -12066,6 +12084,8 @@ async function saveSettings() {
       form.account_scheduling_thresholds,
     );
     appendAuthSourceDefaultsToUpdateRequest(payload, authSourceDefaults);
+
+    for (const key of CUSTOM_FEATURE_KEYS) delete (payload as Record<string, unknown>)[key];
 
     const updated = await settingsStepUp.run(() =>
       adminAPI.settings.updateSettings(payload),

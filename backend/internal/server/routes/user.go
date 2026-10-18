@@ -2,6 +2,7 @@ package routes
 
 import (
 	"github.com/Wei-Shaw/sub2api/internal/handler"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -135,6 +136,10 @@ func RegisterUserRoutes(
 			subscriptions.GET("/summary", h.Subscription.GetSummary)
 		}
 
+		groupMonitors := authenticated.Group("/channel-group-monitors")
+		groupMonitors.GET("", h.GroupMonitor.UserList)
+		groupMonitors.GET("/:id/history", h.GroupMonitor.UserHistory)
+		groupMonitors.GET("/:id/runs/:run_id", h.GroupMonitor.UserRun)
 		// 渠道监控（用户只读）
 		monitors := authenticated.Group("/channel-monitors")
 		{
@@ -143,6 +148,7 @@ func RegisterUserRoutes(
 		}
 
 		zenxiangLiyu := authenticated.Group("/zenxiang-liyu")
+		zenxiangLiyu.Use(zenxiangLiyuFeatureGuard(settingService))
 		{
 			zenxiangLiyu.GET("/status", h.ZenxiangLiyu.GetStatus)
 			zenxiangLiyu.POST("/play", h.ZenxiangLiyu.Play)
@@ -155,6 +161,14 @@ func RegisterUserRoutes(
 		monitorV2 := authenticated.Group("/channel-monitor-v2")
 		monitorV2.Use(panelRateLimiter.Heavy())
 		monitorV2.Use(channelMonitorModeV2Guard(settingService))
+		monitorV2.Use(func(c *gin.Context) {
+			if !settingService.CustomFeatureEnabled(c.Request.Context(), service.SettingKeyMonitorUserVisible) {
+				response.NotFound(c, "Feature disabled")
+				c.Abort()
+				return
+			}
+			c.Next()
+		})
 		{
 			monitorV2.GET("/dimensions", h.ChannelMonitorV2.Dimensions)
 			monitorV2.GET("/snapshot", h.ChannelMonitorV2.Snapshot)
@@ -163,5 +177,20 @@ func RegisterUserRoutes(
 			monitorV2.GET("/errors", h.ChannelMonitorV2.Errors)
 			monitorV2.GET("/users", h.ChannelMonitorV2.Users)
 		}
+	}
+}
+
+func zenxiangLiyuFeatureGuard(settings *service.SettingService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !settings.CustomFeatureEnabled(c.Request.Context(), service.SettingKeyZenxiangLiyuEnabled) {
+			if c.Request.Method == "GET" && c.FullPath() == "/api/v1/zenxiang-liyu/status" {
+				response.Success(c, gin.H{"visible": false})
+			} else {
+				response.NotFound(c, "Feature disabled")
+			}
+			c.Abort()
+			return
+		}
+		c.Next()
 	}
 }

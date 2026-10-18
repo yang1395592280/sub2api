@@ -355,7 +355,7 @@ func NewAccountTestService(
 		grokTokenProvider:         grokTokenProvider,
 		antigravityGatewayService: antigravityGatewayService,
 		openAIScheduleReporter:    openAIScheduleReporter,
-		httpUpstream:              httpUpstream,
+		httpUpstream:              &tracedAccountTestUpstream{HTTPUpstream: httpUpstream},
 		cfg:                       cfg,
 		tlsFPProfileService:       tlsFPProfileService,
 	}
@@ -3528,10 +3528,28 @@ func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID in
 // RunPromptBackground reuses the account-bound test path while retaining the
 // complete generated text for an administrator's explicit generation test.
 func (s *AccountTestService) RunPromptBackground(ctx context.Context, accountID int64, modelID, prompt string) (*ScheduledTestResult, error) {
-	startedAt := time.Now()
+	return s.runPromptBackground(ctx, accountID, modelID, prompt, 0)
+}
 
+func (s *AccountTestService) RunMonitorPromptBackground(ctx context.Context, accountID int64, modelID, prompt string) (*ScheduledTestResult, error) {
+	return s.runPromptBackground(ctx, accountID, modelID, prompt, 4<<20)
+}
+
+func (s *AccountTestService) runPromptBackground(ctx context.Context, accountID int64, modelID, prompt string, maxBytes int) (*ScheduledTestResult, error) {
+	startedAt := time.Now()
+	trace := &accountTestTrace{started: startedAt}
+	if account, err := s.accountRepo.GetByID(ctx, accountID); err == nil {
+		if header, ok := account.Extra["upstream_request_id_header"].(string); ok {
+			trace.HeaderName = header
+		}
+	}
+	ctx = withAccountTestTrace(ctx, trace)
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	w := httptest.NewRecorder()
-	ginCtx, _ := gin.CreateTestContext(w)
+	capture := &accountTestCaptureWriter{ResponseRecorder: w, limit: maxBytes, cancel: cancel}
+	ginCtx, _ := gin.CreateTestContext(capture)
 	ginCtx.Request = (&http.Request{}).WithContext(ctx)
 	ginCtx.Set(accountTestBackgroundKey, true)
 
@@ -3542,6 +3560,9 @@ func (s *AccountTestService) RunPromptBackground(ctx context.Context, accountID 
 	responseText, errMsg := parseTestSSEOutput(body)
 	usage := accountTestTokenUsage(ginCtx)
 
+	if capture.exceeded {
+		errMsg = "检测输出超过存储上限"
+	}
 	status := "success"
 	if testErr != nil || errMsg != "" {
 		status = "failed"
@@ -3551,15 +3572,18 @@ func (s *AccountTestService) RunPromptBackground(ctx context.Context, accountID 
 	}
 
 	return &ScheduledTestResult{
-		Status:       status,
-		ResponseText: responseText,
-		ErrorMessage: errMsg,
-		LatencyMs:    finishedAt.Sub(startedAt).Milliseconds(),
-		InputTokens:  usage.InputTokens,
-		OutputTokens: usage.OutputTokens,
-		TotalTokens:  usage.TotalTokens,
-		StartedAt:    startedAt,
-		FinishedAt:   finishedAt,
+		UpstreamMessageID: trace.MessageID,
+		UpstreamRequestID: trace.RequestID,
+		TTFTMs:            trace.TTFTMs,
+		Status:            status,
+		ResponseText:      responseText,
+		ErrorMessage:      errMsg,
+		LatencyMs:         finishedAt.Sub(startedAt).Milliseconds(),
+		InputTokens:       usage.InputTokens,
+		OutputTokens:      usage.OutputTokens,
+		TotalTokens:       usage.TotalTokens,
+		StartedAt:         startedAt,
+		FinishedAt:        finishedAt,
 	}, nil
 }
 
