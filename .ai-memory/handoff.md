@@ -94,3 +94,8 @@
 - 验收范围：仅原子推送 origin/custom-main 和 annotated tag v0.2.17.2，远端分支与 peeled tag 须指向同一发布提交；本条为推送前记录，以后续 refs 和 Release 工作流核验为准。RELEASE_ONLY=true，仅 Release 归档及 checksums。
 - 未完成：未生产部署/执行迁移 246，真实供应商及长期调度尚未验证；只支持普通分组，新计划默认暂停、鹈鹕总开关默认关闭。
 - 阻塞：Git 发布准备无已知阻塞，不更改旧 tag、其他分支或 CI 配置。
+
+## 2026-10-18 自定义菜单默认图标
+- 已完成：feature/custom-menu-default-icon 上为无 SVG 的自定义菜单提供现有 terminal 默认图标，修复「GPT 一键配置」图标缺失；覆盖三处菜单构建，空白 SVG 回退，上传图标优先。
+- 相关文件：frontend/src/components/layout/AppSidebar.vue；详情见同日 daily.md。侧栏现有 12 项回归、ESLint/typecheck/build（含 3 项双语检查）通过，真实组件配模拟菜单验证缺省/上传/管理员/深色/折叠显示。
+- 未完成：代码尚未提交/合并/推送/部署，未包含于已发布 v0.2.17.2。无已知实现阻塞，部署新的前端构建后生效。

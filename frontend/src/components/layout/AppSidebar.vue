@@ -542,6 +542,10 @@ const PluginIcon = {
   render: () => h(Icon, { name: 'cube' })
 }
 
+const CustomMenuIcon = {
+  render: () => h(Icon, { name: 'terminal' })
+}
+
 const BellIcon = {
   render: () =>
     h(
@@ -810,8 +814,8 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     ...customMenuItemsForUser.value.map((item): NavItem => ({
       path: `/custom/${item.id}`,
       label: item.label,
-      icon: null,
-      iconSvg: item.icon_svg,
+      icon: CustomMenuIcon,
+      iconSvg: item.icon_svg?.trim(),
     })),
   )
   return items
@@ -923,14 +927,14 @@ const adminNavItems = computed((): NavItem[] => {
     filtered.push({ path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon })
     filtered.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
     for (const cm of customMenuItemsForAdmin.value) {
-      filtered.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
+      filtered.push({ path: `/custom/${cm.id}`, label: cm.label, icon: CustomMenuIcon, iconSvg: cm.icon_svg?.trim() })
     }
     return filtered
   }
 
   visible.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
   for (const cm of customMenuItemsForAdmin.value) {
-    visible.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
+    visible.push({ path: `/custom/${cm.id}`, label: cm.label, icon: CustomMenuIcon, iconSvg: cm.icon_svg?.trim() })
   }
   return visible
 })

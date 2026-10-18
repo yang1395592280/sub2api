@@ -24,3 +24,9 @@ session-id: 20261018-1559
 - 嵌入发布版 Go 构建、产物 -version、版本解析通过，均为 0.2.17.2；发布工具四段版本与必须绑定 tag 两项测试通过，git diff --check 通过。业务验证复用本日已完成的回归/集成/构建与浏览器记录。
 - fetch 后 origin/custom-main=e4fe28310，目标 tag 本地及远端不存在；精确范围为 annotated tag v0.2.17.2 与 origin/custom-main 的原子推送，不推其他 refs、不移动旧 tag。
 - RELEASE_ONLY=true，沿用 Release 归档及 checksums，不发布 Docker/GHCR；未执行生产部署/迁移。迁移 246、新计划暂停和鹈鹕默认关闭等限制见 release-v0.2.17.2.md。本条为推送前记录，最终状态以远端核验为准。
+
+## 自定义菜单默认图标修复（v0.2.17.2 后）
+- 用户截图中的「GPT 一键配置」来自自定义菜单，未上传 icon_svg 时 NavItem.icon 为 null，因此侧栏没有图标。基于 custom-main=076d8c8ee 新建 feature/custom-menu-default-icon，在 AppSidebar.vue 复用现有 terminal 图标作为默认值，覆盖用户、管理员个人区和管理员普通/简洁模式；空白 SVG 按缺省处理，已上传 SVG 继续优先显示。
+- 验证：`pnpm exec vitest run src/components/layout/__tests__/AppSidebar.spec.ts` 12 项通过；该文件 ESLint、`pnpm run typecheck`、`pnpm run build`（含双语完整性 3 项及 vue-tsc）通过，`git diff --check` 通过。没有为此低影响图标修复新增单元测试。
+- 实际 AppSidebar 组件配本地模拟菜单完成浏览器交互：缺省图标 20px、空白 SVG 回退、上传 SVG 颜色保留、管理员菜单、深色文字同色和折叠 20px 图标。截图保存在本轮 visualizations/sidebar-default-icon.png；临时预览文件/服务和标签页在收尾时清理。
+- 修改留在功能分支未提交工作区，尚未 merge/push/tag/部署，不属于已发布的 v0.2.17.2。无需修改现有菜单数据，更新前端构建后即可生效。
