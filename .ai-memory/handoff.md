@@ -87,3 +87,10 @@
 - 用户已要求合并 feature/custom-controls-active-monitor，授权提交本轮实现及记录并快进合入本地 custom-main；合并前两分支均为 e4fe28310，目标未被其他 worktree 占用，无分叉。
 - 复用已通过的相关 Go、前端、隔离 PostgreSQL 集成与构建证据，不追加业务变更。
 - 本次范围为本地提交与 git merge --ff-only；不推送、不打 tag、不部署、不执行生产迁移。最终提交点、包含关系与干净状态以合并后的 Git 核验为准。
+
+## 2026-10-18 v0.2.17.2 发布准备
+- 已完成：功能提交 6cc187d5b 已无冲突快进合入 custom-main；用户新授权 commit/tag/push v0.2.17.2。VERSION、嵌入发布构建产物 -version 与解析均为 0.2.17.2，发布工具两项测试通过，复用本日功能回归与真实隔离 PostgreSQL 集成证据。
+- 相关文件：backend/cmd/server/VERSION、20261018/release-v0.2.17.2.md、session_memory_release_v0.2.17.2.jsonl；功能详情见 docs/channel-monitor-v1-group-design.md。
+- 验收范围：仅原子推送 origin/custom-main 和 annotated tag v0.2.17.2，远端分支与 peeled tag 须指向同一发布提交；本条为推送前记录，以后续 refs 和 Release 工作流核验为准。RELEASE_ONLY=true，仅 Release 归档及 checksums。
+- 未完成：未生产部署/执行迁移 246，真实供应商及长期调度尚未验证；只支持普通分组，新计划默认暂停、鹈鹕总开关默认关闭。
+- 阻塞：Git 发布准备无已知阻塞，不更改旧 tag、其他分支或 CI 配置。

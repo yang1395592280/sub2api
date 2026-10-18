@@ -18,3 +18,9 @@ session-id: 20261018-1559
 - 用户明确要求合并分支，授权提交本轮实现及相关记录，再将 feature/custom-controls-active-monitor 快进合入本地 custom-main。
 - 合并前两分支均为 e4fe28310，目标未被其他 worktree 占用，改动范围与本轮实现一致；git diff --check 通过。复用已通过的 Go/前端/数据库测试及构建，不追加业务变更。
 - 范围仅本地 commit 与 merge --ff-only；不 push/tag/发布/部署或改版本号。合并结果以最终 Git 核验为准。
+
+## [21:31] v0.2.17.2 发布准备
+- 本地功能提交 6cc187d5b 已无冲突快进合入 custom-main。用户进一步授权提交、打 tag v0.2.17.2 并推送，更新 VERSION 与本轮发布记录。
+- 嵌入发布版 Go 构建、产物 -version、版本解析通过，均为 0.2.17.2；发布工具四段版本与必须绑定 tag 两项测试通过，git diff --check 通过。业务验证复用本日已完成的回归/集成/构建与浏览器记录。
+- fetch 后 origin/custom-main=e4fe28310，目标 tag 本地及远端不存在；精确范围为 annotated tag v0.2.17.2 与 origin/custom-main 的原子推送，不推其他 refs、不移动旧 tag。
+- RELEASE_ONLY=true，沿用 Release 归档及 checksums，不发布 Docker/GHCR；未执行生产部署/迁移。迁移 246、新计划暂停和鹈鹕默认关闭等限制见 release-v0.2.17.2.md。本条为推送前记录，最终状态以远端核验为准。
