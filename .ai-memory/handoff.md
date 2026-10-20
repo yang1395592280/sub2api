@@ -129,3 +129,14 @@
 - 已完成：用户授权本次提交、annotated tag和推送。VERSION已更新为0.2.17.4，release二进制-version及发布矩阵9项非镜像测试通过；镜像脚本语法检查通过。
 - 相关文件：backend/cmd/server/VERSION、20261018/release-v0.2.17.4.md；待提交、创建tag并原子推送origin/custom-main与refs/tags/v0.2.17.4。
 - 限制：3个镜像脚本执行测试在本机Bash 3.2因`${var,,}`不支持无法运行；GitHub Actions Ubuntu runner具备Bash 4+。未部署生产、未执行迁移。
+
+## 2026-10-20 礼遇余额缓存403修复
+- 已完成带证据：绿云用户1287缓存单键失效，回源后与数据库余额一致；抽奖/幸运币/猜大小事务成功后同步失效余额与鉴权缓存；13个HTTP+miniredis/Lua场景及相关三包回归、race、后端build、diff检查通过；旧逻辑overlay再次触发失败。
+- 相关文件：backend/internal/service/zenxiang_liyu_service.go、service/wire.go、cmd/server/wire_gen.go、handler/zenxiang_liyu_balance_cache_test.go；详情20261020/liyu-balance-cache-plan.md和daily.md。
+- 未完成：本地修复在feature/fix-liyu-balance-cache，未commit/merge/push/部署；无生产礼遇/收费请求测试，未批量处理其他用户历史缓存。
+- 阻塞：本地实现无阻塞；发布部署需按用户后续指令执行。
+
+## 2026-10-20 17:10 本地合并授权
+- 用户明确要求“合并分支”，现已授权提交本次修复并合并到本地 custom-main；此前未授权提交/合并的记录为历史状态。
+- 合并前两分支均为 42f9e7ed4，目标分支未被其他 worktree 占用，仅本次 8 个文件待提交，diff 检查通过；下一步提交并以 merge --ff-only 合入，核对工作区干净。
+- 测试结论沿用前阶段通过结果；本轮不推送、不打 tag、不发布、不部署、不删除分支。

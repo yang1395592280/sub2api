@@ -310,9 +310,12 @@ func ProvideOpenAIUpstreamBalanceService(accountRepo AccountRepository, cnBalanc
 	return svc
 }
 
-// ProvideZenxiangLiyuService supplies the production clock and random source.
-func ProvideZenxiangLiyuService(repo ZenxiangLiyuRepository) *ZenxiangLiyuService {
-	return NewZenxiangLiyuService(repo, time.Now, rand.New(rand.NewSource(time.Now().UnixNano())))
+// ProvideZenxiangLiyuService supplies the production clock, random source and balance cache invalidators.
+func ProvideZenxiangLiyuService(repo ZenxiangLiyuRepository, authCacheInvalidator APIKeyAuthCacheInvalidator, billingCacheService *BillingCacheService) *ZenxiangLiyuService {
+	svc := NewZenxiangLiyuService(repo, time.Now, rand.New(rand.NewSource(time.Now().UnixNano())))
+	svc.authCacheInvalidator = authCacheInvalidator
+	svc.billingCacheService = billingCacheService
+	return svc
 }
 
 // ProvideSub2APICheckinService wires and starts the sub2api check-in worker.

@@ -291,7 +291,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	affiliateHandler := handler.ProvideAdminAffiliateHandler(affiliateService, adminService, affiliateTicketCampaignService)
 	complianceHandler := admin.NewComplianceHandler(settingService)
 	zenxiangLiyuRepository := repository.NewZenxiangLiyuRepository(client, db)
-	zenxiangLiyuService := service.ProvideZenxiangLiyuService(zenxiangLiyuRepository)
+	zenxiangLiyuService := service.ProvideZenxiangLiyuService(zenxiangLiyuRepository, apiKeyAuthCacheInvalidator, billingCacheService)
 	zenxiangLiyuHandler := handler.ProvideAdminZenxiangLiyuHandler(zenxiangLiyuService)
 	auditLogRepository := repository.NewAuditLogRepository(db)
 	auditLogService := service.ProvideAuditLogService(auditLogRepository, settingService)

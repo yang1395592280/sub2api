@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 )
 
 const (
@@ -551,6 +553,8 @@ type ZenxiangLiyuService struct {
 	repo                  ZenxiangLiyuRepository
 	guessRepo             ZenxiangLiyuGuessSizeRepository
 	redeemedTicketCounter ZenxiangLiyuRedeemedTicketCounter
+	authCacheInvalidator  APIKeyAuthCacheInvalidator
+	billingCacheService   *BillingCacheService
 	clock                 func() time.Time
 	rng                   *rand.Rand
 	rngMu                 sync.Mutex
@@ -705,14 +709,22 @@ func (s *ZenxiangLiyuService) Play(ctx context.Context, userID int64, requestID 
 	if s.repo == nil {
 		return nil, ErrZenxiangLiyuInvalidSettings
 	}
-	return s.repo.Play(ctx, ZenxiangLiyuPlayCommand{UserID: userID, RequestID: requestID, PlayDate: s.playDate(), Roll: s.randomFloat64() * 100})
+	result, err := s.repo.Play(ctx, ZenxiangLiyuPlayCommand{UserID: userID, RequestID: requestID, PlayDate: s.playDate(), Roll: s.randomFloat64() * 100})
+	if err == nil && result != nil {
+		s.invalidateBalanceCaches(ctx, userID)
+	}
+	return result, err
 }
 
 func (s *ZenxiangLiyuService) PlayLuckyCoin(ctx context.Context, userID, recordID int64) (*ZenxiangLiyuLuckyCoinResult, error) {
 	if s.repo == nil || userID <= 0 || recordID <= 0 {
 		return nil, ErrZenxiangLiyuInvalidSettings
 	}
-	return s.repo.PlayLuckyCoin(ctx, ZenxiangLiyuLuckyCoinCommand{UserID: userID, RecordID: recordID, Roll: s.randomFloat64() * 100})
+	result, err := s.repo.PlayLuckyCoin(ctx, ZenxiangLiyuLuckyCoinCommand{UserID: userID, RecordID: recordID, Roll: s.randomFloat64() * 100})
+	if err == nil && result != nil {
+		s.invalidateBalanceCaches(ctx, userID)
+	}
+	return result, err
 }
 
 func (s *ZenxiangLiyuService) PlayGuessSize(ctx context.Context, userID, recordID int64, choice string) (*ZenxiangLiyuGuessSizeResult, error) {
@@ -723,9 +735,28 @@ func (s *ZenxiangLiyuService) PlayGuessSize(ctx context.Context, userID, recordI
 	if s.guessRepo == nil || userID <= 0 || recordID <= 0 {
 		return nil, ErrZenxiangLiyuInvalidSettings
 	}
-	return s.guessRepo.PlayGuessSize(ctx, ZenxiangLiyuGuessSizeCommand{
+	result, err := s.guessRepo.PlayGuessSize(ctx, ZenxiangLiyuGuessSizeCommand{
 		UserID: userID, RecordID: recordID, Choice: choice, Roll: s.randomFloat64() * 100,
 	})
+	if err == nil && result != nil && !result.Skipped {
+		s.invalidateBalanceCaches(ctx, userID)
+	}
+	return result, err
+}
+
+// invalidateBalanceCaches 在事务提交后清理余额快照，避免奖励漏记或并发消费被旧余额覆盖。
+// 成功重放也清理缓存；客户端取消不能阻止已提交金额对网关生效。
+func (s *ZenxiangLiyuService) invalidateBalanceCaches(ctx context.Context, userID int64) {
+	cacheCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if s.billingCacheService != nil {
+		if err := s.billingCacheService.InvalidateUserBalance(cacheCtx, userID); err != nil {
+			logger.LegacyPrintf("service.zenxiang_liyu", "Warning: invalidate balance cache failed for user %d: %v", userID, err)
+		}
+	}
+	if s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByUserID(cacheCtx, userID)
+	}
 }
 
 func (s *ZenxiangLiyuService) ListPeriodStats(ctx context.Context, period string) ([]ZenxiangLiyuPeriodStats, error) {
