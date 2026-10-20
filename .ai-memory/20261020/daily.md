@@ -14,3 +14,10 @@ session-id: 20261020-1701
 - 合并前检查：feature/fix-liyu-balance-cache 与 custom-main 同为 42f9e7ed4；custom-main 未被其他 worktree 占用；工作区仅有本次修复及记录；git diff --check 通过。
 - 执行方式：显式暂存本次 8 个文件并提交，再切换 custom-main，以 merge --ff-only 合入；沿用上一阶段已通过的测试，无业务代码新增变动。
 - 授权范围：仅本地提交和合并；推送、打 tag、发布、部署和删除分支不在本轮范围内。
+
+## [17:14] 发布准备：v0.2.17.5
+- 本地修复提交 c09229472 已快进合入 custom-main；用户随后明确授权打 v0.2.17.5 tag、提交并推送。
+- 文件：backend/cmd/server/VERSION 更新为 0.2.17.5，新增 release-v0.2.17.5.md 与发布 session 记录，追加 handoff。
+- 验证：嵌入发布版构建成功，二进制 -version 为 0.2.17.5；发布工具 9 项非镜像测试、镜像脚本语法及 diff 检查通过。PyYAML 使用机器已有安装，无新增依赖；Bash 3.2 不执行需 Bash 4+ 的镜像脚本测试。
+- 远端预检：custom-main=42f9e7ed4，新 tag 不存在；RELEASE_ONLY=true。直连 DNS 失败后使用现有系统代理完成检查，不修改持久配置。
+- 下一步：提交版本更新，创建 annotated tag，核对版本与提交后原子推送分支及 tag，再核验远端 refs 与 Release 工作流。未部署生产。

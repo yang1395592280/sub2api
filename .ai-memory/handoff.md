@@ -140,3 +140,9 @@
 - 用户明确要求“合并分支”，现已授权提交本次修复并合并到本地 custom-main；此前未授权提交/合并的记录为历史状态。
 - 合并前两分支均为 42f9e7ed4，目标分支未被其他 worktree 占用，仅本次 8 个文件待提交，diff 检查通过；下一步提交并以 merge --ff-only 合入，核对工作区干净。
 - 测试结论沿用前阶段通过结果；本轮不推送、不打 tag、不发布、不部署、不删除分支。
+
+## 2026-10-20 v0.2.17.5 发布授权
+- 已完成带证据：c09229472 已无冲突快进合入 custom-main；用户随后授权提交、打 tag、推送。VERSION 及嵌入发布二进制 -version 为 0.2.17.5，9 项发布工具测试和脚本语法检查通过；远端新 tag 不存在。
+- 相关文件：backend/cmd/server/VERSION、20261020/release-v0.2.17.5.md、daily.md、session_memory_release_v0.2.17.5.jsonl。
+- 未完成：本条为推送前检查点，待提交版本更新、创建 annotated tag 并原子推送 origin/custom-main 与 refs/tags/v0.2.17.5；最终结果以远端 refs 和 Release 核验为准。已确认 RELEASE_ONLY=true，未部署生产。
+- 阻塞：无；直连 DNS 不通，使用现有系统代理处理本轮 Git/GitHub 命令，无持久配置变更。未执行本机 Bash 3.2 不支持的镜像脚本执行测试。
