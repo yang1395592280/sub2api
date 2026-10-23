@@ -158,3 +158,9 @@
 - 相关文件：20261023/redeem-campaign-plan.md、daily.md、session_memory_20261023-redeem-campaign.jsonl；目标custom-main，来源feature/redeem-campaign-limits。
 - 未完成：本条为提交合并前记录，后续执行功能提交、merge --ff-only和Git包含关系/干净状态核验，最终结果以Git为准；前述“未授权提交合并”为历史状态。本轮不推送、不打tag、不部署、不删除分支。
 - 阻塞：无。
+
+## 2026-10-23 v0.2.17.6发布授权
+- 已完成带证据：12fe00267已无冲突快进合入custom-main；用户随后授权提交、打tag和推送。VERSION及嵌入发布二进制-version确认为0.2.17.6，9项非镜像发布工具测试、解析及脚本语法检查通过，沿用本次业务回归/真实PostgreSQL-race/前端32项/构建证据。
+- 相关文件：backend/cmd/server/VERSION、20261023/release-v0.2.17.6.md、daily.md、session_memory_release_v0.2.17.6.jsonl；功能使用及回退说明docs/redeem-campaign-limits.md。
+- 未完成：本条为推送前检查点，待提交版本更新、创建annotated tag并原子推送origin/custom-main与refs/tags/v0.2.17.6；最终结果以远端refs和Release核验为准。远端新tag不存在、RELEASE_ONLY=true已确认，未生产部署/执行迁移247。
+- 阻塞：无发布准备阻塞；本机Bash3.2未跑镜像脚本执行测试，此次发布不包含镜像。PyYAML按现有requirements仅安装到临时目录，无系统包和仓库依赖变化。
