@@ -826,6 +826,9 @@ export default {
 
   // Redeem
   redeem: {
+    errors: {
+      REDEEM_CAMPAIGN_LIMIT_REACHED: '你已达到本次福利的兑换次数上限，请把机会留给其他群友。'
+    },
     title: '兑换码',
     description: '输入兑换码以充值余额或增加并发数',
     currentBalance: '当前余额',

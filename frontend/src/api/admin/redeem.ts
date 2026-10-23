@@ -6,6 +6,8 @@
 import { apiClient } from '../client'
 import type {
   RedeemCode,
+  RedeemCampaign,
+  RedeemCampaignInput,
   GenerateRedeemCodesRequest,
   BatchUpdateRedeemCodeFields,
   RedeemCodeType,
@@ -70,7 +72,8 @@ export async function generate(
   value: number,
   groupId?: number | null,
   validityDays?: number,
-  expiresInDays?: number | null
+  expiresInDays?: number | null,
+  campaignId?: number
 ): Promise<RedeemCode[]> {
   const payload: GenerateRedeemCodesRequest = {
     count,
@@ -88,8 +91,37 @@ export async function generate(
   if (expiresInDays && expiresInDays > 0) {
     payload.expires_in_days = expiresInDays
   }
+  if (campaignId != null) {
+    payload.campaign_id = campaignId
+  }
 
   const { data } = await apiClient.post<RedeemCode[]>('/admin/redeem-codes/generate', payload)
+  return data
+}
+
+export async function listCampaigns(page = 1, search = ''): Promise<PaginatedResponse<RedeemCampaign>> {
+  const { data } = await apiClient.get<PaginatedResponse<RedeemCampaign>>('/admin/redeem-codes/campaigns', {
+    params: { page, page_size: 20, search }
+  })
+  return data
+}
+
+export async function getCampaign(id: number): Promise<RedeemCampaign> {
+  const { data } = await apiClient.get<RedeemCampaign>(`/admin/redeem-codes/campaigns/${id}`)
+  return data
+}
+
+export async function createCampaign(input: RedeemCampaignInput, idempotencyKey: string): Promise<RedeemCampaign> {
+  const { data } = await apiClient.post<RedeemCampaign>('/admin/redeem-codes/campaigns', input, {
+    headers: { 'Idempotency-Key': idempotencyKey }
+  })
+  return data
+}
+
+export async function updateCampaign(id: number, input: RedeemCampaignInput, idempotencyKey: string): Promise<RedeemCampaign> {
+  const { data } = await apiClient.put<RedeemCampaign>(`/admin/redeem-codes/campaigns/${id}`, input, {
+    headers: { 'Idempotency-Key': idempotencyKey }
+  })
   return data
 }
 
@@ -195,6 +227,10 @@ export const redeemAPI = {
   list,
   getById,
   generate,
+  listCampaigns,
+  getCampaign,
+  createCampaign,
+  updateCampaign,
   delete: deleteCode,
   batchDelete,
   batchUpdate,

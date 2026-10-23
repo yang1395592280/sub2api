@@ -1769,6 +1769,9 @@ func (s *adminServiceImpl) GetRedeemCode(ctx context.Context, id int64) (*Redeem
 }
 
 func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *GenerateRedeemCodesInput) ([]RedeemCode, error) {
+	if err := validateRedeemCampaignCode(ctx, s.redeemCodeRepo, input.CampaignID, input.Type, input.Value); err != nil {
+		return nil, err
+	}
 	if input.ExpiresAt != nil && !input.ExpiresAt.After(time.Now()) {
 		return nil, ErrRedeemCodeExpired
 	}
@@ -1804,11 +1807,12 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 			return nil, err
 		}
 		code := RedeemCode{
-			Code:      codeValue,
-			Type:      input.Type,
-			Value:     input.Value,
-			Status:    StatusUnused,
-			ExpiresAt: input.ExpiresAt,
+			Code:       codeValue,
+			Type:       input.Type,
+			Value:      input.Value,
+			Status:     StatusUnused,
+			ExpiresAt:  input.ExpiresAt,
+			CampaignID: input.CampaignID,
 		}
 		// 订阅类型专用字段
 		if input.Type == RedeemTypeSubscription {

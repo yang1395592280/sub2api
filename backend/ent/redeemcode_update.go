@@ -214,6 +214,33 @@ func (_u *RedeemCodeUpdate) AddValidityDays(v int) *RedeemCodeUpdate {
 	return _u
 }
 
+// SetCampaignID sets the "campaign_id" field.
+func (_u *RedeemCodeUpdate) SetCampaignID(v int64) *RedeemCodeUpdate {
+	_u.mutation.ResetCampaignID()
+	_u.mutation.SetCampaignID(v)
+	return _u
+}
+
+// SetNillableCampaignID sets the "campaign_id" field if the given value is not nil.
+func (_u *RedeemCodeUpdate) SetNillableCampaignID(v *int64) *RedeemCodeUpdate {
+	if v != nil {
+		_u.SetCampaignID(*v)
+	}
+	return _u
+}
+
+// AddCampaignID adds value to the "campaign_id" field.
+func (_u *RedeemCodeUpdate) AddCampaignID(v int64) *RedeemCodeUpdate {
+	_u.mutation.AddCampaignID(v)
+	return _u
+}
+
+// ClearCampaignID clears the value of the "campaign_id" field.
+func (_u *RedeemCodeUpdate) ClearCampaignID() *RedeemCodeUpdate {
+	_u.mutation.ClearCampaignID()
+	return _u
+}
+
 // SetUserID sets the "user" edge to the User entity by ID.
 func (_u *RedeemCodeUpdate) SetUserID(id int64) *RedeemCodeUpdate {
 	_u.mutation.SetUserID(id)
@@ -352,6 +379,15 @@ func (_u *RedeemCodeUpdate) sqlSave(ctx context.Context) (_node int, err error) 
 	}
 	if value, ok := _u.mutation.AddedValidityDays(); ok {
 		_spec.AddField(redeemcode.FieldValidityDays, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.CampaignID(); ok {
+		_spec.SetField(redeemcode.FieldCampaignID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedCampaignID(); ok {
+		_spec.AddField(redeemcode.FieldCampaignID, field.TypeInt64, value)
+	}
+	if _u.mutation.CampaignIDCleared() {
+		_spec.ClearField(redeemcode.FieldCampaignID, field.TypeInt64)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -615,6 +651,33 @@ func (_u *RedeemCodeUpdateOne) AddValidityDays(v int) *RedeemCodeUpdateOne {
 	return _u
 }
 
+// SetCampaignID sets the "campaign_id" field.
+func (_u *RedeemCodeUpdateOne) SetCampaignID(v int64) *RedeemCodeUpdateOne {
+	_u.mutation.ResetCampaignID()
+	_u.mutation.SetCampaignID(v)
+	return _u
+}
+
+// SetNillableCampaignID sets the "campaign_id" field if the given value is not nil.
+func (_u *RedeemCodeUpdateOne) SetNillableCampaignID(v *int64) *RedeemCodeUpdateOne {
+	if v != nil {
+		_u.SetCampaignID(*v)
+	}
+	return _u
+}
+
+// AddCampaignID adds value to the "campaign_id" field.
+func (_u *RedeemCodeUpdateOne) AddCampaignID(v int64) *RedeemCodeUpdateOne {
+	_u.mutation.AddCampaignID(v)
+	return _u
+}
+
+// ClearCampaignID clears the value of the "campaign_id" field.
+func (_u *RedeemCodeUpdateOne) ClearCampaignID() *RedeemCodeUpdateOne {
+	_u.mutation.ClearCampaignID()
+	return _u
+}
+
 // SetUserID sets the "user" edge to the User entity by ID.
 func (_u *RedeemCodeUpdateOne) SetUserID(id int64) *RedeemCodeUpdateOne {
 	_u.mutation.SetUserID(id)
@@ -783,6 +846,15 @@ func (_u *RedeemCodeUpdateOne) sqlSave(ctx context.Context) (_node *RedeemCode, 
 	}
 	if value, ok := _u.mutation.AddedValidityDays(); ok {
 		_spec.AddField(redeemcode.FieldValidityDays, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.CampaignID(); ok {
+		_spec.SetField(redeemcode.FieldCampaignID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedCampaignID(); ok {
+		_spec.AddField(redeemcode.FieldCampaignID, field.TypeInt64, value)
+	}
+	if _u.mutation.CampaignIDCleared() {
+		_spec.ClearField(redeemcode.FieldCampaignID, field.TypeInt64)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{

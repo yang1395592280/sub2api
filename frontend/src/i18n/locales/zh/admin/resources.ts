@@ -383,6 +383,31 @@ export default {
       title: '兑换码管理',
       description: '生成和管理兑换码',
       generateCodes: '生成兑换码',
+      campaigns: {
+        title: '福利活动',
+        hint: '同一活动的余额码和抽奖券码共享每账号限兑次数，补发时选择原活动即可。',
+        name: '活动名称',
+        search: '搜索活动名称',
+        create: '新建活动',
+        edit: '编辑活动',
+        use: '选择',
+        choose: '选择或新建活动',
+        clear: '取消关联',
+        none: '不关联活动（不限领）',
+        perUserLimit: '每账号限兑次数',
+        limitSummary: '每账号限兑 {count} 次',
+        limitHint: '可设置 1–1000 次，按成功兑换的码数计算。调高可继续领取；调低不会撤回已发权益。',
+        campaignId: '活动 #{id}',
+        saveAndUse: '保存并选择',
+        saved: '活动已保存',
+        empty: '暂无活动，可先新建一个活动。',
+        failed: '活动操作失败，请重试',
+        errors: {
+          REDEEM_CAMPAIGN_INVALID: '请填写 1–100 字的活动名称，限兑次数须为 1–1000 的整数。',
+          REDEEM_CAMPAIGN_NOT_FOUND: '活动不存在，请重新选择。',
+          REDEEM_CAMPAIGN_CODE_INVALID: '福利活动仅支持正数余额码和抽奖券码。'
+        }
+      },
       columns: {
         code: '兑换码',
         type: '类型',

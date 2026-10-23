@@ -145,6 +145,7 @@ docs/*
 !docs/channel-monitor-v2-safe-defaults.md
 !docs/custom-feature-settings-inventory.md
 !docs/codex-credits.md
+!docs/redeem-campaign-limits.md
 !docs/legal/
 !docs/legal/*.md
 !docs/superpowers/

@@ -559,7 +559,8 @@ type RedeemCode struct {
 type AdminRedeemCode struct {
 	RedeemCode
 
-	Notes string `json:"notes"`
+	Notes      string `json:"notes"`
+	CampaignID *int64 `json:"campaign_id,omitempty"`
 }
 
 type NullableTimeField struct {

@@ -48,7 +48,10 @@
               <Icon name="edit" size="md" class="mr-2" />
               {{ t('admin.redeem.batchUpdate') }}
             </button>
-            <button @click="showGenerateDialog = true" class="btn btn-primary">
+            <button class="btn btn-secondary" data-test="campaign-manage-open" @click="openCampaigns(false)">
+              {{ t('admin.redeem.campaigns.title') }}
+            </button>
+            <button @click="showGenerateDialog = true" class="btn btn-primary" data-test="generate-open">
               {{ t('admin.redeem.generateCodes') }}
             </button>
           </div>
@@ -111,6 +114,13 @@
                 </svg>
               </button>
             </div>
+          </template>
+
+          <template #cell-campaign_id="{ row }">
+            <button v-if="row.campaign_id" type="button" class="text-sm text-primary-600 hover:underline dark:text-primary-400" @click="openCampaigns(false, row.campaign_id)">
+              {{ t('admin.redeem.campaigns.campaignId', { id: row.campaign_id }) }}
+            </button>
+            <span v-else class="text-gray-400">—</span>
           </template>
 
           <template #cell-type="{ value }">
@@ -250,6 +260,14 @@
         </div>
       </template>
     </TablePageLayout>
+    <RedeemCampaignDialog
+      :show="showCampaignDialog"
+      :selectable="selectingCampaign"
+      :initial-campaign-id="initialCampaignId"
+      @close="showCampaignDialog = false"
+      @select="selectedCampaign = $event"
+      @saved="onCampaignSaved"
+    />
 
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
@@ -280,15 +298,24 @@
       <div v-if="showGenerateDialog" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="fixed inset-0 bg-black/50" @click="showGenerateDialog = false"></div>
         <div
-          class="relative z-10 w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-dark-800"
+          class="relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-6 shadow-xl dark:bg-dark-800"
         >
           <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
             {{ t('admin.redeem.generateCodesTitle') }}
           </h2>
-          <form @submit.prevent="handleGenerateCodes" class="space-y-4">
+          <form @submit.prevent="handleGenerateCodes" class="space-y-4" data-test="generate-form">
             <div>
               <label class="input-label">{{ t('admin.redeem.codeType') }}</label>
-              <Select v-model="generateForm.type" :options="typeOptions" />
+              <Select v-model="generateForm.type" :options="typeOptions" data-test="generate-type" />
+            </div>
+            <div v-if="supportsCampaign" class="rounded-lg border border-gray-200 p-3 dark:border-dark-600" data-test="generate-campaign">
+              <label class="input-label">{{ t('admin.redeem.campaigns.title') }}</label>
+              <p class="mb-2 break-words text-sm text-gray-700 dark:text-dark-200">{{ selectedCampaign ? selectedCampaign.name : t('admin.redeem.campaigns.none') }}</p>
+              <p v-if="selectedCampaign" class="mb-2 text-sm text-primary-600 dark:text-primary-400">{{ t('admin.redeem.campaigns.limitSummary', { count: selectedCampaign.per_user_limit }) }}</p>
+              <div class="flex flex-wrap gap-2">
+                <button type="button" class="btn btn-secondary btn-sm" :disabled="generating" data-test="campaign-choose-open" @click="openCampaigns(true)">{{ t('admin.redeem.campaigns.choose') }}</button>
+                <button v-if="selectedCampaign" type="button" class="btn btn-secondary btn-sm" :disabled="generating" @click="selectedCampaign = null">{{ t('admin.redeem.campaigns.clear') }}</button>
+              </div>
             </div>
             <!-- 余额/并发类型：显示数值输入 -->
             <div v-if="generateForm.type !== 'subscription' && generateForm.type !== 'invitation'">
@@ -629,6 +656,7 @@ import {
 } from '@/utils/format'
 import type {
   RedeemCode,
+  RedeemCampaign,
   RedeemCodeType,
   Group,
   GroupPlatform,
@@ -645,6 +673,8 @@ import Select from '@/components/common/Select.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
 import Icon from '@/components/icons/Icon.vue'
+import RedeemCampaignDialog from '@/components/admin/RedeemCampaignDialog.vue'
+import { extractApiErrorMessage } from '@/utils/apiError'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -664,6 +694,21 @@ const showGenerateDialog = ref(false)
 const showResultDialog = ref(false)
 const generatedCodes = ref<RedeemCode[]>([])
 const subscriptionGroups = ref<Group[]>([])
+const selectedCampaign = ref<RedeemCampaign | null>(null)
+const showCampaignDialog = ref(false)
+const selectingCampaign = ref(false)
+const initialCampaignId = ref<number | null>(null)
+const supportsCampaign = computed(() => generateForm.type === 'balance' || generateForm.type === 'lottery_ticket')
+
+function openCampaigns(selectable: boolean, campaignId: number | null = null) {
+  selectingCampaign.value = selectable
+  initialCampaignId.value = campaignId
+  showCampaignDialog.value = true
+}
+
+function onCampaignSaved(campaign: RedeemCampaign) {
+  if (selectedCampaign.value?.id === campaign.id) selectedCampaign.value = campaign
+}
 
 // 订阅类型分组选项
 const subscriptionGroupOptions = computed(() => {
@@ -736,6 +781,7 @@ const columns = computed<Column[]>(() => [
   { key: 'code', label: t('admin.redeem.columns.code') },
   { key: 'type', label: t('admin.redeem.columns.type'), sortable: true },
   { key: 'value', label: t('admin.redeem.columns.value'), sortable: true },
+  { key: 'campaign_id', label: t('admin.redeem.campaigns.title') },
   { key: 'status', label: t('admin.redeem.columns.status'), sortable: true },
   { key: 'used_by', label: t('admin.redeem.columns.usedBy') },
   { key: 'used_at', label: t('admin.redeem.columns.usedAt'), sortable: true },
@@ -1034,6 +1080,7 @@ const buildBatchUpdateFields = (): BatchUpdateRedeemCodeFields | null => {
 }
 
 const handleGenerateCodes = async () => {
+  if (generating.value) return
   // 订阅类型必须选择分组
   if (generateForm.type === 'subscription' && !generateForm.group_id) {
     appStore.showError(t('admin.redeem.groupRequired'))
@@ -1054,7 +1101,8 @@ const handleGenerateCodes = async () => {
       generateForm.value,
       generateForm.type === 'subscription' ? generateForm.group_id : undefined,
       generateForm.type === 'subscription' ? generateForm.validity_days : undefined,
-      expiresInDays
+      expiresInDays,
+      supportsCampaign.value ? selectedCampaign.value?.id : undefined
     )
     showGenerateDialog.value = false
     generatedCodes.value = result
@@ -1064,9 +1112,10 @@ const handleGenerateCodes = async () => {
     generateForm.validity_days = 30
     generateForm.expiry_option = 'never'
     generateForm.custom_expiry_days = 7
+    selectedCampaign.value = null
     loadCodes()
   } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.redeem.failedToGenerate'))
+    appStore.showError(extractApiErrorMessage(error, t('admin.redeem.failedToGenerate')))
     console.error('Error generating codes:', error)
   } finally {
     generating.value = false

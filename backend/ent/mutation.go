@@ -45863,6 +45863,8 @@ type RedeemCodeMutation struct {
 	expires_at       *time.Time
 	validity_days    *int
 	addvalidity_days *int
+	campaign_id      *int64
+	addcampaign_id   *int64
 	clearedFields    map[string]struct{}
 	user             *int64
 	cleareduser      bool
@@ -46472,6 +46474,76 @@ func (m *RedeemCodeMutation) ResetValidityDays() {
 	m.addvalidity_days = nil
 }
 
+// SetCampaignID sets the "campaign_id" field.
+func (m *RedeemCodeMutation) SetCampaignID(i int64) {
+	m.campaign_id = &i
+	m.addcampaign_id = nil
+}
+
+// CampaignID returns the value of the "campaign_id" field in the mutation.
+func (m *RedeemCodeMutation) CampaignID() (r int64, exists bool) {
+	v := m.campaign_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCampaignID returns the old "campaign_id" field's value of the RedeemCode entity.
+// If the RedeemCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RedeemCodeMutation) OldCampaignID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCampaignID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCampaignID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCampaignID: %w", err)
+	}
+	return oldValue.CampaignID, nil
+}
+
+// AddCampaignID adds i to the "campaign_id" field.
+func (m *RedeemCodeMutation) AddCampaignID(i int64) {
+	if m.addcampaign_id != nil {
+		*m.addcampaign_id += i
+	} else {
+		m.addcampaign_id = &i
+	}
+}
+
+// AddedCampaignID returns the value that was added to the "campaign_id" field in this mutation.
+func (m *RedeemCodeMutation) AddedCampaignID() (r int64, exists bool) {
+	v := m.addcampaign_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearCampaignID clears the value of the "campaign_id" field.
+func (m *RedeemCodeMutation) ClearCampaignID() {
+	m.campaign_id = nil
+	m.addcampaign_id = nil
+	m.clearedFields[redeemcode.FieldCampaignID] = struct{}{}
+}
+
+// CampaignIDCleared returns if the "campaign_id" field was cleared in this mutation.
+func (m *RedeemCodeMutation) CampaignIDCleared() bool {
+	_, ok := m.clearedFields[redeemcode.FieldCampaignID]
+	return ok
+}
+
+// ResetCampaignID resets all changes to the "campaign_id" field.
+func (m *RedeemCodeMutation) ResetCampaignID() {
+	m.campaign_id = nil
+	m.addcampaign_id = nil
+	delete(m.clearedFields, redeemcode.FieldCampaignID)
+}
+
 // SetUserID sets the "user" edge to the User entity by id.
 func (m *RedeemCodeMutation) SetUserID(id int64) {
 	m.user = &id
@@ -46573,7 +46645,7 @@ func (m *RedeemCodeMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RedeemCodeMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 12)
 	if m.code != nil {
 		fields = append(fields, redeemcode.FieldCode)
 	}
@@ -46607,6 +46679,9 @@ func (m *RedeemCodeMutation) Fields() []string {
 	if m.validity_days != nil {
 		fields = append(fields, redeemcode.FieldValidityDays)
 	}
+	if m.campaign_id != nil {
+		fields = append(fields, redeemcode.FieldCampaignID)
+	}
 	return fields
 }
 
@@ -46637,6 +46712,8 @@ func (m *RedeemCodeMutation) Field(name string) (ent.Value, bool) {
 		return m.GroupID()
 	case redeemcode.FieldValidityDays:
 		return m.ValidityDays()
+	case redeemcode.FieldCampaignID:
+		return m.CampaignID()
 	}
 	return nil, false
 }
@@ -46668,6 +46745,8 @@ func (m *RedeemCodeMutation) OldField(ctx context.Context, name string) (ent.Val
 		return m.OldGroupID(ctx)
 	case redeemcode.FieldValidityDays:
 		return m.OldValidityDays(ctx)
+	case redeemcode.FieldCampaignID:
+		return m.OldCampaignID(ctx)
 	}
 	return nil, fmt.Errorf("unknown RedeemCode field %s", name)
 }
@@ -46754,6 +46833,13 @@ func (m *RedeemCodeMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetValidityDays(v)
 		return nil
+	case redeemcode.FieldCampaignID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCampaignID(v)
+		return nil
 	}
 	return fmt.Errorf("unknown RedeemCode field %s", name)
 }
@@ -46768,6 +46854,9 @@ func (m *RedeemCodeMutation) AddedFields() []string {
 	if m.addvalidity_days != nil {
 		fields = append(fields, redeemcode.FieldValidityDays)
 	}
+	if m.addcampaign_id != nil {
+		fields = append(fields, redeemcode.FieldCampaignID)
+	}
 	return fields
 }
 
@@ -46780,6 +46869,8 @@ func (m *RedeemCodeMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedValue()
 	case redeemcode.FieldValidityDays:
 		return m.AddedValidityDays()
+	case redeemcode.FieldCampaignID:
+		return m.AddedCampaignID()
 	}
 	return nil, false
 }
@@ -46803,6 +46894,13 @@ func (m *RedeemCodeMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddValidityDays(v)
 		return nil
+	case redeemcode.FieldCampaignID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCampaignID(v)
+		return nil
 	}
 	return fmt.Errorf("unknown RedeemCode numeric field %s", name)
 }
@@ -46825,6 +46923,9 @@ func (m *RedeemCodeMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(redeemcode.FieldGroupID) {
 		fields = append(fields, redeemcode.FieldGroupID)
+	}
+	if m.FieldCleared(redeemcode.FieldCampaignID) {
+		fields = append(fields, redeemcode.FieldCampaignID)
 	}
 	return fields
 }
@@ -46854,6 +46955,9 @@ func (m *RedeemCodeMutation) ClearField(name string) error {
 		return nil
 	case redeemcode.FieldGroupID:
 		m.ClearGroupID()
+		return nil
+	case redeemcode.FieldCampaignID:
+		m.ClearCampaignID()
 		return nil
 	}
 	return fmt.Errorf("unknown RedeemCode nullable field %s", name)
@@ -46895,6 +46999,9 @@ func (m *RedeemCodeMutation) ResetField(name string) error {
 		return nil
 	case redeemcode.FieldValidityDays:
 		m.ResetValidityDays()
+		return nil
+	case redeemcode.FieldCampaignID:
+		m.ResetCampaignID()
 		return nil
 	}
 	return fmt.Errorf("unknown RedeemCode field %s", name)

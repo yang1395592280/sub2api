@@ -146,3 +146,15 @@
 - 相关文件：backend/cmd/server/VERSION、20261020/release-v0.2.17.5.md、daily.md、session_memory_release_v0.2.17.5.jsonl。
 - 未完成：本条为推送前检查点，待提交版本更新、创建 annotated tag 并原子推送 origin/custom-main 与 refs/tags/v0.2.17.5；最终结果以远端 refs 和 Release 核验为准。已确认 RELEASE_ONLY=true，未部署生产。
 - 阻塞：无；直连 DNS 不通，使用现有系统代理处理本轮 Git/GitHub 命令，无持久配置变更。未执行本机 Bash 3.2 不支持的镜像脚本执行测试。
+
+## 2026-10-23 福利活动兑换限领完成
+- 已完成带证据：活动创建/编辑限额1–1000、余额/抽奖券共享额度、关联活动补发、独立事务计数防并发与失败回滚、前端管理选择及双语提示，4/4主线已验证。Go相关7包回归、真实PostgreSQL18.1/Redis中5项活动+25项既有repository子用例-race、前端32项、ESLint/vue-tsc/前后端构建/diff检查通过；浏览器真实组件配模拟API验证限额1→3、选择及生成关联码。
+- 相关文件：docs/redeem-campaign-limits.md、20261023/redeem-campaign-plan.md、backend/migrations/247_redeem_campaign_limits.sql、internal/service/redeem_campaign.go、internal/repository/redeem_campaign_repo.go、frontend/src/components/admin/RedeemCampaignDialog.vue；领域决策见project_memory.md。
+- 未完成：本地实现无待办；feature/redeem-campaign-limits未提交/合并/推送/部署，后续按用户指令执行。未运行生产迁移，实际站点需新版本上线。旧码未关联活动，不追溯限额。
+- 阻塞：无实现阻塞。回退旧应用前须暂停或禁用未用活动码并保留计数；按站内账号识别，无法阻止同一人使用多个账号。临时预览页、标签和隔离容器已清理。
+
+## 2026-10-23 15:23 福利活动本地合并授权
+- 已完成带证据：用户要求“合并分支”，已授权提交当前功能并合入本地custom-main；两分支起点9e5d786a4，目标未被其他worktree占用，43个文件均为本次实现与文档，暂存diff检查通过，沿用本日功能验证。
+- 相关文件：20261023/redeem-campaign-plan.md、daily.md、session_memory_20261023-redeem-campaign.jsonl；目标custom-main，来源feature/redeem-campaign-limits。
+- 未完成：本条为提交合并前记录，后续执行功能提交、merge --ff-only和Git包含关系/干净状态核验，最终结果以Git为准；前述“未授权提交合并”为历史状态。本轮不推送、不打tag、不部署、不删除分支。
+- 阻塞：无。

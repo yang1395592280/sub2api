@@ -27,7 +27,8 @@ vi.mock('@/stores/app', () => ({
 }))
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
-  return { ...actual, useI18n: () => ({ t: (key: string) => key }) }
+  const zh = await import('@/i18n/locales/zh/dashboard')
+  return { ...actual, useI18n: () => ({ t: (key: string) => key === 'redeem.errors.REDEEM_CAMPAIGN_LIMIT_REACHED' ? zh.default.redeem.errors.REDEEM_CAMPAIGN_LIMIT_REACHED : key }) }
 })
 
 async function submitCode() {
@@ -236,6 +237,17 @@ describe('RedeemView refresh after redemption', () => {
     expect(getHistory).toHaveBeenCalledOnce()
     expect(showSuccess).not.toHaveBeenCalled()
     expect(showWarning).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('shows the localized campaign limit message and keeps the rejected code', async () => {
+    redeem.mockRejectedValue({ status: 409, reason: 'REDEEM_CAMPAIGN_LIMIT_REACHED', message: 'redemption limit for this campaign reached' })
+    const wrapper = await submitCode()
+    expect(wrapper.text()).toContain('你已达到本次福利的兑换次数上限')
+    expect(wrapper.text()).not.toContain('redemption limit for this campaign reached')
+    expect((wrapper.get('input#code').element as HTMLInputElement).value).toBe(' REDEEM-CODE ')
+    expect(refreshUser).not.toHaveBeenCalled()
+    expect(showSuccess).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })

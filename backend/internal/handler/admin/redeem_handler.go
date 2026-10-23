@@ -41,6 +41,7 @@ type GenerateRedeemCodesRequest struct {
 	ValidityDays  int        `json:"validity_days"` // 订阅类型使用，正数增加/负数退款扣减
 	ExpiresAt     *time.Time `json:"expires_at"`
 	ExpiresInDays *int       `json:"expires_in_days" binding:"omitempty,min=1,max=3650"`
+	CampaignID    *int64     `json:"campaign_id" binding:"omitempty,gt=0"`
 }
 
 // CreateAndRedeemCodeRequest represents creating a fixed code and redeeming it for a target user.
@@ -150,6 +151,7 @@ func (h *RedeemHandler) Generate(c *gin.Context) {
 			GroupID:      req.GroupID,
 			ValidityDays: req.ValidityDays,
 			ExpiresAt:    expiresAt,
+			CampaignID:   req.CampaignID,
 		})
 		if execErr != nil {
 			return nil, execErr

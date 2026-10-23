@@ -110,6 +110,11 @@ func ValidityDays(v int) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldEQ(FieldValidityDays, v))
 }
 
+// CampaignID applies equality check predicate on the "campaign_id" field. It's identical to CampaignIDEQ.
+func CampaignID(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldCampaignID, v))
+}
+
 // CodeEQ applies the EQ predicate on the "code" field.
 func CodeEQ(v string) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldEQ(FieldCode, v))
@@ -658,6 +663,56 @@ func ValidityDaysLT(v int) predicate.RedeemCode {
 // ValidityDaysLTE applies the LTE predicate on the "validity_days" field.
 func ValidityDaysLTE(v int) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldLTE(FieldValidityDays, v))
+}
+
+// CampaignIDEQ applies the EQ predicate on the "campaign_id" field.
+func CampaignIDEQ(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldCampaignID, v))
+}
+
+// CampaignIDNEQ applies the NEQ predicate on the "campaign_id" field.
+func CampaignIDNEQ(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNEQ(FieldCampaignID, v))
+}
+
+// CampaignIDIn applies the In predicate on the "campaign_id" field.
+func CampaignIDIn(vs ...int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIn(FieldCampaignID, vs...))
+}
+
+// CampaignIDNotIn applies the NotIn predicate on the "campaign_id" field.
+func CampaignIDNotIn(vs ...int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotIn(FieldCampaignID, vs...))
+}
+
+// CampaignIDGT applies the GT predicate on the "campaign_id" field.
+func CampaignIDGT(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGT(FieldCampaignID, v))
+}
+
+// CampaignIDGTE applies the GTE predicate on the "campaign_id" field.
+func CampaignIDGTE(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGTE(FieldCampaignID, v))
+}
+
+// CampaignIDLT applies the LT predicate on the "campaign_id" field.
+func CampaignIDLT(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLT(FieldCampaignID, v))
+}
+
+// CampaignIDLTE applies the LTE predicate on the "campaign_id" field.
+func CampaignIDLTE(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLTE(FieldCampaignID, v))
+}
+
+// CampaignIDIsNil applies the IsNil predicate on the "campaign_id" field.
+func CampaignIDIsNil() predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIsNull(FieldCampaignID))
+}
+
+// CampaignIDNotNil applies the NotNil predicate on the "campaign_id" field.
+func CampaignIDNotNil() predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotNull(FieldCampaignID))
 }
 
 // HasUser applies the HasEdge predicate on the "user" edge.

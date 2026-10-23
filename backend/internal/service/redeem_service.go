@@ -272,6 +272,9 @@ func (s *RedeemService) CreateCode(ctx context.Context, code *RedeemCode) error 
 	if code.Type == "" {
 		code.Type = RedeemTypeBalance
 	}
+	if err := validateRedeemCampaignCode(ctx, s.redeemRepo, code.CampaignID, code.Type, code.Value); err != nil {
+		return err
+	}
 	if code.Type != RedeemTypeInvitation && code.Value == 0 {
 		return errors.New("value must not be zero")
 	}
@@ -521,6 +524,15 @@ func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, r
 			return nil, ErrRedeemCodeUsed
 		}
 		return nil, fmt.Errorf("mark code as used: %w", err)
+	}
+	if redeemCode.CampaignID != nil {
+		campaignRepo, err := redeemCampaignRepository(s.redeemRepo)
+		if err != nil {
+			return nil, err
+		}
+		if err := campaignRepo.ClaimCampaign(txCtx, *redeemCode.CampaignID, userID); err != nil {
+			return nil, fmt.Errorf("claim redeem campaign %d for user %d: %w", *redeemCode.CampaignID, userID, err)
+		}
 	}
 
 	// 执行兑换逻辑（兑换码已被锁定，此时可安全操作）

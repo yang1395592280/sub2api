@@ -170,6 +170,20 @@ func (_c *RedeemCodeCreate) SetNillableValidityDays(v *int) *RedeemCodeCreate {
 	return _c
 }
 
+// SetCampaignID sets the "campaign_id" field.
+func (_c *RedeemCodeCreate) SetCampaignID(v int64) *RedeemCodeCreate {
+	_c.mutation.SetCampaignID(v)
+	return _c
+}
+
+// SetNillableCampaignID sets the "campaign_id" field if the given value is not nil.
+func (_c *RedeemCodeCreate) SetNillableCampaignID(v *int64) *RedeemCodeCreate {
+	if v != nil {
+		_c.SetCampaignID(*v)
+	}
+	return _c
+}
+
 // SetUserID sets the "user" edge to the User entity by ID.
 func (_c *RedeemCodeCreate) SetUserID(id int64) *RedeemCodeCreate {
 	_c.mutation.SetUserID(id)
@@ -348,6 +362,10 @@ func (_c *RedeemCodeCreate) createSpec() (*RedeemCode, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ValidityDays(); ok {
 		_spec.SetField(redeemcode.FieldValidityDays, field.TypeInt, value)
 		_node.ValidityDays = value
+	}
+	if value, ok := _c.mutation.CampaignID(); ok {
+		_spec.SetField(redeemcode.FieldCampaignID, field.TypeInt64, value)
+		_node.CampaignID = &value
 	}
 	if nodes := _c.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -597,6 +615,30 @@ func (u *RedeemCodeUpsert) AddValidityDays(v int) *RedeemCodeUpsert {
 	return u
 }
 
+// SetCampaignID sets the "campaign_id" field.
+func (u *RedeemCodeUpsert) SetCampaignID(v int64) *RedeemCodeUpsert {
+	u.Set(redeemcode.FieldCampaignID, v)
+	return u
+}
+
+// UpdateCampaignID sets the "campaign_id" field to the value that was provided on create.
+func (u *RedeemCodeUpsert) UpdateCampaignID() *RedeemCodeUpsert {
+	u.SetExcluded(redeemcode.FieldCampaignID)
+	return u
+}
+
+// AddCampaignID adds v to the "campaign_id" field.
+func (u *RedeemCodeUpsert) AddCampaignID(v int64) *RedeemCodeUpsert {
+	u.Add(redeemcode.FieldCampaignID, v)
+	return u
+}
+
+// ClearCampaignID clears the value of the "campaign_id" field.
+func (u *RedeemCodeUpsert) ClearCampaignID() *RedeemCodeUpsert {
+	u.SetNull(redeemcode.FieldCampaignID)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -828,6 +870,34 @@ func (u *RedeemCodeUpsertOne) AddValidityDays(v int) *RedeemCodeUpsertOne {
 func (u *RedeemCodeUpsertOne) UpdateValidityDays() *RedeemCodeUpsertOne {
 	return u.Update(func(s *RedeemCodeUpsert) {
 		s.UpdateValidityDays()
+	})
+}
+
+// SetCampaignID sets the "campaign_id" field.
+func (u *RedeemCodeUpsertOne) SetCampaignID(v int64) *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetCampaignID(v)
+	})
+}
+
+// AddCampaignID adds v to the "campaign_id" field.
+func (u *RedeemCodeUpsertOne) AddCampaignID(v int64) *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.AddCampaignID(v)
+	})
+}
+
+// UpdateCampaignID sets the "campaign_id" field to the value that was provided on create.
+func (u *RedeemCodeUpsertOne) UpdateCampaignID() *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateCampaignID()
+	})
+}
+
+// ClearCampaignID clears the value of the "campaign_id" field.
+func (u *RedeemCodeUpsertOne) ClearCampaignID() *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.ClearCampaignID()
 	})
 }
 
@@ -1228,6 +1298,34 @@ func (u *RedeemCodeUpsertBulk) AddValidityDays(v int) *RedeemCodeUpsertBulk {
 func (u *RedeemCodeUpsertBulk) UpdateValidityDays() *RedeemCodeUpsertBulk {
 	return u.Update(func(s *RedeemCodeUpsert) {
 		s.UpdateValidityDays()
+	})
+}
+
+// SetCampaignID sets the "campaign_id" field.
+func (u *RedeemCodeUpsertBulk) SetCampaignID(v int64) *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetCampaignID(v)
+	})
+}
+
+// AddCampaignID adds v to the "campaign_id" field.
+func (u *RedeemCodeUpsertBulk) AddCampaignID(v int64) *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.AddCampaignID(v)
+	})
+}
+
+// UpdateCampaignID sets the "campaign_id" field to the value that was provided on create.
+func (u *RedeemCodeUpsertBulk) UpdateCampaignID() *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateCampaignID()
+	})
+}
+
+// ClearCampaignID clears the value of the "campaign_id" field.
+func (u *RedeemCodeUpsertBulk) ClearCampaignID() *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.ClearCampaignID()
 	})
 }
 

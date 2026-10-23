@@ -822,6 +822,9 @@ export default {
 
   // Redeem
   redeem: {
+    errors: {
+      REDEEM_CAMPAIGN_LIMIT_REACHED: 'You have reached the redemption limit for this giveaway. Please leave the remaining codes for others.'
+    },
     title: 'Redeem Code',
     description: 'Enter your redeem code to add balance or increase concurrency',
     currentBalance: 'Current Balance',
