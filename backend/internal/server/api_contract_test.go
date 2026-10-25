@@ -233,7 +233,7 @@ func TestAPIContracts(t *testing.T) {
 					"group_select_mode": "openai_auto_cheapest",
 					"last_effective_group_id": null,
 					"last_effective_group_at": null,
-					"openai_auto_group_max_rate_multiplier": 0.3,
+					"openai_auto_group_max_rate_multiplier": 0.5,
 					"status": "active",
 					"ip_whitelist": null,
 					"ip_blacklist": null,
