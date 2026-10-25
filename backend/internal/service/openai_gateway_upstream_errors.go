@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -233,7 +234,11 @@ func openAIRequestScopedRetryDelay(responseHeaders http.Header, responseBody []b
 }
 
 func parseOpenAIRequestScopedRetryDelay(raw string) (time.Duration, bool) {
-	if seconds, err := strconv.ParseFloat(raw, 64); err == nil && seconds > 0 {
+	if seconds, err := strconv.ParseFloat(raw, 64); err == nil && seconds > 0 && !math.IsInf(seconds, 0) {
+		// Cap before converting to Duration: out-of-range float conversions vary by architecture.
+		if seconds >= openAIRequestScopedRetryMaxDelay.Seconds() {
+			return openAIRequestScopedRetryMaxDelay, true
+		}
 		return time.Duration(seconds * float64(time.Second)), true
 	}
 	if resetAt, err := http.ParseTime(raw); err == nil {
@@ -246,7 +251,10 @@ func parseOpenAIRequestScopedRetryDelay(raw string) (time.Duration, bool) {
 }
 
 func parseOpenAIRequestScopedRetryDelayMilliseconds(raw string) (time.Duration, bool) {
-	if millis, err := strconv.ParseFloat(raw, 64); err == nil && millis > 0 {
+	if millis, err := strconv.ParseFloat(raw, 64); err == nil && millis > 0 && !math.IsInf(millis, 0) {
+		if millis >= float64(openAIRequestScopedRetryMaxDelay)/float64(time.Millisecond) {
+			return openAIRequestScopedRetryMaxDelay, true
+		}
 		return time.Duration(millis * float64(time.Millisecond)), true
 	}
 	return 0, false

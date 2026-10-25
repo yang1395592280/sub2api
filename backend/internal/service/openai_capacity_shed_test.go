@@ -122,6 +122,18 @@ func TestOpenAICapacityShedHonorsRetryAfter(t *testing.T) {
 		{name: "body seconds", body: `{"error":{"headers":{"retry-after":"7"},"message":"Our servers are currently overloaded. Please try again later."}}`, want: 7 * time.Second},
 		{name: "body milliseconds", body: `{"response":{"error":{"headers":{"retry-after-ms":"7000"},"message":"Our servers are currently overloaded. Please try again later."}}}`, want: 7 * time.Second},
 		{name: "bounded", headers: http.Header{"Retry-After": []string{"60"}}, want: openAIRequestScopedRetryMaxDelay},
+		{name: "overflow seconds", headers: http.Header{"Retry-After": []string{"9223372036854775807"}}, want: openAIRequestScopedRetryMaxDelay},
+		{name: "overflow milliseconds", headers: http.Header{"Retry-After-Ms": []string{"9223372036854775807"}}, want: openAIRequestScopedRetryMaxDelay},
+		{name: "large finite seconds", headers: http.Header{"Retry-After": []string{"1e300"}}, want: openAIRequestScopedRetryMaxDelay},
+		{name: "large finite body milliseconds", body: `{"response":{"error":{"headers":{"retry-after-ms":"1e300"}}}}`, want: openAIRequestScopedRetryMaxDelay},
+		{name: "fractional seconds", headers: http.Header{"Retry-After": []string{"0.25"}}, want: 250 * time.Millisecond},
+		{name: "fractional milliseconds", headers: http.Header{"Retry-After-Ms": []string{"250.5"}}, want: 250500 * time.Microsecond},
+		{name: "infinite seconds falls back", headers: http.Header{"Retry-After": []string{"+Inf"}, "Retry-After-Ms": []string{"1500"}}, want: 1500 * time.Millisecond},
+		{name: "infinite milliseconds falls back", headers: http.Header{"Retry-After-Ms": []string{"+Inf"}}, body: `{"error":{"headers":{"retry-after":"2"}}}`, want: 2 * time.Second},
+		{name: "nan falls back", headers: http.Header{"Retry-After": []string{"NaN"}, "Retry-After-Ms": []string{"1500"}}, want: 1500 * time.Millisecond},
+		{name: "negative falls back", headers: http.Header{"Retry-After": []string{"-1"}, "Retry-After-Ms": []string{"1500"}}, want: 1500 * time.Millisecond},
+		{name: "http date bounded", headers: http.Header{"Retry-After": []string{time.Now().Add(time.Hour).UTC().Format(http.TimeFormat)}}, want: openAIRequestScopedRetryMaxDelay},
+		{name: "past http date falls back", headers: http.Header{"Retry-After": []string{time.Now().Add(-time.Hour).UTC().Format(http.TimeFormat)}, "Retry-After-Ms": []string{"1500"}}, want: 1500 * time.Millisecond},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			failoverErr := newOpenAIUpstreamFailoverError(
@@ -229,7 +241,11 @@ func TestOpenAIStreamMetadataAndKeepaliveBeforeOverloadFailOver(t *testing.T) {
 			resp := &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(strings.NewReader(stream)),
-				Header:     http.Header{"X-Request-Id": []string{"rid-message-only-overload"}},
+				Header: http.Header{
+					"X-Request-Id":   []string{"rid-message-only-overload"},
+					"Retry-After":    []string{"+Inf"},
+					"Retry-After-Ms": []string{"1500"},
+				},
 			}
 			account := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Name: "acc"}
 
@@ -239,6 +255,7 @@ func TestOpenAIStreamMetadataAndKeepaliveBeforeOverloadFailOver(t *testing.T) {
 			require.ErrorAs(t, err, &failoverErr)
 			require.True(t, failoverErr.RetryableOnSameAccount)
 			require.True(t, failoverErr.RequestScopedTransient)
+			require.Equal(t, 1500*time.Millisecond, failoverErr.SameAccountRetryDelay)
 			require.Equal(t, http.StatusServiceUnavailable, failoverErr.ClientStatusCode)
 			require.Contains(t, failoverErr.ClientMessage, "servers are currently overloaded")
 			require.False(t, c.Writer.Written())
