@@ -1,0 +1,29 @@
+# Merge this service into the deployment's Compose file; backend and renderer
+# must share a private network. Do not publish renderer ports on the Internet.
+services:
+  sub2api:
+    environment:
+      QUALITY_RENDERER_URL: http://quality-renderer:8091
+      QUALITY_RENDERER_TOKEN: ${QUALITY_RENDERER_TOKEN:?set a shared private renderer token}
+  quality-renderer:
+    build: ./quality-renderer
+    restart: unless-stopped
+    environment:
+      QUALITY_RENDERER_TOKEN: ${QUALITY_RENDERER_TOKEN:?set a shared private renderer token}
+    expose:
+      - "8091"
+    networks:
+      - sub2api-network
+    mem_limit: 1g
+    pids_limit: 128
+    shm_size: 256mb
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+networks:
+  sub2api-network:
+    driver: bridge

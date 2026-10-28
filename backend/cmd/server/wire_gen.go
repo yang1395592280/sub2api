@@ -155,7 +155,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	privacyClientFactory := providePrivacyClientFactory()
 	openAIOAuthService := service.ProvideOpenAIOAuthService(proxyRepository, openAIOAuthClient, privacyClientFactory)
 	openAITokenProvider := service.ProvideOpenAITokenProvider(accountRepository, geminiTokenCache, openAIOAuthService, oAuthRefreshAPI)
-	accountqualityService := service.ProvideAccountQualityService(db, configConfig, accountRepository, groupRepository, channelService, httpUpstream, openAITokenProvider, concurrencyService, tlsFingerprintProfileService, settingService)
+	accountqualityService := service.ProvideAccountQualityService(db, configConfig, accountRepository, groupRepository, channelService, httpUpstream, openAITokenProvider, concurrencyService, tlsFingerprintProfileService, settingService, billingService)
 	grokOAuthClient := repository.NewGrokOAuthClient()
 	grokOAuthService := service.ProvideGrokOAuthService(proxyRepository, grokOAuthClient, configConfig, redisClient)
 	grokTokenProvider := service.ProvideGrokTokenProvider(accountRepository, geminiTokenCache, grokOAuthService, oAuthRefreshAPI, tempUnschedCache)

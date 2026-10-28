@@ -337,11 +337,21 @@ func (s *Service) ChangeSettings(t *Tx, expected int64, settings Settings, actor
 	}
 	settings.Revision = old.Revision + 1
 	settings.ControlEpoch = old.ControlEpoch
-	if !old.ControlEnabled && settings.ControlEnabled {
+	if (!old.ControlEnabled && settings.ControlEnabled) || Hash(old.Reviewer) != Hash(settings.Reviewer) {
 		settings.ControlEpoch++
 	}
 	if err := settings.Validate(); err != nil {
 		return nil, err
+	}
+	if !emergency && settings.Reviewer != nil {
+		v := settings.Reviewer
+		target, err := s.resolveTarget(t.ctx, v.AccountID, v.SourceGroupID, v.Condition)
+		if err != nil {
+			return nil, err
+		}
+		if !target.CanProbe {
+			return nil, Invalid("reviewer", "评审账号不可用于当前条件")
+		}
 	}
 	if err := t.SaveSettings(settings); err != nil {
 		return nil, err

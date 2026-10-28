@@ -1270,8 +1270,10 @@ func ProvideClaudeResetCreditService(accounts AccountRepository, tokens *ClaudeT
 	return s
 }
 
-func ProvideAccountQualityService(db *sql.DB, cfg *config.Config, accounts AccountRepository, groups GroupRepository, channel *ChannelService, upstream HTTPUpstream, tokens *OpenAITokenProvider, concurrency *ConcurrencyService, tls *TLSFingerprintProfileService, settings *SettingService) *quality.Service {
+func ProvideAccountQualityService(db *sql.DB, cfg *config.Config, accounts AccountRepository, groups GroupRepository, channel *ChannelService, upstream HTTPUpstream, tokens *OpenAITokenProvider, concurrency *ConcurrencyService, tls *TLSFingerprintProfileService, settings *SettingService, billing *BillingService) *quality.Service {
 	provider := &accountQualityProvider{accounts: accounts, groups: groups, channel: channel, cfg: cfg, upstream: upstream, tokens: tokens, concurrency: concurrency, tls: tls, settings: settings, dialer: newDefaultOpenAIWSClientDialer()}
+	provider.billing = billing
+	provider.renderer = quality.NewFrameRenderer(os.Getenv("QUALITY_RENDERER_URL"), os.Getenv("QUALITY_RENDERER_TOKEN"))
 	svc := quality.NewService(quality.NewStore(db, cfg.Timezone), provider)
 	svc.Start()
 	return svc

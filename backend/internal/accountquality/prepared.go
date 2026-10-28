@@ -32,7 +32,7 @@ func (s *Service) resolveTarget(ctx context.Context, id, source int64, c Conditi
 func (s *Service) prepareRoute(c *gin.Context) {
 	path := c.FullPath()
 	method := c.Request.Method
-	needs := method == "POST" && (strings.HasSuffix(path, "/policies") || strings.HasSuffix(path, "/batch-update") || strings.HasSuffix(path, "/preview") || strings.HasSuffix(path, "/runs")) || method == "PUT" && strings.Contains(path, "/policies/")
+	needs := method == "POST" && (strings.HasSuffix(path, "/policies") || strings.HasSuffix(path, "/batch-update") || strings.HasSuffix(path, "/preview") || strings.HasSuffix(path, "/runs")) || method == "PUT" && (strings.Contains(path, "/policies/") || strings.HasSuffix(path, "/settings"))
 	if !needs {
 		c.Next()
 		return
@@ -47,9 +47,18 @@ func (s *Service) prepareRoute(c *gin.Context) {
 	var req struct {
 		Items     []json.RawMessage `json:"items"`
 		PolicyIDs []int64           `json:"policy_ids"`
+		Reviewer  *ReviewerConfig   `json:"reviewer"`
+		Settings  struct {
+			Reviewer *ReviewerConfig `json:"reviewer"`
+		} `json:"settings"`
 	}
 	_ = json.Unmarshal(raw, &req)
 	candidates := []CreateItem{}
+	for _, reviewer := range []*ReviewerConfig{req.Reviewer, req.Settings.Reviewer} {
+		if reviewer != nil {
+			candidates = append(candidates, CreateItem{AccountID: reviewer.AccountID, SourceGroupID: reviewer.SourceGroupID, Condition: reviewer.Condition})
+		}
+	}
 	ids := map[int64]bool{}
 	for _, item := range req.Items {
 		var v CreateItem
@@ -66,7 +75,7 @@ func (s *Service) prepareRoute(c *gin.Context) {
 	for _, id := range req.PolicyIDs {
 		ids[id] = true
 	}
-	if method == "PUT" {
+	if method == "PUT" && strings.Contains(path, "/policies/") {
 		id, e := parseID(c)
 		if e == nil {
 			ids[id] = true

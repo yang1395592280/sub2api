@@ -201,3 +201,28 @@
 - 相关文件：backend/cmd/server/VERSION、20261028/release-v0.2.18.4.md、daily.md。
 - 未完成：本条为推送前检查点，随后提交版本更新、创建annotated tag并原子推送origin/custom-main与refs/tags/v0.2.18.4；最终结果以远端refs与工作流核验为准。
 - 阻塞：无。RELEASE_ONLY=true已确认；不执行生产部署、迁移或真实账号检测，镜像执行测试未跑。本轮沿用功能测试与构建证据。
+
+## 2026-10-28 糖果+鹈鹕双检测第一实现检查点
+- 已完成：用户已明确选择自动视觉评审、双通过才正常并参与原降权/隔离。基于干净 v0.2.18.4 建立 feature/openai-quality-dual-check；设计 docs/openai-quality-dual-check-design.md。核心套件、严格SVG和评审JSON评分、原文包保留期、逐阶段预算意图、私网渲染器、评审配置、作品墙/色块/卡片/详情和旧策略升级初稿均已写入。
+- 相关文件：accountquality/{suite,renderer,types,runner,repository,service,http,preview,prepared}.go；service/account_quality_{provider,suite}.go、wire.go；deploy/quality-renderer；frontend QualityResultsPanel/QualitySVGPreview/QualityRunDetailDialog、三页API及双语。
+- 验证：首次Go定向21通过1失败（列表SQL有意改为不读取正文，sqlmock预期已同步，待回归）；首次vue-tsc只发现不存在image图标，已改用现有sparkles待回归；Wire已重新生成成功。Docker已用docker desktop start启动，现有postgres:16-alpine镜像可用。尚未验证全部新实现，不计交付完成。
+- 未完成：核心/真实DB预算集成/传输/渲染器测试、前端回归与浏览器实际截图、端到端审查、文档与最终记忆。没有生产写入或真实付费请求。代码未commit/merge/push/tag/部署。待继续。
+- 阻塞：无业务阻塞；系统和bundled Python均未安装playwright，需隔离venv或Docker验证渲染器，不能省略后冒充通过。已知需补：benchmarks双套件元数据、费用依赖Wire/collector校验收尾、前端新接口mock/行为覆盖及中文文案。
+
+## 2026-10-28 双检测验收检查点
+- 已完成：双检测主体、严格视觉判分、私网四帧渲染、结果作品墙和配置；Go28/前端21通过，隔离PostgreSQL23通过（含子测试）。
+- 相关文件：backend/internal/accountquality/{suite,renderer,runner}.go、service/account_quality_suite.go、QualityResultsPanel.vue、deploy/quality-renderer。
+- 未完成：真实浏览器交互/截图、最终race/lint/build、部署使用文档和收尾。
+- 阻塞：无；未提交/部署/真实付费调用。
+
+## 2026-10-28 双检测本地交付
+- 已完成（证据）：Go核心race74/服务定向race、隔离PG23、前端24、真实Chromium3、lint/type/build/嵌入构建、pip-audit、Compose合并配置和diff检查通过；CUA模拟API交互（含手机/深色）及截图完成。
+- 相关文件：docs/openai-quality-{monitor,dual-check-design}.md；backend/internal/accountquality/{suite,renderer,runner}.go；service/account_quality_suite.go；QualityResultsPanel.vue；deploy/quality-renderer。来源third_party/manxue-ai固定Apache快照，NOTICE已补适配声明。
+- 未完成：正式部署前需完成渲染镜像构建/容器冒烟及真实上游（包括WS图片）联调。本地镜像下载约11分钟仍慢已主动中止，不能声称构建通过。
+- 阻塞与边界：本地实现无阻塞；临时fixture/Vite/PG已清理。分支feature/openai-quality-dual-check，所有改动未提交/合并/推送/部署，未调用真实付费模型。后续Git操作等用户明确指令。
+
+## 2026-10-28 双检测合并授权
+- 已完成：用户授权提交本次功能并合入custom-main；两分支同起点2bbd7e22c，工作树只有本次实现改动，diff检查通过。
+- 相关文件：本次双检测代码、渲染器、前端、文档及来源声明，详见本地交付条目。
+- 下一步：本条随功能提交，随后快进合入custom-main；最终结果以Git分支包含关系及工作区状态为准。
+- 边界：不推送、不打tag、不部署。真实上游及渲染器容器构建仍待正式部署前验收。

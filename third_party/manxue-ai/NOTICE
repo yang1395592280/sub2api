@@ -12,6 +12,13 @@ sub2api adaptations:
   It adds typed inputs, per-policy/evidence-scope filtering, run deduplication,
   an exact rolling window, and separate answer accuracy/coverage calculations.
   It is a presentation-data module and does not change runtime scheduling.
+- backend/internal/accountquality/suite.go adapts the SVG animation prompt,
+  structural validation and four-criterion visual review from server.py and
+  visual_review.py, adding strict parsing, safe SVG and expiring evidence.
+- deploy/quality-renderer/renderer.py adapts render_frames.py with authenticated
+  HTTP access, bounded subprocesses, blocked network and four timed PNG frames.
+- QualityResultsPanel.vue adapts the visual results layout with paginated SVG
+  artwork, per-stage results and accessible clickable history blocks.
 
 Modified files carry their own source and change notices. The original source
 and its license remain available under upstream/ for attribution and review.

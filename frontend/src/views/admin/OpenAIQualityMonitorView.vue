@@ -16,6 +16,11 @@
         <p class="mt-3 rounded-xl bg-primary-50 px-3 py-2 text-xs text-primary-800 dark:bg-primary-900/20 dark:text-primary-200">{{ t('openAIQuality.scopeNote') }}</p>
       </header>
 
+      <nav class="flex gap-1 border-b border-gray-200 dark:border-dark-700" :aria-label="t('openAIQuality.monitorViews')">
+        <button v-for="view in monitorViews" :key="view" class="border-b-2 px-4 py-3 text-sm font-medium" :class="monitorView === view ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500'" :aria-pressed="monitorView === view" @click="monitorView = view">{{ t(`openAIQuality.${view === 'results' ? 'visualResults' : 'policyManagement'}`) }}</button>
+      </nav>
+      <QualityResultsPanel v-show="monitorView === 'results'" :groups="groups" :account-id="route.query.account_id ? Number(route.query.account_id) : undefined" :revision="resultRevision" @open="openRun" />
+      <div v-show="monitorView === 'policies'" class="space-y-5">
       <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <article v-for="item in cards" :key="item.label" class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
           <p class="text-xs text-gray-500">{{ item.label }}</p>
@@ -80,6 +85,7 @@
         <Pagination :total="groupedRows.length" v-model:page="page" v-model:page-size="pageSize" />
       </section>
 
+      </div>
       <BaseDialog :show="!!selected" :title="`${selected?.account_name || ''} · ${selected?.condition.model_id || ''}`" width="extra-wide" @close="closePolicy">
       <section v-if="selected" class="space-y-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
@@ -140,6 +146,7 @@ import Select from '@/components/common/Select.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Icon from '@/components/icons/Icon.vue'
 import QualityRunDetailDialog from '@/components/admin/account-quality/QualityRunDetailDialog.vue'
+import QualityResultsPanel from '@/components/admin/account-quality/QualityResultsPanel.vue'
 import { groupQualityPolicies, qualityOutcomeClass } from '@/components/admin/account-quality/qualityPresentation'
 import { getAllIncludingInactive } from '@/api/admin/groups'
 import type { AdminGroup } from '@/types'
@@ -148,6 +155,9 @@ import { cancelQualityRun, getQualityEvents, getQualityOverview, getAllQualityPo
 
 const { t, te } = useI18n()
 const route = useRoute()
+const monitorViews = ['results', 'policies'] as const
+const monitorView = ref<'results' | 'policies'>('results')
+const resultRevision = ref(0)
 const overview = ref<any>(null)
 const policies = ref<QualityPolicy[]>([])
 const groups = ref<AdminGroup[]>([])
@@ -219,6 +229,7 @@ async function reload() {
     if (request === reloadRequest) {
       overview.value = o
       policies.value = p.items
+      resultRevision.value++
       selectedPolicyIds.value = selectedPolicyIds.value.filter(id => p.items.some(policy => policy.id === id))
       if (selected.value && !p.items.some(policy => policy.id === selected.value?.id)) closePolicy()
       else if (selected.value) selected.value = p.items.find(policy => policy.id === selected.value?.id) || null

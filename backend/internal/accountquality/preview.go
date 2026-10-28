@@ -165,6 +165,15 @@ func (s *Service) previewHTTP(c *gin.Context) {
 				problem(0, Invalid("control_enabled", "启控预览必须打开控制开关"))
 			}
 			settings = value
+			if settings.Reviewer != nil {
+				v := settings.Reviewer
+				target, e := s.resolveTarget(c.Request.Context(), v.AccountID, v.SourceGroupID, v.Condition)
+				if e != nil {
+					problem(0, e)
+				} else if !target.CanProbe {
+					problem(0, Invalid("reviewer", "评审账号不可用于当前条件"))
+				}
+			}
 		}
 		capacity := Capacity(proposed, settings)
 		fresh := 0

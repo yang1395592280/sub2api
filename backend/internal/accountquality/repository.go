@@ -256,6 +256,9 @@ func (t *Tx) Enqueue(p Policy, batch, source string, actor int64, slot *time.Tim
 		return sub, nil
 	}
 	p = Present(p, t.Settings, t.Now)
+	if p.Condition.BenchmarkID == "dual" {
+		p.Reviewer = t.Settings.Reviewer
+	}
 	b, err := json.Marshal(p)
 	if err != nil {
 		return sub, err
@@ -304,6 +307,8 @@ type RunFilter struct {
 	PolicyID, AccountID, RunID, SourceGroupID    int64
 	BatchID, ScopeHash, Status, Verdict, Trigger string
 	ModelID, Search                              string
+	BenchmarkID                                  string
+	IncludeEvidence                              bool
 	From, To                                     *time.Time
 	IncludeEnd                                   bool
 	GlobalEpoch, PolicyEpoch                     *int64
@@ -332,6 +337,9 @@ func (t *Tx) Runs(f RunFilter) ([]Run, int, error) {
 	}
 	if f.Search != "" {
 		add("strpos(lower(COALESCE(snapshot->>'account_name','')),lower($%d))>0", f.Search)
+	}
+	if f.BenchmarkID != "" {
+		add("snapshot->'condition'->>'benchmark_id'=$%d", f.BenchmarkID)
 	}
 	if f.RunID > 0 {
 		add("id=$%d", f.RunID)
@@ -373,7 +381,11 @@ func (t *Tx) Runs(f RunFilter) ([]Run, int, error) {
 		return nil, 0, err
 	}
 	args = append(args, f.Limit, f.Offset)
-	q := `SELECT ` + runColumns + ` FROM account_quality_test_runs WHERE ` + clause + fmt.Sprintf(` ORDER BY COALESCE(started_at,queued_at) DESC,id DESC LIMIT $%d OFFSET $%d`, len(args)-1, len(args))
+	columns := strings.Replace(runColumns, ",response_text,", ",NULL AS response_text,", 1)
+	if f.IncludeEvidence {
+		columns = strings.Replace(runColumns, ",response_text,", ",CASE WHEN response_expires_at>NOW() THEN response_text ELSE NULL END,", 1)
+	}
+	q := `SELECT ` + columns + ` FROM account_quality_test_runs WHERE ` + clause + fmt.Sprintf(` ORDER BY COALESCE(started_at,queued_at) DESC,id DESC LIMIT $%d OFFSET $%d`, len(args)-1, len(args))
 	rows, err := t.sql.QueryContext(t.ctx, q, args...)
 	if err != nil {
 		return nil, 0, err
@@ -384,6 +396,12 @@ func (t *Tx) Runs(f RunFilter) ([]Run, int, error) {
 		r, e := scanRun(rows)
 		if e != nil {
 			return nil, 0, e
+		}
+		if f.IncludeEvidence {
+			r.PresentEvidence(r.ResponseExpiresAt != nil && r.ResponseExpiresAt.After(t.Now))
+			if r.Evidence != nil {
+				r.Evidence = &Evidence{SVG: r.Evidence.SVG}
+			}
 		}
 		r.ResponseText = nil
 		out = append(out, r)

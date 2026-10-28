@@ -23,13 +23,14 @@ vi.mock('vue-i18n', async importOriginal => {
 })
 
 const api = vi.hoisted(() => ({
-  settings: vi.fn(), targets: vi.fn(), policies: vi.fn(), groups: vi.fn(), preview: vi.fn(), create: vi.fn(), runs: vi.fn(), run: vi.fn(), overview: vi.fn(), monitor: vi.fn(),
+  settings: vi.fn(), targets: vi.fn(), policies: vi.fn(), groups: vi.fn(), preview: vi.fn(), settingsPreview: vi.fn(), create: vi.fn(), runs: vi.fn(), run: vi.fn(), overview: vi.fn(), monitor: vi.fn(), gallery: vi.fn(),
   route: { path: '/admin/openai-quality/records', query: {} as Record<string, string> }, replace: vi.fn(),
 }))
 vi.mock('@/api/admin/openaiAccountQuality', async importOriginal => ({
   ...await importOriginal<object>(),
   getQualitySettings: api.settings, getAllQualityTargets: api.targets, getAllQualityPolicies: api.policies,
-  previewQuality: api.preview, createQualityPolicies: api.create, getQualityRuns: api.runs, getQualityRun: api.run, getQualityOverview: api.overview, getQualityMonitor: api.monitor,
+  previewQuality: api.preview, createQualityPolicies: api.create, getQualityRuns: api.runs, getQualityRun: api.run, getQualityOverview: api.overview, getQualityMonitor: api.monitor, getQualityGallery: api.gallery,
+  previewQualitySettings: api.settingsPreview,
 }))
 vi.mock('@/api/admin/groups', async importOriginal => ({ ...await importOriginal<object>(), getAll: api.groups, getAllIncludingInactive: api.groups }))
 vi.mock('vue-router', async importOriginal => ({ ...await importOriginal<object>(), useRoute: () => api.route, useRouter: () => ({ replace: api.replace }) }))
@@ -65,7 +66,9 @@ beforeEach(() => {
   api.targets.mockResolvedValue({ items: [{ account_id: 42, account_name: 'Shared upstream', compatible_source_group_ids: [78, 1], can_probe: true, can_enforce: true, reasons: [] }] })
   api.policies.mockResolvedValue({ items: [policy(), policy(2, 'gpt-5.4')] })
   api.preview.mockResolvedValue({ valid: true, warnings: [], daily_calls_estimate: 96, global_budget: 1000 })
+  api.settingsPreview.mockResolvedValue({ valid: true, warnings: [] })
   api.create.mockResolvedValue({ items: [policy()] })
+  api.gallery.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 12, pages: 1 })
   api.runs.mockResolvedValue({ items: [run()], total: 41, page: 1, page_size: 20, pages: 3 })
   api.run.mockResolvedValue({ run: { ...run(), response_text: '<script>unsafe</script>{"answer":21}' }, response_available: true, response_expired: false })
   api.overview.mockResolvedValue({ health: {}, inventory: {}, policies: {} })
@@ -74,6 +77,36 @@ beforeEach(() => {
 afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()); document.body.innerHTML = '' })
 
 describe('OpenAI quality settings', () => {
+  it('upgrades a legacy policy through preview and preserves its identity and switches', async () => {
+    const wrapper = render(SettingsView)
+    await flushPromises()
+    await wrapper.findAll('button').find(b => b.text().startsWith('已配置策略'))!.trigger('click')
+    await wrapper.findAll('button').find(b => b.text() === '升级双检测')!.trigger('click')
+    await flushPromises()
+    const expected = expect.objectContaining({ account_id: 42, source_group_id: 78, replaces_policy_id: 1, replaces_expected_revision: 1, condition: expect.objectContaining({ benchmark_id: 'dual', scorer_version: 'dual-visual-v1', model_id: 'gpt-5.5' }), rules: expect.objectContaining({ control_enabled: false, auto_check_enabled: false, timeout_seconds: 420, max_output_tokens: 8192 }) })
+    expect(api.preview).toHaveBeenLastCalledWith([expected])
+    await wrapper.findAll('button').find(b => b.text() === '确认升级')!.trigger('click')
+    await flushPromises()
+    expect(api.create).toHaveBeenCalledWith([expected])
+  })
+  it('configures a reviewer from its selected group and invalidates preview after a model edit', async () => {
+    const wrapper = render(SettingsView)
+    await flushPromises()
+    await wrapper.findAll('button').find(b => b.text() === '全局设置')!.trigger('click')
+    const enable = wrapper.findAll('label').find(l => l.text() === '启用视觉评审')!.find('input')
+    await enable.setValue(true)
+    wrapper.findAllComponents(Select).find(s => s.props('ariaLabel') === '评审来源分组')!.vm.$emit('update:modelValue', 1)
+    await flushPromises()
+    const account = wrapper.findAllComponents(Select).find(s => s.props('ariaLabel') === '评审账号')!
+    expect(account.props('options')).toEqual([{ value: 42, label: 'Shared upstream' }])
+    account.vm.$emit('update:modelValue', 42)
+    await wrapper.find('input[aria-label="视觉评审模型"]').setValue('review-model')
+    await wrapper.find('form').findAll('button').find(b => b.text() === '预览')!.trigger('click')
+    await flushPromises()
+    expect(api.settingsPreview).toHaveBeenCalledWith(expect.objectContaining({ reviewer: expect.objectContaining({ account_id: 42, source_group_id: 1, condition: expect.objectContaining({ model_id: 'review-model', benchmark_id: 'candy' }) }) }))
+    await wrapper.find('input[aria-label="视觉评审模型"]').setValue('different-reviewer')
+    expect(wrapper.findAll('button').find(b => b.text() === 'common.save')!.attributes('disabled')).toBeDefined()
+  })
   it('allows ordinary groups and builds two independent model policies without routing control', async () => {
     const wrapper = render(SettingsView)
     await flushPromises()

@@ -29,24 +29,33 @@ func Invalid(field, message string) error {
 }
 
 type Settings struct {
-	Revision                    int64  `json:"revision"`
-	ControlEpoch                int64  `json:"control_epoch"`
-	AutomationEnabled           bool   `json:"automation_enabled"`
-	ControlEnabled              bool   `json:"control_enabled"`
-	GlobalConcurrency           int    `json:"global_concurrency"`
-	QueueLimit                  int    `json:"queue_limit"`
-	QueueTimeoutSeconds         int    `json:"queue_timeout_seconds"`
-	GlobalDailyCallLimit        int    `json:"global_daily_call_limit"`
-	DefaultPolicyDailyCallLimit int    `json:"default_policy_daily_call_limit"`
-	RawRetentionDays            int    `json:"raw_retention_days"`
-	MetadataRetentionDays       int    `json:"metadata_retention_days"`
-	StoreFailurePolicy          string `json:"store_failure_policy"`
+	Revision                    int64           `json:"revision"`
+	ControlEpoch                int64           `json:"control_epoch"`
+	AutomationEnabled           bool            `json:"automation_enabled"`
+	ControlEnabled              bool            `json:"control_enabled"`
+	GlobalConcurrency           int             `json:"global_concurrency"`
+	QueueLimit                  int             `json:"queue_limit"`
+	QueueTimeoutSeconds         int             `json:"queue_timeout_seconds"`
+	GlobalDailyCallLimit        int             `json:"global_daily_call_limit"`
+	DefaultPolicyDailyCallLimit int             `json:"default_policy_daily_call_limit"`
+	RawRetentionDays            int             `json:"raw_retention_days"`
+	MetadataRetentionDays       int             `json:"metadata_retention_days"`
+	StoreFailurePolicy          string          `json:"store_failure_policy"`
+	Reviewer                    *ReviewerConfig `json:"reviewer,omitempty"`
 }
 
 func DefaultSettings() Settings {
 	return Settings{Revision: 1, GlobalConcurrency: 3, QueueLimit: 300, QueueTimeoutSeconds: 300, GlobalDailyCallLimit: 1000, DefaultPolicyDailyCallLimit: 100, RawRetentionDays: 7, MetadataRetentionDays: 30, StoreFailurePolicy: "fail_closed"}
 }
 func (s Settings) Validate() error {
+	if s.Reviewer != nil {
+		if s.Reviewer.AccountID <= 0 || s.Reviewer.SourceGroupID <= 0 || s.Reviewer.Condition.BenchmarkID != "candy" {
+			return Invalid("reviewer", "请选择有效的评审账号、来源分组和模型")
+		}
+		if err := s.Reviewer.Condition.Validate(); err != nil {
+			return err
+		}
+	}
 	if s.GlobalConcurrency < 1 || s.GlobalConcurrency > 10 {
 		return Invalid("global_concurrency", "并发必须为1–10")
 	}
@@ -92,7 +101,7 @@ func (c Condition) Validate() error {
 	if c.Transport != "http" && !(c.Transport == "websocket_v2" && c.Protocol == "responses") {
 		return Invalid("transport", "不支持的传输组合")
 	}
-	if c.BenchmarkID != "candy" || c.BenchmarkVersion != "1" || c.ScorerVersion != "strict-json-v1" {
+	if c.BenchmarkVersion != "1" || !((c.BenchmarkID == "candy" && c.ScorerVersion == "strict-json-v1") || (c.BenchmarkID == "dual" && c.ScorerVersion == "dual-visual-v1")) {
 		return Invalid("benchmark_id", "不支持的题目或评分版本")
 	}
 	if c.ReasoningEffort == "" || c.ServiceTier == "" {
@@ -176,31 +185,34 @@ func (s State) Project(now time.Time, window int) State {
 }
 
 type Policy struct {
-	ID                       int64      `json:"id"`
-	AccountID                int64      `json:"account_id"`
-	AccountName              string     `json:"account_name"`
-	SourceGroupID            int64      `json:"source_group_id"`
-	SourceGroupName          string     `json:"source_group_name"`
-	ControlSupported         *bool      `json:"control_supported,omitempty"`
-	CompatibleSourceGroupIDs []int64    `json:"compatible_source_group_ids"`
-	RoutingMode              string     `json:"routing_mode"`
-	Condition                Condition  `json:"condition"`
-	EffectiveModel           string     `json:"effective_upstream_model"`
-	EffectiveEffort          string     `json:"effective_reasoning_effort"`
-	EffectiveTier            string     `json:"effective_service_tier"`
-	RoutingFingerprint       string     `json:"routing_fingerprint"`
-	ControlScopeHash         string     `json:"control_scope_hash"`
-	ScopeHash                string     `json:"scope_hash"`
-	Revision                 int64      `json:"revision"`
-	ControlEpoch             int64      `json:"policy_control_epoch"`
-	Eligibility              string     `json:"eligibility"`
-	Rules                    Rules      `json:"rules"`
-	State                    State      `json:"state"`
-	Control                  Control    `json:"control"`
-	NextRunAt                *time.Time `json:"next_run_at"`
-	ArchivedAt               *time.Time `json:"archived_at"`
-	CreatedAt                time.Time  `json:"created_at"`
-	UpdatedAt                time.Time  `json:"updated_at"`
+	// Only populated in queued snapshots, never credentials. A reviewer change
+	// starts a new control epoch so old visual evidence cannot restore an account.
+	Reviewer                 *ReviewerConfig `json:"reviewer,omitempty"`
+	ID                       int64           `json:"id"`
+	AccountID                int64           `json:"account_id"`
+	AccountName              string          `json:"account_name"`
+	SourceGroupID            int64           `json:"source_group_id"`
+	SourceGroupName          string          `json:"source_group_name"`
+	ControlSupported         *bool           `json:"control_supported,omitempty"`
+	CompatibleSourceGroupIDs []int64         `json:"compatible_source_group_ids"`
+	RoutingMode              string          `json:"routing_mode"`
+	Condition                Condition       `json:"condition"`
+	EffectiveModel           string          `json:"effective_upstream_model"`
+	EffectiveEffort          string          `json:"effective_reasoning_effort"`
+	EffectiveTier            string          `json:"effective_service_tier"`
+	RoutingFingerprint       string          `json:"routing_fingerprint"`
+	ControlScopeHash         string          `json:"control_scope_hash"`
+	ScopeHash                string          `json:"scope_hash"`
+	Revision                 int64           `json:"revision"`
+	ControlEpoch             int64           `json:"policy_control_epoch"`
+	Eligibility              string          `json:"eligibility"`
+	Rules                    Rules           `json:"rules"`
+	State                    State           `json:"state"`
+	Control                  Control         `json:"control"`
+	NextRunAt                *time.Time      `json:"next_run_at"`
+	ArchivedAt               *time.Time      `json:"archived_at"`
+	CreatedAt                time.Time       `json:"created_at"`
+	UpdatedAt                time.Time       `json:"updated_at"`
 }
 type Control struct {
 	Effective bool   `json:"effective"`
@@ -276,19 +288,29 @@ type Run struct {
 	ResponseExpiresAt    *time.Time `json:"response_expires_at"`
 	StateApplied         bool       `json:"state_applied"`
 	StateSkipReason      string     `json:"state_skip_reason"`
+	Evidence             *Evidence  `json:"evidence,omitempty"`
 }
 type Result struct {
-	Verdict           string   `json:"verdict"`
-	ReasonCode        string   `json:"reason_code"`
-	ResponseText      string   `json:"-"`
-	ResponseTruncated bool     `json:"response_truncated"`
-	FinalAnswer       *int64   `json:"final_answer"`
-	ExpectedAnswer    int64    `json:"expected_answer"`
-	LatencyMS         int64    `json:"latency_ms"`
-	InputTokens       *int64   `json:"input_tokens"`
-	OutputTokens      *int64   `json:"output_tokens"`
-	TotalTokens       *int64   `json:"total_tokens"`
-	EstimatedCostUSD  *float64 `json:"estimated_cost_usd"`
+	Verdict             string       `json:"verdict"`
+	ReasonCode          string       `json:"reason_code"`
+	ResponseText        string       `json:"-"`
+	ResponseTruncated   bool         `json:"response_truncated"`
+	FinalAnswer         *int64       `json:"final_answer"`
+	ExpectedAnswer      int64        `json:"expected_answer"`
+	LatencyMS           int64        `json:"latency_ms"`
+	InputTokens         *int64       `json:"input_tokens"`
+	OutputTokens        *int64       `json:"output_tokens"`
+	TotalTokens         *int64       `json:"total_tokens"`
+	EstimatedCostUSD    *float64     `json:"estimated_cost_usd"`
+	ReasoningTokens     *int64       `json:"reasoning_tokens,omitempty"`
+	TokensPerSecond     *float64     `json:"tokens_per_second,omitempty"`
+	Candy               *CheckResult `json:"candy,omitempty"`
+	Pelican             *CheckResult `json:"pelican,omitempty"`
+	Review              *CheckResult `json:"review,omitempty"`
+	EvidenceVersion     string       `json:"evidence_version,omitempty"`
+	DispatchedStages    []string     `json:"dispatched_stages,omitempty"`
+	Evidence            *Evidence    `json:"-"`
+	GenerationCompleted bool         `json:"-"`
 }
 type Event struct {
 	ID          int64     `json:"id"`
@@ -308,7 +330,7 @@ type Event struct {
 type Provider interface {
 	Targets(context.Context) ([]Target, error)
 	Resolve(context.Context, int64, int64, Condition) (Target, error)
-	Probe(context.Context, Run, func() error) Result
+	Probe(context.Context, Run, func(string) error) Result
 }
 type Sample struct {
 	At      time.Time

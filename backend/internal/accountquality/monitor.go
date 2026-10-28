@@ -298,6 +298,9 @@ func Capacity(policies []Policy, settings Settings) map[string]any {
 		}
 		r := p.Rules
 		demand := 86400.0 / float64(r.IntervalSeconds)
+		if p.Condition.BenchmarkID == "dual" {
+			demand *= 3
+		}
 		configured += demand
 		if settings.AutomationEnabled {
 			enabled += demand

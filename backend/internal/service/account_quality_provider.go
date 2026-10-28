@@ -32,6 +32,8 @@ type accountQualityProvider struct {
 	tls         *TLSFingerprintProfileService
 	settings    *SettingService
 	dialer      openAIWSClientDialer
+	renderer    *quality.FrameRenderer
+	billing     *BillingService
 }
 
 type qualityInventory struct {
@@ -317,7 +319,7 @@ func qualityTier(body []byte) string {
 	return v
 }
 
-func (p *accountQualityProvider) Probe(ctx context.Context, r quality.Run, dispatch func() error) quality.Result {
+func (p *accountQualityProvider) request(ctx context.Context, r quality.Run, stage, prompt string, frames []quality.Frame, dispatch func(string) error) quality.Result {
 	start := time.Now()
 	failed := func(reason string) quality.Result {
 		return quality.Result{Verdict: "error", ReasonCode: reason, ExpectedAnswer: 21, LatencyMS: time.Since(start).Milliseconds()}
@@ -360,14 +362,22 @@ func (p *accountQualityProvider) Probe(ctx context.Context, r quality.Run, dispa
 		return failed("authentication_unavailable")
 	}
 	c := r.Snapshot.Condition
-	payload := map[string]any{"model": t.EffectiveModel, "stream": true, "max_output_tokens": r.Snapshot.Rules.MaxOutputTokens, "instructions": "Return only the requested final JSON answer.", "input": []any{map[string]any{"role": "user", "content": []any{map[string]any{"type": "input_text", "text": quality.CandyPrompt}}}}}
+	content := []any{map[string]any{"type": "input_text", "text": prompt}}
+	for _, frame := range frames {
+		content = append(content, map[string]any{"type": "input_text", "text": fmt.Sprintf("Frame at %.3f seconds", frame.Time)}, map[string]any{"type": "input_image", "image_url": "data:image/png;base64," + frame.PNG, "detail": "high"})
+	}
+	payload := map[string]any{"model": t.EffectiveModel, "stream": true, "max_output_tokens": r.Snapshot.Rules.MaxOutputTokens, "instructions": "Follow the user's requested output format exactly.", "input": []any{map[string]any{"role": "user", "content": content}}}
 	if c.Protocol == "chat_completions" {
 		delete(payload, "instructions")
 		delete(payload, "input")
 		delete(payload, "max_output_tokens")
 		payload["max_completion_tokens"] = r.Snapshot.Rules.MaxOutputTokens
 		payload["stream_options"] = map[string]any{"include_usage": true}
-		payload["messages"] = []any{map[string]any{"role": "user", "content": quality.CandyPrompt}}
+		chatContent := []any{map[string]any{"type": "text", "text": prompt}}
+		for _, frame := range frames {
+			chatContent = append(chatContent, map[string]any{"type": "text", "text": fmt.Sprintf("Frame at %.3f seconds", frame.Time)}, map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:image/png;base64," + frame.PNG, "detail": "high"}})
+		}
+		payload["messages"] = []any{map[string]any{"role": "user", "content": chatContent}}
 	}
 	if credential.IsOpenAIOAuthLike() {
 		payload["store"] = false
@@ -426,7 +436,7 @@ func (p *accountQualityProvider) Probe(ctx context.Context, r quality.Run, dispa
 	// Re-resolve immediately before the durable send boundary; no transaction is
 	// held while waiting for credentials, capacity or the network.
 	check, e := p.Resolve(ctx, r.AccountID, r.Snapshot.SourceGroupID, c)
-	if e != nil {
+	if e != nil || !check.CanProbe {
 		return failed("scope_changed")
 	}
 	candidate := r.Snapshot
@@ -434,8 +444,8 @@ func (p *accountQualityProvider) Probe(ctx context.Context, r quality.Run, dispa
 	if candidate.ScopeHash != r.ScopeHash {
 		return failed("scope_changed")
 	}
-	if err = dispatch(); err != nil {
-		return failed("dispatch_rejected")
+	if err = dispatch(stage); err != nil {
+		return failed(quality.DispatchReason(err))
 	}
 	collector := qualityCollector{protocol: c.Protocol}
 	if c.Transport == "websocket_v2" {
@@ -496,14 +506,47 @@ func (p *accountQualityProvider) Probe(ctx context.Context, r quality.Run, dispa
 			}
 		}
 	}
-	result := quality.Score(redactPelicanAccountSecrets(credential, collector.text.String()), collector.complete)
+	text := redactPelicanAccountSecrets(credential, collector.text.String())
+	result := quality.Result{Verdict: "unknown", ReasonCode: "generation_completed", ResponseText: text}
+	if stage == "candy" {
+		result = quality.Score(text, collector.complete)
+	}
+	result.GenerationCompleted = collector.complete
+	if len(result.ResponseText) > quality.MaxResponseBytes {
+		result.ResponseText = strings.ToValidUTF8(result.ResponseText[:quality.MaxResponseBytes], "")
+		result.ResponseTruncated = true
+		result.GenerationCompleted = false
+		result.ReasonCode = "response_too_large"
+	}
+	if !collector.complete && !result.ResponseTruncated {
+		result.ReasonCode = "incomplete_response"
+	}
 	result.InputTokens = collector.input
 	result.OutputTokens = collector.output
 	result.TotalTokens = collector.total
+	result.ReasoningTokens = collector.reasoning
 	result.LatencyMS = time.Since(start).Milliseconds()
+	if collector.output != nil && result.LatencyMS > 0 {
+		v := 1000 * float64(*collector.output) / float64(result.LatencyMS)
+		result.TokensPerSecond = &v
+	}
+	if p.billing != nil && collector.input != nil && collector.output != nil {
+		cached := int64(0)
+		if collector.cached != nil {
+			cached = min(*collector.cached, *collector.input)
+		}
+		cost, e := p.billing.CalculateCostWithServiceTier(t.EffectiveModel, UsageTokens{InputTokens: int(*collector.input - cached), OutputTokens: int(*collector.output), CacheReadTokens: int(cached)}, 1, t.EffectiveTier)
+		if e == nil && cost != nil {
+			result.EstimatedCostUSD = &cost.TotalCost
+		}
+	}
 	if collector.reason != "" {
 		result.Verdict = "error"
 		result.ReasonCode = collector.reason
+	}
+	if ctx.Err() != nil {
+		result.Verdict = "unknown"
+		result.ReasonCode = "probe_timeout"
 	}
 	return result
 }
@@ -516,6 +559,8 @@ type qualityCollector struct {
 	done, complete       bool
 	reason               string
 	input, output, total *int64
+	reasoning            *int64
+	cached               *int64
 }
 
 func (c *qualityCollector) consume(raw []byte) bool {
@@ -535,9 +580,23 @@ func (c *qualityCollector) consume(raw []byte) bool {
 		key  string
 		dest **int64
 	}{{"input_tokens", &c.input}, {"prompt_tokens", &c.input}, {"output_tokens", &c.output}, {"completion_tokens", &c.output}, {"total_tokens", &c.total}} {
-		if n := usage.Get(item.key); n.Exists() {
+		if n := usage.Get(item.key); n.Type == gjson.Number && n.Int() >= 0 {
 			value := n.Int()
 			*item.dest = &value
+		}
+	}
+	for _, key := range []string{"output_tokens_details.reasoning_tokens", "completion_tokens_details.reasoning_tokens"} {
+		if n := usage.Get(key); n.Exists() {
+			v := n.Int()
+			if v >= 0 {
+				c.reasoning = &v
+			}
+		}
+	}
+	for _, key := range []string{"input_tokens_details.cached_tokens", "prompt_tokens_details.cached_tokens"} {
+		if n := usage.Get(key); n.Type == gjson.Number && n.Int() >= 0 {
+			v := n.Int()
+			c.cached = &v
 		}
 	}
 	if c.protocol == "chat_completions" {

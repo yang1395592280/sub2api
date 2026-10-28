@@ -288,6 +288,9 @@ func (s *Service) Register(parent *gin.RouterGroup) {
 			if err != nil {
 				return nil, err
 			}
+			if p, ok := s.provider.(interface{ RendererConfigured() bool }); ok {
+				health["renderer_configured"] = p.RendererConfigured()
+			}
 			budget, err := t.Budget("global", 0)
 			return map[string]any{"settings": t.Settings, "health": health, "budget": budget}, err
 		})
@@ -325,7 +328,7 @@ func (s *Service) Register(parent *gin.RouterGroup) {
 		})
 	})
 	g.GET("/benchmarks", func(c *gin.Context) {
-		success(c, 200, gin.H{"items": []gin.H{{"id": "candy", "version": "1", "scorer_version": "strict-json-v1", "name": "糖果逻辑题", "expected_format": "{\"answer\": integer}", "prompt": CandyPrompt, "output_limit": MaxResponseBytes}}})
+		success(c, 200, gin.H{"items": []gin.H{{"id": "candy", "version": "1", "scorer_version": "strict-json-v1", "name": "糖果逻辑题", "expected_format": "{\"answer\": integer}", "prompt": CandyPrompt, "output_limit": MaxResponseBytes}, {"id": "dual", "version": "1", "scorer_version": "dual-visual-v1", "name": "糖果 + 鹈鹕双重检测", "prompt": PelicanPrompt, "review_prompt": VisualReviewPrompt, "max_model_calls": 3, "output_limit": MaxResponseBytes}}})
 	})
 	g.GET("/targets", s.targetsHTTP)
 	g.POST("/capabilities", s.capabilitiesHTTP)
@@ -495,6 +498,7 @@ func (s *Service) Register(parent *gin.RouterGroup) {
 		s.mutateHTTP(c, "submit-runs", 202, raw, func(t *Tx) (any, error) { return s.Submit(t, req.PolicyIDs, c.GetInt64("quality_actor_id")) })
 	})
 	g.GET("/runs", s.runsHTTP)
+	g.GET("/gallery", s.runsHTTP)
 	g.GET("/runs/:id", func(c *gin.Context) {
 		id, err := parseID(c)
 		if err != nil {
@@ -516,6 +520,7 @@ func (s *Service) Register(parent *gin.RouterGroup) {
 			if include == nil || !*include || !available {
 				r.ResponseText = nil
 			}
+			r.PresentEvidence(available && include != nil && *include)
 			return map[string]any{"run": r, "response_available": available, "response_expired": expired}, nil
 		})
 	})
@@ -670,6 +675,13 @@ func (s *Service) runsHTTP(c *gin.Context) {
 		return
 	}
 	var f RunFilter
+	if strings.HasSuffix(c.FullPath(), "/gallery") {
+		if size > 12 {
+			size = 12
+		}
+		f.IncludeEvidence = true
+		f.BenchmarkID = "dual"
+	}
 	f.Limit = size
 	f.Offset = (p - 1) * size
 	f.PolicyID, err = queryID(c, "policy_id")

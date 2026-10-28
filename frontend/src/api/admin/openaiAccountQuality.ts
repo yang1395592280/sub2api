@@ -13,8 +13,9 @@ export interface QualitySettings {
   raw_retention_days: number
   metadata_retention_days: number
   store_failure_policy: 'fail_closed'
+  reviewer?: QualityReviewer | null
 }
-export interface QualityRuntimeHealth { queue_depth: number; running_count: number; store_status: string; last_sync_at: string }
+export interface QualityRuntimeHealth { queue_depth: number; running_count: number; store_status: string; last_sync_at: string; renderer_configured?: boolean }
 export interface QualityBudget { budget_date: string; timezone: string; limit: number; consumed: number; reserved: number; remaining: number }
 export interface QualityCondition {
   model_id: string
@@ -22,10 +23,18 @@ export interface QualityCondition {
   transport: 'http' | 'websocket_v2'
   reasoning_effort: string
   service_tier: string
-  benchmark_id: 'candy'
+  benchmark_id: 'candy' | 'dual'
   benchmark_version: '1'
-  scorer_version: 'strict-json-v1'
+  scorer_version: 'strict-json-v1' | 'dual-visual-v1'
 }
+export interface QualityReviewer { account_id: number; source_group_id: number; condition: QualityCondition }
+export interface QualityCheck {
+  verdict: string; reason_code: string; final_answer?: number | null; expected_answer?: number
+  previewable?: boolean; checks?: Record<string, boolean | null>
+  latency_ms: number; input_tokens: number | null; output_tokens: number | null; total_tokens: number | null
+  reasoning_tokens?: number | null; tokens_per_second?: number | null; estimated_cost_usd: number | null; response_truncated: boolean
+}
+export interface QualityEvidence { candy: string; pelican: string; svg: string; review: string }
 export interface QualityRules {
   auto_check_enabled: boolean
   control_enabled: boolean
@@ -71,6 +80,7 @@ export interface QualityPolicy {
   state: { state: string; freshness: string; failure_streak: number; recovery_streak: number; cooldown_until: string | null; last_checked_at: string | null; last_verdict: string }
   control: { effective: boolean; reason: string; action: string }
   next_run_at?: string | null
+  reviewer?: QualityReviewer | null
 }
 export interface QualityRun {
   id: number
@@ -83,12 +93,14 @@ export interface QualityRun {
   queued_at: string
   started_at: string | null
   finished_at: string | null
+  upstream_dispatched_at?: string | null
   state_applied: boolean
   state_skip_reason: string
   response_text?: string | null
   response_expires_at?: string | null
   input_snapshot?: QualityPolicy
-  result: { verdict: string; final_answer: number | null; expected_answer: number; reason_code: string; latency_ms: number; input_tokens: number | null; output_tokens: number | null; total_tokens: number | null; estimated_cost_usd: number | null; response_truncated: boolean }
+  evidence?: QualityEvidence | null
+  result: QualityCheck & { candy?: QualityCheck; pelican?: QualityCheck; review?: QualityCheck; evidence_version?: string; dispatched_stages?: string[] }
 }
 export interface QualityEvent {
   id: number
@@ -129,7 +141,7 @@ async function getAllPages<T>(fetchPage: (page: number) => Promise<QualityPage<T
 }
 export async function getAllQualityTargets() { return getAllPages(page => getQualityTargets({ page, page_size: 100 })) }
 export async function getAllQualityPolicies(params: Record<string, unknown> = {}) { return getAllPages(page => getQualityPolicies({ ...params, page, page_size: 100 })) }
-export interface NewQualityPolicy { account_id: number; source_group_id: number; condition: QualityCondition; rules: QualityRules }
+export interface NewQualityPolicy { account_id: number; source_group_id: number; condition: QualityCondition; rules: QualityRules; replaces_policy_id?: number; replaces_expected_revision?: number }
 export interface QualityPolicyUpdate { policy_id: number; expected_revision: number; rules: QualityRules }
 export async function createQualityPolicies(items: NewQualityPolicy[]) { return (await apiClient.post<{ items: QualityPolicy[] }>(`${root}/policies`, { items }, { headers: { 'Idempotency-Key': idem() } })).data }
 export async function createQualityPolicy(item: NewQualityPolicy) { return createQualityPolicies([item]) }
@@ -142,6 +154,7 @@ export async function emergencyDisableQuality(reason: string) { return (await ap
 export async function submitQualityRuns(policy_ids: number[]) { return (await apiClient.post(`${root}/runs`, { policy_ids }, { headers: { 'Idempotency-Key': idem() } })).data }
 export async function getQualityMonitor(id: number, bucket_seconds?: number) { return (await apiClient.get<QualityMonitor>(`${root}/policies/${id}/monitor`, { params: { bucket_seconds } })).data }
 export async function getQualityRuns(params: Record<string, unknown> = {}) { return (await apiClient.get<QualityPage<QualityRun>>(`${root}/runs`, { params })).data }
+export async function getQualityGallery(params: Record<string, unknown> = {}) { return (await apiClient.get<QualityPage<QualityRun>>(`${root}/gallery`, { params })).data }
 export async function getQualityRun(id: number, includeResponse = true) { return (await apiClient.get<QualityRunDetail>(`${root}/runs/${id}`, { params: { include_response: includeResponse } })).data }
 export async function cancelQualityRun(id: number, reason: string) { return (await apiClient.post(`${root}/runs/${id}/cancel`, { reason }, { headers: { 'Idempotency-Key': idem() } })).data }
 export async function getQualityEvents(params: Record<string, unknown> = {}) { return (await apiClient.get<QualityPage<QualityEvent>>(`${root}/events`, { params })).data }

@@ -3,6 +3,7 @@ package accountquality
 import (
 	"context"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,7 +22,7 @@ func TestRunsFiltersUseSnapshotAndPaginateTogether(t *testing.T) {
 	to := time.Now()
 	clause := "TRUE AND policy_id=$1 AND account_id=$2 AND (snapshot->>'source_group_id')::bigint=$3 AND (snapshot->'condition'->>'model_id'=$4 OR snapshot->>'effective_upstream_model'=$4) AND strpos(lower(COALESCE(snapshot->>'account_name','')),lower($5))>0 AND verdict=$6 AND COALESCE(started_at,queued_at)>=$7 AND COALESCE(started_at,queued_at)<$8"
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT count(id) FROM account_quality_test_runs WHERE "+clause)).WithArgs(int64(1), int64(42), int64(7), "gpt-5.5", "upstream'_%", "passed", from, to).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(51))
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT "+runColumns+" FROM account_quality_test_runs WHERE "+clause+" ORDER BY COALESCE(started_at,queued_at) DESC,id DESC LIMIT $9 OFFSET $10")).WithArgs(int64(1), int64(42), int64(7), "gpt-5.5", "upstream'_%", "passed", from, to, 25, 25).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT "+strings.Replace(runColumns, ",response_text,", ",NULL AS response_text,", 1)+" FROM account_quality_test_runs WHERE "+clause+" ORDER BY COALESCE(started_at,queued_at) DESC,id DESC LIMIT $9 OFFSET $10")).WithArgs(int64(1), int64(42), int64(7), "gpt-5.5", "upstream'_%", "passed", from, to, 25, 25).WillReturnRows(sqlmock.NewRows([]string{"id"}))
 	q := &Tx{sql: tx, ctx: context.Background()}
 	items, total, err := q.Runs(RunFilter{PolicyID: 1, AccountID: 42, SourceGroupID: 7, ModelID: "gpt-5.5", Search: "upstream'_%", Verdict: "passed", From: &from, To: &to, Limit: 25, Offset: 25})
 	require.NoError(t, err)

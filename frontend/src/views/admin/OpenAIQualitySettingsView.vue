@@ -38,6 +38,7 @@
               <label v-if="modelTwoEnabled" class="block space-y-2"><span class="input-label">{{ t('openAIQuality.modelTwo') }}</span><span class="flex gap-2"><input v-model.trim="modelTwo" class="input min-w-0 flex-1" placeholder="gpt-5.4" /><button type="button" class="btn btn-ghost px-3" :aria-label="t('openAIQuality.removeSecondModel')" @click="removeSecondModel"><Icon name="x" size="sm" /></button></span></label>
               <button v-else type="button" class="flex min-h-11 items-center justify-center gap-2 self-end rounded-xl border border-dashed border-gray-300 px-4 py-2.5 text-sm text-primary-600 hover:border-primary-400 dark:border-dark-600 dark:text-primary-400" :disabled="selectedAccountIds.length > 50" @click="addSecondModel"><Icon name="plus" size="sm" />{{ t('openAIQuality.addSecondModel') }}</button>
             </div>
+            <div class="space-y-2 border-t border-gray-100 pt-4 dark:border-dark-700"><span class="input-label">{{ t('openAIQuality.detectionSuite') }}</span><div class="grid gap-3 sm:grid-cols-2"><label v-for="suite in suites" :key="suite.value" class="flex cursor-pointer items-start gap-3 rounded-xl border p-4" :class="condition.benchmark_id === suite.value ? 'border-primary-300 bg-primary-50/40 dark:border-primary-700 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-700'"><input v-model="condition.benchmark_id" type="radio" name="quality-suite" :value="suite.value" class="mt-1" /><span><b class="text-sm">{{ suite.label }}</b><small class="mt-1 block text-xs leading-relaxed text-gray-500">{{ suite.help }}</small></span></label></div><p v-if="condition.benchmark_id === 'dual' && (!settings?.reviewer || !health.renderer_configured)" class="text-xs text-amber-700 dark:text-amber-300">{{ t('openAIQuality.dualNotReady') }} <button class="underline" @click="activeSection = 'global'">{{ t('openAIQuality.configureReviewer') }}</button></p></div>
             <details class="border-t border-gray-100 pt-4 dark:border-dark-700"><summary class="cursor-pointer text-sm font-medium text-gray-600 dark:text-dark-300">{{ t('openAIQuality.requestParameters') }}</summary>
               <div class="mt-4 grid gap-4 sm:grid-cols-2">
                 <label class="space-y-2"><span class="input-label">{{ t('openAIQuality.protocol') }}</span><Select v-model="condition.protocol" :options="protocolOptions" :aria-label="t('openAIQuality.protocol')" /></label>
@@ -50,7 +51,7 @@
         </div>
 
         <section class="card space-y-5 p-5 lg:sticky lg:top-6">
-          <div class="flex gap-3"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-sm font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">3</span><div><h2 class="font-semibold">{{ t('openAIQuality.checkAndSave') }}</h2><p class="mt-1 text-xs text-gray-500">{{ t('openAIQuality.candyBenchmark') }}</p></div></div>
+          <div class="flex gap-3"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-sm font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">3</span><div><h2 class="font-semibold">{{ t('openAIQuality.checkAndSave') }}</h2><p class="mt-1 text-xs text-gray-500">{{ t(condition.benchmark_id === 'dual' ? 'openAIQuality.dualHelp' : 'openAIQuality.candyBenchmark') }}</p></div></div>
           <div class="space-y-3 rounded-xl bg-gray-50 p-4 text-sm dark:bg-dark-900/60"><div class="flex justify-between gap-3"><span class="text-gray-500">{{ t('openAIQuality.sourceGroup') }}</span><span class="text-right font-medium">{{ selectedGroup?.name || '—' }}</span></div><div class="flex justify-between gap-3"><span class="text-gray-500">{{ t('openAIQuality.policyList') }}</span><span class="font-medium">{{ t('openAIQuality.accountModelCount', { accounts: selectedAccountIds.length, models: selectedModels.length, count: createPolicyCount }) }}</span></div></div>
           <div class="space-y-4">
             <label class="flex cursor-pointer items-start gap-3"><input v-model="rules.auto_check_enabled" type="checkbox" class="checkbox mt-0.5" /><span class="text-sm font-medium">{{ t('openAIQuality.autoCheck') }}</span></label>
@@ -68,7 +69,7 @@
         <div class="divide-y divide-gray-100 dark:divide-dark-700">
           <div v-for="p in filteredPolicies" :key="p.id" class="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
             <label class="flex min-w-0 items-start gap-3"><input v-model="selectedPolicyIds" type="checkbox" class="checkbox mt-1" :value="p.id" :disabled="!selectedPolicyIds.includes(p.id) && selectedPolicyIds.length >= 100" /><span class="min-w-0 text-sm"><span class="block break-all font-semibold">{{ p.account_name }} <span class="ml-2 font-normal text-gray-500">{{ p.condition.model_id }}</span></span><small class="mt-1 block text-gray-500">{{ groupName(p) }} · {{ t(`openAIQuality.states.${p.state.state}`) }} · {{ p.rules.auto_check_enabled ? t('openAIQuality.automatic') : t('openAIQuality.manualOnly') }}</small></span></label>
-            <div class="flex gap-2"><router-link class="btn btn-ghost px-3 py-2 text-xs text-primary-600" :to="{ path: '/admin/openai-quality/records', query: { policy_id: p.id } }">{{ t('openAIQuality.executionHistory') }}</router-link><button class="btn btn-secondary px-3 py-2 text-xs" @click="beginEdit(p)">{{ t('openAIQuality.editRules') }}</button></div>
+            <div class="flex gap-2"><router-link class="btn btn-ghost px-3 py-2 text-xs text-primary-600" :to="{ path: '/admin/openai-quality/records', query: { policy_id: p.id } }">{{ t('openAIQuality.executionHistory') }}</router-link><button v-if="p.condition.benchmark_id !== 'dual'" class="btn btn-secondary px-3 py-2 text-xs" :disabled="busy" @click="previewUpgrade(p)">{{ t('openAIQuality.upgradeDual') }}</button><button class="btn btn-secondary px-3 py-2 text-xs" @click="beginEdit(p)">{{ t('openAIQuality.editRules') }}</button></div>
           </div>
         </div>
         <p v-if="!filteredPolicies.length" class="p-10 text-center text-sm text-gray-500">{{ t('openAIQuality.noPolicies') }}</p>
@@ -81,10 +82,28 @@
           <label class="flex items-start gap-3 rounded-xl border border-gray-200 p-4 dark:border-dark-700"><input v-model="settings.control_enabled" type="checkbox" class="checkbox mt-1" /><span><b class="text-sm">{{ t('openAIQuality.globalControl') }}</b><small class="mt-1 block text-gray-500">{{ t('openAIQuality.controlHelp') }}</small></span></label>
           <label v-for="field in numberFields" :key="field.key" class="space-y-1.5"><span class="input-label">{{ t(`openAIQuality.${field.label}`) }}</span><input v-model.number="settings[field.key]" class="input" type="number" :min="field.min" :max="field.max" /><small v-if="field.key === 'default_policy_daily_call_limit'" class="block text-xs text-gray-500">{{ t('openAIQuality.policyDefaultLimitHelp') }}</small></label>
         </div>
+        <section class="space-y-4 border-t border-gray-100 pt-5 dark:border-dark-700">
+          <div class="flex flex-wrap items-center justify-between gap-3"><div><h3 class="text-sm font-semibold">{{ t('openAIQuality.configureReviewer') }}</h3><p class="mt-1 max-w-3xl text-xs leading-relaxed text-gray-500">{{ t('openAIQuality.reviewerHelp') }}</p></div><label class="flex items-center gap-2 text-sm"><input type="checkbox" class="checkbox" :checked="!!settings.reviewer" @change="toggleReviewer" />{{ t('openAIQuality.enableReviewer') }}</label></div>
+          <p class="text-xs" :class="health.renderer_configured ? 'text-emerald-600' : 'text-amber-600'">{{ t(health.renderer_configured ? 'openAIQuality.rendererConfigured' : 'openAIQuality.rendererMissing') }}</p>
+          <div v-if="settings.reviewer" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <label class="space-y-2"><span class="input-label">{{ t('openAIQuality.sourceGroup') }}</span><Select v-model="settings.reviewer.source_group_id" :options="sourceGroupOptions" searchable :aria-label="t('openAIQuality.reviewerGroup')" /></label>
+            <label class="space-y-2"><span class="input-label">{{ t('openAIQuality.reviewerAccount') }}</span><Select v-model="settings.reviewer.account_id" :options="reviewerAccountOptions" searchable :aria-label="t('openAIQuality.reviewerAccount')" /></label>
+            <label class="space-y-2"><span class="input-label">{{ t('openAIQuality.reviewerModel') }}</span><input v-model.trim="settings.reviewer.condition.model_id" class="input" :aria-label="t('openAIQuality.reviewerModel')" placeholder="gpt-5.5" /></label>
+            <label class="space-y-2"><span class="input-label">{{ t('openAIQuality.protocol') }}</span><Select v-model="settings.reviewer.condition.protocol" :options="protocolOptions" :aria-label="t('openAIQuality.reviewerProtocol')" /></label>
+            <label class="space-y-2"><span class="input-label">{{ t('openAIQuality.reasoningEffort') }}</span><Select v-model="settings.reviewer.condition.reasoning_effort" :options="effortOptions" /></label>
+            <label class="space-y-2"><span class="input-label">{{ t('openAIQuality.serviceTier') }}</span><Select v-model="settings.reviewer.condition.service_tier" :options="tierOptions" /></label>
+          </div>
+        </section>
         <div v-if="settingsPreview" class="rounded-xl bg-gray-50 p-4 text-sm dark:bg-dark-900"><p>{{ settingsPreview.valid ? t('openAIQuality.previewReady') : t('openAIQuality.previewInvalid') }}</p><p class="mt-1 text-xs text-gray-500">{{ t('openAIQuality.dailyCalls') }}: {{ settingsPreview.daily_calls_estimate }} / {{ settingsPreview.global_budget }}</p><p v-for="warning in settingsPreview.warnings || []" :key="warning.code" class="mt-1 text-amber-700">{{ warning.message }}</p></div>
         <div class="flex flex-wrap justify-between gap-3 border-t border-gray-100 pt-5 dark:border-dark-700"><div class="flex gap-2"><button type="button" class="btn btn-secondary" :disabled="saving" @click="previewSettings">{{ t('openAIQuality.preview') }}</button><button class="btn btn-primary" :disabled="saving || !settingsPreview?.valid || settingsPreviewFingerprint !== currentSettingsFingerprint()">{{ saving ? t('common.loading') : t('common.save') }}</button></div><button type="button" class="btn btn-ghost text-red-600" :disabled="saving" @click="emergencyDisable">{{ t('openAIQuality.emergencyDisable') }}</button></div>
         <div class="flex flex-wrap gap-x-6 gap-y-2 text-xs text-gray-400"><span>{{ t('openAIQuality.queueDepth') }}: {{ health.queue_depth }}</span><span>{{ t('openAIQuality.runningCount') }}: {{ health.running_count }}</span><span>{{ t('openAIQuality.storeStatus') }}: {{ label(health.store_status) }}</span><span>{{ t('openAIQuality.budget') }}: {{ budget.consumed }} / {{ budget.limit }}</span><span>{{ t('openAIQuality.lastSync') }}: {{ formatDate(health.last_sync_at) }}</span></div>
       </form>
+      <BaseDialog :show="!!upgradingPolicy" :title="t('openAIQuality.upgradeDual')" @close="upgradingPolicy = null">
+        <p class="text-sm leading-relaxed text-gray-600 dark:text-dark-300">{{ t('openAIQuality.upgradeHelp') }}</p>
+        <p v-if="upgradingPolicy" class="mt-4 text-sm font-medium">{{ upgradingPolicy.account_name }} · {{ upgradingPolicy.condition.model_id }}</p>
+        <p v-for="issue in upgradePreview?.validation_errors || []" :key="issue.code" class="mt-3 text-sm text-red-600">{{ issue.message }}</p>
+        <template #footer><button class="btn btn-primary" :disabled="busy || !upgradePreview?.valid" @click="upgrade">{{ t('openAIQuality.confirmUpgrade') }}</button></template>
+      </BaseDialog>
       <BaseDialog :show="editingPolicies.length > 0" :title="t('openAIQuality.editSelected', { count: editingPolicies.length })" width="wide" @close="editingPolicies = []; editingPreview = null">
         <p class="mb-5 text-xs leading-relaxed text-gray-500">{{ t('openAIQuality.bulkEditHelp') }}</p>
         <div class="grid gap-4 sm:grid-cols-2"><label v-for="field in ruleFields" :key="field.key" class="space-y-1.5"><span class="input-label">{{ t(`openAIQuality.${field.label}`) }}</span><input v-model.number="editRules[field.key]" class="input" type="number" :min="field.min" :max="field.max" /></label><label class="flex items-center gap-3 text-sm"><input v-model="editRules.auto_check_enabled" type="checkbox" class="checkbox" />{{ t('openAIQuality.autoCheck') }}</label><label class="flex items-center gap-3 text-sm"><input v-model="editRules.control_enabled" type="checkbox" class="checkbox" :disabled="!canEnforceEdits" />{{ t('openAIQuality.controlPolicy') }}</label></div>
@@ -103,7 +122,7 @@ import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import { getAllIncludingInactive as getAllAdminGroups } from '@/api/admin/groups'
-import { createQualityPolicies, emergencyDisableQuality, getAllQualityPolicies, getAllQualityTargets, getQualitySettings, previewQuality, previewQualitySettings, saveQualitySettings, submitQualityRuns, updateQualityPolicies, type QualityCondition, type QualityPolicy, type QualityRules, type QualitySettings, type QualityTarget } from '@/api/admin/openaiAccountQuality'
+import { createQualityPolicies, emergencyDisableQuality, getAllQualityPolicies, getAllQualityTargets, getQualitySettings, previewQuality, previewQualitySettings, saveQualitySettings, submitQualityRuns, updateQualityPolicies, type QualityCondition, type QualityPolicy, type QualityRules, type QualitySettings, type QualityTarget, type QualityRuntimeHealth } from '@/api/admin/openaiAccountQuality'
 import type { AdminGroup } from '@/types'
 
 const { t, te } = useI18n()
@@ -116,7 +135,7 @@ const settings = ref<QualitySettings | null>(null)
 const targets = ref<QualityTarget[]>([])
 const groups = ref<AdminGroup[]>([])
 const policies = ref<QualityPolicy[]>([])
-const health = ref({ queue_depth: 0, running_count: 0, store_status: 'unknown', last_sync_at: '' })
+const health = ref<QualityRuntimeHealth>({ queue_depth: 0, running_count: 0, store_status: 'unknown', last_sync_at: '' })
 const budget = ref({ consumed: 0, limit: 0 })
 const selectedAccountIds = ref<number[]>([])
 const selectedSourceGroupId = ref(0)
@@ -135,9 +154,33 @@ const settingsPreviewFingerprint = ref('')
 const editingPolicies = ref<QualityPolicy[]>([])
 const editingPreview = ref<any>(null)
 const editingPreviewFingerprint = ref('')
-const condition = reactive<QualityCondition>({ model_id: '', protocol: 'responses', transport: 'http', reasoning_effort: 'upstream_default', service_tier: 'upstream_default', benchmark_id: 'candy', benchmark_version: '1', scorer_version: 'strict-json-v1' })
-const rules = reactive<QualityRules>({ auto_check_enabled: false, control_enabled: false, interval_seconds: 1800, jitter_seconds: 60, failure_threshold: 3, recovery_threshold: 2, cooldown_seconds: 1800, recovery_interval_seconds: 600, evidence_window_seconds: 7200, timeout_seconds: 180, max_output_tokens: 4096, daily_call_limit: 100 })
+const condition = reactive<QualityCondition>({ model_id: '', protocol: 'responses', transport: 'http', reasoning_effort: 'upstream_default', service_tier: 'upstream_default', benchmark_id: 'dual', benchmark_version: '1', scorer_version: 'dual-visual-v1' })
+const rules = reactive<QualityRules>({ auto_check_enabled: false, control_enabled: false, interval_seconds: 1800, jitter_seconds: 60, failure_threshold: 3, recovery_threshold: 2, cooldown_seconds: 1800, recovery_interval_seconds: 600, evidence_window_seconds: 7200, timeout_seconds: 420, max_output_tokens: 8192, daily_call_limit: 100 })
 const editRules = reactive<QualityRules>({ auto_check_enabled: false, control_enabled: false, interval_seconds: 1800, jitter_seconds: 60, failure_threshold: 3, recovery_threshold: 2, cooldown_seconds: 1800, recovery_interval_seconds: 600, evidence_window_seconds: 7200, timeout_seconds: 180, max_output_tokens: 4096, daily_call_limit: 100 })
+const upgradingPolicy = ref<QualityPolicy | null>(null)
+const upgradePreview = ref<{ valid: boolean; validation_errors?: { code: string; message: string }[] } | null>(null)
+const suites = computed(() => [{ value: 'dual', label: t('openAIQuality.dualCheck'), help: t('openAIQuality.dualHelp') }, { value: 'candy', label: t('openAIQuality.candyOnly'), help: t('openAIQuality.candyHelp') }])
+const reviewerAccountOptions = computed(() => targets.value.filter(target => target.can_probe && target.compatible_source_group_ids.includes(settings.value?.reviewer?.source_group_id || 0)).map(target => ({ value: target.account_id, label: target.account_name })))
+watch(() => condition.benchmark_id, value => { condition.scorer_version = value === 'dual' ? 'dual-visual-v1' : 'strict-json-v1' })
+watch(() => settings.value?.reviewer?.source_group_id, () => { if (settings.value?.reviewer && !reviewerAccountOptions.value.some(account => account.value === settings.value?.reviewer?.account_id)) settings.value.reviewer.account_id = 0 })
+function toggleReviewer() {
+  if (!settings.value) return
+  settings.value.reviewer = settings.value.reviewer ? null : { account_id: 0, source_group_id: 0, condition: { model_id: '', protocol: 'responses', transport: 'http', reasoning_effort: 'upstream_default', service_tier: 'upstream_default', benchmark_id: 'candy', benchmark_version: '1', scorer_version: 'strict-json-v1' } }
+}
+function upgradeItem(policy: QualityPolicy) { return { account_id: policy.account_id, source_group_id: policy.source_group_id, condition: { ...policy.condition, benchmark_id: 'dual' as const, scorer_version: 'dual-visual-v1' as const }, rules: { ...policy.rules, timeout_seconds: Math.max(policy.rules.timeout_seconds, 420), max_output_tokens: Math.max(policy.rules.max_output_tokens, 8192) }, replaces_policy_id: policy.id, replaces_expected_revision: policy.revision } }
+async function previewUpgrade(policy: QualityPolicy) {
+  upgradingPolicy.value = policy; upgradePreview.value = null; busy.value = true
+  try { upgradePreview.value = await previewQuality([upgradeItem(policy)]) }
+  catch (e: unknown) { error.value = e instanceof Error ? e.message : String(e) }
+  finally { busy.value = false }
+}
+async function upgrade() {
+  if (!upgradingPolicy.value || !upgradePreview.value?.valid) return
+  busy.value = true
+  try { await createQualityPolicies([upgradeItem(upgradingPolicy.value)]); upgradingPolicy.value = null; await load() }
+  catch (e: unknown) { error.value = e instanceof Error ? e.message : String(e) }
+  finally { busy.value = false }
+}
 const sourceGroups = computed(() => groups.value.filter(group => group.platform === 'openai' && group.group_role !== 'self_hosted_pool' && group.status === 'active').sort((a, b) => a.name.localeCompare(b.name)))
 const sourceGroupOptions = computed(() => sourceGroups.value.map(group => ({ value: group.id, label: group.name })))
 const selectedGroup = computed(() => sourceGroups.value.find(group => group.id === selectedSourceGroupId.value))

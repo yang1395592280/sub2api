@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -212,7 +213,7 @@ func validRun(t *Tx, p Policy, r Run) string {
 	if r.CancelRequested {
 		return "cancel_requested"
 	}
-	if r.UpstreamDispatchedAt == nil && r.TriggerSource != "manual" && (!t.Settings.AutomationEnabled || !p.Rules.AutoCheckEnabled) {
+	if r.TriggerSource != "manual" && (!t.Settings.AutomationEnabled || !p.Rules.AutoCheckEnabled) {
 		return "automation_disabled"
 	}
 	return ""
@@ -238,7 +239,7 @@ func (t *Tx) reserveBudget(runID int64, p Policy) error {
 			return err
 		}
 	}
-	_, err = t.sql.ExecContext(t.ctx, `UPDATE account_quality_test_runs SET budget_date=$2::date,budget_reserved=TRUE WHERE id=$1`, runID, g.Date)
+	_, err = t.sql.ExecContext(t.ctx, `UPDATE account_quality_test_runs SET budget_date=$2::date,budget_reserved=TRUE,budget_consumed=FALSE WHERE id=$1`, runID, g.Date)
 	return err
 }
 func (t *Tx) releaseBudget(runID int64) error {
@@ -262,7 +263,7 @@ func (t *Tx) releaseBudget(runID int64) error {
 	_, err := t.sql.ExecContext(t.ctx, `UPDATE account_quality_test_runs SET budget_reserved=FALSE WHERE id=$1`, runID)
 	return err
 }
-func (s *Service) dispatch(ctx context.Context, original Run) error {
+func (s *Service) dispatch(ctx context.Context, original Run, stage string) error {
 	_, err := s.store.Transaction(ctx, false, func(t *Tx) (any, error) {
 		r, e := t.Run(original.ID, true)
 		if e != nil {
@@ -277,6 +278,24 @@ func (s *Service) dispatch(ctx context.Context, original Run) error {
 		}
 		if reason := validRun(t, p, r); reason != "" {
 			return nil, Fail(409, "QUALITY_TASK_STALE", reason)
+		}
+		expected := []string{"candy"}
+		if r.Snapshot.Condition.BenchmarkID == "dual" {
+			expected = append(expected, "pelican", "review")
+		}
+		if len(r.Result.DispatchedStages) >= len(expected) || expected[len(r.Result.DispatchedStages)] != stage {
+			return nil, Fail(409, "QUALITY_STAGE_CONFLICT", "检测阶段已发送或顺序错误")
+		}
+		// Claim reserves the first call; later paid stages obtain their own slot.
+		// A committed intent is never replayed after a crash.
+		var reserved bool
+		if e = t.sql.QueryRowContext(t.ctx, `SELECT budget_reserved FROM account_quality_test_runs WHERE id=$1`, r.ID).Scan(&reserved); e != nil {
+			return nil, e
+		}
+		if !reserved {
+			if e = t.reserveBudget(r.ID, p); e != nil {
+				return nil, e
+			}
 		}
 		var date string
 		if e = t.sql.QueryRowContext(t.ctx, `SELECT budget_date::text FROM account_quality_test_runs WHERE id=$1`, r.ID).Scan(&date); e != nil {
@@ -311,11 +330,20 @@ func (s *Service) dispatch(ctx context.Context, original Run) error {
 			kind string
 			id   int64
 		}{{"global", 0}, {"policy", p.ID}} {
-			if _, e = t.sql.ExecContext(t.ctx, `UPDATE account_quality_daily_budgets SET reserved_calls=reserved_calls-1,consumed_calls=consumed_calls+1,updated_at=NOW() WHERE budget_date=$1::date AND scope_type=$2 AND scope_id=$3 AND reserved_calls>0`, g.Date, scope.kind, scope.id); e != nil {
+			updated, e := t.sql.ExecContext(t.ctx, `UPDATE account_quality_daily_budgets SET reserved_calls=reserved_calls-1,consumed_calls=consumed_calls+1,updated_at=NOW() WHERE budget_date=$1::date AND scope_type=$2 AND scope_id=$3 AND reserved_calls>0`, g.Date, scope.kind, scope.id)
+			if e != nil {
 				return nil, e
 			}
+			if count, e := updated.RowsAffected(); e != nil || count != 1 {
+				return nil, Fail(409, "QUALITY_BUDGET_RESERVATION_LOST", "检测预算预留已失效")
+			}
 		}
-		_, e = t.sql.ExecContext(t.ctx, `UPDATE account_quality_test_runs SET budget_reserved=FALSE,budget_consumed=TRUE,upstream_dispatched_at=NOW() WHERE id=$1`, r.ID)
+		r.Result.DispatchedStages = append(r.Result.DispatchedStages, stage)
+		intent, e := json.Marshal(r.Result)
+		if e != nil {
+			return nil, e
+		}
+		_, e = t.sql.ExecContext(t.ctx, `UPDATE account_quality_test_runs SET budget_reserved=FALSE,budget_consumed=TRUE,upstream_dispatched_at=COALESCE(upstream_dispatched_at,NOW()),result=$2 WHERE id=$1`, r.ID, string(intent))
 		return nil, e
 	})
 	return err
@@ -346,7 +374,7 @@ func (s *Service) execute(parent context.Context, run Run) {
 			}
 		}
 	}()
-	result := s.provider.Probe(ctx, run, func() error { return s.dispatch(ctx, run) })
+	result := s.provider.Probe(ctx, run, func(stage string) error { return s.dispatch(ctx, run, stage) })
 	finishCtx, stop := context.WithTimeout(context.Background(), 10*time.Second)
 	defer stop()
 	if err := s.finish(finishCtx, run, result); err != nil {
@@ -398,16 +426,20 @@ func (s *Service) finish(ctx context.Context, original Run, result Result) error
 		}
 		var text *string
 		var expires *time.Time
-		if result.ResponseText != "" {
-			value := result.ResponseText
-			if len(value) > MaxResponseBytes {
-				value = string([]rune(value[:MaxResponseBytes]))
+		value, e := EncodeEvidence(result)
+		if e != nil {
+			return nil, e
+		}
+		if value != "" {
+			if result.EvidenceVersion == "" && len(value) > MaxResponseBytes {
+				value = strings.ToValidUTF8(value[:MaxResponseBytes], "")
 				result.ResponseTruncated = true
 			}
 			text = &value
 			end := t.Now.Add(time.Duration(t.Settings.RawRetentionDays) * 24 * time.Hour)
 			expires = &end
 		}
+		result.DispatchedStages = r.Result.DispatchedStages
 		b, e := json.Marshal(result)
 		if e != nil {
 			return nil, e
