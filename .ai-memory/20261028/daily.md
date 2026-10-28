@@ -22,3 +22,7 @@
 ## [16:55] Git操作：提交并合并双检测功能
 - 用户明确授权合并分支；本次授权包含将当前双检测工作区提交后合入custom-main。预检feature/openai-quality-dual-check与custom-main均基于2bbd7e22c，改动均属本次功能，无其他worktree占用目标分支，diff检查通过。
 - 复用已完成的Go/PG/前端/Chromium及构建验证；采用快进合并，不推送、不打tag、不部署。最终提交及分支状态以Git核验为准。
+
+## [17:00] 发布准备：v0.2.18.5
+- 用户授权提交、tag与推送；功能63400c61f已快进合入custom-main。VERSION、嵌入构建/版本输出、9项发布工具测试、脚本语法与diff检查通过。
+- 远端tag不存在、origin/custom-main为2bbd7e22c，RELEASE_ONLY=true。下一步提交版本、annotated tag并原子推送；不部署或真实付费调用。详见release-v0.2.18.5.md。
