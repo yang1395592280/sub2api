@@ -195,3 +195,9 @@
 - 相关文件：docs/openai-quality-monitor.md、20261028/quality-records-plan.md及该功能代码；来源feature/openai-quality-records，目标custom-main。
 - 未完成：本条为提交合并前检查点，随后执行功能提交、merge --ff-only与包含关系/干净状态核验，最终结果以Git为准。
 - 阻塞：无。本轮不推送、不打tag、不部署、不删除功能分支。
+
+## 2026-10-28 15:32 v0.2.18.4发布授权
+- 已完成带证据：adeddb926已无冲突快进合入custom-main，用户随后要求提交、打tag和推送。VERSION、嵌入前端的程序-version和版本解析脚本均为0.2.18.4；9项非镜像发布工具测试及脚本语法/diff检查通过。远端custom-main仍为18a891f27，远端新tag不存在。
+- 相关文件：backend/cmd/server/VERSION、20261028/release-v0.2.18.4.md、daily.md。
+- 未完成：本条为推送前检查点，随后提交版本更新、创建annotated tag并原子推送origin/custom-main与refs/tags/v0.2.18.4；最终结果以远端refs与工作流核验为准。
+- 阻塞：无。RELEASE_ONLY=true已确认；不执行生产部署、迁移或真实账号检测，镜像执行测试未跑。本轮沿用功能测试与构建证据。

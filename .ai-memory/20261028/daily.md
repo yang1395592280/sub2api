@@ -6,3 +6,6 @@
 
 ## [15:29] Git操作：本地提交与合并授权
 - 用户授权将feature/openai-quality-records本次实现提交并合入custom-main；预检两分支同起点、无其他worktree占用目标、仅本次修改，diff检查通过。按快进合并处理，结果以Git为准，本轮不推送或发布。
+
+## [15:32] 发布准备：v0.2.18.4
+- 用户授权提交、打tag及推送；功能adeddb926已合入custom-main。VERSION更新、嵌入构建/版本命令、9项非镜像发布工具测试、脚本语法及diff检查通过；确认远端tag不存在和RELEASE_ONLY=true。下一步按原子推送执行，最终结果以Git和Actions为准。
