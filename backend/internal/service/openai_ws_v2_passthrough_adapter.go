@@ -1205,6 +1205,9 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			//     覆盖（Store(nil)），因为 OpenAI 上游对该帧实际不传
 			//     service_tier 时按 default 处理，billing 应如实反映。
 			if policyErr == nil && blocked == nil && isResponseCreate {
+				if qualityErr := s.CheckOpenAIQualityOutbound(ctx, account, out, "responses", "websocket_v2", true); qualityErr != nil {
+					return out, nil, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, qualityErr.Error(), qualityErr)
+				}
 				usageMeta.updateFromResponseCreate(out, model, requestModelForThisFrame)
 				pendingModel := requestModelForThisFrame
 				if pendingModel == "" {
@@ -1234,6 +1237,9 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			_ = clientConn.Write(writeCtx, coderws.MessageText, eventBytes)
 			cancel()
 		},
+	}
+	if qualityErr := s.CheckOpenAIQualityOutbound(ctx, account, firstClientMessage, "responses", "websocket_v2", true); qualityErr != nil {
+		return NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, qualityErr.Error(), qualityErr)
 	}
 	upstreamFirstMessageSent := false
 	firstWriteCtx, cancelFirstWrite := context.WithTimeout(ctx, s.openAIWSWriteTimeout())

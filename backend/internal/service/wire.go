@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	quality "github.com/Wei-Shaw/sub2api/internal/accountquality"
 	"math/rand"
 	"os"
 	"time"
@@ -954,6 +955,7 @@ func ProvideOpenAIAutoSchedulerOutcomeRecorder(
 }
 
 func ProvideOpenAIGatewayService(
+	accountQuality *quality.Service,
 	accountRepo AccountRepository,
 	usageLogRepo UsageLogRepository,
 	usageBillingRepo UsageBillingRepository,
@@ -1004,6 +1006,7 @@ func ProvideOpenAIGatewayService(
 		settingService,
 		userPlatformQuotaRepo,
 	)
+	svc.accountQuality = accountQuality
 	svc.SetOpenAIAutoCheapestGroupCircuit(openAIAutoCheapestGroupCircuit)
 	svc.SetOpenAIAutoCheapestGroupResolver(NewOpenAIAutoCheapestGroupResolver(apiKeyService), apiKeyRepo)
 	return svc
@@ -1011,6 +1014,7 @@ func ProvideOpenAIGatewayService(
 
 // ProviderSet is the Wire provider set for all services
 var ProviderSet = wire.NewSet(
+	ProvideAccountQualityService,
 	// Core services
 	ProvideAuthService,
 	NewPasskeyService,
@@ -1264,4 +1268,11 @@ func ProvideClaudeResetCreditService(accounts AccountRepository, tokens *ClaudeT
 	s := NewClaudeResetCreditService(accounts, tokens, proxies, settings)
 	s.ConfigureRedemption(idem, locks)
 	return s
+}
+
+func ProvideAccountQualityService(db *sql.DB, cfg *config.Config, accounts AccountRepository, groups GroupRepository, channel *ChannelService, upstream HTTPUpstream, tokens *OpenAITokenProvider, concurrency *ConcurrencyService, tls *TLSFingerprintProfileService, settings *SettingService) *quality.Service {
+	provider := &accountQualityProvider{accounts: accounts, groups: groups, channel: channel, cfg: cfg, upstream: upstream, tokens: tokens, concurrency: concurrency, tls: tls, settings: settings, dialer: newDefaultOpenAIWSClientDialer()}
+	svc := quality.NewService(quality.NewStore(db, cfg.Timezone), provider)
+	svc.Start()
+	return svc
 }

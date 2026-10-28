@@ -2714,6 +2714,9 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 	if vetoed, reason := openAIProfitControlVetoReason(ctx, account); vetoed {
 		return false, reason
 	}
+	if reason := qualityCandidateFailure(ctx, account); reason != "" {
+		return false, reason
+	}
 	return true, ""
 }
 

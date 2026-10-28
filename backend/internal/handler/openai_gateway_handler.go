@@ -568,6 +568,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	autoGroupMode := apiKey.UsesOpenAIAutoCheapestGroup()
 	if autoGroupMode {
 		c.Request = c.Request.WithContext(service.PrepareOpenAIAutoCheapestRequestContext(c.Request.Context(), true, h.gatewayService.OpenAIAutoCheapestGroupCircuit()))
+		service.SetOpenAIQualityRequestBody(c.Request.Context(), body)
 	}
 	if !autoGroupMode && imageIntent && !service.GroupAllowsImageGeneration(apiKey.Group) {
 		h.errorResponse(c, http.StatusForbidden, "permission_error", service.ImageGenerationPermissionMessage())
@@ -707,6 +708,9 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			service.ExtractOpenAIReasoningEffortForScheduling(body, reqModel),
 		)
 		timing.EndRouting()
+		if h.handleOpenAIQualityError(c, err, streamStarted) {
+			return
+		}
 		if err != nil {
 			if failoverClientGone(c) {
 				reqLog.Info("openai.account_select_aborted_client_disconnected", zap.Error(err))
@@ -829,6 +833,9 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			}()
 			return h.gatewayService.Forward(c.Request.Context(), c, account, attemptBody)
 		}()
+		if h.handleOpenAIQualityError(c, err, streamStarted) {
+			return
+		}
 		if err == nil {
 			applyOpenAIForwardTiming(c, preForwardE2EFirstTokenMs, result)
 		}
@@ -1375,6 +1382,9 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			service.ExtractOpenAIReasoningEffortForScheduling(body, currentRoutingModel),
 		)
 		timing.EndRouting()
+		if h.handleOpenAIQualityError(c, err, streamStarted) {
+			return
+		}
 		if err != nil {
 			if failoverClientGone(c) {
 				reqLog.Info("openai_messages.account_select_aborted_client_disconnected", zap.Error(err))
@@ -1483,6 +1493,9 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			}()
 			return h.gatewayService.ForwardAsAnthropic(c.Request.Context(), c, account, forwardBody, promptCacheKey, defaultMappedModel)
 		}()
+		if h.handleOpenAIQualityError(c, err, streamStarted) {
+			return
+		}
 		if err == nil {
 			applyOpenAIForwardTiming(c, preForwardE2EFirstTokenMs, result)
 		}
@@ -2423,6 +2436,14 @@ func (h *OpenAIGatewayHandler) acquireOpenAIAccountSlot(
 		selection.Account = latest
 		// 调度器已抢槽路径无门时由选号内部完成 eager 绑定；门下选号内部
 		// 推迟绑定，这里在终检通过后补准入后绑定。
+		if qualityErr := h.gatewayService.CheckOpenAISelectionQuality(ctx, selection); qualityErr != nil {
+			if selection.ReleaseFunc != nil {
+				selection.ReleaseFunc()
+			}
+			status, code, message := service.OpenAIQualityErrorDetails(qualityErr)
+			writeError(status, "api_error", code, message)
+			return nil, openAISlotAcquireFailed
+		}
 		if selection.ProfitGateActive() {
 			if err := h.gatewayService.BindStickySessionAfterProfitAdmission(ctx, groupID, sessionHash, account.ID); err != nil {
 				reqLog.Warn("openai.bind_sticky_session_after_profit_admission_failed", zap.Int64("account_id", account.ID), zap.Error(err))
@@ -2460,6 +2481,14 @@ func (h *OpenAIGatewayHandler) acquireOpenAIAccountSlot(
 		}
 		account = latest
 		selection.Account = latest
+		if qualityErr := h.gatewayService.CheckOpenAISelectionQuality(ctx, selection); qualityErr != nil {
+			if fastReleaseFunc != nil {
+				fastReleaseFunc()
+			}
+			status, code, message := service.OpenAIQualityErrorDetails(qualityErr)
+			writeError(status, "api_error", code, message)
+			return nil, openAISlotAcquireFailed
+		}
 		if err := h.gatewayService.BindStickySessionAfterProfitAdmission(ctx, groupID, sessionHash, account.ID); err != nil {
 			reqLog.Warn("openai.bind_sticky_session_after_profit_admission_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 		}
@@ -2520,6 +2549,14 @@ func (h *OpenAIGatewayHandler) acquireOpenAIAccountSlot(
 	}
 	account = latest
 	selection.Account = latest
+	if qualityErr := h.gatewayService.CheckOpenAISelectionQuality(ctx, selection); qualityErr != nil {
+		if accountReleaseFunc != nil {
+			accountReleaseFunc()
+		}
+		status, code, message := service.OpenAIQualityErrorDetails(qualityErr)
+		writeError(status, "api_error", code, message)
+		return nil, openAISlotAcquireFailed
+	}
 	if err := h.gatewayService.BindStickySessionAfterProfitAdmission(ctx, groupID, sessionHash, account.ID); err != nil {
 		reqLog.Warn("openai.bind_sticky_session_after_profit_admission_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 	}
@@ -2708,6 +2745,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	autoGroupModeWS := apiKey.UsesOpenAIAutoCheapestGroup()
 	if autoGroupModeWS {
 		ctx = service.PrepareOpenAIAutoCheapestRequestContext(ctx, true, h.gatewayService.OpenAIAutoCheapestGroupCircuit())
+		service.SetOpenAIQualityRequestBody(ctx, firstMessage)
 		c.Request = c.Request.WithContext(ctx)
 	}
 	imageIntentWS := service.IsExplicitImageGenerationIntent("/v1/responses", reqModel, firstMessage)

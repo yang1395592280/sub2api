@@ -37,7 +37,7 @@ func TestWireGenInjectsGroupUpstreamBalanceRefreshRunnerIntoStartupAndCleanup(t 
 
 	source := string(body)
 	runnerIndex := strings.Index(source, "groupUpstreamBalanceRefreshRunner := service.ProvideGroupUpstreamBalanceRefreshRunner(groupRepository, accountRepository, openAIUpstreamBalanceService, leaderLockCache, db, settingRepository)")
-	cleanupCallIndex := strings.Index(source, "provideCleanup(client, redisClient")
+	cleanupCallIndex := strings.Index(source, "provideCleanup(accountqualityService, client, redisClient")
 	cleanupStepIndex := strings.Index(source, "{\"GroupUpstreamBalanceRefreshRunner\", func() error {")
 	require.NotEqual(t, -1, runnerIndex, "production wire must construct group upstream balance refresh runner")
 	require.NotEqual(t, -1, cleanupCallIndex, "production wire must continue to build cleanup")
@@ -80,6 +80,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 	groupUpstreamBalanceRefreshRunner := service.NewGroupUpstreamBalanceRefreshRunner(nil, nil, nil)
 
 	cleanup := provideCleanup(
+		nil, // accountQuality
 		nil, // entClient
 		nil, // redis
 		&service.OpsMetricsCollector{},

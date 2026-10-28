@@ -1,0 +1,95 @@
+{
+  "project": "manxue-ai",
+  "repository": "https://github.com/w1196396546/manxue-ai",
+  "revision": "5da79674417dd0748682f09b7b7467efd1968ea8",
+  "imported_at": "2026-10-28",
+  "license": "Apache-2.0",
+  "upstream_notice_file": null,
+  "files": [
+    {
+      "path": ".gitignore",
+      "size": 640,
+      "sha256": "1b22fc9aff0ab083b3b87875bbd64aaa90549bb7da8864f850711ff51df167e9"
+    },
+    {
+      "path": "LICENSE",
+      "size": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "path": "README.md",
+      "size": 4544,
+      "sha256": "8871e633ed4af527ccc9c3a6da91e8009a7f5db67f96fa2bc8fc0b01bda5fa84"
+    },
+    {
+      "path": "app/.dockerignore",
+      "size": 81,
+      "sha256": "d5553ad260004307c04746496e9d6e01248e57d17cbd8288a2edd99b233f19d6"
+    },
+    {
+      "path": "app/Dockerfile",
+      "size": 514,
+      "sha256": "8500572e9cebed471db56e98f710bef3b64141b8cd8cc2cc2c1bf7a0bdcb00ce"
+    },
+    {
+      "path": "app/render_frames.py",
+      "size": 2836,
+      "sha256": "89708d0e33f772dd2b5fca7f8ae1b330a0e9f5850f82d8b52fb36a1d5b65b6f4"
+    },
+    {
+      "path": "app/requirements.txt",
+      "size": 19,
+      "sha256": "ebeb483138ed507c6d6d57c4006b13a2bafbde6b20abc9829b0fd160059c368d"
+    },
+    {
+      "path": "app/server.py",
+      "size": 59433,
+      "sha256": "0caa0e23679176f919bfffc7f02038cfea2045c4b85e175475e5f6e800f630dd"
+    },
+    {
+      "path": "app/visual_review.py",
+      "size": 5370,
+      "sha256": "0abe5faf2d5287f0a8c2cada05692fb8c8a409354e062d89aaf2d44b4eb14937"
+    },
+    {
+      "path": "app/web/admin.html",
+      "size": 6890,
+      "sha256": "b81686e174e26938d83fefe5874d621e4c23c58aa9d2d11fdbd958a6dc85fdad"
+    },
+    {
+      "path": "app/web/admin.js",
+      "size": 10656,
+      "sha256": "39b4d3017536337fa6fa1aaf2d9e694ca37d9739e89e6de1caaa03442c614ef1"
+    },
+    {
+      "path": "app/web/app.js",
+      "size": 19934,
+      "sha256": "2b6abb2ebf31602c83980f633bf76829f364fc0b9d4cf8579510086a6f57a34e"
+    },
+    {
+      "path": "app/web/favicon.svg",
+      "size": 296,
+      "sha256": "6db89082dabb325ae15ae2a6917080b2ed24ec7cdea474139ded695ba05326d5"
+    },
+    {
+      "path": "app/web/index.html",
+      "size": 10391,
+      "sha256": "1295fef61b02e7b52b6285ee349706a74db4d2644a61f91741d5c34b80f943f0"
+    },
+    {
+      "path": "app/web/privacy.js",
+      "size": 843,
+      "sha256": "3f5fc2a6978d472715ac5f7964cab5d121a3e673f7d494bb3a95b5ee31cdd794"
+    },
+    {
+      "path": "app/web/style.css",
+      "size": 27449,
+      "sha256": "82ffb318aa83bde5d3a6a555dcc4c1e0d1392f056f47b177b2370d66e460b51f"
+    },
+    {
+      "path": "compose.yaml",
+      "size": 672,
+      "sha256": "97a4e075ccda1513628ccae7968991c77272586468124c6b83af5494c3b11870"
+    }
+  ]
+}

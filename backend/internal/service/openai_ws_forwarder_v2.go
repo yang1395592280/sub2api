@@ -328,6 +328,10 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		}
 	}
 
+	qualityRaw, _ := json.Marshal(payload)
+	if qualityErr := s.CheckOpenAIQualityOutbound(ctx, account, qualityRaw, "responses", "websocket_v2", true); qualityErr != nil {
+		return nil, qualityErr
+	}
 	if err := s.performOpenAIWSGeneratePrewarm(
 		ctx,
 		lease,

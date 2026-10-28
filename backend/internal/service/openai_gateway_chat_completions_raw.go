@@ -134,6 +134,10 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletionsWithStartTime(
 		return nil, policyErr
 	}
 	upstreamBody = updatedBody
+	if qualityErr := s.CheckOpenAIQualityOutbound(ctx, account, upstreamBody, "chat_completions", "http", false); qualityErr != nil {
+		return nil, qualityErr
+	}
+
 	// Keep the final outbound tier separate from the observed response tier so
 	// usage recording can apply the selected credential's response contract.
 	serviceTier := extractOpenAIServiceTierFromBody(upstreamBody)

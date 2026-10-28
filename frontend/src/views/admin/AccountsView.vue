@@ -460,6 +460,15 @@
               <HelpTooltip :content="t('admin.accounts.schedulerScore.hint')" width-class="w-80" />
             </div>
           </template>
+          <template #cell-quality_state="{ row }">
+            <router-link
+              v-if="qualitySummaryByAccount[String(row.id)]?.configured"
+              :to="{ path: '/admin/openai-quality', query: { account_id: row.id } }"
+              class="inline-flex rounded-full px-2 py-1 text-xs font-medium hover:underline"
+              :class="qualityStateClass(qualitySummaryByAccount[String(row.id)].worst_state)"
+            >{{ t(`openAIQuality.states.${qualitySummaryByAccount[String(row.id)].worst_state}`) }}</router-link>
+            <span v-else class="text-xs text-gray-400">{{ qualitySummariesLoaded ? '—' : '…' }}</span>
+          </template>
           <template #cell-scheduler_score="{ row }">
             <div v-if="getSchedulerScoreRows(row).length" class="flex min-w-[7rem] flex-col gap-0.5 font-mono text-[11px] leading-4">
               <div
@@ -598,6 +607,7 @@ import PelicanBatchTestDialog from '@/components/admin/account/PelicanBatchTestD
 import PelicanResultDialog from '@/components/admin/account/PelicanResultDialog.vue'
 import PelicanInlinePreview from '@/components/admin/account/PelicanInlinePreview.vue'
 import type { PelicanTest } from '@/api/admin/accounts'
+import { getQualityAccountSummaries, type QualityAccountSummary } from '@/api/admin/openaiAccountQuality'
 import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
 import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.vue'
 import type { SelectOption } from '@/components/common/Select.vue'
@@ -661,6 +671,29 @@ type AccountBulkEditTarget =
       selectedPlatforms: AccountPlatform[]
       selectedTypes: AccountType[]
     }
+const qualitySummaryByAccount = ref<Record<string, QualityAccountSummary>>({})
+const qualitySummariesLoaded = ref(false)
+let qualitySummaryRequest = 0
+watch(() => accounts.value.map(account => account.id).join(','), async ids => {
+  const request = ++qualitySummaryRequest
+  qualitySummariesLoaded.value = false
+  if (!ids) { qualitySummaryByAccount.value = {}; qualitySummariesLoaded.value = true; return }
+  try {
+    const summaries = await getQualityAccountSummaries(ids.split(',').map(Number))
+    if (request !== qualitySummaryRequest) return
+    qualitySummaryByAccount.value = Object.fromEntries(summaries.map(item => [String(item.account_id), item]))
+  } catch {
+    if (request === qualitySummaryRequest) qualitySummaryByAccount.value = {}
+  } finally {
+    if (request === qualitySummaryRequest) qualitySummariesLoaded.value = true
+  }
+}, { immediate: true })
+const qualityStateClass = (state: string) => state === 'quarantined' || state === 'recovering'
+  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+  : state === 'observing' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+    : state === 'normal' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+      : 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300'
+
 const selPlatforms = computed<AccountPlatform[]>(() => {
   const platforms = new Set(
     accounts.value
@@ -2013,6 +2046,7 @@ const allColumns = computed(() => {
     { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
     { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
     { key: 'scheduler_score', label: t('admin.accounts.columns.schedulerScore'), sortable: false },
+    { key: 'quality_state', label: t('openAIQuality.state'), sortable: false },
     { key: 'rate_multiplier', label: t('admin.accounts.columns.billingRateMultiplier'), sortable: true },
     { key: 'channel_price', label: t('admin.accounts.columns.channelPrice'), sortable: true },
     { key: 'upstream_billing_rate', label: t('admin.accounts.columns.upstreamBillingRate'), sortable: true },

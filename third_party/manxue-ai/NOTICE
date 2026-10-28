@@ -1,0 +1,17 @@
+Manxue AI
+Repository: https://github.com/w1196396546/manxue-ai
+Imported revision: 5da79674417dd0748682f09b7b7467efd1968ea8
+License: Apache License, Version 2.0 (upstream/LICENSE)
+
+The upstream/ directory contains unmodified source files from that revision.
+The upstream distribution contains no separate NOTICE file.
+
+sub2api adaptations:
+- frontend/src/components/admin/account-quality/qualityMonitor.ts derives its
+  monitor timeline and statistics layout from app/web/app.js and app/server.py.
+  It adds typed inputs, per-policy/evidence-scope filtering, run deduplication,
+  an exact rolling window, and separate answer accuracy/coverage calculations.
+  It is a presentation-data module and does not change runtime scheduling.
+
+Modified files carry their own source and change notices. The original source
+and its license remain available under upstream/ for attribution and review.

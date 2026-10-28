@@ -262,6 +262,9 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
+	if qualityErr := s.CheckOpenAIQualityOutbound(ctx, account, body, "chat_completions", "http", false); qualityErr != nil {
+		return nil, qualityErr
+	}
 	armOpenAIUpstreamAttempt(ctx, openAIAutoSchedulerAttemptMetadata{
 		ModelFamily:     gjson.GetBytes(body, "model").String(),
 		ReasoningEffort: ExtractOpenAIReasoningEffortForScheduling(body, gjson.GetBytes(body, "model").String()),

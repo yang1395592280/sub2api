@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	quality "github.com/Wei-Shaw/sub2api/internal/accountquality"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -453,6 +454,7 @@ var ErrNoAvailableCompactAccounts = errors.New("no available accounts support /r
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
+	accountQuality                  *quality.Service
 	accountRepo                     AccountRepository
 	usageLogRepo                    UsageLogRepository
 	usageBillingRepo                UsageBillingRepository

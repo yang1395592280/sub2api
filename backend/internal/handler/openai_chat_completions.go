@@ -121,6 +121,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 	autoGroupMode := apiKey.UsesOpenAIAutoCheapestGroup()
 	if autoGroupMode {
 		c.Request = c.Request.WithContext(service.PrepareOpenAIAutoCheapestRequestContext(c.Request.Context(), true, h.gatewayService.OpenAIAutoCheapestGroupCircuit()))
+		service.SetOpenAIQualityRequestBody(c.Request.Context(), body)
 	}
 	// 解析渠道级模型映射。自动分组需要等实际分组选出后再解析。
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
@@ -206,6 +207,9 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			service.ExtractOpenAIReasoningEffortForScheduling(body, reqModel),
 		)
 		timing.EndRouting()
+		if h.handleOpenAIQualityError(c, err, streamStarted) {
+			return
+		}
 		if err != nil {
 			if failoverClientGone(c) {
 				reqLog.Info("openai_chat_completions.account_select_aborted_client_disconnected", zap.Error(err))
@@ -305,6 +309,9 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			}()
 			return h.gatewayService.ForwardAsChatCompletions(c.Request.Context(), c, account, forwardBody, promptCacheKey, "")
 		}()
+		if h.handleOpenAIQualityError(c, err, streamStarted) {
+			return
+		}
 		if err == nil {
 			applyOpenAIForwardTiming(c, preForwardE2EFirstTokenMs, result)
 		}

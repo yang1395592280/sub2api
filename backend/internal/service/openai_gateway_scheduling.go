@@ -1241,55 +1241,61 @@ func (s *OpenAIGatewayService) selectEffectiveOpenAIAccountWithSchedulerForCapab
 		if !qualifiedOnly && strictQuality {
 			break
 		}
-		for _, stage := range stages {
-			effectiveKey := stage.effectiveKey
-			routingModel := requestedModel
-			if modelResolver != nil {
-				if resolved := strings.TrimSpace(modelResolver(effectiveKey, requestedModel)); resolved != "" {
-					routingModel = resolved
+		for _, qualityBaseline := range []bool{true, false} {
+			for _, stage := range stages {
+				effectiveKey := stage.effectiveKey
+				routingModel := requestedModel
+				if modelResolver != nil {
+					if resolved := strings.TrimSpace(modelResolver(effectiveKey, requestedModel)); resolved != "" {
+						routingModel = resolved
+					}
+				}
+				selectAccount := func(selectionCtx context.Context) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+					return s.SelectAccountWithSchedulerForCapability(
+						selectionCtx,
+						effectiveKey.GroupID,
+						previousResponseID,
+						sessionHash,
+						routingModel,
+						excludedIDs,
+						transport,
+						requiredEndpoint,
+						requiredCapability,
+						requireCompact,
+						previousResponseCanMove,
+						useUpstreamTokenCost,
+						requestPlatform,
+						reasoningEffort,
+					)
+				}
+
+				stageCtx := openAIAutoCheapestStageContext(selectionCtx, stage)
+				stageCtx = s.withQualitySelection(stageCtx, routingModel, string(transport), qualityBaseline, previousResponseID != "" && !previousResponseCanMove)
+				if qualifiedOnly {
+					stageCtx = withOpenAIAutoCheapestQualifiedOnly(stageCtx)
+				} else {
+					slog.Info("openai_auto_cheapest_quality_fallback", "group_id", *effectiveKey.GroupID, "endpoint", requiredEndpoint, "model", requestedModel)
+				}
+				selection, decision, availabilityErr := selectAccount(stageCtx)
+				lastDecision = decision
+				if availabilityErr == nil && selection != nil && selection.Account != nil {
+					noteOpenAIAutoCheapestSelectedSource(ctx, selection.Account.ID, *stage.sourceGroupID)
+					s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
+					return effectiveKey, selection, decision, nil
+				}
+				if !qualifiedOnly && stage.finalForEffectiveGroup {
+					availabilityErrors[*effectiveKey.GroupID] = availabilityErr
+				}
+				if availabilityErr == nil && selection != nil && selection.Account != nil {
+					lastErr = ErrNoAvailableAccounts
+				} else {
+					lastErr = availabilityErr
 				}
 			}
-			selectAccount := func(selectionCtx context.Context) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-				return s.SelectAccountWithSchedulerForCapability(
-					selectionCtx,
-					effectiveKey.GroupID,
-					previousResponseID,
-					sessionHash,
-					routingModel,
-					excludedIDs,
-					transport,
-					requiredEndpoint,
-					requiredCapability,
-					requireCompact,
-					previousResponseCanMove,
-					useUpstreamTokenCost,
-					requestPlatform,
-					reasoningEffort,
-				)
-			}
-
-			stageCtx := openAIAutoCheapestStageContext(selectionCtx, stage)
-			if qualifiedOnly {
-				stageCtx = withOpenAIAutoCheapestQualifiedOnly(stageCtx)
-			} else {
-				slog.Info("openai_auto_cheapest_quality_fallback", "group_id", *effectiveKey.GroupID, "endpoint", requiredEndpoint, "model", requestedModel)
-			}
-			selection, decision, availabilityErr := selectAccount(stageCtx)
-			lastDecision = decision
-			if availabilityErr == nil && selection != nil && selection.Account != nil {
-				noteOpenAIAutoCheapestSelectedSource(ctx, selection.Account.ID, *stage.sourceGroupID)
-				s.recordLastEffectiveGroupBestEffort(ctx, effectiveKey)
-				return effectiveKey, selection, decision, nil
-			}
-			if !qualifiedOnly && stage.finalForEffectiveGroup {
-				availabilityErrors[*effectiveKey.GroupID] = availabilityErr
-			}
-			if availabilityErr == nil && selection != nil && selection.Account != nil {
-				lastErr = ErrNoAvailableAccounts
-			} else {
-				lastErr = availabilityErr
-			}
 		}
+	}
+	if qualityErr := qualitySelectionError(ctx); qualityErr != nil {
+		return nil, nil, lastDecision, qualityErr
 	}
 	// A deferred pool may still recover after its business group failed. Only
 	// count group exhaustion once the full availability pass found no source.
@@ -1376,6 +1382,9 @@ func openAICompatibleAccountEligibilityFailureReason(ctx context.Context, accoun
 	// 分组利润控制：legacy 引擎的粘性/候选循环与 DB recheck 共用
 	// 本判定，任何 fallback 都不能把利润不合格账号重新放回候选。
 	if vetoed, reason := openAIProfitControlVetoReason(ctx, account); vetoed {
+		return reason
+	}
+	if reason := qualityCandidateFailure(ctx, account); reason != "" {
 		return reason
 	}
 	return ""

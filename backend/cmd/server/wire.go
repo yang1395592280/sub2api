@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	quality "github.com/Wei-Shaw/sub2api/internal/accountquality"
 	"log"
 	"net/http"
 	"sync"
@@ -82,6 +83,7 @@ func providePluginHostInfo(buildInfo handler.BuildInfo) service.PluginHostInfo {
 }
 
 func provideCleanup(
+	accountQuality *quality.Service,
 	entClient *ent.Client,
 	rdb *redis.Client,
 	opsMetricsCollector *service.OpsMetricsCollector,
@@ -368,6 +370,9 @@ func provideCleanup(
 			{"ScheduledTestRunnerService", func() error {
 				if scheduledTestRunner != nil {
 					scheduledTestRunner.Stop()
+				}
+				if accountQuality != nil {
+					accountQuality.Stop()
 				}
 				return nil
 			}},

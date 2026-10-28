@@ -6,15 +6,18 @@ import (
 )
 
 type openAIAutoCheapestFailureState struct {
-	mu             sync.RWMutex
-	failedGroups   map[int64]string
-	accountSources map[int64]int64
-	circuit        OpenAIAutoCheapestGroupCircuit
-	model          string
-	endpoint       string
-	transport      string
-	userID         int64
-	strictQuality  bool
+	mu                            sync.RWMutex
+	failedGroups                  map[int64]string
+	accountSources                map[int64]int64
+	circuit                       OpenAIAutoCheapestGroupCircuit
+	model                         string
+	endpoint                      string
+	transport                     string
+	userID                        int64
+	strictQuality                 bool
+	qualityBody                   []byte
+	qualityDenied, qualityAllowed bool
+	qualityError                  error
 }
 
 type openAIAutoCheapestFailureStateKey struct{}

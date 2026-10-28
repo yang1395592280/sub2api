@@ -536,6 +536,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/openai-quality',
+    name: 'AdminOpenAIQuality',
+    component: () => import('@/views/admin/OpenAIQualityMonitorView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: 'OpenAI Quality', titleKey: 'openAIQuality.monitorTitle' }
+  },
+  {
+    path: '/admin/openai-quality/settings',
+    name: 'AdminOpenAIQualitySettings',
+    component: () => import('@/views/admin/OpenAIQualitySettingsView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: 'OpenAI Quality Settings', titleKey: 'openAIQuality.settingsTitle' }
+  },
+  {
     path: '/admin/accounts',
     name: 'AdminAccounts',
     component: () => import('@/views/admin/AccountsView.vue'),

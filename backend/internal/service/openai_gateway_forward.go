@@ -1064,6 +1064,9 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			proxyURL = account.Proxy.URL()
 		}
 
+		if qualityErr := s.CheckOpenAIQualityOutbound(ctx, account, body, "responses", "http", false); qualityErr != nil {
+			return nil, qualityErr
+		}
 		// Send request
 		upstreamStart := time.Now()
 		resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)

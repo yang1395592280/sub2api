@@ -972,6 +972,10 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		}
 		turnStart := time.Now()
 		wroteDownstream := false
+		qualityRaw, _ := json.Marshal(json.RawMessage(payload))
+		if qualityErr := s.CheckOpenAIQualityOutbound(ctx, account, qualityRaw, "responses", "websocket_v2", true); qualityErr != nil {
+			return nil, qualityErr
+		}
 		if err := lease.WriteJSONWithContextTimeout(ctx, json.RawMessage(payload), s.openAIWSWriteTimeout()); err != nil {
 			return nil, wrapOpenAIWSIngressTurnError(
 				"write_upstream",

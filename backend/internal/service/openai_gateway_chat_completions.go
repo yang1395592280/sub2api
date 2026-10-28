@@ -334,6 +334,9 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 	}
 	responsesBody = updatedBody
 
+	if qualityErr := s.CheckOpenAIQualityOutbound(ctx, account, responsesBody, "responses", "http", false); qualityErr != nil {
+		return nil, qualityErr
+	}
 	// 5. Get access token
 	token, _, err := s.GetAccessToken(ctx, account)
 	if err != nil {
