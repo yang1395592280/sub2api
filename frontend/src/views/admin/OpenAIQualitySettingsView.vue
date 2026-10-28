@@ -15,9 +15,10 @@
       <section class="space-y-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
         <div><h2 class="font-semibold">{{ t('openAIQuality.newPolicy') }}</h2><p class="mt-1 text-xs text-gray-500">{{ t('openAIQuality.policyScopeHelp') }}</p></div>
         <div class="grid gap-3 sm:grid-cols-2">
-          <fieldset class="sm:col-span-2"><legend class="mb-2 text-sm font-medium">{{ t('openAIQuality.account') }} · {{ t('openAIQuality.selectedTargets', { count: selectedTargets.length }) }}</legend><p class="mb-2 text-xs text-gray-500">{{ t('openAIQuality.batchLimit') }}</p><input v-model="targetSearch" class="input mb-2" :placeholder="t('openAIQuality.searchTarget')" /><div class="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-gray-200 p-3 dark:border-dark-700"><label v-for="target in filteredTargets" :key="target.account_id" class="flex items-start gap-2 text-sm"><input v-model="selectedAccountIds" class="mt-1" type="checkbox" :value="target.account_id" :disabled="!target.can_probe || (!selectedAccountIds.includes(target.account_id) && selectedAccountIds.length >= 100)" /><span>{{ target.account_name }} (#{{ target.account_id }})<small v-if="!target.can_probe" class="block text-amber-700">{{ target.reasons.join(' · ') || target.eligibility }}</small></span></label></div></fieldset>
-          <fieldset v-if="selectedTargets.length" class="sm:col-span-2"><legend class="mb-2 text-sm font-medium">{{ t('openAIQuality.sourceGroup') }}</legend><div class="space-y-2 rounded-xl border border-gray-200 p-3 dark:border-dark-700"><label v-for="target in selectedTargets" :key="target.account_id" class="grid items-center gap-2 text-sm sm:grid-cols-[1fr_20rem]"><span>{{ target.account_name }} (#{{ target.account_id }})</span><select v-model.number="sourceGroupsByAccount[target.account_id]" class="input"><option v-for="id in target.compatible_source_group_ids" :key="id" :value="id">{{ groupLabel(id) }}</option></select></label></div></fieldset>
-          <label class="block"><span class="mb-1 block text-sm">{{ t('openAIQuality.model') }}</span><input v-model="condition.model_id" class="input" placeholder="gpt-5.5" /></label>
+          <label class="block sm:col-span-2"><span class="mb-1 block text-sm font-medium">{{ t('openAIQuality.sourceGroup') }}</span><select v-model.number="selectedSourceGroupId" class="input"><option :value="0">{{ t('openAIQuality.chooseSourceGroup') }}</option><option v-for="group in sourceGroups" :key="group.id" :value="group.id">{{ group.name }} (#{{ group.id }})</option></select></label>
+          <fieldset v-if="selectedSourceGroupId" class="sm:col-span-2"><legend class="mb-2 text-sm font-medium">{{ t('openAIQuality.account') }} · {{ t('openAIQuality.selectedTargets', { count: selectedAccountIds.length }) }}</legend><p class="mb-2 text-xs text-gray-500">{{ t('openAIQuality.batchLimit') }}</p><input v-model="targetSearch" class="input mb-2" :placeholder="t('openAIQuality.searchTarget')" /><div v-if="filteredTargets.length" class="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-gray-200 p-3 dark:border-dark-700"><label v-for="target in filteredTargets" :key="target.account_id" class="flex items-start gap-2 text-sm"><input v-model="selectedAccountIds" class="mt-1" type="checkbox" :value="target.account_id" :disabled="!target.can_probe || (!selectedAccountIds.includes(target.account_id) && selectedAccountIds.length >= maxSelectableAccounts)" /><span>{{ target.account_name }} (#{{ target.account_id }})<small v-if="!target.can_probe" class="block text-amber-700">{{ target.reasons.join(' · ') || target.eligibility }}</small></span></label></div><p v-else class="rounded-xl bg-gray-50 p-4 text-sm text-gray-500 dark:bg-dark-900">{{ t('openAIQuality.noAccountsInGroup') }}</p></fieldset>
+          <p v-else class="sm:col-span-2 rounded-xl bg-gray-50 p-4 text-sm text-gray-500 dark:bg-dark-900">{{ t('openAIQuality.chooseGroupBeforeAccounts') }}</p>
+          <fieldset class="sm:col-span-2 space-y-3"><legend class="text-sm font-medium">{{ t('openAIQuality.model') }}</legend><p class="text-xs text-gray-500">{{ t('openAIQuality.modelSelectionHelp') }}</p><div class="grid gap-3 sm:grid-cols-2"><label class="block"><span class="mb-1 block text-sm">{{ t('openAIQuality.modelOne') }}</span><input v-model.trim="modelOne" class="input" placeholder="gpt-5.5" /></label><label v-if="modelTwoEnabled" class="block"><span class="mb-1 block text-sm">{{ t('openAIQuality.modelTwo') }}</span><div class="flex gap-2"><input v-model.trim="modelTwo" class="input min-w-0 flex-1" placeholder="gpt-5.4" /><button type="button" class="btn btn-ghost shrink-0 px-2 py-1 text-xs" @click="removeSecondModel">{{ t('openAIQuality.removeSecondModel') }}</button></div></label></div><button v-if="!modelTwoEnabled" type="button" class="btn btn-secondary px-3 py-1.5 text-xs" :disabled="selectedAccountIds.length > 50" @click="addSecondModel">{{ t('openAIQuality.addSecondModel') }}</button><p v-if="selectedAccountIds.length" class="text-xs text-gray-500">{{ t('openAIQuality.policyCount', { count: createPolicyCount }) }}</p></fieldset>
           <label class="block"><span class="mb-1 block text-sm">{{ t('openAIQuality.protocol') }}</span><select v-model="condition.protocol" class="input"><option value="responses">Responses</option><option value="chat_completions">Chat Completions</option></select></label>
           <label class="block"><span class="mb-1 block text-sm">{{ t('openAIQuality.transport') }}</span><select v-model="condition.transport" class="input"><option value="http">HTTP / SSE</option><option v-if="condition.protocol === 'responses'" value="websocket_v2">Responses WebSocket v2</option></select></label>
           <label class="block"><span class="mb-1 block text-sm">{{ t('openAIQuality.reasoningEffort') }}</span><select v-model="condition.reasoning_effort" class="input"><option v-for="v in ['upstream_default','none','minimal','low','medium','high','xhigh']" :key="v" :value="v">{{ v }}</option></select></label>
@@ -48,18 +49,24 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import { getAll as getAllAdminGroups } from '@/api/admin/groups'
 import { createQualityPolicies, emergencyDisableQuality, getAllQualityPolicies, getAllQualityTargets, getQualitySettings, previewQuality, previewQualitySettings, saveQualitySettings, submitQualityRuns, updateQualityPolicies, type QualityCondition, type QualityPolicy, type QualityRules, type QualitySettings, type QualityTarget } from '@/api/admin/openaiAccountQuality'
+import type { AdminGroup } from '@/types'
 
 const { t } = useI18n()
 const settings = ref<QualitySettings | null>(null)
 const targets = ref<QualityTarget[]>([])
+const groups = ref<AdminGroup[]>([])
 const policies = ref<QualityPolicy[]>([])
 const health = ref({ queue_depth: 0, running_count: 0, store_status: 'unknown', last_sync_at: '' })
 const budget = ref({ consumed: 0, limit: 0 })
 const selectedAccountIds = ref<number[]>([])
+const selectedSourceGroupId = ref(0)
 const selectedPolicyIds = ref<number[]>([])
 const targetSearch = ref('')
-const sourceGroupsByAccount = reactive<Record<number, number>>({})
+const modelOne = ref('')
+const modelTwo = ref('')
+const modelTwoEnabled = ref(false)
 const saving = ref(false)
 const busy = ref(false)
 const error = ref('')
@@ -73,23 +80,26 @@ const editingPreviewFingerprint = ref('')
 const condition = reactive<QualityCondition>({ model_id: '', protocol: 'responses', transport: 'http', reasoning_effort: 'upstream_default', service_tier: 'upstream_default', benchmark_id: 'candy', benchmark_version: '1', scorer_version: 'strict-json-v1' })
 const rules = reactive<QualityRules>({ auto_check_enabled: false, control_enabled: false, interval_seconds: 1800, jitter_seconds: 60, failure_threshold: 3, recovery_threshold: 2, cooldown_seconds: 1800, recovery_interval_seconds: 600, evidence_window_seconds: 7200, timeout_seconds: 180, max_output_tokens: 4096, daily_call_limit: 100 })
 const editRules = reactive<QualityRules>({ auto_check_enabled: false, control_enabled: false, interval_seconds: 1800, jitter_seconds: 60, failure_threshold: 3, recovery_threshold: 2, cooldown_seconds: 1800, recovery_interval_seconds: 600, evidence_window_seconds: 7200, timeout_seconds: 180, max_output_tokens: 4096, daily_call_limit: 100 })
-const selectedTargets = computed(() => targets.value.filter(target => selectedAccountIds.value.includes(target.account_id)))
-const filteredTargets = computed(() => targets.value.filter(target => `${target.account_name} ${target.account_id}`.toLowerCase().includes(targetSearch.value.toLowerCase())))
+const eligibleSourceGroupIDs = computed(() => new Set(targets.value.flatMap(target => target.compatible_source_group_ids)))
+const sourceGroups = computed(() => groups.value.filter(group => eligibleSourceGroupIDs.value.has(group.id)).sort((a, b) => a.name.localeCompare(b.name)))
+const targetsInSelectedGroup = computed(() => targets.value.filter(target => target.compatible_source_group_ids.includes(selectedSourceGroupId.value)))
+const selectedTargets = computed(() => targetsInSelectedGroup.value.filter(target => selectedAccountIds.value.includes(target.account_id)))
+const filteredTargets = computed(() => targetsInSelectedGroup.value.filter(target => `${target.account_name} ${target.account_id}`.toLowerCase().includes(targetSearch.value.toLowerCase())))
+const selectedModels = computed(() => [modelOne.value.trim(), ...(modelTwoEnabled.value ? [modelTwo.value.trim()] : [])].filter(Boolean))
+const maxSelectableAccounts = computed(() => modelTwoEnabled.value ? 50 : 100)
+const createPolicyCount = computed(() => selectedTargets.value.length * selectedModels.value.length)
 const canEnforceAll = computed(() => selectedTargets.value.length > 0 && selectedTargets.value.every(target => target.can_enforce))
 const selectedPolicies = computed(() => policies.value.filter(policy => selectedPolicyIds.value.includes(policy.id)))
-watch(selectedAccountIds, () => {
-  for (const target of selectedTargets.value) {
-    if (!target.compatible_source_group_ids.includes(sourceGroupsByAccount[target.account_id])) {
-      sourceGroupsByAccount[target.account_id] = target.compatible_source_group_ids.includes(target.source_group_id) ? target.source_group_id : (target.compatible_source_group_ids[0] || 0)
-    }
-  }
-  for (const accountId of Object.keys(sourceGroupsByAccount).map(Number)) {
-    if (!selectedAccountIds.value.includes(accountId)) delete sourceGroupsByAccount[accountId]
-  }
+function clearCreatePreview() {
   previewResult.value = null
   previewFingerprint.value = ''
-}, { deep: true })
-watch([sourceGroupsByAccount, condition, rules], () => { previewResult.value = null; previewFingerprint.value = '' }, { deep: true })
+}
+watch(selectedSourceGroupId, () => {
+  selectedAccountIds.value = []
+  targetSearch.value = ''
+  clearCreatePreview()
+})
+watch([selectedAccountIds, modelOne, modelTwo, modelTwoEnabled, condition, rules], clearCreatePreview, { deep: true })
 watch([editRules, editingPolicies], () => { editingPreview.value = null; editingPreviewFingerprint.value = '' }, { deep: true })
 watch(settings, () => { settingsPreview.value = null; settingsPreviewFingerprint.value = '' }, { deep: true })
 type SettingsNumberKey = 'global_concurrency' | 'queue_limit' | 'queue_timeout_seconds' | 'global_daily_call_limit' | 'default_policy_daily_call_limit' | 'raw_retention_days' | 'metadata_retention_days'
@@ -97,22 +107,25 @@ type RulesNumberKey = 'interval_seconds' | 'jitter_seconds' | 'failure_threshold
 type NumberField<K extends string> = { key: K; label: string; min: number; max: number }
 const numberFields: NumberField<SettingsNumberKey>[] = [{ key: 'global_concurrency', label: 'globalConcurrency', min: 1, max: 10 }, { key: 'queue_limit', label: 'queueLimit', min: 100, max: 1000 }, { key: 'queue_timeout_seconds', label: 'queueTimeout', min: 60, max: 1800 }, { key: 'global_daily_call_limit', label: 'globalDailyLimit', min: 1, max: 100000 }, { key: 'default_policy_daily_call_limit', label: 'policyDefaultLimit', min: 1, max: 1000 }, { key: 'raw_retention_days', label: 'rawRetention', min: 1, max: 30 }, { key: 'metadata_retention_days', label: 'metadataRetention', min: 7, max: 180 }]
 const ruleFields: NumberField<RulesNumberKey>[] = [{ key: 'interval_seconds', label: 'interval', min: 300, max: 86400 }, { key: 'jitter_seconds', label: 'jitter', min: 0, max: 300 }, { key: 'failure_threshold', label: 'failureThreshold', min: 1, max: 10 }, { key: 'recovery_threshold', label: 'recoveryThreshold', min: 1, max: 10 }, { key: 'cooldown_seconds', label: 'cooldown', min: 300, max: 86400 }, { key: 'recovery_interval_seconds', label: 'recoveryInterval', min: 300, max: 86400 }, { key: 'evidence_window_seconds', label: 'evidenceWindow', min: 600, max: 604800 }, { key: 'timeout_seconds', label: 'timeout', min: 30, max: 600 }, { key: 'max_output_tokens', label: 'maxOutput', min: 512, max: 16384 }, { key: 'daily_call_limit', label: 'dailyLimit', min: 1, max: 1000 }]
-function groupLabel(id: number) { const group = selectedTargets.value.find(target => target.compatible_source_group_ids.includes(id)); return group ? `${group.source_group_name} (#${id})` : `${t('openAIQuality.group')} #${id}` }
 function currentSettingsFingerprint() { if (!settings.value) return ''; const { revision, control_epoch: _controlEpoch, ...payload } = settings.value; return JSON.stringify({ ...payload, expected_revision: revision }) }
-function currentCreateItems() { return selectedTargets.value.map(target => ({ account_id: target.account_id, source_group_id: sourceGroupsByAccount[target.account_id] || target.source_group_id, condition: { ...condition }, rules: { ...rules } })) }
+function currentCreateItems() { return selectedTargets.value.flatMap(target => selectedModels.value.map(modelId => ({ account_id: target.account_id, source_group_id: selectedSourceGroupId.value, condition: { ...condition, model_id: modelId }, rules: { ...rules } }))) }
 function currentEditItems() { return editingPolicies.value.map(policy => ({ policy_id: policy.id, expected_revision: policy.revision, rules: { ...editRules } })) }
 function currentEditFingerprint() { return JSON.stringify(currentEditItems()) }
 function formatDate(value: string) { return value ? new Date(value).toLocaleString() : '—' }
+function addSecondModel() { if (selectedAccountIds.value.length <= 50) { modelTwo.value = ''; modelTwoEnabled.value = true } }
+function removeSecondModel() { modelTwo.value = ''; modelTwoEnabled.value = false }
 async function load() {
   try {
-    const [s, ts, ps] = await Promise.all([getQualitySettings(), getAllQualityTargets(), getAllQualityPolicies()])
+    const [s, ts, ps, gs] = await Promise.all([getQualitySettings(), getAllQualityTargets(), getAllQualityPolicies(), getAllAdminGroups()])
     settings.value = s.settings
     health.value = s.health
     budget.value = s.budget
     targets.value = ts.items
+    groups.value = gs
     policies.value = ps.items
-    const selectedEligible = selectedAccountIds.value.filter(id => targets.value.some(target => target.account_id === id && target.can_probe)).slice(0, 100)
-    selectedAccountIds.value = selectedEligible.length ? selectedEligible : (targets.value.find(target => target.can_probe) ? [targets.value.find(target => target.can_probe)!.account_id] : [])
+    if (!sourceGroups.value.some(group => group.id === selectedSourceGroupId.value)) selectedSourceGroupId.value = 0
+    const availableAccountIDs = new Set(targetsInSelectedGroup.value.filter(target => target.can_probe).map(target => target.account_id))
+    selectedAccountIds.value = selectedAccountIds.value.filter(id => availableAccountIDs.has(id)).slice(0, maxSelectableAccounts.value)
     selectedPolicyIds.value = selectedPolicyIds.value.filter(id => policies.value.some(policy => policy.id === id))
   } catch (e: any) { error.value = e?.message || String(e) }
 }
@@ -140,7 +153,10 @@ async function emergencyDisable() {
 }
 async function preview() {
   const payload = currentCreateItems()
-  if (!payload.length || selectedTargets.value.some(target => !target.compatible_source_group_ids.includes(payload.find(item => item.account_id === target.account_id)?.source_group_id || 0)) || !condition.model_id.trim()) { error.value = t('openAIQuality.chooseAccountAndModel'); return }
+  const normalizedModels = selectedModels.value
+  if (!selectedSourceGroupId.value || !selectedTargets.value.length || !modelOne.value.trim() || (modelTwoEnabled.value && !modelTwo.value.trim())) { error.value = t('openAIQuality.chooseAccountAndModel'); return }
+  if (modelTwoEnabled.value && modelOne.value.trim() === modelTwo.value.trim()) { error.value = t('openAIQuality.duplicateModels'); return }
+  if (!normalizedModels.length || payload.length > 100) { error.value = t('openAIQuality.batchPolicyLimit'); return }
   busy.value = true; error.value = ''; const fingerprint = JSON.stringify(payload)
   try { const result = await previewQuality(payload); if (fingerprint === JSON.stringify(currentCreateItems())) { previewResult.value = result; previewFingerprint.value = fingerprint } }
   catch (e: any) { error.value = e?.message || String(e) }

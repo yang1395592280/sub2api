@@ -975,7 +975,16 @@ function handleMenuItemClick(itemPath: string) {
 }
 
 function isActive(path: string): boolean {
-  return route.path === path || route.path.startsWith(path + '/')
+  const matchesRoute = route.path === path || route.path.startsWith(path + '/')
+  if (!matchesRoute) return false
+
+  // When sibling menu routes share a prefix, only highlight the most specific one.
+  const hasMoreSpecificMatch = adminNavItems.value.some((item) =>
+    item.path !== path &&
+    item.path.startsWith(path + '/') &&
+    (route.path === item.path || route.path.startsWith(item.path + '/'))
+  )
+  return !hasMoreSpecificMatch
 }
 
 function isGroupActive(item: NavItem): boolean {

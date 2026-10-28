@@ -8,8 +8,8 @@
             <p class="mt-1 text-sm text-gray-500">{{ t('openAIQuality.monitorDescription') }}</p>
           </div>
           <div class="flex gap-2">
-            <router-link class="btn-secondary" to="/admin/openai-quality/settings">{{ t('nav.openAIQualitySettings') }}</router-link>
-            <button class="btn-secondary" :disabled="busy" @click="reload">{{ t('common.refresh') }}</button>
+            <router-link class="btn btn-secondary btn-sm" to="/admin/openai-quality/settings">{{ t('nav.openAIQualitySettings') }}</router-link>
+            <button class="btn btn-secondary btn-sm" :disabled="busy" @click="reload">{{ t('common.refresh') }}</button>
           </div>
         </div>
         <p class="mt-3 rounded-xl bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:bg-blue-900/20 dark:text-blue-200">{{ t('openAIQuality.scopeNote') }}</p>
@@ -41,8 +41,8 @@
         <div v-if="selectedPolicyIds.length" class="flex flex-wrap items-center gap-3 border-b border-gray-100 px-4 py-3 text-sm dark:border-dark-700">
           <span>{{ t('openAIQuality.selectedPolicies', { count: selectedPolicyIds.length }) }}</span>
           <span class="text-xs text-gray-500">{{ t('openAIQuality.batchLimit') }}</span>
-          <button class="btn-primary btn-xs" :disabled="busy || !selectedRunnablePolicies.length" @click="runSelectedNow">{{ t('openAIQuality.runSelected') }}</button>
-          <button class="btn-secondary btn-xs" @click="selectedPolicyIds = []">{{ t('common.cancel') }}</button>
+          <button class="btn btn-primary px-3 py-1.5 text-xs" :disabled="busy || !selectedRunnablePolicies.length" @click="runSelectedNow">{{ t('openAIQuality.runSelected') }}</button>
+          <button class="btn btn-secondary px-3 py-1.5 text-xs" @click="selectedPolicyIds = []">{{ t('common.cancel') }}</button>
         </div>
         <div v-if="busy && !overview" class="p-8 text-center text-sm text-gray-500">{{ t('common.loading') }}</div>
         <div v-else class="overflow-x-auto">
@@ -66,7 +66,7 @@
                 <td class="p-3"><span :class="stateClass(p.state.state)" class="rounded-full px-2 py-1 text-xs">{{ stateLabel(p.state.state) }}</span><p class="mt-1 text-xs text-gray-500">{{ p.state.freshness }} · {{ p.state.failure_streak }}/{{ p.rules.failure_threshold }}</p></td>
                 <td class="p-3"><span :class="p.control.effective ? 'text-green-600' : 'text-gray-500'">{{ p.control.action }}</span><p class="text-xs text-gray-500">{{ p.control.reason }}</p></td>
                 <td class="p-3 text-xs text-gray-500">{{ p.state.last_checked_at ? formatDate(p.state.last_checked_at) : '—' }}<p>{{ p.state.last_verdict }}</p></td>
-                <td class="p-3"><div class="flex gap-2"><button class="btn-secondary btn-xs" :disabled="busy || p.eligibility !== 'eligible'" @click="runNow(p)">{{ t('openAIQuality.runNow') }}</button><button v-if="['quarantined','recovering'].includes(p.state.state)" class="btn-secondary btn-xs" @click="release(p)">{{ t('openAIQuality.release') }}</button><button class="btn-secondary btn-xs" @click="archive(p)">{{ t('openAIQuality.archive') }}</button></div></td>
+                <td class="p-3"><div class="flex flex-wrap gap-2"><button class="btn btn-secondary px-2 py-1 text-xs" :disabled="busy || p.eligibility !== 'eligible'" @click="runNow(p)">{{ t('openAIQuality.runNow') }}</button><button v-if="['quarantined','recovering'].includes(p.state.state)" class="btn btn-secondary px-2 py-1 text-xs" @click="release(p)">{{ t('openAIQuality.release') }}</button><button class="btn btn-secondary px-2 py-1 text-xs" @click="archive(p)">{{ t('openAIQuality.archive') }}</button></div></td>
               </tr>
               <tr v-if="!filtered.length"><td colspan="7" class="p-8 text-center text-sm text-gray-500">{{ t('openAIQuality.noPolicies') }}</td></tr>
             </tbody>
@@ -93,7 +93,7 @@
             <table class="w-full text-xs"><thead><tr class="text-left text-gray-500"><th class="p-2">ID</th><th class="p-2">{{ t('openAIQuality.time') }}</th><th class="p-2">{{ t('openAIQuality.runStatus') }}</th><th class="p-2">{{ t('openAIQuality.answer') }}</th><th class="p-2">{{ t('openAIQuality.reason') }}</th><th class="p-2">{{ t('openAIQuality.actions') }}</th></tr></thead>
               <tbody><tr v-for="r in bucketRuns.items" :key="r.id" class="border-t border-gray-100 dark:border-dark-700"><td class="p-2">{{ r.id }}</td><td class="p-2">{{ formatDate(r.started_at || r.queued_at) }}</td><td class="p-2">{{ r.status }}</td><td class="p-2">{{ r.result?.final_answer ?? '—' }} / {{ r.result?.expected_answer ?? '—' }}</td><td class="p-2">{{ r.reason_code }}</td><td class="p-2"><button class="text-blue-600 hover:underline" @click="openRun(r.id)">{{ t('openAIQuality.viewDetails') }}</button><button v-if="isCancellable(r)" class="ml-3 text-red-600 hover:underline" @click="cancelRun(r)">{{ t('openAIQuality.cancelRun') }}</button></td></tr></tbody>
             </table>
-            <div v-if="bucketRuns.items.length < bucketRuns.total" class="p-2 text-center"><button class="btn-secondary btn-xs" :disabled="bucketBusy" @click="loadBucket(selectedBucketIndex!, bucketRuns.page + 1, true)">{{ bucketBusy ? t('common.loading') : t('openAIQuality.loadMoreHistory') }}</button></div>
+            <div v-if="bucketRuns.items.length < bucketRuns.total" class="p-2 text-center"><button class="btn btn-secondary px-3 py-1.5 text-xs" :disabled="bucketBusy" @click="loadBucket(selectedBucketIndex!, bucketRuns.page + 1, true)">{{ bucketBusy ? t('common.loading') : t('openAIQuality.loadMoreHistory') }}</button></div>
           </div>
         </template>
 
@@ -106,7 +106,7 @@
               <div class="text-right text-xs text-gray-500"><time>{{ formatDate(event.created_at) }}</time><button v-if="event.run_id" class="ml-3 text-blue-600 hover:underline" @click="openRun(event.run_id)">{{ t('openAIQuality.viewRun', { id: event.run_id }) }}</button></div>
             </li>
           </ol>
-          <div v-if="eventPage < eventPages" class="text-center"><button class="btn-secondary btn-xs" :disabled="eventsBusy" @click="loadEvents(eventPage + 1, true)">{{ eventsBusy ? t('common.loading') : t('openAIQuality.loadMoreHistory') }}</button></div>
+          <div v-if="eventPage < eventPages" class="text-center"><button class="btn btn-secondary px-3 py-1.5 text-xs" :disabled="eventsBusy" @click="loadEvents(eventPage + 1, true)">{{ eventsBusy ? t('common.loading') : t('openAIQuality.loadMoreHistory') }}</button></div>
         </div>
       </section>
 
