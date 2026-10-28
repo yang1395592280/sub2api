@@ -147,6 +147,7 @@ docs/*
 !docs/custom-feature-settings-inventory.md
 !docs/codex-credits.md
 !docs/redeem-campaign-limits.md
+!docs/openai-quality-monitor.md
 !docs/legal/
 !docs/legal/*.md
 !docs/superpowers/

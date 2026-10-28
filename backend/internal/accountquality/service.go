@@ -530,7 +530,8 @@ func (s *Service) reconcile(ctx context.Context) {
 		if e == nil {
 			candidate.SetTarget(target)
 		}
-		if old.Eligibility == eligibility && candidate.ScopeHash == old.ScopeHash {
+		metadataChanged := e == nil && (old.SourceGroupName != target.SourceGroupName || old.AccountName != target.AccountName || old.ControlSupported == nil || *old.ControlSupported != target.CanEnforce)
+		if old.Eligibility == eligibility && candidate.ScopeHash == old.ScopeHash && !metadataChanged {
 			continue
 		}
 		_, err = s.Write(ctx, func(t *Tx) (any, error) {
@@ -540,6 +541,11 @@ func (s *Service) reconcile(ctx context.Context) {
 			}
 			if p.Revision != old.Revision {
 				return nil, nil
+			}
+			// Names and capability metadata do not invalidate accepted evidence.
+			if old.Eligibility == eligibility && candidate.ScopeHash == old.ScopeHash {
+				p.SetTarget(target)
+				return nil, t.SavePolicy(&p)
 			}
 			oldState := p.State.Name
 			p.Revision++

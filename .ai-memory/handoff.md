@@ -164,3 +164,34 @@
 - 相关文件：backend/cmd/server/VERSION、20261023/release-v0.2.17.6.md、daily.md、session_memory_release_v0.2.17.6.jsonl；功能使用及回退说明docs/redeem-campaign-limits.md。
 - 未完成：本条为推送前检查点，待提交版本更新、创建annotated tag并原子推送origin/custom-main与refs/tags/v0.2.17.6；最终结果以远端refs和Release核验为准。远端新tag不存在、RELEASE_ONLY=true已确认，未生产部署/执行迁移247。
 - 阻塞：无发布准备阻塞；本机Bash3.2未跑镜像脚本执行测试，此次发布不包含镜像。PyYAML按现有requirements仅安装到临时目录，无系统包和仓库依赖变化。
+
+## 2026-10-28 检测记录与质量监控交互改进
+
+### 已完成（带证据）
+- feature/openai-quality-records，基于干净 custom-main / v0.2.18.3。
+- 后端普通 OpenAI 组可检测，按来源组判定控制能力；测试 TestQualityOrdinaryGroupsCanProbeButCannotControl 通过。
+- 新增 records 服务端筛选、SQL 参数分页及事件排序回归；Go 定向 27 项、accountquality 包全量 25 项通过（重叠统计）。
+- records 页、共享详情弹窗、路由/侧栏，监控按账号分组展示，配置三分区及组名选择已实现。
+- 前端行为/时间线/语言完整性共 18 项、定向 ESLint、vue-tsc、生产构建通过；构建仅有已有的大 chunk/Browserslist 提示。
+- 浏览器通过隔离 fixture 验证：0.1 普通组账号选择、双模型预览、控制禁用、独立复选框、记录筛选/回答详情、45 条记录真实分页、KeepAlive 离页关闭弹窗。窄屏保留列宽并支持横向滚动。
+- 临时 frontend/quality-fixture.html 已删除，Vite/mock 进程和预览标签已关闭。使用说明见 docs/openai-quality-monitor.md。
+
+### 相关文件
+- backend/internal/service/account_quality_provider.go、account_quality_scope_test.go
+- backend/internal/accountquality/{types,state,service,http,repository}.go、repository_runs_test.go
+- frontend/src/views/admin/OpenAIQuality{Monitor,Settings,Records}View.vue
+- frontend/src/components/admin/account-quality/{QualityRunDetailDialog.vue,qualityPresentation.ts}
+- frontend/src/views/admin/__tests__/OpenAIQualityViews.spec.ts
+
+### 未完成
+- 本地实现无待办；尚未提交、合并、推送或发布。
+- 未启动真实后端/PostgreSQL/Redis，未调用真实上游；浏览器验证为模拟 API 数据，不等同生产集成验证。
+
+### 阻塞
+- 无实现阻塞。本次不含 DDL/迁移和新依赖，不执行生产写入；自动降权/隔离仍仅自动不降智来源组生效。
+
+## 2026-10-28 15:29 检测记录功能本地合并授权
+- 已完成带证据：用户要求“合并分支”，已授权提交本次改动并合入本地custom-main；两分支同起点18a891f27，custom-main未被其他worktree占用，工作区仅本次实现及文档，diff检查通过。沿用本轮Go定向27项、前端18项、类型/lint/构建及浏览器验证证据。
+- 相关文件：docs/openai-quality-monitor.md、20261028/quality-records-plan.md及该功能代码；来源feature/openai-quality-records，目标custom-main。
+- 未完成：本条为提交合并前检查点，随后执行功能提交、merge --ff-only与包含关系/干净状态核验，最终结果以Git为准。
+- 阻塞：无。本轮不推送、不打tag、不部署、不删除功能分支。

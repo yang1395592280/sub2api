@@ -301,8 +301,9 @@ func (t *Tx) Budget(scope string, id int64) (Budget, error) {
 }
 
 type RunFilter struct {
-	PolicyID, AccountID, RunID                   int64
+	PolicyID, AccountID, RunID, SourceGroupID    int64
 	BatchID, ScopeHash, Status, Verdict, Trigger string
+	ModelID, Search                              string
 	From, To                                     *time.Time
 	IncludeEnd                                   bool
 	GlobalEpoch, PolicyEpoch                     *int64
@@ -321,6 +322,16 @@ func (t *Tx) Runs(f RunFilter) ([]Run, int, error) {
 	}
 	if f.AccountID > 0 {
 		add("account_id=$%d", f.AccountID)
+	}
+	if f.SourceGroupID > 0 {
+		add("(snapshot->>'source_group_id')::bigint=$%d", f.SourceGroupID)
+	}
+	if f.ModelID != "" {
+		args = append(args, f.ModelID)
+		where = append(where, fmt.Sprintf("(snapshot->'condition'->>'model_id'=$%d OR snapshot->>'effective_upstream_model'=$%d)", len(args), len(args)))
+	}
+	if f.Search != "" {
+		add("strpos(lower(COALESCE(snapshot->>'account_name','')),lower($%d))>0", f.Search)
 	}
 	if f.RunID > 0 {
 		add("id=$%d", f.RunID)
@@ -362,7 +373,7 @@ func (t *Tx) Runs(f RunFilter) ([]Run, int, error) {
 		return nil, 0, err
 	}
 	args = append(args, f.Limit, f.Offset)
-	q := `SELECT ` + runColumns + ` FROM account_quality_test_runs WHERE ` + clause + fmt.Sprintf(` ORDER BY id DESC LIMIT $%d OFFSET $%d`, len(args)-1, len(args))
+	q := `SELECT ` + runColumns + ` FROM account_quality_test_runs WHERE ` + clause + fmt.Sprintf(` ORDER BY COALESCE(started_at,queued_at) DESC,id DESC LIMIT $%d OFFSET $%d`, len(args)-1, len(args))
 	rows, err := t.sql.QueryContext(t.ctx, q, args...)
 	if err != nil {
 		return nil, 0, err

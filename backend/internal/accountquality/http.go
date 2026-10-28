@@ -682,6 +682,13 @@ func (s *Service) runsHTTP(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
+	f.SourceGroupID, err = queryID(c, "source_group_id")
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	f.ModelID = strings.TrimSpace(c.Query("model_id"))
+	f.Search = strings.TrimSpace(c.Query("search"))
 	f.From, err = queryTime(c, "from")
 	if err != nil {
 		writeError(c, err)

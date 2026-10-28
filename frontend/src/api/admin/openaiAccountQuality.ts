@@ -56,6 +56,8 @@ export interface QualityPolicy {
   account_id: number
   account_name: string
   source_group_id: number
+  source_group_name?: string
+  control_supported?: boolean
   compatible_source_group_ids: number[]
   condition: QualityCondition
   effective_upstream_model: string
@@ -68,6 +70,7 @@ export interface QualityPolicy {
   rules: QualityRules
   state: { state: string; freshness: string; failure_streak: number; recovery_streak: number; cooldown_until: string | null; last_checked_at: string | null; last_verdict: string }
   control: { effective: boolean; reason: string; action: string }
+  next_run_at?: string | null
 }
 export interface QualityRun {
   id: number

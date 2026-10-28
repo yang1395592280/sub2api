@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <main class="mx-auto max-w-7xl space-y-5 p-4 lg:p-7">
+    <main class="mx-auto max-w-7xl space-y-5">
       <header class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -8,11 +8,12 @@
             <p class="mt-1 text-sm text-gray-500">{{ t('openAIQuality.monitorDescription') }}</p>
           </div>
           <div class="flex gap-2">
+            <router-link class="btn btn-secondary btn-sm" to="/admin/openai-quality/records"><Icon name="clock" size="sm" />{{ t('nav.openAIQualityRecords') }}</router-link>
             <router-link class="btn btn-secondary btn-sm" to="/admin/openai-quality/settings">{{ t('nav.openAIQualitySettings') }}</router-link>
             <button class="btn btn-secondary btn-sm" :disabled="busy" @click="reload">{{ t('common.refresh') }}</button>
           </div>
         </div>
-        <p class="mt-3 rounded-xl bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:bg-blue-900/20 dark:text-blue-200">{{ t('openAIQuality.scopeNote') }}</p>
+        <p class="mt-3 rounded-xl bg-primary-50 px-3 py-2 text-xs text-primary-800 dark:bg-primary-900/20 dark:text-primary-200">{{ t('openAIQuality.scopeNote') }}</p>
       </header>
 
       <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -24,18 +25,18 @@
       <section class="flex flex-wrap gap-x-6 gap-y-2 rounded-2xl bg-white px-4 py-3 text-sm shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
         <span>{{ t('openAIQuality.queueDepth') }}: {{ overview?.health?.queue_depth ?? '—' }}</span>
         <span>{{ t('openAIQuality.runningCount') }}: {{ overview?.health?.running_count ?? '—' }}</span>
-        <span>{{ t('openAIQuality.storeStatus') }}: {{ overview?.health?.store_status ?? '—' }}</span>
+        <span>{{ t('openAIQuality.storeStatus') }}: {{ label(overview?.health?.store_status || '') }}</span>
         <span>{{ t('openAIQuality.lastSync') }}: {{ formatDate(overview?.health?.last_sync_at ?? null) }}</span>
       </section>
 
       <section class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 p-4 dark:border-dark-700">
-          <h2 class="font-semibold">{{ t('openAIQuality.policies') }}</h2>
+          <div><h2 class="font-semibold">{{ t('openAIQuality.policies') }}</h2><p class="mt-1 text-xs text-gray-500">{{ t('openAIQuality.groupedPoliciesHelp') }}</p></div>
           <div class="flex flex-wrap gap-2">
-            <input v-model="search" class="input w-56" :placeholder="t('openAIQuality.search')" />
-            <select v-model="sourceGroupFilter" class="input w-44" :aria-label="t('openAIQuality.sourceGroupFilter')"><option value="">{{ t('openAIQuality.allSourceGroups') }}</option><option v-for="id in sourceGroupOptions" :key="id" :value="String(id)">#{{ id }}</option></select>
-            <select v-model="stateFilter" class="input w-40" :aria-label="t('openAIQuality.stateFilter')"><option value="">{{ t('openAIQuality.allStates') }}</option><option v-for="state in states" :key="state" :value="state">{{ stateLabel(state) }}</option></select>
-            <select v-model="freshnessFilter" class="input w-40" :aria-label="t('openAIQuality.freshnessFilter')"><option value="">{{ t('openAIQuality.allFreshness') }}</option><option value="fresh">{{ t('openAIQuality.fresh') }}</option><option value="stale">{{ t('openAIQuality.stale') }}</option><option value="never">{{ t('openAIQuality.never') }}</option></select>
+            <input v-model="search" class="input w-48" :aria-label="t('openAIQuality.search')" :placeholder="t('openAIQuality.search')" />
+            <Select v-model="sourceGroupFilter" class="w-52" :options="sourceGroupOptions" searchable :aria-label="t('openAIQuality.sourceGroupFilter')" />
+            <Select v-model="stateFilter" class="w-36" :options="stateOptions" :aria-label="t('openAIQuality.stateFilter')" />
+            <Select v-model="freshnessFilter" class="w-36" :options="freshnessOptions" :aria-label="t('openAIQuality.freshnessFilter')" />
           </div>
         </div>
         <div v-if="selectedPolicyIds.length" class="flex flex-wrap items-center gap-3 border-b border-gray-100 px-4 py-3 text-sm dark:border-dark-700">
@@ -46,12 +47,11 @@
         </div>
         <div v-if="busy && !overview" class="p-8 text-center text-sm text-gray-500">{{ t('common.loading') }}</div>
         <div v-else class="overflow-x-auto">
-          <table class="w-full text-left text-sm">
+          <table class="w-full min-w-[1080px] text-left text-sm">
             <thead class="bg-gray-50 text-xs text-gray-500 dark:bg-dark-900">
               <tr>
-                <th class="w-10 p-3"><input type="checkbox" :checked="allVisibleSelected" :indeterminate="someVisibleSelected && !allVisibleSelected" :aria-label="t('openAIQuality.selectAll')" @change="toggleVisible" /></th>
-                <th class="p-3">{{ t('openAIQuality.account') }}</th>
-                <th class="p-3">{{ t('openAIQuality.condition') }}</th>
+                <th class="p-4">{{ t('openAIQuality.account') }} / {{ t('openAIQuality.sourceGroup') }}</th>
+                <th class="p-3"><label class="flex items-center gap-3"><input type="checkbox" class="checkbox" :checked="allVisibleSelected" :indeterminate="someVisibleSelected && !allVisibleSelected" :aria-label="t('openAIQuality.selectAll')" @change="toggleVisible" />{{ t('openAIQuality.model') }}</label></th>
                 <th class="p-3">{{ t('openAIQuality.state') }}</th>
                 <th class="p-3">{{ t('openAIQuality.control') }}</th>
                 <th class="p-3">{{ t('openAIQuality.lastCheck') }}</th>
@@ -59,39 +59,50 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="p in filtered" :key="p.id" class="border-t border-gray-100 dark:border-dark-700">
-                <td class="p-3"><input v-model="selectedPolicyIds" type="checkbox" :value="p.id" :disabled="!selectedPolicyIds.includes(p.id) && selectedPolicyIds.length >= 100" :aria-label="t('openAIQuality.selectPolicy', { account: p.account_name || p.account_id })" /></td>
-                <td class="p-3"><button class="font-medium text-blue-600 hover:underline" @click="selectPolicy(p)">{{ p.account_name || `#${p.account_id}` }}</button><p class="text-xs text-gray-500">{{ t('openAIQuality.group') }} #{{ p.source_group_id }}</p></td>
-                <td class="p-3"><span>{{ p.effective_upstream_model }}</span><p class="text-xs text-gray-500">{{ p.condition.protocol }} · {{ p.condition.transport }} · {{ p.effective_reasoning_effort }} · {{ p.effective_service_tier }}</p></td>
-                <td class="p-3"><span :class="stateClass(p.state.state)" class="rounded-full px-2 py-1 text-xs">{{ stateLabel(p.state.state) }}</span><p class="mt-1 text-xs text-gray-500">{{ p.state.freshness }} · {{ p.state.failure_streak }}/{{ p.rules.failure_threshold }}</p></td>
-                <td class="p-3"><span :class="p.control.effective ? 'text-green-600' : 'text-gray-500'">{{ p.control.action }}</span><p class="text-xs text-gray-500">{{ p.control.reason }}</p></td>
-                <td class="p-3 text-xs text-gray-500">{{ p.state.last_checked_at ? formatDate(p.state.last_checked_at) : '—' }}<p>{{ p.state.last_verdict }}</p></td>
-                <td class="p-3"><div class="flex flex-wrap gap-2"><button class="btn btn-secondary px-2 py-1 text-xs" :disabled="busy || p.eligibility !== 'eligible'" @click="runNow(p)">{{ t('openAIQuality.runNow') }}</button><button v-if="['quarantined','recovering'].includes(p.state.state)" class="btn btn-secondary px-2 py-1 text-xs" @click="release(p)">{{ t('openAIQuality.release') }}</button><button class="btn btn-secondary px-2 py-1 text-xs" @click="archive(p)">{{ t('openAIQuality.archive') }}</button></div></td>
-              </tr>
-              <tr v-if="!filtered.length"><td colspan="7" class="p-8 text-center text-sm text-gray-500">{{ t('openAIQuality.noPolicies') }}</td></tr>
+              <template v-for="row in visibleRows" :key="row.key">
+                <tr v-for="(p, index) in row.policies" :key="p.id" class="border-t border-gray-100 transition-colors hover:bg-gray-50/60 dark:border-dark-700 dark:hover:bg-dark-700/30" :class="index === 0 ? 'border-t-gray-200 dark:border-t-dark-600' : ''">
+                  <td v-if="index === 0" :rowspan="row.policies.length" class="min-w-52 max-w-64 p-4 align-top">
+                    <p class="break-all font-semibold text-gray-900 dark:text-dark-100">{{ row.accountName || `#${row.accountId}` }}</p>
+                    <span class="mt-2 inline-block rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600 dark:bg-dark-700 dark:text-dark-300">{{ groupName(p) }}</span>
+                    <router-link class="mt-3 flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400" :to="{ path: '/admin/openai-quality/records', query: { account_id: row.accountId, source_group_id: row.sourceGroupId } }"><Icon name="clock" size="xs" />{{ t('openAIQuality.executionHistory') }}<Icon name="chevronRight" size="xs" /></router-link>
+                  </td>
+                  <td class="p-3"><label class="flex items-center gap-3"><input v-model="selectedPolicyIds" class="checkbox" type="checkbox" :value="p.id" :disabled="!selectedPolicyIds.includes(p.id) && selectedPolicyIds.length >= 100" :aria-label="t('openAIQuality.selectPolicy', { account: `${p.account_name} · ${p.condition.model_id}` })" /><span class="whitespace-nowrap font-medium">{{ p.condition.model_id }}</span></label><p v-if="p.effective_upstream_model !== p.condition.model_id" class="ml-7 mt-1 text-xs text-gray-500">→ {{ p.effective_upstream_model }}</p></td>
+                  <td class="p-3"><span :class="stateClass(p.state.state)" class="whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-medium">{{ stateLabel(p.state.state) }}</span><p class="mt-2 whitespace-nowrap text-xs text-gray-500">{{ label(p.state.freshness) }}<span v-if="p.state.failure_streak"> · {{ t('openAIQuality.failureStreak', { count: p.state.failure_streak }) }}</span></p></td>
+                  <td class="p-3"><span class="whitespace-nowrap text-xs font-medium" :class="p.control.action === 'deny' ? 'text-red-600' : p.control.action === 'fallback' ? 'text-amber-600' : 'text-gray-600 dark:text-dark-300'">{{ label(p.control.action) }}</span><p class="mt-1 max-w-40 text-xs text-gray-400">{{ label(p.control.reason) }}</p></td>
+                  <td class="p-3"><span class="text-xs font-medium" :class="p.state.last_verdict === 'incorrect' ? 'text-red-600' : p.state.last_verdict === 'passed' ? 'text-emerald-600' : 'text-gray-500'">{{ label(p.state.last_verdict) }}</span><p class="mt-1 whitespace-nowrap text-xs tabular-nums text-gray-400">{{ formatDate(p.state.last_checked_at) }}</p></td>
+                  <td class="p-3"><div class="flex gap-2 whitespace-nowrap"><button class="btn btn-secondary px-3 py-1.5 text-xs" :disabled="busy || p.eligibility !== 'eligible'" @click="runNow(p)">{{ t('openAIQuality.runNow') }}</button><button class="btn btn-ghost px-2 py-1.5 text-xs text-primary-600 dark:text-primary-400" @click="selectPolicy(p)">{{ t('openAIQuality.timeline') }}</button></div></td>
+                </tr>
+              </template>
+              <tr v-if="!filtered.length"><td colspan="6" class="p-12 text-center text-sm text-gray-500">{{ t('openAIQuality.noPolicies') }}<router-link class="mt-3 block text-primary-600" to="/admin/openai-quality/settings">{{ t('openAIQuality.newPolicy') }}</router-link></td></tr>
             </tbody>
           </table>
         </div>
+        <Pagination :total="groupedRows.length" v-model:page="page" v-model:page-size="pageSize" />
       </section>
 
-      <section v-if="selected" class="space-y-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
+      <BaseDialog :show="!!selected" :title="`${selected?.account_name || ''} · ${selected?.condition.model_id || ''}`" width="extra-wide" @close="closePolicy">
+      <section v-if="selected" class="space-y-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <div><h2 class="font-semibold">{{ selected.account_name }} · {{ t('openAIQuality.last24h') }}</h2><p class="text-xs text-gray-500">{{ t('openAIQuality.serverAggregate') }} {{ monitor?.as_of }}</p></div>
-          <button class="text-sm text-gray-500" :aria-label="t('common.close')" @click="closePolicy">×</button>
+          <div><p class="text-sm font-medium">{{ groupName(selected) }} · {{ t('openAIQuality.last24h') }}</p><p class="mt-1 text-xs text-gray-500">{{ label(selected.condition.protocol) }} · {{ label(selected.condition.transport) }} · {{ label(selected.effective_reasoning_effort) }} · {{ label(selected.effective_service_tier) }}</p></div>
+          <router-link class="btn btn-secondary px-3 py-2 text-xs" :to="{ path: '/admin/openai-quality/records', query: { policy_id: selected.id } }">{{ t('openAIQuality.allHistory') }}<Icon name="arrowRight" size="xs" /></router-link>
         </div>
         <nav class="flex gap-2 border-b border-gray-100 dark:border-dark-700" :aria-label="t('openAIQuality.policyDetails')">
-          <button class="border-b-2 px-3 py-2 text-sm" :class="activeTab === 'timeline' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'" @click="activeTab = 'timeline'">{{ t('openAIQuality.currentStatus') }} / {{ t('openAIQuality.executionHistory') }}</button>
-          <button class="border-b-2 px-3 py-2 text-sm" :class="activeTab === 'events' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'" @click="showEvents">{{ t('openAIQuality.statusEvents') }}</button>
+          <button class="border-b-2 px-3 py-2 text-sm" :class="activeTab === 'timeline' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'" @click="activeTab = 'timeline'">{{ t('openAIQuality.timeline') }}</button>
+          <button class="border-b-2 px-3 py-2 text-sm" :class="activeTab === 'events' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'" @click="showEvents">{{ t('openAIQuality.statusEvents') }}</button>
         </nav>
 
         <template v-if="activeTab === 'timeline'">
+          <p v-if="!monitor" class="py-6 text-center text-sm text-gray-500">{{ t('common.loading') }}</p>
           <div class="flex flex-wrap gap-4 text-sm"><span>{{ t('openAIQuality.total') }}: {{ monitor?.summary.total ?? 0 }}</span><span>{{ t('openAIQuality.passed') }}: {{ monitor?.summary.passed ?? 0 }}</span><span>{{ t('openAIQuality.incorrect') }}: {{ monitor?.summary.incorrect ?? 0 }}</span><span>{{ t('openAIQuality.coverage') }}: {{ percent(monitor?.summary.answer_coverage) }}</span><span>{{ t('openAIQuality.passRate') }}: {{ percent(monitor?.summary.pass_rate) }}</span></div>
-          <div class="grid grid-cols-12 gap-1 sm:grid-cols-24" :aria-label="t('openAIQuality.last24h')">
+          <div class="grid grid-cols-12 gap-1 sm:grid-cols-[repeat(24,minmax(0,1fr))]" :aria-label="t('openAIQuality.last24h')">
             <button v-for="b in timelineBuckets" :key="b.index" :title="bucketLabel(b)" :aria-label="bucketLabel(b)" class="h-8 min-w-0 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" :class="bucketClass(b.status)" @click="loadBucket(b.index)"></button>
           </div>
+          <div class="flex justify-between text-xs text-gray-400"><span>{{ monitor ? formatDate(new Date(Date.parse(monitor.as_of) - 86400000).toISOString()) : '—' }}</span><span>{{ monitor ? formatDate(monitor.as_of) : '—' }}</span></div>
+          <div class="flex flex-wrap gap-4 text-xs text-gray-500"><span v-for="value in ['passed','incorrect','error','unknown','empty']" :key="value" class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm" :class="bucketClass(value)"></span>{{ label(value) }}</span></div>
+          <p v-if="!bucketRuns" class="text-center text-xs text-gray-400">{{ t('openAIQuality.clickTimeline') }}</p>
           <div v-if="bucketRuns" class="overflow-x-auto rounded-xl border border-gray-100 dark:border-dark-700">
             <table class="w-full text-xs"><thead><tr class="text-left text-gray-500"><th class="p-2">ID</th><th class="p-2">{{ t('openAIQuality.time') }}</th><th class="p-2">{{ t('openAIQuality.runStatus') }}</th><th class="p-2">{{ t('openAIQuality.answer') }}</th><th class="p-2">{{ t('openAIQuality.reason') }}</th><th class="p-2">{{ t('openAIQuality.actions') }}</th></tr></thead>
-              <tbody><tr v-for="r in bucketRuns.items" :key="r.id" class="border-t border-gray-100 dark:border-dark-700"><td class="p-2">{{ r.id }}</td><td class="p-2">{{ formatDate(r.started_at || r.queued_at) }}</td><td class="p-2">{{ r.status }}</td><td class="p-2">{{ r.result?.final_answer ?? '—' }} / {{ r.result?.expected_answer ?? '—' }}</td><td class="p-2">{{ r.reason_code }}</td><td class="p-2"><button class="text-blue-600 hover:underline" @click="openRun(r.id)">{{ t('openAIQuality.viewDetails') }}</button><button v-if="isCancellable(r)" class="ml-3 text-red-600 hover:underline" @click="cancelRun(r)">{{ t('openAIQuality.cancelRun') }}</button></td></tr></tbody>
+              <tbody><tr v-for="r in bucketRuns.items" :key="r.id" class="border-t border-gray-100 dark:border-dark-700"><td class="p-2">{{ r.id }}</td><td class="p-2">{{ formatDate(r.started_at || r.queued_at) }}</td><td class="p-2">{{ label(r.verdict || r.status) }}</td><td class="p-2">{{ r.result?.final_answer ?? '—' }} / {{ r.result?.expected_answer ?? '—' }}</td><td class="p-2">{{ label(r.reason_code) }}</td><td class="p-2"><button class="text-primary-600 hover:underline" @click="openRun(r.id)">{{ t('openAIQuality.viewDetails') }}</button><button v-if="isCancellable(r)" class="ml-3 text-red-600 hover:underline" @click="cancelRun(r)">{{ t('openAIQuality.cancelRun') }}</button></td></tr></tbody>
             </table>
             <div v-if="bucketRuns.items.length < bucketRuns.total" class="p-2 text-center"><button class="btn btn-secondary px-3 py-1.5 text-xs" :disabled="bucketBusy" @click="loadBucket(selectedBucketIndex!, bucketRuns.page + 1, true)">{{ bucketBusy ? t('common.loading') : t('openAIQuality.loadMoreHistory') }}</button></div>
           </div>
@@ -109,15 +120,9 @@
           <div v-if="eventPage < eventPages" class="text-center"><button class="btn btn-secondary px-3 py-1.5 text-xs" :disabled="eventsBusy" @click="loadEvents(eventPage + 1, true)">{{ eventsBusy ? t('common.loading') : t('openAIQuality.loadMoreHistory') }}</button></div>
         </div>
       </section>
-
-      <div v-if="runDetail" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation" @click.self="runDetail = null">
-        <section class="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-dark-800" role="dialog" aria-modal="true" :aria-label="t('openAIQuality.runDetailsTitle', { id: runDetail.run.id })">
-          <div class="flex items-start justify-between gap-3"><div><h2 class="text-lg font-semibold">{{ t('openAIQuality.runDetailsTitle', { id: runDetail.run.id }) }}</h2><p class="mt-1 text-xs text-gray-500">{{ t('openAIQuality.trigger') }}: {{ runDetail.run.trigger_source }} · {{ formatDate(runDetail.run.finished_at || runDetail.run.queued_at) }}</p></div><button class="text-gray-500" :aria-label="t('common.close')" @click="runDetail = null">×</button></div>
-          <div class="mt-4 grid gap-3 sm:grid-cols-2"><p>{{ t('openAIQuality.runStatus') }}: {{ runDetail.run.status }} / {{ runDetail.run.verdict || '—' }}</p><p>{{ t('openAIQuality.reason') }}: {{ runDetail.run.result.reason_code || runDetail.run.reason_code || '—' }}</p><p>{{ t('openAIQuality.answer') }}: {{ runDetail.run.result.final_answer ?? '—' }} / {{ runDetail.run.result.expected_answer }}</p><p>{{ t('openAIQuality.latency') }}: {{ runDetail.run.result.latency_ms }} ms</p><p>{{ t('openAIQuality.tokenUsage') }}: {{ runDetail.run.result.input_tokens ?? '—' }} / {{ runDetail.run.result.output_tokens ?? '—' }} / {{ runDetail.run.result.total_tokens ?? '—' }}</p><p>{{ t('openAIQuality.estimatedCost') }}: {{ runDetail.run.result.estimated_cost_usd ?? '—' }}</p><p>{{ t('openAIQuality.stateParticipation') }}: {{ runDetail.run.state_applied ? t('openAIQuality.appliedToState') : (runDetail.run.state_skip_reason || t('openAIQuality.notAppliedToState')) }}</p></div>
-          <p class="mt-3 rounded-xl bg-blue-50 p-3 text-xs text-blue-800 dark:bg-blue-900/20 dark:text-blue-200">{{ t('openAIQuality.scopeNote') }}</p>
-          <div class="mt-4"><h3 class="mb-2 font-medium">{{ t('openAIQuality.finalResponse') }}</h3><p v-if="runDetail.response_expired" class="text-sm text-gray-500">{{ t('openAIQuality.responseExpired') }}</p><p v-else-if="!runDetail.response_available" class="text-sm text-gray-500">{{ t('openAIQuality.responseUnavailable') }}</p><pre v-else class="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-gray-50 p-3 text-sm dark:bg-dark-900">{{ runDetail.run.response_text }}</pre><p v-if="runDetail.run.result.response_truncated" class="mt-2 text-xs text-amber-700">{{ t('openAIQuality.responseTruncated') }}</p></div>
-        </section>
-      </div>
+      <template v-if="selected" #footer><div class="flex flex-wrap justify-between gap-3"><span class="text-xs text-gray-400">{{ t('openAIQuality.serverAggregate') }} {{ formatDate(monitor?.as_of || null) }}</span><div class="flex gap-2"><button v-if="['quarantined','recovering'].includes(selected.state.state)" class="btn btn-secondary px-3 py-2 text-xs" @click="release(selected)">{{ t('openAIQuality.release') }}</button><button class="btn btn-ghost px-3 py-2 text-xs text-red-600" @click="archive(selected)">{{ t('openAIQuality.archive') }}</button></div></div></template>
+      </BaseDialog>
+      <QualityRunDetailDialog :detail="runDetail" :group-name="runDetail?.run.input_snapshot ? groupName(runDetail.run.input_snapshot) : ''" @close="runDetail = null" />
 
       <p v-if="error" class="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">{{ error }}</p>
     </main>
@@ -125,17 +130,29 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import { extractApiErrorMessage } from '@/utils/apiError'
+import BaseDialog from '@/components/common/BaseDialog.vue'
+import Select from '@/components/common/Select.vue'
+import Pagination from '@/components/common/Pagination.vue'
+import Icon from '@/components/icons/Icon.vue'
+import QualityRunDetailDialog from '@/components/admin/account-quality/QualityRunDetailDialog.vue'
+import { groupQualityPolicies, qualityOutcomeClass } from '@/components/admin/account-quality/qualityPresentation'
+import { getAllIncludingInactive } from '@/api/admin/groups'
+import type { AdminGroup } from '@/types'
 import { adaptServerQualityBuckets, type AdaptedServerTimelineBucket } from '@/components/admin/account-quality/qualityMonitor'
 import { cancelQualityRun, getQualityEvents, getQualityOverview, getAllQualityPolicies, getQualityMonitor, getQualityBucketRuns, getQualityRun, submitQualityRuns, qualityPolicyAction, type QualityEvent, type QualityPolicy, type QualityMonitor, type QualityRun, type QualityRunDetail } from '@/api/admin/openaiAccountQuality'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const route = useRoute()
 const overview = ref<any>(null)
 const policies = ref<QualityPolicy[]>([])
+const groups = ref<AdminGroup[]>([])
+const page = ref(1)
+const pageSize = ref(10)
 const selected = ref<QualityPolicy | null>(null)
 const monitor = ref<QualityMonitor | null>(null)
 const timelineBuckets = ref<AdaptedServerTimelineBucket[]>([])
@@ -162,13 +179,21 @@ let eventRequest = 0
 let runRequest = 0
 let pollTimer: number | undefined
 let pollFailures = 0
+let disposed = false
+let active = true
+let activatedOnce = false
 
-const filtered = computed(() => policies.value.filter(p => `${p.account_name} ${p.account_id} ${p.effective_upstream_model}`.toLowerCase().includes(search.value.toLowerCase())))
-const sourceGroupOptions = computed(() => [...new Set(policies.value.flatMap(policy => [policy.source_group_id, ...policy.compatible_source_group_ids]))].sort((a, b) => a - b))
+const filtered = computed(() => policies.value.filter(p => `${p.account_name} ${p.account_id} ${p.condition.model_id} ${p.effective_upstream_model}`.toLowerCase().includes(search.value.toLowerCase())))
+const groupedRows = computed(() => groupQualityPolicies(filtered.value))
+const visibleRows = computed(() => groupedRows.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value))
+const visiblePolicies = computed(() => visibleRows.value.flatMap(row => row.policies))
+const sourceGroupOptions = computed(() => [{ value: '', label: t('openAIQuality.allSourceGroups') }, ...groups.value.filter(g => g.platform === 'openai' && g.group_role !== 'self_hosted_pool').map(g => ({ value: String(g.id), label: g.name }))])
 const states = ['untested', 'observing', 'normal', 'quarantined', 'recovering']
+const stateOptions = computed(() => [{ value: '', label: t('openAIQuality.allStates') }, ...states.map(value => ({ value, label: stateLabel(value) }))])
+const freshnessOptions = computed(() => [{ value: '', label: t('openAIQuality.allFreshness') }, ...['fresh', 'stale', 'never'].map(value => ({ value, label: label(value) }))])
 const selectedRunnablePolicies = computed(() => filtered.value.filter(p => selectedPolicyIds.value.includes(p.id) && p.eligibility === 'eligible'))
-const allVisibleSelected = computed(() => filtered.value.length > 0 && filtered.value.every(p => selectedPolicyIds.value.includes(p.id)))
-const someVisibleSelected = computed(() => filtered.value.some(p => selectedPolicyIds.value.includes(p.id)))
+const allVisibleSelected = computed(() => visiblePolicies.value.length > 0 && visiblePolicies.value.every(p => selectedPolicyIds.value.includes(p.id)))
+const someVisibleSelected = computed(() => visiblePolicies.value.some(p => selectedPolicyIds.value.includes(p.id)))
 const cards = computed(() => [
   { label: t('openAIQuality.eligibleAccounts'), value: overview.value?.inventory?.eligible_account_count ?? 0 },
   { label: t('openAIQuality.configuredAccounts'), value: overview.value?.inventory?.configured_account_count ?? 0 },
@@ -176,7 +201,9 @@ const cards = computed(() => [
   { label: t('openAIQuality.budget'), value: `${overview.value?.budget?.consumed ?? overview.value?.budget?.consumed_calls ?? 0} / ${overview.value?.budget?.limit ?? overview.value?.budget?.global_limit ?? '—'}` },
 ])
 
-function errorMessage(errorValue: unknown) { return errorValue instanceof Error ? errorValue.message : String(errorValue) }
+function errorMessage(value: unknown) { return extractApiErrorMessage(value, t('common.error')) }
+function label(value: string) { return te(`openAIQuality.labels.${value}`) ? t(`openAIQuality.labels.${value}`) : value || '—' }
+function groupName(policy: QualityPolicy) { return groups.value.find(g => g.id === policy.source_group_id)?.name || policy.source_group_name || t('openAIQuality.unavailableGroup') }
 async function reload() {
   const request = ++reloadRequest
   busy.value = true
@@ -194,6 +221,8 @@ async function reload() {
       policies.value = p.items
       selectedPolicyIds.value = selectedPolicyIds.value.filter(id => p.items.some(policy => policy.id === id))
       if (selected.value && !p.items.some(policy => policy.id === selected.value?.id)) closePolicy()
+      else if (selected.value) selected.value = p.items.find(policy => policy.id === selected.value?.id) || null
+      page.value = Math.min(page.value, Math.max(1, Math.ceil(groupedRows.value.length / pageSize.value)))
     }
     return request === reloadRequest
   } catch (e) { if (request === reloadRequest) error.value = errorMessage(e); return false }
@@ -283,7 +312,7 @@ async function cancelRun(run: QualityRun) {
 }
 function toggleVisible(event: Event) {
   const checked = (event.target as HTMLInputElement).checked
-  const visibleIds = new Set(filtered.value.map(p => p.id))
+  const visibleIds = new Set(visiblePolicies.value.map(p => p.id))
   selectedPolicyIds.value = checked
     ? [...new Set([...selectedPolicyIds.value, ...visibleIds])].slice(0, 100)
     : selectedPolicyIds.value.filter(id => !visibleIds.has(id))
@@ -319,22 +348,23 @@ async function archive(policy: QualityPolicy) {
 function formatDate(value: string | null) { return value ? new Date(value).toLocaleString() : '—' }
 function percent(value: number | null | undefined) { return value == null ? '—' : `${value.toFixed(1)}%` }
 function stateLabel(value: string) { return t(`openAIQuality.states.${value}`) }
-function stateClass(value: string) { return value === 'quarantined' || value === 'recovering' ? 'bg-red-100 text-red-700' : value === 'observing' ? 'bg-amber-100 text-amber-700' : value === 'normal' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600' }
+function stateClass(value: string) { return qualityOutcomeClass(value) }
 function bucketClass(value: string) { return value === 'passed' ? 'bg-green-500' : value === 'incorrect' ? 'bg-red-500' : value === 'error' ? 'bg-rose-300' : value === 'running' ? 'bg-blue-400' : value === 'queued' ? 'bg-blue-200' : value === 'unknown' ? 'bg-amber-300' : value === 'empty' ? 'bg-gray-100 dark:bg-dark-700' : 'bg-gray-300' }
-function bucketLabel(bucket: AdaptedServerTimelineBucket) { return `${formatDate(new Date(bucket.start_ms).toISOString())} · ${bucket.status} · ${bucket.total}` }
+function bucketLabel(bucket: AdaptedServerTimelineBucket) { return `${formatDate(new Date(bucket.start_ms).toISOString())} · ${label(bucket.status)} · ${bucket.total}` }
 
 function schedulePoll(delay: number) {
   if (pollTimer !== undefined) window.clearTimeout(pollTimer)
-  if (document.hidden) return
+  if (document.hidden || disposed || !active) return
   pollTimer = window.setTimeout(() => { void refreshAndSchedule() }, delay)
 }
 async function refreshAndSchedule() {
-  if (document.hidden) return
+  if (document.hidden || disposed || !active) return
   const succeeded = await reload()
+  if (disposed || !active) return
   if (succeeded) pollFailures = 0
   else pollFailures++
-  const active = Number(overview.value?.health?.queue_depth || 0) + Number(overview.value?.health?.running_count || 0) > 0
-  const normalDelay = active ? 3000 : 30000
+  const hasActiveRuns = Number(overview.value?.health?.queue_depth || 0) + Number(overview.value?.health?.running_count || 0) > 0
+  const normalDelay = hasActiveRuns ? 3000 : 30000
   const delay = succeeded ? normalDelay : Math.min(30000, 3000 * 2 ** Math.min(pollFailures, 3))
   schedulePoll(delay)
 }
@@ -347,11 +377,34 @@ function visibilityChanged() {
   }
 }
 onMounted(() => {
+  void getAllIncludingInactive().then(result => { groups.value = result }).catch(e => { error.value = errorMessage(e) })
   document.addEventListener('visibilitychange', visibilityChanged)
   void refreshAndSchedule()
 })
-watch([sourceGroupFilter, stateFilter, freshnessFilter], () => { void reload() })
+watch([sourceGroupFilter, stateFilter, freshnessFilter], () => { page.value = 1; if (active) void reload() })
+watch([search, pageSize], () => { page.value = 1 })
+watch(() => route.query.account_id, () => { if (active && route.path === '/admin/openai-quality') { page.value = 1; void reload() } })
+onActivated(() => {
+  active = true
+  if (activatedOnce) void refreshAndSchedule()
+  activatedOnce = true
+})
+onDeactivated(() => {
+  active = false
+  closePolicy()
+  runDetail.value = null
+  ++runRequest
+  ++reloadRequest
+  busy.value = false
+  if (pollTimer !== undefined) window.clearTimeout(pollTimer)
+})
 onUnmounted(() => {
+  disposed = true
+  ++reloadRequest
+  ++monitorRequest
+  ++bucketRequest
+  ++eventRequest
+  ++runRequest
   document.removeEventListener('visibilitychange', visibilityChanged)
   if (pollTimer !== undefined) window.clearTimeout(pollTimer)
 })

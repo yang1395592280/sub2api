@@ -71,6 +71,10 @@ func Present(p Policy, settings Settings, now time.Time) Policy {
 	}
 	p.State = p.State.Project(now, p.Rules.EvidenceWindowSeconds)
 	p.Control = Control{Reason: "global_control_disabled", Action: "observe_only"}
+	if p.ControlSupported != nil && !*p.ControlSupported {
+		p.Control.Reason = "source_observe_only"
+		return p
+	}
 	if !settings.ControlEnabled {
 		return p
 	}

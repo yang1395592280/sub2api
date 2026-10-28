@@ -180,6 +180,8 @@ type Policy struct {
 	AccountID                int64      `json:"account_id"`
 	AccountName              string     `json:"account_name"`
 	SourceGroupID            int64      `json:"source_group_id"`
+	SourceGroupName          string     `json:"source_group_name"`
+	ControlSupported         *bool      `json:"control_supported,omitempty"`
 	CompatibleSourceGroupIDs []int64    `json:"compatible_source_group_ids"`
 	RoutingMode              string     `json:"routing_mode"`
 	Condition                Condition  `json:"condition"`
@@ -231,6 +233,8 @@ func Hash(v any) string {
 }
 func (p *Policy) SetTarget(t Target) {
 	p.AccountName = t.AccountName
+	p.SourceGroupName = t.SourceGroupName
+	p.ControlSupported = &t.CanEnforce
 	p.CompatibleSourceGroupIDs = t.CompatibleSourceGroupIDs
 	p.Condition = t.Condition
 	p.EffectiveModel = t.EffectiveModel

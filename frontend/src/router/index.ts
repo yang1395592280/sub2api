@@ -542,6 +542,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiresAdmin: true, title: 'OpenAI Quality', titleKey: 'openAIQuality.monitorTitle' }
   },
   {
+    path: '/admin/openai-quality/records',
+    name: 'AdminOpenAIQualityRecords',
+    component: () => import('@/views/admin/OpenAIQualityRecordsView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: 'Quality Records', titleKey: 'openAIQuality.recordsTitle' }
+  },
+  {
     path: '/admin/openai-quality/settings',
     name: 'AdminOpenAIQualitySettings',
     component: () => import('@/views/admin/OpenAIQualitySettingsView.vue'),

@@ -48,7 +48,7 @@ func (p *accountQualityProvider) inventory(ctx context.Context) (qualityInventor
 	}
 	allIDs := map[int64]bool{}
 	for _, g := range groups {
-		if g.IsSelfHostedPool() || !g.AllowAutoCheapestScheduling {
+		if g.IsSelfHostedPool() {
 			continue
 		}
 		v.groups = append(v.groups, g)
@@ -106,6 +106,7 @@ func (p *accountQualityProvider) Targets(ctx context.Context) ([]quality.Target,
 			for _, member := range v.sources[g.ID] {
 				if member == id {
 					t.CompatibleSourceGroupIDs = append(t.CompatibleSourceGroupIDs, g.ID)
+					t.CanEnforce = t.CanEnforce || g.AllowAutoCheapestScheduling
 					if t.SourceGroupID == 0 {
 						t.SourceGroupID = g.ID
 						t.SourceGroupName = g.Name
@@ -115,7 +116,7 @@ func (p *accountQualityProvider) Targets(ctx context.Context) ([]quality.Target,
 			}
 		}
 		t.CanProbe = !a.IsOpenAIAgentIdentity() && (a.IsOpenAIOAuthLike() || a.IsOpenAIApiKey())
-		t.CanEnforce = t.CanProbe && !a.IsCredentialShadow()
+		t.CanEnforce = t.CanEnforce && t.CanProbe && !a.IsCredentialShadow()
 		t.SupportsOutputLimit = t.CanProbe
 		if !t.CanProbe {
 			t.Reasons = append(t.Reasons, "unsupported_authentication")
@@ -205,7 +206,7 @@ func (p *accountQualityProvider) Resolve(ctx context.Context, id, source int64, 
 	}
 	a := v.accounts[id]
 	if a == nil {
-		return quality.Target{}, quality.Fail(400, "QUALITY_TARGET_OUT_OF_SCOPE", "账号未参与自动不降智分组")
+		return quality.Target{}, quality.Fail(400, "QUALITY_TARGET_OUT_OF_SCOPE", "账号未参与可检测的 OpenAI 分组")
 	}
 	var group *Group
 	for i := range v.groups {
@@ -285,7 +286,9 @@ func (p *accountQualityProvider) Resolve(ctx context.Context, id, source int64, 
 		t.CanProbe = false
 		t.Reasons = append(t.Reasons, "websocket_v2_unavailable")
 	}
-	t.CanEnforce = t.CanProbe && !a.IsCredentialShadow()
+	// Ordinary source groups can collect diagnostic evidence, but cannot grant
+	// authority to change scheduling, even for accounts shared with auto groups.
+	t.CanEnforce = t.CanProbe && !a.IsCredentialShadow() && group.AllowAutoCheapestScheduling
 	t.SupportsOutputLimit = t.CanProbe
 	if !t.CanProbe {
 		t.Reasons = append(t.Reasons, "unsupported_condition")

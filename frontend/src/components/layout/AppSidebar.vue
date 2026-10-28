@@ -870,6 +870,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
     { path: '/admin/openai-quality', label: t('nav.openAIQuality'), icon: ChartIcon },
+    { path: '/admin/openai-quality/records', label: t('nav.openAIQualityRecords'), icon: OrderListIcon },
     { path: '/admin/openai-quality/settings', label: t('nav.openAIQualitySettings'), icon: CogIcon },
     { path: '/admin/plugins', label: t('nav.plugins'), icon: PluginIcon, featureFlag: flagPluginManagement },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
