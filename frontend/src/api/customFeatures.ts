@@ -1,5 +1,5 @@
 export const CUSTOM_FEATURE_KEYS = [
-  'zenxiang_liyu_enabled', 'redeem_code_purchase_enabled', 'join_group_enabled'
+  'zenxiang_liyu_enabled', 'redeem_code_purchase_enabled', 'join_group_enabled', 'openai_quality_enabled'
 ] as const
 
 export interface CustomFeatures {

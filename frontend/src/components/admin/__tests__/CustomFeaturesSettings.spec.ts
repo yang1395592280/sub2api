@@ -42,4 +42,15 @@ describe('central feature patch', () => {
     expect(patch).toHaveBeenCalledWith('/admin/settings/custom-features', { flags: { join_group_enabled: false }, menus: {} })
     wrapper.unmount()
   })
+  it('saves the legacy module switch independently of pelican generation', async () => {
+    get.mockResolvedValue({ data: { flags: { openai_quality_enabled: true }, menus: [] } })
+    patch.mockResolvedValue({ data: { flags: { openai_quality_enabled: false }, menus: [] } })
+    const wrapper = mount(CustomFeaturesSettings); await flushPromises()
+    const label = wrapper.findAll('label').find(item => item.text().includes('customFeatures.flags.openai_quality_enabled'))!
+    await label.get('input').setValue(false)
+    await wrapper.get('.btn-primary').trigger('click'); await flushPromises()
+    expect(patch).toHaveBeenCalledWith('/admin/settings/custom-features', { flags: { openai_quality_enabled: false }, menus: {} })
+    wrapper.unmount()
+  })
+
 })

@@ -9,6 +9,7 @@ import (
 	"log"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 )
@@ -34,11 +35,15 @@ type PelicanTestService struct {
 	repo        PelicanTestRepository
 	accountRepo AccountRepository
 	accountTest *AccountTestService
-	semaphore   chan struct{}
+	groupRepo   GroupRepository
+	startOnce   sync.Once
+	stopOnce    sync.Once
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
 }
 
 func NewPelicanTestService(repo PelicanTestRepository, accountRepo AccountRepository, accountTest *AccountTestService) *PelicanTestService {
-	return &PelicanTestService{repo: repo, accountRepo: accountRepo, accountTest: accountTest, semaphore: make(chan struct{}, 3)}
+	return &PelicanTestService{repo: repo, accountRepo: accountRepo, accountTest: accountTest}
 }
 
 // StartBatch only persists work after validating the selection. Each job
@@ -71,34 +76,12 @@ func (s *PelicanTestService) StartBatch(ctx context.Context, accountIDs []int64,
 	if err != nil {
 		return nil, err
 	}
-	if len(tests) > 0 {
-		go s.runBatch(tests)
-	}
 	return tests, nil
 }
 
-func (s *PelicanTestService) runBatch(tests []PelicanTest) {
-	for _, test := range tests {
-		s.semaphore <- struct{}{}
-		go func(test PelicanTest) {
-			defer func() { <-s.semaphore }()
-			s.runOne(test)
-		}(test)
-	}
-}
-
-func (s *PelicanTestService) runOne(test PelicanTest) {
-	ctx, cancel := context.WithTimeout(context.Background(), pelicanTestTimeout)
+func (s *PelicanTestService) runOne(ctx context.Context, test PelicanTest) {
+	ctx, cancel := context.WithTimeout(ctx, pelicanTestTimeout)
 	defer cancel()
-	started, err := s.repo.MarkRunning(ctx, test.ID)
-	if err != nil {
-		log.Printf("pelican test %d account %d: mark running: %v", test.ID, test.AccountID, err)
-		return
-	}
-	if !started {
-		// A stale queued job may already have been marked failed by another request.
-		return
-	}
 	status, output, html, reason, latency, usage := s.generate(ctx, test)
 	// Persist a terminal state even when the upstream request timed out.
 	finishCtx, finishCancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -112,6 +95,16 @@ func (s *PelicanTestService) generate(ctx context.Context, test PelicanTest) (st
 	account, err := s.accountRepo.GetByID(ctx, test.AccountID)
 	if err != nil {
 		return "failed", "", "", "账号已删除或不可用", 0, usage
+	}
+	if account == nil {
+		return "failed", "", "", "账号已删除或不可用", 0, usage
+	}
+	if test.SourceGroupID > 0 {
+		ctx = context.WithValue(ctx, generationOnlyContextKey{}, true)
+		enabled, err := s.repo.ScheduledTestEnabled(ctx, test)
+		if err != nil || !enabled {
+			return "failed", "", "", "分组测试已关闭，或分组配置、账号状态、成员关系已变化", 0, usage
+		}
 	}
 	// Only use routes whose existing account test path sends the supplied prompt.
 	// Other protocols must fail explicitly instead of silently testing "hi".

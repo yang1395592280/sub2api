@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { adminAPI } from '@/api'
+import { apiClient } from '@/api/client'
+import type { CustomFeatures } from '@/api/customFeatures'
 import type { CustomMenuItem } from '@/types'
 
 export const useAdminSettingsStore = defineStore('adminSettings', () => {
@@ -49,6 +51,7 @@ export const useAdminSettingsStore = defineStore('adminSettings', () => {
   const opsRealtimeMonitoringEnabled = ref(readCachedBool('ops_realtime_monitoring_enabled_cached', true))
   const opsQueryModeDefault = ref(readCachedString('ops_query_mode_default_cached', 'auto'))
   const paymentEnabled = ref(readCachedBool('payment_enabled_cached', false))
+  const openAIQualityEnabled = ref(readCachedBool('openai_quality_enabled_cached', true))
   const customMenuItems = ref<CustomMenuItem[]>([])
 
   async function fetch(force = false): Promise<void> {
@@ -75,6 +78,13 @@ export const useAdminSettingsStore = defineStore('adminSettings', () => {
       paymentEnabled.value = paymentConfigResp.data?.enabled ?? false
       writeCachedBool('payment_enabled_cached', paymentEnabled.value)
 
+      try {
+        const { data } = await apiClient.get<CustomFeatures>('/admin/settings/custom-features')
+        openAIQualityEnabled.value = data.flags.openai_quality_enabled !== false
+        writeCachedBool('openai_quality_enabled_cached', openAIQualityEnabled.value)
+      } catch {
+        // Preserve the last known switch if settings are temporarily unavailable.
+      }
       loaded.value = true
     } catch (err) {
       // Keep cached/default value: do not "flip" the UI based on a transient fetch failure.
@@ -140,6 +150,7 @@ export const useAdminSettingsStore = defineStore('adminSettings', () => {
     opsQueryModeDefault,
     paymentEnabled,
     customMenuItems,
+    openAIQualityEnabled,
     fetch,
     setOpsMonitoringEnabledLocal,
     setOpsRealtimeMonitoringEnabledLocal,

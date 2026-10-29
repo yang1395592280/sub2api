@@ -113,7 +113,10 @@ watch(previewViewport, (element, _previous, onCleanup) => {
   }
 }, { flush: 'post' })
 
+let resultVersion = 0
 watch(() => [props.show, props.testId] as const, async ([show, id]) => {
+  const version = ++resultVersion
+  test.value = null
   if (!show || !id) {
     test.value = null
     return
@@ -121,14 +124,17 @@ watch(() => [props.show, props.testId] as const, async ([show, id]) => {
   loading.value = true
   error.value = ''
   try {
-    test.value = await adminAPI.accounts.getPelicanTest(id)
+    const result = await adminAPI.accounts.getPelicanTest(id)
+    if (version !== resultVersion) return
+    test.value = result
     tab.value = test.value.html ? 'preview' : 'source'
     fitToWindow.value = true
   } catch (cause) {
+    if (version !== resultVersion) return
     test.value = null
     error.value = extractApiErrorMessage(cause, t('admin.accounts.pelican.loadResultFailed'))
   } finally {
-    loading.value = false
+    if (version === resultVersion) loading.value = false
   }
 }, { immediate: true })
 

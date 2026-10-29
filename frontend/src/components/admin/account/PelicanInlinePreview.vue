@@ -1,5 +1,5 @@
 <template>
-  <div ref="container" class="relative h-36 w-60 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-dark-600" :aria-label="t('admin.accounts.pelican.previewColumn')">
+  <div ref="container" :class="responsive ? 'aspect-video w-full' : 'h-36 w-60'" class="relative overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-dark-600" :aria-label="t('admin.accounts.pelican.previewColumn')">
     <iframe
       v-if="visible && html"
       :srcdoc="buildPelicanPreviewSource(html, previewNonce)"
@@ -20,19 +20,21 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import { buildPelicanPreviewSource, getPelicanPreviewNonce, PELICAN_PREVIEW_HEIGHT, PELICAN_PREVIEW_WIDTH } from '@/utils/pelicanPreview'
 
-const props = defineProps<{ testId: number }>()
+const props = defineProps<{ testId: number; responsive?: boolean }>()
 const { t } = useI18n()
 const container = ref<HTMLElement | null>(null)
 const visible = ref(false)
 const html = ref('')
 const error = ref('')
 const loading = ref(false)
-const inlineScale = Math.min(238 / PELICAN_PREVIEW_WIDTH, 142 / PELICAN_PREVIEW_HEIGHT)
+const viewport = ref({ width: 238, height: 142 })
+const inlineScale = computed(() => Math.min(viewport.value.width / PELICAN_PREVIEW_WIDTH, viewport.value.height / PELICAN_PREVIEW_HEIGHT))
+let resizeObserver: ResizeObserver | null = null
 const previewNonce = getPelicanPreviewNonce()
 let observer: IntersectionObserver | null = null
 let requestVersion = 0
@@ -67,6 +69,14 @@ async function loadPreview() {
 
 onMounted(() => {
   if (!container.value) return
+  if (props.responsive && typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => {
+      if (container.value && container.value.clientWidth > 0) {
+        viewport.value = { width: container.value.clientWidth - 2, height: container.value.clientHeight - 2 }
+      }
+    })
+    resizeObserver.observe(container.value)
+  }
   if (typeof IntersectionObserver === 'undefined') {
     visible.value = true
     return
@@ -79,5 +89,6 @@ onMounted(() => {
 onUnmounted(() => {
   requestVersion += 1
   observer?.disconnect()
+  resizeObserver?.disconnect()
 })
 </script>

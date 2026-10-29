@@ -536,6 +536,12 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/accounts/:id/pelican-tests',
+    name: 'AdminAccountPelicanHistory',
+    component: () => import('@/views/admin/AccountPelicanHistoryView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: 'Pelican history', titleKey: 'pelican.historyTitle' }
+  },
+  {
     path: '/admin/openai-quality',
     name: 'AdminOpenAIQuality',
     component: () => import('@/views/admin/OpenAIQualityMonitorView.vue'),
@@ -980,6 +986,14 @@ router.beforeEach(async (to, _from, next) => {
     }
   }
 
+
+  if (to.path === '/admin/openai-quality' || to.path.startsWith('/admin/openai-quality/')) {
+    await adminSettingsStore.fetch()
+    if (adminSettingsStore.openAIQualityEnabled === false) {
+      next('/admin/settings')
+      return
+    }
+  }
 
   // 公共设置可能尚未加载（App.vue 的 onMounted 异步拉取晚于首次导航，且纯静态部署
   // 无 __APP_CONFIG__ 注入）。此时 cachedPublicSettings 为空会把 payment/risk_control

@@ -275,6 +275,7 @@
               <span class="max-w-[190px] truncate text-gray-500" :title="pelicanTests[row.id].error_message || pelicanTests[row.id].model_id">
                 {{ pelicanTests[row.id].error_message || `${pelicanTests[row.id].model_id} · ${pelicanTests[row.id].latency_ms} ms` }}
               </span>
+              <time :datetime="pelicanTests[row.id].created_at" class="text-gray-400">{{ formatDateTime(pelicanTests[row.id].created_at) }}</time>
               <span v-if="pelicanTests[row.id].total_tokens != null" class="text-gray-500">
                 {{ t('admin.accounts.pelican.tokensTotal', { count: pelicanTests[row.id].total_tokens?.toLocaleString() }) }}
               </span>
@@ -285,6 +286,7 @@
                 {{ t('admin.accounts.pelican.retry') }}
               </button>
             </div>
+            <router-link :to="`/admin/accounts/${row.id}/pelican-tests`" class="mt-1 inline-block text-xs text-primary-600 hover:underline dark:text-primary-400">{{ t('pelican.history') }}</router-link>
           </template>
           <template #cell-pelican_preview="{ row }">
             <PelicanInlinePreview
@@ -607,6 +609,7 @@ import PelicanBatchTestDialog from '@/components/admin/account/PelicanBatchTestD
 import PelicanResultDialog from '@/components/admin/account/PelicanResultDialog.vue'
 import PelicanInlinePreview from '@/components/admin/account/PelicanInlinePreview.vue'
 import type { PelicanTest } from '@/api/admin/accounts'
+import { useAdminSettingsStore } from '@/stores/adminSettings'
 import { getQualityAccountSummaries, type QualityAccountSummary } from '@/api/admin/openaiAccountQuality'
 import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
 import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.vue'
@@ -671,10 +674,11 @@ type AccountBulkEditTarget =
       selectedPlatforms: AccountPlatform[]
       selectedTypes: AccountType[]
     }
+const adminSettingsStore = useAdminSettingsStore()
 const qualitySummaryByAccount = ref<Record<string, QualityAccountSummary>>({})
 const qualitySummariesLoaded = ref(false)
 let qualitySummaryRequest = 0
-watch(() => accounts.value.map(account => account.id).join(','), async ids => {
+watch(() => adminSettingsStore.openAIQualityEnabled === false ? '' : accounts.value.map(account => account.id).join(','), async ids => {
   const request = ++qualitySummaryRequest
   qualitySummariesLoaded.value = false
   if (!ids) { qualitySummaryByAccount.value = {}; qualitySummariesLoaded.value = true; return }
@@ -2046,7 +2050,7 @@ const allColumns = computed(() => {
     { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
     { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
     { key: 'scheduler_score', label: t('admin.accounts.columns.schedulerScore'), sortable: false },
-    { key: 'quality_state', label: t('openAIQuality.state'), sortable: false },
+    ...(adminSettingsStore.openAIQualityEnabled === false ? [] : [{ key: 'quality_state', label: t('openAIQuality.state'), sortable: false }]),
     { key: 'rate_multiplier', label: t('admin.accounts.columns.billingRateMultiplier'), sortable: true },
     { key: 'channel_price', label: t('admin.accounts.columns.channelPrice'), sortable: true },
     { key: 'upstream_billing_rate', label: t('admin.accounts.columns.upstreamBillingRate'), sortable: true },
@@ -2157,6 +2161,7 @@ const retryPelicanAccount = (account: AccountListItem) => {
   showPelicanBatch.value = true
 }
 
+let pelicanLastRefresh = 0
 let pelicanRefreshRunning = false
 const refreshPelicanTests = async () => {
   if (pelicanRefreshRunning) return
@@ -2182,6 +2187,7 @@ const refreshPelicanTests = async () => {
   } catch (error) {
     console.error('Failed to load pelican test results:', error)
   } finally {
+    pelicanLastRefresh = Date.now()
     pelicanRefreshRunning = false
   }
 }
@@ -2189,7 +2195,7 @@ const refreshPelicanTests = async () => {
 watch(() => accounts.value.map(account => account.id).join(','), () => { void refreshPelicanTests() })
 useIntervalFn(() => {
   const visibleRunning = accounts.value.some(account => ['queued', 'running'].includes(pelicanTests.value[account.id]?.status ?? ''))
-  if (visibleRunning || (pelicanBatch.value && pelicanBatchProgress.value.done < pelicanBatch.value.ids.length)) {
+  if (Date.now() - pelicanLastRefresh >= 30000 || visibleRunning || (pelicanBatch.value && pelicanBatchProgress.value.done < pelicanBatch.value.ids.length)) {
     void refreshPelicanTests()
   }
 }, 3000)

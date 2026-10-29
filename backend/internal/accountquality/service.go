@@ -11,14 +11,16 @@ import (
 )
 
 type Service struct {
-	store     *Store
-	provider  Provider
-	snapshot  atomic.Pointer[Snapshot]
-	cancel    context.CancelFunc
-	done      chan struct{}
-	workers   sync.WaitGroup
-	startOnce sync.Once
-	stopOnce  sync.Once
+	store          *Store
+	provider       Provider
+	snapshot       atomic.Pointer[Snapshot]
+	cancel         context.CancelFunc
+	done           chan struct{}
+	workers        sync.WaitGroup
+	startOnce      sync.Once
+	stopOnce       sync.Once
+	moduleCheck    func(context.Context) bool
+	moduleDisabled atomic.Bool
 }
 type Snapshot struct {
 	Settings Settings
@@ -28,6 +30,13 @@ type Snapshot struct {
 
 func NewService(store *Store, provider Provider) *Service {
 	return &Service{store: store, provider: provider, done: make(chan struct{})}
+}
+
+// SetModuleCheck is wired before Start. Gateway decisions use the cached value;
+// paid dispatches recheck the switch so a queued job cannot bypass shutdown.
+func (s *Service) SetModuleCheck(check func(context.Context) bool) { s.moduleCheck = check }
+func (s *Service) ModuleEnabled(ctx context.Context) bool {
+	return s.moduleCheck == nil || s.moduleCheck(ctx)
 }
 func (s *Service) Start() {
 	s.startOnce.Do(func() { ctx, cancel := context.WithCancel(context.Background()); s.cancel = cancel; go s.loop(ctx) })
@@ -52,6 +61,11 @@ func (s *Service) Write(ctx context.Context, f func(*Tx) (any, error)) (any, err
 	return v, err
 }
 func (s *Service) Refresh(ctx context.Context) {
+	disabled := !s.ModuleEnabled(ctx)
+	s.moduleDisabled.Store(disabled)
+	if disabled {
+		return
+	}
 	v, err := s.Read(ctx, func(t *Tx) (any, error) {
 		snapshot := &Snapshot{Settings: t.Settings, At: t.Now}
 		if t.Settings.ControlEnabled {
@@ -82,6 +96,9 @@ func (s *Service) Health() map[string]any {
 // Decision is called only for requests carrying the trusted original auto mode.
 // The caller supplies a scope resolved using the real outbound model/parameters.
 func (s *Service) Decision(accountID int64, controlScope string, now time.Time) (string, error) {
+	if s.moduleDisabled.Load() {
+		return "baseline", nil
+	}
 	v := s.snapshot.Load()
 	if v == nil {
 		return "", Fail(503, "QUALITY_STATE_UNAVAILABLE", "质量状态尚未加载")
@@ -111,6 +128,9 @@ func (s *Service) Decision(accountID int64, controlScope string, now time.Time) 
 	return "baseline", nil
 }
 func (s *Service) Enabled() bool {
+	if s.moduleDisabled.Load() {
+		return false
+	}
 	v := s.snapshot.Load()
 	return v == nil || v.Settings.ControlEnabled
 }

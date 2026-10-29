@@ -45,8 +45,9 @@ func TestCustomFeaturesOnlyIncludesConfirmedCustomSwitches(t *testing.T) {
 	s := NewSettingService(repo, &config.Config{})
 	settings, err := s.GetCustomFeatures(context.Background())
 	require.NoError(t, err)
-	require.Len(t, settings.Flags, 3)
+	require.Len(t, settings.Flags, 4)
 	require.True(t, settings.Flags[SettingKeyZenxiangLiyuEnabled])
+	require.True(t, settings.Flags[SettingKeyOpenAIQualityEnabled], "upgrades preserve the legacy module by default")
 	for _, key := range restored {
 		require.NotContains(t, settings.Flags, key)
 		require.ErrorContains(t, s.PatchCustomFeatures(context.Background(), map[string]bool{key: false}, nil), "unsupported feature")

@@ -281,6 +281,13 @@ func parseSettings(raw []byte) (Settings, int64, error) {
 // audit middleware. The admin adapter supplies the authenticated actor ID.
 func (s *Service) Register(parent *gin.RouterGroup) {
 	g := parent.Group("/account-quality")
+	g.Use(func(c *gin.Context) {
+		if !s.ModuleEnabled(c.Request.Context()) {
+			c.AbortWithStatusJSON(404, gin.H{"code": 404, "reason": "QUALITY_MODULE_DISABLED", "message": "质量监控总开关已关闭"})
+			return
+		}
+		c.Next()
+	})
 	g.Use(s.prepareRoute)
 	g.GET("/settings", func(c *gin.Context) {
 		s.readHTTP(c, func(t *Tx) (any, error) {

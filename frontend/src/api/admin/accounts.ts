@@ -327,6 +327,8 @@ export interface PelicanTest {
   created_at: string
   started_at?: string
   finished_at?: string
+  source_group_id?: number
+  source_group_name?: string
 }
 
 export async function startPelicanTests(accountIds: number[], modelId: string, prompt: string): Promise<PelicanTest[]> {
@@ -348,6 +350,19 @@ export async function listLatestPelicanTests(accountIds: number[]): Promise<Peli
 export async function getPelicanTest(id: number): Promise<PelicanTest> {
   const { data } = await apiClient.get<PelicanTest>(`/admin/accounts/pelican-tests/${id}`)
   return data
+}
+
+export interface PelicanTestHistory {
+  items: PelicanTest[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export async function listPelicanHistory(accountId: number, page = 1, pageSize = 12): Promise<PelicanTestHistory> {
+  return (await apiClient.get<PelicanTestHistory>(`/admin/accounts/${accountId}/pelican-tests`, {
+    params: { page, page_size: pageSize }
+  })).data
 }
 
 /**
@@ -1209,6 +1224,7 @@ export const accountsAPI = {
   startPelicanTests,
   listLatestPelicanTests,
   getPelicanTest,
+  listPelicanHistory,
   refreshCredentials,
   refreshUpstreamBalance,
   testUpstreamCheckin,

@@ -121,6 +121,7 @@ func provideCleanup(
 	grokOAuth *service.GrokOAuthService,
 	sub2APICheckin *service.Sub2APICheckinService,
 	groupUpstreamBalanceRefreshRunner *service.GroupUpstreamBalanceRefreshRunner,
+	pelicanTestService *service.PelicanTestService,
 	openAIGateway *service.OpenAIGatewayService,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	backupSvc *service.BackupService,
@@ -347,6 +348,10 @@ func provideCleanup(
 				if sub2APICheckin != nil {
 					sub2APICheckin.Stop()
 				}
+				return nil
+			}},
+			{"PelicanTestService", func() error {
+				pelicanTestService.Stop()
 				return nil
 			}},
 			{"GroupUpstreamBalanceRefreshRunner", func() error {

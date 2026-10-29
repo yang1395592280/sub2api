@@ -1,3 +1,4 @@
+import pelican from './pelican'
 import customFeatures from './customFeatures'
 import adminAccessKeys from './adminAccessKeys'
 import landing from './landing'
@@ -10,6 +11,7 @@ import openAIQuality from './openAIQuality'
 import misc from './misc'
 
 export default {
+  pelican,
   ...customFeatures,
   adminAccessKeys,
   ...landing,

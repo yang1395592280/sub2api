@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/adminaccess"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -88,4 +89,84 @@ func (h *AccountHandler) GetPelicanTest(c *gin.Context) {
 		return
 	}
 	response.Success(c, test)
+}
+
+func (h *AccountHandler) ListPelicanHistory(c *gin.Context) {
+	if !h.pelicanFullAdmin(c) {
+		return
+	}
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	page, pageErr := strconv.Atoi(c.DefaultQuery("page", "1"))
+	size, sizeErr := strconv.Atoi(c.DefaultQuery("page_size", "12"))
+	if err != nil || id <= 0 || pageErr != nil || sizeErr != nil || page < 1 || page > 1000000 || size < 1 || size > 50 {
+		response.BadRequest(c, "Invalid account or pagination")
+		return
+	}
+	result, err := h.pelicanTestService.ListHistory(c.Request.Context(), id, page, size)
+	if err != nil {
+		_ = c.Error(err)
+		response.InternalError(c, "Failed to load pelican history")
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *AccountHandler) GetGroupPelicanConfig(c *gin.Context) {
+	if !h.pelicanFullAdmin(c) {
+		return
+	}
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+	result, err := h.pelicanTestService.GetGroupConfig(c.Request.Context(), id)
+	if err != nil {
+		pelicanConfigError(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *AccountHandler) SaveGroupPelicanConfig(c *gin.Context) {
+	if !h.pelicanFullAdmin(c) {
+		return
+	}
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+	var req service.GroupPelicanConfig
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid pelican configuration")
+		return
+	}
+	req.GroupID = id
+	result, err := h.pelicanTestService.SaveGroupConfig(c.Request.Context(), req)
+	if err != nil {
+		pelicanConfigError(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+func pelicanConfigError(c *gin.Context, err error) {
+	if errors.Is(err, service.ErrInvalidPelicanBatch) {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.ErrorFrom(c, err)
+}
+
+func (h *AccountHandler) pelicanFullAdmin(c *gin.Context) bool {
+	if adminaccess.FromContext(c.Request.Context()) != nil {
+		response.Error(c, 403, "Pelican management requires a full administrator")
+		return false
+	}
+	if h.pelicanTestService == nil {
+		response.InternalError(c, "Pelican service unavailable")
+		return false
+	}
+	return true
 }

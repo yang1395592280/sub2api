@@ -17,14 +17,14 @@ func NewPelicanTestRepository(db *sql.DB) service.PelicanTestRepository {
 
 const pelicanTestColumns = `id, batch_id, account_id, model_id, prompt, status,
 	response_text, html, error_message, latency_ms, input_tokens, output_tokens,
-	total_tokens, created_at, started_at, finished_at`
+	total_tokens, created_at, started_at, finished_at, source_group_id, source_group_name`
 
 func scanPelicanTest(row interface{ Scan(...any) error }) (service.PelicanTest, error) {
 	var test service.PelicanTest
 	err := row.Scan(&test.ID, &test.BatchID, &test.AccountID, &test.ModelID, &test.Prompt,
 		&test.Status, &test.ResponseText, &test.HTML, &test.ErrorMessage, &test.LatencyMS,
 		&test.InputTokens, &test.OutputTokens, &test.TotalTokens,
-		&test.CreatedAt, &test.StartedAt, &test.FinishedAt)
+		&test.CreatedAt, &test.StartedAt, &test.FinishedAt, &test.SourceGroupID, &test.SourceGroupName)
 	return test, err
 }
 
@@ -33,11 +33,6 @@ func (r *pelicanTestRepository) ExpireStale(ctx context.Context) error {
 		SET status = 'failed', error_message = '后台任务已中断或超时', finished_at = NOW()
 		WHERE (status = 'running' AND started_at < NOW() - INTERVAL '10 minutes')
 		   OR (status = 'queued' AND created_at < NOW() - INTERVAL '6 hours')`)
-	if err != nil {
-		return err
-	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM account_pelican_tests
-		WHERE created_at < NOW() - INTERVAL '30 days'`)
 	return err
 }
 
@@ -88,17 +83,6 @@ func (r *pelicanTestRepository) Finish(ctx context.Context, id int64, status, re
 		WHERE id = $1 AND status IN ('queued', 'running')`,
 		id, status, responseText, html, errorMessage, latencyMS,
 		usage.InputTokens, usage.OutputTokens, usage.TotalTokens)
-	if err != nil {
-		return err
-	}
-	// Keep a small recent history per account to bound generated HTML storage.
-	_, err = r.db.ExecContext(ctx, `DELETE FROM account_pelican_tests
-		WHERE account_id = (SELECT account_id FROM account_pelican_tests WHERE id = $1)
-		AND id NOT IN (
-			SELECT id FROM account_pelican_tests
-			WHERE account_id = (SELECT account_id FROM account_pelican_tests WHERE id = $1)
-			ORDER BY id DESC LIMIT 3
-		)`, id)
 	return err
 }
 
@@ -110,7 +94,7 @@ func (r *pelicanTestRepository) ListLatest(ctx context.Context, accountIDs []int
 		id, batch_id, account_id, model_id, '' AS prompt, status,
 		'' AS response_text, '' AS html, error_message, latency_ms,
 		input_tokens, output_tokens, total_tokens,
-		created_at, started_at, finished_at
+		created_at, started_at, finished_at, source_group_id, source_group_name
 		FROM account_pelican_tests WHERE account_id = ANY($1)
 		ORDER BY account_id, id DESC`, pq.Array(accountIDs))
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 )
 
 const SettingKeyZenxiangLiyuEnabled = "zenxiang_liyu_enabled"
+const SettingKeyOpenAIQualityEnabled = "openai_quality_enabled"
 
 // Only owner-confirmed custom switches belong here. Other settings remain on
 // their original pages; the Liyu default preserves existing upgrade behavior.
@@ -15,6 +16,7 @@ var customFeatureDefaults = map[string]bool{
 	SettingKeyZenxiangLiyuEnabled:       true,
 	SettingKeyRedeemCodePurchaseEnabled: false,
 	SettingKeyJoinGroupEnabled:          false,
+	SettingKeyOpenAIQualityEnabled:      true,
 }
 
 type CustomFeatureMenu struct {

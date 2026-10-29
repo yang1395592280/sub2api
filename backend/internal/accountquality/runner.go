@@ -27,6 +27,9 @@ func (s *Service) loop(ctx context.Context) {
 			if counter%5 == 0 {
 				s.Refresh(ctx)
 			}
+			if s.moduleDisabled.Load() {
+				continue
+			}
 			if counter%30 == 0 {
 				s.reconcile(ctx)
 			}
@@ -264,6 +267,9 @@ func (t *Tx) releaseBudget(runID int64) error {
 	return err
 }
 func (s *Service) dispatch(ctx context.Context, original Run, stage string) error {
+	if !s.ModuleEnabled(ctx) {
+		return Fail(409, "QUALITY_MODULE_DISABLED", "质量监控总开关已关闭")
+	}
 	_, err := s.store.Transaction(ctx, false, func(t *Tx) (any, error) {
 		r, e := t.Run(original.ID, true)
 		if e != nil {
@@ -364,6 +370,11 @@ func (s *Service) execute(parent context.Context, run Run) {
 				return
 			case <-timer.C:
 				beatCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+				if !s.ModuleEnabled(beatCtx) {
+					stop()
+					cancel()
+					return
+				}
 				var requested bool
 				err := s.store.db.QueryRowContext(beatCtx, `UPDATE account_quality_test_runs SET lease_expires_at=NOW()+INTERVAL '60 seconds' WHERE id=$1 AND status='running' AND lease_token=$2 AND lease_expires_at>NOW() RETURNING cancel_requested`, run.ID, run.LeaseToken).Scan(&requested)
 				stop()

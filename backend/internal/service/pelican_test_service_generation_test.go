@@ -81,3 +81,45 @@ func TestPelicanGenerationRejectsUnimplementedPromptRoutes(t *testing.T) {
 	require.Equal(t, "该账号协议暂不支持自定义 HTML 生成提示词", reason)
 	require.Empty(t, upstream.requests, "adaptive connectivity tests must not silently make several generation requests")
 }
+
+type scheduledPelicanAllowed struct {
+	PelicanTestRepository
+	allowed bool
+}
+
+func (r scheduledPelicanAllowed) ScheduledTestEnabled(context.Context, PelicanTest) (bool, error) {
+	return r.allowed, nil
+}
+
+type pelicanHealthReporter struct{ calls int }
+
+func (r *pelicanHealthReporter) ReportOpenAIAccountScheduleResult(int64, string, bool, *int) {
+	r.calls++
+}
+func TestScheduledPelicanDoesNotWriteAccountHealthOrScoring(t *testing.T) {
+	for _, code := range []int{http.StatusUnauthorized, http.StatusTooManyRequests} {
+		t.Run(http.StatusText(code), func(t *testing.T) {
+			a := &Account{ID: 8420, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Credentials: map[string]any{"api_key": "sk-test-key", "base_url": "https://upstream.example/v1"}}
+			tests, upstream := adaptiveCNAccountTestService(a, &http.Response{StatusCode: code, Header: http.Header{"X-Ratelimit-Reset-Requests": []string{"30s"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"message":"failed"}}`))})
+			reporter := &pelicanHealthReporter{}
+			tests.openAIScheduleReporter = reporter
+			svc := &PelicanTestService{repo: scheduledPelicanAllowed{allowed: true}, accountRepo: tests.accountRepo, accountTest: tests}
+			status, _, _, _, _, _ := svc.generate(context.Background(), PelicanTest{AccountID: a.ID, SourceGroupID: 7, ModelID: "gpt-5.5", Prompt: "Generate HTML"})
+			require.Equal(t, "failed", status)
+			require.Len(t, upstream.requests, 1)
+			require.Zero(t, reporter.calls)
+			repo := tests.accountRepo.(*openAIAccountTestRepo)
+			require.Empty(t, repo.setErrorID)
+			require.Empty(t, repo.rateLimitedID)
+		})
+	}
+}
+func TestScheduledPelicanRechecksGroupBeforeAnyUpstreamCall(t *testing.T) {
+	a := &Account{ID: 8421, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	tests, upstream := adaptiveCNAccountTestService(a)
+	svc := &PelicanTestService{repo: scheduledPelicanAllowed{allowed: false}, accountRepo: tests.accountRepo, accountTest: tests}
+	status, _, _, reason, _, _ := svc.generate(context.Background(), PelicanTest{AccountID: a.ID, SourceGroupID: 7})
+	require.Equal(t, "failed", status)
+	require.Contains(t, reason, "已关闭")
+	require.Empty(t, upstream.requests)
+}

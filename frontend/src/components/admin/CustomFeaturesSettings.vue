@@ -7,7 +7,10 @@
     <p v-if="error" role="alert" class="text-sm text-red-500">{{ error }}</p>
     <div v-if="settings" class="grid gap-x-10 md:grid-cols-2">
       <label v-for="key in CUSTOM_FEATURE_KEYS" :key="key" class="flex items-center justify-between gap-4 border-b border-gray-100 py-4 dark:border-dark-700">
-        <span class="text-sm">{{ t(`customFeatures.flags.${key}`) }}</span>
+        <span class="text-sm">
+          {{ t(`customFeatures.flags.${key}`) }}
+          <span v-if="key === 'openai_quality_enabled'" class="mt-1 block max-w-md text-xs leading-5 text-gray-500">{{ t('customFeatures.qualityHint') }}</span>
+        </span>
         <input v-model="settings.flags[key]" type="checkbox" class="h-5 w-5 accent-primary-500" :disabled="saving" />
       </label>
     </div>

@@ -244,3 +244,17 @@
 - 预检：feature/quality-detail-explanations与custom-main起点均为b3737dc4b；改动均属于本次功能，diff检查通过，无目标分支worktree占用。
 - 验证沿用上一轮已完成的核心race99、service定向race、前端28及lint/type/构建和浏览器验收；本轮仅Git操作，不重复运行相同测试。
 - 下一步：提交功能并快进合并，核验分支包含关系与干净工作区；最终提交点以Git输出为准。不推送、不打tag、不部署。
+
+## 2026-10-29 10:31 分组定时鹈鹕本地交付
+
+- 已完成带证据：3/3主线，旧模块收纳/总开关、分组定时只生成、账号最新/完整作品墙；后端170项+最终36项、race34项、vet/embed构建，前端相关130项及lint/typecheck/build，隔离浏览器主路径/异常状态/390px，PGlite迁移及实际SQL通过。
+- 相关文件：docs/group-pelican-tests.md、20261029/group-pelican-plan.md、migration249、pelican_schedule_repo/service、AccountPelicanHistoryView、GroupPelicanDialog。
+- 未完成：本地实现无遗留，当前feature/group-pelican-history未提交/合并/推送/tag/部署；未操作生产。真实PostgreSQL多实例锁和供应商调用尚未验证；上线前在测试环境补验并备份。
+- 阻塞：无本地交付阻塞。全量历史增加数据库占用；回旧版可能恢复旧清理，须保留备份或回退到包含保留修复的版本。
+
+## 2026-10-29 10:34 分组鹈鹕本地合并授权
+
+- 已完成带证据：用户授权提交并合入custom-main；基线1298eb8a6一致、改动范围/分支占用/diff检查通过。使用文档白名单已补。复用前述功能验证。
+- 相关文件：docs/group-pelican-tests.md、20261029/group-pelican-plan.md；来源feature/group-pelican-history，目标custom-main。
+- 未完成：本条为Git执行前记录，将提交并快进合并，最终结果以Git核验为准；不推送/tag/部署/生产迁移，真实PG多实例和上游测试仍未执行。
+- 阻塞：无。

@@ -3,12 +3,13 @@ package service
 import (
 	"context"
 	"database/sql"
-	quality "github.com/Wei-Shaw/sub2api/internal/accountquality"
 	"math/rand"
 	"os"
+	"sync/atomic"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	quality "github.com/Wei-Shaw/sub2api/internal/accountquality"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
@@ -1078,7 +1079,7 @@ var ProviderSet = wire.NewSet(
 	ProvideRateLimitService,
 	ProvideAccountUsageService,
 	ProvideAccountTestService,
-	NewPelicanTestService,
+	ProvidePelicanTestService,
 	ProvideUpstreamBillingProbeService,
 	ProvideOllamaCloudUsageService,
 	ProvideOpenCodeGoUsageService,
@@ -1275,6 +1276,25 @@ func ProvideAccountQualityService(db *sql.DB, cfg *config.Config, accounts Accou
 	provider.billing = billing
 	provider.renderer = quality.NewFrameRenderer(os.Getenv("QUALITY_RENDERER_URL"), os.Getenv("QUALITY_RENDERER_TOKEN"))
 	svc := quality.NewService(quality.NewStore(db, cfg.Timezone), provider)
+	var moduleEnabled atomic.Bool
+	moduleEnabled.Store(true)
+	svc.SetModuleCheck(func(ctx context.Context) bool {
+		values, err := settings.settingRepo.GetMultiple(ctx, []string{SettingKeyOpenAIQualityEnabled})
+		if err != nil {
+			return moduleEnabled.Load()
+		}
+		value := values[SettingKeyOpenAIQualityEnabled]
+		enabled := value == "" || value == "true"
+		moduleEnabled.Store(enabled)
+		return enabled
+	})
+	svc.Start()
+	return svc
+}
+
+func ProvidePelicanTestService(repo PelicanTestRepository, accounts AccountRepository, tests *AccountTestService, groups GroupRepository) *PelicanTestService {
+	svc := NewPelicanTestService(repo, accounts, tests)
+	svc.groupRepo = groups
 	svc.Start()
 	return svc
 }

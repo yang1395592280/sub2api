@@ -468,6 +468,15 @@
                 <span class="text-xs">{{ t("admin.groups.viewMembers") }}</span>
               </button>
               <button
+                v-if="row.platform === 'openai'"
+                data-test="group-pelican-button"
+                @click="pelicanGroup = row"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+              >
+                <Icon name="play" size="sm" />
+                <span class="text-xs">{{ t('pelican.configure') }}</span>
+              </button>
+              <button
                 @click="handleEdit(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
                 data-test="group-edit-button"
@@ -4621,6 +4630,7 @@
       :group="capacityUsersGroup"
       @close="showCapacityUsersModal = false"
     />
+    <GroupPelicanDialog :show="pelicanGroup !== null" :group="pelicanGroup" @close="pelicanGroup = null" />
   </AppLayout>
 </template>
 
@@ -4649,6 +4659,7 @@ import {
   GROUP_PLATFORM_OPTIONS,
 } from "@/constants/platforms";
 import type { Column } from "@/components/common/types";
+import GroupPelicanDialog from "@/components/admin/group/GroupPelicanDialog.vue";
 import AppLayout from "@/components/layout/AppLayout.vue";
 import TablePageLayout from "@/components/layout/TablePageLayout.vue";
 import DataTable from "@/components/common/DataTable.vue";
@@ -5224,6 +5235,7 @@ const sortState = reactive({
 let abortController: AbortController | null = null;
 
 const showCreateModal = ref(false);
+const pelicanGroup = ref<AdminGroup | null>(null);
 const showEditModal = ref(false);
 const showDeleteDialog = ref(false);
 const pendingLiveForm = ref<"create" | "edit" | null>(null);

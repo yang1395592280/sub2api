@@ -1,5 +1,5 @@
 export default {
-  nav: { openAIQuality: 'OpenAI quality', openAIQualitySettings: 'Quality settings', openAIQualityRecords: 'Check history' },
+  nav: { openAIQualityManagement: 'Quality monitoring', openAIQuality: 'OpenAI quality', openAIQualitySettings: 'Quality settings', openAIQualityRecords: 'Check history' },
   openAIQuality: {
     candyQuestion: "Complete question",
     fullPrompt: "View the exact prompt",

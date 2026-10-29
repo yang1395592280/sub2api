@@ -1,5 +1,5 @@
 export default {
-  nav: { openAIQuality: 'OpenAI 质量监控', openAIQualitySettings: '质量检测配置', openAIQualityRecords: '检测记录' },
+  nav: { openAIQualityManagement: '质量监控', openAIQuality: 'OpenAI 质量监控', openAIQualitySettings: '质量检测配置', openAIQualityRecords: '检测记录' },
   openAIQuality: {
     candyQuestion: "完整题目",
     fullPrompt: "查看本次完整提示词",
