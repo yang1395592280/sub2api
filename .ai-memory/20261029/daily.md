@@ -16,3 +16,10 @@ session-id: 20261029-0837
 - make test-unit 最终通过，service 包 226.027s；修复后的 go vet 和 embed 构建通过，二进制版本 0.2.19。
 - Git 暂存空白检查、冲突标记扫描通过，main 与 upstream/main 为同一提交；本记录随本次 merge 提交，最终提交号以 Git 历史为准。
 - 限制：未运行真实 PostgreSQL/Redis 集成、付费上游、管理员登录后操作或 golangci-lint（未安装）。
+
+## [09:27] 发布准备：v0.2.20
+
+- 用户要求提交、打标签并推送；起始 custom-main=672d45643，工作区干净，远端尚无目标标签。
+- VERSION 更新为 0.2.20；版本解析、脚本语法、embed 构建和二进制版本验证通过。复用本次已完成的业务验证，未再修改业务代码。
+- 已实时确认 RELEASE_ONLY=true，计划提交记录并原子推送 custom-main 与 annotated tag；最终 refs 和流水线状态以 Git/GitHub 后续核验为准。
+- 本次不部署、不迁移数据库、不启用检测；详细发布记录见 release-v0.2.20.md。
