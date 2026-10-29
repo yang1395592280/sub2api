@@ -154,6 +154,33 @@ func TestUpdateAccount_EmptyExtraPayloadCanClearQuotaLimits(t *testing.T) {
 	require.Len(t, repo.account.Extra, 0)
 }
 
+func TestUpdateAccount_ExtraCannotInjectOrReplaceQualityIdentity(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		extra   map[string]any
+		want    any
+		wantKey bool
+	}{
+		{name: "missing identity remains absent"},
+		{name: "existing identity is preserved", extra: map[string]any{"quality_identity_version": "current-version"}, want: "current-version", wantKey: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &updateAccountOveragesRepoStub{account: &Account{
+				ID: 103, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Extra: tt.extra,
+			}}
+			svc := &adminServiceImpl{accountRepo: repo}
+			updated, err := svc.UpdateAccount(context.Background(), 103, &UpdateAccountInput{
+				Extra: map[string]any{"quality_identity_version": "forged-version"},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, updated)
+			identity, exists := updated.Extra["quality_identity_version"]
+			require.Equal(t, tt.wantKey, exists)
+			require.Equal(t, tt.want, identity)
+		})
+	}
+}
+
 func TestUpdateAccount_FixedWeeklyResetClearsLegacyRollingUsage(t *testing.T) {
 	now := time.Now().UTC()
 	daysSinceMonday := (int(now.Weekday()) + 6) % 7

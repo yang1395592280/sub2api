@@ -271,6 +271,7 @@ func groupFromServiceBase(g *service.Group) Group {
 		ReasoningEffortMappings:               g.ReasoningEffortMappings,
 		CreatedAt:                             g.CreatedAt,
 		UpdatedAt:                             g.UpdatedAt,
+		ImageCountBilling:                     g.ImageCountBilling,
 	}
 }
 

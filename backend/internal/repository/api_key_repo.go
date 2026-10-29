@@ -231,6 +231,7 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldMonthlyLimitUsd,
 				group.FieldAllowImageGeneration,
 				group.FieldAllowBatchImageGeneration,
+				group.FieldImageCountBilling,
 				group.FieldImageRateIndependent,
 				group.FieldImageRateMultiplier,
 				group.FieldImagePrice1k,
@@ -1246,6 +1247,7 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		ProfitSafetyBuffer:                    g.ProfitSafetyBuffer,
 		CreatedAt:                             g.CreatedAt,
 		UpdatedAt:                             g.UpdatedAt,
+		ImageCountBilling:                     g.ImageCountBilling,
 	}
 }
 

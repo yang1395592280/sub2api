@@ -24,6 +24,8 @@ func TestAPIKeyAuthSnapshotRoundTrip_PreservesAutomaticSchedulingAndPriceGuard(t
 			Name:                                  "openai-auto",
 			Platform:                              PlatformOpenAI,
 			Status:                                StatusActive,
+			AllowImageGeneration:                  true,
+			ImageCountBilling:                     true,
 			OpenAIAutoSchedulerEnabled:            true,
 			AllowAutoCheapestScheduling:           true,
 			UpstreamBalanceRefreshEnabled:         true,
@@ -50,6 +52,7 @@ func TestAPIKeyAuthSnapshotRoundTrip_PreservesAutomaticSchedulingAndPriceGuard(t
 	require.True(t, used)
 	require.NotNil(t, materialized)
 	require.NotNil(t, materialized.Group)
+	require.True(t, materialized.Group.ImageCountBilling)
 	require.True(t, materialized.Group.OpenAIAutoSchedulerEnabled)
 	require.True(t, materialized.Group.AllowAutoCheapestScheduling)
 	require.True(t, materialized.Group.UpstreamBalanceRefreshEnabled)
