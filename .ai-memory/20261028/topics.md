@@ -10,3 +10,9 @@
 - 当前阶段：本地实现及可用环境验收完成；分支feature/openai-quality-dual-check。
 - 活跃任务：待用户后续Git/发布指令，使用文档docs/openai-quality-monitor.md。
 - 会话：session_memory_20261028-dual.jsonl；真实上游及容器构建待验证。
+
+## 糖果详解与鹈鹕判定说明
+- 项目：sub2api；阶段：本地实现与验收完成。
+- 活跃任务：feature/quality-detail-explanations，尚未提交/合并/推送。
+- 上次会话：session_memory_20261028-quality-detail.jsonl。
+- 交接：无本地实现阻塞；真实上游/生产部署待单独联调，旧策略需手动升级后重新检测才能采集说明。

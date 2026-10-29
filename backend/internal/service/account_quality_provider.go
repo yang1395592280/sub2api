@@ -509,7 +509,7 @@ func (p *accountQualityProvider) request(ctx context.Context, r quality.Run, sta
 	text := redactPelicanAccountSecrets(credential, collector.text.String())
 	result := quality.Result{Verdict: "unknown", ReasonCode: "generation_completed", ResponseText: text}
 	if stage == "candy" {
-		result = quality.Score(text, collector.complete)
+		result = quality.ScoreCandy(text, collector.complete, r.Snapshot.Condition)
 	}
 	result.GenerationCompleted = collector.complete
 	if len(result.ResponseText) > quality.MaxResponseBytes {

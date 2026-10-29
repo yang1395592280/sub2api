@@ -46,6 +46,9 @@ func (u *suiteUpstream) DoWithTLS(req *http.Request, _ string, _ int64, _ int, _
 	u.requests = append(u.requests, payload)
 	encoded, _ := json.Marshal(payload)
 	text := `{"answer":21}`
+	if strings.Contains(string(encoded), "explanation") {
+		text = `{"answer":21,"explanation":"test solution summary"}`
+	}
 	if len(u.requests) == 2 {
 		nonce := regexp.MustCompile(`校验码：([a-f0-9-]+)`).FindStringSubmatch(string(encoded))
 		if len(nonce) != 2 {
@@ -67,56 +70,76 @@ func (u *suiteUpstream) DoWithTLS(req *http.Request, _ string, _ int64, _ int, _
 
 func TestQualityDualSuiteUsesIndependentPromptsAndReviewerImages(t *testing.T) {
 	for _, protocol := range []string{"responses", "chat_completions"} {
-		t.Run(protocol, func(t *testing.T) {
-			var pngData bytes.Buffer
-			require.NoError(t, png.Encode(&pngData, image.NewRGBA(image.Rect(0, 0, 960, 640))))
-			frames := []quality.Frame{}
-			for _, at := range []float64{0, .69, 1.53, 2.37} {
-				frames = append(frames, quality.Frame{Time: at, PNG: base64.StdEncoding.EncodeToString(pngData.Bytes())})
-			}
-			renderer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				require.Equal(t, "/render", r.URL.Path)
-				require.Equal(t, "Bearer test-renderer", r.Header.Get("Authorization"))
-				_ = json.NewEncoder(w).Encode(frames)
-			}))
-			defer renderer.Close()
-			mode := openai_compat.ResponsesSupportModeForceResponses
-			if protocol == "chat_completions" {
-				mode = openai_compat.ResponsesSupportModeForceChatCompletions
-			}
-			a := &Account{ID: 42, Name: "tested account", Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, GroupIDs: []int64{7}, Credentials: map[string]any{"api_key": "local-fake-key", "base_url": "https://example.test"}, Extra: map[string]any{openai_compat.ExtraKeyResponsesMode: string(mode)}}
-			upstream := &suiteUpstream{review: `{"checks":{"pelican":true,"bicycle":true,"riding":false,"motion":true}}`}
-			p := &accountQualityProvider{accounts: suiteAccounts{qualityScopeAccounts{items: []*Account{a}}}, groups: qualityScopeGroups{items: []Group{{ID: 7, Name: "0.1", Platform: PlatformOpenAI, GroupRole: GroupRoleStandard}}, members: map[int64][]int64{7: {42}}}, upstream: upstream, concurrency: &ConcurrencyService{}, tls: &TLSFingerprintProfileService{}, renderer: quality.NewFrameRenderer(renderer.URL, "test-renderer")}
-			c := quality.Condition{ModelID: "gpt-5.5", Protocol: protocol, Transport: "http", ReasoningEffort: "upstream_default", ServiceTier: "upstream_default", BenchmarkID: "dual", BenchmarkVersion: "1", ScorerVersion: "dual-visual-v1"}
-			target, err := p.Resolve(context.Background(), 42, 7, c)
-			require.NoError(t, err)
-			require.True(t, target.CanProbe)
-			policy := quality.Policy{AccountID: 42, SourceGroupID: 7, Rules: quality.DefaultRules(100)}
-			policy.SetTarget(target)
-			reviewer := c
-			reviewer.BenchmarkID = "candy"
-			reviewer.ScorerVersion = "strict-json-v1"
-			policy.Reviewer = &quality.ReviewerConfig{AccountID: 42, SourceGroupID: 7, Condition: reviewer}
-			stages := []string{}
-			r := p.Probe(context.Background(), quality.Run{AccountID: 42, Snapshot: policy, ScopeHash: policy.ScopeHash}, func(stage string) error { stages = append(stages, stage); return nil })
-			require.Equal(t, []string{"candy", "pelican", "review"}, stages)
-			require.Equal(t, "incorrect", r.Verdict)
-			require.Equal(t, "passed", r.Candy.Verdict)
-			require.Equal(t, "visual_failed", r.Pelican.ReasonCode)
-			require.False(t, *r.Review.Checks["riding"])
-			require.EqualValues(t, 96, *r.ReasoningTokens)
-			require.EqualValues(t, 870, *r.TotalTokens)
-			require.NotEmpty(t, r.Evidence.SVG)
-			first, _ := json.Marshal(upstream.requests[0])
-			second, _ := json.Marshal(upstream.requests[1])
-			third, _ := json.Marshal(upstream.requests[2])
-			require.Contains(t, string(first), "糖果")
-			require.NotContains(t, string(first), "自行车")
-			require.Contains(t, string(second), "自行车")
-			require.NotContains(t, string(second), "糖果")
-			require.Equal(t, 4, strings.Count(string(third), "data:image/png;base64,"))
-			require.NotContains(t, string(third), "local-fake-key")
-		})
+		for _, version := range []string{"1", "2"} {
+			t.Run(protocol+"/v"+version, func(t *testing.T) {
+				var pngData bytes.Buffer
+				require.NoError(t, png.Encode(&pngData, image.NewRGBA(image.Rect(0, 0, 960, 640))))
+				frames := []quality.Frame{}
+				for _, at := range []float64{0, .69, 1.53, 2.37} {
+					frames = append(frames, quality.Frame{Time: at, PNG: base64.StdEncoding.EncodeToString(pngData.Bytes())})
+				}
+				renderer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					require.Equal(t, "/render", r.URL.Path)
+					require.Equal(t, "Bearer test-renderer", r.Header.Get("Authorization"))
+					_ = json.NewEncoder(w).Encode(frames)
+				}))
+				defer renderer.Close()
+				mode := openai_compat.ResponsesSupportModeForceResponses
+				if protocol == "chat_completions" {
+					mode = openai_compat.ResponsesSupportModeForceChatCompletions
+				}
+				a := &Account{ID: 42, Name: "tested account", Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, GroupIDs: []int64{7}, Credentials: map[string]any{"api_key": "local-fake-key", "base_url": "https://example.test"}, Extra: map[string]any{openai_compat.ExtraKeyResponsesMode: string(mode)}}
+				upstream := &suiteUpstream{review: `{"checks":{"pelican":true,"bicycle":true,"riding":false,"motion":true}}`}
+				p := &accountQualityProvider{accounts: suiteAccounts{qualityScopeAccounts{items: []*Account{a}}}, groups: qualityScopeGroups{items: []Group{{ID: 7, Name: "0.1", Platform: PlatformOpenAI, GroupRole: GroupRoleStandard}}, members: map[int64][]int64{7: {42}}}, upstream: upstream, concurrency: &ConcurrencyService{}, tls: &TLSFingerprintProfileService{}, renderer: quality.NewFrameRenderer(renderer.URL, "test-renderer")}
+				c := quality.Condition{ModelID: "gpt-5.5", Protocol: protocol, Transport: "http", ReasoningEffort: "upstream_default", ServiceTier: "upstream_default", BenchmarkID: "dual", BenchmarkVersion: "1", ScorerVersion: "dual-visual-v1"}
+				if version == "2" {
+					c.BenchmarkVersion = "2"
+					c.ScorerVersion = "dual-visual-v2"
+				}
+				target, err := p.Resolve(context.Background(), 42, 7, c)
+				require.NoError(t, err)
+				require.True(t, target.CanProbe)
+				policy := quality.Policy{AccountID: 42, SourceGroupID: 7, Rules: quality.DefaultRules(100)}
+				policy.SetTarget(target)
+				reviewer := c
+				reviewer.BenchmarkID = "candy"
+				reviewer.BenchmarkVersion = "1"
+				reviewer.ScorerVersion = "strict-json-v1"
+				policy.Reviewer = &quality.ReviewerConfig{AccountID: 42, SourceGroupID: 7, Condition: reviewer}
+				stages := []string{}
+				r := p.Probe(context.Background(), quality.Run{AccountID: 42, Snapshot: policy, ScopeHash: policy.ScopeHash}, func(stage string) error { stages = append(stages, stage); return nil })
+				require.Equal(t, []string{"candy", "pelican", "review"}, stages)
+				require.Equal(t, "incorrect", r.Verdict)
+				require.Equal(t, "passed", r.Candy.Verdict)
+				require.Equal(t, "visual_failed", r.Pelican.ReasonCode)
+				require.False(t, *r.Review.Checks["riding"])
+				require.EqualValues(t, 96, *r.ReasoningTokens)
+				require.EqualValues(t, 870, *r.TotalTokens)
+				require.NotEmpty(t, r.Evidence.SVG)
+				first, _ := json.Marshal(upstream.requests[0])
+				second, _ := json.Marshal(upstream.requests[1])
+				third, _ := json.Marshal(upstream.requests[2])
+				require.Contains(t, string(first), "糖果")
+				require.NotContains(t, string(first), "自行车")
+				if version == "2" {
+					require.Contains(t, string(first), "explanation")
+					require.Contains(t, r.Evidence.Candy, "test solution summary")
+				} else {
+					require.NotContains(t, string(first), "explanation")
+				}
+				require.Contains(t, string(second), "自行车")
+				require.NotContains(t, string(second), "糖果")
+				require.Equal(t, 4, strings.Count(string(third), "data:image/png;base64,"))
+				require.NotContains(t, string(third), "local-fake-key")
+				upstream.requests = nil
+				policy.Reviewer = nil
+				unreviewed := p.Probe(context.Background(), quality.Run{AccountID: 42, Snapshot: policy, ScopeHash: policy.ScopeHash}, func(string) error { return nil })
+				require.Equal(t, "unknown", unreviewed.Verdict)
+				require.Equal(t, "review_not_configured", unreviewed.Pelican.ReasonCode)
+				require.Nil(t, unreviewed.Review)
+				require.Len(t, upstream.requests, 2)
+			})
+		}
 	}
 }
 

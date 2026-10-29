@@ -7,6 +7,9 @@ The upstream/ directory contains unmodified source files from that revision.
 The upstream distribution contains no separate NOTICE file.
 
 sub2api adaptations:
+- backend/internal/accountquality/scorer.go adapts the candy question from
+  server.py, clarifies fixed shape selection, and adds a versioned answer plus
+  user-facing solution summary format with strict answer parsing.
 - frontend/src/components/admin/account-quality/qualityMonitor.ts derives its
   monitor timeline and statistics layout from app/web/app.js and app/server.py.
   It adds typed inputs, per-policy/evidence-scope filtering, run deduplication,

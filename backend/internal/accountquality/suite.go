@@ -330,6 +330,7 @@ func ScoreReview(text string, completed bool) *CheckResult {
 }
 
 func (r *Run) PresentEvidence(nowAvailable bool) {
+	r.Evidence = nil
 	if !nowAvailable || r.ResponseText == nil {
 		r.ResponseText = nil
 		return

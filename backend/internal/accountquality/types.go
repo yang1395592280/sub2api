@@ -101,7 +101,9 @@ func (c Condition) Validate() error {
 	if c.Transport != "http" && !(c.Transport == "websocket_v2" && c.Protocol == "responses") {
 		return Invalid("transport", "不支持的传输组合")
 	}
-	if c.BenchmarkVersion != "1" || !((c.BenchmarkID == "candy" && c.ScorerVersion == "strict-json-v1") || (c.BenchmarkID == "dual" && c.ScorerVersion == "dual-visual-v1")) {
+	legacy := c.BenchmarkVersion == "1" && ((c.BenchmarkID == "candy" && c.ScorerVersion == "strict-json-v1") || (c.BenchmarkID == "dual" && c.ScorerVersion == "dual-visual-v1"))
+	explained := c.BenchmarkVersion == "2" && ((c.BenchmarkID == "candy" && c.ScorerVersion == "answer-explanation-v2") || (c.BenchmarkID == "dual" && c.ScorerVersion == "dual-visual-v2"))
+	if !legacy && !explained {
 		return Invalid("benchmark_id", "不支持的题目或评分版本")
 	}
 	if c.ReasoningEffort == "" || c.ServiceTier == "" {

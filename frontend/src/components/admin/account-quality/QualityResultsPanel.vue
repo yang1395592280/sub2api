@@ -37,7 +37,7 @@
               <span class="absolute -right-9 top-5 w-36 rotate-45 py-1.5 text-center text-xs font-semibold shadow-sm" :class="ribbonClass(pelicanOutcome(run))">{{ artworkLabel(pelicanOutcome(run)) }}</span>
               <span v-if="run.evidence?.svg" class="absolute bottom-2 left-2 rounded-md bg-white/90 px-2 py-1 text-[10px] font-medium text-gray-500">SVG · {{ t('openAIQuality.animation') }}</span>
             </div>
-            <div class="p-4"><div class="flex items-center justify-between gap-2"><p class="truncate text-sm font-semibold">{{ run.input_snapshot?.account_name || `#${run.account_id}` }}</p><span class="shrink-0 text-[11px] text-gray-400">{{ date(run.started_at || run.queued_at) }}</span></div><p class="mt-1 truncate text-xs text-gray-500">{{ run.input_snapshot?.condition.model_id }} · {{ run.input_snapshot?.source_group_name || groupName(run) }}</p><div class="mt-3 flex justify-between border-t border-gray-100 pt-2.5 font-mono text-[11px] text-gray-400 dark:border-dark-700"><span>{{ seconds(run.result.pelican?.latency_ms) }} s</span><span>{{ tokens(run.result.pelican?.total_tokens) }} Token</span><span>{{ cost(run.result.pelican?.estimated_cost_usd) }}</span></div></div>
+            <div class="p-4"><div class="flex items-center justify-between gap-2"><p class="truncate text-sm font-semibold">{{ run.input_snapshot?.account_name || `#${run.account_id}` }}</p><span class="shrink-0 text-[11px] text-gray-400">{{ date(run.started_at || run.queued_at) }}</span></div><p class="mt-1 truncate text-xs text-gray-500">{{ run.input_snapshot?.condition.model_id }} · {{ run.input_snapshot?.source_group_name || groupName(run) }}</p><p v-if="run.result.pelican?.reason_code && !['passed', 'incorrect'].includes(pelicanOutcome(run))" class="mt-2 text-xs leading-relaxed text-gray-500 dark:text-dark-300">{{ label(run.result.pelican.reason_code) }}</p><div class="mt-3 flex justify-between border-t border-gray-100 pt-2.5 font-mono text-[11px] text-gray-400 dark:border-dark-700"><span>{{ seconds(run.result.pelican?.latency_ms) }} s</span><span>{{ tokens(run.result.pelican?.total_tokens) }} Token</span><span>{{ cost(run.result.pelican?.estimated_cost_usd) }}</span></div></div>
           </button>
         </div>
         <div v-if="galleryTotal > 12" class="mt-4 flex items-center justify-center gap-4 text-xs"><button class="btn btn-secondary btn-sm" :disabled="galleryPage === 1 || busy" @click="changePage(-1)">{{ t('openAIQuality.prevPage') }}</button><span>{{ galleryPage }} / {{ Math.ceil(galleryTotal / 12) }}</span><button class="btn btn-secondary btn-sm" :disabled="galleryPage * 12 >= galleryTotal || busy" @click="changePage(1)">{{ t('openAIQuality.nextPage') }}</button></div>
@@ -65,7 +65,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { getQualityGallery, getQualityRuns, type QualityCheck, type QualityRun } from '@/api/admin/openaiAccountQuality'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import QualitySVGPreview from './QualitySVGPreview.vue'
-import { qualityOutcomeClass } from './qualityPresentation'
+import { qualityOutcomeClass, qualityVisualOutcome } from './qualityPresentation'
 const props = defineProps<{ groups: { id: number; name: string; platform: string; group_role?: string }[]; accountId?: number; revision?: number }>()
 defineEmits<{ (event: 'open', id: number): void }>()
 const { t, te } = useI18n()
@@ -83,8 +83,8 @@ function candy(run: QualityRun): QualityCheck {
   if (run.input_snapshot?.condition.benchmark_id === 'dual') return { verdict: ['queued', 'running'].includes(run.status) ? run.status : 'unknown', reason_code: 'dual_incomplete', latency_ms: 0, input_tokens: null, output_tokens: null, total_tokens: null, estimated_cost_usd: null, response_truncated: false }
   return { ...run.result, verdict: run.verdict || run.status }
 }
-function pelicanOutcome(run: QualityRun) { return run.result.pelican?.verdict || run.status }
-function ribbonClass(value: string) { return value === 'passed' ? 'bg-emerald-500 text-white' : value === 'incorrect' ? 'bg-red-500 text-white' : value === 'unknown' ? 'bg-amber-500 text-white' : 'bg-gray-500 text-white' }
+function pelicanOutcome(run: QualityRun) { return qualityVisualOutcome(run.result.pelican, run.status) }
+function ribbonClass(value: string) { return value === 'passed' ? 'bg-emerald-500 text-white' : value === 'incorrect' ? 'bg-red-500 text-white' : ['unknown', 'visual_uncertain'].includes(value) ? 'bg-amber-500 text-white' : 'bg-gray-500 text-white' }
 function artworkLabel(value: string) { return value === 'incorrect' ? t('openAIQuality.degraded') : label(value) }
 function date(value: string) { return new Date(value).toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) }
 function groupName(run: QualityRun) { return props.groups.find(g => g.id === run.input_snapshot?.source_group_id)?.name || t('openAIQuality.unavailableGroup') }

@@ -26,3 +26,9 @@
 ## [17:00] 发布准备：v0.2.18.5
 - 用户授权提交、tag与推送；功能63400c61f已快进合入custom-main。VERSION、嵌入构建/版本输出、9项发布工具测试、脚本语法与diff检查通过。
 - 远端tag不存在、origin/custom-main为2bbd7e22c，RELEASE_ONLY=true。下一步提交版本、annotated tag并原子推送；不部署或真实付费调用。详见release-v0.2.18.5.md。
+
+## [17:38] 功能实现与验证：糖果详解及鹈鹕判定说明
+- feature/quality-detail-explanations：新v2严格answer+explanation，旧v1兼容，正文保留期约束详情说明、ScopeHash分版；配置可保持原套件手动升级。无DDL/自动迁移。
+- 糖果题目、答案、Markdown说明/表格和折叠原文；鹈鹕未评审/异常/不确定分开，四项标准及全局配置直达；修复深色新说明文字对比度。
+- Go核心race99、服务层双协议v1/v2及未配评审定向race；前端28、i18n、ESLint、类型与前后端普通/embed构建均通过。HTTP6场景验证include_response/过期不泄露说明；浏览器示例数据验证新旧/过期/四项及深色并留图。
+- 临时fixture、Vite和构建二进制已清理。未提交/合并/推送/部署；真实模型格式遵循率与生产配置未联调，本轮无DB集成声明。使用docs/openai-quality-monitor.md。

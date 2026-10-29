@@ -4,6 +4,8 @@ import { createI18n } from 'vue-i18n'
 import zh from '@/i18n/locales/zh/openAIQuality'
 import Panel from '../QualityResultsPanel.vue'
 import Detail from '../QualityRunDetailDialog.vue'
+import CandyDetail from '../QualityCandyDetail.vue'
+import { qualityVisualOutcome } from '../qualityPresentation'
 import type { QualityRun } from '@/api/admin/openaiAccountQuality'
 const api = vi.hoisted(() => ({ runs: vi.fn(), gallery: vi.fn() }))
 vi.mock('@/api/admin/openaiAccountQuality', () => ({ getQualityRuns: api.runs, getQualityGallery: api.gallery }))
@@ -23,6 +25,44 @@ beforeEach(() => {
 })
 afterEach(() => wrappers.splice(0).forEach(w => w.unmount()))
 describe('dual quality results', () => {
+  it('distinguishes missing setup, processing errors, uncertain review and explicit failure', () => {
+    const check = sample(1, 'unknown').result.pelican!
+    expect(qualityVisualOutcome({ ...check, reason_code: 'review_not_configured' })).toBe('not_reviewed')
+    expect(qualityVisualOutcome({ ...check, reason_code: 'renderer_not_configured' })).toBe('not_reviewed')
+    expect(qualityVisualOutcome({ ...check, reason_code: 'render_failed' })).toBe('visual_check_error')
+    expect(qualityVisualOutcome({ ...check, verdict: 'error', reason_code: 'upstream_http_429' })).toBe('visual_check_error')
+    expect(qualityVisualOutcome({ ...check, reason_code: 'review_uncertain' })).toBe('visual_uncertain')
+    expect(qualityVisualOutcome({ ...check, verdict: 'incorrect', reason_code: 'visual_failed' })).toBe('incorrect')
+    expect(qualityVisualOutcome(undefined, 'running')).toBe('running')
+  })
+  it('shows missing review configuration and standards without inventing reviewed checks', async () => {
+    const run = sample(1, 'unknown')
+    run.input_snapshot = { condition: { benchmark_id: 'dual', model_id: 'test-model' } } as QualityRun['input_snapshot']
+    run.result.pelican!.reason_code = 'review_not_configured'
+    run.result.review = undefined
+    const wrapper = mount(Detail, { ...options(), props: { detail: { run, response_available: true, response_expired: false } } }); wrappers.push(wrapper)
+    await wrapper.findAll('button').find(b => b.text().includes('鹈鹕动画'))!.trigger('click')
+    expect(wrapper.text()).toContain('未配置评审账号与模型')
+    expect(wrapper.text()).toContain('至少一只可见脚接触曲柄末端的踏板')
+    expect(wrapper.text()).toContain('旧记录不会自动补评')
+    expect(wrapper.findComponent(RouterLinkStub).props('to')).toBe('/admin/openai-quality/settings?section=global')
+    expect(wrapper.text()).not.toContain('画面证据不足，无法判定')
+  })
+  it('renders real explanation headings and tables but removes executable content and remote resources', async () => {
+    const detail = { run: sample(1, 'passed'), response_available: true, response_expired: false, candy: { question: '完整题目：圆形7、9、8；五角星7、6、4。', prompt: 'actual prompt', explanation_requested: true, explanation: '## 数量选择\n\n| 形状 | 数量 |\n| --- | --- |\n| 圆形 | 1 |\n\n<script>alert(1)</script><img src="https://external.test/track" onerror="alert(1)"><a href="javascript:alert(1)">unsafe link</a><iframe src="https://external.test"></iframe>' } }
+    const wrapper = mount(CandyDetail, { ...options(), props: { detail, answer: 21 } }); wrappers.push(wrapper)
+    expect(wrapper.find('h2').text()).toBe('数量选择')
+    expect(wrapper.find('table').text()).toContain('圆形')
+    expect(wrapper.findAll('script,img,a,iframe,[src],[href],[style]')).toHaveLength(0)
+    expect(wrapper.text()).toContain('完整题目：圆形7、9、8')
+    await wrapper.setProps({ detail: { ...detail, response_expired: true } })
+    expect(wrapper.find('table').exists()).toBe(false)
+    expect(wrapper.text()).toContain('按保留策略清理')
+    await wrapper.setProps({ detail: { ...detail, response_available: false } })
+    expect(wrapper.find('table').exists()).toBe(false)
+    await wrapper.setProps({ detail: { ...detail, candy: { ...detail.candy, explanation_requested: false, explanation: '' } } })
+    expect(wrapper.text()).toContain('未采集解题说明')
+  })
   it('uses conclusive verdicts for the rate and opens the exact timeline run', async () => {
     const wrapper = mount(Panel, { ...options(), props: { groups: [] } }); wrappers.push(wrapper)
     await flushPromises()

@@ -232,3 +232,15 @@
 - 相关文件：backend/cmd/server/VERSION、20261028/release-v0.2.18.5.md、daily.md。
 - 下一步：本条随版本提交，创建annotated tag，原子推送origin/custom-main和refs/tags/v0.2.18.5，核验远端及Release启动。最终结果以后续Git/GitHub状态为准。
 - 边界：不部署/迁移/启用或调用真实付费模型；真实上游及渲染器容器验收仍待正式部署前完成。
+
+## 2026-10-28 糖果详解与鹈鹕判定说明交付
+- 已完成（证据）：v2版本兼容与严格判分、保留期内详情说明、Markdown安全展示、未评审/异常/不确定状态、四项标准/配置入口、原套件手动升级。核心race99、service定向race、前端28、lint/type/构建（含最终前端后embed）通过；CUA本地组件示例数据交互/截图完成。
+- 相关文件：docs/openai-quality-monitor.md末节；backend/internal/accountquality/{scorer,types,http,suite}.go及http_detail_test.go；frontend/src/components/admin/account-quality/{QualityCandyDetail,QualityRunDetailDialog}.vue；OpenAIQualitySettingsView.vue。
+- 未完成：本地实现无遗留；真实上游格式/视觉评审联调与生产配置仍需发布后验证；未提交/合并/推送/部署，等待用户明确Git指令。
+- 边界/风险：旧v1不会自动升级，旧说明不能补造；手动归档替换重新积累证据，不继承旧隔离状态。无DDL。临时fixture/Vite/二进制清理，示例截图保存在本次Codex可视化目录。
+
+## 2026-10-29 糖果详解功能合并授权
+- 用户明确要求合并分支，授权提交当前糖果详解及鹈鹕判定说明改动并合入custom-main。
+- 预检：feature/quality-detail-explanations与custom-main起点均为b3737dc4b；改动均属于本次功能，diff检查通过，无目标分支worktree占用。
+- 验证沿用上一轮已完成的核心race99、service定向race、前端28及lint/type/构建和浏览器验收；本轮仅Git操作，不重复运行相同测试。
+- 下一步：提交功能并快进合并，核验分支包含关系与干净工作区；最终提交点以Git输出为准。不推送、不打tag、不部署。

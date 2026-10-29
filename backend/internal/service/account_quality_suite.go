@@ -15,7 +15,7 @@ func (p *accountQualityProvider) RendererConfigured() bool {
 
 func (p *accountQualityProvider) Probe(ctx context.Context, run quality.Run, dispatch func(string) error) quality.Result {
 	started := time.Now()
-	candy := p.request(ctx, run, "candy", quality.CandyPrompt, nil, dispatch)
+	candy := p.request(ctx, run, "candy", quality.CandyPromptFor(run.Snapshot.Condition), nil, dispatch)
 	if run.Snapshot.Condition.BenchmarkID != "dual" {
 		return candy
 	}

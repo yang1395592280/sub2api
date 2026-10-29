@@ -24,8 +24,8 @@ export interface QualityCondition {
   reasoning_effort: string
   service_tier: string
   benchmark_id: 'candy' | 'dual'
-  benchmark_version: '1'
-  scorer_version: 'strict-json-v1' | 'dual-visual-v1'
+  benchmark_version: '1' | '2'
+  scorer_version: 'strict-json-v1' | 'dual-visual-v1' | 'answer-explanation-v2' | 'dual-visual-v2'
 }
 export interface QualityReviewer { account_id: number; source_group_id: number; condition: QualityCondition }
 export interface QualityCheck {
@@ -117,7 +117,8 @@ export interface QualityEvent {
   policy_control_epoch: number
   created_at: string
 }
-export interface QualityRunDetail { run: QualityRun; response_available: boolean; response_expired: boolean }
+export interface QualityCandyDetail { question: string; prompt: string; explanation_requested: boolean; explanation?: string }
+export interface QualityRunDetail { run: QualityRun; response_available: boolean; response_expired: boolean; candy?: QualityCandyDetail }
 export interface QualityBucket { index: number; start_at: string; end_at: string; status: string; total: number; status_counts: Record<string, number>; sample_run_ids: number[]; has_more: boolean }
 export interface QualityMonitor { policy_id: number; scope_hash: string; as_of: string; bucket_seconds: number; complete: boolean; summary: Record<string, number | null>; buckets: QualityBucket[]; evidence_view: string }
 export interface QualityPage<T> { items: T[]; total: number; page: number; page_size: number; pages: number }

@@ -328,7 +328,12 @@ func (s *Service) Register(parent *gin.RouterGroup) {
 		})
 	})
 	g.GET("/benchmarks", func(c *gin.Context) {
-		success(c, 200, gin.H{"items": []gin.H{{"id": "candy", "version": "1", "scorer_version": "strict-json-v1", "name": "糖果逻辑题", "expected_format": "{\"answer\": integer}", "prompt": CandyPrompt, "output_limit": MaxResponseBytes}, {"id": "dual", "version": "1", "scorer_version": "dual-visual-v1", "name": "糖果 + 鹈鹕双重检测", "prompt": PelicanPrompt, "review_prompt": VisualReviewPrompt, "max_model_calls": 3, "output_limit": MaxResponseBytes}}})
+		success(c, 200, gin.H{"items": []gin.H{
+			{"id": "candy", "version": "1", "scorer_version": "strict-json-v1", "name": "糖果逻辑题", "expected_format": "{\"answer\": integer}", "prompt": CandyPrompt, "output_limit": MaxResponseBytes},
+			{"id": "dual", "version": "1", "scorer_version": "dual-visual-v1", "name": "糖果 + 鹈鹕双重检测", "prompt": PelicanPrompt, "candy_prompt": CandyPrompt, "review_prompt": VisualReviewPrompt, "max_model_calls": 3, "output_limit": MaxResponseBytes},
+			{"id": "candy", "version": "2", "scorer_version": "answer-explanation-v2", "name": "糖果逻辑题（含解题说明）", "prompt": CandyExplanationPrompt, "output_limit": MaxResponseBytes},
+			{"id": "dual", "version": "2", "scorer_version": "dual-visual-v2", "name": "糖果详解 + 鹈鹕双重检测", "prompt": PelicanPrompt, "candy_prompt": CandyExplanationPrompt, "review_prompt": VisualReviewPrompt, "max_model_calls": 3, "output_limit": MaxResponseBytes},
+		}})
 	})
 	g.GET("/targets", s.targetsHTTP)
 	g.POST("/capabilities", s.capabilitiesHTTP)
@@ -521,7 +526,7 @@ func (s *Service) Register(parent *gin.RouterGroup) {
 				r.ResponseText = nil
 			}
 			r.PresentEvidence(available && include != nil && *include)
-			return map[string]any{"run": r, "response_available": available, "response_expired": expired}, nil
+			return map[string]any{"run": r, "response_available": available, "response_expired": expired, "candy": PresentCandy(r)}, nil
 		})
 	})
 	g.POST("/runs/:id/cancel", func(c *gin.Context) {

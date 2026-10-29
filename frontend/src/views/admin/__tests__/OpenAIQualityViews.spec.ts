@@ -77,13 +77,28 @@ beforeEach(() => {
 afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()); document.body.innerHTML = '' })
 
 describe('OpenAI quality settings', () => {
+  it('upgrades explanations without changing the selected suite and links directly to global settings', async () => {
+    const dual = policy(2)
+    dual.condition.benchmark_id = 'dual'; dual.condition.scorer_version = 'dual-visual-v1'
+    api.policies.mockResolvedValue({ items: [policy(), dual] })
+    api.route.query = { section: 'global' }
+    const wrapper = render(SettingsView)
+    await flushPromises()
+    expect(wrapper.find('form').isVisible()).toBe(true)
+    await wrapper.findAll('button').find(b => b.text().startsWith('已配置策略'))!.trigger('click')
+    const upgrades = wrapper.findAll('button').filter(b => b.text() === '升级含解题说明')
+    await upgrades[0].trigger('click'); await flushPromises()
+    expect(api.preview).toHaveBeenLastCalledWith([expect.objectContaining({ condition: expect.objectContaining({ benchmark_id: 'candy', benchmark_version: '2', scorer_version: 'answer-explanation-v2' }), replaces_policy_id: 1 })])
+    await upgrades[1].trigger('click'); await flushPromises()
+    expect(api.preview).toHaveBeenLastCalledWith([expect.objectContaining({ condition: expect.objectContaining({ benchmark_id: 'dual', benchmark_version: '2', scorer_version: 'dual-visual-v2' }), replaces_policy_id: 2 })])
+  })
   it('upgrades a legacy policy through preview and preserves its identity and switches', async () => {
     const wrapper = render(SettingsView)
     await flushPromises()
     await wrapper.findAll('button').find(b => b.text().startsWith('已配置策略'))!.trigger('click')
     await wrapper.findAll('button').find(b => b.text() === '升级双检测')!.trigger('click')
     await flushPromises()
-    const expected = expect.objectContaining({ account_id: 42, source_group_id: 78, replaces_policy_id: 1, replaces_expected_revision: 1, condition: expect.objectContaining({ benchmark_id: 'dual', scorer_version: 'dual-visual-v1', model_id: 'gpt-5.5' }), rules: expect.objectContaining({ control_enabled: false, auto_check_enabled: false, timeout_seconds: 420, max_output_tokens: 8192 }) })
+    const expected = expect.objectContaining({ account_id: 42, source_group_id: 78, replaces_policy_id: 1, replaces_expected_revision: 1, condition: expect.objectContaining({ benchmark_id: 'dual', scorer_version: 'dual-visual-v2', benchmark_version: '2', model_id: 'gpt-5.5' }), rules: expect.objectContaining({ control_enabled: false, auto_check_enabled: false, timeout_seconds: 420, max_output_tokens: 8192 }) })
     expect(api.preview).toHaveBeenLastCalledWith([expected])
     await wrapper.findAll('button').find(b => b.text() === '确认升级')!.trigger('click')
     await flushPromises()
