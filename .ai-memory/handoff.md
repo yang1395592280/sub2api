@@ -258,3 +258,10 @@
 - 相关文件：docs/group-pelican-tests.md、20261029/group-pelican-plan.md；来源feature/group-pelican-history，目标custom-main。
 - 未完成：本条为Git执行前记录，将提交并快进合并，最终结果以Git核验为准；不推送/tag/部署/生产迁移，真实PG多实例和上游测试仍未执行。
 - 阻塞：无。
+
+## 2026-10-29 10:45 v0.2.19.1 发布准备
+
+- 已完成带证据：分组鹈鹕功能4ad521c65已合入custom-main，无冲突；用户授权提交/tag/push。VERSION、版本解析、embed二进制-version为0.2.19.1，两项发布工具测试通过。
+- 相关文件：backend/cmd/server/VERSION、20261029/release-v0.2.19.1.md、docs/group-pelican-tests.md。
+- 未完成：本条为推送前记录，待提交并原子推送origin/custom-main与annotated tag v0.2.19.1；最终refs和Release状态以实际核验为准。RELEASE_ONLY=true；不部署/迁移生产/启用。
+- 阻塞：无Git阻塞。按用户指定版本低于已发v0.2.20，自动更新可能不提示；真实PG多实例及上游未验证。
