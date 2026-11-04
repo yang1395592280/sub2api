@@ -286,3 +286,10 @@
 - 预检：feature/fixed-group-account-failover与custom-main基线均为b22f8bd40，改动均属于本次修复，custom-main未被其他worktree占用，diff检查通过。
 - 验证：复用上一轮handler/service/apicompat全包通过（11项按既有条件跳过）和最终定向race通过；本轮不改生产实现。
 - 执行：本条随修复提交，再快进合并custom-main并核验分支包含关系与干净工作区，最终结果以Git输出为准。无代码待办，无阻塞；未授权推送/tag/部署。
+
+## 2026-11-04 14:02 v0.2.19.2发布准备
+
+- 已完成带证据：用户授权提交/tag/push；修复00d7abba5已合入custom-main，VERSION/解析/embed二进制-version均为0.2.19.2；两项发布工具测试通过，diff检查通过。
+- 相关文件：backend/cmd/server/VERSION、20261104/release-v0.2.19.2.md及发布会话记录。
+- 执行：本条随版本提交，创建annotated tag并原子推送origin/custom-main与refs/tags/v0.2.19.2；最终refs和Release启动以远端核验为准。RELEASE_ONLY=true，不部署/生产迁移。
+- 阻塞：无本地阻塞，业务测试复用本会话完整unit和race；真实生产故障未回放。

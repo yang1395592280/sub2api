@@ -16,3 +16,7 @@ session-id: 20261104-1256
 ## [13:58] Git：用户授权提交并合并固定分组故障切换
 - 基线b22f8bd40一致，改动范围和目标分支占用检查通过；提交后使用merge --ff-only合入custom-main，最终以Git核验为准。
 - 复用已通过的完整unit包和定向race，不重复运行未变化代码；不推送、不打tag、不部署。
+
+## [14:02] 发布准备：v0.2.19.2
+- 用户授权提交、tag和推送；固定分组修复00d7abba5已合入custom-main。VERSION更新为0.2.19.2，版本解析、embed构建和二进制-version、两项发布工具测试通过。
+- 实时远端custom-main=b22f8bd40，目标tag/Release不存在，RELEASE_ONLY=true。提交后原子推送分支与annotated tag，最终状态以Git/GitHub核验为准；不部署/迁移生产。
