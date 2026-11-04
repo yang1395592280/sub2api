@@ -182,6 +182,8 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 	profitVetoCount := 0
 	failedAccountIDs := make(map[int64]struct{})
 	sameAccountRetryCount := make(map[int64]int)
+	var retrySelection openAIFailoverSelection
+	defer retrySelection.Close()
 	var lastFailoverErr *service.UpstreamFailoverError
 	stopJSONKeepalive := func() {}
 	jsonKeepaliveStarted := false
@@ -191,16 +193,19 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 	for {
 		reqLog.Debug("openai.images.account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))
 		timing.BeginRouting()
-		effectiveAPIKey, effectiveRoutingModel, selection, scheduleDecision, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForImagesAndModelResolver(
-			requestCtx,
-			apiKey,
-			sessionHash,
-			routingModel,
-			parsed.Endpoint,
-			failedAccountIDs,
-			parsed.RequiredCapabilityForModel(channelMapping.MappedModel),
-			h.openAIChannelMappedModelResolver(requestCtx),
-		)
+		selectAccount := func(excludedIDs map[int64]struct{}) (*service.APIKey, string, *service.AccountSelectionResult, service.OpenAIAccountScheduleDecision, error) {
+			return h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForImagesAndModelResolver(
+				requestCtx,
+				apiKey,
+				sessionHash,
+				routingModel,
+				parsed.Endpoint,
+				excludedIDs,
+				parsed.RequiredCapabilityForModel(channelMapping.MappedModel),
+				h.openAIChannelMappedModelResolver(requestCtx),
+			)
+		}
+		effectiveAPIKey, effectiveRoutingModel, selection, scheduleDecision, err := retrySelection.Select(failedAccountIDs, selectAccount)
 		timing.EndRouting()
 		if err != nil {
 			if failoverClientGone(c) {
@@ -372,7 +377,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 					}
 					if openAIShouldRetrySameAccount(apiKey, failoverErr, false) {
 						retryLimit := effectiveSameAccountRetryLimit(failoverErr, account)
-						if sameAccountRetryAllowed(failoverErr, sameAccountRetryCount[account.ID], retryLimit) {
+						if sameAccountRetryAllowed(failoverErr, sameAccountRetryCount[account.ID], retryLimit) && !retrySelection.TryAlternative(requestCtx, apiKey, account, failoverErr, failedAccountIDs, false, switchCount < maxAccountSwitches, selectAccount) {
 							sameAccountRetryCount[account.ID]++
 							retryDelay := sameAccountRetryDelayFor(failoverErr, sameAccountRetryCount[account.ID])
 							reqLog.Warn("openai.images.pool_mode_same_account_retry",

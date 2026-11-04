@@ -1528,6 +1528,32 @@ func openAIStream403AccountFailure(payload []byte, message string) bool {
 	return isOpenAIUpstreamAccessStateError(message, payload) || openAIStreamCredentialAuthFailure(payload)
 }
 
+// A gateway can wrap its upstream 403 in an HTTP 200 stream. Recognize only
+// known gateway envelopes for request-local failover; their generic messages
+// are not evidence that the selected credential should be disabled.
+func openAIStreamUpstreamGatewayForbidden(payload []byte) bool {
+	for _, path := range []string{"response.error", "error"} {
+		upstreamError := gjson.GetBytes(payload, path)
+		if !upstreamError.IsObject() {
+			continue
+		}
+		if strings.ToLower(strings.TrimSpace(upstreamError.Get("type").String())) != "upstream_error" {
+			return false
+		}
+		switch strings.ToLower(strings.TrimSpace(upstreamError.Get("code").String())) {
+		case "", "upstream_error", "forbidden":
+		default:
+			return false
+		}
+		switch strings.ToLower(strings.TrimSpace(upstreamError.Get("message").String())) {
+		case "upstream access forbidden, please contact administrator", "upstream access forbidden", "upstream access denied":
+			return true
+		}
+		return false
+	}
+	return false
+}
+
 func openAIStreamFailedEventPassthroughBody(payload []byte, failedMessage string) []byte {
 	if len(payload) == 0 || !gjson.ValidBytes(payload) {
 		return payload
@@ -1612,7 +1638,7 @@ func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool 
 	}
 	semanticStatus := openAIStreamFailureStatus(payload, message)
 	if semanticStatus == http.StatusForbidden {
-		return openAIStream403AccountFailure(payload, message)
+		return openAIStream403AccountFailure(payload, message) || openAIStreamUpstreamGatewayForbidden(payload)
 	}
 	// A response.failed event is transported over HTTP 200. Prefer its semantic
 	// rate-limit status over a generic/invalid_request error type so it can enter
@@ -1664,7 +1690,7 @@ func openAIStreamErrorEventShouldFailover(payload []byte, message string) bool {
 	}
 	switch openAIStreamFailedEventSemanticStatus(payload, message) {
 	case http.StatusForbidden:
-		return openAIStream403AccountFailure(payload, message)
+		return openAIStream403AccountFailure(payload, message) || openAIStreamUpstreamGatewayForbidden(payload)
 	case http.StatusUnauthorized, http.StatusTooManyRequests, 529:
 		return true
 	}

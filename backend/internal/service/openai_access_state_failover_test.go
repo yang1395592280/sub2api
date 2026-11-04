@@ -291,7 +291,7 @@ func TestOpenAIStreamBareErrorUsesSemanticFailover(t *testing.T) {
 	require.True(t, openAIStreamErrorEventShouldFailover(payload, "slow down"))
 }
 
-func TestOpenAIStream403FailoverRequiresStructuredAccountCredentialSignal(t *testing.T) {
+func TestOpenAIStream403FailoverRequiresCredentialOrKnownGatewaySignal(t *testing.T) {
 	tests := []struct {
 		name    string
 		payload string
@@ -320,6 +320,32 @@ func TestOpenAIStream403FailoverRequiresStructuredAccountCredentialSignal(t *tes
 			payload: `{"type":"error","error":{"type":"authentication_error","status_code":403,"message":"credential rejected"}}`,
 			want:    true,
 		},
+		{
+			name:    "wrapped gateway forbidden",
+			payload: `{"type":"response.failed","response":{"error":{"type":"upstream_error","message":"Upstream access forbidden, please contact administrator"}}}`,
+			want:    true,
+		},
+		{
+			name:    "gateway bare error",
+			payload: `{"type":"error","error":{"type":"upstream_error","message":"Upstream access denied"}}`,
+			want:    true,
+		},
+		{
+			name:    "gateway content policy remains request scoped",
+			payload: `{"type":"error","error":{"type":"upstream_error","code":"content_policy_violation","message":"Upstream access forbidden, please contact administrator"}}`,
+		},
+		{
+			name:    "permission error cannot borrow gateway wording",
+			payload: `{"type":"error","error":{"type":"permission_error","message":"Upstream access forbidden, please contact administrator"}}`,
+		},
+		{
+			name:    "echoed gateway wording is not a gateway failure",
+			payload: `{"type":"error","error":{"type":"upstream_error","message":"forbidden input: Upstream access forbidden, please contact administrator"}}`,
+		},
+		{
+			name:    "authoritative request error wins over conflicting gateway envelope",
+			payload: `{"type":"response.failed","response":{"error":{"type":"permission_error","code":"content_policy_violation","message":"Forbidden content"}},"error":{"type":"upstream_error","message":"Upstream access forbidden"}}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -331,6 +357,19 @@ func TestOpenAIStream403FailoverRequiresStructuredAccountCredentialSignal(t *tes
 			require.Equal(t, tt.want, openAIStreamErrorEventShouldFailover(payload, message))
 		})
 	}
+}
+
+func TestOpenAIStreamGatewayForbiddenDoesNotDisableCredential(t *testing.T) {
+	repo := &openAIStream403AccountRepo{}
+	svc := &OpenAIGatewayService{rateLimitService: NewRateLimitService(repo, nil, &config.Config{}, nil, nil)}
+	c, _ := newOpenAIUpstreamErrorTestContext(t)
+	account := &Account{ID: 42, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"pool_mode": true}}
+	payload := []byte(`{"type":"response.failed","response":{"error":{"type":"upstream_error","message":"Upstream access forbidden, please contact administrator"}}}`)
+	failure := svc.newOpenAIStreamFailoverError(c, account, false, "request-test", payload, extractOpenAISSEErrorMessage(payload))
+	require.True(t, failure.ShouldRetryNextAccount())
+	require.False(t, failure.IsCredentialFailure())
+	require.Equal(t, http.StatusForbidden, failure.StatusCode)
+	require.Zero(t, repo.setErrorCalls)
 }
 
 func TestOpenAIStream403PostOutputAccountSideEffectsIgnoreRequestPermissionErrors(t *testing.T) {

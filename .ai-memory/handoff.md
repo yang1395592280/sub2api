@@ -265,3 +265,24 @@
 - 相关文件：backend/cmd/server/VERSION、20261029/release-v0.2.19.1.md、docs/group-pelican-tests.md。
 - 未完成：本条为推送前记录，待提交并原子推送origin/custom-main与annotated tag v0.2.19.1；最终refs和Release状态以实际核验为准。RELEASE_ONLY=true；不部署/迁移生产/启用。
 - 阻塞：无Git阻塞。按用户指定版本低于已发v0.2.20，自动更新可能不提示；真实PG多实例及上游未验证。
+
+## 2026-11-04 固定分组池模式故障切换修复检查点
+
+- 已完成带证据：用户确认池模式并授权修复。旧实现 Red 回归已确认；六个入口复用调度器优先预选替代账号，已知网关 forbidden 流内识别、非流式终止事件保真已落码。60个真实 handler 正向组合及无正文重放/策略/单账号边界通过；handler/apicompat 全包通过。
+- 相关文件：20261104/fixed-group-failover-plan.md；backend/internal/handler/openai_failover_selection.go、openai_fixed_group_failover_test.go、openai_failover_selection_test.go及六入口；service/openai_gateway_passthrough.go、openai_gateway_messages.go、openai_gateway_chat_completions.go、openai_access_state_failover_test.go。
+- 未完成：service全包（/tmp/sub2api-fixed-group-full.jsonl）与images/search/race检查（/tmp/sub2api-fixed-group-race.log）等待最终结果；完成后追加交付记录。feature/fixed-group-account-failover，未提交/合并/推送/部署。
+- 阻塞：无；真实生产请求未回放，无生产环境改动。
+
+## 2026-11-04 固定分组池模式故障切换本地交付
+
+- 已完成带证据：上述修复完成；handler/service/apicompat完整unit包测试退出0（11项按既有条件跳过），最终60场景正向矩阵、图片/搜索、单账号/正文/策略/资源/绑定/预算定向race退出0，无竞态；gofmt/diff检查通过。
+- 相关文件：20261104/fixed-group-failover-plan.md、session_memory_20261104-1256.jsonl及上述生产代码与正式回归测试。证据/tmp/sub2api-fixed-group-full.jsonl、/tmp/sub2api-fixed-group-race-verified.log。
+- 未完成：本地实现无遗留；feature/fixed-group-account-failover未提交/合并/推送/部署。用户后续若要求发布，再走既有发布约定。真实供应商/生产请求未回放。
+- 阻塞：无。
+
+## 2026-11-04 13:58 固定分组故障切换合并授权
+
+- 用户明确要求“合并分支”，授权提交当前修复并合入custom-main。
+- 预检：feature/fixed-group-account-failover与custom-main基线均为b22f8bd40，改动均属于本次修复，custom-main未被其他worktree占用，diff检查通过。
+- 验证：复用上一轮handler/service/apicompat全包通过（11项按既有条件跳过）和最终定向race通过；本轮不改生产实现。
+- 执行：本条随修复提交，再快进合并custom-main并核验分支包含关系与干净工作区，最终结果以Git输出为准。无代码待办，无阻塞；未授权推送/tag/部署。

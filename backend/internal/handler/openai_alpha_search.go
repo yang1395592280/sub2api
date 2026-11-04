@@ -130,6 +130,8 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 	profitVetoCount := 0
 	failedAccountIDs := make(map[int64]struct{})
 	sameAccountRetryCount := make(map[int64]int)
+	var retrySelection openAIFailoverSelection
+	defer retrySelection.Close()
 	var lastFailoverErr *service.UpstreamFailoverError
 	switchCount := 0
 	var oauth429FailoverState service.OpenAIOAuth429FailoverState
@@ -141,22 +143,25 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 	c.Request = c.Request.WithContext(asPricingCtx)
 
 	for {
-		effectiveAPIKey, _, selection, _, err := h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
-			c.Request.Context(),
-			apiKey,
-			"",
-			sessionHash,
-			requestedModel,
-			failedAccountIDs,
-			service.OpenAIUpstreamTransportHTTPSSE,
-			"",
-			service.OpenAIEndpointCapabilityAlphaSearch,
-			false,
-			false,
-			false,
-			service.PlatformOpenAI,
-			h.openAIChannelMappedModelResolver(c.Request.Context()),
-		)
+		selectAccount := func(excludedIDs map[int64]struct{}) (*service.APIKey, string, *service.AccountSelectionResult, service.OpenAIAccountScheduleDecision, error) {
+			return h.gatewayService.SelectEffectiveOpenAIAccountWithSchedulerForCapabilityAndModelResolver(
+				c.Request.Context(),
+				apiKey,
+				"",
+				sessionHash,
+				requestedModel,
+				excludedIDs,
+				service.OpenAIUpstreamTransportHTTPSSE,
+				"",
+				service.OpenAIEndpointCapabilityAlphaSearch,
+				false,
+				false,
+				false,
+				service.PlatformOpenAI,
+				h.openAIChannelMappedModelResolver(c.Request.Context()),
+			)
+		}
+		effectiveAPIKey, _, selection, _, err := retrySelection.Select(failedAccountIDs, selectAccount)
 		if err != nil || selection == nil || selection.Account == nil {
 			if failoverClientGone(c) {
 				reqLog.Info("openai_alpha_search.account_select_aborted_client_disconnected", zap.Error(err))
@@ -257,7 +262,7 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 		}
 		if openAIShouldRetrySameAccount(apiKey, failoverErr, false) {
 			retryLimit := account.GetPoolModeRetryCount()
-			if sameAccountRetryAllowed(failoverErr, sameAccountRetryCount[account.ID], retryLimit) {
+			if sameAccountRetryAllowed(failoverErr, sameAccountRetryCount[account.ID], retryLimit) && !retrySelection.TryAlternative(c.Request.Context(), apiKey, account, failoverErr, failedAccountIDs, false, switchCount < h.maxAccountSwitches, selectAccount) {
 				sameAccountRetryCount[account.ID]++
 				retryDelay := sameAccountRetryDelayFor(failoverErr, sameAccountRetryCount[account.ID])
 				reqLog.Warn("openai_alpha_search.same_account_retry",
