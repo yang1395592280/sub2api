@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -462,6 +463,7 @@ func (s *defaultOpenAIAccountScheduler) Select(
 	if s != nil && s.service != nil && s.service.openAIGroupRequiresPrivacySet(ctx, req.GroupID) {
 		req.RequirePrivacySet = true
 	}
+	ctx = withOpenAIImageSizeStickyAccount(withOpenAIImageSizeStickyAccount(ctx, req.StickyAccountID), req.StickyPreviousAccountID)
 	start := time.Now()
 	// 命名返回值保证 defer 写入的耗时同时返回给调用方。
 	defer func() {
@@ -489,7 +491,7 @@ func (s *defaultOpenAIAccountScheduler) Select(
 			return nil, decision, err
 		}
 		if selection != nil && selection.Account != nil {
-			compatible, _ := s.isAccountRequestCompatibleReason(ctx, selection.Account, req)
+			compatible, _ := s.isAccountRequestCompatibleReason(withOpenAIImageSizeStickyAccount(ctx, selection.Account.ID), selection.Account, req)
 			hasGroupMetadata := len(selection.Account.GroupIDs) > 0 || len(selection.Account.AccountGroups) > 0
 			groupCompatible := !hasGroupMetadata || openAIStickyAccountMatchesGroup(selection.Account, req.GroupID)
 			if hasGroupMetadata && s.service != nil {
@@ -785,6 +787,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 			return nil, false, nil
 		}
 	}
+	ctx = withOpenAIImageSizeStickyAccount(ctx, accountID)
 
 	account, err := s.service.getSchedulableAccount(ctx, accountID)
 	if err != nil || account == nil {
@@ -2157,8 +2160,11 @@ func (s *defaultOpenAIAccountScheduler) prepareOpenAIAccountCandidates(
 	}
 
 	// 选号只需要分组配置，避免完整 GetByID 额外聚合账号数量。
+	// 直连请求的调度分组即认证分组，优先复用 ctx 中的 auth 快照，避免每次选号回表。
 	var schedGroup *Group
-	if req.GroupID != nil && s.service.schedulerSnapshot != nil {
+	if ctxGroup, ok := ctx.Value(ctxkey.Group).(*Group); ok && IsGroupContextValid(ctxGroup) && req.GroupID != nil && ctxGroup.ID == *req.GroupID {
+		schedGroup = ctxGroup
+	} else if req.GroupID != nil && s.service.schedulerSnapshot != nil {
 		schedGroup, _ = s.service.schedulerSnapshot.GetGroupByIDLite(ctx, *req.GroupID)
 	}
 
@@ -2709,6 +2715,9 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 	if !accountSupportsOpenAICapabilities(account, req.RequiredCapability, req.RequiredImageCapability) {
 		return false, "capability_mismatch"
 	}
+	if vetoed, reason := openAIImageSizeVetoReason(ctx, account); vetoed {
+		return false, reason
+	}
 	// 分组利润控制：不合格账号在候选过滤与抢槽后终检阶段即被排除，
 	// 排序/评分/粘性/熔断只在合格账号之间工作；named reason 进入 filter stats。
 	if vetoed, reason := openAIProfitControlVetoReason(ctx, account); vetoed {
@@ -3064,7 +3073,7 @@ func (s *OpenAIGatewayService) SelectAccountWithSchedulerForImages(
 	return selection, decision, err
 }
 
-// selectAccountWithScheduler wraps selectAccountWithSchedulerOnce with a
+// selectAccountWithScheduler wraps selectAccountWithSchedulerBySize with a
 // fail-open second pass for the proxy stream circuit (#5056): when the only
 // reason no account is available is that every candidate sits behind a
 // quarantined proxy, the quarantine must degrade to a preference instead of
@@ -3088,7 +3097,7 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	previousResponseCanMove bool,
 	useUpstreamTokenCost bool,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-	selection, decision, err := s.selectAccountWithSchedulerOnce(ctx, groupID, previousResponseID, sessionHash, requestedModel, reasoningEffort, excludedIDs, requiredTransport, requiredEndpoint, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
+	selection, decision, err := s.selectAccountWithSchedulerBySize(ctx, groupID, previousResponseID, sessionHash, requestedModel, reasoningEffort, excludedIDs, requiredTransport, requiredEndpoint, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
 	if err == nil || openAIProxyStreamQuarantineBypassed(ctx) {
 		return selection, decision, err
 	}
@@ -3104,7 +3113,43 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 		return selection, decision, err
 	}
 	s.logOpenAIProxyStreamQuarantineFailOpen(requestedModel, blocked)
-	return s.selectAccountWithSchedulerOnce(withOpenAIProxyStreamQuarantineBypass(ctx), groupID, previousResponseID, sessionHash, requestedModel, reasoningEffort, excludedIDs, requiredTransport, requiredEndpoint, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
+	return s.selectAccountWithSchedulerBySize(withOpenAIProxyStreamQuarantineBypass(ctx), groupID, previousResponseID, sessionHash, requestedModel, reasoningEffort, excludedIDs, requiredTransport, requiredEndpoint, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
+}
+
+// selectAccountWithSchedulerBySize 按 WithOpenAIImageSizeRouting 记录的图片尺寸档位分轮调用
+// selectAccountWithSchedulerOnce；请求未携带尺寸时只跑一轮。
+// 前序轮次只拿到排队结果后的溢出轮在拿到槽位时，会连同首轮前读取的绑定一起交给
+// bindOpenAIImageSizeSpilloverAccount 完成会话绑定。
+func (s *OpenAIGatewayService) selectAccountWithSchedulerBySize(
+	ctx context.Context,
+	groupID *int64,
+	previousResponseID string,
+	sessionHash string,
+	requestedModel string,
+	reasoningEffort string,
+	excludedIDs map[int64]struct{},
+	requiredTransport OpenAIUpstreamTransport,
+	requiredEndpoint string,
+	requiredCapability OpenAIEndpointCapability,
+	requiredImageCapability OpenAIImagesCapability,
+	requireCompact bool,
+	platform string,
+	previousResponseCanMove bool,
+	useUpstreamTokenCost bool,
+) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	var initialStickyAccountID int64
+	if strings.TrimSpace(sessionHash) != "" && openAIImageSizeRoutingUsesPreference(ctx) {
+		if accountID, err := s.getStickySessionAccountID(ctx, groupID, sessionHash); err == nil {
+			initialStickyAccountID = accountID
+		}
+	}
+	return selectOpenAIAccountByImageSizePasses(ctx, func(passCtx context.Context) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+		selection, decision, err := s.selectAccountWithSchedulerOnce(passCtx, groupID, previousResponseID, sessionHash, requestedModel, reasoningEffort, excludedIDs, requiredTransport, requiredEndpoint, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
+		if err == nil && selection != nil && selection.Acquired && openAIImageSizeSpilloverPass(passCtx) {
+			s.bindOpenAIImageSizeSpilloverAccount(passCtx, groupID, sessionHash, initialStickyAccountID, selection)
+		}
+		return selection, decision, err
+	})
 }
 
 type openAIGroupPrivacyRequirementContextKey struct{}
@@ -3129,7 +3174,14 @@ func (s *OpenAIGatewayService) openAIGroupRequiresPrivacySet(ctx context.Context
 }
 
 func (s *OpenAIGatewayService) loadOpenAIGroupRequiresPrivacySet(ctx context.Context, groupID *int64) bool {
-	if s == nil || groupID == nil || s.schedulerSnapshot == nil {
+	if s == nil || groupID == nil {
+		return false
+	}
+	// 直连请求的被调度分组即认证分组，复用 auth 快照；composite 等 ID 不一致时回源。
+	if ctxGroup, ok := ctx.Value(ctxkey.Group).(*Group); ok && IsGroupContextValid(ctxGroup) && ctxGroup.ID == *groupID {
+		return ctxGroup.RequirePrivacySet
+	}
+	if s.schedulerSnapshot == nil {
 		return false
 	}
 	// GetByID 会聚合账号计数；隐私开关只在分组行上。
@@ -3185,7 +3237,7 @@ func (s *OpenAIGatewayService) selectLegacyAccountByPreviousResponse(
 	}
 	account := selection.Account
 	scheduler := &defaultOpenAIAccountScheduler{service: s, stats: newOpenAIAccountRuntimeStats()}
-	compatible, _ := scheduler.isAccountRequestCompatibleReason(ctx, account, OpenAIAccountScheduleRequest{
+	compatible, _ := scheduler.isAccountRequestCompatibleReason(withOpenAIImageSizeStickyAccount(ctx, account.ID), account, OpenAIAccountScheduleRequest{
 		GroupID:                 groupID,
 		Platform:                platform,
 		RequestedModel:          requestedModel,
@@ -3249,7 +3301,8 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 	if decision.AccountSourceGroupID > 0 && decision.AccountSourceGroupID != decision.EffectiveGroupID {
 		decision.AccountSourceType = GroupRoleSelfHostedPool
 	}
-	preserveGuardianParentBinding := preserveOpenAIGuardianParentBinding(ctx, sessionHash)
+	// 图片尺寸溢出轮沿用首轮前的绑定，避免选号期间被误写会话粘性。
+	preserveStickyBinding := preserveOpenAIGuardianParentBinding(ctx, sessionHash) || openAIImageSizeSpilloverPass(ctx)
 	guardianParentAccountID := int64(0)
 	if strings.TrimSpace(previousResponseID) == "" {
 		guardianParentAccountID = s.resolveOpenAIGuardianParentAccountID(ctx, groupID)
@@ -3297,7 +3350,7 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 			}
 		}
 		legacySessionHash := sessionHash
-		if preserveGuardianParentBinding {
+		if preserveStickyBinding {
 			legacySessionHash = ""
 		}
 		if requiredTransport == OpenAIUpstreamTransportAny || requiredTransport == OpenAIUpstreamTransportHTTPSSE {
@@ -3386,7 +3439,7 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 		StickyPreviousAccountID: stickyPreviousAccountID,
 		StickyWeighted:          stickyWeighted,
 		SubscriptionPriority:    subscriptionPriority,
-		PreserveStickyBinding:   preserveGuardianParentBinding,
+		PreserveStickyBinding:   preserveStickyBinding,
 		RequirePrivacySet:       s.openAIGroupRequiresPrivacySet(ctx, groupID),
 		PreviousResponseID:      previousResponseID,
 		PreviousResponseCanMove: previousResponseCanMove,

@@ -243,7 +243,8 @@ const (
 	// 白名单非空时，是否放行非白名单域名按主域名限量注册（每域名 1 个账户）。
 	// 默认 false：非白名单域名直接拒绝（白名单严格模式）。
 	SettingKeyRegistrationEmailDomainQuotaEnabled = "registration_email_domain_quota_enabled"
-	SettingKeyCyberPolicyUserAllowlist            = "cyber_policy_user_allowlist" // Platform user IDs with log-only cyber handling
+	SettingKeyRegistrationEmailBlacklist          = "registration_email_blacklist" // 注册邮箱精确黑名单（JSON 数组，按收件箱身份匹配；不进 SystemSettings，由专用接口读写）
+	SettingKeyCyberPolicyUserAllowlist            = "cyber_policy_user_allowlist"  // Platform user IDs with log-only cyber handling
 
 	// 邮件服务设置
 	SettingKeySMTPHost     = "smtp_host"      // SMTP服务器地址
