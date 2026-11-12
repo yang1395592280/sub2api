@@ -26,3 +26,7 @@ session-id: 20261112-0849
 ## [14:10] 发布准备: v0.2.21.1
 - 签到与福利分账已提交为90cd5c71e并无冲突合入custom-main。用户授权新tag、提交与推送；VERSION更新为0.2.21.1，发布工具11项与embed构建/实际版本检查通过。
 - 将创建annotated tag并原子推送custom-main和v0.2.21.1，结果以远端核验为准。RELEASE_ONLY=true，沿用现有自动Release工作流，不部署或执行生产迁移。详情release-v0.2.21.1.md。
+
+## [15:12] 发布准备: v0.2.21.2
+- 用户授权提交、打tag并推送签到月历与翻倍动画修复；custom-main当前提交adb011cf8，VERSION更新为0.2.21.2。
+- 将创建annotated tag并原子推送custom-main和v0.2.21.2；RELEASE_ONLY=true，沿用现有自动Release工作流，不部署或执行生产迁移。详情release-v0.2.21.2.md。

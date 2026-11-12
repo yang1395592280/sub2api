@@ -19,3 +19,8 @@
 - 签到与福利分账已提交并合入 custom-main（90cd5c71e，无冲突）。用户进一步明确授权提交版本、打 tag 并推送个人 fork。
 - 版本文件为0.2.21.1；发布工具11项、embed构建和二进制版本核验通过。仅推送custom-main与新tag；自动发布实际状态以GitHub核验为准，不部署。
 - 交接文档：release-v0.2.21.1.md；上线迁移与回退见docs/welfare-balance-checkin.md。
+
+## 最新授权：发布 v0.2.21.2
+- 签到前端月历与翻倍动画已合入 custom-main（adb011cf8，无冲突）。用户授权提交版本、打 tag 并推送个人 fork。
+- 版本文件为0.2.21.2；签到组件/i18n、typecheck、lint、build和mock浏览器验证通过。仅推送custom-main与新tag；自动发布实际状态以GitHub核验为准，不部署。
+- 交接文档：release-v0.2.21.2.md；上线迁移与回退见docs/welfare-balance-checkin.md。
