@@ -331,3 +331,9 @@
 - 用户明确要求“合并分支”，授权提交当前已验证的退款/金额展示与福利安全/比例配置改动并合入 custom-main。此前未提交/合并状态为开发交付时快照。
 - 合并前 feature/refund-welfare-display 与 custom-main 均为 abd49c9db，无分叉，使用 fast-forward；实际提交点与结果以 Git 历史为准。
 - 复用当前制品已通过的 Go全仓unit、相关race/build/vet、15项真实数据库集成、前端434文件3448项/lint/build及正式构建浏览器验证；合并前 diff 检查通过。不push、tag或部署。
+
+## 2026-11-12 发布授权：v0.2.21.3
+- 已完成带证据：用户授权打tag、提交推送；aef9e009f已合入custom-main，无冲突；VERSION/resolve-version/embed二进制-version均0.2.21.3，Linux隔离发布工具11项全PASS，diff检查通过。
+- 相关文件：backend/cmd/server/VERSION，20261112/release-v0.2.21.3.md，wallet-security-policy-plan.md与docs/welfare-balance-checkin.md。
+- 执行：版本提交后创建annotated tag，原子推送origin/custom-main与v0.2.21.3；最终提交点、远端refs和Release以Git/GitHub核验为准。RELEASE_ONLY=true，仅归档/Release，不部署或生产迁移。
+- 阻塞：无。业务测试复用当前功能完整unit/race/build/vet、15项PG/Redis集成、frontend3448项与正式构建浏览器。旧Bash3差异通过隔离Linux复验排除。

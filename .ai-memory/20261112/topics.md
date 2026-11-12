@@ -40,3 +40,7 @@
 ## 最新授权：合并福利计费与退款修复
 - 用户授权将 feature/refund-welfare-display 当前已验证改动提交并合入 custom-main；基线 abd49c9db 一致，计划 fast-forward，结果以 Git 历史为准。
 - 不push、tag或部署；既有开发验证结果适用于本次合并。
+
+## 最新授权：发布v0.2.21.3
+- 用户授权提交版本、打tag并推送；功能aef9e009f已合入custom-main，版本文件0.2.21.3，发布工具11项/Linux、embed构建和二进制版本核验通过。
+- 仅原子推送origin/custom-main与新tag，RELEASE_ONLY=true；沿用自动Release流程，不部署/不操作生产数据。最终refs和Release状态以GitHub为准，记录release-v0.2.21.3.md。

@@ -49,3 +49,8 @@ session-id: 20261112-0849
 ## 后续动作：用户授权本地合并
 - 核对工作区73个任务相关文件及既有验证日志，feature/refund-welfare-display 与 custom-main 同基线 abd49c9db，diff检查通过；提交后fast-forward合入custom-main。
 - 范围包含退款/两位金额/余额分栏及福利净额安全/可配置比例/签到账务加固；不push、tag或部署，最终提交与分支以Git历史为准。
+
+## [19:03] 发布准备：v0.2.21.3
+- 用户明确授权打tag、提交推送；aef9e009f已合入custom-main，VERSION更新0.2.21.3。
+- 发布工具11项在隔离Linux全PASS；本机Bash3语法不兼容未改脚本；sh解析、embed构建及实际-version核验通过。业务回归复用当前制品完整记录。
+- annotated tag与custom-main将原子推送origin，实时确认RELEASE_ONLY=true；不部署/不改生产数据库。最终以远端refs和Release工作流核验为准。详见release-v0.2.21.3.md。
