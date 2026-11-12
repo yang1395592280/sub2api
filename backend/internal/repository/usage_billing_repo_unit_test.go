@@ -83,6 +83,7 @@ func TestApplyUsageBillingEffects_FlagsBalanceOverdraft(t *testing.T) {
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	expectWalletLock(mock, 42, service.WalletBalance{Paid: 5})
+	expectDefaultWalletPolicy(mock)
 	expectWalletDelta(mock, 42, service.WalletBalance{Paid: -10}, service.WalletBalance{Paid: -5}, "usage", "", 0)
 	mock.ExpectCommit()
 
@@ -109,6 +110,7 @@ func TestApplyUsageBillingEffects_DeletedAPIKeyStillBillsBalance(t *testing.T) {
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	expectWalletLock(mock, 42, service.WalletBalance{Paid: 100})
+	expectDefaultWalletPolicy(mock)
 	expectWalletDelta(mock, 42, service.WalletBalance{Paid: -10}, service.WalletBalance{Paid: 90}, "usage", "", 7)
 	mock.ExpectQuery(apiKeyQuotaIncrementSQL).
 		WithArgs(10.0, int64(7), service.StatusAPIKeyActive, service.StatusAPIKeyQuotaExhausted).
@@ -144,6 +146,7 @@ func TestApplyUsageBillingEffects_DeletedAccountStillBillsBalance(t *testing.T) 
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	expectWalletLock(mock, 42, service.WalletBalance{Paid: 100})
+	expectDefaultWalletPolicy(mock)
 	expectWalletDelta(mock, 42, service.WalletBalance{Paid: -10}, service.WalletBalance{Paid: 90}, "usage", "", 0)
 	mock.ExpectQuery(accountQuotaIncrementSQL).
 		WithArgs(4.0, int64(9)).
@@ -320,7 +323,9 @@ func TestReserveUsageBillingBatchImageBalance_MovesAvailableToFrozen(t *testing.
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	expectWalletLock(mock, 42, service.WalletBalance{Paid: 10})
-	expectWalletDelta(mock, 42, service.WalletBalance{Paid: -2.5}, service.WalletBalance{Paid: 7.5}, "image_hold", "", 0)
+	expectDefaultWalletPolicy(mock)
+	mock.ExpectQuery(walletDeltaSQL).WithArgs(-2.5, 0., 0., 0., int64(42)).WillReturnRows(walletRows(service.WalletBalance{Paid: 7.5}))
+	mock.ExpectExec("INSERT INTO wallet_transactions").WithArgs(int64(42), "image_hold", "", int64(0), -2.5, 0., 0., 0., 7.5, 0., 0., 0., nil, walletPolicyNotes(service.DefaultWalletUsagePolicy())).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(`INSERT INTO wallet_image_holds`).WithArgs("", int64(42), 2.5, 0.0, 0.0, 0.0).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectQuery(`UPDATE users SET frozen_balance=frozen_balance`).WithArgs(2.5, int64(42)).WillReturnRows(sqlmock.NewRows([]string{"frozen_balance"}).AddRow(2.5))
 	mock.ExpectCommit()
@@ -345,6 +350,7 @@ func TestReserveUsageBillingBatchImageBalance_InsufficientBalance(t *testing.T) 
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	expectWalletLock(mock, 42, service.WalletBalance{Paid: 5})
+	expectDefaultWalletPolicy(mock)
 	mock.ExpectRollback()
 
 	_, err = reserveUsageBillingBatchImageBalance(ctx, tx, &service.BatchImageBalanceHoldCommand{UserID: 42, HoldAmount: 10})

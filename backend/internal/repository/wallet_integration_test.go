@@ -33,11 +33,11 @@ func TestWalletIntegrationUsageConcurrencyAndNegativeCredit(t *testing.T) {
 	cmd := &service.UsageBillingCommand{UserID: id, APIKeyID: key, RequestID: uuid.NewString(), BalanceCost: 9}
 	result, err := repo.Apply(ctx, cmd)
 	require.NoError(t, err)
-	require.Equal(t, service.WalletBalance{Paid: 6, Checkin: 3}, *result.WalletDebit)
+	require.Equal(t, service.WalletBalance{Paid: 8, Checkin: 1}, *result.WalletDebit)
 	repeat, err := repo.Apply(ctx, cmd)
 	require.NoError(t, err)
 	require.False(t, repeat.Applied)
-	require.Equal(t, service.WalletBalance{Paid: 94, Liyu: -5, Gift: 3}, readTestWallet(t, id))
+	require.Equal(t, service.WalletBalance{Paid: 92, Checkin: 2, Liyu: -5, Gift: 3}, readTestWallet(t, id))
 	var wg sync.WaitGroup
 	errs := make(chan error, 20)
 	for i := 0; i < 20; i++ {
@@ -53,11 +53,11 @@ func TestWalletIntegrationUsageConcurrencyAndNegativeCredit(t *testing.T) {
 	for err := range errs {
 		require.NoError(t, err)
 	}
-	require.Equal(t, service.WalletBalance{Paid: 90, Liyu: -5, Gift: 1}, readTestWallet(t, id))
+	require.Equal(t, service.WalletBalance{Paid: 86, Checkin: 2, Liyu: -5, Gift: 3}, readTestWallet(t, id))
 	var paid, gift float64
 	require.NoError(t, integrationDB.QueryRow(`SELECT -SUM(paid_delta),-SUM(gift_delta) FROM wallet_transactions WHERE user_id=$1 AND event_type='usage'`, id).Scan(&paid, &gift))
-	require.Equal(t, 10., paid)
-	require.Equal(t, 2., gift)
+	require.Equal(t, 14., paid)
+	require.Equal(t, 0., gift)
 }
 func TestWalletIntegrationCheckinLossAndRecovery(t *testing.T) {
 	ctx := context.Background()
@@ -191,7 +191,7 @@ func TestWalletIntegrationAdminGiftIdempotencyAndHistory(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total)
 	require.Equal(t, 5., recharged)
-	require.Contains(t, entries[0].SourceDetail, "赠送 +2.00000000")
+	require.Contains(t, entries[0].SourceDetail, "赠送 +2.00")
 	paidTotal, err := NewRedeemCodeRepository(testEntClient(t)).SumPositiveBalanceByUser(ctx, id)
 	require.NoError(t, err)
 	require.Equal(t, 5., paidTotal)
@@ -312,4 +312,65 @@ func TestWalletIntegrationRiskSweepContinuesPastDeletedUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "cleared", c.Status)
 	require.Equal(t, service.WalletBalance{Paid: 10}, readTestWallet(t, activeID))
+}
+
+func TestWalletIntegrationAdminRefundConcurrencyAndRollback(t *testing.T) {
+	ctx := context.Background()
+	id, _ := walletFixture(t, service.WalletBalance{Paid: 10, Checkin: -2, Liyu: 3, Gift: 4})
+	repo := NewUserRepository(testEntClient(t), integrationDB).(*userRepository)
+	require.NoError(t, repo.RefundWallet(ctx, id, 1, 2, "liyu", 0, "mixed", "first"))
+	require.Equal(t, service.WalletBalance{Paid: 9, Checkin: -2, Liyu: 1, Gift: 4}, readTestWallet(t, id))
+	require.NoError(t, repo.RefundWallet(ctx, id, 1, 2, "liyu", 0, "mixed", "first"))
+	require.ErrorIs(t, repo.RefundWallet(ctx, id, 1, 2, "gift", 0, "mixed", "first"), service.ErrIdempotencyKeyConflict)
+	require.Error(t, repo.RefundWallet(ctx, id, 1, 2, "liyu", 0, "too much", "fail"))
+	require.Equal(t, service.WalletBalance{Paid: 9, Checkin: -2, Liyu: 1, Gift: 4}, readTestWallet(t, id))
+	// A ledger insert failure must roll back the already issued balance UPDATE.
+	_, err := integrationDB.Exec("ALTER TABLE wallet_transactions ADD CONSTRAINT refund_test_notes CHECK (notes <> 'force_refund_failure')")
+	require.NoError(t, err)
+	err = repo.RefundWallet(ctx, id, 1, 1, "gift", 0, "force_refund_failure", "rollback")
+	_, dropErr := integrationDB.Exec("ALTER TABLE wallet_transactions DROP CONSTRAINT refund_test_notes")
+	require.NoError(t, dropErr)
+	require.Error(t, err)
+	require.Equal(t, service.WalletBalance{Paid: 9, Checkin: -2, Liyu: 1, Gift: 4}, readTestWallet(t, id))
+	// Concurrent identical operations charge once even after the selected source is exhausted.
+	var wg sync.WaitGroup
+	out := make(chan error, 8)
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() { defer wg.Done(); out <- repo.RefundWallet(ctx, id, 0, 4, "gift", 0, "same", "same") }()
+	}
+	wg.Wait()
+	close(out)
+	for err := range out {
+		require.NoError(t, err)
+	}
+	require.Equal(t, service.WalletBalance{Paid: 9, Checkin: -2, Liyu: 1}, readTestWallet(t, id))
+	// Distinct concurrent requests compete for the locked source; it cannot go negative.
+	out = make(chan error, 8)
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			out <- repo.RefundWallet(ctx, id, 1, 1, "liyu", 0, "compete", fmt.Sprintf("compete-%d", i))
+		}(i)
+	}
+	wg.Wait()
+	close(out)
+	success := 0
+	for err := range out {
+		if err == nil {
+			success++
+		}
+	}
+	require.Equal(t, 1, success)
+	require.Equal(t, service.WalletBalance{Paid: 8, Checkin: -2}, readTestWallet(t, id))
+	items, total, _, err := repo.ListWalletBalanceHistory(ctx, id, 20, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(3), total)
+	for _, item := range items {
+		require.Equal(t, "管理员余额退款", item.SourceLabel)
+	}
+	var recharged float64
+	require.NoError(t, integrationDB.QueryRow("SELECT total_recharged FROM users WHERE id=$1", id).Scan(&recharged))
+	require.Zero(t, recharged)
 }

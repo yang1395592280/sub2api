@@ -30,3 +30,22 @@ session-id: 20261112-0849
 ## [15:12] 发布准备: v0.2.21.2
 - 用户授权提交、打tag并推送签到月历与翻倍动画修复；custom-main当前提交adb011cf8，VERSION更新为0.2.21.2。
 - 将创建annotated tag并原子推送custom-main和v0.2.21.2；RELEASE_ONLY=true，沿用现有自动Release工作流，不部署或执行生产迁移。详情release-v0.2.21.2.md。
+
+## [16:38] 完成：福利退款与余额显示修复
+- feature/refund-welfare-display：管理员可选签到/礼遇/赠送来源退款，可单退充值/福利或混合；行锁+原子事务+流水+持久幂等，来源不足整笔拒绝。负福利保留，退款不造新债，不加累计充值/返佣。
+- 余额/签到/礼遇显示统一两位并消除负零；顶部桌面/手机、个人资料概览分别显示充值和福利；流水完整换行，历史到退款切换关闭旧弹窗。API/CSV账目精度保留。
+- 验证：前端完整430文件3433项，最终定向30项；lint/typecheck/build；Go三包完整unit/build/vet/定向race；11项真实PG/Redis钱包集成；正式构建本地API模拟浏览器桌面390px/中英/提交参数/超退通过。
+- 未提交/合并/推送/tag/部署，无生产改动。指定用户真实负数是否多扣尚无流水证据；只修展示不清账。细节refund-welfare-display-plan.md与docs/welfare-balance-checkin.md。
+
+## [18:53] 安全加固与可配置比例：断电后续做
+- 已完成福利净额/比例/正充值匹配上限，DB读取策略、冻结快照、管理员配置及动态规则显示；签到无效令牌拒发、金额验证与翻倍十进制精度、礼遇安全随机。规则与回退文档已更新。
+- 恢复后全Go unit、四包race、build/vet、前端434/3448及lint/build、正式构建mock浏览器中英/手机/保存与非法参数验证通过；新微额及非法金额测试通过。
+- Docker等待macOS授权已解除，用户回复已完成；真实数据库15项集成重新运行中。详见wallet-security-policy-plan.md。
+
+## [18:55] 完成：福利计费安全与可配置比例
+- Docker授权解除后，CI=true的隔离PostgreSQL18.1/Redis8.4实际15项TestWalletIntegration全PASS，含最新微额服务到数据库、快照APIKey绑定、旧notes与capture后取消不重退。最终四包完整unit亦通过。
+- 文档/计划已同步净额规则、后台比例入口、保守充值准入、冻结快照、无DDL与回退顺序；4/4主线完成。无本地代码或验证遗留。仅本地开发，保持feature/refund-welfare-display未提交，未合并/push/tag/部署，生产客户流水未核验。
+
+## 后续动作：用户授权本地合并
+- 核对工作区73个任务相关文件及既有验证日志，feature/refund-welfare-display 与 custom-main 同基线 abd49c9db，diff检查通过；提交后fast-forward合入custom-main。
+- 范围包含退款/两位金额/余额分栏及福利净额安全/可配置比例/签到账务加固；不push、tag或部署，最终提交与分支以Git历史为准。

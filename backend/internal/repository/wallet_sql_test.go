@@ -18,3 +18,7 @@ func expectWalletDelta(mock sqlmock.Sqlmock, id int64, delta, after service.Wall
 	mock.ExpectQuery(walletDeltaSQL).WithArgs(delta.Paid, delta.Checkin, delta.Liyu, delta.Gift, id).WillReturnRows(walletRows(after))
 	mock.ExpectExec(`INSERT INTO wallet_transactions`).WithArgs(id, event, op, apiKeyID, delta.Paid, delta.Checkin, delta.Liyu, delta.Gift, after.Paid, after.Checkin, after.Liyu, after.Gift, nil, "").WillReturnResult(sqlmock.NewResult(1, 1))
 }
+
+func expectDefaultWalletPolicy(mock sqlmock.Sqlmock) {
+	mock.ExpectQuery("SELECT value FROM settings WHERE key=").WithArgs(service.SettingKeyWalletUsagePolicy).WillReturnRows(sqlmock.NewRows([]string{"value"}))
+}

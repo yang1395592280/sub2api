@@ -22,27 +22,53 @@ func (w WalletBalance) Total() float64 {
 }
 
 func (w WalletBalance) PositiveWelfare() float64 {
-	return QuantizeUsageBillingAmount(math.Max(0, w.Checkin) + math.Max(0, w.Liyu) + math.Max(0, w.Gift))
+	return decimal.Max(decimal.Zero, decimal.NewFromFloat(w.Checkin).Add(decimal.NewFromFloat(w.Liyu)).Add(decimal.NewFromFloat(w.Gift))).Truncate(UsageBillingMonetaryScale).InexactFloat64()
 }
 
 func (w WalletBalance) Available() float64 {
+	return w.AvailableWithPolicy(DefaultWalletUsagePolicy())
+}
+
+func (w WalletBalance) AvailableWithPolicy(policy WalletUsagePolicy) float64 {
 	if w.Paid <= 0 {
 		return w.Paid
 	}
 	paid := decimal.NewFromFloat(w.Paid).Truncate(UsageBillingMonetaryScale)
-	allowance := paid.Div(decimal.NewFromInt(2)).Truncate(UsageBillingMonetaryScale)
+	if policy.Validate() != nil {
+		return paid.InexactFloat64()
+	}
+	allowance := paid.Mul(decimal.NewFromInt(policy.WelfareUnits)).Div(decimal.NewFromInt(policy.PaidUnits)).Truncate(UsageBillingMonetaryScale)
 	return paid.Add(decimal.Min(decimal.NewFromFloat(w.PositiveWelfare()), allowance)).InexactFloat64()
 }
 
 // Split returns debit amounts, consuming check-in, liyu, then admin gifts.
-// Round the one-third allowance down so tiny charges cannot exceed the subsidy
+// Round the configured allowance down so tiny charges cannot exceed the subsidy
 // limit. Paid debt remains possible for already delivered postpaid requests.
 func (w WalletBalance) Split(amount float64) (WalletBalance, error) {
+	return w.SplitWithPolicy(amount, DefaultWalletUsagePolicy())
+}
+
+func (w WalletBalance) SplitWithPolicy(amount float64, policy WalletUsagePolicy) (WalletBalance, error) {
 	if amount < 0 || math.IsNaN(amount) || math.IsInf(amount, 0) {
 		return WalletBalance{}, errors.New("invalid wallet charge")
 	}
+	if err := policy.Validate(); err != nil {
+		return WalletBalance{}, err
+	}
+	for _, v := range []float64{w.Paid, w.Checkin, w.Liyu, w.Gift} {
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return WalletBalance{}, errors.New("invalid wallet balance")
+		}
+	}
 	cost := decimal.NewFromFloat(amount).Round(UsageBillingMonetaryScale)
-	remaining := cost.Div(decimal.NewFromInt(3)).Truncate(UsageBillingMonetaryScale)
+	// Negative activity debt reduces the net spendable welfare. Never deepen it
+	// by consuming a positive source when the combined welfare is exhausted.
+	allowance := cost.Mul(decimal.NewFromInt(policy.WelfareUnits)).Div(decimal.NewFromInt(policy.PaidUnits + policy.WelfareUnits)).Truncate(UsageBillingMonetaryScale)
+	remaining := decimal.Min(allowance, decimal.NewFromFloat(w.PositiveWelfare()))
+	// Delivered postpaid requests can overdraw paid credit, but that must not
+	// mint a subsidy larger than the positive paid credit can match.
+	matching := decimal.NewFromFloat(math.Max(0, w.Paid)).Mul(decimal.NewFromInt(policy.WelfareUnits)).Div(decimal.NewFromInt(policy.PaidUnits)).Truncate(UsageBillingMonetaryScale)
+	remaining = decimal.Min(remaining, matching)
 	if w.Paid <= 0 {
 		remaining = decimal.Zero
 	}
@@ -63,6 +89,13 @@ func (w WalletBalance) Split(amount float64) (WalletBalance, error) {
 
 func (u *User) Wallet() WalletBalance {
 	return WalletBalance{Paid: u.Balance, Checkin: u.CheckinBalance, Liyu: u.LiyuBalance, Gift: u.GiftBalance}
+}
+
+func (u *User) UsagePolicy() WalletUsagePolicy {
+	if u.WalletUsagePolicy != nil {
+		return *u.WalletUsagePolicy
+	}
+	return DefaultWalletUsagePolicy()
 }
 
 type WalletUsageBreakdown struct {

@@ -2,6 +2,16 @@
   <AppLayout>
     <div class="space-y-6">
       <div class="flex items-center justify-between"><h1 class="text-2xl font-bold">{{ t('wallet.adminTitle') }}</h1><button class="btn btn-secondary" :disabled="busy" @click="load">{{ t('wallet.refresh') }}</button></div>
+      <form v-if="walletPolicy" class="card space-y-4 p-5" data-testid="wallet-policy" @submit.prevent="saveWalletPolicy">
+        <h2 class="font-semibold">{{ t('wallet.usagePolicy') }}</h2>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label>{{ t('wallet.paidUnits') }}<input v-model.number="walletPolicy.paid_units" name="paid_units" class="input mt-1" type="number" min="1" max="10000" step="1" required /></label>
+          <label>{{ t('wallet.welfareUnits') }}<input v-model.number="walletPolicy.welfare_units" name="welfare_units" class="input mt-1" type="number" min="0" max="10000" step="1" required /></label>
+        </div>
+        <p class="text-sm text-gray-500">{{ t('wallet.policyHint') }}</p>
+        <p class="text-sm">{{ t('wallet.rule', { paid: walletPolicy.paid_units, welfare: walletPolicy.welfare_units }) }}</p>
+        <button class="btn btn-primary" :disabled="busy">{{ t('common.save') }}</button>
+      </form>
       <form v-if="settings" class="card space-y-4 p-5" @submit.prevent="save">
         <label class="flex items-center gap-2"><input v-model="settings.enabled" type="checkbox" />{{ t('wallet.enabled') }}</label>
         <div class="grid gap-4 sm:grid-cols-2"><label>{{ t('wallet.minReward') }}<input v-model.number="settings.min_reward" class="input mt-1" type="number" min="0" max="10000" step="0.00000001" required /></label><label>{{ t('wallet.maxReward') }}<input v-model.number="settings.max_reward" class="input mt-1" type="number" min="0" max="10000" step="0.00000001" required /></label></div>
@@ -20,26 +30,28 @@
           <button class="btn btn-primary sm:col-span-2" :disabled="busy">{{ t('wallet.confirmRisk') }}</button>
         </form>
         <div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr><th class="p-2">ID / {{ t('wallet.userID') }}</th><th class="p-2">{{ t('wallet.status') }}</th><th class="p-2">{{ t('wallet.reason') }} / {{ t('wallet.evidence') }}</th><th class="p-2">{{ t('wallet.observeUntil') }}</th><th class="p-2">{{ t('wallet.clearedAmount') }}</th><th /></tr></thead><tbody>
-          <tr v-for="r in risks" :key="r.id" class="border-t dark:border-dark-600"><td class="p-2">{{ r.id }} / {{ r.user_id }}</td><td class="p-2">{{ t(`wallet.${r.status}`) }}</td><td class="max-w-md whitespace-pre-wrap break-words p-2">{{ r.reason }}<p class="text-xs text-gray-500">{{ r.evidence }}</p></td><td class="p-2">{{ new Date(r.observe_until).toLocaleString() }}</td><td class="p-2">${{ r.cleared_amount.toFixed(8) }}</td><td class="p-2"><button v-if="r.status === 'observing'" class="btn btn-secondary" :disabled="busy" @click="resolve(r.id, 'revoke')">{{ t('wallet.revoke') }}</button><button v-if="r.status === 'cleared'" class="btn btn-secondary" :disabled="busy" @click="resolve(r.id, 'restore')">{{ t('wallet.restore') }}</button></td></tr>
+          <tr v-for="r in risks" :key="r.id" class="border-t dark:border-dark-600"><td class="p-2">{{ r.id }} / {{ r.user_id }}</td><td class="p-2">{{ t(`wallet.${r.status}`) }}</td><td class="max-w-md whitespace-pre-wrap break-words p-2">{{ r.reason }}<p class="text-xs text-gray-500">{{ r.evidence }}</p></td><td class="p-2">{{ new Date(r.observe_until).toLocaleString() }}</td><td class="p-2">${{ formatMoney(r.cleared_amount) }}</td><td class="p-2"><button v-if="r.status === 'observing'" class="btn btn-secondary" :disabled="busy" @click="resolve(r.id, 'revoke')">{{ t('wallet.revoke') }}</button><button v-if="r.status === 'cleared'" class="btn btn-secondary" :disabled="busy" @click="resolve(r.id, 'restore')">{{ t('wallet.restore') }}</button></td></tr>
         </tbody></table></div>
         <div class="flex items-center gap-3"><button class="btn btn-secondary" :disabled="riskPage <= 1 || busy" @click="riskPage--; loadRisks()">←</button><span>{{ riskPage }} / {{ Math.max(1, Math.ceil(riskTotal / 20)) }}</span><button class="btn btn-secondary" :disabled="riskPage * 20 >= riskTotal || busy" @click="riskPage++; loadRisks()">→</button></div>
       </section>
-      <section class="card space-y-4 p-5"><h2 class="font-semibold">{{ t('wallet.records') }}</h2><div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr><th class="p-2">{{ t('wallet.userID') }}</th><th class="p-2">{{ t('wallet.date') }}</th><th class="p-2">{{ t('wallet.baseReward') }}</th><th class="p-2">{{ t('wallet.status') }}</th><th class="p-2">{{ t('wallet.reward') }}</th></tr></thead><tbody><tr v-for="r in records" :key="r.id" class="border-t dark:border-dark-600"><td class="p-2">{{ r.user_id }} {{ r.user_email }}</td><td class="p-2">{{ r.checkin_date }}</td><td class="p-2">${{ r.base_reward_amount.toFixed(8) }}</td><td class="p-2">{{ t(`wallet.${r.bonus_status}`) }}</td><td class="p-2">${{ r.reward_amount.toFixed(8) }}</td></tr></tbody></table></div>
+      <section class="card space-y-4 p-5"><h2 class="font-semibold">{{ t('wallet.records') }}</h2><div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr><th class="p-2">{{ t('wallet.userID') }}</th><th class="p-2">{{ t('wallet.date') }}</th><th class="p-2">{{ t('wallet.baseReward') }}</th><th class="p-2">{{ t('wallet.status') }}</th><th class="p-2">{{ t('wallet.reward') }}</th></tr></thead><tbody><tr v-for="r in records" :key="r.id" class="border-t dark:border-dark-600"><td class="p-2">{{ r.user_id }} {{ r.user_email }}</td><td class="p-2">{{ r.checkin_date }}</td><td class="p-2">${{ formatMoney(r.base_reward_amount) }}</td><td class="p-2">{{ t(`wallet.${r.bonus_status}`) }}</td><td class="p-2">${{ formatMoney(r.reward_amount) }}</td></tr></tbody></table></div>
         <div class="flex items-center gap-3"><button class="btn btn-secondary" :disabled="recordPage <= 1 || busy" @click="recordPage--; loadRecords()">←</button><span>{{ recordPage }} / {{ Math.max(1, Math.ceil(recordTotal / 20)) }}</span><button class="btn btn-secondary" :disabled="recordPage * 20 >= recordTotal || busy" @click="recordPage++; loadRecords()">→</button></div>
       </section>
     </div>
   </AppLayout>
 </template>
 <script setup lang="ts">
+import { formatWalletAmount as formatMoney } from '@/utils/walletDisplay'
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import { checkinAPI, type CheckinRecord, type CheckinRisk, type CheckinSettings } from '@/api/checkin'
+import { checkinAPI, type CheckinRecord, type CheckinRisk, type CheckinSettings, type WalletUsagePolicy } from '@/api/checkin'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 const { t } = useI18n()
 const app = useAppStore()
 const settings = ref<CheckinSettings | null>(null)
+const walletPolicy = ref<WalletUsagePolicy | null>(null)
 const distribution = ref('')
 const records = ref<Array<CheckinRecord & { user_email: string }>>([])
 const risks = ref<CheckinRisk[]>([])
@@ -53,8 +65,16 @@ async function run(action: () => Promise<void>) {
 async function loadRecords() { await run(async () => { const data = await checkinAPI.records(recordPage.value); records.value = data.items; recordTotal.value = data.total }) }
 async function loadRisks() { await run(async () => { const data = await checkinAPI.risks(riskPage.value); risks.value = data.items; riskTotal.value = data.total }) }
 async function load() {
+  await run(async () => { walletPolicy.value = await checkinAPI.walletPolicy() })
   await run(async () => { settings.value = await checkinAPI.settings(); distribution.value = settings.value.distribution?.length ? JSON.stringify(settings.value.distribution, null, 2) : '' })
   await loadRecords(); await loadRisks()
+}
+async function saveWalletPolicy() {
+  await run(async () => {
+    if (!walletPolicy.value) return
+    walletPolicy.value = await checkinAPI.saveWalletPolicy(walletPolicy.value)
+    app.showSuccess(t('common.success'))
+  })
 }
 async function save() {
   await run(async () => {

@@ -8,55 +8,67 @@
       <div>
         <label class="input-label" for="paid-balance-amount">{{ operation === 'add' ? t('admin.users.depositAmount') : t('admin.users.withdrawAmount') }}</label>
         <div class="relative flex gap-2">
-          <div class="relative flex-1"><div class="absolute left-3 top-1/2 -translate-y-1/2 font-medium text-gray-500">$</div><input id="paid-balance-amount" v-model.number="form.amount" type="number" step="any" min="0" required class="input pl-8" /></div>
+          <div class="relative flex-1"><div class="absolute left-3 top-1/2 -translate-y-1/2 font-medium text-gray-500">$</div><input id="paid-balance-amount" v-model.number="form.amount" type="number" step="any" min="0" class="input pl-8" /></div>
           <button v-if="operation === 'subtract'" type="button" @click="fillAllBalance" class="btn btn-secondary whitespace-nowrap">{{ t('admin.users.withdrawAll') }}</button>
         </div>
       </div>
-      <div v-if="operation === 'add'"><label class="input-label" for="welfare-gift-amount">{{ t('wallet.giftAmount') }}</label><input id="welfare-gift-amount" v-model.number="form.giftAmount" type="number" min="0" step="any" class="input" /></div>
-      <p class="text-sm text-gray-500">{{ t('wallet.gift') }}: ${{ formatBalance(user.gift_balance || 0) }} → ${{ formatBalance((user.gift_balance || 0) + (operation === 'add' ? form.giftAmount : 0)) }}</p>
+      <div v-if="operation === 'subtract'">
+        <label class="input-label" for="welfare-refund-source">{{ t('wallet.refundSource') }}</label>
+        <select id="welfare-refund-source" v-model="form.welfareSource" class="input">
+          <option value="checkin">{{ t('wallet.checkin') }} (${{ formatBalance(user.checkin_balance) }})</option>
+          <option value="liyu">{{ t('wallet.liyu') }} (${{ formatBalance(user.liyu_balance) }})</option>
+          <option value="gift">{{ t('wallet.gift') }} (${{ formatBalance(user.gift_balance) }})</option>
+        </select>
+      </div>
+      <div>
+        <label class="input-label" for="welfare-gift-amount">{{ operation === 'add' ? t('wallet.giftAmount') : t('wallet.refundAmount') }}</label>
+        <div class="flex gap-2">
+          <input id="welfare-gift-amount" v-model.number="form.giftAmount" type="number" min="0" step="any" class="input min-w-0 flex-1" />
+          <button v-if="operation === 'subtract'" type="button" @click="form.giftAmount = Math.max(0, selectedWelfareBalance)" class="btn btn-secondary whitespace-nowrap">{{ t('admin.users.withdrawAll') }}</button>
+        </div>
+        <p v-if="operation === 'subtract'" class="mt-2 text-xs text-gray-500">{{ t('wallet.refundHint') }}</p>
+      </div>
+      <p class="text-sm text-gray-500">{{ selectedWelfareLabel }}: ${{ formatBalance(selectedWelfareBalance) }} → ${{ formatBalance(selectedWelfareBalance + (operation === 'add' ? form.giftAmount : -form.giftAmount)) }}</p>
       <div><label class="input-label">{{ t('admin.users.notes') }}</label><textarea v-model="form.notes" rows="3" class="input"></textarea></div>
       <div v-if="form.amount > 0" class="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950"><div class="flex items-center justify-between text-sm"><span class="text-gray-700 dark:text-gray-300">{{ t('admin.users.newBalance') }}:</span><span class="font-bold text-gray-900 dark:text-gray-100">${{ formatBalance(calculateNewBalance()) }}</span></div></div>
     </form>
     <template #footer>
       <div class="flex justify-end gap-3">
         <button @click="$emit('close')" class="btn btn-secondary">{{ t('common.cancel') }}</button>
-        <button type="submit" form="balance-form" :disabled="submitting || !(form.amount > 0 || (operation === 'add' && form.giftAmount > 0))" class="btn" :class="operation === 'add' ? 'bg-emerald-600 text-white' : 'btn-danger'">{{ submitting ? t('common.saving') : t('common.confirm') }}</button>
+        <button type="submit" form="balance-form" :disabled="submitting || !(form.amount > 0 || form.giftAmount > 0)" class="btn" :class="operation === 'add' ? 'bg-emerald-600 text-white' : 'btn-danger'">{{ submitting ? t('common.saving') : t('common.confirm') }}</button>
       </div>
     </template>
   </BaseDialog>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import { formatWalletAmount as formatBalance } from '@/utils/walletDisplay'
+import type { WelfareSource } from '@/api/admin/users'
 import type { AdminUser } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 
 const props = defineProps<{ show: boolean, user: AdminUser | null, operation: 'add' | 'subtract' }>()
 const emit = defineEmits(['close', 'success']); const { t } = useI18n(); const appStore = useAppStore()
 
-const submitting = ref(false); const form = reactive({ amount: 0, giftAmount: 0, notes: '' })
-watch(() => props.show, (v) => { if(v) { form.amount = 0; form.giftAmount = 0; form.notes = '' } })
-
-// 格式化余额：显示完整精度，去除尾部多余的0
-const formatBalance = (value: number) => {
-  if (value === 0) return '0.00'
-  // 最多保留8位小数，去除尾部的0
-  const formatted = value.toFixed(8).replace(/\.?0+$/, '')
-  // 确保至少有2位小数
-  const parts = formatted.split('.')
-  if (parts.length === 1) return formatted + '.00'
-  if (parts[1].length === 1) return formatted + '0'
-  return formatted
-}
+const submitting = ref(false)
+const form = reactive({ amount: 0, giftAmount: 0, welfareSource: 'gift' as WelfareSource, notes: '' })
+const requestKey = ref(crypto.randomUUID())
+watch(() => props.show, (v) => { if(v) { form.amount = 0; form.giftAmount = 0; form.welfareSource = 'gift'; form.notes = ''; requestKey.value = crypto.randomUUID() } })
+// Retrying the same request reuses its key; editing a request creates a new operation.
+watch(() => [form.amount, form.giftAmount, form.welfareSource, form.notes, props.user?.id, props.operation], () => { requestKey.value = crypto.randomUUID() })
+const selectedWelfareSource = computed(() => props.operation === 'add' ? 'gift' : form.welfareSource)
+const selectedWelfareBalance = computed(() => Number(props.user?.[`${selectedWelfareSource.value}_balance`] ?? 0))
+const selectedWelfareLabel = computed(() => t(`wallet.${selectedWelfareSource.value}`))
 
 // 填入全部余额
 const fillAllBalance = () => {
   if (props.user) {
-    form.amount = props.user.balance
+    form.amount = Math.max(0, props.user.balance)
   }
 }
 
@@ -67,19 +79,23 @@ const calculateNewBalance = () => {
   return Math.abs(result) < 1e-10 ? 0 : result
 }
 const handleBalanceSubmit = async () => {
-  if (!props.user) return
-  if (!Number.isFinite(form.amount) || form.amount < 0 || !Number.isFinite(form.giftAmount) || form.giftAmount < 0 || !(form.amount > 0 || (props.operation === 'add' && form.giftAmount > 0))) {
+  if (!props.user || submitting.value) return
+  if (!Number.isFinite(form.amount) || form.amount < 0 || !Number.isFinite(form.giftAmount) || form.giftAmount < 0 || !(form.amount > 0 || form.giftAmount > 0)) {
     appStore.showError(t('admin.users.amountRequired'))
     return
   }
   // 退款时验证金额不超过实际余额
-  if (props.operation === 'subtract' && form.amount > props.user.balance) {
+  if (props.operation === 'subtract' && form.amount > 0 && form.amount > props.user.balance) {
     appStore.showError(t('admin.users.insufficientBalance'))
+    return
+  }
+  if (props.operation === 'subtract' && form.giftAmount > 0 && form.giftAmount > selectedWelfareBalance.value) {
+    appStore.showError(t('wallet.insufficientRefundBalance'))
     return
   }
   submitting.value = true
   try {
-    await adminAPI.users.updateBalance(props.user.id, form.amount, props.operation, form.notes, props.operation === 'add' ? form.giftAmount : 0)
+    await adminAPI.users.updateBalance(props.user.id, form.amount, props.operation, form.notes, form.giftAmount, props.operation === 'subtract' ? form.welfareSource : undefined, requestKey.value)
     appStore.showSuccess(t('common.success')); emit('success'); emit('close')
   } catch (e: any) {
     console.error('Failed to update balance:', e)

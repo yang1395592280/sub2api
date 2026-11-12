@@ -212,6 +212,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatWalletAmount } from '@/utils/walletDisplay'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CaptchaChallenge from '@/components/CaptchaChallenge.vue'
@@ -408,11 +409,11 @@ function parseMonth(value: string): Date {
 function formatMonth(date: Date): string { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` }
 function formatDate(date: Date): string { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` }
 function formatReward(value: number): string {
-  const amount = Math.abs(value).toFixed(8).replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1')
-  return `${value < 0 ? '-' : ''}$${amount}`
+  const amount = formatWalletAmount(value)
+  return amount.startsWith('-') ? `-$${amount.slice(1)}` : `$${amount}`
 }
-function formatRewardCompact(value: number): string { return `${value < 0 ? '-' : ''}${Math.abs(value) < 0.1 ? Math.abs(value).toFixed(3) : Math.abs(value).toFixed(2)}` }
-function formatSignedReward(value: number): string { return `${value >= 0 ? '+' : '-'}${formatReward(Math.abs(value))}` }
+function formatRewardCompact(value: number): string { return formatWalletAmount(value) }
+function formatSignedReward(value: number): string { return `${formatWalletAmount(value).startsWith('-') ? '-' : '+'}${formatReward(Math.abs(value))}` }
 function handleCaptchaExpire() { pendingAction.value = null; proof.value = {}; submitting.value = false }
 </script>
 

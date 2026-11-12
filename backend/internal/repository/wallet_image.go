@@ -15,16 +15,20 @@ func reserveWalletImage(ctx context.Context, tx *sql.Tx, cmd *service.BatchImage
 	if err != nil {
 		return nil, err
 	}
-	if before.Available() < cmd.HoldAmount {
+	policy, err := loadWalletUsagePolicy(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	if before.Paid <= 0 || before.AvailableWithPolicy(policy) < cmd.HoldAmount {
 		return nil, service.ErrBatchImageInsufficientBalance
 	}
-	held, err := before.Split(cmd.HoldAmount)
+	held, err := before.SplitWithPolicy(cmd.HoldAmount, policy)
 	if err != nil {
 		return nil, err
 	}
 	after, err := applyWalletDelta(ctx, tx, cmd.UserID,
 		service.WalletBalance{Paid: -held.Paid, Checkin: -held.Checkin, Liyu: -held.Liyu, Gift: -held.Gift},
-		"image_hold", cmd.BatchID, cmd.APIKeyID, nil, "")
+		"image_hold", cmd.BatchID, cmd.APIKeyID, nil, walletPolicyNotes(policy))
 	if err != nil {
 		return nil, err
 	}
@@ -58,9 +62,26 @@ func settleWalletImage(ctx context.Context, tx *sql.Tx, cmd *service.BatchImageB
 	if cost < 0 || cost > held.Total() {
 		return nil, true, service.ErrBatchImageSettlementCostExceedsHold
 	}
-	debit, err := held.Split(cost)
+	// The hold ledger is the immutable policy snapshot. A later configuration
+	// change must neither increase the subsidy nor exceed a held source.
+	policy := service.DefaultWalletUsagePolicy()
+	var notes string
+	err = tx.QueryRowContext(ctx, `SELECT notes FROM wallet_transactions WHERE user_id=$1 AND event_type='image_hold' AND operation_id=$2 AND api_key_id=$3`, cmd.UserID, cmd.BatchID, cmd.APIKeyID).Scan(&notes)
 	if err != nil {
 		return nil, true, err
+	}
+	if notes != "" {
+		policy, err = service.ParseWalletUsagePolicy(notes)
+		if err != nil {
+			return nil, true, err
+		}
+	}
+	debit, err := held.SplitWithPolicy(cost, policy)
+	if err != nil {
+		return nil, true, err
+	}
+	if debit.Paid > held.Paid || debit.Checkin > held.Checkin || debit.Liyu > held.Liyu || debit.Gift > held.Gift {
+		return nil, true, errors.New("image wallet debit exceeds held source")
 	}
 	refund := service.WalletBalance{Paid: held.Paid - debit.Paid, Checkin: held.Checkin - debit.Checkin, Liyu: held.Liyu - debit.Liyu, Gift: held.Gift - debit.Gift}
 	after, err := applyWalletDelta(ctx, tx, cmd.UserID, held, "image_release", cmd.BatchID, cmd.APIKeyID, nil, "")

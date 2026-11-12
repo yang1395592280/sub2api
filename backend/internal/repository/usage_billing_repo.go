@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math"
 	"strings"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -25,6 +26,11 @@ func (r *usageBillingRepository) Apply(ctx context.Context, cmd *service.UsageBi
 	}
 	if r == nil || r.db == nil {
 		return nil, errors.New("usage billing repository db is nil")
+	}
+	for _, amount := range []float64{cmd.BalanceCost, cmd.SubscriptionCost, cmd.APIKeyQuotaCost, cmd.APIKeyRateLimitCost, cmd.AccountQuotaCost} {
+		if amount < 0 || math.IsNaN(amount) || math.IsInf(amount, 0) {
+			return nil, errors.New("invalid billing amount")
+		}
 	}
 
 	cmd.Normalize()
@@ -132,6 +138,11 @@ func (r *usageBillingRepository) applyBatchImageBalanceHold(
 	if r == nil || r.db == nil {
 		return nil, errors.New("usage billing repository db is nil")
 	}
+	for _, amount := range []float64{cmd.HoldAmount, cmd.ActualAmount} {
+		if amount < 0 || math.IsNaN(amount) || math.IsInf(amount, 0) {
+			return nil, errors.New("invalid image billing amount")
+		}
+	}
 	cmd.Normalize()
 	if cmd.RequestID == "" {
 		return nil, service.ErrUsageBillingRequestIDRequired
@@ -184,7 +195,7 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 			return err
 		}
 		result.NewBalance = &after.Paid
-		available := after.Available()
+		available := after.Paid // Cache admission credit, independent of mutable subsidy policy.
 		result.AvailableBalance = &available
 		result.WalletDebit = &debit
 		result.BalanceOverdrafted = !sufficient

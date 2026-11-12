@@ -359,7 +359,9 @@ func (s *BillingCacheService) getUserBalanceFromDB(ctx context.Context, userID i
 	if err != nil {
 		return 0, fmt.Errorf("get user balance: %w", err)
 	}
-	return user.Wallet().Available(), nil
+	// Admission/reservations use paid credit conservatively. This remains valid
+	// across policy changes and never admits requests funded only by welfare.
+	return user.Balance, nil
 }
 
 // setBalanceCache 设置余额缓存

@@ -308,3 +308,26 @@
 - 用户明确要求打tag v0.2.21、提交推送；修复8f0a44682已合入custom-main。VERSION已一致，发布构建及二进制版本通过。
 - 相关文件：20261112/release-v0.2.21.md。保留本地上游tag对象，再提交发布记录、创建二改annotated tag并原子推送origin/custom-main与v0.2.21；最终结果以Git/GitHub为准。
 - RELEASE_ONLY=true；不推送上游tag备份、不部署或生产迁移。数据库集成仍受Docker不可用限制。
+
+## 2026-11-12 福利退款与余额显示交付
+- 已完成带证据：管理员明确选择签到/礼遇/赠送来源，单退充值/福利或混合，原子事务/行锁/幂等/流水/余额不足整笔拒绝；前端两位金额和完整流水说明，桌面手机顶部及个人资料余额分栏，修复历史弹窗叠加。前端430/3433完整+最终定向30项，Go相关三包完整unit/build/vet及race、11项真实PG/Redis集成和正式构建模拟API浏览器通过。
+- 相关文件：20261112/refund-welfare-display-plan.md、docs/welfare-balance-checkin.md；backend/internal/handler/admin/user_handler.go、service/admin_wallet.go、repository/wallet_admin.go与wallet_history.go；前端UserBalanceModal/AppHeader/ProfileInfoCard/walletDisplay及正式回归。
+- 未完成：无本地开发待办；feature/refund-welfare-display尚未提交/合并/推送/tag/部署。本次没有新发布授权。真实用户负数是否多扣尚无生产流水证据，实际余额未改。
+- 阻塞：无。
+
+## 2026-11-12 18:53 福利安全与可配置比例续做
+- 已完成带证据：净福利非正全扣充值，净正额/比例/正充值匹配上限；DB策略与图片冻结快照；后台配置、个人中心规则、paid-only准入缓存；签到验证拒发/奖励校验/微额精度及礼遇安全随机。恢复后Go全仓unit、四包race/build/vet，前端434文件3448项/lint/build与正式构建API模拟浏览器中英桌面390px通过。
+- 相关文件：20261112/wallet-security-policy-plan.md，docs/welfare-balance-checkin.md；service/wallet*.go、checkin_service.go；repository/wallet*.go、usage_billing_repo.go、checkin_repo.go；CheckinsView.vue/WalletBalanceCard.vue与正式回归。
+- 未完成：最新15项TestWalletIntegration实际运行中（新增微额、快照APIKey/旧notes/释放互斥回归）；最终文档交付。当前代码未提交/合并/push/tag/部署；不操作生产余额。
+- 阻塞：此前Docker系统授权已由用户解除，daemon28.0.1可用；不得把前次skipping视为通过，以最新实际日志为准。
+
+## 2026-11-12 18:55 福利安全与可配置比例最终交付
+- 已完成带证据：本轮4/4主线完成。用户解除Docker授权后，最新15项真实PostgreSQL18.1/Redis8.4钱包集成实际全PASS；全Go unit、相关四包race/build/vet、前端434文件3448项/lint/build、正式构建模拟API浏览器中英桌面390px通过，最终diff检查通过。
+- 相关文件：20261112/wallet-security-policy-plan.md及docs/welfare-balance-checkin.md包含完整规则、接口、冻结快照、配置、验证与回退；核心service/wallet.go、wallet_policy.go、checkin_service.go与repository/wallet*.go、checkin_repo.go、usage_billing_repo.go及管理界面。
+- 未完成：无本地开发/验证遗留；无本轮发布授权，不提交/合并/push/tag/部署。当前feature/refund-welfare-display保留前轮退款与显示修改。未核验真实投诉流水，未调整生产历史余额。
+- 阻塞：无。回退本轮前恢复2:1、排空非默认比例冻结并刷新旧缓存；旧版含已知福利净额缺陷需评估。自动化风控不能保证识别所有仿真浏览器脚本。
+
+## 2026-11-12 后续授权：合并福利计费与退款修复
+- 用户明确要求“合并分支”，授权提交当前已验证的退款/金额展示与福利安全/比例配置改动并合入 custom-main。此前未提交/合并状态为开发交付时快照。
+- 合并前 feature/refund-welfare-display 与 custom-main 均为 abd49c9db，无分叉，使用 fast-forward；实际提交点与结果以 Git 历史为准。
+- 复用当前制品已通过的 Go全仓unit、相关race/build/vet、15项真实数据库集成、前端434文件3448项/lint/build及正式构建浏览器验证；合并前 diff 检查通过。不push、tag或部署。

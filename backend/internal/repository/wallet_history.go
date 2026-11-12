@@ -5,9 +5,18 @@ import (
 	"fmt"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/shopspring/decimal"
 )
 
-const walletHistoryEvents = `event_type IN ('admin_credit','checkin','checkin_bonus','checkin_clear','checkin_clear_refund','checkin_restore')`
+const walletHistoryEvents = `event_type IN ('admin_credit','admin_refund','checkin','checkin_bonus','checkin_clear','checkin_clear_refund','checkin_restore')`
+
+func walletHistoryAmount(amount float64) string {
+	rounded := decimal.NewFromFloat(amount).Round(2)
+	if rounded.IsNegative() {
+		return rounded.StringFixed(2)
+	}
+	return "+" + rounded.StringFixed(2)
+}
 
 // ListWalletBalanceHistory supplements legacy history without counting usage,
 // frozen transfers or lottery records twice. Recharge totals exclude gifts.
@@ -52,9 +61,9 @@ func (r *userRepository) ListWalletBalanceHistory(ctx context.Context, userID in
 		e.UsedBy = &userID
 		at := e.CreatedAt
 		e.UsedAt = &at
-		labels := map[string]string{"admin_credit": "管理员充值与福利赠送", "checkin": "签到福利", "checkin_bonus": "签到翻倍", "checkin_clear": "签到福利清退", "checkin_clear_refund": "冻结签到福利清退", "checkin_restore": "签到福利复核恢复"}
+		labels := map[string]string{"admin_credit": "管理员充值与福利赠送", "admin_refund": "管理员余额退款", "checkin": "签到福利", "checkin_bonus": "签到翻倍", "checkin_clear": "签到福利清退", "checkin_clear_refund": "冻结签到福利清退", "checkin_restore": "签到福利复核恢复"}
 		e.SourceLabel = labels[event]
-		e.SourceDetail = fmt.Sprintf("充值 %+.8f · 签到 %+.8f · 礼遇 %+.8f · 赠送 %+.8f", delta.Paid, delta.Checkin, delta.Liyu, delta.Gift)
+		e.SourceDetail = fmt.Sprintf("充值 %s · 签到 %s · 礼遇 %s · 赠送 %s", walletHistoryAmount(delta.Paid), walletHistoryAmount(delta.Checkin), walletHistoryAmount(delta.Liyu), walletHistoryAmount(delta.Gift))
 		if e.Notes != "" {
 			e.SourceDetail += " · " + e.Notes
 		}

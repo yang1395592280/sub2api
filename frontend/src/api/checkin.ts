@@ -31,6 +31,8 @@ export interface CheckinSettings {
   distribution: Array<{ start_percent: number; end_percent: number; weight: number }> | null
 }
 
+export interface WalletUsagePolicy { paid_units: number; welfare_units: number }
+
 export interface CheckinStatus extends Omit<CheckinSettings, 'distribution'> {
   bonus_available: boolean
   timezone: string
@@ -57,6 +59,8 @@ export const checkinAPI = {
     })).data
   },
   async settings() { return (await apiClient.get<CheckinSettings>('/admin/checkins/settings')).data },
+  async walletPolicy() { return (await apiClient.get<WalletUsagePolicy>('/admin/checkins/wallet-policy')).data },
+  async saveWalletPolicy(policy: WalletUsagePolicy) { return (await apiClient.put<WalletUsagePolicy>('/admin/checkins/wallet-policy', policy)).data },
   async saveSettings(settings: CheckinSettings) { return (await apiClient.put<CheckinSettings>('/admin/checkins/settings', settings)).data },
   async records(page = 1) {
     return (await apiClient.get<{ items: Array<CheckinRecord & { user_email: string; created_at: string }>; total: number }>('/admin/checkins', { params: { page, page_size: 20 } })).data

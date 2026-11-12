@@ -1,9 +1,11 @@
 export default {
   activityHistory: 'Check-in and promotional ledger',
+  refundSource: 'Promotional credit source', refundAmount: 'Promotional credit to refund', refundHint: 'Refund paid credit, promotional credit, or both. Only the selected source is debited, up to its positive balance.', insufficientRefundBalance: 'Insufficient balance in the selected promotional credit source',
   date: 'Date',
   title: 'My balances', paid: 'Paid balance', welfare: 'Promotional balance', checkin: 'Check-in credit', liyu: 'Rewards credit', gift: 'Admin gifts',
-  available: 'Currently spendable', rule: 'Promotional credit covers up to one third of each charge. The rest requires paid balance. Promotional credit alone cannot fund usage.',
-  debt: 'Activity losses may make a promotional source negative. Future rewards from that source repay it. Negative credit is excluded from usage and never collected from paid balance.',
+  available: 'Currently spendable', rule: 'Paid : promotional ratio = {paid} : {welfare}. Only positive net promotional credit is applied; paid credit covers any shortfall. Positive paid credit is required.',
+  debt: 'Activity losses may create promotional debt. When net promotional credit is zero or negative, usage charges paid credit only and never increases promotional debt.',
+  usagePolicy: 'Promotional usage ratio', paidUnits: 'Paid units', welfareUnits: 'Promotional units', policyHint: 'Default 2 : 1 (a charge of 9 uses 6 paid and 3 promotional). Set promotional units to 0 to disable. New charges use the saved ratio; existing holds keep their original rules.',
   paidCost: 'Paid balance charged', welfareCost: 'Promotional credit applied', unclassified: 'Historical or pending settlement',
   unclassifiedHint: 'No balance breakdown is available for this record yet', sourceDetail: 'Credit sources', giftAmount: 'Promotional gift amount', preview: 'Balances after credit',
   checkinTitle: 'Daily check-in', checkinHint: 'Resets daily in Asia/Shanghai. Rewards go to check-in credit.', checkinAction: 'Check in for credit', checked: 'Checked in today',

@@ -31,14 +31,14 @@
           <div class="flex-shrink-0 text-right">
             <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('wallet.paid') }}</p>
             <p class="text-xl font-bold text-gray-900 dark:text-white">
-              ${{ user.balance?.toFixed(2) || '0.00' }}
+              ${{ formatMoney(user.balance) }}
             </p>
           </div>
         </div>
         <div class="mt-3 flex flex-wrap gap-4 text-xs text-gray-500">
-          <span>{{ t('wallet.checkin') }}: ${{ (user.checkin_balance || 0).toFixed(8) }}</span>
-          <span>{{ t('wallet.liyu') }}: ${{ (user.liyu_balance || 0).toFixed(8) }}</span>
-          <span>{{ t('wallet.gift') }}: ${{ (user.gift_balance || 0).toFixed(8) }}</span>
+          <span>{{ t('wallet.checkin') }}: ${{ formatMoney(user.checkin_balance) }}</span>
+          <span>{{ t('wallet.liyu') }}: ${{ formatMoney(user.liyu_balance) }}</span>
+          <span>{{ t('wallet.gift') }}: ${{ formatMoney(user.gift_balance) }}</span>
         </div>
         <!-- Row 2: notes + total recharged -->
         <div class="mt-2.5 flex items-center justify-between border-t border-gray-200/60 pt-2.5 dark:border-dark-600/60">
@@ -102,9 +102,9 @@
           :key="item.id"
           class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-600 dark:bg-dark-800"
         >
-          <div class="flex items-start justify-between">
+          <div class="flex items-start justify-between gap-3">
             <!-- Left: type icon + description -->
-            <div class="flex items-start gap-3">
+            <div class="flex min-w-0 flex-1 items-start gap-3">
               <div
                 :class="[
                   'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg',
@@ -113,14 +113,14 @@
               >
                 <Icon :name="getIconName(item)" size="sm" :class="getIconColor(item)" />
               </div>
-              <div>
+              <div class="min-w-0 flex-1">
                 <p class="text-sm font-medium text-gray-900 dark:text-white">
                   {{ getItemTitle(item) }}
                 </p>
                 <!-- Notes (admin adjustment reason) -->
                 <p
                   v-if="item.source_detail || item.notes"
-                  class="mt-0.5 text-xs text-gray-500 dark:text-dark-400"
+                  class="mt-0.5 whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-dark-400"
                   :title="item.source_detail || item.notes"
                 >
                   {{ sourceDetailText(item) }}
@@ -131,7 +131,7 @@
               </div>
             </div>
             <!-- Right: value -->
-            <div class="text-right">
+            <div class="shrink-0 text-right">
               <p :class="['text-sm font-semibold', getValueColor(item)]">
                 {{ formatValue(item) }}
               </p>
@@ -177,6 +177,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatWalletAmount as formatMoney } from '@/utils/walletDisplay'
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI, type BalanceHistoryItem } from '@/api/admin'
@@ -327,14 +328,14 @@ const getItemTitle = (item: BalanceHistoryItem) => {
 
 const sourceDetailText = (item: BalanceHistoryItem) => {
   const text = item.source_detail || item.notes || ''
-  return text.length > 60 ? text.substring(0, 55) + '...' : text
+  return text
 }
 
 // Format display value
 const formatValue = (item: BalanceHistoryItem) => {
   if (isBalanceType(item.type)) {
     const sign = item.value >= 0 ? '+' : ''
-    return `${sign}$${item.value.toFixed(2)}`
+    return `${sign}$${formatMoney(item.value)}`
   }
   if (isSubscriptionType(item.type)) {
     const days = item.validity_days || Math.round(item.value)

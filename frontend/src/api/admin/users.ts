@@ -174,22 +174,26 @@ export async function deleteUser(id: number): Promise<{ message: string }> {
  * @param notes - Optional notes for the balance adjustment
  * @returns Updated user
  */
+export type WelfareSource = 'checkin' | 'liyu' | 'gift'
+
 export async function updateBalance(
   id: number,
   balance: number,
   operation: 'set' | 'add' | 'subtract' = 'set',
   notes?: string,
-  welfareBalance?: number
+  welfareBalance?: number,
+  welfareSource?: WelfareSource,
+  idempotencyKey?: string
 ): Promise<AdminUser> {
   const payload = {
     balance,
     operation,
     notes: notes || '',
-    ...(welfareBalance ? { welfare_balance: welfareBalance } : {})
+    ...(welfareBalance ? { welfare_balance: welfareBalance, ...(welfareSource ? { welfare_source: welfareSource } : {}) } : {})
   }
   const url = `/admin/users/${id}/balance`
-  const { data } = welfareBalance
-    ? await apiClient.post<AdminUser>(url, payload, { headers: { 'Idempotency-Key': crypto.randomUUID() } })
+  const { data } = welfareBalance || operation === 'subtract' || idempotencyKey
+    ? await apiClient.post<AdminUser>(url, payload, { headers: { 'Idempotency-Key': idempotencyKey || crypto.randomUUID() } })
     : await apiClient.post<AdminUser>(url, payload)
   return data
 }

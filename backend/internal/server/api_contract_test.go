@@ -59,6 +59,7 @@ func TestAPIContracts(t *testing.T) {
  "gift_balance": 0,
  "welfare_balance": 0,
  "available_balance": 12.5,
+ "wallet_usage_policy": {"paid_units": 2, "welfare_units": 1},
 						"frozen_balance": 0,
 						"concurrency": 5,
 					"rpm_limit": 0,

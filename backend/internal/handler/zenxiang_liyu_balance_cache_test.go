@@ -176,7 +176,7 @@ func TestZenxiangLiyuBalanceCacheAfterHTTPCommit(t *testing.T) {
 			if tt.cacheFailure {
 				return
 			}
-			require.False(t, redisServer.Exists("billing:balance:{42}"), "reward must invalidate the cached balance before returning")
+			require.False(t, redisServer.Exists("billing:paid-balance:{42}"), "reward must invalidate the cached balance before returning")
 			require.True(t, redisServer.Exists("billing:inflight:{42}"), "existing requests retain their reservations")
 			balance, err := billing.GetUserBalance(context.Background(), 42)
 			require.NoError(t, err)

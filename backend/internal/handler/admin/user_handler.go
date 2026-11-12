@@ -109,6 +109,7 @@ type UpdateUserRequest struct {
 type UpdateBalanceRequest struct {
 	Balance        float64 `json:"balance" binding:"gte=0"`
 	WelfareBalance float64 `json:"welfare_balance" binding:"gte=0"`
+	WelfareSource  string  `json:"welfare_source" binding:"omitempty,oneof=checkin liyu gift"`
 	Operation      string  `json:"operation" binding:"required,oneof=set add subtract"`
 	Notes          string  `json:"notes"`
 }
@@ -545,12 +546,20 @@ func (h *UserHandler) UpdateBalance(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
-	if req.WelfareBalance > 0 && req.Operation != "add" {
-		response.BadRequest(c, "福利赠送仅支持增加操作")
+	if req.WelfareBalance > 0 && req.Operation == "set" {
+		response.BadRequest(c, "福利余额仅支持增加或退款操作")
+		return
+	}
+	if req.WelfareBalance > 0 && req.Operation == "subtract" && req.WelfareSource == "" {
+		response.BadRequest(c, "请选择要退款的福利来源")
+		return
+	}
+	if req.Operation == "add" && req.WelfareSource != "" && req.WelfareSource != "gift" {
+		response.BadRequest(c, "福利赠送仅支持管理员赠送来源")
 		return
 	}
 	if req.Balance <= 0 && req.WelfareBalance <= 0 {
-		response.BadRequest(c, "充值或赠送金额至少一项大于0")
+		response.BadRequest(c, "充值或福利金额至少一项大于0")
 		return
 	}
 
@@ -564,16 +573,24 @@ func (h *UserHandler) UpdateBalance(c *gin.Context) {
 	executeAdminIdempotentJSONWithResponse(c, "admin.users.balance.update", idempotencyPayload, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		var user *service.User
 		var execErr error
-		if req.WelfareBalance > 0 {
-			updater, ok := h.adminService.(service.AdminWalletUpdater)
-			if !ok {
-				return nil, fmt.Errorf("wallet updater unavailable")
-			}
+		if req.Operation == "subtract" || req.WelfareBalance > 0 {
 			var actorID int64
 			if subject, ok := middleware.GetAuthSubjectFromContext(c); ok {
 				actorID = subject.UserID
 			}
-			user, execErr = updater.UpdateUserWalletBalance(ctx, userID, req.Balance, req.WelfareBalance, actorID, req.Notes, walletCreditOperationID(c))
+			if req.Operation == "subtract" {
+				refunder, ok := h.adminService.(service.AdminWalletRefunder)
+				if !ok {
+					return nil, fmt.Errorf("wallet refunder unavailable")
+				}
+				user, execErr = refunder.RefundUserWalletBalance(ctx, userID, req.Balance, req.WelfareBalance, req.WelfareSource, actorID, req.Notes, walletCreditOperationID(c))
+			} else {
+				updater, ok := h.adminService.(service.AdminWalletUpdater)
+				if !ok {
+					return nil, fmt.Errorf("wallet updater unavailable")
+				}
+				user, execErr = updater.UpdateUserWalletBalance(ctx, userID, req.Balance, req.WelfareBalance, actorID, req.Notes, walletCreditOperationID(c))
+			}
 		} else {
 			user, execErr = h.adminService.UpdateUserBalance(ctx, userID, req.Balance, req.Operation, req.Notes)
 		}

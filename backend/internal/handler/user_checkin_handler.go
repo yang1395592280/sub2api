@@ -73,7 +73,10 @@ func (h *CheckinHandler) play(c *gin.Context, bonus bool) {
 		}
 		return true
 	}
-	if req.Website != "" && !record("honeypot") {
+	if req.Website != "" {
+		if record("honeypot") {
+			response.Forbidden(c, "签到验证失败，请刷新页面后重试")
+		}
 		return
 	}
 	valid, err := h.checkin.CheckPageToken(ctx, subject.UserID, req.Token)
@@ -81,7 +84,10 @@ func (h *CheckinHandler) play(c *gin.Context, bonus bool) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	if !valid && !record("page_bypass") {
+	if !valid {
+		if record("page_bypass") {
+			response.Forbidden(c, "签到验证已失效，请刷新页面后重试")
+		}
 		return
 	}
 	if err = h.auth.VerifyCaptcha(ctx, service.CaptchaProof{TurnstileToken: req.TurnstileToken, TencentTicket: req.TencentTicket, TencentRandstr: req.TencentRandstr}, ip); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
@@ -29,6 +30,11 @@ func lockWallet(ctx context.Context, q sqlExecutor, userID int64) (service.Walle
 // applyWalletDelta and its audit entry must share the caller's transaction.
 func applyWalletDelta(ctx context.Context, q sqlExecutor, userID int64, delta service.WalletBalance, event, operation string, apiKeyID int64, actorID *int64, notes string) (service.WalletBalance, error) {
 	var after service.WalletBalance
+	for _, amount := range []float64{delta.Paid, delta.Checkin, delta.Liyu, delta.Gift} {
+		if math.IsNaN(amount) || math.IsInf(amount, 0) {
+			return after, errors.New("invalid wallet delta")
+		}
+	}
 	rows, err := q.QueryContext(ctx, `UPDATE users SET balance = balance + $1,
 		checkin_balance = checkin_balance + $2, liyu_balance = liyu_balance + $3,
 		gift_balance = gift_balance + $4, updated_at = NOW()
@@ -68,7 +74,11 @@ func chargeWallet(ctx context.Context, q sqlExecutor, userID int64, amount float
 	if err != nil {
 		return before, service.WalletBalance{}, false, err
 	}
-	debit, err := before.Split(amount)
+	policy, err := loadWalletUsagePolicy(ctx, q)
+	if err != nil {
+		return before, service.WalletBalance{}, false, err
+	}
+	debit, err := before.SplitWithPolicy(amount, policy)
 	if err != nil {
 		return before, debit, false, err
 	}

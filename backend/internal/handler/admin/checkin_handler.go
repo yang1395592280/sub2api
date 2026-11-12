@@ -15,6 +15,26 @@ type CheckinHandler struct {
 	checkinService *service.CheckinService
 }
 
+func (h *CheckinHandler) WalletPolicy(c *gin.Context) {
+	if c.Request.Method == "PUT" {
+		var req service.WalletUsagePolicy
+		if c.ShouldBindJSON(&req) != nil {
+			response.BadRequest(c, "Invalid wallet policy")
+			return
+		}
+		if err := h.checkinService.UpdateWalletUsagePolicy(c.Request.Context(), req); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
+	policy, err := h.checkinService.GetWalletUsagePolicy(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, policy)
+}
+
 func (h *CheckinHandler) Settings(c *gin.Context) {
 	if c.Request.Method == "GET" {
 		response.Success(c, h.checkinService.GetSettings(c.Request.Context()))

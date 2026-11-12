@@ -166,7 +166,7 @@ describe('ZenxiangLiyuView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('积分需大于 10 积分才可参与')
+    expect(wrapper.text()).toContain('积分需大于 10.00 积分才可参与')
     expect(wrapper.find('[data-testid="zenxiang-play"]').attributes('disabled')).toBeDefined()
   })
 
@@ -306,7 +306,7 @@ describe('ZenxiangLiyuView', () => {
     expect(wrapper.text()).toContain('最终奖励：+6')
     expect(wrapper.text()).toContain('最终 +6')
     expect(wrapper.text()).toContain('翻倍 +3')
-    expect(wrapper.text()).toContain('最新积分：16 积分')
+    expect(wrapper.text()).toContain('最新积分：16.00 积分')
     vi.useRealTimers()
   })
 
@@ -364,7 +364,7 @@ describe('ZenxiangLiyuView', () => {
     vi.advanceTimersByTime(1800)
     await flushPromises()
     expect(wrapper.text()).toContain('最终奖励：+12')
-    expect(wrapper.text()).toContain('最新积分：22 积分')
+    expect(wrapper.text()).toContain('最新积分：22.00 积分')
     vi.useRealTimers()
   })
 
@@ -419,6 +419,6 @@ describe('ZenxiangLiyuView', () => {
     vi.advanceTimersByTime(1800)
     await flushPromises()
     expect(wrapper.text()).toContain('最终奖励：-12')
-    expect(wrapper.text()).toContain('最新积分：-2 积分')
+    expect(wrapper.text()).toContain('最新积分：-2.00 积分')
   })
 })

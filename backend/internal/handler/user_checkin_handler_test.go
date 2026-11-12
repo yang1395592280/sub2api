@@ -19,6 +19,7 @@ import (
 type checkinHandlerRepository struct {
 	service.CheckinRepository
 	service.CheckinRiskRepository
+	invalid bool
 	events  []string
 	credits int
 }
@@ -29,7 +30,7 @@ func (r *checkinHandlerRepository) RecordCheckinSecurityEvent(_ context.Context,
 }
 
 func (r *checkinHandlerRepository) ConsumeCheckinPageToken(context.Context, int64, string) (bool, error) {
-	return true, nil
+	return !r.invalid, nil
 }
 
 func (r *checkinHandlerRepository) HasCheckedInOnDate(context.Context, int64, string) (bool, error) {
@@ -51,14 +52,18 @@ func TestCheckinHandlerCaptchaAndEvidence(t *testing.T) {
 		status        int
 		events        []string
 		credits       int
+		invalid       bool
 	}{
 		{name: "authentication required", body: `{}`, status: http.StatusUnauthorized},
 		{name: "configuration outage is not evidence", authenticated: true, required: true, body: `{"page_token":"` + strings.Repeat("a", 64) + `"}`, status: http.StatusServiceUnavailable},
 		{name: "rejected captcha prevents credit", authenticated: true, configured: true, body: `{"page_token":"` + strings.Repeat("a", 64) + `"}`, status: http.StatusBadRequest, events: []string{"captcha_failure"}},
-		{name: "weak signals observed without immediate punishment", authenticated: true, body: `{"website":"bot"}`, status: http.StatusOK, events: []string{"honeypot", "page_bypass"}, credits: 1},
+		{name: "honeypot refuses request", authenticated: true, body: `{"website":"bot"}`, status: http.StatusForbidden, events: []string{"honeypot"}},
+		{name: "missing token", authenticated: true, body: `{}`, status: http.StatusForbidden, events: []string{"page_bypass"}},
+		{name: "replayed token", authenticated: true, invalid: true, body: `{"page_token":"` + strings.Repeat("a", 64) + `"}`, status: http.StatusForbidden, events: []string{"page_bypass"}},
+		{name: "valid token credits", authenticated: true, body: `{"page_token":"` + strings.Repeat("a", 64) + `"}`, status: http.StatusOK, credits: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			repo := &checkinHandlerRepository{}
+			repo := &checkinHandlerRepository{invalid: tc.invalid}
 			values := map[string]string{service.SettingKeyCheckinEnabled: "true", service.SettingKeyCheckinMinReward: "1", service.SettingKeyCheckinMaxReward: "1"}
 			cfg := &config.Config{}
 			cfg.Server.Mode = "release"

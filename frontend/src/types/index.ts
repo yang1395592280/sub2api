@@ -91,6 +91,7 @@ export interface User {
   gift_balance?: number
   welfare_balance?: number
   available_balance?: number
+  wallet_usage_policy?: { paid_units: number; welfare_units: number }
   frozen_balance?: number // Balance currently held by async batch jobs
   concurrency: number // Allowed concurrent requests
   rpm_limit?: number // User-level RPM cap (0 = unlimited); effective as fallback when group has no rpm_limit

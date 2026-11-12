@@ -80,3 +80,12 @@ describe('UserBalanceHistoryModal request ordering', () => {
     expect(wrapper.find('svg.animate-spin').exists()).toBe(false)
   })
 })
+
+it('shows complete wallet source explanations without truncating long notes', async () => {
+  const notes = '充值 -1.00 · 签到 +0.00 · 礼遇 -2.00 · 赠送 +0.00 · ' + '退款说明'.repeat(30)
+  mocks.getUserBalanceHistory.mockResolvedValue({ items: [{ id: 1, code: 'refund-op', type: 'wallet_activity', value: -3.00000001, source_detail: notes }], total: 1, total_recharged: 0 })
+  const w = await openDialog(); await flushPromises()
+  expect(w.text()).toContain(notes)
+  expect(w.text()).toContain('$-3.00')
+  expect(w.text()).not.toContain('3.00000001')
+})

@@ -300,6 +300,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatWalletAmount } from '@/utils/walletDisplay'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -425,7 +426,7 @@ function formatAmount(amount?: number): string {
 }
 
 function formatNumber(amount?: number): string {
-  return Number(amount ?? 0).toLocaleString()
+  return formatWalletAmount(amount)
 }
 
 function formatProbability(probability?: number): string {

@@ -186,6 +186,9 @@ func (r *userRepository) GetByID(ctx context.Context, id int64) (*service.User, 
 	}
 
 	out := userEntityToService(m)
+	if err := r.hydrateWalletPolicy(ctx, out); err != nil {
+		return nil, err
+	}
 	groups, err := r.loadAllowedGroups(ctx, []int64{id})
 	if err != nil {
 		return nil, err
@@ -203,6 +206,9 @@ func (r *userRepository) GetByIDIncludeDeleted(ctx context.Context, id int64) (*
 		return nil, translatePersistenceError(err, service.ErrUserNotFound, nil)
 	}
 	out := userEntityToService(m)
+	if err := r.hydrateWalletPolicy(ctx, out); err != nil {
+		return nil, err
+	}
 	groups, err := r.loadAllowedGroups(ctx, []int64{id})
 	if err != nil {
 		return nil, err
@@ -230,6 +236,9 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*service
 	m := matches[0]
 
 	out := userEntityToService(m)
+	if err := r.hydrateWalletPolicy(ctx, out); err != nil {
+		return nil, err
+	}
 	groups, err := r.loadAllowedGroups(ctx, []int64{m.ID})
 	if err != nil {
 		return nil, err
@@ -636,6 +645,14 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 		u := userEntityToService(users[i])
 		outUsers = append(outUsers, *u)
 		userMap[u.ID] = &outUsers[len(outUsers)-1]
+	}
+
+	policyUsers := make([]*service.User, len(outUsers))
+	for i := range outUsers {
+		policyUsers[i] = &outUsers[i]
+	}
+	if err := r.hydrateWalletPolicy(ctx, policyUsers...); err != nil {
+		return nil, nil, err
 	}
 
 	shouldLoadSubscriptions := filters.IncludeSubscriptions == nil || *filters.IncludeSubscriptions
@@ -1489,6 +1506,13 @@ func (r *userRepository) ListAllowedUsersByGroupID(ctx context.Context, groupID 
 	for i := range users {
 		result = append(result, *userEntityToService(users[i]))
 	}
+	policyUsers := make([]*service.User, len(result))
+	for i := range result {
+		policyUsers[i] = &result[i]
+	}
+	if err := r.hydrateWalletPolicy(ctx, policyUsers...); err != nil {
+		return nil, err
+	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
 	return result, nil
 }
@@ -1515,6 +1539,9 @@ func (r *userRepository) GetFirstAdmin(ctx context.Context) (*service.User, erro
 	}
 
 	out := userEntityToService(m)
+	if err := r.hydrateWalletPolicy(ctx, out); err != nil {
+		return nil, err
+	}
 	groups, err := r.loadAllowedGroups(ctx, []int64{m.ID})
 	if err != nil {
 		return nil, err

@@ -5,6 +5,7 @@ import (
 	cryptorand "crypto/rand"
 	"encoding/binary"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/shopspring/decimal"
 	"math"
 	"math/rand"
 	"strconv"
@@ -260,13 +261,14 @@ func (s *CheckinService) PlayLuckyBonus(ctx context.Context, userID int64, userT
 	}
 
 	baseReward := normalizeBaseReward(*record)
-	finalReward := roundTo8(baseReward * -0.5)
 	outcome := CheckinBonusStatusLose
 	if s.rollLuckyBonus(settings.LuckyBonusSuccessRate) {
-		finalReward = roundTo8(baseReward * 2)
 		outcome = CheckinBonusStatusWin
 	}
-	delta := roundTo8(finalReward - record.RewardAmount)
+	delta, err := CheckinBonusDelta(baseReward, record.RewardAmount, outcome)
+	if err != nil {
+		return nil, err
+	}
 
 	updatedRecord, err := s.repo.ApplyBonusOutcome(ctx, userID, today, outcome, delta)
 	if err != nil {
@@ -275,6 +277,28 @@ func (s *CheckinService) PlayLuckyBonus(ctx context.Context, userID int64, userT
 
 	s.invalidateCaches(ctx, userID)
 	return updatedRecord, nil
+}
+
+// CheckinBonusDelta shares decimal rounding with the locked ledger validation.
+// A half-unit loss must round identically before and after persistence.
+func CheckinBonusDelta(base, current float64, outcome string) (float64, error) {
+	for _, amount := range []float64{base, current} {
+		if math.IsNaN(amount) || math.IsInf(amount, 0) {
+			return 0, infraerrors.BadRequest("CHECKIN_INVALID_BONUS", "invalid check-in reward")
+		}
+	}
+	if base < 0 || base > 10000 {
+		return 0, infraerrors.BadRequest("CHECKIN_INVALID_BONUS", "invalid check-in reward")
+	}
+	factor := decimal.NewFromInt(2)
+	switch outcome {
+	case CheckinBonusStatusLose:
+		factor = decimal.NewFromFloat(-0.5)
+	case CheckinBonusStatusWin:
+	default:
+		return 0, infraerrors.BadRequest("CHECKIN_INVALID_BONUS", "invalid check-in outcome")
+	}
+	return decimal.NewFromFloat(base).Mul(factor).Round(UsageBillingMonetaryScale).Sub(decimal.NewFromFloat(current)).Round(UsageBillingMonetaryScale).InexactFloat64(), nil
 }
 
 func (s *CheckinService) loadSettings(ctx context.Context) checkinSettings {
@@ -421,7 +445,7 @@ func resolveMonthDateRange(month, userTZ string) (string, string) {
 }
 
 func roundTo8(value float64) float64 {
-	return math.Round(value*1e8) / 1e8
+	return QuantizeUsageBillingAmount(value)
 }
 
 func normalizeBaseReward(record CheckinRecord) float64 {

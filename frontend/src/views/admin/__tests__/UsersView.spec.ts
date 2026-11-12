@@ -111,6 +111,7 @@ const DataTableStub = {
       <div v-for="row in data" :key="row.id">
         <div :data-test="'select-' + row.id"><slot name="cell-select" :row="row" /></div>
         <slot name="cell-last_used_at" :value="row.last_used_at" :row="row" />
+        <div :data-test="'balance-' + row.id"><slot name="cell-balance" :value="row.balance" :row="row" /></div>
         <div :data-test="'actions-' + row.id"><slot name="cell-actions" :row="row" /></div>
       </div>
     </div>
@@ -210,6 +211,22 @@ describe('admin UsersView', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it.each(['deposit', 'withdraw'])('closes balance history before opening %s', async (action) => {
+    const wrapper = mountBulkDeleteView()
+    await flushPromises()
+    await wrapper.get('[data-test=balance-42] button').trigger('click')
+    const history = wrapper.findComponent({ name: 'UserBalanceHistoryModal' })
+    expect(history.props('show')).toBe(true)
+    history.vm.$emit(action)
+    await flushPromises()
+    expect(history.props('show')).toBe(false)
+    const balance = wrapper.findComponent({ name: 'UserBalanceModal' })
+    expect(balance.props('show')).toBe(true)
+    expect(balance.props('operation')).toBe(action === 'deposit' ? 'add' : 'subtract')
+    expect(balance.props('user').id).toBe(42)
+    wrapper.unmount()
   })
 
   it('cancels bulk deletion without deleting or clearing selected users', async () => {

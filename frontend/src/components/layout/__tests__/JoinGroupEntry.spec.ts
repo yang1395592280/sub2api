@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
 import { mount } from '@vue/test-utils'
 import AppHeader from '@/components/layout/AppHeader.vue'
 
@@ -167,4 +168,14 @@ describe('join group layout entries', () => {
 
     appHeader.unmount()
   })
+})
+
+it('distinguishes paid and negative welfare balances without reducing spendable credit', () => {
+  setActivePinia(createPinia())
+  authStoreState.user = { email: 'user@example.com', balance: 9.12345678, welfare_balance: -1.0414776, available_balance: 9.12345678, frozen_balance: 0 }
+  const w = mount(AppHeader, { global: { stubs: { Icon: true, LocaleSwitcher: true, SubscriptionProgressMini: true, AnnouncementBell: true, 'router-link': true } } })
+  expect(w.get('[data-testid=header-wallet]').text()).toContain('wallet.paid$9.12')
+  expect(w.get('[data-testid=header-wallet]').text()).toContain('wallet.welfare$-1.04')
+  expect(w.get('[data-testid=header-available]').text()).toBe('$9.12')
+  w.unmount()
 })

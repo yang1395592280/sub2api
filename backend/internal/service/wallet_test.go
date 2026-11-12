@@ -18,7 +18,9 @@ func TestWalletSplit(t *testing.T) {
 		{"partial", WalletBalance{Paid: 20, Checkin: 1}, 9, WalletBalance{Paid: 8, Checkin: 1}},
 		{"debt", WalletBalance{Paid: 20, Checkin: -5}, 9, WalletBalance{Paid: 9}},
 		{"sources", WalletBalance{Paid: 20, Checkin: 1, Liyu: 1, Gift: 4}, 9, WalletBalance{Paid: 6, Checkin: 1, Liyu: 1, Gift: 1}},
-		{"exclude negative source", WalletBalance{Paid: 20, Checkin: -5, Gift: 5}, 9, WalletBalance{Paid: 6, Gift: 3}},
+		{"exclude negative source", WalletBalance{Paid: 20, Checkin: -5, Gift: 5}, 9, WalletBalance{Paid: 9}},
+		{"net welfare below zero", WalletBalance{Paid: 20, Checkin: -6, Gift: 5}, 9, WalletBalance{Paid: 9}},
+		{"net positive cap", WalletBalance{Paid: 20, Checkin: -5, Gift: 6}, 9, WalletBalance{Paid: 8, Gift: 1}},
 		{"no paid", WalletBalance{Checkin: 20}, 9, WalletBalance{Paid: 9}},
 		{"round down third", WalletBalance{Paid: 20, Gift: 5}, .00000002, WalletBalance{Paid: .00000002}},
 	} {

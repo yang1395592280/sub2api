@@ -13,16 +13,16 @@
     <div class="rounded-lg bg-gray-50 p-3 text-sm dark:bg-dark-700">
       <p>{{ t('wallet.available') }}: <strong>${{ money(user.available_balance ?? user.balance) }}</strong></p>
       <p v-if="user.frozen_balance" class="mt-1">{{ t('wallet.frozen') }}: ${{ money(user.frozen_balance) }}</p>
-      <p class="mt-2 text-gray-500">{{ t('wallet.rule') }}</p>
+      <p class="mt-2 text-gray-500">{{ t('wallet.rule', { paid: user.wallet_usage_policy?.paid_units ?? 2, welfare: user.wallet_usage_policy?.welfare_units ?? 1 }) }}</p>
       <p class="mt-1 text-xs text-gray-500">{{ t('wallet.debt') }}</p>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
+import { formatWalletAmount as money } from '@/utils/walletDisplay'
 import { useI18n } from 'vue-i18n'
 import type { User } from '@/types'
 defineProps<{ user: User | null }>()
 const { t } = useI18n()
-const money = (n = 0) => n.toFixed(8).replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1')
 </script>

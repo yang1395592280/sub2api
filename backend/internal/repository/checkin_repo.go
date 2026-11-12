@@ -48,6 +48,11 @@ func (r *checkinRepository) CreateAndCredit(ctx context.Context, record *service
 	if strings.TrimSpace(record.BonusStatus) == "" {
 		record.BonusStatus = service.CheckinBonusStatusNone
 	}
+	if record.RewardAmount < 0 || record.RewardAmount > 10000 || math.IsNaN(record.RewardAmount) || math.IsInf(record.RewardAmount, 0) || record.BaseRewardAmount != record.RewardAmount || record.BonusStatus != service.CheckinBonusStatusNone || record.BonusDeltaAmount != 0 {
+		return nil, errors.New("invalid initial checkin reward")
+	}
+	record.RewardAmount = service.QuantizeUsageBillingAmount(record.RewardAmount)
+	record.BaseRewardAmount = record.RewardAmount
 
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -147,6 +152,9 @@ func (r *checkinRepository) GetByUserAndDate(ctx context.Context, userID int64, 
 }
 
 func (r *checkinRepository) ApplyBonusOutcome(ctx context.Context, userID int64, date, outcome string, delta float64) (*service.CheckinRecord, error) {
+	if (outcome != service.CheckinBonusStatusWin && outcome != service.CheckinBonusStatusLose) || math.IsNaN(delta) || math.IsInf(delta, 0) {
+		return nil, errors.New("invalid checkin bonus outcome")
+	}
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
@@ -157,6 +165,20 @@ func (r *checkinRepository) ApplyBonusOutcome(ctx context.Context, userID int64,
 	}
 	if err := checkCheckinAllowed(ctx, tx, userID); err != nil {
 		return nil, err
+	}
+	var base, current float64
+	if err := tx.QueryRowContext(ctx, `SELECT base_reward_amount,reward_amount FROM checkin_records WHERE user_id=$1 AND checkin_date=$2 AND bonus_status='none' FOR UPDATE`, userID, date).Scan(&base, &current); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, service.ErrCheckinLuckyBonusAlreadyPlayed
+		}
+		return nil, err
+	}
+	expected, err := service.CheckinBonusDelta(base, current, outcome)
+	if err != nil {
+		return nil, err
+	}
+	if delta != expected {
+		return nil, errors.New("checkin bonus amount mismatch")
 	}
 
 	row := tx.QueryRowContext(

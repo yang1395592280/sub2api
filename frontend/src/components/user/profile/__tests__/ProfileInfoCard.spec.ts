@@ -29,6 +29,7 @@ vi.mock('vue-i18n', async (importOriginal) => {
     useI18n: () => ({
       t: (key: string, params?: Record<string, string>) => {
         if (key === 'wallet.paid') return 'Paid Balance'
+        if (key === 'wallet.welfare') return 'Promotional Balance'
         if (key === 'profile.concurrencyLimit') return 'Concurrency Limit'
         if (key === 'profile.memberSince') return 'Member Since'
         if (key === 'profile.administrator') return 'Administrator'
@@ -71,6 +72,13 @@ function createUser(overrides: Partial<User> = {}): User {
 }
 
 describe('ProfileInfoCard', () => {
+  it('shows paid and promotional balances separately with two decimals', () => {
+    const wrapper = mount(ProfileInfoCard, { props: { user: createUser({ balance: 9.12345678, welfare_balance: -0.0414776 }) }, global: { stubs: { Icon: true } } })
+    expect(wrapper.get('[data-testid=profile-overview-metric-balance]').text()).toContain('$9.12')
+    expect(wrapper.get('[data-testid=profile-overview-metric-welfare]').text()).toContain('Promotional Balance')
+    expect(wrapper.get('[data-testid=profile-overview-metric-welfare]').text()).toContain('$-0.04')
+    wrapper.unmount()
+  })
   it.each([
     { avatar_source: 'dingtalk', username_source: 'dingtalk' },
     { profile_sources: { avatar: { provider: 'dingtalk' }, username: { provider: 'dingtalk' } } },

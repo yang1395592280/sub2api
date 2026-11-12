@@ -565,7 +565,7 @@ func NewZenxiangLiyuService(repo ZenxiangLiyuRepository, clock func() time.Time,
 		clock = time.Now
 	}
 	if rng == nil {
-		rng = rand.New(rand.NewSource(clock().UnixNano()))
+		rng = rand.New(secureCheckinSource{})
 	}
 	guessRepo, _ := repo.(ZenxiangLiyuGuessSizeRepository)
 	redeemedTicketCounter, _ := repo.(ZenxiangLiyuRedeemedTicketCounter)

@@ -10,24 +10,25 @@ import (
 )
 
 type User struct {
-	ID               int64      `json:"id"`
-	Email            string     `json:"email"`
-	Username         string     `json:"username"`
-	Role             string     `json:"role"`
-	Balance          float64    `json:"balance"`
-	FrozenBalance    float64    `json:"frozen_balance"`
-	CheckinBalance   float64    `json:"checkin_balance"`
-	LiyuBalance      float64    `json:"liyu_balance"`
-	GiftBalance      float64    `json:"gift_balance"`
-	WelfareBalance   float64    `json:"welfare_balance"`
-	AvailableBalance float64    `json:"available_balance"`
-	Concurrency      int        `json:"concurrency"`
-	Status           string     `json:"status"`
-	AllowedGroups    []int64    `json:"allowed_groups"`
-	LastActiveAt     *time.Time `json:"last_active_at,omitempty"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
-	DeletedAt        *time.Time `json:"deleted_at,omitempty"`
+	ID                int64                     `json:"id"`
+	Email             string                    `json:"email"`
+	Username          string                    `json:"username"`
+	Role              string                    `json:"role"`
+	Balance           float64                   `json:"balance"`
+	FrozenBalance     float64                   `json:"frozen_balance"`
+	CheckinBalance    float64                   `json:"checkin_balance"`
+	LiyuBalance       float64                   `json:"liyu_balance"`
+	GiftBalance       float64                   `json:"gift_balance"`
+	WelfareBalance    float64                   `json:"welfare_balance"`
+	AvailableBalance  float64                   `json:"available_balance"`
+	WalletUsagePolicy service.WalletUsagePolicy `json:"wallet_usage_policy"`
+	Concurrency       int                       `json:"concurrency"`
+	Status            string                    `json:"status"`
+	AllowedGroups     []int64                   `json:"allowed_groups"`
+	LastActiveAt      *time.Time                `json:"last_active_at,omitempty"`
+	CreatedAt         time.Time                 `json:"created_at"`
+	UpdatedAt         time.Time                 `json:"updated_at"`
+	DeletedAt         *time.Time                `json:"deleted_at,omitempty"`
 
 	// 余额不足通知
 	BalanceNotifyEnabled       bool               `json:"balance_notify_enabled"`

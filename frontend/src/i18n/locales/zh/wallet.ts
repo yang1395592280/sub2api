@@ -1,9 +1,11 @@
 export default {
   activityHistory: '签到与福利流水',
+  refundSource: '退款福利来源', refundAmount: '退款福利金额', refundHint: '可只退充值或福利，也可同时退；福利仅扣所选来源，不超过该来源正余额。', insufficientRefundBalance: '所选福利余额不足，无法退款',
   date: '日期',
   title: '我的余额', paid: '充值余额', welfare: '福利余额', checkin: '签到福利', liyu: '礼遇福利', gift: '管理员赠送',
-  available: '当前可消费额度', rule: '福利最多抵扣每笔消费的三分之一，其余由充值余额支付。仅有福利余额时无法消费。',
-  debt: '福利允许为负数，后续同来源奖励先抵消欠额；负数不参与消费抵扣，也不会从充值余额追扣。',
+  available: '当前可消费额度', rule: '消费按充值 : 福利 = {paid} : {welfare} 抵扣。仅福利净额为正时参与，不足部分由充值支付；无正充值余额无法使用福利。',
+  debt: '福利允许因活动输赢变为负数，后续奖励先抵欠额；福利合计为零或负数时，消费全扣充值，不会增加福利欠额。',
+  usagePolicy: '消费福利抵扣比例', paidUnits: '充值份额', welfareUnits: '福利份额', policyHint: '默认 2 : 1（消费 9，充值扣 6、福利扣 3）。福利份额填 0 可关闭抵扣。保存后新消费立即生效，已冻结任务按原规则结算。',
   paidCost: '充值余额消耗', welfareCost: '福利余额抵扣', unclassified: '历史或待结算金额',
   unclassifiedHint: '此记录尚无分账结算信息', sourceDetail: '抵扣来源', giftAmount: '赠送福利金额', preview: '入账后余额',
   checkinTitle: '每日签到', checkinHint: '每日按北京时间重置，奖励计入签到福利。', checkinAction: '签到领取福利', checked: '今日已签到',

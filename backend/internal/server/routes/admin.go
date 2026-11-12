@@ -51,6 +51,8 @@ func RegisterAdminRoutes(
 			checkin.GET("/analytics", h.Admin.Checkin.Analytics)
 			checkin.GET("/settings", h.Admin.Checkin.Settings)
 			checkin.PUT("/settings", h.Admin.Checkin.Settings)
+			checkin.GET("/wallet-policy", h.Admin.Checkin.WalletPolicy)
+			checkin.PUT("/wallet-policy", h.Admin.Checkin.WalletPolicy)
 			checkin.GET("/risks", h.Admin.Checkin.Risks)
 			checkin.POST("/risks", h.Admin.Checkin.ConfirmRisk)
 			checkin.POST("/risks/:id/resolve", h.Admin.Checkin.ResolveRisk)

@@ -24,3 +24,19 @@
 - 签到前端月历与翻倍动画已合入 custom-main（adb011cf8，无冲突）。用户授权提交版本、打 tag 并推送个人 fork。
 - 版本文件为0.2.21.2；签到组件/i18n、typecheck、lint、build和mock浏览器验证通过。仅推送custom-main与新tag；自动发布实际状态以GitHub核验为准，不部署。
 - 交接文档：release-v0.2.21.2.md；上线迁移与回退见docs/welfare-balance-checkin.md。
+
+## 最新主题：福利退款与金额展示
+- feature/refund-welfare-display（基线abd49c9db）：三项主线本地开发验证完成；管理员选择福利来源、原子退款、金额两位、顶部及个人资料余额分栏。
+- 回归与限制见refund-welfare-display-plan.md；正式构建API模拟浏览器、真实隔离数据库均验证。无生产账目核验，未提交/合并/push/tag/部署。
+
+## 最新主题：福利净额计费安全与抵扣比例配置
+- 分支feature/refund-welfare-display，保留前轮退款/显示修改；本轮本地开发完成，最新真实数据库集成正在运行。
+- Go全仓unit/race/build/vet、前端434文件3448项/lint/build及正式构建mock浏览器已通过；详见wallet-security-policy-plan.md。未发布授权，不提交/合并/push/tag/部署，不改生产账目。
+
+## 最新交付：福利安全与比例配置完成
+- 4/4主线完成；Docker授权后15项真实PG/Redis集成实际全部PASS，其余Go全仓unit/相关race/build/vet、前端3448项/lint/build、正式构建模拟API浏览器已通过。
+- 当前无开发验证待办，无生产数据调整。功能分支未提交/合并/push/tag/部署；详细证据见wallet-security-policy-plan.md与docs/welfare-balance-checkin.md。
+
+## 最新授权：合并福利计费与退款修复
+- 用户授权将 feature/refund-welfare-display 当前已验证改动提交并合入 custom-main；基线 abd49c9db 一致，计划 fast-forward，结果以 Git 历史为准。
+- 不push、tag或部署；既有开发验证结果适用于本次合并。
