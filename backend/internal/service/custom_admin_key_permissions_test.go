@@ -51,7 +51,7 @@ func (*scopedPermissionsCapacityGroups) ListScopedAdminCapacityGroupIDs(context.
 func TestScopedAdminPermissionCapacityScopesBeforeAggregation(t *testing.T) {
 	groups := &scopedPermissionsCapacityGroups{groupCapacityGroupRepoStub{groupIDs: []int64{1, 2, 3}}}
 	accounts := &groupCapacityAccountRepoStub{}
-	svc := NewGroupCapacityService(accounts, groups, nil, nil, nil)
+	svc := NewGroupCapacityService(accounts, groups, nil, nil, nil, nil, nil, nil, nil)
 	ctx := adminaccess.WithPrincipal(context.Background(), &adminaccess.Principal{})
 	result, err := svc.GetAllGroupCapacity(ctx)
 	require.NoError(t, err)

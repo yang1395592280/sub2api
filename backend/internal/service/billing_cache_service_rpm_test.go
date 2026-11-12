@@ -277,7 +277,7 @@ func TestBillingCacheService_CheckRPM_SnapshotForAnotherGroupStillLooksUp(t *tes
 
 	require.NoError(t, svc.checkRPM(context.Background(), user, group))
 	require.EqualValues(t, 1, atomic.LoadInt32(&repo.calls), "snapshot 只确认了 key 所属分组")
-	require.EqualValues(t, 0, atomic.LoadInt32(&cache.userGroupCalls), "DB override=0 应跳过分组计数")
+	require.EqualValues(t, 1, atomic.LoadInt32(&cache.userGroupCalls), "DB override=0 免限流，但仍记录分组活跃用量")
 }
 
 func TestAPIKeyAuthSnapshotRecordsResolvedRPMOverrideGroup(t *testing.T) {

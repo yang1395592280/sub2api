@@ -114,6 +114,8 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // body_read_ms
 			sqlmock.AnyArg(), // preprocess_ms
 			sqlmock.AnyArg(), // user_queue_ms
+			log.CacheCreation30mTokens,
+			log.CacheCreation12hTokens,
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), createdAt))
@@ -240,6 +242,8 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // body_read_ms
 			sqlmock.AnyArg(), // preprocess_ms
 			sqlmock.AnyArg(), // user_queue_ms
+			log.CacheCreation30mTokens,
+			log.CacheCreation12hTokens,
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(100), createdAt))
@@ -315,20 +319,22 @@ func TestPrepareUsageLogInsertPersistsSchedulerTimingAfterFirstToken(t *testing.
 	queueMs := 200
 	retryMs := 60
 	prepared := prepareUsageLogInsert(&service.UsageLog{
-		UserID:          1,
-		APIKeyID:        2,
-		AccountID:       3,
-		RequestID:       "req-scheduler-timing",
-		Model:           "gpt-5.5",
-		FirstTokenMs:    &firstTokenMs,
-		E2EFirstTokenMs: &e2eFirstTokenMs,
-		BodyReadMs:      &bodyReadMs,
-		PreprocessMs:    &preprocessMs,
-		UserQueueMs:     &userQueueMs,
-		RoutingMs:       &routingMs,
-		QueueMs:         &queueMs,
-		RetryMs:         &retryMs,
-		CreatedAt:       time.Date(2025, 1, 5, 12, 0, 0, 0, time.UTC),
+		UserID:                 1,
+		APIKeyID:               2,
+		AccountID:              3,
+		RequestID:              "req-scheduler-timing",
+		Model:                  "gpt-5.5",
+		FirstTokenMs:           &firstTokenMs,
+		E2EFirstTokenMs:        &e2eFirstTokenMs,
+		BodyReadMs:             &bodyReadMs,
+		PreprocessMs:           &preprocessMs,
+		UserQueueMs:            &userQueueMs,
+		CacheCreation30mTokens: 9,
+		CacheCreation12hTokens: 2390,
+		RoutingMs:              &routingMs,
+		QueueMs:                &queueMs,
+		RetryMs:                &retryMs,
+		CreatedAt:              time.Date(2025, 1, 5, 12, 0, 0, 0, time.UTC),
 	})
 
 	require.Equal(t, sql.NullInt64{Int64: 900, Valid: true}, prepared.args[36])
@@ -339,6 +345,8 @@ func TestPrepareUsageLogInsertPersistsSchedulerTimingAfterFirstToken(t *testing.
 	require.Equal(t, sql.NullInt64{Int64: 10, Valid: true}, prepared.args[70])
 	require.Equal(t, sql.NullInt64{Int64: 30, Valid: true}, prepared.args[71])
 	require.Equal(t, sql.NullInt64{Int64: 40, Valid: true}, prepared.args[72])
+	require.Equal(t, 9, prepared.args[73])
+	require.Equal(t, 2390, prepared.args[74])
 }
 
 func TestPrepareUsageLogInsert_PersistsAPIKeyGroupSelectModeSnapshot(t *testing.T) {
@@ -391,8 +399,8 @@ func TestPrepareUsageLogInsert_PersistsNativeCompactionV2WithoutChangingRequestT
 	prepared := prepareUsageLogInsert(log)
 
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	require.Equal(t, "boolean", usageLogInsertArgTypes[len(usageLogInsertArgTypes)-5])
-	require.Equal(t, true, prepared.args[len(prepared.args)-5])
+	require.Equal(t, "boolean", usageLogInsertArgTypes[len(usageLogInsertArgTypes)-7])
+	require.Equal(t, true, prepared.args[len(prepared.args)-7])
 	require.Equal(t, int16(service.RequestTypeStream), prepared.args[32])
 	require.Equal(t, service.RequestTypeStream, log.RequestType)
 	require.True(t, log.Stream)
@@ -534,6 +542,8 @@ func TestScanUsageLogSchedulerTimingAndChannelPriceSnapshot(t *testing.T) {
 		int64(10),                         // body_read_ms
 		int64(30),                         // preprocess_ms
 		int64(40),                         // user_queue_ms
+		9,                                 // cache_creation_30m_tokens
+		2390,                              // cache_creation_12h_tokens
 		createdAt,                         // created_at
 	}
 
@@ -548,6 +558,8 @@ func TestScanUsageLogSchedulerTimingAndChannelPriceSnapshot(t *testing.T) {
 	require.Equal(t, 10, *got.BodyReadMs)
 	require.Equal(t, 30, *got.PreprocessMs)
 	require.Equal(t, 40, *got.UserQueueMs)
+	require.Equal(t, 9, got.CacheCreation30mTokens)
+	require.Equal(t, 2390, got.CacheCreation12hTokens)
 	require.InDelta(t, price, *got.ChannelPriceSnapshot, 0.000001)
 	require.NotNil(t, got.ChannelPriceSource)
 	require.Equal(t, source, *got.ChannelPriceSource)
@@ -1345,6 +1357,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullInt64{},   // body_read_ms
 			sql.NullInt64{},   // preprocess_ms
 			sql.NullInt64{},   // user_queue_ms
+			0,                 // cache_creation_30m_tokens
+			0,                 // cache_creation_12h_tokens
 			now,
 		}})
 		require.NoError(t, err)
@@ -1441,6 +1455,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullInt64{},   // body_read_ms
 			sql.NullInt64{},   // preprocess_ms
 			sql.NullInt64{},   // user_queue_ms
+			0,                 // cache_creation_30m_tokens
+			0,                 // cache_creation_12h_tokens
 			now,
 		}})
 		require.NoError(t, err)
@@ -1516,6 +1532,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullInt64{},   // body_read_ms
 			sql.NullInt64{},   // preprocess_ms
 			sql.NullInt64{},   // user_queue_ms
+			0,                 // cache_creation_30m_tokens
+			0,                 // cache_creation_12h_tokens
 			now,
 		}})
 		require.NoError(t, err)
@@ -1592,6 +1610,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullInt64{},   // body_read_ms
 			sql.NullInt64{},   // preprocess_ms
 			sql.NullInt64{},   // user_queue_ms
+			0,                 // cache_creation_30m_tokens
+			0,                 // cache_creation_12h_tokens
 			now,
 		}})
 		require.NoError(t, err)
