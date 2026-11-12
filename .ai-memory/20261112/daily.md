@@ -12,3 +12,6 @@ session-id: 20261112-0849
 
 ## 后续交付: 用户授权合并分支
 - 提交本轮已验证修复并以fast-forward方式合入custom-main；最终提交点以Git历史为准。不推送、打tag或部署。
+
+## 发布: v0.2.21
+- 用户授权tag、提交与推送；VERSION已为0.2.21。发布构建与二进制版本检查通过，复用已通过的业务验证。先保留本地上游同名tag，再创建二改发布tag并原子推送custom-main和v0.2.21。RELEASE_ONLY=true；结果以远端核验为准，不部署。详情release-v0.2.21.md。

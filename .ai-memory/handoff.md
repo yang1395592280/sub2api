@@ -303,3 +303,8 @@
 ## 2026-11-12 后续合并授权
 - 用户明确要求合并分支；本次交付将上述已验证修复提交并fast-forward合入custom-main，最终提交点以Git历史为准。此前未提交/未合并状态为09:01交付时快照。
 - 验证结果复用上述完整单测、race、构建及浏览器检查；Docker集成限制仍适用。不push、tag或部署。
+
+## 2026-11-12 v0.2.21发布授权
+- 用户明确要求打tag v0.2.21、提交推送；修复8f0a44682已合入custom-main。VERSION已一致，发布构建及二进制版本通过。
+- 相关文件：20261112/release-v0.2.21.md。保留本地上游tag对象，再提交发布记录、创建二改annotated tag并原子推送origin/custom-main与v0.2.21；最终结果以Git/GitHub为准。
+- RELEASE_ONLY=true；不推送上游tag备份、不部署或生产迁移。数据库集成仍受Docker不可用限制。
