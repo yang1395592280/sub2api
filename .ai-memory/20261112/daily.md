@@ -22,3 +22,7 @@ session-id: 20261112-0849
 
 ## [14:03] 合并授权: 签到与福利分账
 - 用户要求将 feature/welfare-balance-checkin 合入 custom-main，授权本地提交及合并；两分支起点均为6d9e8231e，可 fast-forward。沿用已通过的全量/集成/浏览器验证，不推送或部署。具体结果以 Git 历史为准。
+
+## [14:10] 发布准备: v0.2.21.1
+- 签到与福利分账已提交为90cd5c71e并无冲突合入custom-main。用户授权新tag、提交与推送；VERSION更新为0.2.21.1，发布工具11项与embed构建/实际版本检查通过。
+- 将创建annotated tag并原子推送custom-main和v0.2.21.1，结果以远端核验为准。RELEASE_ONLY=true，沿用现有自动Release工作流，不部署或执行生产迁移。详情release-v0.2.21.1.md。
