@@ -481,26 +481,22 @@ func (r *redeemCodeRepository) ListByUserPaginated(ctx context.Context, userID i
 	return redeemCodeEntitiesToService(codes), paginationResultFromTotal(int64(total), params), nil
 }
 
-// SumPositiveBalanceByUser returns total recharged amount (sum of value > 0 where type is balance/admin_balance).
+// SumPositiveBalanceByUser includes paid admin credits from the new wallet, excluding promotional gifts.
 func (r *redeemCodeRepository) SumPositiveBalanceByUser(ctx context.Context, userID int64) (float64, error) {
-	var result []struct {
-		Sum float64 `json:"sum"`
-	}
-	err := r.client.RedeemCode.Query().
-		Where(
-			redeemcode.UsedByEQ(userID),
-			redeemcode.ValueGT(0),
-			redeemcode.TypeIn("balance", "admin_balance"),
-		).
-		Aggregate(dbent.As(dbent.Sum(redeemcode.FieldValue), "sum")).
-		Scan(ctx, &result)
+	rows, err := r.client.QueryContext(ctx, `SELECT
+ COALESCE((SELECT SUM(value) FROM redeem_codes WHERE used_by=$1 AND value>0 AND type IN ('balance','admin_balance')),0)
+ + COALESCE((SELECT SUM(paid_delta) FROM wallet_transactions WHERE user_id=$1 AND event_type='admin_credit' AND paid_delta>0),0)`, userID)
 	if err != nil {
 		return 0, err
 	}
-	if len(result) == 0 {
-		return 0, nil
+	defer rows.Close()
+	var total float64
+	if rows.Next() {
+		if err := rows.Scan(&total); err != nil {
+			return 0, err
+		}
 	}
-	return result[0].Sum, nil
+	return total, rows.Err()
 }
 
 func redeemCodeEntityToService(m *dbent.RedeemCode) *service.RedeemCode {

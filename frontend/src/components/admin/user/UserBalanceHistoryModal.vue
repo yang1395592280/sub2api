@@ -29,11 +29,16 @@
           </div>
           <!-- Current balance: prominent display on the right -->
           <div class="flex-shrink-0 text-right">
-            <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.users.currentBalance') }}</p>
+            <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('wallet.paid') }}</p>
             <p class="text-xl font-bold text-gray-900 dark:text-white">
               ${{ user.balance?.toFixed(2) || '0.00' }}
             </p>
           </div>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-4 text-xs text-gray-500">
+          <span>{{ t('wallet.checkin') }}: ${{ (user.checkin_balance || 0).toFixed(8) }}</span>
+          <span>{{ t('wallet.liyu') }}: ${{ (user.liyu_balance || 0).toFixed(8) }}</span>
+          <span>{{ t('wallet.gift') }}: ${{ (user.gift_balance || 0).toFixed(8) }}</span>
         </div>
         <!-- Row 2: notes + total recharged -->
         <div class="mt-2.5 flex items-center justify-between border-t border-gray-200/60 pt-2.5 dark:border-dark-600/60">
@@ -200,6 +205,7 @@ const totalPages = computed(() => Math.ceil(total.value / pageSize) || 1)
 
 // Type filter options
 const typeOptions = computed(() => [
+  { value: 'wallet_activity', label: t('wallet.activityHistory') },
   { value: '', label: t('admin.users.allTypes') },
   { value: 'balance', label: t('admin.users.typeBalance') },
   { value: 'affiliate_balance', label: t('admin.users.typeAffiliateBalance') },
@@ -247,7 +253,7 @@ const loadHistory = async (page: number) => {
 const isAdminType = (type: string) => type === 'admin_balance' || type === 'admin_concurrency'
 
 // Helper: check if balance type (includes admin_balance)
-const isBalanceType = (type: string) => ['balance', 'admin_balance', 'affiliate_balance', 'usage_balance', 'zenxiang_liyu_reward'].includes(type)
+const isBalanceType = (type: string) => ['balance', 'admin_balance', 'affiliate_balance', 'usage_balance', 'zenxiang_liyu_reward', 'wallet_activity'].includes(type)
 
 // Helper: check if subscription type
 const isSubscriptionType = (type: string) => type === 'subscription'

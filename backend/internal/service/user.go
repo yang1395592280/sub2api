@@ -20,6 +20,9 @@ type User struct {
 	Role           string
 	Balance        float64
 	FrozenBalance  float64
+	CheckinBalance float64
+	LiyuBalance    float64
+	GiftBalance    float64
 	Concurrency    int
 	Status         string
 	AllowedGroups  []int64

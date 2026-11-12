@@ -1,3 +1,4 @@
+import wallet from './wallet'
 import pelican from './pelican'
 import customFeatures from './customFeatures'
 import adminAccessKeys from './adminAccessKeys'
@@ -12,6 +13,7 @@ import openAIQuality from './openAIQuality'
 import misc from './misc'
 
 export default {
+  wallet,
   pelican,
   ...customFeatures,
   adminAccessKeys,

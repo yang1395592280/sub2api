@@ -78,6 +78,7 @@ describe('ProfileView', () => {
       global: {
         stubs: {
           AppLayout: { template: '<div><slot /></div>' },
+          ProfileCheckinCard: true,
           StatCard: { template: '<div class="stat-card" />' },
           ProfileInfoCard: { template: '<div data-testid="profile-info-card" />' },
           ProfileBalanceNotifyCard: { template: '<div data-testid="profile-balance-notify-card" />' },

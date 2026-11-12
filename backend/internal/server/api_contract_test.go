@@ -54,6 +54,11 @@ func TestAPIContracts(t *testing.T) {
 					"username": "alice",
 						"role": "user",
 						"balance": 12.5,
+ "checkin_balance": 0,
+ "liyu_balance": 0,
+ "gift_balance": 0,
+ "welfare_balance": 0,
+ "available_balance": 12.5,
 						"frozen_balance": 0,
 						"concurrency": 5,
 					"rpm_limit": 0,
@@ -562,7 +567,10 @@ func TestAPIContracts(t *testing.T) {
 					"total_tokens": 53,
 					"total_cost": 0.75,
 					"total_actual_cost": 0.75,
-					"average_duration_ms": 200
+					"wallet_paid_cost": 0,
+ "wallet_welfare_cost": 0,
+ "wallet_unclassified_cost": 0,
+ "average_duration_ms": 200
 				}
 			}`,
 		},

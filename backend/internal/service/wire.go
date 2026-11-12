@@ -1018,7 +1018,14 @@ func ProvideOpenAIGatewayService(
 }
 
 // ProviderSet is the Wire provider set for all services
+func ProvideCheckinService(repo CheckinRepository, settings SettingRepository, invalidator APIKeyAuthCacheInvalidator, cache BillingCache) *CheckinService {
+	s := NewCheckinService(repo, settings, invalidator, cache)
+	s.Start()
+	return s
+}
+
 var ProviderSet = wire.NewSet(
+	ProvideCheckinService,
 	ProvideAccountQualityService,
 	// Core services
 	ProvideAuthService,

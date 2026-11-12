@@ -7,6 +7,7 @@ import (
 
 // AdminHandlers contains all admin-related HTTP handlers
 type AdminHandlers struct {
+	Checkin                *admin.CheckinHandler
 	AccountQuality         *admin.AccountQualityHandler
 	Dashboard              *admin.DashboardHandler
 	User                   *admin.UserHandler
@@ -49,6 +50,7 @@ type AdminHandlers struct {
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
+	Checkin          *CheckinHandler
 	Auth             *AuthHandler
 	User             *UserHandler
 	MCPOAuth         *MCPOAuthHandler

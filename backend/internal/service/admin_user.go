@@ -912,17 +912,24 @@ func (s *adminServiceImpl) getAllUserBalanceHistory(ctx context.Context, userID 
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	entries := mergeBalanceHistoryEntries(params, redeemEntries, affiliateEntries, zenxiangEntries)
+	walletEntries, walletTotal, _, err := s.walletBalanceHistory(ctx, userID, needed, 0)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	entries := mergeBalanceHistoryEntries(params, redeemEntries, affiliateEntries, zenxiangEntries, walletEntries)
 
 	totalRecharged, err := s.redeemCodeRepo.SumPositiveBalanceByUser(ctx, userID)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	return entries, redeemTotal + affiliateTotal + zenxiangTotal, totalRecharged, nil
+	return entries, redeemTotal + affiliateTotal + zenxiangTotal + walletTotal, totalRecharged, nil
 }
 
 func (s *adminServiceImpl) listBalanceHistoryByType(ctx context.Context, userID int64, params pagination.PaginationParams, codeType string) ([]BalanceHistoryEntry, int64, error) {
 	switch codeType {
+	case "wallet_activity":
+		entries, total, _, err := s.walletBalanceHistory(ctx, userID, params.Limit(), params.Offset())
+		return entries, total, err
 	case RedeemTypeAffiliateBalance:
 		return s.listAffiliateBalanceHistory(ctx, userID, params)
 	case "usage_balance":
@@ -1854,4 +1861,13 @@ func (s *adminServiceImpl) ExpireRedeemCode(ctx context.Context, id int64) (*Red
 		return nil, err
 	}
 	return code, nil
+}
+
+func (s *adminServiceImpl) walletBalanceHistory(ctx context.Context, userID int64, limit, offset int) ([]BalanceHistoryEntry, int64, float64, error) {
+	if reader, ok := s.userRepo.(interface {
+		ListWalletBalanceHistory(context.Context, int64, int, int) ([]BalanceHistoryEntry, int64, float64, error)
+	}); ok {
+		return reader.ListWalletBalanceHistory(ctx, userID, limit, offset)
+	}
+	return nil, 0, 0, nil
 }

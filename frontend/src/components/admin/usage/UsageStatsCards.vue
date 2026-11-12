@@ -67,6 +67,11 @@
         <p class="text-xl font-bold text-green-600">
           ${{ (stats?.total_actual_cost || 0).toFixed(4) }}
         </p>
+        <div class="my-1 text-xs text-gray-500">
+          <p>{{ t('wallet.paidCost') }} ${{ (stats?.wallet_paid_cost || 0).toFixed(6) }}</p>
+          <p>{{ t('wallet.welfareCost') }} ${{ (stats?.wallet_welfare_cost || 0).toFixed(6) }}</p>
+          <p v-if="stats?.wallet_unclassified_cost">{{ t('wallet.unclassified') }} ${{ stats.wallet_unclassified_cost.toFixed(6) }}</p>
+        </div>
         <p class="text-xs text-gray-400">
           <template v-if="showAccountCost && totalAccountCost != null">
             <span class="text-orange-500">{{ t('usage.accountCost') }} ${{ totalAccountCost.toFixed(4) }}</span>

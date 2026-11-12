@@ -95,6 +95,21 @@ func FrozenBalance(v float64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldFrozenBalance, v))
 }
 
+// CheckinBalance applies equality check predicate on the "checkin_balance" field. It's identical to CheckinBalanceEQ.
+func CheckinBalance(v float64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldCheckinBalance, v))
+}
+
+// LiyuBalance applies equality check predicate on the "liyu_balance" field. It's identical to LiyuBalanceEQ.
+func LiyuBalance(v float64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldLiyuBalance, v))
+}
+
+// GiftBalance applies equality check predicate on the "gift_balance" field. It's identical to GiftBalanceEQ.
+func GiftBalance(v float64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldGiftBalance, v))
+}
+
 // Concurrency applies equality check predicate on the "concurrency" field. It's identical to ConcurrencyEQ.
 func Concurrency(v int) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldConcurrency, v))
@@ -583,6 +598,126 @@ func FrozenBalanceLT(v float64) predicate.User {
 // FrozenBalanceLTE applies the LTE predicate on the "frozen_balance" field.
 func FrozenBalanceLTE(v float64) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldFrozenBalance, v))
+}
+
+// CheckinBalanceEQ applies the EQ predicate on the "checkin_balance" field.
+func CheckinBalanceEQ(v float64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldCheckinBalance, v))
+}
+
+// CheckinBalanceNEQ applies the NEQ predicate on the "checkin_balance" field.
+func CheckinBalanceNEQ(v float64) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldCheckinBalance, v))
+}
+
+// CheckinBalanceIn applies the In predicate on the "checkin_balance" field.
+func CheckinBalanceIn(vs ...float64) predicate.User {
+	return predicate.User(sql.FieldIn(FieldCheckinBalance, vs...))
+}
+
+// CheckinBalanceNotIn applies the NotIn predicate on the "checkin_balance" field.
+func CheckinBalanceNotIn(vs ...float64) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldCheckinBalance, vs...))
+}
+
+// CheckinBalanceGT applies the GT predicate on the "checkin_balance" field.
+func CheckinBalanceGT(v float64) predicate.User {
+	return predicate.User(sql.FieldGT(FieldCheckinBalance, v))
+}
+
+// CheckinBalanceGTE applies the GTE predicate on the "checkin_balance" field.
+func CheckinBalanceGTE(v float64) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldCheckinBalance, v))
+}
+
+// CheckinBalanceLT applies the LT predicate on the "checkin_balance" field.
+func CheckinBalanceLT(v float64) predicate.User {
+	return predicate.User(sql.FieldLT(FieldCheckinBalance, v))
+}
+
+// CheckinBalanceLTE applies the LTE predicate on the "checkin_balance" field.
+func CheckinBalanceLTE(v float64) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldCheckinBalance, v))
+}
+
+// LiyuBalanceEQ applies the EQ predicate on the "liyu_balance" field.
+func LiyuBalanceEQ(v float64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldLiyuBalance, v))
+}
+
+// LiyuBalanceNEQ applies the NEQ predicate on the "liyu_balance" field.
+func LiyuBalanceNEQ(v float64) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldLiyuBalance, v))
+}
+
+// LiyuBalanceIn applies the In predicate on the "liyu_balance" field.
+func LiyuBalanceIn(vs ...float64) predicate.User {
+	return predicate.User(sql.FieldIn(FieldLiyuBalance, vs...))
+}
+
+// LiyuBalanceNotIn applies the NotIn predicate on the "liyu_balance" field.
+func LiyuBalanceNotIn(vs ...float64) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldLiyuBalance, vs...))
+}
+
+// LiyuBalanceGT applies the GT predicate on the "liyu_balance" field.
+func LiyuBalanceGT(v float64) predicate.User {
+	return predicate.User(sql.FieldGT(FieldLiyuBalance, v))
+}
+
+// LiyuBalanceGTE applies the GTE predicate on the "liyu_balance" field.
+func LiyuBalanceGTE(v float64) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldLiyuBalance, v))
+}
+
+// LiyuBalanceLT applies the LT predicate on the "liyu_balance" field.
+func LiyuBalanceLT(v float64) predicate.User {
+	return predicate.User(sql.FieldLT(FieldLiyuBalance, v))
+}
+
+// LiyuBalanceLTE applies the LTE predicate on the "liyu_balance" field.
+func LiyuBalanceLTE(v float64) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldLiyuBalance, v))
+}
+
+// GiftBalanceEQ applies the EQ predicate on the "gift_balance" field.
+func GiftBalanceEQ(v float64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldGiftBalance, v))
+}
+
+// GiftBalanceNEQ applies the NEQ predicate on the "gift_balance" field.
+func GiftBalanceNEQ(v float64) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldGiftBalance, v))
+}
+
+// GiftBalanceIn applies the In predicate on the "gift_balance" field.
+func GiftBalanceIn(vs ...float64) predicate.User {
+	return predicate.User(sql.FieldIn(FieldGiftBalance, vs...))
+}
+
+// GiftBalanceNotIn applies the NotIn predicate on the "gift_balance" field.
+func GiftBalanceNotIn(vs ...float64) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldGiftBalance, vs...))
+}
+
+// GiftBalanceGT applies the GT predicate on the "gift_balance" field.
+func GiftBalanceGT(v float64) predicate.User {
+	return predicate.User(sql.FieldGT(FieldGiftBalance, v))
+}
+
+// GiftBalanceGTE applies the GTE predicate on the "gift_balance" field.
+func GiftBalanceGTE(v float64) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldGiftBalance, v))
+}
+
+// GiftBalanceLT applies the LT predicate on the "gift_balance" field.
+func GiftBalanceLT(v float64) predicate.User {
+	return predicate.User(sql.FieldLT(FieldGiftBalance, v))
+}
+
+// GiftBalanceLTE applies the LTE predicate on the "gift_balance" field.
+func GiftBalanceLTE(v float64) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldGiftBalance, v))
 }
 
 // ConcurrencyEQ applies the EQ predicate on the "concurrency" field.

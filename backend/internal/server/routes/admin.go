@@ -45,6 +45,16 @@ func RegisterAdminRoutes(
 
 		// 用户管理
 		registerUserManagementRoutes(admin, h)
+		if h.Admin.Checkin != nil {
+			checkin := admin.Group("/checkins")
+			checkin.GET("", h.Admin.Checkin.List)
+			checkin.GET("/analytics", h.Admin.Checkin.Analytics)
+			checkin.GET("/settings", h.Admin.Checkin.Settings)
+			checkin.PUT("/settings", h.Admin.Checkin.Settings)
+			checkin.GET("/risks", h.Admin.Checkin.Risks)
+			checkin.POST("/risks", h.Admin.Checkin.ConfirmRisk)
+			checkin.POST("/risks/:id/resolve", h.Admin.Checkin.ResolveRisk)
+		}
 
 		// 分组管理
 		registerGroupRoutes(admin, h)

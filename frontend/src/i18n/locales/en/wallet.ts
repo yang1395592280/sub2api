@@ -1,0 +1,22 @@
+export default {
+  activityHistory: 'Check-in and promotional ledger',
+  date: 'Date',
+  title: 'My balances', paid: 'Paid balance', welfare: 'Promotional balance', checkin: 'Check-in credit', liyu: 'Rewards credit', gift: 'Admin gifts',
+  available: 'Currently spendable', rule: 'Promotional credit covers up to one third of each charge. The rest requires paid balance. Promotional credit alone cannot fund usage.',
+  debt: 'Activity losses may make a promotional source negative. Future rewards from that source repay it. Negative credit is excluded from usage and never collected from paid balance.',
+  paidCost: 'Paid balance charged', welfareCost: 'Promotional credit applied', unclassified: 'Historical or pending settlement',
+  unclassifiedHint: 'No balance breakdown is available for this record yet', sourceDetail: 'Credit sources', giftAmount: 'Promotional gift amount', preview: 'Balances after credit',
+  checkinTitle: 'Daily check-in', checkinHint: 'Resets daily in Asia/Shanghai. Rewards go to check-in credit.', checkinAction: 'Check in for credit', checked: 'Checked in today',
+  bonus: 'Double reward', bonusRule: 'Check-in awards R. Win adds R; lose deducts 1.5R for a net loss of 0.5R. Promotional credit may become negative.',
+  activityRule: 'Scripts, automated check-in tools, and bypassing page verification are prohibited. Confirmed abuse may result in remaining check-in credit being revoked and check-in suspended.',
+  rewardRange: 'Reward range', month: 'Check-in month', records: 'Check-in history', totalReward: 'Lifetime net rewards', totalCheckins: 'Lifetime check-ins',
+  reward: 'Final reward', baseReward: 'Base reward', bonusDelta: 'Bonus adjustment', win: 'Won', lose: 'Lost', none: 'Not played',
+  suspended: 'Check-in and double reward suspended', clearedAmount: 'Check-in credit revoked', caseID: 'Case number', reviewHint: 'Contact an administrator for review. Paid balance, rewards credit, and admin gifts are unaffected.',
+  adminTitle: 'Check-in and abuse review', enabled: 'Enable daily check-in', minReward: 'Minimum reward', maxReward: 'Maximum reward', bonusEnabled: 'Enable double reward', successRate: 'Win probability (%)',
+  distribution: 'Reward distribution (JSON; leave blank for uniform random)', riskCases: 'Abuse cases', reason: 'Violation reason', evidence: 'Verified automation evidence',
+  confirmRisk: 'Confirm violation and start observation', observationRule: 'Observe for 3 days with rewards usable. Then revoke remaining positive check-in credit and suspend check-in. Negative debt is retained.',
+  observeUntil: 'Observation ends', observing: 'Observing', cleared: 'Revoked and suspended', revoked: 'Observation cancelled', restored: 'Restored after review',
+  revoke: 'Cancel observation', restore: 'Restore eligibility and revoked credit', restoreConfirm: 'Restore check-in eligibility and refund the credit revoked in this case?',
+  userID: 'User ID', status: 'Status', noRecords: 'No records', refresh: 'Refresh', frozen: 'Frozen credit',
+  moneyUnit: 'All amounts are internal credits denominated in USD.'
+}

@@ -1,0 +1,22 @@
+export default {
+  activityHistory: '签到与福利流水',
+  date: '日期',
+  title: '我的余额', paid: '充值余额', welfare: '福利余额', checkin: '签到福利', liyu: '礼遇福利', gift: '管理员赠送',
+  available: '当前可消费额度', rule: '福利最多抵扣每笔消费的三分之一，其余由充值余额支付。仅有福利余额时无法消费。',
+  debt: '福利允许为负数，后续同来源奖励先抵消欠额；负数不参与消费抵扣，也不会从充值余额追扣。',
+  paidCost: '充值余额消耗', welfareCost: '福利余额抵扣', unclassified: '历史或待结算金额',
+  unclassifiedHint: '此记录尚无分账结算信息', sourceDetail: '抵扣来源', giftAmount: '赠送福利金额', preview: '入账后余额',
+  checkinTitle: '每日签到', checkinHint: '每日按北京时间重置，奖励计入签到福利。', checkinAction: '签到领取福利', checked: '今日已签到',
+  bonus: '奖励翻倍', bonusRule: '签到先得 R；翻倍成功再得 R，失败扣 1.5R，最终净亏 0.5R。福利不足可扣成负数。',
+  activityRule: '禁止脚本、自动签到工具和绕过页面验证领取奖励；核实违规后可撤销剩余签到福利并暂停签到。',
+  rewardRange: '奖励范围', month: '签到月份', records: '签到记录', totalReward: '累计签到净收益', totalCheckins: '累计签到次数',
+  reward: '签到最终收益', baseReward: '原始奖励', bonusDelta: '翻倍变化', win: '翻倍成功', lose: '翻倍失败', none: '未参与',
+  suspended: '签到及奖励翻倍已暂停', clearedAmount: '已清退签到福利', caseID: '处理编号', reviewHint: '如有异议，请联系管理员申请复核。充值、礼遇及管理员赠送余额不受影响。',
+  adminTitle: '签到与风控', enabled: '开启每日签到', minReward: '最低奖励', maxReward: '最高奖励', bonusEnabled: '开启签到翻倍', successRate: '翻倍成功概率（%）',
+  distribution: '奖励分档（JSON，可留空使用均匀随机）', riskCases: '签到违规处理', reason: '违规原因', evidence: '已核实的自动化证据',
+  confirmRisk: '确认违规并开始观察', observationRule: '确认后观察 3 天，期间奖励可用；到期清退剩余正签到福利并暂停签到，负数欠额保留。',
+  observeUntil: '观察截止时间', observing: '观察中', cleared: '已清退并暂停', revoked: '已撤销观察', restored: '已复核恢复',
+  revoke: '撤销观察', restore: '恢复资格并返还清退金额', restoreConfirm: '确认恢复此账号的签到资格并返还本次清退金额？',
+  userID: '用户 ID', status: '状态', noRecords: '暂无记录', refresh: '刷新', frozen: '冻结额度',
+  moneyUnit: '所有金额均为站内美元计价额度。'
+}

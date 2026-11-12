@@ -359,7 +359,7 @@ func (s *BillingCacheService) getUserBalanceFromDB(ctx context.Context, userID i
 	if err != nil {
 		return 0, fmt.Errorf("get user balance: %w", err)
 	}
-	return user.Balance, nil
+	return user.Wallet().Available(), nil
 }
 
 // setBalanceCache 设置余额缓存

@@ -50,7 +50,7 @@ func TestZenxiangLiyuRepositoryPlayAppliesAtomically(t *testing.T) {
 		WillReturnRows(zenxiangLiyuSettingsRows().AddRow(true, 0.0, 10.0, 5, 5.0, 3, 0.1, 0.05, true, 50.0, false, 50.0, 50.0))
 	mock.ExpectQuery(`SELECT id, name, reward_amount, probability, enabled, sort_order FROM zenxiang_liyu_prizes WHERE enabled = TRUE ORDER BY sort_order, id FOR SHARE`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "reward_amount", "probability", "enabled", "sort_order"}).AddRow(7, "3 yuan", 3.0, 100.0, true, 1))
-	mock.ExpectQuery(`SELECT id, email, role, status, balance FROM users WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
+	mock.ExpectQuery(`SELECT id, email, role, status, liyu_balance FROM users WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
 		WithArgs(int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "role", "status", "balance"}).AddRow(42, "user@example.com", service.RoleUser, service.StatusActive, 12.0))
 	mock.ExpectQuery(`SELECT COALESCE\(SUM\(actual_cost\), 0\)`).
@@ -73,18 +73,13 @@ func TestZenxiangLiyuRepositoryPlayAppliesAtomically(t *testing.T) {
 	mock.ExpectExec(`UPDATE zenxiang_liyu_ticket_wallets`).
 		WithArgs(int64(42)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectQuery(`UPDATE users SET balance = balance - \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
-		WithArgs(0.0, int64(42)).
-		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(12.0))
 	mock.ExpectQuery(`INSERT INTO zenxiang_liyu_records`).
 		WithArgs(
 			"req-2", int64(42), playDate, 0.0, 3.0, 3.0, 0.0, 3.0, -3.0, int64(7), "3 yuan", 100.0,
 			sqlmock.AnyArg(), 12.0, 12.0, 15.0,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(9, time.Unix(2, 0)))
-	mock.ExpectQuery(`UPDATE users SET balance = balance \+ \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
-		WithArgs(3.0, int64(42)).
-		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(15.0))
+	expectWalletDelta(mock, 42, service.WalletBalance{Liyu: 3.0}, service.WalletBalance{Paid: 100, Liyu: 15.0}, "liyu_reward", "req-2", 0)
 	mock.ExpectCommit()
 
 	result, err := repo.Play(context.Background(), service.ZenxiangLiyuPlayCommand{
@@ -116,7 +111,7 @@ func TestZenxiangLiyuRepositoryPlayUsesFreePlayAfterDailyUsageThreshold(t *testi
 		WillReturnRows(zenxiangLiyuSettingsRows().AddRow(true, 0.0, 10.0, 5, 5.0, 3, 0.1, 0.05, true, 50.0, false, 50.0, 50.0))
 	mock.ExpectQuery(`SELECT id, name, reward_amount, probability, enabled, sort_order FROM zenxiang_liyu_prizes WHERE enabled = TRUE ORDER BY sort_order, id FOR SHARE`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "reward_amount", "probability", "enabled", "sort_order"}).AddRow(7, "3 yuan", 3.0, 100.0, true, 1))
-	mock.ExpectQuery(`SELECT id, email, role, status, balance FROM users WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
+	mock.ExpectQuery(`SELECT id, email, role, status, liyu_balance FROM users WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
 		WithArgs(int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "role", "status", "balance"}).AddRow(42, "user@example.com", service.RoleUser, service.StatusActive, 1.0))
 	mock.ExpectQuery(`SELECT COALESCE\(SUM\(actual_cost\), 0\)`).
@@ -139,18 +134,13 @@ func TestZenxiangLiyuRepositoryPlayUsesFreePlayAfterDailyUsageThreshold(t *testi
 	mock.ExpectExec(`UPDATE zenxiang_liyu_ticket_wallets`).
 		WithArgs(int64(42)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectQuery(`UPDATE users SET balance = balance - \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
-		WithArgs(0.0, int64(42)).
-		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(1.0))
 	mock.ExpectQuery(`INSERT INTO zenxiang_liyu_records`).
 		WithArgs(
 			"req-free", int64(42), playDate, 0.0, 3.0, 3.0, 0.0, 3.0, -3.0, int64(7), "3 yuan", 100.0,
 			sqlmock.AnyArg(), 1.0, 1.0, 4.0,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(9, time.Unix(4, 0)))
-	mock.ExpectQuery(`UPDATE users SET balance = balance \+ \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
-		WithArgs(3.0, int64(42)).
-		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(4.0))
+	expectWalletDelta(mock, 42, service.WalletBalance{Liyu: 3.0}, service.WalletBalance{Paid: 100, Liyu: 4.0}, "liyu_reward", "req-free", 0)
 	mock.ExpectCommit()
 
 	result, err := repo.Play(context.Background(), service.ZenxiangLiyuPlayCommand{
@@ -183,7 +173,7 @@ func TestZenxiangLiyuRepositoryPlayReturnsExistingRecordAfterUniqueConflict(t *t
 		WillReturnRows(zenxiangLiyuSettingsRows().AddRow(true, 0.0, 10.0, 5, 5.0, 3, 0.1, 0.05, true, 50.0, false, 50.0, 50.0))
 	mock.ExpectQuery(`SELECT id, name, reward_amount, probability, enabled, sort_order FROM zenxiang_liyu_prizes WHERE enabled = TRUE ORDER BY sort_order, id FOR SHARE`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "reward_amount", "probability", "enabled", "sort_order"}).AddRow(7, "3 yuan", 3.0, 100.0, true, 1))
-	mock.ExpectQuery(`SELECT id, email, role, status, balance FROM users WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
+	mock.ExpectQuery(`SELECT id, email, role, status, liyu_balance FROM users WHERE id = \$1 AND deleted_at IS NULL FOR UPDATE`).
 		WithArgs(int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "role", "status", "balance"}).AddRow(42, "user@example.com", service.RoleUser, service.StatusActive, 12.0))
 	mock.ExpectQuery(`SELECT COALESCE\(SUM\(actual_cost\), 0\)`).
@@ -206,9 +196,6 @@ func TestZenxiangLiyuRepositoryPlayReturnsExistingRecordAfterUniqueConflict(t *t
 	mock.ExpectExec(`UPDATE zenxiang_liyu_ticket_wallets`).
 		WithArgs(int64(42)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectQuery(`UPDATE users SET balance = balance - \$1, updated_at = NOW\(\) WHERE id = \$2 RETURNING balance`).
-		WithArgs(0.0, int64(42)).
-		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(12.0))
 	mock.ExpectQuery(`INSERT INTO zenxiang_liyu_records`).
 		WillReturnError(&pq.Error{Code: "23505"})
 	mock.ExpectRollback()
@@ -477,9 +464,7 @@ func TestZenxiangLiyuRepositoryPlayLuckyCoinAppliesOnce(t *testing.T) {
 		WithArgs(int64(9), int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "reward_amount", "lucky_coin_played", "balance_after_lucky"}).
 			AddRow(9, 1.5, false, nil))
-	mock.ExpectQuery(`UPDATE users`).
-		WithArgs(1.5, int64(42)).
-		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(12.5))
+	expectWalletDelta(mock, 42, service.WalletBalance{Liyu: 1.5}, service.WalletBalance{Paid: 100, Liyu: 12.5}, "liyu_lucky", "9", 0)
 	mock.ExpectQuery(`UPDATE zenxiang_liyu_records`).
 		WithArgs("double", 1.5, 12.5, int64(9), int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"lucky_coin_played_at"}).AddRow(playedAt))
@@ -510,9 +495,7 @@ func TestZenxiangLiyuRepositoryPlayLuckyCoinMissLosesOriginalReward(t *testing.T
 		WithArgs(int64(9), int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "reward_amount", "lucky_coin_played", "balance_after_lucky"}).
 			AddRow(9, 0.33333333, false, nil))
-	mock.ExpectQuery(`UPDATE users`).
-		WithArgs(-0.66666666, int64(42)).
-		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(8.33333334))
+	expectWalletDelta(mock, 42, service.WalletBalance{Liyu: -0.66666666}, service.WalletBalance{Paid: 100, Liyu: 8.33333334}, "liyu_lucky", "9", 0)
 	mock.ExpectQuery(`UPDATE zenxiang_liyu_records`).
 		WithArgs("zero", -0.66666666, 8.33333334, int64(9), int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"lucky_coin_played_at"}).AddRow(playedAt))
@@ -542,9 +525,7 @@ func TestZenxiangLiyuRepositoryPlayLuckyCoinRollsBackWhenRecordWasAlreadyUpdated
 		WithArgs(int64(9), int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "reward_amount", "lucky_coin_played", "balance_after_lucky"}).
 			AddRow(9, 1.5, false, nil))
-	mock.ExpectQuery(`UPDATE users`).
-		WithArgs(1.5, int64(42)).
-		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(12.5))
+	expectWalletDelta(mock, 42, service.WalletBalance{Liyu: 1.5}, service.WalletBalance{Paid: 100, Liyu: 12.5}, "liyu_lucky", "9", 0)
 	mock.ExpectQuery(`UPDATE zenxiang_liyu_records`).
 		WithArgs("double", 1.5, 12.5, int64(9), int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"lucky_coin_played_at"}))
@@ -593,9 +574,7 @@ func TestZenxiangLiyuRepositoryPlayGuessSizeSettlements(t *testing.T) {
 					"reward", "lucky_played", "lucky_outcome", "lucky_adjustment", "guess_played", "guess_choice",
 					"guess_outcome", "guess_won", "guess_adjustment", "guess_big", "guess_small", "balance_after", "played_at",
 				}).AddRow(2.0, true, tt.luckyOutcome, tt.luckyAdjust, false, "", "", false, 0.0, 0.0, 0.0, nil, nil))
-			mock.ExpectQuery(`UPDATE users SET balance = balance \+ \$1`).
-				WithArgs(tt.adjustment, int64(42)).
-				WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(tt.balanceAfter))
+			expectWalletDelta(mock, 42, service.WalletBalance{Liyu: tt.adjustment}, service.WalletBalance{Paid: 100, Liyu: tt.balanceAfter}, "liyu_guess", "9", 0)
 			mock.ExpectQuery(`UPDATE zenxiang_liyu_records`).
 				WithArgs(tt.choice, tt.outcome, tt.won, tt.adjustment, 50.0, 50.0, tt.balanceAfter, int64(9), int64(42)).
 				WillReturnRows(sqlmock.NewRows([]string{"guess_size_played_at"}).AddRow(playedAt))

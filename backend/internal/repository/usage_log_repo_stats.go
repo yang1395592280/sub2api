@@ -1393,6 +1393,19 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 	stats.TotalAccountCost = &totalAccountCost
 	stats.TotalTokens = stats.TotalInputTokens + stats.TotalOutputTokens + stats.TotalCacheTokens
 
+	if r.db != nil {
+		if err := rows.Close(); err != nil {
+			return nil, err
+		}
+		walletQuery := fmt.Sprintf(`WITH scoped AS (SELECT user_id,api_key_id,request_id,actual_cost,billing_type FROM usage_logs %s)
+		SELECT COALESCE(SUM(-w.paid_delta),0),COALESCE(SUM(-w.checkin_delta-w.liyu_delta-w.gift_delta),0),
+		COALESCE(SUM(CASE WHEN w.id IS NULL AND s.billing_type=0 THEN s.actual_cost ELSE 0 END),0)
+		FROM scoped s LEFT JOIN wallet_transactions w ON w.user_id=s.user_id AND w.api_key_id=s.api_key_id
+		AND w.operation_id=s.request_id AND w.event_type='usage'`, buildWhere(conditions))
+		if err := r.db.QueryRowContext(ctx, walletQuery, args...).Scan(&stats.WalletPaidCost, &stats.WalletWelfareCost, &stats.WalletUnclassifiedCost); err != nil {
+			return nil, err
+		}
+	}
 	return stats, nil
 }
 

@@ -42,7 +42,7 @@ func TestWireGenInjectsGroupUpstreamBalanceRefreshRunnerIntoStartupAndCleanup(t 
 	require.NotEqual(t, -1, runnerIndex, "production wire must construct group upstream balance refresh runner")
 	require.NotEqual(t, -1, cleanupCallIndex, "production wire must continue to build cleanup")
 	require.NotEqual(t, -1, cleanupStepIndex, "cleanup must stop the group upstream balance refresh runner")
-	require.Contains(t, source, "sub2APICheckinService, groupUpstreamBalanceRefreshRunner, pelicanTestService, openAIGatewayService")
+	require.Contains(t, source, "sub2APICheckinService, checkinService, groupUpstreamBalanceRefreshRunner, pelicanTestService, openAIGatewayService")
 	require.Less(t, runnerIndex, cleanupCallIndex, "runner must be constructed before cleanup wiring")
 	require.Less(t, cleanupCallIndex, cleanupStepIndex, "cleanup wiring should remain before cleanup steps")
 }
@@ -119,6 +119,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		antigravityOAuthSvc,
 		nil, // grokOAuth
 		nil, // sub2apiCheckin
+		nil, // userCheckin
 		groupUpstreamBalanceRefreshRunner,
 		nil, // pelicanTestService
 		nil, // openAIGateway

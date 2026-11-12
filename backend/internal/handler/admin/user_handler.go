@@ -107,9 +107,10 @@ type UpdateUserRequest struct {
 
 // UpdateBalanceRequest represents balance update request
 type UpdateBalanceRequest struct {
-	Balance   float64 `json:"balance" binding:"required,gt=0"`
-	Operation string  `json:"operation" binding:"required,oneof=set add subtract"`
-	Notes     string  `json:"notes"`
+	Balance        float64 `json:"balance" binding:"gte=0"`
+	WelfareBalance float64 `json:"welfare_balance" binding:"gte=0"`
+	Operation      string  `json:"operation" binding:"required,oneof=set add subtract"`
+	Notes          string  `json:"notes"`
 }
 
 type BatchAddBalanceRequest struct {
@@ -544,6 +545,14 @@ func (h *UserHandler) UpdateBalance(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
+	if req.WelfareBalance > 0 && req.Operation != "add" {
+		response.BadRequest(c, "福利赠送仅支持增加操作")
+		return
+	}
+	if req.Balance <= 0 && req.WelfareBalance <= 0 {
+		response.BadRequest(c, "充值或赠送金额至少一项大于0")
+		return
+	}
 
 	idempotencyPayload := struct {
 		UserID int64                `json:"user_id"`
@@ -553,7 +562,21 @@ func (h *UserHandler) UpdateBalance(c *gin.Context) {
 		Body:   req,
 	}
 	executeAdminIdempotentJSONWithResponse(c, "admin.users.balance.update", idempotencyPayload, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
-		user, execErr := h.adminService.UpdateUserBalance(ctx, userID, req.Balance, req.Operation, req.Notes)
+		var user *service.User
+		var execErr error
+		if req.WelfareBalance > 0 {
+			updater, ok := h.adminService.(service.AdminWalletUpdater)
+			if !ok {
+				return nil, fmt.Errorf("wallet updater unavailable")
+			}
+			var actorID int64
+			if subject, ok := middleware.GetAuthSubjectFromContext(c); ok {
+				actorID = subject.UserID
+			}
+			user, execErr = updater.UpdateUserWalletBalance(ctx, userID, req.Balance, req.WelfareBalance, actorID, req.Notes, walletCreditOperationID(c))
+		} else {
+			user, execErr = h.adminService.UpdateUserBalance(ctx, userID, req.Balance, req.Operation, req.Notes)
+		}
 		if execErr != nil {
 			return nil, execErr
 		}
@@ -1184,4 +1207,12 @@ func (h *UserHandler) ResetUserPlatformQuotaWindow(c *gin.Context) {
 		out = append(out, quotaview.LazyZeroQuotaForResponse(records[i], now, true))
 	}
 	response.Success(c, map[string]any{"platform_quotas": out})
+}
+
+func walletCreditOperationID(c *gin.Context) string {
+	key := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
+	if key == "" {
+		return ""
+	}
+	return service.HashIdempotencyKey(adminActorScope(c) + ":" + key)
 }

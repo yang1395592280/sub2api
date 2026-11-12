@@ -86,6 +86,11 @@ export interface User {
   wechat_bound?: boolean
   role: 'admin' | 'user' // User role for authorization
   balance: number // User balance for API usage
+  checkin_balance?: number
+  liyu_balance?: number
+  gift_balance?: number
+  welfare_balance?: number
+  available_balance?: number
   frozen_balance?: number // Balance currently held by async batch jobs
   concurrency: number // Allowed concurrent requests
   rpm_limit?: number // User-level RPM cap (0 = unlimited); effective as fallback when group has no rpm_limit
@@ -1976,6 +1981,7 @@ export type ImageSizeSource = 'output' | 'input' | 'default' | 'legacy'
 export type ImageSizeBreakdown = Record<string, number>
 
 export interface UsageLog {
+  wallet_usage?: { paid_cost: number; welfare_cost: number; checkin_cost: number; liyu_cost: number; gift_cost: number } | null
   id: number
   user_id: number
   api_key_id: number
@@ -2225,6 +2231,9 @@ export interface DashboardStats {
 }
 
 export interface UsageStatsResponse {
+  wallet_paid_cost?: number
+  wallet_welfare_cost?: number
+  wallet_unclassified_cost?: number
   period?: string
   total_requests: number
   total_input_tokens: number

@@ -147,6 +147,9 @@ func (r *userRepository) create(ctx context.Context, userIn *service.User, guard
 		SetPasswordHash(userIn.PasswordHash).
 		SetRole(userIn.Role).
 		SetBalance(userIn.Balance).
+		SetCheckinBalance(userIn.CheckinBalance).
+		SetLiyuBalance(userIn.LiyuBalance).
+		SetGiftBalance(userIn.GiftBalance).
 		SetConcurrency(userIn.Concurrency).
 		SetStatus(userIn.Status).
 		SetSignupSource(userSignupSourceOrDefault(userIn.SignupSource)).
@@ -892,29 +895,27 @@ func (r *userRepository) ApplyRedeemBalanceAdjustment(ctx context.Context, id in
 // 透支策略：允许余额变为负数，确保当前请求能够完成
 // 中间件会阻止余额 <= 0 的用户发起后续请求
 func (r *userRepository) DeductBalance(ctx context.Context, id int64, amount float64) error {
-	client := clientFromContext(ctx, r.client)
-	n, err := client.User.Update().
-		Where(dbuser.IDEQ(id), dbuser.BalanceGTE(amount)).
-		AddBalance(-amount).
-		Save(ctx)
-	if err != nil {
-		return err
-	}
-	if n > 0 {
-		return nil
-	}
+	return r.DeductWalletUsage(ctx, id, amount, fmt.Sprintf("legacy:%d:%d", id, time.Now().UnixNano()), 0)
+}
 
-	n, err = client.User.Update().
-		Where(dbuser.IDEQ(id)).
-		AddBalance(-amount).
-		Save(ctx)
+func (r *userRepository) DeductWalletUsage(ctx context.Context, id int64, amount float64, requestID string, apiKeyID int64) error {
+	client := clientFromContext(ctx, r.client)
+	charge := func(q sqlExecutor) error {
+		_, _, _, err := chargeWallet(ctx, q, id, amount, requestID, apiKeyID)
+		return err
+	}
+	if dbent.TxFromContext(ctx) != nil {
+		return charge(client)
+	}
+	tx, err := client.Tx(ctx)
 	if err != nil {
 		return err
 	}
-	if n == 0 {
-		return service.ErrUserNotFound
+	defer tx.Rollback()
+	if err := charge(tx.Client()); err != nil {
+		return err
 	}
-	return nil
+	return tx.Commit()
 }
 
 // DeductAvailableBalance atomically deducts min(amount, max(balance, 0)).

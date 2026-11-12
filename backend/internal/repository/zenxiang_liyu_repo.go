@@ -236,7 +236,7 @@ func (r *zenxiangLiyuRepository) IsUserGranted(ctx context.Context, userID int64
 
 func (r *zenxiangLiyuRepository) GetUserBalance(ctx context.Context, userID int64) (float64, error) {
 	var balance float64
-	err := r.db.QueryRowContext(ctx, `SELECT balance FROM users WHERE id = $1 AND deleted_at IS NULL`, userID).Scan(&balance)
+	err := r.db.QueryRowContext(ctx, `SELECT liyu_balance FROM users WHERE id = $1 AND deleted_at IS NULL`, userID).Scan(&balance)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, service.ErrUserNotFound
 	}
@@ -777,7 +777,7 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 		status  string
 		balance float64
 	}
-	err = tx.QueryRowContext(ctx, `SELECT id, email, role, status, balance FROM users WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, cmd.UserID).
+	err = tx.QueryRowContext(ctx, `SELECT id, email, role, status, liyu_balance FROM users WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, cmd.UserID).
 		Scan(&user.id, &user.email, &user.role, &user.status, &user.balance)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrUserNotFound
@@ -876,13 +876,11 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 		}
 	}
 
-	var balanceAfterTicket float64
-	err = tx.QueryRowContext(ctx, `UPDATE users SET balance = balance - $1, updated_at = NOW() WHERE id = $2 RETURNING balance`, effectiveTicketAmount, cmd.UserID).Scan(&balanceAfterTicket)
-	if err != nil {
-		return nil, err
-	}
+	// Lottery tickets are vouchers; activity outcomes only change liyu credit.
+	balanceAfterTicket := user.balance
 
 	configSnapshot, err := json.Marshal(map[string]any{
+		"wallet_source":            "liyu",
 		"settings":                 settings,
 		"prize":                    prize,
 		"free_play":                useFreePlay,
@@ -920,11 +918,12 @@ func (r *zenxiangLiyuRepository) Play(ctx context.Context, cmd service.ZenxiangL
 		return nil, err
 	}
 
-	var balanceAfterReward float64
-	err = tx.QueryRowContext(ctx, `UPDATE users SET balance = balance + $1, updated_at = NOW() WHERE id = $2 RETURNING balance`, prize.RewardAmount, cmd.UserID).Scan(&balanceAfterReward)
+	credited, err := applyWalletDelta(ctx, tx, cmd.UserID, service.WalletBalance{Liyu: prize.RewardAmount}, "liyu_reward", cmd.RequestID, 0, nil, "")
 	if err != nil {
 		return nil, err
 	}
+	balanceAfterReward := credited.Liyu
+
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -1010,19 +1009,11 @@ func (r *zenxiangLiyuRepository) PlayLuckyCoin(ctx context.Context, cmd service.
 		adjustment = record.reward
 	}
 
-	var balanceAfter float64
-	err = tx.QueryRowContext(ctx, `
-		UPDATE users
-		SET balance = balance + $1, updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL
-		RETURNING balance`, adjustment, cmd.UserID,
-	).Scan(&balanceAfter)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, service.ErrUserNotFound
-	}
+	settled, err := applyWalletDelta(ctx, tx, cmd.UserID, service.WalletBalance{Liyu: adjustment}, "liyu_lucky", fmt.Sprint(cmd.RecordID), 0, nil, "")
 	if err != nil {
 		return nil, err
 	}
+	balanceAfter := settled.Liyu
 
 	var playedAt time.Time
 	err = tx.QueryRowContext(ctx, `
@@ -1166,17 +1157,11 @@ func (r *zenxiangLiyuRepository) PlayGuessSize(ctx context.Context, cmd service.
 		}
 	}
 
-	var balanceAfter float64
-	err = tx.QueryRowContext(ctx, `
-		UPDATE users SET balance = balance + $1, updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL RETURNING balance`, adjustment, cmd.UserID,
-	).Scan(&balanceAfter)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, service.ErrUserNotFound
-	}
+	settled, err := applyWalletDelta(ctx, tx, cmd.UserID, service.WalletBalance{Liyu: adjustment}, "liyu_guess", fmt.Sprint(cmd.RecordID), 0, nil, "")
 	if err != nil {
 		return nil, err
 	}
+	balanceAfter := settled.Liyu
 
 	var playedAt time.Time
 	err = tx.QueryRowContext(ctx, `

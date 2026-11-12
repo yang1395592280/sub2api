@@ -30,6 +30,12 @@ func RegisterUserRoutes(
 		user := authenticated.Group("/user")
 		{
 			user.GET("/profile", h.User.GetProfile)
+			if h.Checkin != nil {
+				user.GET("/checkin", h.Checkin.Status)
+				user.GET("/checkin/challenge", panelRateLimiter.Heavy(), h.Checkin.Challenge)
+				user.POST("/checkin", panelRateLimiter.Heavy(), h.Checkin.Claim)
+				user.POST("/checkin/lucky-bonus", panelRateLimiter.Heavy(), h.Checkin.Bonus)
+			}
 			if h.MCPOAuth != nil {
 				user.GET("/mcp/config", h.MCPOAuth.ConnectionConfig)
 				user.GET("/mcp/grants", h.MCPOAuth.ListGrants)

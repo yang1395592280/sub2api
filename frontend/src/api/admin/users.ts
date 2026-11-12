@@ -178,13 +178,19 @@ export async function updateBalance(
   id: number,
   balance: number,
   operation: 'set' | 'add' | 'subtract' = 'set',
-  notes?: string
+  notes?: string,
+  welfareBalance?: number
 ): Promise<AdminUser> {
-  const { data } = await apiClient.post<AdminUser>(`/admin/users/${id}/balance`, {
+  const payload = {
     balance,
     operation,
-    notes: notes || ''
-  })
+    notes: notes || '',
+    ...(welfareBalance ? { welfare_balance: welfareBalance } : {})
+  }
+  const url = `/admin/users/${id}/balance`
+  const { data } = welfareBalance
+    ? await apiClient.post<AdminUser>(url, payload, { headers: { 'Idempotency-Key': crypto.randomUUID() } })
+    : await apiClient.post<AdminUser>(url, payload)
   return data
 }
 

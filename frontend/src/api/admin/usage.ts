@@ -10,6 +10,9 @@ import type { EndpointStat } from '@/types'
 // ==================== Types ====================
 
 export interface AdminUsageStatsResponse {
+  wallet_paid_cost?: number
+  wallet_welfare_cost?: number
+  wallet_unclassified_cost?: number
   total_requests: number
   total_input_tokens: number
   total_output_tokens: number

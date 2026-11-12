@@ -20,6 +20,11 @@ func UserFromServiceShallow(u *service.User) *User {
 		Role:                       u.Role,
 		Balance:                    u.Balance,
 		FrozenBalance:              u.FrozenBalance,
+		CheckinBalance:             u.CheckinBalance,
+		LiyuBalance:                u.LiyuBalance,
+		GiftBalance:                u.GiftBalance,
+		WelfareBalance:             service.QuantizeUsageBillingAmount(u.CheckinBalance + u.LiyuBalance + u.GiftBalance),
+		AvailableBalance:           u.Wallet().Available(),
 		Concurrency:                u.Concurrency,
 		Status:                     u.Status,
 		AllowedGroups:              u.AllowedGroups,
@@ -742,6 +747,7 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		requestedModel = l.Model
 	}
 	return UsageLog{
+		WalletUsage:               l.WalletUsage,
 		ID:                        l.ID,
 		UserID:                    l.UserID,
 		APIKeyID:                  l.APIKeyID,

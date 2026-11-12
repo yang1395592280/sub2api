@@ -179,11 +179,14 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 	}
 
 	if cmd.BalanceCost > 0 {
-		newBalance, sufficient, err := deductUsageBillingBalance(ctx, tx, cmd.UserID, cmd.BalanceCost)
+		after, debit, sufficient, err := chargeWallet(ctx, tx, cmd.UserID, cmd.BalanceCost, cmd.RequestID, cmd.APIKeyID)
 		if err != nil {
 			return err
 		}
-		result.NewBalance = &newBalance
+		result.NewBalance = &after.Paid
+		available := after.Available()
+		result.AvailableBalance = &available
+		result.WalletDebit = &debit
 		result.BalanceOverdrafted = !sufficient
 	}
 
@@ -278,27 +281,7 @@ func reserveUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 	if cmd.HoldAmount <= 0 {
 		return &service.BatchImageBalanceHoldResult{}, nil
 	}
-	var balance, frozen float64
-	err := tx.QueryRowContext(ctx, `
-		UPDATE users
-		SET balance = balance - $1,
-			frozen_balance = COALESCE(frozen_balance, 0) + $1,
-			updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL AND balance >= $1
-		RETURNING balance, frozen_balance
-	`, cmd.HoldAmount, cmd.UserID).Scan(&balance, &frozen)
-	if err == nil {
-		return &service.BatchImageBalanceHoldResult{NewBalance: &balance, FrozenBalance: &frozen}, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
-	}
-	if exists, existsErr := userExistsForBilling(ctx, tx, cmd.UserID); existsErr != nil {
-		return nil, existsErr
-	} else if !exists {
-		return nil, service.ErrUserNotFound
-	}
-	return nil, service.ErrBatchImageInsufficientBalance
+	return reserveWalletImage(ctx, tx, cmd)
 }
 
 func captureUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *service.BatchImageBalanceHoldCommand) (*service.BatchImageBalanceHoldResult, error) {
@@ -307,6 +290,9 @@ func captureUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 	}
 	if cmd.ActualAmount-cmd.HoldAmount > 0.00000001 {
 		return nil, service.ErrBatchImageSettlementCostExceedsHold
+	}
+	if result, found, err := settleWalletImage(ctx, tx, cmd, false); found || err != nil {
+		return result, err
 	}
 	var balance, frozen float64
 	err := tx.QueryRowContext(ctx, `
@@ -346,6 +332,9 @@ func releaseUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 	if !held {
 		logger.LegacyPrintf("repository.usage_billing", "[BatchImage] release skipped, hold was never reserved: batch=%s", cmd.BatchID)
 		return &service.BatchImageBalanceHoldResult{}, nil
+	}
+	if result, found, err := settleWalletImage(ctx, tx, cmd, true); found || err != nil {
+		return result, err
 	}
 	var balance, frozen float64
 	err := tx.QueryRowContext(ctx, `

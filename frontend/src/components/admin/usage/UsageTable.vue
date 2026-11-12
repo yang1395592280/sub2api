@@ -244,6 +244,11 @@
                 </div>
               </div>
             </div>
+            <div v-if="row.wallet_usage" class="mt-1 text-xs text-gray-500" :title="`${t('wallet.checkin')}: $${row.wallet_usage.checkin_cost.toFixed(8)} · ${t('wallet.liyu')}: $${row.wallet_usage.liyu_cost.toFixed(8)} · ${t('wallet.gift')}: $${row.wallet_usage.gift_cost.toFixed(8)}`">
+              <p>{{ t('wallet.paidCost') }} ${{ row.wallet_usage.paid_cost.toFixed(8) }}</p>
+              <p>{{ t('wallet.welfareCost') }} ${{ row.wallet_usage.welfare_cost.toFixed(8) }}</p>
+            </div>
+            <div v-else class="text-xs text-gray-400">{{ t('wallet.unclassifiedHint') }}</div>
             <div v-if="showAccountBilling && row.account_rate_multiplier != null" class="mt-0.5 text-[11px] text-orange-500 dark:text-orange-400">
               A ${{ accountBilled(row).toFixed(6) }}
             </div>

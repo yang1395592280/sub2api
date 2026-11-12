@@ -132,6 +132,48 @@ func (_c *UserCreate) SetNillableFrozenBalance(v *float64) *UserCreate {
 	return _c
 }
 
+// SetCheckinBalance sets the "checkin_balance" field.
+func (_c *UserCreate) SetCheckinBalance(v float64) *UserCreate {
+	_c.mutation.SetCheckinBalance(v)
+	return _c
+}
+
+// SetNillableCheckinBalance sets the "checkin_balance" field if the given value is not nil.
+func (_c *UserCreate) SetNillableCheckinBalance(v *float64) *UserCreate {
+	if v != nil {
+		_c.SetCheckinBalance(*v)
+	}
+	return _c
+}
+
+// SetLiyuBalance sets the "liyu_balance" field.
+func (_c *UserCreate) SetLiyuBalance(v float64) *UserCreate {
+	_c.mutation.SetLiyuBalance(v)
+	return _c
+}
+
+// SetNillableLiyuBalance sets the "liyu_balance" field if the given value is not nil.
+func (_c *UserCreate) SetNillableLiyuBalance(v *float64) *UserCreate {
+	if v != nil {
+		_c.SetLiyuBalance(*v)
+	}
+	return _c
+}
+
+// SetGiftBalance sets the "gift_balance" field.
+func (_c *UserCreate) SetGiftBalance(v float64) *UserCreate {
+	_c.mutation.SetGiftBalance(v)
+	return _c
+}
+
+// SetNillableGiftBalance sets the "gift_balance" field if the given value is not nil.
+func (_c *UserCreate) SetNillableGiftBalance(v *float64) *UserCreate {
+	if v != nil {
+		_c.SetGiftBalance(*v)
+	}
+	return _c
+}
+
 // SetConcurrency sets the "concurrency" field.
 func (_c *UserCreate) SetConcurrency(v int) *UserCreate {
 	_c.mutation.SetConcurrency(v)
@@ -658,6 +700,18 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultFrozenBalance
 		_c.mutation.SetFrozenBalance(v)
 	}
+	if _, ok := _c.mutation.CheckinBalance(); !ok {
+		v := user.DefaultCheckinBalance
+		_c.mutation.SetCheckinBalance(v)
+	}
+	if _, ok := _c.mutation.LiyuBalance(); !ok {
+		v := user.DefaultLiyuBalance
+		_c.mutation.SetLiyuBalance(v)
+	}
+	if _, ok := _c.mutation.GiftBalance(); !ok {
+		v := user.DefaultGiftBalance
+		_c.mutation.SetGiftBalance(v)
+	}
 	if _, ok := _c.mutation.Concurrency(); !ok {
 		v := user.DefaultConcurrency
 		_c.mutation.SetConcurrency(v)
@@ -746,6 +800,15 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.FrozenBalance(); !ok {
 		return &ValidationError{Name: "frozen_balance", err: errors.New(`ent: missing required field "User.frozen_balance"`)}
+	}
+	if _, ok := _c.mutation.CheckinBalance(); !ok {
+		return &ValidationError{Name: "checkin_balance", err: errors.New(`ent: missing required field "User.checkin_balance"`)}
+	}
+	if _, ok := _c.mutation.LiyuBalance(); !ok {
+		return &ValidationError{Name: "liyu_balance", err: errors.New(`ent: missing required field "User.liyu_balance"`)}
+	}
+	if _, ok := _c.mutation.GiftBalance(); !ok {
+		return &ValidationError{Name: "gift_balance", err: errors.New(`ent: missing required field "User.gift_balance"`)}
 	}
 	if _, ok := _c.mutation.Concurrency(); !ok {
 		return &ValidationError{Name: "concurrency", err: errors.New(`ent: missing required field "User.concurrency"`)}
@@ -856,6 +919,18 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.FrozenBalance(); ok {
 		_spec.SetField(user.FieldFrozenBalance, field.TypeFloat64, value)
 		_node.FrozenBalance = value
+	}
+	if value, ok := _c.mutation.CheckinBalance(); ok {
+		_spec.SetField(user.FieldCheckinBalance, field.TypeFloat64, value)
+		_node.CheckinBalance = value
+	}
+	if value, ok := _c.mutation.LiyuBalance(); ok {
+		_spec.SetField(user.FieldLiyuBalance, field.TypeFloat64, value)
+		_node.LiyuBalance = value
+	}
+	if value, ok := _c.mutation.GiftBalance(); ok {
+		_spec.SetField(user.FieldGiftBalance, field.TypeFloat64, value)
+		_node.GiftBalance = value
 	}
 	if value, ok := _c.mutation.Concurrency(); ok {
 		_spec.SetField(user.FieldConcurrency, field.TypeInt, value)
@@ -1323,6 +1398,60 @@ func (u *UserUpsert) AddFrozenBalance(v float64) *UserUpsert {
 	return u
 }
 
+// SetCheckinBalance sets the "checkin_balance" field.
+func (u *UserUpsert) SetCheckinBalance(v float64) *UserUpsert {
+	u.Set(user.FieldCheckinBalance, v)
+	return u
+}
+
+// UpdateCheckinBalance sets the "checkin_balance" field to the value that was provided on create.
+func (u *UserUpsert) UpdateCheckinBalance() *UserUpsert {
+	u.SetExcluded(user.FieldCheckinBalance)
+	return u
+}
+
+// AddCheckinBalance adds v to the "checkin_balance" field.
+func (u *UserUpsert) AddCheckinBalance(v float64) *UserUpsert {
+	u.Add(user.FieldCheckinBalance, v)
+	return u
+}
+
+// SetLiyuBalance sets the "liyu_balance" field.
+func (u *UserUpsert) SetLiyuBalance(v float64) *UserUpsert {
+	u.Set(user.FieldLiyuBalance, v)
+	return u
+}
+
+// UpdateLiyuBalance sets the "liyu_balance" field to the value that was provided on create.
+func (u *UserUpsert) UpdateLiyuBalance() *UserUpsert {
+	u.SetExcluded(user.FieldLiyuBalance)
+	return u
+}
+
+// AddLiyuBalance adds v to the "liyu_balance" field.
+func (u *UserUpsert) AddLiyuBalance(v float64) *UserUpsert {
+	u.Add(user.FieldLiyuBalance, v)
+	return u
+}
+
+// SetGiftBalance sets the "gift_balance" field.
+func (u *UserUpsert) SetGiftBalance(v float64) *UserUpsert {
+	u.Set(user.FieldGiftBalance, v)
+	return u
+}
+
+// UpdateGiftBalance sets the "gift_balance" field to the value that was provided on create.
+func (u *UserUpsert) UpdateGiftBalance() *UserUpsert {
+	u.SetExcluded(user.FieldGiftBalance)
+	return u
+}
+
+// AddGiftBalance adds v to the "gift_balance" field.
+func (u *UserUpsert) AddGiftBalance(v float64) *UserUpsert {
+	u.Add(user.FieldGiftBalance, v)
+	return u
+}
+
 // SetConcurrency sets the "concurrency" field.
 func (u *UserUpsert) SetConcurrency(v int) *UserUpsert {
 	u.Set(user.FieldConcurrency, v)
@@ -1742,6 +1871,69 @@ func (u *UserUpsertOne) AddFrozenBalance(v float64) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateFrozenBalance() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateFrozenBalance()
+	})
+}
+
+// SetCheckinBalance sets the "checkin_balance" field.
+func (u *UserUpsertOne) SetCheckinBalance(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetCheckinBalance(v)
+	})
+}
+
+// AddCheckinBalance adds v to the "checkin_balance" field.
+func (u *UserUpsertOne) AddCheckinBalance(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddCheckinBalance(v)
+	})
+}
+
+// UpdateCheckinBalance sets the "checkin_balance" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateCheckinBalance() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateCheckinBalance()
+	})
+}
+
+// SetLiyuBalance sets the "liyu_balance" field.
+func (u *UserUpsertOne) SetLiyuBalance(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLiyuBalance(v)
+	})
+}
+
+// AddLiyuBalance adds v to the "liyu_balance" field.
+func (u *UserUpsertOne) AddLiyuBalance(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddLiyuBalance(v)
+	})
+}
+
+// UpdateLiyuBalance sets the "liyu_balance" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateLiyuBalance() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLiyuBalance()
+	})
+}
+
+// SetGiftBalance sets the "gift_balance" field.
+func (u *UserUpsertOne) SetGiftBalance(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetGiftBalance(v)
+	})
+}
+
+// AddGiftBalance adds v to the "gift_balance" field.
+func (u *UserUpsertOne) AddGiftBalance(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddGiftBalance(v)
+	})
+}
+
+// UpdateGiftBalance sets the "gift_balance" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateGiftBalance() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateGiftBalance()
 	})
 }
 
@@ -2373,6 +2565,69 @@ func (u *UserUpsertBulk) AddFrozenBalance(v float64) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateFrozenBalance() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateFrozenBalance()
+	})
+}
+
+// SetCheckinBalance sets the "checkin_balance" field.
+func (u *UserUpsertBulk) SetCheckinBalance(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetCheckinBalance(v)
+	})
+}
+
+// AddCheckinBalance adds v to the "checkin_balance" field.
+func (u *UserUpsertBulk) AddCheckinBalance(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddCheckinBalance(v)
+	})
+}
+
+// UpdateCheckinBalance sets the "checkin_balance" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateCheckinBalance() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateCheckinBalance()
+	})
+}
+
+// SetLiyuBalance sets the "liyu_balance" field.
+func (u *UserUpsertBulk) SetLiyuBalance(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLiyuBalance(v)
+	})
+}
+
+// AddLiyuBalance adds v to the "liyu_balance" field.
+func (u *UserUpsertBulk) AddLiyuBalance(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddLiyuBalance(v)
+	})
+}
+
+// UpdateLiyuBalance sets the "liyu_balance" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateLiyuBalance() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLiyuBalance()
+	})
+}
+
+// SetGiftBalance sets the "gift_balance" field.
+func (u *UserUpsertBulk) SetGiftBalance(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetGiftBalance(v)
+	})
+}
+
+// AddGiftBalance adds v to the "gift_balance" field.
+func (u *UserUpsertBulk) AddGiftBalance(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddGiftBalance(v)
+	})
+}
+
+// UpdateGiftBalance sets the "gift_balance" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateGiftBalance() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateGiftBalance()
 	})
 }
 

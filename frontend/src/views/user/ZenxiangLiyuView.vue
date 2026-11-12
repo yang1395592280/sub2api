@@ -32,7 +32,7 @@
       <template v-else-if="status">
         <section class="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="活动数据">
           <div class="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
-            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('zenxiangLiyu.currentBalance') }}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('wallet.liyu') }}</p>
             <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{{ formatAmount(currentBalance) }}</p>
           </div>
           <div class="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
@@ -336,7 +336,7 @@ const currentBalance = computed(() => {
   if (guessSizeResult.value) return guessSizeResult.value.balance_after
   if (luckyCoinResult.value) return luckyCoinResult.value.balance_after
   if (result.value) return result.value.balance_after_reward
-  return status.value?.balance ?? authStore.user?.balance ?? 0
+  return status.value?.balance ?? authStore.user?.liyu_balance ?? 0
 })
 
 const unavailableReason = computed(() => {

@@ -1,0 +1,501 @@
+package service
+
+import (
+	"context"
+	"math/rand"
+	"testing"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"github.com/stretchr/testify/require"
+)
+
+type checkinSettingRepoStub struct {
+	values map[string]string
+}
+
+func (s *checkinSettingRepoStub) Get(context.Context, string) (*Setting, error) {
+	panic("unexpected Get call")
+}
+
+func (s *checkinSettingRepoStub) GetValue(_ context.Context, key string) (string, error) {
+	if v, ok := s.values[key]; ok {
+		return v, nil
+	}
+	return "", ErrSettingNotFound
+}
+
+func (s *checkinSettingRepoStub) Set(context.Context, string, string) error {
+	panic("unexpected Set call")
+}
+
+func (s *checkinSettingRepoStub) GetMultiple(context.Context, []string) (map[string]string, error) {
+	panic("unexpected GetMultiple call")
+}
+
+func (s *checkinSettingRepoStub) SetMultiple(context.Context, map[string]string) error {
+	panic("unexpected SetMultiple call")
+}
+
+func (s *checkinSettingRepoStub) GetAll(context.Context) (map[string]string, error) {
+	panic("unexpected GetAll call")
+}
+
+func (s *checkinSettingRepoStub) Delete(context.Context, string) error {
+	panic("unexpected Delete call")
+}
+
+type checkinRepoStub struct {
+	hasChecked              bool
+	hasCheckedErr           error
+	records                 []CheckinRecord
+	recordsErr              error
+	getByDateRecord         *CheckinRecord
+	getByDateErr            error
+	totalCount              int64
+	totalReward             float64
+	totalsErr               error
+	createResult            *CheckinRecord
+	createErr               error
+	applyBonusResult        *CheckinRecord
+	applyBonusErr           error
+	lastCreateRecord        *CheckinRecord
+	lastCreateUserID        int64
+	lastGetByDate           string
+	lastApplyBonusDate      string
+	lastApplyBonusOutcome   string
+	lastApplyBonusDelta     float64
+	adminRecords            []AdminCheckinRecord
+	adminTotal              int64
+	adminErr                error
+	adminOverview           AdminCheckinOverview
+	adminOverviewErr        error
+	adminTrend              []AdminCheckinTrendPoint
+	adminTrendErr           error
+	adminRewardDistribution []AdminCheckinRewardBucket
+	adminRewardErr          error
+	adminTopUsers           []AdminCheckinTopUser
+	adminTopUsersErr        error
+}
+
+func (s *checkinRepoStub) HasCheckedInOnDate(_ context.Context, userID int64, date string) (bool, error) {
+	s.lastCreateUserID = userID
+	if s.hasCheckedErr != nil {
+		return false, s.hasCheckedErr
+	}
+	return s.hasChecked, nil
+}
+
+func (s *checkinRepoStub) CreateAndCredit(_ context.Context, record *CheckinRecord) (*CheckinRecord, error) {
+	s.lastCreateRecord = record
+	if s.createErr != nil {
+		return nil, s.createErr
+	}
+	if s.createResult != nil {
+		return s.createResult, nil
+	}
+	return record, nil
+}
+
+func (s *checkinRepoStub) ListByUserAndDateRange(_ context.Context, userID int64, startDate, endDate string) ([]CheckinRecord, error) {
+	s.lastCreateUserID = userID
+	if s.recordsErr != nil {
+		return nil, s.recordsErr
+	}
+	return s.records, nil
+}
+
+func (s *checkinRepoStub) GetByUserAndDate(_ context.Context, userID int64, date string) (*CheckinRecord, error) {
+	s.lastCreateUserID = userID
+	s.lastGetByDate = date
+	if s.getByDateErr != nil {
+		return nil, s.getByDateErr
+	}
+	return s.getByDateRecord, nil
+}
+
+func (s *checkinRepoStub) ApplyBonusOutcome(_ context.Context, userID int64, date, outcome string, delta float64) (*CheckinRecord, error) {
+	s.lastCreateUserID = userID
+	s.lastApplyBonusDate = date
+	s.lastApplyBonusOutcome = outcome
+	s.lastApplyBonusDelta = delta
+	if s.applyBonusErr != nil {
+		return nil, s.applyBonusErr
+	}
+	if s.applyBonusResult != nil {
+		return s.applyBonusResult, nil
+	}
+	return s.getByDateRecord, nil
+}
+
+func (s *checkinRepoStub) GetUserTotals(_ context.Context, userID int64) (int64, float64, error) {
+	s.lastCreateUserID = userID
+	if s.totalsErr != nil {
+		return 0, 0, s.totalsErr
+	}
+	return s.totalCount, s.totalReward, nil
+}
+
+func (s *checkinRepoStub) ListAdminRecords(_ context.Context, page, pageSize int, search, date, timezone, sortBy, sortOrder string) ([]AdminCheckinRecord, int64, error) {
+	if s.adminErr != nil {
+		return nil, 0, s.adminErr
+	}
+	return s.adminRecords, s.adminTotal, nil
+}
+
+func (s *checkinRepoStub) GetAdminOverview(_ context.Context, _ AdminCheckinAnalyticsFilter) (AdminCheckinOverview, error) {
+	if s.adminOverviewErr != nil {
+		return AdminCheckinOverview{}, s.adminOverviewErr
+	}
+	return s.adminOverview, nil
+}
+
+func (s *checkinRepoStub) GetAdminTrend(_ context.Context, _ AdminCheckinAnalyticsFilter) ([]AdminCheckinTrendPoint, error) {
+	if s.adminTrendErr != nil {
+		return nil, s.adminTrendErr
+	}
+	return s.adminTrend, nil
+}
+
+func (s *checkinRepoStub) GetAdminRewardDistribution(_ context.Context, _ AdminCheckinAnalyticsFilter) ([]AdminCheckinRewardBucket, error) {
+	if s.adminRewardErr != nil {
+		return nil, s.adminRewardErr
+	}
+	return s.adminRewardDistribution, nil
+}
+
+func (s *checkinRepoStub) GetAdminTopUsers(_ context.Context, _ AdminCheckinAnalyticsFilter) ([]AdminCheckinTopUser, error) {
+	if s.adminTopUsersErr != nil {
+		return nil, s.adminTopUsersErr
+	}
+	return s.adminTopUsers, nil
+}
+
+func newCheckinSettings(enabled bool, minReward, maxReward string) *checkinSettingRepoStub {
+	return &checkinSettingRepoStub{
+		values: map[string]string{
+			SettingKeyCheckinEnabled:               map[bool]string{true: "true", false: "false"}[enabled],
+			SettingKeyCheckinMinReward:             minReward,
+			SettingKeyCheckinMaxReward:             maxReward,
+			SettingKeyCheckinDistributionEnabled:   "false",
+			SettingKeyCheckinDistributionConfig:    "[]",
+			SettingKeyCheckinLuckyBonusEnabled:     "false",
+			SettingKeyCheckinLuckyBonusSuccessRate: "50",
+		},
+	}
+}
+
+func newCheckinSettingsWithDistribution(enabled bool, minReward, maxReward, distribution string) *checkinSettingRepoStub {
+	settings := newCheckinSettings(enabled, minReward, maxReward)
+	settings.values[SettingKeyCheckinDistributionEnabled] = "true"
+	settings.values[SettingKeyCheckinDistributionConfig] = distribution
+	return settings
+}
+
+func newCheckinSettingsWithBonus(enabled bool, minReward, maxReward string, bonusEnabled bool, successRate string) *checkinSettingRepoStub {
+	settings := newCheckinSettings(enabled, minReward, maxReward)
+	settings.values[SettingKeyCheckinLuckyBonusEnabled] = map[bool]string{true: "true", false: "false"}[bonusEnabled]
+	settings.values[SettingKeyCheckinLuckyBonusSuccessRate] = successRate
+	return settings
+}
+
+func TestCheckinServiceCheckinReturnsDisabledErrorWhenFeatureOff(t *testing.T) {
+	t.Parallel()
+
+	svc := NewCheckinService(&checkinRepoStub{}, newCheckinSettings(false, "0.002", "0.020"), nil, nil)
+
+	_, err := svc.Checkin(context.Background(), 42, "Asia/Shanghai")
+
+	require.ErrorIs(t, err, ErrCheckinDisabled)
+}
+
+func TestCheckinServiceCheckinReturnsAlreadyTodayWhenExistingRecordFound(t *testing.T) {
+	t.Parallel()
+
+	repo := &checkinRepoStub{hasChecked: true}
+	svc := NewCheckinService(repo, newCheckinSettings(true, "0.002", "0.020"), nil, nil)
+
+	_, err := svc.Checkin(context.Background(), 42, "Asia/Shanghai")
+
+	require.ErrorIs(t, err, ErrCheckinAlreadyToday)
+	require.Nil(t, repo.lastCreateRecord)
+}
+
+func TestCheckinServiceCheckinCreatesRewardWithinConfiguredRange(t *testing.T) {
+	t.Parallel()
+
+	repo := &checkinRepoStub{}
+	svc := NewCheckinService(repo, newCheckinSettings(true, "0.002", "0.020"), nil, nil)
+
+	record, err := svc.Checkin(context.Background(), 42, "Asia/Shanghai")
+
+	require.NoError(t, err)
+	require.NotNil(t, record)
+	require.NotNil(t, repo.lastCreateRecord)
+	require.Equal(t, int64(42), repo.lastCreateRecord.UserID)
+	require.Equal(t, timezone.NowInUserLocation("Asia/Shanghai").Format("2006-01-02"), repo.lastCreateRecord.CheckinDate)
+	require.Equal(t, "Asia/Shanghai", repo.lastCreateRecord.UserTimezone)
+	require.GreaterOrEqual(t, repo.lastCreateRecord.RewardAmount, 0.002)
+	require.LessOrEqual(t, repo.lastCreateRecord.RewardAmount, 0.020)
+}
+
+func TestCheckinServiceGetStatusAggregatesMonthlyRecordsAndTotals(t *testing.T) {
+	t.Parallel()
+
+	repo := &checkinRepoStub{
+		hasChecked: true,
+		records: []CheckinRecord{
+			{CheckinDate: "2026-04-02", RewardAmount: 0.010},
+			{CheckinDate: "2026-04-01", RewardAmount: 0.020},
+		},
+		totalCount:  12,
+		totalReward: 0.345,
+	}
+	svc := NewCheckinService(repo, newCheckinSettings(true, "0.002", "0.020"), nil, nil)
+
+	status, err := svc.GetStatus(context.Background(), 42, "2026-04", "Asia/Shanghai")
+
+	require.NoError(t, err)
+	require.True(t, status.Enabled)
+	require.Equal(t, 0.002, status.MinReward)
+	require.Equal(t, 0.020, status.MaxReward)
+	require.True(t, status.Stats.CheckedInToday)
+	require.Equal(t, int64(12), status.Stats.TotalCheckins)
+	require.Equal(t, 0.345, status.Stats.TotalReward)
+	require.Len(t, status.Stats.Records, 2)
+	require.Equal(t, 2, status.Stats.CheckinCount)
+	require.Equal(t, "2026-04-02", status.Stats.Records[0].CheckinDate)
+	require.Equal(t, 0.010, status.Stats.Records[0].RewardAmount)
+}
+
+func TestCheckinServiceGetAdminAnalyticsBuildsResponseFromRepositoryData(t *testing.T) {
+	t.Parallel()
+
+	repo := &checkinRepoStub{
+		adminOverview: AdminCheckinOverview{
+			TotalCheckins:     12,
+			TotalRewardAmount: 0.42,
+			TodayCheckins:     3,
+			AvgRewardAmount:   0.035,
+		},
+		adminTrend: []AdminCheckinTrendPoint{
+			{Date: "2026-04-20", CheckinCount: 4, RewardAmount: 0.12},
+			{Date: "2026-04-21", CheckinCount: 8, RewardAmount: 0.30},
+		},
+		adminRewardDistribution: []AdminCheckinRewardBucket{
+			{Label: "0.002 - 0.005", Count: 5, RewardAmount: 0.02},
+		},
+		adminTopUsers: []AdminCheckinTopUser{
+			{UserID: 7, UserEmail: "alice@example.com", UserName: "alice", CheckinCount: 6, RewardAmount: 0.19},
+		},
+	}
+
+	svc := NewCheckinService(repo, nil, nil, nil)
+	resp, err := svc.GetAdminAnalytics(context.Background(), AdminCheckinAnalyticsFilter{
+		StartDate: "2026-04-01",
+		EndDate:   "2026-04-21",
+		Search:    "alice",
+		Timezone:  "Asia/Shanghai",
+		TopLimit:  5,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(12), resp.Overview.TotalCheckins)
+	require.Len(t, resp.Trend, 2)
+	require.Len(t, resp.RewardDistribution, 1)
+	require.Len(t, resp.TopUsers, 1)
+}
+
+func TestPickDistributionBucketUsesWeightPriority(t *testing.T) {
+	t.Parallel()
+
+	buckets := []CheckinDistributionBucket{
+		{StartPercent: 0, EndPercent: 25, Weight: 50},
+		{StartPercent: 25, EndPercent: 50, Weight: 30},
+		{StartPercent: 50, EndPercent: 75, Weight: 15},
+		{StartPercent: 75, EndPercent: 90, Weight: 4},
+		{StartPercent: 90, EndPercent: 100, Weight: 1},
+	}
+
+	require.Equal(t, buckets[0], pickDistributionBucket(buckets, 0.49))
+	require.Equal(t, buckets[1], pickDistributionBucket(buckets, 0.79))
+	require.Equal(t, buckets[2], pickDistributionBucket(buckets, 0.94))
+	require.Equal(t, buckets[3], pickDistributionBucket(buckets, 0.98))
+	require.Equal(t, buckets[4], pickDistributionBucket(buckets, 0.999))
+}
+
+func TestRewardFromDistributionMapsBucketToRange(t *testing.T) {
+	t.Parallel()
+
+	bucket := CheckinDistributionBucket{StartPercent: 25, EndPercent: 50, Weight: 30}
+
+	reward := rewardFromDistribution(10, 100, bucket, 0)
+	require.GreaterOrEqual(t, reward, 32.5)
+	require.LessOrEqual(t, reward, 55.0)
+
+	reward = rewardFromDistribution(10, 100, bucket, 1)
+	require.Equal(t, 55.0, reward)
+}
+
+func TestCheckinServiceUsesDistributionConfigWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	repo := &checkinRepoStub{}
+	svc := NewCheckinService(
+		repo,
+		newCheckinSettingsWithDistribution(true, "10", "100", `[{"start_percent":0,"end_percent":25,"weight":80},{"start_percent":25,"end_percent":50,"weight":10},{"start_percent":50,"end_percent":75,"weight":5},{"start_percent":75,"end_percent":90,"weight":4},{"start_percent":90,"end_percent":100,"weight":1}]`),
+		nil,
+		nil,
+	)
+	svc.randSource = rand.New(rand.NewSource(1))
+
+	record, err := svc.Checkin(context.Background(), 42, "Asia/Shanghai")
+
+	require.NoError(t, err)
+	require.NotNil(t, record)
+	require.GreaterOrEqual(t, repo.lastCreateRecord.RewardAmount, 10.0)
+	require.LessOrEqual(t, repo.lastCreateRecord.RewardAmount, 32.5)
+}
+
+func TestCheckinServicePlayLuckyBonusWinsAndCreditsExtraReward(t *testing.T) {
+	t.Parallel()
+
+	today := timezone.NowInUserLocation("Asia/Shanghai").Format("2006-01-02")
+	repo := &checkinRepoStub{
+		getByDateRecord: &CheckinRecord{
+			UserID:           42,
+			CheckinDate:      today,
+			RewardAmount:     10,
+			BaseRewardAmount: 10,
+			BonusStatus:      CheckinBonusStatusNone,
+		},
+		applyBonusResult: &CheckinRecord{
+			UserID:           42,
+			CheckinDate:      today,
+			RewardAmount:     20,
+			BaseRewardAmount: 10,
+			BonusStatus:      CheckinBonusStatusWin,
+			BonusDeltaAmount: 10,
+		},
+	}
+	svc := NewCheckinService(repo, newCheckinSettingsWithBonus(true, "10", "10", true, "100"), nil, nil)
+
+	record, err := svc.PlayLuckyBonus(context.Background(), 42, "Asia/Shanghai")
+
+	require.NoError(t, err)
+	require.NotNil(t, record)
+	require.Equal(t, today, repo.lastGetByDate)
+	require.Equal(t, today, repo.lastApplyBonusDate)
+	require.Equal(t, CheckinBonusStatusWin, repo.lastApplyBonusOutcome)
+	require.Equal(t, 10.0, repo.lastApplyBonusDelta)
+	require.Equal(t, 20.0, record.RewardAmount)
+	require.Equal(t, 10.0, record.BonusDeltaAmount)
+}
+
+func TestCheckinServicePlayLuckyBonusLosesAndDeductsHalfOfOriginalReward(t *testing.T) {
+	t.Parallel()
+
+	today := timezone.NowInUserLocation("Asia/Shanghai").Format("2006-01-02")
+	repo := &checkinRepoStub{
+		getByDateRecord: &CheckinRecord{
+			UserID:           42,
+			CheckinDate:      today,
+			RewardAmount:     10,
+			BaseRewardAmount: 10,
+			BonusStatus:      CheckinBonusStatusNone,
+		},
+		applyBonusResult: &CheckinRecord{
+			UserID:           42,
+			CheckinDate:      today,
+			RewardAmount:     -5,
+			BaseRewardAmount: 10,
+			BonusStatus:      CheckinBonusStatusLose,
+			BonusDeltaAmount: -15,
+		},
+	}
+	svc := NewCheckinService(repo, newCheckinSettingsWithBonus(true, "10", "10", true, "0"), nil, nil)
+
+	record, err := svc.PlayLuckyBonus(context.Background(), 42, "Asia/Shanghai")
+
+	require.NoError(t, err)
+	require.NotNil(t, record)
+	require.Equal(t, CheckinBonusStatusLose, repo.lastApplyBonusOutcome)
+	require.Equal(t, -15.0, repo.lastApplyBonusDelta)
+	require.Equal(t, -5.0, record.RewardAmount)
+	require.Equal(t, -15.0, record.BonusDeltaAmount)
+}
+
+func TestCheckinServiceGetStatusIncludesLuckyBonusAvailability(t *testing.T) {
+	t.Parallel()
+
+	today := timezone.NowInUserLocation("Asia/Shanghai").Format("2006-01-02")
+	repo := &checkinRepoStub{
+		hasChecked: true,
+		records: []CheckinRecord{
+			{
+				CheckinDate:      today,
+				RewardAmount:     10,
+				BaseRewardAmount: 10,
+				BonusStatus:      CheckinBonusStatusNone,
+			},
+		},
+		getByDateRecord: &CheckinRecord{
+			CheckinDate:      today,
+			RewardAmount:     10,
+			BaseRewardAmount: 10,
+			BonusStatus:      CheckinBonusStatusNone,
+		},
+		totalCount:  1,
+		totalReward: 10,
+	}
+	svc := NewCheckinService(repo, newCheckinSettingsWithBonus(true, "10", "10", true, "68"), nil, nil)
+
+	status, err := svc.GetStatus(context.Background(), 42, "2026-04", "Asia/Shanghai")
+
+	require.NoError(t, err)
+	require.True(t, status.BonusEnabled)
+	require.True(t, status.BonusAvailable)
+	require.Equal(t, 68.0, status.BonusSuccessRate)
+	require.NotNil(t, status.TodayRecord)
+	require.Equal(t, CheckinBonusStatusNone, status.TodayRecord.BonusStatus)
+	require.Equal(t, 10.0, status.TodayRecord.BaseRewardAmount)
+}
+
+func TestParseCheckinDistributionConfigRejectsGapBuckets(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseCheckinDistributionConfig(`[{"start_percent":0,"end_percent":20,"weight":5},{"start_percent":25,"end_percent":100,"weight":1}]`)
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "起点必须紧接上一档终点")
+}
+
+func TestParseCheckinDistributionConfigAcceptsFullCoverageBuckets(t *testing.T) {
+	t.Parallel()
+
+	buckets, err := ParseCheckinDistributionConfig(`[{"start_percent":0,"end_percent":25,"weight":50},{"start_percent":25,"end_percent":50,"weight":30},{"start_percent":50,"end_percent":75,"weight":15},{"start_percent":75,"end_percent":90,"weight":4},{"start_percent":90,"end_percent":100,"weight":1}]`)
+
+	require.NoError(t, err)
+	require.Len(t, buckets, 5)
+	require.Equal(t, 50, buckets[0].Weight)
+	require.Equal(t, 100.0, buckets[4].EndPercent)
+}
+
+func TestCheckinServiceListAdminRecordsReturnsPaginatedResults(t *testing.T) {
+	t.Parallel()
+
+	repo := &checkinRepoStub{
+		adminRecords: []AdminCheckinRecord{
+			{UserID: 1, UserEmail: "a@example.com", UserName: "alice", CheckinDate: "2026-04-21", RewardAmount: 12.5},
+		},
+		adminTotal: 1,
+	}
+	svc := NewCheckinService(repo, newCheckinSettings(true, "10", "100"), nil, nil)
+
+	items, total, err := svc.ListAdminRecords(context.Background(), 1, 20, "alice", "2026-04-21", "", "created_at", "desc")
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Len(t, items, 1)
+	require.Equal(t, "a@example.com", items[0].UserEmail)
+	require.Equal(t, 12.5, items[0].RewardAmount)
+}

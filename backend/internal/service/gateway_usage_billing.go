@@ -74,6 +74,7 @@ type usageLogBestEffortWriter interface {
 
 // postUsageBillingParams 统一扣费所需的参数
 type postUsageBillingParams struct {
+	RequestID             string
 	Cost                  *CostBreakdown
 	User                  *User
 	APIKey                *APIKey
@@ -160,7 +161,7 @@ func postUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *bill
 		}
 	} else {
 		if cost.ActualCost > 0 {
-			if err := deps.userRepo.DeductBalance(billingCtx, p.User.ID, cost.ActualCost); err != nil {
+			if err := deductWalletUsage(billingCtx, deps.userRepo, p.User.ID, cost.ActualCost, p.RequestID, p.APIKey.ID); err != nil {
 				slog.Error("deduct balance failed", "user_id", p.User.ID, "error", err)
 			} else if deps.billingCacheService != nil {
 				if err := deps.billingCacheService.InvalidateUserBalance(billingCtx, p.User.ID); err != nil {
@@ -366,7 +367,9 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 		}
 		// The legacy path is only a fallback for standard billing. Simple mode
 		// must retain request-id deduplication and never bill other balances.
-		postUsageBilling(ctx, p, deps)
+		fallback := *p
+		fallback.RequestID = requestID
+		postUsageBilling(ctx, &fallback, deps)
 		return true, nil
 	}
 
@@ -468,6 +471,14 @@ func persistPostUsagePlatformQuota(ctx context.Context, repo UserPlatformQuotaRe
 
 func syncBalanceCacheAfterDeduction(ctx context.Context, p *postUsageBillingParams, deps *billingDeps, result *UsageBillingApplyResult) {
 	if p == nil || p.Cost == nil || p.User == nil || deps == nil || deps.billingCacheService == nil {
+		return
+	}
+	if result != nil && result.WalletDebit != nil {
+		// Available credit changes when either a paid or promotional source reaches
+		// zero; subtracting the invoice total from a stale scalar is not equivalent.
+		if err := deps.billingCacheService.InvalidateUserBalance(ctx, p.User.ID); err != nil {
+			slog.Error("invalidate wallet billing cache failed", "user_id", p.User.ID, "error", err)
+		}
 		return
 	}
 	if result != nil && result.NewBalance != nil && deps.billingCacheService.balanceBelowEligibilityThreshold(*result.NewBalance) {

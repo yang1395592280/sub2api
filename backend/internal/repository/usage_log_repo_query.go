@@ -48,6 +48,14 @@ func (r *usageLogRepository) GetByID(ctx context.Context, id int64) (log *servic
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
+	if err = rows.Close(); err != nil {
+		return nil, err
+	}
+	items := []service.UsageLog{*log}
+	if err = r.hydrateWalletUsage(ctx, items); err != nil {
+		return nil, err
+	}
+	log.WalletUsage = items[0].WalletUsage
 	return log, nil
 }
 
@@ -271,6 +279,12 @@ func (r *usageLogRepository) queryUsageLogs(ctx context.Context, query string, a
 		logs = append(logs, *log)
 	}
 	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	if err = rows.Close(); err != nil {
+		return nil, err
+	}
+	if err = r.hydrateWalletUsage(ctx, logs); err != nil {
 		return nil, err
 	}
 	return logs, nil
