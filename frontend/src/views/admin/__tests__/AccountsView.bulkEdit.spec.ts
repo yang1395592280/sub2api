@@ -3,6 +3,10 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import AccountsView from '../AccountsView.vue'
 
+vi.mock('@/stores/adminSettings', () => ({
+  useAdminSettingsStore: () => ({ openAIQualityEnabled: false })
+}))
+
 function deferred<T>() {
   let resolve!: (value: T) => void
   let reject!: (reason?: unknown) => void

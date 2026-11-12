@@ -293,3 +293,13 @@
 - 相关文件：backend/cmd/server/VERSION、20261104/release-v0.2.19.2.md及发布会话记录。
 - 执行：本条随版本提交，创建annotated tag并原子推送origin/custom-main与refs/tags/v0.2.19.2；最终refs和Release启动以远端核验为准。RELEASE_ONLY=true，不部署/生产迁移。
 - 阻塞：无本地阻塞，业务测试复用本会话完整unit和race；真实生产故障未回放。
+
+## 2026-11-12 09:01 v0.2.21合并后缺陷修复交付
+- 已完成带证据：WS与Chat/Messages TTL丢失两处修复，Red/Green/Red复核；后端全量unit/build/vet及定向race通过。前端428文件3406全量、619关键测试及lint/typecheck/build通过；生产构建本地mock浏览器中英/CSP/390px检查通过。
+- 相关文件：20261112/postmerge-v021-bugfix-plan.md；pkg/openai/usage.go、pkg/apicompat/types.go、service/openai_gateway_messages.go、openai_ws_v2/passthrough_relay.go与adapter、对应回归；7组账号页mock及runtimeMessages测试。
+- 未完成：无修复代码待办。当前feature/postmerge-v021-bugfix留有本次未提交修复，custom-main仍519ee380e；用户未要求本轮提交/合并/push/tag/部署。
+- 阻塞项：Docker不可用，缓存TTL数据库集成跳过；真实供应商未回放。
+
+## 2026-11-12 后续合并授权
+- 用户明确要求合并分支；本次交付将上述已验证修复提交并fast-forward合入custom-main，最终提交点以Git历史为准。此前未提交/未合并状态为09:01交付时快照。
+- 验证结果复用上述完整单测、race、构建及浏览器检查；Docker集成限制仍适用。不push、tag或部署。

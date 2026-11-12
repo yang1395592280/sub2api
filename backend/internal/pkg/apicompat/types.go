@@ -7,6 +7,9 @@ package apicompat
 import (
 	"bytes"
 	"encoding/json"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"github.com/tidwall/gjson"
 )
 
 // ---------------------------------------------------------------------------
@@ -507,6 +510,11 @@ type ResponsesUsage struct {
 	TotalTokens              int `json:"total_tokens"`
 	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
 
+	// Internal billing metadata survives typed protocol conversion without
+	// adding gateway-specific fields to client responses.
+	CacheCreation30mInputTokens int `json:"-"`
+	CacheCreation12hInputTokens int `json:"-"`
+
 	// Optional detailed breakdown
 	InputTokensDetails  *ResponsesInputTokensDetails  `json:"input_tokens_details,omitempty"`
 	OutputTokensDetails *ResponsesOutputTokensDetails `json:"output_tokens_details,omitempty"`
@@ -575,6 +583,7 @@ func (u *ResponsesUsage) UnmarshalJSON(data []byte) error {
 	if canonicalCacheCreationTokens != nil {
 		u.CacheCreationInputTokens = max(*canonicalCacheCreationTokens, 0)
 	}
+	u.CacheCreation30mInputTokens, u.CacheCreation12hInputTokens = openai.CacheCreationTTLTokensFromUsage(gjson.ParseBytes(data), u.CacheCreationInputTokens)
 	if u.TotalTokens == 0 && (u.InputTokens != 0 || u.OutputTokens != 0) {
 		u.TotalTokens = u.InputTokens + u.OutputTokens
 	}

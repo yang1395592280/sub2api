@@ -3,6 +3,10 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import AccountsView from '../AccountsView.vue'
 
+vi.mock('@/stores/adminSettings', () => ({
+  useAdminSettingsStore: () => ({ openAIQualityEnabled: false })
+}))
+
 const { listAccounts } = vi.hoisted(() => ({
   listAccounts: vi.fn()
 }))
@@ -10,6 +14,7 @@ const { listAccounts } = vi.hoisted(() => ({
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
+      listLatestPelicanTests: async () => [],
       list: listAccounts,
       listWithEtag: vi.fn(),
       getBatchTodayStats: vi.fn().mockResolvedValue({ stats: {} }),
