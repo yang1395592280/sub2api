@@ -12,3 +12,7 @@ session-id: 20261113-1023
 - 用户明确要求“合并分支”，授权提交本次已验证修改并合入 custom-main。
 - 合并前两个分支均为99d8fb838，无分叉，工作区内容与本次已验证交付一致；提交后采用 fast-forward 合并，不 rebase、不推送、不打 tag、不部署。
 - 复用前端38项/最后签到6项、Go定向48项/race/build/vet与桌面/390px模拟API验收；git diff --check通过。实际提交点与合并结果以 Git 历史及本次执行输出为准。
+
+## [11:14] 发布授权：v0.2.21.4
+- 用户明确要求打 tag、提交并推送；远端无同名 tag，origin/custom-main仍为99d8fb838。
+- 版本文件更新为0.2.21.4，发布记录写入 release-v0.2.21.4.md；拟用 annotated tag 与 git push --atomic 推送 custom-main 和 tag，不 force、不部署。
