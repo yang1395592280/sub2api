@@ -37,3 +37,9 @@ session-id: 20261113-1023
 - 用户明确要求“合并分支”，授权提交本轮已验证的每日统计功能并合入 custom-main。
 - 合并前 feature/user-daily-stats 与 custom-main 均为3ee90ee51，改动范围仅本轮功能、测试、文档与会话记录；采用提交后 fast-forward，不推送或部署。
 - 复用Go相关单元、16项真实数据库集成、三包race/build/vet、前端12项/typecheck/lint/build与桌面/390px浏览器验收；本轮差异检查通过。最终提交点与合并状态以Git核验为准。
+
+## 发布授权：v0.2.21.5
+- 用户明确要求打 tag、提交并推送；起始 custom-main=f6de6a4f2，工作区干净，远端 custom-main=fd78c3971 且无同名 tag。
+- 版本更新为0.2.21.5，汇总扣款精度和用户每日统计两个已合入功能；发布记录见 release-v0.2.21.5.md。
+- 本轮版本解析断言、shell语法、git diff --check、embed构建和二进制-version核验通过；复用已有功能验证，未重跑全部业务测试。
+- 创建annotated tag并以git push --atomic同步分支和tag；RELEASE_ONLY=true，推送触发Release工作流，不部署或执行生产迁移；最终推送与工作流状态以执行核验为准。
