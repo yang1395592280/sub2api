@@ -1,5 +1,5 @@
 <template>
-  <BaseDialog :show="show" :title="t('admin.accounts.pelican.title')" width="wide" @close="emit('close')">
+  <BaseDialog :show="show" :title="t(intelligence ? 'pelican.intelligence.title' : 'admin.accounts.pelican.title')" width="wide" @close="emit('close')">
     <div class="space-y-4 text-sm">
       <p class="text-gray-600 dark:text-gray-300">
         {{ t('admin.accounts.pelican.selected', { count: accountIds.length }) }}
@@ -16,6 +16,7 @@
       <textarea
         id="pelican-prompt"
         v-model="prompt"
+        :readonly="intelligence"
         maxlength="4000"
         rows="4"
         class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-dark-600 dark:bg-dark-700 dark:text-white"
@@ -82,13 +83,14 @@ import Select from '@/components/common/Select.vue'
 import { adminAPI } from '@/api/admin'
 import type { ClaudeModel } from '@/types'
 import type { PelicanTest } from '@/api/admin/accounts'
+import { DEFAULT_INTELLIGENCE_PROMPT, DEFAULT_PELICAN_PROMPT } from '@/api/admin/pelican'
 import { extractApiErrorMessage } from '@/utils/apiError'
 
-const props = defineProps<{ show: boolean; accountIds: number[]; accountNames: Record<number, string> }>()
+const props = defineProps<{ show: boolean; accountIds: number[]; accountNames: Record<number, string>; intelligence?: boolean }>()
 const emit = defineEmits<{ close: []; submitted: [tests: PelicanTest[]] }>()
 const { t } = useI18n()
-const defaultPrompt = '创建一个HTML，内容是绘制一个鹈鹕骑自行车的2D动画，你不需要任何测试'
-const prompt = ref(defaultPrompt)
+const defaultPrompt = computed(() => props.intelligence ? DEFAULT_INTELLIGENCE_PROMPT : DEFAULT_PELICAN_PROMPT)
+const prompt = ref(defaultPrompt.value)
 const modelId = ref('')
 const customModelId = ref('')
 const effectiveModelId = computed(() => customModelId.value.trim() || modelId.value)
@@ -103,10 +105,10 @@ const canSubmit = computed(() => !submitting.value &&
   effectiveModelId.value.length > 0 && effectiveModelId.value.length <= 255 && !!prompt.value.trim())
 let modelLoadVersion = 0
 
-watch(() => props.show, async show => {
+watch(() => [props.show, props.intelligence] as const, async ([show]) => {
   const version = ++modelLoadVersion
   if (!show || props.accountIds.length === 0) return
-  prompt.value = defaultPrompt
+  prompt.value = defaultPrompt.value
   modelId.value = ''
   customModelId.value = ''
   models.value = []
@@ -142,7 +144,7 @@ async function submit() {
   submitting.value = true
   error.value = ''
   try {
-    const tests = await adminAPI.accounts.startPelicanTests([...props.accountIds], effectiveModelId.value, prompt.value.trim())
+    const tests = await adminAPI.accounts.startPelicanTests([...props.accountIds], effectiveModelId.value, prompt.value.trim(), props.intelligence ? 'intelligence' : 'pelican')
     emit('submitted', tests)
   } catch (cause) {
     error.value = extractApiErrorMessage(cause, t('admin.accounts.pelican.startFailed'))

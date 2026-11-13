@@ -24,7 +24,7 @@ type pelicanConfigRepo struct {
 	saves  int
 }
 
-func (r *pelicanConfigRepo) GetGroupConfig(context.Context, int64) (*GroupPelicanConfig, error) {
+func (r *pelicanConfigRepo) GetGroupConfig(context.Context, int64, ...string) (*GroupPelicanConfig, error) {
 	c := r.config
 	return &c, nil
 }
@@ -91,7 +91,7 @@ func (r *pelicanResumeRepo) ClaimNext(context.Context) (*PelicanTest, error) {
 }
 func (r *pelicanResumeRepo) ExpireStale(context.Context) error      { return nil }
 func (r *pelicanResumeRepo) EnqueueDueGroups(context.Context) error { return nil }
-func (r *pelicanResumeRepo) Finish(_ context.Context, _ int64, status, _, _, _ string, _ int64, _ AccountTestTokenUsage) error {
+func (r *pelicanResumeRepo) Finish(_ context.Context, _ int64, status, _, _, _ string, _ int64, _ AccountTestTokenUsage, _ ...PelicanTest) error {
 	r.finished <- status
 	return nil
 }

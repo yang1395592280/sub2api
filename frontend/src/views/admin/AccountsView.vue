@@ -177,6 +177,9 @@
         <div v-if="pelicanBatch" class="mt-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
           {{ t('admin.accounts.pelican.progress', { done: pelicanBatchProgress.done, total: pelicanBatch.ids.length, success: pelicanBatchProgress.success, failed: pelicanBatchProgress.failed }) }}
         </div>
+        <div v-if="intelligenceBatch" class="mt-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
+          {{ t('pelican.intelligence.progress', { done: intelligenceBatchProgress.done, total: intelligenceBatch.ids.length, success: intelligenceBatchProgress.success, failed: intelligenceBatchProgress.failed }) }}
+        </div>
       </template>
       <template #table>
         <AccountBulkActionsBar
@@ -188,6 +191,7 @@
           @delete="handleBulkDelete"
           @test-selected="handleBulkTestSelected"
 		  @pelican-test="openPelicanBatch"
+          @intelligence-test="openIntelligenceBatch"
 		  @reset-status="handleBulkResetStatus"
 		  @refresh-token="handleBulkRefreshToken"
 		  @refresh-balance="handleBulkRefreshBalance"
@@ -227,6 +231,21 @@
           </template>
           <template #cell-select="{ row }">
             <input type="checkbox" :checked="isSelected(row.id)" @change="toggleSel(row.id)" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+          </template>
+          <template #cell-intelligence_test="{ row }">
+            <div class="flex min-w-[160px] flex-col items-start gap-1 text-xs">
+              <button v-if="intelligenceTests[row.id]" type="button" class="rounded-md border px-3 py-1.5 font-mono text-base font-semibold" :class="intelligenceTests[row.id].status === 'correct' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : ['queued', 'running'].includes(intelligenceTests[row.id].status) ? 'border-amber-200 text-amber-600' : 'border-red-300 bg-red-50 text-red-700'" @click="openIntelligenceResult(row)">
+                {{ intelligenceTests[row.id].answer || t(`pelican.intelligence.status.${intelligenceTests[row.id].status}`) }}
+              </button>
+              <span v-else class="text-gray-400">—</span>
+              <template v-if="intelligenceTests[row.id]">
+                <span class="max-w-[180px] truncate text-gray-500" :title="intelligenceTests[row.id].model_id">{{ intelligenceTests[row.id].model_id }} · {{ intelligenceTests[row.id].latency_ms }} ms</span>
+                <time class="text-gray-400" :datetime="intelligenceTests[row.id].created_at">{{ formatDateTime(intelligenceTests[row.id].created_at) }}</time>
+                <span v-if="intelligenceTests[row.id].total_tokens != null" class="text-gray-500">{{ t('admin.accounts.pelican.tokensTotal', { count: intelligenceTests[row.id].total_tokens!.toLocaleString() }) }}</span>
+                <TestEstimatedCost :test="intelligenceTests[row.id]" />
+              </template>
+              <button v-if="!intelligenceTests[row.id] || !['queued', 'running'].includes(intelligenceTests[row.id].status)" class="text-primary-600 hover:underline" @click="retryIntelligenceAccount(row)">{{ t('pelican.intelligence.run') }}</button>
+            </div>
           </template>
           <template #cell-id="{ value }">
             <span class="font-mono text-xs text-gray-500 dark:text-gray-400">#{{ value }}</span>
@@ -282,11 +301,13 @@
               <span v-else-if="!['queued', 'running'].includes(pelicanTests[row.id].status)" class="text-gray-400">
                 {{ t('admin.accounts.pelican.tokensUnavailable') }}
               </span>
+              <TestEstimatedCost :test="pelicanTests[row.id]" />
               <button v-if="['failed', 'unpreviewable'].includes(pelicanTests[row.id].status)" type="button" class="text-primary-600 hover:underline" @click="retryPelicanAccount(row)">
                 {{ t('admin.accounts.pelican.retry') }}
               </button>
             </div>
             <router-link :to="`/admin/accounts/${row.id}/pelican-tests`" class="mt-1 inline-block text-xs text-primary-600 hover:underline dark:text-primary-400">{{ t('pelican.history') }}</router-link>
+            <router-link :to="`/admin/accounts/${row.id}/intelligence-tests`" class="mt-1 block text-xs text-primary-600 hover:underline">{{ t('pelican.intelligence.history') }}</router-link>
           </template>
           <template #cell-pelican_preview="{ row }">
             <PelicanInlinePreview
@@ -545,6 +566,8 @@
       @filter-accounts="handleBatchTestFilterAccounts"
     />
     <PelicanBatchTestDialog :show="showPelicanBatch" :account-ids="pelicanSelectedIds" :account-names="pelicanAccountNames" @close="showPelicanBatch = false" @submitted="handlePelicanSubmitted" />
+    <PelicanBatchTestDialog :intelligence="true" :show="showIntelligenceBatch" :account-ids="intelligenceSelectedIds" :account-names="intelligenceAccountNames" @close="showIntelligenceBatch = false" @submitted="handleIntelligenceSubmitted" />
+    <PelicanResultDialog :intelligence="true" :show="intelligenceResultId !== null" :test-id="intelligenceResultId" :account-name="intelligenceResultAccountName" @close="intelligenceResultId = null" />
     <PelicanResultDialog :show="pelicanResultId !== null" :test-id="pelicanResultId" :account-name="pelicanResultAccountName" @close="pelicanResultId = null" />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
@@ -608,7 +631,8 @@ import BatchAccountTestModal from '@/components/admin/account/BatchAccountTestMo
 import PelicanBatchTestDialog from '@/components/admin/account/PelicanBatchTestDialog.vue'
 import PelicanResultDialog from '@/components/admin/account/PelicanResultDialog.vue'
 import PelicanInlinePreview from '@/components/admin/account/PelicanInlinePreview.vue'
-import type { PelicanTest } from '@/api/admin/accounts'
+import { useAccountGenerationTests } from '@/composables/useAccountGenerationTests'
+import TestEstimatedCost from '@/components/admin/account/TestEstimatedCost.vue'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
 import { getQualityAccountSummaries, type QualityAccountSummary } from '@/api/admin/openaiAccountQuality'
 import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
@@ -714,23 +738,6 @@ const showCreateShadowDialog = ref(false)
 const showReAuth = ref(false)
 const showTest = ref(false)
 const showBatchTest = ref(false)
-const showPelicanBatch = ref(false)
-const pelicanSelectedIds = ref<number[]>([])
-const pelicanAccountNames = ref<Record<number, string>>({})
-const pelicanTests = ref<Record<number, PelicanTest>>({})
-const pelicanResultId = ref<number | null>(null)
-const pelicanResultAccountName = ref('')
-type PelicanBatch = { batchId: string; ids: number[] }
-const pelicanBatch = ref<PelicanBatch | null>(null)
-const pelicanBatchProgress = computed(() => {
-  const tests = pelicanBatch.value?.ids.map(id => pelicanTests.value[id])
-    .filter((test): test is PelicanTest => Boolean(test && test.batch_id === pelicanBatch.value?.batchId)) ?? []
-  return {
-    done: tests.filter(test => !['queued', 'running'].includes(test.status)).length,
-    success: tests.filter(test => test.status === 'previewable').length,
-    failed: tests.filter(test => test.status === 'failed' || test.status === 'unpreviewable').length
-  }
-})
 const showStats = ref(false)
 const showErrorPassthrough = ref(false)
 const showTLSFingerprintProfiles = ref(false)
@@ -1302,6 +1309,15 @@ const clearSelection = () => {
   selectedAllResultIDs.value = null
   clearSelectedIds()
 }
+
+const { showBatch: showPelicanBatch, targetIds: pelicanSelectedIds, names: pelicanAccountNames, tests: pelicanTests,
+  resultId: pelicanResultId, resultAccountName: pelicanResultAccountName, batch: pelicanBatch, progress: pelicanBatchProgress,
+  openBatch: openPelicanBatch, retryAccount: retryPelicanAccount, openResult: openPelicanResult, submitted: handlePelicanSubmitted
+} = useAccountGenerationTests('pelican', accounts, selIds)
+const { showBatch: showIntelligenceBatch, targetIds: intelligenceSelectedIds, names: intelligenceAccountNames, tests: intelligenceTests,
+  resultId: intelligenceResultId, resultAccountName: intelligenceResultAccountName, batch: intelligenceBatch, progress: intelligenceBatchProgress,
+  openBatch: openIntelligenceBatch, retryAccount: retryIntelligenceAccount, openResult: openIntelligenceResult, submitted: handleIntelligenceSubmitted
+} = useAccountGenerationTests('intelligence', accounts, selIds)
 
 const selectPage = () => {
   selectCurrentPage()
@@ -2035,6 +2051,7 @@ const allColumns = computed(() => {
     { key: 'notes', label: t('admin.accounts.columns.notes'), sortable: false },
     { key: 'pelican_test', label: t('admin.accounts.pelican.column'), sortable: false },
     { key: 'pelican_preview', label: t('admin.accounts.pelican.previewColumn'), sortable: false },
+    { key: 'intelligence_test', label: t('pelican.intelligence.column'), sortable: false },
     { key: 'id', label: t('admin.accounts.columns.id'), sortable: true },
     { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false },
     { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
@@ -2132,74 +2149,6 @@ const handleBulkTestSelected = () => {
   showBatchTest.value = batchTestingAccounts.value.length > 0
 }
 
-const openPelicanBatch = () => {
-  pelicanSelectedIds.value = [...selIds.value]
-  pelicanAccountNames.value = Object.fromEntries(accounts.value.map(account => [account.id, account.name]))
-  showPelicanBatch.value = pelicanSelectedIds.value.length > 0
-}
-
-const handlePelicanSubmitted = (tests: PelicanTest[]) => {
-  showPelicanBatch.value = false
-  for (const test of tests) pelicanTests.value[test.account_id] = test
-  if (tests.length > 0) {
-    pelicanBatch.value = { batchId: tests[0].batch_id, ids: tests.map(test => test.account_id) }
-    localStorage.setItem('account-pelican-active-batch', JSON.stringify(pelicanBatch.value))
-  }
-  if (tests.length < pelicanSelectedIds.value.length) {
-    appStore.showWarning(t('admin.accounts.pelican.skippedActive', { count: pelicanSelectedIds.value.length - tests.length }))
-  }
-  void refreshPelicanTests()
-}
-
-const openPelicanResult = (account: AccountListItem) => {
-  pelicanResultId.value = pelicanTests.value[account.id]?.id ?? null
-  pelicanResultAccountName.value = account.name
-}
-
-const retryPelicanAccount = (account: AccountListItem) => {
-  pelicanSelectedIds.value = [account.id]
-  pelicanAccountNames.value = { [account.id]: account.name }
-  showPelicanBatch.value = true
-}
-
-let pelicanLastRefresh = 0
-let pelicanRefreshRunning = false
-const refreshPelicanTests = async () => {
-  if (pelicanRefreshRunning) return
-  const visibleIds = accounts.value.map(account => account.id)
-  const batchIds = pelicanBatch.value?.ids ?? []
-  if (visibleIds.length === 0 && batchIds.length === 0) return
-  pelicanRefreshRunning = true
-  try {
-    for (const ids of [visibleIds, batchIds]) {
-      if (ids.length === 0) continue
-      for (let offset = 0; offset < ids.length; offset += 100) {
-        const latest = await adminAPI.accounts.listLatestPelicanTests(ids.slice(offset, offset + 100))
-        for (const test of latest) {
-          if (!pelicanTests.value[test.account_id] || pelicanTests.value[test.account_id].id <= test.id) {
-            pelicanTests.value[test.account_id] = test
-          }
-        }
-      }
-    }
-    if (pelicanBatch.value && pelicanBatchProgress.value.done === pelicanBatch.value.ids.length) {
-      localStorage.removeItem('account-pelican-active-batch')
-    }
-  } catch (error) {
-    console.error('Failed to load pelican test results:', error)
-  } finally {
-    pelicanLastRefresh = Date.now()
-    pelicanRefreshRunning = false
-  }
-}
-
-watch(() => accounts.value.map(account => account.id).join(','), () => { void refreshPelicanTests() })
-useIntervalFn(() => {
-  const visibleRunning = accounts.value.some(account => ['queued', 'running'].includes(pelicanTests.value[account.id]?.status ?? ''))
-  if (Date.now() - pelicanLastRefresh >= 30000 || visibleRunning || (pelicanBatch.value && pelicanBatchProgress.value.done < pelicanBatch.value.ids.length)) {
-    void refreshPelicanTests()
-  }
-}, 3000)
 const handleBulkResetStatus = async () => {
   if (!confirm(t('common.confirm'))) return
   try {
@@ -2907,13 +2856,6 @@ const handleClickOutside = (event: MouseEvent) => {
 }
 
 onMounted(async () => {
-  try {
-    const saved = localStorage.getItem('account-pelican-active-batch')
-    if (saved) pelicanBatch.value = JSON.parse(saved) as PelicanBatch
-  } catch {
-    localStorage.removeItem('account-pelican-active-batch')
-  }
-  void refreshPelicanTests()
   if (typeof window !== 'undefined') {
     desktopViewportMediaQuery = window.matchMedia(desktopViewportQuery)
     isDesktopViewport.value = desktopViewportMediaQuery.matches

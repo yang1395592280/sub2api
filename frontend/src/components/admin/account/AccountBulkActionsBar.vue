@@ -47,6 +47,7 @@
         <button @click="$emit('delete')" class="btn btn-danger btn-sm">{{ t('admin.accounts.bulkActions.delete') }}</button>
         <button @click="$emit('test-selected')" class="btn btn-secondary btn-sm">{{ t('admin.accounts.bulkActions.testConnection') }}</button>
         <button data-test="bulk-pelican-test" @click="$emit('pelican-test')" class="btn btn-secondary btn-sm">{{ t('admin.accounts.pelican.title') }}</button>
+        <button data-test="bulk-intelligence-test" @click="$emit('intelligence-test')" class="btn btn-secondary btn-sm">{{ t('pelican.intelligence.title') }}</button>
         <button @click="$emit('reset-status')" class="btn btn-secondary btn-sm">{{ t('admin.accounts.bulkActions.resetStatus') }}</button>
         <button @click="$emit('refresh-token')" class="btn btn-secondary btn-sm">{{ t('admin.accounts.bulkActions.refreshToken') }}</button>
         <button
@@ -83,6 +84,7 @@ defineEmits([
   'delete',
   'test-selected',
   'pelican-test',
+  'intelligence-test',
   'edit-selected',
   'edit-filtered',
   'clear',

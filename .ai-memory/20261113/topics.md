@@ -9,3 +9,7 @@
 - 后续用户授权“合并分支”：提交使用记录扣款精度修改后 fast-forward 合入 custom-main；实际结果以Git核验为准，不推送或部署。
 
 - 后续用户授权“合并分支”：提交用户每日统计功能后 fast-forward 合入 custom-main；基线3ee90ee51，最终结果以Git核验为准，不推送或部署。
+
+- 智力题测试与上游费用估算：feature/intelligence-tests-upstream-cost 本地4/4完成，未提交/合并/push/部署。详见 intelligence-test-and-cost-plan.md、session_memory_intelligence-tests.jsonl、docs/intelligence-tests-and-upstream-cost.md。迁移253改变复合约束，旧二进制不可直接混跑/降级。
+
+- 后续用户授权“合并分支”：提交智力题测试与上游费用估算后 fast-forward 合入 custom-main；基线 fd6b93ec1，最终结果以 Git 为准，不推送或部署。

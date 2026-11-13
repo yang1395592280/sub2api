@@ -559,6 +559,12 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/accounts/:id/intelligence-tests',
+    name: 'AdminAccountIntelligenceHistory',
+    component: () => import('@/views/admin/AccountIntelligenceHistoryView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: 'Intelligence history', titleKey: 'pelican.intelligence.historyTitle' }
+  },
+  {
     path: '/admin/accounts/:id/pelican-tests',
     name: 'AdminAccountPelicanHistory',
     component: () => import('@/views/admin/AccountPelicanHistoryView.vue'),

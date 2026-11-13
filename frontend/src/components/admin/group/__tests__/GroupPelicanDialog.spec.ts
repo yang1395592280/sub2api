@@ -14,6 +14,18 @@ const create = () => mount(GroupPelicanDialog, { props: { show: true, group: { i
 beforeEach(() => { vi.clearAllMocks(); get.mockResolvedValue({ ...config }); models.mockResolvedValue(['gpt-5.5', 'gpt-image-1']); save.mockResolvedValue(config) })
 
 describe('GroupPelicanDialog', () => {
+  it('loads and saves the independent intelligence schedule with a fixed prompt', async () => {
+    get.mockResolvedValue({ ...config, prompt: '固定糖果题' })
+    const wrapper = mount(GroupPelicanDialog, { props: { show: true, intelligence: true, group: { id: 7, name: '分组' } }, global: { stubs: { BaseDialog } } })
+    await flushPromises()
+    expect(get).toHaveBeenCalledWith(7, 'intelligence')
+    expect(wrapper.get('textarea').attributes('readonly')).toBeDefined()
+    await wrapper.get('[type="checkbox"]').setValue(true)
+    await wrapper.get('#group-pelican-model').setValue('gpt-5.5')
+    await wrapper.get('form').trigger('submit'); await flushPromises()
+    expect(save).toHaveBeenCalledWith(7, { enabled: true, model_id: 'gpt-5.5', prompt: '固定糖果题' }, 'intelligence')
+    wrapper.unmount()
+  })
   it('starts disabled, accepts custom models and only saves its own config', async () => {
     const wrapper = create(); await flushPromises()
     expect(wrapper.text()).toContain('0.1 分组')
@@ -23,7 +35,7 @@ describe('GroupPelicanDialog', () => {
     expect(wrapper.get('[data-test="save-group-pelican"]').attributes('disabled')).toBeDefined()
     await wrapper.get('#group-pelican-model').setValue('vendor/my-model')
     await wrapper.get('form').trigger('submit'); await flushPromises()
-    expect(save).toHaveBeenCalledWith(7, { enabled: true, model_id: 'vendor/my-model', prompt: config.prompt })
+    expect(save).toHaveBeenCalledWith(7, { enabled: true, model_id: 'vendor/my-model', prompt: config.prompt }, 'pelican')
     expect(wrapper.emitted('saved')).toHaveLength(1)
     wrapper.unmount()
   })
@@ -34,7 +46,7 @@ describe('GroupPelicanDialog', () => {
     expect(wrapper.text()).toContain('pelican.modelUnavailable')
     expect(wrapper.get('[data-test="save-group-pelican"]').attributes('disabled')).toBeUndefined()
     await wrapper.get('form').trigger('submit'); await flushPromises()
-    expect(save).toHaveBeenCalledWith(7, { enabled: false, model_id: '', prompt: config.prompt })
+    expect(save).toHaveBeenCalledWith(7, { enabled: false, model_id: '', prompt: config.prompt }, 'pelican')
     wrapper.unmount()
   })
 

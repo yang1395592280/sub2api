@@ -156,6 +156,7 @@ docs/*
 !docs/redeem-campaign-limits.md
 !docs/openai-quality-monitor.md
 !docs/group-pelican-tests.md
+!docs/intelligence-tests-and-upstream-cost.md
 !docs/legal/
 !docs/legal/*.md
 !docs/superpowers/

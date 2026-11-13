@@ -13,10 +13,12 @@
       <p v-if="test.input_tokens != null || test.output_tokens != null" class="text-xs text-gray-500 dark:text-gray-300">
         {{ t('admin.accounts.pelican.tokensBreakdown', { input: test.input_tokens?.toLocaleString() ?? '—', output: test.output_tokens?.toLocaleString() ?? '—' }) }}
       </p>
+      <TestEstimatedCost :test="test" />
+      <p v-if="intelligence" class="text-sm font-semibold" :class="test.status === 'correct' ? 'text-emerald-600' : 'text-red-600'">{{ test.answer || t(`pelican.intelligence.status.${test.status}`) }} · {{ t('pelican.intelligence.expected') }}</p>
       <p class="whitespace-pre-wrap break-words text-xs text-gray-600 dark:text-gray-300">{{ test.prompt }}</p>
       <p v-if="test.error_message" class="text-sm text-red-600">{{ test.error_message }}</p>
       <p v-if="test.html" class="text-xs text-amber-700 dark:text-amber-300">{{ t('admin.accounts.pelican.sandboxHint') }}</p>
-      <div class="flex gap-2">
+      <div v-if="!intelligence" class="flex gap-2">
         <button class="btn btn-secondary btn-sm" :disabled="!test.html" @click="tab = 'preview'">{{ t('admin.accounts.pelican.effect') }}</button>
         <button class="btn btn-secondary btn-sm" @click="tab = 'source'">{{ t('admin.accounts.pelican.source') }}</button>
         <button v-if="test.html" class="btn btn-secondary btn-sm" @click="reloadPreview">{{ t('admin.accounts.pelican.reload') }}</button>
@@ -60,12 +62,13 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import TestEstimatedCost from '@/components/admin/account/TestEstimatedCost.vue'
 import { adminAPI } from '@/api/admin'
 import type { PelicanTest } from '@/api/admin/accounts'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { buildPelicanPreviewSource, getPelicanPreviewNonce, PELICAN_PREVIEW_HEIGHT, PELICAN_PREVIEW_WIDTH } from '@/utils/pelicanPreview'
 
-const props = defineProps<{ show: boolean; testId: number | null; accountName: string }>()
+const props = defineProps<{ show: boolean; testId: number | null; accountName: string; intelligence?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 const { t } = useI18n()
 const test = ref<PelicanTest | null>(null)
@@ -88,9 +91,9 @@ const scaledHeight = computed(() => PELICAN_PREVIEW_HEIGHT * displayScale.value)
 const canvasWidth = computed(() => Math.max(viewportWidth.value, scaledWidth.value))
 const canvasHeight = computed(() => Math.max(viewportHeight.value, scaledHeight.value))
 const dialogTitle = computed(() => [
-  t('admin.accounts.pelican.preview'),
+  t(props.intelligence ? 'pelican.intelligence.details' : 'admin.accounts.pelican.preview'),
   props.accountName,
-  test.value ? t(`admin.accounts.pelican.status.${test.value.status}`) : '',
+  test.value ? t(`${props.intelligence ? 'pelican.intelligence.status' : 'admin.accounts.pelican.status'}.${test.value.status}`) : '',
   test.value?.model_id
 ].filter(Boolean).join(' · '))
 
@@ -114,7 +117,7 @@ watch(previewViewport, (element, _previous, onCleanup) => {
 }, { flush: 'post' })
 
 let resultVersion = 0
-watch(() => [props.show, props.testId] as const, async ([show, id]) => {
+watch(() => [props.show, props.testId, props.intelligence] as const, async ([show, id]) => {
   const version = ++resultVersion
   test.value = null
   if (!show || !id) {
@@ -124,7 +127,7 @@ watch(() => [props.show, props.testId] as const, async ([show, id]) => {
   loading.value = true
   error.value = ''
   try {
-    const result = await adminAPI.accounts.getPelicanTest(id)
+    const result = await adminAPI.accounts.getPelicanTest(id, props.intelligence ? 'intelligence' : 'pelican')
     if (version !== resultVersion) return
     test.value = result
     tab.value = test.value.html ? 'preview' : 'source'

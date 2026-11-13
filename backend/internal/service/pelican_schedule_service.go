@@ -83,7 +83,7 @@ func (s *PelicanTestService) scheduleLoop(ctx context.Context) {
 	}
 }
 
-func (s *PelicanTestService) GetGroupConfig(ctx context.Context, groupID int64) (*GroupPelicanConfig, error) {
+func (s *PelicanTestService) GetGroupConfig(ctx context.Context, groupID int64, kinds ...string) (*GroupPelicanConfig, error) {
 	group, err := s.groupRepo.GetByIDLite(ctx, groupID)
 	if err != nil {
 		return nil, err
@@ -91,17 +91,24 @@ func (s *PelicanTestService) GetGroupConfig(ctx context.Context, groupID int64) 
 	if group == nil || group.Platform != PlatformOpenAI {
 		return nil, fmt.Errorf("%w: only OpenAI groups support scheduled pelican tests", ErrInvalidPelicanBatch)
 	}
-	return s.repo.GetGroupConfig(ctx, groupID)
+	return s.repo.GetGroupConfig(ctx, groupID, GenerationTestKind(kinds...))
 }
 
 func (s *PelicanTestService) SaveGroupConfig(ctx context.Context, config GroupPelicanConfig) (*GroupPelicanConfig, error) {
-	if _, err := s.GetGroupConfig(ctx, config.GroupID); err != nil {
+	if _, err := s.GetGroupConfig(ctx, config.GroupID, config.TestKind); err != nil {
 		return nil, err
+	}
+	config.TestKind = GenerationTestKind(config.TestKind)
+	if config.TestKind != TestKindPelican && config.TestKind != TestKindIntelligence {
+		return nil, ErrInvalidPelicanBatch
+	}
+	if config.TestKind == TestKindIntelligence {
+		config.Prompt = DefaultIntelligenceTestPrompt
 	}
 	config.ModelID = strings.TrimSpace(config.ModelID)
 	config.Prompt = strings.TrimSpace(config.Prompt)
 	if config.Prompt == "" {
-		config.Prompt = DefaultPelicanTestPrompt
+		config.Prompt = GenerationTestPrompt(config.TestKind)
 	}
 	if len(config.ModelID) > 255 || utf8.RuneCountInString(config.Prompt) > PelicanTestMaxPrompt ||
 		(config.Enabled && config.ModelID == "") || (config.IntervalMinutes != 0 && config.IntervalMinutes != 30) {
@@ -113,12 +120,12 @@ func (s *PelicanTestService) SaveGroupConfig(ctx context.Context, config GroupPe
 	if err := s.repo.SaveGroupConfig(ctx, config); err != nil {
 		return nil, err
 	}
-	return s.repo.GetGroupConfig(ctx, config.GroupID)
+	return s.repo.GetGroupConfig(ctx, config.GroupID, config.TestKind)
 }
 
-func (s *PelicanTestService) ListHistory(ctx context.Context, accountID int64, page, pageSize int) (*PelicanTestHistory, error) {
+func (s *PelicanTestService) ListHistory(ctx context.Context, accountID int64, page, pageSize int, kinds ...string) (*PelicanTestHistory, error) {
 	if accountID <= 0 || page < 1 || page > 1000000 || pageSize < 1 || pageSize > 50 {
 		return nil, fmt.Errorf("%w: invalid account or pagination", ErrInvalidPelicanBatch)
 	}
-	return s.repo.ListHistory(ctx, accountID, page, pageSize)
+	return s.repo.ListHistory(ctx, accountID, page, pageSize, GenerationTestKind(kinds...))
 }

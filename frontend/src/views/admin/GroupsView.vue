@@ -476,6 +476,10 @@
                 <Icon name="play" size="sm" />
                 <span class="text-xs">{{ t('pelican.configure') }}</span>
               </button>
+              <button v-if="row.platform === 'openai'" data-test="group-intelligence-button" @click="intelligenceGroup = row" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400">
+                <Icon name="play" size="sm" />
+                <span class="text-xs">{{ t('pelican.intelligence.configure') }}</span>
+              </button>
               <button
                 @click="handleEdit(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
@@ -4630,6 +4634,7 @@
       :group="capacityUsersGroup"
       @close="showCapacityUsersModal = false"
     />
+    <GroupPelicanDialog :intelligence="true" :show="intelligenceGroup !== null" :group="intelligenceGroup" @close="intelligenceGroup = null" />
     <GroupPelicanDialog :show="pelicanGroup !== null" :group="pelicanGroup" @close="pelicanGroup = null" />
   </AppLayout>
 </template>
@@ -5239,6 +5244,7 @@ let abortController: AbortController | null = null;
 
 const showCreateModal = ref(false);
 const pelicanGroup = ref<AdminGroup | null>(null);
+const intelligenceGroup = ref<AdminGroup | null>(null);
 const showEditModal = ref(false);
 const showDeleteDialog = ref(false);
 const pendingLiveForm = ref<"create" | "edit" | null>(null);

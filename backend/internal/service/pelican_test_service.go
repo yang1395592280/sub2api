@@ -35,6 +35,7 @@ type PelicanTestService struct {
 	repo        PelicanTestRepository
 	accountRepo AccountRepository
 	accountTest *AccountTestService
+	billing     *BillingService
 	groupRepo   GroupRepository
 	startOnce   sync.Once
 	stopOnce    sync.Once
@@ -48,7 +49,14 @@ func NewPelicanTestService(repo PelicanTestRepository, accountRepo AccountReposi
 
 // StartBatch only persists work after validating the selection. Each job
 // then uses the selected account ID, never the public gateway scheduler.
-func (s *PelicanTestService) StartBatch(ctx context.Context, accountIDs []int64, modelID, prompt string) ([]PelicanTest, error) {
+func (s *PelicanTestService) StartBatch(ctx context.Context, accountIDs []int64, modelID, prompt string, kinds ...string) ([]PelicanTest, error) {
+	kind := GenerationTestKind(kinds...)
+	if kind != TestKindPelican && kind != TestKindIntelligence {
+		return nil, ErrInvalidPelicanBatch
+	}
+	if kind == TestKindIntelligence {
+		prompt = DefaultIntelligenceTestPrompt
+	}
 	modelID = strings.TrimSpace(modelID)
 	prompt = strings.TrimSpace(prompt)
 	if len(accountIDs) == 0 || len(accountIDs) > PelicanTestMaxAccounts {
@@ -72,7 +80,7 @@ func (s *PelicanTestService) StartBatch(ctx context.Context, accountIDs []int64,
 	if err := s.repo.ExpireStale(ctx); err != nil {
 		return nil, err
 	}
-	tests, err := s.repo.CreateBatch(ctx, batchID, accountIDs, modelID, prompt)
+	tests, err := s.repo.CreateBatch(ctx, batchID, accountIDs, modelID, prompt, kind)
 	if err != nil {
 		return nil, err
 	}
@@ -83,21 +91,35 @@ func (s *PelicanTestService) runOne(ctx context.Context, test PelicanTest) {
 	ctx, cancel := context.WithTimeout(ctx, pelicanTestTimeout)
 	defer cancel()
 	status, output, html, reason, latency, usage := s.generate(ctx, test)
+	details := usage.Estimate
+	if test.TestKind == TestKindIntelligence && (status == "correct" || status == "incorrect") {
+		details.Answer = parseIntelligenceAnswer(output)
+	}
 	// Persist a terminal state even when the upstream request timed out.
 	finishCtx, finishCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer finishCancel()
-	if err := s.repo.Finish(finishCtx, test.ID, status, output, html, reason, latency, usage); err != nil {
+	if err := s.repo.Finish(finishCtx, test.ID, status, output, html, reason, latency, usage.AccountTestTokenUsage, details); err != nil {
 		log.Printf("pelican test %d account %d: save result: %v", test.ID, test.AccountID, err)
 	}
 }
 
-func (s *PelicanTestService) generate(ctx context.Context, test PelicanTest) (status, output, html, reason string, latency int64, usage AccountTestTokenUsage) {
+func (s *PelicanTestService) generate(ctx context.Context, test PelicanTest) (status, output, html, reason string, latency int64, usage generationTestUsage) {
 	account, err := s.accountRepo.GetByID(ctx, test.AccountID)
 	if err != nil {
 		return "failed", "", "", "账号已删除或不可用", 0, usage
 	}
 	if account == nil {
 		return "failed", "", "", "账号已删除或不可用", 0, usage
+	}
+	pricingAt := time.Now()
+	defer func() { usage.Estimate = s.estimateTestCost(account, test, usage.AccountTestTokenUsage, pricingAt) }()
+	if test.TestKind == TestKindIntelligence {
+		// A benchmark must never change account health or scheduling, even when
+		// explicitly selected by an administrator.
+		ctx = context.WithValue(ctx, generationOnlyContextKey{}, true)
+		if test.Prompt != DefaultIntelligenceTestPrompt {
+			return "failed", "", "", "智力题提示词已变化，请重新发起测试", 0, usage
+		}
 	}
 	if test.SourceGroupID > 0 {
 		ctx = context.WithValue(ctx, generationOnlyContextKey{}, true)
@@ -116,20 +138,20 @@ func (s *PelicanTestService) generate(ctx context.Context, test PelicanTest) (st
 		account.routesByModel() ||
 		(account.Platform == PlatformAntigravity && account.Type == AccountTypeAPIKey)
 	if !supportsPrompt {
-		return "failed", "", "", "该账号协议暂不支持自定义 HTML 生成提示词", 0, usage
+		return "failed", "", "", "该账号协议暂不支持自定义文本测试提示词", 0, usage
 	}
 	if !account.IsModelSupported(test.ModelID) {
 		return "failed", "", "", "账号未配置所选模型", 0, usage
 	}
 	if isImageGenerationModel(mappedModel) || isOpenAIImageModel(mappedModel) || isGrokImageGenerationModel(mappedModel) || isGrokVideoGenerationModel(mappedModel) {
-		return "failed", "", "", "图片或视频模型不支持 HTML 生成测试", 0, usage
+		return "failed", "", "", "图片或视频模型不支持文本生成测试", 0, usage
 	}
 	result, err := s.accountTest.RunPromptBackground(ctx, test.AccountID, test.ModelID, test.Prompt)
 	if err != nil {
 		return "failed", "", "", "测试请求失败", 0, usage
 	}
 	latency = result.LatencyMs
-	usage = AccountTestTokenUsage{InputTokens: result.InputTokens, OutputTokens: result.OutputTokens, TotalTokens: result.TotalTokens}
+	usage.AccountTestTokenUsage = result.TokenUsage
 	output = result.ResponseText
 	if len(output) > pelicanTestMaxOutput {
 		limited := output[:pelicanTestMaxOutput]
@@ -147,6 +169,16 @@ func (s *PelicanTestService) generate(ctx context.Context, test PelicanTest) (st
 			reason = "测试超时（500 秒）"
 		}
 		return "failed", output, "", reason, latency, usage
+	}
+	if test.TestKind == TestKindIntelligence {
+		answer := parseIntelligenceAnswer(output)
+		if answer == "" {
+			return "invalid_answer", output, "", "未按要求返回最终答案数字", latency, usage
+		}
+		if answer == "20" {
+			return "correct", output, "", "", latency, usage
+		}
+		return "incorrect", output, "", "", latency, usage
 	}
 	html = extractPelicanHTML(output)
 	if html == "" {
@@ -208,16 +240,16 @@ func extractPelicanHTMLDocument(output string) string {
 	return candidate
 }
 
-func (s *PelicanTestService) ListLatest(ctx context.Context, accountIDs []int64) ([]PelicanTest, error) {
+func (s *PelicanTestService) ListLatest(ctx context.Context, accountIDs []int64, kinds ...string) ([]PelicanTest, error) {
 	if len(accountIDs) > PelicanTestMaxAccounts {
 		return nil, fmt.Errorf("at most %d account IDs", PelicanTestMaxAccounts)
 	}
 	if err := s.repo.ExpireStale(ctx); err != nil {
 		return nil, err
 	}
-	return s.repo.ListLatest(ctx, accountIDs)
+	return s.repo.ListLatest(ctx, accountIDs, GenerationTestKind(kinds...))
 }
 
-func (s *PelicanTestService) Get(ctx context.Context, id int64) (*PelicanTest, error) {
-	return s.repo.Get(ctx, id)
+func (s *PelicanTestService) Get(ctx context.Context, id int64, kinds ...string) (*PelicanTest, error) {
+	return s.repo.Get(ctx, id, GenerationTestKind(kinds...))
 }

@@ -1,4 +1,20 @@
 export default {
+  estimatedCost: '上游消耗（估算）{amount}',
+  costUnavailable: '上游消耗：不可估算',
+  costBasis: '模型单价 × 上游倍率 {rate}x；计费模型 {model}。依据本次 Token（含缓存）估算，可能与上游实扣不同。',
+  costUnavailableHint: '缺少本次用量、可信上游倍率或模型价格；历史记录不追溯估算。',
+  intelligence: {
+    title: '批量智力题测试', configure: '智力题测试', column: '智力题测试',
+    groupTitle: '分组定时智力题测试', enabled: '自动执行智力题测试',
+    scheduleHint: '每 30 分钟，对当前分组已启用且允许调度的 OpenAI 账号执行一次固定糖果题。仅保存答案和用量，不影响账号调度评分。',
+    saved: '分组智力题测试配置已保存',
+    history: '智力题历史', historyTitle: '智力题历史',
+    historyDescription: '按时间展示手动与分组定时测试。绿色为正确，红色为错误；× 表示请求失败或回答格式异常，点击可查看原文。',
+    empty: '尚无智力题测试记录，可从账号管理手动测试或启用分组定时测试。',
+    details: '智力题测试详情', expected: '标准答案：20', run: '测试 / 重新测试',
+    progress: '智力题进度：{done}/{total}，正确 {success}，错误或失败 {failed}',
+    status: { queued: '排队中', running: '测试中', correct: '正确', incorrect: '错误', invalid_answer: '格式异常', failed: '请求失败' }
+  },
   configure: '鹈鹕测试',
   groupTitle: '分组定时鹈鹕测试',
   enabled: '自动生成测试作品',

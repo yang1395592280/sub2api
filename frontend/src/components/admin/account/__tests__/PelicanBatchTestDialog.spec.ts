@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import PelicanBatchTestDialog from '../PelicanBatchTestDialog.vue'
+import { DEFAULT_INTELLIGENCE_PROMPT } from '@/api/admin/pelican'
 
 const { getAvailableModels, startPelicanTests } = vi.hoisted(() => ({
   getAvailableModels: vi.fn(),
@@ -28,6 +29,21 @@ describe('PelicanBatchTestDialog', () => {
     startPelicanTests.mockReset().mockResolvedValue([])
   })
 
+  it('sends the fixed offline candy question through the intelligence endpoint', async () => {
+    getAvailableModels.mockResolvedValue([{ id: 'gpt-6-astra', display_name: 'GPT-6 Astra' }])
+    const wrapper = mount(PelicanBatchTestDialog, {
+      props: { show: true, intelligence: true, accountIds: [11], accountNames: {} },
+      global: { stubs: { BaseDialog: BaseDialogStub, Select: SelectStub } }
+    })
+    await flushPromises()
+    expect(wrapper.get('textarea').attributes('readonly')).toBeDefined()
+    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe(DEFAULT_INTELLIGENCE_PROMPT)
+    expect(DEFAULT_INTELLIGENCE_PROMPT).toContain('不要联网。')
+    await wrapper.get('[data-test="start-pelican-test"]').trigger('click'); await flushPromises()
+    expect(startPelicanTests).toHaveBeenCalledWith([11], 'gpt-6-astra', DEFAULT_INTELLIGENCE_PROMPT, 'intelligence')
+    wrapper.unmount()
+  })
+
   it('waits for confirmation and submits the exact default prompt with the Astra model ID', async () => {
     getAvailableModels.mockResolvedValue([{ id: 'gpt-6-astra', display_name: 'GPT-6 Astra' }])
     startPelicanTests.mockResolvedValue([])
@@ -42,7 +58,7 @@ describe('PelicanBatchTestDialog', () => {
     expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe(prompt)
     await wrapper.get('[data-test="start-pelican-test"]').trigger('click')
     await flushPromises()
-    expect(startPelicanTests).toHaveBeenCalledWith([11, 12], 'gpt-6-astra', prompt)
+    expect(startPelicanTests).toHaveBeenCalledWith([11, 12], 'gpt-6-astra', prompt, 'pelican')
   })
 
   it('loads models from another selected account when the first is unavailable', async () => {
@@ -70,7 +86,7 @@ describe('PelicanBatchTestDialog', () => {
     await wrapper.get('textarea').setValue('  Generate HTML  ')
     await wrapper.get('[data-test="start-pelican-test"]').trigger('click')
     await flushPromises()
-    expect(startPelicanTests).toHaveBeenCalledWith([11], 'vendor/custom-model', 'Generate HTML')
+    expect(startPelicanTests).toHaveBeenCalledWith([11], 'vendor/custom-model', 'Generate HTML', 'pelican')
   })
 
   it('allows a custom model when every model-list request fails', async () => {
@@ -87,7 +103,7 @@ describe('PelicanBatchTestDialog', () => {
     expect(start.attributes('disabled')).toBeUndefined()
     await start.trigger('click')
     await flushPromises()
-    expect(startPelicanTests).toHaveBeenCalledWith([11, 12], 'vendor/custom-model', expect.any(String))
+    expect(startPelicanTests).toHaveBeenCalledWith([11, 12], 'vendor/custom-model', expect.any(String), 'pelican')
   })
 
   it('keeps manual input usable while loading and after an empty model list', async () => {
@@ -105,7 +121,7 @@ describe('PelicanBatchTestDialog', () => {
     expect((wrapper.get('#pelican-custom-model').element as HTMLInputElement).value).toBe('manual-model')
     await start.trigger('click')
     await flushPromises()
-    expect(startPelicanTests).toHaveBeenCalledWith([11], 'manual-model', expect.any(String))
+    expect(startPelicanTests).toHaveBeenCalledWith([11], 'manual-model', expect.any(String), 'pelican')
   })
 
   it('falls back to the dropdown after clearing manual input and resets when reopened', async () => {
@@ -119,7 +135,7 @@ describe('PelicanBatchTestDialog', () => {
     await wrapper.get('#pelican-custom-model').setValue('   ')
     await wrapper.get('[data-test="start-pelican-test"]').trigger('click')
     await flushPromises()
-    expect(startPelicanTests).toHaveBeenCalledWith([11], 'gpt-6-astra', expect.any(String))
+    expect(startPelicanTests).toHaveBeenCalledWith([11], 'gpt-6-astra', expect.any(String), 'pelican')
     await wrapper.get('#pelican-custom-model').setValue('another-model')
     await wrapper.setProps({ show: false })
     await wrapper.setProps({ show: true })

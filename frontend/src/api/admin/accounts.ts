@@ -310,13 +310,20 @@ export async function testAccount(id: number): Promise<{
   return data
 }
 
+export type GenerationTestKind = 'pelican' | 'intelligence'
+
 export interface PelicanTest {
+  test_kind?: GenerationTestKind
+  answer?: string
+  estimated_cost_usd?: number | null
+  upstream_rate_multiplier?: number | null
+  cost_model_id?: string
   id: number
   batch_id: string
   account_id: number
   model_id: string
   prompt: string
-  status: 'queued' | 'running' | 'previewable' | 'unpreviewable' | 'failed'
+  status: 'queued' | 'running' | 'previewable' | 'unpreviewable' | 'failed' | 'correct' | 'incorrect' | 'invalid_answer'
   response_text: string
   html: string
   error_message: string
@@ -331,8 +338,8 @@ export interface PelicanTest {
   source_group_name?: string
 }
 
-export async function startPelicanTests(accountIds: number[], modelId: string, prompt: string): Promise<PelicanTest[]> {
-  const { data } = await apiClient.post<PelicanTest[]>('/admin/accounts/pelican-tests', {
+export async function startPelicanTests(accountIds: number[], modelId: string, prompt: string, kind: GenerationTestKind = 'pelican'): Promise<PelicanTest[]> {
+  const { data } = await apiClient.post<PelicanTest[]>(`/admin/accounts/${kind}-tests`, {
     account_ids: accountIds,
     model_id: modelId,
     prompt
@@ -340,15 +347,15 @@ export async function startPelicanTests(accountIds: number[], modelId: string, p
   return data
 }
 
-export async function listLatestPelicanTests(accountIds: number[]): Promise<PelicanTest[]> {
-  const { data } = await apiClient.post<PelicanTest[]>('/admin/accounts/pelican-tests/latest', {
+export async function listLatestPelicanTests(accountIds: number[], kind: GenerationTestKind = 'pelican'): Promise<PelicanTest[]> {
+  const { data } = await apiClient.post<PelicanTest[]>(`/admin/accounts/${kind}-tests/latest`, {
     account_ids: accountIds
   })
   return data
 }
 
-export async function getPelicanTest(id: number): Promise<PelicanTest> {
-  const { data } = await apiClient.get<PelicanTest>(`/admin/accounts/pelican-tests/${id}`)
+export async function getPelicanTest(id: number, kind: GenerationTestKind = 'pelican'): Promise<PelicanTest> {
+  const { data } = await apiClient.get<PelicanTest>(`/admin/accounts/${kind}-tests/${id}`)
   return data
 }
 
@@ -359,8 +366,8 @@ export interface PelicanTestHistory {
   page_size: number
 }
 
-export async function listPelicanHistory(accountId: number, page = 1, pageSize = 12): Promise<PelicanTestHistory> {
-  return (await apiClient.get<PelicanTestHistory>(`/admin/accounts/${accountId}/pelican-tests`, {
+export async function listPelicanHistory(accountId: number, page = 1, pageSize = 12, kind: GenerationTestKind = 'pelican'): Promise<PelicanTestHistory> {
+  return (await apiClient.get<PelicanTestHistory>(`/admin/accounts/${accountId}/${kind}-tests`, {
     params: { page, page_size: pageSize }
   })).data
 }

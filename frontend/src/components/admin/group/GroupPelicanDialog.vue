@@ -1,5 +1,5 @@
 <template>
-  <BaseDialog :show="show" :title="t('pelican.groupTitle')" width="wide" @close="emit('close')">
+  <BaseDialog :show="show" :title="t(intelligence ? 'pelican.intelligence.groupTitle' : 'pelican.groupTitle')" width="wide" @close="emit('close')">
     <div v-if="loading" class="py-12 text-center text-sm text-gray-500">{{ t('common.loading') }}</div>
     <div v-else-if="loadError" class="space-y-3 py-6 text-center">
       <p role="alert" class="text-sm text-red-600">{{ loadError }}</p>
@@ -8,10 +8,10 @@
     <form v-else-if="config" id="group-pelican-form" class="space-y-6" @submit.prevent="save">
       <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800">
         <p class="font-semibold text-gray-900 dark:text-white">{{ group?.name }}</p>
-        <p class="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">{{ t('pelican.scheduleHint') }}</p>
+        <p class="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">{{ t(intelligence ? 'pelican.intelligence.scheduleHint' : 'pelican.scheduleHint') }}</p>
       </div>
       <label class="flex cursor-pointer items-center justify-between gap-4">
-        <span><span class="block font-medium">{{ t('pelican.enabled') }}</span><span class="mt-1 block text-xs text-gray-500">{{ t('pelican.disabledHint') }}</span></span>
+        <span><span class="block font-medium">{{ t(intelligence ? 'pelican.intelligence.enabled' : 'pelican.enabled') }}</span><span class="mt-1 block text-xs text-gray-500">{{ t('pelican.disabledHint') }}</span></span>
         <input v-model="config.enabled" type="checkbox" :disabled="saving" class="h-5 w-5 accent-primary-500" data-test="pelican-group-enabled" />
       </label>
       <div class="space-y-2">
@@ -23,7 +23,7 @@
       </div>
       <div class="space-y-2">
         <label for="group-pelican-prompt" class="input-label">{{ t('pelican.prompt') }}</label>
-        <textarea id="group-pelican-prompt" v-model="config.prompt" rows="3" maxlength="4000" required :disabled="saving" class="input w-full resize-y" />
+        <textarea id="group-pelican-prompt" v-model="config.prompt" :readonly="intelligence" rows="3" maxlength="4000" required :disabled="saving" class="input w-full resize-y" />
       </div>
       <dl class="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 text-xs dark:border-dark-700">
         <div><dt class="text-gray-500">{{ t('pelican.lastRun') }}</dt><dd class="mt-1.5">{{ config.last_run_at ? formatDateTime(config.last_run_at) : t('pelican.notRun') }}</dd></div>
@@ -50,7 +50,7 @@ import { formatDateTime } from '@/utils/format'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import type { AdminGroup } from '@/types'
 
-const props = defineProps<{ show: boolean; group: Pick<AdminGroup, 'id' | 'name'> | null }>()
+const props = defineProps<{ show: boolean; group: Pick<AdminGroup, 'id' | 'name'> | null; intelligence?: boolean }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
 const { t } = useI18n()
 const config = ref<GroupPelicanConfig | null>(null)
@@ -63,7 +63,7 @@ async function load() {
   if (!props.show || !props.group) return
   loading.value = true; config.value = null; loadError.value = ''; saveError.value = ''; models.value = []; modelError.value = false
   const groupId = props.group.id
-  const results = await Promise.allSettled([getGroupPelicanConfig(groupId), adminAPI.groups.getModelAllowlistCandidates(groupId, 'openai')])
+  const results = await Promise.allSettled([getGroupPelicanConfig(groupId, props.intelligence ? 'intelligence' : 'pelican'), adminAPI.groups.getModelAllowlistCandidates(groupId, 'openai')])
   if (current !== version) return
   if (results[0].status === 'fulfilled') config.value = results[0].value
   else loadError.value = extractApiErrorMessage(results[0].reason, t('pelican.loadFailed'))
@@ -76,13 +76,13 @@ async function save() {
   saving.value = true; saveError.value = ''
   const current = version
   try {
-    await saveGroupPelicanConfig(props.group.id, { enabled: config.value.enabled, model_id: config.value.model_id, prompt: config.value.prompt })
+    await saveGroupPelicanConfig(props.group.id, { enabled: config.value.enabled, model_id: config.value.model_id, prompt: config.value.prompt }, props.intelligence ? 'intelligence' : 'pelican')
     if (current !== version) return
-    useAppStore().showSuccess(t('pelican.saved'))
+    useAppStore().showSuccess(t(props.intelligence ? 'pelican.intelligence.saved' : 'pelican.saved'))
     emit('saved'); emit('close')
   } catch (error) { if (current === version) saveError.value = extractApiErrorMessage(error, t('pelican.saveFailed')) }
   finally { saving.value = false }
 }
-watch(() => [props.show, props.group?.id], () => { void load() }, { immediate: true })
+watch(() => [props.show, props.group?.id, props.intelligence], () => { void load() }, { immediate: true })
 onUnmounted(() => { version++ })
 </script>

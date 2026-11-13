@@ -18,13 +18,13 @@ func TestPelicanCreateBatchSkipsAccountsAlreadyRunning(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
 	createdAt := time.Now()
-	columns := []string{"id", "batch_id", "account_id", "model_id", "prompt", "status", "response_text", "html", "error_message", "latency_ms", "input_tokens", "output_tokens", "total_tokens", "created_at", "started_at", "finished_at", "source_group_id", "source_group_name"}
+	columns := []string{"id", "batch_id", "account_id", "model_id", "prompt", "status", "response_text", "html", "error_message", "latency_ms", "input_tokens", "output_tokens", "total_tokens", "created_at", "started_at", "finished_at", "source_group_id", "source_group_name", "test_kind", "answer", "estimated_cost_usd", "upstream_rate_multiplier", "cost_model_id"}
 	mock.ExpectBegin()
 	mock.ExpectQuery("INSERT INTO account_pelican_tests").
-		WithArgs("batch", int64(11), "gpt-6-astra", "pelican").
-		WillReturnRows(sqlmock.NewRows(columns).AddRow(int64(1), "batch", int64(11), "gpt-6-astra", "pelican", "queued", "", "", "", int64(0), nil, nil, nil, createdAt, nil, nil, 0, ""))
+		WithArgs("batch", int64(11), "gpt-6-astra", "pelican", "pelican").
+		WillReturnRows(sqlmock.NewRows(columns).AddRow(int64(1), "batch", int64(11), "gpt-6-astra", "pelican", "queued", "", "", "", int64(0), nil, nil, nil, createdAt, nil, nil, 0, "", "pelican", "", nil, nil, ""))
 	mock.ExpectQuery("INSERT INTO account_pelican_tests").
-		WithArgs("batch", int64(12), "gpt-6-astra", "pelican").
+		WithArgs("batch", int64(12), "gpt-6-astra", "pelican", "pelican").
 		WillReturnRows(sqlmock.NewRows(columns))
 	mock.ExpectCommit()
 
@@ -70,14 +70,14 @@ func TestPelicanGroupEnqueueAndSlotAdvanceAreAtomic(t *testing.T) {
 			require.NoError(t, err)
 			defer db.Close()
 			mock.ExpectBegin()
-			mock.ExpectQuery("SELECT s.group_id.*FOR UPDATE OF s SKIP LOCKED").WillReturnRows(sqlmock.NewRows([]string{"group_id", "model_id", "prompt", "name"}).AddRow(7, "gpt-5.5", "pelican", "正常分组"))
-			insert := mock.ExpectExec("INSERT INTO account_pelican_tests.*a.status='active' AND a.schedulable.*ON CONFLICT").WithArgs(sqlmock.AnyArg(), "gpt-5.5", "pelican", int64(7), "正常分组")
+			mock.ExpectQuery("SELECT s.group_id.*FOR UPDATE OF s SKIP LOCKED").WillReturnRows(sqlmock.NewRows([]string{"group_id", "model_id", "prompt", "name", "test_kind"}).AddRow(7, "gpt-5.5", "pelican", "正常分组", "pelican"))
+			insert := mock.ExpectExec("INSERT INTO account_pelican_tests.*a.status='active' AND a.schedulable.*ON CONFLICT").WithArgs(sqlmock.AnyArg(), "gpt-5.5", "pelican", int64(7), "正常分组", "pelican")
 			if fail {
 				insert.WillReturnError(errors.New("insert failed"))
 				mock.ExpectRollback()
 			} else {
 				insert.WillReturnResult(sqlmock.NewResult(0, 120))
-				mock.ExpectExec("UPDATE group_pelican_test_schedules").WithArgs(int64(7)).WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectExec("UPDATE group_pelican_test_schedules").WithArgs(int64(7), "pelican").WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectCommit()
 			}
 			err = NewPelicanTestRepository(db).EnqueueDueGroups(context.Background())
@@ -95,8 +95,8 @@ func TestPelicanHistoryPaginationOmitsLargeArtworkBodies(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM account_pelican_tests WHERE account_id=\$1`).WithArgs(int64(7)).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(40))
-	mock.ExpectQuery("SELECT .*'' AS response_text, '' AS html.*ORDER BY id DESC LIMIT").WithArgs(int64(7), 12, 12).WillReturnRows(sqlmock.NewRows([]string{"id", "batch_id", "account_id", "model_id", "prompt", "status", "response_text", "html", "error_message", "latency_ms", "input_tokens", "output_tokens", "total_tokens", "created_at", "started_at", "finished_at", "source_group_id", "source_group_name"}))
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM account_pelican_tests WHERE account_id=\$1`).WithArgs(int64(7), "pelican").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(40))
+	mock.ExpectQuery("SELECT .*'' AS response_text, '' AS html.*ORDER BY id DESC LIMIT").WithArgs(int64(7), 12, 12, "pelican").WillReturnRows(sqlmock.NewRows([]string{"id", "batch_id", "account_id", "model_id", "prompt", "status", "response_text", "html", "error_message", "latency_ms", "input_tokens", "output_tokens", "total_tokens", "created_at", "started_at", "finished_at", "source_group_id", "source_group_name", "test_kind", "answer", "estimated_cost_usd", "upstream_rate_multiplier", "cost_model_id"}))
 	history, err := NewPelicanTestRepository(db).ListHistory(context.Background(), 7, 2, 12)
 	require.NoError(t, err)
 	require.EqualValues(t, 40, history.Total)

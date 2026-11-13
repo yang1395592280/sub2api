@@ -1,4 +1,20 @@
 export default {
+  estimatedCost: 'Upstream debit (estimated) {amount}',
+  costUnavailable: 'Upstream debit: unavailable',
+  costBasis: 'Model price × upstream rate {rate}x; billing model {model}. Estimated from reported tokens including cache; actual upstream charges may differ.',
+  costUnavailableHint: 'Usage, a trusted upstream rate, or model pricing is missing. Historical results are not estimated retrospectively.',
+  intelligence: {
+    title: 'Batch intelligence tests', configure: 'Intelligence test', column: 'Intelligence test',
+    groupTitle: 'Scheduled group intelligence tests', enabled: 'Run intelligence tests automatically',
+    scheduleHint: 'Every 30 minutes, send the fixed candy question to active, scheduling-enabled OpenAI accounts in this group. Saves answers and usage without changing account scheduling scores.',
+    saved: 'Group intelligence settings saved',
+    history: 'Intelligence history', historyTitle: 'Intelligence test history',
+    historyDescription: 'Manual and scheduled answers by time. Green means correct and red means incorrect. × indicates a failed request or invalid answer format; click to view the original response.',
+    empty: 'No intelligence tests yet. Start a manual test or enable a group schedule.',
+    details: 'Intelligence test details', expected: 'Expected answer: 20', run: 'Test / retry',
+    progress: 'Intelligence progress: {done}/{total}, correct {success}, incorrect or failed {failed}',
+    status: { queued: 'Queued', running: 'Running', correct: 'Correct', incorrect: 'Incorrect', invalid_answer: 'Invalid format', failed: 'Request failed' }
+  },
   configure: 'Pelican tests',
   groupTitle: 'Scheduled group pelican tests',
   enabled: 'Generate test artwork automatically',

@@ -78,7 +78,7 @@ func TestPelicanGenerationRejectsUnimplementedPromptRoutes(t *testing.T) {
 	svc := &PelicanTestService{accountRepo: accountTests.accountRepo, accountTest: accountTests}
 	status, _, _, reason, _, _ := svc.generate(context.Background(), PelicanTest{AccountID: account.ID, ModelID: "deepseek-chat", Prompt: "Generate HTML"})
 	require.Equal(t, "failed", status)
-	require.Equal(t, "该账号协议暂不支持自定义 HTML 生成提示词", reason)
+	require.Equal(t, "该账号协议暂不支持自定义文本测试提示词", reason)
 	require.Empty(t, upstream.requests, "adaptive connectivity tests must not silently make several generation requests")
 }
 

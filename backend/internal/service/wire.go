@@ -1305,9 +1305,10 @@ func ProvideAccountQualityService(db *sql.DB, cfg *config.Config, accounts Accou
 	return svc
 }
 
-func ProvidePelicanTestService(repo PelicanTestRepository, accounts AccountRepository, tests *AccountTestService, groups GroupRepository) *PelicanTestService {
+func ProvidePelicanTestService(repo PelicanTestRepository, accounts AccountRepository, tests *AccountTestService, groups GroupRepository, billing *BillingService) *PelicanTestService {
 	svc := NewPelicanTestService(repo, accounts, tests)
 	svc.groupRepo = groups
+	svc.billing = billing
 	svc.Start()
 	return svc
 }

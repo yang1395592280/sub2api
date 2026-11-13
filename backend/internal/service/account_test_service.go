@@ -69,9 +69,18 @@ type TestEvent struct {
 // AccountTestTokenUsage contains only counts explicitly reported by upstream.
 // A nil field means the provider did not supply that count.
 type AccountTestTokenUsage struct {
-	InputTokens  *int64
-	OutputTokens *int64
-	TotalTokens  *int64
+	InputTokens            *int64
+	OutputTokens           *int64
+	TotalTokens            *int64
+	CacheReadTokens        *int64
+	CacheCreationTokens    *int64
+	CacheCreation5mTokens  *int64
+	CacheCreation1hTokens  *int64
+	CacheCreation12hTokens *int64
+	// Gemini reports thinking separately; other protocols include it in output.
+	ThinkingTokens *int64
+	ModelID        string
+	ServiceTier    string
 }
 
 const accountTestTokenUsageKey = "account_test_token_usage"
@@ -2907,6 +2916,7 @@ func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader)
 			data = resp
 		}
 		if usage, ok := data["usageMetadata"].(map[string]any); ok {
+			recordAccountTestCacheUsage(c, usage, "gemini")
 			recordAccountTestTokenUsage(c,
 				accountTestUsageCount(usage, "promptTokenCount"),
 				accountTestUsageCount(usage, "candidatesTokenCount"),
@@ -3052,6 +3062,7 @@ func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader)
 				}
 			}
 			if usage != nil {
+				recordAccountTestCacheUsage(c, usage, "anthropic")
 				recordAccountTestTokenUsage(c, accountTestAnthropicInputTokens(usage),
 					accountTestUsageCount(usage, "output_tokens"), nil)
 				reported := accountTestTokenUsage(c)
@@ -3126,6 +3137,8 @@ func (s *AccountTestService) processOpenAIChatCompletionsStream(c *gin.Context, 
 		}
 		seenJSON = true
 		if usage, ok := data["usage"].(map[string]any); ok {
+			recordAccountTestCacheUsage(c, usage, "chat")
+			recordAccountTestResponseMetadata(c, data)
 			recordAccountTestTokenUsage(c,
 				accountTestUsageCount(usage, "prompt_tokens"),
 				accountTestUsageCount(usage, "completion_tokens"),
@@ -3206,6 +3219,8 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 		eventType, _ := data["type"].(string)
 		if response, ok := data["response"].(map[string]any); ok {
 			if usage, ok := response["usage"].(map[string]any); ok {
+				recordAccountTestCacheUsage(c, usage, "responses")
+				recordAccountTestResponseMetadata(c, response)
 				recordAccountTestTokenUsage(c,
 					accountTestUsageCount(usage, "input_tokens"),
 					accountTestUsageCount(usage, "output_tokens"),
@@ -3574,6 +3589,7 @@ func (s *AccountTestService) RunPromptBackground(ctx context.Context, accountID 
 		InputTokens:  usage.InputTokens,
 		OutputTokens: usage.OutputTokens,
 		TotalTokens:  usage.TotalTokens,
+		TokenUsage:   usage,
 		StartedAt:    startedAt,
 		FinishedAt:   finishedAt,
 	}, nil

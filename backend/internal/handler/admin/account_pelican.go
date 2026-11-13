@@ -26,9 +26,13 @@ type pelicanTestLatestRequest struct {
 // StartPelicanTests accepts one explicit batch. The existing admin route group
 // supplies authentication; each worker checks its account before generation.
 func (h *AccountHandler) StartPelicanTests(c *gin.Context) {
+	kind := generationTestKind(c)
+	if kind == service.TestKindIntelligence && !h.pelicanFullAdmin(c) {
+		return
+	}
 	var req pelicanTestBatchRequest
 	if err := c.ShouldBindJSON(&req); err != nil || len(req.AccountIDs) == 0 || len(req.AccountIDs) > service.PelicanTestMaxAccounts ||
-		strings.TrimSpace(req.ModelID) == "" || strings.TrimSpace(req.Prompt) == "" || utf8.RuneCountInString(req.Prompt) > service.PelicanTestMaxPrompt {
+		strings.TrimSpace(req.ModelID) == "" || (kind == service.TestKindPelican && strings.TrimSpace(req.Prompt) == "") || utf8.RuneCountInString(req.Prompt) > service.PelicanTestMaxPrompt {
 		response.BadRequest(c, "Invalid pelican test selection, model, or prompt")
 		return
 	}
@@ -36,7 +40,7 @@ func (h *AccountHandler) StartPelicanTests(c *gin.Context) {
 		response.InternalError(c, "Pelican test service unavailable")
 		return
 	}
-	tests, err := h.pelicanTestService.StartBatch(c.Request.Context(), req.AccountIDs, req.ModelID, req.Prompt)
+	tests, err := h.pelicanTestService.StartBatch(c.Request.Context(), req.AccountIDs, req.ModelID, req.Prompt, kind)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidPelicanBatch) {
 			response.BadRequest(c, err.Error())
@@ -50,6 +54,9 @@ func (h *AccountHandler) StartPelicanTests(c *gin.Context) {
 }
 
 func (h *AccountHandler) ListLatestPelicanTests(c *gin.Context) {
+	if generationTestKind(c) == service.TestKindIntelligence && !h.pelicanFullAdmin(c) {
+		return
+	}
 	var req pelicanTestLatestRequest
 	if err := c.ShouldBindJSON(&req); err != nil || len(req.AccountIDs) > service.PelicanTestMaxAccounts {
 		response.BadRequest(c, "Invalid account selection")
@@ -59,7 +66,7 @@ func (h *AccountHandler) ListLatestPelicanTests(c *gin.Context) {
 		response.InternalError(c, "Pelican test service unavailable")
 		return
 	}
-	tests, err := h.pelicanTestService.ListLatest(c.Request.Context(), req.AccountIDs)
+	tests, err := h.pelicanTestService.ListLatest(c.Request.Context(), req.AccountIDs, generationTestKind(c))
 	if err != nil {
 		_ = c.Error(err)
 		response.InternalError(c, "Failed to load pelican tests")
@@ -69,6 +76,9 @@ func (h *AccountHandler) ListLatestPelicanTests(c *gin.Context) {
 }
 
 func (h *AccountHandler) GetPelicanTest(c *gin.Context) {
+	if generationTestKind(c) == service.TestKindIntelligence && !h.pelicanFullAdmin(c) {
+		return
+	}
 	id, err := strconv.ParseInt(c.Param("test_id"), 10, 64)
 	if err != nil || id <= 0 {
 		response.BadRequest(c, "Invalid test ID")
@@ -78,7 +88,7 @@ func (h *AccountHandler) GetPelicanTest(c *gin.Context) {
 		response.InternalError(c, "Pelican test service unavailable")
 		return
 	}
-	test, err := h.pelicanTestService.Get(c.Request.Context(), id)
+	test, err := h.pelicanTestService.Get(c.Request.Context(), id, generationTestKind(c))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			response.NotFound(c, "Pelican test not found")
@@ -102,7 +112,7 @@ func (h *AccountHandler) ListPelicanHistory(c *gin.Context) {
 		response.BadRequest(c, "Invalid account or pagination")
 		return
 	}
-	result, err := h.pelicanTestService.ListHistory(c.Request.Context(), id, page, size)
+	result, err := h.pelicanTestService.ListHistory(c.Request.Context(), id, page, size, generationTestKind(c))
 	if err != nil {
 		_ = c.Error(err)
 		response.InternalError(c, "Failed to load pelican history")
@@ -120,7 +130,7 @@ func (h *AccountHandler) GetGroupPelicanConfig(c *gin.Context) {
 		response.BadRequest(c, "Invalid group ID")
 		return
 	}
-	result, err := h.pelicanTestService.GetGroupConfig(c.Request.Context(), id)
+	result, err := h.pelicanTestService.GetGroupConfig(c.Request.Context(), id, generationTestKind(c))
 	if err != nil {
 		pelicanConfigError(c, err)
 		return
@@ -143,6 +153,7 @@ func (h *AccountHandler) SaveGroupPelicanConfig(c *gin.Context) {
 		return
 	}
 	req.GroupID = id
+	req.TestKind = generationTestKind(c)
 	result, err := h.pelicanTestService.SaveGroupConfig(c.Request.Context(), req)
 	if err != nil {
 		pelicanConfigError(c, err)
@@ -169,4 +180,11 @@ func (h *AccountHandler) pelicanFullAdmin(c *gin.Context) bool {
 		return false
 	}
 	return true
+}
+
+func generationTestKind(c *gin.Context) string {
+	if strings.Contains(c.FullPath(), "/intelligence-test") {
+		return service.TestKindIntelligence
+	}
+	return service.TestKindPelican
 }

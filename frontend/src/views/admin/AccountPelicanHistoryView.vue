@@ -48,6 +48,7 @@
                 <Icon name="eye" class="text-gray-400 transition-colors group-hover:text-primary-500" size="sm" />
               </div>
               <p class="flex items-center gap-2 text-xs text-gray-500"><span class="rounded bg-gray-100 px-2 py-1 dark:bg-dark-700">{{ test.source_group_id ? t('pelican.scheduled') : t('pelican.manual') }}</span><span class="truncate">{{ test.source_group_name }}</span></p>
+              <TestEstimatedCost :test="test" />
               <dl class="grid grid-cols-3 gap-4 border-t border-gray-100 pt-4 dark:border-dark-700">
                 <div><dt class="text-xs text-gray-400">{{ t('pelican.latency') }}</dt><dd class="mt-1 font-mono text-sm text-gray-700 dark:text-gray-200">{{ isActive(test) ? '—' : `${(test.latency_ms / 1000).toFixed(1)} s` }}</dd></div>
                 <div><dt class="text-xs text-gray-400">{{ t('pelican.inputTokens') }}</dt><dd class="mt-1 font-mono text-sm text-gray-700 dark:text-gray-200">{{ test.input_tokens?.toLocaleString() ?? '—' }}</dd></div>
@@ -72,6 +73,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import PelicanInlinePreview from '@/components/admin/account/PelicanInlinePreview.vue'
+import TestEstimatedCost from '@/components/admin/account/TestEstimatedCost.vue'
 import PelicanResultDialog from '@/components/admin/account/PelicanResultDialog.vue'
 import { adminAPI } from '@/api/admin'
 import type { PelicanTest } from '@/api/admin/accounts'

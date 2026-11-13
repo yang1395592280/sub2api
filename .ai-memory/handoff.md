@@ -359,3 +359,15 @@
 - 用户明确授权“合并分支”，提交本轮已验证的每日统计并快进合入custom-main；两个分支起点均为3ee90ee51，无分叉。
 - 验证复用当前制品的Go相关unit/16项PG与Redis集成/race/build/vet、前端12项/typecheck/lint/build和1440px/390px浏览器验收；本轮diff检查通过。最终提交点及合并结果以Git为准。
 - 不推送、打tag或部署；历史余额仍为当前值，生产规模耗时尚未验证。
+
+## 2026-11-13 智力题测试与上游费用估算（本地验收完成）
+- 已完成带证据：4/4需求、Go相关三包unit/race、真实PG/Redis集成完整迁移、Wire/vet/embed build、前端27项/ESLint/typecheck/build、正式构建模拟API桌面/390px实际交互通过。
+- 相关文件：20261113/intelligence-test-and-cost-plan.md、docs/intelligence-tests-and-upstream-cost.md、迁移253、intelligence_test_service.go、useAccountGenerationTests.ts、AccountIntelligenceHistoryView.vue。
+- 未完成：无本地开发待办；未生产迁移、真实供应商对账、commit/merge/push/部署。费用明确为估算，缺少证据为null。迁移253不能与原二进制混跑/直接降级，升级与回退见文档。
+- 阻塞：无；feature/intelligence-tests-upstream-cost，基线fd6b93ec1。
+
+## 2026-11-13 后续授权：合并智力题测试与上游费用估算
+- 已完成带证据：用户授权提交本轮已验证修改并快进合入custom-main，两个分支起点均为fd6b93ec1；diff检查通过。复用前轮已通过验证。
+- 相关文件：20261113/intelligence-test-and-cost-plan.md、session_memory_intelligence-tests.jsonl、docs/intelligence-tests-and-upstream-cost.md。
+- 未完成：执行提交与快进合并，最终结果以Git历史为准；不推送、打tag、生产迁移或部署。
+- 阻塞：无分叉、无冲突。

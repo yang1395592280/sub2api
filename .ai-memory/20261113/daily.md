@@ -43,3 +43,15 @@ session-id: 20261113-1023
 - 版本更新为0.2.21.5，汇总扣款精度和用户每日统计两个已合入功能；发布记录见 release-v0.2.21.5.md。
 - 本轮版本解析断言、shell语法、git diff --check、embed构建和二进制-version核验通过；复用已有功能验证，未重跑全部业务测试。
 - 创建annotated tag并以git push --atomic同步分支和tag；RELEASE_ONLY=true，推送触发Release工作流，不部署或执行生产迁移；最终推送与工作流状态以执行核验为准。
+
+## [21:31] 功能实现：智力题测试与上游费用估算
+
+- 4/4 本地完成：鹈鹕/智力题实际 Token 与上游倍率费用快照、严格最终数字判分、批量与单号重试/历史时间轴、独立分组 30 分钟计划。当前 feature/intelligence-tests-upstream-cost，基线 fd6b93ec1。
+- 文件：intelligence-test-and-cost-plan.md、docs/intelligence-tests-and-upstream-cost.md；service/intelligence_test_service.go、account_test_usage.go、迁移253、useAccountGenerationTests、AccountIntelligenceHistoryView 和相关组件/回归测试。
+- 验证：Go 相关三包 unit/race、PostgreSQL18.1/Redis8.4集成完整迁移、Wire/vet/embed build；前端27项/ESLint/typecheck/build、正式构建模拟API桌面/390px实际交互通过。
+- 风险/边界：金额为估算，缺依据不显示0，旧历史不回填；迁移253不能混跑原二进制，停机升级及回退要求见文档。未提交/合并/push/部署，未生产迁移或真实供应商调用。
+
+## 后续授权：合并智力题测试与上游费用估算
+- 用户明确要求“合并分支”，授权提交本轮已验证修改后快进合入 custom-main；两分支起点均为 fd6b93ec1，无分叉。
+- 验证复用当前制品的 Go 相关三包 unit/race、PG/Redis 集成、Wire/vet/embed build、前端27项/ESLint/typecheck/build及桌面/390px浏览器验收；本轮 diff 检查通过。最终提交点及合并结果以 Git 核验为准。
+- 不推送、打 tag、执行生产迁移或部署；迁移253不能与旧二进制混跑或直接降级。

@@ -226,7 +226,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	pluginManager := service.ProvidePluginManager(pluginRepository, secretEncryptor, configConfig, pluginHostInfo, pluginKVStore, openAIGatewayService)
 	accountTestService := service.ProvideAccountTestService(accountRepository, geminiTokenProvider, claudeTokenProvider, grokTokenProvider, antigravityGatewayService, httpUpstream, configConfig, tlsFingerprintProfileService, openAIGatewayService, settingService, pluginManager)
 	pelicanTestRepository := repository.NewPelicanTestRepository(db)
-	pelicanTestService := service.ProvidePelicanTestService(pelicanTestRepository, accountRepository, accountTestService, groupRepository)
+	pelicanTestService := service.ProvidePelicanTestService(pelicanTestRepository, accountRepository, accountTestService, groupRepository, billingService)
 	crsSyncService := service.NewCRSSyncService(accountRepository, proxyRepository, oAuthService, openAIOAuthService, geminiOAuthService, configConfig)
 	cnProviderBalanceService := service.ProvideCNProviderBalanceService(accountRepository, proxyRepository, httpUpstream, configConfig)
 	openAIUpstreamBalanceService := service.ProvideOpenAIUpstreamBalanceService(accountRepository, cnProviderBalanceService)
