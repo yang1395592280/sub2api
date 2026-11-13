@@ -1,6 +1,12 @@
 # 工作日志 - 2026-11-13
 session-id: 20261113-1023
 
+## [12:29] 功能实现：独立用户每日统计
+- feature/user-daily-stats，基线3ee90ee51；新增只读Repository/Service/Handler、Wire、管理路由与独立Vue统计页/菜单/中英文/活动明细/CSV。文档：docs/user-daily-statistics.md；计划：user-daily-stats-plan.md。
+- 决策：北京时间自然日；基础活动按记录日期，后续游戏按执行日；消费匹配实际钱包扣款拆充值/签到/礼遇/赠送，另列订阅与未分账；全站先排名再筛选。余额明确是当前值，旧奖励与券面额不当现金利润。无迁移、计费改动或受限密钥权限扩张。
+- 验证：Go相关五包单元、16项真实PG18.1/Redis8.4集成、三包定向race、build/vet；前端3文件12项、typecheck/lint/build；正式构建配本地模拟API的1440px/390px交互、明细、负福利、微额和CSV实际下载通过，无console error、手机无页面横向溢出。git diff --check通过。
+- 已完成3/3阶段，无本地实现遗留。尚未验证生产数据与生产规模性能，无提交/合并/push/部署。截图在当前聊天visualizations目录，临时图谱已移至/tmp，不随业务交付。
+
 ## [10:23] 功能实现：顶栏签到与上游每日消费
 - 分支 feature/checkin-dialog-upstream-daily-spend；基线99d8fb838；无提交、合并、推送或部署。
 - 变更：顶栏入口与签到弹窗、独立中奖/未中奖翻牌、按上游Key归属的当日消费与充值折算成本、账号用户合计；初始化 watch 错误回归修复。文件及业务口径见 checkin-upstream-daily-plan.md 与 ../../docs/upstream-daily-usage-and-checkin.md（仓库根 docs）。
@@ -26,3 +32,8 @@ session-id: 20261113-1023
 ## Git 集成授权：使用记录详细扣款精度
 - 用户明确要求“合并分支”，授权提交本轮已验证修改并合入 custom-main。两个分支当前同为 fd78c3971，未分叉；工作区仅包含本轮代码、文档与会话记录。
 - 复用前端64项、ESLint/typecheck/build、后端比例相关测试与本地模拟API浏览器验收；本轮git diff --check通过。提交后采用fast-forward合入，最终提交点与结果以Git核验为准；不推送或部署。
+
+## Git 集成授权：用户每日统计
+- 用户明确要求“合并分支”，授权提交本轮已验证的每日统计功能并合入 custom-main。
+- 合并前 feature/user-daily-stats 与 custom-main 均为3ee90ee51，改动范围仅本轮功能、测试、文档与会话记录；采用提交后 fast-forward，不推送或部署。
+- 复用Go相关单元、16项真实数据库集成、三包race/build/vet、前端12项/typecheck/lint/build与桌面/390px浏览器验收；本轮差异检查通过。最终提交点与合并状态以Git核验为准。

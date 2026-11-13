@@ -15,11 +15,27 @@ func TestScopedAdminPolicyDefaultDeny(t *testing.T) {
 		for _, route := range []struct{ method, path string }{
 			{"GET", "/api/v1/admin/accounts"}, {"GET", "/api/v1/admin/accounts/:id"},
 			{"PUT", "/api/v1/admin/settings"}, {"GET", "/api/v1/admin/users"},
+			{"GET", "/api/v1/admin/user-daily-stats"}, {"GET", "/api/v1/admin/user-daily-stats/:id/activities"},
 			{"POST", "/api/v1/admin/payment/orders/:id/refund"},
 			{"POST", "/api/v1/admin/settings/admin-api-keys"},
 		} {
 			require.False(t, RouteAllowed(policy, route.method, route.path), route.path)
 		}
+	}
+}
+
+func TestUserDailyStatsRequiresFullAdminAccess(t *testing.T) {
+	allScoped := Policy{}
+	for _, permission := range PermissionCatalog() {
+		if permission.Scope == "global" {
+			allScoped.GlobalPermissions = append(allScoped.GlobalPermissions, permission.ID)
+		} else {
+			allScoped.Rules = append(allScoped.Rules, Rule{Permissions: []string{permission.ID}, AllGroups: true, IncludeUngrouped: true, AccountTypes: []string{"oauth", "apikey"}})
+		}
+	}
+	for _, path := range []string{"/api/v1/admin/user-daily-stats", "/api/v1/admin/user-daily-stats/:id/activities"} {
+		require.False(t, RouteAllowed(allScoped, "GET", path))
+		require.True(t, RouteAllowed(Policy{FullAccess: true}, "GET", path))
 	}
 }
 

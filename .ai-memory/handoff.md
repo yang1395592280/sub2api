@@ -1,5 +1,11 @@
 # 修复交接
 
+## 2026-11-13 用户每日统计（本地验收完成）
+- 已完成带证据：只读后端/API/Wire、独立统计页/菜单/中英文/CSV/明细；Go定向五包单元、16项PG18.1/Redis8.4真实集成、race三包、build/vet，前端12项与lint/typecheck/build通过。
+- 相关文件：20261113/user-daily-stats-plan.md、docs/user-daily-statistics.md、user_daily_stats*.go、UserDailyStatsView.vue、UserDailyUsageBreakdown.vue。
+- 未完成：无本地开发遗留；最终正式构建1440px/390px、CSV实际下载/微额、列表/明细/负福利均通过，console error为空，diff检查通过。历史余额不具备日末快照，真实生产规模耗时未测。
+- 阻塞：无；feature/user-daily-stats，基线3ee90ee51。只做本地验证，未提交/合并/push/部署。
+
 已完成：4 个 Bug 根因修复；57 个测试包、12105 项顶层测试通过；专项 race、go build、git diff --check 通过。
 相关文件：backend/internal/handler/gateway_inflight_reservation.go、openai_gateway_handler.go、openai_chat_completions.go；repository/billing_inflight_cache.go、billing_cache.go、api_key_repo.go；service/api_key_service.go、billing_cache_service.go、billing_inflight_reservation.go 及回归测试。
 发布准备：用户已授权提交、打标签和推送 v0.2.11.1；VERSION 为 0.2.11.1，版本解析与二进制验证通过。Git 发布范围为 origin/custom-main 和 annotated tag v0.2.11.1；最终结果以远端分支与 peeled tag commit 核验为准。
@@ -348,3 +354,8 @@
 - 用户明确要求“合并分支”，授权提交本轮已验证修改并合入 custom-main；此前未提交/合并状态为开发交付时快照。
 - 合并前 feature/checkin-dialog-upstream-daily-spend 与 custom-main 均为99d8fb838，无分叉；提交后使用 fast-forward，实际提交点与最终状态以 Git 历史为准。
 - 复用当前制品的前端38项/最后签到6项、Go定向48项/race/build/vet与正式构建模拟API桌面/390px验收；合并前 diff 检查通过。不 push、tag 或部署。
+
+## 2026-11-13 后续授权：合并用户每日统计
+- 用户明确授权“合并分支”，提交本轮已验证的每日统计并快进合入custom-main；两个分支起点均为3ee90ee51，无分叉。
+- 验证复用当前制品的Go相关unit/16项PG与Redis集成/race/build/vet、前端12项/typecheck/lint/build和1440px/390px浏览器验收；本轮diff检查通过。最终提交点及合并结果以Git为准。
+- 不推送、打tag或部署；历史余额仍为当前值，生产规模耗时尚未验证。

@@ -723,6 +723,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/user-daily-stats',
+    name: 'AdminUserDailyStats',
+    component: () => import('@/views/admin/UserDailyStatsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Daily User Statistics',
+      titleKey: 'admin.userDailyStats.title',
+      descriptionKey: 'admin.userDailyStats.description'
+    }
+  },
+  {
     path: '/admin/user-spending-ranking',
     name: 'AdminUserSpendingRanking',
     component: () => import('@/views/admin/UserSpendingRankingView.vue'),

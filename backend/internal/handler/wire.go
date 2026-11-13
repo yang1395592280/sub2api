@@ -17,6 +17,7 @@ func ProvideAdminAffiliateHandler(affiliateService *service.AffiliateService, ad
 
 // ProvideAdminHandlers creates the AdminHandlers struct
 func ProvideAdminHandlers(
+	userDailyStatsHandler *admin.UserDailyStatsHandler,
 	checkinHandler *admin.CheckinHandler,
 	accountQualityHandler *admin.AccountQualityHandler,
 	dashboardHandler *admin.DashboardHandler,
@@ -68,6 +69,7 @@ func ProvideAdminHandlers(
 	accountHandler.SetOpenCodeGoUsageService(opencodeGoUsage)
 	accountHandler.SetClaudeResetCreditService(claudeResetCredits)
 	return &AdminHandlers{
+		UserDailyStats:         userDailyStatsHandler,
 		Checkin:                checkinHandler,
 		AccountQuality:         accountQualityHandler,
 		Dashboard:              dashboardHandler,
@@ -310,6 +312,7 @@ func ProvideHandlers(
 
 // ProviderSet is the Wire provider set for all handlers
 var ProviderSet = wire.NewSet(
+	admin.NewUserDailyStatsHandler,
 	admin.NewAccountQualityHandler,
 	// Top-level handlers
 	NewAuthHandler,

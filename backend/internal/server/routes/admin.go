@@ -45,6 +45,10 @@ func RegisterAdminRoutes(
 
 		// 用户管理
 		registerUserManagementRoutes(admin, h)
+		if h.Admin.UserDailyStats != nil {
+			admin.GET("/user-daily-stats", h.Admin.UserDailyStats.List)
+			admin.GET("/user-daily-stats/:id/activities", h.Admin.UserDailyStats.Activities)
+		}
 		if h.Admin.Checkin != nil {
 			checkin := admin.Group("/checkins")
 			checkin.GET("", h.Admin.Checkin.List)

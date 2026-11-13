@@ -1025,6 +1025,7 @@ func ProvideCheckinService(repo CheckinRepository, settings SettingRepository, i
 }
 
 var ProviderSet = wire.NewSet(
+	NewUserDailyStatsService,
 	ProvideCheckinService,
 	ProvideAccountQualityService,
 	// Core services
