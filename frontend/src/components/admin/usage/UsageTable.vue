@@ -244,9 +244,9 @@
                 </div>
               </div>
             </div>
-            <div v-if="row.wallet_usage" class="mt-1 text-xs text-gray-500" :title="`${t('wallet.checkin')}: $${formatWalletAmount(row.wallet_usage.checkin_cost)} · ${t('wallet.liyu')}: $${formatWalletAmount(row.wallet_usage.liyu_cost)} · ${t('wallet.gift')}: $${formatWalletAmount(row.wallet_usage.gift_cost)}`">
-              <p>{{ t('wallet.paidCost') }} ${{ formatWalletAmount(row.wallet_usage.paid_cost) }}</p>
-              <p>{{ t('wallet.welfareCost') }} ${{ formatWalletAmount(row.wallet_usage.welfare_cost) }}</p>
+            <div v-if="row.wallet_usage" class="mt-1 text-xs text-gray-500" :title="`${t('wallet.checkin')}: $${formatCostFixed(row.wallet_usage.checkin_cost, 8)} · ${t('wallet.liyu')}: $${formatCostFixed(row.wallet_usage.liyu_cost, 8)} · ${t('wallet.gift')}: $${formatCostFixed(row.wallet_usage.gift_cost, 8)}`">
+              <p>{{ t('wallet.paidCost') }} ${{ formatCostFixed(row.wallet_usage.paid_cost, 8) }}</p>
+              <p>{{ t('wallet.welfareCost') }} ${{ formatCostFixed(row.wallet_usage.welfare_cost, 8) }}</p>
             </div>
             <div v-else class="text-xs text-gray-400">{{ t('wallet.unclassifiedHint') }}</div>
             <div v-if="showAccountBilling && row.account_rate_multiplier != null" class="mt-0.5 text-[11px] text-orange-500 dark:text-orange-400">
@@ -581,11 +581,10 @@
 </template>
 
 <script setup lang="ts">
-import { formatWalletAmount } from '@/utils/walletDisplay'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-import { formatDateTime, formatReasoningEffort, reasoningEffortValuesEqual } from '@/utils/format'
+import { formatCostFixed, formatDateTime, formatReasoningEffort, reasoningEffortValuesEqual } from '@/utils/format'
 import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
