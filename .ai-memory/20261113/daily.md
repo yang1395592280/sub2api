@@ -55,3 +55,9 @@ session-id: 20261113-1023
 - 用户明确要求“合并分支”，授权提交本轮已验证修改后快进合入 custom-main；两分支起点均为 fd6b93ec1，无分叉。
 - 验证复用当前制品的 Go 相关三包 unit/race、PG/Redis 集成、Wire/vet/embed build、前端27项/ESLint/typecheck/build及桌面/390px浏览器验收；本轮 diff 检查通过。最终提交点及合并结果以 Git 核验为准。
 - 不推送、打 tag、执行生产迁移或部署；迁移253不能与旧二进制混跑或直接降级。
+
+## 发布授权：v0.2.21.6
+- 用户明确要求打tag、提交并推送v0.2.21.6；custom-main=9e0455d8b，工作区原先干净，远端custom-main=fd6b93ec1，无同名tag。
+- VERSION更新为0.2.21.6；版本解析/脚本语法/embed构建/二进制-version与发布工具四段版本、tag提交绑定2项通过。复用功能提交已通过的Go unit/race/PG集成/vet/build、前端27项及桌面/390px验收。
+- 将创建发布提交和annotated tag，以atomic push推送origin/custom-main与v0.2.21.6；最终结果以Git/GitHub核验为准。RELEASE_ONLY=true，仅归档与GitHub Release，跳过Docker/GHCR，不部署或生产迁移。
+- 迁移253不能与旧二进制混跑或直接降级，费用为估算；相关文件见release-v0.2.21.6.md及docs/intelligence-tests-and-upstream-cost.md。

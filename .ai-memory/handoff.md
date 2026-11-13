@@ -371,3 +371,9 @@
 - 相关文件：20261113/intelligence-test-and-cost-plan.md、session_memory_intelligence-tests.jsonl、docs/intelligence-tests-and-upstream-cost.md。
 - 未完成：执行提交与快进合并，最终结果以Git历史为准；不推送、打tag、生产迁移或部署。
 - 阻塞：无分叉、无冲突。
+
+## 2026-11-13 v0.2.21.6 发布准备
+- 已完成带证据：用户授权提交/tag/push；VERSION、resolve-version、embed构建/二进制-version均0.2.21.6，发布工具四段版本及tag绑定2项通过。功能提交9e0455d8b已合入custom-main，无冲突。
+- 相关文件：backend/cmd/server/VERSION、20261113/release-v0.2.21.6.md、docs/intelligence-tests-and-upstream-cost.md。
+- 未完成：创建发布提交、annotated tag并atomic push，最终远端refs及Release状态以Git/GitHub核验为准；不部署或生产迁移。RELEASE_ONLY=true，跳过Docker/GHCR。
+- 阻塞：无；迁移253不能混跑旧二进制或直接降级。

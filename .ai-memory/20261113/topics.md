@@ -13,3 +13,5 @@
 - 智力题测试与上游费用估算：feature/intelligence-tests-upstream-cost 本地4/4完成，未提交/合并/push/部署。详见 intelligence-test-and-cost-plan.md、session_memory_intelligence-tests.jsonl、docs/intelligence-tests-and-upstream-cost.md。迁移253改变复合约束，旧二进制不可直接混跑/降级。
 
 - 后续用户授权“合并分支”：提交智力题测试与上游费用估算后 fast-forward 合入 custom-main；基线 fd6b93ec1，最终结果以 Git 为准，不推送或部署。
+
+- 后续发布授权v0.2.21.6：更新VERSION、提交、annotated tag、atomic push至origin/custom-main及指定tag；RELEASE_ONLY=true，不部署或生产迁移。最终结果以Git/GitHub核验为准，见release-v0.2.21.6.md。
