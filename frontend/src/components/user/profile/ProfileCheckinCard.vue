@@ -1,7 +1,7 @@
 <template>
-  <div v-if="status?.enabled || status?.risk" id="profile-checkin" class="card">
+  <div v-if="status?.enabled || status?.risk" id="profile-checkin" class="card checkin-card">
     <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-      <div class="flex items-center justify-between gap-4">
+      <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
           <div class="flex items-center gap-3">
             <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-300">
@@ -17,7 +17,7 @@
             </div>
           </div>
         </div>
-        <div v-if="!status?.risk" class="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-2.5">
+        <div v-if="!status?.risk" class="flex shrink-0 flex-wrap items-center gap-2 sm:gap-2.5">
           <button
             type="button"
             class="btn btn-primary"
@@ -66,18 +66,18 @@
         <p>{{ t('wallet.clearedAmount') }}: {{ formatReward(status.risk.cleared_amount) }} · {{ t('wallet.caseID') }}: {{ status.risk.case_id }}</p>
         <p>{{ t('wallet.reviewHint') }}</p>
       </div>
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div class="rounded-2xl bg-gray-50 px-4 py-4 dark:bg-dark-700/60">
+      <div class="grid grid-cols-3 gap-2 sm:gap-4">
+        <div class="rounded-2xl bg-gray-50 px-2 py-3 sm:px-4 sm:py-4 dark:bg-dark-700/60">
           <div class="text-xs uppercase tracking-[0.18em] text-gray-400">{{ t('wallet.totalCheckins') }}</div>
           <div class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ status?.stats.total_checkins || 0 }}</div>
         </div>
-        <div class="rounded-2xl bg-gray-50 px-4 py-4 dark:bg-dark-700/60">
+        <div class="rounded-2xl bg-gray-50 px-2 py-3 sm:px-4 sm:py-4 dark:bg-dark-700/60">
           <div class="text-xs uppercase tracking-[0.18em] text-gray-400">{{ t('wallet.monthReward') }}</div>
           <div class="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-300">
             {{ formatReward(monthlyReward) }}
           </div>
         </div>
-        <div class="rounded-2xl bg-gray-50 px-4 py-4 dark:bg-dark-700/60">
+        <div class="rounded-2xl bg-gray-50 px-2 py-3 sm:px-4 sm:py-4 dark:bg-dark-700/60">
           <div class="text-xs uppercase tracking-[0.18em] text-gray-400">{{ t('wallet.totalReward') }}</div>
           <div class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
             {{ formatReward(status?.stats.total_reward || 0) }}
@@ -208,6 +208,11 @@
         </ul>
       </div>
     </div>
+    <CheckinBonusReveal :phase="bonusPhase" :record="revealedRecord" @close="bonusPhase = null" />
+  </div>
+  <div v-else class="py-12 text-center text-sm text-gray-500" role="status">
+    {{ loading ? t('common.loading') : t(status ? 'wallet.checkinDisabled' : 'wallet.checkinLoadFailed') }}
+    <button v-if="!loading && !status" type="button" class="btn btn-secondary ml-3" @click="fetchStatus">{{ t('common.retry') }}</button>
   </div>
 </template>
 
@@ -217,6 +222,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CaptchaChallenge from '@/components/CaptchaChallenge.vue'
 import Icon from '@/components/icons/Icon.vue'
+import CheckinBonusReveal from './CheckinBonusReveal.vue'
 import { getPublicSettings } from '@/api/auth'
 import { checkinAPI, type CheckinProof, type CheckinRecord, type CheckinStatus } from '@/api/checkin'
 import type { PublicSettings } from '@/types'
@@ -236,6 +242,8 @@ const website = ref('')
 const loading = ref(false)
 const submitting = ref(false)
 const bonusSubmitting = ref(false)
+const bonusPhase = ref<'drawing' | 'win' | 'lose' | null>(null)
+const revealedRecord = ref<CheckinRecord | null>(null)
 const currentMonth = ref(formatMonth(new Date()))
 const selectedDate = ref('')
 let disposed = false
@@ -352,24 +360,39 @@ function onVerify(token: string, randstr?: string) {
 }
 
 async function submitClaim(bonus: boolean) {
-  if (bonus) bonusSubmitting.value = true
+  // The API decides the outcome; keep the card concealed until that result arrives.
+  const startedAt = Date.now()
+  if (bonus) {
+    bonusSubmitting.value = true
+    bonusPhase.value = 'drawing'
+    revealedRecord.value = null
+  }
   else submitting.value = true
   try {
     const result = await checkinAPI.play(bonus, { ...proof.value, website: website.value })
+    if (disposed) {
+      await auth.refreshUser()
+      return
+    }
+    if (bonus && result.bonus_status !== 'win' && result.bonus_status !== 'lose') throw new Error(t('common.error'))
     if (result.checkin_date) applyResult(result)
     if (bonus) {
+      revealedRecord.value = result
       if (bonusAnimationTimer !== undefined) window.clearTimeout(bonusAnimationTimer)
       bonusAnimationTimer = window.setTimeout(() => {
         bonusAnimationTimer = undefined
-        if (!disposed) bonusSubmitting.value = false
-      }, 900)
+        if (!disposed) {
+          bonusPhase.value = result.bonus_status === 'win' ? 'win' : 'lose'
+          bonusSubmitting.value = false
+        }
+      }, Math.max(0, 1200 - (Date.now() - startedAt)))
     }
-    if (result.bonus_status === 'lose') app.showWarning(t('wallet.bonusLose'))
-    else app.showSuccess(bonus ? t('wallet.bonusWin') : t('wallet.checkinSuccess', { reward: formatReward(result.reward_amount) }))
-    await Promise.all([fetchStatus(), auth.refreshUser()])
+    if (!bonus) app.showSuccess(t('wallet.checkinSuccess', { reward: formatReward(result.reward_amount) }))
+    await Promise.all([fetchStatus(), auth.refreshUser().catch(error => app.showError(extractApiErrorMessage(error, t('common.error'))))])
   } catch (error) {
     if (!disposed) {
       bonusSubmitting.value = false
+      bonusPhase.value = null
       app.showError(extractApiErrorMessage(error, t('common.error')))
     }
   } finally {
@@ -610,5 +633,10 @@ function handleCaptchaExpire() { pendingAction.value = null; proof.value = {}; s
   .bonus-flip-card-active {
     animation: none;
   }
+}
+
+@media (max-width: 639px) {
+  .checkin-card > div { padding-left: .75rem; padding-right: .75rem; }
+  .calendar-cell { min-height: 3.25rem; padding: .5rem .1rem; border-radius: .6rem; }
 }
 </style>

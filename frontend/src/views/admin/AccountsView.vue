@@ -678,20 +678,6 @@ const adminSettingsStore = useAdminSettingsStore()
 const qualitySummaryByAccount = ref<Record<string, QualityAccountSummary>>({})
 const qualitySummariesLoaded = ref(false)
 let qualitySummaryRequest = 0
-watch(() => adminSettingsStore.openAIQualityEnabled === false ? '' : accounts.value.map(account => account.id).join(','), async ids => {
-  const request = ++qualitySummaryRequest
-  qualitySummariesLoaded.value = false
-  if (!ids) { qualitySummaryByAccount.value = {}; qualitySummariesLoaded.value = true; return }
-  try {
-    const summaries = await getQualityAccountSummaries(ids.split(',').map(Number))
-    if (request !== qualitySummaryRequest) return
-    qualitySummaryByAccount.value = Object.fromEntries(summaries.map(item => [String(item.account_id), item]))
-  } catch {
-    if (request === qualitySummaryRequest) qualitySummaryByAccount.value = {}
-  } finally {
-    if (request === qualitySummaryRequest) qualitySummariesLoaded.value = true
-  }
-}, { immediate: true })
 const qualityStateClass = (state: string) => state === 'quarantined' || state === 'recovering'
   ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
   : state === 'observing' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
@@ -1266,6 +1252,21 @@ const {
     sort_order: sortState.sort_order
   }
 })
+
+watch(() => adminSettingsStore.openAIQualityEnabled === false ? '' : accounts.value.map(account => account.id).join(','), async ids => {
+  const request = ++qualitySummaryRequest
+  qualitySummariesLoaded.value = false
+  if (!ids) { qualitySummaryByAccount.value = {}; qualitySummariesLoaded.value = true; return }
+  try {
+    const summaries = await getQualityAccountSummaries(ids.split(',').map(Number))
+    if (request !== qualitySummaryRequest) return
+    qualitySummaryByAccount.value = Object.fromEntries(summaries.map(item => [String(item.account_id), item]))
+  } catch {
+    if (request === qualitySummaryRequest) qualitySummaryByAccount.value = {}
+  } finally {
+    if (request === qualitySummaryRequest) qualitySummariesLoaded.value = true
+  }
+}, { immediate: true })
 
 const {
   selectedSet,

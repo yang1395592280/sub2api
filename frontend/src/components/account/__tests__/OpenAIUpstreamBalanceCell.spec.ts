@@ -59,6 +59,37 @@ describe('OpenAIUpstreamBalanceCell', () => {
     vi.restoreAllMocks()
   })
 
+  it('keeps current-key debit, adjusted cost and shared user total distinct', () => {
+    const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date())
+    const account = makeAccount({ extra: { upstream_balance_provider: 'new-api', upstream_key_id: 17,
+      upstream_balance_daily_usage: { date, timezone: 'Asia/Shanghai', key_cost: 1.5, account_cost: 8, cash_cost: .75, status: 'ok', source: 'new_api_consume_logs', updated_at: new Date().toISOString() }
+    } })
+    const wrapper = mount(OpenAIUpstreamBalanceCell, { props: { account } })
+    const usage = wrapper.get('[data-testid="upstream-daily-usage"]')
+    expect(usage.text()).toContain('$1.5000')
+    expect(usage.text()).toContain('$0.7500')
+    expect(usage.text()).toContain('$8.0000')
+    expect(usage.text()).toContain('Key #17')
+    wrapper.unmount()
+  })
+
+  it('masks an earlier day and never labels it as current-day spend', () => {
+    const account = makeAccount({ extra: { upstream_balance_provider: 'sub2api',
+      upstream_balance_daily_usage: { date: '2000-01-01', timezone: 'Asia/Shanghai', key_cost: 99, account_cost: 100, cash_cost: 99, status: 'ok', source: 'sub2api_daily_usage', updated_at: '2000-01-01T00:00:00Z' }
+    } })
+    const wrapper = mount(OpenAIUpstreamBalanceCell, { props: { account } })
+    expect(wrapper.get('[data-testid="upstream-usage-message"]').text()).toContain('usageStale')
+    expect(wrapper.get('[data-testid="upstream-daily-usage"]').text()).not.toContain('$99')
+    wrapper.unmount()
+  })
+
+  it('shows unavailable statistics without implying zero consumption', () => {
+    const wrapper = mount(OpenAIUpstreamBalanceCell, { props: { account: makeAccount({ extra: { upstream_balance_provider: 'new-api' } }) } })
+    expect(wrapper.get('[data-testid="upstream-usage-message"]').text()).toContain('usageUnavailable')
+    expect(wrapper.get('[data-testid="upstream-daily-usage"]').text()).not.toContain('$0.0000')
+    wrapper.unmount()
+  })
+
   it('renders cached USD balance for OpenAI API Key account', () => {
     const account = makeAccount({
       platform: 'openai',

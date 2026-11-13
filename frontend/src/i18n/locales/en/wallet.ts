@@ -1,4 +1,8 @@
 export default {
+  checkinDisabled: 'Daily check-in is currently unavailable',
+  checkinLoadFailed: 'Could not load check-in. Please try again.',
+  bonusWinHint: 'Lucky you! Your doubled check-in reward has been credited.',
+  bonusLoseHint: 'Under the activity rules, 1.5× the base reward is deducted, for a net loss of 0.5× today.',
   activityHistory: 'Check-in and promotional ledger',
   refundSource: 'Promotional credit source', refundAmount: 'Promotional credit to refund', refundHint: 'Refund paid credit, promotional credit, or both. Only the selected source is debited, up to its positive balance.', insufficientRefundBalance: 'Insufficient balance in the selected promotional credit source',
   date: 'Date',

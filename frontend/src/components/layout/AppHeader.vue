@@ -23,6 +23,7 @@
 
       <!-- Right: Announcements + Docs + Language + Subscriptions + Balance + User Dropdown -->
       <div class="flex min-w-0 items-center gap-1 sm:gap-3">
+        <DailyCheckinButton v-if="user" />
         <JoinGroupEntryButton
           link-class="inline-flex items-center gap-1.5 rounded-xl border border-primary-200 bg-primary-50 px-2.5 py-1.5 text-sm font-medium text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100 hover:text-primary-800 dark:border-primary-800/70 dark:bg-primary-900/20 dark:text-primary-300 dark:hover:bg-primary-900/30"
           :title="qqGroupTitle"
@@ -292,6 +293,7 @@ import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
 import JoinGroupEntryButton from '@/components/layout/JoinGroupEntryButton.vue'
+import DailyCheckinButton from '@/components/layout/DailyCheckinButton.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'

@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ProfileCheckinCard from '../ProfileCheckinCard.vue'
 const mocks = vi.hoisted(() => ({ status: vi.fn(), play: vi.fn(), settings: vi.fn(), refresh: vi.fn(), success: vi.fn(), error: vi.fn() }))
 vi.mock('@/api/checkin', () => ({ checkinAPI: { status: mocks.status, play: mocks.play } }))
@@ -13,8 +13,10 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.status.mockResolvedValue(status())
   mocks.settings.mockResolvedValue({ turnstile_enabled: false, tencent_captcha_enabled: false, aliyun_captcha_enabled: false })
-  mocks.play.mockResolvedValue({})
+  mocks.refresh.mockResolvedValue(undefined)
+  mocks.play.mockResolvedValue({ checkin_date: '2026-11-13', reward_amount: 2, base_reward_amount: 1, bonus_status: 'win', bonus_delta_amount: 1 })
 })
+afterEach(() => { vi.useRealTimers() })
 describe('check-in wallet interactions', () => {
   it('allows a bonus after an earlier negative reward and refreshes the wallet', async () => {
     const w = mountCard(); await flushPromises()
@@ -23,7 +25,7 @@ describe('check-in wallet interactions', () => {
     await bonus.trigger('click'); await flushPromises()
     expect(mocks.play).toHaveBeenCalledWith(true, { website: '' })
     expect(mocks.refresh).toHaveBeenCalledTimes(1)
-    expect(mocks.success).toHaveBeenCalled()
+    expect(w.findComponent({ name: 'CheckinBonusReveal' }).props('phase')).toBe('drawing')
     w.unmount()
   })
   it('shows the confiscation reason and removes claim actions after suspension', async () => {
@@ -39,6 +41,28 @@ describe('check-in wallet interactions', () => {
     const w = mountCard(); await flushPromises()
     await w.findAll('button').find(b => b.text() === 'wallet.bonus')!.trigger('click'); await flushPromises()
     expect(mocks.play).not.toHaveBeenCalled()
+    w.unmount()
+  })
+  it.each(['win', 'lose'] as const)('flips to the server %s result and blocks duplicate requests while revealing', async (outcome) => {
+    vi.useFakeTimers()
+    mocks.play.mockResolvedValue({ checkin_date: '2026-11-13', reward_amount: outcome === 'win' ? 2 : -.5, base_reward_amount: 1, bonus_status: outcome, bonus_delta_amount: outcome === 'win' ? 1 : -1.5 })
+    const w = mountCard(); await flushPromises()
+    await w.get('[data-testid="checkin-bonus-button"]').trigger('click'); await flushPromises()
+    expect(w.findComponent({ name: 'CheckinBonusReveal' }).props('phase')).toBe('drawing')
+    expect(w.get('[data-testid="checkin-bonus-button"]').attributes('disabled')).toBeDefined()
+    await w.get('[data-testid="checkin-bonus-button"]').trigger('click')
+    expect(mocks.play).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(w.findComponent({ name: 'CheckinBonusReveal' }).props('phase')).toBe(outcome)
+    w.unmount()
+  })
+  it('closes the reveal on request failure and allows retry without a fabricated outcome', async () => {
+    mocks.play.mockRejectedValue(new Error('temporary failure'))
+    const w = mountCard(); await flushPromises()
+    await w.get('[data-testid="checkin-bonus-button"]').trigger('click'); await flushPromises()
+    expect(w.findComponent({ name: 'CheckinBonusReveal' }).props('phase')).toBeNull()
+    expect(w.get('[data-testid="checkin-bonus-button"]').attributes('disabled')).toBeUndefined()
+    expect(mocks.error).toHaveBeenCalledWith('temporary failure')
     w.unmount()
   })
 })

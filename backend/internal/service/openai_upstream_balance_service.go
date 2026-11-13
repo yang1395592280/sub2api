@@ -39,6 +39,8 @@ type OpenAIUpstreamBalanceSnapshot struct {
 	EffectiveRateMultiplier *float64
 	RateSource              string
 	CredentialUpdates       map[string]any
+	DailyUsage              *UpstreamDailyUsage
+	adminAuthorization      string
 }
 
 type OpenAIUpstreamBalanceService struct {
@@ -164,6 +166,13 @@ func hasConfiguredUpstreamAdmin(account *Account) bool {
 }
 
 func normalizeOpenAIUpstreamBalanceSnapshot(snapshot *OpenAIUpstreamBalanceSnapshot, rechargeRatio float64) {
+	if snapshot != nil {
+		if snapshot.DailyUsage == nil {
+			snapshot.DailyUsage = newUpstreamDailyUsage()
+			snapshot.DailyUsage.Error = "credentials"
+		}
+		finishUpstreamDailyUsage(snapshot.DailyUsage, rechargeRatio)
+	}
 	if snapshot == nil || rechargeRatio <= 0 || rechargeRatio == 1 {
 		return
 	}
@@ -229,12 +238,13 @@ func getUpstreamBalanceBaseURL(account *Account) string {
 func buildOpenAIUpstreamBalanceUpdates(snapshot OpenAIUpstreamBalanceSnapshot) map[string]any {
 	group := strings.TrimSpace(snapshot.Group)
 	updates := map[string]any{
-		"upstream_balance_provider":   snapshot.Provider,
-		"upstream_balance_remaining":  snapshot.Remaining,
-		"upstream_balance_unit":       snapshot.Unit,
-		"upstream_balance_status":     snapshot.Status,
-		"upstream_balance_error":      snapshot.Error,
-		"upstream_balance_updated_at": "",
+		"upstream_balance_provider":    snapshot.Provider,
+		"upstream_balance_remaining":   snapshot.Remaining,
+		"upstream_balance_unit":        snapshot.Unit,
+		"upstream_balance_status":      snapshot.Status,
+		"upstream_balance_error":       snapshot.Error,
+		"upstream_balance_updated_at":  "",
+		"upstream_balance_daily_usage": snapshot.DailyUsage,
 	}
 	if group != "" {
 		updates["upstream_group"] = group
@@ -262,9 +272,10 @@ func buildOpenAIUpstreamBalanceUpdates(snapshot OpenAIUpstreamBalanceSnapshot) m
 
 func buildOpenAIUpstreamBalanceErrorUpdates(snapshot OpenAIUpstreamBalanceSnapshot) map[string]any {
 	updates := map[string]any{
-		"upstream_balance_status":     snapshot.Status,
-		"upstream_balance_error":      snapshot.Error,
-		"upstream_balance_updated_at": "",
+		"upstream_balance_status":      snapshot.Status,
+		"upstream_balance_error":       snapshot.Error,
+		"upstream_balance_updated_at":  "",
+		"upstream_balance_daily_usage": newUpstreamDailyUsage(),
 	}
 	if !snapshot.UpdatedAt.IsZero() {
 		updates["upstream_balance_updated_at"] = snapshot.UpdatedAt.UTC().Format(time.RFC3339)
@@ -309,7 +320,7 @@ func (s *OpenAIUpstreamBalanceService) probe(ctx context.Context, account *Accou
 
 func (s *OpenAIUpstreamBalanceService) probeSub2API(ctx context.Context, account *Account, baseURL, apiKey string) (OpenAIUpstreamBalanceSnapshot, error) {
 	var payload map[string]any
-	if err := s.doJSONGET(ctx, buildOpenAIEndpointURL(baseURL, "/v1/usage"), apiKey, &payload); err != nil {
+	if err := s.doJSONGET(ctx, buildOpenAIEndpointURL(baseURL, "/v1/usage")+"?days=1&timezone=Asia%2FShanghai", apiKey, &payload); err != nil {
 		return OpenAIUpstreamBalanceSnapshot{}, err
 	}
 
@@ -333,6 +344,7 @@ func (s *OpenAIUpstreamBalanceService) probeSub2API(ctx context.Context, account
 	if openAIUpstreamBalanceChannelPrice(snapshot) == nil {
 		s.enrichSub2APIBillingRate(ctx, baseURL, apiKey, &snapshot)
 	}
+	s.enrichSub2APIDailyUsage(ctx, account, baseURL, apiKey, payload, &snapshot)
 	return snapshot, nil
 }
 
@@ -366,6 +378,7 @@ func (s *OpenAIUpstreamBalanceService) probeNewAPI(ctx context.Context, account 
 		snapshot, err := s.probeNewAPIUserSelf(ctx, baseURL, auth)
 		if err == nil {
 			s.enrichNewAPIUserMetadata(ctx, baseURL, apiKey, auth, &snapshot)
+			s.enrichNewAPIDailyUsage(ctx, baseURL, auth, &snapshot)
 		}
 		return snapshot, err
 	}
@@ -548,6 +561,7 @@ func (s *OpenAIUpstreamBalanceService) enrichSub2APIAdminMetadata(ctx context.Co
 	if len(credentialUpdates) > 0 {
 		snapshot.CredentialUpdates = credentialUpdates
 	}
+	snapshot.adminAuthorization = authHeader
 	keys, err := s.fetchSub2APIAdminKeys(ctx, baseURL, authHeader)
 	if err != nil {
 		return
@@ -811,6 +825,7 @@ func (s *OpenAIUpstreamBalanceService) fetchNewAPIUserToken(ctx context.Context,
 		data = payload
 	}
 	rawItems, _ := data["items"].([]any)
+	var matched *newAPIUserToken
 	for _, raw := range rawItems {
 		item, _ := raw.(map[string]any)
 		if item == nil {
@@ -820,9 +835,15 @@ func (s *OpenAIUpstreamBalanceService) fetchNewAPIUserToken(ctx context.Context,
 		if token == nil {
 			continue
 		}
-		if newAPIKeyMatchesAPIKey(token.Key, apiKey) || len(rawItems) == 1 {
-			return token, nil
+		if newAPIKeyMatchesAPIKey(token.Key, apiKey) {
+			if matched != nil {
+				return nil, fmt.Errorf("new-api token match is ambiguous")
+			}
+			matched = token
 		}
+	}
+	if matched != nil {
+		return matched, nil
 	}
 	return nil, fmt.Errorf("new-api token not found")
 }
@@ -855,8 +876,9 @@ func newAPIKeyMatchesAPIKey(tokenKey, apiKey string) bool {
 		return true
 	}
 	if strings.Contains(normalizedTokenKey, "*") {
-		prefix, suffix, ok := strings.Cut(normalizedTokenKey, "*")
-		if ok {
+		prefix := normalizedTokenKey[:strings.Index(normalizedTokenKey, "*")]
+		suffix := normalizedTokenKey[strings.LastIndex(normalizedTokenKey, "*")+1:]
+		if prefix != "" && suffix != "" {
 			return strings.HasPrefix(strings.TrimPrefix(normalizedAPIKey, "sk-"), strings.TrimPrefix(prefix, "sk-")) &&
 				strings.HasSuffix(normalizedAPIKey, suffix)
 		}

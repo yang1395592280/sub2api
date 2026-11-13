@@ -337,3 +337,14 @@
 - 相关文件：backend/cmd/server/VERSION，20261112/release-v0.2.21.3.md，wallet-security-policy-plan.md与docs/welfare-balance-checkin.md。
 - 执行：版本提交后创建annotated tag，原子推送origin/custom-main与v0.2.21.3；最终提交点、远端refs和Release以Git/GitHub核验为准。RELEASE_ONLY=true，仅归档/Release，不部署或生产迁移。
 - 阻塞：无。业务测试复用当前功能完整unit/race/build/vet、15项PG/Redis集成、frontend3448项与正式构建浏览器。旧Bash3差异通过隔离Linux复验排除。
+
+## 2026-11-13 顶栏签到与上游每日消费
+- 已完成带证据：2/2 主线本地验收完成。顶栏签到日历弹窗、两套服务端结果翻牌；刷新余额带上游 Key 当日实际扣费/充值折算成本/用户总额。Go service short 7759项、最终定向48项/race/build/vet、前端最终相关38项/签到末轮6项/lint/build、正式构建模拟 API 桌面/390px 浏览器通过。
+- 相关文件：20261113/checkin-upstream-daily-plan.md、docs/upstream-daily-usage-and-checkin.md；service/openai_upstream_daily_usage.go、openai_upstream_balance_service.go；DailyCheckinButton、CheckinBonusReveal、ProfileCheckinCard、OpenAIUpstreamBalanceCell。AccountsView immediate watch 的初始化错误已最小修复并留回归。
+- 未完成：无本地开发待办；真实站点凭据/验证码/定制版本待联调，当前仅当日快照，无历史账本。分支 feature/checkin-dialog-upstream-daily-spend，基线99d8fb838；尚未提交/合并/push/部署，没有新发布授权。
+- 阻塞：无。New API 全日日志最多10000条/10秒，不交付部分合计；共用 Key 或上游用户的渠道不能重复求和；翻倍失败按现有规则净亏0.5R。
+
+## 2026-11-13 后续授权：合并顶栏签到与上游每日消费
+- 用户明确要求“合并分支”，授权提交本轮已验证修改并合入 custom-main；此前未提交/合并状态为开发交付时快照。
+- 合并前 feature/checkin-dialog-upstream-daily-spend 与 custom-main 均为99d8fb838，无分叉；提交后使用 fast-forward，实际提交点与最终状态以 Git 历史为准。
+- 复用当前制品的前端38项/最后签到6项、Go定向48项/race/build/vet与正式构建模拟API桌面/390px验收；合并前 diff 检查通过。不 push、tag 或部署。

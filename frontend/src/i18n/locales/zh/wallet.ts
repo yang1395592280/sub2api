@@ -1,4 +1,8 @@
 export default {
+  checkinDisabled: '每日签到暂未开放',
+  checkinLoadFailed: '签到信息加载失败，请重试',
+  bonusWinHint: '幸运降临，今日签到奖励已翻倍入账',
+  bonusLoseHint: '按活动规则扣除原始奖励的 1.5 倍，今日签到最终净亏 0.5 倍',
   activityHistory: '签到与福利流水',
   refundSource: '退款福利来源', refundAmount: '退款福利金额', refundHint: '可只退充值或福利，也可同时退；福利仅扣所选来源，不超过该来源正余额。', insufficientRefundBalance: '所选福利余额不足，无法退款',
   date: '日期',

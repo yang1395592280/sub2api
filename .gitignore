@@ -135,6 +135,7 @@ deploy/docker-compose.override.yml
 .gocache/
 vite.config.js
 docs/*
+!docs/upstream-daily-usage-and-checkin.md
 !docs/agent-resource-safety.md
 !docs/moego-json-batching.md
 !docs/openai-quality-dual-check-design.md

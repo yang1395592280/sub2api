@@ -24,11 +24,26 @@
       {{ errorText }}
     </div>
     <div v-else-if="updatedAtText" class="text-[10px] text-gray-400">{{ updatedAtText }}</div>
+    <div v-if="showDailyUsage" class="mt-1 space-y-0.5 border-t border-gray-100 pt-1 text-[11px] dark:border-dark-700" data-testid="upstream-daily-usage">
+      <div class="text-gray-600 dark:text-gray-300" :title="t('admin.accounts.upstreamBalance.keyCostHint')">
+        {{ t('admin.accounts.upstreamBalance.todayKeyCost') }}: <strong>{{ dailyMoney(dailyUsage?.key_cost) }}</strong>
+      </div>
+      <div v-if="dailyUsage?.cash_cost != null && usageIsToday" class="text-emerald-600 dark:text-emerald-400">
+        {{ t('admin.accounts.upstreamBalance.cashCost') }}: {{ dailyMoney(dailyUsage.cash_cost) }}
+      </div>
+      <div v-if="dailyUsage?.account_cost != null && usageIsToday" class="text-gray-400" :title="t('admin.accounts.upstreamBalance.accountCostHint')">
+        {{ t('admin.accounts.upstreamBalance.todayAccountCost') }}: {{ dailyMoney(dailyUsage.account_cost) }}
+        <span aria-hidden="true">ⓘ</span>
+      </div>
+      <div class="text-[10px] text-gray-400">{{ dailyUsage?.date || '—' }} · {{ t('admin.accounts.upstreamBalance.beijingTime') }}<span v-if="currentExtra.upstream_key_id"> · Key #{{ currentExtra.upstream_key_id }}</span></div>
+      <div v-if="usageMessage" class="max-w-[230px] text-[10px] text-amber-600 dark:text-amber-400" data-testid="upstream-usage-message">{{ usageMessage }}</div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useNow } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { accountsAPI } from '@/api/admin/accounts'
 import type { Account } from '@/types'
@@ -55,6 +70,20 @@ const visible = computed(() => {
 
 const currentAccount = computed(() => localAccount.value ?? props.account)
 const currentExtra = computed(() => currentAccount.value.extra ?? {})
+const now = useNow({ interval: 60_000 })
+const dailyUsage = computed(() => currentExtra.value.upstream_balance_daily_usage)
+const showDailyUsage = computed(() => !!dailyUsage.value || ['sub2api', 'new-api'].includes(String(currentExtra.value.upstream_balance_provider)))
+const usageIsToday = computed(() => dailyUsage.value?.date === new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now.value))
+const dailyMoney = (value: number | null | undefined) => usageIsToday.value && typeof value === 'number' && Number.isFinite(value) ? `$${value.toFixed(4)}` : '—'
+const usageMessage = computed(() => {
+  if (dailyUsage.value && !usageIsToday.value) return t('admin.accounts.upstreamBalance.usageStale')
+  if (dailyUsage.value?.status === 'ok') return ''
+  const error = dailyUsage.value?.error
+  if (error === 'credentials') return t('admin.accounts.upstreamBalance.usageCredentials')
+  if (error === 'key_unmatched') return t('admin.accounts.upstreamBalance.usageKeyUnmatched')
+  if (error === 'limit') return t('admin.accounts.upstreamBalance.usageLimit')
+  return t('admin.accounts.upstreamBalance.usageUnavailable')
+})
 
 const status = computed(() => String(currentExtra.value.upstream_balance_status ?? '').toLowerCase())
 const providerLabel = computed(() => {

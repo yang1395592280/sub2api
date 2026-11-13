@@ -1408,6 +1408,17 @@ export interface Account {
     upstream_balance_updated_at?: string
     upstream_balance_status?: 'ok' | 'refreshing' | 'error' | 'unsupported' | string
     upstream_balance_error?: string
+    upstream_balance_daily_usage?: {
+      date: string
+      timezone: string
+      key_cost: number | null
+      account_cost: number | null
+      cash_cost: number | null
+      status: string
+      error?: string
+      source: string
+      updated_at: string
+    } | null
     upstream_group_id?: number
     upstream_group?: string
     upstream_key_id?: number

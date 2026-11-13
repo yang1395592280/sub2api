@@ -14,6 +14,8 @@ const {
   getAllProxies,
   getAllGroups,
   refreshCredentials,
+  getQualityAccountSummaries,
+  adminSettings,
   showError,
   showWarning
 } = vi.hoisted(() => ({
@@ -25,6 +27,8 @@ const {
   getAllProxies: vi.fn(),
   getAllGroups: vi.fn(),
   refreshCredentials: vi.fn(),
+  getQualityAccountSummaries: vi.fn(),
+  adminSettings: { openAIQualityEnabled: false },
   showError: vi.fn(),
   showWarning: vi.fn()
 }))
@@ -54,8 +58,10 @@ vi.mock('@/stores/app', () => ({
 }))
 
 vi.mock('@/stores/adminSettings', () => ({
-  useAdminSettingsStore: () => ({ openAIQualityEnabled: false })
+  useAdminSettingsStore: () => adminSettings
 }))
+
+vi.mock('@/api/admin/openaiAccountQuality', () => ({ getQualityAccountSummaries }))
 
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ token: 'test-token', isSimpleMode: false })
@@ -172,6 +178,8 @@ describe('admin AccountsView lite account list', () => {
     getAllProxies.mockReset().mockResolvedValue([])
     getAllGroups.mockReset().mockResolvedValue([{ id: 7, name: 'codex', platform: 'openai' }])
     refreshCredentials.mockReset()
+    adminSettings.openAIQualityEnabled = false
+    getQualityAccountSummaries.mockReset().mockResolvedValue([])
     showError.mockReset()
     showWarning.mockReset()
   })
@@ -191,6 +199,16 @@ describe('admin AccountsView lite account list', () => {
       expect.objectContaining({ lite: '1' }),
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
+    wrapper.unmount()
+  })
+
+  it('loads account rows and quality summaries when quality monitoring is enabled', async () => {
+    adminSettings.openAIQualityEnabled = true
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-account-name="compact row"]').exists()).toBe(true)
+    expect(getQualityAccountSummaries).toHaveBeenCalledWith([42])
     wrapper.unmount()
   })
 

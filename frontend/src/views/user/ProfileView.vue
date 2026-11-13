@@ -33,7 +33,6 @@
       </div>
 
       <WalletBalanceCard :user="user" />
-      <ProfileCheckinCard />
 
       <ProfilePasswordForm />
 
@@ -53,7 +52,6 @@
 </template>
 
 <script setup lang="ts">
-import ProfileCheckinCard from '@/components/user/profile/ProfileCheckinCard.vue'
 import WalletBalanceCard from '@/components/user/WalletBalanceCard.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
