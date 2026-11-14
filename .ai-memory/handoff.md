@@ -390,3 +390,9 @@
 - 用户明确要求“合并分支”，授权提交本轮已验证修改并合入custom-main。检查确认两个分支起点均为72aa09ff6，无分叉；采用fast-forward合并。
 - 复用前轮59项Go unit、14项PG/Redis集成、30项前端回归、最终18项组件复验及lint/typecheck/build/浏览器交互证据；本轮diff检查通过，代码无后续变化。
 - 本次Git范围：功能提交与本地合并，不包含push、tag、生产迁移或部署；实际提交点和合并状态以Git核验结果为准。
+
+## 2026-11-14 v0.2.21.7 发布准备
+- 已完成带证据：用户授权 commit/tag/push；题库功能 ad2c43170 已无冲突合入 custom-main；VERSION/resolve-version/embed 二进制版本均为 0.2.21.7，发布工具两项测试通过。本轮无业务实现变更，复用功能完整验证。
+- 相关文件：backend/cmd/server/VERSION、20261114/release-v0.2.21.7.md、docs/test-question-library.md。
+- 执行范围：发布提交、annotated tag 与 atomic push origin/custom-main 和 v0.2.21.7，最终远端分支及 peeled tag 须指向同一提交。本条为推送前记录，以后续 Git/GitHub 核验为准。RELEASE_ONLY=true，仅归档和 Release。
+- 阻塞：无本地发布阻塞。迁移254要求升级前备份并停止全部旧实例，不能混跑新旧二进制；未执行生产迁移、部署或真实付费模型调用。

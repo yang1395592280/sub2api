@@ -15,3 +15,10 @@
 ## 2026-11-14T14:10:05+08:00 合并授权
 - 用户要求合并分支；本次功能工作区完整，feature/test-question-library与custom-main均起于72aa09ff6，采用提交后快进合并。
 - 复用上一轮验证；本轮git diff --check通过。不推送、打tag、生产迁移或部署。
+
+## 2026-11-14 15:46 CST v0.2.21.7 发布准备
+
+- 用户明确授权提交、打 tag 和推送；题库功能 ad2c43170 已无冲突合入 custom-main。VERSION 从 0.2.21.6 更新至 0.2.21.7。
+- 本轮解析脚本语法/版本、CGO_ENABLED=0 embed 构建与二进制 -version、四段版本及 tag/commit 绑定两项测试通过；业务回归复用当前功能提交的验证。
+- 将创建发布提交及 annotated tag，并 atomic push origin/custom-main 与 v0.2.21.7；本条为推送前检查点，最终 refs 和 Release 状态以 Git/GitHub 核验为准。已只读核实 RELEASE_ONLY=true。
+- 迁移254升级前备份并停止全部旧实例，不能新旧二进制混跑。未执行生产迁移、部署或真实付费调用；详情 release-v0.2.21.7.md。
