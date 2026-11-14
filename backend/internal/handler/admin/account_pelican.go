@@ -9,18 +9,22 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/adminaccess"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
 type pelicanTestBatchRequest struct {
-	AccountIDs []int64 `json:"account_ids"`
-	ModelID    string  `json:"model_id"`
-	Prompt     string  `json:"prompt"`
+	QuestionIDs []int64 `json:"question_ids"`
+	AccountIDs  []int64 `json:"account_ids"`
+	ModelID     string  `json:"model_id"`
+	Prompt      string  `json:"prompt"`
 }
 
 type pelicanTestLatestRequest struct {
-	AccountIDs []int64 `json:"account_ids"`
+	AccountIDs   []int64 `json:"account_ids"`
+	IncludeBatch bool    `json:"include_batch"`
+	BatchID      string  `json:"batch_id"`
 }
 
 // StartPelicanTests accepts one explicit batch. The existing admin route group
@@ -32,7 +36,7 @@ func (h *AccountHandler) StartPelicanTests(c *gin.Context) {
 	}
 	var req pelicanTestBatchRequest
 	if err := c.ShouldBindJSON(&req); err != nil || len(req.AccountIDs) == 0 || len(req.AccountIDs) > service.PelicanTestMaxAccounts ||
-		strings.TrimSpace(req.ModelID) == "" || (kind == service.TestKindPelican && strings.TrimSpace(req.Prompt) == "") || utf8.RuneCountInString(req.Prompt) > service.PelicanTestMaxPrompt {
+		strings.TrimSpace(req.ModelID) == "" || (req.QuestionIDs == nil && kind == service.TestKindPelican && strings.TrimSpace(req.Prompt) == "") || utf8.RuneCountInString(req.Prompt) > service.PelicanTestMaxPrompt {
 		response.BadRequest(c, "Invalid pelican test selection, model, or prompt")
 		return
 	}
@@ -40,7 +44,21 @@ func (h *AccountHandler) StartPelicanTests(c *gin.Context) {
 		response.InternalError(c, "Pelican test service unavailable")
 		return
 	}
-	tests, err := h.pelicanTestService.StartBatch(c.Request.Context(), req.AccountIDs, req.ModelID, req.Prompt, kind)
+	var tests []service.PelicanTest
+	var err error
+	if req.QuestionIDs != nil {
+		if !h.pelicanFullAdmin(c) {
+			return
+		}
+		subject, ok := middleware.GetAuthSubjectFromContext(c)
+		if !ok || subject.UserID <= 0 {
+			response.Unauthorized(c, "Administrator identity required")
+			return
+		}
+		tests, err = h.pelicanTestService.StartQuestionBatch(c.Request.Context(), req.AccountIDs, req.ModelID, kind, req.QuestionIDs, subject.UserID)
+	} else {
+		tests, err = h.pelicanTestService.StartBatch(c.Request.Context(), req.AccountIDs, req.ModelID, req.Prompt, kind)
+	}
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidPelicanBatch) {
 			response.BadRequest(c, err.Error())
@@ -66,8 +84,21 @@ func (h *AccountHandler) ListLatestPelicanTests(c *gin.Context) {
 		response.InternalError(c, "Pelican test service unavailable")
 		return
 	}
-	tests, err := h.pelicanTestService.ListLatest(c.Request.Context(), req.AccountIDs, generationTestKind(c))
+	var tests []service.PelicanTest
+	var err error
+	if req.IncludeBatch || req.BatchID != "" {
+		if !h.pelicanFullAdmin(c) {
+			return
+		}
+		tests, err = h.pelicanTestService.ListLatestBatches(c.Request.Context(), req.AccountIDs, generationTestKind(c), req.BatchID)
+	} else {
+		tests, err = h.pelicanTestService.ListLatest(c.Request.Context(), req.AccountIDs, generationTestKind(c))
+	}
 	if err != nil {
+		if errors.Is(err, service.ErrInvalidPelicanBatch) {
+			response.BadRequest(c, err.Error())
+			return
+		}
 		_ = c.Error(err)
 		response.InternalError(c, "Failed to load pelican tests")
 		return
@@ -112,7 +143,12 @@ func (h *AccountHandler) ListPelicanHistory(c *gin.Context) {
 		response.BadRequest(c, "Invalid account or pagination")
 		return
 	}
-	result, err := h.pelicanTestService.ListHistory(c.Request.Context(), id, page, size, generationTestKind(c))
+	var result *service.PelicanTestHistory
+	if c.Query("group_batches") == "1" {
+		result, err = h.pelicanTestService.ListBatchHistory(c.Request.Context(), id, page, size, generationTestKind(c))
+	} else {
+		result, err = h.pelicanTestService.ListHistory(c.Request.Context(), id, page, size, generationTestKind(c))
+	}
 	if err != nil {
 		_ = c.Error(err)
 		response.InternalError(c, "Failed to load pelican history")

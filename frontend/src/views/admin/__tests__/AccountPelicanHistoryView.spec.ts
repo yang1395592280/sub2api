@@ -8,7 +8,7 @@ vi.mock('@/api/admin', () => ({ adminAPI: { accounts: { listPelicanHistory: list
 vi.mock('vue-i18n', async () => ({ ...(await vi.importActual<typeof import('vue-i18n')>('vue-i18n')), useI18n: () => ({ t: (key: string) => key }) }))
 const route = reactive({ params: { id: '7' } })
 vi.mock('vue-router', () => ({ useRoute: () => route }))
-const row = { id: 100, account_id: 7, model_id: 'gpt-5.5', status: 'previewable', source_group_id: 78, source_group_name: '正常分组', created_at: '2026-10-29T08:00:00Z', input_tokens: 101, output_tokens: 2048, latency_ms: 3000 }
+const row = { batch_id: 'batch-a', question_name: 'Scene A', id: 100, account_id: 7, model_id: 'gpt-5.5', status: 'previewable', source_group_id: 78, source_group_name: '正常分组', created_at: '2026-10-29T08:00:00Z', input_tokens: 101, output_tokens: 2048, latency_ms: 3000 }
 const create = () => mount(AccountPelicanHistoryView, { global: { stubs: {
   AppLayout: { template: '<div><slot/></div>' }, RouterLink: { template: '<a><slot/></a>' }, Icon: true,
   PelicanInlinePreview: { props: ['testId', 'responsive'], template: '<div class="artwork">Animation</div>' },
@@ -22,6 +22,8 @@ describe('Account pelican archive', () => {
     const wrapper = create(); await flushPromises()
     expect(list).toHaveBeenCalledWith(7, 1, 12)
     expect(wrapper.text()).toContain('测试账号'); expect(wrapper.text()).toContain('正常分组')
+    expect(wrapper.findAll('[data-test="history-batch"]')).toHaveLength(1)
+    expect(wrapper.text()).toContain('Scene A')
     expect(wrapper.text()).toContain('gpt-5.5'); expect(wrapper.text()).toContain('2,048')
     expect(wrapper.get('time').attributes('datetime')).toBe(row.created_at)
     await wrapper.get('article button').trigger('click')

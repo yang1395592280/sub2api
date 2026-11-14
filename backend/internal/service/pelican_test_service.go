@@ -117,7 +117,7 @@ func (s *PelicanTestService) generate(ctx context.Context, test PelicanTest) (st
 		// A benchmark must never change account health or scheduling, even when
 		// explicitly selected by an administrator.
 		ctx = context.WithValue(ctx, generationOnlyContextKey{}, true)
-		if test.Prompt != DefaultIntelligenceTestPrompt {
+		if test.ExpectedAnswer == "" && test.Prompt != DefaultIntelligenceTestPrompt {
 			return "failed", "", "", "智力题提示词已变化，请重新发起测试", 0, usage
 		}
 	}
@@ -175,7 +175,11 @@ func (s *PelicanTestService) generate(ctx context.Context, test PelicanTest) (st
 		if answer == "" {
 			return "invalid_answer", output, "", "未按要求返回最终答案数字", latency, usage
 		}
-		if answer == "20" {
+		expected := test.ExpectedAnswer
+		if expected == "" {
+			expected = "20"
+		}
+		if answer == expected {
 			return "correct", output, "", "", latency, usage
 		}
 		return "incorrect", output, "", "", latency, usage

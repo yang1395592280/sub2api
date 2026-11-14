@@ -175,10 +175,10 @@
           </button>
         </div>
         <div v-if="pelicanBatch" class="mt-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
-          {{ t('admin.accounts.pelican.progress', { done: pelicanBatchProgress.done, total: pelicanBatch.ids.length, success: pelicanBatchProgress.success, failed: pelicanBatchProgress.failed }) }}
+          {{ t('admin.accounts.pelican.progress', { done: pelicanBatchProgress.done, total: pelicanBatchProgress.total, success: pelicanBatchProgress.success, failed: pelicanBatchProgress.failed }) }}
         </div>
         <div v-if="intelligenceBatch" class="mt-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
-          {{ t('pelican.intelligence.progress', { done: intelligenceBatchProgress.done, total: intelligenceBatch.ids.length, success: intelligenceBatchProgress.success, failed: intelligenceBatchProgress.failed }) }}
+          {{ t('pelican.intelligence.progress', { done: intelligenceBatchProgress.done, total: intelligenceBatchProgress.total, success: intelligenceBatchProgress.success, failed: intelligenceBatchProgress.failed }) }}
         </div>
       </template>
       <template #table>
@@ -234,17 +234,19 @@
           </template>
           <template #cell-intelligence_test="{ row }">
             <div class="flex min-w-[160px] flex-col items-start gap-1 text-xs">
-              <button v-if="intelligenceTests[row.id]" type="button" class="rounded-md border px-3 py-1.5 font-mono text-base font-semibold" :class="intelligenceTests[row.id].status === 'correct' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : ['queued', 'running'].includes(intelligenceTests[row.id].status) ? 'border-amber-200 text-amber-600' : 'border-red-300 bg-red-50 text-red-700'" @click="openIntelligenceResult(row)">
-                {{ intelligenceTests[row.id].answer || t(`pelican.intelligence.status.${intelligenceTests[row.id].status}`) }}
+              <button v-if="intelligenceTests[row.id]" type="button" class="rounded-md border px-3 py-1.5 font-mono text-base font-semibold" :class="intelligenceSummaries[row.id]?.success === intelligenceSummaries[row.id]?.total ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : intelligenceSummaries[row.id]?.done < intelligenceSummaries[row.id]?.total ? 'border-amber-200 text-amber-600' : 'border-red-300 bg-red-50 text-red-700'" @click="openIntelligenceResult(row)">
+                {{ intelligenceSummaries[row.id]?.total > 1 ? t('pelican.library.batchSummary', intelligenceSummaries[row.id]) : intelligenceTests[row.id].answer || t(`pelican.intelligence.status.${intelligenceTests[row.id].status}`) }}
               </button>
               <span v-else class="text-gray-400">—</span>
               <template v-if="intelligenceTests[row.id]">
+                <span v-if="intelligenceSummaries[row.id]?.done < intelligenceSummaries[row.id]?.total" class="text-amber-600">{{ t('pelican.library.pendingSummary', intelligenceSummaries[row.id]) }}</span>
                 <span class="max-w-[180px] truncate text-gray-500" :title="intelligenceTests[row.id].model_id">{{ intelligenceTests[row.id].model_id }} · {{ intelligenceTests[row.id].latency_ms }} ms</span>
                 <time class="text-gray-400" :datetime="intelligenceTests[row.id].created_at">{{ formatDateTime(intelligenceTests[row.id].created_at) }}</time>
-                <span v-if="intelligenceTests[row.id].total_tokens != null" class="text-gray-500">{{ t('admin.accounts.pelican.tokensTotal', { count: intelligenceTests[row.id].total_tokens!.toLocaleString() }) }}</span>
-                <TestEstimatedCost :test="intelligenceTests[row.id]" />
+                <span v-if="intelligenceSummaries[row.id]?.total === 1 && intelligenceTests[row.id].total_tokens != null" class="text-gray-500">{{ t('admin.accounts.pelican.tokensTotal', { count: intelligenceTests[row.id].total_tokens!.toLocaleString() }) }}</span>
+                <TestEstimatedCost v-if="intelligenceSummaries[row.id]?.total === 1" :test="intelligenceTests[row.id]" />
+                <GenerationTestTotals v-else :tests="intelligenceRecords[row.id]" />
               </template>
-              <button v-if="!intelligenceTests[row.id] || !['queued', 'running'].includes(intelligenceTests[row.id].status)" class="text-primary-600 hover:underline" @click="retryIntelligenceAccount(row)">{{ t('pelican.intelligence.run') }}</button>
+              <button class="text-primary-600 hover:underline" @click="retryIntelligenceAccount(row)">{{ t('pelican.intelligence.run') }}</button>
             </div>
           </template>
           <template #cell-id="{ value }">
@@ -287,21 +289,23 @@
             <span v-if="!pelicanTests[row.id]" class="text-xs text-gray-400">—</span>
             <div v-else class="flex max-w-[200px] flex-col items-start gap-1 text-xs">
               <button type="button" class="text-left" @click="openPelicanResult(row)">
-                <span :class="pelicanTests[row.id].status === 'previewable' ? 'text-emerald-600' : pelicanTests[row.id].status === 'failed' ? 'text-red-600' : 'text-amber-600'">
-                  {{ t(`admin.accounts.pelican.status.${pelicanTests[row.id].status}`) }}
+                <span :class="pelicanSummaries[row.id]?.success === pelicanSummaries[row.id]?.total ? 'text-emerald-600' : pelicanSummaries[row.id]?.done < pelicanSummaries[row.id]?.total ? 'text-amber-600' : 'text-red-600'">
+                  {{ pelicanSummaries[row.id]?.total > 1 ? t('pelican.library.artworkSummary', pelicanSummaries[row.id]) : t(`admin.accounts.pelican.status.${pelicanTests[row.id].status}`) }}
                 </span>
               </button>
+              <span v-if="pelicanSummaries[row.id]?.done < pelicanSummaries[row.id]?.total" class="text-amber-600">{{ t('pelican.library.pendingSummary', pelicanSummaries[row.id]) }}</span>
               <span class="max-w-[190px] truncate text-gray-500" :title="pelicanTests[row.id].error_message || pelicanTests[row.id].model_id">
                 {{ pelicanTests[row.id].error_message || `${pelicanTests[row.id].model_id} · ${pelicanTests[row.id].latency_ms} ms` }}
               </span>
               <time :datetime="pelicanTests[row.id].created_at" class="text-gray-400">{{ formatDateTime(pelicanTests[row.id].created_at) }}</time>
-              <span v-if="pelicanTests[row.id].total_tokens != null" class="text-gray-500">
+              <span v-if="pelicanSummaries[row.id]?.total === 1 && pelicanTests[row.id].total_tokens != null" class="text-gray-500">
                 {{ t('admin.accounts.pelican.tokensTotal', { count: pelicanTests[row.id].total_tokens?.toLocaleString() }) }}
               </span>
-              <span v-else-if="!['queued', 'running'].includes(pelicanTests[row.id].status)" class="text-gray-400">
+              <span v-else-if="pelicanSummaries[row.id]?.total === 1 && !['queued', 'running'].includes(pelicanTests[row.id].status)" class="text-gray-400">
                 {{ t('admin.accounts.pelican.tokensUnavailable') }}
               </span>
-              <TestEstimatedCost :test="pelicanTests[row.id]" />
+              <TestEstimatedCost v-if="pelicanSummaries[row.id]?.total === 1" :test="pelicanTests[row.id]" />
+              <GenerationTestTotals v-else :tests="pelicanRecords[row.id]" />
               <button v-if="['failed', 'unpreviewable'].includes(pelicanTests[row.id].status)" type="button" class="text-primary-600 hover:underline" @click="retryPelicanAccount(row)">
                 {{ t('admin.accounts.pelican.retry') }}
               </button>
@@ -567,8 +571,8 @@
     />
     <PelicanBatchTestDialog :show="showPelicanBatch" :account-ids="pelicanSelectedIds" :account-names="pelicanAccountNames" @close="showPelicanBatch = false" @submitted="handlePelicanSubmitted" />
     <PelicanBatchTestDialog :intelligence="true" :show="showIntelligenceBatch" :account-ids="intelligenceSelectedIds" :account-names="intelligenceAccountNames" @close="showIntelligenceBatch = false" @submitted="handleIntelligenceSubmitted" />
-    <PelicanResultDialog :intelligence="true" :show="intelligenceResultId !== null" :test-id="intelligenceResultId" :account-name="intelligenceResultAccountName" @close="intelligenceResultId = null" />
-    <PelicanResultDialog :show="pelicanResultId !== null" :test-id="pelicanResultId" :account-name="pelicanResultAccountName" @close="pelicanResultId = null" />
+    <GenerationBatchResultDialog :intelligence="true" :show="intelligenceResultId !== null" :tests="intelligenceResultRecords" :account-name="intelligenceResultAccountName" @close="intelligenceResultId = null" />
+    <GenerationBatchResultDialog :show="pelicanResultId !== null" :tests="pelicanResultRecords" :account-name="pelicanResultAccountName" @close="pelicanResultId = null" />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
     <AccountActionMenu :show="menu.show" :account="menu.acc" :anchor-rect="menu.anchorRect" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @duplicate="handleDuplicateAccount" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" />
@@ -629,7 +633,8 @@ import ReAuthAccountModal from '@/components/admin/account/ReAuthAccountModal.vu
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
 import BatchAccountTestModal from '@/components/admin/account/BatchAccountTestModal.vue'
 import PelicanBatchTestDialog from '@/components/admin/account/PelicanBatchTestDialog.vue'
-import PelicanResultDialog from '@/components/admin/account/PelicanResultDialog.vue'
+import GenerationTestTotals from '@/components/admin/account/GenerationTestTotals.vue'
+import GenerationBatchResultDialog from '@/components/admin/account/GenerationBatchResultDialog.vue'
 import PelicanInlinePreview from '@/components/admin/account/PelicanInlinePreview.vue'
 import { useAccountGenerationTests } from '@/composables/useAccountGenerationTests'
 import TestEstimatedCost from '@/components/admin/account/TestEstimatedCost.vue'
@@ -1310,12 +1315,12 @@ const clearSelection = () => {
   clearSelectedIds()
 }
 
-const { showBatch: showPelicanBatch, targetIds: pelicanSelectedIds, names: pelicanAccountNames, tests: pelicanTests,
-  resultId: pelicanResultId, resultAccountName: pelicanResultAccountName, batch: pelicanBatch, progress: pelicanBatchProgress,
+const { showBatch: showPelicanBatch, targetIds: pelicanSelectedIds, names: pelicanAccountNames, tests: pelicanTests, records: pelicanRecords,
+  summaries: pelicanSummaries, resultRecords: pelicanResultRecords, resultAccountId: pelicanResultId, resultAccountName: pelicanResultAccountName, batch: pelicanBatch, progress: pelicanBatchProgress,
   openBatch: openPelicanBatch, retryAccount: retryPelicanAccount, openResult: openPelicanResult, submitted: handlePelicanSubmitted
 } = useAccountGenerationTests('pelican', accounts, selIds)
-const { showBatch: showIntelligenceBatch, targetIds: intelligenceSelectedIds, names: intelligenceAccountNames, tests: intelligenceTests,
-  resultId: intelligenceResultId, resultAccountName: intelligenceResultAccountName, batch: intelligenceBatch, progress: intelligenceBatchProgress,
+const { showBatch: showIntelligenceBatch, targetIds: intelligenceSelectedIds, names: intelligenceAccountNames, tests: intelligenceTests, records: intelligenceRecords,
+  summaries: intelligenceSummaries, resultRecords: intelligenceResultRecords, resultAccountId: intelligenceResultId, resultAccountName: intelligenceResultAccountName, batch: intelligenceBatch, progress: intelligenceBatchProgress,
   openBatch: openIntelligenceBatch, retryAccount: retryIntelligenceAccount, openResult: openIntelligenceResult, submitted: handleIntelligenceSubmitted
 } = useAccountGenerationTests('intelligence', accounts, selIds)
 

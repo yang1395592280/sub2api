@@ -157,6 +157,10 @@ docs/*
 !docs/openai-quality-monitor.md
 !docs/group-pelican-tests.md
 !docs/intelligence-tests-and-upstream-cost.md
+!docs/test-question-library.md
+!docs/operations/
+docs/operations/*
+!docs/operations/generation-tests-rollback.sql
 !docs/legal/
 !docs/legal/*.md
 !docs/superpowers/

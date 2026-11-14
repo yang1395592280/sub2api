@@ -4,21 +4,29 @@ import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { GenerationTestKind, PelicanTest } from '@/api/admin/accounts'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
+import { isGenerationActive, summarizeGenerationTests } from '@/utils/generationTests'
 
 type AccountLabel = { id: number; name: string }
-type Batch = { batchId: string; ids: number[] }
+type Batch = { batchId: string; ids: number[]; recordIds: number[] }
 
 export function useAccountGenerationTests(kind: GenerationTestKind, accounts: Ref<AccountLabel[]>, selectedIds: Ref<number[]>) {
-  const { t } = useI18n(), app = useAppStore()
+  const { t } = useI18n(), app = useAppStore(), auth = useAuthStore()
   const showBatch = ref(false), targetIds = ref<number[]>([]), names = ref<Record<number, string>>({})
-  const tests = ref<Record<number, PelicanTest>>({}), resultId = ref<number | null>(null), resultAccountName = ref('')
-  const batch = ref<Batch | null>(null), storageKey = `account-${kind}-active-batch`
-  const active = (test?: PelicanTest) => !!test && ['queued', 'running'].includes(test.status)
-  const success = (test: PelicanTest) => test.status === (kind === 'intelligence' ? 'correct' : 'previewable')
-  const progress = computed(() => {
-    const rows = batch.value?.ids.map(id => tests.value[id]).filter(test => test?.batch_id === batch.value?.batchId) ?? []
-    return { done: rows.filter(test => !active(test)).length, success: rows.filter(success).length, failed: rows.filter(test => !active(test) && !success(test)).length }
-  })
+  const records = ref<Record<number, PelicanTest[]>>({}), batchRecords = ref<PelicanTest[]>([])
+  const resultAccountId = ref<number | null>(null), resultAccountName = ref('')
+  const resultRecords = computed(() => resultAccountId.value === null ? [] : records.value[resultAccountId.value] ?? [])
+  const tests = computed(() => Object.fromEntries(Object.entries(records.value).filter(([, rows]) => rows.length).map(([id, rows]) => [id, rows[0]])))
+  const summaries = computed(() => Object.fromEntries(Object.entries(records.value).map(([id, rows]) => [id, summarizeGenerationTests(rows, kind)])))
+  const batch = ref<Batch | null>(null)
+  const storageKey = `account-${kind}-active-batch-${auth.user?.id ?? 'unknown'}`
+  const storeBatch = () => {
+    try {
+      if (batch.value && progress.value.done < progress.value.total) localStorage.setItem(storageKey, JSON.stringify(batch.value))
+      else localStorage.removeItem(storageKey)
+    } catch { /* Results remain usable when browser storage is unavailable. */ }
+  }
+  const progress = computed(() => ({ ...summarizeGenerationTests(batchRecords.value, kind), total: batch.value?.recordIds.length ?? 0 }))
   const openBatch = () => {
     targetIds.value = [...selectedIds.value]
     names.value = Object.fromEntries(accounts.value.map(account => [account.id, account.name]))
@@ -27,9 +35,7 @@ export function useAccountGenerationTests(kind: GenerationTestKind, accounts: Re
   const retryAccount = (account: AccountLabel) => {
     targetIds.value = [account.id]; names.value = { [account.id]: account.name }; showBatch.value = true
   }
-  const openResult = (account: AccountLabel) => {
-    resultId.value = tests.value[account.id]?.id ?? null; resultAccountName.value = account.name
-  }
+  const openResult = (account: AccountLabel) => { resultAccountId.value = account.id; resultAccountName.value = account.name }
   let lastRefresh = 0, refreshing = false, disposed = false
   async function refresh() {
     if (refreshing) return
@@ -38,37 +44,49 @@ export function useAccountGenerationTests(kind: GenerationTestKind, accounts: Re
     refreshing = true
     try {
       for (let offset = 0; offset < ids.length; offset += 100) {
-        const latest = await adminAPI.accounts.listLatestPelicanTests(ids.slice(offset, offset + 100), kind)
+        const chunk = ids.slice(offset, offset + 100)
+        const latest = await adminAPI.accounts.listLatestPelicanTests(chunk, kind)
         if (disposed) return
-        for (const test of latest) {
-          if (!tests.value[test.account_id] || tests.value[test.account_id].id <= test.id) tests.value[test.account_id] = test
+        for (const id of chunk) {
+          const rows = latest.filter(row => row.account_id === id).sort((a, b) => b.id - a.id)
+          if (rows.length && (!records.value[id]?.length || rows[0].id >= records.value[id][0].id)) records.value[id] = rows
         }
       }
-      if (batch.value && progress.value.done === batch.value.ids.length) localStorage.removeItem(storageKey)
+      // Fetch the submitted batch separately: newer manual/scheduled batches must
+      // never replace records used to calculate this batch's progress.
+      const current = batch.value
+      if (current && progress.value.done < progress.value.total) {
+        const rows = await adminAPI.accounts.listLatestPelicanTests(current.ids, kind, current.batchId)
+        if (disposed || batch.value?.batchId !== current.batchId) return
+        batchRecords.value = rows.filter(row => current.recordIds.includes(row.id))
+      }
+      storeBatch()
     } catch (error) { console.error(`Failed to load ${kind} test results:`, error) }
     finally { lastRefresh = Date.now(); refreshing = false }
   }
-  function submitted(rows: PelicanTest[]) {
+  function submitted(rows: PelicanTest[], plannedCount = targetIds.value.length) {
     showBatch.value = false
-    rows.forEach(test => { tests.value[test.account_id] = test })
+    for (const id of new Set(rows.map(row => row.account_id))) records.value[id] = rows.filter(row => row.account_id === id).sort((a, b) => b.id - a.id)
     if (rows.length) {
-      batch.value = { batchId: rows[0].batch_id, ids: rows.map(test => test.account_id) }
-      localStorage.setItem(storageKey, JSON.stringify(batch.value))
+      batch.value = { batchId: rows[0].batch_id, ids: [...new Set(rows.map(row => row.account_id))], recordIds: rows.map(row => row.id) }
+      batchRecords.value = rows
+      storeBatch()
     }
-    if (rows.length < targetIds.value.length) app.showWarning(t('admin.accounts.pelican.skippedActive', { count: targetIds.value.length - rows.length }))
+    if (rows.length < plannedCount) app.showWarning(t('pelican.library.skipped', { created: rows.length, count: plannedCount - rows.length }))
     void refresh()
   }
   watch(() => accounts.value.map(account => account.id).join(','), () => { void refresh() })
   useIntervalFn(() => {
-    if (Date.now() - lastRefresh >= 30000 || accounts.value.some(account => active(tests.value[account.id])) || (batch.value && progress.value.done < batch.value.ids.length)) void refresh()
+    if (Date.now() - lastRefresh >= 30000 || Object.values(records.value).some(rows => rows.some(isGenerationActive)) || (batch.value && progress.value.done < progress.value.total)) void refresh()
   }, 3000)
   onMounted(() => {
     try {
       const saved: unknown = JSON.parse(localStorage.getItem(storageKey) || 'null')
-      if (saved && typeof saved === 'object' && 'batchId' in saved && typeof saved.batchId === 'string' && 'ids' in saved && Array.isArray(saved.ids) && saved.ids.length <= 100 && saved.ids.every(id => Number.isSafeInteger(id) && id > 0)) batch.value = saved as Batch
-    } catch { localStorage.removeItem(storageKey) }
+      const validIDs = (value: unknown, limit: number): value is number[] => Array.isArray(value) && value.length > 0 && value.length <= limit && new Set(value).size === value.length && value.every(id => Number.isSafeInteger(id) && id > 0)
+      if (saved && typeof saved === 'object' && 'batchId' in saved && typeof saved.batchId === 'string' && saved.batchId.length <= 64 && 'ids' in saved && validIDs(saved.ids, 100) && 'recordIds' in saved && validIDs(saved.recordIds, 1000)) batch.value = saved as Batch
+    } catch { try { localStorage.removeItem(storageKey) } catch { /* Storage can be disabled. */ } }
     void refresh()
   })
   onUnmounted(() => { disposed = true })
-  return { showBatch, targetIds, names, tests, resultId, resultAccountName, batch, progress, openBatch, retryAccount, openResult, submitted }
+  return { showBatch, targetIds, names, tests, records, summaries, resultAccountId, resultRecords, resultAccountName, batch, progress, openBatch, retryAccount, openResult, submitted }
 }

@@ -377,3 +377,16 @@
 - 相关文件：backend/cmd/server/VERSION、20261113/release-v0.2.21.6.md、docs/intelligence-tests-and-upstream-cost.md。
 - 未完成：创建发布提交、annotated tag并atomic push，最终远端refs及Release状态以Git/GitHub核验为准；不部署或生产迁移。RELEASE_ONLY=true，跳过Docker/GHCR。
 - 阻塞：无；迁移253不能混跑旧二进制或直接降级。
+
+## 2026-11-14 题库与多选测试（本地实现与验收）
+- 已完成带证据：题库/提示词维护、管理员隔离的多选记忆、账号单次/批量多选、分组5–1440分钟多选、题目答案快照/逐题去重、批次进度与历史/作品卡。Go unit59项、PG/Redis真实集成、前端30项和实际页面模拟API交互、lint/typecheck/build通过；最终小幅提交状态提示调整正在复验。
+- 相关文件：20261114/test-question-library-plan.md、docs/test-question-library.md、迁移254、generation_test_questions*.go、GenerationQuestionPicker.vue、TestQuestionsView.vue、useAccountGenerationTests.ts。
+- 未完成：无生产迁移/真实付费调用/commit/merge/push/部署；当前 feature/test-question-library。升级必须停所有旧实例，旧ON CONFLICT不兼容新唯一索引。回退SQL另放docs/operations并保留历史。
+- 阻塞：无。
+
+- 题库与多选测试最终收尾：相关59项Go unit、14个不同PG/Redis集成用例、30项前端回归及最终18项交互组件复验、ESLint/i18n/vue-tsc/build/Go build均通过；临时预览服务已停止。无本地实现待办。
+
+## 2026-11-14 后续授权：合并题库与多选测试
+- 用户明确要求“合并分支”，授权提交本轮已验证修改并合入custom-main。检查确认两个分支起点均为72aa09ff6，无分叉；采用fast-forward合并。
+- 复用前轮59项Go unit、14项PG/Redis集成、30项前端回归、最终18项组件复验及lint/typecheck/build/浏览器交互证据；本轮diff检查通过，代码无后续变化。
+- 本次Git范围：功能提交与本地合并，不包含push、tag、生产迁移或部署；实际提交点和合并状态以Git核验结果为准。

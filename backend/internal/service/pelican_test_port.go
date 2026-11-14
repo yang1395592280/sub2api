@@ -6,6 +6,9 @@ import (
 )
 
 type PelicanTest struct {
+	QuestionID             int64      `json:"question_id"`
+	QuestionName           string     `json:"question_name"`
+	ExpectedAnswer         string     `json:"expected_answer"`
 	TestKind               string     `json:"test_kind"`
 	Answer                 string     `json:"answer"`
 	EstimatedCostUSD       *float64   `json:"estimated_cost_usd"`
@@ -63,6 +66,7 @@ func GenerationTestPrompt(kind string) string {
 }
 
 type GroupPelicanConfig struct {
+	QuestionIDs     []int64    `json:"question_ids"`
 	TestKind        string     `json:"test_kind"`
 	GroupID         int64      `json:"group_id"`
 	Enabled         bool       `json:"enabled"`
@@ -74,13 +78,35 @@ type GroupPelicanConfig struct {
 }
 
 type PelicanTestHistory struct {
-	Items    []PelicanTest `json:"items"`
-	Total    int64         `json:"total"`
-	Page     int           `json:"page"`
-	PageSize int           `json:"page_size"`
+	Items        []PelicanTest `json:"items"`
+	Total        int64         `json:"total"`
+	Page         int           `json:"page"`
+	PageSize     int           `json:"page_size"`
+	TotalRecords int64         `json:"total_records"`
+}
+
+type GenerationTestQuestion struct {
+	ID             int64     `json:"id"`
+	TestKind       string    `json:"test_kind"`
+	Name           string    `json:"name"`
+	Prompt         string    `json:"prompt"`
+	ExpectedAnswer string    `json:"expected_answer"`
+	Enabled        bool      `json:"enabled"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type GenerationTestPreference struct {
+	QuestionIDs []int64 `json:"question_ids"`
 }
 
 type PelicanTestRepository interface {
+	ListQuestions(ctx context.Context, kind string) ([]GenerationTestQuestion, error)
+	SaveQuestion(ctx context.Context, question GenerationTestQuestion) (*GenerationTestQuestion, error)
+	GetTestPreference(ctx context.Context, userID int64, kind string) (*GenerationTestPreference, error)
+	CreateQuestionBatch(ctx context.Context, batchID string, accountIDs []int64, modelID, kind string, questionIDs []int64, userID int64) ([]PelicanTest, error)
+	ListLatestBatches(ctx context.Context, accountIDs []int64, kind, batchID string) ([]PelicanTest, error)
+	ListBatchHistory(ctx context.Context, accountID int64, page, pageSize int, kind string) (*PelicanTestHistory, error)
 	ExpireStale(ctx context.Context) error
 	CreateBatch(ctx context.Context, batchID string, accountIDs []int64, modelID, prompt string, kinds ...string) ([]PelicanTest, error)
 	MarkRunning(ctx context.Context, id int64) (bool, error)

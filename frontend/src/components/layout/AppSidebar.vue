@@ -875,6 +875,7 @@ const adminNavItems = computed((): NavItem[] => {
     // 「仅充值」站点连管理端的「订阅管理」入口也一并收起（路由本身不拦截）。
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
+    { path: '/admin/test-questions', label: t('pelican.library.title'), icon: FolderIcon },
     {
       path: '/admin/openai-quality',
       label: t('nav.openAIQualityManagement'),

@@ -17,14 +17,14 @@ func NewPelicanTestRepository(db *sql.DB) service.PelicanTestRepository {
 
 const pelicanTestColumns = `id, batch_id, account_id, model_id, prompt, status,
 	response_text, html, error_message, latency_ms, input_tokens, output_tokens,
-	total_tokens, created_at, started_at, finished_at, source_group_id, source_group_name, test_kind, answer, estimated_cost_usd, upstream_rate_multiplier, cost_model_id`
+	total_tokens, created_at, started_at, finished_at, source_group_id, source_group_name, test_kind, answer, estimated_cost_usd, upstream_rate_multiplier, cost_model_id, question_id, question_name, expected_answer`
 
 func scanPelicanTest(row interface{ Scan(...any) error }) (service.PelicanTest, error) {
 	var test service.PelicanTest
 	err := row.Scan(&test.ID, &test.BatchID, &test.AccountID, &test.ModelID, &test.Prompt,
 		&test.Status, &test.ResponseText, &test.HTML, &test.ErrorMessage, &test.LatencyMS,
 		&test.InputTokens, &test.OutputTokens, &test.TotalTokens,
-		&test.CreatedAt, &test.StartedAt, &test.FinishedAt, &test.SourceGroupID, &test.SourceGroupName, &test.TestKind, &test.Answer, &test.EstimatedCostUSD, &test.UpstreamRateMultiplier, &test.CostModelID)
+		&test.CreatedAt, &test.StartedAt, &test.FinishedAt, &test.SourceGroupID, &test.SourceGroupName, &test.TestKind, &test.Answer, &test.EstimatedCostUSD, &test.UpstreamRateMultiplier, &test.CostModelID, &test.QuestionID, &test.QuestionName, &test.ExpectedAnswer)
 	return test, err
 }
 
@@ -45,9 +45,12 @@ func (r *pelicanTestRepository) CreateBatch(ctx context.Context, batchID string,
 	tests := make([]service.PelicanTest, 0, len(accountIDs))
 	for _, accountID := range accountIDs {
 		row := tx.QueryRowContext(ctx, `INSERT INTO account_pelican_tests
-			(batch_id, account_id, model_id, prompt, test_kind)
-			VALUES ($1, $2, $3, $4, $5)
-			ON CONFLICT (account_id, test_kind) WHERE status IN ('queued', 'running') DO NOTHING
+			(batch_id, account_id, model_id, prompt, test_kind, question_id, question_name, expected_answer)
+			VALUES ($1, $2, $3, $4, $5::text,
+			 COALESCE((SELECT id FROM generation_test_questions WHERE test_kind=$5::text AND prompt=$4 ORDER BY id LIMIT 1),0),
+			 COALESCE((SELECT name FROM generation_test_questions WHERE test_kind=$5::text AND prompt=$4 ORDER BY id LIMIT 1),''),
+			 CASE WHEN $5::text='intelligence' THEN '20' ELSE '' END)
+			ON CONFLICT (account_id, test_kind, question_id) WHERE status IN ('queued', 'running') DO NOTHING
 			RETURNING `+pelicanTestColumns, batchID, accountID, modelID, prompt, service.GenerationTestKind(kinds...))
 		test, scanErr := scanPelicanTest(row)
 		if errors.Is(scanErr, sql.ErrNoRows) {

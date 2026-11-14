@@ -110,9 +110,20 @@ func (s *PelicanTestService) SaveGroupConfig(ctx context.Context, config GroupPe
 	if config.Prompt == "" {
 		config.Prompt = GenerationTestPrompt(config.TestKind)
 	}
+	if config.IntervalMinutes == 0 {
+		config.IntervalMinutes = 30
+	}
+	if len(config.QuestionIDs) > 0 {
+		if err := validateGenerationIDs(config.QuestionIDs, GenerationTestMaxQuestions); err != nil {
+			return nil, err
+		}
+	}
+	if config.Enabled && config.QuestionIDs != nil && len(config.QuestionIDs) == 0 {
+		return nil, fmt.Errorf("%w: select at least one question", ErrInvalidPelicanBatch)
+	}
 	if len(config.ModelID) > 255 || utf8.RuneCountInString(config.Prompt) > PelicanTestMaxPrompt ||
-		(config.Enabled && config.ModelID == "") || (config.IntervalMinutes != 0 && config.IntervalMinutes != 30) {
-		return nil, fmt.Errorf("%w: a model and a prompt of at most 4000 characters are required; interval must be 30 minutes", ErrInvalidPelicanBatch)
+		(config.Enabled && config.ModelID == "") || config.IntervalMinutes < 5 || config.IntervalMinutes > 1440 {
+		return nil, fmt.Errorf("%w: a model and a prompt of at most 4000 characters are required; interval must be 5–1440 minutes", ErrInvalidPelicanBatch)
 	}
 	if config.Enabled && (isImageGenerationModel(config.ModelID) || isOpenAIImageModel(config.ModelID) || isGrokVideoGenerationModel(config.ModelID)) {
 		return nil, fmt.Errorf("%w: select a text generation model", ErrInvalidPelicanBatch)

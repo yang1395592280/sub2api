@@ -313,6 +313,9 @@ export async function testAccount(id: number): Promise<{
 export type GenerationTestKind = 'pelican' | 'intelligence'
 
 export interface PelicanTest {
+  question_id?: number
+  question_name?: string
+  expected_answer?: string
   test_kind?: GenerationTestKind
   answer?: string
   estimated_cost_usd?: number | null
@@ -338,18 +341,20 @@ export interface PelicanTest {
   source_group_name?: string
 }
 
-export async function startPelicanTests(accountIds: number[], modelId: string, prompt: string, kind: GenerationTestKind = 'pelican'): Promise<PelicanTest[]> {
+export async function startPelicanTests(accountIds: number[], modelId: string, prompt: string | number[], kind: GenerationTestKind = 'pelican'): Promise<PelicanTest[]> {
   const { data } = await apiClient.post<PelicanTest[]>(`/admin/accounts/${kind}-tests`, {
     account_ids: accountIds,
     model_id: modelId,
-    prompt
+    ...(Array.isArray(prompt) ? { question_ids: prompt } : { prompt })
   })
   return data
 }
 
-export async function listLatestPelicanTests(accountIds: number[], kind: GenerationTestKind = 'pelican'): Promise<PelicanTest[]> {
+export async function listLatestPelicanTests(accountIds: number[], kind: GenerationTestKind = 'pelican', batchId?: string): Promise<PelicanTest[]> {
   const { data } = await apiClient.post<PelicanTest[]>(`/admin/accounts/${kind}-tests/latest`, {
-    account_ids: accountIds
+    account_ids: accountIds,
+    include_batch: true,
+    ...(batchId ? { batch_id: batchId } : {})
   })
   return data
 }
@@ -364,11 +369,12 @@ export interface PelicanTestHistory {
   total: number
   page: number
   page_size: number
+  total_records?: number
 }
 
 export async function listPelicanHistory(accountId: number, page = 1, pageSize = 12, kind: GenerationTestKind = 'pelican'): Promise<PelicanTestHistory> {
   return (await apiClient.get<PelicanTestHistory>(`/admin/accounts/${accountId}/${kind}-tests`, {
-    params: { page, page_size: pageSize }
+    params: { page, page_size: pageSize, group_batches: 1 }
   })).data
 }
 

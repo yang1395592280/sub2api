@@ -421,6 +421,10 @@ func registerGroupRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 }
 
 func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAuth middleware.StepUpAuthMiddleware) {
+	admin.GET("/test-questions", h.Admin.Account.ListGenerationTestQuestions)
+	admin.POST("/test-questions", h.Admin.Account.SaveGenerationTestQuestion)
+	admin.PUT("/test-questions/:id", h.Admin.Account.SaveGenerationTestQuestion)
+	admin.GET("/test-questions/preferences", h.Admin.Account.GetGenerationTestPreference)
 	accounts := admin.Group("/accounts")
 	{
 		accounts.GET("", h.Admin.Account.List)

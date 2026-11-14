@@ -12,7 +12,7 @@
           <button class="btn btn-secondary" :disabled="loading" @click="load"><Icon name="refresh" size="sm" />{{ t('common.refresh') }}</button>
         </div>
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 text-sm dark:border-dark-700">
-          <span class="font-medium text-gray-700 dark:text-gray-200">{{ t('pelican.total', { count: total.toLocaleString() }) }}</span>
+          <span class="font-medium text-gray-700 dark:text-gray-200">{{ t('pelican.library.batches', { batches: total.toLocaleString(), records: totalRecords.toLocaleString() }) }}</span>
           <span class="text-xs text-gray-400">{{ t('pelican.generationHint') }}</span>
         </div>
       </header>
@@ -27,8 +27,11 @@
         <h2 class="font-medium">{{ t('pelican.empty') }}</h2>
         <p class="mt-2 text-sm text-gray-500">{{ t('pelican.emptyHint') }}</p>
       </section>
-      <section v-else class="grid gap-6 lg:grid-cols-2" :aria-label="t('pelican.history')" :aria-busy="loading">
-        <article v-for="test in items" :key="test.id" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-800">
+      <section v-else class="space-y-6" :aria-label="t('pelican.history')" :aria-busy="loading">
+        <div v-for="batch in batches" :key="batch.id" class="space-y-3" data-test="history-batch">
+        <header class="flex flex-wrap items-center justify-between gap-2 text-sm"><div><strong>{{ t('pelican.library.batch') }} · {{ batch.id.slice(0, 8) }}</strong><span class="ml-3 text-gray-500">{{ formatDateTime(batch.items[0].created_at) }}</span></div><span class="text-emerald-600">{{ t('pelican.library.artworkSummary', summarizeGenerationTests(batch.items, 'pelican')) }}</span></header>
+        <div class="grid gap-6 lg:grid-cols-2">
+        <article v-for="test in batch.items" :key="test.id" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-800">
           <div class="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-3.5 dark:border-dark-700">
             <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium" :class="statusClass(test.status)">
               <span class="h-1.5 w-1.5 rounded-full bg-current" />{{ t(`pelican.cardStatus.${test.status}`) }}
@@ -44,7 +47,7 @@
             </div>
             <div class="space-y-4 p-5">
               <div class="flex items-start justify-between gap-4">
-                <div class="min-w-0"><h2 class="truncate font-semibold text-gray-900 dark:text-white" :title="test.model_id">{{ test.model_id }}</h2><p class="mt-1 truncate text-xs text-gray-500">{{ accountName || `#${test.account_id}` }}</p></div>
+                <div class="min-w-0"><p class="mb-1 break-words font-semibold">{{ test.question_name || `#${test.id}` }}</p><h2 class="truncate font-semibold text-gray-900 dark:text-white" :title="test.model_id">{{ test.model_id }}</h2><p class="mt-1 truncate text-xs text-gray-500">{{ accountName || `#${test.account_id}` }}</p></div>
                 <Icon name="eye" class="text-gray-400 transition-colors group-hover:text-primary-500" size="sm" />
               </div>
               <p class="flex items-center gap-2 text-xs text-gray-500"><span class="rounded bg-gray-100 px-2 py-1 dark:bg-dark-700">{{ test.source_group_id ? t('pelican.scheduled') : t('pelican.manual') }}</span><span class="truncate">{{ test.source_group_name }}</span></p>
@@ -57,6 +60,8 @@
             </div>
           </button>
         </article>
+        </div>
+        </div>
       </section>
       <Pagination v-if="total > 0 && !error" :total="total" :page="page" :page-size="pageSize" :show-page-size-selector="false" @update:page="changePage" />
       <PelicanResultDialog :show="selectedId !== null" :test-id="selectedId" :account-name="accountName" @close="selectedId = null" />
@@ -65,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useIntervalFn } from '@vueuse/core'
@@ -79,10 +84,13 @@ import { adminAPI } from '@/api/admin'
 import type { PelicanTest } from '@/api/admin/accounts'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatDateTime } from '@/utils/format'
+import { groupGenerationBatches, summarizeGenerationTests } from '@/utils/generationTests'
 
 const route = useRoute(), { t } = useI18n()
 const accountName = ref(''), items = ref<PelicanTest[]>([])
 const page = ref(1), pageSize = 12, total = ref(0)
+const totalRecords = ref(0)
+const batches = computed(() => groupGenerationBatches(items.value))
 const loading = ref(false), error = ref(''), selectedId = ref<number | null>(null)
 let version = 0, lastLoadAt = 0
 const isActive = (test: PelicanTest) => test.status === 'queued' || test.status === 'running'
@@ -99,7 +107,7 @@ async function load() {
   try {
     const result = await adminAPI.accounts.listPelicanHistory(id, page.value, pageSize)
     if (current !== version) return
-    items.value = result.items; total.value = result.total
+    items.value = result.items; total.value = result.total; totalRecords.value = result.total_records ?? result.total
   } catch (cause) {
     if (current === version) error.value = extractApiErrorMessage(cause, t('pelican.historyFailed'))
   } finally { if (current === version) { loading.value = false; lastLoadAt = Date.now() } }

@@ -13,8 +13,9 @@
       <p v-if="test.input_tokens != null || test.output_tokens != null" class="text-xs text-gray-500 dark:text-gray-300">
         {{ t('admin.accounts.pelican.tokensBreakdown', { input: test.input_tokens?.toLocaleString() ?? '—', output: test.output_tokens?.toLocaleString() ?? '—' }) }}
       </p>
+      <h3 v-if="test.question_name" class="font-semibold">{{ test.question_name }}</h3>
       <TestEstimatedCost :test="test" />
-      <p v-if="intelligence" class="text-sm font-semibold" :class="test.status === 'correct' ? 'text-emerald-600' : 'text-red-600'">{{ test.answer || t(`pelican.intelligence.status.${test.status}`) }} · {{ t('pelican.intelligence.expected') }}</p>
+      <p v-if="intelligence" class="text-sm font-semibold" :class="test.status === 'correct' ? 'text-emerald-600' : 'text-red-600'">{{ test.answer || t(`pelican.intelligence.status.${test.status}`) }} · {{ t('pelican.library.expected', { answer: test.expected_answer || '20' }) }}</p>
       <p class="whitespace-pre-wrap break-words text-xs text-gray-600 dark:text-gray-300">{{ test.prompt }}</p>
       <p v-if="test.error_message" class="text-sm text-red-600">{{ test.error_message }}</p>
       <p v-if="test.html" class="text-xs text-amber-700 dark:text-amber-300">{{ t('admin.accounts.pelican.sandboxHint') }}</p>

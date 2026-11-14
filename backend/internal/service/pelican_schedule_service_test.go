@@ -42,6 +42,9 @@ func TestPelicanGroupConfigValidation(t *testing.T) {
 		{"missing model", GroupPelicanConfig{Enabled: true}},
 		{"media model", GroupPelicanConfig{Enabled: true, ModelID: "gpt-image-1"}},
 		{"invalid interval", GroupPelicanConfig{IntervalMinutes: 1}},
+		{"interval above maximum", GroupPelicanConfig{IntervalMinutes: 1441}},
+		{"duplicate questions", GroupPelicanConfig{QuestionIDs: []int64{1, 1}}},
+		{"empty enabled selection", GroupPelicanConfig{Enabled: true, ModelID: "text", QuestionIDs: []int64{}}},
 		{"long model", GroupPelicanConfig{ModelID: strings.Repeat("m", 256)}},
 		{"long prompt", GroupPelicanConfig{Prompt: strings.Repeat("题", 4001)}},
 	} {
