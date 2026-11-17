@@ -396,3 +396,9 @@
 - 相关文件：backend/cmd/server/VERSION、20261114/release-v0.2.21.7.md、docs/test-question-library.md。
 - 执行范围：发布提交、annotated tag 与 atomic push origin/custom-main 和 v0.2.21.7，最终远端分支及 peeled tag 须指向同一提交。本条为推送前记录，以后续 Git/GitHub 核验为准。RELEASE_ONLY=true，仅归档和 Release。
 - 阻塞：无本地发布阻塞。迁移254要求升级前备份并停止全部旧实例，不能混跑新旧二进制；未执行生产迁移、部署或真实付费模型调用。
+
+
+## 2026-11-17 v0.2.22.1 发布准备
+- 已完成带证据：用户明确授权打 tag v0.2.22.1、提交并推送；上游最新迭代 v0.2.22（提交点 15871f904）已无冲突合入 custom-main（合并提交 ed900c8f2）；VERSION/resolve-version/embed 二进制版本均为 0.2.22.1。
+- 相关文件：backend/cmd/server/VERSION、.ai-memory/20261117/release-v0.2.22.1.md。
+- 执行范围：发布提交、annotated tag 与 atomic push origin/custom-main 和 refs/tags/v0.2.22.1。
