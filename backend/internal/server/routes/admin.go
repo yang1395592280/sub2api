@@ -110,6 +110,10 @@ func RegisterAdminRoutes(
 		// 系统管理
 		registerSystemRoutes(admin, h)
 
+		// 游戏中心与大小中竞猜
+		registerGameCenterRoutes(admin, h)
+		registerSizeBetRoutes(admin, h)
+
 		// 订阅管理
 		registerSubscriptionRoutes(admin, h)
 
@@ -990,5 +994,33 @@ func channelMonitorModeV2Guard(settingService *service.SettingService) gin.Handl
 			return
 		}
 		c.Next()
+	}
+}
+
+func registerGameCenterRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	gameCenter := admin.Group("/game-center")
+	{
+		gameCenter.GET("/settings", h.Admin.GameCenter.GetSettings)
+		gameCenter.PUT("/settings", h.Admin.GameCenter.UpdateSettings)
+		gameCenter.GET("/catalog", h.Admin.GameCenter.ListCatalog)
+		gameCenter.PUT("/catalog/:gameKey", h.Admin.GameCenter.UpdateCatalog)
+		gameCenter.GET("/ledger", h.Admin.GameCenter.ListLedger)
+		gameCenter.GET("/claims", h.Admin.GameCenter.ListClaims)
+		gameCenter.GET("/exchanges", h.Admin.GameCenter.ListExchanges)
+		gameCenter.POST("/users/:id/points/adjust", h.Admin.GameCenter.AdjustPoints)
+	}
+}
+
+func registerSizeBetRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	games := admin.Group("/games/size-bet")
+	{
+		games.GET("/settings", h.Admin.SizeBet.GetSettings)
+		games.PUT("/settings", h.Admin.SizeBet.UpdateSettings)
+		games.GET("/rounds", h.Admin.SizeBet.ListRounds)
+		games.GET("/bets", h.Admin.SizeBet.ListBets)
+		games.GET("/ledger", h.Admin.SizeBet.ListLedger)
+		games.GET("/stats/overview", h.Admin.SizeBet.GetStatsOverview)
+		games.GET("/stats/users", h.Admin.SizeBet.ListStatsUsers)
+		games.POST("/rounds/:id/refund", h.Admin.SizeBet.RefundRound)
 	}
 }

@@ -23,6 +23,8 @@ export { passkeyAPI, type PasskeyCredentialSummary } from './passkey'
 export { default as announcementsAPI } from './announcements'
 export { channelMonitorUserAPI } from './channelMonitor'
 export * from './zenxiangLiyu'
+export { gameCenterAPI } from './gameCenter'
+export { sizeBetAPI } from './sizeBet'
 
 // Admin APIs
 export { adminAPI } from './admin'

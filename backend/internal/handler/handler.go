@@ -47,6 +47,8 @@ type AdminHandlers struct {
 	Compliance             *admin.ComplianceHandler
 	ZenxiangLiyu           *admin.ZenxiangLiyuHandler
 	AuditLog               *admin.AuditLogHandler
+	SizeBet                *admin.SizeBetHandler
+	GameCenter             *admin.GameCenterHandler
 }
 
 // Handlers contains all HTTP handlers
@@ -75,6 +77,8 @@ type Handlers struct {
 	AsyncImage       *AsyncImageHandler
 	BatchImage       *BatchImageHandler
 	ZenxiangLiyu     *ZenxiangLiyuHandler
+	SizeBet          *SizeBetHandler
+	GameCenter       *GameCenterHandler
 }
 
 // BuildInfo contains build-time information

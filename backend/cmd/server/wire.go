@@ -140,6 +140,7 @@ func provideCleanup(
 	openAIAutoReset *service.OpenAIQuotaAutoResetService,
 	promptAudit *securityaudit.PromptService,
 	pluginManager *service.PluginManager,
+	sizeBetRuntime *service.SizeBetRuntimeService,
 ) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -173,6 +174,12 @@ func provideCleanup(
 			{"OpenAIQuotaAutoResetService", func() error {
 				if openAIAutoReset != nil {
 					openAIAutoReset.Stop()
+				}
+				return nil
+			}},
+			{"SizeBetRuntimeService", func() error {
+				if sizeBetRuntime != nil {
+					sizeBetRuntime.Stop()
 				}
 				return nil
 			}},

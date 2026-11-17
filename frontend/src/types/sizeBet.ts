@@ -1,0 +1,160 @@
+export type SizeBetDirection = 'small' | 'mid' | 'big'
+export type SizeBetPhase = 'betting' | 'closed' | 'preparing' | 'maintenance'
+export type SizeBetRoundStatus = 'open' | 'settled'
+export type SizeBetStatus = 'placed' | 'won' | 'lost' | 'refunded'
+
+export interface SizeBetCurrentRound {
+  id: number
+  round_no: number
+  status: SizeBetRoundStatus
+  starts_at: string
+  bet_closes_at: string
+  settles_at: string
+  prob_small: number
+  prob_mid: number
+  prob_big: number
+  odds_small: number
+  odds_mid: number
+  odds_big: number
+  allowed_stakes: number[]
+  server_seed_hash: string
+  countdown_seconds: number
+  bet_countdown_seconds: number
+}
+
+export interface SizeBetBet {
+  id: number
+  round_id: number
+  direction: SizeBetDirection
+  stake_amount: number
+  payout_amount: number
+  net_result_amount: number
+  status: SizeBetStatus
+  placed_at: string
+  settled_at?: string | null
+}
+
+export interface SizeBetHistoryItem {
+  bet_id: number
+  round_no: number
+  direction: SizeBetDirection
+  selection: string
+  result_number?: number | null
+  result_direction?: SizeBetDirection | '' | null
+  stake_amount: number
+  payout_amount: number
+  net_result_amount: number
+  points_after?: number | null
+  status: SizeBetStatus
+  placed_at: string
+  settled_at?: string | null
+}
+
+export interface SizeBetHistoryView {
+  items: SizeBetHistoryItem[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
+export interface SizeBetRoundSummary {
+  id: number
+  round_no: number
+  status: SizeBetRoundStatus
+  starts_at: string
+  settles_at: string
+  result_number?: number | null
+  result_direction?: SizeBetDirection | '' | null
+  server_seed_hash?: string
+  server_seed?: string | null
+}
+
+export interface SizeBetRoundsView {
+  items: SizeBetRoundSummary[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
+export interface SizeBetCurrentRoundView {
+  enabled: boolean
+  phase: SizeBetPhase
+  server_time: string
+  round: SizeBetCurrentRound | null
+  my_bet: SizeBetBet | null
+  previous_round: SizeBetRoundSummary | null
+}
+
+export interface SizeBetRulesView {
+  enabled: boolean
+  round_duration_seconds: number
+  bet_close_offset_seconds: number
+  allowed_stakes: number[]
+  custom_stake_min: number
+  custom_stake_max: number
+  probabilities: {
+    small: number
+    mid: number
+    big: number
+  }
+  odds: {
+    small: number
+    mid: number
+    big: number
+  }
+  rules_markdown: string
+}
+
+export interface SizeBetStatsOverview {
+  date: string
+  participant_count: number
+  total_stake: number
+  total_payout: number
+  total_user_net: number
+  house_net: number
+}
+
+export interface SizeBetStatsUserItem {
+  username: string
+  total_stake: number
+  won_count: number
+  lost_count: number
+  refunded_count: number
+  net_result: number
+}
+
+export interface SizeBetStatsUsersView {
+  items: SizeBetStatsUserItem[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
+export interface SizeBetLeaderboardItem {
+  rank: number
+  user_id: number
+  email: string
+  username: string
+  points: number
+  net_profit: number
+  win_count: number
+  bet_count: number
+  hit_rate: number
+}
+
+export interface SizeBetLeaderboardView {
+  scope: string
+  scope_key: string
+  refreshed_at?: string | null
+  items: SizeBetLeaderboardItem[]
+}
+
+export interface PlaceSizeBetRequest {
+  round_id: number
+  direction: SizeBetDirection
+  stake_amount: number
+  idempotency_key: string
+}

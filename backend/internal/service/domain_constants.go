@@ -755,6 +755,28 @@ const (
 
 	// Web Search Emulation
 	SettingKeyWebSearchEmulationConfig = "web_search_emulation_config" // JSON 配置
+
+	// 大小中竞猜设置
+	SettingKeySizeBetEnabled                           = "size_bet_enabled"                               // 大小中竞猜总开关
+	SettingKeySizeBetRoundDurationSeconds              = "size_bet_round_duration_seconds"                // 大小中竞猜每局时长（秒）
+	SettingKeySizeBetBetCloseOffsetSeconds             = "size_bet_bet_close_offset_seconds"              // 大小中竞猜封盘秒数偏移
+	SettingKeySizeBetAllowedStakes                     = "size_bet_allowed_stakes"                        // 大小中竞猜可下注额度（JSON 数组）
+	SettingKeySizeBetCustomStakeMin                    = "size_bet_custom_stake_min"                      // 大小中竞猜自定义额度最小值
+	SettingKeySizeBetCustomStakeMax                    = "size_bet_custom_stake_max"                      // 大小中竞猜自定义额度最大值
+	SettingKeySizeBetProbabilities                     = "size_bet_probabilities"                         // 大小中竞猜概率配置（JSON）
+	SettingKeySizeBetOdds                              = "size_bet_odds"                                  // 大小中竞猜赔率配置（JSON）
+	SettingKeySizeBetRulesMarkdown                     = "size_bet_rules_markdown"                        // 大小中竞猜规则 Markdown
+
+	// 游戏中心设置
+	SettingKeyGameCenterEnabled                        = "game_center_enabled"
+	SettingKeyGameCenterClaimEnabled                   = "game_center_claim_enabled"
+	SettingKeyGameCenterClaimSchedule                  = "game_center_claim_schedule"
+	SettingKeyGameCenterExchangeBalanceToPointsEnabled = "game_center_exchange_balance_to_points_enabled"
+	SettingKeyGameCenterExchangePointsToBalanceEnabled = "game_center_exchange_points_to_balance_enabled"
+	SettingKeyGameCenterExchangeBalanceToPointsRate    = "game_center_exchange_balance_to_points_rate"
+	SettingKeyGameCenterExchangePointsToBalanceRate    = "game_center_exchange_points_to_balance_rate"
+	SettingKeyGameCenterExchangeMinBalanceAmount       = "game_center_exchange_min_balance_amount"
+	SettingKeyGameCenterExchangeMinPointsAmount        = "game_center_exchange_min_points_amount"
 )
 
 // SettingKeyDefaultPlatformQuotas —— 系统全局：每用户 × 平台日/周/月 USD 上限（JSON）。
