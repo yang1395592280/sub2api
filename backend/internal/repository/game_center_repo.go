@@ -574,9 +574,11 @@ func buildGamePointsWhere(alias, timeColumn string, filter service.GamePointsLed
 	}
 	if filter.StartTime != nil {
 		args = append(args, filter.StartTime.UTC())
+		conditions = append(conditions, fmt.Sprintf("%s >= $%d", column(timeColumn), len(args)))
 	}
 	if filter.EndTime != nil {
 		args = append(args, filter.EndTime.UTC())
+		conditions = append(conditions, fmt.Sprintf("%s < $%d", column(timeColumn), len(args)))
 	}
 	if len(conditions) == 0 {
 		return "", args

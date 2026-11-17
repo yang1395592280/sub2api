@@ -408,3 +408,9 @@
 - 已完成带证据：用户明确授权打 tag v0.2.22.2、提交并推送；比大小（Size Bet）与游戏中心功能分支 feature/size-bet-game 已无冲突合入 custom-main（合并提交 f018a1aa2）；VERSION/resolve-version 均为 0.2.22.2。
 - 相关文件：backend/cmd/server/VERSION、.ai-memory/20261117/release-v0.2.22.2.md。
 - 执行范围：发布提交、annotated tag 与 push origin custom-main 和 refs/tags/v0.2.22.2。
+
+
+## 2026-11-17 v0.2.22.3 发布
+- 已完成带证据：用户明确授权打 tag v0.2.22.3、提交并推送；修复 game_center_repo buildGamePointsWhere 时间过滤未生成 SQL 条件引发 500 的 Bug；增加单元测试并通过；VERSION 升为 0.2.22.3。
+- 相关文件：backend/cmd/server/VERSION、backend/internal/repository/game_center_repo.go、backend/internal/repository/game_center_repo_test.go、.ai-memory/20261117/release-v0.2.22.3.md。
+- 执行范围：发布提交、annotated tag 与 push origin custom-main 和 refs/tags/v0.2.22.3。
