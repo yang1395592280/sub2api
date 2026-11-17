@@ -313,6 +313,24 @@ const siteVersion = computed(() => appStore.siteVersion)
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
 
 // SVG Icon Components
+const DiceIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M6.75 4.5h10.5A2.25 2.25 0 0119.5 6.75v10.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 17.25V6.75A2.25 2.25 0 016.75 4.5z'
+        }),
+        h('circle', { cx: '8.25', cy: '8.25', r: '0.8', fill: 'currentColor', stroke: 'none' }),
+        h('circle', { cx: '12', cy: '12', r: '0.8', fill: 'currentColor', stroke: 'none' }),
+        h('circle', { cx: '15.75', cy: '15.75', r: '0.8', fill: 'currentColor', stroke: 'none' }),
+      ]
+    )
+}
+
 const DashboardIcon = {
   render: () =>
     h(
@@ -799,6 +817,8 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
     { path: '/zenxiang-liyu', label: t('nav.zenxiangLiyu'), icon: SparklesIcon, featureFlag: flagZenxiangLiyu },
+    { path: '/game-center', label: t('nav.gameCenter'), icon: DiceIcon },
+    { path: '/game/size-bet', label: t('nav.sizeBet'), icon: DiceIcon, hideInSimpleMode: true },
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
     { path: '/purchase', label: purchaseNavLabel.value, icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
@@ -934,6 +954,8 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },
     { path: '/admin/checkins', label: t('wallet.adminTitle'), icon: SparklesIcon, hideInSimpleMode: true },
     { path: '/admin/zenxiang-liyu', label: t('nav.zenxiangLiyuOps'), icon: SparklesIcon, hideInSimpleMode: true },
+    { path: '/admin/game-center', label: t('nav.gameCenterAdmin'), icon: DiceIcon, hideInSimpleMode: true },
+    { path: '/admin/games/size-bet', label: t('admin.sizeBet.title'), icon: DiceIcon, hideInSimpleMode: true },
     { path: '/admin/user-daily-stats', label: t('admin.userDailyStats.title'), icon: OrderIcon, hideInSimpleMode: true },
     { path: '/admin/user-spending-ranking', label: t('nav.userSpendingRanking'), icon: OrderIcon, hideInSimpleMode: true },
     { path: '/admin/audit-logs', label: t('nav.auditLogs'), icon: ShieldIcon, hideInSimpleMode: true }

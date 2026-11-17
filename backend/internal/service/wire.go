@@ -1027,6 +1027,10 @@ func ProvideCheckinService(repo CheckinRepository, settings SettingRepository, i
 var ProviderSet = wire.NewSet(
 	NewUserDailyStatsService,
 	ProvideCheckinService,
+	NewSizeBetService,
+	NewSizeBetAdminService,
+	NewGameCenterService,
+	ProvideSizeBetRuntimeService,
 	ProvideAccountQualityService,
 	// Core services
 	ProvideAuthService,
@@ -1316,6 +1320,12 @@ func ProvidePelicanTestService(repo PelicanTestRepository, accounts AccountRepos
 	svc := NewPelicanTestService(repo, accounts, tests)
 	svc.groupRepo = groups
 	svc.billing = billing
+	svc.Start()
+	return svc
+}
+
+func ProvideSizeBetRuntimeService(gameService *SizeBetService) *SizeBetRuntimeService {
+	svc := NewSizeBetRuntimeService(gameService, time.Second)
 	svc.Start()
 	return svc
 }

@@ -178,6 +178,30 @@ func RegisterUserRoutes(
 			monitorV2.GET("/errors", h.ChannelMonitorV2.Errors)
 			monitorV2.GET("/users", h.ChannelMonitorV2.Users)
 		}
+
+		game := authenticated.Group("/game/size-bet")
+		{
+			game.GET("/current", h.SizeBet.GetCurrent)
+			game.POST("/bet", h.SizeBet.PlaceBet)
+			game.GET("/history", h.SizeBet.GetHistory)
+			game.GET("/rounds", h.SizeBet.ListRecentRounds)
+			game.GET("/stats/overview", h.SizeBet.GetStatsOverview)
+			game.GET("/stats/users", h.SizeBet.ListStatsUsers)
+			game.GET("/leaderboard", h.SizeBet.GetLeaderboard)
+			game.GET("/rules", h.SizeBet.GetRules)
+		}
+
+		gameCenter := authenticated.Group("/game-center")
+		{
+			gameCenter.GET("/overview", h.GameCenter.GetOverview)
+			gameCenter.POST("/claims/:batchKey", h.GameCenter.ClaimPoints)
+			gameCenter.POST("/exchange/balance-to-points", h.GameCenter.ExchangeBalanceToPoints)
+			gameCenter.POST("/exchange/points-to-balance", h.GameCenter.ExchangePointsToBalance)
+			gameCenter.GET("/ledger", h.GameCenter.GetLedger)
+			gameCenter.GET("/leaderboard", h.GameCenter.GetPointsLeaderboard)
+			gameCenter.GET("/users/:id/ledger", h.GameCenter.GetUserLedger)
+			gameCenter.GET("/catalog", h.GameCenter.GetCatalog)
+		}
 	}
 }
 

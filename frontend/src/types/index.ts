@@ -86,6 +86,7 @@ export interface User {
   wechat_bound?: boolean
   role: 'admin' | 'user' // User role for authorization
   balance: number // User balance for API usage
+  points?: number // User game center points
   checkin_balance?: number
   liyu_balance?: number
   gift_balance?: number

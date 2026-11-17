@@ -57,6 +57,8 @@ func ProvideAdminHandlers(
 	complianceHandler *admin.ComplianceHandler,
 	zenxiangLiyuHandler *admin.ZenxiangLiyuHandler,
 	auditLogHandler *admin.AuditLogHandler,
+	sizeBetHandler *admin.SizeBetHandler,
+	gameCenterHandler *admin.GameCenterHandler,
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
 	ollamaCloudUsage *service.OllamaCloudUsageService,
 	opencodeGoUsage *service.OpenCodeGoUsageService,
@@ -109,6 +111,8 @@ func ProvideAdminHandlers(
 		Compliance:             complianceHandler,
 		ZenxiangLiyu:           zenxiangLiyuHandler,
 		AuditLog:               auditLogHandler,
+		SizeBet:                sizeBetHandler,
+		GameCenter:             gameCenterHandler,
 	}
 }
 
@@ -278,6 +282,8 @@ func ProvideHandlers(
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
 	zenxiangLiyuHandler *ZenxiangLiyuHandler,
+	sizeBetHandler *SizeBetHandler,
+	gameCenterHandler *GameCenterHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *service.OpenAIQuotaAutoResetService,
@@ -307,6 +313,8 @@ func ProvideHandlers(
 		AsyncImage:       asyncImageHandler,
 		BatchImage:       batchImageHandler,
 		ZenxiangLiyu:     zenxiangLiyuHandler,
+		SizeBet:          sizeBetHandler,
+		GameCenter:       gameCenterHandler,
 	}
 }
 
@@ -340,6 +348,10 @@ var ProviderSet = wire.NewSet(
 	ProvideBatchImageHandler,
 	ProvideZenxiangLiyuHandler,
 	ProvideAdminZenxiangLiyuHandler,
+	NewSizeBetHandler,
+	admin.NewSizeBetHandler,
+	NewGameCenterHandler,
+	admin.NewGameCenterHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,

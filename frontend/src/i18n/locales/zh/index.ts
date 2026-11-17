@@ -11,6 +11,8 @@ import batchImage from './batchImage'
 import admin from './admin'
 import openAIQuality from './openAIQuality'
 import misc from './misc'
+import sizeBet from './sizeBet'
+import gameCenter from './gameCenter'
 
 export default {
   wallet,
@@ -25,6 +27,14 @@ export default {
   ...batchImage,
   admin,
   ...openAIQuality,
-  nav: { ...common.nav, ...openAIQuality.nav },
+  sizeBet,
+  gameCenter,
+  nav: {
+    ...common.nav,
+    ...openAIQuality.nav,
+    gameCenter: '游戏中心',
+    gameCenterAdmin: '游戏中心管理',
+    sizeBet: '比大小'
+  },
   ...misc,
 }

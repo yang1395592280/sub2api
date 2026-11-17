@@ -119,6 +119,8 @@ var ProviderSet = wire.NewSet(
 	NewOpenAISchedulerExplorationCache,
 	NewOpenAISchedulerOverviewRepository,
 	NewZenxiangLiyuRepository,
+	NewSizeBetRepository,
+	NewGameCenterRepository,
 
 	// Cache implementations
 	NewGatewayCache,

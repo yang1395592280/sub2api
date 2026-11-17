@@ -299,6 +299,51 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/game-center',
+    name: 'GameCenter',
+    component: () => import('@/views/user/GameCenterView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Game Center',
+      titleKey: 'nav.gameCenter'
+    }
+  },
+  {
+    path: '/game-center/:gameKey',
+    name: 'GameCenterShell',
+    component: () => import('@/views/user/GameCenterShellView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Game Center',
+      titleKey: 'nav.gameCenter'
+    }
+  },
+  {
+    path: '/game/size-bet',
+    name: 'SizeBetGame',
+    component: () => import('@/views/user/SizeBetGameView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Size Bet',
+      titleKey: 'sizeBet.title'
+    }
+  },
+  {
+    path: '/game/size-bet/stats',
+    name: 'SizeBetStats',
+    component: () => import('@/views/user/SizeBetStatsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Size Bet Stats',
+      titleKey: 'sizeBet.statsPage.title',
+      descriptionKey: 'sizeBet.statsPage.description'
+    }
+  },
+  {
     path: '/settings/mcp',
     name: 'MCP',
     component: () => import('@/views/user/MCPView.vue'),
@@ -732,6 +777,30 @@ const routes: RouteRecordRaw[] = [
       title: 'Premium Rewards Operations',
       titleKey: 'admin.zenxiangLiyu.title',
       descriptionKey: 'admin.zenxiangLiyu.description'
+    }
+  },
+  {
+    path: '/admin/game-center',
+    name: 'AdminGameCenter',
+    component: () => import('@/views/admin/GameCenterAdminView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Game Center Admin',
+      titleKey: 'admin.gameCenter.title',
+      descriptionKey: 'admin.gameCenter.description'
+    }
+  },
+  {
+    path: '/admin/games/size-bet',
+    name: 'AdminSizeBet',
+    component: () => import('@/views/admin/SizeBetAdminView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Size Bet Admin',
+      titleKey: 'admin.sizeBet.title',
+      descriptionKey: 'admin.sizeBet.description'
     }
   },
   {
