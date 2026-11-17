@@ -140,6 +140,16 @@ export const FeatureFlags = {
     mode: 'opt-in',
     label: 'MCP',
   }),
+  gameCenter: defineFlag({
+    key: 'game_center_enabled',
+    mode: 'opt-out',
+    label: 'Game Center',
+  }),
+  sizeBet: defineFlag({
+    key: 'size_bet_enabled',
+    mode: 'opt-out',
+    label: 'Size Bet',
+  }),
 } as const
 
 export type RegisteredFeatureFlag = keyof typeof FeatureFlags

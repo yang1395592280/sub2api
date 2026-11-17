@@ -28,7 +28,7 @@
               {{ exchangeOpen ? '收起福利兑换' : '福利余额 ⇆ 筹码兑换' }}
             </button>
             <RouterLink to="/game/size-bet" class="btn btn-primary bg-amber-500 hover:bg-amber-600 border-none text-slate-950 font-bold">
-              进入比大小
+              进入猜大小
             </RouterLink>
           </div>
         </div>
@@ -45,9 +45,9 @@
               </p>
             </div>
             <div class="flex items-center gap-2">
-              <RouterLink to="/checkin" class="btn btn-secondary btn-sm text-xs">
+              <button type="button" class="btn btn-secondary btn-sm text-xs" @click="showCheckinDialog = true">
                 去签到领福利
-              </RouterLink>
+              </button>
               <RouterLink to="/zenxiang-liyu" class="btn btn-secondary btn-sm text-xs">
                 甄选礼遇抽奖
               </RouterLink>
@@ -69,6 +69,10 @@
               (优先扣除签到、礼遇赠送余额，绝不扣付费余额)
             </p>
 
+            <div v-if="!overview?.exchange.balance_to_points_enabled" class="mt-3 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20">
+              ⚠️ 管理员暂时关闭了福利余额兑入筹码功能
+            </div>
+
             <div class="mt-4">
               <label class="block text-xs font-medium uppercase tracking-[0.16em] text-slate-500 dark:text-slate-300">划转福利金额 (元)</label>
               <div class="mt-2 flex items-center gap-2">
@@ -77,12 +81,14 @@
                   type="number"
                   min="0.01"
                   step="0.01"
+                  :disabled="!overview?.exchange.balance_to_points_enabled"
                   class="input flex-1"
                   :placeholder="`最小 ${overview?.exchange.min_balance_amount ?? 0.01}`"
                 />
                 <button
                   type="button"
                   class="btn btn-secondary btn-sm"
+                  :disabled="!overview?.exchange.balance_to_points_enabled"
                   @click="balanceAmount = Number(totalWelfareBalance.toFixed(2))"
                 >
                   全部
@@ -98,7 +104,9 @@
               @click="handleBalanceToPoints"
             >
               {{
-                exchangeLoadingDirection === 'balance_to_points'
+                !overview?.exchange.balance_to_points_enabled
+                  ? '兑入功能已暂停'
+                  : exchangeLoadingDirection === 'balance_to_points'
                   ? '划转中...'
                   : totalWelfareBalance <= 0
                   ? '福利余额不足 (请先签到或抽奖)'
@@ -120,6 +128,10 @@
               (兑出后自动存入福利余额，可抵扣模型API消费)
             </p>
 
+            <div v-if="!overview?.exchange.points_to_balance_enabled" class="mt-3 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20">
+              ⚠️ 管理员暂时关闭了筹码兑出福利功能
+            </div>
+
             <div class="mt-4">
               <label class="block text-xs font-medium uppercase tracking-[0.16em] text-slate-500 dark:text-slate-300">兑出积分数量</label>
               <div class="mt-2 flex items-center gap-2">
@@ -128,12 +140,14 @@
                   type="number"
                   min="1"
                   step="1"
+                  :disabled="!overview?.exchange.points_to_balance_enabled"
                   class="input flex-1"
                   :placeholder="`最小 ${overview?.exchange.min_points_amount ?? 100}`"
                 />
                 <button
                   type="button"
                   class="btn btn-secondary btn-sm"
+                  :disabled="!overview?.exchange.points_to_balance_enabled"
                   @click="pointsAmount = Math.trunc(overview?.points ?? authStore.user?.points ?? 0)"
                 >
                   全部
@@ -149,7 +163,9 @@
               @click="handlePointsToBalance"
             >
               {{
-                exchangeLoadingDirection === 'points_to_balance'
+                !overview?.exchange.points_to_balance_enabled
+                  ? '兑出功能已暂停'
+                  : exchangeLoadingDirection === 'points_to_balance'
                   ? '兑出中...'
                   : '确认变现为福利余额'
               }}
@@ -226,7 +242,7 @@
             <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ t('gameCenter.catalog.subtitle') }}</p>
           </div>
           <div class="grid gap-6 px-6 py-6 md:grid-cols-2">
-            <!-- 比大小专属卡片 -->
+            <!-- 猜大小专属卡片 -->
             <article class="relative overflow-hidden rounded-3xl border border-amber-200/80 bg-gradient-to-br from-amber-500/10 via-slate-900/5 to-rose-500/10 p-6 shadow-sm transition hover:shadow-md dark:border-amber-500/20 dark:from-amber-950/30 dark:via-slate-900 dark:to-rose-950/30">
               <div class="flex items-start justify-between gap-4">
                 <div>
@@ -242,7 +258,7 @@
               </div>
 
               <p class="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                简单刺激的比大小游戏，猜【小】(1-5)、【中】(6)、【大】(7-11)。全自动定时轮调度，开奖实时到账福利筹码。
+                简单刺激的猜大小游戏，猜【小】(1-5)、【中】(6)、【大】(7-11)。全自动定时轮调度，开奖实时到账福利筹码。
               </p>
 
               <div class="mt-6 flex flex-wrap gap-3">
@@ -270,7 +286,7 @@
                       <p class="text-sm font-semibold text-slate-900 dark:text-white">每日签到</p>
                       <p class="text-xs text-slate-500 dark:text-slate-400">每天点击签到免费赠送福利余额</p>
                     </div>
-                    <RouterLink to="/checkin" class="btn btn-secondary btn-sm">去签到</RouterLink>
+                    <button type="button" class="btn btn-secondary btn-sm" @click="showCheckinDialog = true">去签到</button>
                   </div>
                   <div class="flex items-center justify-between rounded-2xl bg-white/70 p-3 ring-1 ring-slate-200/70 dark:bg-white/5 dark:ring-white/10">
                     <div>
@@ -283,71 +299,9 @@
               </div>
 
               <div class="mt-6 rounded-xl bg-sky-50 p-3 text-xs text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
-                📌 提示：获得福利余额后，在本页点击“福利余额 ⇆ 筹码兑换”即可 1:100 划转为游戏筹码！
+                📌 提示：获得福利余额后，在本页点击“福利余额 ⇆ 筹码兑换”即可 1:{{ overview?.exchange.balance_to_points_rate ?? 100 }} 划转为游戏筹码！
               </div>
             </article>
-          </div>
-        </section>
-
-        <!-- 积分排行榜 -->
-        <section class="card overflow-hidden">
-          <div class="flex flex-col gap-3 border-b border-slate-200/80 px-6 py-5 dark:border-white/10 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 class="text-xl font-semibold text-slate-900 dark:text-white">{{ t('gameCenter.leaderboard.title') }}</h2>
-              <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ t('gameCenter.leaderboard.subtitle') }}</p>
-            </div>
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="leaderboardLoading" @click="() => loadPointsLeaderboard()">
-              {{ t('common.refresh') }}
-            </button>
-          </div>
-          <div class="grid gap-4 px-4 py-4 xl:grid-cols-[1.1fr_0.9fr]">
-            <div class="overflow-hidden rounded-2xl border border-slate-200/80 dark:border-white/10">
-              <div class="max-h-96 overflow-auto">
-                <button
-                  v-for="row in pointsLeaderboard.items"
-                  :key="row.user_id"
-                  type="button"
-                  class="grid w-full grid-cols-[3rem_1fr_auto] items-center gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
-                  :disabled="!canOpenLeaderboardDetail(row.user_id)"
-                  @click="openLeaderboardDetail(row)"
-                >
-                  <span class="text-xs font-semibold text-slate-500">#{{ row.rank }}</span>
-                  <span>
-                    <span class="block font-medium text-slate-900 dark:text-white">{{ row.username || row.email }}</span>
-                    <span class="block text-xs text-slate-500 dark:text-slate-400">{{ row.email }}</span>
-                  </span>
-                  <span class="font-semibold text-cyan-700 dark:text-cyan-300">{{ formatPoints(row.points) }} 积分</span>
-                </button>
-                <p v-if="!pointsLeaderboard.items.length" class="px-4 py-6 text-sm text-slate-500 dark:text-slate-400">{{ t('gameCenter.leaderboard.empty') }}</p>
-              </div>
-              <Pagination :total="pointsLeaderboard.total" :page="pointsLeaderboard.page" :page-size="pointsLeaderboard.page_size" :show-page-size-selector="false" @update:page="changeLeaderboardPage" @update:pageSize="noopPageSize" />
-            </div>
-
-            <div class="rounded-2xl border border-slate-200/80 p-4 dark:border-white/10">
-              <div class="flex items-center justify-between gap-3">
-                <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ leaderboardDetailTitle }}</h3>
-                <button v-if="selectedLeaderboardUserID" type="button" class="btn btn-secondary btn-sm" @click="closeLeaderboardDetail">{{ t('common.close') }}</button>
-              </div>
-              <div class="mt-3 max-h-80 space-y-2 overflow-auto">
-                <div v-for="item in leaderboardLedger.items" :key="item.id" class="rounded-xl bg-slate-50 px-3 py-3 text-sm dark:bg-white/5">
-                  <div class="flex items-center justify-between gap-3">
-                    <span class="font-medium text-slate-900 dark:text-white">{{ ledgerTypeLabel(item.entry_type) }}</span>
-                    <span class="font-semibold" :class="item.delta_points >= 0 ? 'text-emerald-600' : 'text-rose-600'">{{ formatSignedPoints(item.delta_points) }}</span>
-                  </div>
-                  <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ formatDateTime(item.created_at) }} · {{ item.reason || '--' }}</p>
-                </div>
-                <p v-if="!leaderboardLedger.items.length" class="text-sm text-slate-500 dark:text-slate-400">{{ t('gameCenter.leaderboard.detailHint') }}</p>
-              </div>
-              <Pagination
-                v-if="selectedLeaderboardUserID"
-                :total="leaderboardLedger.total"
-                :page="leaderboardLedger.page"
-                :page-size="leaderboardLedger.page_size"
-                :show-page-size-selector="false"
-                @update:page="changeLeaderboardLedgerPage"
-                @update:pageSize="noopPageSize"
-              />
-            </div>
           </div>
         </section>
 
@@ -387,14 +341,20 @@
         </section>
       </template>
     </div>
+
+    <!-- 签到弹窗交互 -->
+    <BaseDialog :show="showCheckinDialog" :title="t('wallet.checkinTitle')" width="wide" @close="handleCheckinClose">
+      <ProfileCheckinCard v-if="showCheckinDialog" />
+    </BaseDialog>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { gameCenterAPI } from '@/api/gameCenter'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -402,7 +362,9 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import type { BasePaginationResponse } from '@/types'
-import type { GameCenterClaimStatus, GameCenterLedgerItem, GameCenterOverview, GameCenterPointsLeaderboardItem } from '@/types/gameCenter'
+import type { GameCenterClaimStatus, GameCenterLedgerItem, GameCenterOverview } from '@/types/gameCenter'
+
+const ProfileCheckinCard = defineAsyncComponent(() => import('@/components/user/profile/ProfileCheckinCard.vue'))
 
 type LoadState = 'loading' | 'ready' | 'error'
 type ExchangeDirection = 'balance_to_points' | 'points_to_balance'
@@ -416,22 +378,19 @@ const overview = ref<GameCenterOverview | null>(null)
 const claimLoadingBatchKey = ref('')
 const exchangeLoadingDirection = ref<ExchangeDirection | ''>('')
 const exchangeOpen = ref(false)
+const showCheckinDialog = ref(false)
 const balanceAmount = ref(1)
 const pointsAmount = ref(100)
 const today = toDateInput(new Date())
 const ledgerStartDate = ref(today)
 const ledgerEndDate = ref(today)
 const ledgerLoading = ref(false)
-const leaderboardLoading = ref(false)
-const selectedLeaderboardUserID = ref<number | null>(null)
-const selectedLeaderboardUserName = ref('')
 const ledgerView = ref<BasePaginationResponse<GameCenterLedgerItem>>({ items: [], total: 0, page: 1, page_size: 10, pages: 1 })
-const pointsLeaderboard = ref<BasePaginationResponse<GameCenterPointsLeaderboardItem>>({ items: [], total: 0, page: 1, page_size: 10, pages: 1 })
-const leaderboardLedger = ref<BasePaginationResponse<GameCenterLedgerItem>>({ items: [], total: 0, page: 1, page_size: 10, pages: 1 })
 
-const gameCenterEnabled = computed(() => true)
+const gameCenterEnabled = computed(() => {
+  return (appStore.cachedPublicSettings as any)?.game_center_enabled !== false
+})
 const claimBatches = computed(() => overview.value?.claim_batches ?? [])
-const leaderboardDetailTitle = computed(() => selectedLeaderboardUserID.value ? t('gameCenter.leaderboard.detailTitle', { user: selectedLeaderboardUserName.value }) : t('gameCenter.leaderboard.detailPlaceholder'))
 
 const totalWelfareBalance = computed(() => {
   const u = authStore.user
@@ -478,10 +437,6 @@ function ledgerTypeLabel(type: string): string {
   return t(`gameCenter.ledger.types.${type}`)
 }
 
-function canOpenLeaderboardDetail(userID: number): boolean {
-  return authStore.user?.role === 'admin' || authStore.user?.id === userID
-}
-
 function claimStatusLabel(status: GameCenterClaimStatus): string {
   return t(`gameCenter.claim.status.${status}`)
 }
@@ -499,6 +454,11 @@ function normalizeError(error: unknown, fallbackKey: string): string {
   return t(fallbackKey)
 }
 
+async function handleCheckinClose() {
+  showCheckinDialog.value = false
+  await authStore.refreshUser?.()
+}
+
 async function loadOverview(): Promise<void> {
   loadState.value = 'loading'
   try {
@@ -507,7 +467,7 @@ async function loadOverview(): Promise<void> {
       authStore.user.points = overview.value.points
     }
     loadState.value = 'ready'
-    await Promise.all([loadLedger(), loadPointsLeaderboard()])
+    await loadLedger()
   } catch (error) {
     loadState.value = 'error'
     appStore.showError(normalizeError(error, 'gameCenter.loadError.description'))
@@ -530,41 +490,6 @@ async function loadLedger(page = ledgerView.value.page, pageSize = ledgerView.va
   }
 }
 
-async function loadPointsLeaderboard(page = pointsLeaderboard.value.page): Promise<void> {
-  leaderboardLoading.value = true
-  try {
-    pointsLeaderboard.value = await gameCenterAPI.getPointsLeaderboard(page, pointsLeaderboard.value.page_size)
-  } catch (error) {
-    appStore.showError(normalizeError(error, 'gameCenter.loadError.description'))
-  } finally {
-    leaderboardLoading.value = false
-  }
-}
-
-async function loadLeaderboardLedger(userID: number, page = leaderboardLedger.value.page): Promise<void> {
-  try {
-    leaderboardLedger.value = await gameCenterAPI.getUserLedger(userID, { page, page_size: leaderboardLedger.value.page_size })
-  } catch (error) {
-    appStore.showError(normalizeError(error, 'gameCenter.loadError.description'))
-  }
-}
-
-async function openLeaderboardDetail(row: GameCenterPointsLeaderboardItem): Promise<void> {
-  if (!canOpenLeaderboardDetail(row.user_id)) {
-    appStore.showWarning(t('gameCenter.leaderboard.ownOnly'))
-    return
-  }
-  selectedLeaderboardUserID.value = row.user_id
-  selectedLeaderboardUserName.value = row.username || row.email
-  await loadLeaderboardLedger(row.user_id, 1)
-}
-
-function closeLeaderboardDetail(): void {
-  selectedLeaderboardUserID.value = null
-  selectedLeaderboardUserName.value = ''
-  leaderboardLedger.value = { items: [], total: 0, page: 1, page_size: 10, pages: 1 }
-}
-
 function refreshLedger(): void {
   void loadLedger(1, ledgerView.value.page_size)
 }
@@ -576,17 +501,6 @@ function changeLedgerPage(page: number): void {
 function changeLedgerPageSize(pageSize: number): void {
   void loadLedger(1, pageSize)
 }
-
-function changeLeaderboardPage(page: number): void {
-  void loadPointsLeaderboard(page)
-}
-
-function changeLeaderboardLedgerPage(page: number): void {
-  if (!selectedLeaderboardUserID.value) return
-  void loadLeaderboardLedger(selectedLeaderboardUserID.value, page)
-}
-
-function noopPageSize(): void {}
 
 async function handleClaim(batchKey: string): Promise<void> {
   if (!batchKey) return
@@ -608,7 +522,6 @@ async function handleBalanceToPoints(): Promise<void> {
   try {
     await gameCenterAPI.exchangeBalanceToPoints({ amount: Number(balanceAmount.value) })
     appStore.showSuccess(t('gameCenter.exchange.success'))
-    // Refresh user profile so welfare balances update
     await authStore.refreshUser?.()
     await loadOverview()
   } catch (error) {

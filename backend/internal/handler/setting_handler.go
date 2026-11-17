@@ -130,6 +130,10 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		RiskControlEnabled: settings.RiskControlEnabled,
 
 		AllowUserViewErrorRequests: settings.AllowUserViewErrorRequests,
+
+		GameCenterEnabled: settings.GameCenterEnabled,
+		SizeBetEnabled:    settings.SizeBetEnabled,
+		SizeBetTheme:      settings.SizeBetTheme,
 	})
 }
 

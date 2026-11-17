@@ -107,13 +107,34 @@ const rankedItems = computed<RankedStatsUserItem[]>(() => items.value.map((item,
 
 const columns = computed<Column[]>(() => [
   { key: 'rank', label: t('sizeBet.statsPage.rank') },
-  { key: 'username', label: t('admin.sizeBet.columns.user') },
+  { key: 'username', label: t('admin.sizeBet.columns.user'), formatter: (value) => maskUsername(String(value || '')) },
   { key: 'total_stake', label: t('admin.sizeBet.stats.totalStake'), formatter: (value) => formatAmount(Number(value)) },
   { key: 'won_count', label: t('admin.sizeBet.stats.wonCount') },
   { key: 'lost_count', label: t('admin.sizeBet.stats.lostCount') },
   { key: 'refunded_count', label: t('admin.sizeBet.stats.refundedCount') },
   { key: 'net_result', label: t('admin.sizeBet.stats.totalUserNet'), formatter: (value) => formatSignedAmount(Number(value)) },
 ])
+
+function maskUsername(raw: string): string {
+  raw = (raw || '').trim()
+  if (!raw) return '***'
+  if (raw.includes('@')) {
+    const atIndex = raw.indexOf('@')
+    const prefix = raw.slice(0, atIndex)
+    const domain = raw.slice(atIndex)
+    if (prefix.length <= 2) {
+      return prefix.slice(0, 1) + '***' + domain
+    }
+    return prefix.slice(0, 2) + '***' + domain
+  }
+  if (raw.length <= 2) {
+    return raw.slice(0, 1) + '*'
+  }
+  if (raw.length <= 4) {
+    return raw.slice(0, 1) + '*'.repeat(raw.length - 2) + raw.slice(-1)
+  }
+  return raw.slice(0, 2) + '***' + raw.slice(-2)
+}
 
 onMounted(() => {
   if (!sizeBetEnabled.value) {

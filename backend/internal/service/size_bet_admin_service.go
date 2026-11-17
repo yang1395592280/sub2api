@@ -57,6 +57,7 @@ func (s *SizeBetAdminService) GetSettings(ctx context.Context) (*SizeBetSettings
 		SettingKeySizeBetProbabilities,
 		SettingKeySizeBetOdds,
 		SettingKeySizeBetRulesMarkdown,
+		SettingKeySizeBetTheme,
 	})
 	if err != nil {
 		return nil, err
@@ -84,6 +85,7 @@ func (s *SizeBetAdminService) UpdateSettings(ctx context.Context, req UpdateSize
 		SettingKeySizeBetProbabilities:         mustJSON(req.Probabilities),
 		SettingKeySizeBetOdds:                  mustJSON(req.Odds),
 		SettingKeySizeBetRulesMarkdown:         req.RulesMarkdown,
+		SettingKeySizeBetTheme:                 normalizeSizeBetTheme(req.Theme),
 	})
 }
 
@@ -105,6 +107,7 @@ func parseSizeBetSettings(values map[string]string) *SizeBetSettings {
 		OddsMid:               defaultOdds.Mid,
 		OddsBig:               defaultOdds.Big,
 		RulesMarkdown:         defaultSizeBetRulesMarkdown,
+		Theme:                 normalizeSizeBetTheme(values[SettingKeySizeBetTheme]),
 	}
 
 	if raw := strings.TrimSpace(values[SettingKeySizeBetEnabled]); raw != "" {

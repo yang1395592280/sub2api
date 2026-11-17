@@ -20,6 +20,7 @@ type SizeBetSettingsPayload = {
     big: number
   }
   rules_markdown: string
+  theme?: string
 }
 
 type RawSizeBetSettingsResponse = {
@@ -38,6 +39,7 @@ type RawSizeBetSettingsResponse = {
   probabilities?: SizeBetSettingsPayload['probabilities']
   odds?: SizeBetSettingsPayload['odds']
   rules_markdown: string
+  theme?: string
 }
 
 export interface SizeBetAdminRound {
@@ -136,7 +138,8 @@ function normalizeSettings(data: RawSizeBetSettingsResponse): SizeBetAdminSettin
       mid: data.odds_mid ?? 0,
       big: data.odds_big ?? 0
     },
-    rules_markdown: data.rules_markdown
+    rules_markdown: data.rules_markdown,
+    theme: data.theme || 'classic'
   }
 }
 

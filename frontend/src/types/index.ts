@@ -349,6 +349,9 @@ export interface PublicSettings {
   allow_user_view_error_requests?: boolean
   /** True when the deployment configures MCP_PUBLIC_URL; MCP is disabled otherwise. */
   mcp_enabled?: boolean
+  game_center_enabled?: boolean
+  size_bet_enabled?: boolean
+  size_bet_theme?: string
 }
 
 export interface AuthResponse {

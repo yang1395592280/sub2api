@@ -240,7 +240,7 @@ import VersionBadge from '@/components/common/VersionBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
-import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
+import { FeatureFlags, makeSidebarFlag, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
 
@@ -796,6 +796,11 @@ const flagAffiliate = makeSidebarFlag(FeatureFlags.affiliate)
 const flagRiskControl = makeSidebarFlag(FeatureFlags.riskControl)
 const flagPluginManagement = makeSidebarFlag(FeatureFlags.pluginManagement)
 const flagMCP = makeSidebarFlag(FeatureFlags.mcp)
+const flagGameCenter = makeSidebarFlag(FeatureFlags.gameCenter)
+const flagSizeBet = () => {
+  if (!flagGameCenter()) return false
+  return isFeatureFlagEnabled(FeatureFlags.sizeBet)
+}
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
 const flagAdminPayment = () => adminSettingsStore.paymentEnabled
 const flagBatchImageAccess = () => canUseBatchImage.value
@@ -817,8 +822,8 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
     { path: '/zenxiang-liyu', label: t('nav.zenxiangLiyu'), icon: SparklesIcon, featureFlag: flagZenxiangLiyu },
-    { path: '/game-center', label: t('nav.gameCenter'), icon: DiceIcon },
-    { path: '/game/size-bet', label: t('nav.sizeBet'), icon: DiceIcon, hideInSimpleMode: true },
+    { path: '/game-center', label: t('nav.gameCenter'), icon: DiceIcon, featureFlag: flagGameCenter },
+    { path: '/game/size-bet', label: t('nav.sizeBet'), icon: DiceIcon, hideInSimpleMode: true, featureFlag: flagSizeBet },
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
     { path: '/purchase', label: purchaseNavLabel.value, icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },

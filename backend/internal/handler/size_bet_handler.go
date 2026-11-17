@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -248,6 +249,11 @@ func (h *SizeBetHandler) GetLeaderboard(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	if result != nil {
+		for i := range result.Items {
+			result.Items[i].Username = maskSensitiveUsername(result.Items[i].Username)
+		}
+	}
 	response.Success(c, result)
 }
 
@@ -393,7 +399,7 @@ func toSizeBetStatsUserResponses(items []service.SizeBetStatsUserItem) []sizeBet
 	respItems := make([]sizeBetStatsUserResponse, 0, len(items))
 	for i := range items {
 		respItems = append(respItems, sizeBetStatsUserResponse{
-			Username:      items[i].Username,
+			Username:      maskSensitiveUsername(items[i].Username),
 			TotalStake:    items[i].TotalStake,
 			WonCount:      items[i].WonCount,
 			LostCount:     items[i].LostCount,
@@ -402,6 +408,35 @@ func toSizeBetStatsUserResponses(items []service.SizeBetStatsUserItem) []sizeBet
 		})
 	}
 	return respItems
+}
+
+func maskSensitiveUsername(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "***"
+	}
+	if atIndex := strings.Index(raw, "@"); atIndex > 0 {
+		prefix := raw[:atIndex]
+		domain := raw[atIndex:]
+		runes := []rune(prefix)
+		if len(runes) <= 2 {
+			return string(runes[:1]) + "***" + domain
+		}
+		return string(runes[:2]) + "***" + domain
+	}
+
+	runes := []rune(raw)
+	n := len(runes)
+	if n <= 1 {
+		return string(runes) + "*"
+	}
+	if n == 2 {
+		return string(runes[:1]) + "*"
+	}
+	if n <= 4 {
+		return string(runes[:1]) + strings.Repeat("*", n-2) + string(runes[n-1:])
+	}
+	return string(runes[:2]) + "***" + string(runes[n-2:])
 }
 
 func formatTime(t time.Time) string {

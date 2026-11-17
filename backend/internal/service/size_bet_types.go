@@ -43,6 +43,7 @@ type UpdateSizeBetSettingsRequest struct {
 	Probabilities         SizeBetProbabilityConfig `json:"probabilities"`
 	Odds                  SizeBetOddsConfig        `json:"odds"`
 	RulesMarkdown         string                   `json:"rules_markdown"`
+	Theme                 string                   `json:"theme"`
 }
 
 type SizeBetSettings struct {
@@ -59,6 +60,7 @@ type SizeBetSettings struct {
 	OddsMid               float64 `json:"odds_mid"`
 	OddsBig               float64 `json:"odds_big"`
 	RulesMarkdown         string  `json:"rules_markdown"`
+	Theme                 string  `json:"theme"`
 }
 
 type SizeBetPhase string
@@ -143,6 +145,7 @@ type SizeBetRulesView struct {
 	Probabilities         SizeBetProbabilityConfig `json:"probabilities"`
 	Odds                  SizeBetOddsConfig        `json:"odds"`
 	RulesMarkdown         string                   `json:"rules_markdown"`
+	Theme                 string                   `json:"theme"`
 }
 
 type SizeBetAdminBet struct {

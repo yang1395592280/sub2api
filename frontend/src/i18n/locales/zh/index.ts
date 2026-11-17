@@ -34,7 +34,7 @@ export default {
     ...openAIQuality.nav,
     gameCenter: '游戏中心',
     gameCenterAdmin: '游戏中心管理',
-    sizeBet: '比大小'
+    sizeBet: '猜大小'
   },
   ...misc,
 }

@@ -49,6 +49,10 @@
                   <div><label class="input-label">{{ t('admin.sizeBet.customStakeMax') }}</label><input data-test="settings-custom-stake-max" v-model.number="form.custom_stake_max" type="number" min="1" class="input" /></div>
                 </div>
                 <div><label class="input-label">{{ t('admin.sizeBet.allowedStakes') }}</label><input data-test="settings-allowed-stakes" v-model="allowedStakesText" type="text" class="input" :placeholder="t('admin.sizeBet.allowedStakesPlaceholder')" /></div>
+                <div>
+                  <label class="input-label">界面视觉效果样式</label>
+                  <Select v-model="form.theme" :options="themeOptions" class="w-full" />
+                </div>
               </div>
 
               <div class="grid gap-4">
@@ -163,7 +167,12 @@ const validationError = ref('')
 const allowedStakesText = ref('')
 const refundDialogOpen = ref(false)
 const refundTarget = ref<SizeBetAdminRound | null>(null)
-const form = reactive<SizeBetAdminSettings>({ enabled: true, round_duration_seconds: 60, bet_close_offset_seconds: 50, allowed_stakes: [2, 5, 10, 20], custom_stake_min: 1, custom_stake_max: 9999, probabilities: { small: 45, mid: 10, big: 45 }, odds: { small: 2, mid: 10, big: 2 }, rules_markdown: '' })
+const form = reactive<SizeBetAdminSettings>({ enabled: true, round_duration_seconds: 60, bet_close_offset_seconds: 50, allowed_stakes: [2, 5, 10, 20], custom_stake_min: 1, custom_stake_max: 9999, probabilities: { small: 45, mid: 10, big: 45 }, odds: { small: 2, mid: 10, big: 2 }, rules_markdown: '', theme: 'classic' })
+const themeOptions = [
+  { value: 'classic', label: '经典原版 (老项目清爽现代卡片风格)' },
+  { value: 'casino', label: '至尊赌场 (奢华金色拟物筹码风格)' },
+  { value: 'neon', label: '赛博霓虹 (暗夜科技微光炫彩风格)' },
+]
 const roundsState = reactive<TableState<SizeBetAdminRound>>(newTableState())
 const betsState = reactive<TableState<SizeBetAdminBet>>(newTableState())
 const ledgerState = reactive<TableState<SizeBetAdminLedgerEntry>>(newTableState())
@@ -187,7 +196,7 @@ onMounted(() => { void loadSettings() })
 watch(activeTab, (tab) => { if (tab !== 'settings') void loadActiveTab() })
 
 function newTableState<T>(): TableState<T> { return { items: [], loading: false, loaded: false, pagination: { page: 1, page_size: pageSize, total: 0, pages: 1 } } }
-function applySettings(settings: SizeBetAdminSettings) { Object.assign(form, { enabled: settings.enabled, round_duration_seconds: settings.round_duration_seconds, bet_close_offset_seconds: settings.bet_close_offset_seconds, allowed_stakes: [...settings.allowed_stakes], custom_stake_min: settings.custom_stake_min, custom_stake_max: settings.custom_stake_max, probabilities: { ...settings.probabilities }, odds: { ...settings.odds }, rules_markdown: settings.rules_markdown }); allowedStakesText.value = settings.allowed_stakes.join(', '); validationError.value = '' }
+function applySettings(settings: SizeBetAdminSettings) { Object.assign(form, { enabled: settings.enabled, round_duration_seconds: settings.round_duration_seconds, bet_close_offset_seconds: settings.bet_close_offset_seconds, allowed_stakes: [...settings.allowed_stakes], custom_stake_min: settings.custom_stake_min, custom_stake_max: settings.custom_stake_max, probabilities: { ...settings.probabilities }, odds: { ...settings.odds }, rules_markdown: settings.rules_markdown, theme: settings.theme || 'classic' }); allowedStakesText.value = settings.allowed_stakes.join(', '); validationError.value = '' }
 function parsePositiveInt(value: string) { const trimmed = value.trim(); if (!trimmed) return undefined; const parsed = Number(trimmed); return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined }
 function parseAllowedStakes() { return Array.from(new Set(allowedStakesText.value.split(',').map(item => Number(item.trim())).filter(item => Number.isInteger(item) && item > 0))) }
 function formatAmount(value: number) { return Number.isInteger(value) ? String(value) : value.toFixed(2) }

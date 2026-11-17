@@ -766,6 +766,7 @@ const (
 	SettingKeySizeBetProbabilities                     = "size_bet_probabilities"                         // 大小中竞猜概率配置（JSON）
 	SettingKeySizeBetOdds                              = "size_bet_odds"                                  // 大小中竞猜赔率配置（JSON）
 	SettingKeySizeBetRulesMarkdown                     = "size_bet_rules_markdown"                        // 大小中竞猜规则 Markdown
+	SettingKeySizeBetTheme                             = "size_bet_theme"                                 // 猜大小界面样式主题 (classic, casino, neon)
 
 	// 游戏中心设置
 	SettingKeyGameCenterEnabled                        = "game_center_enabled"

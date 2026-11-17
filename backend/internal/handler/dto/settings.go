@@ -468,6 +468,10 @@ type PublicSettings struct {
 	RiskControlEnabled bool `json:"risk_control_enabled"`
 
 	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
+
+	GameCenterEnabled bool   `json:"game_center_enabled"`
+	SizeBetEnabled    bool   `json:"size_bet_enabled"`
+	SizeBetTheme      string `json:"size_bet_theme"`
 }
 
 type LoginAgreementDocument struct {

@@ -390,6 +390,7 @@ func (s *SizeBetService) GetRules(ctx context.Context, now time.Time) (*SizeBetR
 			Big:   settings.OddsBig,
 		},
 		RulesMarkdown: settings.RulesMarkdown,
+		Theme:         settings.Theme,
 	}, nil
 }
 

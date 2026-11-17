@@ -390,6 +390,10 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		RiskControlEnabled: settings[SettingKeyRiskControlEnabled] == "true",
 
 		AllowUserViewErrorRequests: settings[SettingKeyAllowUserViewErrorRequests] == "true",
+
+		GameCenterEnabled: !isFalseSettingValue(settings[SettingKeyGameCenterEnabled]),
+		SizeBetEnabled:    !isFalseSettingValue(settings[SettingKeySizeBetEnabled]),
+		SizeBetTheme:      normalizeSizeBetTheme(settings[SettingKeySizeBetTheme]),
 	}, nil
 }
 
@@ -436,6 +440,17 @@ func clampChannelMonitorInterval(v int) int {
 		return channelMonitorIntervalMax
 	}
 	return v
+}
+
+func normalizeSizeBetTheme(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "casino":
+		return "casino"
+	case "neon":
+		return "neon"
+	default:
+		return "classic"
+	}
 }
 
 // ChannelMonitorRuntime is the lightweight view of the channel monitor feature
@@ -660,9 +675,12 @@ type PublicSettingsInjectionPayload struct {
 	ModelPlazaEnabled             bool `json:"model_plaza_enabled"`
 	ModelPlazaRequireAuth         bool `json:"model_plaza_require_auth"`
 	PluginManagementEnabled       bool `json:"plugin_management_enabled"`
-	AffiliateEnabled              bool `json:"affiliate_enabled"`
-	RiskControlEnabled            bool `json:"risk_control_enabled"`
-	AllowUserViewErrorRequests    bool `json:"allow_user_view_error_requests"`
+	AffiliateEnabled              bool   `json:"affiliate_enabled"`
+	RiskControlEnabled            bool   `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests    bool   `json:"allow_user_view_error_requests"`
+	GameCenterEnabled             bool   `json:"game_center_enabled"`
+	SizeBetEnabled                bool   `json:"size_bet_enabled"`
+	SizeBetTheme                  string `json:"size_bet_theme"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -754,6 +772,9 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		AffiliateEnabled:                     settings.AffiliateEnabled,
 		RiskControlEnabled:                   settings.RiskControlEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,
+		GameCenterEnabled:                    settings.GameCenterEnabled,
+		SizeBetEnabled:                       settings.SizeBetEnabled,
+		SizeBetTheme:                         settings.SizeBetTheme,
 	}, nil
 }
 

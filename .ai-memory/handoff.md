@@ -1,5 +1,11 @@
 # 修复交接
 
+## 2026-11-17 v0.2.22.4 发布检查点
+- 已完成：用户明确授权提交、打标签与推送 v0.2.22.4；已完成游戏中心与猜大小开关生效拦截、移除用户积分排行榜、筹码兑换开关强校验、签到弹窗交互修复、全量更名为猜大小、统计用户名脱敏、筹码兑换真实比例计算展示、多套主题样式（经典原版/至尊赌场/赛博霓虹）与后台配置切换。
+- 前后端构建与单元测试已全面通过（Go 测试全部 PASS，pnpm typecheck/check:i18n/build 全部 PASS）。
+- 相关文件：.ai-memory/20261117/release-v0.2.22.4.md、backend/cmd/server/VERSION、SizeBetGameView.vue、GameCenterView.vue、SizeBetStatsView.vue、SizeBetAdminView.vue、setting_public.go 等。
+
+
 ## 2026-11-13 用户每日统计（本地验收完成）
 - 已完成带证据：只读后端/API/Wire、独立统计页/菜单/中英文/CSV/明细；Go定向五包单元、16项PG18.1/Redis8.4真实集成、race三包、build/vet，前端12项与lint/typecheck/build通过。
 - 相关文件：20261113/user-daily-stats-plan.md、docs/user-daily-statistics.md、user_daily_stats*.go、UserDailyStatsView.vue、UserDailyUsageBreakdown.vue。
