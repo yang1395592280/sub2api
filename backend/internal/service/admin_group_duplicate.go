@@ -146,6 +146,9 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		SortOrder:                       source.SortOrder,
 		AllowMessagesDispatch:           source.AllowMessagesDispatch,
 		AllowLive:                       source.AllowLive,
+		ForceOpenAIFast:                 source.ForceOpenAIFast,
+		ForceOpenAIUltrafast:            source.ForceOpenAIUltrafast,
+		FreeOpenAIFast:                  source.FreeOpenAIFast,
 		RequireOAuthOnly:                source.RequireOAuthOnly,
 		RequirePrivacySet:               source.RequirePrivacySet,
 		DefaultMappedModel:              source.DefaultMappedModel,
@@ -167,8 +170,6 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		RPMLimit:                              source.RPMLimit,
 		MaxReasoningEffort:                    source.MaxReasoningEffort,
 		MaxReasoningEffortOverLimit:           source.MaxReasoningEffortOverLimit,
-		ForceOpenAIFast:                       source.ForceOpenAIFast,
-		FreeOpenAIFast:                        source.FreeOpenAIFast,
 		ReasoningEffortMappings:               append([]ReasoningEffortMapping(nil), source.ReasoningEffortMappings...),
 	}
 }
