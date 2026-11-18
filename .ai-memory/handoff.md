@@ -434,3 +434,10 @@
 - 用户授权仅在临时实例确认协议，已完成确认并补测后台生成 250 积分码、类型筛选、余额分列、福利升降序及刷新排序恢复。
 - 普通用户实页兑换该后台生成码，游戏中心积分及流水到账；只读数据库确认码 used、points 从 0 到 250、充值/福利不变。截图及证据见 20261118/welfare-game-points-plan.md。
 - 原协议确认导致的验证限制已解除，三项功能验证闭环，无待办；本轮无新增业务代码修改，未 commit/merge/push/部署。
+
+### 2026-11-18 18:00 CST 本地合并完成
+
+- 用户明确要求合并分支。已提交 `2ae5e1707`（feat(game-center): add points redemption codes and welfare balance display），并以 `git merge --ff-only feature/welfare-column-game-center-fix` 合入 `custom-main`。
+- 合并前两分支共同基线为 `c3047cc3a`，无冲突；当前分支 `custom-main`，HEAD 为 `2ae5e1707`。
+- 已验证证据沿用本计划：93 项 Go 定向、39 项 PostgreSQL/Redis 集成、47 项前端回归、前后端构建，以及后台生成/筛选、余额分列排序、用户兑换实页闭环。
+- 未执行 push、tag、生产迁移或部署；下一步如需同步 `origin/custom-main` 或发布，需单独授权。
