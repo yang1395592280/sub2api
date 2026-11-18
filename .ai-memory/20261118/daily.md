@@ -28,3 +28,10 @@
 - 为兼容上游统一计费入口，将 `intelligence_test_service.go` 从已移除的私有计费方法迁移到 `CalculateCostUnified`；为 Wire 清理测试补齐 `sizeBetRuntime` 参数。
 - 验证：apicompat 739 项、服务层定向 768 项、兑换/仓储 9 项、Wire 4 项、PG/Redis 集成 7 项通过；前端关键回归 32 个文件 633 项通过；embed 后端构建成功。全量 Go unit 在本机 service 包运行约 4 分钟后占用约 5.9 GB 无新增输出，已停止，未作为通过证据。
 - 未执行 push、tag、部署或生产迁移。
+
+## 19:51 CST 发布 v0.2.23.1
+
+- 用户明确要求打 tag、提交并推送 `v0.2.23.1`；`backend/cmd/server/VERSION` 从 `0.2.23` 更新为 `0.2.23.1`。
+- 提交 `560944a8443f`，创建 annotated tag `v0.2.23.1`，已推送 `origin/custom-main` 和 tag；远程分支与 tag peeled commit 均核验为该提交。
+- 版本解析与 embed 后端 `-version` 验证通过；release-tools 单测因本机缺少 PyYAML 未通过，未执行生产部署/迁移。
+- 记录：`.ai-memory/20261118/release-v0.2.23.1.md`。

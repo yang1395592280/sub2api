@@ -449,3 +449,10 @@
 - 验证：apicompat 739、服务层定向 768、兑换/仓储 9、Wire 4、PG/Redis 集成 7、前端关键回归 633 项通过；embed 后端构建成功。全量 Go unit 的 service 包因本机约 5.9 GB 内存占用无新增输出而停止，不能宣称全量通过。
 - 未完成：创建合并提交、最终 Git 状态核验。
 - 阻塞：无；未执行 push/tag/部署/生产迁移。
+
+### 2026-11-18 19:51 CST v0.2.23.1 发布完成
+
+- 已完成：`VERSION=0.2.23.1`，提交 `560944a8443f`，创建并推送 annotated tag `v0.2.23.1`，推送 `origin/custom-main`。
+- 已核验：远程分支和 tag peeled commit 均指向 `560944a8443f`；版本解析与 embed 后端版本输出通过。
+- 限制：release-tools 单测依赖本机未安装的 PyYAML，未能执行；未部署、未执行生产迁移或真实供应商请求。
+- 记录：`.ai-memory/20261118/release-v0.2.23.1.md`。
