@@ -20,3 +20,11 @@
 
 - 用户明确要求“合并分支”。已将已验证功能提交 `2ae5e1707` 从 `feature/welfare-column-game-center-fix` 以 `git merge --ff-only` 合入本地 `custom-main`，无冲突。
 - 当前未执行 push、tag 或部署；合并后工作区保持干净。
+
+## 19:46 CST 同步上游 0.2.23 并合回 custom-main
+
+- 执行 `git fetch upstream`；`main` 从 `15871f904` 快进到 `upstream/main=2af3f1e15`，包含上游 32 个提交。
+- `custom-main` 合并 `main` 时仅 `backend/cmd/server/VERSION` 冲突，按同步最新上游版本采用 `0.2.23`；保留本地游戏中心积分兑换和福利余额功能。
+- 为兼容上游统一计费入口，将 `intelligence_test_service.go` 从已移除的私有计费方法迁移到 `CalculateCostUnified`；为 Wire 清理测试补齐 `sizeBetRuntime` 参数。
+- 验证：apicompat 739 项、服务层定向 768 项、兑换/仓储 9 项、Wire 4 项、PG/Redis 集成 7 项通过；前端关键回归 32 个文件 633 项通过；embed 后端构建成功。全量 Go unit 在本机 service 包运行约 4 分钟后占用约 5.9 GB 无新增输出，已停止，未作为通过证据。
+- 未执行 push、tag、部署或生产迁移。

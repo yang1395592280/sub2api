@@ -441,3 +441,11 @@
 - 合并前两分支共同基线为 `c3047cc3a`，无冲突；当前分支 `custom-main`，HEAD 为 `2ae5e1707`。
 - 已验证证据沿用本计划：93 项 Go 定向、39 项 PostgreSQL/Redis 集成、47 项前端回归、前后端构建，以及后台生成/筛选、余额分列排序、用户兑换实页闭环。
 - 未执行 push、tag、生产迁移或部署；下一步如需同步 `origin/custom-main` 或发布，需单独授权。
+
+### 2026-11-18 19:46 CST 上游同步完成
+
+- 已完成：`git fetch upstream`；`main` 从 `15871f904` 快进到 `2af3f1e15`（上游 0.2.23）；`custom-main` 合并 `main`，当前待提交合并结果。
+- 冲突：仅 `backend/cmd/server/VERSION`，采用上游 `0.2.23`。兼容修复：`backend/internal/service/intelligence_test_service.go` 使用 `CalculateCostUnified`；`backend/cmd/server/wire_gen_test.go` 补齐 `sizeBetRuntime`。
+- 验证：apicompat 739、服务层定向 768、兑换/仓储 9、Wire 4、PG/Redis 集成 7、前端关键回归 633 项通过；embed 后端构建成功。全量 Go unit 的 service 包因本机约 5.9 GB 内存占用无新增输出而停止，不能宣称全量通过。
+- 未完成：创建合并提交、最终 Git 状态核验。
+- 阻塞：无；未执行 push/tag/部署/生产迁移。

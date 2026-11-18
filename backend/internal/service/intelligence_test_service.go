@@ -60,7 +60,14 @@ func (s *PelicanTestService) estimateTestCost(account *Account, test PelicanTest
 	}
 	tokens := UsageTokens{InputTokens: input, OutputTokens: output, CacheReadTokens: read, CacheCreationTokens: write,
 		CacheCreation5mTokens: count(usage.CacheCreation5mTokens), CacheCreation1hTokens: count(usage.CacheCreation1hTokens), CacheCreation12hTokens: count(usage.CacheCreation12hTokens)}
-	cost, err := s.billing.calculateCostWithServiceTierPolicy(model, tokens, rate, usage.ServiceTier, (!account.IsOpenAI() || account.IsOpenAILongContextBillingEnabled()))
+	longContextBillingEnabled := !account.IsOpenAI() || account.IsOpenAILongContextBillingEnabled()
+	cost, err := s.billing.CalculateCostUnified(CostInput{
+		Model:                     model,
+		Tokens:                    tokens,
+		RateMultiplier:            rate,
+		ServiceTier:               usage.ServiceTier,
+		LongContextBillingEnabled: &longContextBillingEnabled,
+	})
 	if err != nil || cost == nil || math.IsNaN(cost.ActualCost) || math.IsInf(cost.ActualCost, 0) || cost.ActualCost < 0 {
 		return out
 	}
