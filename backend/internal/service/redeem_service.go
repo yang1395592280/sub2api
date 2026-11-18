@@ -17,13 +17,14 @@ import (
 )
 
 var (
-	ErrRedeemCodeNotFound   = infraerrors.NotFound("REDEEM_CODE_NOT_FOUND", "redeem code not found")
-	ErrRedeemCodeUsed       = infraerrors.Conflict("REDEEM_CODE_USED", "redeem code already used")
-	ErrRedeemCodeExpired    = infraerrors.Conflict("REDEEM_CODE_EXPIRED", "redeem code expired")
-	ErrInsufficientBalance  = infraerrors.BadRequest("INSUFFICIENT_BALANCE", "insufficient balance")
-	ErrRedeemRateLimited    = infraerrors.TooManyRequests("REDEEM_RATE_LIMITED", "too many failed attempts, please try again later")
-	ErrRedeemCodeLocked     = infraerrors.Conflict("REDEEM_CODE_LOCKED", "redeem code is being processed, please try again")
-	ErrRedeemTicketCapacity = infraerrors.Conflict("REDEEM_TICKET_CAPACITY_EXCEEDED", "not enough lottery ticket capacity")
+	ErrRedeemCodeNotFound      = infraerrors.NotFound("REDEEM_CODE_NOT_FOUND", "redeem code not found")
+	ErrRedeemCodeUsed          = infraerrors.Conflict("REDEEM_CODE_USED", "redeem code already used")
+	ErrRedeemCodeExpired       = infraerrors.Conflict("REDEEM_CODE_EXPIRED", "redeem code expired")
+	ErrInsufficientBalance     = infraerrors.BadRequest("INSUFFICIENT_BALANCE", "insufficient balance")
+	ErrRedeemRateLimited       = infraerrors.TooManyRequests("REDEEM_RATE_LIMITED", "too many failed attempts, please try again later")
+	ErrRedeemCodeLocked        = infraerrors.Conflict("REDEEM_CODE_LOCKED", "redeem code is being processed, please try again")
+	ErrRedeemTicketCapacity    = infraerrors.Conflict("REDEEM_TICKET_CAPACITY_EXCEEDED", "not enough lottery ticket capacity")
+	ErrRedeemGamePointsInvalid = infraerrors.BadRequest("REDEEM_GAME_POINTS_INVALID", "game points value must be a positive integer within the supported range")
 )
 
 const (
@@ -58,6 +59,10 @@ type RedeemCache interface {
 
 type RedeemTicketGranter interface {
 	GrantRedeemTickets(ctx context.Context, userID int64, sourceKey string, ticketCount int) error
+}
+
+type RedeemPointsGranter interface {
+	GrantRedeemPoints(ctx context.Context, userID int64, sourceKey string, points int64) error
 }
 
 type RedeemCodeRepository interface {
@@ -149,6 +154,7 @@ type RedeemService struct {
 	userRepo             UserRepository
 	redeemUserRepo       RedeemUserAdjustmentRepository
 	redeemTicketGranter  RedeemTicketGranter
+	redeemPointsGranter  RedeemPointsGranter
 	subscriptionService  *SubscriptionService
 	cache                RedeemCache
 	billingCacheService  *BillingCacheService
@@ -170,11 +176,13 @@ func NewRedeemService(
 ) *RedeemService {
 	redeemUserRepo, _ := userRepo.(RedeemUserAdjustmentRepository)
 	redeemTicketGranter, _ := redeemRepo.(RedeemTicketGranter)
+	redeemPointsGranter, _ := redeemRepo.(RedeemPointsGranter)
 	return &RedeemService{
 		redeemRepo:           redeemRepo,
 		userRepo:             userRepo,
 		redeemUserRepo:       redeemUserRepo,
 		redeemTicketGranter:  redeemTicketGranter,
+		redeemPointsGranter:  redeemPointsGranter,
 		subscriptionService:  subscriptionService,
 		cache:                cache,
 		billingCacheService:  billingCacheService,
@@ -210,6 +218,9 @@ func (s *RedeemService) GenerateRandomCode() (string, error) {
 func (s *RedeemService) GenerateCodes(ctx context.Context, req GenerateCodesRequest) ([]RedeemCode, error) {
 	if req.Count <= 0 {
 		return nil, errors.New("count must be greater than 0")
+	}
+	if req.Type == RedeemTypeGamePoints && !isValidGamePointsAmount(req.Value) {
+		return nil, ErrRedeemGamePointsInvalid
 	}
 
 	// 邀请码类型不需要数值，其他类型需要非零值（支持负数用于退款）
@@ -271,6 +282,9 @@ func (s *RedeemService) CreateCode(ctx context.Context, code *RedeemCode) error 
 	}
 	if code.Type == "" {
 		code.Type = RedeemTypeBalance
+	}
+	if code.Type == RedeemTypeGamePoints && !isValidGamePointsAmount(code.Value) {
+		return ErrRedeemGamePointsInvalid
 	}
 	if err := validateRedeemCampaignCode(ctx, s.redeemRepo, code.CampaignID, code.Type, code.Value); err != nil {
 		return err
@@ -493,6 +507,13 @@ func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, r
 		if s.redeemTicketGranter == nil {
 			return nil, errors.New("lottery ticket redemption is not configured")
 		}
+	case RedeemTypeGamePoints:
+		if !isValidGamePointsAmount(redeemCode.Value) {
+			return nil, ErrRedeemGamePointsInvalid
+		}
+		if s.redeemPointsGranter == nil {
+			return nil, errors.New("game points redemption is not configured")
+		}
 	case RedeemTypeSubscription:
 		if redeemCode.GroupID == nil {
 			return nil, infraerrors.BadRequest("REDEEM_CODE_INVALID", "invalid subscription redeem code: missing group_id")
@@ -591,6 +612,11 @@ func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, r
 			return nil, fmt.Errorf("grant lottery tickets: %w", err)
 		}
 
+	case RedeemTypeGamePoints:
+		if err := s.redeemPointsGranter.GrantRedeemPoints(txCtx, userID, redeemCode.Code, int64(redeemCode.Value)); err != nil {
+			return nil, fmt.Errorf("grant game center points: %w", err)
+		}
+
 	default:
 		return nil, unsupportedRedeemTypeError(redeemCode.Type)
 	}
@@ -619,6 +645,11 @@ func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, r
 
 func isValidRedeemTicketCount(value float64) bool {
 	return value >= 1 && value <= ZenxiangLiyuTicketCapacity && value == math.Trunc(value)
+}
+
+func isValidGamePointsAmount(value float64) bool {
+	// decimal(20,8) leaves 12 integer digits for the code's face value.
+	return value > 0 && value <= 999999999999 && value == math.Trunc(value)
 }
 
 // invalidateRedeemCaches 失效兑换相关的缓存

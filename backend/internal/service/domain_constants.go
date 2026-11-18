@@ -173,6 +173,7 @@ const (
 	RedeemTypeSubscription     = domain.RedeemTypeSubscription
 	RedeemTypeInvitation       = domain.RedeemTypeInvitation
 	RedeemTypeLotteryTicket    = domain.RedeemTypeLotteryTicket
+	RedeemTypeGamePoints       = domain.RedeemTypeGamePoints
 	RedeemTypeAffiliateBalance = "affiliate_balance"
 )
 

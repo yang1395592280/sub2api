@@ -696,6 +696,9 @@ func userListOrder(params pagination.PaginationParams) []func(*entsql.Selector) 
 	if sortBy == "last_used_at" {
 		return userLastUsedAtOrder(sortOrder)
 	}
+	if sortBy == "welfare_balance" {
+		return userWelfareBalanceOrder(sortOrder)
+	}
 
 	var field string
 	defaultField := true
@@ -817,6 +820,30 @@ func userLastUsedAtOrder(sortOrder string) []func(*entsql.Selector) {
 	}
 	return []func(*entsql.Selector){
 		orderExpr("DESC", "LAST", entsql.Desc),
+	}
+}
+
+func userWelfareBalanceOrder(sortOrder string) []func(*entsql.Selector) {
+	orderExpr := func(direction string, tieOrder func(string) string) func(*entsql.Selector) {
+		return func(s *entsql.Selector) {
+			expr := fmt.Sprintf("(COALESCE(%s, 0) + COALESCE(%s, 0) + COALESCE(%s, 0)) %s",
+				s.C(dbuser.FieldCheckinBalance),
+				s.C(dbuser.FieldLiyuBalance),
+				s.C(dbuser.FieldGiftBalance),
+				direction,
+			)
+			s.OrderExpr(entsql.Expr(expr))
+			s.OrderBy(tieOrder(s.C(dbuser.FieldID)))
+		}
+	}
+
+	if sortOrder == pagination.SortOrderAsc {
+		return []func(*entsql.Selector){
+			orderExpr("ASC", entsql.Asc),
+		}
+	}
+	return []func(*entsql.Selector){
+		orderExpr("DESC", entsql.Desc),
 	}
 }
 

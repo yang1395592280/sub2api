@@ -72,7 +72,7 @@
               <input
                 v-model.number="quickExchangeAmount"
                 type="number"
-                min="0.01"
+                :min="minBalanceAmount"
                 step="0.01"
                 :disabled="!balanceToPointsEnabled"
                 class="input flex-1"
@@ -82,7 +82,7 @@
                 type="button"
                 class="btn btn-secondary btn-sm"
                 :disabled="!balanceToPointsEnabled"
-                @click="quickExchangeAmount = Number(totalWelfareBalance.toFixed(2))"
+                @click="quickExchangeAmount = Math.floor(totalWelfareBalance * 100) / 100"
               >
                 全部
               </button>
@@ -92,10 +92,10 @@
             <button
               type="button"
               class="btn btn-primary h-10 px-6 font-bold bg-amber-500 hover:bg-amber-600 border-none text-slate-950"
-              :disabled="!balanceToPointsEnabled || quickExchangeLoading || quickExchangeAmount <= 0 || quickExchangeAmount > totalWelfareBalance"
+              :disabled="!canQuickExchange || quickExchangeLoading"
               @click="handleQuickExchange"
             >
-              {{ quickExchangeLoading ? '划转中...' : `确认换成 ${Math.floor((quickExchangeAmount || 0) * exchangeRate)} 筹码` }}
+              {{ quickExchangeLoading ? '划转中...' : `确认换成 ${Math.round((quickExchangeAmount || 0) * exchangeRate)} 筹码` }}
             </button>
           </div>
         </div>
@@ -746,11 +746,16 @@ const quickExchangeAmount = ref(1)
 const quickExchangeLoading = ref(false)
 
 const balanceToPointsEnabled = computed(() => {
-  return gameCenterOverview.value?.exchange.balance_to_points_enabled !== false
+  return gameCenterOverview.value?.exchange.balance_to_points_enabled === true && exchangeRate.value > 0
 })
 
 const exchangeRate = computed(() => {
-  return gameCenterOverview.value?.exchange.balance_to_points_rate ?? 100
+  const rate = Number(gameCenterOverview.value?.exchange.balance_to_points_rate)
+  return Number.isFinite(rate) && rate > 0 ? rate : 0
+})
+
+const minBalanceAmount = computed(() => {
+  return gameCenterOverview.value?.exchange.min_balance_amount ?? 0.01
 })
 
 let tickTimer: number | null = null
@@ -776,10 +781,21 @@ const isGameOpen = computed(() => {
 })
 
 const totalWelfareBalance = computed(() => {
+  if (gameCenterOverview.value?.welfare_balance != null) {
+    return Math.max(0, Number(gameCenterOverview.value.welfare_balance))
+  }
   const u = authStore.user
   if (!u) return 0
-  if (u.welfare_balance != null && u.welfare_balance > 0) return u.welfare_balance
-  return Number(((u.checkin_balance ?? 0) + (u.liyu_balance ?? 0) + (u.gift_balance ?? 0)).toFixed(4))
+  const total =
+    Math.max(0, Number(u.checkin_balance ?? 0)) +
+    Math.max(0, Number(u.liyu_balance ?? 0)) +
+    Math.max(0, Number(u.gift_balance ?? 0))
+  return Math.max(0, Number(total.toFixed(4)))
+})
+
+const canQuickExchange = computed(() => {
+  const amount = Number(quickExchangeAmount.value)
+  return balanceToPointsEnabled.value && amount > 0 && amount >= minBalanceAmount.value && amount <= totalWelfareBalance.value && Math.round(amount * exchangeRate.value) > 0
 })
 
 const phase = computed<SizeBetPhase>(() => {
@@ -1113,11 +1129,11 @@ async function submitBet() {
 }
 
 async function handleQuickExchange() {
-  if (quickExchangeAmount.value <= 0 || quickExchangeAmount.value > totalWelfareBalance.value) return
+  if (!canQuickExchange.value || quickExchangeLoading.value) return
   quickExchangeLoading.value = true
   try {
     await gameCenterAPI.exchangeBalanceToPoints({ amount: Number(quickExchangeAmount.value) })
-    const gained = Math.floor(quickExchangeAmount.value * exchangeRate.value)
+    const gained = Math.round(quickExchangeAmount.value * exchangeRate.value)
     appStore.showSuccess(`成功划转 ¥${quickExchangeAmount.value} 为 ${gained} 筹码！`)
     await authStore.refreshUser?.()
     await refreshPointsBalance()

@@ -1440,7 +1440,6 @@ func (s *UsageLogRepoSuite) TestActiveFiveHourResetExcludesPreviousWindowCost() 
 	s.Require().Equal(service.WindowCostSchedulable, reloaded.CheckWindowCostSchedulability(stats.StandardCost))
 	s.Require().Equal("allowed", reloaded.SessionWindowStatus)
 }
-}
 
 // --- GetUserUsageTrendByUserID ---
 

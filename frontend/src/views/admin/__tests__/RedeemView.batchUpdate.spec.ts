@@ -214,6 +214,33 @@ describe('admin RedeemView batch update', () => {
     }
   })
 
+  it('generates a Game Center points code with an integer face value', async () => {
+    const wrapper = mountCampaignView()
+    await flushPromises()
+    await wrapper.get('[data-test="generate-open"]').trigger('click')
+    await wrapper.get('[data-test="generate-type"]').setValue('game_points')
+    expect((wrapper.get('[data-test="generate-value"]').element as HTMLInputElement).value).toBe('100')
+    expect(wrapper.find('[data-test="generate-campaign"]').exists()).toBe(false)
+    await wrapper.get('[data-test="generate-value"]').setValue(750)
+    await wrapper.get('[data-test="generate-form"]').trigger('submit')
+    await flushPromises()
+    expect(generateCodes).toHaveBeenCalledWith(1, 'game_points', 750, undefined, undefined, undefined, undefined)
+    wrapper.unmount()
+  })
+
+  it.each([0, -1, 1.5, 1e12])('rejects invalid points amount %s before generation', async (amount) => {
+    const wrapper = mountCampaignView()
+    await flushPromises()
+    await wrapper.get('[data-test="generate-open"]').trigger('click')
+    await wrapper.get('[data-test="generate-type"]').setValue('game_points')
+    await wrapper.get('[data-test="generate-value"]').setValue(amount)
+    await wrapper.get('[data-test="generate-form"]').trigger('submit')
+    await flushPromises()
+    expect(generateCodes).not.toHaveBeenCalled()
+    expect(showError).toHaveBeenCalledWith('admin.redeem.gamePointsInvalid')
+    wrapper.unmount()
+  })
+
   it.each(['balance', 'lottery_ticket'])('associates %s codes with the selected campaign', async (type) => {
     const wrapper = mountCampaignView()
     await flushPromises()

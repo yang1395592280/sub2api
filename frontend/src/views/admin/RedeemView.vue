@@ -150,6 +150,9 @@
               <template v-else-if="row.type === 'lottery_ticket'">
                 {{ t('admin.redeem.ticketCountValue', { count: value }) }}
               </template>
+              <template v-else-if="row.type === 'game_points'">
+                {{ t('admin.redeem.gamePointsValue', { count: value }) }}
+              </template>
               <template v-else>{{ value }}</template>
             </span>
           </template>
@@ -317,12 +320,13 @@
                 <button v-if="selectedCampaign" type="button" class="btn btn-secondary btn-sm" :disabled="generating" @click="selectedCampaign = null">{{ t('admin.redeem.campaigns.clear') }}</button>
               </div>
             </div>
-            <!-- 余额/并发类型：显示数值输入 -->
             <div v-if="generateForm.type !== 'subscription' && generateForm.type !== 'invitation'">
               <label class="input-label">
                 {{
                   generateForm.type === 'balance'
                     ? t('admin.redeem.amount')
+                    : generateForm.type === 'game_points'
+                      ? t('admin.redeem.gamePointsAmount')
                     : t('admin.redeem.columns.value')
                 }}
               </label>
@@ -331,10 +335,14 @@
                 type="number"
                 :step="generateForm.type === 'balance' ? '0.01' : '1'"
                 :min="generateForm.type === 'balance' ? '0.01' : '1'"
-                :max="generateForm.type === 'lottery_ticket' ? '5' : undefined"
+                :max="generateForm.type === 'lottery_ticket' ? '5' : generateForm.type === 'game_points' ? 999999999999 : undefined"
                 required
                 class="input"
+                data-test="generate-value"
               />
+              <p v-if="generateForm.type === 'game_points'" class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+                {{ t('admin.redeem.gamePointsHint') }}
+              </p>
             </div>
             <!-- 邀请码类型：显示提示信息 -->
             <div v-if="generateForm.type === 'invitation'" class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
@@ -794,6 +802,7 @@ const typeOptions = computed(() => [
   { value: 'concurrency', label: t('admin.redeem.concurrency') },
   { value: 'subscription', label: t('admin.redeem.subscription') },
   { value: 'lottery_ticket', label: t('admin.redeem.lotteryTicket') },
+  { value: 'game_points', label: t('admin.redeem.gamePoints') },
   { value: 'invitation', label: t('admin.redeem.invitation') }
 ])
 
@@ -803,6 +812,7 @@ const filterTypeOptions = computed(() => [
   { value: 'concurrency', label: t('admin.redeem.concurrency') },
   { value: 'subscription', label: t('admin.redeem.subscription') },
   { value: 'lottery_ticket', label: t('admin.redeem.lotteryTicket') },
+  { value: 'game_points', label: t('admin.redeem.gamePoints') },
   { value: 'invitation', label: t('admin.redeem.invitation') }
 ])
 
@@ -905,6 +915,8 @@ watch(
       generateForm.value = 0
     } else if (newType === 'lottery_ticket') {
       generateForm.value = 1
+    } else if (newType === 'game_points') {
+      generateForm.value = 100
     } else if (generateForm.value === 0) {
       generateForm.value = 10
     }
@@ -1084,6 +1096,11 @@ const handleGenerateCodes = async () => {
   // 订阅类型必须选择分组
   if (generateForm.type === 'subscription' && !generateForm.group_id) {
     appStore.showError(t('admin.redeem.groupRequired'))
+    return
+  }
+
+  if (generateForm.type === 'game_points' && (!Number.isInteger(generateForm.value) || generateForm.value <= 0 || generateForm.value > 999999999999)) {
+    appStore.showError(t('admin.redeem.gamePointsInvalid'))
     return
   }
 

@@ -117,6 +117,10 @@
                     <p v-else-if="redeemResult.type === 'lottery_ticket'" class="font-medium">
                       {{ t('redeem.lotteryTicketsAdded', { count: redeemResult.value }) }}
                     </p>
+                    <p v-else-if="redeemResult.type === 'game_points'" class="font-medium" data-test="game-points-redeemed">
+                      {{ t('redeem.gamePointsAdded', { count: redeemResult.value }) }}
+                      <router-link to="/game-center" class="ml-2 underline">{{ t('redeem.viewGameCenter') }}</router-link>
+                    </p>
                     <p v-if="redeemResult.new_balance !== undefined">
                       {{ t('redeem.newBalance') }}:
                       <span class="font-semibold">${{ redeemResult.new_balance.toFixed(2) }}</span>
@@ -436,6 +440,8 @@ const getHistoryItemTitle = (item: RedeemHistoryItem) => {
     return t('redeem.subscriptionAssigned')
   } else if (item.type === 'lottery_ticket') {
     return t('redeem.lotteryTicketRedeemed')
+  } else if (item.type === 'game_points') {
+    return t('redeem.gamePointsRedeemed')
   }
   return t('common.unknown')
 }
@@ -451,6 +457,8 @@ const formatHistoryValue = (item: RedeemHistoryItem) => {
     return groupName ? `${days}${t('redeem.days')} - ${groupName}` : `${days}${t('redeem.days')}`
   } else if (item.type === 'lottery_ticket') {
     return t('redeem.lotteryTicketCount', { count: item.value })
+  } else if (item.type === 'game_points') {
+    return `+${t('redeem.gamePointsCount', { count: item.value })}`
   } else {
     const sign = item.value >= 0 ? '+' : ''
     return `${sign}${item.value} ${t('redeem.requests')}`

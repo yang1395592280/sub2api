@@ -420,3 +420,17 @@
 - 已完成带证据：用户明确授权打 tag v0.2.22.3、提交并推送；修复 game_center_repo buildGamePointsWhere 时间过滤未生成 SQL 条件引发 500 的 Bug；增加单元测试并通过；VERSION 升为 0.2.22.3。
 - 相关文件：backend/cmd/server/VERSION、backend/internal/repository/game_center_repo.go、backend/internal/repository/game_center_repo_test.go、.ai-memory/20261117/release-v0.2.22.3.md。
 - 执行范围：发布提交、annotated tag 与 push origin custom-main 和 refs/tags/v0.2.22.3。
+
+## 2026-11-18 福利余额展示与游戏中心积分兑换码
+
+- 已完成：用户列表充值/福利分列及福利排序，游戏中心与猜大小可用福利总额/汇率/最低值/舍入修复，game_points 兑换码创建、系统兑换及原子积分流水。
+- 证据：93 项 Go 定向、39 项 PG/Redis 集成、47 项前端回归，ESLint/typecheck/双语/生产前端及 embed 后端构建通过；隔离实例用户实页兑换 250 积分和重复拒绝，游戏两页配置显示与预估已验证。
+- 检查点：20261118/welfare-game-points-plan.md、daily.md。关键并发死锁已用 FOR NO KEY UPDATE 修复并复验。
+- 限制：管理员完整实页流程因首次协议确认待用户授权未执行，组件和后端验证已覆盖；未将测试夹具冒充后台实页生成结果。
+- 状态：feature/welfare-column-game-center-fix，原有未提交改动保留；无 DDL/生产写入，未 commit/merge/push/部署。下一步如需发布由用户单独授权。
+
+### 2026-11-18 17:56 CST 后台实页补验完成
+
+- 用户授权仅在临时实例确认协议，已完成确认并补测后台生成 250 积分码、类型筛选、余额分列、福利升降序及刷新排序恢复。
+- 普通用户实页兑换该后台生成码，游戏中心积分及流水到账；只读数据库确认码 used、points 从 0 到 250、充值/福利不变。截图及证据见 20261118/welfare-game-points-plan.md。
+- 原协议确认导致的验证限制已解除，三项功能验证闭环，无待办；本轮无新增业务代码修改，未 commit/merge/push/部署。

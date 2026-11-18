@@ -105,6 +105,7 @@ const DataTableStub = {
       <div data-test="row-state">{{ data.map(row => [row.id, row.status, row.current_concurrency].join(':')).join(',') }}</div>
       <div data-test="selected-keys">{{ (selectedKeys || []).join(',') }}</div>
       <button data-test="sort-last-used" @click="$emit('sort', 'last_used_at', 'desc')">sort</button>
+      <button data-test="sort-welfare" @click="$emit('sort', 'welfare_balance', 'desc')">sort welfare</button>
       <template v-for="col in columns" :key="col.key">
         <slot :name="'header-' + col.key" :column="col" />
       </template>
@@ -112,6 +113,7 @@ const DataTableStub = {
         <div :data-test="'select-' + row.id"><slot name="cell-select" :row="row" /></div>
         <slot name="cell-last_used_at" :value="row.last_used_at" :row="row" />
         <div :data-test="'balance-' + row.id"><slot name="cell-balance" :value="row.balance" :row="row" /></div>
+        <div :data-test="'welfare-' + row.id"><slot name="cell-welfare_balance" :value="row.welfare_balance" :row="row" /></div>
         <div :data-test="'actions-' + row.id"><slot name="cell-actions" :row="row" /></div>
       </div>
     </div>
@@ -211,6 +213,28 @@ describe('admin UsersView', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('separates wallet columns, requests welfare sorting and restores a saved sort', async () => {
+    listUsers.mockResolvedValue({ items: [createAdminUser({ balance: 7, welfare_balance: 2.3456 })], total: 1 })
+    const wrapper = mountBulkDeleteView()
+    await flushPromises()
+    const columns = wrapper.get('[data-test="columns"]').text().split(',')
+    expect(columns.slice(columns.indexOf('balance'), columns.indexOf('balance') + 2)).toEqual(['balance', 'welfare_balance'])
+    expect(wrapper.get('[data-test="balance-42"] button').text()).toBe('$7.00')
+    expect(wrapper.get('[data-test="welfare-42"] button').text()).toBe('$2.35')
+    await wrapper.get('[data-test="sort-welfare"]').trigger('click')
+    await flushPromises()
+    expect(listUsers).toHaveBeenLastCalledWith(1, 20, expect.objectContaining({ sort_by: 'welfare_balance', sort_order: 'desc' }), expect.any(Object))
+    wrapper.unmount()
+    // The shared table owns persistence; seed its saved state before remounting
+    // to verify this view accepts the new column when restoring the request.
+    localStorage.setItem('admin-users-table-sort', JSON.stringify({ key: 'welfare_balance', order: 'asc' }))
+    listUsers.mockClear()
+    const restored = mountBulkDeleteView()
+    await flushPromises()
+    expect(listUsers).toHaveBeenLastCalledWith(1, 20, expect.objectContaining({ sort_by: 'welfare_balance', sort_order: 'asc' }), expect.any(Object))
+    restored.unmount()
   })
 
   it.each(['deposit', 'withdraw'])('closes balance history before opening %s', async (action) => {

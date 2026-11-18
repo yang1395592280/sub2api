@@ -1785,6 +1785,9 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 	if input.Type == RedeemTypeLotteryTicket && !isValidRedeemTicketCount(input.Value) {
 		return nil, errors.New("lottery ticket value must be an integer between 1 and 5")
 	}
+	if input.Type == RedeemTypeGamePoints && !isValidGamePointsAmount(input.Value) {
+		return nil, ErrRedeemGamePointsInvalid
+	}
 
 	// 如果是订阅类型，验证必须有 GroupID
 	if input.Type == RedeemTypeSubscription {

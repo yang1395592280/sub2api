@@ -51,6 +51,7 @@ export interface GameCenterPointsLeaderboardItem {
 
 export interface GameCenterOverview {
   points: number
+  welfare_balance?: number
   claim_batches: GameCenterClaimBatch[]
   exchange: GameCenterExchangeConfig
   catalogs: GameCenterCatalog[]

@@ -28,7 +28,13 @@ vi.mock('@/stores/app', () => ({
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   const zh = await import('@/i18n/locales/zh/dashboard')
-  return { ...actual, useI18n: () => ({ t: (key: string) => key === 'redeem.errors.REDEEM_CAMPAIGN_LIMIT_REACHED' ? zh.default.redeem.errors.REDEEM_CAMPAIGN_LIMIT_REACHED : key }) }
+  return { ...actual, useI18n: () => ({ t: (key: string, params?: { count?: number }) => {
+    if (key === 'redeem.errors.REDEEM_CAMPAIGN_LIMIT_REACHED') return zh.default.redeem.errors.REDEEM_CAMPAIGN_LIMIT_REACHED
+    if (key === 'redeem.gamePointsAdded') return zh.default.redeem.gamePointsAdded.replace('{count}', String(params?.count))
+    if (key === 'redeem.gamePointsCount') return zh.default.redeem.gamePointsCount.replace('{count}', String(params?.count))
+    if (key === 'redeem.gamePointsRedeemed') return zh.default.redeem.gamePointsRedeemed
+    return key
+  } }) }
 })
 
 async function submitCode() {
@@ -209,6 +215,19 @@ describe('RedeemView refresh after redemption', () => {
     expect(showError).not.toHaveBeenCalled()
     expect(showSuccess).toHaveBeenCalledWith('redeem.codeRedeemSuccess')
     expect((wrapper.get('input#code').element as HTMLInputElement).value).toBe('')
+    wrapper.unmount()
+  })
+
+  it('shows points credited by a code, links to Game Center and labels the history', async () => {
+    redeem.mockResolvedValue({ type: 'game_points', value: 250 })
+    getHistory.mockResolvedValue({ items: [{ id: 1, code: 'POINTS-250', type: 'game_points', value: 250, used_at: '2026-11-18T09:00:00Z' }], total: 1 })
+    const wrapper = await submitCode()
+    expect(wrapper.get('[data-test="game-points-redeemed"]').text()).toContain('已获得 250 游戏中心积分')
+    expect(wrapper.get('router-link').attributes('to')).toBe('/game-center')
+    expect(wrapper.text()).toContain('游戏中心积分兑换')
+    expect(wrapper.text()).toContain('+250 积分')
+    expect(refreshUser).toHaveBeenCalledOnce()
+    expect(showError).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 

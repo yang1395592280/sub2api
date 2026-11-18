@@ -38,7 +38,7 @@ func (r *gameCenterRepository) GetUserAssets(ctx context.Context, userID int64) 
 	if err != nil {
 		return nil, err
 	}
-	assets.WelfareBalance = math.Max(0, checkin+liyu+gift)
+	assets.WelfareBalance = math.Max(0, checkin) + math.Max(0, liyu) + math.Max(0, gift)
 	return &assets, nil
 }
 

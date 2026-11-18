@@ -61,7 +61,7 @@
             <div class="flex items-center justify-between">
               <p class="text-base font-semibold text-slate-900 dark:text-white">兑入筹码 (福利余额 -> 积分)</p>
               <span class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300">
-                汇率 1 元 = {{ overview?.exchange.balance_to_points_rate ?? 100 }} 积分
+                汇率 1 元 = {{ balanceToPointsRate }} 积分
               </span>
             </div>
             <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
@@ -79,22 +79,22 @@
                 <input
                   v-model.number="balanceAmount"
                   type="number"
-                  min="0.01"
+                  :min="minBalanceAmount"
                   step="0.01"
                   :disabled="!overview?.exchange.balance_to_points_enabled"
                   class="input flex-1"
-                  :placeholder="`最小 ${overview?.exchange.min_balance_amount ?? 0.01}`"
+                  :placeholder="`最小 ${minBalanceAmount}`"
                 />
                 <button
                   type="button"
                   class="btn btn-secondary btn-sm"
                   :disabled="!overview?.exchange.balance_to_points_enabled"
-                  @click="balanceAmount = Number(totalWelfareBalance.toFixed(2))"
+                  @click="balanceAmount = Math.floor(totalWelfareBalance * 100) / 100"
                 >
                   全部
                 </button>
               </div>
-              <p class="mt-1 text-xs text-slate-400">预计获得积分: {{ Math.floor((balanceAmount || 0) * (overview?.exchange.balance_to_points_rate ?? 100)) }}</p>
+              <p class="mt-1 text-xs text-slate-400">预计获得积分: {{ Math.round((balanceAmount || 0) * balanceToPointsRate) }}</p>
             </div>
 
             <button
@@ -120,7 +120,7 @@
             <div class="flex items-center justify-between">
               <p class="text-base font-semibold text-slate-900 dark:text-white">兑出福利 (积分 -> 福利余额)</p>
               <span class="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
-                汇率 {{ overview?.exchange.points_to_balance_rate ?? 100 }} 积分 = 1 元
+                汇率 {{ pointsPerYuanDisplay }} 积分 = 1 元
               </span>
             </div>
             <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
@@ -138,11 +138,11 @@
                 <input
                   v-model.number="pointsAmount"
                   type="number"
-                  min="1"
+                  :min="minPointsAmount"
                   step="1"
                   :disabled="!overview?.exchange.points_to_balance_enabled"
                   class="input flex-1"
-                  :placeholder="`最小 ${overview?.exchange.min_points_amount ?? 100}`"
+                  :placeholder="`最小 ${minPointsAmount}`"
                 />
                 <button
                   type="button"
@@ -153,7 +153,7 @@
                   全部
                 </button>
               </div>
-              <p class="mt-1 text-xs text-slate-400">预计获得福利余额: ¥{{ ((pointsAmount || 0) / (overview?.exchange.points_to_balance_rate ?? 100)).toFixed(2) }}</p>
+              <p class="mt-1 text-xs text-slate-400">预计获得福利余额: ¥{{ estimatedWelfareFromPoints.toFixed(2) }}</p>
             </div>
 
             <button
@@ -299,7 +299,7 @@
               </div>
 
               <div class="mt-6 rounded-xl bg-sky-50 p-3 text-xs text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
-                📌 提示：获得福利余额后，在本页点击“福利余额 ⇆ 筹码兑换”即可 1:{{ overview?.exchange.balance_to_points_rate ?? 100 }} 划转为游戏筹码！
+                📌 提示：获得福利余额后，在本页点击“福利余额 ⇆ 筹码兑换”即可 1:{{ balanceToPointsRate }} 划转为游戏筹码！
               </div>
             </article>
           </div>
@@ -380,7 +380,8 @@ const exchangeLoadingDirection = ref<ExchangeDirection | ''>('')
 const exchangeOpen = ref(false)
 const showCheckinDialog = ref(false)
 const balanceAmount = ref(1)
-const pointsAmount = ref(100)
+const pointsAmount = ref(10)
+const pointsAmountInitialized = ref(false)
 const today = toDateInput(new Date())
 const ledgerStartDate = ref(today)
 const ledgerEndDate = ref(today)
@@ -392,22 +393,62 @@ const gameCenterEnabled = computed(() => {
 })
 const claimBatches = computed(() => overview.value?.claim_batches ?? [])
 
+const balanceToPointsRate = computed(() => {
+  const rate = Number(overview.value?.exchange.balance_to_points_rate)
+  return Number.isFinite(rate) && rate > 0 ? rate : 0
+})
+
+const pointsToBalanceRate = computed(() => {
+  const rate = Number(overview.value?.exchange.points_to_balance_rate)
+  return Number.isFinite(rate) && rate > 0 ? rate : 0
+})
+
+const pointsPerYuanDisplay = computed(() => {
+  const rate = pointsToBalanceRate.value
+  if (rate <= 0) return 0
+  return Number((1 / rate).toFixed(4))
+})
+
+const minBalanceAmount = computed(() => {
+  const min = Number(overview.value?.exchange.min_balance_amount)
+  return min > 0 ? min : 0.01
+})
+
+const minPointsAmount = computed(() => {
+  const min = Number(overview.value?.exchange.min_points_amount)
+  return min > 0 ? min : 1
+})
+
+const estimatedWelfareFromPoints = computed(() => {
+  return (Number(pointsAmount.value) || 0) * pointsToBalanceRate.value
+})
+
 const totalWelfareBalance = computed(() => {
+  if (overview.value?.welfare_balance != null) {
+    return Math.max(0, Number(overview.value.welfare_balance))
+  }
   const u = authStore.user
   if (!u) return 0
-  if (u.welfare_balance != null && u.welfare_balance > 0) return u.welfare_balance
-  return Number(((u.checkin_balance ?? 0) + (u.liyu_balance ?? 0) + (u.gift_balance ?? 0)).toFixed(4))
+  const positiveSum =
+    Math.max(0, Number(u.checkin_balance ?? 0)) +
+    Math.max(0, Number(u.liyu_balance ?? 0)) +
+    Math.max(0, Number(u.gift_balance ?? 0))
+  if (positiveSum > 0) {
+    return Number(positiveSum.toFixed(4))
+  }
+  return Math.max(0, Number((u.welfare_balance ?? 0).toFixed(4)))
 })
 
 const canBalanceToPoints = computed(() => {
-  if (!overview.value?.exchange.balance_to_points_enabled) return false
-  return Number(balanceAmount.value) > 0 && Number(balanceAmount.value) <= totalWelfareBalance.value
+  if (!overview.value?.exchange.balance_to_points_enabled || balanceToPointsRate.value <= 0) return false
+  const amount = Number(balanceAmount.value)
+  return amount > 0 && amount >= minBalanceAmount.value && amount <= totalWelfareBalance.value && Math.round(amount * balanceToPointsRate.value) > 0
 })
 
 const canPointsToBalance = computed(() => {
-  if (!overview.value?.exchange.points_to_balance_enabled) return false
+  if (!overview.value?.exchange.points_to_balance_enabled || pointsToBalanceRate.value <= 0) return false
   const currentPts = overview.value?.points ?? authStore.user?.points ?? 0
-  return Number(pointsAmount.value) > 0 && Number(pointsAmount.value) <= currentPts
+  return Number.isInteger(pointsAmount.value) && Number(pointsAmount.value) >= minPointsAmount.value && Number(pointsAmount.value) <= currentPts
 })
 
 function toDateInput(value: Date): string {
@@ -457,6 +498,7 @@ function normalizeError(error: unknown, fallbackKey: string): string {
 async function handleCheckinClose() {
   showCheckinDialog.value = false
   await authStore.refreshUser?.()
+  await loadOverview()
 }
 
 async function loadOverview(): Promise<void> {
@@ -465,6 +507,10 @@ async function loadOverview(): Promise<void> {
     overview.value = await gameCenterAPI.getOverview()
     if (authStore.user && overview.value?.points != null) {
       authStore.user.points = overview.value.points
+    }
+    if (!pointsAmountInitialized.value && overview.value?.exchange) {
+      pointsAmount.value = Math.max(minPointsAmount.value, Math.round(pointsPerYuanDisplay.value))
+      pointsAmountInitialized.value = true
     }
     loadState.value = 'ready'
     await loadLedger()

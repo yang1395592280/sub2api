@@ -31,11 +31,11 @@ type RedeemRequest struct {
 
 // RedeemResponse represents the redeem response
 type RedeemResponse struct {
+	dto.RedeemCode
 	Message        string   `json:"message"`
-	Type           string   `json:"type"`
-	Value          float64  `json:"value"`
 	NewBalance     *float64 `json:"new_balance,omitempty"`
 	NewConcurrency *int     `json:"new_concurrency,omitempty"`
+	PointsAdded    *int64   `json:"points_added,omitempty"`
 }
 
 // Redeem handles redeeming a code
@@ -59,7 +59,16 @@ func (h *RedeemHandler) Redeem(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.RedeemCodeFromService(result).Localized(c.GetHeader("Accept-Language")))
+	redeemed := dto.RedeemCodeFromService(result).Localized(c.GetHeader("Accept-Language"))
+	responseBody := RedeemResponse{
+		RedeemCode: *redeemed,
+		Message:    "Redeem code redeemed successfully",
+	}
+	if result.Type == service.RedeemTypeGamePoints {
+		points := int64(result.Value)
+		responseBody.PointsAdded = &points
+	}
+	response.Success(c, responseBody)
 }
 
 // GetHistory returns the user's redemption history

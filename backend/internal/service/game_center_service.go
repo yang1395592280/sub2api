@@ -98,6 +98,8 @@ type GameCenterExchangeView struct {
 	PointsToBalanceEnabled bool    `json:"points_to_balance_enabled"`
 	BalanceToPointsRate    float64 `json:"balance_to_points_rate"`
 	PointsToBalanceRate    float64 `json:"points_to_balance_rate"`
+	MinBalanceAmount       float64 `json:"min_balance_amount"`
+	MinPointsAmount        int64   `json:"min_points_amount"`
 }
 
 type GameCenterExchangeSettings struct {
@@ -303,11 +305,15 @@ func (s *GameCenterService) ExchangeBalanceToPoints(ctx context.Context, userID 
 		return nil, ErrGameCenterExchangeBalanceToPointsClosed
 	}
 	rate := readFloatSetting(ctx, s.settingRepo, SettingKeyGameCenterExchangeBalanceToPointsRate, 0)
-	if rate <= 0 {
+	if rate <= 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
 		return nil, ErrGameCenterInvalidExchangeRate
 	}
-	minAmount := readFloatSetting(ctx, s.settingRepo, SettingKeyGameCenterExchangeMinBalanceAmount, 0)
-	if amount < minAmount {
+	minAmount := readFloatSetting(ctx, s.settingRepo, SettingKeyGameCenterExchangeMinBalanceAmount, 0.01)
+	if amount <= 0 || math.IsNaN(amount) || math.IsInf(amount, 0) || amount < minAmount {
+		return nil, ErrGameCenterExchangeAmountTooSmall
+	}
+	roundedPoints := math.Round(amount * rate)
+	if roundedPoints < 1 || roundedPoints >= float64(math.MaxInt64) || math.IsInf(roundedPoints, 0) {
 		return nil, ErrGameCenterExchangeAmountTooSmall
 	}
 	assets, err := s.repo.GetUserAssets(ctx, userID)
@@ -318,7 +324,7 @@ func (s *GameCenterService) ExchangeBalanceToPoints(ctx context.Context, userID 
 	if assets.WelfareBalance < amount {
 		return nil, ErrGameCenterInsufficientBalance
 	}
-	targetPoints := int64(math.Round(amount * rate))
+	targetPoints := int64(roundedPoints)
 	return s.repo.ExchangeBalanceToPoints(ctx, ExchangeBalanceToPointsInput{
 		UserID:       userID,
 		Amount:       amount,
@@ -332,11 +338,11 @@ func (s *GameCenterService) ExchangePointsToBalance(ctx context.Context, userID 
 		return nil, ErrGameCenterExchangePointsToBalanceClosed
 	}
 	rate := readFloatSetting(ctx, s.settingRepo, SettingKeyGameCenterExchangePointsToBalanceRate, 0)
-	if rate <= 0 {
+	if rate <= 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
 		return nil, ErrGameCenterInvalidExchangeRate
 	}
-	minPoints := readInt64Setting(ctx, s.settingRepo, SettingKeyGameCenterExchangeMinPointsAmount, 0)
-	if points < minPoints {
+	minPoints := readInt64Setting(ctx, s.settingRepo, SettingKeyGameCenterExchangeMinPointsAmount, 1)
+	if points <= 0 || points < minPoints {
 		return nil, ErrGameCenterExchangeAmountTooSmall
 	}
 	assets, err := s.repo.GetUserAssets(ctx, userID)
@@ -474,6 +480,8 @@ func (s *GameCenterService) loadExchangeView(ctx context.Context) GameCenterExch
 		PointsToBalanceEnabled: readBoolSetting(ctx, s.settingRepo, SettingKeyGameCenterExchangePointsToBalanceEnabled, false),
 		BalanceToPointsRate:    readFloatSetting(ctx, s.settingRepo, SettingKeyGameCenterExchangeBalanceToPointsRate, 0),
 		PointsToBalanceRate:    readFloatSetting(ctx, s.settingRepo, SettingKeyGameCenterExchangePointsToBalanceRate, 0),
+		MinBalanceAmount:       readFloatSetting(ctx, s.settingRepo, SettingKeyGameCenterExchangeMinBalanceAmount, 0.01),
+		MinPointsAmount:        readInt64Setting(ctx, s.settingRepo, SettingKeyGameCenterExchangeMinPointsAmount, 1),
 	}
 }
 

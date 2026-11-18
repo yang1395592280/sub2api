@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -22,6 +24,53 @@ type redeemCodeRepository struct {
 
 func NewRedeemCodeRepository(client *dbent.Client) service.RedeemCodeRepository {
 	return &redeemCodeRepository{client: client}
+}
+
+// GrantRedeemPoints shares the redemption transaction so consuming a code,
+// crediting points and writing the ledger either all succeed or all roll back.
+func (r *redeemCodeRepository) GrantRedeemPoints(ctx context.Context, userID int64, sourceKey string, points int64) error {
+	if dbent.TxFromContext(ctx) == nil {
+		return errors.New("game points redemption requires a transaction")
+	}
+	if points <= 0 || points > 999999999999 {
+		return errors.New("invalid game points amount")
+	}
+	client := clientFromContext(ctx, r.client)
+	// RedeemCode.Use has already acquired a foreign-key KEY SHARE lock on the
+	// user. NO KEY UPDATE serializes point changes without deadlocking concurrent
+	// codes as they upgrade that lock; no user key is changed here.
+	rows, err := client.QueryContext(ctx, `
+		SELECT points FROM users WHERE id = $1 AND deleted_at IS NULL FOR NO KEY UPDATE
+	`, userID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		return service.ErrUserNotFound
+	}
+	var before int64
+	if err := rows.Scan(&before); err != nil {
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	if before > math.MaxInt64-points {
+		return errors.New("game points balance overflow")
+	}
+	after := before + points
+	if _, err := client.ExecContext(ctx, `UPDATE users SET points = $2, updated_at = NOW() WHERE id = $1`, userID, after); err != nil {
+		return err
+	}
+	_, err = client.ExecContext(ctx, `
+		INSERT INTO game_points_ledger (user_id, entry_type, delta_points, points_before, points_after, reason)
+		VALUES ($1, 'redeem_code', $2, $3, $4, $5)
+	`, userID, points, before, after, fmt.Sprintf("redeem code %s", sourceKey))
+	return err
 }
 
 func (r *redeemCodeRepository) Create(ctx context.Context, code *service.RedeemCode) error {

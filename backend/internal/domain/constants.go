@@ -77,6 +77,7 @@ const (
 	RedeemTypeSubscription  = "subscription"
 	RedeemTypeInvitation    = "invitation"
 	RedeemTypeLotteryTicket = "lottery_ticket"
+	RedeemTypeGamePoints    = "game_points"
 )
 
 // PromoCode status constants

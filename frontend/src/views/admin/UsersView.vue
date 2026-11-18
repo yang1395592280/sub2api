@@ -487,7 +487,7 @@
                   class="font-medium text-gray-900 underline decoration-dashed decoration-gray-300 underline-offset-4 transition-colors hover:text-primary-600 dark:text-white dark:decoration-dark-500 dark:hover:text-primary-400"
                   @click="handleBalanceHistory(row)"
                 >
-                  {{ t('wallet.paid') }} ${{ formatWalletAmount(value) }}
+                  ${{ formatWalletAmount(value) }}
                 </button>
                 <!-- Instant tooltip -->
                 <div class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg transition-opacity duration-75 group-hover:opacity-100 dark:bg-dark-600">
@@ -503,7 +503,23 @@
                 {{ t('admin.users.deposit') }}
               </button>
             </div>
-            <p class="mt-1 text-xs text-gray-500">{{ t('wallet.welfare') }} ${{ formatWalletAmount(row.welfare_balance) }}</p>
+          </template>
+
+          <template #cell-welfare_balance="{ row }">
+            <div class="group relative inline-flex items-center">
+              <button
+                type="button"
+                class="font-medium underline decoration-dashed decoration-gray-300 underline-offset-4 transition-colors hover:text-primary-600 dark:decoration-dark-500 dark:hover:text-primary-400"
+                :class="(row.welfare_balance ?? 0) < 0 ? 'text-red-500 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'"
+                @click="handleBalanceHistory(row)"
+              >
+                ${{ formatWalletAmount(row.welfare_balance) }}
+              </button>
+              <div class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg transition-opacity duration-75 group-hover:opacity-100 dark:bg-dark-600">
+                {{ t('wallet.checkin') }}: ${{ formatWalletAmount(row.checkin_balance) }} · {{ t('wallet.liyu') }}: ${{ formatWalletAmount(row.liyu_balance) }} · {{ t('wallet.gift') }}: ${{ formatWalletAmount(row.gift_balance) }}
+                <div class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-dark-600"></div>
+              </div>
+            </div>
           </template>
 
           <template #cell-balance_platform_quota="{ row }">
@@ -967,6 +983,7 @@ const allColumns = computed<Column[]>(() => [
   { key: 'groups', label: t('admin.users.columns.groups'), sortable: false },
   { key: 'subscriptions', label: t('admin.users.columns.subscriptions'), sortable: false },
   { key: 'balance', label: t('admin.users.columns.balance'), sortable: true },
+  { key: 'welfare_balance', label: t('admin.users.columns.welfareBalance'), sortable: true },
   { key: 'balance_platform_quota', label: t('admin.users.columns.balancePlatformQuota'), sortable: false },
   { key: 'usage', label: t('admin.users.columns.usage'), sortable: false },
   { key: 'usage_anthropic', label: t('admin.users.columns.usageAnthropic'), sortable: false },
@@ -1126,7 +1143,7 @@ const emailListQuery = ref('')
 const USER_SORT_STORAGE_KEY = 'admin-users-table-sort'
 const loadInitialSortState = (): { sort_by: string; sort_order: 'asc' | 'desc' } => {
   const fallback = { sort_by: 'created_at', sort_order: 'desc' as 'asc' | 'desc' }
-  const sortable = new Set(['email', 'id', 'username', 'role', 'balance', 'concurrency', 'status', 'last_used_at', 'last_active_at', 'created_at'])
+  const sortable = new Set(['email', 'id', 'username', 'role', 'balance', 'welfare_balance', 'concurrency', 'status', 'last_used_at', 'last_active_at', 'created_at'])
   try {
     const raw = localStorage.getItem(USER_SORT_STORAGE_KEY)
     if (!raw) return fallback
