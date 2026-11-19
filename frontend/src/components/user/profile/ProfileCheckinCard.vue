@@ -187,11 +187,16 @@
             :class="{
               'calendar-cell-empty': !day.inCurrentMonth,
               'calendar-cell-checked': !!day.record,
+              'calendar-cell-negative': day.record && day.record.reward_amount < 0,
               'calendar-cell-today': day.isToday
             }"
           >
             <div class="text-xs font-medium">{{ day.date.getDate() }}</div>
-            <div v-if="day.record" class="mt-1 flex items-center justify-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-300">
+            <div
+              v-if="day.record"
+              class="mt-1 flex items-center justify-center gap-1 text-[10px] font-medium"
+              :class="day.record.reward_amount < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'"
+            >
               <Icon name="checkCircle" size="xs" />
               <span>{{ formatRewardCompact(day.record.reward_amount) }}</span>
             </div>
@@ -567,6 +572,11 @@ function handleCaptchaExpire() { pendingAction.value = null; proof.value = {}; s
   background: rgb(236 253 245 / 1);
 }
 
+.calendar-cell-negative {
+  border-color: rgb(254 205 211 / 1);
+  background: rgb(255 241 242 / 1);
+}
+
 .calendar-cell-today {
   box-shadow: inset 0 0 0 1px rgb(59 130 246 / 0.35);
 }
@@ -580,15 +590,20 @@ function handleCaptchaExpire() { pendingAction.value = null; proof.value = {}; s
   background: rgb(31 41 55 / 1);
 }
 
-:global(.dark) .calendar-cell {
+.dark .calendar-cell {
   border-color: rgb(31 41 55 / 1);
   color: rgb(243 244 246 / 1);
   background: rgb(17 24 39 / 0.25);
 }
 
-:global(.dark) .calendar-cell-checked {
+.dark .calendar-cell-checked {
   border-color: rgb(6 95 70 / 1);
   background: rgb(6 78 59 / 0.2);
+}
+
+.dark .calendar-cell-negative {
+  border-color: rgb(159 18 57 / 1);
+  background: rgb(136 19 55 / 0.2);
 }
 
 :global(.dark) .lucky-bonus-btn {
