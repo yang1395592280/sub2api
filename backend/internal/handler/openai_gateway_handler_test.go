@@ -2263,6 +2263,8 @@ type openAIResponsesWSUsageLogCase struct {
 	// accountSelectDelay/userSlotDelay 用于覆盖调度和排队耗时，验证 usage log timing。
 	accountSelectDelay time.Duration
 	userSlotDelay      time.Duration
+	// midFrameCloseExpected：midPayload 被拒（连接被 1008 关闭），帧不到达上游。
+	midFrameCloseExpected bool
 }
 
 type openAIResponsesWSUsageLogResult struct {
@@ -3640,6 +3642,19 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		err = clientConn.Write(writeCtx, coderws.MessageText, []byte(tc.midPayload))
 		cancelWrite()
 		require.NoError(t, err)
+		if tc.midFrameCloseExpected {
+			readCtx, cancelRead := context.WithTimeout(context.Background(), 3*time.Second)
+			_, _, readErr := clientConn.Read(readCtx)
+			cancelRead()
+			require.Error(t, readErr, "mid frame should have been rejected with a close")
+			var closeErr coderws.CloseError
+			require.ErrorAs(t, readErr, &closeErr)
+			require.Equal(t, coderws.StatusPolicyViolation, closeErr.Code)
+			require.Contains(t, closeErr.Reason, tc.closeReason)
+			require.Len(t, upstreamPayloadCh, 1, "rejected mid frame must not reach upstream")
+			_ = clientConn.CloseNow()
+			return openAIResponsesWSUsageLogResult{}
+		}
 		readCompleted()
 	}
 	if strings.TrimSpace(tc.secondPayload) != "" && (turnCount >= 2) {
