@@ -12,9 +12,19 @@ describe('redeem campaign API contract', () => {
     put.mockResolvedValue({ data: {} })
   })
 
-  it.each(['balance', 'lottery_ticket'] as const)('sends the campaign ID when generating %s codes', async (type) => {
+  it.each(['balance', 'lottery_ticket', 'game_points'] as const)('sends the campaign ID when generating %s codes', async (type) => {
     await generate(20, type, 1, undefined, undefined, undefined, 7)
     expect(post).toHaveBeenCalledWith('/admin/redeem-codes/generate', { count: 20, type, value: 1, campaign_id: 7 })
+  })
+
+  it.each(['lottery_ticket', 'game_points'] as const)('sends per_user_limit when generating %s codes', async (type) => {
+    await generate(10, type, type === 'game_points' ? 100 : 1, undefined, undefined, undefined, undefined, 2)
+    expect(post).toHaveBeenCalledWith('/admin/redeem-codes/generate', {
+      count: 10,
+      type,
+      value: type === 'game_points' ? 100 : 1,
+      per_user_limit: 2
+    })
   })
 
   it('keeps ordinary code generation independent of campaigns', async () => {

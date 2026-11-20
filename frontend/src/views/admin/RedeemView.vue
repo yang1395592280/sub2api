@@ -48,9 +48,6 @@
               <Icon name="edit" size="md" class="mr-2" />
               {{ t('admin.redeem.batchUpdate') }}
             </button>
-            <button class="btn btn-secondary" data-test="campaign-manage-open" @click="openCampaigns(false)">
-              {{ t('admin.redeem.campaigns.title') }}
-            </button>
             <button @click="showGenerateDialog = true" class="btn btn-primary" data-test="generate-open">
               {{ t('admin.redeem.generateCodes') }}
             </button>
@@ -114,13 +111,6 @@
                 </svg>
               </button>
             </div>
-          </template>
-
-          <template #cell-campaign_id="{ row }">
-            <button v-if="row.campaign_id" type="button" class="text-sm text-primary-600 hover:underline dark:text-primary-400" @click="openCampaigns(false, row.campaign_id)">
-              {{ t('admin.redeem.campaigns.campaignId', { id: row.campaign_id }) }}
-            </button>
-            <span v-else class="text-gray-400">—</span>
           </template>
 
           <template #cell-type="{ value }">
@@ -263,14 +253,6 @@
         </div>
       </template>
     </TablePageLayout>
-    <RedeemCampaignDialog
-      :show="showCampaignDialog"
-      :selectable="selectingCampaign"
-      :initial-campaign-id="initialCampaignId"
-      @close="showCampaignDialog = false"
-      @select="selectedCampaign = $event"
-      @saved="onCampaignSaved"
-    />
 
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
@@ -310,15 +292,6 @@
             <div>
               <label class="input-label">{{ t('admin.redeem.codeType') }}</label>
               <Select v-model="generateForm.type" :options="typeOptions" data-test="generate-type" />
-            </div>
-            <div v-if="supportsCampaign" class="rounded-lg border border-gray-200 p-3 dark:border-dark-600" data-test="generate-campaign">
-              <label class="input-label">{{ t('admin.redeem.campaigns.title') }}</label>
-              <p class="mb-2 break-words text-sm text-gray-700 dark:text-dark-200">{{ selectedCampaign ? selectedCampaign.name : t('admin.redeem.campaigns.none') }}</p>
-              <p v-if="selectedCampaign" class="mb-2 text-sm text-primary-600 dark:text-primary-400">{{ t('admin.redeem.campaigns.limitSummary', { count: selectedCampaign.per_user_limit }) }}</p>
-              <div class="flex flex-wrap gap-2">
-                <button type="button" class="btn btn-secondary btn-sm" :disabled="generating" data-test="campaign-choose-open" @click="openCampaigns(true)">{{ t('admin.redeem.campaigns.choose') }}</button>
-                <button v-if="selectedCampaign" type="button" class="btn btn-secondary btn-sm" :disabled="generating" @click="selectedCampaign = null">{{ t('admin.redeem.campaigns.clear') }}</button>
-              </div>
             </div>
             <div v-if="generateForm.type !== 'subscription' && generateForm.type !== 'invitation'">
               <label class="input-label">
@@ -423,6 +396,41 @@
                 class="input mt-2"
                 :placeholder="t('admin.redeem.customExpiryDays')"
               />
+            </div>
+            <div v-if="supportsPerUserLimit" data-test="generate-per-user-limit">
+              <label class="input-label">{{ t('admin.redeem.perUserLimit') }}</label>
+              <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                <button
+                  v-for="option in redeemPerUserLimitOptions"
+                  :key="option.value"
+                  type="button"
+                  :data-test="'per-user-limit-option-' + option.value"
+                  @click="generateForm.per_user_limit_option = option.value"
+                  :class="[
+                    'rounded-lg border px-3 py-2 text-sm transition-colors',
+                    generateForm.per_user_limit_option === option.value
+                      ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/20 dark:text-primary-300'
+                      : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-dark-600 dark:text-gray-300 dark:hover:bg-dark-700'
+                  ]"
+                >
+                  {{ option.label }}
+                </button>
+              </div>
+              <input
+                v-if="generateForm.per_user_limit_option === 'custom'"
+                v-model.number="generateForm.custom_per_user_limit"
+                type="number"
+                min="1"
+                max="1000"
+                step="1"
+                required
+                class="input mt-2"
+                data-test="per-user-limit-custom"
+                :placeholder="t('admin.redeem.perUserLimitCustomPlaceholder')"
+              />
+              <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+                {{ t('admin.redeem.perUserLimitHint') }}
+              </p>
             </div>
             <div>
               <label class="input-label">{{ t('admin.redeem.count') }}</label>
@@ -664,7 +672,6 @@ import {
 } from '@/utils/format'
 import type {
   RedeemCode,
-  RedeemCampaign,
   RedeemCodeType,
   Group,
   GroupPlatform,
@@ -681,7 +688,6 @@ import Select from '@/components/common/Select.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
 import Icon from '@/components/icons/Icon.vue'
-import RedeemCampaignDialog from '@/components/admin/RedeemCampaignDialog.vue'
 import { extractApiErrorMessage } from '@/utils/apiError'
 
 const { t } = useI18n()
@@ -702,21 +708,9 @@ const showGenerateDialog = ref(false)
 const showResultDialog = ref(false)
 const generatedCodes = ref<RedeemCode[]>([])
 const subscriptionGroups = ref<Group[]>([])
-const selectedCampaign = ref<RedeemCampaign | null>(null)
-const showCampaignDialog = ref(false)
-const selectingCampaign = ref(false)
-const initialCampaignId = ref<number | null>(null)
-const supportsCampaign = computed(() => generateForm.type === 'balance' || generateForm.type === 'lottery_ticket')
-
-function openCampaigns(selectable: boolean, campaignId: number | null = null) {
-  selectingCampaign.value = selectable
-  initialCampaignId.value = campaignId
-  showCampaignDialog.value = true
-}
-
-function onCampaignSaved(campaign: RedeemCampaign) {
-  if (selectedCampaign.value?.id === campaign.id) selectedCampaign.value = campaign
-}
+const supportsPerUserLimit = computed(
+  () => generateForm.type === 'lottery_ticket' || generateForm.type === 'game_points'
+)
 
 // 订阅类型分组选项
 const subscriptionGroupOptions = computed(() => {
@@ -789,7 +783,6 @@ const columns = computed<Column[]>(() => [
   { key: 'code', label: t('admin.redeem.columns.code') },
   { key: 'type', label: t('admin.redeem.columns.type'), sortable: true },
   { key: 'value', label: t('admin.redeem.columns.value'), sortable: true },
-  { key: 'campaign_id', label: t('admin.redeem.campaigns.title') },
   { key: 'status', label: t('admin.redeem.columns.status'), sortable: true },
   { key: 'used_by', label: t('admin.redeem.columns.usedBy') },
   { key: 'used_at', label: t('admin.redeem.columns.usedAt'), sortable: true },
@@ -888,6 +881,7 @@ const batchUpdateForm = reactive({
 })
 
 type RedeemCodeExpiryOption = 'never' | '1' | '3' | '7' | 'custom'
+type RedeemPerUserLimitOption = 'unlimited' | '1' | '2' | '3' | 'custom'
 
 const redeemCodeExpiryOptions = computed<{ value: RedeemCodeExpiryOption; label: string }[]>(() => [
   { value: 'never', label: t('admin.redeem.neverExpires') },
@@ -897,6 +891,16 @@ const redeemCodeExpiryOptions = computed<{ value: RedeemCodeExpiryOption; label:
   { value: 'custom', label: t('admin.redeem.customExpiry') }
 ])
 
+const redeemPerUserLimitOptions = computed<{ value: RedeemPerUserLimitOption; label: string }[]>(
+  () => [
+    { value: 'unlimited', label: t('admin.redeem.perUserLimitUnlimited') },
+    { value: '1', label: t('admin.redeem.perUserLimitPresetCount', { count: 1 }) },
+    { value: '2', label: t('admin.redeem.perUserLimitPresetCount', { count: 2 }) },
+    { value: '3', label: t('admin.redeem.perUserLimitPresetCount', { count: 3 }) },
+    { value: 'custom', label: t('admin.redeem.perUserLimitCustom') }
+  ]
+)
+
 const generateForm = reactive({
   type: 'balance' as RedeemCodeType,
   value: 10,
@@ -904,7 +908,9 @@ const generateForm = reactive({
   group_id: null as number | null,
   validity_days: 30,
   expiry_option: 'never' as RedeemCodeExpiryOption,
-  custom_expiry_days: 7
+  custom_expiry_days: 7,
+  per_user_limit_option: '1' as RedeemPerUserLimitOption,
+  custom_per_user_limit: 5
 })
 
 // 监听类型变化，邀请码类型时自动设置 value 为 0
@@ -1028,6 +1034,26 @@ const getRedeemCodeExpiresInDays = () => {
   return Number(generateForm.expiry_option)
 }
 
+const getRedeemCodePerUserLimit = (): number | null | undefined => {
+  if (!supportsPerUserLimit.value) {
+    return undefined
+  }
+  if (generateForm.per_user_limit_option === 'unlimited') {
+    return undefined
+  }
+  if (generateForm.per_user_limit_option === 'custom') {
+    if (
+      !Number.isInteger(generateForm.custom_per_user_limit) ||
+      generateForm.custom_per_user_limit < 1 ||
+      generateForm.custom_per_user_limit > 1000
+    ) {
+      return null
+    }
+    return generateForm.custom_per_user_limit
+  }
+  return Number(generateForm.per_user_limit_option)
+}
+
 const toDatetimeLocalInputValue = (date: Date) => {
   const pad = (value: number) => String(value).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
@@ -1110,6 +1136,12 @@ const handleGenerateCodes = async () => {
     return
   }
 
+  const perUserLimit = getRedeemCodePerUserLimit()
+  if (perUserLimit === null) {
+    appStore.showError(t('admin.redeem.perUserLimitInvalid'))
+    return
+  }
+
   generating.value = true
   try {
     const result = await adminAPI.redeem.generate(
@@ -1119,7 +1151,8 @@ const handleGenerateCodes = async () => {
       generateForm.type === 'subscription' ? generateForm.group_id : undefined,
       generateForm.type === 'subscription' ? generateForm.validity_days : undefined,
       expiresInDays,
-      supportsCampaign.value ? selectedCampaign.value?.id : undefined
+      undefined,
+      perUserLimit
     )
     showGenerateDialog.value = false
     generatedCodes.value = result
@@ -1129,7 +1162,8 @@ const handleGenerateCodes = async () => {
     generateForm.validity_days = 30
     generateForm.expiry_option = 'never'
     generateForm.custom_expiry_days = 7
-    selectedCampaign.value = null
+    generateForm.per_user_limit_option = '1'
+    generateForm.custom_per_user_limit = 5
     loadCodes()
   } catch (error: any) {
     appStore.showError(extractApiErrorMessage(error, t('admin.redeem.failedToGenerate')))

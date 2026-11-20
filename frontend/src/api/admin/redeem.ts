@@ -73,7 +73,8 @@ export async function generate(
   groupId?: number | null,
   validityDays?: number,
   expiresInDays?: number | null,
-  campaignId?: number
+  campaignId?: number,
+  perUserLimit?: number | null
 ): Promise<RedeemCode[]> {
   const payload: GenerateRedeemCodesRequest = {
     count,
@@ -93,6 +94,9 @@ export async function generate(
   }
   if (campaignId != null) {
     payload.campaign_id = campaignId
+  }
+  if (perUserLimit != null && perUserLimit > 0) {
+    payload.per_user_limit = perUserLimit
   }
 
   const { data } = await apiClient.post<RedeemCode[]>('/admin/redeem-codes/generate', payload)

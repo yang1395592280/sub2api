@@ -644,6 +644,7 @@ type GenerateRedeemCodesInput struct {
 	ValidityDays int    // 订阅类型专用：有效天数
 	ExpiresAt    *time.Time
 	CampaignID   *int64
+	PerUserLimit *int
 }
 
 type ProxyBatchDeleteResult struct {

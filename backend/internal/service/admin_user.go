@@ -1776,6 +1776,12 @@ func (s *adminServiceImpl) GetRedeemCode(ctx context.Context, id int64) (*Redeem
 }
 
 func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *GenerateRedeemCodesInput) ([]RedeemCode, error) {
+	if input.CampaignID != nil && input.PerUserLimit != nil {
+		return nil, infraerrors.BadRequest("REDEEM_PER_USER_LIMIT_CONFLICT", "campaign_id and per_user_limit cannot both be set")
+	}
+	if err := validateRedeemPerUserLimit(input.Type, input.Value, input.PerUserLimit); err != nil {
+		return nil, err
+	}
 	if err := validateRedeemCampaignCode(ctx, s.redeemCodeRepo, input.CampaignID, input.Type, input.Value); err != nil {
 		return nil, err
 	}
@@ -1810,6 +1816,15 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 		}
 	}
 
+	campaignID := input.CampaignID
+	if input.PerUserLimit != nil {
+		var err error
+		campaignID, err = createBatchRedeemCampaign(ctx, s.redeemCodeRepo, input.Type, *input.PerUserLimit)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	codes := make([]RedeemCode, 0, input.Count)
 	for i := 0; i < input.Count; i++ {
 		codeValue, err := GenerateRedeemCode()
@@ -1822,7 +1837,7 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 			Value:      input.Value,
 			Status:     StatusUnused,
 			ExpiresAt:  input.ExpiresAt,
-			CampaignID: input.CampaignID,
+			CampaignID: campaignID,
 		}
 		// 订阅类型专用字段
 		if input.Type == RedeemTypeSubscription {

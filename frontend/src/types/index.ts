@@ -2165,6 +2165,7 @@ export interface GenerateRedeemCodesRequest {
   expires_at?: string | null
   expires_in_days?: number
   campaign_id?: number
+  per_user_limit?: number
 }
 
 export interface RedeemCampaign {

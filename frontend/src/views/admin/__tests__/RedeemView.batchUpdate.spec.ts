@@ -214,17 +214,26 @@ describe('admin RedeemView batch update', () => {
     }
   })
 
-  it('generates a Game Center points code with an integer face value', async () => {
+  it('removes campaign management button and campaign column from admin RedeemView', async () => {
+    const wrapper = mountCampaignView()
+    await flushPromises()
+    expect(wrapper.find('[data-test="campaign-manage-open"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('admin.redeem.campaigns.title')
+    wrapper.unmount()
+  })
+
+  it('generates a Game Center points code with default per-user limit 1 and integer face value', async () => {
     const wrapper = mountCampaignView()
     await flushPromises()
     await wrapper.get('[data-test="generate-open"]').trigger('click')
     await wrapper.get('[data-test="generate-type"]').setValue('game_points')
     expect((wrapper.get('[data-test="generate-value"]').element as HTMLInputElement).value).toBe('100')
     expect(wrapper.find('[data-test="generate-campaign"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="generate-per-user-limit"]').exists()).toBe(true)
     await wrapper.get('[data-test="generate-value"]').setValue(750)
     await wrapper.get('[data-test="generate-form"]').trigger('submit')
     await flushPromises()
-    expect(generateCodes).toHaveBeenCalledWith(1, 'game_points', 750, undefined, undefined, undefined, undefined)
+    expect(generateCodes).toHaveBeenCalledWith(1, 'game_points', 750, undefined, undefined, undefined, undefined, 1)
     wrapper.unmount()
   })
 
@@ -241,72 +250,62 @@ describe('admin RedeemView batch update', () => {
     wrapper.unmount()
   })
 
-  it.each(['balance', 'lottery_ticket'])('associates %s codes with the selected campaign', async (type) => {
+  it.each(['balance', 'concurrency', 'subscription', 'invitation'])('hides per-user limit control for %s codes', async (type) => {
     const wrapper = mountCampaignView()
     await flushPromises()
     await wrapper.get('[data-test="generate-open"]').trigger('click')
     await wrapper.get('[data-test="generate-type"]').setValue(type)
-    await wrapper.get('[data-test="campaign-choose-open"]').trigger('click')
-    await flushPromises()
-    await wrapper.get('[data-test="campaign-select"]').trigger('click')
-    expect(wrapper.get('[data-test="generate-campaign"]').text()).toContain('周五福利')
-    await wrapper.get('[data-test="generate-form"]').trigger('submit')
-    await flushPromises()
-    expect(generateCodes).toHaveBeenCalledWith(1, type, type === 'balance' ? 10 : 1, undefined, undefined, undefined, 7)
+    expect(wrapper.find('[data-test="generate-per-user-limit"]').exists()).toBe(false)
     wrapper.unmount()
   })
 
-  it('creates a campaign with an editable limit and selects it for generation', async () => {
-    createCampaign.mockResolvedValue({ id: 8, name: '新福利', per_user_limit: 3 })
+  it.each(['lottery_ticket', 'game_points'] as const)('supports unlimited, preset, and custom per-user limit for %s codes', async (type) => {
     const wrapper = mountCampaignView()
     await flushPromises()
     await wrapper.get('[data-test="generate-open"]').trigger('click')
-    await wrapper.get('[data-test="campaign-choose-open"]').trigger('click')
-    await flushPromises()
-    await wrapper.get('[data-test="campaign-name"]').setValue('新福利')
-    await wrapper.get('[data-test="campaign-limit"]').setValue(3)
-    await wrapper.get('[data-test="campaign-form"]').trigger('submit')
-    await flushPromises()
-    expect(createCampaign).toHaveBeenCalledWith({ name: '新福利', per_user_limit: 3 }, expect.any(String))
-    expect(wrapper.get('[data-test="generate-campaign"]').text()).toContain('新福利')
+    await wrapper.get('[data-test="generate-type"]').setValue(type)
+    const expectedValue = type === 'game_points' ? 100 : 1
+
+    // Unlimited
+    await wrapper.get('[data-test="per-user-limit-option-unlimited"]').trigger('click')
     await wrapper.get('[data-test="generate-form"]').trigger('submit')
     await flushPromises()
-    expect(generateCodes.mock.calls[0][6]).toBe(8)
+    expect(generateCodes).toHaveBeenLastCalledWith(1, type, expectedValue, undefined, undefined, undefined, undefined, undefined)
+
+    // Preset 3
+    await wrapper.get('[data-test="generate-open"]').trigger('click')
+    await wrapper.get('[data-test="per-user-limit-option-3"]').trigger('click')
+    await wrapper.get('[data-test="generate-form"]').trigger('submit')
+    await flushPromises()
+    expect(generateCodes).toHaveBeenLastCalledWith(1, type, expectedValue, undefined, undefined, undefined, undefined, 3)
+
+    // Custom valid 6
+    await wrapper.get('[data-test="generate-open"]').trigger('click')
+    await wrapper.get('[data-test="per-user-limit-option-custom"]').trigger('click')
+    await wrapper.get('[data-test="per-user-limit-custom"]').setValue(6)
+    await wrapper.get('[data-test="generate-form"]').trigger('submit')
+    await flushPromises()
+    expect(generateCodes).toHaveBeenLastCalledWith(1, type, expectedValue, undefined, undefined, undefined, undefined, 6)
+
+    // Resets back to default 1 after successful generation
+    await wrapper.get('[data-test="generate-open"]').trigger('click')
+    await wrapper.get('[data-test="generate-form"]').trigger('submit')
+    await flushPromises()
+    expect(generateCodes).toHaveBeenLastCalledWith(1, type, expectedValue, undefined, undefined, undefined, undefined, 1)
     wrapper.unmount()
   })
 
-  it('edits an existing campaign limit and rejects zero before sending a request', async () => {
-    updateCampaign.mockResolvedValue({ id: 7, name: '周五福利', per_user_limit: 3 })
+  it.each([0, -2, 1.5, 1001])('rejects invalid custom per-user limit %s before generation', async (limit) => {
     const wrapper = mountCampaignView()
     await flushPromises()
-    await wrapper.get('[data-test="campaign-manage-open"]').trigger('click')
+    await wrapper.get('[data-test="generate-open"]').trigger('click')
+    await wrapper.get('[data-test="generate-type"]').setValue('lottery_ticket')
+    await wrapper.get('[data-test="per-user-limit-option-custom"]').trigger('click')
+    await wrapper.get('[data-test="per-user-limit-custom"]').setValue(limit)
+    await wrapper.get('[data-test="generate-form"]').trigger('submit')
     await flushPromises()
-    await wrapper.get('[data-test="campaign-edit"]').trigger('click')
-    await wrapper.get('[data-test="campaign-limit"]').setValue(0)
-    await wrapper.get('[data-test="campaign-form"]').trigger('submit')
-    expect(updateCampaign).not.toHaveBeenCalled()
-    await wrapper.get('[data-test="campaign-limit"]').setValue(3)
-    await wrapper.get('[data-test="campaign-form"]').trigger('submit')
-    await flushPromises()
-    expect(updateCampaign).toHaveBeenCalledWith(7, { name: '周五福利', per_user_limit: 3 }, expect.any(String))
-    wrapper.unmount()
-  })
-
-  it('reuses the operation key after a failed save and keeps the entered limit', async () => {
-    createCampaign.mockRejectedValueOnce({ message: 'Network unavailable' }).mockResolvedValueOnce({ id: 8, name: '福利', per_user_limit: 2 })
-    const wrapper = mountCampaignView()
-    await flushPromises()
-    await wrapper.get('[data-test="campaign-manage-open"]').trigger('click')
-    await flushPromises()
-    await wrapper.get('[data-test="campaign-name"]').setValue('福利')
-    await wrapper.get('[data-test="campaign-limit"]').setValue(2)
-    await wrapper.get('[data-test="campaign-form"]').trigger('submit')
-    await flushPromises()
-    expect(wrapper.text()).toContain('Network unavailable')
-    expect((wrapper.get('[data-test="campaign-limit"]').element as HTMLInputElement).value).toBe('2')
-    await wrapper.get('[data-test="campaign-form"]').trigger('submit')
-    await flushPromises()
-    expect(createCampaign.mock.calls[0][1]).toBe(createCampaign.mock.calls[1][1])
+    expect(generateCodes).not.toHaveBeenCalled()
+    expect(showError).toHaveBeenCalledWith('admin.redeem.perUserLimitInvalid')
     wrapper.unmount()
   })
 })

@@ -58,8 +58,8 @@ func validateRedeemCampaignCode(ctx context.Context, repo RedeemCodeRepository, 
 	if campaignID == nil {
 		return nil
 	}
-	if *campaignID <= 0 || (codeType != RedeemTypeBalance && codeType != RedeemTypeLotteryTicket) || value <= 0 {
-		return infraerrors.BadRequest("REDEEM_CAMPAIGN_CODE_INVALID", "campaigns only support positive balance codes and lottery ticket codes")
+	if *campaignID <= 0 || (codeType != RedeemTypeBalance && codeType != RedeemTypeLotteryTicket && codeType != RedeemTypeGamePoints) || value <= 0 {
+		return infraerrors.BadRequest("REDEEM_CAMPAIGN_CODE_INVALID", "campaigns only support positive balance, lottery ticket, and game points codes")
 	}
 	campaignRepo, err := redeemCampaignRepository(repo)
 	if err != nil {
@@ -67,6 +67,34 @@ func validateRedeemCampaignCode(ctx context.Context, repo RedeemCodeRepository, 
 	}
 	_, err = campaignRepo.GetCampaign(ctx, *campaignID)
 	return err
+}
+
+func validateRedeemPerUserLimit(codeType string, value float64, perUserLimit *int) error {
+	if perUserLimit == nil {
+		return nil
+	}
+	if *perUserLimit < 1 || *perUserLimit > 1000 {
+		return infraerrors.BadRequest("REDEEM_PER_USER_LIMIT_INVALID", "per_user_limit must be between 1 and 1000")
+	}
+	if (codeType != RedeemTypeLotteryTicket && codeType != RedeemTypeGamePoints) || value <= 0 {
+		return infraerrors.BadRequest("REDEEM_PER_USER_LIMIT_TYPE_INVALID", "per_user_limit only supports positive lottery ticket and game points codes")
+	}
+	return nil
+}
+
+func createBatchRedeemCampaign(ctx context.Context, repo RedeemCodeRepository, codeType string, perUserLimit int) (*int64, error) {
+	campaignRepo, err := redeemCampaignRepository(repo)
+	if err != nil {
+		return nil, err
+	}
+	campaign := &RedeemCampaign{
+		Name:         "batch:" + codeType + ":" + time.Now().UTC().Format("20060102-150405.000"),
+		PerUserLimit: perUserLimit,
+	}
+	if err := campaignRepo.CreateCampaign(ctx, campaign); err != nil {
+		return nil, err
+	}
+	return &campaign.ID, nil
 }
 
 func (s *RedeemService) ListCampaigns(ctx context.Context, params pagination.PaginationParams, search string) ([]RedeemCampaign, int64, error) {

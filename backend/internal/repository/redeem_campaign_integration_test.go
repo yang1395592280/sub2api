@@ -318,3 +318,43 @@ func TestRedeemCampaignHTTPAndMigration(t *testing.T) {
 	_, err = f.redeem.GetCampaign(ctx, -1)
 	require.Equal(t, "REDEEM_CAMPAIGN_NOT_FOUND", infraerrors.Reason(err))
 }
+
+func TestRedeemCampaignInlinePerUserLimitForGamePoints(t *testing.T) {
+	f := newRedeemCampaignFixture(t, 1)
+	ctx := context.Background()
+	adminService := service.NewAdminService(nil, nil, nil, nil, nil, nil, f.repo, nil, nil, nil, nil, nil, nil, f.client, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	limit := 1
+	codes, err := adminService.GenerateRedeemCodes(ctx, &service.GenerateRedeemCodesInput{
+		Count:        2,
+		Type:         service.RedeemTypeGamePoints,
+		Value:        150,
+		PerUserLimit: &limit,
+	})
+	require.NoError(t, err)
+	require.Len(t, codes, 2)
+	require.NotNil(t, codes[0].CampaignID)
+	require.NotNil(t, codes[1].CampaignID)
+	require.Equal(t, *codes[0].CampaignID, *codes[1].CampaignID)
+	batchCampaignID := *codes[0].CampaignID
+	t.Cleanup(func() {
+		_, _ = integrationDB.ExecContext(ctx, "DELETE FROM redeem_codes WHERE campaign_id = $1", batchCampaignID)
+		_, _ = integrationDB.ExecContext(ctx, "DELETE FROM redeem_campaign_claims WHERE campaign_id = $1", batchCampaignID)
+		_, _ = integrationDB.ExecContext(ctx, "DELETE FROM redeem_campaigns WHERE id = $1", batchCampaignID)
+		for _, id := range f.users {
+			_, _ = integrationDB.ExecContext(ctx, "DELETE FROM game_point_ledger WHERE user_id = $1", id)
+		}
+	})
+
+	_, err = f.redeem.Redeem(ctx, f.users[0], codes[0].Code)
+	require.NoError(t, err)
+
+	_, err = f.redeem.Redeem(ctx, f.users[0], codes[1].Code)
+	require.ErrorIs(t, err, service.ErrRedeemCampaignLimit)
+
+	got, err := f.repo.GetByID(ctx, codes[1].ID)
+	require.NoError(t, err)
+	require.Equal(t, service.StatusUnused, got.Status)
+
+	_, err = f.redeem.Redeem(ctx, f.users[1], codes[1].Code)
+	require.NoError(t, err)
+}

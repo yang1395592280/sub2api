@@ -170,3 +170,21 @@ func TestResolveRedeemCodeExpiresAt_RejectsConflictingInputs(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, expiresAt)
 }
+
+func TestGenerateRedeemCodes_PerUserLimitValidation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	for _, body := range []string{
+		`{"count":2,"type":"game_points","value":100,"per_user_limit":0}`,
+		`{"count":2,"type":"game_points","value":100,"per_user_limit":-1}`,
+		`{"count":2,"type":"lottery_ticket","value":1,"per_user_limit":1001}`,
+	} {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/redeem-codes/generate", bytes.NewBufferString(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		h := NewRedeemHandler(newStubAdminService(), nil)
+		h.Generate(c)
+		assert.Equal(t, http.StatusBadRequest, w.Code, body)
+	}
+}
