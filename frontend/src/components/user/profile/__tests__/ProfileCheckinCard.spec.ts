@@ -56,6 +56,22 @@ describe('check-in wallet interactions', () => {
     expect(w.findComponent({ name: 'CheckinBonusReveal' }).props('phase')).toBe(outcome)
     w.unmount()
   })
+  it.each(['win', 'lose'] as const)('conceals inline %s outcome while flipping and reveals matching badge afterward', async (outcome) => {
+    vi.useFakeTimers()
+    const record = { checkin_date: '2026-11-13', reward_amount: outcome === 'win' ? 2 : -0.5, base_reward_amount: 1, bonus_status: outcome, bonus_delta_amount: outcome === 'win' ? 1 : -1.5 }
+    mocks.play.mockResolvedValue(record)
+    mocks.status
+      .mockResolvedValueOnce(status())
+      .mockResolvedValueOnce({ ...status(), bonus_available: false, today_record: record })
+    const w = mountCard(); await flushPromises()
+    await w.get('[data-testid="checkin-bonus-button"]').trigger('click'); await flushPromises()
+    expect(w.find('[data-testid="lucky-bonus-panel-badge"]').exists()).toBe(false)
+    expect(w.get('[data-testid="lucky-bonus-panel"]').classes()).toContain('lucky-bonus-panel-drawing')
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(w.get('[data-testid="lucky-bonus-panel"]').classes()).toContain(`lucky-bonus-panel-${outcome}`)
+    expect(w.get('[data-testid="lucky-bonus-panel-badge"]').text()).toContain(`wallet.${outcome}`)
+    w.unmount()
+  })
   it('closes the reveal on request failure and allows retry without a fabricated outcome', async () => {
     mocks.play.mockRejectedValue(new Error('temporary failure'))
     const w = mountCard(); await flushPromises()

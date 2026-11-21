@@ -87,6 +87,7 @@
 
       <div
         v-if="status?.bonus_enabled"
+        data-testid="lucky-bonus-panel"
         class="lucky-bonus-panel"
         :class="{
           'lucky-bonus-panel-win': bonusResultRecord?.bonus_status === 'win',
@@ -98,26 +99,46 @@
         <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div class="flex items-center gap-3">
             <div class="bonus-flip-card" :class="{ 'bonus-flip-card-active': bonusSubmitting, 'bonus-flip-card-win': bonusResultRecord?.bonus_status === 'win', 'bonus-flip-card-lose': bonusResultRecord?.bonus_status === 'lose' }" aria-hidden="true">
-              <Icon name="sparkles" size="sm" />
-              <span v-if="bonusResultRecord && !bonusSubmitting">{{ bonusResultRecord.bonus_status === 'win' ? '×2' : '−½' }}</span>
+              <Icon
+                :name="bonusSubmitting || !bonusResultRecord ? 'sparkles' : bonusResultRecord.bonus_status === 'win' ? 'trophy' : 'xCircle'"
+                size="sm"
+              />
+              <span v-if="bonusResultRecord && !bonusSubmitting" class="text-sm font-extrabold leading-none">
+                {{ bonusResultRecord.bonus_status === 'win' ? '×2' : '−0.5×' }}
+              </span>
             </div>
             <div>
-            <div class="text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
-              {{ t('wallet.bonusResultTitle') }}
-            </div>
-            <div class="mt-2 text-lg font-semibold text-gray-900 dark:text-white">
-              {{
-                bonusResultRecord
-                  ? bonusResultRecord.bonus_status === 'win'
-                    ? t('wallet.bonusWin')
-                    : t('wallet.bonusLose')
-                  : status?.bonus_available
-                    ? t('wallet.bonus')
-                    : status?.stats.checked_in_today
-                      ? t('wallet.bonusAlreadyPlayed')
-                      : t('wallet.bonusCheckinFirst')
-              }}
-            </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
+                  {{ t('wallet.bonusResultTitle') }}
+                </span>
+                <span
+                  v-if="bonusResultRecord"
+                  data-testid="lucky-bonus-panel-badge"
+                  class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold"
+                  :class="bonusResultRecord.bonus_status === 'win'
+                    ? 'bg-emerald-600 text-white dark:bg-emerald-500'
+                    : 'bg-rose-600 text-white dark:bg-rose-500'"
+                >
+                  <Icon :name="bonusResultRecord.bonus_status === 'win' ? 'checkCircle' : 'xCircle'" size="xs" />
+                  {{ bonusResultRecord.bonus_status === 'win' ? t('wallet.win') : t('wallet.lose') }}
+                </span>
+              </div>
+              <div class="mt-2 text-lg font-semibold text-gray-900 dark:text-white">
+                {{
+                  bonusSubmitting
+                    ? t('wallet.bonusPending')
+                    : bonusResultRecord
+                      ? bonusResultRecord.bonus_status === 'win'
+                        ? t('wallet.bonusWin')
+                        : t('wallet.bonusLose')
+                      : status?.bonus_available
+                        ? t('wallet.bonus')
+                        : status?.stats.checked_in_today
+                          ? t('wallet.bonusAlreadyPlayed')
+                          : t('wallet.bonusCheckinFirst')
+                }}
+              </div>
             </div>
           </div>
           <div class="grid min-w-[240px] grid-cols-3 gap-3 text-sm">
@@ -129,17 +150,28 @@
             </div>
             <div class="rounded-2xl bg-white/80 px-3 py-3 dark:bg-dark-900/40">
               <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('wallet.reward') }}</div>
-              <div class="mt-1 font-semibold text-gray-900 dark:text-white">
-                {{ formatReward(status?.today_record?.reward_amount || 0) }}
+              <div
+                class="mt-1 font-semibold"
+                :class="bonusSubmitting
+                  ? 'text-gray-400 dark:text-gray-500'
+                  : (status?.today_record?.reward_amount || 0) < 0
+                    ? 'text-rose-600 dark:text-rose-300'
+                    : 'text-gray-900 dark:text-white'"
+              >
+                {{ bonusSubmitting ? '…' : formatReward(status?.today_record?.reward_amount || 0) }}
               </div>
             </div>
             <div class="rounded-2xl bg-white/80 px-3 py-3 dark:bg-dark-900/40">
               <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('wallet.bonusDelta') }}</div>
               <div
                 class="mt-1 font-semibold"
-                :class="(status?.today_record?.bonus_delta_amount || 0) >= 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'"
+                :class="bonusSubmitting
+                  ? 'text-gray-400 dark:text-gray-500'
+                  : (status?.today_record?.bonus_delta_amount || 0) >= 0
+                    ? 'text-emerald-600 dark:text-emerald-300'
+                    : 'text-rose-600 dark:text-rose-300'"
               >
-                {{ formatSignedReward(status?.today_record?.bonus_delta_amount || 0) }}
+                {{ bonusSubmitting ? '…' : formatSignedReward(status?.today_record?.bonus_delta_amount || 0) }}
               </div>
             </div>
           </div>
@@ -217,7 +249,7 @@
   </div>
   <div v-else class="py-12 text-center text-sm text-gray-500" role="status">
     {{ loading ? t('common.loading') : t(status ? 'wallet.checkinDisabled' : 'wallet.checkinLoadFailed') }}
-    <button v-if="!loading && !status" type="button" class="btn btn-secondary ml-3" @click="fetchStatus">{{ t('common.retry') }}</button>
+    <button v-if="!loading && !status" type="button" class="btn btn-secondary ml-3" @click="fetchStatus()">{{ t('common.retry') }}</button>
   </div>
 </template>
 
@@ -271,6 +303,7 @@ const monthLabel = computed(() => parseMonth(currentMonth.value).toLocaleDateStr
 const monthlyReward = computed(() => (status.value?.stats.records || []).reduce((sum, record) => sum + (record.reward_amount || 0), 0))
 const bonusButtonDisabled = computed(() => loading.value || submitting.value || bonusSubmitting.value || !status.value?.bonus_enabled || !status.value?.bonus_available || !!status.value?.risk)
 const bonusResultRecord = computed(() => {
+  if (bonusSubmitting.value) return null
   const record = status.value?.today_record
   return record && record.bonus_status !== 'none' ? record : null
 })
@@ -310,9 +343,9 @@ onBeforeUnmount(() => {
   if (bonusAnimationTimer !== undefined) window.clearTimeout(bonusAnimationTimer)
 })
 
-async function fetchStatus() {
+async function fetchStatus(silent = false) {
   const requestID = ++loadRequest
-  loading.value = true
+  if (!silent) loading.value = true
   try {
     const result = await checkinAPI.status(currentMonth.value)
     if (!disposed && requestID === loadRequest) {
@@ -322,7 +355,7 @@ async function fetchStatus() {
   } catch (error) {
     if (!disposed && requestID === loadRequest) app.showError(extractApiErrorMessage(error, t('common.error')))
   } finally {
-    if (!disposed && requestID === loadRequest) loading.value = false
+    if (!disposed && requestID === loadRequest && !silent) loading.value = false
   }
 }
 
@@ -393,7 +426,7 @@ async function submitClaim(bonus: boolean) {
       }, Math.max(0, 1200 - (Date.now() - startedAt)))
     }
     if (!bonus) app.showSuccess(t('wallet.checkinSuccess', { reward: formatReward(result.reward_amount) }))
-    await Promise.all([fetchStatus(), auth.refreshUser().catch(error => app.showError(extractApiErrorMessage(error, t('common.error'))))])
+    await Promise.all([fetchStatus(true), auth.refreshUser().catch(error => app.showError(extractApiErrorMessage(error, t('common.error'))))])
   } catch (error) {
     if (!disposed) {
       bonusSubmitting.value = false
@@ -487,6 +520,8 @@ function handleCaptchaExpire() { pendingAction.value = null; proof.value = {}; s
 .bonus-flip-card {
   position: relative;
   display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
   width: 3.5rem;
   height: 4.5rem;
   align-items: center;
@@ -506,21 +541,24 @@ function handleCaptchaExpire() { pendingAction.value = null; proof.value = {}; s
 }
 
 .bonus-flip-card-win {
-  border-color: rgb(110 231 183 / 1);
-  background: linear-gradient(145deg, rgb(236 253 245 / 1), rgb(167 243 208 / 1));
+  border-color: rgb(16 185 129 / 0.85);
+  background: linear-gradient(145deg, rgb(236 253 245 / 1), rgb(110 231 183 / 1));
   color: rgb(4 120 87 / 1);
+  box-shadow: 0 8px 18px rgb(16 185 129 / 0.22);
 }
 
 .bonus-flip-card-lose {
-  border-color: rgb(253 186 116 / 1);
-  background: linear-gradient(145deg, rgb(255 247 237 / 1), rgb(254 215 170 / 1));
-  color: rgb(194 65 12 / 1);
+  border-color: rgb(251 113 133 / 0.9);
+  background: linear-gradient(145deg, rgb(255 241 242 / 1), rgb(254 205 211 / 1));
+  color: rgb(190 18 60 / 1);
+  box-shadow: 0 8px 18px rgb(225 29 72 / 0.18);
 }
 
 .lucky-bonus-panel {
   border-radius: 1.5rem;
   padding: 1.1rem 1.2rem;
   border: 1px solid rgb(229 231 235 / 1);
+  transition: border-color 0.35s ease, background 0.35s ease;
 }
 
 .lucky-bonus-panel-idle {
@@ -528,13 +566,13 @@ function handleCaptchaExpire() { pendingAction.value = null; proof.value = {}; s
 }
 
 .lucky-bonus-panel-win {
-  border-color: rgb(110 231 183 / 1);
-  background: radial-gradient(circle at top left, rgb(209 250 229 / 1), rgb(236 253 245 / 1) 42%, rgb(255 255 255 / 1));
+  border-color: rgb(52 211 153 / 0.85);
+  background: radial-gradient(circle at top left, rgb(167 243 208 / 0.95), rgb(236 253 245 / 1) 44%, rgb(255 255 255 / 1));
 }
 
 .lucky-bonus-panel-lose {
-  border-color: rgb(253 186 116 / 1);
-  background: radial-gradient(circle at top left, rgb(255 237 213 / 1), rgb(255 247 237 / 1) 42%, rgb(255 255 255 / 1));
+  border-color: rgb(251 113 133 / 0.85);
+  background: radial-gradient(circle at top left, rgb(254 205 211 / 0.95), rgb(255 241 242 / 1) 44%, rgb(255 255 255 / 1));
 }
 
 .calendar-nav-btn {
@@ -623,8 +661,8 @@ function handleCaptchaExpire() { pendingAction.value = null; proof.value = {}; s
 }
 
 :global(.dark) .lucky-bonus-panel-lose {
-  background: radial-gradient(circle at top left, rgb(154 52 18 / 0.38), rgb(17 24 39 / 0.92) 52%);
-  border-color: rgb(234 88 12 / 0.35);
+  background: radial-gradient(circle at top left, rgb(136 19 55 / 0.55), rgb(17 24 39 / 0.92) 52%);
+  border-color: rgb(244 63 94 / 0.45);
 }
 
 @keyframes lucky-bonus-shine {

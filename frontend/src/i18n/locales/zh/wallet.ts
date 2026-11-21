@@ -1,6 +1,7 @@
 export default {
   checkinDisabled: '每日签到暂未开放',
   checkinLoadFailed: '签到信息加载失败，请重试',
+  bonusDrawingHint: '命运卡牌洗牌中，即将揭晓结果…',
   bonusWinHint: '幸运降临，今日签到奖励已翻倍入账',
   bonusLoseHint: '按活动规则扣除原始奖励的 1.5 倍，今日签到最终净亏 0.5 倍',
   activityHistory: '签到与福利流水',
