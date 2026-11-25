@@ -144,7 +144,7 @@ func TestReadOpenAICompatBufferedTerminal_EmptyTerminalOutputGainsHostedItems(t 
 	require.Equal(t, []string{"web_search_call", "image_generation_call", "message"}, types)
 
 	// The handler supplements the output afterwards; the text must not be added twice.
-	acc.SupplementResponseOutput(response)
+	acc.SupplementResponseOutput(response.ResponsesResponse)
 	require.Len(t, response.Output, 3)
 }
 

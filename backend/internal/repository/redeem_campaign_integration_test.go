@@ -224,7 +224,7 @@ func TestRedeemCampaignHTTPAndMigration(t *testing.T) {
 		}
 	})
 	h := handler.NewRedeemHandler(f.redeem)
-	adminService := service.NewAdminService(nil, nil, nil, nil, nil, nil, f.repo, nil, nil, nil, nil, nil, nil, f.client, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	adminService := service.NewAdminService(nil, nil, nil, nil, nil, nil, f.repo, nil, nil, nil, nil, nil, nil, f.client, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	admin := adminhandler.NewRedeemHandler(adminService, f.redeem)
 	router.POST("/redeem", h.Redeem)
 	router.GET("/campaigns", admin.ListCampaigns)
@@ -322,7 +322,7 @@ func TestRedeemCampaignHTTPAndMigration(t *testing.T) {
 func TestRedeemCampaignInlinePerUserLimitForGamePoints(t *testing.T) {
 	f := newRedeemCampaignFixture(t, 1)
 	ctx := context.Background()
-	adminService := service.NewAdminService(nil, nil, nil, nil, nil, nil, f.repo, nil, nil, nil, nil, nil, nil, f.client, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	adminService := service.NewAdminService(nil, nil, nil, nil, nil, nil, f.repo, nil, nil, nil, nil, nil, nil, f.client, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	limit := 1
 	codes, err := adminService.GenerateRedeemCodes(ctx, &service.GenerateRedeemCodesInput{
 		Count:        2,

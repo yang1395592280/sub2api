@@ -1439,6 +1439,7 @@ export interface Account {
     upstream_price_guard_checked_at?: string
     upstream_price_guard_error?: string
     upstream_billing_probe_enabled?: boolean
+    upstream_billing_group_sync_enabled?: boolean
     upstream_billing_rate_sync_enabled?: boolean
     upstream_billing_probe?: UpstreamBillingProbeSnapshot
     codex_reset_credit_snapshot?: {
@@ -1791,6 +1792,7 @@ export interface CreateAccountRequest {
   auto_pause_on_expired?: boolean
   auto_grouping_enabled?: boolean
   upstream_billing_probe_enabled?: boolean
+  upstream_billing_group_sync_enabled?: boolean
   confirm_mixed_channel_risk?: boolean
 }
 
@@ -1815,6 +1817,7 @@ export interface UpdateAccountRequest {
   auto_pause_on_expired?: boolean
   auto_grouping_enabled?: boolean
   upstream_billing_probe_enabled?: boolean
+  upstream_billing_group_sync_enabled?: boolean
   upstream_billing_rate_sync_enabled?: boolean
   confirm_mixed_channel_risk?: boolean
 }

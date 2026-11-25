@@ -81,7 +81,7 @@ func TestAccountHandlerRefreshUpstreamBalance(t *testing.T) {
 		},
 	}, roundTripClient(func(req *http.Request) (*http.Response, error) {
 		switch req.URL.String() {
-		case "https://up.example/v1/usage":
+		case "https://up.example/v1/usage?days=1&timezone=Asia%2FShanghai":
 			return jsonResponse(http.StatusOK, `{"remaining":1.25,"unit":"USD"}`), nil
 		case "https://up.example/v1/sub2api/billing":
 			return jsonResponse(http.StatusOK, `{"effective_rate_multiplier":0.4}`), nil

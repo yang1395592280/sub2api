@@ -633,7 +633,7 @@ func runOpenAIResponseFlushTestWithAccount(recorder *openAIResponseFlushRecorder
 }
 
 func newOpenAIEarlyPreambleFlushSettingService() *SettingService {
-	return NewSettingService(&openAIAutoSchedulerSettingsRepoStub{values: map[string]string{
+	return NewSettingService(&settingRepoStub{values: map[string]string{
 		SettingKeyOpenAIAutoSchedulerSettings: `{"early_sse_preamble_flush_enabled":true}`,
 	}}, &config.Config{})
 }

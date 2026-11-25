@@ -197,7 +197,7 @@ func (s *CNProviderBalanceService) queryBalanceForAccount(ctx context.Context, a
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Accept", "application/json")
-	account.ApplyHeaderOverrides(req.Header)
+	account.ApplyHeaderOverrides(req.Context(), req.Header)
 
 	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, maxInt(account.Concurrency, 1))
 	if err != nil {
@@ -450,7 +450,7 @@ func (s *CNProviderBalanceService) queryUpstreamMetadataBody(ctx context.Context
 	}
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(account.GetCNAPIKey()))
 	req.Header.Set("Accept", "application/json")
-	account.ApplyHeaderOverrides(req.Header)
+	account.ApplyHeaderOverrides(req.Context(), req.Header)
 	resp, err := s.httpUpstream.Do(req, s.resolveProxyURL(ctx, account), account.ID, maxInt(account.Concurrency, 1))
 	if err != nil || resp == nil || resp.Body == nil {
 		return nil, false

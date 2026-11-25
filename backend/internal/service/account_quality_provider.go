@@ -427,7 +427,7 @@ func (p *accountQualityProvider) request(ctx context.Context, r quality.Run, sta
 	} else {
 		applyOpenAICodexProbeHeaders(req.Header)
 	}
-	credential.ApplyHeaderOverrides(req.Header)
+	credential.ApplyHeaderOverrides(req.Context(), req.Header)
 	setOpenAICodexRoutingHint(req.Header, a, t.EffectiveModel, t.EffectiveTier)
 	proxy := ""
 	if a.Proxy != nil {
