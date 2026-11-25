@@ -156,7 +156,8 @@ func (s *OpenAIGatewayService) forwardAnthropicViaRawChatCompletions(
 		result, err = s.bufferChatCompletionsAsAnthropic(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 	}
 	if err != nil {
-		return nil, err
+		// 即使上游流中断，handler 也需要记录已收到的用量。
+		return result, err
 	}
 	s.ResetOpenAIOverbrush429Count(account)
 	return result, nil

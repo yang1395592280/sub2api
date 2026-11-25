@@ -443,7 +443,8 @@ func TestForwardAsAnthropic_ForceChatCompletionsStreamReadErrorSkipsFinalize(t *
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "stream usage incomplete")
-	require.Nil(t, result)
+	require.NotNil(t, result)
+	require.Equal(t, "gpt-5.4", result.UpstreamResponseModel)
 
 	out := rec.Body.String()
 	require.Contains(t, out, `"text":"he"`, "delta emitted before the failure must reach the client")
